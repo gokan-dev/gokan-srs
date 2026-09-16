@@ -13,7 +13,10 @@ import type { QuizState } from './quizReducer';
 import type { GrammarBlankPlan, PendingGrammarQuizItem } from './grammarReducer';
 
 /** Grammar has no kanji-gated learning step, so 'learn-kanji' never applies here. */
-export type GrammarSessionState = Exclude<SessionState, 'learn-kanji'>;
+// 'session-complete' is excluded alongside 'learn-kanji': the per-session quiz cap
+// is a vocab concern (it exists to keep reading and meaning progressing evenly),
+// and a grammar point has a single quiz type with nothing to balance against.
+export type GrammarSessionState = Exclude<SessionState, 'learn-kanji' | 'session-complete'>;
 
 export interface GrammarNextViewResult {
     queueItem: PendingGrammarQuizItem | null;

@@ -17,7 +17,7 @@ import { mergeProgress, mergeSettings } from '../../services/sync/mergeProgress'
 import type { ProgressWithMetadata } from '../../services/sync/types';
 import { useGoogleDrive } from '../GoogleDriveContext';
 import type { QuizState, QuizAction } from './quizReducer';
-import { selectNextView, selectCurrentProgress, selectSessionStats, selectNextSessionPreview, collectActionableTaskKeys, filterSessionCommit } from './quizSelectors';
+import { selectNextView, selectCurrentProgress, selectSessionStats, selectNextSessionPreview, collectActionableTaskKeys, filterSessionCommit, capSessionCommit } from './quizSelectors';
 import { useSessionLifecycle } from './useSessionLifecycle';
 import { refillCandidates } from './refillCandidates';
 import { progressUploadSignature, stableStringify } from "../../services/progressSerialization";
@@ -28,6 +28,8 @@ export interface QuizActions {
     submitAnswer(): Promise<void>;
     advanceQueue({ now, overrideDailyLimit }: { now: Date, overrideDailyLimit?: boolean }): void;
     continueToNext(): Promise<void>;
+    /** Ends the finished session so the lifecycle effect immediately commits a fresh capped one. */
+    startNewSession(): void;
     saveSettings(settings: UserSettings): void;
     updateKanjiKnowledge(knowledge: KanjiKnowledge): void;
     overrideDailyLimit(): Promise<void>;
@@ -132,7 +134,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
 
     const nextView = useMemo(
         () => selectNextView(state, hasMoreLearnable),
-        [state.progress, state.settings, state.introCandidates, state.currentVocab, state.currentQuizItem, state.nextKanjiToLearn, hasMoreLearnable]
+        [state.progress, state.settings, state.introCandidates, state.currentVocab, state.currentQuizItem, state.nextKanjiToLearn, state.session, hasMoreLearnable]
     );
 
     const currentProgress = useMemo(() => selectCurrentProgress(state), [state.currentVocab, state.progress]);
@@ -161,9 +163,16 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
     // Resuming later (navigating back to /quiz) starts a brand new session against
     // whatever is available then, rather than reopening the old one. The generic
     // edge-detection is shared with grammar via useSessionLifecycle.
+    // 'session-complete' keeps the session alive on purpose: the completion screen is
+    // still part of this session, and tearing it down here would immediately satisfy
+    // the start condition again (work is still due) and silently commit a fresh capped
+    // set, making the cap invisible. Starting another one is the user's call, via
+    // actions.startNewSession below.
     const sessionActive =
         location.pathname === '/quiz' &&
-        (nextView.sessionState === 'review' || nextView.sessionState === 'learn');
+        (nextView.sessionState === 'review' ||
+            nextView.sessionState === 'learn' ||
+            nextView.sessionState === 'session-complete');
 
     useSessionLifecycle({
         active: sessionActive,
@@ -182,8 +191,13 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                 ? state.progress
                 : { ...state.progress, learningQueue: clearedQueue };
 
-            const taskKeys = filterSessionCommit(
-                collectActionableTaskKeys(progress.learningQueue, state.settings, now)
+            // Cap AFTER filtering, never before: filterSessionCommit drops meaning
+            // tasks whose reading is committed too, so quotas computed over its input
+            // would under-fill the meaning bucket by exactly what it removes.
+            const taskKeys = capSessionCommit(
+                filterSessionCommit(
+                    collectActionableTaskKeys(progress.learningQueue, state.settings, now)
+                )
             );
             dispatch({
                 type: 'SESSION_START',
@@ -434,6 +448,12 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                     historyItem: historyItem!
                 },
             });
+        },
+
+        startNewSession() {
+            // useSessionLifecycle re-fires onStart on the next render (the route is
+            // still /quiz and work is still due), snapshotting and capping afresh.
+            dispatch({ type: 'SESSION_END' });
         },
 
         saveSettings(settings) {

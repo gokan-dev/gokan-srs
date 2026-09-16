@@ -1,5 +1,6 @@
 import { WaitingScreen } from "../../components/WaitingScreen";
 import { ExhaustedScreen } from "../../components/ExhaustedScreen";
+import { SessionCompleteScreen } from "../../components/SessionCompleteScreen";
 import { SessionProgress } from "../../components/SessionProgress";
 import type { SessionHistoryEntry } from "../../components/SessionProgress";
 import { VocabQuizCard } from "./VocabQuizCard";
@@ -32,6 +33,15 @@ export function VocabQuizScreen({ onVocabClick }: VocabQuizScreenProps) {
 
         case "exhausted":
             return <ExhaustedScreen />;
+
+        case "session-complete":
+            return (
+                <SessionCompleteScreen
+                    completed={sessionStats.done}
+                    waiting={sessionStats.waiting}
+                    onStartAnother={actions.startNewSession}
+                />
+            );
 
         case "learn-kanji":
             if (!state.nextKanjiToLearn) return <LoadingScreen />;

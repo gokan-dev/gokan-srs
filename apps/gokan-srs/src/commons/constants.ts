@@ -24,6 +24,17 @@ export const CONSTANTS = {
         /** Maximum number of reviews per day (Limit removed) */
         maxReviewsPerDay: 999999,
 
+        /**
+         * Maximum number of quiz tasks one study session commits to. Unlike the
+         * per-day limits above (both effectively disabled), this one is real: it
+         * bounds a single sitting, not the day, so a user with a large backlog can
+         * clear it across several sessions instead of facing all of it at once.
+         *
+         * Work that is due but does not fit surfaces as "waiting" (see
+         * selectSessionStats) and is picked up by the next session.
+         */
+        sessionQuizCap: 200,
+
         frequencyMultipliers: {
             high: 1.0,
             medium: 1.5,

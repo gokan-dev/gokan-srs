@@ -7,6 +7,19 @@ import { pickStable as pickStableGeneric } from "./deterministicPick";
 export type QuizType = 'reading' | 'meaning';
 export type QuizMode = 'base' | 'context';
 
+/**
+ * A task key uniquely identifies one quiz to answer: `${vocabId}:${quizType}`.
+ * Defined here rather than in quizReducer (which re-exports it for compatibility)
+ * so queue selection below can be handed a committed-set filter without the
+ * context layer having to import from the reducer, or this module duplicating
+ * the key format.
+ */
+export type TaskKey = `${string}:${QuizType}`;
+
+export function taskKey(vocabId: string, quizType: QuizType): TaskKey {
+    return `${vocabId}:${quizType}`;
+}
+
 export interface QuizItem {
     vocab: VocabProgress;
     quizType: QuizType;
@@ -120,21 +133,42 @@ export function clearStaleNeedsRetry(
     return changed ? next : queue;
 }
 
+/**
+ * `allowed` is the active session's committed task set (see SessionTracking).
+ * When given, only tasks in it are ever served, which is what makes the
+ * per-session quiz cap actually bind: without it, capping the committed set
+ * would only shrink the progress counter's denominator while selection kept
+ * handing out every due card anyway.
+ *
+ * When the cap has left actionable work out of the committed set, this returns
+ * null rather than falling through to new intros, so the caller can surface
+ * 'session-complete' instead of starting the user on new vocabulary while
+ * reviews they have not been offered are still due.
+ */
 export function getNextVocabToStudy(
     queue?: VocabProgress[],
     settings?: UserSettings,
     now: Date = new Date(),
-    preferredType?: QuizType
+    preferredType?: QuizType,
+    allowed?: ReadonlySet<TaskKey>
 ): QuizItem | null {
     if (!queue || queue.length === 0) return null;
 
     // 1. Priority: ALL Readings (First Reviews + Due Readings + Retries)
     // We want to clear all reading quizzes before moving to meanings.
-    const allReadings = queue.filter(v => isReadingActionable(v, now));
+    const allActionableReadings = queue.filter(v => isReadingActionable(v, now));
 
-    const dueMeanings = isMeaningQuizEnabled(settings)
+    const allActionableMeanings = isMeaningQuizEnabled(settings)
         ? queue.filter(v => isMeaningActionable(v, settings, now))
         : [];
+
+    const allReadings = allowed
+        ? allActionableReadings.filter(v => allowed.has(taskKey(v.vocabId, 'reading')))
+        : allActionableReadings;
+
+    const dueMeanings = allowed
+        ? allActionableMeanings.filter(v => allowed.has(taskKey(v.vocabId, 'meaning')))
+        : allActionableMeanings;
 
     const pickReading = (): QuizItem => ({ vocab: pickStable(allReadings)!, quizType: 'reading', quizMode: 'base' });
     const pickMeaning = (): QuizItem => {
@@ -160,6 +194,14 @@ export function getNextVocabToStudy(
 
     if (allReadings.length > 0) return pickReading();
     if (dueMeanings.length > 0) return pickMeaning();
+
+    // The session's committed workload is cleared but reviews the cap left out are
+    // still due. Stop here instead of introducing new vocabulary on top of a backlog
+    // the user has not been offered yet; the caller reads this null as
+    // 'session-complete' and offers another session.
+    if (allowed && (allActionableReadings.length > 0 || allActionableMeanings.length > 0)) {
+        return null;
+    }
 
     // 4. Priority: New Intros (not introduced yet)
     // When introducing, we start with Reading quiz? Or just distinct Intro card?

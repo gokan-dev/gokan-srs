@@ -4,6 +4,7 @@ import type { SessionState } from '../../models/state.model';
 import type { UserSettings } from '../../models/user.model';
 import { getNextVocabToStudy, isReadingActionable, isMeaningActionable } from '../../utils/srs.utils';
 import type { QuizType } from '../../utils/srs.utils';
+import { CONSTANTS } from '../../commons/constants';
 import type { QuizState, PendingQuizItem, TaskKey } from './quizReducer';
 import { taskKey } from './quizReducer';
 import { computeSessionState } from './sessionState';
@@ -26,7 +27,7 @@ export interface NextViewResult {
 }
 
 export function selectNextView(
-    state: Pick<QuizState, 'progress' | 'settings' | 'introCandidates' | 'currentVocab' | 'currentQuizItem' | 'nextKanjiToLearn'>,
+    state: Pick<QuizState, 'progress' | 'settings' | 'introCandidates' | 'currentVocab' | 'currentQuizItem' | 'nextKanjiToLearn' | 'session'>,
     hasMoreLearnable: boolean,
     now: Date = new Date()
 ): NextViewResult {
@@ -37,9 +38,14 @@ export function selectNextView(
     // mid-meaning-batch (or vice versa) from hijacking the next card.
     const preferredType = state.currentQuizItem?.quizType;
 
+    // The active session's committed task set bounds what can be served, so the
+    // per-session cap (capSessionCommit) actually limits the sitting rather than
+    // just the progress counter. No session means no bound (the queue is live).
+    const committed = state.session ? new Set(state.session.committed) : undefined;
+
     const queueItem: PendingQuizItem | null = introCandidates.length > 0
         ? { vocabId: introCandidates[0].id, quizType: 'reading', quizMode: 'base' }
-        : getNextVocabToStudy(progress?.learningQueue, settings ?? undefined, now, preferredType);
+        : getNextVocabToStudy(progress?.learningQueue, settings ?? undefined, now, preferredType, committed);
 
     const { sessionState, nextReviewAt } = computeSessionState<VocabProgress, SessionState>(
         progress && settings ? progress.learningQueue : undefined,
@@ -57,6 +63,21 @@ export function selectNextView(
     if (state.currentVocab && progress) {
         const vocabProgress = progress.learningQueue.find(v => v.vocabId === state.currentVocab!.id);
         shouldShowIntro = !vocabProgress || !vocabProgress.introductionAt;
+    }
+
+    // The session cleared everything it committed to, but the cap (or work that came
+    // due mid-session) left actionable reviews outside that set. Without this the
+    // screen would sit on a loading gate forever: sessionState stays 'review' off the
+    // live queue while selection, bounded to the committed set, has nothing to hand back.
+    if (
+        committed &&
+        !queueItem &&
+        introCandidates.length === 0 &&
+        progress &&
+        collectActionableTaskKeys(progress.learningQueue, settings ?? undefined, now)
+            .some(key => !committed.has(key))
+    ) {
+        return { queueItem, sessionState: 'session-complete', nextReviewAt, shouldShowIntro };
     }
 
     return { queueItem, sessionState, nextReviewAt, shouldShowIntro };
@@ -154,6 +175,73 @@ export function filterSessionCommit(taskKeys: TaskKey[]): TaskKey[] {
         const { vocabId, quizType } = parseTaskKey(key);
         return !(quizType === 'meaning' && readingVocabIds.has(vocabId));
     });
+}
+
+/**
+ * Truncates a session-commit snapshot to `cap` tasks, split as evenly as possible
+ * across the quiz types present so every type gets worked on in a single sitting.
+ *
+ * Taking a plain prefix of the snapshot would not do: getNextVocabToStudy clears
+ * every actionable reading before any meaning, so a user with 400 due tasks and a
+ * 200 cap would answer 200 readings and zero meanings, session after session,
+ * while the meaning backlog only grew.
+ *
+ * Quotas spill: types are filled smallest-pool-first, so a type with less work than
+ * its share hands the surplus to the others rather than cutting the session short.
+ * Applied AFTER filterSessionCommit, never before, since that filter drops meaning
+ * tasks and quotas computed over its input would under-fill the meaning bucket by
+ * exactly the number it was about to remove.
+ *
+ * Input order is preserved in the result, so the committed set stays as
+ * deterministic as the snapshot it came from.
+ */
+export function capSessionCommit(
+    taskKeys: TaskKey[],
+    cap: number = CONSTANTS.srs.sessionQuizCap
+): TaskKey[] {
+    if (cap <= 0) return [];
+    if (taskKeys.length <= cap) return taskKeys;
+
+    const byType = new Map<QuizType, TaskKey[]>();
+    for (const key of taskKeys) {
+        const { quizType } = parseTaskKey(key);
+        const bucket = byType.get(quizType);
+        if (bucket) bucket.push(key);
+        else byType.set(quizType, [key]);
+    }
+
+    // Smallest pool first: each type takes at most an equal share of whatever is
+    // left, so a short pool's unused share is redistributed over the types still
+    // to be filled instead of being lost.
+    const pools = [...byType.values()].sort((a, b) => a.length - b.length);
+
+    const selected = new Set<TaskKey>();
+    let remaining = cap;
+    let poolsLeft = pools.length;
+
+    for (const pool of pools) {
+        const share = Math.floor(remaining / poolsLeft);
+        const take = Math.min(pool.length, share);
+        for (let i = 0; i < take; i++) selected.add(pool[i]);
+        remaining -= take;
+        poolsLeft--;
+    }
+
+    // Integer division leaves a remainder of up to (types - 1) tasks. Hand it to
+    // whichever pools still have something left, so the session fills the cap exactly.
+    if (remaining > 0) {
+        for (const pool of pools) {
+            for (const key of pool) {
+                if (remaining === 0) break;
+                if (selected.has(key)) continue;
+                selected.add(key);
+                remaining--;
+            }
+            if (remaining === 0) break;
+        }
+    }
+
+    return taskKeys.filter(key => selected.has(key));
 }
 
 export interface SessionStats {

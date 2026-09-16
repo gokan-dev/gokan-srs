@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { selectNextView, selectCurrentProgress, selectCurrentSentence, selectSessionStats, filterSessionCommit, selectNextSessionPreview } from './quizSelectors';
+import { selectNextView, selectCurrentProgress, selectCurrentSentence, selectSessionStats, filterSessionCommit, capSessionCommit, selectNextSessionPreview } from './quizSelectors';
 import { initialState, taskKey } from './quizReducer';
 import type { QuizState, TaskKey } from './quizReducer';
 import type { UserProgress, UserSettings } from '../../models/user.model';
@@ -459,5 +459,133 @@ describe('selectNextSessionPreview', () => {
             settings,
         };
         expect(selectNextSessionPreview(state, now)).toEqual({ review: 1, new: 1, retries: 1 });
+    });
+});
+
+describe('capSessionCommit', () => {
+    function keys(type: 'reading' | 'meaning', n: number, offset = 0): TaskKey[] {
+        return Array.from({ length: n }, (_, i) => taskKey(`${type}-${i + offset}`, type));
+    }
+
+    it('returns the snapshot untouched when it already fits under the cap', () => {
+        const input = [...keys('reading', 5), ...keys('meaning', 5)];
+        expect(capSessionCommit(input, 200)).toBe(input);
+    });
+
+    it('splits the cap evenly across quiz types instead of taking a prefix', () => {
+        // Selection clears every reading before any meaning, so a plain prefix of this
+        // snapshot would be 100% readings and starve the meaning backlog permanently.
+        const input = [...keys('reading', 300), ...keys('meaning', 300)];
+        const capped = capSessionCommit(input, 200);
+
+        expect(capped).toHaveLength(200);
+        expect(capped.filter(k => k.endsWith(':reading'))).toHaveLength(100);
+        expect(capped.filter(k => k.endsWith(':meaning'))).toHaveLength(100);
+    });
+
+    it('spills an under-filled type’s unused share to the other types', () => {
+        // Only 20 meanings due: the session should still commit a full 200 rather than
+        // stopping at the 20 + 100 an inflexible per-type quota would allow.
+        const input = [...keys('reading', 300), ...keys('meaning', 20)];
+        const capped = capSessionCommit(input, 200);
+
+        expect(capped).toHaveLength(200);
+        expect(capped.filter(k => k.endsWith(':meaning'))).toHaveLength(20);
+        expect(capped.filter(k => k.endsWith(':reading'))).toHaveLength(180);
+    });
+
+    it('fills the cap exactly when the split leaves an integer-division remainder', () => {
+        const input = [...keys('reading', 300), ...keys('meaning', 300)];
+        expect(capSessionCommit(input, 201)).toHaveLength(201);
+    });
+
+    it('preserves the input order of whatever it keeps', () => {
+        const input = [...keys('reading', 10), ...keys('meaning', 10)];
+        const capped = capSessionCommit(input, 6);
+        const expectedOrder = input.filter(k => capped.includes(k));
+        expect(capped).toEqual(expectedOrder);
+    });
+
+    it('never exceeds the cap when a single type holds every task', () => {
+        const capped = capSessionCommit(keys('reading', 500), 200);
+        expect(capped).toHaveLength(200);
+    });
+});
+
+describe('selectNextView session cap', () => {
+    const settings = makeSettings();
+
+    // nextReviewAt as well as reading.dueDate: the former drives computeSessionState's
+    // review/waiting call, the latter drives isReadingActionable and queue selection.
+    function dueReading(id: string): VocabProgress {
+        return makeVocabProgress({
+            vocabId: id,
+            nextReviewAt: past,
+            reading: { ...DEFAULT_VOCABULARY_PROGRESS.reading, dueDate: past },
+        });
+    }
+
+    it('only serves tasks in the session’s committed set', () => {
+        const state: QuizState = {
+            ...initialState,
+            progress: makeProgress([dueReading('a'), dueReading('b')]),
+            settings,
+            session: { committed: [taskKey('b', 'reading')] },
+        };
+
+        // 'a' is due too, but was left out by the cap, so it must not be served.
+        expect(selectNextView(state, false, now).queueItem?.vocab?.vocabId).toBe('b');
+    });
+
+    it('reports session-complete once the committed set is cleared but work is still due', () => {
+        const state: QuizState = {
+            ...initialState,
+            progress: makeProgress([dueReading('a')]),
+            settings,
+            // 'a' is due and uncommitted; the session committed something already answered.
+            session: { committed: [taskKey('answered', 'reading')] },
+        };
+
+        const result = selectNextView(state, false, now);
+        expect(result.sessionState).toBe('session-complete');
+        expect(result.queueItem).toBeNull();
+    });
+
+    it('does not report session-complete while committed work remains', () => {
+        const state: QuizState = {
+            ...initialState,
+            progress: makeProgress([dueReading('a')]),
+            settings,
+            session: { committed: [taskKey('a', 'reading')] },
+        };
+
+        expect(selectNextView(state, false, now).sessionState).toBe('review');
+    });
+
+    it('does not report session-complete when nothing is left outside the committed set', () => {
+        const notDue = makeVocabProgress({
+            vocabId: 'a',
+            reading: { ...DEFAULT_VOCABULARY_PROGRESS.reading, dueDate: future },
+        });
+        const state: QuizState = {
+            ...initialState,
+            progress: makeProgress([notDue]),
+            settings,
+            session: { committed: [taskKey('a', 'reading')] },
+        };
+
+        // Nothing uncommitted is actionable, so the ordinary waiting/exhausted path stands.
+        expect(selectNextView(state, false, now).sessionState).not.toBe('session-complete');
+    });
+
+    it('leaves selection unbounded when no session is active', () => {
+        const state: QuizState = {
+            ...initialState,
+            progress: makeProgress([dueReading('a')]),
+            settings,
+            session: null,
+        };
+
+        expect(selectNextView(state, false, now).queueItem?.vocab?.vocabId).toBe('a');
     });
 });
