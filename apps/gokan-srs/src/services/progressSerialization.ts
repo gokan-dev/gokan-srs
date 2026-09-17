@@ -36,6 +36,20 @@ export function hydrateProgress(migrated: any): UserProgress {
             lastReviewedAt: hydrateDate(elem.meaning?.lastReviewedAt),
             dueDate: hydrateDate(elem.meaning?.dueDate),
         },
+        // Always rebuilt, never left to the DEFAULT_VOCABULARY_PROGRESS spread above:
+        // that would hand every item in the queue the same entry object to share.
+        //
+        // Omitting this hydration is silent and total rather than loud: an
+        // un-hydrated dueDate stays a string, every `dueDate <= now` comparison
+        // against a Date evaluates false, and the production quiz simply never comes
+        // due. Nothing throws and no test of the pure logic notices, because the
+        // strings only exist on the far side of a storage round trip.
+        production: {
+            ...DEFAULT_VOCABULARY_PROGRESS.production,
+            ...elem.production,
+            lastReviewedAt: hydrateDate(elem.production?.lastReviewedAt),
+            dueDate: hydrateDate(elem.production?.dueDate),
+        },
     }));
 
     const grammarQueue: GrammarProgress[] = (migrated.grammarQueue ?? []).map((elem: any) => ({
