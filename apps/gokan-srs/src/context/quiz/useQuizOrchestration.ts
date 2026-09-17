@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch } from 'react';
 import { useLocation } from 'react-router-dom';
 import type { KanjiKnowledge, UserProgress, UserSettings } from '../../models/user.model';
-import type { Vocabulary } from '../../models/vocabulary.model';
+import type { Vocabulary, VocabProgress } from '../../models/vocabulary.model';
 import { StorageService } from '../../services/storage.service';
 import { VocabularyService } from '../../services/vocabulary.service';
 import { SRSService } from '../../services/srs.service';
@@ -248,7 +248,9 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             let matchedAnswer: string;
             let message = 'Incorrect.';
 
-            if (quizType === 'reading') {
+            // Production's answer is a reading, so it grades against the same
+            // accept-list as the reading quiz. Only the prompt differs between them.
+            if (quizType === 'reading' || quizType === 'production') {
                 const evaluation = SRSService.evaluateAnswer(state.userAnswer, state.currentVocab.reading);
                 result = evaluation.result;
                 matchedAnswer = evaluation.matchedAnswer;
@@ -390,6 +392,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             const frequencySetting = state.settings!.learningFrequency;
             const frequencyModifier = CONSTANTS.srs.frequencyMultipliers[frequencySetting];
             const meaningQuizEnabled = state.settings?.enableMeaningQuiz !== false;
+            const productionQuizEnabled = state.settings?.enableProductionQuiz !== false;
 
             // Apply the SRS update exactly once per answer, then reuse the single
             // result both for the mastery-delta history entry and the queue update.
@@ -407,17 +410,21 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                     state.feedback.type,
                     adaptiveLevel,
                     frequencyModifier,
-                    meaningQuizEnabled
+                    meaningQuizEnabled,
+                    productionQuizEnabled
                 );
                 updatedTarget = updated;
 
-                const oldStrength = state.currentQuizItem.quizType === 'reading'
-                    ? target.reading.memoryStrength
-                    : target.meaning.memoryStrength;
+                // Keyed rather than a reading/meaning ternary: with a third type, a
+                // ternary would silently report the meaning entry's delta for a
+                // production answer.
+                const strengthOf = (v: VocabProgress) =>
+                    state.currentQuizItem!.quizType === 'reading' ? v.reading.memoryStrength
+                        : state.currentQuizItem!.quizType === 'production' ? (v.production?.memoryStrength ?? 0)
+                            : v.meaning.memoryStrength;
 
-                const newStrength = state.currentQuizItem.quizType === 'reading'
-                    ? updated.reading.memoryStrength
-                    : updated.meaning.memoryStrength;
+                const oldStrength = strengthOf(target);
+                const newStrength = strengthOf(updated);
 
                 const delta = calculateMasteryPercentage(newStrength) - calculateMasteryPercentage(oldStrength);
 

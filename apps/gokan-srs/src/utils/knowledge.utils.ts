@@ -168,6 +168,12 @@ export function buildKnowledgeCurve(
     let earliest = Infinity;
 
     for (const vocab of queue) {
+        // Deliberately reading + meaning only, not production. The knowledge scale is
+        // normalised so a word mastered in both directions is worth exactly 200 (see
+        // KNOWLEDGE_POINTS_PER_ENTRY), and folding in a third entry would both move
+        // that ceiling to 300 and retroactively add ~100 points, dated at its
+        // introduction, to every word grandfathered as production-mastered by the
+        // migration - rewriting past history rather than recording new learning.
         for (const entry of [vocab.reading, vocab.meaning]) {
             if (!entry) continue;
             const events = entryEvents(entry, vocab.introductionAt, frequencyModifier);

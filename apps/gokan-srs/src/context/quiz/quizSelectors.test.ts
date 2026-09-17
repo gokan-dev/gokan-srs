@@ -589,3 +589,44 @@ describe('selectNextView session cap', () => {
         expect(selectNextView(state, false, now).queueItem?.vocab?.vocabId).toBe('a');
     });
 });
+
+describe('session cap with three quiz types', () => {
+    function keysOf(type: 'reading' | 'meaning' | 'production', n: number): TaskKey[] {
+        return Array.from({ length: n }, (_, i) => taskKey(`${type}-${i}`, type));
+    }
+
+    it('splits the cap into thirds once production is in play', () => {
+        const input = [...keysOf('reading', 300), ...keysOf('meaning', 300), ...keysOf('production', 300)];
+        const capped = capSessionCommit(input, 201);
+
+        expect(capped).toHaveLength(201);
+        expect(capped.filter(k => k.endsWith(':reading'))).toHaveLength(67);
+        expect(capped.filter(k => k.endsWith(':meaning'))).toHaveLength(67);
+        expect(capped.filter(k => k.endsWith(':production'))).toHaveLength(67);
+    });
+
+    it('still fills the cap when production has barely any work yet', () => {
+        // The expected shape early in the rollout: production activates lazily, so its
+        // pool is tiny at first and must not shrink the session to a third of the cap.
+        const input = [...keysOf('reading', 300), ...keysOf('meaning', 300), ...keysOf('production', 5)];
+        const capped = capSessionCommit(input, 210);
+
+        expect(capped).toHaveLength(210);
+        expect(capped.filter(k => k.endsWith(':production'))).toHaveLength(5);
+    });
+});
+
+describe('filterSessionCommit with production', () => {
+    it('drops production alongside meaning when the same word has a committed reading', () => {
+        // A correct reading answer staggers BOTH meaning and production by 12h, so
+        // committing either would count workload the session will never actually serve.
+        const input: TaskKey[] = [
+            taskKey('a', 'reading'),
+            taskKey('a', 'meaning'),
+            taskKey('a', 'production'),
+            taskKey('b', 'production'),
+        ];
+
+        expect(filterSessionCommit(input)).toEqual([taskKey('a', 'reading'), taskKey('b', 'production')]);
+    });
+});

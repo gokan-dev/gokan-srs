@@ -60,7 +60,10 @@ export class MigrationService {
                 ...DEFAULT_VOCABULARY_PROGRESS,
                 ...item,
                 reading: { ...DEFAULT_SRS_ENTRY, ...item.reading },
-                meaning: { ...DEFAULT_SRS_ENTRY, ...item.meaning }
+                meaning: { ...DEFAULT_SRS_ENTRY, ...item.meaning },
+                // Cloned rather than left to the DEFAULT_VOCABULARY_PROGRESS spread above,
+                // which would hand every migrated item the same entry object to share.
+                production: { ...DEFAULT_SRS_ENTRY, ...item.production }
             });
         }
 
@@ -104,7 +107,8 @@ export class MigrationService {
             ...DEFAULT_VOCABULARY_PROGRESS,
             ...item, // Keep all original fields including mastery
             reading: { ...migratedEntry },
-            meaning: { ...DEFAULT_SRS_ENTRY } // Meaning starts fresh
+            meaning: { ...DEFAULT_SRS_ENTRY }, // Meaning starts fresh
+            production: { ...DEFAULT_SRS_ENTRY } // Inert until activated (see backfillProduction)
         });
     }
 
@@ -120,6 +124,45 @@ export class MigrationService {
             return { ...item, needsRetry: raw ? { reading: true } : undefined };
         }
         return item;
+    }
+
+    /**
+     * Fills in the `production` SRS entry for progress saved before that quiz type
+     * existed. Two rules, and both matter more than they look:
+     *
+     * 1. A learning word gets an **inert** entry (dueDate null). No due-check matches
+     *    a null dueDate, so nothing becomes due here. Each word activates later, on
+     *    its own next reading/meaning review, via SRSService.seedProductionEntry. A
+     *    backfill that set real due dates instead would make a long-time user's whole
+     *    queue due the day this shipped, which is the wave this design exists to avoid.
+     *
+     * 2. An already-**graduated** word gets a mastered entry. Graduation is derived
+     *    (isVocabFullyMastered), not just stored, so an un-mastered production entry
+     *    would silently un-graduate every word the user ever skipped or finished and
+     *    hand the whole pile back as production reviews. Grandfathering them is the
+     *    single most important line here: 'skip' is how users say "I already know
+     *    this word", and that pile is typically large.
+     */
+    private static backfillProduction(item: VocabProgress): VocabProgress {
+        const existing = item.production;
+        const alreadyActive = !!existing
+            && (existing.dueDate !== null || existing.lastReviewedAt !== null || (existing.history?.length ?? 0) > 0);
+        if (alreadyActive) return item;
+
+        if (item.stage === 'graduated') {
+            return {
+                ...item,
+                production: {
+                    ...DEFAULT_SRS_ENTRY,
+                    ...existing,
+                    memoryStrength: CONSTANTS.srs.formula.mastery.maxMemoryStrength,
+                    interval: CONSTANTS.srs.formula.maxInterval,
+                    dueDate: null,
+                },
+            };
+        }
+
+        return existing ? item : { ...item, production: { ...DEFAULT_SRS_ENTRY } };
     }
 
     /**
@@ -182,6 +225,9 @@ export class MigrationService {
         // this field can exist regardless of format version and isn't covered by
         // the version-gated passes above.
         migratedQueue = migratedQueue.map((item: VocabProgress) => this.normalizeNeedsRetry(item));
+
+        // Production entry backfill, unconditional (additive field, no version gate).
+        migratedQueue = migratedQueue.map((item: VocabProgress) => this.backfillProduction(item));
 
         // Recompute nextReviewAt unconditionally via scheduling.ts (the single source
         // of truth introduced to stop it being hand-synced independently). This

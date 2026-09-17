@@ -1,10 +1,15 @@
 import type { VocabProgress } from "../models/vocabulary.model";
 import type { UserSettings } from "../models/user.model";
 import { CONSTANTS } from "../commons/constants";
-import { isMeaningQuizEnabled } from "../services/scheduling";
+import { isMeaningQuizEnabled, isProductionQuizEnabled } from "../services/scheduling";
 import { pickStable as pickStableGeneric } from "./deterministicPick";
 
-export type QuizType = 'reading' | 'meaning';
+/**
+ * 'reading'    kanji prompt, hiragana answer (recognition)
+ * 'meaning'    Japanese prompt, English answer (recognition)
+ * 'production' English prompt, Japanese reading answer (production)
+ */
+export type QuizType = 'reading' | 'meaning' | 'production';
 export type QuizMode = 'base' | 'context';
 
 /**
@@ -63,6 +68,12 @@ function isMeaningDue(v: VocabProgress, now: Date): boolean {
     return v.totalReviews > 0 && v.meaning.dueDate !== null && v.meaning.dueDate <= now;
 }
 
+/** Is this vocab's PRODUCTION quiz due for a genuine, regularly-scheduled review - independent of `needsRetry`. See isReadingDue. */
+function isProductionDue(v: VocabProgress, now: Date): boolean {
+    const entry = v.production;
+    return v.totalReviews > 0 && !!entry && entry.dueDate !== null && entry.dueDate <= now;
+}
+
 /**
  * Is this vocab's READING quiz actionable right now (first review, due review, or
  * a pending reading retry)? Single source of truth shared by queue selection and
@@ -82,6 +93,18 @@ export function isMeaningActionable(
 ): boolean {
     if (!isMeaningQuizEnabled(settings)) return false;
     return isMeaningDue(v, now) || v.needsRetry?.meaning === true;
+}
+
+/** Is this vocab's PRODUCTION quiz actionable right now (due review or pending retry)?
+ *  Always false when production quizzes are disabled, and for a word whose production
+ *  entry has never been activated (dueDate null, so isProductionDue cannot match). */
+export function isProductionActionable(
+    v: VocabProgress,
+    settings: UserSettings | undefined,
+    now: Date = new Date()
+): boolean {
+    if (!isProductionQuizEnabled(settings)) return false;
+    return isProductionDue(v, now) || v.needsRetry?.production === true;
 }
 
 /**
@@ -117,7 +140,8 @@ export function clearStaleNeedsRetry(
 
         const clearReading = v.needsRetry.reading === true && isReadingDue(v, now);
         const clearMeaning = v.needsRetry.meaning === true && isMeaningQuizEnabled(settings) && isMeaningDue(v, now);
-        if (!clearReading && !clearMeaning) return v;
+        const clearProduction = v.needsRetry.production === true && isProductionQuizEnabled(settings) && isProductionDue(v, now);
+        if (!clearReading && !clearMeaning && !clearProduction) return v;
 
         changed = true;
         return {
@@ -126,6 +150,7 @@ export function clearStaleNeedsRetry(
                 ...v.needsRetry,
                 ...(clearReading ? { reading: false } : {}),
                 ...(clearMeaning ? { meaning: false } : {}),
+                ...(clearProduction ? { production: false } : {}),
             },
         };
     });
@@ -166,11 +191,20 @@ export function getNextVocabToStudy(
         ? allActionableReadings.filter(v => allowed.has(taskKey(v.vocabId, 'reading')))
         : allActionableReadings;
 
+    const allActionableProductions = isProductionQuizEnabled(settings)
+        ? queue.filter(v => isProductionActionable(v, settings, now))
+        : [];
+
     const dueMeanings = allowed
         ? allActionableMeanings.filter(v => allowed.has(taskKey(v.vocabId, 'meaning')))
         : allActionableMeanings;
 
+    const dueProductions = allowed
+        ? allActionableProductions.filter(v => allowed.has(taskKey(v.vocabId, 'production')))
+        : allActionableProductions;
+
     const pickReading = (): QuizItem => ({ vocab: pickStable(allReadings)!, quizType: 'reading', quizMode: 'base' });
+    const pickProduction = (): QuizItem => ({ vocab: pickStable(dueProductions)!, quizType: 'production', quizMode: 'base' });
     const pickMeaning = (): QuizItem => {
         const vocab = pickStable(dueMeanings)!;
         const mastery = calculateMasteryPercentage(vocab.meaning.memoryStrength);
@@ -191,15 +225,19 @@ export function getNextVocabToStudy(
     // is primed to answer wrong.
     if (preferredType === 'reading' && allReadings.length > 0) return pickReading();
     if (preferredType === 'meaning' && dueMeanings.length > 0) return pickMeaning();
+    if (preferredType === 'production' && dueProductions.length > 0) return pickProduction();
 
+    // Production last: it is the hardest direction, so it reads better after the
+    // word has already been seen in the easier ones this session.
     if (allReadings.length > 0) return pickReading();
     if (dueMeanings.length > 0) return pickMeaning();
+    if (dueProductions.length > 0) return pickProduction();
 
     // The session's committed workload is cleared but reviews the cap left out are
     // still due. Stop here instead of introducing new vocabulary on top of a backlog
     // the user has not been offered yet; the caller reads this null as
     // 'session-complete' and offers another session.
-    if (allowed && (allActionableReadings.length > 0 || allActionableMeanings.length > 0)) {
+    if (allowed && (allActionableReadings.length > 0 || allActionableMeanings.length > 0 || allActionableProductions.length > 0)) {
         return null;
     }
 

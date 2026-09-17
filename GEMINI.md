@@ -223,10 +223,11 @@ gokan-srs/                          # monorepo root
 - `consecutiveFailures`: Consecutive wrong answers
 - `reading`: SRSEntry for reading reviews
 - `meaning`: SRSEntry for meaning reviews
-- `needsRetry`: optional `{ reading?: boolean; meaning?: boolean }` - per-quiz-type immediate-retry flag. A wrong reading answer only forces a reading retry and never blocks a due meaning review (and vice versa).
+- `production`: optional SRSEntry for production reviews (English meaning prompt, Japanese reading answer). Optional on the type because progress saved before this quiz type existed has no such field; the migration fills one in on every load. A filled-in entry is **inert** (`dueDate: null`, which no due-check matches) until activated, so adding this direction made nothing due. See Services & Business Logic -> Production quiz rollout.
+- `needsRetry`: optional `{ reading?: boolean; meaning?: boolean; production?: boolean }` - per-quiz-type immediate-retry flag. A wrong reading answer only forces a reading retry and never blocks a due meaning or production review (and vice versa).
 - `nextReviewAt` is always **derived**, never hand-set independently - see `scheduling.ts` in Services & Business Logic.
 
-**`SRSEntry`** - Detailed SRS state for reading/meaning
+**`SRSEntry`** - Detailed SRS state for reading/meaning/production
 - `memoryStrength`: Current memory strength (days)
 - `interval`: Current interval (days)
 - `difficulty`: 0.0 (hard) to 1.0 (easy), default 0.3
@@ -265,6 +266,7 @@ gokan-srs/                          # monorepo root
 - `kanjiCoverageTarget`: 1 to 5 (how many words to learn per known kanji before prioritizing new words, default 1)
 - `learningFrequency`: `'high'` | `'medium'` | `'low'`
 - `enableMeaningQuiz`: boolean (default true)
+- `enableProductionQuiz`: optional boolean (default true). The production quiz (English meaning prompt, Japanese reading answer). Turning it off excludes production from queue selection, mastery and `nextReviewAt` derivation, exactly as `enableMeaningQuiz` does for meaning.
 - `geminiApiKey`: optional Gemini API key for AI context validation
 - `enableGeminiContext`: boolean (default false)
 - `alwaysUseAiForMeaningContext`: boolean (default true)
@@ -326,7 +328,7 @@ Core SRS algorithm implementation. **This is the heart of the learning system.**
 - Returns best result: `'correct'` > `'minor_error'` > `'wrong'`
 - Uses Levenshtein distance for typo detection
 
-**`applyAnswer(vocab, userAnswer, correctAnswer, latencyMs, now, forcedResult?)`**
+**`applyAnswer(vocab, quizType, quizMode, userAnswer, correctAnswer, latencyMs, now, forcedResult?, intervalModifier?, frequencyModifier?, meaningQuizEnabled?, productionQuizEnabled?)`**
 - Updates VocabProgress based on answer result
 - Calculates new memory strength and interval
 - Returns updated progress + result + interval
@@ -355,16 +357,36 @@ Core SRS algorithm implementation. **This is the heart of the learning system.**
 **`applyVocabIntroChoice(progress, choice)`**
 - Handles "Learn" or "Skip" on intro card
 - **Learn**: Sets `nextReviewAt = now` (becomes immediately reviewable)
-- **Skip**: Sets stage to `'graduated'`, maxMemoryStrength (never appears again)
+- **Skip**: Sets stage to `'graduated'`, maxMemoryStrength on **all three** entries (never appears again). Mastering production here is required, not incidental: skip is the one path that writes `'graduated'` directly, and leaving production unmastered would make every skipped word fail `isVocabFullyMastered` and return as a production review
 
+### Production quiz rollout (`srs.service.ts`, `migration.service.ts`)
+
+The production quiz (English meaning prompt, Japanese reading answer) is the third vocab quiz type and the only direction that starts from English, so it carries its own `SRSEntry` rather than sharing reading's or meaning's. It grades against the **same reading accept-list** as the reading quiz (`SRSService.evaluateAnswer`); only the prompt differs.
+
+Adding a third direction to an existing queue is the whole difficulty here: done naively it multiplies a long-time user's daily workload overnight. Four things prevent that, and each is load-bearing.
+
+- **The migration fills in an inert entry, never a due one.** `backfillProduction` gives a learning word `dueDate: null`, which no due-check matches, so shipping this made **nothing** due. The entry sits dormant until something activates it.
+- **Activation is lazy, and rides the user's own review curve.** `SRSService.seedProductionEntry` brings a word's production entry online the first time that word is answered in any other direction. A word reviewed monthly therefore picks up production a month from now, so the new direction spreads over one full review cycle instead of arriving as a single wave. There is deliberately **no** backfill pass that sets real due dates.
+- **Already-graduated words are grandfathered as production-mastered.** This is the single most important line in the migration. Graduation is *derived* (`isVocabFullyMastered`), not merely stored, so an unmastered production entry would fail that predicate for every word the user ever skipped or finished and hand the entire completed pile back as production reviews. `'skip'` is how users say "I already know this word", so that pile is typically large.
+- **A word that an answer just finished is never re-opened.** `applyAnswer` checks mastery *excluding* production before seeding, and skips activation when the word is already fully mastered in the directions it was being trained in. Without this, the answer that would have graduated a word instead attaches a fresh unmastered entry to it, which is the same wave one word at a time. This is also what keeps the existing "graduates on reading mastery alone when meaning quizzes are disabled" invariant true.
+
+Strength is seeded from the word's **meaning** entry at a discount (`CONSTANTS.srs.production.seedStrengthRatio`, 0.4) rather than from zero. Producing a word from English is harder than recognising it, so this is well under parity, but a half-known word should not be drilled from scratch: seeding lower than the user's real ability just inflates the backlog it took care to spread out. The first review is pushed `seedDelayHours` (24h) out so it lands outside the session that activated it (reading is due now, meaning is staggered +12h, production sits one step beyond).
+
+Two ordering details that a future change could easily undo:
+
+- **`applyAnswer` selects entries by a keyed lookup, not a reading/meaning ternary.** With three types a ternary is not a style question: `quizType === 'reading' ? reading : meaning` silently routes every production answer into the **meaning** entry, corrupting its schedule with no type error to catch it. The same applies to the mastery-delta computation in `useQuizOrchestration`'s `continueToNext`.
+- **A correct reading answer staggers production as well as meaning** (+12h), so `filterSessionCommit` drops a committed word's production task for the same reason it already drops meaning: the session would otherwise count workload it will never actually serve.
+
+Deliberately **excluded** from the knowledge curve (`knowledge.utils.ts`): that scale is normalised so a word mastered in both directions is worth exactly 200, and folding in a third entry would both move the ceiling to 300 and retroactively add ~100 points, dated at each word's introduction, to every word the migration grandfathered - rewriting past history rather than recording new learning. Daily activity (`buildDailyActivity`) **does** include `production.history`, since that is a record of reviews actually done.
 ### Scheduling Service (`scheduling.ts`)
 
 **Single source of truth** for "when is this vocab due" and "is it fully mastered". Previously this question was answered independently in three places (`VocabProgress.nextReviewAt` hand-synced by `applyAnswer`, `reading.dueDate`, `meaning.dueDate`), which could drift out of agreement - e.g. disabling meaning quizzes left a stale `meaning.dueDate` able to make `nextReviewAt` report "due" while queue-selection had already stopped considering meaning reviews.
 
 **Key functions:**
 - `isEntryMastered(entry)`: `memoryStrength >= maxMemoryStrength`
-- `isVocabFullyMastered(vocab, settings)`: reading mastered AND (meaning quizzes disabled OR meaning mastered)
-- `vocabNextReviewAt(vocab, settings)`: derives the authoritative `nextReviewAt` - the earlier of non-mastered reading/meaning due dates, **excluding meaning entirely when `enableMeaningQuiz` is false**
+- `isVocabFullyMastered(vocab, settings)`: reading mastered AND (meaning quizzes disabled OR meaning mastered) AND (production irrelevant OR production mastered). Production counts as **irrelevant** when the quiz type is off in settings **or** the entry has never been activated - a never-activated entry must not read as `unmastered`, or every word in an existing queue would fail this the day the quiz type shipped
+- `vocabNextReviewAt(vocab, settings)`: derives the authoritative `nextReviewAt` - the earliest of the non-mastered reading/meaning/production due dates, **excluding meaning entirely when `enableMeaningQuiz` is false** and production whenever it is disabled or not yet activated
+- `isProductionQuizEnabled(settings)` / `isProductionActivated(entry)`: the two gates behind `relevantProductionEntry`, the private helper the three functions above share
 - `isVocabDue(vocab, settings, now)`: convenience wrapper (always false for graduated items)
 
 `SRSService.applyAnswer` calls into this module rather than hand-computing `nextReviewAt`/`stage`; `sync/mergeProgress.ts` and the v8+ migration pass do the same, so all three call sites can never disagree.
@@ -474,7 +496,7 @@ Previously both were the same constant, so the cheap synchronous pass could stam
 The quiz state machine is split into four single-responsibility modules rather than one monolithic provider:
 
 - **`quizReducer.ts`** - Pure `QuizState`/`QuizAction`/reducer. No I/O, no side effects, no `Date.now()` calls - fully unit-testable in isolation (`quizReducer.test.ts`).
-- **`quizSelectors.ts`** - `selectNextView(state, hasMoreLearnable, now)` is the **single source of truth** for "what should the quiz screen show right now". It replaces three previously-independent decision points (a queue-level `nextDue` memo, a `computeSessionView` function, and an ad-hoc `currentProgress.introductionAt` check in `VocabQuizScreen`) that could drift out of agreement. Returns `{ queueItem, sessionState, nextReviewAt, shouldShowIntro }`. Also exposes `selectCurrentProgress`, `selectCurrentSentence`, `collectActionableTaskKeys` (every quiz task actionable now, as `TaskKey[]`), `filterSessionCommit` (drops a vocab's `meaning` key from a snapshot when its `reading` key is present too - see `session` below for why), `capSessionCommit` (truncates a snapshot to `CONSTANTS.srs.sessionQuizCap`, split evenly across quiz types with spillover - see Session quiz cap below), `selectSessionStats`, and `selectNextSessionPreview`. `selectSessionStats(state, hasMoreLearnable, now)` returns `{ done, total, retriesPending, waiting, moreNew }` computed against `state.session.committed`: `total` = committed set size (**fixed** for the session), `done` = committed tasks no longer actionable, `retriesPending` = committed tasks currently awaiting a retry (a wrong answer this session, shown highlighted and appended to the bar denominator), `waiting` = distinct vocab with tasks due *now* that aren't part of the session, `moreNew` = `hasMoreLearnable` (the "+" in "n+ waiting"). This replaced a `done + liveDueReviews` formula whose denominator **shrank on every wrong answer** (a wrong answer pushes the due date ~12h out - leaving the live due count - without incrementing `done`, and the pending retry was never re-counted). `selectNextSessionPreview(state, now)` returns `{ review, new, retries }`, a preview of what the *next* study session will contain - shown on the Main hub's quiz activity card before the user even clicks in. Bucketed per distinct vocab in `learningQueue` (graduated excluded), mutually exclusive with retries taking precedence over new, and new taking precedence over review; the review bucket reuses `isReadingActionable`/`isMeaningActionable` from `srs.utils.ts` rather than reimplementing due-ness.
+- **`quizSelectors.ts`** - `selectNextView(state, hasMoreLearnable, now)` is the **single source of truth** for "what should the quiz screen show right now". It replaces three previously-independent decision points (a queue-level `nextDue` memo, a `computeSessionView` function, and an ad-hoc `currentProgress.introductionAt` check in `VocabQuizScreen`) that could drift out of agreement. Returns `{ queueItem, sessionState, nextReviewAt, shouldShowIntro }`. Also exposes `selectCurrentProgress`, `selectCurrentSentence`, `collectActionableTaskKeys` (every quiz task actionable now, as `TaskKey[]`), `filterSessionCommit` (drops a vocab's `meaning` **and** `production` keys from a snapshot when its `reading` key is present too - a correct reading answer staggers both; see `session` below for why), `capSessionCommit` (truncates a snapshot to `CONSTANTS.srs.sessionQuizCap`, split evenly across quiz types with spillover - see Session quiz cap below), `selectSessionStats`, and `selectNextSessionPreview`. `selectSessionStats(state, hasMoreLearnable, now)` returns `{ done, total, retriesPending, waiting, moreNew }` computed against `state.session.committed`: `total` = committed set size (**fixed** for the session), `done` = committed tasks no longer actionable, `retriesPending` = committed tasks currently awaiting a retry (a wrong answer this session, shown highlighted and appended to the bar denominator), `waiting` = distinct vocab with tasks due *now* that aren't part of the session, `moreNew` = `hasMoreLearnable` (the "+" in "n+ waiting"). This replaced a `done + liveDueReviews` formula whose denominator **shrank on every wrong answer** (a wrong answer pushes the due date ~12h out - leaving the live due count - without incrementing `done`, and the pending retry was never re-counted). `selectNextSessionPreview(state, now)` returns `{ review, new, retries }`, a preview of what the *next* study session will contain - shown on the Main hub's quiz activity card before the user even clicks in. Bucketed per distinct vocab in `learningQueue` (graduated excluded), mutually exclusive with retries taking precedence over new, and new taking precedence over review; the review bucket reuses `isReadingActionable`/`isMeaningActionable` from `srs.utils.ts` rather than reimplementing due-ness.
 - **`useQuizOrchestration.ts`** - Every effect (vocab/sentence loading, auto-advance timing, daily reset, persistence, migration triggering, Drive sync reconciliation, **session lifecycle** `SESSION_START`/`SESSION_END`) and every action (`submitAnswer`, `continueToNext`, `advanceQueue`, etc.), returning `{ actions, nextView, currentProgress, computed, sessionStats, nextSessionPreview }`. Mount-once effects use a `useRef` guard instead of the previous string-hack dependency array (`[state.progress ? 'loaded' : 'loading']`). Reads `useLocation()` (it renders inside `QuizProvider`, itself inside `BrowserRouter` - see `main.tsx`) to gate both the vocab-loading effect and the session-lifecycle effect to the `/quiz` route, so browsing Settings/Stats/the Main hub neither keeps fetching vocab in the background nor keeps a session alive - see the Main Screen entry in Application Pages.
 - **`QuizProvider.tsx`** - Thin assembler: `useReducer(quizReducer, ...)` + `useQuizOrchestration(...)`, wires the result into `QuizContext.Provider`. Owns the public `QuizContextValue` interface.
 
@@ -515,7 +537,7 @@ Note: this is **not** the old `sessionQueue`/`sessionBuiltAt` subsystem (a prior
 
 Three things about it are load-bearing:
 
-- **The cap is composed per quiz type, not taken as a prefix.** `getNextVocabToStudy` clears every actionable reading before any meaning, so a prefix of the snapshot would commit 200 readings and zero meanings for a user with 400 due, session after session, while the meaning backlog only grew. `capSessionCommit` buckets by type and fills smallest-pool-first, so each type gets an even share and a type with less work than its share spills the surplus to the others rather than cutting the session short. The split is over the types actually present, so it becomes thirds rather than halves if a third vocab quiz type is ever added.
+- **The cap is composed per quiz type, not taken as a prefix.** `getNextVocabToStudy` clears every actionable reading before any meaning, so a prefix of the snapshot would commit 200 readings and zero meanings for a user with 400 due, session after session, while the meaning backlog only grew. `capSessionCommit` buckets by type and fills smallest-pool-first, so each type gets an even share and a type with less work than its share spills the surplus to the others rather than cutting the session short. The split is over the types actually present, so it is thirds now that the production quiz exists, and was halves before it.
 - **It is applied after `filterSessionCommit`, never before.** That filter drops a vocab's meaning task when its reading is committed too; quotas computed over its input would under-fill the meaning bucket by exactly the number it was about to remove.
 - **Selection bounded to `committed` needs an exit state, or the screen hangs.** Once the committed set is cleared while capped-out work is still due, `sessionState` computed off the live queue stays `'review'` while selection has nothing left to hand back, so `VocabQuizScreen` would sit on its loading gate forever. `selectNextView` returns `'session-complete'` for exactly that case (a session exists, no queue item, no intro candidates, and at least one actionable task outside the committed set), and `getNextVocabToStudy` returns null rather than falling through to new intros so the user is not started on new vocabulary while reviews they were never offered are due.
 
@@ -610,7 +632,7 @@ Main study interface. Switches **exhaustively** on `sessionState` (a TypeScript 
 - **`'exhausted'`**: Show `ExhaustedScreen` (no more content). Same "Back to activities" link as `WaitingScreen`.
 - **`'session-complete'`**: Show `SessionCompleteScreen` (cards cleared, words still waiting, plus a "Start another session" button wired to `actions.startNewSession`). Reached only when the per-session quiz cap held work back; see Session quiz cap under State Management.
 - **`'learn-kanji'`**: Show `LearnKanjiCard` (KKLC step unlock)
-- **`'review'` / `'learn'`**: Loading gate, then `shouldShowIntro` (from `selectNextView`) decides `VocabIntroCard` vs. the active quiz card (`VocabQuizCard` for reading, `VocabMeaningQuizCard` for meaning, keyed on `currentQuizItem.quizType`)
+- **`'review'` / `'learn'`**: Loading gate, then `shouldShowIntro` (from `selectNextView`) decides `VocabIntroCard` vs. the active quiz card (`VocabQuizCard` for reading, `VocabMeaningQuizCard` for meaning, `VocabProductionQuizCard` for production, keyed on `currentQuizItem.quizType`)
 
 **Auto-advance logic**: Owned by `useQuizOrchestration`. If the queue has no valid items but can introduce new vocab, automatically calls `advanceQueue()`.
 
@@ -1001,7 +1023,7 @@ The SRS study session follows a **stateless** priority system with natural buffe
    - Items with `needsRetry === true` (wrong answer in current session)
    - These are mixed randomly together
    - Order: Random selection from the pool (to prevent interference effects)
-   - **Reading and meaning quizzes are batched, and the active batch is sticky**: `getNextVocabToStudy(queue, settings, now, preferredType)` takes an optional `preferredType` hint (the `quizType` of the card currently on screen, threaded in by `selectNextView` from `state.currentQuizItem`). While that type still has actionable work, it keeps being served - even if an item of the *other* type becomes actionable mid-batch (a retry flag flipping, or a review simply coming due while the user studies). Only once the active type's pool runs dry does selection fall back to the reading > meaning priority. Without this, a reading item becoming due partway through a run of meaning quizzes would hijack the very next card - see the `[2026-07-24]` changelog entry for the bug this fixes and `QuizTypeIndicator` (`VocabBaseQuizCard.tsx`) for the accompanying on-screen "Reading"/"Meaning" phase label.
+   - **Reading and meaning quizzes are batched, and the active batch is sticky**: `getNextVocabToStudy(queue, settings, now, preferredType)` takes an optional `preferredType` hint (the `quizType` of the card currently on screen, threaded in by `selectNextView` from `state.currentQuizItem`). While that type still has actionable work, it keeps being served - even if an item of the *other* type becomes actionable mid-batch (a retry flag flipping, or a review simply coming due while the user studies). Only once the active type's pool runs dry does selection fall back to the reading > meaning > production priority. Production is served last because it is the hardest direction and reads better once the word has already been seen in the easier ones this session. Without this, a reading item becoming due partway through a run of meaning quizzes would hijack the very next card - see the `[2026-07-24]` changelog entry for the bug this fixes and `QuizTypeIndicator` (`VocabBaseQuizCard.tsx`) for the accompanying on-screen "Reading"/"Meaning" phase label.
 
 2. **New Intros (Priority 2)**:
    - Items with `introductionAt === null` and `stage !== 'graduated'`
@@ -1019,7 +1041,7 @@ The SRS study session follows a **stateless** priority system with natural buffe
    - **Mastery**: If `memoryStrength >= maxMemoryStrength` after a review, item graduates. `nextReviewAt` is cleared
 
 5. **Retry Mechanism (Wrong Answers)**:
-   - `needsRetry` is **per quiz type** (`{ reading?: boolean; meaning?: boolean }`): a wrong reading answer sets `needsRetry.reading` and never blocks a due meaning review (and vice versa).
+   - `needsRetry` is **per quiz type** (`{ reading?: boolean; meaning?: boolean; production?: boolean }`): a wrong reading answer sets `needsRetry.reading` and never blocks a due meaning or production review (and vice versa).
    - When user gives wrong answer: `needsRetry.<type> = true` is set. Item review schedule is updated based on the failure.
    - Item appears in current session (mixed with old reviews)
    - On retry attempt:
@@ -1059,9 +1081,10 @@ return 'exhausted'
 
 1. User types answer (hiragana for reading, english for meaning)
 2. `submitAnswer()` called in `QuizContext`
-3. Determine `quizType` (`'reading'` | `'meaning'`) and `quizMode` (`'base'` | `'context'`) from `currentQuizItem`
+3. Determine `quizType` (`'reading'` | `'meaning'` | `'production'`) and `quizMode` (`'base'` | `'context'`) from `currentQuizItem`
 4. Base Evaluation:
    - For **Reading**: `SRSService.evaluateAnswer()` checks against all readings (always `base` mode)
+   - For **Production**: the same `SRSService.evaluateAnswer()` call against the same readings - the answer is a reading either way, only the prompt differs (English glosses instead of the written form)
    - For **Meaning (`base` mode)**: `SRSService.evaluateMeaning()` checks strictly against all dictionary glosses
    - For **Meaning (`context` mode)**: First evaluates strictly with `evaluateMeaning()`, then:
      - If `enableGeminiContext` is enabled (the Settings master toggle) AND `geminiApiKey` is configured AND a sentence is available:
@@ -1098,6 +1121,8 @@ return 'exhausted'
 - `newVocabBatchSize`: 3 (introduce three at a time for buffered learning)
 - `maxReviewsPerDay`: 150
 - `sessionQuizCap`: 200 (maximum quiz tasks one study session commits to; unlike the two per-day limits above, which are effectively disabled, this one is real)
+- `production.seedStrengthRatio`: 0.4 (fraction of a word's meaning strength its production entry starts from when activated)
+- `production.seedDelayHours`: 24 (delay before the first production review, so it lands outside the session that activated it)
 
 **Quiz Timing:**
 - `correctAnswerAutoAdvanceDelay`: 1800ms

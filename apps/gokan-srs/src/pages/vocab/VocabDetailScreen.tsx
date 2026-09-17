@@ -104,6 +104,18 @@ export default function VocabDetailScreen() {
                                 Meaning
                             </span>
                         </div>
+                        {/* Only once the production entry has actually been activated for
+                            this word (see SRSService.seedProductionEntry). An empty third
+                            ring on every word that has not reached it yet would read as
+                            lost progress rather than a direction not started. */}
+                        {progress.production?.dueDate && (
+                            <div className="flex flex-col items-center gap-2">
+                                <MasteryRing memoryStrength={progress.production.memoryStrength} size={60} variant="meaning" />
+                                <span className="text-xs text-tertiary uppercase tracking-wider font-gothic font-semibold">
+                                    Production
+                                </span>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

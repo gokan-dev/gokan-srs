@@ -3,7 +3,8 @@ import type { ReviewLog, SRSEntry, VocabProgress } from '../models/vocabulary.mo
 import { CONSTANTS } from '../commons/constants';
 import { VocabularyService } from './vocabulary.service';
 import type { KanjiKnowledge, UserProgress, UserSettings } from '../models/user.model';
-import { isVocabFullyMastered, vocabNextReviewAt, newSRSEntry } from './scheduling';
+import { isVocabFullyMastered, vocabNextReviewAt, newSRSEntry, isProductionActivated } from './scheduling';
+import type { QuizType } from '../utils/srs.utils';
 import { JLPT_LEVELS } from '../models/index.model';
 import { collectJlptCandidates, countJlptCandidates } from './jlptWalk';
 
@@ -159,7 +160,7 @@ export class SRSService {
 
     static applyAnswer(
         vocab: VocabProgress,
-        quizType: 'reading' | 'meaning',
+        quizType: QuizType,
         quizMode: 'base' | 'context' | undefined, // [NEW] Mode
         userAnswer: string,
         correctAnswer: string, // The specific reading/meaning matched
@@ -168,12 +169,22 @@ export class SRSService {
         forcedResult?: AnswerResult, // Optional override
         intervalModifier: number = 1.0, // Adaptive modifier
         frequencyModifier: number = 1.0, // User preference modifier
-        meaningQuizEnabled: boolean = true // Whether meaning quizzes are active for this user
+        meaningQuizEnabled: boolean = true, // Whether meaning quizzes are active for this user
+        productionQuizEnabled: boolean = true // Whether production quizzes are active for this user
     ): { updated: VocabProgress; result: AnswerResult, interval: number } {
         const result = forcedResult ?? this.analyzeError(userAnswer, correctAnswer);
 
+        // Entries keyed by quiz type rather than reading/meaning ternaries. With a
+        // third type this is not a style preference: a ternary silently routes
+        // anything that is not 'reading' into the meaning entry, so production
+        // answers would have corrupted meaning's schedule with no type error.
+        const entryOf = (v: VocabProgress, type: QuizType): SRSEntry =>
+            type === 'reading' ? v.reading
+                : type === 'meaning' ? v.meaning
+                    : (v.production ?? newSRSEntry(v.reading.difficulty));
+
         // Retry is tracked per quiz type: a wrong reading answer only forces a
-        // reading retry and never blocks meaning reviews (and vice versa).
+        // reading retry and never blocks meaning or production reviews (and vice versa).
         if (vocab.needsRetry?.[quizType]) {
             const isSuccess = result === 'correct' || result === 'minor_error';
             // Stamp lastReviewedAt on the entry even though scheduling fields are
@@ -181,25 +192,29 @@ export class SRSService {
             // any timestamp trace, mergeVocabProgress has no way to tell "just
             // resolved locally" apart from a stale remote snapshot still carrying
             // the flag, and a background sync can resurrect an already-cleared retry.
-            const retryEntry = quizType === 'reading' ? vocab.reading : vocab.meaning;
+            const retryEntry = entryOf(vocab, quizType);
             const updatedRetryEntry = { ...retryEntry, lastReviewedAt: now };
             return {
                 updated: {
                     ...vocab,
                     reading: quizType === 'reading' ? updatedRetryEntry : vocab.reading,
                     meaning: quizType === 'meaning' ? updatedRetryEntry : vocab.meaning,
+                    production: quizType === 'production' ? updatedRetryEntry : vocab.production,
                     needsRetry: { ...vocab.needsRetry, [quizType]: !isSuccess }
                 },
                 result,
-                interval: quizType === 'reading' ? vocab.reading.interval : vocab.meaning.interval
+                interval: retryEntry.interval
             };
         }
 
         // Select the correct entry to update
-        const currentEntry = quizType === 'reading' ? { ...vocab.reading } : { ...vocab.meaning };
+        const currentEntry = { ...entryOf(vocab, quizType) };
 
         // [NEW] Dynamically determine latency limit based on mode and type
-        let expectedLatencyKey: keyof typeof CONSTANTS.srs.quizProperties = quizType === 'reading' ? 'reading' : 'meaning_base';
+        let expectedLatencyKey: keyof typeof CONSTANTS.srs.quizProperties =
+            quizType === 'reading' ? 'reading'
+                : quizType === 'production' ? 'production'
+                    : 'meaning_base';
         if (quizType === 'meaning' && quizMode === 'context') {
             expectedLatencyKey = 'meaning_context';
         }
@@ -210,6 +225,7 @@ export class SRSService {
         // We update the specific entry first
         const updatedReading = quizType === 'reading' ? newEntry : vocab.reading;
         const updatedMeaning = quizType === 'meaning' ? newEntry : vocab.meaning;
+        let updatedProduction = quizType === 'production' ? newEntry : vocab.production;
 
         // [BUGFIX] Stagger Meaning quizzes: if we just successfully answered a Reading quiz,
         // and Meaning is currently due (or about to be due), push Meaning forward by 12 hours
@@ -218,14 +234,37 @@ export class SRSService {
             if (updatedMeaning.dueDate !== null && updatedMeaning.dueDate <= now) {
                 updatedMeaning.dueDate = new Date(now.getTime() + 12 * 60 * 60 * 1000); // +12 hours
             }
+            // Same staggering for production, for the same reason.
+            if (updatedProduction && updatedProduction.dueDate !== null && updatedProduction.dueDate <= now) {
+                updatedProduction = { ...updatedProduction, dueDate: new Date(now.getTime() + 12 * 60 * 60 * 1000) };
+            }
+        }
+
+        const settingsSlice = { enableMeaningQuiz: meaningQuizEnabled, enableProductionQuiz: productionQuizEnabled };
+
+        // Lazy production activation (see seedProductionEntry). Answering a word in
+        // an existing direction is what brings its production entry online, so the
+        // backlog spreads itself over the user's own review curve instead of landing
+        // in one release-day wave.
+        //
+        // Never onto a word that this answer just finished, though: a word already
+        // mastered in every direction it was being trained in is done, and handing it
+        // a fresh unmastered entry would un-graduate it and pull the user's completed
+        // pile back into rotation. That is the same wave the lazy activation exists to
+        // avoid, just arriving one word at a time instead of all at once.
+        const masteredBeforeProduction = isVocabFullyMastered(
+            { reading: updatedReading, meaning: updatedMeaning, production: undefined },
+            settingsSlice
+        );
+        if (productionQuizEnabled && quizType !== 'production' && !masteredBeforeProduction) {
+            updatedProduction = this.seedProductionEntry(updatedProduction, updatedMeaning, now);
         }
 
         // Graduation and next-review-at are always DERIVED (never hand-synced) via
         // scheduling.ts, which also correctly excludes meaning entirely when the
         // user has meaning quizzes disabled - so a word can graduate on reading
         // mastery alone instead of being stuck forever waiting on an untested meaning entry.
-        const settingsSlice = { enableMeaningQuiz: meaningQuizEnabled };
-        const candidateVocab = { reading: updatedReading, meaning: updatedMeaning };
+        const candidateVocab = { reading: updatedReading, meaning: updatedMeaning, production: updatedProduction };
         const finalStage = isVocabFullyMastered(candidateVocab, settingsSlice) ? 'graduated' : vocab.stage;
         const finalNextReviewAt = finalStage === 'graduated' ? null : vocabNextReviewAt(candidateVocab, settingsSlice);
 
@@ -240,6 +279,7 @@ export class SRSService {
                 ...vocab,
                 reading: updatedReading,
                 meaning: updatedMeaning,
+                production: updatedProduction,
                 // Sync top-level fields
                 stage: finalStage,
                 nextReviewAt: finalNextReviewAt,
@@ -250,6 +290,49 @@ export class SRSService {
             },
             result,
             interval
+        };
+    }
+
+    /**
+     * Brings a word's production entry online the first time the word is reviewed
+     * in any other direction, and returns it unchanged once it is active.
+     *
+     * This is the whole rollout strategy for the production quiz. A migration that
+     * simply gave every existing word a due production entry would make a long-time
+     * user's entire queue due at once on the day this shipped. Instead the migration
+     * fills in an inert entry (dueDate null, which no due-check matches) and each
+     * word activates when its own next reading or meaning review comes round, so the
+     * new direction spreads over one full review cycle of the user's existing
+     * schedule rather than arriving as a single wave.
+     *
+     * Strength is seeded from the word's meaning entry at a discount rather than from
+     * zero: producing a word from English is harder than recognising it, so this is
+     * well below parity, but a word the user already half-knows should not be drilled
+     * from scratch. Both the ratio and the first-review delay live in
+     * CONSTANTS.srs.production.
+     */
+    static seedProductionEntry(
+        current: SRSEntry | undefined,
+        meaning: SRSEntry,
+        now: Date
+    ): SRSEntry {
+        if (isProductionActivated(current)) return current!;
+
+        const { seedStrengthRatio, seedDelayHours } = CONSTANTS.srs.production;
+        const { minMemoryStrength } = CONSTANTS.srs.formula;
+        const { maxMemoryStrength } = CONSTANTS.srs.formula.mastery;
+
+        const seeded = Math.min(
+            Math.max(meaning.memoryStrength * seedStrengthRatio, minMemoryStrength),
+            maxMemoryStrength
+        );
+
+        const base = current ?? newSRSEntry(meaning.difficulty);
+        return {
+            ...base,
+            memoryStrength: seeded,
+            difficulty: meaning.difficulty,
+            dueDate: new Date(now.getTime() + seedDelayHours * 60 * 60 * 1000),
         };
     }
 
@@ -601,7 +684,8 @@ export class SRSService {
             totalReviews: 0,
             consecutiveFailures: 0,
             reading: newSRSEntry(finalDiff),
-            meaning: newSRSEntry(finalDiff)
+            meaning: newSRSEntry(finalDiff),
+            production: newSRSEntry(finalDiff)
         };
     }
 
@@ -837,16 +921,35 @@ export class SRSService {
             updated.meaning.interval = maxIntervalDays;
             updated.meaning.dueDate = null; // [BUGFIX] Ensure it is cleared so chart ignores it
 
+            // Production must be mastered here too. Skip is how a user says "I already
+            // know this word", and it is the one path that writes 'graduated' directly.
+            // Leaving production un-mastered would make isVocabFullyMastered false for
+            // every word ever skipped, resurrecting the whole skipped pile as production
+            // reviews the moment this quiz type shipped.
+            updated.production = {
+                ...(updated.production ?? newSRSEntry(updated.reading.difficulty)),
+                memoryStrength: maxS,
+                interval: maxIntervalDays,
+                dueDate: null,
+                lastReviewedAt: new Date(),
+            };
+
             updated.nextReviewAt = null; // No review calculation needed
             updated.stage = 'graduated';
         } else {
             // CHOICE LEARNING:
             // Set initial due date to NOW for reading.
             // Stagger meaning by 12 hours so it isn't asked immediately after reading in the same session.
+            // Production sits one step further out again: it is the hardest direction,
+            // and asking it before the word has been recalled even once is just a guess.
             const now = new Date();
             updated.nextReviewAt = now;
             updated.reading.dueDate = now;
             updated.meaning.dueDate = new Date(now.getTime() + 12 * 60 * 60 * 1000);
+            updated.production = {
+                ...(updated.production ?? newSRSEntry(updated.reading.difficulty)),
+                dueDate: new Date(now.getTime() + CONSTANTS.srs.production.seedDelayHours * 60 * 60 * 1000),
+            };
         }
 
         return updated;

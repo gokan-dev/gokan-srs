@@ -844,3 +844,138 @@ describe('SRSService Formula Tests', () => {
         });
     });
 });
+
+describe('Production quiz (English meaning -> Japanese reading)', () => {
+    const mockNow = new Date('2025-01-01T12:00:00Z');
+    const MAX = CONSTANTS.srs.formula.mastery.maxMemoryStrength;
+
+    const vocabWith = (overrides: Partial<VocabProgress> = {}): VocabProgress => ({
+        ...DEFAULT_VOCABULARY_PROGRESS,
+        vocabId: 'test-vocab',
+        totalReviews: 1,
+        introductionAt: new Date('2024-12-01T00:00:00Z'),
+        reading: { ...DEFAULT_VOCABULARY_PROGRESS.reading, memoryStrength: 50 },
+        meaning: { ...DEFAULT_VOCABULARY_PROGRESS.meaning, memoryStrength: 100 },
+        production: { ...DEFAULT_VOCABULARY_PROGRESS.production! },
+        ...overrides,
+    });
+
+    describe('seedProductionEntry', () => {
+        it('is inert until seeded, so a migrated word is never due on day one', () => {
+            const vocab = vocabWith();
+            expect(vocab.production?.dueDate).toBeNull();
+        });
+
+        it('seeds strength from the meaning entry at a discount, not from zero', () => {
+            const meaning = { ...DEFAULT_VOCABULARY_PROGRESS.meaning, memoryStrength: 400 };
+            const seeded = SRSService.seedProductionEntry(undefined, meaning, mockNow);
+
+            expect(seeded.memoryStrength).toBeCloseTo(400 * CONSTANTS.srs.production.seedStrengthRatio, 4);
+            expect(seeded.memoryStrength).toBeLessThan(meaning.memoryStrength);
+            expect(seeded.memoryStrength).toBeGreaterThan(CONSTANTS.srs.formula.minMemoryStrength);
+        });
+
+        it('schedules the first production review after the seed delay, not immediately', () => {
+            const seeded = SRSService.seedProductionEntry(undefined, DEFAULT_VOCABULARY_PROGRESS.meaning, mockNow);
+            const expected = mockNow.getTime() + CONSTANTS.srs.production.seedDelayHours * 60 * 60 * 1000;
+            expect(seeded.dueDate?.getTime()).toBe(expected);
+        });
+
+        it('never re-seeds an already-active entry (that would reset real progress)', () => {
+            const active = {
+                ...DEFAULT_VOCABULARY_PROGRESS.production!,
+                memoryStrength: 900,
+                dueDate: new Date('2025-06-01T00:00:00Z'),
+            };
+            expect(SRSService.seedProductionEntry(active, DEFAULT_VOCABULARY_PROGRESS.meaning, mockNow)).toBe(active);
+        });
+    });
+
+    describe('lazy activation through applyAnswer', () => {
+        it('activates production when the word is answered in another direction', () => {
+            const vocab = vocabWith();
+            const { updated } = SRSService.applyAnswer(vocab, 'reading', 'base', 'a', 'a', 1000, mockNow, 'correct');
+
+            expect(updated.production?.dueDate).not.toBeNull();
+        });
+
+        it('does not activate production for a word this answer just fully mastered', () => {
+            // A finished word must not be re-opened by the new direction: that is the
+            // wave the lazy activation exists to avoid, arriving one word at a time.
+            const vocab = vocabWith({
+                reading: { ...DEFAULT_VOCABULARY_PROGRESS.reading, memoryStrength: MAX + 10 },
+                meaning: { ...DEFAULT_VOCABULARY_PROGRESS.meaning, memoryStrength: MAX + 10 },
+            });
+            const { updated } = SRSService.applyAnswer(vocab, 'meaning', 'base', 'a', 'a', 1000, mockNow, 'correct');
+
+            expect(updated.stage).toBe('graduated');
+            expect(updated.production?.dueDate).toBeNull();
+        });
+
+        it('does not activate production when the quiz type is disabled', () => {
+            const vocab = vocabWith();
+            const { updated } = SRSService.applyAnswer(
+                vocab, 'reading', 'base', 'a', 'a', 1000, mockNow, 'correct',
+                1.0, 1.0, true, /* productionQuizEnabled */ false
+            );
+
+            expect(updated.production?.dueDate).toBeNull();
+        });
+    });
+
+    describe('answering production', () => {
+        it('updates the production entry and leaves reading and meaning untouched', () => {
+            const vocab = vocabWith({
+                production: { ...DEFAULT_VOCABULARY_PROGRESS.production!, memoryStrength: 40, dueDate: mockNow },
+            });
+            const { updated } = SRSService.applyAnswer(vocab, 'production', 'base', 'a', 'a', 1000, mockNow, 'correct');
+
+            expect(updated.production!.memoryStrength).toBeGreaterThan(40);
+            expect(updated.reading.memoryStrength).toBe(vocab.reading.memoryStrength);
+            expect(updated.meaning.memoryStrength).toBe(vocab.meaning.memoryStrength);
+        });
+
+        it('scopes its retry flag to production alone', () => {
+            const vocab = vocabWith({
+                production: { ...DEFAULT_VOCABULARY_PROGRESS.production!, memoryStrength: 40, dueDate: mockNow },
+            });
+            const { updated } = SRSService.applyAnswer(vocab, 'production', 'base', 'x', 'a', 1000, mockNow, 'wrong');
+
+            expect(updated.needsRetry?.production).toBe(true);
+            expect(updated.needsRetry?.reading).toBeFalsy();
+            expect(updated.needsRetry?.meaning).toBeFalsy();
+        });
+
+        it('treats a production retry as training only, never advancing the schedule', () => {
+            const dueDate = new Date('2025-02-01T00:00:00Z');
+            const vocab = vocabWith({
+                needsRetry: { production: true },
+                production: { ...DEFAULT_VOCABULARY_PROGRESS.production!, memoryStrength: 40, dueDate },
+            });
+            const { updated } = SRSService.applyAnswer(vocab, 'production', 'base', 'a', 'a', 1000, mockNow, 'correct');
+
+            expect(updated.needsRetry?.production).toBe(false);
+            expect(updated.production!.memoryStrength).toBe(40);
+            expect(updated.production!.dueDate).toEqual(dueDate);
+        });
+    });
+
+    describe('intro choice', () => {
+        it('schedules production behind reading and meaning on Learn', () => {
+            const created = SRSService.createVocabProgress('v1');
+            const learned = SRSService.applyVocabIntroChoice(created, 'learn');
+
+            expect(learned.production!.dueDate!.getTime())
+                .toBeGreaterThan(learned.meaning.dueDate!.getTime());
+        });
+
+        it('masters production on Skip, so a skipped word cannot come back as a production review', () => {
+            const created = SRSService.createVocabProgress('v1');
+            const skipped = SRSService.applyVocabIntroChoice(created, 'skip');
+
+            expect(skipped.stage).toBe('graduated');
+            expect(skipped.production!.memoryStrength).toBe(MAX);
+            expect(skipped.production!.dueDate).toBeNull();
+        });
+    });
+});

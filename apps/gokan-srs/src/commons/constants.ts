@@ -35,6 +35,23 @@ export const CONSTANTS = {
          */
         sessionQuizCap: 200,
 
+        production: {
+            /**
+             * Fraction of a word's meaning strength that its production entry starts
+             * from when first activated. Recognising a word's meaning does not mean
+             * you can produce it from English, so this is well under parity, but
+             * starting a half-known word from zero would make the rollout a full
+             * re-learn of the entire queue instead of a new direction on top of it.
+             */
+            seedStrengthRatio: 0.4,
+            /**
+             * Hours after activation before the first production review is due.
+             * Keeps it out of the session that triggered it (reading is due now and
+             * meaning is staggered +12h, so this sits one step further out).
+             */
+            seedDelayHours: 24,
+        },
+
         frequencyMultipliers: {
             high: 1.0,
             medium: 1.5,
@@ -45,6 +62,10 @@ export const CONSTANTS = {
             reading: { expectedLatency: 10000 },
             meaning_base: { expectedLatency: 10000 },
             meaning_context: { expectedLatency: 15000 },
+            // Production (English prompt, Japanese answer) is recall without any
+            // Japanese on screen to work from, so it is slower than reading the
+            // word and saying it back.
+            production: { expectedLatency: 15000 },
             // Multiple discrete blanks per sentence - more typing than a single vocab answer.
             grammar: { expectedLatency: 20000 }
         },

@@ -2,7 +2,7 @@ import type { VocabProgress } from '../../models/vocabulary.model';
 import type { Sentence } from '../../models/sentence.model';
 import type { SessionState } from '../../models/state.model';
 import type { UserSettings } from '../../models/user.model';
-import { getNextVocabToStudy, isReadingActionable, isMeaningActionable } from '../../utils/srs.utils';
+import { getNextVocabToStudy, isReadingActionable, isMeaningActionable, isProductionActionable } from '../../utils/srs.utils';
 import type { QuizType } from '../../utils/srs.utils';
 import { CONSTANTS } from '../../commons/constants';
 import type { QuizState, PendingQuizItem, TaskKey } from './quizReducer';
@@ -139,6 +139,7 @@ export function collectActionableTaskKeys(
     for (const v of queue) {
         if (isReadingActionable(v, now)) keys.push(taskKey(v.vocabId, 'reading'));
         if (isMeaningActionable(v, settings, now)) keys.push(taskKey(v.vocabId, 'meaning'));
+        if (isProductionActionable(v, settings, now)) keys.push(taskKey(v.vocabId, 'production'));
     }
     return keys;
 }
@@ -162,6 +163,9 @@ function parseTaskKey(key: string): { vocabId: string; quizType: QuizType } {
  * produces elsewhere (for the done/waiting checks) is left untouched, since a
  * wrong reading answer does NOT stagger meaning and it must still be
  * reachable.
+ *
+ * Production is dropped on the same rule and for the same reason: a correct reading
+ * answer staggers a due production entry by the same 12h.
  */
 export function filterSessionCommit(taskKeys: TaskKey[]): TaskKey[] {
     const readingVocabIds = new Set(
@@ -173,7 +177,7 @@ export function filterSessionCommit(taskKeys: TaskKey[]): TaskKey[] {
 
     return taskKeys.filter(key => {
         const { vocabId, quizType } = parseTaskKey(key);
-        return !(quizType === 'meaning' && readingVocabIds.has(vocabId));
+        return !(quizType !== 'reading' && readingVocabIds.has(vocabId));
     });
 }
 
