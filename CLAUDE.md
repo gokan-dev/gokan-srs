@@ -198,7 +198,7 @@ gokan-srs/                          # monorepo root
 - `writtenForm`: Kanji form + contained kanji characters
 - `reading`: Primary reading + alternatives
 - `frequency`: Kanji rank + optional kana rank
-- `jlptLevel`: optional JLPT level (1=N1 hardest ... 5=N5 easiest). Descriptive/display-only - not used for learning order. Populated at build time by matching JMDict's written form against the [Bluskyo/JLPT_Vocabulary](https://github.com/Bluskyo/JLPT_Vocabulary) dataset; most vocab won't have one (that dataset covers a few thousand words out of JMDict's ~40k+).
+- `jlptLevel`: optional JLPT level (1=N1 hardest ... 5=N5 easiest). Descriptive/display-only - not used for learning order. Populated at build time by matching against the [Bluskyo/JLPT_Vocabulary](https://github.com/Bluskyo/JLPT_Vocabulary) dataset (`resolveJlptLevel` in the submodule's `scripts/build-common.ts`): every one of the word's written forms is tried first, then its readings, since that dataset files orthography variants (近付く, not JMDict's 近づく) and usually-kana words (かばん, not 鞄) under a key JMDict's kanji headword never matches. A reading key is only accepted when the matched entry's reading is this word's primary reading, so homophones can't inherit each other's level. Most vocab still won't have one (that dataset covers a few thousand words out of JMDict's ~40k+).
 - `progression.kklcStep`: KKLC step requirement
 - `components[]`: IDs of other vocabularies contained within this one
 - `senses[]`: Array of meanings with POS, glosses, misc tags
