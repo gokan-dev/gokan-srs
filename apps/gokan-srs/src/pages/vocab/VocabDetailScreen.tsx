@@ -253,6 +253,18 @@ export default function VocabDetailScreen() {
                                 <span className="text-sm text-secondary font-gothic w-16">Meaning:</span>
                                 <span className="text-base text-primary font-gothic">{progress.meaning.dueDate ? new Date(progress.meaning.dueDate).toLocaleDateString() : 'Ready'}</span>
                             </div>
+                            {/* "Not started" rather than a hidden row or a bare "Ready":
+                                production activates lazily, so a word that has not reached
+                                it yet needs to say so, or its absence reads as the feature
+                                being broken. */}
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm text-secondary font-gothic w-16">Production:</span>
+                                <span className="text-base text-primary font-gothic">
+                                    {progress.production?.dueDate
+                                        ? new Date(progress.production.dueDate).toLocaleDateString()
+                                        : 'Not started'}
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -261,6 +273,11 @@ export default function VocabDetailScreen() {
                         series={[
                             { key: 'reading', label: 'Reading', entry: progress.reading, color: THEME.mastery.reading.loop1 },
                             { key: 'meaning', label: 'Meaning', entry: progress.meaning, color: THEME.mastery.meaning.loop1 },
+                            // Only once activated: an un-started entry would draw a flat
+                            // zero line that reads as lost progress.
+                            ...(progress.production?.dueDate
+                                ? [{ key: 'production', label: 'Production', entry: progress.production, color: THEME.mastery.production.loop1 }]
+                                : []),
                         ]}
                         introDate={progress.introductionAt ? new Date(progress.introductionAt) : null}
                     />

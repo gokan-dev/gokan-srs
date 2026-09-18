@@ -234,11 +234,17 @@ export class SRSService {
             if (updatedMeaning.dueDate !== null && updatedMeaning.dueDate <= now) {
                 updatedMeaning.dueDate = new Date(now.getTime() + 12 * 60 * 60 * 1000); // +12 hours
             }
-            // Same staggering for production, for the same reason.
-            if (updatedProduction && updatedProduction.dueDate !== null && updatedProduction.dueDate <= now) {
-                updatedProduction = { ...updatedProduction, dueDate: new Date(now.getTime() + 12 * 60 * 60 * 1000) };
-            }
         }
+
+        // Production is deliberately NOT staggered off a correct reading answer, unlike
+        // meaning. A fixed +12h push is stable for meaning because its interval soon
+        // diverges from reading's, but production is re-seeded against reading's own
+        // cadence, so for anyone reviewing at roughly the same time each day the two stay
+        // due together: reading is answered, production is pushed 12h, and by the next
+        // session both are due again. The push repeats and production is never once
+        // asked. Never asking it at all is far worse than the redundancy the stagger
+        // avoids, and selection already serves production last (after every reading and
+        // meaning), so it is not asked back-to-back with the same word's reading.
 
         const settingsSlice = { enableMeaningQuiz: meaningQuizEnabled, enableProductionQuiz: productionQuizEnabled };
 

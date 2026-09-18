@@ -150,22 +150,19 @@ function parseTaskKey(key: string): { vocabId: string; quizType: QuizType } {
 }
 
 /**
- * Drops a vocab's meaning task from a session-commit snapshot when its
- * reading is committed too. Answering that reading correctly staggers the
- * meaning's due date forward by 12h (see SRSService.applyAnswer's
- * reading -> meaning stagger), so committing both counts the meaning as part
- * of the session's workload even though it's very likely to be silently
- * cleared without ever actually being answered - the same single answer then
- * increments `done` by 2 instead of 1. Mirrors how VOCAB_INTRO_CHOICE's
- * "Learn" path already treats a freshly-learned word (only reading joins the
- * session; the staggered meaning surfaces later as "waiting" instead). Only
- * applied at commit time - the live actionable set collectActionableTaskKeys
- * produces elsewhere (for the done/waiting checks) is left untouched, since a
- * wrong reading answer does NOT stagger meaning and it must still be
- * reachable.
+ * Drops a vocab's meaning task from a task-key set when its reading is present
+ * too. Answering that reading correctly staggers the meaning's due date forward
+ * by 12h (see SRSService.applyAnswer's reading -> meaning stagger), so counting
+ * both as session workload credits one answer with clearing two tasks: `done`
+ * jumps by 2 instead of 1.
  *
- * Production is dropped on the same rule and for the same reason: a correct reading
- * answer staggers a due production entry by the same 12h.
+ * This is a **counter** concern only, applied by selectSessionStats to derive its
+ * denominator. It must NOT be applied to the committed set itself, which now also
+ * decides what can be served (see Session quiz cap): a task filtered out of that
+ * set can never be shown at all, so a wrong reading answer (which does NOT stagger
+ * meaning, leaving it genuinely due) would leave it unanswerable for the rest of
+ * the session. Production has the same problem in a worse form - see the stagger
+ * note in SRSService.applyAnswer.
  */
 export function filterSessionCommit(taskKeys: TaskKey[]): TaskKey[] {
     const readingVocabIds = new Set(
@@ -177,7 +174,7 @@ export function filterSessionCommit(taskKeys: TaskKey[]): TaskKey[] {
 
     return taskKeys.filter(key => {
         const { vocabId, quizType } = parseTaskKey(key);
-        return !(quizType !== 'reading' && readingVocabIds.has(vocabId));
+        return !(quizType === 'meaning' && readingVocabIds.has(vocabId));
     });
 }
 
@@ -286,7 +283,11 @@ export function selectSessionStats(
     const byId = new Map(queue.map(v => [v.vocabId, v]));
 
     const core = computeSessionStats({
-        committed: state.session?.committed ?? [],
+        // The committed set itself is unfiltered (it gates what can be served), so the
+        // meaning-stagger filter is applied here, to the denominator only: a word whose
+        // reading is committed will usually have its meaning staggered away unanswered,
+        // and counting it would credit one answer with clearing two tasks.
+        committed: filterSessionCommit(state.session?.committed ?? []),
         actionable: collectActionableTaskKeys(queue, state.settings ?? undefined, now),
         isRetry: key => {
             const { vocabId, quizType } = parseTaskKey(key);

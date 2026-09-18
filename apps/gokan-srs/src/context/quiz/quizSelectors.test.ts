@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { selectNextView, selectCurrentProgress, selectCurrentSentence, selectSessionStats, filterSessionCommit, capSessionCommit, selectNextSessionPreview } from './quizSelectors';
+import { selectNextView, selectCurrentProgress, selectCurrentSentence, selectSessionStats, filterSessionCommit, capSessionCommit, collectActionableTaskKeys, selectNextSessionPreview } from './quizSelectors';
 import { initialState, taskKey } from './quizReducer';
 import type { QuizState, TaskKey } from './quizReducer';
 import type { UserProgress, UserSettings } from '../../models/user.model';
@@ -617,9 +617,11 @@ describe('session cap with three quiz types', () => {
 });
 
 describe('filterSessionCommit with production', () => {
-    it('drops production alongside meaning when the same word has a committed reading', () => {
-        // A correct reading answer staggers BOTH meaning and production by 12h, so
-        // committing either would count workload the session will never actually serve.
+    it('keeps production when the same word has a committed reading, dropping only meaning', () => {
+        // Regression: production was briefly dropped here on the same rule as meaning.
+        // Once the committed set began gating what can be SERVED (not just what is
+        // counted), that made production unservable in any session where the word's
+        // reading was also due - which, for anyone reviewing daily, was every session.
         const input: TaskKey[] = [
             taskKey('a', 'reading'),
             taskKey('a', 'meaning'),
@@ -627,6 +629,45 @@ describe('filterSessionCommit with production', () => {
             taskKey('b', 'production'),
         ];
 
-        expect(filterSessionCommit(input)).toEqual([taskKey('a', 'reading'), taskKey('b', 'production')]);
+        expect(filterSessionCommit(input)).toEqual([
+            taskKey('a', 'reading'),
+            taskKey('a', 'production'),
+            taskKey('b', 'production'),
+        ]);
+    });
+});
+
+describe('production is actually servable alongside a due reading', () => {
+    const settings = makeSettings();
+
+    it('commits production for a word whose reading is due too, and serves it', () => {
+        // The end-to-end shape of the bug reported from staging: all three directions
+        // due at once must not collapse to a reading-only session.
+        const entry = (due: Date | null) => ({ ...DEFAULT_VOCABULARY_PROGRESS.reading, memoryStrength: 200, dueDate: due });
+        const word: VocabProgress = makeVocabProgress({
+            vocabId: 'a',
+            nextReviewAt: past,
+            reading: entry(past),
+            meaning: entry(past),
+            production: entry(past),
+        });
+
+        const actionable = collectActionableTaskKeys([word], settings, now);
+        expect(actionable).toContain(taskKey('a', 'production'));
+
+        // Committed is unfiltered now, so production survives into the served set.
+        const committed = capSessionCommit(actionable);
+        expect(committed).toContain(taskKey('a', 'production'));
+
+        // With reading and meaning already cleared, production is what gets served.
+        const cleared: VocabProgress = { ...word, reading: entry(future), meaning: entry(future) };
+        const state: QuizState = {
+            ...initialState,
+            progress: makeProgress([cleared]),
+            settings,
+            session: { committed },
+        };
+        const view = selectNextView(state, false, now);
+        expect(view.queueItem?.quizType).toBe('production');
     });
 });

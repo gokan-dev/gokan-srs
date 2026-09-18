@@ -17,7 +17,7 @@ import { mergeProgress, mergeSettings } from '../../services/sync/mergeProgress'
 import type { ProgressWithMetadata } from '../../services/sync/types';
 import { useGoogleDrive } from '../GoogleDriveContext';
 import type { QuizState, QuizAction } from './quizReducer';
-import { selectNextView, selectCurrentProgress, selectSessionStats, selectNextSessionPreview, collectActionableTaskKeys, filterSessionCommit, capSessionCommit } from './quizSelectors';
+import { selectNextView, selectCurrentProgress, selectSessionStats, selectNextSessionPreview, collectActionableTaskKeys, capSessionCommit } from './quizSelectors';
 import { useSessionLifecycle } from './useSessionLifecycle';
 import { refillCandidates } from './refillCandidates';
 import { progressUploadSignature, stableStringify } from "../../services/progressSerialization";
@@ -191,13 +191,13 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                 ? state.progress
                 : { ...state.progress, learningQueue: clearedQueue };
 
-            // Cap AFTER filtering, never before: filterSessionCommit drops meaning
-            // tasks whose reading is committed too, so quotas computed over its input
-            // would under-fill the meaning bucket by exactly what it removes.
+            // Committed deliberately holds EVERY actionable task (capped), unfiltered.
+            // filterSessionCommit is a progress-counter concern and is applied by
+            // selectSessionStats instead: since this set now also gates what can be
+            // served, filtering here made a dropped task unanswerable for the whole
+            // session rather than merely uncounted.
             const taskKeys = capSessionCommit(
-                filterSessionCommit(
-                    collectActionableTaskKeys(progress.learningQueue, state.settings, now)
-                )
+                collectActionableTaskKeys(progress.learningQueue, state.settings, now)
             );
             dispatch({
                 type: 'SESSION_START',

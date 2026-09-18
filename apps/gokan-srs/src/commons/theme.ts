@@ -26,6 +26,11 @@ export const THEME = {
         },
         meaning: {
             loop1: 'rgba(61, 90, 128, 0.6)', // Accent at 60% opacity
+        },
+        // Same accent again, a step fainter: the three directions are stages of one
+        // word's mastery, and the design system reserves a second hue for errors.
+        production: {
+            loop1: 'rgba(61, 90, 128, 0.35)',
         }
     },
     fonts: {
