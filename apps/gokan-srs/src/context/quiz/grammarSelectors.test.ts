@@ -489,9 +489,26 @@ describe('gradeGrammarAnswers', () => {
         expect(result.overall).toBe('minor_error');
     });
 
-    it('an empty (untouched) blank at hintLevel 0 grades as wrong, not minor_error', () => {
+    it('an empty blank grades as pass: a deliberate skip, not a wrong guess', () => {
+        // Was 'wrong' while Submit required every blank filled, when an empty blank
+        // could only mean a broken card. Submitting with blanks left empty is now a
+        // supported way to say "I do not know this one" (see canSubmitGrammar), so it
+        // grades as the same skip a literally typed "pass" gives, and the accepted
+        // form is revealed in the feedback.
         const result = gradeGrammarAnswers(blankPlan, [''], [0]);
-        expect(result.overall).toBe('wrong');
+        expect(result.perBlankResults[0]).toBe('pass');
+        expect(result.overall).toBe('pass');
+    });
+
+    it('grades a whitespace-only blank as a skip too', () => {
+        expect(gradeGrammarAnswers(blankPlan, ['   '], [0]).perBlankResults[0]).toBe('pass');
+    });
+
+    it('still reveals the accepted form for a skipped blank', () => {
+        // The point of allowing an empty submit: the learner sees what it should have
+        // been, which is what they were reaching for the hint button to get.
+        const result = gradeGrammarAnswers(blankPlan, [''], [0]);
+        expect(result.matchedAnswers[0]).toBe('すし');
     });
 
     describe('worst-of precedence: wrong > pass > minor_error > correct', () => {

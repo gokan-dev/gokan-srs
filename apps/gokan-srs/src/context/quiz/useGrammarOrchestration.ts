@@ -320,14 +320,25 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
        ========================= */
 
     const grammarComputed = {
+        // Deliberately does NOT require every blank to be filled. Requiring it made
+        // the card blockable: any state where an input could not be filled left the
+        // learner with no way forward at all, and revealing a blank via its hint
+        // button was exactly that (the reveal was a render-time display value and
+        // never reached grammarAnswers, so the "all filled" check stayed false).
+        // Two earlier variants of the same trap are recorded on blankWordSpans and
+        // on GrammarQuizState.example.
+        //
+        // An empty blank is now a legitimate answer meaning "I do not know this one":
+        // it grades as 'pass' and the accepted form is revealed in the feedback, which
+        // is what the learner wanted from the hint button anyway. Leaving Submit
+        // always reachable also means no future blank-selection bug can strand a card.
         canSubmitGrammar:
             !!state.currentGrammarPoint &&
             !!state.currentGrammarBlankPlan &&
             !state.currentGrammarBlankPlan.readOnly &&
             state.currentGrammarBlankPlan.blankWordIndices.length > 0 &&
             !state.grammarFeedback?.show &&
-            !state.isLoadingGrammar &&
-            state.grammarAnswers.every(a => a.trim().length > 0),
+            !state.isLoadingGrammar,
 
         canContinueGrammar: !!state.grammarFeedback?.show,
 

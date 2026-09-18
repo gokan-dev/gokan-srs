@@ -538,6 +538,18 @@ export function gradeGrammarAnswers(
         }
 
         const userInput = answers[i] ?? '';
+
+        // An empty blank is an explicit "I do not know this one", not a wrong guess.
+        // Submit no longer requires every blank to be filled (see canSubmitGrammar),
+        // so this is a reachable, intentional answer. Graded 'pass' - the same result
+        // a literally typed "pass" gives - rather than 'wrong': the learner skipped
+        // rather than mis-recalled, and the accepted form is revealed in the feedback.
+        if (userInput.trim().length === 0) {
+            perBlankResults.push('pass');
+            matchedAnswers.push(accepted[0] ?? '');
+            return;
+        }
+
         const { result, matchedAnswer } = SRSService.evaluateAnswer(userInput, {
             primary: accepted[0] ?? '',
             alternatives: accepted.slice(1),

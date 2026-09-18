@@ -202,9 +202,11 @@ export function GrammarQuizCard() {
                             const result = feedback?.perBlankResults[answerIndex];
                             const hintLevel = state.grammarHintLevels[answerIndex] ?? 0;
                             const revealed = hintLevel >= 2;
-                            const revealedAnswer = plan.acceptLists[answerIndex]?.[0] ?? '';
-                            const liveValue = state.grammarAnswers[answerIndex] ?? '';
-                            const displayValue = revealed ? revealedAnswer : liveValue;
+                            // Straight from state: revealing a blank now writes the
+                            // accepted form into grammarAnswers (see GRAMMAR_REVEAL_HINT),
+                            // so there is no longer a render-time substitution that can
+                            // disagree with what the reducer holds.
+                            const displayValue = state.grammarAnswers[answerIndex] ?? '';
 
                             const borderClass = !feedback?.show
                                 ? revealed

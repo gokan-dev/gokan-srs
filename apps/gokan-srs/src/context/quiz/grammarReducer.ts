@@ -242,7 +242,26 @@ export function grammarReducer(state: QuizState, action: GrammarQuizAction): Qui
         case 'GRAMMAR_REVEAL_HINT': {
             const levels = [...state.grammarHintLevels];
             const current = levels[action.payload.index] ?? 0;
-            levels[action.payload.index] = Math.min(2, current + 1);
+            const next = Math.min(2, current + 1);
+            levels[action.payload.index] = next;
+
+            // Reaching level 2 writes the revealed form into grammarAnswers rather
+            // than leaving the card to substitute it at render time. The card used to
+            // display `revealed ? acceptLists[i][0] : answers[i]`, so what the learner
+            // saw in the input and what the state held disagreed: the input showed the
+            // answer while grammarAnswers[i] stayed empty. That divergence is what
+            // blocked submission when the last remaining blank was revealed.
+            // Grading is unaffected (a revealed blank is forced to 'minor_error' by
+            // its hint level, whatever the text says).
+            if (next === 2) {
+                const revealed = state.currentGrammarBlankPlan?.acceptLists[action.payload.index]?.[0];
+                if (revealed) {
+                    const answers = [...state.grammarAnswers];
+                    answers[action.payload.index] = revealed;
+                    return { ...state, grammarHintLevels: levels, grammarAnswers: answers };
+                }
+            }
+
             return { ...state, grammarHintLevels: levels };
         }
 
