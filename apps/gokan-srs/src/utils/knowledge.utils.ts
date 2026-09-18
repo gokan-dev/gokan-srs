@@ -87,7 +87,14 @@ interface KnowledgeEvent {
 function entryEvents(
     entry: SRSEntry,
     introductionAt: Date | null,
-    frequencyModifier: number
+    frequencyModifier: number,
+    /**
+     * Whether an entry with no review history may still be credited at the word's
+     * introduction date (see below). True for reading and meaning; decided per word
+     * for production, which the migration can hand a mastered entry that was never
+     * actually reviewed.
+     */
+    allowNoHistoryCredit = true
 ): KnowledgeEvent[] {
     if (entry.history && entry.history.length > 0) {
         return entry.history
@@ -102,7 +109,7 @@ function entryEvents(
     // straight to max strength) or one introduced but not yet reviewed. Credit it
     // at its introduction date using its actual strength - the latter is worth 0
     // points, so only genuine skips move the curve.
-    if (introductionAt) {
+    if (allowNoHistoryCredit && introductionAt) {
         const points = entryKnowledgePoints(entry.memoryStrength);
         if (points > 0) return [{ t: new Date(introductionAt).getTime(), p: points }];
     }
@@ -175,15 +182,31 @@ export function buildKnowledgeCurve(
     let earliest = Infinity;
 
     for (const vocab of queue) {
-        // Deliberately reading + meaning only, not production. The knowledge scale is
-        // normalised so a word mastered in both directions is worth exactly 200 (see
-        // KNOWLEDGE_POINTS_PER_ENTRY), and folding in a third entry would both move
-        // that ceiling to 300 and retroactively add ~100 points, dated at its
-        // introduction, to every word grandfathered as production-mastered by the
-        // migration - rewriting past history rather than recording new learning.
-        for (const entry of [vocab.reading, vocab.meaning]) {
+        // Production counts alongside reading and meaning: it is a real direction the
+        // learner studies, and leaving it out meant a production answer moved the
+        // session total while the curve ignored it.
+        //
+        // Its no-history entries need care, though, which is the one asymmetry here.
+        // The migration grandfathers every already-graduated word to production-
+        // mastered so it does not un-graduate (see Production quiz rollout), and those
+        // entries carry no review logs. Crediting them through the no-history fallback
+        // would date ~200 points at each word's introduction and rewrite years of curve
+        // the learner never earned that way.
+        //
+        // The fallback is allowed only when the word has never been reviewed at all,
+        // which is exactly the "skipped at intro" case the fallback exists for: there
+        // the learner asserted they already knew the word, reading and meaning are
+        // credited on the same basis, and production is no different. A word with real
+        // review history instead waits for a real production review before counting.
+        const productionNoHistoryCredit = vocab.totalReviews === 0;
+
+        for (const [entry, allowNoHistoryCredit] of [
+            [vocab.reading, true],
+            [vocab.meaning, true],
+            [vocab.production, productionNoHistoryCredit],
+        ] as const) {
             if (!entry) continue;
-            const events = entryEvents(entry, vocab.introductionAt, frequencyModifier);
+            const events = entryEvents(entry, vocab.introductionAt, frequencyModifier, allowNoHistoryCredit);
             if (events.length === 0) continue;
             series.push(events);
             if (events[0].t < earliest) earliest = events[0].t;
