@@ -95,11 +95,14 @@ interface SessionPreview {
     review: number;
     new: number;
     retries: number;
+    /** Cards due beyond what the next session can hold. Vocab only: grammar sessions are uncapped, so its preview omits this. */
+    remaining?: number;
 }
 
 /** Shared by every activity card that previews an upcoming SRS session (vocab, grammar): "{review} review · {new} new", appending retries in the error color, falling back to a caught-up message with an ETA when known. */
 function renderSessionPreviewDescription(preview: SessionPreview, nextReviewAt: Date | null): React.ReactNode {
     const { review, new: newCount, retries } = preview;
+    const remaining = preview.remaining ?? 0;
     const caughtUp = review === 0 && newCount === 0 && retries === 0;
 
     if (caughtUp) {
@@ -110,11 +113,27 @@ function renderSessionPreviewDescription(preview: SessionPreview, nextReviewAt: 
     if (retries > 0) {
         parts.push(<span key="retries" className="text-error">{retries} retries</span>);
     }
-    return parts.reduce<React.ReactNode[]>((acc, part, i) => {
+    const counts = parts.reduce<React.ReactNode[]>((acc, part, i) => {
         if (i > 0) acc.push(<span key={`sep-${i}`} className="text-tertiary"> · </span>);
         acc.push(part);
         return acc;
     }, []);
+
+    // Only the vocab card can overflow: its session is capped, grammar's is not.
+    // Saying so up front is the difference between "this session is the work" and
+    // "this session is a slice of it", which changes whether the user stops after it.
+    if (remaining > 0) {
+        return (
+            <>
+                {counts}
+                <span className="block text-tertiary">
+                    {remaining} more after this session
+                </span>
+            </>
+        );
+    }
+
+    return counts;
 }
 
 const QuizActivityCard: React.FC<{

@@ -8,7 +8,7 @@ import { CONSTANTS } from '../../commons/constants';
 import type { QuizState, PendingQuizItem, TaskKey } from './quizReducer';
 import { taskKey } from './quizReducer';
 import { computeSessionState } from './sessionState';
-import { computeSessionStats, computeSessionPreview } from './sessionStats';
+import { computeSessionStats } from './sessionStats';
 
 /**
  * Single source of truth for "what should the quiz screen show right now".
@@ -87,32 +87,81 @@ export interface NextSessionPreview {
     review: number;
     new: number;
     retries: number;
+    /**
+     * Quiz cards that are due but will NOT fit in the next session, because
+     * `capSessionCommit` truncates it to CONSTANTS.srs.sessionQuizCap. Zero when
+     * everything due fits, which is the normal case.
+     */
+    remaining: number;
 }
 
 /**
- * Preview of what the next study session will contain, bucketed per distinct
- * vocab in `learningQueue` (graduated items excluded). Buckets are mutually
- * exclusive - first match wins, in this order:
- *   1. retries - a pending reading or meaning retry from a previous/abandoned session
- *   2. new     - queued but never reviewed once (totalReviews === 0)
- *   3. review  - due now (reuses isReadingActionable/isMeaningActionable, which
- *                by this point can only match their "due" branch since the
- *                retry and first-review cases were already claimed above)
- * Counts distinct vocab (words), not individual reading/meaning tasks - see
- * the issue's rationale for why task-level counting isn't worth the noise.
+ * Preview of what the next study session will contain, counted in **quiz cards**
+ * and run through the session's own pipeline (`collectActionableTaskKeys` then
+ * `capSessionCommit`), so the number on the Main hub is literally the number of
+ * cards the session will commit to.
+ *
+ * It used to count distinct *vocab* instead, which broke twice over once a third
+ * quiz type existed. Its due-check listed reading and meaning by hand and was
+ * never extended to production, so a queue with only production due reported "all
+ * caught up" while the session had work. And counting words understated a session
+ * that asks up to three cards per word, which matters much more now that the cap
+ * bounds the sitting: "12 review" for 30 committed cards is not a useful preview.
+ *
+ * Deriving it from the same two functions the session uses means it cannot drift
+ * from them again: a fourth quiz type, or any change to how the cap is composed,
+ * is reflected here without touching this code.
+ *
+ * Buckets are mutually exclusive per card, first match wins: a card awaiting a
+ * retry counts as a retry, a card on a word never yet reviewed counts as new, and
+ * everything else is a review.
  */
 export function selectNextSessionPreview(
     state: Pick<QuizState, 'progress' | 'settings'>,
     now: Date = new Date()
 ): NextSessionPreview {
-    if (!state.progress) return { review: 0, new: 0, retries: 0 };
+    const empty = { review: 0, new: 0, retries: 0, remaining: 0 };
+    if (!state.progress) return empty;
 
-    return computeSessionPreview(state.progress.learningQueue, {
-        isGraduated: v => v.stage === 'graduated',
-        isRetry: v => !!(v.needsRetry?.reading || v.needsRetry?.meaning),
-        isNew: v => v.totalReviews === 0,
-        isDue: v => isReadingActionable(v, now) || isMeaningActionable(v, state.settings ?? undefined, now),
-    });
+    const queue = state.progress.learningQueue;
+    const settings = state.settings ?? undefined;
+
+    const actionable = collectActionableTaskKeys(queue, settings, now);
+    const committed = capSessionCommit(actionable);
+
+    const byId = new Map(queue.map(v => [v.vocabId, v]));
+    const preview = { ...empty, remaining: actionable.length - committed.length };
+    // Every word that contributed a committed task, so the pass below cannot count
+    // it a second time. A word flagged for retry counts as a retry and nothing else,
+    // even when it has also never been reviewed.
+    const alreadyCounted = new Set<string>();
+
+    for (const key of committed) {
+        const { vocabId, quizType } = parseTaskKey(key);
+        const vocab = byId.get(vocabId);
+        if (!vocab || vocab.stage === 'graduated') continue;
+
+        alreadyCounted.add(vocabId);
+        if (vocab.needsRetry?.[quizType]) preview.retries++;
+        else if (vocab.totalReviews === 0) preview.new++;
+        else preview.review++;
+    }
+
+    // `new` stays a count of WORDS, not cards, and includes words that are queued
+    // but not yet actionable (introduced-but-not-due, or not yet introduced at all).
+    // Those produce no task key, so the actionable pipeline above cannot see them,
+    // yet they are exactly what the session will introduce once reviews run out.
+    // Counting them as cards would be guesswork anyway: how many cards a new word
+    // becomes depends on choices the learner has not made yet.
+    for (const vocab of queue) {
+        if (vocab.stage === 'graduated') continue;
+        if (vocab.totalReviews !== 0) continue;
+        if (alreadyCounted.has(vocab.vocabId)) continue;
+        preview.new++;
+        alreadyCounted.add(vocab.vocabId);
+    }
+
+    return preview;
 }
 
 export function selectCurrentProgress(

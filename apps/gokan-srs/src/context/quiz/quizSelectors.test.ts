@@ -392,32 +392,32 @@ describe('selectNextSessionPreview', () => {
     }
 
     it('returns all zeros without progress', () => {
-        expect(selectNextSessionPreview({ progress: null, settings }, now)).toEqual({ review: 0, new: 0, retries: 0 });
+        expect(selectNextSessionPreview({ progress: null, settings }, now)).toEqual({ review: 0, new: 0, retries: 0, remaining: 0 });
     });
 
     it('buckets a due reading as review', () => {
         const state = { progress: makeProgress([vocab('a', { readingDue: past })]), settings };
-        expect(selectNextSessionPreview(state, now)).toEqual({ review: 1, new: 0, retries: 0 });
+        expect(selectNextSessionPreview(state, now)).toEqual({ review: 1, new: 0, retries: 0, remaining: 0 });
     });
 
     it('buckets a due meaning as review', () => {
         const state = { progress: makeProgress([vocab('a', { meaningDue: past })]), settings };
-        expect(selectNextSessionPreview(state, now)).toEqual({ review: 1, new: 0, retries: 0 });
+        expect(selectNextSessionPreview(state, now)).toEqual({ review: 1, new: 0, retries: 0, remaining: 0 });
     });
 
     it('buckets an unreviewed queued item as new, regardless of due dates', () => {
         const state = { progress: makeProgress([vocab('a', { totalReviews: 0 })]), settings };
-        expect(selectNextSessionPreview(state, now)).toEqual({ review: 0, new: 1, retries: 0 });
+        expect(selectNextSessionPreview(state, now)).toEqual({ review: 0, new: 1, retries: 0, remaining: 0 });
     });
 
     it('buckets a pending reading retry as retries', () => {
         const state = { progress: makeProgress([vocab('a', { needsRetry: { reading: true } })]), settings };
-        expect(selectNextSessionPreview(state, now)).toEqual({ review: 0, new: 0, retries: 1 });
+        expect(selectNextSessionPreview(state, now)).toEqual({ review: 0, new: 0, retries: 1, remaining: 0 });
     });
 
     it('buckets a pending meaning retry as retries', () => {
         const state = { progress: makeProgress([vocab('a', { needsRetry: { meaning: true } })]), settings };
-        expect(selectNextSessionPreview(state, now)).toEqual({ review: 0, new: 0, retries: 1 });
+        expect(selectNextSessionPreview(state, now)).toEqual({ review: 0, new: 0, retries: 1, remaining: 0 });
     });
 
     it('retries take precedence over new and review for the same vocab', () => {
@@ -426,7 +426,7 @@ describe('selectNextSessionPreview', () => {
             progress: makeProgress([vocab('a', { totalReviews: 0, readingDue: past, needsRetry: { reading: true } })]),
             settings,
         };
-        expect(selectNextSessionPreview(state, now)).toEqual({ review: 0, new: 0, retries: 1 });
+        expect(selectNextSessionPreview(state, now)).toEqual({ review: 0, new: 0, retries: 1, remaining: 0 });
     });
 
     it('excludes graduated vocab entirely', () => {
@@ -434,18 +434,18 @@ describe('selectNextSessionPreview', () => {
             progress: makeProgress([vocab('a', { stage: 'graduated', readingDue: past, needsRetry: { reading: true } })]),
             settings,
         };
-        expect(selectNextSessionPreview(state, now)).toEqual({ review: 0, new: 0, retries: 0 });
+        expect(selectNextSessionPreview(state, now)).toEqual({ review: 0, new: 0, retries: 0, remaining: 0 });
     });
 
     it('ignores a due meaning when meaning quizzes are disabled', () => {
         const disabled = makeSettings({ enableMeaningQuiz: false });
         const state = { progress: makeProgress([vocab('a', { meaningDue: past })]), settings: disabled };
-        expect(selectNextSessionPreview(state, now)).toEqual({ review: 0, new: 0, retries: 0 });
+        expect(selectNextSessionPreview(state, now)).toEqual({ review: 0, new: 0, retries: 0, remaining: 0 });
     });
 
     it('does not count an item with no due date and no retry in any bucket', () => {
         const state = { progress: makeProgress([vocab('a', { readingDue: future, meaningDue: future })]), settings };
-        expect(selectNextSessionPreview(state, now)).toEqual({ review: 0, new: 0, retries: 0 });
+        expect(selectNextSessionPreview(state, now)).toEqual({ review: 0, new: 0, retries: 0, remaining: 0 });
     });
 
     it('sums mixed buckets across multiple vocab', () => {
@@ -458,7 +458,7 @@ describe('selectNextSessionPreview', () => {
             ]),
             settings,
         };
-        expect(selectNextSessionPreview(state, now)).toEqual({ review: 1, new: 1, retries: 1 });
+        expect(selectNextSessionPreview(state, now)).toEqual({ review: 1, new: 1, retries: 1, remaining: 0 });
     });
 });
 
@@ -669,5 +669,74 @@ describe('production is actually servable alongside a due reading', () => {
         };
         const view = selectNextView(state, false, now);
         expect(view.queueItem?.quizType).toBe('production');
+    });
+});
+
+describe('selectNextSessionPreview counts cards, including production', () => {
+    const settings = makeSettings();
+
+    function entry(due: Date | null) {
+        return { ...DEFAULT_VOCABULARY_PROGRESS.reading, memoryStrength: 200, dueDate: due };
+    }
+
+    it('does not report "caught up" when only production is due', () => {
+        // The reported bug: the preview listed reading and meaning by hand and was
+        // never extended to production, so the Main hub card said the user was caught
+        // up while the session had a full queue of production cards waiting.
+        const word = makeVocabProgress({
+            vocabId: 'a',
+            reading: entry(future),
+            meaning: entry(future),
+            production: entry(past),
+        });
+
+        const preview = selectNextSessionPreview({ progress: makeProgress([word]), settings }, now);
+        expect(preview.review).toBe(1);
+    });
+
+    it('counts one card per due direction, not one per word', () => {
+        const word = makeVocabProgress({
+            vocabId: 'a',
+            reading: entry(past),
+            meaning: entry(past),
+            production: entry(past),
+        });
+
+        const preview = selectNextSessionPreview({ progress: makeProgress([word]), settings }, now);
+        expect(preview.review).toBe(3);
+    });
+
+    it('caps the counts at the session cap and reports the overflow separately', () => {
+        const cap = CONSTANTS.srs.sessionQuizCap;
+        // 150 words x 2 due directions = 300 cards, which is 100 past the cap.
+        const queue = Array.from({ length: 150 }, (_, i) =>
+            makeVocabProgress({ vocabId: `v${i}`, reading: entry(past), meaning: entry(past), production: entry(future) })
+        );
+
+        const preview = selectNextSessionPreview({ progress: makeProgress(queue), settings }, now);
+
+        expect(preview.review + preview.retries).toBe(cap);
+        expect(preview.remaining).toBe(300 - cap);
+    });
+
+    it('reports no overflow when everything due fits in one session', () => {
+        const queue = Array.from({ length: 5 }, (_, i) =>
+            makeVocabProgress({ vocabId: `v${i}`, reading: entry(past) })
+        );
+
+        expect(selectNextSessionPreview({ progress: makeProgress(queue), settings }, now).remaining).toBe(0);
+    });
+
+    it('matches what the session actually commits to', () => {
+        // The preview and the session derive from the same two functions, so they
+        // cannot drift: this is the property that guarantees the card is honest.
+        const queue = Array.from({ length: 150 }, (_, i) =>
+            makeVocabProgress({ vocabId: `v${i}`, reading: entry(past), meaning: entry(past) })
+        );
+
+        const preview = selectNextSessionPreview({ progress: makeProgress(queue), settings }, now);
+        const committed = capSessionCommit(collectActionableTaskKeys(queue, settings, now));
+
+        expect(preview.review + preview.new + preview.retries).toBe(committed.length);
     });
 });
