@@ -168,6 +168,8 @@ export interface GrammarQuizState {
         /** Knowledge points the same answer credited to the sentence's vocabulary via
          *  applyVocabReinforcement. Absent when nothing was reinforced. */
         vocabDelta?: number;
+        /** Per-word split of vocabDelta, biggest gain first, for the ticker's hover detail. */
+        vocabBreakdown?: { label: string; delta: number }[];
     }>;
 }
 
@@ -191,7 +193,7 @@ export type GrammarQuizAction =
     | { type: 'GRAMMAR_SET_ANSWER'; payload: { index: number; value: string } }
     | { type: 'GRAMMAR_REVEAL_HINT'; payload: { index: number } }
     | { type: 'GRAMMAR_SUBMIT_ANSWER'; payload: { type: AnswerResult; message: string; matchedAnswers: string[]; perBlankResults: AnswerResult[]; strengthDeltaModifier: number; vocabCredits: { vocabId: string; result: AnswerResult }[] } }
-    | { type: 'GRAMMAR_UPDATE_AFTER_ANSWER'; payload: { progress: UserProgress; historyItem?: { grammarId: string; title: string; result: AnswerResult; delta: number; vocabDelta?: number } | null } }
+    | { type: 'GRAMMAR_UPDATE_AFTER_ANSWER'; payload: { progress: UserProgress; historyItem?: { grammarId: string; title: string; result: AnswerResult; delta: number; vocabDelta?: number; vocabBreakdown?: { label: string; delta: number }[] } | null } }
     | { type: 'GRAMMAR_ADVANCE_QUEUE'; payload: { progress: UserProgress; candidates?: GrammarPoint[] } }
     | { type: 'GRAMMAR_INTRO_CHOICE'; grammarId: string; choice: 'learn' | 'skip'; grammarPoint?: GrammarPoint }
     | { type: 'GRAMMAR_CLEAR_FEEDBACK' }

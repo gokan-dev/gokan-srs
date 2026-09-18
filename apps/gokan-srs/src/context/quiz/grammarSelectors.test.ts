@@ -7,6 +7,7 @@ import {
     selectNextGrammarSessionPreview,
     collectActionableGrammarIds,
     selectGrammarSessionStats,
+    summariseVocabGains,
 } from './grammarSelectors';
 import type { QuizState } from './quizReducer';
 import type { UserProgress } from '../../models/user.model';
@@ -936,5 +937,70 @@ describe('realization variant rotation and two-tier grading', () => {
         // inflected vocab blanks), so the invariant is that it offers no near-miss
         // forms here rather than that the field is absent.
         expect(plan?.acceptListsMinor?.every(list => list.length === 0)).toBe(true);
+    });
+});
+
+describe('summariseVocabGains', () => {
+    const entry = (strength: number) => ({
+        memoryStrength: strength, interval: 1, difficulty: 0.3,
+        lastReviewedAt: null, dueDate: null, history: [],
+    });
+    const word = (vocabId: string, strength: number) => ({
+        vocabId, stage: 'learning' as const, introductionAt: null, nextReviewAt: null,
+        lastReviewedAt: null, totalReviews: 1, consecutiveFailures: 0,
+        reading: entry(strength), meaning: entry(strength),
+    });
+    const words = [
+        { surface: '私', vocabId: 'a', baseForm: undefined },
+        { surface: '思っ', vocabId: 'b', baseForm: '思う' },
+    ];
+
+    it('reports nothing when the queue was not touched (same reference)', () => {
+        const queue = [word('a', 100)];
+        expect(summariseVocabGains(queue, queue, words)).toEqual({ total: 0, breakdown: [] });
+    });
+
+    it('splits the gain per word and sums it', () => {
+        const before = [word('a', 100), word('b', 100)];
+        const after = [word('a', 140), word('b', 200)];
+
+        const { total, breakdown } = summariseVocabGains(before, after, words);
+
+        expect(breakdown).toHaveLength(2);
+        expect(total).toBeCloseTo(breakdown.reduce((s, w) => s + w.delta, 0), 5);
+    });
+
+    it('orders the breakdown by biggest gain first', () => {
+        const before = [word('a', 100), word('b', 100)];
+        const after = [word('a', 120), word('b', 300)];
+
+        const { breakdown } = summariseVocabGains(before, after, words);
+
+        expect(breakdown[0].label).toBe('思う');
+        expect(breakdown[0].delta).toBeGreaterThan(breakdown[1].delta);
+    });
+
+    it('labels a word by its dictionary form, not the inflected surface in the sentence', () => {
+        // "思う +3" is a word the learner can look up; "思っ +3" is a fragment.
+        const { breakdown } = summariseVocabGains([word('b', 100)], [word('b', 200)], words);
+        expect(breakdown[0].label).toBe('思う');
+    });
+
+    it('uses the surface when the word has no separate dictionary form', () => {
+        const { breakdown } = summariseVocabGains([word('a', 100)], [word('a', 200)], words);
+        expect(breakdown[0].label).toBe('私');
+    });
+
+    it('skips words whose strength did not move', () => {
+        const before = [word('a', 100), word('b', 100)];
+        const after = [{ ...word('a', 100) }, word('b', 200)]; // 'a' is a new object but unchanged
+        const { breakdown } = summariseVocabGains(before, after, words);
+
+        expect(breakdown.map(w => w.label)).toEqual(['思う']);
+    });
+
+    it('falls back to the vocab id when the sentence has no matching word', () => {
+        const { breakdown } = summariseVocabGains([word('z', 100)], [word('z', 200)], words);
+        expect(breakdown[0].label).toBe('z');
     });
 });

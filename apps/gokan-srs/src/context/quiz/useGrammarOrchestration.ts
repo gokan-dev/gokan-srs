@@ -17,6 +17,7 @@ import {
     collectActionableGrammarIds,
     computeBlankPlan,
     gradeGrammarAnswers,
+    summariseVocabGains,
 } from './grammarSelectors';
 import { useSessionLifecycle } from './useSessionLifecycle';
 import { refillCandidates } from './refillCandidates';
@@ -214,7 +215,7 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
 
             let updatedQueue;
             let updatedLearningQueue = state.progress.learningQueue;
-            let historyItem: { grammarId: string; title: string; result: AnswerResult; delta: number; vocabDelta?: number } | null = null;
+            let historyItem: { grammarId: string; title: string; result: AnswerResult; delta: number; vocabDelta?: number; vocabBreakdown?: { label: string; delta: number }[] } | null = null;
 
             if (state.currentGrammarBlankPlan?.readOnly) {
                 // No blank-eligible word anywhere in this point's examples - there's
@@ -246,23 +247,18 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
                 // rather than re-deriving from vocabCredits, so it reports what was
                 // actually written (applyVocabReinforcement skips words not in the
                 // queue, and is itself skipped entirely on a retry).
-                let vocabDelta = 0;
-                if (updatedLearningQueue !== state.progress.learningQueue) {
-                    const before = new Map(state.progress.learningQueue.map(v => [v.vocabId, v]));
-                    for (const after of updatedLearningQueue) {
-                        const prior = before.get(after.vocabId);
-                        if (!prior || prior === after) continue;
-                        vocabDelta += calculateMasteryPercentage(after.reading.memoryStrength)
-                            - calculateMasteryPercentage(prior.reading.memoryStrength);
-                    }
-                }
+                const { total: vocabDelta, breakdown: vocabBreakdown } = summariseVocabGains(
+                    state.progress.learningQueue,
+                    updatedLearningQueue,
+                    state.currentGrammarBlankPlan?.example?.words ?? []
+                );
 
                 historyItem = {
                     grammarId: id,
                     title,
                     result: state.grammarFeedback.type,
                     delta,
-                    ...(vocabDelta > 0 ? { vocabDelta } : {}),
+                    ...(vocabDelta > 0 ? { vocabDelta, vocabBreakdown } : {}),
                 };
             }
 

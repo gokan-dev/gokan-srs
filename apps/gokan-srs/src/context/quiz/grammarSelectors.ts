@@ -5,6 +5,8 @@ import { isGrammarDue, grammarNextReviewAt } from '../../services/grammarSchedul
 import { VocabularyService } from '../../services/vocabulary.service';
 import type { AnswerResult } from '../../services/srs.service';
 import { SRSService } from '../../services/srs.service';
+import type { VocabProgress } from '../../models/vocabulary.model';
+import { calculateMasteryPercentage } from '../../utils/srs.utils';
 import { GrammarService } from '../../services/grammar.service';
 import { hashString, pickStable } from '../../utils/deterministicPick';
 import { computeSessionState } from './sessionState';
@@ -487,6 +489,62 @@ async function computeBlankPlanFor(point: GrammarPoint, progress: UserProgress |
 
     // Pass 4: no example has any blankable word at all - read-only study material.
     return { exampleIndex: startIndex, example: point.examples[startIndex], blankWordIndices: [], blankWordSpans: [], isPatternBlank: [], acceptLists: [], glosses: [], readOnly: true };
+}
+
+export interface VocabGainSummary {
+    /** Total knowledge points credited to vocabulary by one grammar answer. */
+    total: number;
+    /** Per-word split, biggest gain first. */
+    breakdown: { label: string; delta: number }[];
+}
+
+/**
+ * What one grammar answer gave the sentence's vocabulary, measured by diffing the
+ * learning queue around `applyVocabReinforcement` rather than re-deriving it from
+ * the credits list. The diff reports what was actually written: reinforcement is
+ * skipped wholesale on a retry, and skips words absent from the queue, so a
+ * re-derivation would claim gains that never happened.
+ *
+ * Labels come from the sentence the learner just answered, preferring each word's
+ * dictionary form over the inflected surface it appeared in: "思う +3" is a word
+ * they can look up, "思っ +3" is a fragment. Falls back to the vocab id only if the
+ * sentence somehow has no matching word, which should not happen.
+ */
+export function summariseVocabGains(
+    before: VocabProgress[],
+    after: VocabProgress[],
+    exampleWords: { surface: string; vocabId: string | null; baseForm?: string }[] = []
+): VocabGainSummary {
+    if (before === after) return { total: 0, breakdown: [] };
+
+    const priorById = new Map(before.map(v => [v.vocabId, v]));
+    const labelById = new Map<string, string>();
+    for (const word of exampleWords) {
+        if (word.vocabId && !labelById.has(word.vocabId)) {
+            labelById.set(word.vocabId, word.baseForm ?? word.surface);
+        }
+    }
+
+    let total = 0;
+    const breakdown: { label: string; delta: number }[] = [];
+
+    for (const updated of after) {
+        const prior = priorById.get(updated.vocabId);
+        if (!prior || prior === updated) continue;
+
+        const delta = calculateMasteryPercentage(updated.reading.memoryStrength)
+            - calculateMasteryPercentage(prior.reading.memoryStrength);
+        if (delta === 0) continue;
+
+        total += delta;
+        breakdown.push({ label: labelById.get(updated.vocabId) ?? updated.vocabId, delta });
+    }
+
+    // Biggest gain first: this is read at a glance, and which word moved most is the
+    // only ordering anyone scans a short list like this for.
+    breakdown.sort((a, b) => b.delta - a.delta);
+
+    return { total, breakdown };
 }
 
 /** Floor of the vocab coefficient: a grammar answer whose pattern is right but whose vocab blanks were ALL missed still earns this fraction of the full strength gain (never zero, never negative - the grammar core was demonstrated). */

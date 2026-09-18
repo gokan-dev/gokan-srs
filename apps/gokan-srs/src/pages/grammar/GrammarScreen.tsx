@@ -71,6 +71,7 @@ export function GrammarScreen() {
                 result: item.result,
                 delta: item.delta,
                 vocabDelta: item.vocabDelta,
+                vocabBreakdown: item.vocabBreakdown,
             }));
 
             return (

@@ -33,6 +33,8 @@ export interface SessionHistoryEntry {
      * and that gain was previously invisible. Absent for vocab answers.
      */
     vocabDelta?: number;
+    /** Per-word split of `vocabDelta`, biggest gain first, shown on hover. */
+    vocabBreakdown?: { label: string; delta: number }[];
 }
 
 interface SessionProgressProps {
@@ -199,9 +201,42 @@ export const SessionProgress: React.FC<SessionProgressProps> = ({ stats, history
     );
 };
 
+/**
+ * Which word in the sentence earned what, shown when an answer that reinforced
+ * vocabulary is hovered: "私 +2 · 鞄 +3". The aggregate `+N vocab` in the header
+ * says a grammar answer fed the vocabulary; this says which words, which is the
+ * part a learner can act on.
+ *
+ * Positioned `fixed` off a measured rect rather than absolutely inside the row,
+ * because the ticker is `overflow-hidden` (it has to be, to clip the strip as
+ * entries age out) and an absolutely-positioned child would be clipped with it.
+ * Same measured-fixed approach the header search panel uses for the same reason.
+ */
+const VocabBreakdownTooltip: React.FC<{
+    breakdown: { label: string; delta: number }[];
+    anchor: { left: number; top: number };
+}> = ({ breakdown, anchor }) => (
+    <div
+        role="tooltip"
+        style={{ left: anchor.left, top: anchor.top }}
+        className="fixed z-50 -translate-x-1/2 rounded border border-divider bg-surface px-2 py-1 shadow-md pointer-events-none"
+    >
+        <span className="text-xs whitespace-nowrap tabular-nums">
+            {breakdown.map((w, i) => (
+                <React.Fragment key={`${w.label}-${i}`}>
+                    {i > 0 && <span className="text-secondary-300 mx-1">·</span>}
+                    <span className="font-mincho text-primary">{w.label}</span>
+                    <span className="text-emerald-600"> +{Math.round(w.delta)}</span>
+                </React.Fragment>
+            ))}
+        </span>
+    </div>
+);
+
 const HistoryTicker: React.FC<{ history: SessionHistoryEntry[] }> = ({ history }) => {
     // Most recent is at index 0
     const recentItems = history.slice(0, 5);
+    const [hovered, setHovered] = React.useState<{ key: string; left: number; top: number } | null>(null);
 
     return (
         <div className="flex-1 flex items-center gap-3 overflow-hidden h-8">
@@ -214,6 +249,12 @@ const HistoryTicker: React.FC<{ history: SessionHistoryEntry[] }> = ({ history }
                         exit={{ opacity: 0, x: -20 }}
                         transition={{ duration: 0.3 }}
                         className="flex items-center gap-2 text-sm whitespace-nowrap"
+                        onMouseEnter={(e) => {
+                            if (!item.vocabBreakdown?.length) return;
+                            const r = e.currentTarget.getBoundingClientRect();
+                            setHovered({ key: item.key, left: r.left + r.width / 2, top: r.bottom + 6 });
+                        }}
+                        onMouseLeave={() => setHovered(h => (h?.key === item.key ? null : h))}
                     >
                         <Link
                             to={item.href}
@@ -240,6 +281,16 @@ const HistoryTicker: React.FC<{ history: SessionHistoryEntry[] }> = ({ history }
                             {item.delta > 0 ? '+' : ''}{Math.round(item.delta)}
                         </span>
 
+                        {/* The vocab total earns a mark on the row itself, so there is
+                            something to hover: an affordance nobody can see is one
+                            nobody finds. The per-word split is the tooltip. */}
+                        {!!item.vocabDelta && item.vocabDelta > 0 && (
+                            <span className="text-xs text-emerald-600/70 tabular-nums">
+                                +{Math.round(item.vocabDelta)}
+                                <span className="text-secondary-400"> vocab</span>
+                            </span>
+                        )}
+
                         {/* Separator for all but last visible */}
                         {index < recentItems.length - 1 && (
                             <span className="text-secondary-300 mx-1">•</span>
@@ -251,6 +302,12 @@ const HistoryTicker: React.FC<{ history: SessionHistoryEntry[] }> = ({ history }
             {history.length === 0 && (
                 <span className="text-secondary-400 text-sm italic">Session started...</span>
             )}
+
+            {hovered && (() => {
+                const item = recentItems.find(i => i.key === hovered.key);
+                if (!item?.vocabBreakdown?.length) return null;
+                return <VocabBreakdownTooltip breakdown={item.vocabBreakdown} anchor={hovered} />;
+            })()}
         </div>
     );
 };
