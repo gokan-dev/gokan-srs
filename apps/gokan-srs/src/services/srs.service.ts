@@ -170,7 +170,12 @@ export class SRSService {
         intervalModifier: number = 1.0, // Adaptive modifier
         frequencyModifier: number = 1.0, // User preference modifier
         meaningQuizEnabled: boolean = true, // Whether meaning quizzes are active for this user
-        productionQuizEnabled: boolean = true // Whether production quizzes are active for this user
+        productionQuizEnabled: boolean = true, // Whether production quizzes are active for this user
+        // Scales the memory-strength gain, mirroring the parameter calculateNextState
+        // already takes and GrammarSRSService.applyAnswer already forwards. Used to
+        // credit an exercise that genuinely trains a direction, but under easier
+        // conditions than that direction's own quiz (see applyVocabReinforcement).
+        strengthDeltaModifier: number = 1.0
     ): { updated: VocabProgress; result: AnswerResult, interval: number } {
         const result = forcedResult ?? this.analyzeError(userAnswer, correctAnswer);
 
@@ -220,7 +225,7 @@ export class SRSService {
         }
         const expectedLatency = CONSTANTS.srs.quizProperties[expectedLatencyKey].expectedLatency;
 
-        const { newEntry, interval } = this.calculateNextState(currentEntry, result, latencyMs, now, expectedLatency, intervalModifier, frequencyModifier);
+        const { newEntry, interval } = this.calculateNextState(currentEntry, result, latencyMs, now, expectedLatency, intervalModifier, frequencyModifier, strengthDeltaModifier);
 
         // We update the specific entry first
         const updatedReading = quizType === 'reading' ? newEntry : vocab.reading;

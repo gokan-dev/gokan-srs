@@ -945,10 +945,12 @@ describe('summariseVocabGains', () => {
         memoryStrength: strength, interval: 1, difficulty: 0.3,
         lastReviewedAt: null, dueDate: null, history: [],
     });
+    // `strength` moves the PRODUCTION entry, because that is where
+    // applyVocabReinforcement puts the credit and therefore what this must measure.
     const word = (vocabId: string, strength: number) => ({
         vocabId, stage: 'learning' as const, introductionAt: null, nextReviewAt: null,
         lastReviewedAt: null, totalReviews: 1, consecutiveFailures: 0,
-        reading: entry(strength), meaning: entry(strength),
+        reading: entry(100), meaning: entry(100), production: entry(strength),
     });
     const words = [
         { surface: '私', vocabId: 'a', baseForm: undefined },

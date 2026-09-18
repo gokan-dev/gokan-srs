@@ -532,8 +532,11 @@ export function summariseVocabGains(
         const prior = priorById.get(updated.vocabId);
         if (!prior || prior === updated) continue;
 
-        const delta = calculateMasteryPercentage(updated.reading.memoryStrength)
-            - calculateMasteryPercentage(prior.reading.memoryStrength);
+        // The production entry, because that is where applyVocabReinforcement puts the
+        // credit. These two must name the same entry or the "+N vocab" figure reports
+        // a schedule the answer never moved.
+        const delta = calculateMasteryPercentage(updated.production?.memoryStrength ?? 0)
+            - calculateMasteryPercentage(prior.production?.memoryStrength ?? 0);
         if (delta === 0) continue;
 
         total += delta;

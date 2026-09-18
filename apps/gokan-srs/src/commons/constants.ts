@@ -50,6 +50,17 @@ export const CONSTANTS = {
              * meaning is staggered +12h, so this sits one step further out).
              */
             seedDelayHours: 24,
+            /**
+             * Fraction of a normal production gain that a grammar answer's vocab
+             * reinforcement earns. Filling a blank IS production (English sentence in,
+             * Japanese out), which is why the credit goes to that entry rather than
+             * reading, but it is production with heavy scaffolding: the English
+             * sentence, the surrounding Japanese and the particles bracketing the gap
+             * narrow the candidates far more than a production card's bare glosses,
+             * and kanji is accepted where that card wants the reading. Right direction,
+             * easier conditions, so less than full credit.
+             */
+            reinforcementStrengthRatio: 0.5,
         },
 
         frequencyMultipliers: {
