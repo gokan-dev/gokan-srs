@@ -214,7 +214,7 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
 
             let updatedQueue;
             let updatedLearningQueue = state.progress.learningQueue;
-            let historyItem: { grammarId: string; title: string; result: AnswerResult; delta: number } | null = null;
+            let historyItem: { grammarId: string; title: string; result: AnswerResult; delta: number; vocabDelta?: number } | null = null;
 
             if (state.currentGrammarBlankPlan?.readOnly) {
                 // No blank-eligible word anywhere in this point's examples - there's
@@ -240,7 +240,30 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
                 }
 
                 const delta = calculateMasteryPercentage(updated.entry.memoryStrength) - calculateMasteryPercentage(target.entry.memoryStrength);
-                historyItem = { grammarId: id, title, result: state.grammarFeedback.type, delta };
+
+                // Points the same answer credited to the sentence's vocabulary, summed
+                // across every word reinforced. Measured by diffing the learning queue
+                // rather than re-deriving from vocabCredits, so it reports what was
+                // actually written (applyVocabReinforcement skips words not in the
+                // queue, and is itself skipped entirely on a retry).
+                let vocabDelta = 0;
+                if (updatedLearningQueue !== state.progress.learningQueue) {
+                    const before = new Map(state.progress.learningQueue.map(v => [v.vocabId, v]));
+                    for (const after of updatedLearningQueue) {
+                        const prior = before.get(after.vocabId);
+                        if (!prior || prior === after) continue;
+                        vocabDelta += calculateMasteryPercentage(after.reading.memoryStrength)
+                            - calculateMasteryPercentage(prior.reading.memoryStrength);
+                    }
+                }
+
+                historyItem = {
+                    grammarId: id,
+                    title,
+                    result: state.grammarFeedback.type,
+                    delta,
+                    ...(vocabDelta > 0 ? { vocabDelta } : {}),
+                };
             }
 
             dispatch({

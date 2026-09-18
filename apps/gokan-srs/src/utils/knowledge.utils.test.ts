@@ -6,6 +6,7 @@ import {
     strengthFromLog,
 } from './knowledge.utils';
 import { CONSTANTS } from '../commons/constants';
+import { calculateMasteryPercentage } from './srs.utils';
 import type { ReviewLog, SRSEntry, VocabProgress } from '../models/vocabulary.model';
 
 const F = CONSTANTS.srs.formula;
@@ -62,9 +63,19 @@ describe('entryKnowledgePoints', () => {
         }
     });
 
-    it('caps a fully mastered vocab (reading + meaning) at 200 points', () => {
+    it('caps a fully mastered vocab (reading + meaning) at 400 points', () => {
+        // 200 per entry, because one knowledge point IS one mastery point: the scale
+        // matches calculateMasteryPercentage exactly so the MasteryRing, the session
+        // ticker and the session total never need a conversion between them.
         const max = F.mastery.maxMemoryStrength;
-        expect(entryKnowledgePoints(max) + entryKnowledgePoints(max)).toBeCloseTo(200, 5);
+        expect(entryKnowledgePoints(max)).toBeCloseTo(KNOWLEDGE_POINTS_PER_ENTRY, 5);
+        expect(entryKnowledgePoints(max) + entryKnowledgePoints(max)).toBeCloseTo(400, 5);
+    });
+
+    it('reports exactly the mastery figure the ring shows, with no conversion', () => {
+        for (const strength of [1, 5, 60, 208, 500, 1270]) {
+            expect(entryKnowledgePoints(strength)).toBeCloseTo(calculateMasteryPercentage(strength), 10);
+        }
     });
 });
 
@@ -151,11 +162,11 @@ describe('buildKnowledgeCurve', () => {
 
         const curve = buildKnowledgeCurve([vocab], { range: 7, now });
 
-        expect(curve.currentTotal).toBeCloseTo(200, 5);
+        expect(curve.currentTotal).toBeCloseTo(400, 5);
         // Nothing before the skip, everything from the skip onward.
         expect(curve.points[2].points).toBe(0);
-        expect(curve.points[3].points).toBeCloseTo(200, 5);
-        expect(curve.points[6].points).toBeCloseTo(200, 5);
+        expect(curve.points[3].points).toBeCloseTo(400, 5);
+        expect(curve.points[6].points).toBeCloseTo(400, 5);
     });
 
     it('collapses pre-window history into the starting baseline rather than dropping it', () => {
@@ -252,6 +263,7 @@ describe('buildKnowledgeCurve', () => {
             now,
         });
 
-        expect(curve.currentTotal).toBeCloseTo(600, 4);
+        // 3 words x 2 entries x 200 points per mastered entry.
+        expect(curve.currentTotal).toBeCloseTo(1200, 4);
     });
 });

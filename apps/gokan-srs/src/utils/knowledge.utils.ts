@@ -7,24 +7,31 @@ const F = CONSTANTS.srs.formula;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
- * "Knowledge points" are an internal accounting unit, not a user-facing score.
- * They exist so the knowledge curve can express one number - "how much Japanese
- * does this user hold right now" - that accumulates smoothly as items mature,
- * instead of stepping only when a word is first introduced.
+ * "Knowledge points" express one number - "how much Japanese does this user hold
+ * right now" - that accumulates smoothly as items mature, instead of stepping only
+ * when a word is first introduced. They back the knowledge curve, the per-answer
+ * delta in the session ticker, and the session gains total.
  *
- * One fully-mastered SRS entry (reading OR meaning) is worth
- * KNOWLEDGE_POINTS_PER_ENTRY, so a word mastered in both directions is worth 200.
+ * **One knowledge point is one mastery point.** `calculateMasteryPercentage`
+ * already spans 0..200 across the MasteryRing's two visual loops, so an entry's
+ * points ARE its mastery figure, unconverted: a fully-mastered SRS entry is worth
+ * 200, and a word mastered in both reading and meaning is worth 400.
+ *
+ * This used to normalise to 0..100 per entry, which silently halved everything:
+ * the ring advanced 6, the ticker printed "+6%", and the session total moved by 3.
+ * Three places, three numbers, one underlying quantity. The scale is arbitrary, so
+ * the one that removes every conversion is the right one to pick.
  */
-export const KNOWLEDGE_POINTS_PER_ENTRY = 100;
+export const KNOWLEDGE_POINTS_PER_ENTRY = 200;
 
 /**
- * Points held by a single SRS entry at a given memory strength. Derived from the
- * app's existing mastery curve (`calculateMasteryPercentage`, which spans 0..200
- * across its two visual loops) so mastery and knowledge can never disagree about
- * how far along an item is - there is one curve, normalised here to 0..100.
+ * Points held by a single SRS entry at a given memory strength: its mastery figure
+ * exactly (see above). Kept as a named function rather than inlining
+ * calculateMasteryPercentage at each call site, so "knowledge points" stays a
+ * concept the code can talk about.
  */
 export function entryKnowledgePoints(memoryStrength: number): number {
-    return (calculateMasteryPercentage(memoryStrength) / 200) * KNOWLEDGE_POINTS_PER_ENTRY;
+    return calculateMasteryPercentage(memoryStrength);
 }
 
 /**

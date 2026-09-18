@@ -467,6 +467,37 @@ describe('computeBlankPlan', () => {
     });
 });
 
+describe('wrong conjugation of the right verb', () => {
+    // The sentence needs 思っ (te-form stem); 思う/おもう are the dictionary forms.
+    // They used to sit in the ideal accept-list, so answering the dictionary form
+    // scored full marks even though the conjugation is much of what is being tested.
+    const inflectedPlan = {
+        acceptLists: [['思っ', 'おもっ']],
+        acceptListsMinor: [['思う', 'おもう']],
+    };
+
+    it('grades the required inflected form as correct', () => {
+        expect(gradeGrammarAnswers(inflectedPlan, ['思っ'], [0]).perBlankResults[0]).toBe('correct');
+        expect(gradeGrammarAnswers(inflectedPlan, ['おもっ'], [0]).perBlankResults[0]).toBe('correct');
+    });
+
+    it('gives partial credit for the right verb in the wrong conjugation', () => {
+        expect(gradeGrammarAnswers(inflectedPlan, ['思う'], [0]).perBlankResults[0]).toBe('minor_error');
+        expect(gradeGrammarAnswers(inflectedPlan, ['おもう'], [0]).perBlankResults[0]).toBe('minor_error');
+    });
+
+    it('still grades an unrelated verb as wrong', () => {
+        expect(gradeGrammarAnswers(inflectedPlan, ['たべる'], [0]).perBlankResults[0]).toBe('wrong');
+    });
+
+    it('leaves an uninflected word fully correct in any of its writings', () => {
+        // No minor tier is built when the occurrence is not inflected, so writing a
+        // noun in kana instead of kanji stays correct rather than becoming a near miss.
+        const nounPlan = { acceptLists: [['寿司', 'すし']], acceptListsMinor: [[]] };
+        expect(gradeGrammarAnswers(nounPlan, ['すし'], [0]).perBlankResults[0]).toBe('correct');
+    });
+});
+
 describe('gradeGrammarAnswers', () => {
     const blankPlan = { acceptLists: [['すし', '寿司', '鮨', '鮓']] };
 
@@ -901,6 +932,9 @@ describe('realization variant rotation and two-tier grading', () => {
         vi.spyOn(GrammarService, 'loadVariantGroups').mockResolvedValue({});
         const plan = await computeBlankPlan(canonical, null, 0);
         expect(plan?.realization).toBeUndefined();
-        expect(plan?.acceptListsMinor).toBeUndefined();
+        // acceptListsMinor is now always present (every plan carries a minor tier, for
+        // inflected vocab blanks), so the invariant is that it offers no near-miss
+        // forms here rather than that the field is absent.
+        expect(plan?.acceptListsMinor?.every(list => list.length === 0)).toBe(true);
     });
 });

@@ -124,8 +124,9 @@ function blankSpansOf(blankIndices: number[], isPatternBlank: boolean[]): number
     return spans;
 }
 
-async function buildBlankData(example: GrammarExample, blankSpans: number[][]): Promise<{ acceptLists: string[][]; glosses: string[] }> {
+async function buildBlankData(example: GrammarExample, blankSpans: number[][]): Promise<{ acceptLists: string[][]; acceptListsMinor: string[][]; glosses: string[] }> {
     const acceptLists: string[][] = [];
+    const acceptListsMinor: string[][] = [];
     const glosses: string[] = [];
 
     for (const span of blankSpans) {
@@ -140,6 +141,7 @@ async function buildBlankData(example: GrammarExample, blankSpans: number[][]): 
                 ? words.map(w => w.reading ?? w.surface).join('')
                 : null;
             acceptLists.push(Array.from(new Set([surface, ...(reading ? [reading] : [])])));
+            acceptListsMinor.push([]);
             glosses.push('');
             continue;
         }
@@ -151,25 +153,46 @@ async function buildBlankData(example: GrammarExample, blankSpans: number[][]): 
         if (word.reading) forms.add(word.reading);
         let gloss = '';
 
+        // The dictionary-form variants of an INFLECTED occurrence. Right word, wrong
+        // form: graded 'minor_error' rather than 'correct'.
+        //
+        // These all used to sit in the ideal list, so answering 思う where the sentence
+        // needs 思っ scored full marks - the conjugation is a large part of what the
+        // sentence is testing, and getting it wrong was free.
+        //
+        // Gated on `word.baseForm`, which the dataset sets only when the base form
+        // differs from the surface. For an uninflected word (every noun, and a verb
+        // that happens to appear in dictionary form) it is absent and nothing moves:
+        // writing 寿司 as すし stays fully correct, which it should.
+        const inflected = !!word.baseForm;
+        const minorForms = new Set<string>();
+
         if (word.vocabId) {
             try {
                 const vocab = await VocabularyService.loadVocab(word.vocabId);
-                forms.add(vocab.writtenForm.kanji);
-                vocab.writtenForm.alternatives.forEach(a => forms.add(a));
-                forms.add(vocab.reading.primary);
-                vocab.reading.alternatives.forEach(a => forms.add(a));
-                vocab.mergedVocabs?.forEach(m => forms.add(m.originalPrimaryReading));
+                const target = inflected ? minorForms : forms;
+                target.add(vocab.writtenForm.kanji);
+                vocab.writtenForm.alternatives.forEach(a => target.add(a));
+                target.add(vocab.reading.primary);
+                vocab.reading.alternatives.forEach(a => target.add(a));
+                vocab.mergedVocabs?.forEach(m => target.add(m.originalPrimaryReading));
                 gloss = vocab.senses.flatMap(s => s.glosses)[0] ?? '';
             } catch (e) {
                 console.error(`[grammarSelectors] Failed to load vocab ${word.vocabId} for blank ${wordIndex}, falling back to surface/reading only`, e);
             }
         }
 
+        // Anything that is already an ideal answer for this occurrence cannot also be
+        // a near miss: the two lists must not overlap, or a correct answer could be
+        // downgraded depending on match order.
+        for (const f of forms) minorForms.delete(f);
+
         acceptLists.push(Array.from(forms));
+        acceptListsMinor.push(Array.from(minorForms));
         glosses.push(gloss);
     }
 
-    return { acceptLists, glosses };
+    return { acceptLists, acceptListsMinor, glosses };
 }
 
 /** The single most-frequent (lowest frequency.kanjiRank) candidate word in an example, used for the one-blank fallback (item 5.2). Falls back to the first candidate if every fetch fails. */
@@ -389,8 +412,14 @@ export async function computeBlankPlan(point: GrammarPoint, progress: UserProgre
             // the alternation and must keep grading strictly.
             acceptLists: base.acceptLists.map((list, i) =>
                 base.isPatternBlank[i] ? Array.from(new Set([...list, ...rotation.sameRegister])) : list),
-            acceptListsMinor: base.acceptLists.map((_, i) =>
-                base.isPatternBlank[i] ? rotation.otherRegister : []),
+            // Merged, not replaced: the base plan's minor tier already carries each
+            // inflected vocab blank's dictionary forms (right word, wrong conjugation),
+            // and overwriting it here would silently restore full credit for those on
+            // any variant-group turn.
+            acceptListsMinor: base.acceptLists.map((_, i) => Array.from(new Set([
+                ...(base.acceptListsMinor?.[i] ?? []),
+                ...(base.isPatternBlank[i] ? rotation.otherRegister : []),
+            ]))),
         };
     }
 
@@ -426,8 +455,8 @@ async function computeBlankPlanFor(point: GrammarPoint, progress: UserProgress |
         const blankWordIndices = blankWordSpans.map(span => span[0]);
         const isPatternBlank = blankWordIndices.map(i => example.patternWordIndices.includes(i));
 
-        const { acceptLists, glosses } = await buildBlankData(example, blankWordSpans);
-        return { exampleIndex, example, blankWordIndices, blankWordSpans, isPatternBlank, acceptLists, glosses, readOnly: false };
+        const { acceptLists, acceptListsMinor, glosses } = await buildBlankData(example, blankWordSpans);
+        return { exampleIndex, example, blankWordIndices, blankWordSpans, isPatternBlank, acceptLists, acceptListsMinor, glosses, readOnly: false };
     }
 
     // Pass 2: FALLBACK - pattern not locatable anywhere in this point; an example with a known word.
@@ -438,10 +467,10 @@ async function computeBlankPlanFor(point: GrammarPoint, progress: UserProgress |
 
         const knownIndices = candidateIndices.filter(i => isKnown(example.words[i].vocabId!));
         if (knownIndices.length > 0) {
-            const { acceptLists, glosses } = await buildBlankData(example, knownIndices.map(i => [i]));
+            const { acceptLists, acceptListsMinor, glosses } = await buildBlankData(example, knownIndices.map(i => [i]));
             // No pattern located, so none of these are pattern blanks - they grade as
             // pure vocab (worst-of), the original pre-pattern behaviour.
-            return { exampleIndex, example, blankWordIndices: knownIndices, blankWordSpans: knownIndices.map(i => [i]), isPatternBlank: knownIndices.map(() => false), acceptLists, glosses, readOnly: false };
+            return { exampleIndex, example, blankWordIndices: knownIndices, blankWordSpans: knownIndices.map(i => [i]), isPatternBlank: knownIndices.map(() => false), acceptLists, acceptListsMinor, glosses, readOnly: false };
         }
     }
 
@@ -452,8 +481,8 @@ async function computeBlankPlanFor(point: GrammarPoint, progress: UserProgress |
         if (candidateIndices.length === 0) continue;
 
         const best = await pickMostFrequentCandidate(example, candidateIndices);
-        const { acceptLists, glosses } = await buildBlankData(example, [[best]]);
-        return { exampleIndex, example, blankWordIndices: [best], blankWordSpans: [[best]], isPatternBlank: [false], acceptLists, glosses, readOnly: false };
+        const { acceptLists, acceptListsMinor, glosses } = await buildBlankData(example, [[best]]);
+        return { exampleIndex, example, blankWordIndices: [best], blankWordSpans: [[best]], isPatternBlank: [false], acceptLists, acceptListsMinor, glosses, readOnly: false };
     }
 
     // Pass 4: no example has any blankable word at all - read-only study material.

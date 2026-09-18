@@ -19,7 +19,20 @@ export interface SessionHistoryEntry {
     href: string;
     label: string;
     result: AnswerResult;
+    /**
+     * Knowledge points this answer moved the item by, which is also exactly how far
+     * its MasteryRing moved (one knowledge point is one mastery point - see
+     * knowledge.utils.ts). The ticker prints this number and the total is its
+     * running sum, so an answer showing +6 moves the total by +6.
+     */
     delta: number;
+    /**
+     * Points credited to the sentence's *vocabulary* by this answer, separately from
+     * the item's own delta. Grammar only: a grammar answer also reinforces the words
+     * the learner filled in correctly (see GrammarSRSService.applyVocabReinforcement),
+     * and that gain was previously invisible. Absent for vocab answers.
+     */
+    vocabDelta?: number;
 }
 
 interface SessionProgressProps {
@@ -65,24 +78,46 @@ const WaitingNote: React.FC<{ waiting: number; moreNew: boolean; noun: string }>
 };
 
 /**
- * Net knowledge points gained/lost so far this session, using the same accounting
- * as the knowledge curve: an entry's points are its mastery percentage / 2 (see
- * utils/knowledge.utils.ts entryKnowledgePoints), and each history delta is that
- * entry's mastery-% change, so knowledge-point delta = delta / 2. Summed over the
- * (session-scoped) history rather than shown per item.
+ * Knowledge points gained this session, as ONE net number that is the plain sum of
+ * the per-answer deltas shown in the ticker directly below it. An answer reading +6
+ * moves this by +6.
+ *
+ * It used to show gained and lost as two figures, in points, while the ticker
+ * printed percentages that were twice their point value. Three things were wrong at
+ * once: the total could not be reconciled with the rows under it, the split invited
+ * reading "+18 / -5" as a single quantity when it is two, and the row mixed a
+ * percentage with an absolute count. Now: one unit, one number, arithmetic that
+ * checks out by eye. The gained/lost breakdown survives in the tooltip for anyone
+ * who wants it.
+ *
+ * `vocabDelta` is summed separately rather than folded in: in a grammar session the
+ * answer scores the grammar point AND reinforces the sentence's vocabulary, and
+ * those are two different things the learner is building.
  */
 const GainsSummary: React.FC<{ history: SessionHistoryEntry[] }> = ({ history }) => {
     if (history.length === 0) return null;
 
-    const gained = Math.round(history.filter(h => h.delta > 0).reduce((s, h) => s + h.delta, 0) / 2);
-    const lost = Math.round(Math.abs(history.filter(h => h.delta < 0).reduce((s, h) => s + h.delta, 0)) / 2);
+    const net = Math.round(history.reduce((s, h) => s + h.delta, 0));
+    const gained = Math.round(history.filter(h => h.delta > 0).reduce((s, h) => s + h.delta, 0));
+    const lost = Math.round(Math.abs(history.filter(h => h.delta < 0).reduce((s, h) => s + h.delta, 0)));
+    const vocab = Math.round(history.reduce((s, h) => s + (h.vocabDelta ?? 0), 0));
+
+    const title = `Knowledge points this session: +${gained} gained, -${lost} lost`
+        + (vocab > 0 ? `, +${vocab} on the vocabulary in these sentences` : '');
 
     return (
-        <span className="text-xs tabular-nums" title="Knowledge points gained and lost this session">
-            <span className="text-emerald-600">+{gained}</span>
-            <span className="text-secondary-300 mx-1">/</span>
-            <span className="text-desaturated-red-600">-{lost}</span>
+        <span className="text-xs tabular-nums" title={title}>
+            <span className={net < 0 ? 'text-desaturated-red-600' : 'text-emerald-600'}>
+                {net > 0 ? '+' : ''}{net}
+            </span>
             <span className="text-secondary-400"> pts</span>
+            {vocab > 0 && (
+                <>
+                    <span className="text-secondary-300 mx-1">·</span>
+                    <span className="text-emerald-600">+{vocab}</span>
+                    <span className="text-secondary-400"> vocab</span>
+                </>
+            )}
         </span>
     );
 };
@@ -199,9 +234,10 @@ const HistoryTicker: React.FC<{ history: SessionHistoryEntry[] }> = ({ history }
                         {item.result === 'minor_error' && <AlertCircle className="w-3 h-3 text-amber-500" />}
                         {(item.result === 'wrong' || item.result === 'pass') && <XCircle className="w-3 h-3 text-desaturated-red-500" />}
 
-                        {/* Delta */}
+                        {/* Knowledge points, the same unit the total above sums. Was
+                            printed as a percentage that was twice its point value. */}
                         <span className="text-xs text-secondary-400 tabular-nums">
-                            {item.delta > 0 ? '+' : ''}{Math.round(item.delta)}%
+                            {item.delta > 0 ? '+' : ''}{Math.round(item.delta)}
                         </span>
 
                         {/* Separator for all but last visible */}
