@@ -7,6 +7,7 @@ import {
     selectNextGrammarSessionPreview,
     collectActionableGrammarIds,
     selectGrammarSessionStats,
+    summariseVocabGains,
 } from './grammarSelectors';
 import type { QuizState } from './quizReducer';
 import type { UserProgress } from '../../models/user.model';
@@ -467,6 +468,37 @@ describe('computeBlankPlan', () => {
     });
 });
 
+describe('wrong conjugation of the right verb', () => {
+    // The sentence needs 思っ (te-form stem); 思う/おもう are the dictionary forms.
+    // They used to sit in the ideal accept-list, so answering the dictionary form
+    // scored full marks even though the conjugation is much of what is being tested.
+    const inflectedPlan = {
+        acceptLists: [['思っ', 'おもっ']],
+        acceptListsMinor: [['思う', 'おもう']],
+    };
+
+    it('grades the required inflected form as correct', () => {
+        expect(gradeGrammarAnswers(inflectedPlan, ['思っ'], [0]).perBlankResults[0]).toBe('correct');
+        expect(gradeGrammarAnswers(inflectedPlan, ['おもっ'], [0]).perBlankResults[0]).toBe('correct');
+    });
+
+    it('gives partial credit for the right verb in the wrong conjugation', () => {
+        expect(gradeGrammarAnswers(inflectedPlan, ['思う'], [0]).perBlankResults[0]).toBe('minor_error');
+        expect(gradeGrammarAnswers(inflectedPlan, ['おもう'], [0]).perBlankResults[0]).toBe('minor_error');
+    });
+
+    it('still grades an unrelated verb as wrong', () => {
+        expect(gradeGrammarAnswers(inflectedPlan, ['たべる'], [0]).perBlankResults[0]).toBe('wrong');
+    });
+
+    it('leaves an uninflected word fully correct in any of its writings', () => {
+        // No minor tier is built when the occurrence is not inflected, so writing a
+        // noun in kana instead of kanji stays correct rather than becoming a near miss.
+        const nounPlan = { acceptLists: [['寿司', 'すし']], acceptListsMinor: [[]] };
+        expect(gradeGrammarAnswers(nounPlan, ['すし'], [0]).perBlankResults[0]).toBe('correct');
+    });
+});
+
 describe('gradeGrammarAnswers', () => {
     const blankPlan = { acceptLists: [['すし', '寿司', '鮨', '鮓']] };
 
@@ -489,9 +521,26 @@ describe('gradeGrammarAnswers', () => {
         expect(result.overall).toBe('minor_error');
     });
 
-    it('an empty (untouched) blank at hintLevel 0 grades as wrong, not minor_error', () => {
+    it('an empty blank grades as pass: a deliberate skip, not a wrong guess', () => {
+        // Was 'wrong' while Submit required every blank filled, when an empty blank
+        // could only mean a broken card. Submitting with blanks left empty is now a
+        // supported way to say "I do not know this one" (see canSubmitGrammar), so it
+        // grades as the same skip a literally typed "pass" gives, and the accepted
+        // form is revealed in the feedback.
         const result = gradeGrammarAnswers(blankPlan, [''], [0]);
-        expect(result.overall).toBe('wrong');
+        expect(result.perBlankResults[0]).toBe('pass');
+        expect(result.overall).toBe('pass');
+    });
+
+    it('grades a whitespace-only blank as a skip too', () => {
+        expect(gradeGrammarAnswers(blankPlan, ['   '], [0]).perBlankResults[0]).toBe('pass');
+    });
+
+    it('still reveals the accepted form for a skipped blank', () => {
+        // The point of allowing an empty submit: the learner sees what it should have
+        // been, which is what they were reaching for the hint button to get.
+        const result = gradeGrammarAnswers(blankPlan, [''], [0]);
+        expect(result.matchedAnswers[0]).toBe('すし');
     });
 
     describe('worst-of precedence: wrong > pass > minor_error > correct', () => {
@@ -884,6 +933,76 @@ describe('realization variant rotation and two-tier grading', () => {
         vi.spyOn(GrammarService, 'loadVariantGroups').mockResolvedValue({});
         const plan = await computeBlankPlan(canonical, null, 0);
         expect(plan?.realization).toBeUndefined();
-        expect(plan?.acceptListsMinor).toBeUndefined();
+        // acceptListsMinor is now always present (every plan carries a minor tier, for
+        // inflected vocab blanks), so the invariant is that it offers no near-miss
+        // forms here rather than that the field is absent.
+        expect(plan?.acceptListsMinor?.every(list => list.length === 0)).toBe(true);
+    });
+});
+
+describe('summariseVocabGains', () => {
+    const entry = (strength: number) => ({
+        memoryStrength: strength, interval: 1, difficulty: 0.3,
+        lastReviewedAt: null, dueDate: null, history: [],
+    });
+    // `strength` moves the PRODUCTION entry, because that is where
+    // applyVocabReinforcement puts the credit and therefore what this must measure.
+    const word = (vocabId: string, strength: number) => ({
+        vocabId, stage: 'learning' as const, introductionAt: null, nextReviewAt: null,
+        lastReviewedAt: null, totalReviews: 1, consecutiveFailures: 0,
+        reading: entry(100), meaning: entry(100), production: entry(strength),
+    });
+    const words = [
+        { surface: '私', vocabId: 'a', baseForm: undefined },
+        { surface: '思っ', vocabId: 'b', baseForm: '思う' },
+    ];
+
+    it('reports nothing when the queue was not touched (same reference)', () => {
+        const queue = [word('a', 100)];
+        expect(summariseVocabGains(queue, queue, words)).toEqual({ total: 0, breakdown: [] });
+    });
+
+    it('splits the gain per word and sums it', () => {
+        const before = [word('a', 100), word('b', 100)];
+        const after = [word('a', 140), word('b', 200)];
+
+        const { total, breakdown } = summariseVocabGains(before, after, words);
+
+        expect(breakdown).toHaveLength(2);
+        expect(total).toBeCloseTo(breakdown.reduce((s, w) => s + w.delta, 0), 5);
+    });
+
+    it('orders the breakdown by biggest gain first', () => {
+        const before = [word('a', 100), word('b', 100)];
+        const after = [word('a', 120), word('b', 300)];
+
+        const { breakdown } = summariseVocabGains(before, after, words);
+
+        expect(breakdown[0].label).toBe('思う');
+        expect(breakdown[0].delta).toBeGreaterThan(breakdown[1].delta);
+    });
+
+    it('labels a word by its dictionary form, not the inflected surface in the sentence', () => {
+        // "思う +3" is a word the learner can look up; "思っ +3" is a fragment.
+        const { breakdown } = summariseVocabGains([word('b', 100)], [word('b', 200)], words);
+        expect(breakdown[0].label).toBe('思う');
+    });
+
+    it('uses the surface when the word has no separate dictionary form', () => {
+        const { breakdown } = summariseVocabGains([word('a', 100)], [word('a', 200)], words);
+        expect(breakdown[0].label).toBe('私');
+    });
+
+    it('skips words whose strength did not move', () => {
+        const before = [word('a', 100), word('b', 100)];
+        const after = [{ ...word('a', 100) }, word('b', 200)]; // 'a' is a new object but unchanged
+        const { breakdown } = summariseVocabGains(before, after, words);
+
+        expect(breakdown.map(w => w.label)).toEqual(['思う']);
+    });
+
+    it('falls back to the vocab id when the sentence has no matching word', () => {
+        const { breakdown } = summariseVocabGains([word('z', 100)], [word('z', 200)], words);
+        expect(breakdown[0].label).toBe('z');
     });
 });

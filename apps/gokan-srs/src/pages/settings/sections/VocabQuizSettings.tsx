@@ -102,6 +102,14 @@ export function VocabQuizSettings({ settings, onUpdateSettings, dense = false }:
                 onChange={(checked) => update({ enableMeaningQuiz: checked })}
             />
 
+            <SettingToggle
+                dense={dense}
+                label="Enable Production Quizzes"
+                description="Recall the Japanese reading from its English meaning. Words join this gradually, as each comes up for review."
+                checked={settings.enableProductionQuiz !== false}
+                onChange={(checked) => update({ enableProductionQuiz: checked })}
+            />
+
             {settings.enableMeaningQuiz !== false && (
                 <OptionGrid
                     title="Train meaning in context"

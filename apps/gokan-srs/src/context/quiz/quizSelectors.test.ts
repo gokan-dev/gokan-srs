@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { selectNextView, selectCurrentProgress, selectCurrentSentence, selectSessionStats, filterSessionCommit, selectNextSessionPreview } from './quizSelectors';
+import { selectNextView, selectCurrentProgress, selectCurrentSentence, selectSessionStats, capSessionCommit, collectActionableTaskKeys, selectNextSessionPreview, dedupTaskKeysByVocab } from './quizSelectors';
 import { initialState, taskKey } from './quizReducer';
 import type { QuizState, TaskKey } from './quizReducer';
 import type { UserProgress, UserSettings } from '../../models/user.model';
@@ -323,39 +323,27 @@ describe('selectSessionStats', () => {
         expect(stats.waiting).toBe(1);
     });
 
-    it('answering a reading whose meaning was due at the same moment only increments done by 1 (via filterSessionCommit)', () => {
-        // Both reading and meaning are due together at session start - without
-        // filterSessionCommit, both would be committed, and answering reading
-        // (which staggers meaning +12h per SRSService.applyAnswer) would
-        // silently count BOTH as "done" from a single answer.
-        const rawCommitted = [taskKey('a', 'reading'), taskKey('a', 'meaning')];
-        const committed = filterSessionCommit(rawCommitted);
+    it('a reading-only commit (dedup keeps meaning out) resolves done by exactly 1 once answered, without auto-resolving the uncommitted meaning', () => {
+        // Realistic post-dedup commit: dedupTaskKeysByVocab keeps only reading for a
+        // vocab with both directions due at session start (see selectNextSessionPreview
+        // and the SESSION_START snapshot in useQuizOrchestration) - session.committed
+        // here reflects that, not the pre-dedup "both directions committed" shape a
+        // prior version of these tests assumed.
+        const committed = [taskKey('a', 'reading')];
 
-        // Simulate having answered the reading: it's no longer due, and its
-        // meaning got staggered forward (the real applyAnswer behavior).
-        const answered = vocab('a', { readingDue: future, meaningDue: future });
-        const state = { progress: makeProgress([answered]), settings, session: { committed } };
+        const beforeAnswer = vocab('a', { readingDue: past, meaningDue: past });
+        expect(selectSessionStats(stateWith([beforeAnswer], committed), false, now).done).toBe(0);
 
-        const stats = selectSessionStats(state, false, now);
-        expect(stats.total).toBe(1); // meaning was never committed
-        expect(stats.done).toBe(1); // only reading counts as done
-    });
-});
-
-describe('filterSessionCommit', () => {
-    it("drops a vocab's meaning key when its reading key is also present", () => {
-        const keys: TaskKey[] = [taskKey('a', 'reading'), taskKey('a', 'meaning'), taskKey('b', 'meaning')];
-        expect(filterSessionCommit(keys).sort()).toEqual([taskKey('a', 'reading'), taskKey('b', 'meaning')].sort());
-    });
-
-    it('keeps a meaning key when its reading is not present', () => {
-        const keys: TaskKey[] = [taskKey('a', 'meaning')];
-        expect(filterSessionCommit(keys)).toEqual(keys);
-    });
-
-    it('is a no-op for an all-reading or all-meaning list', () => {
-        const readingOnly: TaskKey[] = [taskKey('a', 'reading'), taskKey('b', 'reading')];
-        expect(filterSessionCommit(readingOnly)).toEqual(readingOnly);
+        // Reading answered correctly: its own due date advances into the future.
+        // applyAnswer no longer staggers meaning's due date off a reading answer, so
+        // meaning stays genuinely due - but it was never committed this session, so
+        // it cannot inflate `done` (a single answer must advance `done` by exactly 1)
+        // and surfaces as `waiting` (a later session's own commit) instead.
+        const afterAnswer = vocab('a', { readingDue: future, meaningDue: past });
+        const stats = selectSessionStats(stateWith([afterAnswer], committed), false, now);
+        expect(stats.total).toBe(1);
+        expect(stats.done).toBe(1);
+        expect(stats.waiting).toBe(1);
     });
 });
 
@@ -392,32 +380,32 @@ describe('selectNextSessionPreview', () => {
     }
 
     it('returns all zeros without progress', () => {
-        expect(selectNextSessionPreview({ progress: null, settings }, now)).toEqual({ review: 0, new: 0, retries: 0 });
+        expect(selectNextSessionPreview({ progress: null, settings }, now)).toEqual({ review: 0, new: 0, retries: 0, remaining: 0 });
     });
 
     it('buckets a due reading as review', () => {
         const state = { progress: makeProgress([vocab('a', { readingDue: past })]), settings };
-        expect(selectNextSessionPreview(state, now)).toEqual({ review: 1, new: 0, retries: 0 });
+        expect(selectNextSessionPreview(state, now)).toEqual({ review: 1, new: 0, retries: 0, remaining: 0 });
     });
 
     it('buckets a due meaning as review', () => {
         const state = { progress: makeProgress([vocab('a', { meaningDue: past })]), settings };
-        expect(selectNextSessionPreview(state, now)).toEqual({ review: 1, new: 0, retries: 0 });
+        expect(selectNextSessionPreview(state, now)).toEqual({ review: 1, new: 0, retries: 0, remaining: 0 });
     });
 
     it('buckets an unreviewed queued item as new, regardless of due dates', () => {
         const state = { progress: makeProgress([vocab('a', { totalReviews: 0 })]), settings };
-        expect(selectNextSessionPreview(state, now)).toEqual({ review: 0, new: 1, retries: 0 });
+        expect(selectNextSessionPreview(state, now)).toEqual({ review: 0, new: 1, retries: 0, remaining: 0 });
     });
 
     it('buckets a pending reading retry as retries', () => {
         const state = { progress: makeProgress([vocab('a', { needsRetry: { reading: true } })]), settings };
-        expect(selectNextSessionPreview(state, now)).toEqual({ review: 0, new: 0, retries: 1 });
+        expect(selectNextSessionPreview(state, now)).toEqual({ review: 0, new: 0, retries: 1, remaining: 0 });
     });
 
     it('buckets a pending meaning retry as retries', () => {
         const state = { progress: makeProgress([vocab('a', { needsRetry: { meaning: true } })]), settings };
-        expect(selectNextSessionPreview(state, now)).toEqual({ review: 0, new: 0, retries: 1 });
+        expect(selectNextSessionPreview(state, now)).toEqual({ review: 0, new: 0, retries: 1, remaining: 0 });
     });
 
     it('retries take precedence over new and review for the same vocab', () => {
@@ -426,7 +414,7 @@ describe('selectNextSessionPreview', () => {
             progress: makeProgress([vocab('a', { totalReviews: 0, readingDue: past, needsRetry: { reading: true } })]),
             settings,
         };
-        expect(selectNextSessionPreview(state, now)).toEqual({ review: 0, new: 0, retries: 1 });
+        expect(selectNextSessionPreview(state, now)).toEqual({ review: 0, new: 0, retries: 1, remaining: 0 });
     });
 
     it('excludes graduated vocab entirely', () => {
@@ -434,18 +422,18 @@ describe('selectNextSessionPreview', () => {
             progress: makeProgress([vocab('a', { stage: 'graduated', readingDue: past, needsRetry: { reading: true } })]),
             settings,
         };
-        expect(selectNextSessionPreview(state, now)).toEqual({ review: 0, new: 0, retries: 0 });
+        expect(selectNextSessionPreview(state, now)).toEqual({ review: 0, new: 0, retries: 0, remaining: 0 });
     });
 
     it('ignores a due meaning when meaning quizzes are disabled', () => {
         const disabled = makeSettings({ enableMeaningQuiz: false });
         const state = { progress: makeProgress([vocab('a', { meaningDue: past })]), settings: disabled };
-        expect(selectNextSessionPreview(state, now)).toEqual({ review: 0, new: 0, retries: 0 });
+        expect(selectNextSessionPreview(state, now)).toEqual({ review: 0, new: 0, retries: 0, remaining: 0 });
     });
 
     it('does not count an item with no due date and no retry in any bucket', () => {
         const state = { progress: makeProgress([vocab('a', { readingDue: future, meaningDue: future })]), settings };
-        expect(selectNextSessionPreview(state, now)).toEqual({ review: 0, new: 0, retries: 0 });
+        expect(selectNextSessionPreview(state, now)).toEqual({ review: 0, new: 0, retries: 0, remaining: 0 });
     });
 
     it('sums mixed buckets across multiple vocab', () => {
@@ -458,6 +446,320 @@ describe('selectNextSessionPreview', () => {
             ]),
             settings,
         };
-        expect(selectNextSessionPreview(state, now)).toEqual({ review: 1, new: 1, retries: 1 });
+        expect(selectNextSessionPreview(state, now)).toEqual({ review: 1, new: 1, retries: 1, remaining: 0 });
+    });
+});
+
+describe('capSessionCommit', () => {
+    function keys(type: 'reading' | 'meaning', n: number, offset = 0): TaskKey[] {
+        return Array.from({ length: n }, (_, i) => taskKey(`${type}-${i + offset}`, type));
+    }
+
+    it('returns the snapshot untouched when it already fits under the cap', () => {
+        const input = [...keys('reading', 5), ...keys('meaning', 5)];
+        expect(capSessionCommit(input, 200)).toBe(input);
+    });
+
+    it('splits the cap evenly across quiz types instead of taking a prefix', () => {
+        // Selection clears every reading before any meaning, so a plain prefix of this
+        // snapshot would be 100% readings and starve the meaning backlog permanently.
+        const input = [...keys('reading', 300), ...keys('meaning', 300)];
+        const capped = capSessionCommit(input, 200);
+
+        expect(capped).toHaveLength(200);
+        expect(capped.filter(k => k.endsWith(':reading'))).toHaveLength(100);
+        expect(capped.filter(k => k.endsWith(':meaning'))).toHaveLength(100);
+    });
+
+    it('spills an under-filled type’s unused share to the other types', () => {
+        // Only 20 meanings due: the session should still commit a full 200 rather than
+        // stopping at the 20 + 100 an inflexible per-type quota would allow.
+        const input = [...keys('reading', 300), ...keys('meaning', 20)];
+        const capped = capSessionCommit(input, 200);
+
+        expect(capped).toHaveLength(200);
+        expect(capped.filter(k => k.endsWith(':meaning'))).toHaveLength(20);
+        expect(capped.filter(k => k.endsWith(':reading'))).toHaveLength(180);
+    });
+
+    it('fills the cap exactly when the split leaves an integer-division remainder', () => {
+        const input = [...keys('reading', 300), ...keys('meaning', 300)];
+        expect(capSessionCommit(input, 201)).toHaveLength(201);
+    });
+
+    it('preserves the input order of whatever it keeps', () => {
+        const input = [...keys('reading', 10), ...keys('meaning', 10)];
+        const capped = capSessionCommit(input, 6);
+        const expectedOrder = input.filter(k => capped.includes(k));
+        expect(capped).toEqual(expectedOrder);
+    });
+
+    it('never exceeds the cap when a single type holds every task', () => {
+        const capped = capSessionCommit(keys('reading', 500), 200);
+        expect(capped).toHaveLength(200);
+    });
+});
+
+describe('selectNextView session cap', () => {
+    const settings = makeSettings();
+
+    // nextReviewAt as well as reading.dueDate: the former drives computeSessionState's
+    // review/waiting call, the latter drives isReadingActionable and queue selection.
+    function dueReading(id: string): VocabProgress {
+        return makeVocabProgress({
+            vocabId: id,
+            nextReviewAt: past,
+            reading: { ...DEFAULT_VOCABULARY_PROGRESS.reading, dueDate: past },
+        });
+    }
+
+    it('only serves tasks in the session’s committed set', () => {
+        const state: QuizState = {
+            ...initialState,
+            progress: makeProgress([dueReading('a'), dueReading('b')]),
+            settings,
+            session: { committed: [taskKey('b', 'reading')] },
+        };
+
+        // 'a' is due too, but was left out by the cap, so it must not be served.
+        expect(selectNextView(state, false, now).queueItem?.vocab?.vocabId).toBe('b');
+    });
+
+    it('reports session-complete once the committed set is cleared but work is still due', () => {
+        const state: QuizState = {
+            ...initialState,
+            progress: makeProgress([dueReading('a')]),
+            settings,
+            // 'a' is due and uncommitted; the session committed something already answered.
+            session: { committed: [taskKey('answered', 'reading')] },
+        };
+
+        const result = selectNextView(state, false, now);
+        expect(result.sessionState).toBe('session-complete');
+        expect(result.queueItem).toBeNull();
+    });
+
+    it('does not report session-complete while committed work remains', () => {
+        const state: QuizState = {
+            ...initialState,
+            progress: makeProgress([dueReading('a')]),
+            settings,
+            session: { committed: [taskKey('a', 'reading')] },
+        };
+
+        expect(selectNextView(state, false, now).sessionState).toBe('review');
+    });
+
+    it('does not report session-complete when nothing is left outside the committed set', () => {
+        const notDue = makeVocabProgress({
+            vocabId: 'a',
+            reading: { ...DEFAULT_VOCABULARY_PROGRESS.reading, dueDate: future },
+        });
+        const state: QuizState = {
+            ...initialState,
+            progress: makeProgress([notDue]),
+            settings,
+            session: { committed: [taskKey('a', 'reading')] },
+        };
+
+        // Nothing uncommitted is actionable, so the ordinary waiting/exhausted path stands.
+        expect(selectNextView(state, false, now).sessionState).not.toBe('session-complete');
+    });
+
+    it('leaves selection unbounded when no session is active', () => {
+        const state: QuizState = {
+            ...initialState,
+            progress: makeProgress([dueReading('a')]),
+            settings,
+            session: null,
+        };
+
+        expect(selectNextView(state, false, now).queueItem?.vocab?.vocabId).toBe('a');
+    });
+});
+
+describe('session cap with three quiz types', () => {
+    function keysOf(type: 'reading' | 'meaning' | 'production', n: number): TaskKey[] {
+        return Array.from({ length: n }, (_, i) => taskKey(`${type}-${i}`, type));
+    }
+
+    it('splits the cap into thirds once production is in play', () => {
+        const input = [...keysOf('reading', 300), ...keysOf('meaning', 300), ...keysOf('production', 300)];
+        const capped = capSessionCommit(input, 201);
+
+        expect(capped).toHaveLength(201);
+        expect(capped.filter(k => k.endsWith(':reading'))).toHaveLength(67);
+        expect(capped.filter(k => k.endsWith(':meaning'))).toHaveLength(67);
+        expect(capped.filter(k => k.endsWith(':production'))).toHaveLength(67);
+    });
+
+    it('still fills the cap when production has barely any work yet', () => {
+        // The expected shape early in the rollout: production activates lazily, so its
+        // pool is tiny at first and must not shrink the session to a third of the cap.
+        const input = [...keysOf('reading', 300), ...keysOf('meaning', 300), ...keysOf('production', 5)];
+        const capped = capSessionCommit(input, 210);
+
+        expect(capped).toHaveLength(210);
+        expect(capped.filter(k => k.endsWith(':production'))).toHaveLength(5);
+    });
+});
+
+describe('production is actually servable alongside a due reading', () => {
+    const settings = makeSettings();
+
+    it('commits production for a word whose reading is due too, and serves it', () => {
+        // The end-to-end shape of the bug reported from staging: all three directions
+        // due at once must not collapse to a reading-only session.
+        const entry = (due: Date | null) => ({ ...DEFAULT_VOCABULARY_PROGRESS.reading, memoryStrength: 200, dueDate: due });
+        const word: VocabProgress = makeVocabProgress({
+            vocabId: 'a',
+            nextReviewAt: past,
+            reading: entry(past),
+            meaning: entry(past),
+            production: entry(past),
+        });
+
+        const actionable = collectActionableTaskKeys([word], settings, now);
+        expect(actionable).toContain(taskKey('a', 'production'));
+
+        // Committed is unfiltered now, so production survives into the served set.
+        const committed = capSessionCommit(actionable);
+        expect(committed).toContain(taskKey('a', 'production'));
+
+        // With reading and meaning already cleared, production is what gets served.
+        const cleared: VocabProgress = { ...word, reading: entry(future), meaning: entry(future) };
+        const state: QuizState = {
+            ...initialState,
+            progress: makeProgress([cleared]),
+            settings,
+            session: { committed },
+        };
+        const view = selectNextView(state, false, now);
+        expect(view.queueItem?.quizType).toBe('production');
+    });
+});
+
+describe('selectNextSessionPreview counts cards, including production', () => {
+    const settings = makeSettings();
+
+    function entry(due: Date | null) {
+        return { ...DEFAULT_VOCABULARY_PROGRESS.reading, memoryStrength: 200, dueDate: due };
+    }
+
+    it('does not report "caught up" when only production is due', () => {
+        // The reported bug: the preview listed reading and meaning by hand and was
+        // never extended to production, so the Main hub card said the user was caught
+        // up while the session had a full queue of production cards waiting.
+        const word = makeVocabProgress({
+            vocabId: 'a',
+            reading: entry(future),
+            meaning: entry(future),
+            production: entry(past),
+        });
+
+        const preview = selectNextSessionPreview({ progress: makeProgress([word]), settings }, now);
+        expect(preview.review).toBe(1);
+    });
+
+    it('counts at most one card per word, preferring reading > meaning > production', () => {
+        // A vocab contributes at most one task to a session (dedupTaskKeysByVocab),
+        // so a word due in all three directions is still exactly 1 card - the
+        // preview must reflect what the session actually commits to, not what's
+        // merely actionable.
+        const word = makeVocabProgress({
+            vocabId: 'a',
+            reading: entry(past),
+            meaning: entry(past),
+            production: entry(past),
+        });
+
+        const preview = selectNextSessionPreview({ progress: makeProgress([word]), settings }, now);
+        expect(preview.review).toBe(1);
+    });
+
+    it('caps the counts at the session cap and reports the overflow separately', () => {
+        const cap = CONSTANTS.srs.sessionQuizCap;
+        // 250 distinct words, one due direction each (dedup is a no-op per word here -
+        // the point is exercising the cap itself, not the dedup), 50 past the cap.
+        const queue = Array.from({ length: 250 }, (_, i) =>
+            makeVocabProgress({ vocabId: `v${i}`, reading: entry(past) })
+        );
+
+        const preview = selectNextSessionPreview({ progress: makeProgress(queue), settings }, now);
+
+        expect(preview.review + preview.retries).toBe(cap);
+        expect(preview.remaining).toBe(250 - cap);
+    });
+
+    it('reports no overflow when everything due fits in one session', () => {
+        const queue = Array.from({ length: 5 }, (_, i) =>
+            makeVocabProgress({ vocabId: `v${i}`, reading: entry(past) })
+        );
+
+        expect(selectNextSessionPreview({ progress: makeProgress(queue), settings }, now).remaining).toBe(0);
+    });
+
+    it('matches what the session actually commits to', () => {
+        // The preview and the session derive from the same three functions, so they
+        // cannot drift: this is the property that guarantees the card is honest.
+        const queue = Array.from({ length: 150 }, (_, i) =>
+            makeVocabProgress({ vocabId: `v${i}`, reading: entry(past), meaning: entry(past) })
+        );
+
+        const preview = selectNextSessionPreview({ progress: makeProgress(queue), settings }, now);
+        const committed = capSessionCommit(dedupTaskKeysByVocab(collectActionableTaskKeys(queue, settings, now)));
+
+        expect(preview.review + preview.new + preview.retries).toBe(committed.length);
+    });
+});
+
+describe('dedupTaskKeysByVocab', () => {
+    it('keeps only the highest-priority task per vocab: reading > meaning > production', () => {
+        const input = [taskKey('a', 'production'), taskKey('a', 'meaning'), taskKey('a', 'reading')];
+        expect(dedupTaskKeysByVocab(input)).toEqual([taskKey('a', 'reading')]);
+    });
+
+    it('keeps meaning over production when reading is not present', () => {
+        const input = [taskKey('a', 'meaning'), taskKey('a', 'production')];
+        expect(dedupTaskKeysByVocab(input)).toEqual([taskKey('a', 'meaning')]);
+    });
+
+    it('leaves a single-task vocab untouched', () => {
+        const input = [taskKey('a', 'meaning')];
+        expect(dedupTaskKeysByVocab(input)).toEqual(input);
+    });
+
+    it('handles multiple vocabs independently and preserves the input order of survivors', () => {
+        const input = [taskKey('a', 'reading'), taskKey('b', 'meaning'), taskKey('a', 'meaning'), taskKey('b', 'reading')];
+        // 'a' keeps its reading (already the highest priority); 'b' keeps its reading
+        // too, even though 'b:meaning' appeared earlier in the input.
+        expect(dedupTaskKeysByVocab(input)).toEqual([taskKey('a', 'reading'), taskKey('b', 'reading')]);
+    });
+
+    it('returns an empty array for an empty input', () => {
+        expect(dedupTaskKeysByVocab([])).toEqual([]);
+    });
+});
+
+describe('cross-session: a vocab with two due directions surfaces the other in a later session', () => {
+    const settings = makeSettings();
+
+    function entry(due: Date | null) {
+        return { memoryStrength: 1, interval: 0, difficulty: 0.3, lastReviewedAt: null, dueDate: due, history: [] };
+    }
+
+    it('commits only reading this session, then meaning once reading is no longer due', () => {
+        const bothDue = makeVocabProgress({ vocabId: 'a', reading: entry(past), meaning: entry(past) });
+
+        const sessionOneCommit = dedupTaskKeysByVocab(collectActionableTaskKeys([bothDue], settings, now));
+        expect(sessionOneCommit).toEqual([taskKey('a', 'reading')]);
+
+        // Reading answered this session: its due date has advanced past "now".
+        // Meaning is untouched (no stagger) and stays genuinely due, so the very
+        // next session's commit picks it up as the vocab's new highest-priority
+        // actionable direction.
+        const readingAnswered = { ...bothDue, reading: entry(future), meaning: entry(past) };
+        const sessionTwoCommit = dedupTaskKeysByVocab(collectActionableTaskKeys([readingAnswered], settings, now));
+        expect(sessionTwoCommit).toEqual([taskKey('a', 'meaning')]);
     });
 });

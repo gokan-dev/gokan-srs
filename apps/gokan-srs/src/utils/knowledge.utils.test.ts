@@ -6,6 +6,7 @@ import {
     strengthFromLog,
 } from './knowledge.utils';
 import { CONSTANTS } from '../commons/constants';
+import { calculateMasteryPercentage } from './srs.utils';
 import type { ReviewLog, SRSEntry, VocabProgress } from '../models/vocabulary.model';
 
 const F = CONSTANTS.srs.formula;
@@ -62,9 +63,19 @@ describe('entryKnowledgePoints', () => {
         }
     });
 
-    it('caps a fully mastered vocab (reading + meaning) at 200 points', () => {
+    it('caps a fully mastered vocab (reading + meaning) at 400 points', () => {
+        // 200 per entry, because one knowledge point IS one mastery point: the scale
+        // matches calculateMasteryPercentage exactly so the MasteryRing, the session
+        // ticker and the session total never need a conversion between them.
         const max = F.mastery.maxMemoryStrength;
-        expect(entryKnowledgePoints(max) + entryKnowledgePoints(max)).toBeCloseTo(200, 5);
+        expect(entryKnowledgePoints(max)).toBeCloseTo(KNOWLEDGE_POINTS_PER_ENTRY, 5);
+        expect(entryKnowledgePoints(max) + entryKnowledgePoints(max)).toBeCloseTo(400, 5);
+    });
+
+    it('reports exactly the mastery figure the ring shows, with no conversion', () => {
+        for (const strength of [1, 5, 60, 208, 500, 1270]) {
+            expect(entryKnowledgePoints(strength)).toBeCloseTo(calculateMasteryPercentage(strength), 10);
+        }
     });
 });
 
@@ -151,11 +162,11 @@ describe('buildKnowledgeCurve', () => {
 
         const curve = buildKnowledgeCurve([vocab], { range: 7, now });
 
-        expect(curve.currentTotal).toBeCloseTo(200, 5);
+        expect(curve.currentTotal).toBeCloseTo(400, 5);
         // Nothing before the skip, everything from the skip onward.
         expect(curve.points[2].points).toBe(0);
-        expect(curve.points[3].points).toBeCloseTo(200, 5);
-        expect(curve.points[6].points).toBeCloseTo(200, 5);
+        expect(curve.points[3].points).toBeCloseTo(400, 5);
+        expect(curve.points[6].points).toBeCloseTo(400, 5);
     });
 
     it('collapses pre-window history into the starting baseline rather than dropping it', () => {
@@ -252,6 +263,80 @@ describe('buildKnowledgeCurve', () => {
             now,
         });
 
-        expect(curve.currentTotal).toBeCloseTo(600, 4);
+        // 3 words x 2 entries x 200 points per mastered entry.
+        expect(curve.currentTotal).toBeCloseTo(1200, 4);
+    });
+});
+
+describe('buildKnowledgeCurve with production', () => {
+    const now = new Date('2026-07-20T12:00:00Z');
+    const today = new Date('2026-07-20T00:00:00Z').getTime();
+    const max = F.mastery.maxMemoryStrength;
+
+    it('counts production reviews alongside reading and meaning', () => {
+        const vocab = makeVocab({
+            introductionAt: new Date(today - 5 * DAY_MS),
+            totalReviews: 3,
+            reading: makeEntry({ memoryStrength: 200, history: [log(today - 4 * DAY_MS, 60)] }),
+            production: makeEntry({ memoryStrength: 200, history: [log(today - 2 * DAY_MS, 60)] }),
+        });
+
+        const withProduction = buildKnowledgeCurve([vocab], { range: 7, now });
+        const withoutProduction = buildKnowledgeCurve(
+            [{ ...vocab, production: undefined }],
+            { range: 7, now }
+        );
+
+        expect(withProduction.currentTotal).toBeGreaterThan(withoutProduction.currentTotal);
+    });
+
+    it('does not retroactively credit a production entry the migration grandfathered', () => {
+        // The migration masters production for already-graduated words so they do not
+        // un-graduate. Those entries have no review logs, and crediting them at the
+        // word's introduction date would invent years of curve the learner never earned.
+        const vocab = makeVocab({
+            stage: 'graduated',
+            introductionAt: new Date(today - 3 * DAY_MS),
+            totalReviews: 12, // a real review history: this word was learned, not skipped
+            reading: makeEntry({ memoryStrength: max, history: [log(today - 3 * DAY_MS, F.maxInterval)] }),
+            meaning: makeEntry({ memoryStrength: max, history: [log(today - 3 * DAY_MS, F.maxInterval)] }),
+            production: makeEntry({ memoryStrength: max, interval: F.maxInterval }), // grandfathered, never reviewed
+        });
+
+        const curve = buildKnowledgeCurve([vocab], { range: 7, now });
+
+        // Reading + meaning only: production contributes nothing until actually reviewed.
+        expect(curve.currentTotal).toBeCloseTo(400, 5);
+    });
+
+    it('does credit production for a word skipped at intro, on the same basis as the others', () => {
+        // "I already know this word" is one assertion covering every direction, and
+        // reading/meaning are credited at the introduction date on exactly that basis.
+        const vocab = makeVocab({
+            stage: 'graduated',
+            introductionAt: new Date(today - 3 * DAY_MS),
+            totalReviews: 0, // never reviewed: the signature of a skip
+            reading: makeEntry({ memoryStrength: max, interval: F.maxInterval }),
+            meaning: makeEntry({ memoryStrength: max, interval: F.maxInterval }),
+            production: makeEntry({ memoryStrength: max, interval: F.maxInterval }),
+        });
+
+        const curve = buildKnowledgeCurve([vocab], { range: 7, now });
+
+        expect(curve.currentTotal).toBeCloseTo(600, 5);
+    });
+
+    it('adds nothing for a production entry that has never been activated', () => {
+        const vocab = makeVocab({
+            introductionAt: new Date(today - 3 * DAY_MS),
+            totalReviews: 4,
+            reading: makeEntry({ memoryStrength: 200, history: [log(today - 3 * DAY_MS, 60)] }),
+            production: makeEntry({ memoryStrength: F.minMemoryStrength }), // inert, dueDate never set
+        });
+
+        const curve = buildKnowledgeCurve([vocab], { range: 7, now });
+        const readingOnly = buildKnowledgeCurve([{ ...vocab, production: undefined }], { range: 7, now });
+
+        expect(curve.currentTotal).toBeCloseTo(readingOnly.currentTotal, 5);
     });
 });

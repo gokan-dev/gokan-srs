@@ -77,6 +77,8 @@ export interface UserSettings {
     preferredLearningOrder: LearningOrder;
     kanjiCoverageTarget?: number;
     enableMeaningQuiz: boolean;
+    /** Production quiz (English meaning prompt, Japanese reading answer). Defaults to true when absent. */
+    enableProductionQuiz?: boolean;
     learningFrequency: 'high' | 'medium' | 'low';
     geminiApiKey?: string;
     enableGeminiContext?: boolean;
@@ -105,6 +107,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
     preferredLearningOrder: 'frequency',
     kanjiCoverageTarget: 1,
     enableMeaningQuiz: true,
+    enableProductionQuiz: true,
     learningFrequency: 'medium',
     enableGeminiContext: false,
     alwaysUseAiForMeaningContext: true,

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from "framer-motion";
-import { BookOpenText, Languages } from "lucide-react";
+import { BookOpenText, Languages, PenLine } from "lucide-react";
+import type { QuizType } from "../../utils/srs.utils";
 import { useQuiz } from "../../context/useQuiz";
 import { useResponsive } from "../../context/Responsive/useResponsive";
 import { useQuizFocusManagement } from "../../hooks/useQuizFocusManagement";
@@ -16,14 +17,19 @@ import { CardSection } from "../../components/ui/CardSection";
  * Deliberately not colored per the design system's "minimize colors" rule;
  * the icon + label pairing carries the distinction instead of a hue.
  */
-const QuizTypeIndicator: React.FC<{ quizType: 'reading' | 'meaning' }> = ({ quizType }) => {
-    const isReading = quizType === 'reading';
-    const Icon = isReading ? BookOpenText : Languages;
+const QUIZ_TYPE_LABELS: Record<QuizType, { icon: typeof BookOpenText; label: string }> = {
+    reading: { icon: BookOpenText, label: 'Reading' },
+    meaning: { icon: Languages, label: 'Meaning' },
+    production: { icon: PenLine, label: 'Production' },
+};
+
+const QuizTypeIndicator: React.FC<{ quizType: QuizType }> = ({ quizType }) => {
+    const { icon: Icon, label } = QUIZ_TYPE_LABELS[quizType];
     return (
         <div className="flex items-center justify-center gap-1.5 mb-3 text-secondary-400">
             <Icon size={13} strokeWidth={2} />
             <span className="text-[11px] font-gothic font-medium uppercase tracking-wider">
-                {isReading ? 'Reading' : 'Meaning'}
+                {label}
             </span>
         </div>
     );

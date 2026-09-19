@@ -1,9 +1,11 @@
 import { WaitingScreen } from "../../components/WaitingScreen";
 import { ExhaustedScreen } from "../../components/ExhaustedScreen";
+import { SessionCompleteScreen } from "../../components/SessionCompleteScreen";
 import { SessionProgress } from "../../components/SessionProgress";
 import type { SessionHistoryEntry } from "../../components/SessionProgress";
 import { VocabQuizCard } from "./VocabQuizCard";
 import { VocabMeaningQuizCard } from "./VocabMeaningQuizCard";
+import { VocabProductionQuizCard } from "./VocabProductionQuizCard";
 import { LoadingScreen } from "../../components/LoadingScreen";
 import { useQuiz } from "../../context/useQuiz";
 import VocabIntroCard from "../../components/VocabIntroCard";
@@ -32,6 +34,15 @@ export function VocabQuizScreen({ onVocabClick }: VocabQuizScreenProps) {
 
         case "exhausted":
             return <ExhaustedScreen />;
+
+        case "session-complete":
+            return (
+                <SessionCompleteScreen
+                    completed={sessionStats.done}
+                    waiting={sessionStats.waiting}
+                    onStartAnother={actions.startNewSession}
+                />
+            );
 
         case "learn-kanji":
             if (!state.nextKanjiToLearn) return <LoadingScreen />;
@@ -78,6 +89,8 @@ export function VocabQuizScreen({ onVocabClick }: VocabQuizScreenProps) {
                                 onKanjiClick={() => onVocabClick(state.currentVocab!.id)}
                                 onVocabClick={onVocabClick}
                             />
+                        ) : state.currentQuizItem?.quizType === 'production' ? (
+                            <VocabProductionQuizCard onKanjiClick={() => onVocabClick(state.currentVocab!.id)} />
                         ) : (
                             <VocabQuizCard onKanjiClick={() => onVocabClick(state.currentVocab!.id)} />
                         )}

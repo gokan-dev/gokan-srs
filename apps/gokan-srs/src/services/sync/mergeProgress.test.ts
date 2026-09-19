@@ -135,7 +135,7 @@ describe('mergeVocabProgress (per-entry merge - the core fix)', () => {
         const remote = makeVocabProgress({ needsRetry: { meaning: true } });
 
         const merged = mergeVocabProgress(local, remote);
-        expect(merged.needsRetry).toEqual({ reading: true, meaning: true });
+        expect(merged.needsRetry).toEqual({ reading: true, meaning: true, production: false });
     });
 
     it('does not resurrect a needsRetry flag the user already resolved more recently than a stale remote snapshot', () => {
