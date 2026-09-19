@@ -199,35 +199,6 @@ function parseTaskKey(key: string): { vocabId: string; quizType: QuizType } {
 }
 
 /**
- * Drops a vocab's meaning task from a task-key set when its reading is present
- * too. Answering that reading correctly staggers the meaning's due date forward
- * by 12h (see SRSService.applyAnswer's reading -> meaning stagger), so counting
- * both as session workload credits one answer with clearing two tasks: `done`
- * jumps by 2 instead of 1.
- *
- * This is a **counter** concern only, applied by selectSessionStats to derive its
- * denominator. It must NOT be applied to the committed set itself, which now also
- * decides what can be served (see Session quiz cap): a task filtered out of that
- * set can never be shown at all, so a wrong reading answer (which does NOT stagger
- * meaning, leaving it genuinely due) would leave it unanswerable for the rest of
- * the session. Production has the same problem in a worse form - see the stagger
- * note in SRSService.applyAnswer.
- */
-export function filterSessionCommit(taskKeys: TaskKey[]): TaskKey[] {
-    const readingVocabIds = new Set(
-        taskKeys
-            .map(parseTaskKey)
-            .filter(({ quizType }) => quizType === 'reading')
-            .map(({ vocabId }) => vocabId)
-    );
-
-    return taskKeys.filter(key => {
-        const { vocabId, quizType } = parseTaskKey(key);
-        return !(quizType === 'meaning' && readingVocabIds.has(vocabId));
-    });
-}
-
-/**
  * Truncates a session-commit snapshot to `cap` tasks, split as evenly as possible
  * across the quiz types present so every type gets worked on in a single sitting.
  *
@@ -238,9 +209,6 @@ export function filterSessionCommit(taskKeys: TaskKey[]): TaskKey[] {
  *
  * Quotas spill: types are filled smallest-pool-first, so a type with less work than
  * its share hands the surplus to the others rather than cutting the session short.
- * Applied AFTER filterSessionCommit, never before, since that filter drops meaning
- * tasks and quotas computed over its input would under-fill the meaning bucket by
- * exactly the number it was about to remove.
  *
  * Input order is preserved in the result, so the committed set stays as
  * deterministic as the snapshot it came from.
@@ -318,6 +286,25 @@ export interface SessionStats {
  * therefore ticked *down* as the user worked. Now `total` is the committed set's
  * fixed size; `done` counts committed tasks that are no longer actionable; retries
  * and mid-session arrivals are surfaced separately instead of corrupting the total.
+ *
+ * `total`/`waiting` are computed against the **raw, unfiltered** `session.committed`
+ * (the same set `selectNextView` uses to bound what gets served, and the same set
+ * `selectNextSessionPreview` counts) - a task committed here always counts toward
+ * `total` and is never reported as `waiting`, because it genuinely is part of this
+ * session. An earlier version dropped a vocab's `meaning` key from this count
+ * whenever its `reading` key was also committed, reasoning that a correct reading
+ * answer would stagger the meaning's due date 12h forward (SRSService.applyAnswer)
+ * before it could ever be shown. That reasoning doesn't hold unconditionally - a
+ * wrong reading answer doesn't stagger meaning at all, and even a correct one only
+ * staggers it if meaning was already due at THAT answer's moment - so the dropped
+ * key could still end up served this session while permanently excluded from the
+ * denominator. That desync is exactly what made the Main hub's preview (unfiltered,
+ * "6 review") disagree with the in-session bar ("0/3") and mislabel the other 3 as
+ * "waiting after this session" when they were in fact this session's own committed
+ * work (issue: staging report from raphaeltamayo). `done` counting a staggered-away
+ * task as complete is intentional, not a regression: `done` = "committed tasks no
+ * longer actionable", and a task the session silently resolved without requiring a
+ * separate answer is exactly that.
  */
 export function selectSessionStats(
     state: Pick<QuizState, 'progress' | 'settings' | 'session'>,
@@ -332,11 +319,7 @@ export function selectSessionStats(
     const byId = new Map(queue.map(v => [v.vocabId, v]));
 
     const core = computeSessionStats({
-        // The committed set itself is unfiltered (it gates what can be served), so the
-        // meaning-stagger filter is applied here, to the denominator only: a word whose
-        // reading is committed will usually have its meaning staggered away unanswered,
-        // and counting it would credit one answer with clearing two tasks.
-        committed: filterSessionCommit(state.session?.committed ?? []),
+        committed: state.session?.committed ?? [],
         actionable: collectActionableTaskKeys(queue, state.settings ?? undefined, now),
         isRetry: key => {
             const { vocabId, quizType } = parseTaskKey(key);

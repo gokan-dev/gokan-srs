@@ -720,7 +720,7 @@ export interface GrammarSessionStats {
  * against the session's frozen committed set rather than the live due count,
  * for the same reason vocab's counter needed one (see selectSessionStats's
  * doc comment). Simpler here: one task per grammar point, no reading/meaning
- * split, so there's no filterSessionCommit-style staggering to account for.
+ * split, so there's no staggering to account for.
  */
 export function selectGrammarSessionStats(
     state: Pick<QuizState, 'progress' | 'grammarSession'>,

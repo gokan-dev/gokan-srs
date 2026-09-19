@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { selectNextView, selectCurrentProgress, selectCurrentSentence, selectSessionStats, filterSessionCommit, capSessionCommit, collectActionableTaskKeys, selectNextSessionPreview } from './quizSelectors';
+import { selectNextView, selectCurrentProgress, selectCurrentSentence, selectSessionStats, capSessionCommit, collectActionableTaskKeys, selectNextSessionPreview } from './quizSelectors';
 import { initialState, taskKey } from './quizReducer';
 import type { QuizState, TaskKey } from './quizReducer';
 import type { UserProgress, UserSettings } from '../../models/user.model';
@@ -323,39 +323,35 @@ describe('selectSessionStats', () => {
         expect(stats.waiting).toBe(1);
     });
 
-    it('answering a reading whose meaning was due at the same moment only increments done by 1 (via filterSessionCommit)', () => {
-        // Both reading and meaning are due together at session start - without
-        // filterSessionCommit, both would be committed, and answering reading
-        // (which staggers meaning +12h per SRSService.applyAnswer) would
-        // silently count BOTH as "done" from a single answer.
+    it('a committed meaning staggered away by its own reading answer still counts toward total/done (matches the Main hub preview)', () => {
+        // Both reading and meaning are due together at session start, so both are
+        // committed - session.committed is unfiltered, matching selectNextSessionPreview
+        // and what selectNextView actually serves. A prior version dropped the meaning
+        // key here, which desynced this counter (3) from the Main hub preview (6) and
+        // mislabeled the still-committed meaning task as "waiting after this session"
+        // when it was actually part of this one.
         const rawCommitted = [taskKey('a', 'reading'), taskKey('a', 'meaning')];
-        const committed = filterSessionCommit(rawCommitted);
 
         // Simulate having answered the reading: it's no longer due, and its
         // meaning got staggered forward (the real applyAnswer behavior).
         const answered = vocab('a', { readingDue: future, meaningDue: future });
-        const state = { progress: makeProgress([answered]), settings, session: { committed } };
+        const state = { progress: makeProgress([answered]), settings, session: { committed: rawCommitted } };
 
         const stats = selectSessionStats(state, false, now);
-        expect(stats.total).toBe(1); // meaning was never committed
-        expect(stats.done).toBe(1); // only reading counts as done
-    });
-});
-
-describe('filterSessionCommit', () => {
-    it("drops a vocab's meaning key when its reading key is also present", () => {
-        const keys: TaskKey[] = [taskKey('a', 'reading'), taskKey('a', 'meaning'), taskKey('b', 'meaning')];
-        expect(filterSessionCommit(keys).sort()).toEqual([taskKey('a', 'reading'), taskKey('b', 'meaning')].sort());
+        expect(stats.total).toBe(2); // both tasks were committed
+        expect(stats.done).toBe(2); // the staggered-away meaning resolved without a separate answer
     });
 
-    it('keeps a meaning key when its reading is not present', () => {
-        const keys: TaskKey[] = [taskKey('a', 'meaning')];
-        expect(filterSessionCommit(keys)).toEqual(keys);
-    });
+    it('a committed meaning left genuinely due (reading answered wrong, no stagger) stays actionable, not "done" or "waiting"', () => {
+        const rawCommitted = [taskKey('a', 'reading'), taskKey('a', 'meaning')];
+        // Reading retry pending (wrong answer): no stagger fires, meaning stays due.
+        const stillDue = vocab('a', { readingDue: past, meaningDue: past, needsRetry: { reading: true } });
+        const state = { progress: makeProgress([stillDue]), settings, session: { committed: rawCommitted } };
 
-    it('is a no-op for an all-reading or all-meaning list', () => {
-        const readingOnly: TaskKey[] = [taskKey('a', 'reading'), taskKey('b', 'reading')];
-        expect(filterSessionCommit(readingOnly)).toEqual(readingOnly);
+        const stats = selectSessionStats(state, false, now);
+        expect(stats.total).toBe(2);
+        expect(stats.done).toBe(0);
+        expect(stats.waiting).toBe(0); // committed, not a mid-session arrival
     });
 });
 
@@ -613,27 +609,6 @@ describe('session cap with three quiz types', () => {
 
         expect(capped).toHaveLength(210);
         expect(capped.filter(k => k.endsWith(':production'))).toHaveLength(5);
-    });
-});
-
-describe('filterSessionCommit with production', () => {
-    it('keeps production when the same word has a committed reading, dropping only meaning', () => {
-        // Regression: production was briefly dropped here on the same rule as meaning.
-        // Once the committed set began gating what can be SERVED (not just what is
-        // counted), that made production unservable in any session where the word's
-        // reading was also due - which, for anyone reviewing daily, was every session.
-        const input: TaskKey[] = [
-            taskKey('a', 'reading'),
-            taskKey('a', 'meaning'),
-            taskKey('a', 'production'),
-            taskKey('b', 'production'),
-        ];
-
-        expect(filterSessionCommit(input)).toEqual([
-            taskKey('a', 'reading'),
-            taskKey('a', 'production'),
-            taskKey('b', 'production'),
-        ]);
     });
 });
 

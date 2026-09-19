@@ -191,11 +191,10 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                 ? state.progress
                 : { ...state.progress, learningQueue: clearedQueue };
 
-            // Committed deliberately holds EVERY actionable task (capped), unfiltered.
-            // filterSessionCommit is a progress-counter concern and is applied by
-            // selectSessionStats instead: since this set now also gates what can be
-            // served, filtering here made a dropped task unanswerable for the whole
-            // session rather than merely uncounted.
+            // Committed deliberately holds EVERY actionable task (capped), unfiltered -
+            // selectSessionStats counts this same set directly, so the Main hub preview
+            // (selectNextSessionPreview, also unfiltered) and the in-session progress bar
+            // always agree on what "this session" contains.
             const taskKeys = capSessionCommit(
                 collectActionableTaskKeys(progress.learningQueue, state.settings, now)
             );
