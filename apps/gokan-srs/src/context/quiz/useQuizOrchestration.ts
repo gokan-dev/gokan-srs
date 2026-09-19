@@ -17,7 +17,7 @@ import { mergeProgress, mergeSettings } from '../../services/sync/mergeProgress'
 import type { ProgressWithMetadata } from '../../services/sync/types';
 import { useGoogleDrive } from '../GoogleDriveContext';
 import type { QuizState, QuizAction } from './quizReducer';
-import { selectNextView, selectCurrentProgress, selectSessionStats, selectNextSessionPreview, collectActionableTaskKeys, capSessionCommit } from './quizSelectors';
+import { selectNextView, selectCurrentProgress, selectSessionStats, selectNextSessionPreview, collectActionableTaskKeys, capSessionCommit, dedupTaskKeysByVocab } from './quizSelectors';
 import { useSessionLifecycle } from './useSessionLifecycle';
 import { refillCandidates } from './refillCandidates';
 import { progressUploadSignature, stableStringify } from "../../services/progressSerialization";
@@ -191,12 +191,14 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                 ? state.progress
                 : { ...state.progress, learningQueue: clearedQueue };
 
-            // Committed deliberately holds EVERY actionable task (capped), unfiltered -
-            // selectSessionStats counts this same set directly, so the Main hub preview
-            // (selectNextSessionPreview, also unfiltered) and the in-session progress bar
-            // always agree on what "this session" contains.
+            // Committed holds every actionable task, deduped to at most one per vocab
+            // (reading > meaning > production - see dedupTaskKeysByVocab) and then
+            // capped. selectSessionStats counts this same set directly, so the Main hub
+            // preview (selectNextSessionPreview, which runs the identical dedup+cap
+            // pipeline) and the in-session progress bar always agree on what "this
+            // session" contains.
             const taskKeys = capSessionCommit(
-                collectActionableTaskKeys(progress.learningQueue, state.settings, now)
+                dedupTaskKeysByVocab(collectActionableTaskKeys(progress.learningQueue, state.settings, now))
             );
             dispatch({
                 type: 'SESSION_START',

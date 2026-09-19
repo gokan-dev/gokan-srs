@@ -97,9 +97,9 @@ export interface NextSessionPreview {
 
 /**
  * Preview of what the next study session will contain, counted in **quiz cards**
- * and run through the session's own pipeline (`collectActionableTaskKeys` then
- * `capSessionCommit`), so the number on the Main hub is literally the number of
- * cards the session will commit to.
+ * and run through the session's own pipeline (`collectActionableTaskKeys`, then
+ * `dedupTaskKeysByVocab`, then `capSessionCommit`), so the number on the Main hub
+ * is literally the number of cards the session will commit to.
  *
  * It used to count distinct *vocab* instead, which broke twice over once a third
  * quiz type existed. Its due-check listed reading and meaning by hand and was
@@ -108,9 +108,9 @@ export interface NextSessionPreview {
  * that asks up to three cards per word, which matters much more now that the cap
  * bounds the sitting: "12 review" for 30 committed cards is not a useful preview.
  *
- * Deriving it from the same two functions the session uses means it cannot drift
- * from them again: a fourth quiz type, or any change to how the cap is composed,
- * is reflected here without touching this code.
+ * Deriving it from the same functions the session uses means it cannot drift from
+ * them again: a fourth quiz type, or any change to how the dedup or cap are
+ * composed, is reflected here without touching this code.
  *
  * Buckets are mutually exclusive per card, first match wins: a card awaiting a
  * retry counts as a retry, a card on a word never yet reviewed counts as new, and
@@ -127,7 +127,10 @@ export function selectNextSessionPreview(
     const settings = state.settings ?? undefined;
 
     const actionable = collectActionableTaskKeys(queue, settings, now);
-    const committed = capSessionCommit(actionable);
+    // Dedup before capping: a vocab contributes at most one task to the session
+    // (reading > meaning > production), so the cap's even split-by-type operates
+    // on the already-deduped, one-per-vocab pool - see dedupTaskKeysByVocab.
+    const committed = capSessionCommit(dedupTaskKeysByVocab(actionable));
 
     const byId = new Map(queue.map(v => [v.vocabId, v]));
     const preview = { ...empty, remaining: actionable.length - committed.length };
@@ -196,6 +199,41 @@ export function collectActionableTaskKeys(
 function parseTaskKey(key: string): { vocabId: string; quizType: QuizType } {
     const idx = key.lastIndexOf(':');
     return { vocabId: key.slice(0, idx), quizType: key.slice(idx + 1) as QuizType };
+}
+
+const QUIZ_TYPE_PRIORITY: Record<QuizType, number> = { reading: 0, meaning: 1, production: 2 };
+
+/**
+ * Keeps at most one task per vocab, preferring reading > meaning > production -
+ * the session-layer replacement for the old per-type dueDate staggering
+ * (SRSService.applyAnswer used to push a due meaning's dueDate +12h off a correct
+ * reading answer so the two wouldn't be asked in the same sitting; production was
+ * never staggered at all, so the two quiz types behaved inconsistently and the
+ * stagger itself could resolve a committed meaning task without the user ever
+ * answering it - see docs/MODIFICATION_LOG.md).
+ *
+ * Applied once, when a session's committed set is built (`selectNextSessionPreview`
+ * and the `SESSION_START` snapshot in `useQuizOrchestration`) - never inside
+ * `collectActionableTaskKeys` itself, which stays the raw "everything actionable"
+ * list `selectSessionStats` and `selectNextView`'s session-complete check both read
+ * fresh on every render. A vocab's other directions aren't dropped, just excluded
+ * from *this* session: once the committed direction is no longer due (answered, or
+ * genuinely not yet due again), a later session's dedup pass naturally picks the
+ * next-highest-priority direction still due.
+ *
+ * Input order is preserved in the result, matching `capSessionCommit`.
+ */
+export function dedupTaskKeysByVocab(taskKeys: TaskKey[]): TaskKey[] {
+    const bestByVocab = new Map<string, TaskKey>();
+    for (const key of taskKeys) {
+        const { vocabId, quizType } = parseTaskKey(key);
+        const existing = bestByVocab.get(vocabId);
+        if (!existing || QUIZ_TYPE_PRIORITY[quizType] < QUIZ_TYPE_PRIORITY[parseTaskKey(existing).quizType]) {
+            bestByVocab.set(vocabId, key);
+        }
+    }
+    const kept = new Set(bestByVocab.values());
+    return taskKeys.filter(key => kept.has(key));
 }
 
 /**
@@ -291,20 +329,30 @@ export interface SessionStats {
  * (the same set `selectNextView` uses to bound what gets served, and the same set
  * `selectNextSessionPreview` counts) - a task committed here always counts toward
  * `total` and is never reported as `waiting`, because it genuinely is part of this
- * session. An earlier version dropped a vocab's `meaning` key from this count
- * whenever its `reading` key was also committed, reasoning that a correct reading
- * answer would stagger the meaning's due date 12h forward (SRSService.applyAnswer)
- * before it could ever be shown. That reasoning doesn't hold unconditionally - a
- * wrong reading answer doesn't stagger meaning at all, and even a correct one only
- * staggers it if meaning was already due at THAT answer's moment - so the dropped
- * key could still end up served this session while permanently excluded from the
- * denominator. That desync is exactly what made the Main hub's preview (unfiltered,
- * "6 review") disagree with the in-session bar ("0/3") and mislabel the other 3 as
- * "waiting after this session" when they were in fact this session's own committed
- * work (issue: staging report from raphaeltamayo). `done` counting a staggered-away
- * task as complete is intentional, not a regression: `done` = "committed tasks no
- * longer actionable", and a task the session silently resolved without requiring a
- * separate answer is exactly that.
+ * session.
+ *
+ * This function itself never filters or dedupes `session.committed` - it reads
+ * whatever was committed at `SESSION_START` as-is. What keeps a single answer from
+ * ever incrementing `done` by more than 1 is `dedupTaskKeysByVocab`, applied when
+ * that committed set is *built* (both here and in `selectNextSessionPreview`), not
+ * here: a vocab contributes at most one task to a session, so there is no second
+ * committed task for the same word left to silently resolve.
+ *
+ * This replaced two earlier, narrower fixes that each solved half the problem.
+ * The first dropped a vocab's `meaning` key from this count whenever its `reading`
+ * key was also committed, reasoning that a correct reading answer would stagger
+ * the meaning's due date 12h forward (`SRSService.applyAnswer`) before it could
+ * ever be shown - but that stagger wasn't unconditional (a wrong reading answer
+ * never triggered it), so the dropped key could still get served this session
+ * while permanently excluded from the total (staging report: "6 review" on the
+ * Main hub vs. "0/3" in-session, the other 3 mislabeled "waiting"). The second
+ * removed that filter so `total`/`waiting` matched the preview again, but with
+ * both directions now committed together, the still-live 12h stagger resolved the
+ * committed meaning task the instant reading was answered - one answer advancing
+ * `done` by 2. Deduping at commit time removes the stagger's reason to exist at
+ * all (`applyAnswer` no longer staggers meaning off a reading answer - see
+ * `docs/MODIFICATION_LOG.md`), and does so uniformly for production too, which the
+ * stagger never covered.
  */
 export function selectSessionStats(
     state: Pick<QuizState, 'progress' | 'settings' | 'session'>,

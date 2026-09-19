@@ -483,6 +483,20 @@ describe('SRSService Formula Tests', () => {
             expect(updated.reading.interval).toBe(initialReading.interval);
         });
 
+        it('a correct reading answer does not stagger a due meaning\'s dueDate anymore', () => {
+            // Same-session separation across quiz types is now enforced at the session
+            // layer (dedupTaskKeysByVocab in quizSelectors.ts commits at most one
+            // direction per vocab, reading > meaning > production), not by mutating a
+            // genuinely-due entry's persisted dueDate. A correct reading answer must
+            // leave meaning's dueDate exactly as calculateNextState left it.
+            const vocab = createDualVocab(5.0, 5.0);
+            vocab.meaning.dueDate = new Date(mockNow.getTime() - 1000); // already due
+
+            const { updated } = SRSService.applyAnswer(vocab, 'reading', 'base', 'kotae', 'kotae', 1000, mockNow, 'correct');
+
+            expect(updated.meaning.dueDate).toEqual(vocab.meaning.dueDate);
+        });
+
         it('should aggregate nextReviewAt (Min Strategy)', () => {
             const vocab = createDualVocab(5.0, 5.0);
             // Manually set dates

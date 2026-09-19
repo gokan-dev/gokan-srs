@@ -232,24 +232,18 @@ export class SRSService {
         const updatedMeaning = quizType === 'meaning' ? newEntry : vocab.meaning;
         let updatedProduction = quizType === 'production' ? newEntry : vocab.production;
 
-        // [BUGFIX] Stagger Meaning quizzes: if we just successfully answered a Reading quiz,
-        // and Meaning is currently due (or about to be due), push Meaning forward by 12 hours
-        // so that the user doesn't get tested on both in the exact same session.
-        if (quizType === 'reading' && (result === 'correct' || result === 'minor_error')) {
-            if (updatedMeaning.dueDate !== null && updatedMeaning.dueDate <= now) {
-                updatedMeaning.dueDate = new Date(now.getTime() + 12 * 60 * 60 * 1000); // +12 hours
-            }
-        }
-
-        // Production is deliberately NOT staggered off a correct reading answer, unlike
-        // meaning. A fixed +12h push is stable for meaning because its interval soon
-        // diverges from reading's, but production is re-seeded against reading's own
-        // cadence, so for anyone reviewing at roughly the same time each day the two stay
-        // due together: reading is answered, production is pushed 12h, and by the next
-        // session both are due again. The push repeats and production is never once
-        // asked. Never asking it at all is far worse than the redundancy the stagger
-        // avoids, and selection already serves production last (after every reading and
-        // meaning), so it is not asked back-to-back with the same word's reading.
+        // Same-session separation across reading/meaning/production is no longer done
+        // here by pushing a due entry's dueDate forward. It used to be, for meaning
+        // only (a correct reading answer staggered a due meaning +12h) - production
+        // was deliberately left unstaggered since it's reseeded against reading's own
+        // cadence, so a fixed push just repeated every session and production was
+        // never once asked. That asymmetry, and the stagger silently resolving a
+        // committed meaning task without the user answering it, are both why this was
+        // replaced: the session layer now commits at most one quiz type per vocab
+        // (`dedupTaskKeysByVocab` in `quizSelectors.ts`, reading > meaning >
+        // production), which keeps every direction out of the same sitting uniformly
+        // without mutating a genuinely-due entry's persisted schedule. See
+        // docs/MODIFICATION_LOG.md.
 
         const settingsSlice = { enableMeaningQuiz: meaningQuizEnabled, enableProductionQuiz: productionQuizEnabled };
 

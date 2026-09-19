@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { selectNextView, selectCurrentProgress, selectCurrentSentence, selectSessionStats, capSessionCommit, collectActionableTaskKeys, selectNextSessionPreview } from './quizSelectors';
+import { selectNextView, selectCurrentProgress, selectCurrentSentence, selectSessionStats, capSessionCommit, collectActionableTaskKeys, selectNextSessionPreview, dedupTaskKeysByVocab } from './quizSelectors';
 import { initialState, taskKey } from './quizReducer';
 import type { QuizState, TaskKey } from './quizReducer';
 import type { UserProgress, UserSettings } from '../../models/user.model';
@@ -323,35 +323,27 @@ describe('selectSessionStats', () => {
         expect(stats.waiting).toBe(1);
     });
 
-    it('a committed meaning staggered away by its own reading answer still counts toward total/done (matches the Main hub preview)', () => {
-        // Both reading and meaning are due together at session start, so both are
-        // committed - session.committed is unfiltered, matching selectNextSessionPreview
-        // and what selectNextView actually serves. A prior version dropped the meaning
-        // key here, which desynced this counter (3) from the Main hub preview (6) and
-        // mislabeled the still-committed meaning task as "waiting after this session"
-        // when it was actually part of this one.
-        const rawCommitted = [taskKey('a', 'reading'), taskKey('a', 'meaning')];
+    it('a reading-only commit (dedup keeps meaning out) resolves done by exactly 1 once answered, without auto-resolving the uncommitted meaning', () => {
+        // Realistic post-dedup commit: dedupTaskKeysByVocab keeps only reading for a
+        // vocab with both directions due at session start (see selectNextSessionPreview
+        // and the SESSION_START snapshot in useQuizOrchestration) - session.committed
+        // here reflects that, not the pre-dedup "both directions committed" shape a
+        // prior version of these tests assumed.
+        const committed = [taskKey('a', 'reading')];
 
-        // Simulate having answered the reading: it's no longer due, and its
-        // meaning got staggered forward (the real applyAnswer behavior).
-        const answered = vocab('a', { readingDue: future, meaningDue: future });
-        const state = { progress: makeProgress([answered]), settings, session: { committed: rawCommitted } };
+        const beforeAnswer = vocab('a', { readingDue: past, meaningDue: past });
+        expect(selectSessionStats(stateWith([beforeAnswer], committed), false, now).done).toBe(0);
 
-        const stats = selectSessionStats(state, false, now);
-        expect(stats.total).toBe(2); // both tasks were committed
-        expect(stats.done).toBe(2); // the staggered-away meaning resolved without a separate answer
-    });
-
-    it('a committed meaning left genuinely due (reading answered wrong, no stagger) stays actionable, not "done" or "waiting"', () => {
-        const rawCommitted = [taskKey('a', 'reading'), taskKey('a', 'meaning')];
-        // Reading retry pending (wrong answer): no stagger fires, meaning stays due.
-        const stillDue = vocab('a', { readingDue: past, meaningDue: past, needsRetry: { reading: true } });
-        const state = { progress: makeProgress([stillDue]), settings, session: { committed: rawCommitted } };
-
-        const stats = selectSessionStats(state, false, now);
-        expect(stats.total).toBe(2);
-        expect(stats.done).toBe(0);
-        expect(stats.waiting).toBe(0); // committed, not a mid-session arrival
+        // Reading answered correctly: its own due date advances into the future.
+        // applyAnswer no longer staggers meaning's due date off a reading answer, so
+        // meaning stays genuinely due - but it was never committed this session, so
+        // it cannot inflate `done` (a single answer must advance `done` by exactly 1)
+        // and surfaces as `waiting` (a later session's own commit) instead.
+        const afterAnswer = vocab('a', { readingDue: future, meaningDue: past });
+        const stats = selectSessionStats(stateWith([afterAnswer], committed), false, now);
+        expect(stats.total).toBe(1);
+        expect(stats.done).toBe(1);
+        expect(stats.waiting).toBe(1);
     });
 });
 
@@ -669,7 +661,11 @@ describe('selectNextSessionPreview counts cards, including production', () => {
         expect(preview.review).toBe(1);
     });
 
-    it('counts one card per due direction, not one per word', () => {
+    it('counts at most one card per word, preferring reading > meaning > production', () => {
+        // A vocab contributes at most one task to a session (dedupTaskKeysByVocab),
+        // so a word due in all three directions is still exactly 1 card - the
+        // preview must reflect what the session actually commits to, not what's
+        // merely actionable.
         const word = makeVocabProgress({
             vocabId: 'a',
             reading: entry(past),
@@ -678,20 +674,21 @@ describe('selectNextSessionPreview counts cards, including production', () => {
         });
 
         const preview = selectNextSessionPreview({ progress: makeProgress([word]), settings }, now);
-        expect(preview.review).toBe(3);
+        expect(preview.review).toBe(1);
     });
 
     it('caps the counts at the session cap and reports the overflow separately', () => {
         const cap = CONSTANTS.srs.sessionQuizCap;
-        // 150 words x 2 due directions = 300 cards, which is 100 past the cap.
-        const queue = Array.from({ length: 150 }, (_, i) =>
-            makeVocabProgress({ vocabId: `v${i}`, reading: entry(past), meaning: entry(past), production: entry(future) })
+        // 250 distinct words, one due direction each (dedup is a no-op per word here -
+        // the point is exercising the cap itself, not the dedup), 50 past the cap.
+        const queue = Array.from({ length: 250 }, (_, i) =>
+            makeVocabProgress({ vocabId: `v${i}`, reading: entry(past) })
         );
 
         const preview = selectNextSessionPreview({ progress: makeProgress(queue), settings }, now);
 
         expect(preview.review + preview.retries).toBe(cap);
-        expect(preview.remaining).toBe(300 - cap);
+        expect(preview.remaining).toBe(250 - cap);
     });
 
     it('reports no overflow when everything due fits in one session', () => {
@@ -703,15 +700,66 @@ describe('selectNextSessionPreview counts cards, including production', () => {
     });
 
     it('matches what the session actually commits to', () => {
-        // The preview and the session derive from the same two functions, so they
+        // The preview and the session derive from the same three functions, so they
         // cannot drift: this is the property that guarantees the card is honest.
         const queue = Array.from({ length: 150 }, (_, i) =>
             makeVocabProgress({ vocabId: `v${i}`, reading: entry(past), meaning: entry(past) })
         );
 
         const preview = selectNextSessionPreview({ progress: makeProgress(queue), settings }, now);
-        const committed = capSessionCommit(collectActionableTaskKeys(queue, settings, now));
+        const committed = capSessionCommit(dedupTaskKeysByVocab(collectActionableTaskKeys(queue, settings, now)));
 
         expect(preview.review + preview.new + preview.retries).toBe(committed.length);
+    });
+});
+
+describe('dedupTaskKeysByVocab', () => {
+    it('keeps only the highest-priority task per vocab: reading > meaning > production', () => {
+        const input = [taskKey('a', 'production'), taskKey('a', 'meaning'), taskKey('a', 'reading')];
+        expect(dedupTaskKeysByVocab(input)).toEqual([taskKey('a', 'reading')]);
+    });
+
+    it('keeps meaning over production when reading is not present', () => {
+        const input = [taskKey('a', 'meaning'), taskKey('a', 'production')];
+        expect(dedupTaskKeysByVocab(input)).toEqual([taskKey('a', 'meaning')]);
+    });
+
+    it('leaves a single-task vocab untouched', () => {
+        const input = [taskKey('a', 'meaning')];
+        expect(dedupTaskKeysByVocab(input)).toEqual(input);
+    });
+
+    it('handles multiple vocabs independently and preserves the input order of survivors', () => {
+        const input = [taskKey('a', 'reading'), taskKey('b', 'meaning'), taskKey('a', 'meaning'), taskKey('b', 'reading')];
+        // 'a' keeps its reading (already the highest priority); 'b' keeps its reading
+        // too, even though 'b:meaning' appeared earlier in the input.
+        expect(dedupTaskKeysByVocab(input)).toEqual([taskKey('a', 'reading'), taskKey('b', 'reading')]);
+    });
+
+    it('returns an empty array for an empty input', () => {
+        expect(dedupTaskKeysByVocab([])).toEqual([]);
+    });
+});
+
+describe('cross-session: a vocab with two due directions surfaces the other in a later session', () => {
+    const settings = makeSettings();
+
+    function entry(due: Date | null) {
+        return { memoryStrength: 1, interval: 0, difficulty: 0.3, lastReviewedAt: null, dueDate: due, history: [] };
+    }
+
+    it('commits only reading this session, then meaning once reading is no longer due', () => {
+        const bothDue = makeVocabProgress({ vocabId: 'a', reading: entry(past), meaning: entry(past) });
+
+        const sessionOneCommit = dedupTaskKeysByVocab(collectActionableTaskKeys([bothDue], settings, now));
+        expect(sessionOneCommit).toEqual([taskKey('a', 'reading')]);
+
+        // Reading answered this session: its due date has advanced past "now".
+        // Meaning is untouched (no stagger) and stays genuinely due, so the very
+        // next session's commit picks it up as the vocab's new highest-priority
+        // actionable direction.
+        const readingAnswered = { ...bothDue, reading: entry(future), meaning: entry(past) };
+        const sessionTwoCommit = dedupTaskKeysByVocab(collectActionableTaskKeys([readingAnswered], settings, now));
+        expect(sessionTwoCommit).toEqual([taskKey('a', 'meaning')]);
     });
 });
