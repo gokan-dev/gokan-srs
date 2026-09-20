@@ -176,6 +176,53 @@ export interface GrammarTeachingOrder {
 }
 
 /**
+ * One directed contrast lesson: teaches when to reach for `focus` rather than
+ * the `vs` sibling(s) it is most confused with, in a concrete situation.
+ * Compiled from the dataset's `data/raw/grammar/contrasts.json` into
+ * `compiled/grammar/index/contrasts.json`. Directed so `focus` is the member met
+ * LATER in the teaching order: by the time it is introduced the `vs` siblings
+ * are already known, so the app surfaces the unit at `focus`'s introduction
+ * (deferring it if a `vs` sibling isn't known yet) and on the family page.
+ */
+export interface GrammarContrastUnit {
+    focus: string;
+    vs: string[];
+    situation: string;
+    guidance: string;
+}
+
+/**
+ * A confusability-first sub-grouping of a family: a small set of members close
+ * enough to be actively disambiguated together (like interleaving look-alike
+ * kanji), bounded so it does not span the family's whole JLPT range.
+ */
+export interface GrammarContrastCluster {
+    id: string;
+    label: string;
+    memberIds: string[];
+    units: GrammarContrastUnit[];
+}
+
+/**
+ * Family id -> its authored contrast clusters, from
+ * `compiled/grammar/index/contrasts.json`. `variant`-axis families never appear
+ * (their members are interchangeable, so there is nothing to disambiguate).
+ */
+export type GrammarContrastIndex = Record<string, {
+    name: string;
+    clusters: GrammarContrastCluster[];
+}>;
+
+/** A contrast unit flattened with the family/cluster context it came from, keyed for lookup by its focus point. */
+export interface GrammarContrastForFocus {
+    familyId: string;
+    familyName: string;
+    clusterId: string;
+    clusterLabel: string;
+    unit: GrammarContrastUnit;
+}
+
+/**
  * Dropped duplicate point id -> the surviving canonical id, from the dataset's
  * `index/aliases.json`. 40 upstream points were the same pattern ingested twice
  * (～ても was both n3-052 and n4-097); the dataset now emits only the canonical

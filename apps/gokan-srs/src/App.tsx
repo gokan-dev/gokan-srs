@@ -23,6 +23,7 @@ const AboutScreen = lazy(() => import('./pages/about/AboutScreen').then(module =
 const VocabDetailScreen = lazy(() => import('./pages/vocab/VocabDetailScreen'));
 const KanjiDetailScreen = lazy(() => import('./pages/kanji/KanjiDetailScreen'));
 const GrammarDetailScreen = lazy(() => import('./pages/grammar/GrammarDetailScreen'));
+const GrammarFamilyScreen = lazy(() => import('./pages/grammar/GrammarFamilyScreen'));
 
 function SyncStatusIndicator() {
     const { isUploading, isDownloading, isAuthenticated, syncPaused, login } = useGoogleDrive();
@@ -195,6 +196,9 @@ export const App: React.FC = () => {
                         } />
                         <Route path="/grammar/browse" element={
                             <GrammarBrowseScreen />
+                        } />
+                        <Route path="/grammar/family/:familyId" element={
+                            <GrammarFamilyScreen />
                         } />
                         <Route path="/grammar/:grammarId" element={
                             <GrammarDetailScreen />

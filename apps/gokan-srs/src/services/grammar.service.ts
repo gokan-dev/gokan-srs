@@ -1,4 +1,4 @@
-import type { GrammarAliasIndex, GrammarBrowseIndex, GrammarChapter, GrammarConjugationIndex, GrammarJlptIndex, GrammarKindIndex, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex } from '../models/grammar.model';
+import type { GrammarAliasIndex, GrammarBrowseIndex, GrammarChapter, GrammarConjugationIndex, GrammarContrastForFocus, GrammarContrastIndex, GrammarJlptIndex, GrammarKindIndex, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex } from '../models/grammar.model';
 
 /**
  * Loads grammar data compiled by the gokan-dataset submodule's
@@ -16,6 +16,8 @@ export class GrammarService {
     private static conjugations: GrammarConjugationIndex | null = null;
     private static variantGroups: GrammarVariantGroupIndex | null = null;
     private static browseIndex: GrammarBrowseIndex | null = null;
+    private static contrasts: GrammarContrastIndex | null = null;
+    private static contrastsByFocus: Map<string, GrammarContrastForFocus[]> | null = null;
     private static pointCache = new Map<string, GrammarPoint>();
 
     private static async fetchJson<T>(path: string): Promise<T> {
@@ -124,6 +126,50 @@ export class GrammarService {
             console.error('[GrammarService] Failed to load the grammar browse index', e);
             return null;
         }
+    }
+
+    /**
+     * Family id -> its authored contrast clusters. On failure returns {} without
+     * caching, so a transient fetch error retries next time rather than
+     * permanently disabling contrast lessons for the session (matching loadKinds).
+     * A missing file is not an error: contrasts are optional, and a family with
+     * none simply shows the abstract differentiator it always did.
+     */
+    static async loadContrasts(): Promise<GrammarContrastIndex> {
+        if (this.contrasts) return this.contrasts;
+
+        try {
+            const loaded = await this.fetchJson<GrammarContrastIndex>(`/data/compiled/grammar/index/contrasts.json?v=${Date.now()}`);
+            this.contrasts = loaded;
+            return loaded;
+        } catch (e) {
+            console.error('[GrammarService] Failed to load grammar contrasts; no contrast lessons will show', e);
+            return {};
+        }
+    }
+
+    /**
+     * Contrast units keyed by their focus point id, so the intro flow can ask
+     * "does the point I'm introducing carry any contrast lessons?" in one lookup.
+     * Cached only once a non-empty index has actually loaded, so a transient
+     * failure doesn't freeze an empty map in place.
+     */
+    static async loadContrastsByFocus(): Promise<Map<string, GrammarContrastForFocus[]>> {
+        if (this.contrastsByFocus) return this.contrastsByFocus;
+
+        const index = await this.loadContrasts();
+        const map = new Map<string, GrammarContrastForFocus[]>();
+        for (const [familyId, fam] of Object.entries(index)) {
+            for (const cluster of fam.clusters) {
+                for (const unit of cluster.units) {
+                    const list = map.get(unit.focus) ?? [];
+                    list.push({ familyId, familyName: fam.name, clusterId: cluster.id, clusterLabel: cluster.label, unit });
+                    map.set(unit.focus, list);
+                }
+            }
+        }
+        if (map.size > 0) this.contrastsByFocus = map;
+        return map;
     }
 
     /** The chapter a point belongs to, or null when the order isn't available. */

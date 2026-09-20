@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
+import { ArrowRight } from "lucide-react";
 import { Card } from "../../components/ui/Card";
 import { JlptChip } from "../../components/JlptChip";
 import type { GrammarPoint } from "../../models/grammar.model";
@@ -24,8 +25,22 @@ export function GrammarRelatedPointsCard({ point }: Props) {
 
     const [related, setRelated] = useState<GrammarPoint[]>([]);
     const [isExpanded, setIsExpanded] = useState(false);
+    const [hasContrasts, setHasContrasts] = useState(false);
 
     const relatedIds = point.family?.relatedPoints || [];
+    const familyId = point.family?.id;
+
+    // Only surface the "compare when to use each" link when this family actually
+    // has situational lessons authored (issue #62) - otherwise the family page
+    // would just show its empty-state.
+    useEffect(() => {
+        if (!familyId) return;
+        let cancelled = false;
+        GrammarService.loadContrasts().then(index => {
+            if (!cancelled) setHasContrasts(Boolean(index[familyId]));
+        });
+        return () => { cancelled = true; };
+    }, [familyId]);
     const isExpandable = relatedIds.length > INITIAL_COUNT;
     const displayedIds = isExpanded ? relatedIds : relatedIds.slice(0, INITIAL_COUNT);
 
@@ -54,6 +69,15 @@ export function GrammarRelatedPointsCard({ point }: Props) {
             <h2 className="text-lg font-gothic font-semibold text-primary mb-4">
                 {point.family?.name || "Related Points"} <span className="text-sm font-normal text-tertiary ml-2">({relatedIds.length})</span>
             </h2>
+
+            {hasContrasts && familyId && (
+                <Link
+                    to={`/grammar/family/${familyId}`}
+                    className="inline-flex items-center gap-1 mb-4 text-sm font-gothic text-accent hover:underline"
+                >
+                    Compare when to use each <ArrowRight size={14} />
+                </Link>
+            )}
             <div className="space-y-3">
                 {related.map((p) => (
                     <div

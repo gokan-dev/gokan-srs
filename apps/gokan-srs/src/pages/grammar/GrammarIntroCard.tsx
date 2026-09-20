@@ -6,6 +6,7 @@ import { JlptChip } from "../../components/JlptChip";
 import { MasteryRing } from "../../components/MasteryRing";
 import { IntroCardShell } from "../../components/IntroCardShell";
 import { GrammarDifferentiator } from "../../components/GrammarDifferentiator";
+import { GrammarContrastCard } from "../../components/GrammarContrastCard";
 import { GrammarService } from "../../services/grammar.service";
 import { useQuiz } from "../../context/useQuiz";
 
@@ -122,6 +123,12 @@ export function GrammarIntroCard({ grammarPoint, onLearn, onSkip }: GrammarIntro
                     <GrammarDifferentiator point={grammarPoint} knownIds={knownIds} />
                 </CardSection>
             )}
+
+            {/* Situational "which one, and when" lesson - shown only when this
+                point is the focus of a contrast whose siblings are already known
+                (issue #62). Rendered unwrapped (it returns null when there's
+                nothing ready) so it never leaves an empty CardSection behind. */}
+            <GrammarContrastCard pointId={grammarPoint.id} knownIds={knownIds} />
         </IntroCardShell>
     );
 }
