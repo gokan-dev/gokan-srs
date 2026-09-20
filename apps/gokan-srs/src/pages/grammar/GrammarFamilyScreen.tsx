@@ -23,33 +23,33 @@ export default function GrammarFamilyScreen() {
     const navigate = useNavigate();
     const { state } = useQuiz();
 
-    const [entry, setEntry] = useState<FamilyEntry | null>(null);
-    const [members, setMembers] = useState<Map<string, GrammarPoint>>(new Map());
-    const [status, setStatus] = useState<"loading" | "ready" | "notfound">("loading");
+    // One result object keyed by the familyId it was loaded for. Loading is then
+    // DERIVED (result?.familyId !== familyId) rather than set synchronously in the
+    // effect, so switching families shows the loading state without a stale flash
+    // and without a cascading setState-in-effect.
+    const [result, setResult] = useState<{ familyId: string; entry: FamilyEntry | null; members: Map<string, GrammarPoint> } | null>(null);
 
     useEffect(() => {
         if (!familyId) return;
         let cancelled = false;
-        setStatus("loading");
 
         GrammarService.loadContrasts().then(async index => {
-            const found = index[familyId];
-            if (!found) {
-                if (!cancelled) setStatus("notfound");
-                return;
-            }
-            const ids = Array.from(new Set(found.clusters.flatMap(c => c.memberIds)));
-            const loaded = await Promise.all(ids.map(id => GrammarService.loadGrammarPoint(id).catch(() => null)));
-            if (cancelled) return;
+            const found = index[familyId] ?? null;
             const map = new Map<string, GrammarPoint>();
-            loaded.forEach(p => { if (p) map.set(p.id, p); });
-            setEntry(found);
-            setMembers(map);
-            setStatus("ready");
+            if (found) {
+                const ids = Array.from(new Set(found.chunks.flatMap(c => c.memberIds)));
+                const loaded = await Promise.all(ids.map(id => GrammarService.loadGrammarPoint(id).catch(() => null)));
+                loaded.forEach(p => { if (p) map.set(p.id, p); });
+            }
+            if (!cancelled) setResult({ familyId, entry: found, members: map });
         });
 
         return () => { cancelled = true; };
     }, [familyId]);
+
+    const ready = result?.familyId === familyId;
+    const entry = ready ? result!.entry : null;
+    const members = ready ? result!.members : new Map<string, GrammarPoint>();
 
     const knownIds = useMemo(() => {
         const ids = new Set<string>();
@@ -59,9 +59,9 @@ export default function GrammarFamilyScreen() {
         return ids;
     }, [state.progress?.grammarQueue]);
 
-    if (status === "loading") return <LoadingScreen />;
+    if (!ready) return <LoadingScreen />;
 
-    if (status === "notfound" || !entry) {
+    if (!entry) {
         return (
             <div className="min-h-screen flex items-center justify-center p-4 text-center">
                 <div>
@@ -88,12 +88,12 @@ export default function GrammarFamilyScreen() {
             </p>
 
             <div className="space-y-6">
-                {entry.clusters.map(cluster => (
-                    <Card key={cluster.id} size="md">
-                        <h2 className="text-lg font-gothic font-semibold text-primary mb-3">{cluster.label}</h2>
+                {entry.chunks.map(chunk => (
+                    <Card key={chunk.id} size="md">
+                        <h2 className="text-lg font-gothic font-semibold text-primary mb-3">{chunk.label}</h2>
 
                         <div className="flex flex-wrap gap-2 mb-4">
-                            {cluster.memberIds.map(id => {
+                            {chunk.memberIds.map(id => {
                                 const p = members.get(id);
                                 if (!p) return null;
                                 return (
@@ -113,8 +113,8 @@ export default function GrammarFamilyScreen() {
                         </div>
 
                         <div className="space-y-3">
-                            {cluster.units.map((unit, i) => (
-                                <div key={`${cluster.id}-${i}`} className="border-l-2 border-accent/40 pl-3">
+                            {chunk.units.map((unit, i) => (
+                                <div key={`${chunk.id}-${i}`} className="border-l-2 border-accent/40 pl-3">
                                     <p className="text-primary font-serif text-sm leading-relaxed">
                                         <span className="font-semibold">{unit.situation}</span>{" "}
                                         {unit.guidance}

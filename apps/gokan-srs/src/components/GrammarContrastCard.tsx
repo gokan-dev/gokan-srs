@@ -54,8 +54,8 @@ export function GrammarContrastCard({ pointId, knownIds, showFamilyLink = true }
 
             <div className="space-y-3">
                 {ready.map((c, i) => (
-                    <div key={`${c.clusterId}-${i}`}>
-                        <p className="text-tertiary font-gothic text-xs mb-1">{c.clusterLabel}</p>
+                    <div key={`${c.chunkId}-${i}`}>
+                        <p className="text-tertiary font-gothic text-xs mb-1">{c.chunkLabel}</p>
                         <p className="text-primary font-serif text-sm leading-relaxed">
                             <span className="font-semibold">{c.unit.situation}</span>{" "}
                             {c.unit.guidance}

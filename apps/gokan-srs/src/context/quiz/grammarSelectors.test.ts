@@ -1006,3 +1006,62 @@ describe('summariseVocabGains', () => {
         expect(breakdown[0].label).toBe('z');
     });
 });
+
+describe('family interchange (issue #62): slot-gated, axis-tiered', () => {
+    const sibling = (id: string, slot: GrammarPoint['slot'], axis: 'register' | 'constraint' | 'variant', formalityLevel: GrammarPoint['formalityLevel'], marker: string): GrammarPoint =>
+        makeGrammarPoint({
+            id,
+            slot,
+            formalityLevel,
+            family: { id: 'contradiction', name: 'Contradiction', relatedPoints: [], axis },
+            examples: [{ jp: marker, romaji: '', en: '', patternWordIndices: [0], words: [{ surface: marker, vocabId: null }] }],
+        });
+
+    const point = makeGrammarPoint({
+        id: 'kedo',
+        slot: 'clause-final',
+        formalityLevel: 'casual',
+        family: { id: 'contradiction', name: 'Contradiction', relatedPoints: ['sib-same', 'sib-other', 'sib-diffslot', 'sib-constraint'], axis: 'register' },
+        examples: [{
+            jp: 'けど、そう', romaji: '', en: '', patternWordIndices: [0],
+            words: [{ surface: 'けど', vocabId: null }, { surface: '、', vocabId: null }, { surface: 'そう', vocabId: null }],
+        }],
+    });
+
+    const siblings: Record<string, GrammarPoint> = {
+        'sib-same': sibling('sib-same', 'clause-final', 'register', 'casual', 'だけど'),      // same slot, same register -> correct
+        'sib-other': sibling('sib-other', 'clause-final', 'register', 'formal', 'ものの'),     // same slot, other register -> minor
+        'sib-diffslot': sibling('sib-diffslot', 'sentence-initial', 'register', 'casual', 'でも'), // different slot -> excluded
+        'sib-constraint': sibling('sib-constraint', 'clause-final', 'constraint', 'casual', 'それでも'), // constraint -> excluded
+    };
+
+    beforeEach(() => {
+        vi.spyOn(GrammarService, 'loadVariantGroups').mockResolvedValue({});
+        vi.spyOn(GrammarService, 'loadGrammarPoint').mockImplementation(async (id: string) => {
+            const p = siblings[id];
+            if (!p) throw new Error(`no sibling ${id}`);
+            return p;
+        });
+    });
+
+    it('accepts a same-slot same-register sibling as correct, a same-slot other-register sibling as minor', async () => {
+        const plan = (await computeBlankPlan(point, makeProgress({ learningQueue: [] }), 0))!;
+        expect(plan.isPatternBlank[0]).toBe(true);
+        expect(plan.acceptLists[0]).toContain('だけど');
+        expect(plan.acceptListsMinor![0]).toContain('ものの');
+    });
+
+    it('excludes a different-slot sibling (ungrammatical substitution) and a constraint sibling (changes meaning)', async () => {
+        const plan = (await computeBlankPlan(point, makeProgress({ learningQueue: [] }), 0))!;
+        const all = [...plan.acceptLists[0], ...(plan.acceptListsMinor?.[0] ?? [])];
+        expect(all).not.toContain('でも');
+        expect(all).not.toContain('それでも');
+    });
+
+    it('does nothing when the point has no slot', async () => {
+        const noSlot = makeGrammarPoint({ ...point, slot: undefined });
+        const plan = (await computeBlankPlan(noSlot, makeProgress({ learningQueue: [] }), 0))!;
+        expect(plan.acceptLists[0]).toEqual(['けど']);
+        expect(plan.acceptListsMinor?.[0] ?? []).toEqual([]);
+    });
+});

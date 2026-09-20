@@ -98,6 +98,15 @@ export interface GrammarPoint {
      */
     formalityLevel?: 'casual' | 'neutral' | 'polite' | 'formal' | 'very-formal-literary';
     /**
+     * The syntactic slot this point's marker occupies (from the dataset). The gate
+     * for interchangeability grading: two family siblings can only substitute for
+     * one another in a cloze blank if they fill the same slot. けど (clause-final)
+     * and でも (sentence-initial) both mean "but" and share a family, but でも in a
+     * clause-final けど blank is ungrammatical, so that substitution grades wrong,
+     * not as a minor register slip. Absent where unclassified.
+     */
+    slot?: 'clause-final' | 'sentence-initial' | 'predicate-final' | 'pre-noun' | 'adverbial';
+    /**
      * One short, quiz-card-length line (~60-80 chars) covering whatever actually
      * disambiguates this point from its near-synonyms - usually register, but
      * sometimes connotation/nuance instead (criticism, surprise, unmet
@@ -192,11 +201,12 @@ export interface GrammarContrastUnit {
 }
 
 /**
- * A confusability-first sub-grouping of a family: a small set of members close
- * enough to be actively disambiguated together (like interleaving look-alike
- * kanji), bounded so it does not span the family's whole JLPT range.
+ * A CHUNK: a confusability-first sub-grouping of a family - a small set of
+ * members (target 5-6, soft cap) close enough to be actively disambiguated
+ * together, like interleaving look-alike kanji. A small family can be one chunk.
+ * A lesson (unit) is always a subset of one chunk.
  */
-export interface GrammarContrastCluster {
+export interface GrammarContrastChunk {
     id: string;
     label: string;
     memberIds: string[];
@@ -204,21 +214,21 @@ export interface GrammarContrastCluster {
 }
 
 /**
- * Family id -> its authored contrast clusters, from
+ * Family id -> its authored contrast chunks, from
  * `compiled/grammar/index/contrasts.json`. `variant`-axis families never appear
  * (their members are interchangeable, so there is nothing to disambiguate).
  */
 export type GrammarContrastIndex = Record<string, {
     name: string;
-    clusters: GrammarContrastCluster[];
+    chunks: GrammarContrastChunk[];
 }>;
 
-/** A contrast unit flattened with the family/cluster context it came from, keyed for lookup by its focus point. */
+/** A contrast unit flattened with the family/chunk context it came from, keyed for lookup by its focus point. */
 export interface GrammarContrastForFocus {
     familyId: string;
     familyName: string;
-    clusterId: string;
-    clusterLabel: string;
+    chunkId: string;
+    chunkLabel: string;
     unit: GrammarContrastUnit;
 }
 

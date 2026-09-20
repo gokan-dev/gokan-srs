@@ -5,8 +5,8 @@ import type { GrammarContrastForFocus } from "../models/grammar.model";
 const unit = (focus: string, vs: string[]): GrammarContrastForFocus => ({
     familyId: "causality",
     familyName: "Causality",
-    clusterId: "reason-core",
-    clusterLabel: "から / ので",
+    chunkId: "reason-core",
+    chunkLabel: "から / ので",
     unit: { focus, vs, situation: "s", guidance: "g" },
 });
 

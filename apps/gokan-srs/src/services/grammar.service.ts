@@ -160,10 +160,10 @@ export class GrammarService {
         const index = await this.loadContrasts();
         const map = new Map<string, GrammarContrastForFocus[]>();
         for (const [familyId, fam] of Object.entries(index)) {
-            for (const cluster of fam.clusters) {
-                for (const unit of cluster.units) {
+            for (const chunk of fam.chunks) {
+                for (const unit of chunk.units) {
                     const list = map.get(unit.focus) ?? [];
-                    list.push({ familyId, familyName: fam.name, clusterId: cluster.id, clusterLabel: cluster.label, unit });
+                    list.push({ familyId, familyName: fam.name, chunkId: chunk.id, chunkLabel: chunk.label, unit });
                     map.set(unit.focus, list);
                 }
             }

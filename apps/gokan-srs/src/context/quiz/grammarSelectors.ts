@@ -390,6 +390,52 @@ async function applyVariantRotation(
     };
 }
 
+/**
+ * Widens a pattern blank to accept a near-synonym family sibling in place of the
+ * expected marker, graded by how close the two are (issue #62's interchangeability).
+ *
+ * Unlike a variant-group realization, a family sibling is NOT guaranteed to be
+ * slot-compatible: けど (clause-final) and でも (sentence-initial) share the "but"
+ * family but occupy different syntactic slots, and でも in a clause-final blank is
+ * ungrammatical. So a sibling is only offered when it fills the SAME `slot`, and:
+ *  - a `constraint`-axis sibling carries a real semantic restriction, so
+ *    substituting it changes the meaning - excluded (grades wrong).
+ *  - a `register`/`variant` sibling is offered, tiered by formality exactly as the
+ *    variant rotation does: same register -> `correct`, different -> `minor_error`.
+ *
+ * Marker surfaces come from each sibling's own examples (contiguous pattern span),
+ * the same extraction applyVariantRotation uses.
+ */
+async function applyFamilyInterchange(point: GrammarPoint): Promise<{ sameRegister: string[]; otherRegister: string[] } | null> {
+    const family = point.family;
+    if (!family || !point.slot || family.relatedPoints.length === 0) return null;
+
+    const sameRegister: string[] = [];
+    const otherRegister: string[] = [];
+
+    for (const siblingId of family.relatedPoints) {
+        const sibling = await GrammarService.loadGrammarPoint(siblingId).catch(() => null);
+        if (!sibling) continue;
+        // Same slot only - otherwise the substitution is ungrammatical, not a near miss.
+        if (!sibling.slot || sibling.slot !== point.slot) continue;
+        // constraint siblings change the meaning; only register/variant siblings are interchangeable.
+        const axis = sibling.family?.axis;
+        if (axis !== 'register' && axis !== 'variant') continue;
+
+        for (const example of sibling.examples) {
+            if (example.patternWordIndices.length === 0) continue;
+            const indices = example.patternWordIndices;
+            const contiguous = indices.every((w, k) => k === 0 || w === indices[k - 1] + 1);
+            if (!contiguous) continue;
+            const surface = indices.map(i => example.words[i]?.surface ?? '').join('');
+            if (!surface) continue;
+            (sibling.formalityLevel === point.formalityLevel ? sameRegister : otherRegister).push(surface);
+        }
+    }
+
+    return { sameRegister: Array.from(new Set(sameRegister)), otherRegister: Array.from(new Set(otherRegister)) };
+}
+
 export async function computeBlankPlan(point: GrammarPoint, progress: UserProgress | null, reviewCount: number): Promise<GrammarBlankPlan | null> {
     // An inflection point cannot be tested by blanking a marker - hand it to the
     // conjugation drill. Falls through to the cloze path when the dataset has no
@@ -404,28 +450,35 @@ export async function computeBlankPlan(point: GrammarPoint, progress: UserProgre
     const effectivePoint = rotation?.point ?? point;
 
     if (effectivePoint.examples.length === 0) return null;
-    if (rotation) {
-        const base = await computeBlankPlanFor(effectivePoint, progress, reviewCount);
-        if (!base) return null;
-        return {
-            ...base,
-            realization: rotation.realization,
-            // Widen only the PATTERN blanks: a vocab blank has nothing to do with
-            // the alternation and must keep grading strictly.
-            acceptLists: base.acceptLists.map((list, i) =>
-                base.isPatternBlank[i] ? Array.from(new Set([...list, ...rotation.sameRegister])) : list),
-            // Merged, not replaced: the base plan's minor tier already carries each
-            // inflected vocab blank's dictionary forms (right word, wrong conjugation),
-            // and overwriting it here would silently restore full credit for those on
-            // any variant-group turn.
-            acceptListsMinor: base.acceptLists.map((_, i) => Array.from(new Set([
-                ...(base.acceptListsMinor?.[i] ?? []),
-                ...(base.isPatternBlank[i] ? rotation.otherRegister : []),
-            ]))),
-        };
-    }
 
-    return computeBlankPlanFor(effectivePoint, progress, reviewCount);
+    const base = await computeBlankPlanFor(effectivePoint, progress, reviewCount);
+    if (!base) return null;
+
+    // Two independent sources widen the PATTERN blanks: the variant-group rotation
+    // (same construction, different realization) and family interchange (a
+    // near-synonym sibling filling the same slot). They stack.
+    const interchange = await applyFamilyInterchange(point);
+    const sameRegister = [...(rotation?.sameRegister ?? []), ...(interchange?.sameRegister ?? [])];
+    const otherRegister = [...(rotation?.otherRegister ?? []), ...(interchange?.otherRegister ?? [])];
+
+    // Nothing to add and no realization to record: the base plan stands unchanged.
+    if (!rotation && sameRegister.length === 0 && otherRegister.length === 0) return base;
+
+    return {
+        ...base,
+        ...(rotation ? { realization: rotation.realization } : {}),
+        // Widen only the PATTERN blanks: a vocab blank has nothing to do with the
+        // alternation and must keep grading strictly.
+        acceptLists: base.acceptLists.map((list, i) =>
+            base.isPatternBlank[i] ? Array.from(new Set([...list, ...sameRegister])) : list),
+        // Merged, not replaced: the base plan's minor tier already carries each
+        // inflected vocab blank's dictionary forms (right word, wrong conjugation),
+        // and overwriting it here would silently restore full credit for those.
+        acceptListsMinor: base.acceptLists.map((_, i) => Array.from(new Set([
+            ...(base.acceptListsMinor?.[i] ?? []),
+            ...(base.isPatternBlank[i] ? otherRegister : []),
+        ]))),
+    };
 }
 
 async function computeBlankPlanFor(point: GrammarPoint, progress: UserProgress | null, reviewCount: number): Promise<GrammarBlankPlan | null> {
