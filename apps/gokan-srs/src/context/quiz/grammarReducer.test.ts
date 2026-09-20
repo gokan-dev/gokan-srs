@@ -112,6 +112,50 @@ describe('grammarReducer (via quizReducer)', () => {
 
             expect(next.grammarHintLevels).toEqual([2, 0]);
         });
+
+        it('writes the revealed form into grammarAnswers on reaching level 2', () => {
+            // Regression: the reveal used to be a render-time display value only, so the
+            // input showed the answer while grammarAnswers[i] stayed empty. Revealing the
+            // last remaining blank then left the card unsubmittable with no way forward.
+            const state: QuizState = {
+                ...initialState,
+                grammarHintLevels: [1, 0],
+                grammarAnswers: ['', 'typed'],
+                currentGrammarBlankPlan: {
+                    exampleIndex: 0,
+                    blankWordIndices: [0, 1],
+                    blankWordSpans: [[0], [1]],
+                    isPatternBlank: [true, false],
+                    acceptLists: [['すし'], ['なか']],
+                    glosses: ['sushi', 'inside'],
+                    readOnly: false,
+                } as QuizState['currentGrammarBlankPlan'],
+            };
+            const next = quizReducer(state, { type: 'GRAMMAR_REVEAL_HINT', payload: { index: 0 } });
+
+            expect(next.grammarHintLevels).toEqual([2, 0]);
+            expect(next.grammarAnswers).toEqual(['すし', 'typed']);
+        });
+
+        it('leaves answers untouched when only the gloss (level 1) is shown', () => {
+            const state: QuizState = {
+                ...initialState,
+                grammarHintLevels: [0, 0],
+                grammarAnswers: ['', ''],
+                currentGrammarBlankPlan: {
+                    exampleIndex: 0,
+                    blankWordIndices: [0, 1],
+                    blankWordSpans: [[0], [1]],
+                    isPatternBlank: [true, false],
+                    acceptLists: [['すし'], ['なか']],
+                    glosses: ['sushi', 'inside'],
+                    readOnly: false,
+                } as QuizState['currentGrammarBlankPlan'],
+            };
+            const next = quizReducer(state, { type: 'GRAMMAR_REVEAL_HINT', payload: { index: 0 } });
+
+            expect(next.grammarAnswers).toEqual(['', '']);
+        });
     });
 
     it('GRAMMAR_SUBMIT_ANSWER shows feedback with correct=true only for a strict correct result', () => {

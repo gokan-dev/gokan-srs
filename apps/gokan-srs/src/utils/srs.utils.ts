@@ -1,11 +1,29 @@
 import type { VocabProgress } from "../models/vocabulary.model";
 import type { UserSettings } from "../models/user.model";
 import { CONSTANTS } from "../commons/constants";
-import { isMeaningQuizEnabled } from "../services/scheduling";
+import { isMeaningQuizEnabled, isProductionQuizEnabled } from "../services/scheduling";
 import { pickStable as pickStableGeneric } from "./deterministicPick";
 
-export type QuizType = 'reading' | 'meaning';
+/**
+ * 'reading'    kanji prompt, hiragana answer (recognition)
+ * 'meaning'    Japanese prompt, English answer (recognition)
+ * 'production' English prompt, Japanese reading answer (production)
+ */
+export type QuizType = 'reading' | 'meaning' | 'production';
 export type QuizMode = 'base' | 'context';
+
+/**
+ * A task key uniquely identifies one quiz to answer: `${vocabId}:${quizType}`.
+ * Defined here rather than in quizReducer (which re-exports it for compatibility)
+ * so queue selection below can be handed a committed-set filter without the
+ * context layer having to import from the reducer, or this module duplicating
+ * the key format.
+ */
+export type TaskKey = `${string}:${QuizType}`;
+
+export function taskKey(vocabId: string, quizType: QuizType): TaskKey {
+    return `${vocabId}:${quizType}`;
+}
 
 export interface QuizItem {
     vocab: VocabProgress;
@@ -50,6 +68,12 @@ function isMeaningDue(v: VocabProgress, now: Date): boolean {
     return v.totalReviews > 0 && v.meaning.dueDate !== null && v.meaning.dueDate <= now;
 }
 
+/** Is this vocab's PRODUCTION quiz due for a genuine, regularly-scheduled review - independent of `needsRetry`. See isReadingDue. */
+function isProductionDue(v: VocabProgress, now: Date): boolean {
+    const entry = v.production;
+    return v.totalReviews > 0 && !!entry && entry.dueDate !== null && entry.dueDate <= now;
+}
+
 /**
  * Is this vocab's READING quiz actionable right now (first review, due review, or
  * a pending reading retry)? Single source of truth shared by queue selection and
@@ -69,6 +93,18 @@ export function isMeaningActionable(
 ): boolean {
     if (!isMeaningQuizEnabled(settings)) return false;
     return isMeaningDue(v, now) || v.needsRetry?.meaning === true;
+}
+
+/** Is this vocab's PRODUCTION quiz actionable right now (due review or pending retry)?
+ *  Always false when production quizzes are disabled, and for a word whose production
+ *  entry has never been activated (dueDate null, so isProductionDue cannot match). */
+export function isProductionActionable(
+    v: VocabProgress,
+    settings: UserSettings | undefined,
+    now: Date = new Date()
+): boolean {
+    if (!isProductionQuizEnabled(settings)) return false;
+    return isProductionDue(v, now) || v.needsRetry?.production === true;
 }
 
 /**
@@ -104,7 +140,8 @@ export function clearStaleNeedsRetry(
 
         const clearReading = v.needsRetry.reading === true && isReadingDue(v, now);
         const clearMeaning = v.needsRetry.meaning === true && isMeaningQuizEnabled(settings) && isMeaningDue(v, now);
-        if (!clearReading && !clearMeaning) return v;
+        const clearProduction = v.needsRetry.production === true && isProductionQuizEnabled(settings) && isProductionDue(v, now);
+        if (!clearReading && !clearMeaning && !clearProduction) return v;
 
         changed = true;
         return {
@@ -113,6 +150,7 @@ export function clearStaleNeedsRetry(
                 ...v.needsRetry,
                 ...(clearReading ? { reading: false } : {}),
                 ...(clearMeaning ? { meaning: false } : {}),
+                ...(clearProduction ? { production: false } : {}),
             },
         };
     });
@@ -120,23 +158,53 @@ export function clearStaleNeedsRetry(
     return changed ? next : queue;
 }
 
+/**
+ * `allowed` is the active session's committed task set (see SessionTracking).
+ * When given, only tasks in it are ever served, which is what makes the
+ * per-session quiz cap actually bind: without it, capping the committed set
+ * would only shrink the progress counter's denominator while selection kept
+ * handing out every due card anyway.
+ *
+ * When the cap has left actionable work out of the committed set, this returns
+ * null rather than falling through to new intros, so the caller can surface
+ * 'session-complete' instead of starting the user on new vocabulary while
+ * reviews they have not been offered are still due.
+ */
 export function getNextVocabToStudy(
     queue?: VocabProgress[],
     settings?: UserSettings,
     now: Date = new Date(),
-    preferredType?: QuizType
+    preferredType?: QuizType,
+    allowed?: ReadonlySet<TaskKey>
 ): QuizItem | null {
     if (!queue || queue.length === 0) return null;
 
     // 1. Priority: ALL Readings (First Reviews + Due Readings + Retries)
     // We want to clear all reading quizzes before moving to meanings.
-    const allReadings = queue.filter(v => isReadingActionable(v, now));
+    const allActionableReadings = queue.filter(v => isReadingActionable(v, now));
 
-    const dueMeanings = isMeaningQuizEnabled(settings)
+    const allActionableMeanings = isMeaningQuizEnabled(settings)
         ? queue.filter(v => isMeaningActionable(v, settings, now))
         : [];
 
+    const allReadings = allowed
+        ? allActionableReadings.filter(v => allowed.has(taskKey(v.vocabId, 'reading')))
+        : allActionableReadings;
+
+    const allActionableProductions = isProductionQuizEnabled(settings)
+        ? queue.filter(v => isProductionActionable(v, settings, now))
+        : [];
+
+    const dueMeanings = allowed
+        ? allActionableMeanings.filter(v => allowed.has(taskKey(v.vocabId, 'meaning')))
+        : allActionableMeanings;
+
+    const dueProductions = allowed
+        ? allActionableProductions.filter(v => allowed.has(taskKey(v.vocabId, 'production')))
+        : allActionableProductions;
+
     const pickReading = (): QuizItem => ({ vocab: pickStable(allReadings)!, quizType: 'reading', quizMode: 'base' });
+    const pickProduction = (): QuizItem => ({ vocab: pickStable(dueProductions)!, quizType: 'production', quizMode: 'base' });
     const pickMeaning = (): QuizItem => {
         const vocab = pickStable(dueMeanings)!;
         const mastery = calculateMasteryPercentage(vocab.meaning.memoryStrength);
@@ -157,9 +225,21 @@ export function getNextVocabToStudy(
     // is primed to answer wrong.
     if (preferredType === 'reading' && allReadings.length > 0) return pickReading();
     if (preferredType === 'meaning' && dueMeanings.length > 0) return pickMeaning();
+    if (preferredType === 'production' && dueProductions.length > 0) return pickProduction();
 
+    // Production last: it is the hardest direction, so it reads better after the
+    // word has already been seen in the easier ones this session.
     if (allReadings.length > 0) return pickReading();
     if (dueMeanings.length > 0) return pickMeaning();
+    if (dueProductions.length > 0) return pickProduction();
+
+    // The session's committed workload is cleared but reviews the cap left out are
+    // still due. Stop here instead of introducing new vocabulary on top of a backlog
+    // the user has not been offered yet; the caller reads this null as
+    // 'session-complete' and offers another session.
+    if (allowed && (allActionableReadings.length > 0 || allActionableMeanings.length > 0 || allActionableProductions.length > 0)) {
+        return null;
+    }
 
     // 4. Priority: New Intros (not introduced yet)
     // When introducing, we start with Reading quiz? Or just distinct Intro card?

@@ -704,3 +704,87 @@ describe('MigrationService.migrateGrammarAliasesAsync', () => {
         expect(MigrationService.needsMigration(migrated)).toBe(false);
     });
 });
+
+describe('production entry backfill', () => {
+    const maxMemoryStrength = CONSTANTS.srs.formula.mastery.maxMemoryStrength;
+
+    const progressWith = (queue: unknown[]) => ({
+        _formatVersion: 7,
+        learningQueue: queue,
+        grammarQueue: [],
+        kanjiKnowledge: { method: 'kklc', step: 10, kanjiSet: new Set<string>() },
+        stats: { newLearnedToday: 0, totalLearned: 0, totalReviews: 0 },
+    });
+
+    const learningItem = (overrides: Record<string, unknown> = {}) => ({
+        vocabId: 'v1',
+        stage: 'learning',
+        introductionAt: new Date('2025-01-01T00:00:00Z'),
+        nextReviewAt: null,
+        lastReviewedAt: null,
+        totalReviews: 3,
+        consecutiveFailures: 0,
+        reading: { memoryStrength: 50, interval: 2, difficulty: 0.3, lastReviewedAt: null, dueDate: null, history: [] },
+        meaning: { memoryStrength: 80, interval: 3, difficulty: 0.3, lastReviewedAt: null, dueDate: null, history: [] },
+        ...overrides,
+    });
+
+    it('gives a learning word an inert production entry, so nothing becomes due on release day', () => {
+        const migrated = MigrationService.migrateUserProgress(progressWith([learningItem()]));
+        const item = migrated.learningQueue[0];
+
+        expect(item.production).toBeDefined();
+        expect(item.production!.dueDate).toBeNull();
+        expect(item.production!.history).toEqual([]);
+    });
+
+    it('does not make a previously-not-due word due just by adding the entry', () => {
+        const migrated = MigrationService.migrateUserProgress(progressWith([learningItem()]));
+        expect(migrated.learningQueue[0].nextReviewAt).toBeNull();
+    });
+
+    it('grandfathers an already-graduated word as production-mastered, so it stays graduated', () => {
+        // Without this, every word the user ever skipped or finished would fail
+        // isVocabFullyMastered and flood back in as production reviews.
+        const graduated = learningItem({
+            vocabId: 'v2',
+            stage: 'graduated',
+            reading: { memoryStrength: maxMemoryStrength, interval: 3650, difficulty: 0.3, lastReviewedAt: null, dueDate: null, history: [] },
+            meaning: { memoryStrength: maxMemoryStrength, interval: 3650, difficulty: 0.3, lastReviewedAt: null, dueDate: null, history: [] },
+        });
+
+        const migrated = MigrationService.migrateUserProgress(progressWith([graduated]));
+        const item = migrated.learningQueue[0];
+
+        expect(item.stage).toBe('graduated');
+        expect(item.production!.memoryStrength).toBe(maxMemoryStrength);
+        expect(item.production!.dueDate).toBeNull();
+    });
+
+    it('leaves an already-active production entry untouched (idempotent across loads)', () => {
+        const active = learningItem({
+            production: {
+                memoryStrength: 300,
+                interval: 5,
+                difficulty: 0.3,
+                lastReviewedAt: new Date('2025-02-01T00:00:00Z'),
+                dueDate: new Date('2025-03-01T00:00:00Z'),
+                history: [],
+            },
+        });
+
+        const once = MigrationService.migrateUserProgress(progressWith([active]));
+        const twice = MigrationService.migrateUserProgress(progressWith([once.learningQueue[0]]));
+
+        expect(twice.learningQueue[0].production!.memoryStrength).toBe(300);
+        expect(twice.learningQueue[0].production!.dueDate).toEqual(new Date('2025-03-01T00:00:00Z'));
+    });
+
+    it('does not share one entry object between migrated items', () => {
+        const migrated = MigrationService.migrateUserProgress(
+            progressWith([learningItem({ vocabId: 'a' }), learningItem({ vocabId: 'b' })])
+        );
+
+        expect(migrated.learningQueue[0].production).not.toBe(migrated.learningQueue[1].production);
+    });
+});

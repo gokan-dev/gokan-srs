@@ -24,6 +24,45 @@ export const CONSTANTS = {
         /** Maximum number of reviews per day (Limit removed) */
         maxReviewsPerDay: 999999,
 
+        /**
+         * Maximum number of quiz tasks one study session commits to. Unlike the
+         * per-day limits above (both effectively disabled), this one is real: it
+         * bounds a single sitting, not the day, so a user with a large backlog can
+         * clear it across several sessions instead of facing all of it at once.
+         *
+         * Work that is due but does not fit surfaces as "waiting" (see
+         * selectSessionStats) and is picked up by the next session.
+         */
+        sessionQuizCap: 200,
+
+        production: {
+            /**
+             * Fraction of a word's meaning strength that its production entry starts
+             * from when first activated. Recognising a word's meaning does not mean
+             * you can produce it from English, so this is well under parity, but
+             * starting a half-known word from zero would make the rollout a full
+             * re-learn of the entire queue instead of a new direction on top of it.
+             */
+            seedStrengthRatio: 0.4,
+            /**
+             * Hours after activation before the first production review is due.
+             * Keeps it out of the session that triggered it (reading is due now and
+             * meaning is staggered +12h, so this sits one step further out).
+             */
+            seedDelayHours: 24,
+            /**
+             * Fraction of a normal production gain that a grammar answer's vocab
+             * reinforcement earns. Filling a blank IS production (English sentence in,
+             * Japanese out), which is why the credit goes to that entry rather than
+             * reading, but it is production with heavy scaffolding: the English
+             * sentence, the surrounding Japanese and the particles bracketing the gap
+             * narrow the candidates far more than a production card's bare glosses,
+             * and kanji is accepted where that card wants the reading. Right direction,
+             * easier conditions, so less than full credit.
+             */
+            reinforcementStrengthRatio: 0.5,
+        },
+
         frequencyMultipliers: {
             high: 1.0,
             medium: 1.5,
@@ -34,6 +73,10 @@ export const CONSTANTS = {
             reading: { expectedLatency: 10000 },
             meaning_base: { expectedLatency: 10000 },
             meaning_context: { expectedLatency: 15000 },
+            // Production (English prompt, Japanese answer) is recall without any
+            // Japanese on screen to work from, so it is slower than reading the
+            // word and saying it back.
+            production: { expectedLatency: 15000 },
             // Multiple discrete blanks per sentence - more typing than a single vocab answer.
             grammar: { expectedLatency: 20000 }
         },

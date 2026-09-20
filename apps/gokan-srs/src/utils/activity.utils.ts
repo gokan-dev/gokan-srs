@@ -10,7 +10,7 @@ export interface DailyActivityBucket {
 
 /**
  * Per-day review activity for the last `days` calendar days (oldest first, ending
- * today), aggregated from `reading.history` + `meaning.history` across the whole
+ * today), aggregated from `reading.history` + `meaning.history` + `production.history` across the whole
  * learning queue, plus `entry.history` across the grammar queue - both
  * activities feed the same daily rollup rather than being tracked separately.
  * `pass` logs are excluded; `correct`/`minor_error` group as correct and
@@ -49,7 +49,7 @@ export function buildDailyActivity(progress: UserProgress, days: number, now: Da
     };
 
     queue.forEach(v => {
-        [...(v.reading?.history || []), ...(v.meaning?.history || [])].forEach(applyLog);
+        [...(v.reading?.history || []), ...(v.meaning?.history || []), ...(v.production?.history || [])].forEach(applyLog);
     });
 
     grammarQueue.forEach(g => {

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch } from 'react';
 import { useLocation } from 'react-router-dom';
 import type { KanjiKnowledge, UserProgress, UserSettings } from '../../models/user.model';
-import type { Vocabulary } from '../../models/vocabulary.model';
+import type { Vocabulary, VocabProgress } from '../../models/vocabulary.model';
 import { StorageService } from '../../services/storage.service';
 import { VocabularyService } from '../../services/vocabulary.service';
 import { SRSService } from '../../services/srs.service';
@@ -17,7 +17,7 @@ import { mergeProgress, mergeSettings } from '../../services/sync/mergeProgress'
 import type { ProgressWithMetadata } from '../../services/sync/types';
 import { useGoogleDrive } from '../GoogleDriveContext';
 import type { QuizState, QuizAction } from './quizReducer';
-import { selectNextView, selectCurrentProgress, selectSessionStats, selectNextSessionPreview, collectActionableTaskKeys, filterSessionCommit } from './quizSelectors';
+import { selectNextView, selectCurrentProgress, selectSessionStats, selectNextSessionPreview, collectActionableTaskKeys, capSessionCommit, dedupTaskKeysByVocab } from './quizSelectors';
 import { useSessionLifecycle } from './useSessionLifecycle';
 import { refillCandidates } from './refillCandidates';
 import { progressUploadSignature, stableStringify } from "../../services/progressSerialization";
@@ -28,6 +28,8 @@ export interface QuizActions {
     submitAnswer(): Promise<void>;
     advanceQueue({ now, overrideDailyLimit }: { now: Date, overrideDailyLimit?: boolean }): void;
     continueToNext(): Promise<void>;
+    /** Ends the finished session so the lifecycle effect immediately commits a fresh capped one. */
+    startNewSession(): void;
     saveSettings(settings: UserSettings): void;
     updateKanjiKnowledge(knowledge: KanjiKnowledge): void;
     overrideDailyLimit(): Promise<void>;
@@ -132,7 +134,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
 
     const nextView = useMemo(
         () => selectNextView(state, hasMoreLearnable),
-        [state.progress, state.settings, state.introCandidates, state.currentVocab, state.currentQuizItem, state.nextKanjiToLearn, hasMoreLearnable]
+        [state.progress, state.settings, state.introCandidates, state.currentVocab, state.currentQuizItem, state.nextKanjiToLearn, state.session, hasMoreLearnable]
     );
 
     const currentProgress = useMemo(() => selectCurrentProgress(state), [state.currentVocab, state.progress]);
@@ -161,9 +163,16 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
     // Resuming later (navigating back to /quiz) starts a brand new session against
     // whatever is available then, rather than reopening the old one. The generic
     // edge-detection is shared with grammar via useSessionLifecycle.
+    // 'session-complete' keeps the session alive on purpose: the completion screen is
+    // still part of this session, and tearing it down here would immediately satisfy
+    // the start condition again (work is still due) and silently commit a fresh capped
+    // set, making the cap invisible. Starting another one is the user's call, via
+    // actions.startNewSession below.
     const sessionActive =
         location.pathname === '/quiz' &&
-        (nextView.sessionState === 'review' || nextView.sessionState === 'learn');
+        (nextView.sessionState === 'review' ||
+            nextView.sessionState === 'learn' ||
+            nextView.sessionState === 'session-complete');
 
     useSessionLifecycle({
         active: sessionActive,
@@ -182,8 +191,14 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                 ? state.progress
                 : { ...state.progress, learningQueue: clearedQueue };
 
-            const taskKeys = filterSessionCommit(
-                collectActionableTaskKeys(progress.learningQueue, state.settings, now)
+            // Committed holds every actionable task, deduped to at most one per vocab
+            // (reading > meaning > production - see dedupTaskKeysByVocab) and then
+            // capped. selectSessionStats counts this same set directly, so the Main hub
+            // preview (selectNextSessionPreview, which runs the identical dedup+cap
+            // pipeline) and the in-session progress bar always agree on what "this
+            // session" contains.
+            const taskKeys = capSessionCommit(
+                dedupTaskKeysByVocab(collectActionableTaskKeys(progress.learningQueue, state.settings, now))
             );
             dispatch({
                 type: 'SESSION_START',
@@ -234,7 +249,9 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             let matchedAnswer: string;
             let message = 'Incorrect.';
 
-            if (quizType === 'reading') {
+            // Production's answer is a reading, so it grades against the same
+            // accept-list as the reading quiz. Only the prompt differs between them.
+            if (quizType === 'reading' || quizType === 'production') {
                 const evaluation = SRSService.evaluateAnswer(state.userAnswer, state.currentVocab.reading);
                 result = evaluation.result;
                 matchedAnswer = evaluation.matchedAnswer;
@@ -376,6 +393,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             const frequencySetting = state.settings!.learningFrequency;
             const frequencyModifier = CONSTANTS.srs.frequencyMultipliers[frequencySetting];
             const meaningQuizEnabled = state.settings?.enableMeaningQuiz !== false;
+            const productionQuizEnabled = state.settings?.enableProductionQuiz !== false;
 
             // Apply the SRS update exactly once per answer, then reuse the single
             // result both for the mastery-delta history entry and the queue update.
@@ -393,17 +411,21 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                     state.feedback.type,
                     adaptiveLevel,
                     frequencyModifier,
-                    meaningQuizEnabled
+                    meaningQuizEnabled,
+                    productionQuizEnabled
                 );
                 updatedTarget = updated;
 
-                const oldStrength = state.currentQuizItem.quizType === 'reading'
-                    ? target.reading.memoryStrength
-                    : target.meaning.memoryStrength;
+                // Keyed rather than a reading/meaning ternary: with a third type, a
+                // ternary would silently report the meaning entry's delta for a
+                // production answer.
+                const strengthOf = (v: VocabProgress) =>
+                    state.currentQuizItem!.quizType === 'reading' ? v.reading.memoryStrength
+                        : state.currentQuizItem!.quizType === 'production' ? (v.production?.memoryStrength ?? 0)
+                            : v.meaning.memoryStrength;
 
-                const newStrength = state.currentQuizItem.quizType === 'reading'
-                    ? updated.reading.memoryStrength
-                    : updated.meaning.memoryStrength;
+                const oldStrength = strengthOf(target);
+                const newStrength = strengthOf(updated);
 
                 const delta = calculateMasteryPercentage(newStrength) - calculateMasteryPercentage(oldStrength);
 
@@ -434,6 +456,12 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                     historyItem: historyItem!
                 },
             });
+        },
+
+        startNewSession() {
+            // useSessionLifecycle re-fires onStart on the next render (the route is
+            // still /quiz and work is still due), snapshotting and capping afresh.
+            dispatch({ type: 'SESSION_END' });
         },
 
         saveSettings(settings) {

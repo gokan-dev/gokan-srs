@@ -17,6 +17,7 @@ import {
     collectActionableGrammarIds,
     computeBlankPlan,
     gradeGrammarAnswers,
+    summariseVocabGains,
 } from './grammarSelectors';
 import { useSessionLifecycle } from './useSessionLifecycle';
 import { refillCandidates } from './refillCandidates';
@@ -214,7 +215,7 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
 
             let updatedQueue;
             let updatedLearningQueue = state.progress.learningQueue;
-            let historyItem: { grammarId: string; title: string; result: AnswerResult; delta: number } | null = null;
+            let historyItem: { grammarId: string; title: string; result: AnswerResult; delta: number; vocabDelta?: number; vocabBreakdown?: { label: string; delta: number }[] } | null = null;
 
             if (state.currentGrammarBlankPlan?.readOnly) {
                 // No blank-eligible word anywhere in this point's examples - there's
@@ -240,7 +241,25 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
                 }
 
                 const delta = calculateMasteryPercentage(updated.entry.memoryStrength) - calculateMasteryPercentage(target.entry.memoryStrength);
-                historyItem = { grammarId: id, title, result: state.grammarFeedback.type, delta };
+
+                // Points the same answer credited to the sentence's vocabulary, summed
+                // across every word reinforced. Measured by diffing the learning queue
+                // rather than re-deriving from vocabCredits, so it reports what was
+                // actually written (applyVocabReinforcement skips words not in the
+                // queue, and is itself skipped entirely on a retry).
+                const { total: vocabDelta, breakdown: vocabBreakdown } = summariseVocabGains(
+                    state.progress.learningQueue,
+                    updatedLearningQueue,
+                    state.currentGrammarBlankPlan?.example?.words ?? []
+                );
+
+                historyItem = {
+                    grammarId: id,
+                    title,
+                    result: state.grammarFeedback.type,
+                    delta,
+                    ...(vocabDelta > 0 ? { vocabDelta, vocabBreakdown } : {}),
+                };
             }
 
             dispatch({
@@ -320,14 +339,25 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
        ========================= */
 
     const grammarComputed = {
+        // Deliberately does NOT require every blank to be filled. Requiring it made
+        // the card blockable: any state where an input could not be filled left the
+        // learner with no way forward at all, and revealing a blank via its hint
+        // button was exactly that (the reveal was a render-time display value and
+        // never reached grammarAnswers, so the "all filled" check stayed false).
+        // Two earlier variants of the same trap are recorded on blankWordSpans and
+        // on GrammarQuizState.example.
+        //
+        // An empty blank is now a legitimate answer meaning "I do not know this one":
+        // it grades as 'pass' and the accepted form is revealed in the feedback, which
+        // is what the learner wanted from the hint button anyway. Leaving Submit
+        // always reachable also means no future blank-selection bug can strand a card.
         canSubmitGrammar:
             !!state.currentGrammarPoint &&
             !!state.currentGrammarBlankPlan &&
             !state.currentGrammarBlankPlan.readOnly &&
             state.currentGrammarBlankPlan.blankWordIndices.length > 0 &&
             !state.grammarFeedback?.show &&
-            !state.isLoadingGrammar &&
-            state.grammarAnswers.every(a => a.trim().length > 0),
+            !state.isLoadingGrammar,
 
         canContinueGrammar: !!state.grammarFeedback?.show,
 

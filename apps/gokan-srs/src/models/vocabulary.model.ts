@@ -109,10 +109,11 @@ export interface SRSEntry {
 }
 
 /** Per-quiz-type immediate-retry flag. A wrong reading answer only forces a reading
- *  retry; it never blocks meaning reviews (and vice versa). */
+ *  retry; it never blocks meaning or production reviews (and vice versa). */
 export interface NeedsRetryFlags {
     reading?: boolean;
     meaning?: boolean;
+    production?: boolean;
 }
 
 export interface VocabProgress {
@@ -127,6 +128,18 @@ export interface VocabProgress {
     // Detailed SRS data
     reading: SRSEntry;
     meaning: SRSEntry;
+    /**
+     * Production direction: English meaning prompt, Japanese reading answer. The
+     * only recall direction that starts from English, so it is a genuinely distinct
+     * skill from `reading` (kanji to reading) and `meaning` (Japanese to English)
+     * and carries its own schedule rather than sharing either of theirs.
+     *
+     * Optional on the type because progress saved before this existed has no such
+     * field; every read path goes through the migration, which fills it in. A freshly
+     * filled entry has `dueDate: null`, which no due-check ever matches, so it stays
+     * inert until something activates it (see SRSService.seedProductionEntry).
+     */
+    production?: SRSEntry;
     needsRetry?: NeedsRetryFlags;
 }
 
@@ -148,5 +161,6 @@ export const DEFAULT_VOCABULARY_PROGRESS: VocabProgress = {
     totalReviews: 0,
     consecutiveFailures: 0,
     reading: { ...DEFAULT_SRS_ENTRY },
-    meaning: { ...DEFAULT_SRS_ENTRY }
+    meaning: { ...DEFAULT_SRS_ENTRY },
+    production: { ...DEFAULT_SRS_ENTRY }
 };

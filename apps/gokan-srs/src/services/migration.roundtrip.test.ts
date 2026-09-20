@@ -188,3 +188,86 @@ describe('Migration round-trip (zero data loss)', () => {
         expect(rich.reading.history).toHaveLength(3);
     });
 });
+
+describe('production entry survives a storage round trip', () => {
+    it('hydrates production dueDate into a real Date, not a string', () => {
+        // Regression: hydrateProgress converted dates for reading and meaning only.
+        // A string dueDate makes every `dueDate <= now` comparison against a Date
+        // evaluate false, so the production quiz never came due - silently, with
+        // nothing thrown and no pure-logic test able to see it, because the strings
+        // only exist on the far side of a storage round trip.
+        const due = new Date('2026-03-01T00:00:00Z');
+        const raw = {
+            _formatVersion: 7,
+            kanjiKnowledge: { method: 'kklc', step: 10, kanjiSet: [] },
+            grammarQueue: [],
+            stats: { newLearnedToday: 0, totalLearned: 1, totalReviews: 4 },
+            learningQueue: [{
+                vocabId: 'v1',
+                stage: 'learning',
+                introductionAt: '2025-01-01T00:00:00.000Z',
+                nextReviewAt: null,
+                lastReviewedAt: null,
+                totalReviews: 4,
+                consecutiveFailures: 0,
+                reading: { memoryStrength: 50, interval: 2, difficulty: 0.3, lastReviewedAt: null, dueDate: null, history: [] },
+                meaning: { memoryStrength: 80, interval: 3, difficulty: 0.3, lastReviewedAt: null, dueDate: null, history: [] },
+                production: { memoryStrength: 40, interval: 1, difficulty: 0.3, lastReviewedAt: null, dueDate: due.toISOString(), history: [] },
+            }],
+        };
+
+        const hydrated = migrateAndHydrateProgress(raw);
+        const item = hydrated.learningQueue[0];
+
+        expect(item.production!.dueDate).toBeInstanceOf(Date);
+        expect(item.production!.dueDate!.getTime()).toBe(due.getTime());
+    });
+
+    it('round-trips a production schedule through serialize -> reparse without loss', () => {
+        const due = new Date('2026-03-01T00:00:00Z');
+        const raw = {
+            _formatVersion: 7,
+            kanjiKnowledge: { method: 'kklc', step: 10, kanjiSet: [] },
+            grammarQueue: [],
+            stats: { newLearnedToday: 0, totalLearned: 1, totalReviews: 4 },
+            learningQueue: [{
+                vocabId: 'v1',
+                stage: 'learning',
+                introductionAt: '2025-01-01T00:00:00.000Z',
+                nextReviewAt: null,
+                lastReviewedAt: null,
+                totalReviews: 4,
+                consecutiveFailures: 0,
+                reading: { memoryStrength: 50, interval: 2, difficulty: 0.3, lastReviewedAt: null, dueDate: null, history: [] },
+                meaning: { memoryStrength: 80, interval: 3, difficulty: 0.3, lastReviewedAt: null, dueDate: null, history: [] },
+                production: { memoryStrength: 40, interval: 1, difficulty: 0.3, lastReviewedAt: null, dueDate: due.toISOString(), history: [] },
+            }],
+        };
+
+        const once = migrateAndHydrateProgress(raw);
+        const reparsed = migrateAndHydrateProgress(JSON.parse(JSON.stringify(toPlainProgressJSON(once))));
+        const item = reparsed.learningQueue[0];
+
+        expect(item.production!.dueDate).toBeInstanceOf(Date);
+        expect(item.production!.dueDate!.getTime()).toBe(due.getTime());
+        expect(item.production!.memoryStrength).toBe(40);
+    });
+
+    it('does not share one production entry object across queue items', () => {
+        const mk = (vocabId: string) => ({
+            vocabId, stage: 'learning', introductionAt: '2025-01-01T00:00:00.000Z',
+            nextReviewAt: null, lastReviewedAt: null, totalReviews: 1, consecutiveFailures: 0,
+            reading: { memoryStrength: 50, interval: 2, difficulty: 0.3, lastReviewedAt: null, dueDate: null, history: [] },
+            meaning: { memoryStrength: 80, interval: 3, difficulty: 0.3, lastReviewedAt: null, dueDate: null, history: [] },
+        });
+        const hydrated = migrateAndHydrateProgress({
+            _formatVersion: 7,
+            kanjiKnowledge: { method: 'kklc', step: 10, kanjiSet: [] },
+            grammarQueue: [],
+            stats: { newLearnedToday: 0, totalLearned: 0, totalReviews: 0 },
+            learningQueue: [mk('a'), mk('b')],
+        });
+
+        expect(hydrated.learningQueue[0].production).not.toBe(hydrated.learningQueue[1].production);
+    });
+});

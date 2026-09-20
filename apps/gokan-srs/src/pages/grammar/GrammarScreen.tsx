@@ -70,6 +70,8 @@ export function GrammarScreen() {
                 label: item.title,
                 result: item.result,
                 delta: item.delta,
+                vocabDelta: item.vocabDelta,
+                vocabBreakdown: item.vocabBreakdown,
             }));
 
             return (

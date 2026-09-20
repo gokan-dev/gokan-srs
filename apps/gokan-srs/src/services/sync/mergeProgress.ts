@@ -1,4 +1,5 @@
 import type { ReviewLog, SRSEntry, VocabProgress } from '../../models/vocabulary.model';
+import { DEFAULT_SRS_ENTRY } from '../../models/vocabulary.model';
 import type { UserSettings } from '../../models/user.model';
 import type { GrammarProgress } from '../../models/grammar.model';
 import { isVocabFullyMastered, vocabNextReviewAt } from '../scheduling';
@@ -60,10 +61,16 @@ function pickEarliestDate(a: Date | null, b: Date | null): Date | null {
 export function mergeVocabProgress(
     local: VocabProgress,
     remote: VocabProgress,
-    settings?: Pick<UserSettings, 'enableMeaningQuiz'>
+    settings?: Pick<UserSettings, 'enableMeaningQuiz' | 'enableProductionQuiz'>
 ): VocabProgress {
     const mergedReading = mergeEntry(local.reading, remote.reading);
     const mergedMeaning = mergeEntry(local.meaning, remote.meaning);
+    // Merged only when at least one side has the entry at all, so a device still
+    // running a build without production quizzes cannot write an inert entry back
+    // over another device's real production schedule.
+    const mergedProduction = (local.production || remote.production)
+        ? mergeEntry(local.production ?? DEFAULT_SRS_ENTRY, remote.production ?? DEFAULT_SRS_ENTRY)
+        : undefined;
 
     const localRecency = Math.max(toTime(local.reading.lastReviewedAt), toTime(local.meaning.lastReviewedAt));
     const remoteRecency = Math.max(toTime(remote.reading.lastReviewedAt), toTime(remote.meaning.lastReviewedAt));
@@ -77,9 +84,9 @@ export function mergeVocabProgress(
     // answered. Falls back to OR only on an exact tie (neither side has ever
     // recorded a review for that type), so a genuinely-still-pending retry is
     // never silently dropped just because the two sides can't be ordered.
-    const needsRetryForType = (type: 'reading' | 'meaning'): boolean => {
-        const localTime = toTime(local[type].lastReviewedAt);
-        const remoteTime = toTime(remote[type].lastReviewedAt);
+    const needsRetryForType = (type: 'reading' | 'meaning' | 'production'): boolean => {
+        const localTime = toTime(local[type]?.lastReviewedAt ?? null);
+        const remoteTime = toTime(remote[type]?.lastReviewedAt ?? null);
         if (localTime === remoteTime) {
             return !!(local.needsRetry?.[type] || remote.needsRetry?.[type]);
         }
@@ -90,8 +97,9 @@ export function mergeVocabProgress(
     const mergedNeedsRetryFlags = {
         reading: needsRetryForType('reading'),
         meaning: needsRetryForType('meaning'),
+        production: needsRetryForType('production'),
     };
-    const needsRetry = (mergedNeedsRetryFlags.reading || mergedNeedsRetryFlags.meaning) ? mergedNeedsRetryFlags : undefined;
+    const needsRetry = (mergedNeedsRetryFlags.reading || mergedNeedsRetryFlags.meaning || mergedNeedsRetryFlags.production) ? mergedNeedsRetryFlags : undefined;
 
     const merged: VocabProgress = {
         vocabId: local.vocabId,
@@ -102,6 +110,7 @@ export function mergeVocabProgress(
         consecutiveFailures: recencyWinner.consecutiveFailures,
         reading: mergedReading,
         meaning: mergedMeaning,
+        production: mergedProduction,
         needsRetry,
         nextReviewAt: null,
     };
@@ -152,7 +161,7 @@ export function mergeQueuesById<T>(
 export function mergeLearningQueues(
     local: VocabProgress[],
     remote: VocabProgress[],
-    settings?: Pick<UserSettings, 'enableMeaningQuiz'>
+    settings?: Pick<UserSettings, 'enableMeaningQuiz' | 'enableProductionQuiz'>
 ): VocabProgress[] {
     return mergeQueuesById(local, remote, item => item.vocabId, (l, r) => mergeVocabProgress(l, r, settings));
 }

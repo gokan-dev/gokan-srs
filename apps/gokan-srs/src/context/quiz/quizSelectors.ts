@@ -2,12 +2,13 @@ import type { VocabProgress } from '../../models/vocabulary.model';
 import type { Sentence } from '../../models/sentence.model';
 import type { SessionState } from '../../models/state.model';
 import type { UserSettings } from '../../models/user.model';
-import { getNextVocabToStudy, isReadingActionable, isMeaningActionable } from '../../utils/srs.utils';
+import { getNextVocabToStudy, isReadingActionable, isMeaningActionable, isProductionActionable } from '../../utils/srs.utils';
 import type { QuizType } from '../../utils/srs.utils';
+import { CONSTANTS } from '../../commons/constants';
 import type { QuizState, PendingQuizItem, TaskKey } from './quizReducer';
 import { taskKey } from './quizReducer';
 import { computeSessionState } from './sessionState';
-import { computeSessionStats, computeSessionPreview } from './sessionStats';
+import { computeSessionStats } from './sessionStats';
 
 /**
  * Single source of truth for "what should the quiz screen show right now".
@@ -26,7 +27,7 @@ export interface NextViewResult {
 }
 
 export function selectNextView(
-    state: Pick<QuizState, 'progress' | 'settings' | 'introCandidates' | 'currentVocab' | 'currentQuizItem' | 'nextKanjiToLearn'>,
+    state: Pick<QuizState, 'progress' | 'settings' | 'introCandidates' | 'currentVocab' | 'currentQuizItem' | 'nextKanjiToLearn' | 'session'>,
     hasMoreLearnable: boolean,
     now: Date = new Date()
 ): NextViewResult {
@@ -37,9 +38,14 @@ export function selectNextView(
     // mid-meaning-batch (or vice versa) from hijacking the next card.
     const preferredType = state.currentQuizItem?.quizType;
 
+    // The active session's committed task set bounds what can be served, so the
+    // per-session cap (capSessionCommit) actually limits the sitting rather than
+    // just the progress counter. No session means no bound (the queue is live).
+    const committed = state.session ? new Set(state.session.committed) : undefined;
+
     const queueItem: PendingQuizItem | null = introCandidates.length > 0
         ? { vocabId: introCandidates[0].id, quizType: 'reading', quizMode: 'base' }
-        : getNextVocabToStudy(progress?.learningQueue, settings ?? undefined, now, preferredType);
+        : getNextVocabToStudy(progress?.learningQueue, settings ?? undefined, now, preferredType, committed);
 
     const { sessionState, nextReviewAt } = computeSessionState<VocabProgress, SessionState>(
         progress && settings ? progress.learningQueue : undefined,
@@ -59,6 +65,21 @@ export function selectNextView(
         shouldShowIntro = !vocabProgress || !vocabProgress.introductionAt;
     }
 
+    // The session cleared everything it committed to, but the cap (or work that came
+    // due mid-session) left actionable reviews outside that set. Without this the
+    // screen would sit on a loading gate forever: sessionState stays 'review' off the
+    // live queue while selection, bounded to the committed set, has nothing to hand back.
+    if (
+        committed &&
+        !queueItem &&
+        introCandidates.length === 0 &&
+        progress &&
+        collectActionableTaskKeys(progress.learningQueue, settings ?? undefined, now)
+            .some(key => !committed.has(key))
+    ) {
+        return { queueItem, sessionState: 'session-complete', nextReviewAt, shouldShowIntro };
+    }
+
     return { queueItem, sessionState, nextReviewAt, shouldShowIntro };
 }
 
@@ -66,32 +87,84 @@ export interface NextSessionPreview {
     review: number;
     new: number;
     retries: number;
+    /**
+     * Quiz cards that are due but will NOT fit in the next session, because
+     * `capSessionCommit` truncates it to CONSTANTS.srs.sessionQuizCap. Zero when
+     * everything due fits, which is the normal case.
+     */
+    remaining: number;
 }
 
 /**
- * Preview of what the next study session will contain, bucketed per distinct
- * vocab in `learningQueue` (graduated items excluded). Buckets are mutually
- * exclusive - first match wins, in this order:
- *   1. retries - a pending reading or meaning retry from a previous/abandoned session
- *   2. new     - queued but never reviewed once (totalReviews === 0)
- *   3. review  - due now (reuses isReadingActionable/isMeaningActionable, which
- *                by this point can only match their "due" branch since the
- *                retry and first-review cases were already claimed above)
- * Counts distinct vocab (words), not individual reading/meaning tasks - see
- * the issue's rationale for why task-level counting isn't worth the noise.
+ * Preview of what the next study session will contain, counted in **quiz cards**
+ * and run through the session's own pipeline (`collectActionableTaskKeys`, then
+ * `dedupTaskKeysByVocab`, then `capSessionCommit`), so the number on the Main hub
+ * is literally the number of cards the session will commit to.
+ *
+ * It used to count distinct *vocab* instead, which broke twice over once a third
+ * quiz type existed. Its due-check listed reading and meaning by hand and was
+ * never extended to production, so a queue with only production due reported "all
+ * caught up" while the session had work. And counting words understated a session
+ * that asks up to three cards per word, which matters much more now that the cap
+ * bounds the sitting: "12 review" for 30 committed cards is not a useful preview.
+ *
+ * Deriving it from the same functions the session uses means it cannot drift from
+ * them again: a fourth quiz type, or any change to how the dedup or cap are
+ * composed, is reflected here without touching this code.
+ *
+ * Buckets are mutually exclusive per card, first match wins: a card awaiting a
+ * retry counts as a retry, a card on a word never yet reviewed counts as new, and
+ * everything else is a review.
  */
 export function selectNextSessionPreview(
     state: Pick<QuizState, 'progress' | 'settings'>,
     now: Date = new Date()
 ): NextSessionPreview {
-    if (!state.progress) return { review: 0, new: 0, retries: 0 };
+    const empty = { review: 0, new: 0, retries: 0, remaining: 0 };
+    if (!state.progress) return empty;
 
-    return computeSessionPreview(state.progress.learningQueue, {
-        isGraduated: v => v.stage === 'graduated',
-        isRetry: v => !!(v.needsRetry?.reading || v.needsRetry?.meaning),
-        isNew: v => v.totalReviews === 0,
-        isDue: v => isReadingActionable(v, now) || isMeaningActionable(v, state.settings ?? undefined, now),
-    });
+    const queue = state.progress.learningQueue;
+    const settings = state.settings ?? undefined;
+
+    const actionable = collectActionableTaskKeys(queue, settings, now);
+    // Dedup before capping: a vocab contributes at most one task to the session
+    // (reading > meaning > production), so the cap's even split-by-type operates
+    // on the already-deduped, one-per-vocab pool - see dedupTaskKeysByVocab.
+    const committed = capSessionCommit(dedupTaskKeysByVocab(actionable));
+
+    const byId = new Map(queue.map(v => [v.vocabId, v]));
+    const preview = { ...empty, remaining: actionable.length - committed.length };
+    // Every word that contributed a committed task, so the pass below cannot count
+    // it a second time. A word flagged for retry counts as a retry and nothing else,
+    // even when it has also never been reviewed.
+    const alreadyCounted = new Set<string>();
+
+    for (const key of committed) {
+        const { vocabId, quizType } = parseTaskKey(key);
+        const vocab = byId.get(vocabId);
+        if (!vocab || vocab.stage === 'graduated') continue;
+
+        alreadyCounted.add(vocabId);
+        if (vocab.needsRetry?.[quizType]) preview.retries++;
+        else if (vocab.totalReviews === 0) preview.new++;
+        else preview.review++;
+    }
+
+    // `new` stays a count of WORDS, not cards, and includes words that are queued
+    // but not yet actionable (introduced-but-not-due, or not yet introduced at all).
+    // Those produce no task key, so the actionable pipeline above cannot see them,
+    // yet they are exactly what the session will introduce once reviews run out.
+    // Counting them as cards would be guesswork anyway: how many cards a new word
+    // becomes depends on choices the learner has not made yet.
+    for (const vocab of queue) {
+        if (vocab.stage === 'graduated') continue;
+        if (vocab.totalReviews !== 0) continue;
+        if (alreadyCounted.has(vocab.vocabId)) continue;
+        preview.new++;
+        alreadyCounted.add(vocab.vocabId);
+    }
+
+    return preview;
 }
 
 export function selectCurrentProgress(
@@ -118,6 +191,7 @@ export function collectActionableTaskKeys(
     for (const v of queue) {
         if (isReadingActionable(v, now)) keys.push(taskKey(v.vocabId, 'reading'));
         if (isMeaningActionable(v, settings, now)) keys.push(taskKey(v.vocabId, 'meaning'));
+        if (isProductionActionable(v, settings, now)) keys.push(taskKey(v.vocabId, 'production'));
     }
     return keys;
 }
@@ -127,33 +201,103 @@ function parseTaskKey(key: string): { vocabId: string; quizType: QuizType } {
     return { vocabId: key.slice(0, idx), quizType: key.slice(idx + 1) as QuizType };
 }
 
-/**
- * Drops a vocab's meaning task from a session-commit snapshot when its
- * reading is committed too. Answering that reading correctly staggers the
- * meaning's due date forward by 12h (see SRSService.applyAnswer's
- * reading -> meaning stagger), so committing both counts the meaning as part
- * of the session's workload even though it's very likely to be silently
- * cleared without ever actually being answered - the same single answer then
- * increments `done` by 2 instead of 1. Mirrors how VOCAB_INTRO_CHOICE's
- * "Learn" path already treats a freshly-learned word (only reading joins the
- * session; the staggered meaning surfaces later as "waiting" instead). Only
- * applied at commit time - the live actionable set collectActionableTaskKeys
- * produces elsewhere (for the done/waiting checks) is left untouched, since a
- * wrong reading answer does NOT stagger meaning and it must still be
- * reachable.
- */
-export function filterSessionCommit(taskKeys: TaskKey[]): TaskKey[] {
-    const readingVocabIds = new Set(
-        taskKeys
-            .map(parseTaskKey)
-            .filter(({ quizType }) => quizType === 'reading')
-            .map(({ vocabId }) => vocabId)
-    );
+const QUIZ_TYPE_PRIORITY: Record<QuizType, number> = { reading: 0, meaning: 1, production: 2 };
 
-    return taskKeys.filter(key => {
+/**
+ * Keeps at most one task per vocab, preferring reading > meaning > production -
+ * the session-layer replacement for the old per-type dueDate staggering
+ * (SRSService.applyAnswer used to push a due meaning's dueDate +12h off a correct
+ * reading answer so the two wouldn't be asked in the same sitting; production was
+ * never staggered at all, so the two quiz types behaved inconsistently and the
+ * stagger itself could resolve a committed meaning task without the user ever
+ * answering it - see docs/MODIFICATION_LOG.md).
+ *
+ * Applied once, when a session's committed set is built (`selectNextSessionPreview`
+ * and the `SESSION_START` snapshot in `useQuizOrchestration`) - never inside
+ * `collectActionableTaskKeys` itself, which stays the raw "everything actionable"
+ * list `selectSessionStats` and `selectNextView`'s session-complete check both read
+ * fresh on every render. A vocab's other directions aren't dropped, just excluded
+ * from *this* session: once the committed direction is no longer due (answered, or
+ * genuinely not yet due again), a later session's dedup pass naturally picks the
+ * next-highest-priority direction still due.
+ *
+ * Input order is preserved in the result, matching `capSessionCommit`.
+ */
+export function dedupTaskKeysByVocab(taskKeys: TaskKey[]): TaskKey[] {
+    const bestByVocab = new Map<string, TaskKey>();
+    for (const key of taskKeys) {
         const { vocabId, quizType } = parseTaskKey(key);
-        return !(quizType === 'meaning' && readingVocabIds.has(vocabId));
-    });
+        const existing = bestByVocab.get(vocabId);
+        if (!existing || QUIZ_TYPE_PRIORITY[quizType] < QUIZ_TYPE_PRIORITY[parseTaskKey(existing).quizType]) {
+            bestByVocab.set(vocabId, key);
+        }
+    }
+    const kept = new Set(bestByVocab.values());
+    return taskKeys.filter(key => kept.has(key));
+}
+
+/**
+ * Truncates a session-commit snapshot to `cap` tasks, split as evenly as possible
+ * across the quiz types present so every type gets worked on in a single sitting.
+ *
+ * Taking a plain prefix of the snapshot would not do: getNextVocabToStudy clears
+ * every actionable reading before any meaning, so a user with 400 due tasks and a
+ * 200 cap would answer 200 readings and zero meanings, session after session,
+ * while the meaning backlog only grew.
+ *
+ * Quotas spill: types are filled smallest-pool-first, so a type with less work than
+ * its share hands the surplus to the others rather than cutting the session short.
+ *
+ * Input order is preserved in the result, so the committed set stays as
+ * deterministic as the snapshot it came from.
+ */
+export function capSessionCommit(
+    taskKeys: TaskKey[],
+    cap: number = CONSTANTS.srs.sessionQuizCap
+): TaskKey[] {
+    if (cap <= 0) return [];
+    if (taskKeys.length <= cap) return taskKeys;
+
+    const byType = new Map<QuizType, TaskKey[]>();
+    for (const key of taskKeys) {
+        const { quizType } = parseTaskKey(key);
+        const bucket = byType.get(quizType);
+        if (bucket) bucket.push(key);
+        else byType.set(quizType, [key]);
+    }
+
+    // Smallest pool first: each type takes at most an equal share of whatever is
+    // left, so a short pool's unused share is redistributed over the types still
+    // to be filled instead of being lost.
+    const pools = [...byType.values()].sort((a, b) => a.length - b.length);
+
+    const selected = new Set<TaskKey>();
+    let remaining = cap;
+    let poolsLeft = pools.length;
+
+    for (const pool of pools) {
+        const share = Math.floor(remaining / poolsLeft);
+        const take = Math.min(pool.length, share);
+        for (let i = 0; i < take; i++) selected.add(pool[i]);
+        remaining -= take;
+        poolsLeft--;
+    }
+
+    // Integer division leaves a remainder of up to (types - 1) tasks. Hand it to
+    // whichever pools still have something left, so the session fills the cap exactly.
+    if (remaining > 0) {
+        for (const pool of pools) {
+            for (const key of pool) {
+                if (remaining === 0) break;
+                if (selected.has(key)) continue;
+                selected.add(key);
+                remaining--;
+            }
+            if (remaining === 0) break;
+        }
+    }
+
+    return taskKeys.filter(key => selected.has(key));
 }
 
 export interface SessionStats {
@@ -180,6 +324,35 @@ export interface SessionStats {
  * therefore ticked *down* as the user worked. Now `total` is the committed set's
  * fixed size; `done` counts committed tasks that are no longer actionable; retries
  * and mid-session arrivals are surfaced separately instead of corrupting the total.
+ *
+ * `total`/`waiting` are computed against the **raw, unfiltered** `session.committed`
+ * (the same set `selectNextView` uses to bound what gets served, and the same set
+ * `selectNextSessionPreview` counts) - a task committed here always counts toward
+ * `total` and is never reported as `waiting`, because it genuinely is part of this
+ * session.
+ *
+ * This function itself never filters or dedupes `session.committed` - it reads
+ * whatever was committed at `SESSION_START` as-is. What keeps a single answer from
+ * ever incrementing `done` by more than 1 is `dedupTaskKeysByVocab`, applied when
+ * that committed set is *built* (both here and in `selectNextSessionPreview`), not
+ * here: a vocab contributes at most one task to a session, so there is no second
+ * committed task for the same word left to silently resolve.
+ *
+ * This replaced two earlier, narrower fixes that each solved half the problem.
+ * The first dropped a vocab's `meaning` key from this count whenever its `reading`
+ * key was also committed, reasoning that a correct reading answer would stagger
+ * the meaning's due date 12h forward (`SRSService.applyAnswer`) before it could
+ * ever be shown - but that stagger wasn't unconditional (a wrong reading answer
+ * never triggered it), so the dropped key could still get served this session
+ * while permanently excluded from the total (staging report: "6 review" on the
+ * Main hub vs. "0/3" in-session, the other 3 mislabeled "waiting"). The second
+ * removed that filter so `total`/`waiting` matched the preview again, but with
+ * both directions now committed together, the still-live 12h stagger resolved the
+ * committed meaning task the instant reading was answered - one answer advancing
+ * `done` by 2. Deduping at commit time removes the stagger's reason to exist at
+ * all (`applyAnswer` no longer staggers meaning off a reading answer - see
+ * `docs/MODIFICATION_LOG.md`), and does so uniformly for production too, which the
+ * stagger never covered.
  */
 export function selectSessionStats(
     state: Pick<QuizState, 'progress' | 'settings' | 'session'>,

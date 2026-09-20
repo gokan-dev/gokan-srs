@@ -7,7 +7,8 @@ import type { Vocabulary } from '../../models/vocabulary.model';
 import type { Sentence } from '../../models/sentence.model';
 import type { AnswerResult } from '../../services/srs.service';
 import { SRSService } from '../../services/srs.service';
-import type { QuizItem, QuizType, QuizMode } from '../../utils/srs.utils';
+import type { QuizItem, QuizType, QuizMode, TaskKey } from '../../utils/srs.utils';
+import { taskKey } from '../../utils/srs.utils';
 import type { GrammarQuizState, GrammarQuizAction } from './grammarReducer';
 import { initialGrammarState, isGrammarAction, grammarReducer } from './grammarReducer';
 
@@ -18,12 +19,13 @@ import { initialGrammarState, isGrammarAction, grammarReducer } from './grammarR
 // Union type for items we are about to study (Queue Item OR Intro Candidate)
 export type PendingQuizItem = QuizItem | { vocabId: string; quizType: QuizType; quizMode: QuizMode; vocab?: undefined };
 
-/** A task key uniquely identifies one quiz to answer: `${vocabId}:${quizType}`. */
-export type TaskKey = `${string}:${QuizType}`;
-
-export function taskKey(vocabId: string, quizType: QuizType): TaskKey {
-    return `${vocabId}:${quizType}`;
-}
+/**
+ * A task key uniquely identifies one quiz to answer: `${vocabId}:${quizType}`.
+ * Defined in srs.utils.ts (queue selection needs it to honour the committed set)
+ * and re-exported here, which is where the rest of the app already imports it from.
+ */
+export type { TaskKey };
+export { taskKey };
 
 /**
  * The set of quiz tasks committed to the CURRENT study session, captured once when

@@ -19,7 +19,22 @@ export interface SessionHistoryEntry {
     href: string;
     label: string;
     result: AnswerResult;
+    /**
+     * Knowledge points this answer moved the item by, which is also exactly how far
+     * its MasteryRing moved (one knowledge point is one mastery point - see
+     * knowledge.utils.ts). The ticker prints this number and the total is its
+     * running sum, so an answer showing +6 moves the total by +6.
+     */
     delta: number;
+    /**
+     * Points credited to the sentence's *vocabulary* by this answer, separately from
+     * the item's own delta. Grammar only: a grammar answer also reinforces the words
+     * the learner filled in correctly (see GrammarSRSService.applyVocabReinforcement),
+     * and that gain was previously invisible. Absent for vocab answers.
+     */
+    vocabDelta?: number;
+    /** Per-word split of `vocabDelta`, biggest gain first, shown on hover. */
+    vocabBreakdown?: { label: string; delta: number }[];
 }
 
 interface SessionProgressProps {
@@ -65,24 +80,46 @@ const WaitingNote: React.FC<{ waiting: number; moreNew: boolean; noun: string }>
 };
 
 /**
- * Net knowledge points gained/lost so far this session, using the same accounting
- * as the knowledge curve: an entry's points are its mastery percentage / 2 (see
- * utils/knowledge.utils.ts entryKnowledgePoints), and each history delta is that
- * entry's mastery-% change, so knowledge-point delta = delta / 2. Summed over the
- * (session-scoped) history rather than shown per item.
+ * Knowledge points gained this session, as ONE net number that is the plain sum of
+ * the per-answer deltas shown in the ticker directly below it. An answer reading +6
+ * moves this by +6.
+ *
+ * It used to show gained and lost as two figures, in points, while the ticker
+ * printed percentages that were twice their point value. Three things were wrong at
+ * once: the total could not be reconciled with the rows under it, the split invited
+ * reading "+18 / -5" as a single quantity when it is two, and the row mixed a
+ * percentage with an absolute count. Now: one unit, one number, arithmetic that
+ * checks out by eye. The gained/lost breakdown survives in the tooltip for anyone
+ * who wants it.
+ *
+ * `vocabDelta` is summed separately rather than folded in: in a grammar session the
+ * answer scores the grammar point AND reinforces the sentence's vocabulary, and
+ * those are two different things the learner is building.
  */
 const GainsSummary: React.FC<{ history: SessionHistoryEntry[] }> = ({ history }) => {
     if (history.length === 0) return null;
 
-    const gained = Math.round(history.filter(h => h.delta > 0).reduce((s, h) => s + h.delta, 0) / 2);
-    const lost = Math.round(Math.abs(history.filter(h => h.delta < 0).reduce((s, h) => s + h.delta, 0)) / 2);
+    const net = Math.round(history.reduce((s, h) => s + h.delta, 0));
+    const gained = Math.round(history.filter(h => h.delta > 0).reduce((s, h) => s + h.delta, 0));
+    const lost = Math.round(Math.abs(history.filter(h => h.delta < 0).reduce((s, h) => s + h.delta, 0)));
+    const vocab = Math.round(history.reduce((s, h) => s + (h.vocabDelta ?? 0), 0));
+
+    const title = `Knowledge points this session: +${gained} gained, -${lost} lost`
+        + (vocab > 0 ? `, +${vocab} on the vocabulary in these sentences` : '');
 
     return (
-        <span className="text-xs tabular-nums" title="Knowledge points gained and lost this session">
-            <span className="text-emerald-600">+{gained}</span>
-            <span className="text-secondary-300 mx-1">/</span>
-            <span className="text-desaturated-red-600">-{lost}</span>
+        <span className="text-xs tabular-nums" title={title}>
+            <span className={net < 0 ? 'text-desaturated-red-600' : 'text-emerald-600'}>
+                {net > 0 ? '+' : ''}{net}
+            </span>
             <span className="text-secondary-400"> pts</span>
+            {vocab > 0 && (
+                <>
+                    <span className="text-secondary-300 mx-1">·</span>
+                    <span className="text-emerald-600">+{vocab}</span>
+                    <span className="text-secondary-400"> vocab</span>
+                </>
+            )}
         </span>
     );
 };
@@ -164,9 +201,42 @@ export const SessionProgress: React.FC<SessionProgressProps> = ({ stats, history
     );
 };
 
+/**
+ * Which word in the sentence earned what, shown when an answer that reinforced
+ * vocabulary is hovered: "私 +2 · 鞄 +3". The aggregate `+N vocab` in the header
+ * says a grammar answer fed the vocabulary; this says which words, which is the
+ * part a learner can act on.
+ *
+ * Positioned `fixed` off a measured rect rather than absolutely inside the row,
+ * because the ticker is `overflow-hidden` (it has to be, to clip the strip as
+ * entries age out) and an absolutely-positioned child would be clipped with it.
+ * Same measured-fixed approach the header search panel uses for the same reason.
+ */
+const VocabBreakdownTooltip: React.FC<{
+    breakdown: { label: string; delta: number }[];
+    anchor: { left: number; top: number };
+}> = ({ breakdown, anchor }) => (
+    <div
+        role="tooltip"
+        style={{ left: anchor.left, top: anchor.top }}
+        className="fixed z-50 -translate-x-1/2 rounded border border-divider bg-surface px-2 py-1 shadow-md pointer-events-none"
+    >
+        <span className="text-xs whitespace-nowrap tabular-nums">
+            {breakdown.map((w, i) => (
+                <React.Fragment key={`${w.label}-${i}`}>
+                    {i > 0 && <span className="text-secondary-300 mx-1">·</span>}
+                    <span className="font-mincho text-primary">{w.label}</span>
+                    <span className="text-emerald-600"> +{Math.round(w.delta)}</span>
+                </React.Fragment>
+            ))}
+        </span>
+    </div>
+);
+
 const HistoryTicker: React.FC<{ history: SessionHistoryEntry[] }> = ({ history }) => {
     // Most recent is at index 0
     const recentItems = history.slice(0, 5);
+    const [hovered, setHovered] = React.useState<{ key: string; left: number; top: number } | null>(null);
 
     return (
         <div className="flex-1 flex items-center gap-3 overflow-hidden h-8">
@@ -179,6 +249,12 @@ const HistoryTicker: React.FC<{ history: SessionHistoryEntry[] }> = ({ history }
                         exit={{ opacity: 0, x: -20 }}
                         transition={{ duration: 0.3 }}
                         className="flex items-center gap-2 text-sm whitespace-nowrap"
+                        onMouseEnter={(e) => {
+                            if (!item.vocabBreakdown?.length) return;
+                            const r = e.currentTarget.getBoundingClientRect();
+                            setHovered({ key: item.key, left: r.left + r.width / 2, top: r.bottom + 6 });
+                        }}
+                        onMouseLeave={() => setHovered(h => (h?.key === item.key ? null : h))}
                     >
                         <Link
                             to={item.href}
@@ -199,10 +275,21 @@ const HistoryTicker: React.FC<{ history: SessionHistoryEntry[] }> = ({ history }
                         {item.result === 'minor_error' && <AlertCircle className="w-3 h-3 text-amber-500" />}
                         {(item.result === 'wrong' || item.result === 'pass') && <XCircle className="w-3 h-3 text-desaturated-red-500" />}
 
-                        {/* Delta */}
+                        {/* Knowledge points, the same unit the total above sums. Was
+                            printed as a percentage that was twice its point value. */}
                         <span className="text-xs text-secondary-400 tabular-nums">
-                            {item.delta > 0 ? '+' : ''}{Math.round(item.delta)}%
+                            {item.delta > 0 ? '+' : ''}{Math.round(item.delta)}
                         </span>
+
+                        {/* The vocab total earns a mark on the row itself, so there is
+                            something to hover: an affordance nobody can see is one
+                            nobody finds. The per-word split is the tooltip. */}
+                        {!!item.vocabDelta && item.vocabDelta > 0 && (
+                            <span className="text-xs text-emerald-600/70 tabular-nums">
+                                +{Math.round(item.vocabDelta)}
+                                <span className="text-secondary-400"> vocab</span>
+                            </span>
+                        )}
 
                         {/* Separator for all but last visible */}
                         {index < recentItems.length - 1 && (
@@ -215,6 +302,12 @@ const HistoryTicker: React.FC<{ history: SessionHistoryEntry[] }> = ({ history }
             {history.length === 0 && (
                 <span className="text-secondary-400 text-sm italic">Session started...</span>
             )}
+
+            {hovered && (() => {
+                const item = recentItems.find(i => i.key === hovered.key);
+                if (!item?.vocabBreakdown?.length) return null;
+                return <VocabBreakdownTooltip breakdown={item.vocabBreakdown} anchor={hovered} />;
+            })()}
         </div>
     );
 };

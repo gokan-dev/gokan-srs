@@ -7,24 +7,31 @@ const F = CONSTANTS.srs.formula;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
- * "Knowledge points" are an internal accounting unit, not a user-facing score.
- * They exist so the knowledge curve can express one number - "how much Japanese
- * does this user hold right now" - that accumulates smoothly as items mature,
- * instead of stepping only when a word is first introduced.
+ * "Knowledge points" express one number - "how much Japanese does this user hold
+ * right now" - that accumulates smoothly as items mature, instead of stepping only
+ * when a word is first introduced. They back the knowledge curve, the per-answer
+ * delta in the session ticker, and the session gains total.
  *
- * One fully-mastered SRS entry (reading OR meaning) is worth
- * KNOWLEDGE_POINTS_PER_ENTRY, so a word mastered in both directions is worth 200.
+ * **One knowledge point is one mastery point.** `calculateMasteryPercentage`
+ * already spans 0..200 across the MasteryRing's two visual loops, so an entry's
+ * points ARE its mastery figure, unconverted: a fully-mastered SRS entry is worth
+ * 200, and a word mastered in both reading and meaning is worth 400.
+ *
+ * This used to normalise to 0..100 per entry, which silently halved everything:
+ * the ring advanced 6, the ticker printed "+6%", and the session total moved by 3.
+ * Three places, three numbers, one underlying quantity. The scale is arbitrary, so
+ * the one that removes every conversion is the right one to pick.
  */
-export const KNOWLEDGE_POINTS_PER_ENTRY = 100;
+export const KNOWLEDGE_POINTS_PER_ENTRY = 200;
 
 /**
- * Points held by a single SRS entry at a given memory strength. Derived from the
- * app's existing mastery curve (`calculateMasteryPercentage`, which spans 0..200
- * across its two visual loops) so mastery and knowledge can never disagree about
- * how far along an item is - there is one curve, normalised here to 0..100.
+ * Points held by a single SRS entry at a given memory strength: its mastery figure
+ * exactly (see above). Kept as a named function rather than inlining
+ * calculateMasteryPercentage at each call site, so "knowledge points" stays a
+ * concept the code can talk about.
  */
 export function entryKnowledgePoints(memoryStrength: number): number {
-    return (calculateMasteryPercentage(memoryStrength) / 200) * KNOWLEDGE_POINTS_PER_ENTRY;
+    return calculateMasteryPercentage(memoryStrength);
 }
 
 /**
@@ -80,7 +87,14 @@ interface KnowledgeEvent {
 function entryEvents(
     entry: SRSEntry,
     introductionAt: Date | null,
-    frequencyModifier: number
+    frequencyModifier: number,
+    /**
+     * Whether an entry with no review history may still be credited at the word's
+     * introduction date (see below). True for reading and meaning; decided per word
+     * for production, which the migration can hand a mastered entry that was never
+     * actually reviewed.
+     */
+    allowNoHistoryCredit = true
 ): KnowledgeEvent[] {
     if (entry.history && entry.history.length > 0) {
         return entry.history
@@ -95,7 +109,7 @@ function entryEvents(
     // straight to max strength) or one introduced but not yet reviewed. Credit it
     // at its introduction date using its actual strength - the latter is worth 0
     // points, so only genuine skips move the curve.
-    if (introductionAt) {
+    if (allowNoHistoryCredit && introductionAt) {
         const points = entryKnowledgePoints(entry.memoryStrength);
         if (points > 0) return [{ t: new Date(introductionAt).getTime(), p: points }];
     }
@@ -168,9 +182,31 @@ export function buildKnowledgeCurve(
     let earliest = Infinity;
 
     for (const vocab of queue) {
-        for (const entry of [vocab.reading, vocab.meaning]) {
+        // Production counts alongside reading and meaning: it is a real direction the
+        // learner studies, and leaving it out meant a production answer moved the
+        // session total while the curve ignored it.
+        //
+        // Its no-history entries need care, though, which is the one asymmetry here.
+        // The migration grandfathers every already-graduated word to production-
+        // mastered so it does not un-graduate (see Production quiz rollout), and those
+        // entries carry no review logs. Crediting them through the no-history fallback
+        // would date ~200 points at each word's introduction and rewrite years of curve
+        // the learner never earned that way.
+        //
+        // The fallback is allowed only when the word has never been reviewed at all,
+        // which is exactly the "skipped at intro" case the fallback exists for: there
+        // the learner asserted they already knew the word, reading and meaning are
+        // credited on the same basis, and production is no different. A word with real
+        // review history instead waits for a real production review before counting.
+        const productionNoHistoryCredit = vocab.totalReviews === 0;
+
+        for (const [entry, allowNoHistoryCredit] of [
+            [vocab.reading, true],
+            [vocab.meaning, true],
+            [vocab.production, productionNoHistoryCredit],
+        ] as const) {
             if (!entry) continue;
-            const events = entryEvents(entry, vocab.introductionAt, frequencyModifier);
+            const events = entryEvents(entry, vocab.introductionAt, frequencyModifier, allowNoHistoryCredit);
             if (events.length === 0) continue;
             series.push(events);
             if (events[0].t < earliest) earliest = events[0].t;

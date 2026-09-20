@@ -165,6 +165,11 @@ export interface GrammarQuizState {
         title: string;
         result: AnswerResult;
         delta: number;
+        /** Knowledge points the same answer credited to the sentence's vocabulary via
+         *  applyVocabReinforcement. Absent when nothing was reinforced. */
+        vocabDelta?: number;
+        /** Per-word split of vocabDelta, biggest gain first, for the ticker's hover detail. */
+        vocabBreakdown?: { label: string; delta: number }[];
     }>;
 }
 
@@ -188,7 +193,7 @@ export type GrammarQuizAction =
     | { type: 'GRAMMAR_SET_ANSWER'; payload: { index: number; value: string } }
     | { type: 'GRAMMAR_REVEAL_HINT'; payload: { index: number } }
     | { type: 'GRAMMAR_SUBMIT_ANSWER'; payload: { type: AnswerResult; message: string; matchedAnswers: string[]; perBlankResults: AnswerResult[]; strengthDeltaModifier: number; vocabCredits: { vocabId: string; result: AnswerResult }[] } }
-    | { type: 'GRAMMAR_UPDATE_AFTER_ANSWER'; payload: { progress: UserProgress; historyItem?: { grammarId: string; title: string; result: AnswerResult; delta: number } | null } }
+    | { type: 'GRAMMAR_UPDATE_AFTER_ANSWER'; payload: { progress: UserProgress; historyItem?: { grammarId: string; title: string; result: AnswerResult; delta: number; vocabDelta?: number; vocabBreakdown?: { label: string; delta: number }[] } | null } }
     | { type: 'GRAMMAR_ADVANCE_QUEUE'; payload: { progress: UserProgress; candidates?: GrammarPoint[] } }
     | { type: 'GRAMMAR_INTRO_CHOICE'; grammarId: string; choice: 'learn' | 'skip'; grammarPoint?: GrammarPoint }
     | { type: 'GRAMMAR_CLEAR_FEEDBACK' }
@@ -242,7 +247,26 @@ export function grammarReducer(state: QuizState, action: GrammarQuizAction): Qui
         case 'GRAMMAR_REVEAL_HINT': {
             const levels = [...state.grammarHintLevels];
             const current = levels[action.payload.index] ?? 0;
-            levels[action.payload.index] = Math.min(2, current + 1);
+            const next = Math.min(2, current + 1);
+            levels[action.payload.index] = next;
+
+            // Reaching level 2 writes the revealed form into grammarAnswers rather
+            // than leaving the card to substitute it at render time. The card used to
+            // display `revealed ? acceptLists[i][0] : answers[i]`, so what the learner
+            // saw in the input and what the state held disagreed: the input showed the
+            // answer while grammarAnswers[i] stayed empty. That divergence is what
+            // blocked submission when the last remaining blank was revealed.
+            // Grading is unaffected (a revealed blank is forced to 'minor_error' by
+            // its hint level, whatever the text says).
+            if (next === 2) {
+                const revealed = state.currentGrammarBlankPlan?.acceptLists[action.payload.index]?.[0];
+                if (revealed) {
+                    const answers = [...state.grammarAnswers];
+                    answers[action.payload.index] = revealed;
+                    return { ...state, grammarHintLevels: levels, grammarAnswers: answers };
+                }
+            }
+
             return { ...state, grammarHintLevels: levels };
         }
 

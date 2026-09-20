@@ -34,6 +34,8 @@ export interface QuizContextValue {
         submitAnswer(): Promise<void>;
         advanceQueue({ now, overrideDailyLimit }: { now: Date, overrideDailyLimit?: boolean }): void;
         continueToNext(): Promise<void>;
+        /** Ends the finished session so a fresh capped one is committed immediately. */
+        startNewSession(): void;
         saveSettings(settings: UserSettings): void;
         updateKanjiKnowledge(knowledge: KanjiKnowledge): void;
         overrideDailyLimit(): Promise<void>;
