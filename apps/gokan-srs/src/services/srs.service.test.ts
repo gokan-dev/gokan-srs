@@ -267,6 +267,66 @@ describe('SRSService Formula Tests', () => {
         });
     });
 
+    describe('evaluateProductionAnswer (issue #71 Part A)', () => {
+        const vocab = {
+            reading: { primary: 'かならず', alternatives: [] as string[] },
+            writtenForm: { kanji: '必ず', alternatives: ['必らず'], containedKanji: ['必'] },
+        };
+
+        it('grades the primary reading correct', () => {
+            const { result, matchedAnswer } = SRSService.evaluateProductionAnswer('かならず', vocab);
+            expect(result).toBe('correct');
+            expect(matchedAnswer).toBe('かならず');
+        });
+
+        it('grades the kanji written form correct', () => {
+            const { result, matchedAnswer } = SRSService.evaluateProductionAnswer('必ず', vocab);
+            expect(result).toBe('correct');
+            expect(matchedAnswer).toBe('必ず');
+        });
+
+        it('grades a written-form alternative correct', () => {
+            const { result, matchedAnswer } = SRSService.evaluateProductionAnswer('必らず', vocab);
+            expect(result).toBe('correct');
+            expect(matchedAnswer).toBe('必らず');
+        });
+
+        it('matches written forms exactly, never through the Levenshtein path', () => {
+            // '必ず' with one character swapped is a different word entirely, not a typo -
+            // must not fall back to fuzzy matching and grade minor_error.
+            const { result } = SRSService.evaluateProductionAnswer('必ぜ', vocab);
+            expect(result).not.toBe('minor_error');
+            expect(result).toBe('wrong');
+        });
+
+        it('still grades a genuine reading typo minor_error via the fuzzy fallback', () => {
+            // Single substitution (ら -> る), Levenshtein distance 1.
+            const { result, matchedAnswer } = SRSService.evaluateProductionAnswer('かなるず', vocab);
+            expect(result).toBe('minor_error');
+            expect(matchedAnswer).toBe('かならず');
+        });
+
+        it('grades an unrelated answer wrong', () => {
+            const { result } = SRSService.evaluateProductionAnswer('ねこ', vocab);
+            expect(result).toBe('wrong');
+        });
+
+        it('accepts a mergedVocabs original reading', () => {
+            const merged = {
+                ...vocab,
+                mergedVocabs: [{ id: 'x', isBase: false, originalPrimaryReading: 'かならず2', originalGlosses: [] }],
+            };
+            const { result, matchedAnswer } = SRSService.evaluateProductionAnswer('かならず2', merged);
+            expect(result).toBe('correct');
+            expect(matchedAnswer).toBe('かならず2');
+        });
+
+        it('still recognizes a literal "pass" via the reading fallback', () => {
+            const { result } = SRSService.evaluateProductionAnswer('pass', vocab);
+            expect(result).toBe('pass');
+        });
+    });
+
     describe('Retry Flag Behavior (per quiz type)', () => {
         it('should set needsRetry.reading on first wrong reading answer', () => {
             const vocab = createVocab(5.0, 0.3);
