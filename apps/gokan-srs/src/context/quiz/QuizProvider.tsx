@@ -31,6 +31,8 @@ export interface QuizContextValue {
     actions: {
         setupComplete(values: SetupValues): Promise<void>;
         setAnswer(answer: string): void;
+        /** Progressive hint for the CURRENT production cloze card (gloss, then reveal). No-op outside a cloze card. */
+        revealProductionHint(): void;
         submitAnswer(): Promise<void>;
         advanceQueue({ now, overrideDailyLimit }: { now: Date, overrideDailyLimit?: boolean }): void;
         continueToNext(): Promise<void>;

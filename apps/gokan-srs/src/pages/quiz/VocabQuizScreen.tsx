@@ -6,6 +6,7 @@ import type { SessionHistoryEntry } from "../../components/SessionProgress";
 import { VocabQuizCard } from "./VocabQuizCard";
 import { VocabMeaningQuizCard } from "./VocabMeaningQuizCard";
 import { VocabProductionQuizCard } from "./VocabProductionQuizCard";
+import { VocabProductionClozeQuizCard } from "./VocabProductionClozeQuizCard";
 import { LoadingScreen } from "../../components/LoadingScreen";
 import { useQuiz } from "../../context/useQuiz";
 import VocabIntroCard from "../../components/VocabIntroCard";
@@ -90,7 +91,11 @@ export function VocabQuizScreen({ onVocabClick }: VocabQuizScreenProps) {
                                 onVocabClick={onVocabClick}
                             />
                         ) : state.currentQuizItem?.quizType === 'production' ? (
-                            <VocabProductionQuizCard onKanjiClick={() => onVocabClick(state.currentVocab!.id)} />
+                            state.currentProductionCloze ? (
+                                <VocabProductionClozeQuizCard />
+                            ) : (
+                                <VocabProductionQuizCard onKanjiClick={() => onVocabClick(state.currentVocab!.id)} />
+                            )
                         ) : (
                             <VocabQuizCard onKanjiClick={() => onVocabClick(state.currentVocab!.id)} />
                         )}
