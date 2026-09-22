@@ -83,6 +83,83 @@ describe('quizReducer', () => {
         expect(next.isLoadingVocab).toBe(false);
     });
 
+    it('LOAD_VOCAB_START resets currentProductionCloze and productionHintLevel too', () => {
+        const cloze = {
+            sentence: { id: 's1', original: '必ず来る', en: [{ id: 'e1', text: 'will certainly come' }], vocabIds: [] },
+            blankStart: 0,
+            blankLength: 2,
+        };
+        const state: QuizState = { ...initialState, currentProductionCloze: cloze, productionHintLevel: 2 };
+        const queueItem = { vocabId: 'v1', quizType: 'production' as const, quizMode: 'base' as const };
+        const next = quizReducer(state, { type: 'LOAD_VOCAB_START', payload: queueItem });
+
+        expect(next.currentProductionCloze).toBeNull();
+        expect(next.productionHintLevel).toBe(0);
+    });
+
+    it('LOAD_VOCAB_SUCCESS sets currentProductionCloze from the payload', () => {
+        const vocab = makeVocab();
+        const cloze = {
+            sentence: { id: 's1', original: '必ず来る', en: [{ id: 'e1', text: 'will certainly come' }], vocabIds: [] },
+            blankStart: 0,
+            blankLength: 2,
+        };
+        const next = quizReducer(initialState, {
+            type: 'LOAD_VOCAB_SUCCESS',
+            payload: { vocab, sentences: null, selectedSentenceId: null, productionCloze: cloze },
+        });
+
+        expect(next.currentProductionCloze).toEqual(cloze);
+    });
+
+    it('LOAD_VOCAB_SUCCESS defaults currentProductionCloze to null when omitted (e.g. no queue item)', () => {
+        const next = quizReducer(initialState, {
+            type: 'LOAD_VOCAB_SUCCESS',
+            payload: { vocab: null, sentences: null, selectedSentenceId: null },
+        });
+
+        expect(next.currentProductionCloze).toBeNull();
+    });
+
+    describe('REVEAL_PRODUCTION_HINT', () => {
+        it('advances the hint level by one, starting from 0', () => {
+            const next = quizReducer(initialState, { type: 'REVEAL_PRODUCTION_HINT' });
+            expect(next.productionHintLevel).toBe(1);
+        });
+
+        it('caps at level 2 and does not advance further', () => {
+            const state: QuizState = { ...initialState, productionHintLevel: 2 };
+            const next = quizReducer(state, { type: 'REVEAL_PRODUCTION_HINT' });
+            expect(next.productionHintLevel).toBe(2);
+        });
+
+        it('reaching level 2 writes the primary reading into userAnswer', () => {
+            const vocab = makeVocab();
+            const state: QuizState = { ...initialState, currentVocab: vocab, productionHintLevel: 1, userAnswer: 'partial' };
+            const next = quizReducer(state, { type: 'REVEAL_PRODUCTION_HINT' });
+
+            expect(next.productionHintLevel).toBe(2);
+            expect(next.userAnswer).toBe(vocab.reading.primary);
+        });
+
+        it('does not touch userAnswer before reaching level 2', () => {
+            const vocab = makeVocab();
+            const state: QuizState = { ...initialState, currentVocab: vocab, productionHintLevel: 0, userAnswer: 'typed' };
+            const next = quizReducer(state, { type: 'REVEAL_PRODUCTION_HINT' });
+
+            expect(next.productionHintLevel).toBe(1);
+            expect(next.userAnswer).toBe('typed');
+        });
+
+        it('is a no-op on userAnswer without a currentVocab even at level 2', () => {
+            const state: QuizState = { ...initialState, currentVocab: null, productionHintLevel: 1, userAnswer: 'typed' };
+            const next = quizReducer(state, { type: 'REVEAL_PRODUCTION_HINT' });
+
+            expect(next.productionHintLevel).toBe(2);
+            expect(next.userAnswer).toBe('typed');
+        });
+    });
+
     it('LOAD_VOCAB_ERROR sets a fatalError and clears loading', () => {
         const next = quizReducer(initialState, {
             type: 'LOAD_VOCAB_ERROR',
