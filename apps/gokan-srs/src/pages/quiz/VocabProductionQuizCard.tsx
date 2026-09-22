@@ -14,15 +14,28 @@ interface VocabProductionQuizCardProps {
 }
 
 /**
- * The vocab production quiz: English meaning prompt, Japanese reading answer.
+ * The vocab production quiz's GLOSS-PROMPT card: English meaning prompt,
+ * Japanese reading answer. The mirror image of VocabMeaningQuizCard, and the
+ * only direction in the app that starts from English. Nothing Japanese may
+ * appear before feedback on THIS card, which is why it cannot simply reuse
+ * VocabQuizCard with a different label: the written form is the answer, so it
+ * is revealed only once feedback is showing.
  *
- * The mirror image of VocabMeaningQuizCard, and the only direction in the app that
- * starts from English. Nothing Japanese may appear before feedback, which is why
- * this card cannot simply reuse VocabQuizCard with a different label: the written
- * form is the answer, so it is revealed only once feedback is showing.
+ * VocabQuizScreen renders this whenever state.currentProductionCloze is null -
+ * either no sentence with a usable match exists for this word, or the
+ * current card isn't production at all. When a match does exist,
+ * VocabProductionClozeQuizCard (issue #72) is served instead: it deliberately
+ * RELAXES this card's "nothing Japanese before feedback" rule, showing the
+ * sentence around the blank as the cue that makes the item well-posed (a bare
+ * gloss list cannot disambiguate near-synonyms like 必ず vs 常に - a sentence
+ * can). The invariant that actually matters, that the TARGET WORD stays
+ * hidden until feedback, is preserved on both cards; only the surrounding
+ * context differs.
  *
- * Graded against the same reading accept-list as the reading quiz (see
- * useQuizOrchestration's submitAnswer), so kana variants behave identically in both.
+ * Graded against the reading + written-form accept-list (see
+ * SRSService.evaluateProductionAnswer, issue #71 Part A) via
+ * useQuizOrchestration's submitAnswer - the same grading path the cloze card
+ * uses, since both set quizType 'production'.
  */
 export function VocabProductionQuizCard({ onKanjiClick }: VocabProductionQuizCardProps) {
     const { state, currentProgress } = useQuiz();

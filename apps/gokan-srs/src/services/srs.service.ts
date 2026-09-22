@@ -1,5 +1,5 @@
 // src/services/srs.service.ts
-import type { ReviewLog, SRSEntry, VocabProgress } from '../models/vocabulary.model';
+import type { ReviewLog, SRSEntry, VocabProgress, Vocabulary } from '../models/vocabulary.model';
 import { CONSTANTS } from '../commons/constants';
 import { VocabularyService } from './vocabulary.service';
 import type { KanjiKnowledge, UserProgress, UserSettings } from '../models/user.model';
@@ -99,6 +99,46 @@ export class SRSService {
         }
 
         return { result: bestResult, matchedAnswer: bestMatch };
+    }
+
+    /**
+     * Checks a production answer (English prompt, Japanese reading answer)
+     * against the FULL accept-list the way `computeBlankPlan` (`grammarSelectors.ts`)
+     * already builds its own: the reading primary and alternatives, plus
+     * `writtenForm.kanji` and its alternatives, plus any `mergedVocabs` readings
+     * (issue #71 Part A). Previously this graded against `evaluateAnswer` on the
+     * reading alone, so a correct kanji answer (必ず for かならず) graded `wrong`.
+     *
+     * Written forms are matched EXACTLY (after the same trim/whitespace
+     * normalization `analyzeError` applies), never through `evaluateAnswer`'s
+     * Levenshtein path: a distance-1 typo between two kana strings is a typo,
+     * but between two kanji strings it is usually a completely different word,
+     * so fuzzy matching is actively wrong there. Reading forms keep the existing
+     * fuzzy behavior via `evaluateAnswer`, which also covers the literal "pass".
+     *
+     * Shared by both production quiz cards (gloss-prompt and the sentence-cloze
+     * card from issue #72) - both set `quizType: 'production'`, so this is the
+     * single grading path either one goes through.
+     */
+    static evaluateProductionAnswer(
+        userInput: string,
+        vocab: Pick<Vocabulary, 'reading' | 'writtenForm' | 'mergedVocabs'>
+    ): { result: AnswerResult; matchedAnswer: string } {
+        const normalize = (s: string) => s.trim().replace(/\s+/g, '');
+        const normalizedInput = normalize(userInput);
+
+        const writtenForms = [vocab.writtenForm.kanji, ...vocab.writtenForm.alternatives];
+        for (const form of writtenForms) {
+            if (normalizedInput === normalize(form)) {
+                return { result: 'correct', matchedAnswer: form };
+            }
+        }
+
+        const readingAlternatives = [
+            ...vocab.reading.alternatives,
+            ...(vocab.mergedVocabs?.map(m => m.originalPrimaryReading) ?? []),
+        ];
+        return this.evaluateAnswer(userInput, { primary: vocab.reading.primary, alternatives: readingAlternatives });
     }
 
     private static normalizeMeaning(text: string): string {
