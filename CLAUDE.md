@@ -114,7 +114,7 @@ gokan-srs/                          # monorepo root
 │   │   │   │   └── kanji.model.ts
 │   │   │   ├── pages/                # Page components
 │   │   │   │   ├── main/             # Activity hub (landing route '/') - activity cards + session recap
-│   │   │   │   ├── quiz/             # Vocab study session screen, route '/quiz' (also hosts quizFormatting.ts helpers) - VocabQuizScreen, VocabQuizCard, VocabMeaningQuizCard, VocabBaseQuizCard
+│   │   │   │   ├── quiz/             # Vocab study session screen, route '/quiz' (also hosts quizFormatting.ts helpers) - VocabQuizScreen, VocabQuizCard, VocabMeaningQuizCard, VocabBaseQuizCard, VocabProductionQuizCard (gloss prompt), VocabProductionClozeQuizCard (sentence-cloze prompt, issue #72)
 │   │   │   │   ├── grammar/          # Grammar study session screen, route '/grammar' (see Application Pages)
 │   │   │   │   ├── setup/            # Initial setup wizard
 │   │   │   │   ├── settings/         # Global settings screen
@@ -144,6 +144,7 @@ gokan-srs/                          # monorepo root
 │   │   │   │   ├── knowledge.utils.ts # Knowledge-points model + cumulative curve builder
 │   │   │   │   ├── activity.utils.ts  # buildDailyActivity: shared per-day review bucketing (DailyProgressionChart + Main hub's daily card)
 │   │   │   │   ├── grammarSentence.utils.ts # grammarExampleToSentence: adapts a GrammarExample into InteractiveSentence's Sentence shape (GrammarDetailScreen)
+│   │   │   │   ├── productionCloze.utils.ts # pickProductionClozeSentence + splitSentenceAtBlank: pure sentence/blank selection for the production cloze card (issue #72)
 │   │   │   │   └── quiz.utils.ts
 │   │   │   ├── App.tsx               # Root component with routing
 │   │   │   ├── main.tsx              # Entry point
@@ -328,6 +329,11 @@ Core SRS algorithm implementation. **This is the heart of the learning system.**
 - Returns best result: `'correct'` > `'minor_error'` > `'wrong'`
 - Uses Levenshtein distance for typo detection
 
+**`evaluateProductionAnswer(userInput, vocab)`** (issue #71 Part A)
+- The production quiz's own grading path (both the gloss-prompt and sentence-cloze cards set `quizType: 'production'` and grade through this, not `evaluateAnswer`)
+- Accept-list mirrors `computeBlankPlan`'s (`grammarSelectors.ts`): reading primary + alternatives, `writtenForm.kanji` + alternatives, plus any `mergedVocabs` readings
+- Written forms are matched **exactly** (after the same trim/whitespace normalization `analyzeError` uses), never through the Levenshtein path - a one-character difference between two kanji words is a different word, not a typo. Reading forms keep the existing fuzzy `evaluateAnswer` behavior (which also covers a literal "pass")
+
 **`applyAnswer(vocab, quizType, quizMode, userAnswer, correctAnswer, latencyMs, now, forcedResult?, intervalModifier?, frequencyModifier?, meaningQuizEnabled?, productionQuizEnabled?)`**
 - Updates VocabProgress based on answer result
 - Calculates new memory strength and interval
@@ -381,6 +387,22 @@ One ordering detail that a future change could easily undo:
 **Counted in the knowledge curve** (`knowledge.utils.ts`), alongside reading and meaning: production is a real direction the learner studies, and excluding it meant a production answer moved the session total while the curve ignored it. A word mastered in all three directions is worth 600.
 
 The care needed is in the curve's **no-history fallback**, which credits an entry at the word's introduction date when it carries no review logs (that is what makes a skipped "I already know this" word count at all). The migration grandfathers every already-graduated word to production-mastered so it does not un-graduate, and those entries have no logs either - crediting them through that fallback would date ~200 points at each word's introduction and rewrite years of curve the learner never earned. So for production the fallback applies only when `totalReviews === 0`, which is exactly the skipped-at-intro case: there the learner asserted they knew the word, reading and meaning are credited on that same basis, and production is no different. A word with real review history waits for a real production review before counting. Daily activity (`buildDailyActivity`) includes `production.history` unconditionally, since that is purely a record of reviews actually done.
+
+### Production cloze card (`productionCloze.utils.ts`, `VocabProductionClozeQuizCard.tsx`, issue #72)
+
+A second production card format, served by the vocab queue exactly like the gloss-prompt card (both set `quizType: 'production'` and share `applyAnswer`/scheduling) - only the CUE differs. The gloss-prompt card asks "which word means this?" off a bare gloss list, which cannot distinguish near-synonyms sharing overlapping glosses (必ず vs 常に both gloss roughly "certainly/always"). This card instead blanks the target word inside one of its own example sentences and prompts with the sentence's English translation - the surrounding Japanese and the English sentence together narrow the answer to one word, the way a gloss list structurally cannot.
+
+**No dataset work was required.** `Sentence.matches?: Record<vocabId, {start, length, reading}[]>` (`sentence.model.ts`) already carries the exact span to blank for a given vocabId - the same field `gokan-dictionary`'s `segmentSentence` and this app's own `InteractiveSentence` use to link/highlight matched words in a sentence.
+
+- **`pickProductionClozeSentence(vocabId, sentences, reviewCount)`** (`productionCloze.utils.ts`, pure) - restricts to sentences carrying a usable `matches[vocabId]` entry, then picks deterministically via the shared `hashString`/`${vocabId}:${reviewCount}` seed (`deterministicPick.ts`, the same approach `computeBlankPlan` uses for grammar example selection) - repeated reviews cycle through the word's other sentences instead of re-rolling every render. `reviewCount` is the word's **production** entry's own `history.length`, not `VocabProgress.totalReviews` (which counts across all three quiz types and would reshuffle the pick on an unrelated reading/meaning review). Returns `null` when no sentence has a usable match - the caller reads that as "fall back to the gloss-prompt card" (coverage is inherently partial: not every vocab has sentences, and not every sentence containing a word was tokenized with a resolved match for it).
+- **`splitSentenceAtBlank(cloze)`** (pure) - `before`/`blank`/`after` string slices off `sentence.original`; `before + blank + after` always reproduces the sentence exactly.
+- **Resolved once at load time, not at selection time.** `getNextVocabToStudy` picks a production item the same way regardless of cloze/gloss (queue selection has no sentence data available synchronously); `useQuizOrchestration`'s loading effect fetches `VocabularyService.loadSentences(vocabId)` for every production card (not just meaning's `context` mode) and computes `pickProductionClozeSentence` before dispatching `LOAD_VOCAB_SUCCESS`, so which card renders is already decided by the time loading finishes - no extra async round trip after render, and grading stays synchronous.
+- **`QuizState.currentProductionCloze: ProductionCloze | null`** - the resolved sentence + blank span for the CURRENT production card, or `null` (gloss fallback, or the current card isn't production). `VocabQuizScreen` renders `VocabProductionClozeQuizCard` when set, `VocabProductionQuizCard` otherwise. Reset to `null` on `LOAD_VOCAB_START`, same as `currentSentences`/`currentSentenceId` (which stay scoped to meaning's `context` mode and are left `null` for a production load, rather than carrying sentence data nothing else reads).
+- **Grading** goes through `SRSService.evaluateProductionAnswer` (issue #71 Part A) exactly like the gloss card - the cloze card changes only the prompt, not the accept-list or the schedule it drives.
+- **Per-blank hint control**, reused from the grammar quiz's cloze machinery: `QuizState.productionHintLevel` (0 = none, 1 = gloss shown, 2 = answer revealed) mirrors `grammarHintLevels` for a single blank instead of one per word. Reaching level 2 (`REVEAL_PRODUCTION_HINT` action) writes the word's primary reading into `userAnswer` (so `computed.canSubmit` stays satisfiable, same reasoning as `GRAMMAR_REVEAL_HINT`) and forces the graded result to `minor_error` regardless of what's typed, handled in `submitAnswer`'s production branch alongside the `evaluateProductionAnswer` call.
+- **Deliberate departure from the gloss card's "nothing Japanese before feedback" rule** (see `VocabProductionQuizCard`'s updated doc comment): the surrounding sentence is visible before answering, since it's the cue that makes the item well-posed. The invariant that still holds on both cards is that the **target word** stays hidden until feedback.
+- **Full production credit**, not a discount: unlike a grammar blank (where the vocab is incidental scaffolding around the pattern under test), the target word here is the whole point of the card and no part of the answer is shown - `applyAnswer` is called exactly like the gloss card, no `strengthDeltaModifier`.
+
 ### Scheduling Service (`scheduling.ts`)
 
 **Single source of truth** for "when is this vocab due" and "is it fully mastered". Previously this question was answered independently in three places (`VocabProgress.nextReviewAt` hand-synced by `applyAnswer`, `reading.dueDate`, `meaning.dueDate`), which could drift out of agreement - e.g. disabling meaning quizzes left a stale `meaning.dueDate` able to make `nextReviewAt` report "due" while queue-selection had already stopped considering meaning reviews.
@@ -515,6 +537,8 @@ The quiz state machine is split into four single-responsibility modules rather t
   currentVocab: Vocabulary | null,
   currentSentences: Sentence[] | null,
   currentSentenceId: string | null,
+  currentProductionCloze: ProductionCloze | null,   // sentence + blank span for the CURRENT production card (issue #72); null = gloss fallback / not a production card
+  productionHintLevel: number,   // 0=none, 1=gloss shown, 2=answer revealed - single-blank equivalent of grammarHintLevels
   currentQuizItem: PendingQuizItem | null,
   userAnswer: string,
   feedback: { show, correct, type, message, matchedAnswer } | null,
@@ -553,6 +577,7 @@ Four things about it are load-bearing:
 - `SETUP_COMPLETE`: Initialize progress after setup
 - `LOAD_VOCAB_START/SUCCESS/ERROR`: Vocabulary loading states
 - `SET_ANSWER`: Update user input
+- `REVEAL_PRODUCTION_HINT`: Advance the current production cloze card's hint level (0→1→2, capped); reaching 2 writes the word's primary reading into `userAnswer` (see Production cloze card above)
 - `SUBMIT_ANSWER`: Process answer submission
 - `UPDATE_AFTER_ANSWER`: Apply the (already-computed) SRS update after `continueToNext`
 - `ADVANCE_QUEUE`: Move to next vocab item / fetch intro candidates
@@ -638,7 +663,7 @@ Main study interface. Switches **exhaustively** on `sessionState` (a TypeScript 
 - **`'exhausted'`**: Show `ExhaustedScreen` (no more content). Same "Back to activities" link as `WaitingScreen`.
 - **`'session-complete'`**: Show `SessionCompleteScreen` (cards cleared, words still waiting, plus a "Start another session" button wired to `actions.startNewSession`). Reached only when the per-session quiz cap held work back; see Session quiz cap under State Management.
 - **`'learn-kanji'`**: Show `LearnKanjiCard` (KKLC step unlock)
-- **`'review'` / `'learn'`**: Loading gate, then `shouldShowIntro` (from `selectNextView`) decides `VocabIntroCard` vs. the active quiz card (`VocabQuizCard` for reading, `VocabMeaningQuizCard` for meaning, `VocabProductionQuizCard` for production, keyed on `currentQuizItem.quizType`)
+- **`'review'` / `'learn'`**: Loading gate, then `shouldShowIntro` (from `selectNextView`) decides `VocabIntroCard` vs. the active quiz card (`VocabQuizCard` for reading, `VocabMeaningQuizCard` for meaning, and for production `VocabProductionClozeQuizCard` when `state.currentProductionCloze` is set or `VocabProductionQuizCard` otherwise - keyed on `currentQuizItem.quizType`, see Production cloze card under Services & Business Logic)
 
 **Auto-advance logic**: Owned by `useQuizOrchestration`. If the queue has no valid items but can introduce new vocab, automatically calls `advanceQueue()`.
 
@@ -994,6 +1019,7 @@ The grammar dataset (issue #17) follows the same split as vocab/kanji/sentences:
   - A correct reading answer no longer pushes a due meaning's `dueDate` forward (regression guard for the removed stagger - see State Management → Session quiz cap)
   - Meaning-quiz-disabled scheduling tests (graduation on reading mastery alone)
   - JLPT learning-order tests: N5→N1 walk order, kanji filtering on by default (and disabled via `ignoreKnownKanjiRequirement`), already-queued exclusion, frequency fallback once the lists run dry (without re-serving a JLPT word, and respecting the same toggle), and the matching `countLearnableVocabulary` counts
+  - `evaluateProductionAnswer` tests (issue #71 Part A): primary/alternative readings grading `correct`, the kanji written form and its alternatives grading `correct`, a one-character-different kanji word NOT falling back to fuzzy matching (grades `wrong`, not `minor_error`), a genuine reading typo still grading `minor_error` via the fuzzy fallback, a `mergedVocabs` original reading accepted, and a literal "pass" still reachable
 - `src/services/scheduling.test.ts` - `vocabNextReviewAt`/`isVocabFullyMastered`/`isVocabDue` unit tests
 - `src/services/grammarScheduling.test.ts` - `grammarNextReviewAt`/`isGrammarFullyMastered`/`isGrammarDue` unit tests (grammar's single-entry equivalent)
 - `src/services/grammarSrs.service.test.ts` - `GrammarSRSService` tests: intro choice (learn/skip), `applyAnswer` (correct/wrong/retry/graduation, mirroring vocab's retry-is-training-only invariant; a reduced `strengthDeltaModifier` earning a smaller-but-positive gain than a full one), `applyVocabReinforcement` (boosts a credited word's reading entry, leaves other words reference-equal, never touches the meaning entry, no-op on empty credits or a word absent from the queue), and JLPT-order candidate finding/counting
@@ -1006,7 +1032,8 @@ The grammar dataset (issue #17) follows the same split as vocab/kanji/sentences:
   - Two-tier version regression guards (sync pass never pre-empts the async pass)
   - `grammarQueue` defaulting to `[]` when absent, defaults filled into a partial `GrammarProgress` item, and a graduated item's `nextReviewAt` staying `null` rather than re-deriving from a stale `dueDate`
 - `src/services/migration.roundtrip.test.ts` - Golden round-trip test: a realistic snapshot spanning old/mixed/current-format items pushed through the full migrate→hydrate→serialize→reparse pipeline, asserting zero data loss (no vocab dropped, no history lost, no due date nulled)
-- `src/context/quiz/quizReducer.test.ts` - Reducer unit tests (every action, including `RECONCILE_REMOTE`, `SESSION_START`/`SESSION_END`, and `VOCAB_INTRO_CHOICE` extending the session's committed task set on "Learn")
+- `src/context/quiz/quizReducer.test.ts` - Reducer unit tests (every action, including `RECONCILE_REMOTE`, `SESSION_START`/`SESSION_END`, `VOCAB_INTRO_CHOICE` extending the session's committed task set on "Learn", `LOAD_VOCAB_START`/`LOAD_VOCAB_SUCCESS` resetting/setting `currentProductionCloze`+`productionHintLevel`, and `REVEAL_PRODUCTION_HINT`'s level cap + writing the primary reading into `userAnswer` only once level 2 is reached and only with a `currentVocab` present)
+- `src/utils/productionCloze.utils.test.ts` - `pickProductionClozeSentence` (no-usable-match/empty-list null returns, first-occurrence pick when a word repeats in one sentence, determinism for a fixed `vocabId:reviewCount` pair, cycling across reviewCounts, ignoring other vocab's matches) and `splitSentenceAtBlank` (before+blank+after always reproduces the original sentence exactly, including blanks at the very start/end and single-character blanks)
 - `src/context/quiz/quizSelectors.test.ts` - `selectNextView` across all session states + the meaning-disabled edge case, `selectCurrentProgress`, `selectCurrentSentence`, `selectSessionStats` (stable `total`, `done` on de-actioned tasks, the pending-retry regression that no longer shrinks the total, mid-session arrivals counted as `waiting` not total, `moreNew`, and - reflecting the post-dedup commit shape - a reading-only commit resolving `done` by exactly 1 once answered without touching an uncommitted, genuinely-due meaning), `selectNextSessionPreview` (mutually exclusive buckets, retries taking precedence over new/review, meaning-disabled ignoring meaning due dates, graduated vocab excluded, at most one card per word across all three quiz types, cap overflow reporting, and that the preview matches what the session's dedup+cap pipeline actually commits to), `dedupTaskKeysByVocab` (priority order, multi-vocab independence, input-order preservation, empty input), and a cross-session regression test asserting a vocab with reading+meaning both due commits only reading one session and meaning the next (once reading is no longer due)
 - `src/context/quiz/grammarReducer.test.ts` - Reducer unit tests for every `GRAMMAR_` action (load lifecycle, set/submit answer, update-after-answer plus its optional `grammarSessionHistory` push, advance queue, `GRAMMAR_SESSION_START`/`GRAMMAR_SESSION_END`, intro choice's learn/skip/detail-page-insert paths including the "learn" path extending `grammarSession.committed`), dispatched through the shared `quizReducer`
 - `src/context/quiz/grammarSelectors.test.ts` - `selectNextGrammarView` across all session states + `shouldShowIntro`; `computeBlankPlan` (blanks only known vocab, accept-list construction including a failed-fetch fallback and vocab writtenForm/reading/mergedVocabs variants, gloss resolution, a queued-but-never-introduced vocab entry does not count as known, preferring a different example with a known word over an example with none - issue #32 item 5.1, the single-most-frequent-word fallback when nothing is known anywhere - item 5.2, skipping a zero-candidate example in favor of another in the same point and the read-only plan when literally none qualify - item 6, deterministic example selection, no-examples edge case); `gradeGrammarAnswers` (kanji/variant/reading forms all grading `correct` against the same accept-list, an unrelated answer grading `wrong`, a revealed (`hintLevel >= 2`) blank always grading `minor_error` regardless of input - RC3 item 3, previously `pass` - the worst-of precedence `wrong > pass > minor_error > correct` on the no-pattern fallback path, including that a literal typed "pass" is still reachable independently of the hint system; and the issue #33 pattern-decides behaviour: pattern-correct + vocab-wrong stays `correct`, pattern-wrong stays `wrong` even with all vocab right, and the `strengthDeltaModifier` floor/linear-scaling by vocab-correct ratio); `computeBlankPlan`'s `isPatternBlank` classification (pattern + secondary-vocab blanks flagged, all-false on the no-pattern fallback); `selectCurrentGrammarProgress`; `selectNextGrammarSessionPreview`; `collectActionableGrammarIds` (due-or-retry inclusion, not-yet-due and graduated exclusion); and `selectGrammarSessionStats` (mirrors `quizSelectors.test.ts`'s `selectSessionStats` coverage - stable `total`, `done` on de-actioned points, `retriesPending`, mid-session arrivals counted as `waiting` not `total`)
@@ -1098,7 +1125,7 @@ return 'exhausted'
 3. Determine `quizType` (`'reading'` | `'meaning'` | `'production'`) and `quizMode` (`'base'` | `'context'`) from `currentQuizItem`
 4. Base Evaluation:
    - For **Reading**: `SRSService.evaluateAnswer()` checks against all readings (always `base` mode)
-   - For **Production**: the same `SRSService.evaluateAnswer()` call against the same readings - the answer is a reading either way, only the prompt differs (English glosses instead of the written form)
+   - For **Production**: `SRSService.evaluateProductionAnswer()` against readings + written forms (issue #71 Part A - written forms match exactly, readings keep fuzzy matching), then - only if `productionHintLevel >= 2` (the cloze card's hint fully revealed, see Production cloze card) - the result is force-overridden to `minor_error` regardless of what was typed. Same grading path for both production cards (gloss-prompt and sentence-cloze, issue #72); only the prompt differs between the two cards themselves
    - For **Meaning (`base` mode)**: `SRSService.evaluateMeaning()` checks strictly against all dictionary glosses
    - For **Meaning (`context` mode)**: First evaluates strictly with `evaluateMeaning()`, then:
      - If `enableGeminiContext` is enabled (the Settings master toggle) AND `geminiApiKey` is configured AND a sentence is available:
