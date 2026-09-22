@@ -13,6 +13,7 @@ import { CONSTANTS } from '../../commons/constants';
 import { DEFAULT_SETTINGS } from '../../models/user.model';
 import type { SetupValues } from '../../models/state.model';
 import { calculateMasteryPercentage, clearStaleNeedsRetry } from '../../utils/srs.utils';
+import { pickProductionClozeSentence } from '../../utils/productionCloze.utils';
 import { mergeProgress, mergeSettings } from '../../services/sync/mergeProgress';
 import type { ProgressWithMetadata } from '../../services/sync/types';
 import { useGoogleDrive } from '../GoogleDriveContext';
@@ -25,6 +26,8 @@ import { progressUploadSignature, stableStringify } from "../../services/progres
 export interface QuizActions {
     setupComplete(values: SetupValues): Promise<void>;
     setAnswer(answer: string): void;
+    /** Progressive hint for the CURRENT production cloze card (gloss, then reveal). No-op outside a cloze card. */
+    revealProductionHint(): void;
     submitAnswer(): Promise<void>;
     advanceQueue({ now, overrideDailyLimit }: { now: Date, overrideDailyLimit?: boolean }): void;
     continueToNext(): Promise<void>;
@@ -237,6 +240,10 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             dispatch({ type: 'SET_ANSWER', payload: answer });
         },
 
+        revealProductionHint() {
+            dispatch({ type: 'REVEAL_PRODUCTION_HINT' });
+        },
+
         async submitAnswer() {
             if (!state.currentVocab || state.feedback?.show || !state.currentQuizItem || state.isEvaluatingAi) return;
 
@@ -249,12 +256,29 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             let matchedAnswer: string;
             let message = 'Incorrect.';
 
-            // Production's answer is a reading, so it grades against the same
-            // accept-list as the reading quiz. Only the prompt differs between them.
-            if (quizType === 'reading' || quizType === 'production') {
+            if (quizType === 'reading') {
                 const evaluation = SRSService.evaluateAnswer(state.userAnswer, state.currentVocab.reading);
                 result = evaluation.result;
                 matchedAnswer = evaluation.matchedAnswer;
+            } else if (quizType === 'production') {
+                // A fully-revealed hint (cloze card only - see productionHintLevel) always
+                // grades minor_error regardless of what userAnswer holds, mirroring
+                // gradeGrammarAnswers' treatment of a revealed grammar blank: giving up on
+                // a word still leaves an impression from reading the answer.
+                if (state.productionHintLevel >= 2) {
+                    result = 'minor_error';
+                    matchedAnswer = state.currentVocab.reading.primary;
+                } else {
+                    // Graded against the full accept-list (readings + written forms, see
+                    // evaluateProductionAnswer) rather than the reading quiz's reading-only
+                    // list - a production answer given in kanji is a correct answer, not a
+                    // wrong one (issue #71 Part A). Shared by both production cards (gloss
+                    // and the sentence-cloze card, issue #72): both set quizType
+                    // 'production', so this is the one place either grades through.
+                    const evaluation = SRSService.evaluateProductionAnswer(state.userAnswer, state.currentVocab);
+                    result = evaluation.result;
+                    matchedAnswer = evaluation.matchedAnswer;
+                }
             } else {
                 const meanings = state.currentVocab.senses.flatMap(s => s.glosses);
                 const evaluation = SRSService.evaluateMeaning(state.userAnswer, meanings);
@@ -634,6 +658,10 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
 
         const vid = 'vocabId' in queueItem ? queueItem.vocabId : queueItem.vocab.vocabId;
         const quizType = queueItem.quizType;
+        // Only a real QuizItem carries the VocabProgress (an intro candidate never
+        // does - it's always quizType 'reading'), which is all we need here: the
+        // per-entry production review count that seeds the cloze sentence pick below.
+        const target = 'vocab' in queueItem ? queueItem.vocab : undefined;
 
         // Exactly this card is already loaded OR currently being loaded
         // (selectNextView returns a fresh queueItem object on every recompute, so
@@ -675,19 +703,39 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
         const loadKey = `${vid}:${quizType}:${queueItem.quizMode}`;
         loadingKeyRef.current = loadKey;
 
+        // Every production card needs sentences fetched up front to decide whether a
+        // usable cloze match exists at all - unlike meaning's context mode, that
+        // decision can't be made before the fetch (it depends on which sentences the
+        // dataset actually resolved a match for), so it happens below once loaded
+        // rather than by picking a quizMode synchronously in getNextVocabToStudy.
+        const needsSentences = (quizType === 'meaning' && queueItem.quizMode === 'context') || quizType === 'production';
+
         Promise.all([
             VocabularyService.loadVocab(vid),
-            (quizType === 'meaning' && queueItem.quizMode === 'context') ? VocabularyService.loadSentences(vid) : Promise.resolve(null)
+            needsSentences ? VocabularyService.loadSentences(vid) : Promise.resolve(null)
         ]).then(([vocab, sentences]) => {
             if (loadingKeyRef.current !== loadKey) return; // superseded by a newer target
 
             let selectedSentenceId: string | null = null;
-            if (sentences && sentences.length > 0) {
+            let productionCloze = null;
+
+            if (quizType === 'production') {
+                if (sentences && sentences.length > 0) {
+                    const reviewCount = target?.production?.history.length ?? 0;
+                    productionCloze = pickProductionClozeSentence(vid, sentences, reviewCount);
+                }
+            } else if (sentences && sentences.length > 0) {
                 const idx = Math.floor(Math.random() * sentences.length);
                 selectedSentenceId = sentences[idx].id;
             }
 
-            dispatch({ type: 'LOAD_VOCAB_SUCCESS', payload: { vocab, sentences, selectedSentenceId } });
+            dispatch({
+                type: 'LOAD_VOCAB_SUCCESS',
+                // Production's own sentences aren't the meaning-context ones -
+                // currentSentences/currentSentenceId stay scoped to meaning, so they're
+                // left null here rather than carrying data nothing else reads.
+                payload: { vocab, sentences: quizType === 'production' ? null : sentences, selectedSentenceId, productionCloze },
+            });
             startTimeRef.current = Date.now();
         }).catch(err => {
             if (loadingKeyRef.current !== loadKey) return;

@@ -9,6 +9,7 @@ import type { AnswerResult } from '../../services/srs.service';
 import { SRSService } from '../../services/srs.service';
 import type { QuizItem, QuizType, QuizMode, TaskKey } from '../../utils/srs.utils';
 import { taskKey } from '../../utils/srs.utils';
+import type { ProductionCloze } from '../../utils/productionCloze.utils';
 import type { GrammarQuizState, GrammarQuizAction } from './grammarReducer';
 import { initialGrammarState, isGrammarAction, grammarReducer } from './grammarReducer';
 
@@ -45,6 +46,23 @@ interface QuizStateBase {
     currentVocab: Vocabulary | null;
     currentSentences: Sentence[] | null;
     currentSentenceId: string | null;
+    /**
+     * The sentence + blank span driving the CURRENT production quiz card (issue
+     * #72), when one could be found. Null means "no usable sentence match for
+     * this word" - VocabQuizScreen falls back to the gloss-prompt
+     * VocabProductionQuizCard - or simply that the current card isn't a
+     * production quiz at all. Resolved once at load time (see
+     * useQuizOrchestration's loading effect), same pattern as
+     * currentGrammarBlankPlan, so grading stays synchronous.
+     */
+    currentProductionCloze: ProductionCloze | null;
+    /**
+     * Progressive hint level for the CURRENT production cloze card: 0 = none,
+     * 1 = gloss shown, 2 = answer revealed into userAnswer (grades
+     * 'minor_error' regardless of what was typed) - mirrors grammarHintLevels,
+     * just for a single blank instead of one per word.
+     */
+    productionHintLevel: number;
     currentQuizItem: PendingQuizItem | null;
     userAnswer: string;
     feedback: {
@@ -84,10 +102,11 @@ export type QuizState = QuizStateBase & GrammarQuizState;
 export type QuizAction =
     | { type: 'SETUP_COMPLETE'; payload: { progress: UserProgress; settings: UserSettings } }
     | { type: 'LOAD_VOCAB_START'; payload: PendingQuizItem }
-    | { type: 'LOAD_VOCAB_SUCCESS'; payload: { vocab: Vocabulary | null; sentences: Sentence[] | null; selectedSentenceId: string | null } }
+    | { type: 'LOAD_VOCAB_SUCCESS'; payload: { vocab: Vocabulary | null; sentences: Sentence[] | null; selectedSentenceId: string | null; productionCloze?: ProductionCloze | null } }
     | { type: 'LOAD_VOCAB_ERROR'; payload: { vocabId: string, error: any } }
     | { type: 'EVALUATING_AI_START' }
     | { type: 'SET_ANSWER'; payload: string }
+    | { type: 'REVEAL_PRODUCTION_HINT' }
     | { type: 'SUBMIT_ANSWER'; payload: { type: AnswerResult; message: string; matchedAnswer: string } }
     | { type: 'UPDATE_AFTER_ANSWER'; payload: { progress: UserProgress; historyItem: { vocabId: string, writtenForm: string, result: AnswerResult, delta: number } } }
     | { type: 'ADVANCE_QUEUE'; payload: { progress: UserProgress, candidates?: Vocabulary[] } }
@@ -112,6 +131,8 @@ export const initialState: QuizState = {
     currentVocab: null,
     currentSentences: null,
     currentSentenceId: null,
+    currentProductionCloze: null,
+    productionHintLevel: 0,
     currentQuizItem: null,
     userAnswer: '',
     feedback: null,
@@ -168,6 +189,8 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
                 currentQuizItem: action.payload,
                 currentSentences: null,
                 currentSentenceId: null,
+                currentProductionCloze: null,
+                productionHintLevel: 0,
                 userAnswer: '',
                 feedback: null,
             };
@@ -178,6 +201,7 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
                 currentVocab: action.payload.vocab,
                 currentSentences: action.payload.sentences,
                 currentSentenceId: action.payload.selectedSentenceId,
+                currentProductionCloze: action.payload.productionCloze ?? null,
                 isLoadingVocab: false,
             };
 
@@ -207,6 +231,23 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
 
         case 'SET_ANSWER':
             return { ...state, userAnswer: action.payload };
+
+        case 'REVEAL_PRODUCTION_HINT': {
+            const next = Math.min(2, state.productionHintLevel + 1);
+
+            // Reaching level 2 writes the primary reading into userAnswer rather than
+            // leaving the card to substitute it at render time - same reasoning as
+            // GRAMMAR_REVEAL_HINT: the input has to show what state actually holds, or
+            // Submit stays disabled (canSubmit requires a non-empty userAnswer) even
+            // though the card looks answered. Grading is unaffected either way (a
+            // revealed blank is forced to 'minor_error' by productionHintLevel, not by
+            // what userAnswer contains).
+            if (next === 2 && state.currentVocab) {
+                return { ...state, productionHintLevel: next, userAnswer: state.currentVocab.reading.primary };
+            }
+
+            return { ...state, productionHintLevel: next };
+        }
 
         case 'SUBMIT_ANSWER':
             return {
