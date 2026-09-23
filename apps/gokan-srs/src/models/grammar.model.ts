@@ -211,17 +211,47 @@ export interface GrammarContrastChunk {
     label: string;
     memberIds: string[];
     units: GrammarContrastUnit[];
+    /**
+     * The chapter this chunk's lesson can first be taught in: the chapter of
+     * whichever member the teaching order introduces LAST, stamped at dataset
+     * build time. The app does not gate on it (the `vs`-known check in
+     * `selectReadyContrasts` is the runtime equivalent, and is per-learner
+     * rather than per-curriculum), but it is what a chapter-end lesson would
+     * key off if the grammar session ever grows one.
+     */
+    anchorChapterId?: string;
 }
 
 /**
  * Family id -> its authored contrast chunks, from
- * `compiled/grammar/index/contrasts.json`. `variant`-axis families never appear
- * (their members are interchangeable, so there is nothing to disambiguate).
+ * `compiled/grammar/index/contrasts.json`.
  */
 export type GrammarContrastIndex = Record<string, {
     name: string;
     chunks: GrammarContrastChunk[];
+    /**
+     * The family's `variant`-axis members, when it has two or more: siblings
+     * that are genuinely interchangeable, so no lesson exists or could exist
+     * for them (the dataset build rejects one that tries). Shown as a note
+     * instead, because silence is worse - a learner who meets ten near-identical
+     * literary forms with no comment assumes a distinction exists and goes
+     * looking for one.
+     *
+     * A family can carry this and NO chunks at all, so `chunks: []` is a valid
+     * entry rather than a missing one.
+     */
+    interchangeable?: string[];
 }>;
+
+/**
+ * One point's interchangeable siblings, flattened with the family context, for
+ * lookup by point id. `siblings` excludes the point itself.
+ */
+export interface GrammarInterchangeableForPoint {
+    familyId: string;
+    familyName: string;
+    siblings: string[];
+}
 
 /** A contrast unit flattened with the family/chunk context it came from, keyed for lookup by its focus point. */
 export interface GrammarContrastForFocus {

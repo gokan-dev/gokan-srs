@@ -37,7 +37,10 @@ export default function GrammarFamilyScreen() {
             const found = index[familyId] ?? null;
             const map = new Map<string, GrammarPoint>();
             if (found) {
-                const ids = Array.from(new Set(found.chunks.flatMap(c => c.memberIds)));
+                const ids = Array.from(new Set([
+                    ...found.chunks.flatMap(c => c.memberIds),
+                    ...(found.interchangeable ?? []),
+                ]));
                 const loaded = await Promise.all(ids.map(id => GrammarService.loadGrammarPoint(id).catch(() => null)));
                 loaded.forEach(p => { if (p) map.set(p.id, p); });
             }
@@ -61,7 +64,10 @@ export default function GrammarFamilyScreen() {
 
     if (!ready) return <LoadingScreen />;
 
-    if (!entry) {
+    // A family with neither lessons nor interchangeable members has nothing to
+    // say. One with only interchangeable members has exactly one thing to say,
+    // and it is worth saying - see `interchangeable` in the model.
+    if (!entry || (entry.chunks.length === 0 && (entry.interchangeable?.length ?? 0) === 0)) {
         return (
             <div className="min-h-screen flex items-center justify-center p-4 text-center">
                 <div>
@@ -84,7 +90,9 @@ export default function GrammarFamilyScreen() {
 
             <h1 className="text-2xl font-serif font-semibold text-primary mb-1">{entry.name}</h1>
             <p className="text-secondary font-serif text-sm mb-6">
-                These express the same core idea. What separates them is when to reach for each one.
+                {entry.chunks.length > 0
+                    ? "These express the same core idea. What separates them is when to reach for each one."
+                    : "These express the same core idea, and nothing reliably separates them."}
             </p>
 
             <div className="space-y-6">
@@ -92,25 +100,7 @@ export default function GrammarFamilyScreen() {
                     <Card key={chunk.id} size="md">
                         <h2 className="text-lg font-gothic font-semibold text-primary mb-3">{chunk.label}</h2>
 
-                        <div className="flex flex-wrap gap-2 mb-4">
-                            {chunk.memberIds.map(id => {
-                                const p = members.get(id);
-                                if (!p) return null;
-                                return (
-                                    <Link
-                                        key={id}
-                                        to={`/grammar/${id}`}
-                                        className="inline-flex items-center gap-2 rounded-md border border-divider px-2 py-1 hover:border-accent transition-colors"
-                                    >
-                                        <span className="font-mincho text-primary">{p.title}</span>
-                                        <JlptChip level={p.jlptLevel} />
-                                        {knownIds.has(id) && (
-                                            <span className="text-tertiary font-gothic text-xs">learned</span>
-                                        )}
-                                    </Link>
-                                );
-                            })}
-                        </div>
+                        <MemberChips ids={chunk.memberIds} members={members} knownIds={knownIds} />
 
                         <div className="space-y-3">
                             {chunk.units.map((unit, i) => (
@@ -124,7 +114,46 @@ export default function GrammarFamilyScreen() {
                         </div>
                     </Card>
                 ))}
+
+                {entry.interchangeable && entry.interchangeable.length > 0 && (
+                    <Card size="md">
+                        <h2 className="text-lg font-gothic font-semibold text-primary mb-3">
+                            Interchangeable
+                        </h2>
+                        <MemberChips ids={entry.interchangeable} members={members} knownIds={knownIds} />
+                        <p className="text-primary font-serif text-sm leading-relaxed">
+                            There is no rule to learn here. These forms say the same thing in the same
+                            register, and choosing between them is a matter of feel rather than of fit.
+                            Recognise them; do not try to work out when each one applies.
+                        </p>
+                    </Card>
+                )}
             </div>
+        </div>
+    );
+}
+
+/** The family's members as links, shared by the lesson chunks and the interchangeable note. */
+function MemberChips({ ids, members, knownIds }: { ids: string[]; members: Map<string, GrammarPoint>; knownIds: Set<string> }) {
+    return (
+        <div className="flex flex-wrap gap-2 mb-4">
+            {ids.map(id => {
+                const p = members.get(id);
+                if (!p) return null;
+                return (
+                    <Link
+                        key={id}
+                        to={`/grammar/${id}`}
+                        className="inline-flex items-center gap-2 rounded-md border border-divider px-2 py-1 hover:border-accent transition-colors"
+                    >
+                        <span className="font-mincho text-primary">{p.title}</span>
+                        <JlptChip level={p.jlptLevel} />
+                        {knownIds.has(id) && (
+                            <span className="text-tertiary font-gothic text-xs">learned</span>
+                        )}
+                    </Link>
+                );
+            })}
         </div>
     );
 }

@@ -1,4 +1,4 @@
-import type { GrammarAliasIndex, GrammarBrowseIndex, GrammarChapter, GrammarConjugationIndex, GrammarContrastForFocus, GrammarContrastIndex, GrammarJlptIndex, GrammarKindIndex, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex } from '../models/grammar.model';
+import type { GrammarAliasIndex, GrammarBrowseIndex, GrammarChapter, GrammarConjugationIndex, GrammarContrastForFocus, GrammarContrastIndex, GrammarInterchangeableForPoint, GrammarJlptIndex, GrammarKindIndex, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex } from '../models/grammar.model';
 
 /**
  * Loads grammar data compiled by the gokan-dataset submodule's
@@ -18,6 +18,7 @@ export class GrammarService {
     private static browseIndex: GrammarBrowseIndex | null = null;
     private static contrasts: GrammarContrastIndex | null = null;
     private static contrastsByFocus: Map<string, GrammarContrastForFocus[]> | null = null;
+    private static interchangeableByPoint: Map<string, GrammarInterchangeableForPoint> | null = null;
     private static pointCache = new Map<string, GrammarPoint>();
 
     private static async fetchJson<T>(path: string): Promise<T> {
@@ -169,6 +170,32 @@ export class GrammarService {
             }
         }
         if (map.size > 0) this.contrastsByFocus = map;
+        return map;
+    }
+
+    /**
+     * Interchangeable siblings keyed by point id: for a `variant`-axis member,
+     * the OTHER members of its family that are equally interchangeable with it.
+     *
+     * Exists because the contrast system is otherwise silent on exactly the
+     * points that most need a word said about them. A learner introduced to the
+     * fourth of ten near-identical "whether A or B" forms, with no lesson and no
+     * note, concludes a distinction exists and goes hunting for one. Same cache
+     * discipline as loadContrastsByFocus: only cached once something loaded.
+     */
+    static async loadInterchangeableByPoint(): Promise<Map<string, GrammarInterchangeableForPoint>> {
+        if (this.interchangeableByPoint) return this.interchangeableByPoint;
+
+        const index = await this.loadContrasts();
+        const map = new Map<string, GrammarInterchangeableForPoint>();
+        for (const [familyId, fam] of Object.entries(index)) {
+            const ids = fam.interchangeable ?? [];
+            if (ids.length < 2) continue;
+            for (const id of ids) {
+                map.set(id, { familyId, familyName: fam.name, siblings: ids.filter(other => other !== id) });
+            }
+        }
+        if (map.size > 0) this.interchangeableByPoint = map;
         return map;
     }
 

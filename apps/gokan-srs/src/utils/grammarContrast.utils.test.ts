@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { selectReadyContrasts } from "./grammarContrast.utils";
+import { selectKnownInterchangeableSiblings, selectReadyContrasts } from "./grammarContrast.utils";
 import type { GrammarContrastForFocus } from "../models/grammar.model";
 
 const unit = (focus: string, vs: string[]): GrammarContrastForFocus => ({
@@ -30,5 +30,23 @@ describe("selectReadyContrasts", () => {
 
     it("returns nothing for an empty input", () => {
         expect(selectReadyContrasts([], new Set(["n5-073"]))).toEqual([]);
+    });
+});
+
+describe("selectKnownInterchangeableSiblings", () => {
+    const entry = { familyId: "regardless-a-or-b", familyName: "Regardless", siblings: ["n1-004", "n1-006", "n1-008"] };
+
+    it("returns only the siblings the learner has already met", () => {
+        expect(selectKnownInterchangeableSiblings(entry, new Set(["n1-006", "n1-999"]))).toEqual(["n1-006"]);
+    });
+
+    it("returns nothing while no sibling is known, so the note is deferred", () => {
+        // Telling someone a form is interchangeable with others they have never
+        // seen is a fact about points that do not exist for them yet.
+        expect(selectKnownInterchangeableSiblings(entry, new Set())).toEqual([]);
+    });
+
+    it("returns nothing for a point that is not interchangeable at all", () => {
+        expect(selectKnownInterchangeableSiblings(undefined, new Set(["n1-006"]))).toEqual([]);
     });
 });
