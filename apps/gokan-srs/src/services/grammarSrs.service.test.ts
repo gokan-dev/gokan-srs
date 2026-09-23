@@ -355,6 +355,18 @@ describe('GrammarSRSService candidate finding (authored teaching order)', () => 
         expect(await GrammarSRSService.getNextCandidates([], 0)).toEqual([]);
     });
 
+    it('yields the whole current chapter when asked for its full size (whole-chapter introduction)', async () => {
+        // advanceGrammarQueue sizes its request to getCurrentChapter().points.length,
+        // so one advance introduces the entire current chapter rather than a fixed
+        // batch. This is the composition it relies on.
+        const chapter = await GrammarSRSService.getCurrentChapter([]);
+        expect(chapter?.id).toBe('c01');
+        expect(chapter?.points.length).toBe(2);
+
+        const candidates = await GrammarSRSService.getNextCandidates([], chapter!.points.length);
+        expect(candidates).toEqual(['n5-wa', 'n5-wo']);
+    });
+
     it('countLearnableGrammar counts every remaining chapter, not just the current one', async () => {
         // countLearnableGrammar is deliberately NOT chapter-bound (it answers "is
         // there more content at all", for the hub's moreNew signal) while

@@ -251,9 +251,21 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
             let newCandidates: GrammarPoint[] = [];
 
             if (needsCandidates) {
+                // Introduce the WHOLE current chapter in one advance, not a fixed
+                // batch. getNextCandidates already stops at the chapter boundary, so
+                // sizing the ceiling to the chapter's own length yields every
+                // remaining teachable point of it at once. Chapters are authored as
+                // units meant to be met together, so splitting one across several
+                // advances (the old newBatchSize ceiling) hid that grouping - the
+                // learner still saw a few points at a time. Falls back to
+                // newBatchSize when there's no chapter to size against (the
+                // JLPT-fallback path, i.e. no teaching order available).
+                const currentChapter = await GrammarSRSService.getCurrentChapter(updatedQueue);
+                const chapterCeiling = currentChapter?.points.length ?? CONSTANTS.srs.grammar.newBatchSize;
+
                 const { newCandidates: loaded, criticalErrorId } = await refillCandidates<GrammarPoint>({
                     existing: state.grammarIntroCandidates,
-                    batchSize: CONSTANTS.srs.grammar.newBatchSize,
+                    batchSize: chapterCeiling,
                     getNextIds: (maxToFind, ignored) => GrammarSRSService.getNextCandidates(updatedQueue, maxToFind, ignored),
                     loadItem: (id) => GrammarService.loadGrammarPoint(id),
                     logLabel: 'useGrammarOrchestration',
