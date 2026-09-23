@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { pickProductionClozeSentence, splitSentenceAtBlank } from './productionCloze.utils';
+import { pickProductionClozeSentence, splitSentenceAtBlank, splitClozeContext, emphasizeGloss } from './productionCloze.utils';
 import type { Sentence } from '../models/sentence.model';
 
 function makeSentence(overrides: Partial<Sentence> = {}): Sentence {
@@ -118,5 +118,108 @@ describe('splitSentenceAtBlank', () => {
         expect(before).toBe('a');
         expect(blank).toBe('b');
         expect(after).toBe('c');
+    });
+});
+
+describe('splitClozeContext', () => {
+    // Real dataset shape: 貧しい人とはほんのわずかしか持っていない人ではなく欲のありすぎる人である。
+    // blanking 欲 (start 25, length 1), matches for 貧しい/持っていない/欲/人(×3).
+    const sentence = makeSentence({
+        id: 's1',
+        original: '貧しい人とはほんのわずかしか持っていない人ではなく欲のありすぎる人である。',
+        matches: {
+            '1490740': [{ start: 0, length: 3, reading: 'まずしい' }],   // 貧しい (before)
+            '1315720': [{ start: 14, length: 6, reading: 'もっていない' }], // 持っていない (before)
+            '1547320': [{ start: 25, length: 1, reading: 'よく' }],        // 欲 (the blank)
+            '1580640': [                                                   // 人 ×3
+                { start: 3, length: 1, reading: 'ひと' },   // before
+                { start: 20, length: 1, reading: 'ひと' },  // before
+                { start: 32, length: 1, reading: 'ひと' },  // after
+            ],
+        },
+    });
+    const cloze = { sentence, blankStart: 25, blankLength: 1 };
+
+    it('rejoins before + blank + after back into the original sentence', () => {
+        const { before, after } = splitClozeContext(cloze);
+        expect(before.original + '欲' + after.original).toBe(sentence.original);
+    });
+
+    it('drops the blanked target span from both fragments', () => {
+        const { before, after } = splitClozeContext(cloze);
+        expect(before.matches?.['1547320']).toBeUndefined();
+        expect(after.matches?.['1547320']).toBeUndefined();
+    });
+
+    it('keeps before-side matches at their original offsets', () => {
+        const { before } = splitClozeContext(cloze);
+        expect(before.matches?.['1490740']).toEqual([{ start: 0, length: 3, reading: 'まずしい' }]);
+        expect(before.matches?.['1315720']).toEqual([{ start: 14, length: 6, reading: 'もっていない' }]);
+        // Only the two before-side occurrences of 人, not the after-side one.
+        expect(before.matches?.['1580640']).toEqual([
+            { start: 3, length: 1, reading: 'ひと' },
+            { start: 20, length: 1, reading: 'ひと' },
+        ]);
+    });
+
+    it('rebases after-side match offsets to the after fragment', () => {
+        const { after } = splitClozeContext(cloze);
+        // 人 at 32 in the full sentence -> 32 - 26 = 6 in "のありすぎる人である。".
+        expect(after.matches?.['1580640']).toEqual([{ start: 6, length: 1, reading: 'ひと' }]);
+        expect(after.original[6]).toBe('人');
+    });
+
+    it('drops a match that straddles the blank boundary', () => {
+        const straddling = makeSentence({
+            original: 'abcde',
+            matches: { v1: [{ start: 1, length: 3 }] }, // spans [1,4), blank is [2,3)
+        });
+        const { before, after } = splitClozeContext({ sentence: straddling, blankStart: 2, blankLength: 1 });
+        expect(before.matches?.['v1']).toBeUndefined();
+        expect(after.matches?.['v1']).toBeUndefined();
+    });
+});
+
+describe('emphasizeGloss', () => {
+    it('bolds the matching gloss in the English sentence, preserving surrounding text', () => {
+        const text = 'Poor is not the one who has too little, but the one who wants too much.';
+        const r = emphasizeGloss(text, ['greed', 'craving', 'desire', 'wants']);
+        expect(r.inline).not.toBeNull();
+        expect(r.inline!.match).toBe('wants');
+        expect(r.inline!.before + r.inline!.match + r.inline!.after).toBe(text);
+        expect(r.labelGlosses).toEqual([]);
+    });
+
+    it('matches case-insensitively but keeps the original casing in the match span', () => {
+        const r = emphasizeGloss('Poor is not the one who has too little.', ['poor', 'needy']);
+        expect(r.inline?.match).toBe('Poor');
+    });
+
+    it('prefers the longest (most specific) gloss when several appear', () => {
+        const r = emphasizeGloss('He had a strong desire to win.', ['desire', 'strong desire']);
+        expect(r.inline?.match).toBe('strong desire');
+    });
+
+    it('strips parentheticals and a leading "to" before matching', () => {
+        const r = emphasizeGloss('She will hold the meeting.', ['to hold (a meeting)']);
+        expect(r.inline?.match).toBe('hold');
+    });
+
+    it('falls back to a gloss label when no gloss appears verbatim', () => {
+        const r = emphasizeGloss('He has too little.', ['to have', 'to hold', 'to possess', 'to own']);
+        expect(r.inline).toBeNull();
+        expect(r.labelGlosses).toEqual(['have', 'hold', 'possess']); // cleaned, first 3
+    });
+
+    it('never bolds a gloss shorter than 3 characters (avoids incidental "be"/"do")', () => {
+        const r = emphasizeGloss('It is nice to be here.', ['be']);
+        expect(r.inline).toBeNull();
+        expect(r.labelGlosses).toEqual(['be']);
+    });
+
+    it('handles an empty English sentence by falling back to the label', () => {
+        const r = emphasizeGloss('', ['greed', 'desire']);
+        expect(r.inline).toBeNull();
+        expect(r.labelGlosses).toEqual(['greed', 'desire']);
     });
 });
