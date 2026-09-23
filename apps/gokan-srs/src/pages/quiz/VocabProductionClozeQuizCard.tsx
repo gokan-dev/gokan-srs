@@ -8,7 +8,8 @@ import { CardSection } from "../../components/ui/CardSection";
 import { MasteryRing } from "../../components/MasteryRing";
 import { JlptChip } from "../../components/JlptChip";
 import { blankWidthEm } from "../../utils/blankWidth";
-import { splitSentenceAtBlank } from "../../utils/productionCloze.utils";
+import { splitClozeContext, emphasizeGloss } from "../../utils/productionCloze.utils";
+import { InteractiveSentence } from "../../components/InteractiveSentence";
 
 /**
  * The vocab production CLOZE card (issue #72): one example sentence with the
@@ -34,8 +35,16 @@ import { splitSentenceAtBlank } from "../../utils/productionCloze.utils";
  * and the feedback conventions (border colors, bg-feedback-background). Unlike
  * GrammarQuizCard there is exactly one blank here, so none of its span/pattern/
  * strengthDeltaModifier machinery applies - this is the single-blank case.
+ *
+ * The surrounding Japanese context renders through the shared InteractiveSentence
+ * (clickable, gloss-on-hover words), the same as every other sentence in the app,
+ * with only the blanked occurrence of the target word removed (splitClozeContext).
+ * The English cue emphasizes which word the blank is asking for - the matching
+ * gloss bolded in the sentence, or a small gloss label when the translation
+ * carries no verbatim gloss (emphasizeGloss) - since the bare translation was too
+ * ambiguous to tell which word to produce.
  */
-export function VocabProductionClozeQuizCard() {
+export function VocabProductionClozeQuizCard({ onVocabClick }: { onVocabClick?: (vocabId: string) => void }) {
     const { state, actions, computed, currentProgress } = useQuiz();
     const { isMobile } = useResponsive();
 
@@ -54,9 +63,14 @@ export function VocabProductionClozeQuizCard() {
     if (!currentVocab || !currentProductionCloze) return null;
 
     const { sentence } = currentProductionCloze;
-    const { before, after } = splitSentenceAtBlank(currentProductionCloze);
+    const { before, after } = splitClozeContext(currentProductionCloze);
     const revealed = productionHintLevel >= 2;
-    const gloss = currentVocab.senses.flatMap(s => s.glosses)[0] ?? '';
+    const allGlosses = currentVocab.senses.flatMap(s => s.glosses);
+    const gloss = allGlosses[0] ?? '';
+    // Emphasize which English word the blank is asking for (issue: too hard to
+    // tell from the cue alone) - bold the matching gloss in the sentence, or fall
+    // back to a small gloss label when the translation carries no verbatim gloss.
+    const cueEmphasis = emphasizeGloss(sentence.en[0]?.text ?? '', allGlosses);
 
     const handleSubmit = (e: FormEvent) => {
         e.preventDefault();
@@ -103,13 +117,24 @@ export function VocabProductionClozeQuizCard() {
 
                     <p className="text-center text-sm text-secondary font-gothic mb-1">
                         Fill in the blank
+                        {!cueEmphasis.inline && cueEmphasis.labelGlosses.length > 0 && (
+                            <span className="text-accent font-semibold"> · {cueEmphasis.labelGlosses.join(' / ')}</span>
+                        )}
                     </p>
                     <p className="text-center text-lg text-primary font-serif mb-8">
-                        {sentence.en[0]?.text}
+                        {cueEmphasis.inline ? (
+                            <>
+                                {cueEmphasis.inline.before}
+                                <span className="text-accent font-bold">{cueEmphasis.inline.match}</span>
+                                {cueEmphasis.inline.after}
+                            </>
+                        ) : (
+                            sentence.en[0]?.text
+                        )}
                     </p>
 
                     <p className="text-center text-2xl font-gothic leading-loose text-primary">
-                        <span className="font-mincho">{before}</span>
+                        <InteractiveSentence sentence={before} onVocabClick={onVocabClick} showFurigana={!!feedback?.show} />
                         <span className="inline-flex flex-col items-center mx-0.5 align-middle">
                             <span className="inline-flex items-center gap-1">
                                 <input
@@ -142,7 +167,7 @@ export function VocabProductionClozeQuizCard() {
                                 </span>
                             )}
                         </span>
-                        <span className="font-mincho">{after}</span>
+                        <InteractiveSentence sentence={after} onVocabClick={onVocabClick} showFurigana={!!feedback?.show} />
                     </p>
 
                     {feedback?.show && feedback.type !== 'correct' && (
