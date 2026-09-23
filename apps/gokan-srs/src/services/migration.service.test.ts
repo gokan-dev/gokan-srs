@@ -564,6 +564,33 @@ describe('MigrationService', () => {
             expect(migrated.grammarQueue[0].nextReviewAt).toBeNull();
         });
     });
+
+    describe('completedChapters (additive field, no version gate needed)', () => {
+        it('defaults to an empty array when absent from stored data', () => {
+            const progress = {
+                kanjiKnowledge: { method: 'kklc', step: 10, kanjiSet: [] },
+                learningQueue: [],
+                stats: { newLearnedToday: 0, totalLearned: 0, totalReviews: 0 },
+                dailyOverride: false,
+            };
+
+            const migrated = MigrationService.migrateUserProgress(progress);
+            expect(migrated.completedChapters).toEqual([]);
+        });
+
+        it('leaves an already-stored completedChapters list untouched', () => {
+            const progress = {
+                kanjiKnowledge: { method: 'kklc', step: 10, kanjiSet: [] },
+                learningQueue: [],
+                completedChapters: ['n5-c01', 'n5-c02'],
+                stats: { newLearnedToday: 0, totalLearned: 0, totalReviews: 0 },
+                dailyOverride: false,
+            };
+
+            const migrated = MigrationService.migrateUserProgress(progress);
+            expect(migrated.completedChapters).toEqual(['n5-c01', 'n5-c02']);
+        });
+    });
 });
 
 describe('MigrationService.migrateGrammarAliasesAsync', () => {

@@ -14,6 +14,8 @@ import {
     selectCurrentGrammarProgress,
     selectNextGrammarSessionPreview,
     selectGrammarSessionStats,
+    selectChapterEndFocusIds,
+    selectNewlyCompletedChapterIds,
     collectActionableGrammarIds,
     computeBlankPlan,
     gradeGrammarAnswers,
@@ -29,6 +31,15 @@ export interface GrammarActions {
     advanceGrammarQueue(): Promise<void>;
     continueGrammarToNext(): Promise<void>;
     saveGrammarIntroChoice(grammarPoint: GrammarPoint, choice: 'learn' | 'skip'): void;
+    /** Acknowledges the shown end-of-chapter review step, so it doesn't re-fire. */
+    dismissGrammarChapterLesson(chapterId: string): void;
+}
+
+/** The end-of-chapter review step's content, once a chapter completes and has anchored lessons - see selectChapterEndFocusIds. */
+export interface PendingGrammarChapterLesson {
+    chapterId: string;
+    chapterTitle: string;
+    focusPointIds: string[];
 }
 
 /**
@@ -53,6 +64,70 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
         if (!state.progress) return;
         GrammarSRSService.hasMoreLearnableGrammar(state.progress.grammarQueue).then(setHasMoreLearnableGrammar);
     }, [state.progress]);
+
+    // The chapter the next new point would begin, for the Main hub's grammar
+    // card - named alongside the review/new/retry counts so the arrangement is
+    // visible before the learner even starts a session. Always re-derived
+    // (never stored - see GrammarSRSService.getCurrentChapter).
+    const [nextChapterTitle, setNextChapterTitle] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!state.progress) return;
+        let cancelled = false;
+        GrammarSRSService.getCurrentChapter(state.progress.grammarQueue).then(chapter => {
+            if (!cancelled) setNextChapterTitle(chapter?.title ?? null);
+        });
+        return () => { cancelled = true; };
+    }, [state.progress]);
+
+    // End-of-chapter review step: once every teachable point in a chapter has
+    // been introduced, its anchored contrast lessons (lesson.taughtInChapterId)
+    // surface once as a consolidated recap - see GrammarChapterLessonCard. A
+    // chapter with no anchored lessons is acknowledged silently (no step shown)
+    // the same way, so it never re-checks true again.
+    const [pendingChapterLesson, setPendingChapterLesson] = useState<PendingGrammarChapterLesson | null>(null);
+
+    useEffect(() => {
+        if (!state.progress) return;
+        let cancelled = false;
+
+        (async () => {
+            const teachingOrder = await GrammarService.loadTeachingOrder();
+            if (!teachingOrder || cancelled) return;
+
+            const isTeachable = await GrammarSRSService.buildTeachabilityFilter();
+            const newlyCompleted = selectNewlyCompletedChapterIds(
+                teachingOrder.chapters,
+                state.progress!.grammarQueue,
+                state.progress!.completedChapters ?? [],
+                isTeachable
+            );
+            if (newlyCompleted.length === 0 || cancelled) return;
+
+            const contrasts = await GrammarService.loadContrasts();
+            if (cancelled) return;
+
+            for (const chapterId of newlyCompleted) {
+                const focusPointIds = selectChapterEndFocusIds(contrasts, chapterId);
+                if (focusPointIds.length === 0) {
+                    // Nothing to review - acknowledge immediately, no step shown.
+                    dispatch({ type: 'GRAMMAR_CHAPTER_COMPLETE', payload: { chapterId } });
+                    continue;
+                }
+                const chapter = teachingOrder.chapters.find(c => c.id === chapterId);
+                if (chapter && !cancelled) {
+                    setPendingChapterLesson({ chapterId, chapterTitle: chapter.title, focusPointIds });
+                }
+                // Show one at a time - the rest (if any) are picked up once this
+                // one is dismissed and the effect re-runs against the updated
+                // completedChapters.
+                break;
+            }
+        })();
+
+        return () => { cancelled = true; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [state.progress?.grammarQueue, state.progress?.completedChapters]);
 
     const grammarNextView = useMemo(
         () => selectNextGrammarView(state, hasMoreLearnableGrammar),
@@ -178,7 +253,7 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
             if (needsCandidates) {
                 const { newCandidates: loaded, criticalErrorId } = await refillCandidates<GrammarPoint>({
                     existing: state.grammarIntroCandidates,
-                    batchSize: CONSTANTS.srs.newVocabBatchSize,
+                    batchSize: CONSTANTS.srs.grammar.newBatchSize,
                     getNextIds: (maxToFind, ignored) => GrammarSRSService.getNextCandidates(updatedQueue, maxToFind, ignored),
                     loadItem: (id) => GrammarService.loadGrammarPoint(id),
                     logLabel: 'useGrammarOrchestration',
@@ -272,6 +347,11 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
             if (!state.progress) return;
             dispatch({ type: 'GRAMMAR_INTRO_CHOICE', choice, grammarId: grammarPoint.id, grammarPoint });
         },
+
+        dismissGrammarChapterLesson(chapterId) {
+            setPendingChapterLesson(null);
+            dispatch({ type: 'GRAMMAR_CHAPTER_COMPLETE', payload: { chapterId } });
+        },
     };
 
     /* ---------- Load grammar point ---------- */
@@ -364,5 +444,14 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
         isGrammarReady: !!state.currentGrammarPoint && !state.isLoadingGrammar,
     };
 
-    return { grammarActions, grammarNextView, currentGrammarProgress, grammarComputed, nextGrammarSessionPreview, grammarSessionStats };
+    return {
+        grammarActions,
+        grammarNextView,
+        currentGrammarProgress,
+        grammarComputed,
+        nextGrammarSessionPreview,
+        grammarSessionStats,
+        nextGrammarChapterTitle: nextChapterTitle,
+        pendingGrammarChapterLesson: pendingChapterLesson,
+    };
 }

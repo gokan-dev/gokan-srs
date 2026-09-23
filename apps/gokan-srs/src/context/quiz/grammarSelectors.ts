@@ -1,4 +1,4 @@
-import type { GrammarExample, GrammarPoint, GrammarProgress } from '../../models/grammar.model';
+import type { GrammarChapter, GrammarContrastIndex, GrammarExample, GrammarPoint, GrammarProgress } from '../../models/grammar.model';
 import type { UserProgress } from '../../models/user.model';
 import type { SessionState } from '../../models/state.model';
 import { isGrammarDue, grammarNextReviewAt } from '../../services/grammarScheduling';
@@ -816,4 +816,64 @@ export function selectNextGrammarSessionPreview(
         isNew: g => g.totalReviews === 0,
         isDue: g => isGrammarDue(g, now),
     });
+}
+
+/**
+ * Every id, in a stable order, that is the FOCUS of a contrast case belonging
+ * to a lesson anchored to `chapterId` (lesson.taughtInChapterId). This is the
+ * set of points the end-of-chapter review step renders - one GrammarContrastCard
+ * per id, reusing exactly the same component the per-point intro-time card
+ * uses (see GrammarChapterLessonCard). Pure and testable independent of the
+ * async data loading that supplies `contrasts`.
+ *
+ * Deliberately collects by FOCUS point rather than by lesson: GrammarContrastCard
+ * already resolves "every ready case for this point" on its own via
+ * selectReadyContrasts, so handing it one id per focus is enough - no need to
+ * pass case-level detail through this selector.
+ */
+export function selectChapterEndFocusIds(contrasts: GrammarContrastIndex, chapterId: string): string[] {
+    const seen = new Set<string>();
+    const ids: string[] = [];
+
+    for (const family of Object.values(contrasts)) {
+        for (const lesson of family.lessons) {
+            if (lesson.taughtInChapterId !== chapterId) continue;
+            for (const c of lesson.cases) {
+                if (seen.has(c.focus)) continue;
+                seen.add(c.focus);
+                ids.push(c.focus);
+            }
+        }
+    }
+
+    return ids;
+}
+
+/**
+ * Chapters that have just become fully introduced (every TEACHABLE point in
+ * the chapter has introductionAt set) and are not already in
+ * `completedChapters`. "Teachable" mirrors GrammarSRSService's own gate: a
+ * chapter containing an inflection point with no conjugation drill items can
+ * never have that point introduced, so requiring it would strand the chapter
+ * incomplete forever.
+ *
+ * Pure - `isTeachable` is passed in rather than fetched here, so this can be
+ * tested without mocking GrammarService. Order follows `chapters`, so when
+ * more than one completes in the same tick (e.g. after a Drive merge brings in
+ * a large chunk of remote progress at once) they are handled in curriculum
+ * order.
+ */
+export function selectNewlyCompletedChapterIds(
+    chapters: GrammarChapter[],
+    grammarQueue: GrammarProgress[],
+    completedChapters: string[],
+    isTeachable: (id: string) => boolean
+): string[] {
+    const introducedIds = new Set(grammarQueue.filter(g => g.introductionAt !== null).map(g => g.grammarId));
+    const completed = new Set(completedChapters);
+
+    return chapters
+        .filter(chapter => !completed.has(chapter.id))
+        .filter(chapter => chapter.points.every(id => !isTeachable(id) || introducedIds.has(id)))
+        .map(chapter => chapter.id);
 }

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQuiz } from "../../context/useQuiz";
 import { ActivityStatusCard } from "../../components/ActivityStatusCard";
@@ -6,6 +7,7 @@ import type { SessionHistoryEntry } from "../../components/SessionProgress";
 import { GrammarIntroCard } from "./GrammarIntroCard";
 import { GrammarQuizCard } from "./GrammarQuizCard";
 import { GrammarConjugationCard } from "./GrammarConjugationCard";
+import { GrammarChapterLessonCard } from "./GrammarChapterLessonCard";
 
 /**
  * Route /grammar - the Grammar activity, alongside the vocab quiz on /quiz.
@@ -14,7 +16,23 @@ import { GrammarConjugationCard } from "./GrammarConjugationCard";
  * GrammarSessionState in grammarSelectors.ts).
  */
 export function GrammarScreen() {
-    const { state, grammarSessionState, grammarNextReviewAt, shouldShowGrammarIntro, grammarActions, grammarSessionStats } = useQuiz();
+    const {
+        state,
+        grammarSessionState,
+        grammarNextReviewAt,
+        shouldShowGrammarIntro,
+        grammarActions,
+        grammarSessionStats,
+        pendingGrammarChapterLesson,
+    } = useQuiz();
+
+    const knownGrammarIds = useMemo(() => {
+        const ids = new Set<string>();
+        for (const g of state.progress?.grammarQueue ?? []) {
+            if (g.introductionAt) ids.add(g.grammarId);
+        }
+        return ids;
+    }, [state.progress?.grammarQueue]);
 
     switch (grammarSessionState) {
         case "waiting": {
@@ -46,6 +64,20 @@ export function GrammarScreen() {
 
         case "review":
         case "learn": {
+            // A finished chapter's review step takes priority over the loading
+            // gate and the next intro/quiz card - it is a deliberate pause on a
+            // now-complete set, not a card the queue serves.
+            if (pendingGrammarChapterLesson) {
+                return (
+                    <GrammarChapterLessonCard
+                        chapterTitle={pendingGrammarChapterLesson.chapterTitle}
+                        focusPointIds={pendingGrammarChapterLesson.focusPointIds}
+                        knownIds={knownGrammarIds}
+                        onContinue={() => grammarActions.dismissGrammarChapterLesson(pendingGrammarChapterLesson.chapterId)}
+                    />
+                );
+            }
+
             if (state.isLoadingGrammar || !state.currentGrammarPoint) {
                 return (
                     <div className="flex items-center justify-center">

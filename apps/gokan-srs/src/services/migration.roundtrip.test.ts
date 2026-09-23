@@ -157,6 +157,18 @@ describe('Migration round-trip (zero data loss)', () => {
         expect(hydrated.stats.totalLearned).toBe(312);
     });
 
+    it('completedChapters defaults to [] when absent from the snapshot, and survives a round trip when present', () => {
+        const withoutField = migrateAndHydrateProgress(structuredClone(rawProductionSnapshot));
+        expect(withoutField.completedChapters).toEqual([]);
+
+        const withField = { ...structuredClone(rawProductionSnapshot), completedChapters: ['n5-c01', 'n5-c16'] };
+        const hydrated = migrateAndHydrateProgress(withField);
+        const reparsed = JSON.parse(JSON.stringify(toPlainProgressJSON(hydrated)));
+        const rehydrated = migrateAndHydrateProgress(reparsed);
+
+        expect(rehydrated.completedChapters).toEqual(['n5-c01', 'n5-c16']);
+    });
+
     it('is idempotent: migrating an already-migrated snapshot a second time changes nothing observable', () => {
         const firstPass = migrateAndHydrateProgress(structuredClone(rawProductionSnapshot));
         const serialized = toPlainProgressJSON(firstPass);

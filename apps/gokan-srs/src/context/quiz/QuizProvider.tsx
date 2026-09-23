@@ -13,6 +13,7 @@ import type { QuizState } from './quizReducer';
 import type { SessionStats, NextSessionPreview } from './quizSelectors';
 import { useQuizOrchestration } from './useQuizOrchestration';
 import { useGrammarOrchestration } from './useGrammarOrchestration';
+import type { PendingGrammarChapterLesson } from './useGrammarOrchestration';
 import type { GrammarSessionState, NextGrammarSessionPreview, GrammarSessionStats } from './grammarSelectors';
 
 export interface QuizContextValue {
@@ -62,6 +63,10 @@ export interface QuizContextValue {
     nextGrammarSessionPreview: NextGrammarSessionPreview;
     /** Progress counter for the active grammar study session (done/total, retries, waiting) - mirrors sessionStats. */
     grammarSessionStats: GrammarSessionStats;
+    /** Title of the chapter the next NEW grammar point would begin - null once nothing is left to introduce, or before it's loaded. */
+    nextGrammarChapterTitle: string | null;
+    /** The end-of-chapter review step, when a chapter has just completed and has anchored contrast lessons - null otherwise. */
+    pendingGrammarChapterLesson: PendingGrammarChapterLesson | null;
     grammarActions: {
         setGrammarAnswer(index: number, value: string): void;
         revealGrammarHint(index: number): void;
@@ -69,6 +74,7 @@ export interface QuizContextValue {
         advanceGrammarQueue(): Promise<void>;
         continueGrammarToNext(): Promise<void>;
         saveGrammarIntroChoice(grammarPoint: GrammarPoint, choice: 'learn' | 'skip'): void;
+        dismissGrammarChapterLesson(chapterId: string): void;
     };
     grammarComputed: {
         canSubmitGrammar: boolean;
@@ -92,6 +98,8 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         grammarComputed,
         nextGrammarSessionPreview,
         grammarSessionStats,
+        nextGrammarChapterTitle,
+        pendingGrammarChapterLesson,
     } = useGrammarOrchestration(state, dispatch);
 
     return (
@@ -113,6 +121,8 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 shouldShowGrammarIntro: grammarNextView.shouldShowIntro,
                 nextGrammarSessionPreview,
                 grammarSessionStats,
+                nextGrammarChapterTitle,
+                pendingGrammarChapterLesson,
                 grammarActions,
                 grammarComputed,
             }}

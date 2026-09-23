@@ -14,7 +14,15 @@ import { GrammarQuizSettings } from '../settings/sections/GrammarQuizSettings';
  * they aren't activities themselves. See issue #16.
  */
 export const MainScreen: React.FC = () => {
-    const { state, actions, nextReviewAt, nextSessionPreview, grammarNextReviewAt, nextGrammarSessionPreview } = useQuiz();
+    const {
+        state,
+        actions,
+        nextReviewAt,
+        nextSessionPreview,
+        grammarNextReviewAt,
+        nextGrammarSessionPreview,
+        nextGrammarChapterTitle,
+    } = useQuiz();
     const navigate = useNavigate();
 
     return (
@@ -42,6 +50,7 @@ export const MainScreen: React.FC = () => {
                 <GrammarActivityCard
                     preview={nextGrammarSessionPreview}
                     nextReviewAt={grammarNextReviewAt}
+                    nextChapterTitle={nextGrammarChapterTitle}
                     onClick={() => navigate('/grammar')}
                     settings={
                         <QuizSettingsMenu title="Grammar quiz settings">
@@ -154,13 +163,22 @@ const QuizActivityCard: React.FC<{
 const GrammarActivityCard: React.FC<{
     preview: SessionPreview;
     nextReviewAt: Date | null;
+    /** The chapter the next NEW point would begin, named alongside the review/new/retry counts so the curriculum's arrangement is visible before the session starts. Null once nothing is left to introduce. */
+    nextChapterTitle: string | null;
     onClick: () => void;
     settings: React.ReactNode;
-}> = ({ preview, nextReviewAt, onClick, settings }) => (
+}> = ({ preview, nextReviewAt, nextChapterTitle, onClick, settings }) => (
     <ActivityCard
         icon={<Puzzle size={22} className="text-accent" />}
         title="Grammar quiz session"
-        description={renderSessionPreviewDescription(preview, nextReviewAt)}
+        description={
+            <>
+                {renderSessionPreviewDescription(preview, nextReviewAt)}
+                {nextChapterTitle && preview.new > 0 && (
+                    <span className="block text-tertiary">Next chapter: {nextChapterTitle}</span>
+                )}
+            </>
+        }
         onClick={onClick}
         settings={settings}
     />

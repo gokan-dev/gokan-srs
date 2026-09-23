@@ -229,6 +229,12 @@ export function mergeProgress(
     const mergedKanjiKnowledge = remoteVersion > localVersion ? remote.kanjiKnowledge : local.kanjiKnowledge;
     const mergedQueue = mergeLearningQueues(local.learningQueue, remote.learningQueue, settings);
     const mergedGrammarQueue = mergeGrammarQueues(local.grammarQueue ?? [], remote.grammarQueue ?? []);
+    // Pure union, like mergeGrammarQueues: a chapter step shown on one device
+    // must not un-show on another.
+    const mergedCompletedChapters = Array.from(new Set([
+        ...(local.completedChapters ?? []),
+        ...(remote.completedChapters ?? []),
+    ]));
 
     return {
         ...local,
@@ -240,6 +246,7 @@ export function mergeProgress(
         kanjiKnowledge: mergedKanjiKnowledge,
         learningQueue: mergedQueue,
         grammarQueue: mergedGrammarQueue,
+        completedChapters: mergedCompletedChapters,
         dailyOverride: local.dailyOverride || remote.dailyOverride,
         _sync: {
             lastModified: Date.now(),

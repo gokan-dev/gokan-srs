@@ -221,6 +221,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                 kanjiKnowledge,
                 learningQueue: [],
                 grammarQueue: [],
+                completedChapters: [],
                 stats: {
                     newLearnedToday: 0,
                     totalLearned: 0,

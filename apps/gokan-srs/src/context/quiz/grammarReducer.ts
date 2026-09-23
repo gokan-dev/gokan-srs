@@ -199,6 +199,7 @@ export type GrammarQuizAction =
     | { type: 'GRAMMAR_CLEAR_FEEDBACK' }
     | { type: 'GRAMMAR_SESSION_START'; payload: { grammarIds: string[]; progress?: UserProgress } }
     | { type: 'GRAMMAR_SESSION_END' }
+    | { type: 'GRAMMAR_CHAPTER_COMPLETE'; payload: { chapterId: string } }
     | { type: 'GRAMMAR_RESET_PROGRESS'; payload: { progress: UserProgress } };
 
 /** Every grammar action is prefixed GRAMMAR_ so quizReducer can delegate to this module without the two action unions needing to know about each other's cases. */
@@ -331,6 +332,23 @@ export function grammarReducer(state: QuizState, action: GrammarQuizAction): Qui
 
         case 'GRAMMAR_SESSION_END':
             return state.grammarSession ? { ...state, grammarSession: null } : state;
+
+        /**
+         * Records that a chapter's end-of-chapter step has been handled - either
+         * shown and acknowledged, or (a chapter with no anchored lessons)
+         * silently skipped. Union-style add: a no-op if the id is already
+         * present, so a duplicate dispatch (e.g. two effects racing after a
+         * Drive merge) can't grow the array.
+         */
+        case 'GRAMMAR_CHAPTER_COMPLETE': {
+            if (!state.progress) return state;
+            const existing = state.progress.completedChapters ?? [];
+            if (existing.includes(action.payload.chapterId)) return state;
+            return {
+                ...state,
+                progress: { ...state.progress, completedChapters: [...existing, action.payload.chapterId] },
+            };
+        }
 
         case 'GRAMMAR_INTRO_CHOICE': {
             if (!state.progress) return state;

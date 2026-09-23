@@ -260,6 +260,9 @@ export class MigrationService {
             ...progress,
             learningQueue: migratedQueue,
             grammarQueue: migratedGrammarQueue,
+            // Purely additive, like grammarQueue itself - just default to [] on
+            // every load, unconditionally, no version gate needed.
+            completedChapters: progress.completedChapters ?? [],
             adaptive: progress.adaptive ?? { level: 1.0, history: [] },
             _formatVersion: currentVersion < SYNC_MIGRATION_VERSION ? SYNC_MIGRATION_VERSION : currentVersion
         };

@@ -8,10 +8,12 @@ import {
     collectActionableGrammarIds,
     selectGrammarSessionStats,
     summariseVocabGains,
+    selectChapterEndFocusIds,
+    selectNewlyCompletedChapterIds,
 } from './grammarSelectors';
 import type { QuizState } from './quizReducer';
 import type { UserProgress } from '../../models/user.model';
-import type { GrammarPoint, GrammarProgress } from '../../models/grammar.model';
+import type { GrammarChapter, GrammarContrastIndex, GrammarPoint, GrammarProgress } from '../../models/grammar.model';
 import { DEFAULT_GRAMMAR_PROGRESS } from '../../models/grammar.model';
 import type { VocabProgress } from '../../models/vocabulary.model';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../../models/vocabulary.model';
@@ -28,6 +30,7 @@ function makeProgress(overrides: Partial<UserProgress> = {}): UserProgress {
         kanjiKnowledge: { method: 'kklc', step: 10, kanjiSet: new Set() },
         learningQueue: [],
         grammarQueue: [],
+        completedChapters: [],
         stats: { newLearnedToday: 0, totalLearned: 0, totalReviews: 0 },
         dailyOverride: false,
         adaptive: { level: 1.0, history: [] },
@@ -1063,5 +1066,121 @@ describe('family interchange (issue #62): slot-gated, axis-tiered', () => {
         const plan = (await computeBlankPlan(noSlot, makeProgress({ learningQueue: [] }), 0))!;
         expect(plan.acceptLists[0]).toEqual(['けど']);
         expect(plan.acceptListsMinor?.[0] ?? []).toEqual([]);
+    });
+});
+
+describe('selectChapterEndFocusIds', () => {
+    function makeContrasts(overrides: Partial<GrammarContrastIndex> = {}): GrammarContrastIndex {
+        return {
+            causality: {
+                name: 'Causality',
+                lessons: [
+                    {
+                        id: 'reason-core',
+                        title: 'から / ので',
+                        points: ['n5-073', 'n4-110'],
+                        cases: [{ focus: 'n4-110', vs: ['n5-073'], situation: 's', guidance: 'g' }],
+                        taughtInChapterId: 'n4-c12',
+                    },
+                    {
+                        id: 'reason-written',
+                        title: 'だから / なぜなら',
+                        points: ['n5-073', 'n5-088', 'n3-072'],
+                        cases: [{ focus: 'n3-072', vs: ['n5-088'], situation: 's2', guidance: 'g2' }],
+                        taughtInChapterId: 'n5-c16',
+                    },
+                ],
+            },
+            ...overrides,
+        };
+    }
+
+    it('collects the focus ids of lessons anchored to the given chapter', () => {
+        expect(selectChapterEndFocusIds(makeContrasts(), 'n4-c12')).toEqual(['n4-110']);
+        expect(selectChapterEndFocusIds(makeContrasts(), 'n5-c16')).toEqual(['n3-072']);
+    });
+
+    it('returns nothing for a chapter with no anchored lessons', () => {
+        expect(selectChapterEndFocusIds(makeContrasts(), 'n1-c99')).toEqual([]);
+    });
+
+    it('dedupes when two cases in different lessons share the same focus and anchor', () => {
+        const contrasts = makeContrasts({
+            causality: {
+                name: 'Causality',
+                lessons: [
+                    {
+                        id: 'a', title: 'a', points: ['n4-110', 'n5-073'],
+                        cases: [{ focus: 'n4-110', vs: ['n5-073'], situation: 's', guidance: 'g' }],
+                        taughtInChapterId: 'n4-c12',
+                    },
+                    {
+                        id: 'b', title: 'b', points: ['n4-110', 'n5-088'],
+                        cases: [{ focus: 'n4-110', vs: ['n5-088'], situation: 's2', guidance: 'g2' }],
+                        taughtInChapterId: 'n4-c12',
+                    },
+                ],
+            },
+        });
+        expect(selectChapterEndFocusIds(contrasts, 'n4-c12')).toEqual(['n4-110']);
+    });
+
+    it('ignores families with no lessons at all (interchangeable-only)', () => {
+        const contrasts: GrammarContrastIndex = {
+            'regardless-a-or-b': { name: 'Regardless', lessons: [], interchangeable: ['n1-a', 'n1-b'] },
+        };
+        expect(selectChapterEndFocusIds(contrasts, 'n1-c01')).toEqual([]);
+    });
+});
+
+describe('selectNewlyCompletedChapterIds', () => {
+    const chapters: GrammarChapter[] = [
+        { id: 'c01', title: 'C1', summary: '', jlptLevel: 5, points: ['n5-a', 'n5-b'] },
+        { id: 'c02', title: 'C2', summary: '', jlptLevel: 5, points: ['n5-c'] },
+    ];
+    const alwaysTeachable = () => true;
+
+    it('reports a chapter complete once every point is introduced', () => {
+        const queue = [
+            makeGrammarProgress({ grammarId: 'n5-a', introductionAt: now }),
+            makeGrammarProgress({ grammarId: 'n5-b', introductionAt: now }),
+        ];
+        expect(selectNewlyCompletedChapterIds(chapters, queue, [], alwaysTeachable)).toEqual(['c01']);
+    });
+
+    it('does not report a chapter with an un-introduced point', () => {
+        const queue = [makeGrammarProgress({ grammarId: 'n5-a', introductionAt: now })];
+        expect(selectNewlyCompletedChapterIds(chapters, queue, [], alwaysTeachable)).toEqual([]);
+    });
+
+    it('excludes a chapter already recorded as completed', () => {
+        const queue = [
+            makeGrammarProgress({ grammarId: 'n5-a', introductionAt: now }),
+            makeGrammarProgress({ grammarId: 'n5-b', introductionAt: now }),
+        ];
+        expect(selectNewlyCompletedChapterIds(chapters, queue, ['c01'], alwaysTeachable)).toEqual([]);
+    });
+
+    it('a chapter with an untestable point completes once every OTHER point is introduced', () => {
+        const isTeachable = (id: string) => id !== 'n5-b';
+        const queue = [makeGrammarProgress({ grammarId: 'n5-a', introductionAt: now })];
+        expect(selectNewlyCompletedChapterIds(chapters, queue, [], isTeachable)).toEqual(['c01']);
+    });
+
+    it('reports every newly-completed chapter, in chapter order', () => {
+        const queue = [
+            makeGrammarProgress({ grammarId: 'n5-a', introductionAt: now }),
+            makeGrammarProgress({ grammarId: 'n5-b', introductionAt: now }),
+            makeGrammarProgress({ grammarId: 'n5-c', introductionAt: now }),
+        ];
+        expect(selectNewlyCompletedChapterIds(chapters, queue, [], alwaysTeachable)).toEqual(['c01', 'c02']);
+    });
+
+    it('a queued-but-not-yet-introduced point does not count', () => {
+        const queue = [
+            makeGrammarProgress({ grammarId: 'n5-a', introductionAt: now }),
+            makeGrammarProgress({ grammarId: 'n5-b', introductionAt: null }),
+        ];
+        expect(selectNewlyCompletedChapterIds(chapters, queue, [], alwaysTeachable)).toEqual([]);
     });
 });

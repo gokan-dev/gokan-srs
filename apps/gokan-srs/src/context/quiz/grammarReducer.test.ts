@@ -10,6 +10,7 @@ function makeProgress(overrides: Partial<UserProgress> = {}): UserProgress {
         kanjiKnowledge: { method: 'kklc', step: 10, kanjiSet: new Set(['日']) },
         learningQueue: [],
         grammarQueue: [],
+        completedChapters: [],
         stats: { newLearnedToday: 0, totalLearned: 0, totalReviews: 0 },
         dailyOverride: false,
         adaptive: { level: 1.0, history: [] },
@@ -240,6 +241,25 @@ describe('grammarReducer (via quizReducer)', () => {
 
         it('GRAMMAR_SESSION_END is a no-op (same reference) when no session is active', () => {
             const next = quizReducer(initialState, { type: 'GRAMMAR_SESSION_END' });
+            expect(next).toBe(initialState);
+        });
+    });
+
+    describe('GRAMMAR_CHAPTER_COMPLETE', () => {
+        it('appends the chapter id to completedChapters', () => {
+            const state: QuizState = { ...initialState, progress: makeProgress({ completedChapters: ['c00'] }) };
+            const next = quizReducer(state, { type: 'GRAMMAR_CHAPTER_COMPLETE', payload: { chapterId: 'c01' } });
+            expect(next.progress!.completedChapters).toEqual(['c00', 'c01']);
+        });
+
+        it('is a no-op (same reference) when the chapter is already recorded', () => {
+            const state: QuizState = { ...initialState, progress: makeProgress({ completedChapters: ['c01'] }) };
+            const next = quizReducer(state, { type: 'GRAMMAR_CHAPTER_COMPLETE', payload: { chapterId: 'c01' } });
+            expect(next).toBe(state);
+        });
+
+        it('is a no-op when there is no progress to update', () => {
+            const next = quizReducer(initialState, { type: 'GRAMMAR_CHAPTER_COMPLETE', payload: { chapterId: 'c01' } });
             expect(next).toBe(initialState);
         });
     });
