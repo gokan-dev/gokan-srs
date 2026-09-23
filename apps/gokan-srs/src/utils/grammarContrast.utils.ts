@@ -13,7 +13,7 @@ export function selectReadyContrasts(
     forFocus: GrammarContrastForFocus[],
     knownIds: Set<string>,
 ): GrammarContrastForFocus[] {
-    return forFocus.filter(c => c.unit.vs.every(id => knownIds.has(id)));
+    return forFocus.filter(c => c.case.vs.every(id => knownIds.has(id)));
 }
 
 /**

@@ -15,7 +15,7 @@ type FamilyEntry = GrammarContrastIndex[string];
  * Route /grammar/family/:familyId - the revisitable home for a near-synonym
  * family's contrast lessons (issue #62). The situational "which one, and when"
  * cards surface once at a point's introduction; this page is where a learner
- * comes back to compare the whole family deliberately, so every unit is shown
+ * comes back to compare the whole family deliberately, so every case is shown
  * here regardless of what has been introduced yet.
  */
 export default function GrammarFamilyScreen() {
@@ -38,7 +38,7 @@ export default function GrammarFamilyScreen() {
             const map = new Map<string, GrammarPoint>();
             if (found) {
                 const ids = Array.from(new Set([
-                    ...found.chunks.flatMap(c => c.memberIds),
+                    ...found.lessons.flatMap(c => c.points),
                     ...(found.interchangeable ?? []),
                 ]));
                 const loaded = await Promise.all(ids.map(id => GrammarService.loadGrammarPoint(id).catch(() => null)));
@@ -67,7 +67,7 @@ export default function GrammarFamilyScreen() {
     // A family with neither lessons nor interchangeable members has nothing to
     // say. One with only interchangeable members has exactly one thing to say,
     // and it is worth saying - see `interchangeable` in the model.
-    if (!entry || (entry.chunks.length === 0 && (entry.interchangeable?.length ?? 0) === 0)) {
+    if (!entry || (entry.lessons.length === 0 && (entry.interchangeable?.length ?? 0) === 0)) {
         return (
             <div className="min-h-screen flex items-center justify-center p-4 text-center">
                 <div>
@@ -90,24 +90,24 @@ export default function GrammarFamilyScreen() {
 
             <h1 className="text-2xl font-serif font-semibold text-primary mb-1">{entry.name}</h1>
             <p className="text-secondary font-serif text-sm mb-6">
-                {entry.chunks.length > 0
+                {entry.lessons.length > 0
                     ? "These express the same core idea. What separates them is when to reach for each one."
                     : "These express the same core idea, and nothing reliably separates them."}
             </p>
 
             <div className="space-y-6">
-                {entry.chunks.map(chunk => (
-                    <Card key={chunk.id} size="md">
-                        <h2 className="text-lg font-gothic font-semibold text-primary mb-3">{chunk.label}</h2>
+                {entry.lessons.map(lesson => (
+                    <Card key={lesson.id} size="md">
+                        <h2 className="text-lg font-gothic font-semibold text-primary mb-3">{lesson.title}</h2>
 
-                        <MemberChips ids={chunk.memberIds} members={members} knownIds={knownIds} />
+                        <PointChips ids={lesson.points} members={members} knownIds={knownIds} />
 
                         <div className="space-y-3">
-                            {chunk.units.map((unit, i) => (
-                                <div key={`${chunk.id}-${i}`} className="border-l-2 border-accent/40 pl-3">
+                            {lesson.cases.map((c, i) => (
+                                <div key={`${lesson.id}-${i}`} className="border-l-2 border-accent/40 pl-3">
                                     <p className="text-primary font-serif text-sm leading-relaxed">
-                                        <span className="font-semibold">{unit.situation}</span>{" "}
-                                        {unit.guidance}
+                                        <span className="font-semibold">{c.situation}</span>{" "}
+                                        {c.guidance}
                                     </p>
                                 </div>
                             ))}
@@ -120,7 +120,7 @@ export default function GrammarFamilyScreen() {
                         <h2 className="text-lg font-gothic font-semibold text-primary mb-3">
                             Interchangeable
                         </h2>
-                        <MemberChips ids={entry.interchangeable} members={members} knownIds={knownIds} />
+                        <PointChips ids={entry.interchangeable} members={members} knownIds={knownIds} />
                         <p className="text-primary font-serif text-sm leading-relaxed">
                             There is no rule to learn here. These forms say the same thing in the same
                             register, and choosing between them is a matter of feel rather than of fit.
@@ -133,8 +133,8 @@ export default function GrammarFamilyScreen() {
     );
 }
 
-/** The family's members as links, shared by the lesson chunks and the interchangeable note. */
-function MemberChips({ ids, members, knownIds }: { ids: string[]; members: Map<string, GrammarPoint>; knownIds: Set<string> }) {
+/** The family's points as links, shared by the lessons and the interchangeable note. */
+function PointChips({ ids, members, knownIds }: { ids: string[]; members: Map<string, GrammarPoint>; knownIds: Set<string> }) {
     return (
         <div className="flex flex-wrap gap-2 mb-4">
             {ids.map(id => {

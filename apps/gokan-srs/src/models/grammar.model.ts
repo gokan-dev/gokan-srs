@@ -185,15 +185,15 @@ export interface GrammarTeachingOrder {
 }
 
 /**
- * One directed contrast lesson: teaches when to reach for `focus` rather than
- * the `vs` sibling(s) it is most confused with, in a concrete situation.
+ * One CASE inside a lesson: a concrete situation, which point to reach for in
+ * it, and why the obvious alternative does not fit.
  * Compiled from the dataset's `data/raw/grammar/contrasts.json` into
- * `compiled/grammar/index/contrasts.json`. Directed so `focus` is the member met
+ * `compiled/grammar/index/contrasts.json`. Directed so `focus` is the point met
  * LATER in the teaching order: by the time it is introduced the `vs` siblings
- * are already known, so the app surfaces the unit at `focus`'s introduction
+ * are already known, so the app surfaces the case at `focus`'s introduction
  * (deferring it if a `vs` sibling isn't known yet) and on the family page.
  */
-export interface GrammarContrastUnit {
+export interface GrammarContrastCase {
     focus: string;
     vs: string[];
     situation: string;
@@ -201,34 +201,42 @@ export interface GrammarContrastUnit {
 }
 
 /**
- * A CHUNK: a confusability-first sub-grouping of a family - a small set of
- * members (target 5-6, soft cap) close enough to be actively disambiguated
- * together, like interleaving look-alike kanji. A small family can be one chunk.
- * A lesson (unit) is always a subset of one chunk.
+ * A LESSON: a confusability-first sub-grouping of a family - a small set of
+ * points (target 5-6, soft cap) close enough to be actively disambiguated
+ * together, like interleaving look-alike kanji. A small family can be one
+ * lesson; a large one is split. Every case belongs to one lesson and may only
+ * name points that lesson covers.
+ *
+ * A lesson is NOT a chapter. A chapter is a slot in the introduction order; a
+ * lesson is a set of confusable points. They are unrelated groupings, and a
+ * lesson may span chapters - see `taughtInChapterId`.
  */
-export interface GrammarContrastChunk {
+export interface GrammarContrastLesson {
     id: string;
-    label: string;
-    memberIds: string[];
-    units: GrammarContrastUnit[];
+    /** Short display title, e.g. "から / ので". */
+    title: string;
+    /** The confusable points this lesson covers. */
+    points: string[];
+    /** The situations taught here. Each case's focus/vs are a subset of `points`. */
+    cases: GrammarContrastCase[];
     /**
-     * The chapter this chunk's lesson can first be taught in: the chapter of
-     * whichever member the teaching order introduces LAST, stamped at dataset
+     * The chapter this lesson can first be taught in: the chapter of whichever
+     * point it covers the teaching order introduces LAST, stamped at dataset
      * build time. The app does not gate on it (the `vs`-known check in
      * `selectReadyContrasts` is the runtime equivalent, and is per-learner
      * rather than per-curriculum), but it is what a chapter-end lesson would
      * key off if the grammar session ever grows one.
      */
-    anchorChapterId?: string;
+    taughtInChapterId?: string;
 }
 
 /**
- * Family id -> its authored contrast chunks, from
+ * Family id -> its authored contrast lessons, from
  * `compiled/grammar/index/contrasts.json`.
  */
 export type GrammarContrastIndex = Record<string, {
     name: string;
-    chunks: GrammarContrastChunk[];
+    lessons: GrammarContrastLesson[];
     /**
      * The family's `variant`-axis members, when it has two or more: siblings
      * that are genuinely interchangeable, so no lesson exists or could exist
@@ -237,7 +245,7 @@ export type GrammarContrastIndex = Record<string, {
      * literary forms with no comment assumes a distinction exists and goes
      * looking for one.
      *
-     * A family can carry this and NO chunks at all, so `chunks: []` is a valid
+     * A family can carry this and NO lessons at all, so `lessons: []` is a valid
      * entry rather than a missing one.
      */
     interchangeable?: string[];
@@ -253,13 +261,13 @@ export interface GrammarInterchangeableForPoint {
     siblings: string[];
 }
 
-/** A contrast unit flattened with the family/chunk context it came from, keyed for lookup by its focus point. */
+/** A contrast case flattened with the family/lesson context it came from, keyed for lookup by its focus point. */
 export interface GrammarContrastForFocus {
     familyId: string;
     familyName: string;
-    chunkId: string;
-    chunkLabel: string;
-    unit: GrammarContrastUnit;
+    lessonId: string;
+    lessonTitle: string;
+    case: GrammarContrastCase;
 }
 
 /**
