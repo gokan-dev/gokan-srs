@@ -524,7 +524,8 @@ Handles data format upgrades to ensure backward compatibility.
 
 **Two-tier version scheme:**
 - `SYNC_MIGRATION_VERSION` (7): the ceiling the **synchronous** pass (`migrateUserProgress`) can ever stamp on its own.
-- `CURRENT_FORMAT_VERSION` (8): the true terminal version, reachable **only** after the **async** homograph-merge pass (`migrateMergedVocabsAsync`) has actually run.
+- `MERGED_VOCAB_VERSION` (8): the version the **async** homograph-merge pass (`migrateMergedVocabsAsync`) reaches.
+- `CURRENT_FORMAT_VERSION` (11): the true terminal version, reachable **only** after the second **async** pass, `migrateGrammarQueueIdsAsync`, has also run. Both async passes need a network fetch, which is why they sit behind `needsMigration()` rather than in the synchronous pass.
 
 Previously both were the same constant, so the cheap synchronous pass could stamp the terminal version on its own and pre-empt the async pass entirely - `needsMigration()` would report `false` immediately after a single synchronous load, and the homograph-merge migration (which needs a network fetch) would silently never run. `migrateUserProgress` now caps at `SYNC_MIGRATION_VERSION`, so `needsMigration()` correctly keeps reporting `true` until the async pass has actually completed.
 
@@ -534,6 +535,7 @@ Previously both were the same constant, so the cheap synchronous pass could stam
 - Recomputes `nextReviewAt` unconditionally via `scheduling.ts` on every load, retroactively correcting any value written before that derivation existed
 - `grammarQueue` (issue #17) is a purely additive field, so it needs no version-gated pass at all - `migrateUserProgress` just fills `DEFAULT_GRAMMAR_PROGRESS` defaults into each item and recomputes its `nextReviewAt` via `grammarScheduling.ts`, unconditionally, every load
 - `completedChapters` is additive the same way - defaults to `[]` unconditionally, no version gate (see Grammar Activity: Chapter-driven introduction)
+- **`migrateGrammarQueueIdsAsync`** transfers a `GrammarProgress` off any id that is no longer introduced on its own, onto the id that replaced it. Two indexes feed one remap, because they strand a stored entry the same way: `index/aliases.json` (points DROPPED as duplicates ingested twice upstream, which 404 on `loadGrammarPoint` while the scheduler still counts them due, so the session can never complete) and `index/variant-groups.json` (points demoted to REALIZATION VARIANTS of a canonical, e.g. じゃ/それじゃ under それでは, or the six どこにも entries for one rule). A variant is the quieter failure: it still loads, so the learner simply keeps drilling it as a separate card beside its canonical, which is the exact duplication collapsing it was meant to remove. Aliases win a collision, since a dropped id cannot be loaded at all. When both ids carry progress the merge keeps the **stronger** entry (higher `memoryStrength`, ties broken by `totalReviews`), then takes the earliest introduction, soonest due date, union of history, and `graduated` if either was - mirroring `migrateMergedVocabsAsync`, so the two merges cannot disagree. **`CURRENT_FORMAT_VERSION` must be bumped whenever either index gains entries**, or a user already at the terminal version never re-runs the pass and their newly-retired ids stay stranded.
 - Idempotent migration (already-migrated data not re-migrated)
 - Automatic migration on data load (Storage & Google Drive)
 

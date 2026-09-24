@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { MigrationService, CURRENT_FORMAT_VERSION } from './migration.service';
 import { CONSTANTS } from '../commons/constants';
 import type { VocabProgress } from '../models/vocabulary.model';
@@ -368,7 +368,7 @@ describe('MigrationService', () => {
         it('should return true at the vocab-merge version (8) - the grammar-alias pass has not run yet', () => {
             // Same shape of regression as version 7 above, one pass later: 8 is the
             // version migrateMergedVocabsAsync reaches, not the terminal one. The
-            // grammar-alias pass (migrateGrammarAliasesAsync) also needs a fetch, so
+            // grammar-alias pass (migrateGrammarQueueIdsAsync) also needs a fetch, so
             // needsMigration() must keep reporting true until it has run too.
             const currentProgress = {
                 _formatVersion: 8,
@@ -593,7 +593,7 @@ describe('MigrationService', () => {
     });
 });
 
-describe('MigrationService.migrateGrammarAliasesAsync', () => {
+describe('MigrationService.migrateGrammarQueueIdsAsync', () => {
     function makeGrammar(overrides: Partial<GrammarProgress> = {}): GrammarProgress {
         return {
             grammarId: 'n5-078',
@@ -619,6 +619,13 @@ describe('MigrationService.migrateGrammarAliasesAsync', () => {
         return { _formatVersion: version, learningQueue: [], grammarQueue };
     }
 
+    beforeEach(() => {
+        // Both indexes feed one remap now, so every test has to stub both or the
+        // un-stubbed one reaches for the network.
+        vi.spyOn(GrammarService, 'loadAliases').mockResolvedValue({});
+        vi.spyOn(GrammarService, 'loadVariantGroups').mockResolvedValue({});
+    });
+
     afterEach(() => {
         vi.restoreAllMocks();
     });
@@ -627,7 +634,7 @@ describe('MigrationService.migrateGrammarAliasesAsync', () => {
         vi.spyOn(GrammarService, 'loadAliases').mockResolvedValue({ 'n4-079': 'n5-078' });
         const progress = makeProgressWith([makeGrammar({ grammarId: 'n4-079' })]);
 
-        const migrated = await MigrationService.migrateGrammarAliasesAsync(progress);
+        const migrated = await MigrationService.migrateGrammarQueueIdsAsync(progress);
 
         expect(migrated.grammarQueue).toHaveLength(1);
         expect(migrated.grammarQueue[0].grammarId).toBe('n5-078');
@@ -658,7 +665,7 @@ describe('MigrationService.migrateGrammarAliasesAsync', () => {
             }),
         ]);
 
-        const migrated = await MigrationService.migrateGrammarAliasesAsync(progress);
+        const migrated = await MigrationService.migrateGrammarQueueIdsAsync(progress);
         const merged = migrated.grammarQueue[0];
 
         expect(migrated.grammarQueue).toHaveLength(1);
@@ -675,7 +682,7 @@ describe('MigrationService.migrateGrammarAliasesAsync', () => {
         vi.spyOn(GrammarService, 'loadAliases').mockResolvedValue({ 'n4-079': 'n5-078' });
         const queue = [makeGrammar({ grammarId: 'n5-001' })];
 
-        const migrated = await MigrationService.migrateGrammarAliasesAsync(makeProgressWith(queue));
+        const migrated = await MigrationService.migrateGrammarQueueIdsAsync(makeProgressWith(queue));
 
         expect(migrated.grammarQueue).toBe(queue); // same reference - no needless rebuild
         expect(migrated._formatVersion).toBe(CURRENT_FORMAT_VERSION);
@@ -687,7 +694,7 @@ describe('MigrationService.migrateGrammarAliasesAsync', () => {
         vi.spyOn(GrammarService, 'loadAliases').mockRejectedValue(new Error('offline'));
         const progress = makeProgressWith([makeGrammar({ grammarId: 'n4-079' })]);
 
-        const migrated = await MigrationService.migrateGrammarAliasesAsync(progress);
+        const migrated = await MigrationService.migrateGrammarQueueIdsAsync(progress);
 
         expect(migrated.grammarQueue[0].grammarId).toBe('n4-079');
         expect(migrated._formatVersion).toBe(8);
@@ -698,7 +705,7 @@ describe('MigrationService.migrateGrammarAliasesAsync', () => {
         const loadAliases = vi.spyOn(GrammarService, 'loadAliases');
         const progress = makeProgressWith([makeGrammar({ grammarId: 'n4-079' })], CURRENT_FORMAT_VERSION);
 
-        const migrated = await MigrationService.migrateGrammarAliasesAsync(progress);
+        const migrated = await MigrationService.migrateGrammarQueueIdsAsync(progress);
 
         expect(migrated).toBe(progress);
         expect(loadAliases).not.toHaveBeenCalled();
@@ -716,10 +723,89 @@ describe('MigrationService.migrateGrammarAliasesAsync', () => {
             CURRENT_FORMAT_VERSION - 1
         );
 
-        const migrated = await MigrationService.migrateGrammarAliasesAsync(progress);
+        const migrated = await MigrationService.migrateGrammarQueueIdsAsync(progress);
 
         expect(migrated.grammarQueue[0].grammarId).toBe('n4-025');
         expect(migrated._formatVersion).toBe(CURRENT_FORMAT_VERSION);
+    });
+
+    it('transfers a realization variant onto its canonical', async () => {
+        // じゃ and それじゃ became realizations of それでは in the curriculum re-cut.
+        // Unlike a dropped id these still LOAD, so without this the learner keeps
+        // drilling them as separate cards beside the canonical - exactly the
+        // duplication collapsing them was meant to remove.
+        vi.spyOn(GrammarService, 'loadVariantGroups').mockResolvedValue({
+            'n5-006': [
+                { id: 'n5-006', relation: 'canonical', title: 'A。それでは、～B。' },
+                { id: 'n5-005', relation: 'contraction', title: 'A。それじゃ、～B。' },
+                { id: 'n5-004', relation: 'contraction', title: 'A。じゃ、～B。' },
+            ],
+        } as any);
+        const progress = makeProgressWith([
+            makeGrammar({ grammarId: 'n5-004', totalReviews: 9, entry: { ...makeGrammar().entry, memoryStrength: 40 } }),
+        ]);
+
+        const migrated = await MigrationService.migrateGrammarQueueIdsAsync(progress);
+
+        expect(migrated.grammarQueue).toHaveLength(1);
+        expect(migrated.grammarQueue[0].grammarId).toBe('n5-006');
+        // The review history moves with it rather than being thrown away.
+        expect(migrated.grammarQueue[0].entry.memoryStrength).toBe(40);
+        expect(migrated.grammarQueue[0].totalReviews).toBe(9);
+    });
+
+    it('collapses a whole variant group the learner met as separate cards', async () => {
+        // どこにも was six upstream entries for one rule. A user from before the
+        // collapse has six SRS items climbing independently; they become one.
+        vi.spyOn(GrammarService, 'loadVariantGroups').mockResolvedValue({
+            'n5-105': [
+                { id: 'n5-105', relation: 'canonical', title: 'どこにも〜ません' },
+                { id: 'n5-104', relation: 'politeness', title: 'どこにも〜ないです' },
+                { id: 'n5-107', relation: 'particle', title: 'どこへも〜ません' },
+            ],
+        } as any);
+        const progress = makeProgressWith([
+            makeGrammar({ grammarId: 'n5-105', totalReviews: 2, entry: { ...makeGrammar().entry, memoryStrength: 5 } }),
+            makeGrammar({ grammarId: 'n5-104', totalReviews: 8, entry: { ...makeGrammar().entry, memoryStrength: 50 } }),
+            makeGrammar({ grammarId: 'n5-107', totalReviews: 1, entry: { ...makeGrammar().entry, memoryStrength: 2 } }),
+        ]);
+
+        const migrated = await MigrationService.migrateGrammarQueueIdsAsync(progress);
+
+        expect(migrated.grammarQueue).toHaveLength(1);
+        expect(migrated.grammarQueue[0].grammarId).toBe('n5-105');
+        // Strongest wins, matching the alias merge policy.
+        expect(migrated.grammarQueue[0].entry.memoryStrength).toBe(50);
+        expect(migrated.grammarQueue[0].totalReviews).toBe(8);
+    });
+
+    it('lets an alias win over a variant mapping for the same id', async () => {
+        // A dropped id cannot be loaded at all, so its target is the only
+        // reachable one even if a variant group also names it.
+        vi.spyOn(GrammarService, 'loadAliases').mockResolvedValue({ 'n5-004': 'n5-078' });
+        vi.spyOn(GrammarService, 'loadVariantGroups').mockResolvedValue({
+            'n5-006': [
+                { id: 'n5-006', relation: 'canonical', title: 'A。それでは、～B。' },
+                { id: 'n5-004', relation: 'contraction', title: 'A。じゃ、～B。' },
+            ],
+        } as any);
+
+        const migrated = await MigrationService.migrateGrammarQueueIdsAsync(
+            makeProgressWith([makeGrammar({ grammarId: 'n5-004' })])
+        );
+
+        expect(migrated.grammarQueue[0].grammarId).toBe('n5-078');
+    });
+
+    it('does not touch progress when the variant index cannot be loaded', async () => {
+        vi.spyOn(GrammarService, 'loadVariantGroups').mockRejectedValue(new Error('offline'));
+        const progress = makeProgressWith([makeGrammar({ grammarId: 'n5-004' })]);
+
+        const migrated = await MigrationService.migrateGrammarQueueIdsAsync(progress);
+
+        expect(migrated.grammarQueue[0].grammarId).toBe('n5-004');
+        expect(migrated._formatVersion).toBe(8);
+        expect(MigrationService.needsMigration(migrated)).toBe(true);
     });
 
     it('migrateAsync reaches the terminal version through both async passes', async () => {
