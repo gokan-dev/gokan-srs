@@ -12,6 +12,7 @@ import { useQuiz } from "../../context/useQuiz";
 import { GrammarService } from "../../services/grammar.service";
 import { THEME } from "../../commons/theme";
 import { GrammarRelatedPointsCard } from "./GrammarRelatedPointsCard";
+import { GrammarVariantsCard } from "./GrammarVariantsCard";
 import { InteractiveSentence } from "../../components/InteractiveSentence";
 import { grammarExampleToSentence } from "../../utils/grammarSentence.utils";
 import { ArrowLeft } from "lucide-react";
@@ -190,6 +191,7 @@ export default function GrammarDetailScreen() {
         </Card>
     );
 
+    const variantsCard = <GrammarVariantsCard point={point} />;
     const relatedPointsCard = <GrammarRelatedPointsCard point={point} />;
 
     const statsCard = progress && progress.introductionAt ? (
@@ -271,6 +273,7 @@ export default function GrammarDetailScreen() {
                         {explanationCard}
                         {examplesCard}
                         {statsCard}
+                        {variantsCard}
                         {relatedPointsCard}
                     </div>
                 ) : (
@@ -287,6 +290,7 @@ export default function GrammarDetailScreen() {
                             {headerCard}
                             {formationCard}
                             {statsCard}
+                            {variantsCard}
                             {relatedPointsCard}
                         </div>
                         <div className="md:col-span-7 space-y-6">
