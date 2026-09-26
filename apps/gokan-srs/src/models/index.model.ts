@@ -31,3 +31,19 @@ export interface SearchIndexEntry {
 }
 
 export type SearchIndex = SearchIndexEntry[];
+
+/**
+ * `interchangeable`: either word genuinely answers the same production cue.
+ * `confusable`: overlapping glosses, but a distinct, non-interchangeable word.
+ */
+export type SynonymRelation = 'interchangeable' | 'confusable';
+
+/**
+ * Near-synonym clusters for production-quiz grading (issue #71 Part B), keyed
+ * by vocab id -> the OTHER vocab ids it collides with plus their relation tier.
+ * Symmetric (if A lists B, B lists A). Membership is auto-derived at dataset
+ * build time from same-POS gloss overlap; the tier is hand-authored, starting
+ * with the highest-traffic clusters. A word with no entry is inert - it grades
+ * exactly as it would with no synonym handling at all.
+ */
+export type SynonymIndex = Record<string, Array<{ id: string; relation: SynonymRelation }>>;

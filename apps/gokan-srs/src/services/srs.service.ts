@@ -6,10 +6,29 @@ import type { KanjiKnowledge, UserProgress, UserSettings } from '../models/user.
 import { isVocabFullyMastered, vocabNextReviewAt, newSRSEntry, isProductionActivated } from './scheduling';
 import type { QuizType } from '../utils/srs.utils';
 import { JLPT_LEVELS } from '../models/index.model';
+import type { SynonymRelation } from '../models/index.model';
 import { collectJlptCandidates, countJlptCandidates } from './jlptWalk';
 
 
 export type AnswerResult = 'correct' | 'minor_error' | 'wrong' | 'pass';
+
+/**
+ * One member of the current production word's near-synonym cluster (issue #71
+ * Part B, gokan-dataset's index/synonyms.json), resolved to its own accept-list
+ * shape at card-load time - see useQuizOrchestration's loading effect - so
+ * grading a collision against it stays synchronous.
+ */
+export interface ProductionSynonymCandidate {
+    vocabId: string;
+    relation: SynonymRelation;
+    vocab: Pick<Vocabulary, 'reading' | 'writtenForm' | 'mergedVocabs'>;
+}
+
+export interface ProductionSynonymMatch {
+    candidate: ProductionSynonymCandidate;
+    /** The candidate's OWN matched form (mirrors evaluateProductionAnswer's matchedAnswer). */
+    matchedAnswer: string;
+}
 
 const F = CONSTANTS.srs.formula;
 
@@ -139,6 +158,62 @@ export class SRSService {
             ...(vocab.mergedVocabs?.map(m => m.originalPrimaryReading) ?? []),
         ];
         return this.evaluateAnswer(userInput, { primary: vocab.reading.primary, alternatives: readingAlternatives });
+    }
+
+    /**
+     * Checks a WRONG production answer (per evaluateProductionAnswer above) against
+     * the target word's precomputed near-synonym cluster (issue #71 Part B). Reuses
+     * evaluateProductionAnswer per candidate - the identical accept-list logic used
+     * to grade the target itself - so a "collision" here means the input is a
+     * genuine written/reading form of that OTHER word, never a loose partial match.
+     *
+     * Only ever meaningful once the target's own evaluateProductionAnswer has
+     * already graded 'wrong'; candidates are precomputed at card-load time (see
+     * useQuizOrchestration's loading effect, same pattern as computeBlankPlan's
+     * accept-lists), so this itself does no I/O and grading stays synchronous.
+     *
+     * Returns the first candidate the input matches - real synonym clusters map a
+     * given written form/reading to exactly one word, so this should not need to
+     * pick among several simultaneous matches in practice.
+     */
+    static evaluateProductionSynonyms(
+        userInput: string,
+        candidates: ProductionSynonymCandidate[]
+    ): ProductionSynonymMatch | null {
+        for (const candidate of candidates) {
+            const evaluation = this.evaluateProductionAnswer(userInput, candidate.vocab);
+            if (evaluation.result !== 'wrong') {
+                return { candidate, matchedAnswer: evaluation.matchedAnswer };
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Applies a `confusable` synonym collision (issue #71 Part B): the answer is a
+     * genuine OTHER word from the target's near-synonym cluster - overlapping
+     * glosses, but distinct usage - not an acceptable substitute, but not the
+     * unrelated-word kind of wrong either. Reuses the existing per-quiz-type retry
+     * machinery (`needsRetry`) rather than a full grading pass: the established
+     * invariant is that a retry is training only, so this leaves
+     * memoryStrength/interval/difficulty/dueDate completely untouched and simply
+     * re-asks until the TARGET itself is produced. Crediting the confusion would
+     * reward exactly the coasting this exists to prevent (see the issue's
+     * 必ず/常に example); penalising it at -0.40 like an unrelated word would
+     * punish the learner for a mistake the gloss-only cue itself invites - so
+     * this applies neither.
+     */
+    static applyConfusableSynonymAnswer(vocab: VocabProgress, now: Date): VocabProgress {
+        const productionEntry = vocab.production ?? newSRSEntry(vocab.reading.difficulty);
+
+        return {
+            ...vocab,
+            production: { ...productionEntry, lastReviewedAt: now },
+            needsRetry: { ...vocab.needsRetry, production: true },
+            lastReviewedAt: now,
+            totalReviews: vocab.totalReviews + 1,
+        };
     }
 
     private static normalizeMeaning(text: string): string {
