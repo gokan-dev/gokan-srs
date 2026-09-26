@@ -1,7 +1,7 @@
 // src/services/VocabularyLoader.ts
 import type { Vocabulary } from '../models/vocabulary.model';
 import type { Kanji } from '../models/kanji.model';
-import type { FrequencyIndex, JlptIndex, KKLCIndex, KKLCKanjiIndex, KanjiVocabIndex, SearchIndex } from '../models/index.model';
+import type { FrequencyIndex, JlptIndex, KKLCIndex, KKLCKanjiIndex, KanjiVocabIndex, SearchIndex, SynonymIndex } from '../models/index.model';
 import { romajiToHiragana, looksLikeRomaji } from '../utils/romaji';
 
 export class VocabularyService {
@@ -14,6 +14,7 @@ export class VocabularyService {
     private static kanjiByChar = new Map<string, Kanji>();
     private static kanjiVocabIndex: KanjiVocabIndex | null = null;
     private static jlptIndex: JlptIndex | null = null;
+    private static synonymIndex: SynonymIndex | null = null;
 
     private static async fetchJson<T>(path: string): Promise<T> {
         const response = await fetch(path);
@@ -49,6 +50,25 @@ export class VocabularyService {
 
         this.jlptIndex = await this.fetchJson<JlptIndex>(`/data/compiled/index/jlpt.json?v=${Date.now()}`);
         return this.jlptIndex;
+    }
+
+    /**
+     * Near-synonym clusters for production-quiz grading (issue #71 Part B). Loaded
+     * and cached whole (like loadFrequencyIndex/loadJlptIndex) rather than per-word,
+     * since the app needs it only for the current production card's own entry.
+     * Missing/unreachable degrades to null rather than throwing - inert wherever
+     * absent is the design, not an error condition.
+     */
+    static async loadSynonymsIndex(): Promise<SynonymIndex | null> {
+        if (this.synonymIndex) return this.synonymIndex;
+
+        try {
+            this.synonymIndex = await this.fetchJson<SynonymIndex>(`/data/compiled/index/synonyms.json?v=${Date.now()}`);
+            return this.synonymIndex;
+        } catch (e) {
+            console.error('[VocabularyService] Failed to load synonyms index', e);
+            return null;
+        }
     }
 
     static async loadVocab(id: string): Promise<Vocabulary> {

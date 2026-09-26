@@ -3,6 +3,7 @@ import { SRSService } from './srs.service';
 import { VocabularyService } from './vocabulary.service';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../models/vocabulary.model';
 import type { VocabProgress } from '../models/vocabulary.model';
+import type { ProductionSynonymCandidate } from './srs.service';
 import { CONSTANTS } from '../commons/constants';
 
 // Use floating point tolerance
@@ -324,6 +325,123 @@ describe('SRSService Formula Tests', () => {
         it('still recognizes a literal "pass" via the reading fallback', () => {
             const { result } = SRSService.evaluateProductionAnswer('pass', vocab);
             expect(result).toBe('pass');
+        });
+    });
+
+    describe('Production synonym grading (issue #71 Part B)', () => {
+        // The issue's own motivating example: 必ず (target) vs its near-synonym 常に.
+        const interchangeableCandidate: ProductionSynonymCandidate = {
+            vocabId: 'interchangeable-1',
+            relation: 'interchangeable',
+            vocab: {
+                reading: { primary: 'きっと', alternatives: [] },
+                writtenForm: { kanji: 'きっと', alternatives: [], containedKanji: [] },
+            },
+        };
+
+        const confusableCandidate: ProductionSynonymCandidate = {
+            vocabId: 'confusable-1',
+            relation: 'confusable',
+            vocab: {
+                reading: { primary: 'つねに', alternatives: [] },
+                writtenForm: { kanji: '常に', alternatives: [], containedKanji: ['常'] },
+            },
+        };
+
+        describe('evaluateProductionSynonyms', () => {
+            it('returns null with no candidates', () => {
+                expect(SRSService.evaluateProductionSynonyms('つねに', [])).toBeNull();
+            });
+
+            it('matches an interchangeable candidate by its written form', () => {
+                const match = SRSService.evaluateProductionSynonyms('きっと', [interchangeableCandidate, confusableCandidate]);
+                expect(match?.candidate.relation).toBe('interchangeable');
+                expect(match?.candidate.vocabId).toBe('interchangeable-1');
+                expect(match?.matchedAnswer).toBe('きっと');
+            });
+
+            it('matches a confusable candidate by its written form', () => {
+                const match = SRSService.evaluateProductionSynonyms('常に', [interchangeableCandidate, confusableCandidate]);
+                expect(match?.candidate.relation).toBe('confusable');
+                expect(match?.candidate.vocabId).toBe('confusable-1');
+            });
+
+            it('matches a confusable candidate via a genuine reading typo (fuzzy, like any reading)', () => {
+                // 'つねい' vs 'つねに' - single substitution, Levenshtein distance 1.
+                const match = SRSService.evaluateProductionSynonyms('つねい', [confusableCandidate]);
+                expect(match?.candidate.relation).toBe('confusable');
+                expect(match?.matchedAnswer).toBe('つねに');
+            });
+
+            it('returns null for an answer matching neither the target nor any candidate', () => {
+                expect(SRSService.evaluateProductionSynonyms('ねこ', [interchangeableCandidate, confusableCandidate])).toBeNull();
+            });
+
+            it('never matches a candidate written form through the Levenshtein path', () => {
+                // '常い' is one character off from '常に' - a different word, not a typo,
+                // mirroring evaluateProductionAnswer's own written-form exactness rule.
+                expect(SRSService.evaluateProductionSynonyms('常い', [confusableCandidate])).toBeNull();
+            });
+
+            it('returns the first matching candidate in list order', () => {
+                const secondInterchangeable: ProductionSynonymCandidate = {
+                    vocabId: 'interchangeable-2',
+                    relation: 'confusable',
+                    vocab: { reading: { primary: 'きっと', alternatives: [] }, writtenForm: { kanji: '屹度', alternatives: [], containedKanji: [] } },
+                };
+                const match = SRSService.evaluateProductionSynonyms('きっと', [interchangeableCandidate, secondInterchangeable]);
+                expect(match?.candidate.vocabId).toBe('interchangeable-1');
+            });
+        });
+
+        describe('applyConfusableSynonymAnswer', () => {
+            const mockConfusableNow = new Date('2025-06-01T00:00:00Z');
+
+            const baseVocab: VocabProgress = {
+                ...DEFAULT_VOCABULARY_PROGRESS,
+                vocabId: 'test-vocab',
+                totalReviews: 5,
+                production: {
+                    ...DEFAULT_VOCABULARY_PROGRESS.production!,
+                    memoryStrength: 12,
+                    interval: 3,
+                    difficulty: 0.4,
+                    dueDate: new Date('2025-05-30T00:00:00Z'),
+                },
+            };
+
+            it('leaves memoryStrength/interval/difficulty/dueDate untouched - no penalty, no credit', () => {
+                const updated = SRSService.applyConfusableSynonymAnswer(baseVocab, mockConfusableNow);
+
+                expect(updated.production?.memoryStrength).toBe(12);
+                expect(updated.production?.interval).toBe(3);
+                expect(updated.production?.difficulty).toBe(0.4);
+                expect(updated.production?.dueDate).toEqual(new Date('2025-05-30T00:00:00Z'));
+            });
+
+            it('sets needsRetry.production without touching another quiz type\'s retry flag', () => {
+                const withOtherRetry: VocabProgress = { ...baseVocab, needsRetry: { reading: true } };
+                const updated = SRSService.applyConfusableSynonymAnswer(withOtherRetry, mockConfusableNow);
+
+                expect(updated.needsRetry?.production).toBe(true);
+                expect(updated.needsRetry?.reading).toBe(true);
+            });
+
+            it('records the interaction without a scheduling change', () => {
+                const updated = SRSService.applyConfusableSynonymAnswer(baseVocab, mockConfusableNow);
+
+                expect(updated.lastReviewedAt).toEqual(mockConfusableNow);
+                expect(updated.production?.lastReviewedAt).toEqual(mockConfusableNow);
+                expect(updated.totalReviews).toBe(baseVocab.totalReviews + 1);
+            });
+
+            it('seeds a fresh production entry rather than throwing if somehow unactivated', () => {
+                const noProduction: VocabProgress = { ...baseVocab, production: undefined };
+                const updated = SRSService.applyConfusableSynonymAnswer(noProduction, mockConfusableNow);
+
+                expect(updated.production).toBeDefined();
+                expect(updated.needsRetry?.production).toBe(true);
+            });
         });
     });
 
