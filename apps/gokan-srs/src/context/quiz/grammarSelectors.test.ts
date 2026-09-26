@@ -835,6 +835,140 @@ describe('computeConjugationPlan / computeBlankPlan for inflection points', () =
     });
 });
 
+// Coverage for the base-conjugation-paradigm rollout (23 new inflection
+// points, dataset commit dd5e033879): a base-paradigm point (plain past) and
+// a copula point (na-adjective だ), plus a point that carries real
+// alternatives (na-adjective negative polite). Item shapes below are trimmed
+// straight from the compiled conjugations.json for these ids.
+describe('base-conjugation paradigm points (n5-905 plain-past, n5-911 na-adjective copula)', () => {
+    const plainPastPoint = {
+        id: 'n5-905',
+        title: 'Plain past: Verb た',
+        jlptLevel: 5,
+        kind: 'inflection' as const,
+        derives: 'plain past (た)',
+        shortExplanation: '', longExplanation: '', formation: '',
+        examples: [],
+    } as unknown as GrammarPoint;
+
+    const copulaPoint = {
+        id: 'n5-911',
+        title: 'Plain: Na-adjective だ',
+        jlptLevel: 5,
+        kind: 'inflection' as const,
+        derives: 'plain (だ)',
+        shortExplanation: '', longExplanation: '', formation: '',
+        examples: [],
+    } as unknown as GrammarPoint;
+
+    const negativePolitePoint = {
+        id: 'n5-917',
+        title: 'Negative polite: Na-adjective じゃないです',
+        jlptLevel: 5,
+        kind: 'inflection' as const,
+        derives: 'negative polite (じゃないです)',
+        shortExplanation: '', longExplanation: '', formation: '',
+        examples: [],
+    } as unknown as GrammarPoint;
+
+    const conjugations = {
+        'n5-905': {
+            form: 'plain-past' as const,
+            formLabel: 'plain past (た)',
+            items: [
+                { vocabId: '1589350', lemma: '思う', lemmaReading: 'おもう', target: '思った', targetReading: 'おもった', wordClass: 'godan' as const },
+                { vocabId: '1547720', lemma: '来る', lemmaReading: 'くる', target: '来た', targetReading: 'きた', wordClass: 'irregular' as const },
+                { vocabId: '1157170', lemma: 'する', lemmaReading: 'する', target: 'した', targetReading: 'した', wordClass: 'irregular' as const },
+            ],
+        },
+        'n5-911': {
+            form: 'na-adj' as const,
+            formLabel: 'plain (だ)',
+            items: [
+                { vocabId: '1277450', lemma: '好き', lemmaReading: 'すき', target: '好きだ', targetReading: 'すきだ', wordClass: 'na-adjective' as const },
+                { vocabId: '1487660', lemma: '必要', lemmaReading: 'ひつよう', target: '必要だ', targetReading: 'ひつようだ', wordClass: 'na-adjective' as const },
+            ],
+        },
+        'n5-917': {
+            form: 'na-adj-negative-polite' as const,
+            formLabel: 'negative polite (じゃないです)',
+            items: [
+                {
+                    vocabId: '1277450', lemma: '好き', lemmaReading: 'すき',
+                    target: '好きじゃないです', targetReading: 'すきじゃないです',
+                    alternatives: ['好きじゃありません', 'すきじゃありません', '好きではありません', 'すきではありません'],
+                    wordClass: 'na-adjective' as const,
+                },
+            ],
+        },
+    };
+
+    afterEach(() => { vi.restoreAllMocks(); });
+
+    it('produces a valid conjugation plan for the plain-past point', async () => {
+        vi.spyOn(GrammarService, 'loadConjugations').mockResolvedValue(conjugations);
+
+        const plan = await computeBlankPlan(plainPastPoint, null, 0);
+
+        expect(plan).not.toBeNull();
+        expect(plan?.conjugation?.formLabel).toBe('plain past (た)');
+        expect(plan?.blankWordIndices).toEqual([0]);
+        expect(plan?.isPatternBlank).toEqual([true]);
+        expect(plan?.readOnly).toBe(false);
+    });
+
+    it('produces a valid conjugation plan for the na-adjective copula point', async () => {
+        vi.spyOn(GrammarService, 'loadConjugations').mockResolvedValue(conjugations);
+
+        const plan = await computeBlankPlan(copulaPoint, null, 0);
+
+        expect(plan).not.toBeNull();
+        expect(plan?.conjugation?.formLabel).toBe('plain (だ)');
+        expect(plan?.conjugation?.wordClass).toBe('na-adjective');
+        expect(plan?.blankWordIndices).toEqual([0]);
+        expect(plan?.isPatternBlank).toEqual([true]);
+        expect(plan?.readOnly).toBe(false);
+    });
+
+    it('grades both the kanji and kana form of the plain-past answer as correct', async () => {
+        vi.spyOn(GrammarService, 'loadConjugations').mockResolvedValue(conjugations);
+        const plan = await computeBlankPlan(plainPastPoint, null, 0);
+        const item = conjugations['n5-905'].items.find(i => i.target === plan!.conjugation!.target)!;
+
+        expect(gradeGrammarAnswers(plan!, [item.target], [0]).overall).toBe('correct');
+        expect(gradeGrammarAnswers(plan!, [item.targetReading], [0]).overall).toBe('correct');
+        expect(gradeGrammarAnswers(plan!, ['ちがう'], [0]).overall).toBe('wrong');
+    });
+
+    it('grades both the kanji and kana form of the copula answer as correct', async () => {
+        vi.spyOn(GrammarService, 'loadConjugations').mockResolvedValue(conjugations);
+        const plan = await computeBlankPlan(copulaPoint, null, 0);
+        const item = conjugations['n5-911'].items.find(i => i.target === plan!.conjugation!.target)!;
+
+        expect(gradeGrammarAnswers(plan!, [item.target], [0]).overall).toBe('correct');
+        expect(gradeGrammarAnswers(plan!, [item.targetReading], [0]).overall).toBe('correct');
+        expect(gradeGrammarAnswers(plan!, ['ちがう'], [0]).overall).toBe('wrong');
+    });
+
+    it('accepts both real alternatives (じゃありません and ではありません) for the negative polite form', async () => {
+        vi.spyOn(GrammarService, 'loadConjugations').mockResolvedValue(conjugations);
+        const plan = await computeBlankPlan(negativePolitePoint, null, 0);
+
+        expect(plan!.acceptLists[0]).toEqual(expect.arrayContaining([
+            '好きじゃないです', 'すきじゃないです',
+            '好きじゃありません', 'すきじゃありません',
+            '好きではありません', 'すきではありません',
+        ]));
+        expect(gradeGrammarAnswers(plan!, ['好きじゃありません'], [0]).overall).toBe('correct');
+        expect(gradeGrammarAnswers(plan!, ['好きではありません'], [0]).overall).toBe('correct');
+
+        // Only the kanji-bearing alternatives surface in the prompt/feedback -
+        // the pure-kana ones are already covered by acceptLists, and listing
+        // both spellings of each would read as four answers rather than two.
+        expect(plan!.conjugation!.alternatives).toEqual(['好きじゃありません', '好きではありません']);
+    });
+});
+
 describe('realization variant rotation and two-tier grading', () => {
     // Modelled on the real `nowhere` group: a particle slot (に / へ / none)
     // crossed with a politeness slot (ません / ないです).

@@ -164,7 +164,11 @@ export default function GrammarDetailScreen() {
         </Card>
     );
 
-    const examplesCard = (
+    // Inflection points (kind: 'inflection') are drilled through a generated
+    // conjugation exercise rather than authored example sentences, so
+    // point.examples is always empty for them - render nothing rather than an
+    // empty "Example Sentences (0)" card.
+    const examplesCard = point.examples.length === 0 ? null : (
         <Card size={isMobile ? "sm" : "md"}>
             <h2 className="text-lg font-gothic font-semibold text-primary mb-4">
                 Example Sentences <span className="text-sm font-normal text-tertiary ml-2">({point.examples.length})</span>

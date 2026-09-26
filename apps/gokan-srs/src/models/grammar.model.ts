@@ -353,7 +353,16 @@ export interface GrammarBrowseIndex {
 export type ConjugationForm =
     | 'te' | 'tai' | 'zu' | 'chatta' | 'toku'
     | 'causative' | 'causative-passive' | 'passive' | 'potential'
-    | 'i-adj-adverbial' | 'i-adj-te' | 'i-adj-negative-polite' | 'na-adj-adverbial';
+    // Base paradigm (tense x polarity x politeness) and mood/conditional,
+    // from the base-conjugation-paradigm rollout (23 new inflection points).
+    | 'plain-past' | 'plain-negative' | 'plain-past-negative'
+    | 'masu' | 'masu-past' | 'masu-negative' | 'masu-past-negative'
+    | 'volitional' | 'imperative' | 'prohibitive' | 'ba'
+    | 'i-adj-adverbial' | 'i-adj-te' | 'i-adj-negative-polite'
+    | 'i-adj-negative' | 'i-adj-past' | 'i-adj-past-negative' | 'i-adj-ba'
+    | 'na-adj-adverbial' | 'na-adj' | 'na-adj-past' | 'na-adj-negative'
+    | 'na-adj-past-negative' | 'na-adj-polite' | 'na-adj-past-polite'
+    | 'na-adj-negative-polite' | 'na-adj-te';
 
 /** One drill: conjugate `lemma` into `target`. */
 export interface ConjugationDrillItem {
