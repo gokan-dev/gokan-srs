@@ -43,6 +43,13 @@ import { InteractiveSentence } from "../../components/InteractiveSentence";
  * gloss bolded in the sentence, or a small gloss label when the translation
  * carries no verbatim gloss (emphasizeGloss) - since the bare translation was too
  * ambiguous to tell which word to produce.
+ *
+ * On anything short of a strict `correct` (wrong, confusable, pass, or a genuine
+ * reading typo graded minor_error), the blank reveals the actual written word via
+ * a kanji+furigana ruby right beside the input, styled text-feedback-correct -
+ * not just feedback.matchedAnswer's bare reading, which is all this card used to
+ * surface. The input itself is left holding whatever the user typed, same as
+ * GrammarQuizCard's per-blank reveal.
  */
 export function VocabProductionClozeQuizCard({ onVocabClick }: { onVocabClick?: (vocabId: string) => void }) {
     const { state, actions, computed, currentProgress } = useQuiz();
@@ -166,15 +173,20 @@ export function VocabProductionClozeQuizCard({ onVocabClick }: { onVocabClick?: 
                                     {gloss || 'No hint available'}
                                 </span>
                             )}
+                            {/* The correct word, revealed right at the blank on anything
+                                short of a strict match - a wrong/confusable answer previously
+                                left only feedback.matchedAnswer (a bare reading) shown once
+                                below the whole sentence, never the written form that was
+                                actually blanked. Mirrors GrammarQuizCard's per-blank reveal. */}
+                            {feedback?.show && !feedback.correct && (
+                                <ruby className="ruby-text mt-1 text-feedback-correct">
+                                    {currentVocab.writtenForm.kanji}
+                                    <rt className="text-xs font-sans text-secondary not-italic">{feedback.matchedAnswer}</rt>
+                                </ruby>
+                            )}
                         </span>
                         <InteractiveSentence sentence={after} onVocabClick={onVocabClick} showFurigana={!!feedback?.show} />
                     </p>
-
-                    {feedback?.show && feedback.type !== 'correct' && (
-                        <p className="text-center text-base text-feedback-correct font-gothic mt-3">
-                            {feedback.matchedAnswer}
-                        </p>
-                    )}
                 </CardSection>
 
                 <CardSection>
