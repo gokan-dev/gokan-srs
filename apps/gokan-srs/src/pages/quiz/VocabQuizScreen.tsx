@@ -92,7 +92,7 @@ export function VocabQuizScreen({ onVocabClick }: VocabQuizScreenProps) {
                             />
                         ) : state.currentQuizItem?.quizType === 'production' ? (
                             state.currentProductionCloze ? (
-                                <VocabProductionClozeQuizCard />
+                                <VocabProductionClozeQuizCard onVocabClick={onVocabClick} />
                             ) : (
                                 <VocabProductionQuizCard onKanjiClick={() => onVocabClick(state.currentVocab!.id)} />
                             )
