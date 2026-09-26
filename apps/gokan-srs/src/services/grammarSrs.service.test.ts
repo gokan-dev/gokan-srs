@@ -316,30 +316,38 @@ describe('GrammarSRSService candidate finding (authored teaching order)', () => 
     it('introduces points in the authored order, not JLPT order', async () => {
         const jlpt = vi.spyOn(GrammarService, 'loadJlptIndex');
 
+        // c01 has exactly 2 points, so a batch of 6 still only yields those 2 -
+        // a batch never crosses a chapter boundary (see the dedicated describe
+        // block below for that behaviour in isolation).
         const candidates = await GrammarSRSService.getNextCandidates([], 6);
 
-        expect(candidates).toEqual(['n5-wa', 'n5-wo', 'n5-but', 'n2-but', 'n4-must', 'n1-rare']);
+        expect(candidates).toEqual(['n5-wa', 'n5-wo']);
         // The JLPT index must not even be consulted when an order exists.
         expect(jlpt).not.toHaveBeenCalled();
     });
 
-    it('keeps a harder-level register sibling in its authored position', async () => {
-        // n2-but comes 4th, before n4-must - a JLPT walk would put it 2nd-to-last.
-        const candidates = await GrammarSRSService.getNextCandidates([], 4);
-        expect(candidates[3]).toBe('n2-but');
+    it('keeps a harder-level register sibling in its authored position within its own chapter', async () => {
+        // n2-but is c02's 2nd point - once c01 (n5-wa, n5-wo) is queued, c02 becomes
+        // current and n2-but is served right after n5-but, not pushed to the end by
+        // a JLPT walk.
+        const queue = ['n5-wa', 'n5-wo'].map(id => makeProgress({ grammarId: id }));
+        const candidates = await GrammarSRSService.getNextCandidates(queue, 4);
+        expect(candidates).toEqual(['n5-but', 'n2-but']);
     });
 
-    it('skips points already queued, without disturbing the order', async () => {
-        const queue = [makeProgress({ grammarId: 'n5-wa' }), makeProgress({ grammarId: 'n5-but' })];
+    it('skips points already queued, without disturbing the order, inside the current chapter', async () => {
+        const queue = [makeProgress({ grammarId: 'n5-wa' })];
 
         const candidates = await GrammarSRSService.getNextCandidates(queue, 3);
 
-        expect(candidates).toEqual(['n5-wo', 'n2-but', 'n4-must']);
+        // Still bounded to c01: n5-but/n2-but/n4-must belong to later chapters and
+        // must not spill into this batch even though c01 has room left.
+        expect(candidates).toEqual(['n5-wo']);
     });
 
-    it('respects ignoredIds', async () => {
+    it('respects ignoredIds within the current chapter', async () => {
         const candidates = await GrammarSRSService.getNextCandidates([], 2, new Set(['n5-wa']));
-        expect(candidates).toEqual(['n5-wo', 'n5-but']);
+        expect(candidates).toEqual(['n5-wo']);
     });
 
     it('stops at maxToFind', async () => {
@@ -347,15 +355,29 @@ describe('GrammarSRSService candidate finding (authored teaching order)', () => 
         expect(await GrammarSRSService.getNextCandidates([], 0)).toEqual([]);
     });
 
-    it('countLearnableGrammar walks the same sequence as getNextCandidates', async () => {
-        // If these two disagree, the hub advertises new material a session can't serve.
+    it('yields the whole current chapter when asked for its full size (whole-chapter introduction)', async () => {
+        // advanceGrammarQueue sizes its request to getCurrentChapter().points.length,
+        // so one advance introduces the entire current chapter rather than a fixed
+        // batch. This is the composition it relies on.
+        const chapter = await GrammarSRSService.getCurrentChapter([]);
+        expect(chapter?.id).toBe('c01');
+        expect(chapter?.points.length).toBe(2);
+
+        const candidates = await GrammarSRSService.getNextCandidates([], chapter!.points.length);
+        expect(candidates).toEqual(['n5-wa', 'n5-wo']);
+    });
+
+    it('countLearnableGrammar counts every remaining chapter, not just the current one', async () => {
+        // countLearnableGrammar is deliberately NOT chapter-bound (it answers "is
+        // there more content at all", for the hub's moreNew signal) while
+        // getNextCandidates now is - the two are allowed to disagree in size.
         const queue = [makeProgress({ grammarId: 'n5-wa' })];
 
         const count = await GrammarSRSService.countLearnableGrammar(queue);
         const candidates = await GrammarSRSService.getNextCandidates(queue, 1000);
 
         expect(count).toBe(5);
-        expect(candidates).toHaveLength(count);
+        expect(candidates).toEqual(['n5-wo']);
     });
 
     it('countLearnableGrammar honours its early-exit limit', async () => {
@@ -366,6 +388,51 @@ describe('GrammarSRSService candidate finding (authored teaching order)', () => 
     it('hasMoreLearnableGrammar is false once every ordered point is queued', async () => {
         const queue = teachingOrder.order.map(id => makeProgress({ grammarId: id }));
         expect(await GrammarSRSService.hasMoreLearnableGrammar(queue)).toBe(false);
+    });
+});
+
+describe('GrammarSRSService candidate finding stops at a chapter boundary', () => {
+    const teachingOrder = {
+        order: ['n5-wa', 'n5-wo', 'n5-but', 'n2-but', 'n4-must'],
+        chapters: [
+            { id: 'c01', title: 'Particles', summary: '', jlptLevel: 5, points: ['n5-wa', 'n5-wo'] },
+            { id: 'c02', title: 'But', summary: '', jlptLevel: 5, points: ['n5-but', 'n2-but'] },
+            { id: 'c03', title: 'Must', summary: '', jlptLevel: 4, points: ['n4-must'] },
+        ],
+    };
+
+    beforeEach(() => {
+        vi.spyOn(GrammarService, 'loadTeachingOrder').mockResolvedValue(teachingOrder);
+        vi.spyOn(GrammarService, 'loadKinds').mockResolvedValue({});
+        vi.spyOn(GrammarService, 'loadConjugations').mockResolvedValue({});
+    });
+
+    it('a batch never crosses a chapter boundary even with room left', async () => {
+        const candidates = await GrammarSRSService.getNextCandidates([], 3);
+        // c01 has only 2 points - the 3rd slot is NOT filled from c02.
+        expect(candidates).toEqual(['n5-wa', 'n5-wo']);
+    });
+
+    it('a chapter with fewer points remaining than the batch size yields only that remainder', async () => {
+        const queue = [makeProgress({ grammarId: 'n5-wa' })];
+        const candidates = await GrammarSRSService.getNextCandidates(queue, 3);
+        expect(candidates).toEqual(['n5-wo']);
+    });
+
+    it('the next chapter is only entered on a following call, once the current one is exhausted', async () => {
+        const afterC01 = ['n5-wa', 'n5-wo'].map(id => makeProgress({ grammarId: id }));
+        const candidates = await GrammarSRSService.getNextCandidates(afterC01, 3);
+        expect(candidates).toEqual(['n5-but', 'n2-but']);
+    });
+
+    it('getCurrentChapter reports the chapter of the next teachable, unqueued point', async () => {
+        expect((await GrammarSRSService.getCurrentChapter([]))?.id).toBe('c01');
+
+        const afterC01 = ['n5-wa', 'n5-wo'].map(id => makeProgress({ grammarId: id }));
+        expect((await GrammarSRSService.getCurrentChapter(afterC01))?.id).toBe('c02');
+
+        const everything = teachingOrder.order.map(id => makeProgress({ grammarId: id }));
+        expect(await GrammarSRSService.getCurrentChapter(everything)).toBeNull();
     });
 });
 
@@ -392,19 +459,24 @@ describe('GrammarSRSService pipeline filtering by kind', () => {
     });
 
     it('never introduces an inflection point while only the cloze quiz exists', async () => {
+        // c01 (n5-wa, n5-te, n5-wo) is the current chapter - n5-te is skipped as
+        // untestable, n4-node belongs to c02 and is out of reach until c01 is
+        // fully queued (see the chapter-boundary describe block above).
         const candidates = await GrammarSRSService.getNextCandidates([], 10);
 
-        expect(candidates).toEqual(['n5-wa', 'n5-wo', 'n4-node']);
+        expect(candidates).toEqual(['n5-wa', 'n5-wo']);
         expect(candidates).not.toContain('n5-te');
         expect(candidates).not.toContain('n4-causative');
     });
 
     it('excludes them from countLearnableGrammar too, so the hub agrees with the queue', async () => {
+        // countLearnableGrammar counts every remaining chapter (3 CONSTRUCTION
+        // points total); getNextCandidates only serves the current one (2).
         const count = await GrammarSRSService.countLearnableGrammar([]);
         const candidates = await GrammarSRSService.getNextCandidates([], 1000);
 
         expect(count).toBe(3);
-        expect(candidates).toHaveLength(count);
+        expect(candidates).toEqual(['n5-wa', 'n5-wo']);
     });
 
     it('reports no more learnable grammar once every CONSTRUCTION is queued', async () => {
@@ -416,12 +488,14 @@ describe('GrammarSRSService pipeline filtering by kind', () => {
 
     it('treats everything as learnable when the kinds index is unavailable', async () => {
         // Failure direction matters: a missing index must not silently empty the
-        // learning queue.
+        // learning queue. Still chapter-bounded (n5-te is now teachable and c01's
+        // full 3 points come back), since kind filtering and chapter bounding are
+        // independent axes.
         vi.spyOn(GrammarService, 'loadKinds').mockResolvedValue({});
 
         const candidates = await GrammarSRSService.getNextCandidates([], 10);
 
-        expect(candidates).toEqual(teachingOrder.order);
+        expect(candidates).toEqual(['n5-wa', 'n5-te', 'n5-wo']);
     });
 
     it('filters the JLPT fallback path by kind as well', async () => {

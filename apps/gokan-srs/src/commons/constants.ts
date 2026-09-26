@@ -24,6 +24,16 @@ export const CONSTANTS = {
         /** Maximum number of reviews per day (Limit removed) */
         maxReviewsPerDay: 999999,
 
+        grammar: {
+            /**
+             * Ceiling on how many new grammar points one advance introduces - NOT
+             * a fixed count like newVocabBatchSize, since GrammarSRSService.getNextCandidates
+             * also stops at the current chapter's boundary. A chapter with fewer
+             * teachable points remaining than this yields only that remainder.
+             */
+            newBatchSize: 3,
+        },
+
         /**
          * Maximum number of quiz tasks one study session commits to. Unlike the
          * per-day limits above (both effectively disabled), this one is real: it

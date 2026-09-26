@@ -47,6 +47,7 @@ function makeProgress(queue: VocabProgress[], grammarQueue: GrammarProgress[] = 
         kanjiKnowledge: { method: 'kklc', step: 1, kanjiSet: new Set() },
         learningQueue: queue,
         grammarQueue,
+        completedChapters: [],
         stats: { newLearnedToday: 0, totalLearned: 0, totalReviews: 0 },
         dailyOverride: false,
         adaptive: { level: 1.0, history: [] },

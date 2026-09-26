@@ -8,10 +8,12 @@ import {
     collectActionableGrammarIds,
     selectGrammarSessionStats,
     summariseVocabGains,
+    selectChapterEndFocusIds,
+    selectNewlyCompletedChapterIds,
 } from './grammarSelectors';
 import type { QuizState } from './quizReducer';
 import type { UserProgress } from '../../models/user.model';
-import type { GrammarPoint, GrammarProgress } from '../../models/grammar.model';
+import type { GrammarChapter, GrammarContrastIndex, GrammarPoint, GrammarProgress } from '../../models/grammar.model';
 import { DEFAULT_GRAMMAR_PROGRESS } from '../../models/grammar.model';
 import type { VocabProgress } from '../../models/vocabulary.model';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../../models/vocabulary.model';
@@ -28,6 +30,7 @@ function makeProgress(overrides: Partial<UserProgress> = {}): UserProgress {
         kanjiKnowledge: { method: 'kklc', step: 10, kanjiSet: new Set() },
         learningQueue: [],
         grammarQueue: [],
+        completedChapters: [],
         stats: { newLearnedToday: 0, totalLearned: 0, totalReviews: 0 },
         dailyOverride: false,
         adaptive: { level: 1.0, history: [] },
@@ -832,6 +835,140 @@ describe('computeConjugationPlan / computeBlankPlan for inflection points', () =
     });
 });
 
+// Coverage for the base-conjugation-paradigm rollout (23 new inflection
+// points, dataset commit dd5e033879): a base-paradigm point (plain past) and
+// a copula point (na-adjective だ), plus a point that carries real
+// alternatives (na-adjective negative polite). Item shapes below are trimmed
+// straight from the compiled conjugations.json for these ids.
+describe('base-conjugation paradigm points (n5-905 plain-past, n5-911 na-adjective copula)', () => {
+    const plainPastPoint = {
+        id: 'n5-905',
+        title: 'Plain past: Verb た',
+        jlptLevel: 5,
+        kind: 'inflection' as const,
+        derives: 'plain past (た)',
+        shortExplanation: '', longExplanation: '', formation: '',
+        examples: [],
+    } as unknown as GrammarPoint;
+
+    const copulaPoint = {
+        id: 'n5-911',
+        title: 'Plain: Na-adjective だ',
+        jlptLevel: 5,
+        kind: 'inflection' as const,
+        derives: 'plain (だ)',
+        shortExplanation: '', longExplanation: '', formation: '',
+        examples: [],
+    } as unknown as GrammarPoint;
+
+    const negativePolitePoint = {
+        id: 'n5-917',
+        title: 'Negative polite: Na-adjective じゃないです',
+        jlptLevel: 5,
+        kind: 'inflection' as const,
+        derives: 'negative polite (じゃないです)',
+        shortExplanation: '', longExplanation: '', formation: '',
+        examples: [],
+    } as unknown as GrammarPoint;
+
+    const conjugations = {
+        'n5-905': {
+            form: 'plain-past' as const,
+            formLabel: 'plain past (た)',
+            items: [
+                { vocabId: '1589350', lemma: '思う', lemmaReading: 'おもう', target: '思った', targetReading: 'おもった', wordClass: 'godan' as const },
+                { vocabId: '1547720', lemma: '来る', lemmaReading: 'くる', target: '来た', targetReading: 'きた', wordClass: 'irregular' as const },
+                { vocabId: '1157170', lemma: 'する', lemmaReading: 'する', target: 'した', targetReading: 'した', wordClass: 'irregular' as const },
+            ],
+        },
+        'n5-911': {
+            form: 'na-adj' as const,
+            formLabel: 'plain (だ)',
+            items: [
+                { vocabId: '1277450', lemma: '好き', lemmaReading: 'すき', target: '好きだ', targetReading: 'すきだ', wordClass: 'na-adjective' as const },
+                { vocabId: '1487660', lemma: '必要', lemmaReading: 'ひつよう', target: '必要だ', targetReading: 'ひつようだ', wordClass: 'na-adjective' as const },
+            ],
+        },
+        'n5-917': {
+            form: 'na-adj-negative-polite' as const,
+            formLabel: 'negative polite (じゃないです)',
+            items: [
+                {
+                    vocabId: '1277450', lemma: '好き', lemmaReading: 'すき',
+                    target: '好きじゃないです', targetReading: 'すきじゃないです',
+                    alternatives: ['好きじゃありません', 'すきじゃありません', '好きではありません', 'すきではありません'],
+                    wordClass: 'na-adjective' as const,
+                },
+            ],
+        },
+    };
+
+    afterEach(() => { vi.restoreAllMocks(); });
+
+    it('produces a valid conjugation plan for the plain-past point', async () => {
+        vi.spyOn(GrammarService, 'loadConjugations').mockResolvedValue(conjugations);
+
+        const plan = await computeBlankPlan(plainPastPoint, null, 0);
+
+        expect(plan).not.toBeNull();
+        expect(plan?.conjugation?.formLabel).toBe('plain past (た)');
+        expect(plan?.blankWordIndices).toEqual([0]);
+        expect(plan?.isPatternBlank).toEqual([true]);
+        expect(plan?.readOnly).toBe(false);
+    });
+
+    it('produces a valid conjugation plan for the na-adjective copula point', async () => {
+        vi.spyOn(GrammarService, 'loadConjugations').mockResolvedValue(conjugations);
+
+        const plan = await computeBlankPlan(copulaPoint, null, 0);
+
+        expect(plan).not.toBeNull();
+        expect(plan?.conjugation?.formLabel).toBe('plain (だ)');
+        expect(plan?.conjugation?.wordClass).toBe('na-adjective');
+        expect(plan?.blankWordIndices).toEqual([0]);
+        expect(plan?.isPatternBlank).toEqual([true]);
+        expect(plan?.readOnly).toBe(false);
+    });
+
+    it('grades both the kanji and kana form of the plain-past answer as correct', async () => {
+        vi.spyOn(GrammarService, 'loadConjugations').mockResolvedValue(conjugations);
+        const plan = await computeBlankPlan(plainPastPoint, null, 0);
+        const item = conjugations['n5-905'].items.find(i => i.target === plan!.conjugation!.target)!;
+
+        expect(gradeGrammarAnswers(plan!, [item.target], [0]).overall).toBe('correct');
+        expect(gradeGrammarAnswers(plan!, [item.targetReading], [0]).overall).toBe('correct');
+        expect(gradeGrammarAnswers(plan!, ['ちがう'], [0]).overall).toBe('wrong');
+    });
+
+    it('grades both the kanji and kana form of the copula answer as correct', async () => {
+        vi.spyOn(GrammarService, 'loadConjugations').mockResolvedValue(conjugations);
+        const plan = await computeBlankPlan(copulaPoint, null, 0);
+        const item = conjugations['n5-911'].items.find(i => i.target === plan!.conjugation!.target)!;
+
+        expect(gradeGrammarAnswers(plan!, [item.target], [0]).overall).toBe('correct');
+        expect(gradeGrammarAnswers(plan!, [item.targetReading], [0]).overall).toBe('correct');
+        expect(gradeGrammarAnswers(plan!, ['ちがう'], [0]).overall).toBe('wrong');
+    });
+
+    it('accepts both real alternatives (じゃありません and ではありません) for the negative polite form', async () => {
+        vi.spyOn(GrammarService, 'loadConjugations').mockResolvedValue(conjugations);
+        const plan = await computeBlankPlan(negativePolitePoint, null, 0);
+
+        expect(plan!.acceptLists[0]).toEqual(expect.arrayContaining([
+            '好きじゃないです', 'すきじゃないです',
+            '好きじゃありません', 'すきじゃありません',
+            '好きではありません', 'すきではありません',
+        ]));
+        expect(gradeGrammarAnswers(plan!, ['好きじゃありません'], [0]).overall).toBe('correct');
+        expect(gradeGrammarAnswers(plan!, ['好きではありません'], [0]).overall).toBe('correct');
+
+        // Only the kanji-bearing alternatives surface in the prompt/feedback -
+        // the pure-kana ones are already covered by acceptLists, and listing
+        // both spellings of each would read as four answers rather than two.
+        expect(plan!.conjugation!.alternatives).toEqual(['好きじゃありません', '好きではありません']);
+    });
+});
+
 describe('realization variant rotation and two-tier grading', () => {
     // Modelled on the real `nowhere` group: a particle slot (に / へ / none)
     // crossed with a politeness slot (ません / ないです).
@@ -1004,5 +1141,180 @@ describe('summariseVocabGains', () => {
     it('falls back to the vocab id when the sentence has no matching word', () => {
         const { breakdown } = summariseVocabGains([word('z', 100)], [word('z', 200)], words);
         expect(breakdown[0].label).toBe('z');
+    });
+});
+
+describe('family interchange (issue #62): slot-gated, axis-tiered', () => {
+    const sibling = (id: string, slot: GrammarPoint['slot'], axis: 'register' | 'constraint' | 'variant', formalityLevel: GrammarPoint['formalityLevel'], marker: string): GrammarPoint =>
+        makeGrammarPoint({
+            id,
+            slot,
+            formalityLevel,
+            family: { id: 'contradiction', name: 'Contradiction', relatedPoints: [], axis },
+            examples: [{ jp: marker, romaji: '', en: '', patternWordIndices: [0], words: [{ surface: marker, vocabId: null }] }],
+        });
+
+    const point = makeGrammarPoint({
+        id: 'kedo',
+        slot: 'clause-final',
+        formalityLevel: 'casual',
+        family: { id: 'contradiction', name: 'Contradiction', relatedPoints: ['sib-same', 'sib-other', 'sib-diffslot', 'sib-constraint'], axis: 'register' },
+        examples: [{
+            jp: 'けど、そう', romaji: '', en: '', patternWordIndices: [0],
+            words: [{ surface: 'けど', vocabId: null }, { surface: '、', vocabId: null }, { surface: 'そう', vocabId: null }],
+        }],
+    });
+
+    const siblings: Record<string, GrammarPoint> = {
+        'sib-same': sibling('sib-same', 'clause-final', 'register', 'casual', 'だけど'),      // same slot, same register -> correct
+        'sib-other': sibling('sib-other', 'clause-final', 'register', 'formal', 'ものの'),     // same slot, other register -> minor
+        'sib-diffslot': sibling('sib-diffslot', 'sentence-initial', 'register', 'casual', 'でも'), // different slot -> excluded
+        'sib-constraint': sibling('sib-constraint', 'clause-final', 'constraint', 'casual', 'それでも'), // constraint -> excluded
+    };
+
+    beforeEach(() => {
+        vi.spyOn(GrammarService, 'loadVariantGroups').mockResolvedValue({});
+        vi.spyOn(GrammarService, 'loadGrammarPoint').mockImplementation(async (id: string) => {
+            const p = siblings[id];
+            if (!p) throw new Error(`no sibling ${id}`);
+            return p;
+        });
+    });
+
+    it('accepts a same-slot same-register sibling as correct, a same-slot other-register sibling as minor', async () => {
+        const plan = (await computeBlankPlan(point, makeProgress({ learningQueue: [] }), 0))!;
+        expect(plan.isPatternBlank[0]).toBe(true);
+        expect(plan.acceptLists[0]).toContain('だけど');
+        expect(plan.acceptListsMinor![0]).toContain('ものの');
+    });
+
+    it('excludes a different-slot sibling (ungrammatical substitution) and a constraint sibling (changes meaning)', async () => {
+        const plan = (await computeBlankPlan(point, makeProgress({ learningQueue: [] }), 0))!;
+        const all = [...plan.acceptLists[0], ...(plan.acceptListsMinor?.[0] ?? [])];
+        expect(all).not.toContain('でも');
+        expect(all).not.toContain('それでも');
+    });
+
+    it('does nothing when the point has no slot', async () => {
+        const noSlot = makeGrammarPoint({ ...point, slot: undefined });
+        const plan = (await computeBlankPlan(noSlot, makeProgress({ learningQueue: [] }), 0))!;
+        expect(plan.acceptLists[0]).toEqual(['けど']);
+        expect(plan.acceptListsMinor?.[0] ?? []).toEqual([]);
+    });
+});
+
+describe('selectChapterEndFocusIds', () => {
+    function makeContrasts(overrides: Partial<GrammarContrastIndex> = {}): GrammarContrastIndex {
+        return {
+            causality: {
+                name: 'Causality',
+                lessons: [
+                    {
+                        id: 'reason-core',
+                        title: 'から / ので',
+                        points: ['n5-073', 'n4-110'],
+                        cases: [{ focus: 'n4-110', vs: ['n5-073'], situation: 's', guidance: 'g' }],
+                        taughtInChapterId: 'n4-c12',
+                    },
+                    {
+                        id: 'reason-written',
+                        title: 'だから / なぜなら',
+                        points: ['n5-073', 'n5-088', 'n3-072'],
+                        cases: [{ focus: 'n3-072', vs: ['n5-088'], situation: 's2', guidance: 'g2' }],
+                        taughtInChapterId: 'n5-c16',
+                    },
+                ],
+            },
+            ...overrides,
+        };
+    }
+
+    it('collects the focus ids of lessons anchored to the given chapter', () => {
+        expect(selectChapterEndFocusIds(makeContrasts(), 'n4-c12')).toEqual(['n4-110']);
+        expect(selectChapterEndFocusIds(makeContrasts(), 'n5-c16')).toEqual(['n3-072']);
+    });
+
+    it('returns nothing for a chapter with no anchored lessons', () => {
+        expect(selectChapterEndFocusIds(makeContrasts(), 'n1-c99')).toEqual([]);
+    });
+
+    it('dedupes when two cases in different lessons share the same focus and anchor', () => {
+        const contrasts = makeContrasts({
+            causality: {
+                name: 'Causality',
+                lessons: [
+                    {
+                        id: 'a', title: 'a', points: ['n4-110', 'n5-073'],
+                        cases: [{ focus: 'n4-110', vs: ['n5-073'], situation: 's', guidance: 'g' }],
+                        taughtInChapterId: 'n4-c12',
+                    },
+                    {
+                        id: 'b', title: 'b', points: ['n4-110', 'n5-088'],
+                        cases: [{ focus: 'n4-110', vs: ['n5-088'], situation: 's2', guidance: 'g2' }],
+                        taughtInChapterId: 'n4-c12',
+                    },
+                ],
+            },
+        });
+        expect(selectChapterEndFocusIds(contrasts, 'n4-c12')).toEqual(['n4-110']);
+    });
+
+    it('ignores families with no lessons at all (interchangeable-only)', () => {
+        const contrasts: GrammarContrastIndex = {
+            'regardless-a-or-b': { name: 'Regardless', lessons: [], interchangeable: ['n1-a', 'n1-b'] },
+        };
+        expect(selectChapterEndFocusIds(contrasts, 'n1-c01')).toEqual([]);
+    });
+});
+
+describe('selectNewlyCompletedChapterIds', () => {
+    const chapters: GrammarChapter[] = [
+        { id: 'c01', title: 'C1', summary: '', jlptLevel: 5, points: ['n5-a', 'n5-b'] },
+        { id: 'c02', title: 'C2', summary: '', jlptLevel: 5, points: ['n5-c'] },
+    ];
+    const alwaysTeachable = () => true;
+
+    it('reports a chapter complete once every point is introduced', () => {
+        const queue = [
+            makeGrammarProgress({ grammarId: 'n5-a', introductionAt: now }),
+            makeGrammarProgress({ grammarId: 'n5-b', introductionAt: now }),
+        ];
+        expect(selectNewlyCompletedChapterIds(chapters, queue, [], alwaysTeachable)).toEqual(['c01']);
+    });
+
+    it('does not report a chapter with an un-introduced point', () => {
+        const queue = [makeGrammarProgress({ grammarId: 'n5-a', introductionAt: now })];
+        expect(selectNewlyCompletedChapterIds(chapters, queue, [], alwaysTeachable)).toEqual([]);
+    });
+
+    it('excludes a chapter already recorded as completed', () => {
+        const queue = [
+            makeGrammarProgress({ grammarId: 'n5-a', introductionAt: now }),
+            makeGrammarProgress({ grammarId: 'n5-b', introductionAt: now }),
+        ];
+        expect(selectNewlyCompletedChapterIds(chapters, queue, ['c01'], alwaysTeachable)).toEqual([]);
+    });
+
+    it('a chapter with an untestable point completes once every OTHER point is introduced', () => {
+        const isTeachable = (id: string) => id !== 'n5-b';
+        const queue = [makeGrammarProgress({ grammarId: 'n5-a', introductionAt: now })];
+        expect(selectNewlyCompletedChapterIds(chapters, queue, [], isTeachable)).toEqual(['c01']);
+    });
+
+    it('reports every newly-completed chapter, in chapter order', () => {
+        const queue = [
+            makeGrammarProgress({ grammarId: 'n5-a', introductionAt: now }),
+            makeGrammarProgress({ grammarId: 'n5-b', introductionAt: now }),
+            makeGrammarProgress({ grammarId: 'n5-c', introductionAt: now }),
+        ];
+        expect(selectNewlyCompletedChapterIds(chapters, queue, [], alwaysTeachable)).toEqual(['c01', 'c02']);
+    });
+
+    it('a queued-but-not-yet-introduced point does not count', () => {
+        const queue = [
+            makeGrammarProgress({ grammarId: 'n5-a', introductionAt: now }),
+            makeGrammarProgress({ grammarId: 'n5-b', introductionAt: null }),
+        ];
+        expect(selectNewlyCompletedChapterIds(chapters, queue, [], alwaysTeachable)).toEqual([]);
     });
 });

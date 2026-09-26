@@ -12,6 +12,7 @@ import { useQuiz } from "../../context/useQuiz";
 import { GrammarService } from "../../services/grammar.service";
 import { THEME } from "../../commons/theme";
 import { GrammarRelatedPointsCard } from "./GrammarRelatedPointsCard";
+import { GrammarVariantsCard } from "./GrammarVariantsCard";
 import { InteractiveSentence } from "../../components/InteractiveSentence";
 import { grammarExampleToSentence } from "../../utils/grammarSentence.utils";
 import { ArrowLeft } from "lucide-react";
@@ -163,7 +164,11 @@ export default function GrammarDetailScreen() {
         </Card>
     );
 
-    const examplesCard = (
+    // Inflection points (kind: 'inflection') are drilled through a generated
+    // conjugation exercise rather than authored example sentences, so
+    // point.examples is always empty for them - render nothing rather than an
+    // empty "Example Sentences (0)" card.
+    const examplesCard = point.examples.length === 0 ? null : (
         <Card size={isMobile ? "sm" : "md"}>
             <h2 className="text-lg font-gothic font-semibold text-primary mb-4">
                 Example Sentences <span className="text-sm font-normal text-tertiary ml-2">({point.examples.length})</span>
@@ -190,6 +195,7 @@ export default function GrammarDetailScreen() {
         </Card>
     );
 
+    const variantsCard = <GrammarVariantsCard point={point} />;
     const relatedPointsCard = <GrammarRelatedPointsCard point={point} />;
 
     const statsCard = progress && progress.introductionAt ? (
@@ -271,6 +277,7 @@ export default function GrammarDetailScreen() {
                         {explanationCard}
                         {examplesCard}
                         {statsCard}
+                        {variantsCard}
                         {relatedPointsCard}
                     </div>
                 ) : (
@@ -287,6 +294,7 @@ export default function GrammarDetailScreen() {
                             {headerCard}
                             {formationCard}
                             {statsCard}
+                            {variantsCard}
                             {relatedPointsCard}
                         </div>
                         <div className="md:col-span-7 space-y-6">

@@ -98,6 +98,15 @@ export interface GrammarPoint {
      */
     formalityLevel?: 'casual' | 'neutral' | 'polite' | 'formal' | 'very-formal-literary';
     /**
+     * The syntactic slot this point's marker occupies (from the dataset). The gate
+     * for interchangeability grading: two family siblings can only substitute for
+     * one another in a cloze blank if they fill the same slot. けど (clause-final)
+     * and でも (sentence-initial) both mean "but" and share a family, but でも in a
+     * clause-final けど blank is ungrammatical, so that substitution grades wrong,
+     * not as a minor register slip. Absent where unclassified.
+     */
+    slot?: 'clause-final' | 'sentence-initial' | 'predicate-final' | 'pre-noun' | 'adverbial';
+    /**
      * One short, quiz-card-length line (~60-80 chars) covering whatever actually
      * disambiguates this point from its near-synonyms - usually register, but
      * sometimes connotation/nuance instead (criticism, surprise, unmet
@@ -173,6 +182,92 @@ export interface GrammarChapter {
 export interface GrammarTeachingOrder {
     order: string[];
     chapters: GrammarChapter[];
+}
+
+/**
+ * One CASE inside a lesson: a concrete situation, which point to reach for in
+ * it, and why the obvious alternative does not fit.
+ * Compiled from the dataset's `data/raw/grammar/contrasts.json` into
+ * `compiled/grammar/index/contrasts.json`. Directed so `focus` is the point met
+ * LATER in the teaching order: by the time it is introduced the `vs` siblings
+ * are already known, so the app surfaces the case at `focus`'s introduction
+ * (deferring it if a `vs` sibling isn't known yet) and on the family page.
+ */
+export interface GrammarContrastCase {
+    focus: string;
+    vs: string[];
+    situation: string;
+    guidance: string;
+}
+
+/**
+ * A LESSON: a confusability-first sub-grouping of a family - a small set of
+ * points (target 5-6, soft cap) close enough to be actively disambiguated
+ * together, like interleaving look-alike kanji. A small family can be one
+ * lesson; a large one is split. Every case belongs to one lesson and may only
+ * name points that lesson covers.
+ *
+ * A lesson is NOT a chapter. A chapter is a slot in the introduction order; a
+ * lesson is a set of confusable points. They are unrelated groupings, and a
+ * lesson may span chapters - see `taughtInChapterId`.
+ */
+export interface GrammarContrastLesson {
+    id: string;
+    /** Short display title, e.g. "から / ので". */
+    title: string;
+    /** The confusable points this lesson covers. */
+    points: string[];
+    /** The situations taught here. Each case's focus/vs are a subset of `points`. */
+    cases: GrammarContrastCase[];
+    /**
+     * The chapter this lesson can first be taught in: the chapter of whichever
+     * point it covers the teaching order introduces LAST, stamped at dataset
+     * build time. The app does not gate on it (the `vs`-known check in
+     * `selectReadyContrasts` is the runtime equivalent, and is per-learner
+     * rather than per-curriculum), but it is what a chapter-end lesson would
+     * key off if the grammar session ever grows one.
+     */
+    taughtInChapterId?: string;
+}
+
+/**
+ * Family id -> its authored contrast lessons, from
+ * `compiled/grammar/index/contrasts.json`.
+ */
+export type GrammarContrastIndex = Record<string, {
+    name: string;
+    lessons: GrammarContrastLesson[];
+    /**
+     * The family's `variant`-axis members, when it has two or more: siblings
+     * that are genuinely interchangeable, so no lesson exists or could exist
+     * for them (the dataset build rejects one that tries). Shown as a note
+     * instead, because silence is worse - a learner who meets ten near-identical
+     * literary forms with no comment assumes a distinction exists and goes
+     * looking for one.
+     *
+     * A family can carry this and NO lessons at all, so `lessons: []` is a valid
+     * entry rather than a missing one.
+     */
+    interchangeable?: string[];
+}>;
+
+/**
+ * One point's interchangeable siblings, flattened with the family context, for
+ * lookup by point id. `siblings` excludes the point itself.
+ */
+export interface GrammarInterchangeableForPoint {
+    familyId: string;
+    familyName: string;
+    siblings: string[];
+}
+
+/** A contrast case flattened with the family/lesson context it came from, keyed for lookup by its focus point. */
+export interface GrammarContrastForFocus {
+    familyId: string;
+    familyName: string;
+    lessonId: string;
+    lessonTitle: string;
+    case: GrammarContrastCase;
 }
 
 /**
@@ -258,7 +353,16 @@ export interface GrammarBrowseIndex {
 export type ConjugationForm =
     | 'te' | 'tai' | 'zu' | 'chatta' | 'toku'
     | 'causative' | 'causative-passive' | 'passive' | 'potential'
-    | 'i-adj-adverbial' | 'i-adj-te' | 'i-adj-negative-polite' | 'na-adj-adverbial';
+    // Base paradigm (tense x polarity x politeness) and mood/conditional,
+    // from the base-conjugation-paradigm rollout (23 new inflection points).
+    | 'plain-past' | 'plain-negative' | 'plain-past-negative'
+    | 'masu' | 'masu-past' | 'masu-negative' | 'masu-past-negative'
+    | 'volitional' | 'imperative' | 'prohibitive' | 'ba'
+    | 'i-adj-adverbial' | 'i-adj-te' | 'i-adj-negative-polite'
+    | 'i-adj-negative' | 'i-adj-past' | 'i-adj-past-negative' | 'i-adj-ba'
+    | 'na-adj-adverbial' | 'na-adj' | 'na-adj-past' | 'na-adj-negative'
+    | 'na-adj-past-negative' | 'na-adj-polite' | 'na-adj-past-polite'
+    | 'na-adj-negative-polite' | 'na-adj-te';
 
 /** One drill: conjugate `lemma` into `target`. */
 export interface ConjugationDrillItem {

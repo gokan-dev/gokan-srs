@@ -24,21 +24,25 @@ const SYNC_MIGRATION_VERSION = 7;
 /** Version the async homograph-merge pass (migrateMergedVocabsAsync) reaches. */
 const MERGED_VOCAB_VERSION = 8;
 /**
- * Terminal version, reached only after the async grammar-alias pass
- * (migrateGrammarAliasesAsync) has also run. Both async passes need a network
+ * Terminal version, reached only after the async grammar queue-id pass
+ * (migrateGrammarQueueIdsAsync) has also run. Both async passes need a network
  * fetch, so both sit behind needsMigration() rather than the synchronous pass.
  *
- * BUMP THIS whenever `index/aliases.json` gains entries. The alias pass is
- * gated on `currentVersion >= CURRENT_FORMAT_VERSION`, so a user already at the
- * terminal version never re-runs it - and progress stored against a newly
- * dropped id then becomes exactly the stranded item this pass exists to
- * prevent: `loadGrammarPoint` 404s while the scheduler still counts it as due,
- * so the session can never complete. The pass is idempotent
- * (`aliases[id] ?? id`), so re-running it costs nothing.
+ * BUMP THIS whenever `index/aliases.json` OR `index/variant-groups.json` gains
+ * entries. The pass is gated on `currentVersion >= CURRENT_FORMAT_VERSION`, so
+ * a user already at the terminal version never re-runs it - and progress stored
+ * against a newly retired id then becomes exactly the stranded entry this pass
+ * exists to prevent. The pass is idempotent (`remap[id] ?? id`), so re-running
+ * it costs nothing.
  *
  * 9  -> 10: gokan-dev/gokan-dataset#14 raised aliases from 40 to 73.
+ * 10 -> 11: realization variants now feed the same remap. Every variant group
+ *           ever published is in scope, not just the それでは group added with
+ *           the curriculum re-cut: variants were NEVER transferred before this,
+ *           so a user who met どこにも as six separate cards has been drilling
+ *           five orphans against the canonical ever since they were collapsed.
  */
-export const CURRENT_FORMAT_VERSION = 10;
+export const CURRENT_FORMAT_VERSION = 11;
 
 /**
  * Migration service to handle data format upgrades
@@ -260,6 +264,9 @@ export class MigrationService {
             ...progress,
             learningQueue: migratedQueue,
             grammarQueue: migratedGrammarQueue,
+            // Purely additive, like grammarQueue itself - just default to [] on
+            // every load, unconditionally, no version gate needed.
+            completedChapters: progress.completedChapters ?? [],
             adaptive: progress.adaptive ?? { level: 1.0, history: [] },
             _formatVersion: currentVersion < SYNC_MIGRATION_VERSION ? SYNC_MIGRATION_VERSION : currentVersion
         };
@@ -387,18 +394,25 @@ export class MigrationService {
     }
 
     /**
-     * V9 Migration (Async) - transfers grammar progress off deduplicated ids.
+     * Async migration - transfers grammar progress off any id that is no longer
+     * introduced on its own, onto the id that replaced it.
      *
-     * The dataset dropped 40 grammar points that were the same pattern ingested
-     * twice from the upstream files (`～ても` was both n3-052 and n4-097), keeping
-     * the one a learner meets first and publishing the mapping as
-     * `index/aliases.json`.
+     * TWO sources feed the same remap, because they strand a stored entry in
+     * exactly the same way:
      *
-     * Without this pass a stored GrammarProgress on a dropped id becomes an item
-     * that can be neither loaded nor cleared: `loadGrammarPoint` 404s, while
-     * `collectActionableGrammarIds`/`selectGrammarSessionStats` still count it as
-     * due - so the session can never complete. That's the sharp edge here, not
-     * the lost review history.
+     *  - `index/aliases.json`: points the dataset DROPPED as duplicates ingested
+     *    twice from the upstream files (`～ても` was both n3-052 and n4-097).
+     *    These 404 on `loadGrammarPoint`.
+     *  - `index/variant-groups.json`: points demoted to REALIZATION VARIANTS of
+     *    a canonical (それじゃ and じゃ are それでは contracted; どこにも was six
+     *    entries for one rule). These still load, which is worse in one way: the
+     *    learner keeps drilling them as separate cards alongside the canonical,
+     *    which is the exact duplication collapsing them was meant to remove.
+     *
+     * A dropped id is the sharper edge - `loadGrammarPoint` 404s while
+     * `collectActionableGrammarIds`/`selectGrammarSessionStats` still count it
+     * as due, so the session can never complete - but both cost the user review
+     * history if left alone, and the fix is one remap either way.
      *
      * Merge policy when BOTH ids have progress (the user was introduced to each
      * independently): keep the STRONGER entry - higher memoryStrength, ties
@@ -408,7 +422,7 @@ export class MigrationService {
      * merges don't disagree. It does discard the weaker entry's strength, which
      * is unavoidable: two entries become one.
      */
-    static async migrateGrammarAliasesAsync(progress: UserProgress): Promise<UserProgress> {
+    static async migrateGrammarQueueIdsAsync(progress: UserProgress): Promise<UserProgress> {
         const currentVersion = progress._formatVersion ?? 0;
         if (currentVersion >= CURRENT_FORMAT_VERSION) return progress;
 
@@ -416,18 +430,31 @@ export class MigrationService {
             ({ ...progress, grammarQueue: queue, _formatVersion: CURRENT_FORMAT_VERSION });
 
         try {
-            const aliases = await GrammarService.loadAliases();
+            const [aliases, variantGroups] = await Promise.all([
+                GrammarService.loadAliases(),
+                GrammarService.loadVariantGroups(),
+            ]);
             const queue = progress.grammarQueue ?? [];
 
-            // Nothing stored against a dropped id - stamp and move on rather
+            // One remap from both sources. Aliases win a collision: a dropped id
+            // cannot be loaded at all, so its target is the only reachable one.
+            const remap: Record<string, string> = {};
+            for (const [canonicalId, members] of Object.entries(variantGroups)) {
+                for (const member of members) {
+                    if (member.id !== canonicalId) remap[member.id] = canonicalId;
+                }
+            }
+            Object.assign(remap, aliases);
+
+            // Nothing stored against a retired id - stamp and move on rather
             // than rebuilding an identical queue.
-            if (Object.keys(aliases).length === 0 || !queue.some(g => aliases[g.grammarId])) {
+            if (Object.keys(remap).length === 0 || !queue.some(g => remap[g.grammarId])) {
                 return stamp(queue);
             }
 
             const byCanonicalId = new Map<string, GrammarProgress[]>();
             for (const item of queue) {
-                const canonicalId = aliases[item.grammarId] ?? item.grammarId;
+                const canonicalId = remap[item.grammarId] ?? item.grammarId;
                 const bucket = byCanonicalId.get(canonicalId) ?? [];
                 bucket.push(item);
                 byCanonicalId.set(canonicalId, bucket);
@@ -481,7 +508,7 @@ export class MigrationService {
 
             const transferred = queue.length - merged.length;
             console.log(
-                `[MigrationService] Grammar alias migration: ${queue.length} -> ${merged.length} entries ` +
+                `[MigrationService] Grammar queue id migration: ${queue.length} -> ${merged.length} entries ` +
                 `(${transferred} merged onto a canonical id)`
             );
             return stamp(merged);
@@ -490,7 +517,7 @@ export class MigrationService {
             // Leave the queue untouched rather than risk destroying progress on a
             // transient failure. needsMigration() keeps returning true, so this
             // simply retries next time.
-            console.error('Failed to migrate grammar aliases:', e);
+            console.error('Failed to migrate grammar queue ids:', e);
             return progress;
         }
     }
@@ -501,7 +528,7 @@ export class MigrationService {
      */
     static async migrateAsync(progress: UserProgress): Promise<UserProgress> {
         const afterVocab = await this.migrateMergedVocabsAsync(progress);
-        return this.migrateGrammarAliasesAsync(afterVocab);
+        return this.migrateGrammarQueueIdsAsync(afterVocab);
     }
 
     /**

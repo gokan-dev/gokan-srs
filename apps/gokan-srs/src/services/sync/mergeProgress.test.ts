@@ -31,6 +31,7 @@ function makeProgress(overrides: Partial<ProgressWithMetadata> = {}): ProgressWi
         kanjiKnowledge: { method: 'kklc', step: 100, kanjiSet: new Set(['A']) },
         learningQueue: [],
         grammarQueue: [],
+        completedChapters: [],
         stats: { totalReviews: 0, totalLearned: 0, newLearnedToday: 0 },
         dailyOverride: false,
         adaptive: { level: 1.0, history: [] },
@@ -328,6 +329,22 @@ describe('mergeProgress (top-level)', () => {
 
         const merged = mergeProgress(local, remote)!;
         expect(merged.grammarQueue.map(g => g.grammarId).sort()).toEqual(['only-local', 'only-remote']);
+    });
+
+    it('completedChapters is merged as a pure union, mirroring grammarQueue', () => {
+        const local = makeProgress({ completedChapters: ['n5-c01'] });
+        const remote = makeProgress({ completedChapters: ['n5-c02'] });
+
+        const merged = mergeProgress(local, remote)!;
+        expect(merged.completedChapters.sort()).toEqual(['n5-c01', 'n5-c02']);
+    });
+
+    it('completedChapters does not duplicate an id both sides already agree on', () => {
+        const local = makeProgress({ completedChapters: ['n5-c01'] });
+        const remote = makeProgress({ completedChapters: ['n5-c01'] });
+
+        const merged = mergeProgress(local, remote)!;
+        expect(merged.completedChapters).toEqual(['n5-c01']);
     });
 });
 

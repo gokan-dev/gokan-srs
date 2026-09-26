@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePersistControls, usePersistedControlsSnapshot } from "../../hooks/usePersistedControls";
 import { Link } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import type { GrammarAxis, GrammarBrowseIndex, GrammarBrowseRow, GrammarPoint } from "../../models/grammar.model";
 import { GrammarService } from "../../services/grammar.service";
 import { JlptChip } from "../../components/JlptChip";
@@ -155,6 +155,11 @@ function PointCard({ row }: { row: GrammarBrowseRow }) {
 export function GrammarBrowseScreen() {
     const [index, setIndex] = useState<GrammarBrowseIndex | null>(null);
     const [failed, setFailed] = useState(false);
+    // Families that have at least one authored contrast lesson, so the
+    // family-grouped view can link out to the page comparing them - the browse
+    // screen's family grouping is the closest thing this app has to a family
+    // index, so it is where a "which families have lessons" entry point fits.
+    const [familiesWithLessons, setFamiliesWithLessons] = useState<Set<string>>(new Set());
 
     const persisted = usePersistedControlsSnapshot<PersistedBrowseState>(BROWSE_STATE_KEY);
 
@@ -186,6 +191,17 @@ export function GrammarBrowseScreen() {
     useEffect(() => {
         GrammarService.loadBrowseIndex().then(loaded => {
             if (loaded) setIndex(loaded); else setFailed(true);
+        });
+    }, []);
+
+    useEffect(() => {
+        GrammarService.loadContrasts().then(contrasts => {
+            const withLessons = new Set(
+                Object.entries(contrasts)
+                    .filter(([, entry]) => entry.lessons.length > 0)
+                    .map(([familyId]) => familyId)
+            );
+            setFamiliesWithLessons(withLessons);
         });
     }, []);
 
@@ -423,6 +439,14 @@ export function GrammarBrowseScreen() {
                     <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-divider pb-1 mb-3">
                         <h2 className="font-serif text-lg text-primary">{g.title}</h2>
                         <span className="font-gothic text-xs text-tertiary">{g.subtitle}</span>
+                        {group === 'family' && familiesWithLessons.has(g.key) && (
+                            <Link
+                                to={`/grammar/family/${g.key}`}
+                                className="inline-flex items-center gap-1 text-xs font-gothic text-accent hover:underline"
+                            >
+                                Compare when to use each <ArrowRight size={12} />
+                            </Link>
+                        )}
                         <span className="font-gothic text-xs text-tertiary ml-auto">{g.rows.length}</span>
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

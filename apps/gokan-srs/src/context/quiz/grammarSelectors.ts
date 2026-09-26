@@ -1,4 +1,4 @@
-import type { GrammarExample, GrammarPoint, GrammarProgress } from '../../models/grammar.model';
+import type { GrammarChapter, GrammarContrastIndex, GrammarExample, GrammarPoint, GrammarProgress } from '../../models/grammar.model';
 import type { UserProgress } from '../../models/user.model';
 import type { SessionState } from '../../models/state.model';
 import { isGrammarDue, grammarNextReviewAt } from '../../services/grammarScheduling';
@@ -390,6 +390,52 @@ async function applyVariantRotation(
     };
 }
 
+/**
+ * Widens a pattern blank to accept a near-synonym family sibling in place of the
+ * expected marker, graded by how close the two are (issue #62's interchangeability).
+ *
+ * Unlike a variant-group realization, a family sibling is NOT guaranteed to be
+ * slot-compatible: けど (clause-final) and でも (sentence-initial) share the "but"
+ * family but occupy different syntactic slots, and でも in a clause-final blank is
+ * ungrammatical. So a sibling is only offered when it fills the SAME `slot`, and:
+ *  - a `constraint`-axis sibling carries a real semantic restriction, so
+ *    substituting it changes the meaning - excluded (grades wrong).
+ *  - a `register`/`variant` sibling is offered, tiered by formality exactly as the
+ *    variant rotation does: same register -> `correct`, different -> `minor_error`.
+ *
+ * Marker surfaces come from each sibling's own examples (contiguous pattern span),
+ * the same extraction applyVariantRotation uses.
+ */
+async function applyFamilyInterchange(point: GrammarPoint): Promise<{ sameRegister: string[]; otherRegister: string[] } | null> {
+    const family = point.family;
+    if (!family || !point.slot || family.relatedPoints.length === 0) return null;
+
+    const sameRegister: string[] = [];
+    const otherRegister: string[] = [];
+
+    for (const siblingId of family.relatedPoints) {
+        const sibling = await GrammarService.loadGrammarPoint(siblingId).catch(() => null);
+        if (!sibling) continue;
+        // Same slot only - otherwise the substitution is ungrammatical, not a near miss.
+        if (!sibling.slot || sibling.slot !== point.slot) continue;
+        // constraint siblings change the meaning; only register/variant siblings are interchangeable.
+        const axis = sibling.family?.axis;
+        if (axis !== 'register' && axis !== 'variant') continue;
+
+        for (const example of sibling.examples) {
+            if (example.patternWordIndices.length === 0) continue;
+            const indices = example.patternWordIndices;
+            const contiguous = indices.every((w, k) => k === 0 || w === indices[k - 1] + 1);
+            if (!contiguous) continue;
+            const surface = indices.map(i => example.words[i]?.surface ?? '').join('');
+            if (!surface) continue;
+            (sibling.formalityLevel === point.formalityLevel ? sameRegister : otherRegister).push(surface);
+        }
+    }
+
+    return { sameRegister: Array.from(new Set(sameRegister)), otherRegister: Array.from(new Set(otherRegister)) };
+}
+
 export async function computeBlankPlan(point: GrammarPoint, progress: UserProgress | null, reviewCount: number): Promise<GrammarBlankPlan | null> {
     // An inflection point cannot be tested by blanking a marker - hand it to the
     // conjugation drill. Falls through to the cloze path when the dataset has no
@@ -404,28 +450,35 @@ export async function computeBlankPlan(point: GrammarPoint, progress: UserProgre
     const effectivePoint = rotation?.point ?? point;
 
     if (effectivePoint.examples.length === 0) return null;
-    if (rotation) {
-        const base = await computeBlankPlanFor(effectivePoint, progress, reviewCount);
-        if (!base) return null;
-        return {
-            ...base,
-            realization: rotation.realization,
-            // Widen only the PATTERN blanks: a vocab blank has nothing to do with
-            // the alternation and must keep grading strictly.
-            acceptLists: base.acceptLists.map((list, i) =>
-                base.isPatternBlank[i] ? Array.from(new Set([...list, ...rotation.sameRegister])) : list),
-            // Merged, not replaced: the base plan's minor tier already carries each
-            // inflected vocab blank's dictionary forms (right word, wrong conjugation),
-            // and overwriting it here would silently restore full credit for those on
-            // any variant-group turn.
-            acceptListsMinor: base.acceptLists.map((_, i) => Array.from(new Set([
-                ...(base.acceptListsMinor?.[i] ?? []),
-                ...(base.isPatternBlank[i] ? rotation.otherRegister : []),
-            ]))),
-        };
-    }
 
-    return computeBlankPlanFor(effectivePoint, progress, reviewCount);
+    const base = await computeBlankPlanFor(effectivePoint, progress, reviewCount);
+    if (!base) return null;
+
+    // Two independent sources widen the PATTERN blanks: the variant-group rotation
+    // (same construction, different realization) and family interchange (a
+    // near-synonym sibling filling the same slot). They stack.
+    const interchange = await applyFamilyInterchange(point);
+    const sameRegister = [...(rotation?.sameRegister ?? []), ...(interchange?.sameRegister ?? [])];
+    const otherRegister = [...(rotation?.otherRegister ?? []), ...(interchange?.otherRegister ?? [])];
+
+    // Nothing to add and no realization to record: the base plan stands unchanged.
+    if (!rotation && sameRegister.length === 0 && otherRegister.length === 0) return base;
+
+    return {
+        ...base,
+        ...(rotation ? { realization: rotation.realization } : {}),
+        // Widen only the PATTERN blanks: a vocab blank has nothing to do with the
+        // alternation and must keep grading strictly.
+        acceptLists: base.acceptLists.map((list, i) =>
+            base.isPatternBlank[i] ? Array.from(new Set([...list, ...sameRegister])) : list),
+        // Merged, not replaced: the base plan's minor tier already carries each
+        // inflected vocab blank's dictionary forms (right word, wrong conjugation),
+        // and overwriting it here would silently restore full credit for those.
+        acceptListsMinor: base.acceptLists.map((_, i) => Array.from(new Set([
+            ...(base.acceptListsMinor?.[i] ?? []),
+            ...(base.isPatternBlank[i] ? otherRegister : []),
+        ]))),
+    };
 }
 
 async function computeBlankPlanFor(point: GrammarPoint, progress: UserProgress | null, reviewCount: number): Promise<GrammarBlankPlan | null> {
@@ -763,4 +816,64 @@ export function selectNextGrammarSessionPreview(
         isNew: g => g.totalReviews === 0,
         isDue: g => isGrammarDue(g, now),
     });
+}
+
+/**
+ * Every id, in a stable order, that is the FOCUS of a contrast case belonging
+ * to a lesson anchored to `chapterId` (lesson.taughtInChapterId). This is the
+ * set of points the end-of-chapter review step renders - one GrammarContrastCard
+ * per id, reusing exactly the same component the per-point intro-time card
+ * uses (see GrammarChapterLessonCard). Pure and testable independent of the
+ * async data loading that supplies `contrasts`.
+ *
+ * Deliberately collects by FOCUS point rather than by lesson: GrammarContrastCard
+ * already resolves "every ready case for this point" on its own via
+ * selectReadyContrasts, so handing it one id per focus is enough - no need to
+ * pass case-level detail through this selector.
+ */
+export function selectChapterEndFocusIds(contrasts: GrammarContrastIndex, chapterId: string): string[] {
+    const seen = new Set<string>();
+    const ids: string[] = [];
+
+    for (const family of Object.values(contrasts)) {
+        for (const lesson of family.lessons) {
+            if (lesson.taughtInChapterId !== chapterId) continue;
+            for (const c of lesson.cases) {
+                if (seen.has(c.focus)) continue;
+                seen.add(c.focus);
+                ids.push(c.focus);
+            }
+        }
+    }
+
+    return ids;
+}
+
+/**
+ * Chapters that have just become fully introduced (every TEACHABLE point in
+ * the chapter has introductionAt set) and are not already in
+ * `completedChapters`. "Teachable" mirrors GrammarSRSService's own gate: a
+ * chapter containing an inflection point with no conjugation drill items can
+ * never have that point introduced, so requiring it would strand the chapter
+ * incomplete forever.
+ *
+ * Pure - `isTeachable` is passed in rather than fetched here, so this can be
+ * tested without mocking GrammarService. Order follows `chapters`, so when
+ * more than one completes in the same tick (e.g. after a Drive merge brings in
+ * a large chunk of remote progress at once) they are handled in curriculum
+ * order.
+ */
+export function selectNewlyCompletedChapterIds(
+    chapters: GrammarChapter[],
+    grammarQueue: GrammarProgress[],
+    completedChapters: string[],
+    isTeachable: (id: string) => boolean
+): string[] {
+    const introducedIds = new Set(grammarQueue.filter(g => g.introductionAt !== null).map(g => g.grammarId));
+    const completed = new Set(completedChapters);
+
+    return chapters
+        .filter(chapter => !completed.has(chapter.id))
+        .filter(chapter => chapter.points.every(id => !isTeachable(id) || introducedIds.has(id)))
+        .map(chapter => chapter.id);
 }

@@ -10,6 +10,7 @@ function makeProgress(overrides: Partial<UserProgress> = {}): UserProgress {
         kanjiKnowledge: { method: 'kklc', step: 10, kanjiSet: new Set(['日']) },
         learningQueue: [],
         grammarQueue: [],
+        completedChapters: [],
         stats: { newLearnedToday: 0, totalLearned: 0, totalReviews: 0 },
         dailyOverride: false,
         adaptive: { level: 1.0, history: [] },

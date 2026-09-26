@@ -17,6 +17,19 @@ export interface UserProgress {
     grammarQueue: GrammarProgress[];
 
     /**
+     * Ids of grammar chapters whose end-of-chapter review step has already been
+     * shown (or, for a chapter with no anchored contrast lessons, silently
+     * acknowledged as complete). Purely additive like grammarQueue - a chapter
+     * is added here once every one of its teachable points has been introduced,
+     * so the step doesn't re-fire on a later session. See GrammarChapter and
+     * GrammarSRSService.getCurrentChapter: the CURRENT chapter is always
+     * derived from the teaching order, never stored, but "has this chapter's
+     * step already been shown" has to be remembered somewhere, or it would
+     * re-fire forever.
+     */
+    completedChapters: string[];
+
+    /**
      * Counters for progress
      * - learned: queue items (not just intro'd)
      * - graduated: longer interval items
@@ -124,6 +137,7 @@ export const DEFAULT_PROGRESS: Omit<UserProgress, 'kanjiKnowledge'> = {
     },
     learningQueue: [],
     grammarQueue: [],
+    completedChapters: [],
     dailyOverride: false,
     adaptive: {
         level: 1.0,

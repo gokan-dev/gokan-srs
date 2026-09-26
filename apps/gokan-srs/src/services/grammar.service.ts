@@ -1,4 +1,4 @@
-import type { GrammarAliasIndex, GrammarBrowseIndex, GrammarChapter, GrammarConjugationIndex, GrammarJlptIndex, GrammarKindIndex, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex } from '../models/grammar.model';
+import type { GrammarAliasIndex, GrammarBrowseIndex, GrammarChapter, GrammarConjugationIndex, GrammarContrastForFocus, GrammarContrastIndex, GrammarInterchangeableForPoint, GrammarJlptIndex, GrammarKindIndex, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex } from '../models/grammar.model';
 
 /**
  * Loads grammar data compiled by the gokan-dataset submodule's
@@ -16,6 +16,9 @@ export class GrammarService {
     private static conjugations: GrammarConjugationIndex | null = null;
     private static variantGroups: GrammarVariantGroupIndex | null = null;
     private static browseIndex: GrammarBrowseIndex | null = null;
+    private static contrasts: GrammarContrastIndex | null = null;
+    private static contrastsByFocus: Map<string, GrammarContrastForFocus[]> | null = null;
+    private static interchangeableByPoint: Map<string, GrammarInterchangeableForPoint> | null = null;
     private static pointCache = new Map<string, GrammarPoint>();
 
     private static async fetchJson<T>(path: string): Promise<T> {
@@ -124,6 +127,76 @@ export class GrammarService {
             console.error('[GrammarService] Failed to load the grammar browse index', e);
             return null;
         }
+    }
+
+    /**
+     * Family id -> its authored contrast clusters. On failure returns {} without
+     * caching, so a transient fetch error retries next time rather than
+     * permanently disabling contrast lessons for the session (matching loadKinds).
+     * A missing file is not an error: contrasts are optional, and a family with
+     * none simply shows the abstract differentiator it always did.
+     */
+    static async loadContrasts(): Promise<GrammarContrastIndex> {
+        if (this.contrasts) return this.contrasts;
+
+        try {
+            const loaded = await this.fetchJson<GrammarContrastIndex>(`/data/compiled/grammar/index/contrasts.json?v=${Date.now()}`);
+            this.contrasts = loaded;
+            return loaded;
+        } catch (e) {
+            console.error('[GrammarService] Failed to load grammar contrasts; no contrast lessons will show', e);
+            return {};
+        }
+    }
+
+    /**
+     * Contrast units keyed by their focus point id, so the intro flow can ask
+     * "does the point I'm introducing carry any contrast lessons?" in one lookup.
+     * Cached only once a non-empty index has actually loaded, so a transient
+     * failure doesn't freeze an empty map in place.
+     */
+    static async loadContrastsByFocus(): Promise<Map<string, GrammarContrastForFocus[]>> {
+        if (this.contrastsByFocus) return this.contrastsByFocus;
+
+        const index = await this.loadContrasts();
+        const map = new Map<string, GrammarContrastForFocus[]>();
+        for (const [familyId, fam] of Object.entries(index)) {
+            for (const lesson of fam.lessons) {
+                for (const case_ of lesson.cases) {
+                    const list = map.get(case_.focus) ?? [];
+                    list.push({ familyId, familyName: fam.name, lessonId: lesson.id, lessonTitle: lesson.title, case: case_ });
+                    map.set(case_.focus, list);
+                }
+            }
+        }
+        if (map.size > 0) this.contrastsByFocus = map;
+        return map;
+    }
+
+    /**
+     * Interchangeable siblings keyed by point id: for a `variant`-axis member,
+     * the OTHER members of its family that are equally interchangeable with it.
+     *
+     * Exists because the contrast system is otherwise silent on exactly the
+     * points that most need a word said about them. A learner introduced to the
+     * fourth of ten near-identical "whether A or B" forms, with no lesson and no
+     * note, concludes a distinction exists and goes hunting for one. Same cache
+     * discipline as loadContrastsByFocus: only cached once something loaded.
+     */
+    static async loadInterchangeableByPoint(): Promise<Map<string, GrammarInterchangeableForPoint>> {
+        if (this.interchangeableByPoint) return this.interchangeableByPoint;
+
+        const index = await this.loadContrasts();
+        const map = new Map<string, GrammarInterchangeableForPoint>();
+        for (const [familyId, fam] of Object.entries(index)) {
+            const ids = fam.interchangeable ?? [];
+            if (ids.length < 2) continue;
+            for (const id of ids) {
+                map.set(id, { familyId, familyName: fam.name, siblings: ids.filter(other => other !== id) });
+            }
+        }
+        if (map.size > 0) this.interchangeableByPoint = map;
+        return map;
     }
 
     /** The chapter a point belongs to, or null when the order isn't available. */

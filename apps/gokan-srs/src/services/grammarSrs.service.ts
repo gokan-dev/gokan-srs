@@ -1,4 +1,4 @@
-import type { GrammarProgress } from '../models/grammar.model';
+import type { GrammarChapter, GrammarProgress } from '../models/grammar.model';
 import { GRAMMAR_JLPT_LEVELS } from '../models/grammar.model';
 import type { VocabProgress } from '../models/vocabulary.model';
 import type { UserSettings } from '../models/user.model';
@@ -210,6 +210,28 @@ export class GrammarSRSService {
     }
 
     /**
+     * The chapter containing the next point that would be introduced right now -
+     * the earliest point in the teaching order that isn't active yet and is
+     * still teachable. Derived fresh on every call, never stored: the dataset
+     * can re-cut chapters at any time (it already has, for N3-N1), and a
+     * persisted "current chapter" pointer would dangle across that re-cut.
+     * Returns null once nothing is left to introduce, or when the order can't
+     * be loaded (the JLPT-fallback path has no chapters to report).
+     */
+    static async getCurrentChapter(currentQueue: GrammarProgress[]): Promise<GrammarChapter | null> {
+        const activeIds = new Set(currentQueue.map(g => g.grammarId));
+        const isTeachable = await this.buildTeachabilityFilter();
+
+        const teachingOrder = await GrammarService.loadTeachingOrder();
+        if (!teachingOrder) return null;
+
+        const nextId = teachingOrder.order.find(id => !activeIds.has(id) && isTeachable(id));
+        if (!nextId) return null;
+
+        return teachingOrder.chapters.find(c => c.points.includes(nextId)) ?? null;
+    }
+
+    /**
      * Finds the next batch of grammar point IDs eligible for learning, in the
      * dataset's authored teaching order (see gokan-dataset's
      * `index/teaching-order.json` and its SCHEMA.md).
@@ -219,6 +241,16 @@ export class GrammarSRSService {
      * superlative first, then seven near-synonymous connectives, and the case
      * particles at #40+ (`Noun は` #40, `Noun を` #43, `Verb て` #46). It
      * survives only as the fallback for when the order file can't be loaded.
+     *
+     * A batch never crosses a chapter boundary: candidates are drawn only from
+     * the CURRENT chapter (see getCurrentChapter), up to maxToFind (a ceiling,
+     * not a fixed count - a chapter with fewer teachable points remaining than
+     * maxToFind simply yields that remainder). Crossing into the next chapter
+     * happens on a later call, once every teachable point in this one is
+     * active, not mid-batch. Without this, a chapter's arrangement would never
+     * be visible to the learner - they would just see three points at a time
+     * from a flat list, regardless of where one chapter ends and the next
+     * begins.
      *
      * Introduction order only. Review order is untouched and stays interleaved
      * (`pickStableGrammar` over the due pool in grammarSelectors.ts) - teaching
@@ -238,9 +270,23 @@ export class GrammarSRSService {
 
         const teachingOrder = await GrammarService.loadTeachingOrder();
         if (teachingOrder) {
+            const nextId = teachingOrder.order.find(id => !activeIds.has(id) && isTeachable(id));
+            if (!nextId) return [];
+
+            // The order is the flattening of chapters in chapter order, so once the
+            // walk below reaches an id outside the current chapter's point set,
+            // everything after it belongs to a later chapter too - safe to stop
+            // there rather than scanning the rest of the dataset. A point whose
+            // chapter can't be resolved (defensive only - the dataset build
+            // guarantees every point has one) falls back to the old unbounded walk
+            // rather than returning nothing.
+            const chapter = teachingOrder.chapters.find(c => c.points.includes(nextId)) ?? null;
+            const chapterPoints = chapter ? new Set(chapter.points) : null;
+
             const found: string[] = [];
             for (const id of teachingOrder.order) {
                 if (activeIds.has(id) || !isTeachable(id)) continue;
+                if (chapterPoints && !chapterPoints.has(id)) break;
                 found.push(id);
                 if (found.length >= maxToFind) break;
             }
@@ -280,8 +326,13 @@ export class GrammarSRSService {
      *    the alternative is silently emptying the learning queue.
      *  - conjugations unavailable -> no inflection point teachable; the
      *    alternative is serving a card with no question on it.
+     *
+     * Not private: the chapter-completion check (useGrammarOrchestration) needs
+     * the exact same notion of "teachable" - a chapter cannot be considered
+     * fully introduced while it still contains an untestable point, since that
+     * point can never be introduced and the chapter would never complete.
      */
-    private static async buildTeachabilityFilter(): Promise<(id: string) => boolean> {
+    static async buildTeachabilityFilter(): Promise<(id: string) => boolean> {
         const kinds = await GrammarService.loadKinds();
         const conjugations = await GrammarService.loadConjugations();
         return (id: string) => {
