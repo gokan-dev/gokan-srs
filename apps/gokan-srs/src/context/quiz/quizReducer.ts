@@ -41,6 +41,28 @@ export interface SessionTracking {
     committed: TaskKey[];
 }
 
+/**
+ * Cumulative knowledge-point totals for the CURRENT study session, tracked as
+ * running scalar accumulators rather than derived by summing sessionHistory.
+ * sessionHistory (and grammarSessionHistory) is deliberately capped at 50
+ * entries for the ticker display - summing it for the session TOTAL meant the
+ * total silently stopped growing (plateaued) once a session passed 50 answers,
+ * since the oldest deltas fell out of the array (issue #80). Reset to zero on
+ * SESSION_START/GRAMMAR_SESSION_START, incremented on every
+ * UPDATE_AFTER_ANSWER/GRAMMAR_UPDATE_AFTER_ANSWER from the same delta already
+ * pushed into the (capped) history array, so the two can never disagree on
+ * a per-answer basis - only on how far back they remember.
+ */
+export interface SessionGains {
+    net: number;
+    gained: number;
+    lost: number;
+    /** Grammar only: points credited to reinforced vocabulary. Always 0 for vocab's own sessionGains. */
+    vocab: number;
+}
+
+export const ZERO_SESSION_GAINS: SessionGains = { net: 0, gained: 0, lost: 0, vocab: 0 };
+
 interface QuizStateBase {
     progress: UserProgress | null;
     settings: UserSettings | null;
@@ -101,6 +123,8 @@ interface QuizStateBase {
     }>;
     /** Task set of the active study session (null between sessions). See SessionTracking. */
     session: SessionTracking | null;
+    /** Cumulative knowledge points earned this session - see SessionGains. */
+    sessionGains: SessionGains;
     fatalError: string | null;
 }
 
@@ -160,6 +184,7 @@ export const initialState: QuizState = {
     nextKanjiToLearn: null,
     sessionHistory: [],
     session: null,
+    sessionGains: ZERO_SESSION_GAINS,
     fatalError: null,
 };
 
@@ -283,15 +308,23 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
                 },
             };
 
-        case 'UPDATE_AFTER_ANSWER':
+        case 'UPDATE_AFTER_ANSWER': {
+            const { delta } = action.payload.historyItem;
             return {
                 ...state,
                 progress: action.payload.progress,
                 feedback: null,
                 userAnswer: '',
                 sessionHistory: [action.payload.historyItem, ...state.sessionHistory].slice(0, 50),
+                sessionGains: {
+                    net: state.sessionGains.net + delta,
+                    gained: state.sessionGains.gained + (delta > 0 ? delta : 0),
+                    lost: state.sessionGains.lost + (delta < 0 ? -delta : 0),
+                    vocab: state.sessionGains.vocab,
+                },
                 introCandidates: state.introCandidates.filter(c => c.id !== action.payload.historyItem.vocabId),
             };
+        }
 
         case 'ADVANCE_QUEUE':
             return {
@@ -368,6 +401,7 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
                 // Fresh session -> fresh ticker, so the gains/losses summary reflects
                 // only this session's answers.
                 sessionHistory: [],
+                sessionGains: ZERO_SESSION_GAINS,
             };
 
         case 'SESSION_END':

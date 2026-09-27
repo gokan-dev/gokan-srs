@@ -2,7 +2,7 @@ import type { UserProgress } from '../../models/user.model';
 import type { GrammarExample, GrammarPoint } from '../../models/grammar.model';
 import type { AnswerResult } from '../../services/srs.service';
 import { GrammarSRSService } from '../../services/grammarSrs.service';
-import type { QuizState } from './quizReducer';
+import type { QuizState, SessionGains } from './quizReducer';
 
 /** Which example (by index) and which of its words became blanks for the CURRENT quiz turn - fixed at load time so grading matches what was shown. */
 /**
@@ -160,6 +160,8 @@ export interface GrammarQuizState {
     grammarIntroCandidates: GrammarPoint[];
     /** Task set of the active grammar study session (null between sessions). See GrammarSessionTracking. */
     grammarSession: GrammarSessionTracking | null;
+    /** Cumulative knowledge points earned this session, both the grammar point's own and the reinforced vocab's (`vocab`) - see SessionGains in quizReducer.ts. */
+    grammarSessionGains: SessionGains;
     grammarSessionHistory: Array<{
         grammarId: string;
         title: string;
@@ -183,6 +185,7 @@ export const initialGrammarState: GrammarQuizState = {
     isLoadingGrammar: false,
     grammarIntroCandidates: [],
     grammarSession: null,
+    grammarSessionGains: { net: 0, gained: 0, lost: 0, vocab: 0 },
     grammarSessionHistory: [],
 };
 
@@ -290,17 +293,27 @@ export function grammarReducer(state: QuizState, action: GrammarQuizAction): Qui
                 },
             };
 
-        case 'GRAMMAR_UPDATE_AFTER_ANSWER':
+        case 'GRAMMAR_UPDATE_AFTER_ANSWER': {
+            const historyItem = action.payload.historyItem;
             return {
                 ...state,
                 progress: action.payload.progress,
                 grammarFeedback: null,
                 grammarAnswers: [],
                 grammarHintLevels: [],
-                grammarSessionHistory: action.payload.historyItem
-                    ? [action.payload.historyItem, ...state.grammarSessionHistory].slice(0, 50)
+                grammarSessionHistory: historyItem
+                    ? [historyItem, ...state.grammarSessionHistory].slice(0, 50)
                     : state.grammarSessionHistory,
+                grammarSessionGains: historyItem
+                    ? {
+                        net: state.grammarSessionGains.net + historyItem.delta,
+                        gained: state.grammarSessionGains.gained + (historyItem.delta > 0 ? historyItem.delta : 0),
+                        lost: state.grammarSessionGains.lost + (historyItem.delta < 0 ? -historyItem.delta : 0),
+                        vocab: state.grammarSessionGains.vocab + (historyItem.vocabDelta ?? 0),
+                    }
+                    : state.grammarSessionGains,
             };
+        }
 
         case 'GRAMMAR_ADVANCE_QUEUE':
             return {
@@ -328,6 +341,7 @@ export function grammarReducer(state: QuizState, action: GrammarQuizAction): Qui
                 // Fresh session -> fresh ticker, so the gains/losses summary reflects
                 // only this session's answers.
                 grammarSessionHistory: [],
+                grammarSessionGains: { net: 0, gained: 0, lost: 0, vocab: 0 },
             };
 
         case 'GRAMMAR_SESSION_END':
