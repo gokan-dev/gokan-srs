@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { AnswerResult } from '../services/srs.service';
+import type { SessionGains } from '../context/quiz/quizReducer';
 
 export interface SessionProgressStats {
     done: number;
@@ -40,6 +41,8 @@ export interface SessionHistoryEntry {
 interface SessionProgressProps {
     stats: SessionProgressStats;
     history: SessionHistoryEntry[];
+    /** Cumulative knowledge points for the whole session (issue #80) - NOT derived from `history`, which is capped at 50 entries for the ticker. */
+    gains: SessionGains;
     /** Plural noun for the waiting note, e.g. "vocab" or "grammar points". */
     waitingNoun: string;
 }
@@ -92,17 +95,23 @@ const WaitingNote: React.FC<{ waiting: number; moreNew: boolean; noun: string }>
  * checks out by eye. The gained/lost breakdown survives in the tooltip for anyone
  * who wants it.
  *
- * `vocabDelta` is summed separately rather than folded in: in a grammar session the
+ * `vocab` is summed separately rather than folded in: in a grammar session the
  * answer scores the grammar point AND reinforces the sentence's vocabulary, and
  * those are two different things the learner is building.
+ *
+ * Reads the running `gains` accumulator rather than reducing over `history` (issue
+ * #80): `history` is capped at 50 entries for the ticker, so a total derived from it
+ * silently stopped growing once a session passed 50 answers. `hasAnswered` alone
+ * decides whether to render at all - the total may legitimately be net 0 gained X
+ * lost X, and that is still worth showing once at least one answer happened.
  */
-const GainsSummary: React.FC<{ history: SessionHistoryEntry[] }> = ({ history }) => {
-    if (history.length === 0) return null;
+const GainsSummary: React.FC<{ gains: SessionGains; hasAnswered: boolean }> = ({ gains, hasAnswered }) => {
+    if (!hasAnswered) return null;
 
-    const net = Math.round(history.reduce((s, h) => s + h.delta, 0));
-    const gained = Math.round(history.filter(h => h.delta > 0).reduce((s, h) => s + h.delta, 0));
-    const lost = Math.round(Math.abs(history.filter(h => h.delta < 0).reduce((s, h) => s + h.delta, 0)));
-    const vocab = Math.round(history.reduce((s, h) => s + (h.vocabDelta ?? 0), 0));
+    const net = Math.round(gains.net);
+    const gained = Math.round(gains.gained);
+    const lost = Math.round(gains.lost);
+    const vocab = Math.round(gains.vocab);
 
     const title = `Knowledge points this session: +${gained} gained, -${lost} lost`
         + (vocab > 0 ? `, +${vocab} on the vocabulary in these sentences` : '');
@@ -134,10 +143,11 @@ const GainsSummary: React.FC<{ history: SessionHistoryEntry[] }> = ({ history })
  * selectGrammarSessionStats for how each activity computes its own
  * `stats`/`history` (issue #32 follow-up).
  */
-export const SessionProgress: React.FC<SessionProgressProps> = ({ stats, history, waitingNoun }) => {
+export const SessionProgress: React.FC<SessionProgressProps> = ({ stats, history, gains, waitingNoun }) => {
     const { isMobile } = useResponsive();
 
     const { done, total, retriesPending, waiting, moreNew } = stats;
+    const hasAnswered = history.length > 0;
 
     // Retries extend the denominator so the bar can't read 100% while redos remain.
     const barTotal = total + retriesPending;
@@ -152,7 +162,7 @@ export const SessionProgress: React.FC<SessionProgressProps> = ({ stats, history
                         <div className="flex justify-between items-end mb-1">
                             <div className="flex items-center gap-3">
                                 <span className="text-secondary-400 text-sm font-medium">Session Progress</span>
-                                <GainsSummary history={history} />
+                                <GainsSummary gains={gains} hasAnswered={hasAnswered} />
                             </div>
                             <div className="text-secondary-400 text-sm font-medium">
                                 <SessionCounter done={done} total={total} retriesPending={retriesPending} />
@@ -193,7 +203,7 @@ export const SessionProgress: React.FC<SessionProgressProps> = ({ stats, history
                     </div>
                     <div className="px-1 mt-1 flex items-center justify-between gap-2">
                         <WaitingNote waiting={waiting} moreNew={moreNew} noun={waitingNoun} />
-                        <GainsSummary history={history} />
+                        <GainsSummary gains={gains} hasAnswered={hasAnswered} />
                     </div>
                 </>
             )}

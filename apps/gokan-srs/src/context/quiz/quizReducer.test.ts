@@ -270,6 +270,45 @@ describe('quizReducer', () => {
         expect(next.sessionHistory[0].vocabId).toBe('new');
     });
 
+    // issue #80: sessionHistory is capped at 50 for the ticker, but the session
+    // point total must keep growing past that - it must NOT be derived by
+    // summing the (capped) history array.
+    it('UPDATE_AFTER_ANSWER accumulates sessionGains past the 50-entry history cap', () => {
+        let state: QuizState = { ...initialState };
+
+        for (let i = 0; i < 60; i++) {
+            state = quizReducer(state, {
+                type: 'UPDATE_AFTER_ANSWER',
+                payload: {
+                    progress: makeProgress(),
+                    historyItem: { vocabId: `v${i}`, writtenForm: 'x', result: 'correct', delta: 5 },
+                },
+            });
+        }
+
+        // The ticker-facing history is still capped...
+        expect(state.sessionHistory).toHaveLength(50);
+        // ...but the cumulative total reflects all 60 answers, not just the last 50.
+        expect(state.sessionGains.net).toBe(300);
+        expect(state.sessionGains.gained).toBe(300);
+        expect(state.sessionGains.lost).toBe(0);
+    });
+
+    it('UPDATE_AFTER_ANSWER splits sessionGains into gained/lost by sign', () => {
+        let state: QuizState = { ...initialState };
+
+        state = quizReducer(state, {
+            type: 'UPDATE_AFTER_ANSWER',
+            payload: { progress: makeProgress(), historyItem: { vocabId: 'v1', writtenForm: 'x', result: 'correct', delta: 10 } },
+        });
+        state = quizReducer(state, {
+            type: 'UPDATE_AFTER_ANSWER',
+            payload: { progress: makeProgress(), historyItem: { vocabId: 'v2', writtenForm: 'x', result: 'wrong', delta: -4 } },
+        });
+
+        expect(state.sessionGains).toEqual({ net: 6, gained: 10, lost: 4, vocab: 0 });
+    });
+
     it('SAVE_SETTINGS clears introCandidates when preferredLearningOrder changes', () => {
         const state: QuizState = {
             ...initialState,
@@ -373,6 +412,15 @@ describe('quizReducer', () => {
         const next = quizReducer(state, { type: 'SESSION_START', payload: { taskKeys: keys, progress: clearedProgress } });
         expect(next.progress).toBe(clearedProgress);
         expect(next.session).toEqual({ committed: keys });
+    });
+
+    it('SESSION_START resets sessionGains to zero', () => {
+        const state: QuizState = {
+            ...initialState,
+            sessionGains: { net: 42, gained: 42, lost: 0, vocab: 0 },
+        };
+        const next = quizReducer(state, { type: 'SESSION_START', payload: { taskKeys: [taskKey('v1', 'reading')] } });
+        expect(next.sessionGains).toEqual({ net: 0, gained: 0, lost: 0, vocab: 0 });
     });
 
     it('SESSION_END clears an active session', () => {

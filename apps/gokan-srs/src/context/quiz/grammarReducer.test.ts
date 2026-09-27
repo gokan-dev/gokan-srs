@@ -203,6 +203,35 @@ describe('grammarReducer (via quizReducer)', () => {
         expect(next.grammarSessionHistory).toEqual(state.grammarSessionHistory);
     });
 
+    // issue #80: grammarSessionHistory is capped at 50 for the ticker, but the
+    // session point total (including the vocab-reinforcement figure) must keep
+    // growing past that.
+    it('GRAMMAR_UPDATE_AFTER_ANSWER accumulates grammarSessionGains past the 50-entry history cap', () => {
+        const progress = makeProgress();
+        let state: QuizState = { ...initialState };
+
+        for (let i = 0; i < 60; i++) {
+            state = quizReducer(state, {
+                type: 'GRAMMAR_UPDATE_AFTER_ANSWER',
+                payload: {
+                    progress,
+                    historyItem: { grammarId: `n5-${i}`, title: 'x', result: 'correct', delta: 5, vocabDelta: 2 },
+                },
+            });
+        }
+
+        expect(state.grammarSessionHistory).toHaveLength(50);
+        expect(state.grammarSessionGains).toEqual({ net: 300, gained: 300, lost: 0, vocab: 120 });
+    });
+
+    it('GRAMMAR_UPDATE_AFTER_ANSWER leaves grammarSessionGains untouched without a historyItem', () => {
+        const progress = makeProgress();
+        const state: QuizState = { ...initialState, grammarSessionGains: { net: 10, gained: 10, lost: 0, vocab: 3 } };
+        const next = quizReducer(state, { type: 'GRAMMAR_UPDATE_AFTER_ANSWER', payload: { progress } });
+
+        expect(next.grammarSessionGains).toEqual({ net: 10, gained: 10, lost: 0, vocab: 3 });
+    });
+
     describe('GRAMMAR_SESSION_START / GRAMMAR_SESSION_END', () => {
         it('GRAMMAR_SESSION_START snapshots the committed grammar ids', () => {
             const next = quizReducer(initialState, { type: 'GRAMMAR_SESSION_START', payload: { grammarIds: ['n5-001', 'n5-002'] } });
@@ -231,6 +260,15 @@ describe('grammarReducer (via quizReducer)', () => {
             });
             expect(next.progress).toBe(clearedProgress);
             expect(next.grammarSession).toEqual({ committed: ['n5-001'] });
+        });
+
+        it('GRAMMAR_SESSION_START resets grammarSessionGains to zero', () => {
+            const state: QuizState = {
+                ...initialState,
+                grammarSessionGains: { net: 42, gained: 42, lost: 0, vocab: 8 },
+            };
+            const next = quizReducer(state, { type: 'GRAMMAR_SESSION_START', payload: { grammarIds: ['n5-001'] } });
+            expect(next.grammarSessionGains).toEqual({ net: 0, gained: 0, lost: 0, vocab: 0 });
         });
 
         it('GRAMMAR_SESSION_END clears an active session', () => {

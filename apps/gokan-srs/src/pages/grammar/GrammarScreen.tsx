@@ -108,7 +108,7 @@ export function GrammarScreen() {
 
             return (
                 <div className="flex flex-col flex-1 items-center">
-                    <SessionProgress stats={grammarSessionStats} history={history} waitingNoun="grammar points" />
+                    <SessionProgress stats={grammarSessionStats} history={history} gains={state.grammarSessionGains} waitingNoun="grammar points" />
 
                     <div className="flex-1 flex items-center justify-center py-6 w-full">
                         {/* An `inflection` point is served by the transformation
