@@ -1,16 +1,33 @@
 <script lang="ts">
   import type { GrammarPoint } from '../models/grammar.model';
   import type { GrammarSummary } from '../lib/types';
-  import { grammarPath, homePath, vocabPath } from '../lib/urls';
+  import type { ChapterLocator } from '../lib/grammarChapters';
+  import type { VariantSibling } from '../lib/grammarVariants';
+  import type { GrammarConjugationIndex } from '../models/grammar.model';
+  import { grammarChapterPath, grammarFamilyPath, grammarPath, homePath, vocabPath } from '../lib/urls';
   import SiteHeader from './SiteHeader.svelte';
   import SiteFooter from './SiteFooter.svelte';
 
   interface Props {
     point: GrammarPoint;
     related: GrammarSummary[];
+    /** Where this point sits in the teaching order (issue #58); null when it isn't in it (e.g. a non-canonical variant realization). */
+    chapterLocator: ChapterLocator | null;
+    /** This point's realization variants, e.g. それでは/それじゃ/じゃ; [] when it has none (issue #58). */
+    variants: VariantSibling[];
+    /** This point's conjugation drill table, for `kind: 'inflection'` points that have one (issue #58). */
+    conjugation: GrammarConjugationIndex[string] | null;
   }
 
-  let { point, related }: Props = $props();
+  let { point, related, chapterLocator, variants, conjugation }: Props = $props();
+
+  const RELATION_LABEL: Record<string, string> = {
+    canonical: 'Base form',
+    contraction: 'Contraction',
+    politeness: 'Politeness',
+    particle: 'Particle',
+    'particle+politeness': 'Particle + politeness',
+  };
 
   const FORMALITY_LABELS: Record<NonNullable<GrammarPoint['formalityLevel']>, string> = {
     casual: 'Casual',
@@ -37,6 +54,15 @@
       <p class="readings muted">{point.romaji}</p>
     {/if}
 
+    {#if chapterLocator}
+      <p class="muted">
+        <a href={grammarChapterPath(chapterLocator.chapterId)}>
+          Chapter {chapterLocator.chapterNumber}: {chapterLocator.chapterTitle}
+        </a>
+        &middot; {chapterLocator.positionInChapter} of {chapterLocator.totalInChapter}
+      </p>
+    {/if}
+
     <p>{point.shortExplanation}</p>
 
     {#if point.usageNote}
@@ -47,6 +73,52 @@
       <h2>Formation</h2>
       <p class="jp formation">{point.formation}</p>
     </section>
+
+    {#if conjugation}
+      <section class="card">
+        <h2>Conjugation: {conjugation.formLabel}</h2>
+        <table class="conjugation-table">
+          <thead>
+            <tr>
+              <th>Dictionary form</th>
+              <th>{conjugation.formLabel}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each conjugation.items as item}
+              <tr>
+                <td>
+                  <a class="jp" href={vocabPath(item.vocabId)}>{item.lemma}</a>
+                  <span class="muted">{item.lemmaReading}</span>
+                </td>
+                <td>
+                  <span class="jp">{item.target}</span>
+                  <span class="muted">{item.targetReading}</span>
+                  {#if item.alternatives && item.alternatives.length > 0}
+                    <span class="muted">({item.alternatives.join('、')})</span>
+                  {/if}
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </section>
+    {/if}
+
+    {#if variants.length > 0}
+      <section class="card">
+        <h2>Other forms</h2>
+        <ul class="vocab-list">
+          {#each variants as variant}
+            <li class="vocab-list-item">
+              <a class="jp" href={grammarPath(variant.id)}>{variant.title}</a>
+              <span class="muted">{RELATION_LABEL[variant.relation] ?? variant.relation}</span>
+              <span class="muted">JLPT N{variant.jlptLevel}</span>
+            </li>
+          {/each}
+        </ul>
+      </section>
+    {/if}
 
     {#if point.longExplanation && point.longExplanation !== point.shortExplanation}
       <section class="card">
@@ -91,6 +163,9 @@
             </li>
           {/each}
         </ul>
+        {#if point.family}
+          <p class="family-link"><a href={grammarFamilyPath(point.family.id)}>Compare when to use each &rarr;</a></p>
+        {/if}
       </section>
     {/if}
   </div>

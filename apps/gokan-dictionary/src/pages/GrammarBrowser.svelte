@@ -18,7 +18,7 @@
     type GrammarKind,
     type GroupMode,
   } from '../lib/grammarBrowse';
-  import { grammarPath } from '../lib/urls';
+  import { grammarPath, grammarFamilyPath } from '../lib/urls';
 
   interface Props {
     rows: GrammarBrowseRow[];
@@ -127,6 +127,9 @@
     <h2>
       {browseGroup.title}
       <span class="muted">{browseGroup.subtitle}</span>
+      {#if group === 'family' && browseGroup.key !== '__unfamilied'}
+        <a class="family-group-link" href={grammarFamilyPath(browseGroup.key)}>Compare when to use each &rarr;</a>
+      {/if}
     </h2>
     <ul class="point-grid">
       {#each browseGroup.rows as point (point.id)}

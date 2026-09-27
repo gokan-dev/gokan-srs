@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { buildChapterLocatorIndex } from './grammarChapters';
-import type { GrammarTeachingOrder } from '../models/grammar.model';
+import { buildChapterLocatorIndex, buildChapterIndexRows } from './grammarChapters';
+import type { GrammarPoint, GrammarTeachingOrder } from '../models/grammar.model';
 
 function makeOrder(): GrammarTeachingOrder {
     return {
@@ -47,5 +47,36 @@ describe('buildChapterLocatorIndex', () => {
     it('returns an empty index for an order with no chapters', () => {
         const index = buildChapterLocatorIndex({ order: [], chapters: [] });
         expect(index.size).toBe(0);
+    });
+});
+
+function makePoint(id: string, title: string, jlptLevel: number): GrammarPoint {
+    return { id, title, jlptLevel, shortExplanation: 's', longExplanation: 'l', formation: 'f', examples: [] };
+}
+
+describe('buildChapterIndexRows', () => {
+    it('resolves each chapter\'s points to summaries, with a 1-based chapterNumber', () => {
+        const order = makeOrder();
+        const pointsById = new Map([
+            ['n5-a', makePoint('n5-a', 'A', 5)],
+            ['n5-b', makePoint('n5-b', 'B', 5)],
+            ['n5-c', makePoint('n5-c', 'C', 5)],
+        ]);
+
+        const rows = buildChapterIndexRows(order, pointsById);
+
+        expect(rows).toEqual([
+            { id: 'n5-c01', title: 'C1', summary: 's1', jlptLevel: 5, chapterNumber: 1, points: [{ id: 'n5-a', title: 'A', jlptLevel: 5 }, { id: 'n5-b', title: 'B', jlptLevel: 5 }] },
+            { id: 'n5-c02', title: 'C2', summary: 's2', jlptLevel: 5, chapterNumber: 2, points: [{ id: 'n5-c', title: 'C', jlptLevel: 5 }] },
+        ]);
+    });
+
+    it('drops a point id with no matching GrammarPoint rather than rendering it blank', () => {
+        const order = makeOrder();
+        const pointsById = new Map([['n5-a', makePoint('n5-a', 'A', 5)]]);
+
+        const rows = buildChapterIndexRows(order, pointsById);
+
+        expect(rows[0].points).toEqual([{ id: 'n5-a', title: 'A', jlptLevel: 5 }]);
     });
 });

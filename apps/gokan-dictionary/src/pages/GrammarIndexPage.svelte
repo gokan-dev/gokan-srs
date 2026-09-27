@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { BrowseGroup } from '../lib/grammarBrowse';
-  import { grammarPath, homePath } from '../lib/urls';
+  import { grammarPath, homePath, grammarChaptersIndexPath, grammarConjugationsIndexPath, grammarFamilyPath } from '../lib/urls';
   import SiteHeader from './SiteHeader.svelte';
   import SiteFooter from './SiteFooter.svelte';
 
@@ -25,6 +25,10 @@
         {total.toLocaleString()} grammar points from JLPT N5 to N1, grouped into families of
         near-synonyms so you can compare the ones that actually get confused.
       </p>
+      <p class="level-nav">
+        <a href={grammarChaptersIndexPath()}>Browse in teaching order (curriculum)</a>
+        <a href={grammarConjugationsIndexPath()}>Conjugation reference</a>
+      </p>
     </div>
 
     <!--
@@ -45,7 +49,12 @@
       -->
       {#each groups as group}
         <section class="card">
-          <h2>{group.title} <span class="muted">{group.subtitle}</span></h2>
+          <h2>
+            {group.title} <span class="muted">{group.subtitle}</span>
+            {#if group.key !== '__unfamilied'}
+              <a class="family-group-link" href={grammarFamilyPath(group.key)}>Compare when to use each &rarr;</a>
+            {/if}
+          </h2>
           <ul class="point-grid">
             {#each group.rows as point}
               <li>

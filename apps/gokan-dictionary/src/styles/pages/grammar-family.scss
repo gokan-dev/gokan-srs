@@ -1,0 +1,27 @@
+// GrammarFamilyPage.svelte only (issue #58).
+
+@use '../tokens' as *;
+
+.family-interchangeable-list {
+  font-size: $text-lg;
+  line-height: 1.8;
+}
+
+.family-case {
+  padding: $space-2 0;
+
+  + .family-case {
+    border-top: 1px solid var(--divider);
+  }
+}
+
+.family-case-situation {
+  color: var(--secondary);
+  font-size: $text-sm;
+  margin: 0 0 0.25rem;
+}
+
+.family-case-guidance {
+  margin: 0;
+  line-height: 1.6;
+}

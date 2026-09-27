@@ -2,7 +2,8 @@
 // in the authored teaching order. Kept out of prerender.ts and the page components so the
 // lookup logic is unit-testable without rendering anything or touching the filesystem.
 
-import type { GrammarTeachingOrder } from '../models/grammar.model';
+import type { GrammarPoint, GrammarTeachingOrder } from '../models/grammar.model';
+import type { GrammarSummary } from './types';
 
 /** Where one grammar point sits in the curriculum. */
 export interface ChapterLocator {
@@ -36,4 +37,35 @@ export function buildChapterLocatorIndex(order: GrammarTeachingOrder): Map<strin
     });
 
     return index;
+}
+
+/** One chapter, resolved for display: its own metadata plus its member points as summaries. */
+export interface ChapterIndexRow {
+    id: string;
+    title: string;
+    summary: string;
+    jlptLevel: number;
+    /** 1-based position among all chapters. */
+    chapterNumber: number;
+    points: GrammarSummary[];
+}
+
+/**
+ * Every chapter, in teaching order, with its points resolved to display summaries. Backs both
+ * the chapters index page (title/summary/point count) and each chapter's own detail page (full
+ * point list) - one row shape, since the index page's row is exactly the detail page's data.
+ * A point id absent from `pointsById` is dropped rather than rendered blank.
+ */
+export function buildChapterIndexRows(order: GrammarTeachingOrder, pointsById: Map<string, GrammarPoint>): ChapterIndexRow[] {
+    return order.chapters.map((chapter, chapterIndex) => ({
+        id: chapter.id,
+        title: chapter.title,
+        summary: chapter.summary,
+        jlptLevel: chapter.jlptLevel,
+        chapterNumber: chapterIndex + 1,
+        points: chapter.points
+            .map(id => pointsById.get(id))
+            .filter((point): point is GrammarPoint => Boolean(point))
+            .map(point => ({ id: point.id, title: point.title, jlptLevel: point.jlptLevel })),
+    }));
 }
