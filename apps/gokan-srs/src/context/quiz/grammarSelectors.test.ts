@@ -10,6 +10,7 @@ import {
     summariseVocabGains,
     selectChapterEndFocusIds,
     selectNewlyCompletedChapterIds,
+    computeGrammarChapterProgress,
 } from './grammarSelectors';
 import type { QuizState } from './quizReducer';
 import type { UserProgress } from '../../models/user.model';
@@ -1316,5 +1317,51 @@ describe('selectNewlyCompletedChapterIds', () => {
             makeGrammarProgress({ grammarId: 'n5-b', introductionAt: null }),
         ];
         expect(selectNewlyCompletedChapterIds(chapters, queue, [], alwaysTeachable)).toEqual([]);
+    });
+});
+
+describe('computeGrammarChapterProgress', () => {
+    const chapter: GrammarChapter = {
+        id: 'c01', title: 'C1', summary: '', jlptLevel: 5,
+        points: ['n5-a', 'n5-b', 'n5-c'],
+    };
+    const MASTERED_STRENGTH = 1270; // CONSTANTS.srs.formula.maxMemoryStrength
+
+    it('counts every point as untouched when the queue is empty', () => {
+        expect(computeGrammarChapterProgress(chapter, [])).toEqual({ mastered: 0, learning: 0, total: 3 });
+    });
+
+    it('splits mastered / learning / untouched across the chapter\'s own points', () => {
+        const queue = [
+            makeGrammarProgress({
+                grammarId: 'n5-a',
+                introductionAt: now,
+                entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, memoryStrength: MASTERED_STRENGTH },
+            }),
+            makeGrammarProgress({ grammarId: 'n5-b', introductionAt: now }), // learning: introduced, not mastered
+            // n5-c never queued at all -> untouched
+        ];
+        expect(computeGrammarChapterProgress(chapter, queue)).toEqual({ mastered: 1, learning: 1, total: 3 });
+    });
+
+    it('a queued-but-not-yet-introduced point counts as untouched, not learning', () => {
+        const queue = [makeGrammarProgress({ grammarId: 'n5-a', introductionAt: null })];
+        expect(computeGrammarChapterProgress(chapter, queue)).toEqual({ mastered: 0, learning: 0, total: 3 });
+    });
+
+    it('ignores progress for points outside this chapter', () => {
+        const queue = [
+            makeGrammarProgress({
+                grammarId: 'other-chapter-point',
+                introductionAt: now,
+                entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, memoryStrength: MASTERED_STRENGTH },
+            }),
+        ];
+        expect(computeGrammarChapterProgress(chapter, queue)).toEqual({ mastered: 0, learning: 0, total: 3 });
+    });
+
+    it('total always reflects the chapter\'s own point count regardless of queue contents', () => {
+        const emptyChapter: GrammarChapter = { id: 'c02', title: 'C2', summary: '', jlptLevel: 5, points: [] };
+        expect(computeGrammarChapterProgress(emptyChapter, [])).toEqual({ mastered: 0, learning: 0, total: 0 });
     });
 });
