@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import type { GrammarPoint } from "../../models/grammar.model";
+import type { GrammarChapter, GrammarPoint } from "../../models/grammar.model";
 import { Card } from "../../components/ui/Card";
 import { MasteryRing } from "../../components/MasteryRing";
 import { JlptChip } from "../../components/JlptChip";
@@ -13,6 +13,7 @@ import { GrammarService } from "../../services/grammar.service";
 import { THEME } from "../../commons/theme";
 import { GrammarRelatedPointsCard } from "./GrammarRelatedPointsCard";
 import { GrammarVariantsCard } from "./GrammarVariantsCard";
+import { GrammarDifferentiator } from "../../components/GrammarDifferentiator";
 import { InteractiveSentence } from "../../components/InteractiveSentence";
 import { grammarExampleToSentence } from "../../utils/grammarSentence.utils";
 import { ArrowLeft } from "lucide-react";
@@ -42,6 +43,11 @@ export default function GrammarDetailScreen() {
     const { state, grammarActions } = useQuiz();
     const [point, setPoint] = useState<GrammarPoint | null>(null);
     const [error, setError] = useState<string | null>(null);
+    // The point's chapter + its 1-based position among all chapters (issue
+    // #58's detail-page locator). null while loading, or when the order file
+    // isn't available - same "just don't show it" failure direction
+    // GrammarSRSService.getCurrentChapter uses.
+    const [chapterLocation, setChapterLocation] = useState<{ chapter: GrammarChapter; chapterNumber: number } | null>(null);
 
     useEffect(() => {
         if (!grammarId) return;
@@ -57,7 +63,29 @@ export default function GrammarDetailScreen() {
             });
     }, [grammarId]);
 
+    useEffect(() => {
+        if (!grammarId) return;
+
+        setChapterLocation(null);
+        GrammarService.loadTeachingOrder().then(order => {
+            if (!order) return;
+            const chapter = order.chapters.find(c => c.points.includes(grammarId));
+            if (!chapter) return;
+            setChapterLocation({ chapter, chapterNumber: order.chapters.indexOf(chapter) + 1 });
+        });
+    }, [grammarId]);
+
     const progress = state.progress?.grammarQueue.find(g => g.grammarId === grammarId);
+
+    // Which family siblings the learner has already met, for GrammarDifferentiator's
+    // register ladder (mirrors GrammarIntroCard's own knownIds computation).
+    const knownIds = useMemo(() => {
+        const ids = new Set<string>();
+        for (const g of state.progress?.grammarQueue ?? []) {
+            if (g.introductionAt) ids.add(g.grammarId);
+        }
+        return ids;
+    }, [state.progress?.grammarQueue]);
 
     if (error) {
         return (
@@ -103,6 +131,24 @@ export default function GrammarDetailScreen() {
                     </h2>
                     {point.romaji && (
                         <p className="text-tertiary font-gothic text-sm mt-1">{point.romaji}</p>
+                    )}
+                    {/*
+                      * Chapter locator (issue #58): where this point sits in the
+                      * curriculum, linking to the chapter browser with this
+                      * chapter pre-expanded. Silently absent when the teaching
+                      * order can't be loaded or this point isn't in it (e.g. an
+                      * excluded/untestable point) - same failure direction as
+                      * every other chapter-derived display in the app.
+                      */}
+                    {chapterLocation && (
+                        <p className="text-xs font-gothic text-tertiary mt-1">
+                            <Link
+                                to={`/grammar/chapters?chapter=${chapterLocation.chapter.id}`}
+                                className="hover:text-accent hover:underline"
+                            >
+                                Chapter {chapterLocation.chapterNumber} &middot; {chapterLocation.chapter.points.indexOf(point.id) + 1} of {chapterLocation.chapter.points.length}
+                            </Link>
+                        </p>
                     )}
                 </div>
                 <MasteryRing memoryStrength={progress?.entry.memoryStrength ?? 0} size={48} />
@@ -196,6 +242,20 @@ export default function GrammarDetailScreen() {
     );
 
     const variantsCard = <GrammarVariantsCard point={point} />;
+    // Placed directly above the related-points list it explains (issue #58's
+    // "unify the overlapping concepts" note): GrammarDifferentiator answers
+    // "what actually separates these", GrammarRelatedPointsCard is the
+    // navigable list of who "these" are. They stay separate components -
+    // one renders axis-driven prose, the other a linkable RelatedEntriesCard
+    // list - but showing them together here (previously this card only ever
+    // appeared once, on the point's own intro card) closes the gap the issue
+    // flagged: a learner revisiting the point later had no way to see why its
+    // siblings differ at all.
+    const differentiatorCard = point.family && point.family.relatedPoints.length > 0 ? (
+        <Card size={isMobile ? "sm" : "md"}>
+            <GrammarDifferentiator point={point} knownIds={knownIds} />
+        </Card>
+    ) : null;
     const relatedPointsCard = <GrammarRelatedPointsCard point={point} />;
 
     const statsCard = progress && progress.introductionAt ? (
@@ -278,6 +338,7 @@ export default function GrammarDetailScreen() {
                         {examplesCard}
                         {statsCard}
                         {variantsCard}
+                        {differentiatorCard}
                         {relatedPointsCard}
                     </div>
                 ) : (
@@ -295,6 +356,7 @@ export default function GrammarDetailScreen() {
                             {formationCard}
                             {statsCard}
                             {variantsCard}
+                            {differentiatorCard}
                             {relatedPointsCard}
                         </div>
                         <div className="md:col-span-7 space-y-6">
