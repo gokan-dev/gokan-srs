@@ -1,7 +1,7 @@
 import type { GrammarChapter, GrammarContrastIndex, GrammarExample, GrammarPoint, GrammarProgress } from '../../models/grammar.model';
 import type { UserProgress } from '../../models/user.model';
 import type { SessionState } from '../../models/state.model';
-import { isGrammarDue, grammarNextReviewAt } from '../../services/grammarScheduling';
+import { isGrammarDue, grammarNextReviewAt, isGrammarFullyMastered } from '../../services/grammarScheduling';
 import { VocabularyService } from '../../services/vocabulary.service';
 import type { AnswerResult } from '../../services/srs.service';
 import { SRSService } from '../../services/srs.service';
@@ -876,4 +876,39 @@ export function selectNewlyCompletedChapterIds(
         .filter(chapter => !completed.has(chapter.id))
         .filter(chapter => chapter.points.every(id => !isTeachable(id) || introducedIds.has(id)))
         .map(chapter => chapter.id);
+}
+
+/** Three-way point tally for one chapter: mastered / in-progress (introduced, not mastered) / total. `untouched` is `total - mastered - learning`, left for the caller to derive (mirrors JlptLevelRow, which does the same). */
+export interface GrammarChapterProgressCounts {
+    mastered: number;
+    learning: number;
+    total: number;
+}
+
+/**
+ * A chapter's own progress, counted over its member points - the same
+ * three-way split GrammarJlptCoverageChart already uses per JLPT level, here
+ * scoped to one chapter instead. Used by the Main hub's chapter progress bar
+ * and the chapter browser's per-chapter rows (issue #58).
+ *
+ * A point not yet in `grammarQueue` at all (never introduced) counts as
+ * untouched, same as one with `introductionAt: null` - both simply fail both
+ * the mastered and learning checks below.
+ */
+export function computeGrammarChapterProgress(
+    chapter: GrammarChapter,
+    grammarQueue: GrammarProgress[]
+): GrammarChapterProgressCounts {
+    const byId = new Map(grammarQueue.map(g => [g.grammarId, g]));
+    let mastered = 0;
+    let learning = 0;
+
+    for (const id of chapter.points) {
+        const g = byId.get(id);
+        if (!g || !g.introductionAt) continue;
+        if (isGrammarFullyMastered(g)) mastered++;
+        else learning++;
+    }
+
+    return { mastered, learning, total: chapter.points.length };
 }
