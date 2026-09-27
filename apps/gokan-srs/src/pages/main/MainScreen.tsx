@@ -6,6 +6,8 @@ import { DailyActivityCard } from './DailyActivityCard';
 import { QuizSettingsMenu } from '../../components/QuizSettingsMenu';
 import { VocabQuizSettings } from '../settings/sections/VocabQuizSettings';
 import { GrammarQuizSettings } from '../settings/sections/GrammarQuizSettings';
+import { ChapterProgressBar } from '../../components/ChapterProgressBar';
+import type { GrammarChapterProgressCounts } from '../../context/quiz/grammarSelectors';
 
 /**
  * The activity hub - the app's landing page after setup. Activities (the main
@@ -22,6 +24,7 @@ export const MainScreen: React.FC = () => {
         grammarNextReviewAt,
         nextGrammarSessionPreview,
         nextGrammarChapterTitle,
+        currentGrammarChapterProgress,
     } = useQuiz();
     const navigate = useNavigate();
 
@@ -51,6 +54,7 @@ export const MainScreen: React.FC = () => {
                     preview={nextGrammarSessionPreview}
                     nextReviewAt={grammarNextReviewAt}
                     nextChapterTitle={nextGrammarChapterTitle}
+                    chapterProgress={currentGrammarChapterProgress?.counts ?? null}
                     onClick={() => navigate('/grammar')}
                     settings={
                         <QuizSettingsMenu title="Grammar quiz settings">
@@ -165,9 +169,11 @@ const GrammarActivityCard: React.FC<{
     nextReviewAt: Date | null;
     /** The chapter the next NEW point would begin, named alongside the review/new/retry counts so the curriculum's arrangement is visible before the session starts. Null once nothing is left to introduce. */
     nextChapterTitle: string | null;
+    /** That same chapter's own three-way point tally (mastered/in-progress/untouched) - null alongside nextChapterTitle. */
+    chapterProgress: GrammarChapterProgressCounts | null;
     onClick: () => void;
     settings: React.ReactNode;
-}> = ({ preview, nextReviewAt, nextChapterTitle, onClick, settings }) => (
+}> = ({ preview, nextReviewAt, nextChapterTitle, chapterProgress, onClick, settings }) => (
     <ActivityCard
         icon={<Puzzle size={22} className="text-accent" />}
         title="Grammar quiz session"
@@ -175,7 +181,12 @@ const GrammarActivityCard: React.FC<{
             <>
                 {renderSessionPreviewDescription(preview, nextReviewAt)}
                 {nextChapterTitle && preview.new > 0 && (
-                    <span className="block text-tertiary">Next chapter: {nextChapterTitle}</span>
+                    <span className="block text-tertiary mt-1">Next chapter: {nextChapterTitle}</span>
+                )}
+                {chapterProgress && preview.new > 0 && chapterProgress.total > 0 && (
+                    <span className="block mt-1">
+                        <ChapterProgressBar counts={chapterProgress} compact />
+                    </span>
                 )}
             </>
         }
