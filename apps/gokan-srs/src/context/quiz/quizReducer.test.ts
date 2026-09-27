@@ -122,6 +122,39 @@ describe('quizReducer', () => {
         expect(next.currentProductionCloze).toBeNull();
     });
 
+    it('LOAD_VOCAB_START resets currentProductionSynonyms too (issue #71 Part B)', () => {
+        const stalePreviousCandidates = [
+            { vocabId: 'other', relation: 'confusable' as const, vocab: makeVocab('other') },
+        ];
+        const state: QuizState = { ...initialState, currentProductionSynonyms: stalePreviousCandidates };
+        const queueItem = { vocabId: 'v1', quizType: 'production' as const, quizMode: 'base' as const };
+        const next = quizReducer(state, { type: 'LOAD_VOCAB_START', payload: queueItem });
+
+        expect(next.currentProductionSynonyms).toEqual([]);
+    });
+
+    it('LOAD_VOCAB_SUCCESS sets currentProductionSynonyms from the payload', () => {
+        const vocab = makeVocab();
+        const candidates = [
+            { vocabId: 'syn1', relation: 'interchangeable' as const, vocab: makeVocab('syn1') },
+        ];
+        const next = quizReducer(initialState, {
+            type: 'LOAD_VOCAB_SUCCESS',
+            payload: { vocab, sentences: null, selectedSentenceId: null, productionSynonyms: candidates },
+        });
+
+        expect(next.currentProductionSynonyms).toEqual(candidates);
+    });
+
+    it('LOAD_VOCAB_SUCCESS defaults currentProductionSynonyms to [] when omitted', () => {
+        const next = quizReducer(initialState, {
+            type: 'LOAD_VOCAB_SUCCESS',
+            payload: { vocab: null, sentences: null, selectedSentenceId: null },
+        });
+
+        expect(next.currentProductionSynonyms).toEqual([]);
+    });
+
     describe('REVEAL_PRODUCTION_HINT', () => {
         it('advances the hint level by one, starting from 0', () => {
             const next = quizReducer(initialState, { type: 'REVEAL_PRODUCTION_HINT' });
@@ -180,6 +213,26 @@ describe('quizReducer', () => {
         expect(next.feedback?.show).toBe(true);
         expect(next.feedback?.correct).toBe(false);
         expect(next.feedback?.type).toBe('minor_error');
+    });
+
+    it('SUBMIT_ANSWER carries synonymRelation through to feedback (issue #71 Part B)', () => {
+        const next = quizReducer(initialState, {
+            type: 'SUBMIT_ANSWER',
+            payload: { type: 'wrong', message: 'confusable note', matchedAnswer: 'x', synonymRelation: 'confusable' },
+        });
+
+        expect(next.feedback?.type).toBe('wrong');
+        expect(next.feedback?.correct).toBe(false);
+        expect(next.feedback?.synonymRelation).toBe('confusable');
+    });
+
+    it('SUBMIT_ANSWER leaves synonymRelation undefined when omitted', () => {
+        const next = quizReducer(initialState, {
+            type: 'SUBMIT_ANSWER',
+            payload: { type: 'wrong', message: 'Incorrect.', matchedAnswer: 'x' },
+        });
+
+        expect(next.feedback?.synonymRelation).toBeUndefined();
     });
 
     it('UPDATE_AFTER_ANSWER updates progress, clears feedback/answer, prepends history, and drops the item from introCandidates', () => {

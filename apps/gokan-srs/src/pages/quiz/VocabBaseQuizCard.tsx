@@ -186,7 +186,11 @@ export function VocabBaseQuizCard({
                                     Correct answer
                                 </p>
 
-                                {feedback.type === 'minor_error' && (
+                                {/* A near-synonym collision (issue #71 Part B) names the word
+                                    being tested even on a 'wrong'-typed confusable answer, so
+                                    the message shows whenever synonymRelation is set, not just
+                                    on minor_error. */}
+                                {(feedback.type === 'minor_error' || feedback.synonymRelation) && (
                                     <p className="text-secondary text-sm mb-2 font-gothic">
                                         {feedback.message}
                                     </p>

@@ -5,11 +5,12 @@ import type {
 } from '../../models/user.model';
 import type { Vocabulary } from '../../models/vocabulary.model';
 import type { Sentence } from '../../models/sentence.model';
-import type { AnswerResult } from '../../services/srs.service';
+import type { AnswerResult, ProductionSynonymCandidate } from '../../services/srs.service';
 import { SRSService } from '../../services/srs.service';
 import type { QuizItem, QuizType, QuizMode, TaskKey } from '../../utils/srs.utils';
 import { taskKey } from '../../utils/srs.utils';
 import type { ProductionCloze } from '../../utils/productionCloze.utils';
+import type { SynonymRelation } from '../../models/index.model';
 import type { GrammarQuizState, GrammarQuizAction } from './grammarReducer';
 import { initialGrammarState, isGrammarAction, grammarReducer } from './grammarReducer';
 
@@ -63,6 +64,14 @@ interface QuizStateBase {
      * just for a single blank instead of one per word.
      */
     productionHintLevel: number;
+    /**
+     * The CURRENT production word's near-synonym cluster (issue #71 Part B),
+     * resolved to full accept-lists at card-load time - same "resolve before
+     * render" pattern as currentProductionCloze/computeBlankPlan, so grading a
+     * wrong answer against it stays synchronous. Empty when the word has no
+     * synonym-index entry, or the current card isn't production at all.
+     */
+    currentProductionSynonyms: ProductionSynonymCandidate[];
     currentQuizItem: PendingQuizItem | null;
     userAnswer: string;
     feedback: {
@@ -71,6 +80,14 @@ interface QuizStateBase {
         type: AnswerResult;
         message: string;
         matchedAnswer: string;
+        /**
+         * Set only when this answer collided with a near-synonym of the target
+         * (issue #71 Part B) - 'interchangeable' grades minor_error normally,
+         * 'confusable' tells continueToNext to route through
+         * SRSService.applyConfusableSynonymAnswer instead of the normal
+         * applyAnswer path (no strength change, just sets needsRetry.production).
+         */
+        synonymRelation?: SynonymRelation;
     } | null;
     isLoadingVocab: boolean;
     isEvaluatingAi: boolean;
@@ -102,12 +119,12 @@ export type QuizState = QuizStateBase & GrammarQuizState;
 export type QuizAction =
     | { type: 'SETUP_COMPLETE'; payload: { progress: UserProgress; settings: UserSettings } }
     | { type: 'LOAD_VOCAB_START'; payload: PendingQuizItem }
-    | { type: 'LOAD_VOCAB_SUCCESS'; payload: { vocab: Vocabulary | null; sentences: Sentence[] | null; selectedSentenceId: string | null; productionCloze?: ProductionCloze | null } }
+    | { type: 'LOAD_VOCAB_SUCCESS'; payload: { vocab: Vocabulary | null; sentences: Sentence[] | null; selectedSentenceId: string | null; productionCloze?: ProductionCloze | null; productionSynonyms?: ProductionSynonymCandidate[] } }
     | { type: 'LOAD_VOCAB_ERROR'; payload: { vocabId: string, error: any } }
     | { type: 'EVALUATING_AI_START' }
     | { type: 'SET_ANSWER'; payload: string }
     | { type: 'REVEAL_PRODUCTION_HINT' }
-    | { type: 'SUBMIT_ANSWER'; payload: { type: AnswerResult; message: string; matchedAnswer: string } }
+    | { type: 'SUBMIT_ANSWER'; payload: { type: AnswerResult; message: string; matchedAnswer: string; synonymRelation?: SynonymRelation } }
     | { type: 'UPDATE_AFTER_ANSWER'; payload: { progress: UserProgress; historyItem: { vocabId: string, writtenForm: string, result: AnswerResult, delta: number } } }
     | { type: 'ADVANCE_QUEUE'; payload: { progress: UserProgress, candidates?: Vocabulary[] } }
     | { type: 'CLEAR_FEEDBACK' }
@@ -133,6 +150,7 @@ export const initialState: QuizState = {
     currentSentenceId: null,
     currentProductionCloze: null,
     productionHintLevel: 0,
+    currentProductionSynonyms: [],
     currentQuizItem: null,
     userAnswer: '',
     feedback: null,
@@ -191,6 +209,7 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
                 currentSentenceId: null,
                 currentProductionCloze: null,
                 productionHintLevel: 0,
+                currentProductionSynonyms: [],
                 userAnswer: '',
                 feedback: null,
             };
@@ -202,6 +221,7 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
                 currentSentences: action.payload.sentences,
                 currentSentenceId: action.payload.selectedSentenceId,
                 currentProductionCloze: action.payload.productionCloze ?? null,
+                currentProductionSynonyms: action.payload.productionSynonyms ?? [],
                 isLoadingVocab: false,
             };
 
@@ -258,7 +278,8 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
                     correct: action.payload.type === 'correct',
                     type: action.payload.type,
                     message: action.payload.message,
-                    matchedAnswer: action.payload.matchedAnswer
+                    matchedAnswer: action.payload.matchedAnswer,
+                    synonymRelation: action.payload.synonymRelation,
                 },
             };
 

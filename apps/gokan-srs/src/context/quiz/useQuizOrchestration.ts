@@ -3,10 +3,11 @@ import type { Dispatch } from 'react';
 import { useLocation } from 'react-router-dom';
 import type { KanjiKnowledge, UserProgress, UserSettings } from '../../models/user.model';
 import type { Vocabulary, VocabProgress } from '../../models/vocabulary.model';
+import type { SynonymRelation } from '../../models/index.model';
 import { StorageService } from '../../services/storage.service';
 import { VocabularyService } from '../../services/vocabulary.service';
 import { SRSService } from '../../services/srs.service';
-import type { AnswerResult } from '../../services/srs.service';
+import type { AnswerResult, ProductionSynonymCandidate } from '../../services/srs.service';
 import { MigrationService } from '../../services/migration.service';
 import { LLMService } from '../../services/llm.service';
 import { CONSTANTS } from '../../commons/constants';
@@ -256,6 +257,11 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             let result: AnswerResult;
             let matchedAnswer: string;
             let message = 'Incorrect.';
+            // Set only on a near-synonym collision (issue #71 Part B) - see
+            // continueToNext, which routes a 'confusable' collision through
+            // SRSService.applyConfusableSynonymAnswer instead of the normal
+            // applyAnswer path.
+            let synonymRelation: SynonymRelation | undefined;
 
             if (quizType === 'reading') {
                 const evaluation = SRSService.evaluateAnswer(state.userAnswer, state.currentVocab.reading);
@@ -279,6 +285,36 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                     const evaluation = SRSService.evaluateProductionAnswer(state.userAnswer, state.currentVocab);
                     result = evaluation.result;
                     matchedAnswer = evaluation.matchedAnswer;
+
+                    // A wrong answer might still be a genuine OTHER word from this
+                    // word's near-synonym cluster (issue #71 Part B) - the production
+                    // cue is gloss-based, and near-synonym clusters like 必ず/常に can't
+                    // be told apart from glosses alone. Checked only once the target
+                    // itself has graded wrong; a correct/minor_error answer never needs it.
+                    if (result === 'wrong') {
+                        const synonymMatch = SRSService.evaluateProductionSynonyms(
+                            state.userAnswer,
+                            state.currentProductionSynonyms
+                        );
+
+                        if (synonymMatch) {
+                            const { candidate } = synonymMatch;
+                            const candidateLabel = `${candidate.vocab.writtenForm.kanji} (${candidate.vocab.reading.primary})`;
+                            const targetLabel = `${state.currentVocab.writtenForm.kanji} (${state.currentVocab.reading.primary})`;
+
+                            if (candidate.relation === 'interchangeable') {
+                                result = 'minor_error';
+                                synonymRelation = 'interchangeable';
+                                message = `${candidateLabel} is also accepted here - the word being tested was ${targetLabel}.`;
+                            } else {
+                                // confusable: no penalty, no credit - needsRetry.production
+                                // re-asks until the target itself is produced (see
+                                // continueToNext and SRSService.applyConfusableSynonymAnswer).
+                                synonymRelation = 'confusable';
+                                message = `${candidateLabel} is a close synonym but not interchangeable here - the word being tested was ${targetLabel}.`;
+                            }
+                        }
+                    }
                 }
             } else {
                 const meanings = state.currentVocab.senses.flatMap(s => s.glosses);
@@ -337,9 +373,11 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             }
 
             if (result === 'correct' && !message.includes('AI Validated')) message = 'Correct.';
-            else if (result === 'minor_error' && !message.includes('Close.')) message = 'Close.';
+            // Skip the generic "Close." default when a synonym collision already
+            // wrote a message naming the word being tested (issue #71 Part B).
+            else if (result === 'minor_error' && !synonymRelation && !message.includes('Close.')) message = 'Close.';
 
-            dispatch({ type: 'SUBMIT_ANSWER', payload: { type: result, message, matchedAnswer } });
+            dispatch({ type: 'SUBMIT_ANSWER', payload: { type: result, message, matchedAnswer, synonymRelation } });
         },
 
         async advanceQueue({ now }) {
@@ -425,20 +463,28 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             let updatedTarget: typeof target | null = null;
 
             if (target) {
-                const { updated } = SRSService.applyAnswer(
-                    target,
-                    state.currentQuizItem.quizType,
-                    state.currentQuizItem.quizMode,
-                    state.userAnswer,
-                    state.feedback.matchedAnswer,
-                    latency,
-                    now,
-                    state.feedback.type,
-                    adaptiveLevel,
-                    frequencyModifier,
-                    meaningQuizEnabled,
-                    productionQuizEnabled
-                );
+                // A 'confusable' synonym collision (issue #71 Part B) bypasses the
+                // normal grading path entirely: it reuses the existing per-quiz-type
+                // retry machinery instead, leaving memoryStrength/interval/difficulty
+                // untouched and simply flagging needsRetry.production so the card
+                // re-asks until the TARGET itself is produced - see
+                // SRSService.applyConfusableSynonymAnswer's doc comment for why.
+                const updated = state.feedback.synonymRelation === 'confusable'
+                    ? SRSService.applyConfusableSynonymAnswer(target, now)
+                    : SRSService.applyAnswer(
+                        target,
+                        state.currentQuizItem.quizType,
+                        state.currentQuizItem.quizMode,
+                        state.userAnswer,
+                        state.feedback.matchedAnswer,
+                        latency,
+                        now,
+                        state.feedback.type,
+                        adaptiveLevel,
+                        frequencyModifier,
+                        meaningQuizEnabled,
+                        productionQuizEnabled
+                    ).updated;
                 updatedTarget = updated;
 
                 // Keyed rather than a reading/meaning ternary: with a third type, a
@@ -710,20 +756,49 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
         // dataset actually resolved a match for), so it happens below once loaded
         // rather than by picking a quizMode synchronously in getNextVocabToStudy.
         const needsSentences = (quizType === 'meaning' && queueItem.quizMode === 'context') || quizType === 'production';
+        // Only production grading needs the synonym index (issue #71 Part B) - it's
+        // resolved here, not on submit, so a wrong-answer collision check stays
+        // synchronous. Cached whole after the first load (see loadSynonymsIndex).
+        const needsSynonyms = quizType === 'production';
 
         Promise.all([
             VocabularyService.loadVocab(vid),
-            needsSentences ? VocabularyService.loadSentences(vid) : Promise.resolve(null)
-        ]).then(([vocab, sentences]) => {
+            needsSentences ? VocabularyService.loadSentences(vid) : Promise.resolve(null),
+            needsSynonyms ? VocabularyService.loadSynonymsIndex() : Promise.resolve(null),
+        ]).then(async ([vocab, sentences, synonymIndex]) => {
             if (loadingKeyRef.current !== loadKey) return; // superseded by a newer target
 
             let selectedSentenceId: string | null = null;
             let productionCloze = null;
+            let productionSynonyms: ProductionSynonymCandidate[] = [];
 
             if (quizType === 'production') {
                 if (sentences && sentences.length > 0) {
                     const reviewCount = target?.production?.history.length ?? 0;
                     productionCloze = pickProductionClozeSentence(vid, sentences, reviewCount);
+                }
+
+                // Resolve the word's near-synonym cluster to full accept-lists up
+                // front - the same "fetch before render, grade synchronously"
+                // pattern computeBlankPlan uses for its own accept-lists - so a
+                // wrong-answer collision check in submitAnswer never needs a fetch.
+                const entries = synonymIndex?.[vid] ?? [];
+                if (entries.length > 0) {
+                    const fetched = await Promise.all(entries.map(async (entry): Promise<ProductionSynonymCandidate | null> => {
+                        try {
+                            const candidateVocab = await VocabularyService.loadVocab(entry.id);
+                            return { vocabId: entry.id, relation: entry.relation, vocab: candidateVocab };
+                        } catch (e) {
+                            // A stale reference in the index (e.g. a retired vocab id)
+                            // drops just that candidate rather than failing the card -
+                            // same "inert wherever absent" spirit as a missing index.
+                            console.error('[useQuizOrchestration] Failed to load synonym candidate', entry.id, e);
+                            return null;
+                        }
+                    }));
+                    productionSynonyms = fetched.filter((c): c is ProductionSynonymCandidate => c !== null);
+
+                    if (loadingKeyRef.current !== loadKey) return; // superseded during the nested fetch
                 }
             } else if (sentences && sentences.length > 0) {
                 const idx = Math.floor(Math.random() * sentences.length);
@@ -735,7 +810,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                 // Production's own sentences aren't the meaning-context ones -
                 // currentSentences/currentSentenceId stay scoped to meaning, so they're
                 // left null here rather than carrying data nothing else reads.
-                payload: { vocab, sentences: quizType === 'production' ? null : sentences, selectedSentenceId, productionCloze },
+                payload: { vocab, sentences: quizType === 'production' ? null : sentences, selectedSentenceId, productionCloze, productionSynonyms },
             });
             startTimeRef.current = Date.now();
         }).catch(err => {
