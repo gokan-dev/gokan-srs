@@ -32,6 +32,17 @@ export const CONSTANTS = {
              * teachable points remaining than this yields only that remainder.
              */
             newBatchSize: 3,
+
+            /**
+             * Readability penalty applied per UNKNOWN word when scoring a corpus-mined
+             * example sentence for a review (issue #73's app half): a shorter, mostly-
+             * readable sentence should beat a long one with the same target payoff.
+             * `score = targets.length - minedReadabilityPenalty * unknownCount`, where
+             * `targets` are known words whose production isn't mastered yet and
+             * `unknownCount` is words the learner doesn't know at all. See
+             * computeBlankPlan's mined-selection path in grammarSelectors.ts.
+             */
+            minedReadabilityPenalty: 0.34,
         },
 
         /**
