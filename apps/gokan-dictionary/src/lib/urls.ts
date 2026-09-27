@@ -41,6 +41,25 @@ export function grammarPath(id: string): string {
     return `${BASE_PATH}/grammar/${id}/`;
 }
 
+/** The curriculum index (issue #58): every chapter of the authored teaching order. */
+export function grammarChaptersIndexPath(): string {
+    return `${BASE_PATH}/grammar/chapters/`;
+}
+
+export function grammarChapterPath(id: string): string {
+    return `${BASE_PATH}/grammar/chapters/${id}/`;
+}
+
+/** One near-synonym family's page: its members, plus any authored "when to use each" lessons. */
+export function grammarFamilyPath(id: string): string {
+    return `${BASE_PATH}/grammar/family/${id}/`;
+}
+
+/** The conjugation reference index: every inflection form, grouped, linking to each point's own table. */
+export function grammarConjugationsIndexPath(): string {
+    return `${BASE_PATH}/grammar/conjugations/`;
+}
+
 /**
  * Href for a build emitted asset, given its dist-relative file path (e.g. the
  * content-hashed "assets/styles-BMo4ay5S.css" from Vite's client manifest).
