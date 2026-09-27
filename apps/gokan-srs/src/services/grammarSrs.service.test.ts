@@ -102,6 +102,43 @@ describe('GrammarSRSService.applyAnswer', () => {
         expect(reduced.entry.memoryStrength).toBeGreaterThan(100);
         expect(reduced.entry.memoryStrength).toBeLessThan(full.entry.memoryStrength);
     });
+
+    describe('latency normalization by blank count (issue #73)', () => {
+        // Grammar's expectedLatency (20000ms, CONSTANTS.srs.quizProperties.grammar)
+        // clamps the latency ratio to [0.5, 1.5] - these values are chosen to stay
+        // inside that unclamped range (13333-40000ms) so the comparisons below
+        // actually exercise the ratio rather than both saturating at the same clamp.
+        it('a fast multi-blank answer reads as fast - the per-blank pace drives the gain, not the raw total', () => {
+            const base = () => makeProgress({ entry: { ...makeProgress().entry, memoryStrength: 100, dueDate: now } });
+
+            // 15000ms for one blank and 75000ms total for five blanks are the same
+            // 15000ms/blank pace, so they must earn the identical gain.
+            const oneBlank = GrammarSRSService.applyAnswer(base(), 'correct', 15000, now, 1.0, 1.0, 1.0, 1).updated;
+            const fiveBlanksSamePace = GrammarSRSService.applyAnswer(base(), 'correct', 75000, now, 1.0, 1.0, 1.0, 5).updated;
+
+            expect(fiveBlanksSamePace.entry.memoryStrength).toBeCloseTo(oneBlank.entry.memoryStrength, 6);
+        });
+
+        it('without normalizing for blank count, the same raw total would read as slower and earn less', () => {
+            const base = () => makeProgress({ entry: { ...makeProgress().entry, memoryStrength: 100, dueDate: now } });
+
+            // 75000ms total for 5 blanks (15000ms/blank pace) vs. the same 75000ms
+            // misread as a single blank's latency (a very slow 75000ms/blank pace).
+            const fiveBlanksNormalized = GrammarSRSService.applyAnswer(base(), 'correct', 75000, now, 1.0, 1.0, 1.0, 5).updated;
+            const rawTotalAsSingleBlank = GrammarSRSService.applyAnswer(base(), 'correct', 75000, now, 1.0, 1.0, 1.0, 1).updated;
+
+            expect(rawTotalAsSingleBlank.entry.memoryStrength).toBeLessThan(fiveBlanksNormalized.entry.memoryStrength);
+        });
+
+        it('defaults blankCount to 1 (no normalization) when omitted, matching pre-#73 behaviour', () => {
+            const base = () => makeProgress({ entry: { ...makeProgress().entry, memoryStrength: 100, dueDate: now } });
+
+            const withDefault = GrammarSRSService.applyAnswer(base(), 'correct', 5000, now, 1.0, 1.0, 1.0).updated;
+            const withExplicit1 = GrammarSRSService.applyAnswer(base(), 'correct', 5000, now, 1.0, 1.0, 1.0, 1).updated;
+
+            expect(withDefault.entry.memoryStrength).toBe(withExplicit1.entry.memoryStrength);
+        });
+    });
 });
 
 describe('GrammarSRSService.applyVocabReinforcement (positive-only vocab credit)', () => {
