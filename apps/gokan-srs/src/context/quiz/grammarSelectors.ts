@@ -8,6 +8,8 @@ import { SRSService } from '../../services/srs.service';
 import type { VocabProgress } from '../../models/vocabulary.model';
 import { calculateMasteryPercentage } from '../../utils/srs.utils';
 import { GrammarService } from '../../services/grammar.service';
+import { isEntryMastered, isProductionActivated } from '../../services/scheduling';
+import { CONSTANTS } from '../../commons/constants';
 import { hashString, pickStable } from '../../utils/deterministicPick';
 import { computeSessionState } from './sessionState';
 import { computeSessionStats, computeSessionPreview } from './sessionStats';
@@ -436,6 +438,96 @@ async function applyFamilyInterchange(point: GrammarPoint): Promise<{ sameRegist
     return { sameRegister: Array.from(new Set(sameRegister)), otherRegister: Array.from(new Set(otherRegister)) };
 }
 
+/**
+ * Productivity-selected sentence for a REVIEW turn (issue #73's app half):
+ * picks whichever corpus-mined example best exercises the vocabulary the
+ * learner is currently trying to PRODUCE, instead of always drawing from the
+ * point's 3-5 curated examples. The intro card and the very first review
+ * (reviewCount === 0, gated by the caller) stay on curated examples - they are
+ * hand-picked and clean, which matters most for a first encounter.
+ *
+ * A word is a "target" when it is KNOWN (introduced in learningQueue) but its
+ * PRODUCTION isn't mastered yet (not activated, or activated but below max
+ * strength) - reviewing it here is worth something. A word the learner
+ * doesn't know at all is counted separately as "unknown": it stays visible as
+ * literal context (never blanked), but a sentence thick with unknown words is
+ * harder to read for the same target payoff, so it costs a readability
+ * penalty in the score. A known word whose production is ALREADY mastered is
+ * neither a target nor a cost - it's just context, same as a curated
+ * example's already-known filler words.
+ *
+ * Sentences are gated on having at least one target before being scored at
+ * all (a sentence that only drills already-mastered vocab is worth the same
+ * as one with none), then the highest-scoring sentence wins, with ties broken
+ * deterministically so repeated reviews of an exact tie don't reroll on every
+ * render. Returns null - the caller falls back to curated `point.examples`
+ * via computeBlankPlanFor - when there is no mined pool for this point at all,
+ * or when every mined sentence has zero targets (e.g. an advanced learner who
+ * has already mastered the whole pool's vocabulary).
+ */
+async function selectMinedPlan(
+    point: GrammarPoint,
+    progress: UserProgress | null,
+    reviewCount: number
+): Promise<GrammarBlankPlan | null> {
+    const mined = await GrammarService.loadMinedExamples(point.id);
+    if (!mined || mined.length === 0) return null;
+
+    const byVocabId = new Map((progress?.learningQueue ?? []).map(v => [v.vocabId, v]));
+    const isKnown = (vocabId: string): boolean => {
+        const vp = byVocabId.get(vocabId);
+        return !!vp && vp.introductionAt !== null;
+    };
+    const productionMastered = (vocabId: string): boolean => {
+        const vp = byVocabId.get(vocabId);
+        return !!vp?.production && isProductionActivated(vp.production) && isEntryMastered(vp.production);
+    };
+
+    const penalty = CONSTANTS.srs.grammar.minedReadabilityPenalty;
+    const scored = mined.map(example => {
+        const targets: number[] = [];
+        let unknownCount = 0;
+        example.words.forEach((word, i) => {
+            if (!word.vocabId) return;
+            if (!isKnown(word.vocabId)) {
+                unknownCount++;
+                return;
+            }
+            if (!productionMastered(word.vocabId)) targets.push(i);
+        });
+        return { example, targets, score: targets.length - penalty * unknownCount };
+    }).filter(s => s.targets.length > 0);
+
+    if (scored.length === 0) return null;
+
+    const bestScore = Math.max(...scored.map(s => s.score));
+    const top = scored.filter(s => s.score === bestScore);
+    const chosen = top.length === 1 ? top[0] : top[hashString(`${point.id}:${reviewCount}`) % top.length];
+
+    // Blanks: the pattern markers plus every target word, sorted by position -
+    // the same reinforcement mechanism Pass 1 uses, just sourced from the
+    // productivity targets instead of "every known word".
+    const blankedIndices = Array.from(new Set([...chosen.example.patternWordIndices, ...chosen.targets])).sort((a, b) => a - b);
+    const isPatternArr = blankedIndices.map(i => chosen.example.patternWordIndices.includes(i));
+    const blankWordSpans = blankSpansOf(blankedIndices, isPatternArr);
+    const blankWordIndices = blankWordSpans.map(span => span[0]);
+    const isPatternBlank = blankWordIndices.map(i => chosen.example.patternWordIndices.includes(i));
+
+    const { acceptLists, acceptListsMinor, glosses } = await buildBlankData(chosen.example, blankWordSpans);
+
+    return {
+        exampleIndex: mined.indexOf(chosen.example),
+        example: chosen.example,
+        blankWordIndices,
+        blankWordSpans,
+        isPatternBlank,
+        acceptLists,
+        acceptListsMinor,
+        glosses,
+        readOnly: false,
+    };
+}
+
 export async function computeBlankPlan(point: GrammarPoint, progress: UserProgress | null, reviewCount: number): Promise<GrammarBlankPlan | null> {
     // An inflection point cannot be tested by blanking a marker - hand it to the
     // conjugation drill. Falls through to the cloze path when the dataset has no
@@ -451,7 +543,10 @@ export async function computeBlankPlan(point: GrammarPoint, progress: UserProgre
 
     if (effectivePoint.examples.length === 0) return null;
 
-    const base = await computeBlankPlanFor(effectivePoint, progress, reviewCount);
+    // Reviews only (reviewCount >= 1): the intro card and the first review stay
+    // on curated examples. See selectMinedPlan's doc comment for the full rule.
+    const minedPlan = reviewCount >= 1 ? await selectMinedPlan(effectivePoint, progress, reviewCount) : null;
+    const base = minedPlan ?? await computeBlankPlanFor(effectivePoint, progress, reviewCount);
     if (!base) return null;
 
     // Two independent sources widen the PATTERN blanks: the variant-group rotation

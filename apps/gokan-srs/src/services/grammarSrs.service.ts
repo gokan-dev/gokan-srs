@@ -75,7 +75,17 @@ export class GrammarSRSService {
         // sentence's *vocab* blanks went (see gradeGrammarAnswers): a demonstrated
         // grammar core always keeps its result, but earns proportionally less when
         // the surrounding vocab was missed. 1.0 = full gain.
-        strengthDeltaModifier: number = 1.0
+        strengthDeltaModifier: number = 1.0,
+        // Number of discrete blank inputs in the exercise (issue #73). A
+        // corpus-mined sentence can carry many more blanks than a curated one, and
+        // typing N answers legitimately takes ~N times as long as typing one -
+        // without this, a rich multi-blank card's raw latency would be compared
+        // directly against expectedLatency (tuned for a single answer) and read as
+        // "slow", shrinking its reward for no reason but having more to type.
+        // Normalizing the measured latency down to a per-blank pace recovers what
+        // the formula actually means to measure. 1 (no-op) for every existing
+        // curated/conjugation/fallback plan, which all pass this implicitly.
+        blankCount: number = 1
     ): { updated: GrammarProgress; result: AnswerResult; interval: number } {
         // Retry: mirrors VocabProgress.needsRetry - a successful/failed retry
         // doesn't touch SRS state, it's a training-only redo.
@@ -89,8 +99,9 @@ export class GrammarSRSService {
         }
 
         const expectedLatency = CONSTANTS.srs.quizProperties.grammar.expectedLatency;
+        const normalizedLatency = latencyMs / Math.max(1, blankCount);
         const { newEntry, interval } = SRSService.calculateNextState(
-            progress.entry, result, latencyMs, now, expectedLatency, intervalModifier, frequencyModifier, strengthDeltaModifier
+            progress.entry, result, normalizedLatency, now, expectedLatency, intervalModifier, frequencyModifier, strengthDeltaModifier
         );
 
         const finalStage = isGrammarFullyMastered({ entry: newEntry }) ? 'graduated' : progress.stage;

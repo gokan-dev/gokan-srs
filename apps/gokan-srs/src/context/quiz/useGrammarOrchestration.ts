@@ -226,7 +226,14 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
             // Positive-only vocab credit: the non-pattern (reinforcement) blanks the
             // user actually answered right, without revealing the hint. Applied to
             // those words' own SRS on continue - never for wrong/passed/revealed blanks.
-            const example = state.currentGrammarPoint.examples[plan.exampleIndex];
+            //
+            // plan.example, NOT point.examples[plan.exampleIndex]: the plan was
+            // computed against a rotated variant realization or a corpus-mined
+            // sentence (issue #73), neither of which lives in point.examples, so
+            // indexing there would read the wrong sentence's words entirely (see
+            // GrammarQuizCard's identical guard, and GrammarBlankPlan.example's own
+            // doc comment for the variant-rotation case this was first written for).
+            const example = plan.example ?? state.currentGrammarPoint.examples[plan.exampleIndex];
             const vocabCredits: { vocabId: string; result: AnswerResult }[] = [];
             plan.blankWordIndices.forEach((wordIndex, i) => {
                 if (plan.isPatternBlank[i]) return;
@@ -327,8 +334,15 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
             } else {
                 if (!state.grammarFeedback) return;
                 const latency = submitLatencyRef.current ?? 5000;
+                // A corpus-mined sentence (issue #73) can carry many more blanks than
+                // a curated one, and typing N answers legitimately takes ~N times as
+                // long as typing one - normalize by blank count so a rich card's
+                // measured latency is compared on a per-blank basis, the same basis
+                // CONSTANTS.srs.quizProperties.grammar.expectedLatency was tuned for,
+                // rather than reading as "slow" purely because there was more to type.
+                const blankCount = state.currentGrammarBlankPlan?.blankWordIndices.length || 1;
                 const { updated } = GrammarSRSService.applyAnswer(
-                    target, state.grammarFeedback.type, latency, now, 1.0, 1.0, state.grammarFeedback.strengthDeltaModifier
+                    target, state.grammarFeedback.type, latency, now, 1.0, 1.0, state.grammarFeedback.strengthDeltaModifier, blankCount
                 );
                 updatedQueue = state.progress.grammarQueue.map(g => g.grammarId === id ? updated : g);
 
