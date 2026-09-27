@@ -52,7 +52,7 @@ export function GrammarJlptCoverageChart({ progress }: GrammarJlptCoverageChartP
                 else if (learningIds.has(id)) learning++;
             }
 
-            return { level, mastered, learning, total: ids.length };
+            return { key: level, label: `N${level}`, mastered, learning, total: ids.length };
         });
     }, [index, progress.grammarQueue]);
 
@@ -64,5 +64,5 @@ export function GrammarJlptCoverageChart({ progress }: GrammarJlptCoverageChartP
         return <div className="h-40 animate-pulse rounded bg-surface-hover/40" />;
     }
 
-    return <JlptCoverageBars rows={rows} itemLabel="grammar points" />;
+    return <JlptCoverageBars rows={rows} itemLabel="grammar points" headline="JLPT grammar points covered" />;
 }

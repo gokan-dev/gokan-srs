@@ -6,6 +6,7 @@ import { DailyProgressionChart } from "./components/DailyProgressionChart";
 import { KnowledgeCurveChart } from "./components/KnowledgeCurveChart";
 import { JlptCoverageChart } from "./components/JlptCoverageChart";
 import { GrammarJlptCoverageChart } from "./components/GrammarJlptCoverageChart";
+import { GrammarChapterCoverageChart } from "./components/GrammarChapterCoverageChart";
 import { SmartVocabList } from "./components/SmartVocabList";
 import { SmartGrammarList } from "./components/SmartGrammarList";
 import { ArrowLeft } from "lucide-react";
@@ -46,6 +47,11 @@ export function StatsScreen({ onBack, onVocabClick, onGrammarClick }: StatsScree
             <section className="w-full p-6 bg-surface rounded-lg shadow-sm border border-divider">
                 <h2 className="text-lg mb-4 text-primary font-serif">Grammar JLPT Coverage</h2>
                 <GrammarJlptCoverageChart progress={state.progress} />
+            </section>
+
+            <section className="w-full p-6 bg-surface rounded-lg shadow-sm border border-divider">
+                <h2 className="text-lg mb-4 text-primary font-serif">Grammar Chapter Coverage</h2>
+                <GrammarChapterCoverageChart progress={state.progress} />
             </section>
 
             <section className="w-full p-6 bg-surface rounded-lg shadow-sm border border-divider">
