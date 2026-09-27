@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import type { GrammarChapter, GrammarPoint } from "../../models/grammar.model";
+import type { GrammarChapter, GrammarExample, GrammarPoint } from "../../models/grammar.model";
 import { Card } from "../../components/ui/Card";
 import { MasteryRing } from "../../components/MasteryRing";
 import { JlptChip } from "../../components/JlptChip";
@@ -17,6 +17,8 @@ import { GrammarDifferentiator } from "../../components/GrammarDifferentiator";
 import { InteractiveSentence } from "../../components/InteractiveSentence";
 import { grammarExampleToSentence } from "../../utils/grammarSentence.utils";
 import { ArrowLeft } from "lucide-react";
+
+const MINED_INITIAL_COUNT = 5;
 
 const KIND_LABELS: Record<string, string> = {
     'construction': 'Construction',
@@ -48,6 +50,15 @@ export default function GrammarDetailScreen() {
     // isn't available - same "just don't show it" failure direction
     // GrammarSRSService.getCurrentChapter uses.
     const [chapterLocation, setChapterLocation] = useState<{ chapter: GrammarChapter; chapterNumber: number } | null>(null);
+    // Corpus-mined examples (issue #73's follow-up): a read-only browsing view
+    // of the same pool computeBlankPlan draws review sentences from, so the
+    // mined data is inspectable without grinding a point to its 2nd review.
+    // null while loading or when the point has no mined pool at all - both
+    // read as "render nothing", same as GrammarRelatedPointsCard's failure
+    // direction.
+    const [minedExamples, setMinedExamples] = useState<GrammarExample[] | null>(null);
+    const [isMinedSectionOpen, setIsMinedSectionOpen] = useState(false);
+    const [isMinedExpanded, setIsMinedExpanded] = useState(false);
 
     useEffect(() => {
         if (!grammarId) return;
@@ -61,6 +72,15 @@ export default function GrammarDetailScreen() {
                 console.error("Failed to load grammar point", err);
                 setError("Could not load grammar point details.");
             });
+    }, [grammarId]);
+
+    useEffect(() => {
+        if (!grammarId) return;
+
+        setMinedExamples(null);
+        setIsMinedSectionOpen(false);
+        setIsMinedExpanded(false);
+        GrammarService.loadMinedExamples(grammarId).then(setMinedExamples);
     }, [grammarId]);
 
     useEffect(() => {
@@ -241,6 +261,59 @@ export default function GrammarDetailScreen() {
         </Card>
     );
 
+    // Read-only browsing of the corpus-mined pool (issue #73 follow-up): full
+    // sentences, no blanks - this is a study/reference view, not the quiz's
+    // recall test. Collapsed by default since a point can carry up to 60 of
+    // these, then capped to MINED_INITIAL_COUNT with a "Show all N" toggle
+    // once opened, mirroring GrammarRelatedPointsCard's cap/expand shape.
+    const displayedMinedExamples = isMinedExpanded ? (minedExamples ?? []) : (minedExamples ?? []).slice(0, MINED_INITIAL_COUNT);
+    const moreExamplesCard = minedExamples && minedExamples.length > 0 ? (
+        <Card size={isMobile ? "sm" : "md"}>
+            <button
+                type="button"
+                onClick={() => setIsMinedSectionOpen(v => !v)}
+                className="w-full flex items-center justify-between gap-2 text-left"
+            >
+                <h2 className="text-lg font-gothic font-semibold text-primary">
+                    More examples from the corpus <span className="text-sm font-normal text-tertiary ml-2">({minedExamples.length})</span>
+                </h2>
+                <span className="text-accent font-gothic text-sm shrink-0">
+                    {isMinedSectionOpen ? 'Hide' : 'Show'}
+                </span>
+            </button>
+            {isMinedSectionOpen && (
+                <div className="mt-4">
+                    {displayedMinedExamples.map((example, i) => (
+                        <div key={i} className={`pb-4 ${i < displayedMinedExamples.length - 1 ? 'border-b border-divider mb-4' : ''}`}>
+                            <div className="text-xl leading-relaxed text-primary mb-1">
+                                <InteractiveSentence
+                                    sentence={grammarExampleToSentence(example, i)}
+                                    onVocabClick={(vid) => navigate(`/vocab/${vid}`)}
+                                    showFurigana={true}
+                                />
+                            </div>
+                            <div className="text-sm text-tertiary font-gothic mb-1">
+                                {example.romaji}
+                            </div>
+                            <div className="text-sm text-secondary font-serif">
+                                {example.en}
+                            </div>
+                        </div>
+                    ))}
+                    {!isMinedExpanded && minedExamples.length > MINED_INITIAL_COUNT && (
+                        <button
+                            type="button"
+                            onClick={() => setIsMinedExpanded(true)}
+                            className="text-accent font-gothic text-sm hover:underline"
+                        >
+                            Show all {minedExamples.length}
+                        </button>
+                    )}
+                </div>
+            )}
+        </Card>
+    ) : null;
+
     const variantsCard = <GrammarVariantsCard point={point} />;
     // Placed directly above the related-points list it explains (issue #58's
     // "unify the overlapping concepts" note): GrammarDifferentiator answers
@@ -336,6 +409,7 @@ export default function GrammarDetailScreen() {
                         {formationCard}
                         {explanationCard}
                         {examplesCard}
+                        {moreExamplesCard}
                         {statsCard}
                         {variantsCard}
                         {differentiatorCard}
@@ -362,6 +436,7 @@ export default function GrammarDetailScreen() {
                         <div className="md:col-span-7 space-y-6">
                             {explanationCard}
                             {examplesCard}
+                            {moreExamplesCard}
                         </div>
                     </div>
                 )}

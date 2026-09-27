@@ -8,6 +8,7 @@ import {
     loadKanjiVocabIndex,
     loadSentences,
     loadSearchIndex,
+    loadGrammarMinedExamples,
 } from './dataset.server';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -60,5 +61,18 @@ describe('loadSearchIndex', () => {
     it('loads the compact search index', () => {
         const index = loadSearchIndex(FIXTURES_DIR);
         expect(index).toEqual([{ id: '1589350', w: '思う', r: 'おもう', m: 'to think, to consider' }]);
+    });
+});
+
+describe('loadGrammarMinedExamples', () => {
+    it('loads the corpus-mined example pool for a point that has one', () => {
+        const examples = loadGrammarMinedExamples(FIXTURES_DIR, 'n5-001');
+        expect(examples).not.toBeNull();
+        expect(examples![0].jp).toBe('彼は思う。');
+        expect(examples![0].words[2].vocabId).toBe('1589350');
+    });
+
+    it('returns null for a point with no mined pool', () => {
+        expect(loadGrammarMinedExamples(FIXTURES_DIR, 'n5-999')).toBeNull();
     });
 });
