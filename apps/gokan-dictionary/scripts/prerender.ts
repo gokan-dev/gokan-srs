@@ -33,6 +33,10 @@ import {
     listGrammarIds,
     loadGrammarPoint,
     loadVocabJlptIndex,
+    loadGrammarTeachingOrder,
+    loadGrammarContrasts,
+    loadGrammarVariantGroups,
+    loadGrammarConjugations,
 } from '../src/lib/dataset.server';
 import { vocabSummaryFrom } from '../src/lib/vocabSummary';
 import {
@@ -44,6 +48,10 @@ import {
     vocabIndexMeta,
     vocabJlptMeta,
     homeMeta,
+    grammarChaptersIndexMeta,
+    grammarChapterMeta,
+    grammarFamilyMeta,
+    grammarConjugationsIndexMeta,
 } from '../src/lib/seo';
 import {
     vocabPath,
@@ -55,11 +63,19 @@ import {
     vocabJlptPath,
     homePath,
     assetPath,
+    grammarChaptersIndexPath,
+    grammarChapterPath,
+    grammarFamilyPath,
+    grammarConjugationsIndexPath,
 } from '../src/lib/urls';
 import { renderDocument } from '../src/lib/documentShell';
 import { buildSitemapXml, buildRobotsTxt, shouldEmitRobotsTxt } from '../src/lib/sitemap';
 import type { GrammarSummary, VocabSummary } from '../src/lib/types';
 import { toBrowseRow, groupRows } from '../src/lib/grammarBrowse';
+import { buildChapterLocatorIndex, buildChapterIndexRows } from '../src/lib/grammarChapters';
+import { buildFamilyPages } from '../src/lib/grammarFamilies';
+import { buildVariantSiblings } from '../src/lib/grammarVariants';
+import { groupConjugationsByForm } from '../src/lib/grammarConjugations';
 import type { Vocabulary } from '../src/models/vocabulary.model';
 import type { GrammarPoint } from '../src/models/grammar.model';
 
@@ -121,6 +137,9 @@ async function main(): Promise<void> {
         kanjiIndex: assetPath(manifest['src/styles/pages/kanji-index.scss'].file),
         grammar: assetPath(manifest['src/styles/pages/grammar.scss'].file),
         grammarIndex: assetPath(manifest['src/styles/pages/grammar-index.scss'].file),
+        grammarChapters: assetPath(manifest['src/styles/pages/grammar-chapters.scss'].file),
+        grammarFamily: assetPath(manifest['src/styles/pages/grammar-family.scss'].file),
+        grammarConjugations: assetPath(manifest['src/styles/pages/grammar-conjugations.scss'].file),
     };
     const searchScriptHref = assetPath(manifest['src/client/search.ts'].file);
     const grammarBrowserScriptHref = assetPath(manifest['src/client/grammarBrowser.ts'].file);
@@ -132,6 +151,10 @@ async function main(): Promise<void> {
     const { default: KanjiPage } = await import('../src/pages/KanjiPage.svelte');
     const { default: GrammarPage } = await import('../src/pages/GrammarPage.svelte');
     const { default: GrammarIndexPage } = await import('../src/pages/GrammarIndexPage.svelte');
+    const { default: GrammarChaptersIndexPage } = await import('../src/pages/GrammarChaptersIndexPage.svelte');
+    const { default: GrammarChapterPage } = await import('../src/pages/GrammarChapterPage.svelte');
+    const { default: GrammarFamilyPage } = await import('../src/pages/GrammarFamilyPage.svelte');
+    const { default: GrammarConjugationsIndexPage } = await import('../src/pages/GrammarConjugationsIndexPage.svelte');
     const { default: KanjiIndexPage } = await import('../src/pages/KanjiIndexPage.svelte');
     const { default: VocabIndexPage } = await import('../src/pages/VocabIndexPage.svelte');
     const { default: VocabJlptPage } = await import('../src/pages/VocabJlptPage.svelte');
@@ -238,14 +261,27 @@ async function main(): Promise<void> {
         jlptLevel: point.jlptLevel,
     });
 
+    // The four pieces of the grammar system this app didn't surface before issue #58: the
+    // authored teaching order (chapters), the family "when to use each" lessons, the
+    // realization-variant groups, and the inflection points' conjugation drill tables. Loaded
+    // once, up front, alongside the point files already loaded above.
+    const teachingOrder = loadGrammarTeachingOrder(compiledDir);
+    const contrasts = loadGrammarContrasts(compiledDir);
+    const variantGroups = loadGrammarVariantGroups(compiledDir);
+    const conjugationIndex = loadGrammarConjugations(compiledDir);
+    const chapterLocatorIndex = buildChapterLocatorIndex(teachingOrder);
+
     for (const id of grammarIds) {
         const point = grammarPoints.get(id)!;
         const related = (point.family?.relatedPoints ?? [])
             .map(relatedId => grammarPoints.get(relatedId))
             .filter((other): other is GrammarPoint => Boolean(other))
             .map(grammarSummaryOf);
+        const chapterLocator = chapterLocatorIndex.get(id) ?? null;
+        const variants = buildVariantSiblings(point, variantGroups, grammarPoints);
+        const conjugation = conjugationIndex[id] ?? null;
 
-        const { body } = render(GrammarPage, { props: { point, related } });
+        const { body } = render(GrammarPage, { props: { point, related, chapterLocator, variants, conjugation } });
         const meta = grammarMeta(point);
         const html = renderDocument({
             title: meta.title,
@@ -288,6 +324,96 @@ async function main(): Promise<void> {
         extraScriptHref: grammarBrowserScriptHref,
     }));
     sitemapPaths.push(grammarIndexPath());
+
+    // -- Grammar curriculum (chapters), issue #58 ------------------------------
+    // The authored teaching order as its own browsable curriculum, distinct from the grammar
+    // index's level/family grouping: this answers "what order will I actually meet these in",
+    // a strong "JLPT grammar curriculum/order" search target in its own right.
+    console.log(`[prerender] writing ${teachingOrder.chapters.length} grammar chapter pages...`);
+    const chapterRows = buildChapterIndexRows(teachingOrder, grammarPoints);
+
+    const { body: chaptersIndexBody } = render(GrammarChaptersIndexPage, { props: { chapters: chapterRows } });
+    const chaptersIndexMetaValue = grammarChaptersIndexMeta(chapterRows.length, teachingOrder.order.length);
+    writePage(['grammar', 'chapters'], renderDocument({
+        title: chaptersIndexMetaValue.title,
+        description: chaptersIndexMetaValue.description,
+        canonicalPath: grammarChaptersIndexPath(),
+        bodyHtml: chaptersIndexBody,
+        stylesheetHref,
+        pageStylesheetHref: pageStyles.grammarChapters,
+        scriptHref: searchScriptHref,
+    }));
+    sitemapPaths.push(grammarChaptersIndexPath());
+
+    chapterRows.forEach((chapter, index) => {
+        const previous = chapterRows[index - 1] ?? null;
+        const next = chapterRows[index + 1] ?? null;
+        const { body } = render(GrammarChapterPage, {
+            props: {
+                chapter,
+                totalChapters: chapterRows.length,
+                previous: previous ? { id: previous.id, title: previous.title } : null,
+                next: next ? { id: next.id, title: next.title } : null,
+            },
+        });
+        const meta = grammarChapterMeta(teachingOrder.chapters[index]);
+        writePage(['grammar', 'chapters', chapter.id], renderDocument({
+            title: meta.title,
+            description: meta.description,
+            canonicalPath: grammarChapterPath(chapter.id),
+            bodyHtml: body,
+            stylesheetHref,
+            pageStylesheetHref: pageStyles.grammarChapters,
+            scriptHref: searchScriptHref,
+        }));
+        sitemapPaths.push(grammarChapterPath(chapter.id));
+    });
+
+    // -- Grammar families (contrast lessons + variant comparison), issue #58 ---
+    // One page per near-synonym family, comparing its members side by side - the family
+    // "when to use each" lessons the SRS's own GrammarFamilyScreen surfaces, made public and
+    // crawlable. A strong "X vs Y grammar" search target that no single point's own page can be
+    // (でも vs しかし vs けれど is a question about three pages, not one).
+    console.log('[prerender] writing grammar family pages...');
+    const familyPages = buildFamilyPages([...grammarPoints.values()], contrasts);
+
+    for (const family of familyPages) {
+        const { body } = render(GrammarFamilyPage, { props: { family } });
+        const meta = grammarFamilyMeta(family.name, family.members.length);
+        writePage(['grammar', 'family', family.id], renderDocument({
+            title: meta.title,
+            description: meta.description,
+            canonicalPath: grammarFamilyPath(family.id),
+            bodyHtml: body,
+            stylesheetHref,
+            pageStylesheetHref: pageStyles.grammarFamily,
+            scriptHref: searchScriptHref,
+        }));
+        sitemapPaths.push(grammarFamilyPath(family.id));
+    }
+
+    // -- Grammar conjugation reference, issue #58 ------------------------------
+    // The 40 inflection points' own pages already carry their conjugation table (added above);
+    // this index groups them by form so "Japanese potential form conjugation" has a single
+    // strong landing page rather than requiring the reader to already know which point to look
+    // for.
+    console.log('[prerender] writing grammar conjugation reference page...');
+    const conjugationGroups = groupConjugationsByForm(conjugationIndex, grammarPoints);
+
+    const { body: conjugationsIndexBody } = render(GrammarConjugationsIndexPage, {
+        props: { groups: conjugationGroups, pointCount: Object.keys(conjugationIndex).length },
+    });
+    const conjugationsIndexMetaValue = grammarConjugationsIndexMeta(conjugationGroups.length, Object.keys(conjugationIndex).length);
+    writePage(['grammar', 'conjugations'], renderDocument({
+        title: conjugationsIndexMetaValue.title,
+        description: conjugationsIndexMetaValue.description,
+        canonicalPath: grammarConjugationsIndexPath(),
+        bodyHtml: conjugationsIndexBody,
+        stylesheetHref,
+        pageStylesheetHref: pageStyles.grammarConjugations,
+        scriptHref: searchScriptHref,
+    }));
+    sitemapPaths.push(grammarConjugationsIndexPath());
 
     // -- Browse indexes -------------------------------------------------------
     // These exist so every page type has a depth-1 or depth-2 path from the site root. Kanji
@@ -400,8 +526,9 @@ async function main(): Promise<void> {
     const elapsedSeconds = ((Date.now() - startedAt) / 1000).toFixed(1);
     console.log(
         `[prerender] done: ${vocabIds.length} vocab pages, ${kanjiList.length} kanji pages, ` +
-        `${grammarIds.length} grammar pages, ${jlptLevelWords.length + 3} index pages, ` +
-        `1 home page in ${elapsedSeconds}s.`,
+        `${grammarIds.length} grammar pages, ${chapterRows.length} grammar chapter pages, ` +
+        `${familyPages.length} grammar family pages, 1 grammar conjugation reference page, ` +
+        `${jlptLevelWords.length + 3} index pages, 1 home page in ${elapsedSeconds}s.`,
     );
 }
 

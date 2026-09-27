@@ -4,6 +4,10 @@ import {
     kanjiPath,
     grammarPath,
     grammarIndexPath,
+    grammarChaptersIndexPath,
+    grammarChapterPath,
+    grammarFamilyPath,
+    grammarConjugationsIndexPath,
     homePath,
     assetPath,
     searchIndexPath,
@@ -21,6 +25,10 @@ describe('path builders', () => {
         expect(kanjiPath('日')).toBe(`${BASE_PATH}/kanji/%E6%97%A5/`);
         expect(grammarPath('n5-001')).toBe(`${BASE_PATH}/grammar/n5-001/`);
         expect(grammarIndexPath()).toBe(`${BASE_PATH}/grammar/`);
+        expect(grammarChaptersIndexPath()).toBe(`${BASE_PATH}/grammar/chapters/`);
+        expect(grammarChapterPath('n5-c01')).toBe(`${BASE_PATH}/grammar/chapters/n5-c01/`);
+        expect(grammarFamilyPath('causality')).toBe(`${BASE_PATH}/grammar/family/causality/`);
+        expect(grammarConjugationsIndexPath()).toBe(`${BASE_PATH}/grammar/conjugations/`);
         expect(homePath()).toBe(`${BASE_PATH}/`);
         expect(searchIndexPath()).toBe(`${BASE_PATH}/data/search.json`);
     });

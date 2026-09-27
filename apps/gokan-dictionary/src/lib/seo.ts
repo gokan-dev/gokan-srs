@@ -4,7 +4,7 @@
 
 import type { Vocabulary } from '../models/vocabulary.model';
 import type { Kanji } from '../models/kanji.model';
-import type { GrammarPoint } from '../models/grammar.model';
+import type { GrammarChapter, GrammarPoint } from '../models/grammar.model';
 import { SITE_NAME } from './site';
 
 export interface PageMeta {
@@ -58,6 +58,35 @@ export function grammarIndexMeta(pointCount: number): PageMeta {
     return {
         title: `Japanese Grammar Points by JLPT Level - ${SITE_NAME}`,
         description: `All ${pointCount} Japanese grammar points, organized from JLPT N5 to N1, each with its formation pattern, explanation, and example sentences.`,
+    };
+}
+
+export function grammarChaptersIndexMeta(chapterCount: number, pointCount: number): PageMeta {
+    return {
+        title: `Japanese Grammar Curriculum - ${chapterCount} Chapters - ${SITE_NAME}`,
+        description: `The full JLPT N5-N1 grammar teaching order: ${chapterCount} chapters covering ${pointCount} grammar points, grouped the way they are actually taught together.`,
+    };
+}
+
+export function grammarChapterMeta(chapter: GrammarChapter): PageMeta {
+    const title = `${chapter.title} - Grammar Chapter ${chapter.jlptLevel ? `(N${chapter.jlptLevel})` : ''} - ${SITE_NAME}`;
+    const summary = chapter.summary.replace(/\s+/g, ' ').trim();
+    const description = `${chapter.title}: ${truncate(summary, 120)} ${chapter.points.length} grammar point${chapter.points.length === 1 ? '' : 's'} taught together in this chapter.`;
+
+    return { title, description };
+}
+
+export function grammarFamilyMeta(familyName: string, memberCount: number): PageMeta {
+    return {
+        title: `${familyName} - Japanese Grammar Comparison - ${SITE_NAME}`,
+        description: `${familyName}: ${memberCount} related Japanese grammar points compared side by side, with guidance on which one to reach for and why.`,
+    };
+}
+
+export function grammarConjugationsIndexMeta(formCount: number, pointCount: number): PageMeta {
+    return {
+        title: `Japanese Verb and Adjective Conjugation Reference - ${SITE_NAME}`,
+        description: `${formCount} conjugation forms across ${pointCount} inflection patterns (te-form, potential, causative, and more), each with a full table of example verbs and adjectives.`,
     };
 }
 

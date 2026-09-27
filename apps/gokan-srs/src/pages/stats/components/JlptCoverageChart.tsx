@@ -55,7 +55,7 @@ export function JlptCoverageChart({ progress, settings }: JlptCoverageChartProps
                 else if (learningIds.has(entry.id)) learning++;
             }
 
-            return { level, mastered, learning, total: entries.length };
+            return { key: level, label: `N${level}`, mastered, learning, total: entries.length };
         });
     }, [index, progress.learningQueue, settings]);
 
@@ -67,5 +67,5 @@ export function JlptCoverageChart({ progress, settings }: JlptCoverageChartProps
         return <div className="h-40 animate-pulse rounded bg-surface-hover/40" />;
     }
 
-    return <JlptCoverageBars rows={rows} itemLabel="vocabulary" />;
+    return <JlptCoverageBars rows={rows} itemLabel="vocabulary" headline="JLPT vocabulary covered" />;
 }

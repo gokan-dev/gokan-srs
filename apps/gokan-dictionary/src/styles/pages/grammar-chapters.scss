@@ -1,0 +1,68 @@
+// GrammarChaptersIndexPage.svelte + GrammarChapterPage.svelte only (issue #58) - the two share a
+// stylesheet because they are the same content at two zoom levels (a chapter's own row vs. its
+// full page), not because two unrelated page types happened to want the same rules.
+
+@use '../tokens' as *;
+
+.chapter-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: $space-2;
+}
+
+.chapter-row-link {
+  @include surface($space-2);
+  @include interactive-surface;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  color: var(--primary);
+}
+
+.chapter-row-head {
+  display: flex;
+  align-items: baseline;
+  gap: $space-1;
+}
+
+.chapter-row-number {
+  color: var(--secondary);
+  font-size: $text-sm;
+  font-family: $font-gothic;
+}
+
+.chapter-row-title {
+  font-family: $font-serif;
+  font-size: $text-xl;
+  font-weight: 600;
+}
+
+.chapter-row-summary {
+  color: var(--secondary);
+  font-size: $text-base;
+}
+
+.chapter-row-count {
+  font-size: $text-sm;
+}
+
+.chapter-pager {
+  display: flex;
+  justify-content: space-between;
+  gap: $space-2;
+  margin-top: $space-4;
+  padding-top: $space-3;
+  border-top: 1px solid var(--divider);
+}
+
+.chapter-pager-link {
+  color: var(--secondary);
+
+  &--next {
+    margin-left: auto;
+    text-align: right;
+  }
+}

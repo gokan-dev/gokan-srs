@@ -16,7 +16,14 @@ import type { Vocabulary } from '../models/vocabulary.model';
 import type { Kanji } from '../models/kanji.model';
 import type { Sentence } from '../models/sentence.model';
 import type { KanjiVocabIndex, SearchIndex, VocabJlptIndex } from '../models/index.model';
-import type { GrammarJlptIndex, GrammarPoint } from '../models/grammar.model';
+import type {
+    GrammarJlptIndex,
+    GrammarPoint,
+    GrammarTeachingOrder,
+    GrammarContrastIndex,
+    GrammarVariantGroupIndex,
+    GrammarConjugationIndex,
+} from '../models/grammar.model';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -118,4 +125,33 @@ export function listGrammarIds(compiledDir: string): string[] {
 export function loadGrammarPoint(compiledDir: string, id: string): GrammarPoint {
     const raw = fs.readFileSync(path.join(compiledDir, 'grammar', 'points', `${id}.json`), 'utf-8');
     return JSON.parse(raw) as GrammarPoint;
+}
+
+/**
+ * The authored introduction order (issue #58) - chapters plus their flattened
+ * order. Used to build the chapter browser/detail pages and each point's
+ * chapter locator. Not every point appears in it (a non-canonical variant
+ * realization is taught only via its canonical, so it has no independent slot).
+ */
+export function loadGrammarTeachingOrder(compiledDir: string): GrammarTeachingOrder {
+    const raw = fs.readFileSync(path.join(compiledDir, 'grammar', 'index', 'teaching-order.json'), 'utf-8');
+    return JSON.parse(raw) as GrammarTeachingOrder;
+}
+
+/** Family id -> its authored contrast lessons/interchangeable note, for the family pages. */
+export function loadGrammarContrasts(compiledDir: string): GrammarContrastIndex {
+    const raw = fs.readFileSync(path.join(compiledDir, 'grammar', 'index', 'contrasts.json'), 'utf-8');
+    return JSON.parse(raw) as GrammarContrastIndex;
+}
+
+/** Canonical point id -> its realization variants, for the "Other forms" section on a point page. */
+export function loadGrammarVariantGroups(compiledDir: string): GrammarVariantGroupIndex {
+    const raw = fs.readFileSync(path.join(compiledDir, 'grammar', 'index', 'variant-groups.json'), 'utf-8');
+    return JSON.parse(raw) as GrammarVariantGroupIndex;
+}
+
+/** Point id -> conjugation drill items, for the 40 `kind: 'inflection'` points' conjugation tables. */
+export function loadGrammarConjugations(compiledDir: string): GrammarConjugationIndex {
+    const raw = fs.readFileSync(path.join(compiledDir, 'grammar', 'conjugations.json'), 'utf-8');
+    return JSON.parse(raw) as GrammarConjugationIndex;
 }

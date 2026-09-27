@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch } from 'react';
 import { useLocation } from 'react-router-dom';
-import type { GrammarPoint } from '../../models/grammar.model';
+import type { GrammarChapter, GrammarPoint } from '../../models/grammar.model';
 import { GrammarService } from '../../services/grammar.service';
 import { GrammarSRSService } from '../../services/grammarSrs.service';
 import { clearStaleGrammarNeedsRetry } from '../../services/grammarScheduling';
@@ -16,6 +16,8 @@ import {
     selectGrammarSessionStats,
     selectChapterEndFocusIds,
     selectNewlyCompletedChapterIds,
+    computeGrammarChapterProgress,
+    type GrammarChapterProgressCounts,
     collectActionableGrammarIds,
     computeBlankPlan,
     gradeGrammarAnswers,
@@ -70,12 +72,23 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
     // visible before the learner even starts a session. Always re-derived
     // (never stored - see GrammarSRSService.getCurrentChapter).
     const [nextChapterTitle, setNextChapterTitle] = useState<string | null>(null);
+    // Same chapter, plus its own three-way point tally (mastered/learning/
+    // untouched) - issue #58's hub progress bar. A separate field rather than
+    // folded into nextChapterTitle so existing consumers of the title string
+    // are untouched.
+    const [currentChapterProgress, setCurrentChapterProgress] = useState<
+        { chapter: GrammarChapter; counts: GrammarChapterProgressCounts } | null
+    >(null);
 
     useEffect(() => {
         if (!state.progress) return;
         let cancelled = false;
         GrammarSRSService.getCurrentChapter(state.progress.grammarQueue).then(chapter => {
-            if (!cancelled) setNextChapterTitle(chapter?.title ?? null);
+            if (cancelled) return;
+            setNextChapterTitle(chapter?.title ?? null);
+            setCurrentChapterProgress(
+                chapter ? { chapter, counts: computeGrammarChapterProgress(chapter, state.progress!.grammarQueue) } : null
+            );
         });
         return () => { cancelled = true; };
     }, [state.progress]);
@@ -464,6 +477,7 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
         nextGrammarSessionPreview,
         grammarSessionStats,
         nextGrammarChapterTitle: nextChapterTitle,
+        currentGrammarChapterProgress: currentChapterProgress,
         pendingGrammarChapterLesson: pendingChapterLesson,
     };
 }

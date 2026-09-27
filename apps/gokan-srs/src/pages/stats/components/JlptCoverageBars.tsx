@@ -1,7 +1,13 @@
 import { useState } from "react";
 
+/**
+ * One row of a coverage chart. `key` is the stable React/hover key (a JLPT
+ * level number, or a chapter id string); `label` is the short text shown next
+ * to the bar (e.g. "N5", or a chapter's own short title).
+ */
 export interface JlptLevelRow {
-    level: number;
+    key: string | number;
+    label: string;
     mastered: number;
     learning: number;
     total: number;
@@ -11,22 +17,33 @@ interface JlptCoverageBarsProps {
     rows: JlptLevelRow[];
     /** What each counted item is, for the headline copy - e.g. "vocabulary", "grammar points". */
     itemLabel: string;
+    /** Full headline, e.g. "JLPT vocabulary covered". Defaults to "JLPT {itemLabel} covered" for the two original JLPT-level callers. */
+    headline?: string;
+    /** Header of the leftmost `<details>` table column, and the row-label column's semantic role. Defaults to "Level". */
+    keyColumnLabel?: string;
+    /**
+     * Past this many rows, the bar list scrolls in a fixed-height pane instead
+     * of growing the page - a 5-row JLPT chart never needs it, but a 150-row
+     * chapter chart would otherwise push the rest of the Stats page far down.
+     */
+    maxVisibleRows?: number;
 }
 
 /**
- * Shared rendering for a per-JLPT-level coverage chart: headline + legend,
- * stacked bars (N5 at top), and a `<details>` table. Used by both
- * `JlptCoverageChart` (vocabulary) and `GrammarJlptCoverageChart` - the two
- * only differ in how `rows` is computed (different index shapes, different
- * mastery predicates), not in how the result is drawn.
+ * Shared rendering for a per-row coverage chart: headline + legend, stacked
+ * bars, and a `<details>` table. Used by `JlptCoverageChart` (vocabulary),
+ * `GrammarJlptCoverageChart`, and `GrammarChapterCoverageChart` (issue #58) -
+ * they only differ in how `rows` is computed (different index shapes,
+ * different mastery predicates, different row identity), not in how the
+ * result is drawn.
  *
  * One hue in two steps rather than two hues - the segments are ordinal stages
  * of the same thing (an item on its way to mastery), and the design system
  * reserves the secondary accent for errors. The legend plus the direct labels
  * carry the distinction, so it never rests on color alone.
  */
-export function JlptCoverageBars({ rows, itemLabel }: JlptCoverageBarsProps) {
-    const [hoverLevel, setHoverLevel] = useState<number | null>(null);
+export function JlptCoverageBars({ rows, itemLabel, headline, keyColumnLabel = "Level", maxVisibleRows = 10 }: JlptCoverageBarsProps) {
+    const [hoverKey, setHoverKey] = useState<string | number | null>(null);
 
     const totals = rows.reduce(
         (acc, r) => ({
@@ -46,7 +63,7 @@ export function JlptCoverageBars({ rows, itemLabel }: JlptCoverageBarsProps) {
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
                 <div className="flex flex-col">
                     <span className="text-xs text-tertiary uppercase tracking-wider font-gothic">
-                        JLPT {itemLabel} covered
+                        {headline ?? `JLPT ${itemLabel} covered`}
                     </span>
                     <span className="text-3xl text-primary leading-tight tabular-nums">
                         {started.toLocaleString()}
@@ -70,23 +87,27 @@ export function JlptCoverageBars({ rows, itemLabel }: JlptCoverageBarsProps) {
                 </div>
             </div>
 
-            {/* Bars, N5 (easiest) at the top */}
-            <div className="flex flex-col gap-2.5">
+            {/* Bars, in row order (N5-first for JLPT, teaching order for chapters) */}
+            <div
+                className={rows.length > maxVisibleRows
+                    ? "flex flex-col gap-2.5 max-h-[26rem] overflow-y-auto scrollbar-subtle pr-1"
+                    : "flex flex-col gap-2.5"}
+            >
                 {rows.map(row => {
                     const masteredPct = row.total > 0 ? (row.mastered / row.total) * 100 : 0;
                     const learningPct = row.total > 0 ? (row.learning / row.total) * 100 : 0;
                     const rowStarted = row.mastered + row.learning;
-                    const isHovered = hoverLevel === row.level;
+                    const isHovered = hoverKey === row.key;
 
                     return (
                         <div
-                            key={row.level}
+                            key={row.key}
                             className="flex items-center gap-3"
-                            onMouseEnter={() => setHoverLevel(row.level)}
-                            onMouseLeave={() => setHoverLevel(null)}
+                            onMouseEnter={() => setHoverKey(row.key)}
+                            onMouseLeave={() => setHoverKey(null)}
                         >
-                            <span className="w-8 shrink-0 text-xs text-secondary font-gothic">
-                                N{row.level}
+                            <span className="w-14 shrink-0 text-xs text-secondary font-gothic truncate" title={row.label}>
+                                {row.label}
                             </span>
 
                             <div className="relative flex-1 min-w-0">
@@ -111,8 +132,8 @@ export function JlptCoverageBars({ rows, itemLabel }: JlptCoverageBarsProps) {
                                 </div>
 
                                 {isHovered && (
-                                    <div className="absolute left-2 -top-1 z-20 pointer-events-none -translate-y-full bg-surface border border-divider shadow-md rounded px-2 py-1 text-[11px] w-max">
-                                        <div className="text-tertiary">N{row.level}</div>
+                                    <div className="absolute left-2 -top-1 z-20 pointer-events-none -translate-y-full bg-surface border border-divider shadow-md rounded px-2 py-1 text-[11px] w-max max-w-64">
+                                        <div className="text-tertiary truncate">{row.label}</div>
                                         <div className="text-primary tabular-nums">
                                             {row.mastered.toLocaleString()} mastered
                                         </div>
@@ -143,7 +164,7 @@ export function JlptCoverageBars({ rows, itemLabel }: JlptCoverageBarsProps) {
                 <table className="w-full mt-3 text-left border-collapse">
                     <thead>
                         <tr className="text-tertiary">
-                            <th className="font-normal py-1 pr-3">Level</th>
+                            <th className="font-normal py-1 pr-3">{keyColumnLabel}</th>
                             <th className="font-normal py-1 pr-3 text-right">Mastered</th>
                             <th className="font-normal py-1 pr-3 text-right">In progress</th>
                             <th className="font-normal py-1 text-right">Total</th>
@@ -151,8 +172,8 @@ export function JlptCoverageBars({ rows, itemLabel }: JlptCoverageBarsProps) {
                     </thead>
                     <tbody className="text-secondary tabular-nums">
                         {rows.map(row => (
-                            <tr key={row.level} className="border-t border-divider">
-                                <td className="py-1 pr-3">N{row.level}</td>
+                            <tr key={row.key} className="border-t border-divider">
+                                <td className="py-1 pr-3">{row.label}</td>
                                 <td className="py-1 pr-3 text-right">{row.mastered.toLocaleString()}</td>
                                 <td className="py-1 pr-3 text-right">{row.learning.toLocaleString()}</td>
                                 <td className="py-1 text-right">{row.total.toLocaleString()}</td>

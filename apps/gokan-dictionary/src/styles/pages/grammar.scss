@@ -18,3 +18,33 @@
   border-radius: $radius-sm;
   line-height: 1.8;
 }
+
+// Conjugation reference table (issue #58, kind: 'inflection' points only).
+.conjugation-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: $text-base;
+
+  th {
+    text-align: left;
+    color: var(--secondary);
+    font-weight: 400;
+    font-size: $text-sm;
+    padding: 0.375rem 0.5rem;
+    border-bottom: 1px solid var(--divider);
+  }
+
+  td {
+    padding: 0.375rem 0.5rem;
+    border-bottom: 1px solid var(--divider);
+
+    .jp {
+      font-size: $text-lg;
+    }
+  }
+}
+
+.family-link {
+  margin: $space-2 0 0;
+  font-size: $text-base;
+}

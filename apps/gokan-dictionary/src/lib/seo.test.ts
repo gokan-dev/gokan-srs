@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { vocabMeta, kanjiMeta, homeMeta } from './seo';
+import { vocabMeta, kanjiMeta, homeMeta, grammarChaptersIndexMeta, grammarChapterMeta, grammarFamilyMeta, grammarConjugationsIndexMeta } from './seo';
 import type { Vocabulary } from '../models/vocabulary.model';
 import type { Kanji } from '../models/kanji.model';
+import type { GrammarChapter } from '../models/grammar.model';
 
 function makeVocab(overrides: Partial<Vocabulary> = {}): Vocabulary {
     return {
@@ -81,5 +82,55 @@ describe('homeMeta', () => {
         const { title, description } = homeMeta();
         expect(title.length).toBeGreaterThan(0);
         expect(description.length).toBeGreaterThan(0);
+    });
+});
+
+function makeChapter(overrides: Partial<GrammarChapter> = {}): GrammarChapter {
+    return {
+        id: 'n5-c01',
+        title: 'Topic, identity and の',
+        summary: 'The は topic marker and the copula pattern.',
+        jlptLevel: 5,
+        points: ['n5-040', 'n5-125', 'n5-011'],
+        ...overrides,
+    };
+}
+
+describe('grammarChaptersIndexMeta', () => {
+    it('includes the chapter and point counts', () => {
+        const { title, description } = grammarChaptersIndexMeta(151, 760);
+        expect(title).toContain('151');
+        expect(description).toContain('151');
+        expect(description).toContain('760');
+    });
+});
+
+describe('grammarChapterMeta', () => {
+    it('includes the chapter title and point count', () => {
+        const { title, description } = grammarChapterMeta(makeChapter());
+        expect(title).toContain('Topic, identity and の');
+        expect(description).toContain('3 grammar points');
+    });
+
+    it('uses singular wording for a one-point chapter', () => {
+        const { description } = grammarChapterMeta(makeChapter({ points: ['n5-040'] }));
+        expect(description).toContain('1 grammar point ');
+        expect(description).not.toContain('1 grammar points');
+    });
+});
+
+describe('grammarFamilyMeta', () => {
+    it('includes the family name and member count', () => {
+        const { title, description } = grammarFamilyMeta('Causality (Because / Since / Due to)', 5);
+        expect(title).toContain('Causality');
+        expect(description).toContain('5 related Japanese grammar points');
+    });
+});
+
+describe('grammarConjugationsIndexMeta', () => {
+    it('includes the form and point counts', () => {
+        const { description } = grammarConjugationsIndexMeta(38, 40);
+        expect(description).toContain('38 conjugation forms');
+        expect(description).toContain('40 inflection patterns');
     });
 });

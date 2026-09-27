@@ -14,7 +14,8 @@ import type { SessionStats, NextSessionPreview } from './quizSelectors';
 import { useQuizOrchestration } from './useQuizOrchestration';
 import { useGrammarOrchestration } from './useGrammarOrchestration';
 import type { PendingGrammarChapterLesson } from './useGrammarOrchestration';
-import type { GrammarSessionState, NextGrammarSessionPreview, GrammarSessionStats } from './grammarSelectors';
+import type { GrammarSessionState, NextGrammarSessionPreview, GrammarSessionStats, GrammarChapterProgressCounts } from './grammarSelectors';
+import type { GrammarChapter } from '../../models/grammar.model';
 
 export interface QuizContextValue {
     state: QuizState;
@@ -65,6 +66,8 @@ export interface QuizContextValue {
     grammarSessionStats: GrammarSessionStats;
     /** Title of the chapter the next NEW grammar point would begin - null once nothing is left to introduce, or before it's loaded. */
     nextGrammarChapterTitle: string | null;
+    /** Same chapter as nextGrammarChapterTitle, plus its own three-way point tally - null once nothing is left to introduce, or before it's loaded. */
+    currentGrammarChapterProgress: { chapter: GrammarChapter; counts: GrammarChapterProgressCounts } | null;
     /** The end-of-chapter review step, when a chapter has just completed and has anchored contrast lessons - null otherwise. */
     pendingGrammarChapterLesson: PendingGrammarChapterLesson | null;
     grammarActions: {
@@ -99,6 +102,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         nextGrammarSessionPreview,
         grammarSessionStats,
         nextGrammarChapterTitle,
+        currentGrammarChapterProgress,
         pendingGrammarChapterLesson,
     } = useGrammarOrchestration(state, dispatch);
 
@@ -122,6 +126,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 nextGrammarSessionPreview,
                 grammarSessionStats,
                 nextGrammarChapterTitle,
+                currentGrammarChapterProgress,
                 pendingGrammarChapterLesson,
                 grammarActions,
                 grammarComputed,
