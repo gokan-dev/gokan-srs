@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { BookOpenText, Puzzle } from 'lucide-react';
 import { useQuiz } from '../../context/useQuiz';
 import { DailyActivityCard } from './DailyActivityCard';
@@ -74,11 +74,13 @@ const ActivityCard: React.FC<{
     onClick: () => void;
     /** The activity's own settings cog, pinned to the card's top right corner. */
     settings: React.ReactNode;
-}> = ({ icon, title, description, onClick, settings }) => (
-    <div className="relative h-full">
+    /** An optional secondary link below the card body, e.g. "View all chapters" - a sibling of the button for the same reason `settings` is. */
+    footer?: React.ReactNode;
+}> = ({ icon, title, description, onClick, settings, footer }) => (
+    <div className="relative h-full flex flex-col">
         <button
             onClick={onClick}
-            className="w-full h-full text-left border border-divider rounded p-6 bg-surface hover:border-accent transition-colors duration-200 flex flex-col gap-3 cursor-pointer"
+            className="w-full flex-1 text-left border border-divider rounded p-6 bg-surface hover:border-accent transition-colors duration-200 flex flex-col gap-3 cursor-pointer"
         >
             {icon}
             <div>
@@ -95,6 +97,8 @@ const ActivityCard: React.FC<{
         <div className="absolute top-5 right-4">
             {settings}
         </div>
+
+        {footer && <div className="mt-2 text-right">{footer}</div>}
     </div>
 );
 
@@ -192,5 +196,14 @@ const GrammarActivityCard: React.FC<{
         }
         onClick={onClick}
         settings={settings}
+        footer={
+            <Link
+                to="/grammar/chapters"
+                onClick={e => e.stopPropagation()}
+                className="text-xs text-accent font-gothic hover:underline"
+            >
+                View all chapters &rarr;
+            </Link>
+        }
     />
 );
