@@ -128,18 +128,19 @@ export class SRSService {
      * (issue #71 Part A). Previously this graded against `evaluateAnswer` on the
      * reading alone, so a correct kanji answer (必ず for かならず) graded `wrong`.
      *
-     * Written forms were originally matched EXACTLY and nothing else, to keep
-     * them off `evaluateAnswer`'s Levenshtein path: a distance-1 difference
-     * between two kanji strings is usually a different word, not a typo. That
-     * protection was right and still holds, but exact-only also graded 六 for
-     * 六つ as `wrong` at -0.40, which is a dropped okurigana tail rather than a
-     * failure to produce the word (reported from production).
+     * ONE accept-list, ONE comparison rule. Production does not orchestrate its
+     * own matching: it assembles the forms it will accept and hands them to
+     * `evaluateAnswer`, exactly as the reading quiz and the grammar blanks do,
+     * so a given typo is graded identically whichever quiz asked the question.
      *
-     * `analyzeError` now draws that line by KANJI SKELETON instead of by
-     * string distance, so both cases are handled by one rule: same kanji means
-     * the kana may wobble (六 / 六つ, 食 / 食べる: `minor_error`), different
-     * kanji is never fuzzy (会社 / 会話: `wrong`). Reading forms keep the
-     * existing fuzzy behavior via `evaluateAnswer`, which also covers "pass".
+     * Written forms briefly had a bespoke path here, matched EXACTLY and nothing
+     * else, to keep them off the Levenshtein comparison: a distance-1 difference
+     * between two kanji strings is usually a different word. The protection was
+     * right, the placement was not. Exact-only cannot express "right word, tail
+     * missing", so it graded 六 for 六つ as `wrong` at -0.40 (reported from
+     * production). Moving the distinction into `analyzeError`, as a kanji-skeleton
+     * rule, protects every quiz at once instead of this one call site, and the
+     * special case here became dead weight.
      *
      * Shared by both production quiz cards (gloss-prompt and the sentence-cloze
      * card from issue #72) - both set `quizType: 'production'`, so this is the
@@ -149,34 +150,15 @@ export class SRSService {
         userInput: string,
         vocab: Pick<Vocabulary, 'reading' | 'writtenForm' | 'mergedVocabs'>
     ): { result: AnswerResult; matchedAnswer: string } {
-        const normalize = (s: string) => s.trim().replace(/\s+/g, '');
-        const normalizedInput = normalize(userInput);
-
-        const writtenForms = [vocab.writtenForm.kanji, ...vocab.writtenForm.alternatives];
-        let bestWritten: { result: AnswerResult; matchedAnswer: string } | null = null;
-        for (const form of writtenForms) {
-            if (normalizedInput === normalize(form)) {
-                return { result: 'correct', matchedAnswer: form };
-            }
-            // Not exact, but analyzeError's kanji-skeleton rule still separates a
-            // dropped okurigana tail (六 for 六つ: minor) from a different word
-            // (会社 for 会話: wrong). Held rather than returned so an exact match
-            // on a LATER alternative still wins.
-            if (!bestWritten && this.analyzeError(normalizedInput, normalize(form)) === 'minor_error') {
-                bestWritten = { result: 'minor_error', matchedAnswer: form };
-            }
-        }
-        const readingAlternatives = [
-            ...vocab.reading.alternatives,
-            ...(vocab.mergedVocabs?.map(m => m.originalPrimaryReading) ?? []),
-        ];
-        const reading = this.evaluateAnswer(userInput, { primary: vocab.reading.primary, alternatives: readingAlternatives });
-
-        // A fully correct reading (or a literal "pass") outranks a partial credit
-        // held back from the written pass, so the reading list is always consulted
-        // before bestWritten is allowed to decide.
-        if (reading.result === 'correct' || reading.result === 'pass') return reading;
-        return bestWritten ?? reading;
+        return this.evaluateAnswer(userInput, {
+            primary: vocab.reading.primary,
+            alternatives: [
+                ...vocab.reading.alternatives,
+                ...(vocab.mergedVocabs?.map(m => m.originalPrimaryReading) ?? []),
+                vocab.writtenForm.kanji,
+                ...vocab.writtenForm.alternatives,
+            ],
+        });
     }
 
     /**
