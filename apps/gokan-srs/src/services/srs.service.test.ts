@@ -326,6 +326,65 @@ describe('SRSService Formula Tests', () => {
             const { result } = SRSService.evaluateProductionAnswer('pass', vocab);
             expect(result).toBe('pass');
         });
+
+        describe('dropped okurigana tail (reported from production)', () => {
+            // 六つ: the real case. Answering 六 is the word minus its trailing kana.
+            const mutsu = {
+                reading: { primary: 'むっつ', alternatives: ['むつ'] },
+                writtenForm: { kanji: '六つ', alternatives: ['６つ'], containedKanji: ['六'] },
+            };
+
+            it('grades the kanji stem alone minor_error, not wrong', () => {
+                const { result, matchedAnswer } = SRSService.evaluateProductionAnswer('六', mutsu);
+                expect(result).toBe('minor_error');
+                expect(matchedAnswer).toBe('六つ');
+            });
+
+            it('still grades the full written form correct', () => {
+                expect(SRSService.evaluateProductionAnswer('六つ', mutsu).result).toBe('correct');
+            });
+
+            it('does not extend the tolerance to a word with different kanji', () => {
+                // 六月 shares the 六 prefix but adds a KANJI, so it is another word.
+                expect(SRSService.evaluateProductionAnswer('六月', mutsu).result).toBe('wrong');
+            });
+
+            it('prefers a fully correct reading over a partial written match', () => {
+                expect(SRSService.evaluateProductionAnswer('むっつ', mutsu).result).toBe('correct');
+            });
+        });
+    });
+
+    describe('analyzeError kanji-skeleton rule', () => {
+        it('accepts a dropped okurigana tail as a minor error', () => {
+            expect(SRSService.analyzeError('六', '六つ')).toBe('minor_error');
+            expect(SRSService.analyzeError('食', '食べる')).toBe('minor_error');
+            expect(SRSService.analyzeError('食べ', '食べる')).toBe('minor_error');
+        });
+
+        it('never grades two different kanji as a typo', () => {
+            // Distance 1, and the reason written forms must not use the plain
+            // distance test: 会社 and 会話 are different words. This path is shared
+            // with the grammar quiz's blanks, which accepted this before.
+            expect(SRSService.analyzeError('会社', '会話')).toBe('wrong');
+            expect(SRSService.analyzeError('六', '六月')).toBe('wrong');
+            // 々 belongs to the skeleton, so it is not an omittable tail.
+            expect(SRSService.analyzeError('日', '日々')).toBe('wrong');
+        });
+
+        it('is a prefix test, so a swapped okurigana kana stays wrong', () => {
+            // Exactly why this is not a distance test: these differ by one kana
+            // of okurigana and are genuinely different words.
+            expect(SRSService.analyzeError('上げる', '上がる')).toBe('wrong');
+            expect(SRSService.analyzeError('始める', '始まる')).toBe('wrong');
+            expect(SRSService.analyzeError('必ぜ', '必ず')).toBe('wrong');
+        });
+
+        it('leaves the kana-only path untouched', () => {
+            expect(SRSService.analyzeError('こーたえ', 'こたえ')).toBe('minor_error');
+            expect(SRSService.analyzeError('こた', 'こたえ')).toBe('wrong');
+            expect(SRSService.analyzeError('こえ', 'こたえ')).toBe('wrong');
+        });
     });
 
     describe('Production synonym grading (issue #71 Part B)', () => {
