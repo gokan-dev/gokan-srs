@@ -1,3 +1,5 @@
+import type { VocabSynonym } from './index.model';
+
 export interface Vocabulary {
     /** JMdict word ID (lexeme-level, stable) */
     id: string;
@@ -43,6 +45,15 @@ export interface Vocabulary {
 
     /** If this entry is a unified merged entry from multiple homographs sharing the exact kanji form */
     mergedVocabs?: MergedVocabInfo[];
+
+    /**
+     * Near-synonyms for production-quiz grading (issue #71 Part B), embedded at
+     * dataset build time (build-synonyms.ts) rather than in a monolithic index -
+     * see VocabSynonym. Absent when this word has no near-synonyms; a wrong
+     * production answer matching one of these grades by its relation tier instead
+     * of flat wrong.
+     */
+    synonyms?: VocabSynonym[];
 }
 
 export interface MergedVocabInfo {

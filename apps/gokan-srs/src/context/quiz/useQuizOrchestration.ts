@@ -756,16 +756,11 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
         // dataset actually resolved a match for), so it happens below once loaded
         // rather than by picking a quizMode synchronously in getNextVocabToStudy.
         const needsSentences = (quizType === 'meaning' && queueItem.quizMode === 'context') || quizType === 'production';
-        // Only production grading needs the synonym index (issue #71 Part B) - it's
-        // resolved here, not on submit, so a wrong-answer collision check stays
-        // synchronous. Cached whole after the first load (see loadSynonymsIndex).
-        const needsSynonyms = quizType === 'production';
 
         Promise.all([
             VocabularyService.loadVocab(vid),
             needsSentences ? VocabularyService.loadSentences(vid) : Promise.resolve(null),
-            needsSynonyms ? VocabularyService.loadSynonymsIndex() : Promise.resolve(null),
-        ]).then(async ([vocab, sentences, synonymIndex]) => {
+        ]).then(async ([vocab, sentences]) => {
             if (loadingKeyRef.current !== loadKey) return; // superseded by a newer target
 
             let selectedSentenceId: string | null = null;
@@ -778,20 +773,20 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                     productionCloze = pickProductionClozeSentence(vid, sentences, reviewCount);
                 }
 
-                // Resolve the word's near-synonym cluster to full accept-lists up
-                // front - the same "fetch before render, grade synchronously"
-                // pattern computeBlankPlan uses for its own accept-lists - so a
-                // wrong-answer collision check in submitAnswer never needs a fetch.
-                const entries = synonymIndex?.[vid] ?? [];
+                // Resolve the word's near-synonyms (embedded on its own vocab file,
+                // issue #71 Part B) to full accept-lists up front - the same "fetch
+                // before render, grade synchronously" pattern computeBlankPlan uses -
+                // so a wrong-answer collision check in submitAnswer never needs a fetch.
+                const entries = vocab.synonyms ?? [];
                 if (entries.length > 0) {
                     const fetched = await Promise.all(entries.map(async (entry): Promise<ProductionSynonymCandidate | null> => {
                         try {
                             const candidateVocab = await VocabularyService.loadVocab(entry.id);
                             return { vocabId: entry.id, relation: entry.relation, vocab: candidateVocab };
                         } catch (e) {
-                            // A stale reference in the index (e.g. a retired vocab id)
-                            // drops just that candidate rather than failing the card -
-                            // same "inert wherever absent" spirit as a missing index.
+                            // A stale reference (e.g. a retired vocab id) drops just
+                            // that candidate rather than failing the card - same
+                            // "inert wherever absent" spirit as a missing list.
                             console.error('[useQuizOrchestration] Failed to load synonym candidate', entry.id, e);
                             return null;
                         }

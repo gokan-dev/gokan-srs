@@ -3,11 +3,9 @@ import { useQuiz } from "../../context/useQuiz";
 import { useResponsive } from "../../context/Responsive/useResponsive";
 import { CONSTANTS } from "../../commons/constants";
 import { MasteryRing } from "../../components/MasteryRing";
-import { TagsLookup } from "../../models/data.model";
-import type { Tags } from "../../models/data.model";
 import { JlptChip } from "../../components/JlptChip";
 import { VocabBaseQuizCard } from "./VocabBaseQuizCard";
-import { formatReadingList, getUniquePosTags } from "./quizFormatting";
+import { formatReadingList, getCoarsePosLabels } from "./quizFormatting";
 
 interface VocabProductionQuizCardProps {
     onKanjiClick?: () => void;
@@ -94,17 +92,18 @@ export function VocabProductionQuizCard({ onKanjiClick }: VocabProductionQuizCar
                     </div>
                 )}
 
-                {/* POS tags narrow down which of several words with the same gloss is
-                    wanted (e.g. a verb vs. its noun form), so they show before feedback. */}
+                {/* The word type (verb / noun / adjective) narrows down which of
+                    several words with the same gloss is wanted, so it shows before
+                    feedback - a plain coarse label, not the full grammatical class. */}
                 {(currentVocab.senses.length > 0 || currentVocab.jlptLevel) && (
                     <div className="flex flex-wrap justify-center items-center gap-2 mt-4">
                         {currentVocab.jlptLevel && <JlptChip level={currentVocab.jlptLevel} />}
-                        {getUniquePosTags(currentVocab.senses).map(rawTag => (
+                        {getCoarsePosLabels(currentVocab.senses).map(label => (
                             <span
-                                key={rawTag}
+                                key={label}
                                 className="px-2 py-0.5 text-xs rounded bg-accent/10 text-accent font-gothic font-medium dark:bg-accent/15"
                             >
-                                {TagsLookup[rawTag as Tags]}
+                                {label}
                             </span>
                         ))}
                     </div>

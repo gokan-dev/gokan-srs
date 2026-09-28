@@ -39,11 +39,15 @@ export type SearchIndex = SearchIndexEntry[];
 export type SynonymRelation = 'interchangeable' | 'confusable';
 
 /**
- * Near-synonym clusters for production-quiz grading (issue #71 Part B), keyed
- * by vocab id -> the OTHER vocab ids it collides with plus their relation tier.
- * Symmetric (if A lists B, B lists A). Membership is auto-derived at dataset
- * build time from same-POS gloss overlap; the tier is hand-authored, starting
- * with the highest-traffic clusters. A word with no entry is inert - it grades
- * exactly as it would with no synonym handling at all.
+ * One near-synonym of a vocab, for production-quiz grading (issue #71 Part B):
+ * another vocab id it collides with, plus its relation tier. Delivered per-vocab -
+ * each `Vocabulary` carries its own `synonyms` list (see vocabulary.model.ts),
+ * embedded at dataset build time (build-synonyms.ts) rather than in one monolithic
+ * index, since at full coverage that file is too large to load whole. Symmetric
+ * (if A lists B, B lists A). A word with no list is inert - it grades exactly as
+ * it would with no synonym handling at all.
  */
-export type SynonymIndex = Record<string, Array<{ id: string; relation: SynonymRelation }>>;
+export interface VocabSynonym {
+    id: string;
+    relation: SynonymRelation;
+}
