@@ -128,12 +128,19 @@ export class SRSService {
      * (issue #71 Part A). Previously this graded against `evaluateAnswer` on the
      * reading alone, so a correct kanji answer (必ず for かならず) graded `wrong`.
      *
-     * Written forms are matched EXACTLY (after the same trim/whitespace
-     * normalization `analyzeError` applies), never through `evaluateAnswer`'s
-     * Levenshtein path: a distance-1 typo between two kana strings is a typo,
-     * but between two kanji strings it is usually a completely different word,
-     * so fuzzy matching is actively wrong there. Reading forms keep the existing
-     * fuzzy behavior via `evaluateAnswer`, which also covers the literal "pass".
+     * ONE accept-list, ONE comparison rule. Production does not orchestrate its
+     * own matching: it assembles the forms it will accept and hands them to
+     * `evaluateAnswer`, exactly as the reading quiz and the grammar blanks do,
+     * so a given typo is graded identically whichever quiz asked the question.
+     *
+     * Written forms briefly had a bespoke path here, matched EXACTLY and nothing
+     * else, to keep them off the Levenshtein comparison: a distance-1 difference
+     * between two kanji strings is usually a different word. The protection was
+     * right, the placement was not. Exact-only cannot express "right word, tail
+     * missing", so it graded 六 for 六つ as `wrong` at -0.40 (reported from
+     * production). Moving the distinction into `analyzeError`, as a kanji-skeleton
+     * rule, protects every quiz at once instead of this one call site, and the
+     * special case here became dead weight.
      *
      * Shared by both production quiz cards (gloss-prompt and the sentence-cloze
      * card from issue #72) - both set `quizType: 'production'`, so this is the
@@ -143,21 +150,15 @@ export class SRSService {
         userInput: string,
         vocab: Pick<Vocabulary, 'reading' | 'writtenForm' | 'mergedVocabs'>
     ): { result: AnswerResult; matchedAnswer: string } {
-        const normalize = (s: string) => s.trim().replace(/\s+/g, '');
-        const normalizedInput = normalize(userInput);
-
-        const writtenForms = [vocab.writtenForm.kanji, ...vocab.writtenForm.alternatives];
-        for (const form of writtenForms) {
-            if (normalizedInput === normalize(form)) {
-                return { result: 'correct', matchedAnswer: form };
-            }
-        }
-
-        const readingAlternatives = [
-            ...vocab.reading.alternatives,
-            ...(vocab.mergedVocabs?.map(m => m.originalPrimaryReading) ?? []),
-        ];
-        return this.evaluateAnswer(userInput, { primary: vocab.reading.primary, alternatives: readingAlternatives });
+        return this.evaluateAnswer(userInput, {
+            primary: vocab.reading.primary,
+            alternatives: [
+                ...vocab.reading.alternatives,
+                ...(vocab.mergedVocabs?.map(m => m.originalPrimaryReading) ?? []),
+                vocab.writtenForm.kanji,
+                ...vocab.writtenForm.alternatives,
+            ],
+        });
     }
 
     /**
@@ -575,6 +576,25 @@ export class SRSService {
         if (u === e) return 'correct';
         if (u === 'pass') return 'pass';
 
+        // Once kanji are involved, Levenshtein stops meaning "typo": 会社 and 会話
+        // are distance 1 apart and are different words, which is why this branch
+        // never falls through to the distance test below. (It used to, for grammar
+        // blanks, and 会社 scored `minor_error` against 会話.)
+        //
+        // The one tolerated difference is a DROPPED OKURIGANA TAIL: 六 for 六つ,
+        // 食 for 食べる. The learner produced the word and stopped at the kanji,
+        // which is a partial answer rather than the wrong word, and -0.40 is the
+        // wrong price for it (reported from production).
+        //
+        // Deliberately a prefix test, not a distance one. A distance test would
+        // also swallow 上がる / 上げる and 始まる / 始める, which differ by one
+        // okurigana kana and ARE different words. Absent kana cannot do that:
+        // nothing is a different word merely by having its tail cut off.
+        if (this.hasKanji(u) || this.hasKanji(e)) {
+            if (this.kanjiSkeleton(u) !== this.kanjiSkeleton(e)) return 'wrong';
+            return e.startsWith(u) ? 'minor_error' : 'wrong';
+        }
+
         // Minor error check
         // Rule: Levenshtein distance <= 1 AND length relative check
         // User Examples:
@@ -602,6 +622,22 @@ export class SRSService {
     }
 
 
+
+    /**
+     * CJK ideographs plus the iteration mark 々, which belongs to the skeleton:
+     * 日 and 日々 are different words, so 々 must not read as an omittable tail
+     * the way kana does.
+     */
+    private static readonly KANJI = /[々㐀-䶿一-鿿]/;
+
+    private static hasKanji(s: string): boolean {
+        return this.KANJI.test(s);
+    }
+
+    /** The kanji of a form, in order, with all kana dropped. */
+    private static kanjiSkeleton(s: string): string {
+        return [...s].filter(c => this.KANJI.test(c)).join('');
+    }
 
     /**
      * Standard Levenshtein Distance
