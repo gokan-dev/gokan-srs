@@ -37,26 +37,29 @@ export function StatsScreen({ onBack, onVocabClick, onGrammarClick }: StatsScree
 
             <StatsOverview progress={state.progress} />
 
-            {/* Two columns on desktop, paired by topic; one column on a phone. */}
+            {/* Two columns on desktop; one column on a phone. Cards in a row stretch
+                to the taller one, so each row pairs charts of the same shape: the two
+                bar charts share a height, and a bar chart next to the table or the
+                curve would sit in a half-empty card. */}
             <div className="w-full grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <section className={card}>
-                    <h2 className="text-lg mb-4 text-primary font-serif">Win Rate by Quiz</h2>
-                    <QuizTypeWinRates progress={state.progress} />
-                </section>
-
                 <section className={card}>
                     <h2 className="text-lg mb-4 text-primary font-serif">Review Forecast</h2>
                     <ReviewForecast progress={state.progress} />
                 </section>
 
                 <section className={card}>
-                    <h2 className="text-lg mb-4 text-primary font-serif">Knowledge Curve</h2>
-                    <KnowledgeCurveChart progress={state.progress} settings={state.settings ?? undefined} />
+                    <h2 className="text-lg mb-4 text-primary font-serif">Daily Progression</h2>
+                    <DailyProgressionChart progress={state.progress} />
                 </section>
 
                 <section className={card}>
-                    <h2 className="text-lg mb-4 text-primary font-serif">Daily Progression</h2>
-                    <DailyProgressionChart progress={state.progress} />
+                    <h2 className="text-lg mb-4 text-primary font-serif">Win Rate by Quiz</h2>
+                    <QuizTypeWinRates progress={state.progress} />
+                </section>
+
+                <section className={card}>
+                    <h2 className="text-lg mb-4 text-primary font-serif">Knowledge Curve</h2>
+                    <KnowledgeCurveChart progress={state.progress} settings={state.settings ?? undefined} />
                 </section>
 
                 <section className={card}>
