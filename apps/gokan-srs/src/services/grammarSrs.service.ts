@@ -69,7 +69,9 @@ export class GrammarSRSService {
         result: AnswerResult,
         latencyMs: number,
         now: Date,
-        intervalModifier: number = 1.0,
+        // The grammar quiz type's calibration level (services/calibration.ts) and
+        // the user's pacing preference: the same mechanism every vocab quiz uses.
+        growthLevel: number = 1.0,
         frequencyModifier: number = 1.0,
         // Scales the grammar point's memory-strength gain by how well the
         // sentence's *vocab* blanks went (see gradeGrammarAnswers): a demonstrated
@@ -101,7 +103,7 @@ export class GrammarSRSService {
         const expectedLatency = CONSTANTS.srs.quizProperties.grammar.expectedLatency;
         const normalizedLatency = latencyMs / Math.max(1, blankCount);
         const { newEntry, interval } = SRSService.calculateNextState(
-            progress.entry, result, normalizedLatency, now, expectedLatency, intervalModifier, frequencyModifier, strengthDeltaModifier
+            progress.entry, result, normalizedLatency, now, expectedLatency, growthLevel, frequencyModifier, strengthDeltaModifier
         );
 
         const finalStage = isGrammarFullyMastered({ entry: newEntry }) ? 'graduated' : progress.stage;
@@ -184,7 +186,11 @@ export class GrammarSRSService {
         learningQueue: VocabProgress[],
         credits: { vocabId: string; result: AnswerResult }[],
         now: Date,
-        settings: UserSettings
+        settings: UserSettings,
+        // The production quiz type's calibration level: this credits production's
+        // entry, so it grows the way a production answer would. It does not RECORD
+        // a production review, though: a scaffolded blank is not one.
+        productionGrowthLevel: number = 1.0
     ): VocabProgress[] {
         if (credits.length === 0) return learningQueue;
 
@@ -210,7 +216,7 @@ export class GrammarSRSService {
             // correctAnswer is unused because forcedResult (credit.result) is supplied.
             const { updated } = SRSService.applyAnswer(
                 seeded, 'production', 'base', '', '',
-                neutralLatency, now, credit.result, 1.0, frequencyModifier, meaningEnabled,
+                neutralLatency, now, credit.result, productionGrowthLevel, frequencyModifier, meaningEnabled,
                 productionEnabled, CONSTANTS.srs.production.reinforcementStrengthRatio
             );
             changed = true;

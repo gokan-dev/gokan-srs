@@ -40,20 +40,22 @@ export function entryKnowledgePoints(memoryStrength: number): number {
  * ReviewLog stores `interval`, not `memoryStrength`, so we invert the interval
  * formula from `SRSService.calculateNextState`:
  *
- *     interval = strength * lnTarget * adaptiveModifier * frequencyModifier
+ *     interval = strength * lnTarget * frequencyModifier
  *
  * followed by result-specific post-processing (wrong x0.3 with a 0.5d floor,
  * minor_error x0.7) and a 1-day floor on success.
  *
- * The result multiplier is undone exactly, since `result` is logged. Two sources
- * of approximation remain:
- *  - the adaptive interval modifier in force at review time is not logged
- *  - where a floor clamped the interval, the pre-clamp value is unrecoverable, so
- *    very weak entries come out slightly over-estimated
+ * Logs written before the calibration change also carried the old adaptive level
+ * in the interval (strength * lnTarget * level * frequency). Inverting those
+ * without it yields strength * level, which is exactly the scale the post-sync
+ * rebase moved stored strength to (services/calibration.ts), so old and new logs
+ * land on one consistent curve rather than a step at the switch-over.
  *
- * Both distort only the bottom of the curve, where an entry is worth a handful of
- * points; the trend this graph exists to show (steady growth vs. stagnation) is
- * unaffected.
+ * The result multiplier is undone exactly, since `result` is logged. Where a floor
+ * clamped the interval, the pre-clamp value is unrecoverable, so very weak entries
+ * come out slightly over-estimated. That distorts only the bottom of the curve,
+ * where an entry is worth a handful of points; the trend this graph exists to show
+ * (steady growth vs. stagnation) is unaffected.
  */
 export function strengthFromLog(log: ReviewLog, frequencyModifier = 1): number {
     let interval = log.interval;

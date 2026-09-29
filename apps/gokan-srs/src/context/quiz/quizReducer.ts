@@ -7,6 +7,7 @@ import type { Vocabulary } from '../../models/vocabulary.model';
 import type { Sentence } from '../../models/sentence.model';
 import type { AnswerResult, ProductionSynonymCandidate } from '../../services/srs.service';
 import { SRSService } from '../../services/srs.service';
+import { rebaseStrengthsToSchedule } from '../../services/calibration';
 import type { QuizItem, QuizType, QuizMode, TaskKey } from '../../utils/srs.utils';
 import { taskKey } from '../../utils/srs.utils';
 import type { ProductionCloze } from '../../utils/productionCloze.utils';
@@ -163,6 +164,13 @@ export type QuizAction =
     | { type: 'SESSION_START'; payload: { taskKeys: TaskKey[]; progress?: UserProgress } }
     | { type: 'SESSION_END' }
     | { type: 'RECONCILE_REMOTE'; payload: { progress: UserProgress; settings: UserSettings } }
+    /**
+     * Folds the old interval-only adaptive level into strength (see
+     * rebaseStrengthsToSchedule). Computed from the CURRENT progress in the
+     * reducer rather than passed in, so it can never overwrite an answer that
+     * landed between scheduling the rebase and applying it.
+     */
+    | { type: 'REBASE_STRENGTHS'; payload: { frequencyModifier: number } }
     | GrammarQuizAction;
 
 export const initialState: QuizState = {
@@ -406,6 +414,12 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
 
         case 'SESSION_END':
             return state.session ? { ...state, session: null } : state;
+
+        case 'REBASE_STRENGTHS': {
+            if (!state.progress) return state;
+            const rebased = rebaseStrengthsToSchedule(state.progress, action.payload.frequencyModifier);
+            return rebased === state.progress ? state : { ...state, progress: rebased };
+        }
 
         case 'RECONCILE_REMOTE':
             // The merge itself (reconciling remote changes against whatever the user

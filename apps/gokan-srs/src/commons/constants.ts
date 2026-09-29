@@ -182,12 +182,26 @@ export const CONSTANTS = {
             }
         },
 
+        /**
+         * Per-quiz-type calibration (services/calibration.ts). Each quiz type keeps
+         * its own rolling window of real reviews (retries and a word's first review
+         * right after its intro are excluded) and a level that multiplies the gain of
+         * a SUCCESSFUL answer. Above target the level rises, so strength grows faster,
+         * intervals lengthen and the win rate falls back toward target; below it the
+         * level falls. It never touches the interval directly: the interval is always
+         * strength x lnTarget x the user's frequency preference.
+         *
+         * The band is centred on the scheduler's own target (formula.targetRecall,
+         * 0.75): it used to be 0.70-0.85, which let a learner sit at 84% uncorrected.
+         */
         adaptive: {
             historySize: 50,
+            /** No adjustment until this many real reviews are in the window. */
+            minHistory: 10,
             targetWinRate: 0.75,
-            // If win rate > 0.85, increase level (harder)
-            increaseThreshold: 0.85,
-            // If win rate < 0.70, decrease level (easier)
+            // Win rate above this: raise the growth level (learner is ahead of the model)
+            increaseThreshold: 0.80,
+            // Win rate below this: lower it
             decreaseThreshold: 0.70,
             levelStep: 0.05,
             minLevel: 0.5,

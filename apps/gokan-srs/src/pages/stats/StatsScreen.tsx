@@ -1,6 +1,7 @@
 import { Button } from "../../components/ui/Button";
 import { useQuiz } from "../../context/useQuiz";
 import { StatsOverview } from "./components/StatsOverview";
+import { QuizTypeWinRates } from "./components/QuizTypeWinRates";
 import { ReviewForecast } from "./components/ReviewForecast";
 import { DailyProgressionChart } from "./components/DailyProgressionChart";
 import { KnowledgeCurveChart } from "./components/KnowledgeCurveChart";
@@ -33,6 +34,11 @@ export function StatsScreen({ onBack, onVocabClick, onGrammarClick }: StatsScree
             </header>
 
             <StatsOverview progress={state.progress} />
+
+            <section className="w-full p-6 bg-surface rounded-lg shadow-sm border border-divider">
+                <h2 className="text-lg mb-4 text-primary font-serif">Win Rate by Quiz</h2>
+                <QuizTypeWinRates progress={state.progress} />
+            </section>
 
             <section className="w-full p-6 bg-surface rounded-lg shadow-sm border border-divider">
                 <h2 className="text-lg mb-4 text-primary font-serif">Knowledge Curve</h2>

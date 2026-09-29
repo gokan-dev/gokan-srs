@@ -346,6 +346,18 @@ describe('mergeProgress (top-level)', () => {
         const merged = mergeProgress(local, remote)!;
         expect(merged.completedChapters).toEqual(['n5-c01']);
     });
+
+    it('keeps a remote-only calibration (the top-level ...local spread would otherwise drop it)', () => {
+        const remoteCalibration = {
+            reading: { level: 1.4, history: [true, true, true] },
+            meaning: { level: 1.0, history: [] },
+            production: { level: 1.0, history: [] },
+            grammar: { level: 1.2, history: [true] },
+        };
+        const merged = mergeProgress(makeProgress(), makeProgress({ calibration: remoteCalibration }))!;
+        expect(merged.calibration?.reading.level).toBe(1.4);
+        expect(merged.calibration?.grammar.level).toBe(1.2);
+    });
 });
 
 describe('mergeSettings', () => {

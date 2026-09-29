@@ -283,7 +283,7 @@ export class SRSService {
         latencyMs: number,
         now: Date,
         forcedResult?: AnswerResult, // Optional override
-        intervalModifier: number = 1.0, // Adaptive modifier
+        growthLevel: number = 1.0, // This quiz type's calibration level (services/calibration.ts)
         frequencyModifier: number = 1.0, // User preference modifier
         meaningQuizEnabled: boolean = true, // Whether meaning quizzes are active for this user
         productionQuizEnabled: boolean = true, // Whether production quizzes are active for this user
@@ -341,7 +341,7 @@ export class SRSService {
         }
         const expectedLatency = CONSTANTS.srs.quizProperties[expectedLatencyKey].expectedLatency;
 
-        const { newEntry, interval } = this.calculateNextState(currentEntry, result, latencyMs, now, expectedLatency, intervalModifier, frequencyModifier, strengthDeltaModifier);
+        const { newEntry, interval } = this.calculateNextState(currentEntry, result, latencyMs, now, expectedLatency, growthLevel, frequencyModifier, strengthDeltaModifier);
 
         // We update the specific entry first
         const updatedReading = quizType === 'reading' ? newEntry : vocab.reading;
@@ -472,7 +472,9 @@ export class SRSService {
         latencyMs: number,
         now: Date,
         expectedLatency: number, // [NEW] dynamic expected latency parameter
-        intervalModifier: number = 1.0,
+        // Calibration level of this quiz type (services/calibration.ts): multiplies
+        // a SUCCESSFUL answer's strength gain. It used to multiply the interval.
+        growthLevel: number = 1.0,
         frequencyModifier: number = 1.0,
         // [NEW] Scales the memory-strength delta (the resultFactor * L * D gain).
         // Default 1.0 leaves vocab behaviour untouched; the Grammar activity uses
@@ -492,8 +494,11 @@ export class SRSService {
         // Result Factor
         const resultFactor = F.resultFactors[result];
 
-        // 2. Calculate Gain (Delta)
-        const delta = resultFactor * L * D * strengthDeltaModifier;
+        // 2. Calculate Gain (Delta). The calibration level scales gains only: a
+        // learner ahead of the model grows strength faster, while a miss costs what
+        // it always did.
+        const isSuccess = result === 'correct' || result === 'minor_error';
+        const delta = resultFactor * L * D * strengthDeltaModifier * (isSuccess ? growthLevel : 1);
 
         // 3. Update Memory Strength
         // S_new = max(S_min, S_old * (1 + Delta)) -- BUT only strictly enforce floor on failure recovery
@@ -501,16 +506,10 @@ export class SRSService {
         const rawNewStrength = entry.memoryStrength * (1 + delta);
         const newStrength = Math.max(F.minMemoryStrength, rawNewStrength);
 
-        // 4. Calculate Interval
-        // t = S * 0.28768 * intervalModifier (Adaptive Scaling)
-        // We apply the modifier to the INTERVAL, not the memory strength.
-        // This effectively demands higher memory strength for the same interval if modifier > 1?
-        // No, modifier > 1 means LONGER interval for same strength?
-        // Wait, if user is too good, we want HARDER.
-        // Harder = Longer Interval? Yes, push them further.
-        // So modifier > 1.0 is correct for "Hard Mode".
-        // t = S * C * Mod
-        let newInterval = newStrength * F.lnTarget * intervalModifier * frequencyModifier;
+        // 4. Calculate Interval: t = S * lnTarget * frequency preference. The
+        // calibration acts on strength (above), never here, so the interval always
+        // reads straight off the strength the rings and mastery show.
+        let newInterval = newStrength * F.lnTarget * frequencyModifier;
 
         // 5. Apply Post-processing Overrides
         if (result === 'wrong') {
@@ -1139,49 +1138,6 @@ export class SRSService {
         return successfulReviews / totalReviews;
     }
 
-    /* =======================
-       ADAPTIVE SRS LOGIC
-       ======================= */
-
-    /**
-     * Updates the user's global difficulty level based on review performance.
-     * Should be called after every review.
-     */
-    static updateAdaptiveStats(
-        currentStats: { level: number; history: boolean[] },
-        result: AnswerResult
-    ): { level: number; history: boolean[] } {
-        const { historySize, increaseThreshold, decreaseThreshold, levelStep, minLevel, maxLevel } = CONSTANTS.srs.adaptive;
-
-        // 1. Update History
-        const isSuccess = result === 'correct' || result === 'minor_error';
-        const newHistory = [...currentStats.history, isSuccess].slice(-historySize);
-
-        // 2. Calculate Rolling Win Rate
-        // Only calculate if we have enough history to be statistically meaningful?
-        // Let's start adapting immediately but maybe damp it?
-        // For now, simple average of what we have.
-        const successCount = newHistory.filter(Boolean).length;
-        const winRate = successCount / newHistory.length;
-
-        // 3. Adjust Level
-        let newLevel = currentStats.level;
-
-        // Only adjust if history is at least 10 items to prevent wild swings at start
-        if (newHistory.length >= 10) {
-            if (winRate > increaseThreshold) {
-                // Too easy -> Increase difficulty (Multiplier UP)
-                newLevel = Math.min(newLevel + levelStep, maxLevel);
-            } else if (winRate < decreaseThreshold) {
-                // Too hard -> Decrease difficulty (Multiplier DOWN)
-                newLevel = Math.max(newLevel - levelStep, minLevel);
-            }
-        }
-
-        return {
-            level: Number(newLevel.toFixed(2)), // Clean float
-            history: newHistory
-        };
-    }
-
+    // Per-quiz-type calibration (the old single "adaptive" level) lives in
+    // services/calibration.ts.
 }
