@@ -617,7 +617,7 @@ describe('computeBlankPlan - mined sentence productivity selection (issue #73)',
         expect(plan.example?.jp).toBe('TWO_TARGETS');
     });
 
-    it('breaks an exact score tie deterministically rather than re-rolling on every call', async () => {
+    it('keeps the same sentence across reviews while the learner state is unchanged, even on an exact tie', async () => {
         const a = makeMinedExample({ jp: 'A', words: [{ surface: 'これ', vocabId: 'v-a' }], patternWordIndices: [] });
         const b = makeMinedExample({ jp: 'B', words: [{ surface: 'これ', vocabId: 'v-a' }], patternWordIndices: [] });
         vi.spyOn(GrammarService, 'loadMinedExamples').mockResolvedValue([a, b]);
@@ -626,10 +626,29 @@ describe('computeBlankPlan - mined sentence productivity selection (issue #73)',
             learningQueue: [makeVocabProgress({ vocabId: 'v-a', introductionAt: past })],
         });
 
-        const first = (await computeBlankPlan(point, progress, 3))!;
-        const second = (await computeBlankPlan(point, progress, 3))!;
-        expect(first.example?.jp).toBe(second.example?.jp);
-        expect(['A', 'B']).toContain(first.example?.jp);
+        const picks = new Set<string | undefined>();
+        for (const reviewCount of [1, 2, 3, 7]) {
+            picks.add((await computeBlankPlan(point, progress, reviewCount))!.example?.jp);
+        }
+        // Stickiness: the review count never reshuffles the pick, only the learner's vocab does.
+        expect(picks.size).toBe(1);
+        expect(['A', 'B']).toContain([...picks][0]);
+    });
+
+    it('a pattern-marker word is never scored as a vocab target', async () => {
+        // Only word is the pattern marker, and it is a known word: no target left, so curated fallback.
+        const mined = makeMinedExample({
+            words: [{ surface: 'これ', vocabId: 'v-a' }],
+            patternWordIndices: [0],
+        });
+        vi.spyOn(GrammarService, 'loadMinedExamples').mockResolvedValue([mined]);
+        const point = makeGrammarPoint();
+        const progress = makeProgress({
+            learningQueue: [makeVocabProgress({ vocabId: 'v-a', introductionAt: past })],
+        });
+
+        const plan = (await computeBlankPlan(point, progress, 1))!;
+        expect(plan.example).toEqual(point.examples[0]);
     });
 
     it('falls back to curated examples when no mined sentence has any target', async () => {

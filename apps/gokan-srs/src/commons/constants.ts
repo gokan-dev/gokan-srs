@@ -32,17 +32,27 @@ export const CONSTANTS = {
              * teachable points remaining than this yields only that remainder.
              */
             newBatchSize: 3,
+        },
 
+        /**
+         * Shared sentence ranking (utils/sentenceRanking.ts): which example sentence
+         * a card shows, identically for the grammar review, the production cloze and
+         * the meaning-in-context card.
+         */
+        sentenceSelection: {
             /**
-             * Readability penalty applied per UNKNOWN word when scoring a corpus-mined
-             * example sentence for a review (issue #73's app half): a shorter, mostly-
-             * readable sentence should beat a long one with the same target payoff.
-             * `score = targets.length - minedReadabilityPenalty * unknownCount`, where
-             * `targets` are known words whose production isn't mastered yet and
-             * `unknownCount` is words the learner doesn't know at all. See
-             * computeBlankPlan's mined-selection path in grammarSelectors.ts.
+             * Penalty per UNKNOWN word in a sentence: a shorter, mostly-readable
+             * sentence should beat a long one with the same target payoff.
+             * `primary = targets - readabilityPenalty * unknowns`.
              */
-            minedReadabilityPenalty: 0.34,
+            readabilityPenalty: 0.34,
+            /**
+             * A known word stops counting as a target once its PRODUCTION ring
+             * (MasteryRing's first loop, 0..100) reaches this value: the word is
+             * familiar enough to be plain context, so it no longer holds a sentence
+             * in place and the sentence is free to rotate.
+             */
+            targetRingCeiling: 100,
         },
 
         /**

@@ -8,9 +8,8 @@ import { SRSService } from '../../services/srs.service';
 import type { VocabProgress } from '../../models/vocabulary.model';
 import { calculateMasteryPercentage } from '../../utils/srs.utils';
 import { GrammarService } from '../../services/grammar.service';
-import { isEntryMastered, isProductionActivated } from '../../services/scheduling';
-import { CONSTANTS } from '../../commons/constants';
 import { hashString, pickStable } from '../../utils/deterministicPick';
+import { indexLearnerVocab, pickMostProductive, scoreSentence, wordRole } from '../../utils/sentenceRanking';
 import { computeSessionState } from './sessionState';
 import { computeSessionStats, computeSessionPreview } from './sessionStats';
 import type { QuizState } from './quizReducer';
@@ -446,63 +445,41 @@ async function applyFamilyInterchange(point: GrammarPoint): Promise<{ sameRegist
  * (reviewCount === 0, gated by the caller) stay on curated examples - they are
  * hand-picked and clean, which matters most for a first encounter.
  *
- * A word is a "target" when it is KNOWN (introduced in learningQueue) but its
- * PRODUCTION isn't mastered yet (not activated, or activated but below max
- * strength) - reviewing it here is worth something. A word the learner
- * doesn't know at all is counted separately as "unknown": it stays visible as
- * literal context (never blanked), but a sentence thick with unknown words is
- * harder to read for the same target payoff, so it costs a readability
- * penalty in the score. A known word whose production is ALREADY mastered is
- * neither a target nor a cost - it's just context, same as a curated
- * example's already-known filler words.
+ * The sentence is chosen by the shared ranker (utils/sentenceRanking.ts), the
+ * same rule the vocab cards use: most target words (known, production ring
+ * below the ceiling) net of a readability penalty per unknown word, then the
+ * highest summed production ring, then a stable per-sentence hash. The ranking
+ * is deterministic and seeded on the point id alone, so the same sentence keeps
+ * coming back until its words mature, which is the point: familiarity with a
+ * sentence is shared with the vocab cards drawing from the same corpus.
  *
- * Sentences are gated on having at least one target before being scored at
- * all (a sentence that only drills already-mastered vocab is worth the same
- * as one with none), then the highest-scoring sentence wins, with ties broken
- * deterministically so repeated reviews of an exact tie don't reroll on every
- * render. Returns null - the caller falls back to curated `point.examples`
- * via computeBlankPlanFor - when there is no mined pool for this point at all,
- * or when every mined sentence has zero targets (e.g. an advanced learner who
- * has already mastered the whole pool's vocabulary).
+ * Pattern-marker words are excluded from the vocab scoring (they are blanked
+ * regardless, as the grammar under test). Only sentences with at least one
+ * target are eligible: a sentence that only drills mature vocab has nothing to
+ * offer over a curated one. Returns null - the caller falls back to curated
+ * `point.examples` via computeBlankPlanFor - when there is no mined pool for
+ * this point at all, or when no mined sentence has a target.
  */
 async function selectMinedPlan(
     point: GrammarPoint,
-    progress: UserProgress | null,
-    reviewCount: number
+    progress: UserProgress | null
 ): Promise<GrammarBlankPlan | null> {
     const mined = await GrammarService.loadMinedExamples(point.id);
     if (!mined || mined.length === 0) return null;
 
-    const byVocabId = new Map((progress?.learningQueue ?? []).map(v => [v.vocabId, v]));
-    const isKnown = (vocabId: string): boolean => {
-        const vp = byVocabId.get(vocabId);
-        return !!vp && vp.introductionAt !== null;
-    };
-    const productionMastered = (vocabId: string): boolean => {
-        const vp = byVocabId.get(vocabId);
-        return !!vp?.production && isProductionActivated(vp.production) && isEntryMastered(vp.production);
-    };
+    const learner = indexLearnerVocab(progress?.learningQueue);
+    const candidates = mined.map(example => {
+        const vocabIds = example.words
+            .filter((word, i) => word.vocabId && !example.patternWordIndices.includes(i))
+            .map(word => word.vocabId!);
+        const score = scoreSentence(vocabIds, learner);
+        const targets = example.words.flatMap((word, i) =>
+            word.vocabId && !example.patternWordIndices.includes(i) && wordRole(word.vocabId, learner) === 'target' ? [i] : []);
+        return { example, score, targets };
+    }).filter(c => c.score.targets > 0);
 
-    const penalty = CONSTANTS.srs.grammar.minedReadabilityPenalty;
-    const scored = mined.map(example => {
-        const targets: number[] = [];
-        let unknownCount = 0;
-        example.words.forEach((word, i) => {
-            if (!word.vocabId) return;
-            if (!isKnown(word.vocabId)) {
-                unknownCount++;
-                return;
-            }
-            if (!productionMastered(word.vocabId)) targets.push(i);
-        });
-        return { example, targets, score: targets.length - penalty * unknownCount };
-    }).filter(s => s.targets.length > 0);
-
-    if (scored.length === 0) return null;
-
-    const bestScore = Math.max(...scored.map(s => s.score));
-    const top = scored.filter(s => s.score === bestScore);
-    const chosen = top.length === 1 ? top[0] : top[hashString(`${point.id}:${reviewCount}`) % top.length];
+    const chosen = pickMostProductive(candidates, c => c.score, c => c.example.jp, point.id);
+    if (!chosen) return null;
 
     // Blanks: the pattern markers plus every target word, sorted by position -
     // the same reinforcement mechanism Pass 1 uses, just sourced from the
@@ -545,7 +522,7 @@ export async function computeBlankPlan(point: GrammarPoint, progress: UserProgre
 
     // Reviews only (reviewCount >= 1): the intro card and the first review stay
     // on curated examples. See selectMinedPlan's doc comment for the full rule.
-    const minedPlan = reviewCount >= 1 ? await selectMinedPlan(effectivePoint, progress, reviewCount) : null;
+    const minedPlan = reviewCount >= 1 ? await selectMinedPlan(effectivePoint, progress) : null;
     const base = minedPlan ?? await computeBlankPlanFor(effectivePoint, progress, reviewCount);
     if (!base) return null;
 

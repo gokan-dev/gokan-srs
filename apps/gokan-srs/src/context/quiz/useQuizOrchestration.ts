@@ -15,6 +15,7 @@ import { DEFAULT_SETTINGS } from '../../models/user.model';
 import type { SetupValues } from '../../models/state.model';
 import { calculateMasteryPercentage, clearStaleNeedsRetry } from '../../utils/srs.utils';
 import { pickProductionClozeSentence } from '../../utils/productionCloze.utils';
+import { indexLearnerVocab, pickSentenceForVocab } from '../../utils/sentenceRanking';
 import { mergeProgress, mergeSettings } from '../../services/sync/mergeProgress';
 import type { ProgressWithMetadata } from '../../services/sync/types';
 import { useGoogleDrive } from '../GoogleDriveContext';
@@ -705,10 +706,6 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
 
         const vid = 'vocabId' in queueItem ? queueItem.vocabId : queueItem.vocab.vocabId;
         const quizType = queueItem.quizType;
-        // Only a real QuizItem carries the VocabProgress (an intro candidate never
-        // does - it's always quizType 'reading'), which is all we need here: the
-        // per-entry production review count that seeds the cloze sentence pick below.
-        const target = 'vocab' in queueItem ? queueItem.vocab : undefined;
 
         // Exactly this card is already loaded OR currently being loaded
         // (selectNextView returns a fresh queueItem object on every recompute, so
@@ -767,10 +764,13 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             let productionCloze = null;
             let productionSynonyms: ProductionSynonymCandidate[] = [];
 
+            // Both sentence-driven cards rank the word's sentences with the shared
+            // ranker (utils/sentenceRanking.ts), the same rule the grammar review uses.
+            const learner = indexLearnerVocab(state.progress?.learningQueue);
+
             if (quizType === 'production') {
                 if (sentences && sentences.length > 0) {
-                    const reviewCount = target?.production?.history.length ?? 0;
-                    productionCloze = pickProductionClozeSentence(vid, sentences, reviewCount);
+                    productionCloze = pickProductionClozeSentence(vid, sentences, learner);
                 }
 
                 // Resolve the word's near-synonyms (embedded on its own vocab file,
@@ -796,8 +796,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                     if (loadingKeyRef.current !== loadKey) return; // superseded during the nested fetch
                 }
             } else if (sentences && sentences.length > 0) {
-                const idx = Math.floor(Math.random() * sentences.length);
-                selectedSentenceId = sentences[idx].id;
+                selectedSentenceId = pickSentenceForVocab(vid, sentences, learner)?.id ?? null;
             }
 
             dispatch({

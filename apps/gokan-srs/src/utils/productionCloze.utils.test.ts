@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { pickProductionClozeSentence, splitSentenceAtBlank, splitClozeContext, emphasizeGloss } from './productionCloze.utils';
 import type { Sentence } from '../models/sentence.model';
+import { DEFAULT_VOCABULARY_PROGRESS } from '../models/vocabulary.model';
+import { indexLearnerVocab } from './sentenceRanking';
+
+const noLearner = indexLearnerVocab([]);
 
 function makeSentence(overrides: Partial<Sentence> = {}): Sentence {
     return {
@@ -18,11 +22,11 @@ describe('pickProductionClozeSentence', () => {
             makeSentence({ id: 's1', matches: {} }),
             makeSentence({ id: 's2', matches: { other: [{ start: 0, length: 1 }] } }),
         ];
-        expect(pickProductionClozeSentence('v1', sentences, 0)).toBeNull();
+        expect(pickProductionClozeSentence('v1', sentences, noLearner)).toBeNull();
     });
 
     it('returns null for an empty sentence list', () => {
-        expect(pickProductionClozeSentence('v1', [], 0)).toBeNull();
+        expect(pickProductionClozeSentence('v1', [], noLearner)).toBeNull();
     });
 
     it('ignores sentences with an empty match array for the vocab', () => {
@@ -30,7 +34,7 @@ describe('pickProductionClozeSentence', () => {
             makeSentence({ id: 's1', matches: { v1: [] } }),
             makeSentence({ id: 's2', matches: { v1: [{ start: 1, length: 2 }] } }),
         ];
-        const plan = pickProductionClozeSentence('v1', sentences, 0);
+        const plan = pickProductionClozeSentence('v1', sentences, noLearner);
         expect(plan?.sentence.id).toBe('s2');
     });
 
@@ -42,42 +46,38 @@ describe('pickProductionClozeSentence', () => {
                 matches: { v1: [{ start: 0, length: 3 }, { start: 5, length: 3 }] },
             }),
         ];
-        const plan = pickProductionClozeSentence('v1', sentences, 0);
+        const plan = pickProductionClozeSentence('v1', sentences, noLearner);
         expect(plan).toEqual({ sentence: sentences[0], blankStart: 0, blankLength: 3 });
     });
 
-    it('is deterministic for a fixed vocabId:reviewCount pair', () => {
+    it('is deterministic: the same learner state always picks the same sentence', () => {
         const sentences = [
             makeSentence({ id: 's1', matches: { v1: [{ start: 0, length: 1 }] } }),
             makeSentence({ id: 's2', matches: { v1: [{ start: 0, length: 1 }] } }),
             makeSentence({ id: 's3', matches: { v1: [{ start: 0, length: 1 }] } }),
         ];
-        const first = pickProductionClozeSentence('v1', sentences, 3);
-        const second = pickProductionClozeSentence('v1', sentences, 3);
+        const first = pickProductionClozeSentence('v1', sentences, noLearner);
+        const second = pickProductionClozeSentence('v1', sentences, noLearner);
         expect(first).toEqual(second);
     });
 
-    it('cycles through different usable sentences as reviewCount increases', () => {
-        const sentences = Array.from({ length: 5 }, (_, i) =>
-            makeSentence({ id: `s${i}`, matches: { v1: [{ start: 0, length: 1 }] } })
-        );
-
-        const picks = new Set(
-            Array.from({ length: 5 }, (_, reviewCount) =>
-                pickProductionClozeSentence('v1', sentences, reviewCount)?.sentence.id
-            )
-        );
-
-        // Not every reviewCount needs to land on a distinct sentence, but across
-        // 5 reviews of a 5-sentence pool it shouldn't pin to just one.
-        expect(picks.size).toBeGreaterThan(1);
+    it('picks the usable sentence built most from words the learner is learning', () => {
+        const learner = indexLearnerVocab([
+            { ...DEFAULT_VOCABULARY_PROGRESS, vocabId: 'v1', introductionAt: new Date('2026-06-01') },
+            { ...DEFAULT_VOCABULARY_PROGRESS, vocabId: 'known', introductionAt: new Date('2026-06-01') },
+        ]);
+        const sentences = [
+            makeSentence({ id: 'strangers', vocabIds: ['v1', 'u1', 'u2'], matches: { v1: [{ start: 0, length: 1 }] } }),
+            makeSentence({ id: 'familiar', vocabIds: ['v1', 'known'], matches: { v1: [{ start: 0, length: 1 }] } }),
+        ];
+        expect(pickProductionClozeSentence('v1', sentences, learner)?.sentence.id).toBe('familiar');
     });
 
     it('only considers the target vocabId, not other vocab matched in the same sentence', () => {
         const sentences = [
             makeSentence({ id: 's1', matches: { other: [{ start: 0, length: 1 }] } }),
         ];
-        expect(pickProductionClozeSentence('v1', sentences, 0)).toBeNull();
+        expect(pickProductionClozeSentence('v1', sentences, noLearner)).toBeNull();
     });
 });
 
