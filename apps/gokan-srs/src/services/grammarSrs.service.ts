@@ -220,7 +220,17 @@ export class GrammarSRSService {
                 productionEnabled, CONSTANTS.srs.production.reinforcementStrengthRatio
             );
             changed = true;
-            return updated;
+            // Mark the log this credit wrote, so the calibration's replay of the
+            // review logs does not count it as a production review.
+            const history = updated.production?.history ?? [];
+            if (!updated.production || history.length === 0) return updated;
+            return {
+                ...updated,
+                production: {
+                    ...updated.production,
+                    history: [...history.slice(0, -1), { ...history[history.length - 1], source: 'reinforcement' as const }],
+                },
+            };
         });
 
         return changed ? next : learningQueue;

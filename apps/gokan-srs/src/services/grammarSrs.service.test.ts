@@ -179,6 +179,13 @@ describe('GrammarSRSService.applyVocabReinforcement (positive-only vocab credit)
         expect(v2).toBe(queue[1]); // reference-equal: untouched
     });
 
+    it('tags the production log it writes as reinforcement, so the calibration does not count it as a review', () => {
+        const queue = [makeVocabProgress({ vocabId: 'v-1' })];
+        const next = GrammarSRSService.applyVocabReinforcement(queue, [{ vocabId: 'v-1', result: 'correct' }], now, settings);
+        const history = next[0].production!.history;
+        expect(history[history.length - 1].source).toBe('reinforcement');
+    });
+
     it('leaves reading and meaning untouched (production-only credit)', () => {
         const queue = [makeVocabProgress({ vocabId: 'v-1' })];
         const next = GrammarSRSService.applyVocabReinforcement(queue, [{ vocabId: 'v-1', result: 'correct' }], now, settings);

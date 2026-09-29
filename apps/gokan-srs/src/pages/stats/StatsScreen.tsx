@@ -24,8 +24,10 @@ export function StatsScreen({ onBack, onVocabClick, onGrammarClick }: StatsScree
     // Guard if accessible without progress (though route is protected usually)
     if (!state.progress) return null;
 
+    const card = "w-full min-w-0 p-6 bg-surface rounded-lg shadow-sm border border-divider";
+
     return (
-        <div className="w-full max-w-4xl flex flex-col gap-6 animate-fade-in pb-12">
+        <div className="w-full max-w-6xl flex flex-col gap-6 animate-fade-in pb-12">
             <header className="w-full flex items-center justify-center relative h-12">
                 <Button variant="ghost" onClick={onBack} className="absolute left-0">
                     <ArrowLeft className="inline-block w-4 h-4 mr-1 align-text-bottom" aria-hidden="true" />Back
@@ -35,40 +37,44 @@ export function StatsScreen({ onBack, onVocabClick, onGrammarClick }: StatsScree
 
             <StatsOverview progress={state.progress} />
 
-            <section className="w-full p-6 bg-surface rounded-lg shadow-sm border border-divider">
-                <h2 className="text-lg mb-4 text-primary font-serif">Win Rate by Quiz</h2>
-                <QuizTypeWinRates progress={state.progress} />
-            </section>
+            {/* Two columns on desktop, paired by topic; one column on a phone. */}
+            <div className="w-full grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <section className={card}>
+                    <h2 className="text-lg mb-4 text-primary font-serif">Win Rate by Quiz</h2>
+                    <QuizTypeWinRates progress={state.progress} />
+                </section>
 
-            <section className="w-full p-6 bg-surface rounded-lg shadow-sm border border-divider">
-                <h2 className="text-lg mb-4 text-primary font-serif">Knowledge Curve</h2>
-                <KnowledgeCurveChart progress={state.progress} settings={state.settings ?? undefined} />
-            </section>
+                <section className={card}>
+                    <h2 className="text-lg mb-4 text-primary font-serif">Review Forecast</h2>
+                    <ReviewForecast progress={state.progress} />
+                </section>
 
-            <section className="w-full p-6 bg-surface rounded-lg shadow-sm border border-divider">
-                <h2 className="text-lg mb-4 text-primary font-serif">JLPT Coverage</h2>
-                <JlptCoverageChart progress={state.progress} settings={state.settings ?? undefined} />
-            </section>
+                <section className={card}>
+                    <h2 className="text-lg mb-4 text-primary font-serif">Knowledge Curve</h2>
+                    <KnowledgeCurveChart progress={state.progress} settings={state.settings ?? undefined} />
+                </section>
 
-            <section className="w-full p-6 bg-surface rounded-lg shadow-sm border border-divider">
-                <h2 className="text-lg mb-4 text-primary font-serif">Grammar JLPT Coverage</h2>
-                <GrammarJlptCoverageChart progress={state.progress} />
-            </section>
+                <section className={card}>
+                    <h2 className="text-lg mb-4 text-primary font-serif">Daily Progression</h2>
+                    <DailyProgressionChart progress={state.progress} />
+                </section>
 
-            <section className="w-full p-6 bg-surface rounded-lg shadow-sm border border-divider">
-                <h2 className="text-lg mb-4 text-primary font-serif">Grammar Chapter Coverage</h2>
-                <GrammarChapterCoverageChart progress={state.progress} />
-            </section>
+                <section className={card}>
+                    <h2 className="text-lg mb-4 text-primary font-serif">JLPT Coverage</h2>
+                    <JlptCoverageChart progress={state.progress} settings={state.settings ?? undefined} />
+                </section>
 
-            <section className="w-full p-6 bg-surface rounded-lg shadow-sm border border-divider">
-                <h2 className="text-lg mb-4 text-primary font-serif">Daily Progression</h2>
-                <DailyProgressionChart progress={state.progress} />
-            </section>
+                <section className={card}>
+                    <h2 className="text-lg mb-4 text-primary font-serif">Grammar JLPT Coverage</h2>
+                    <GrammarJlptCoverageChart progress={state.progress} />
+                </section>
 
-            <section className="w-full p-6 bg-surface rounded-lg shadow-sm border border-divider">
-                <h2 className="text-lg mb-4 text-primary font-serif">Review Forecast</h2>
-                <ReviewForecast progress={state.progress} />
-            </section>
+                {/* One row per chapter (151): it needs the full width. */}
+                <section className={`${card} lg:col-span-2`}>
+                    <h2 className="text-lg mb-4 text-primary font-serif">Grammar Chapter Coverage</h2>
+                    <GrammarChapterCoverageChart progress={state.progress} />
+                </section>
+            </div>
 
 
             <section className="w-full">

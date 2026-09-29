@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
+    calibrationFromHistory,
     defaultCalibration,
     growthLevelOf,
+    seedCalibrationFromHistory,
     isCalibratedGrammarReview,
     isCalibratedVocabReview,
     mergeCalibration,
@@ -95,6 +97,47 @@ describe('per-quiz-type calibration', () => {
         const merged = mergeCalibration(local, remote);
         expect(merged.reading.level).toBe(1.5);
         expect(merged.grammar.level).toBe(1.1);
+    });
+});
+
+describe('seeding from the review logs', () => {
+    const DAY = 24 * 60 * 60 * 1000;
+    const intro = new Date('2026-01-01T00:00:00Z');
+    const log = (daysAfterIntro: number, result: 'correct' | 'wrong' = 'correct', source?: 'reinforcement') =>
+        ({ date: intro.getTime() + daysAfterIntro * DAY, result, interval: 1, latency: 1000, ...(source ? { source } : {}) });
+    const word = (id: string, reading: ReturnType<typeof log>[], production: ReturnType<typeof log>[] = []): VocabProgress => ({
+        ...DEFAULT_VOCABULARY_PROGRESS, vocabId: id, introductionAt: intro,
+        reading: entry({ history: reading }), production: entry({ history: production }),
+    });
+
+    it('replays each quiz type in date order, so a sustained high win rate starts above x1', () => {
+        // 30 words x 2 reading reviews after the intro day, all correct: 60 real reviews.
+        const queue = Array.from({ length: 30 }, (_, i) => word(`v${i}`, [log(3 + i), log(40 + i)]));
+        const seeded = calibrationFromHistory({ learningQueue: queue, grammarQueue: [] });
+        expect(seeded.reading.history).toHaveLength(CONSTANTS.srs.adaptive.historySize);
+        expect(seeded.reading.level).toBeGreaterThan(1.0);
+        expect(seeded.meaning).toEqual({ level: 1.0, history: [] });
+    });
+
+    it("drops a word's first review within a day of its intro, and grammar reinforcement logs", () => {
+        const queue = [word('v', [log(0.1), log(5, 'wrong')], [log(2, 'correct', 'reinforcement'), log(9)])];
+        const seeded = calibrationFromHistory({ learningQueue: queue, grammarQueue: [] });
+        expect(seeded.reading.history).toEqual([false]);
+        expect(seeded.production.history).toEqual([true]);
+    });
+
+    it('seeds grammar from its own logs', () => {
+        const grammar = [{ ...DEFAULT_GRAMMAR_PROGRESS, grammarId: 'g', introductionAt: intro, entry: entry({ history: [log(0.2), log(4), log(12, 'wrong')] }) }];
+        expect(calibrationFromHistory({ learningQueue: [], grammarQueue: grammar }).grammar.history).toEqual([true, false]);
+    });
+
+    it('a full live window wins over the replay; a shorter one is replaced by it', () => {
+        const queue = Array.from({ length: 30 }, (_, i) => word(`v${i}`, [log(3 + i), log(40 + i)]));
+        const full = { level: 1.25, history: Array(CONSTANTS.srs.adaptive.historySize).fill(false) };
+        const seeded = seedCalibrationFromHistory({ learningQueue: queue, grammarQueue: [], calibration: { ...defaultCalibration(), reading: full, meaning: { level: 1, history: [true] } } });
+        expect(seeded.reading).toEqual(full);
+        const short = seedCalibrationFromHistory({ learningQueue: queue, grammarQueue: [], calibration: { ...defaultCalibration(), reading: { level: 1, history: [true] } } });
+        expect(short.reading.history).toHaveLength(CONSTANTS.srs.adaptive.historySize);
     });
 });
 

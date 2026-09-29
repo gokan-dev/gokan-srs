@@ -1,7 +1,7 @@
 import { CONSTANTS } from '../commons/constants';
 import type { AdaptiveStats, Calibration, CalibratedQuizType, UserProgress, UserSettings } from '../models/user.model';
 import { CALIBRATED_QUIZ_TYPES } from '../models/user.model';
-import type { SRSEntry, VocabProgress } from '../models/vocabulary.model';
+import type { ReviewLog, SRSEntry, VocabProgress } from '../models/vocabulary.model';
 import type { GrammarProgress } from '../models/grammar.model';
 import type { AnswerResult } from './srs.service';
 
@@ -61,6 +61,76 @@ export function updateAdaptiveStats(stats: AdaptiveStats, result: AnswerResult):
         else if (winRate < decreaseThreshold) level = Math.max(level - levelStep, minLevel);
     }
     return { level: Number(level.toFixed(2)), history };
+}
+
+/* ---------- Seeding from the review logs ---------- */
+
+/** A first review within this long of the intro card is the post-intro check, not a spaced review. */
+const FIRST_REVIEW_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+type LoggedEntry = { history?: ReviewLog[] } | undefined;
+const timeOf = (value: Date | string | null | undefined): number | null => {
+    if (!value) return null;
+    const t = new Date(value).getTime();
+    return Number.isNaN(t) ? null : t;
+};
+
+/**
+ * One quiz type's logged reviews as calibration answers. Retries never write a
+ * log, so they are already absent; the item's earliest log is dropped when it
+ * falls within FIRST_REVIEW_WINDOW_MS of the intro (the first review right after
+ * the intro card), matching isCalibratedVocabReview. A mature item's retained
+ * history (the merge keeps the last 20 logs) starts long after its intro, so its
+ * earliest retained log is kept.
+ */
+function realReviewsOf(entry: LoggedEntry, introductionAt: Date | string | null | undefined, skipFirstReview: boolean) {
+    const logs = (entry?.history ?? []).filter(log => log.source !== 'reinforcement').sort((a, b) => a.date - b.date);
+    const intro = timeOf(introductionAt);
+    const dropFirst = skipFirstReview && logs.length > 0 && intro !== null && logs[0].date - intro < FIRST_REVIEW_WINDOW_MS;
+    return (dropFirst ? logs.slice(1) : logs).map(log => ({ date: log.date, result: log.result }));
+}
+
+/**
+ * The calibration each quiz type would have reached, replaying its logged
+ * reviews in date order through the same update rule the live window uses.
+ * Seeds a quiz type so it starts where its history puts it, instead of at x1
+ * with an empty window.
+ */
+export function calibrationFromHistory(progress: Pick<UserProgress, 'learningQueue' | 'grammarQueue'>): Calibration {
+    const answers: Record<CalibratedQuizType, { date: number; result: AnswerResult }[]> = {
+        reading: [], meaning: [], production: [], grammar: [],
+    };
+    for (const vp of progress.learningQueue ?? []) {
+        // Only reading carries the post-intro first review: meaning and production
+        // are first asked a day or more later, as genuinely spaced reviews.
+        answers.reading.push(...realReviewsOf(vp.reading, vp.introductionAt, true));
+        answers.meaning.push(...realReviewsOf(vp.meaning, vp.introductionAt, false));
+        answers.production.push(...realReviewsOf(vp.production, vp.introductionAt, false));
+    }
+    for (const gp of progress.grammarQueue ?? []) {
+        answers.grammar.push(...realReviewsOf(gp.entry, gp.introductionAt, true));
+    }
+    return Object.fromEntries(CALIBRATED_QUIZ_TYPES.map(type => {
+        const replayed = answers[type]
+            .sort((a, b) => a.date - b.date)
+            .reduce<AdaptiveStats>((stats, answer) => updateAdaptiveStats(stats, answer.result), { level: 1.0, history: [] });
+        return [type, replayed];
+    })) as Calibration;
+}
+
+/**
+ * The stored calibration, with any quiz type whose live window is shorter than
+ * what its logs can reconstruct replaced by the replay. Run on every load: a
+ * full live window always wins, so this only fills in history once, and it
+ * self-heals a window that started empty (the first calibration release).
+ */
+export function seedCalibrationFromHistory(progress: Pick<UserProgress, 'learningQueue' | 'grammarQueue' | 'calibration'>): Calibration {
+    const stored = withCalibrationDefaults(progress.calibration);
+    const replayed = calibrationFromHistory(progress);
+    return Object.fromEntries(CALIBRATED_QUIZ_TYPES.map(type => [
+        type,
+        stored[type].history.length >= replayed[type].history.length ? stored[type] : replayed[type],
+    ])) as Calibration;
 }
 
 /** Records a real review for one quiz type, leaving the others untouched. */

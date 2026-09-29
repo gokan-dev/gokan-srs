@@ -7,7 +7,7 @@ import { DEFAULT_GRAMMAR_PROGRESS } from '../models/grammar.model';
 import { vocabNextReviewAt } from './scheduling';
 import { grammarNextReviewAt } from './grammarScheduling';
 import { GrammarService } from './grammar.service';
-import { withCalibrationDefaults } from './calibration';
+import { seedCalibrationFromHistory } from './calibration';
 
 /**
  * Two-tier version scheme:
@@ -269,11 +269,16 @@ export class MigrationService {
             // every load, unconditionally, no version gate needed.
             completedChapters: progress.completedChapters ?? [],
             adaptive: progress.adaptive ?? { level: 1.0, history: [] },
-            // Additive too: every quiz type starts at level 1 with an empty window.
-            // The old single `adaptive` level is NOT carried over: its effect (a
-            // stretched interval) is folded into strength by the post-sync rebase
-            // instead (services/calibration.ts, rebaseStrengthsToSchedule).
-            calibration: withCalibrationDefaults(progress.calibration),
+            // Additive too. A quiz type starts where its own review logs put it
+            // (replayed through the live update rule), not at x1 with an empty
+            // window; a full live window always wins. The old single `adaptive`
+            // level is NOT carried over: its effect (a stretched interval) is folded
+            // into strength by the post-sync rebase instead (services/calibration.ts).
+            calibration: seedCalibrationFromHistory({
+                learningQueue: migratedQueue,
+                grammarQueue: migratedGrammarQueue,
+                calibration: progress.calibration,
+            }),
             _formatVersion: currentVersion < SYNC_MIGRATION_VERSION ? SYNC_MIGRATION_VERSION : currentVersion
         };
     }
