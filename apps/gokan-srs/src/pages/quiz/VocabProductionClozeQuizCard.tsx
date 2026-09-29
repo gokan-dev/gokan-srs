@@ -9,6 +9,7 @@ import { MasteryRing } from "../../components/MasteryRing";
 import { JlptChip } from "../../components/JlptChip";
 import { blankWidthEm } from "../../utils/blankWidth";
 import { splitClozeContext, emphasizeGloss } from "../../utils/productionCloze.utils";
+import { getCoarsePosLabels } from "./quizFormatting";
 import { InteractiveSentence } from "../../components/InteractiveSentence";
 
 /**
@@ -74,6 +75,7 @@ export function VocabProductionClozeQuizCard({ onVocabClick }: { onVocabClick?: 
     const revealed = productionHintLevel >= 2;
     const allGlosses = currentVocab.senses.flatMap(s => s.glosses);
     const gloss = allGlosses[0] ?? '';
+    const posLabels = getCoarsePosLabels(currentVocab.senses);
     // Emphasize which English word the blank is asking for (issue: too hard to
     // tell from the cue alone) - bold the matching gloss in the sentence, or fall
     // back to a small gloss label when the translation carries no verbatim gloss.
@@ -116,9 +118,20 @@ export function VocabProductionClozeQuizCard({ onVocabClick }: { onVocabClick?: 
                         <MasteryRing memoryStrength={currentProgress?.production?.memoryStrength ?? 0} size={40} />
                     </div>
 
-                    {currentVocab.jlptLevel && (
-                        <div className="mb-4 flex items-center justify-center">
-                            <JlptChip level={currentVocab.jlptLevel} />
+                    {/* JLPT level + the word type (verb / noun / adjective) being
+                        produced - a coarse cue that helps pick the right word among
+                        near-synonyms, without leaking the target itself (issue). */}
+                    {(currentVocab.jlptLevel || posLabels.length > 0) && (
+                        <div className="mb-4 flex flex-wrap items-center justify-center gap-2">
+                            {currentVocab.jlptLevel && <JlptChip level={currentVocab.jlptLevel} />}
+                            {posLabels.map(label => (
+                                <span
+                                    key={label}
+                                    className="px-2 py-0.5 text-xs rounded bg-accent/10 text-accent font-gothic font-medium dark:bg-accent/15"
+                                >
+                                    {label}
+                                </span>
+                            ))}
                         </div>
                     )}
 
