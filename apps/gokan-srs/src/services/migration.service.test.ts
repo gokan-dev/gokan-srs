@@ -591,6 +591,28 @@ describe('MigrationService', () => {
             expect(migrated.completedChapters).toEqual(['n5-c01', 'n5-c02']);
         });
     });
+
+    describe('calibration (additive field, no version gate needed)', () => {
+        const base = {
+            kanjiKnowledge: { method: 'kklc', step: 10, kanjiSet: [] },
+            learningQueue: [],
+            stats: { newLearnedToday: 0, totalLearned: 0, totalReviews: 0 },
+            dailyOverride: false,
+        };
+
+        it('defaults every quiz type to level 1 with an empty window, NOT the old adaptive level', () => {
+            const migrated = MigrationService.migrateUserProgress({ ...base, adaptive: { level: 2.8, history: [true] } });
+            for (const type of ['reading', 'meaning', 'production', 'grammar'] as const) {
+                expect(migrated.calibration?.[type]).toEqual({ level: 1.0, history: [] });
+            }
+        });
+
+        it('keeps a stored calibration and fills in a missing quiz type', () => {
+            const migrated = MigrationService.migrateUserProgress({ ...base, calibration: { reading: { level: 1.3, history: [true] } } });
+            expect(migrated.calibration?.reading).toEqual({ level: 1.3, history: [true] });
+            expect(migrated.calibration?.grammar).toEqual({ level: 1.0, history: [] });
+        });
+    });
 });
 
 describe('MigrationService.migrateGrammarQueueIdsAsync', () => {

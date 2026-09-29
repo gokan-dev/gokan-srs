@@ -69,13 +69,25 @@ export class GrammarSRSService {
         result: AnswerResult,
         latencyMs: number,
         now: Date,
-        intervalModifier: number = 1.0,
+        // The grammar quiz type's calibration level (services/calibration.ts) and
+        // the user's pacing preference: the same mechanism every vocab quiz uses.
+        growthLevel: number = 1.0,
         frequencyModifier: number = 1.0,
         // Scales the grammar point's memory-strength gain by how well the
         // sentence's *vocab* blanks went (see gradeGrammarAnswers): a demonstrated
         // grammar core always keeps its result, but earns proportionally less when
         // the surrounding vocab was missed. 1.0 = full gain.
-        strengthDeltaModifier: number = 1.0
+        strengthDeltaModifier: number = 1.0,
+        // Number of discrete blank inputs in the exercise (issue #73). A
+        // corpus-mined sentence can carry many more blanks than a curated one, and
+        // typing N answers legitimately takes ~N times as long as typing one -
+        // without this, a rich multi-blank card's raw latency would be compared
+        // directly against expectedLatency (tuned for a single answer) and read as
+        // "slow", shrinking its reward for no reason but having more to type.
+        // Normalizing the measured latency down to a per-blank pace recovers what
+        // the formula actually means to measure. 1 (no-op) for every existing
+        // curated/conjugation/fallback plan, which all pass this implicitly.
+        blankCount: number = 1
     ): { updated: GrammarProgress; result: AnswerResult; interval: number } {
         // Retry: mirrors VocabProgress.needsRetry - a successful/failed retry
         // doesn't touch SRS state, it's a training-only redo.
@@ -89,8 +101,9 @@ export class GrammarSRSService {
         }
 
         const expectedLatency = CONSTANTS.srs.quizProperties.grammar.expectedLatency;
+        const normalizedLatency = latencyMs / Math.max(1, blankCount);
         const { newEntry, interval } = SRSService.calculateNextState(
-            progress.entry, result, latencyMs, now, expectedLatency, intervalModifier, frequencyModifier, strengthDeltaModifier
+            progress.entry, result, normalizedLatency, now, expectedLatency, growthLevel, frequencyModifier, strengthDeltaModifier
         );
 
         const finalStage = isGrammarFullyMastered({ entry: newEntry }) ? 'graduated' : progress.stage;
@@ -173,7 +186,11 @@ export class GrammarSRSService {
         learningQueue: VocabProgress[],
         credits: { vocabId: string; result: AnswerResult }[],
         now: Date,
-        settings: UserSettings
+        settings: UserSettings,
+        // The production quiz type's calibration level: this credits production's
+        // entry, so it grows the way a production answer would. It does not RECORD
+        // a production review, though: a scaffolded blank is not one.
+        productionGrowthLevel: number = 1.0
     ): VocabProgress[] {
         if (credits.length === 0) return learningQueue;
 
@@ -199,11 +216,21 @@ export class GrammarSRSService {
             // correctAnswer is unused because forcedResult (credit.result) is supplied.
             const { updated } = SRSService.applyAnswer(
                 seeded, 'production', 'base', '', '',
-                neutralLatency, now, credit.result, 1.0, frequencyModifier, meaningEnabled,
+                neutralLatency, now, credit.result, productionGrowthLevel, frequencyModifier, meaningEnabled,
                 productionEnabled, CONSTANTS.srs.production.reinforcementStrengthRatio
             );
             changed = true;
-            return updated;
+            // Mark the log this credit wrote, so the calibration's replay of the
+            // review logs does not count it as a production review.
+            const history = updated.production?.history ?? [];
+            if (!updated.production || history.length === 0) return updated;
+            return {
+                ...updated,
+                production: {
+                    ...updated.production,
+                    history: [...history.slice(0, -1), { ...history[history.length - 1], source: 'reinforcement' as const }],
+                },
+            };
         });
 
         return changed ? next : learningQueue;

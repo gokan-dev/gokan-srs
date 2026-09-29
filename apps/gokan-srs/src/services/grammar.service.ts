@@ -1,4 +1,4 @@
-import type { GrammarAliasIndex, GrammarBrowseIndex, GrammarChapter, GrammarConjugationIndex, GrammarContrastForFocus, GrammarContrastIndex, GrammarInterchangeableForPoint, GrammarJlptIndex, GrammarKindIndex, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex } from '../models/grammar.model';
+import type { GrammarAliasIndex, GrammarBrowseIndex, GrammarChapter, GrammarConjugationIndex, GrammarContrastForFocus, GrammarContrastIndex, GrammarExample, GrammarInterchangeableForPoint, GrammarJlptIndex, GrammarKindIndex, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex } from '../models/grammar.model';
 
 /**
  * Loads grammar data compiled by the gokan-dataset submodule's
@@ -20,6 +20,7 @@ export class GrammarService {
     private static contrastsByFocus: Map<string, GrammarContrastForFocus[]> | null = null;
     private static interchangeableByPoint: Map<string, GrammarInterchangeableForPoint> | null = null;
     private static pointCache = new Map<string, GrammarPoint>();
+    private static minedCache = new Map<string, GrammarExample[] | null>();
 
     private static async fetchJson<T>(path: string): Promise<T> {
         const response = await fetch(path);
@@ -227,6 +228,39 @@ export class GrammarService {
         } catch (e) {
             console.error('[GrammarService] Failed to load grammar aliases; skipping id migration this run', e);
             return {};
+        }
+    }
+
+    /**
+     * Corpus-mined GrammarExample[] for a point (issue #73's app half),
+     * consumed by computeBlankPlan to pick, for a REVIEW turn, the sentence
+     * that best exercises the vocabulary a learner is currently trying to
+     * produce - see gokan-dataset's docs/SCHEMA.md.
+     *
+     * A 404 is the common, permanent case (~350/828 points have no mined pool -
+     * the function-word-anchor points are deferred to a later morphology pass)
+     * and is cached as `null` rather than logged as an error: those points
+     * simply keep curated examples forever, which is not a failure. A transient
+     * fetch error is NOT cached, so it can succeed on a later retry.
+     */
+    static async loadMinedExamples(pointId: string): Promise<GrammarExample[] | null> {
+        if (this.minedCache.has(pointId)) return this.minedCache.get(pointId)!;
+
+        try {
+            const response = await fetch(`/data/compiled/grammar/mined/${pointId}.json?v=${Date.now()}`);
+            if (response.status === 404) {
+                this.minedCache.set(pointId, null);
+                return null;
+            }
+            if (!response.ok) {
+                throw new Error(`Failed to fetch mined examples for ${pointId}: ${response.statusText}`);
+            }
+            const examples = await response.json() as GrammarExample[];
+            this.minedCache.set(pointId, examples);
+            return examples;
+        } catch (e) {
+            console.error(`[GrammarService] Failed to load mined examples for ${pointId}; falling back to curated examples`, e);
+            return null;
         }
     }
 

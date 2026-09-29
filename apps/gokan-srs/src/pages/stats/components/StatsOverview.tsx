@@ -1,6 +1,6 @@
 import type { UserProgress } from "../../../models/user.model";
 import { useMemo, useState, useEffect } from "react";
-import type { ReviewLog } from "../../../models/vocabulary.model";
+import { percentOf, winRatesByQuizType } from "../../../utils/winRate.utils";
 
 interface StatsOverviewProps {
     progress: UserProgress;
@@ -17,27 +17,11 @@ export function StatsOverview({ progress }: StatsOverviewProps) {
         const graduated = queue.filter(v => v.stage === 'graduated').length;
         const learning = queue.filter(v => v.stage === 'learning').length;
 
-        // Reviews & Winrate
-        let totalCorrect = 0;
-        let totalAnswers = 0;
-
-        queue.forEach(v => {
-            const allHistory: ReviewLog[] = [
-                ...(v.reading?.history || []),
-                ...(v.meaning?.history || [])
-            ];
-
-            allHistory.forEach(r => {
-                if (r.result === 'pass') return;
-
-                totalAnswers++;
-                if (r.result === 'correct' || r.result === 'minor_error') {
-                    totalCorrect++;
-                }
-            });
-        });
-
-        const winrate = totalAnswers > 0 ? Math.round((totalCorrect / totalAnswers) * 100) : 0;
+        // Every quiz type: reading, meaning, production and grammar. It used to
+        // count reading and meaning only.
+        const { global } = winRatesByQuizType(progress);
+        const totalAnswers = global.answers;
+        const winrate = percentOf(global) ?? 0;
 
         return {
             totalLearned,

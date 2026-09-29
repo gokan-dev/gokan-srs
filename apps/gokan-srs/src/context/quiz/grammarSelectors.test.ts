@@ -14,13 +14,14 @@ import {
 } from './grammarSelectors';
 import type { QuizState } from './quizReducer';
 import type { UserProgress } from '../../models/user.model';
-import type { GrammarChapter, GrammarContrastIndex, GrammarPoint, GrammarProgress } from '../../models/grammar.model';
+import type { GrammarChapter, GrammarContrastIndex, GrammarExample, GrammarPoint, GrammarProgress } from '../../models/grammar.model';
 import { DEFAULT_GRAMMAR_PROGRESS } from '../../models/grammar.model';
 import type { VocabProgress } from '../../models/vocabulary.model';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../../models/vocabulary.model';
 import type { Vocabulary } from '../../models/vocabulary.model';
 import { VocabularyService } from '../../services/vocabulary.service';
 import { GrammarService } from '../../services/grammar.service';
+import { CONSTANTS } from '../../commons/constants';
 
 const now = new Date('2026-06-10T00:00:00Z');
 const past = new Date('2026-06-01T00:00:00Z');
@@ -469,6 +470,211 @@ describe('computeBlankPlan', () => {
             // grading falls back to worst-of-all at full strength.
             expect(plan.isPatternBlank).toEqual([false]);
         });
+    });
+});
+
+describe('computeBlankPlan - mined sentence productivity selection (issue #73)', () => {
+    function makeMinedExample(overrides: Partial<GrammarExample> = {}): GrammarExample {
+        return {
+            jp: 'これはテストです。',
+            romaji: '',
+            en: 'This is a test.',
+            patternWordIndices: [2],
+            words: [
+                { surface: 'これ', vocabId: null },
+                { surface: 'は', vocabId: null },
+                { surface: 'テスト', vocabId: null },
+                { surface: 'です', vocabId: null },
+            ],
+            ...overrides,
+        };
+    }
+
+    function masteredProduction(): NonNullable<VocabProgress['production']> {
+        return {
+            memoryStrength: CONSTANTS.srs.formula.mastery.maxMemoryStrength,
+            interval: 300,
+            difficulty: 0.3,
+            lastReviewedAt: past,
+            dueDate: future,
+            history: [],
+        };
+    }
+
+    afterEach(() => { vi.restoreAllMocks(); });
+
+    it('reviewCount === 0 stays on curated examples and never even loads the mined pool', async () => {
+        const point = makeGrammarPoint();
+        const loadMined = vi.spyOn(GrammarService, 'loadMinedExamples').mockResolvedValue([makeMinedExample()]);
+        const progress = makeProgress({ learningQueue: [makeVocabProgress({ vocabId: 'v-sushi', introductionAt: past })] });
+
+        const plan = (await computeBlankPlan(point, progress, 0))!;
+        expect(loadMined).not.toHaveBeenCalled();
+        expect(plan.example).toEqual(point.examples[0]);
+    });
+
+    it('on a review (reviewCount >= 1), blanks the pattern plus every known, production-unmastered target word', async () => {
+        const point = makeGrammarPoint();
+        const mined = makeMinedExample({
+            words: [
+                { surface: 'これ', vocabId: 'v-a' },
+                { surface: 'は', vocabId: null },
+                { surface: 'テスト', vocabId: null },
+                { surface: 'です', vocabId: null },
+            ],
+            patternWordIndices: [2],
+        });
+        vi.spyOn(GrammarService, 'loadMinedExamples').mockResolvedValue([mined]);
+        const progress = makeProgress({
+            learningQueue: [makeVocabProgress({ vocabId: 'v-a', introductionAt: past })],
+        });
+
+        const plan = (await computeBlankPlan(point, progress, 1))!;
+        expect(plan.example).toEqual(mined);
+        // index 0 ('v-a', a target) + index 2 (the pattern marker)
+        expect(plan.blankWordIndices).toEqual([0, 2]);
+        expect(plan.isPatternBlank).toEqual([false, true]);
+    });
+
+    it('excludes a known word whose production is already mastered from targets - it stays visible as context', async () => {
+        const point = makeGrammarPoint();
+        const mined = makeMinedExample({
+            words: [
+                { surface: 'これ', vocabId: 'v-a' }, // known, production mastered -> context only
+                { surface: 'は', vocabId: null },
+                { surface: 'テスト', vocabId: 'v-b' }, // known, production unmastered -> target
+                { surface: 'です', vocabId: null },
+            ],
+            patternWordIndices: [3],
+        });
+        vi.spyOn(GrammarService, 'loadMinedExamples').mockResolvedValue([mined]);
+        const progress = makeProgress({
+            learningQueue: [
+                makeVocabProgress({ vocabId: 'v-a', introductionAt: past, production: masteredProduction() }),
+                makeVocabProgress({ vocabId: 'v-b', introductionAt: past }),
+            ],
+        });
+
+        const plan = (await computeBlankPlan(point, progress, 1))!;
+        // v-a (index 0) is excluded; only v-b (index 2, the target) and the pattern (index 3) are blanked.
+        expect(plan.blankWordIndices).toEqual([2, 3]);
+    });
+
+    it('the readability penalty prefers a shorter, mostly-known sentence over a longer one with the same target count', async () => {
+        const readable = makeMinedExample({
+            jp: 'READABLE',
+            words: [
+                { surface: 'これ', vocabId: 'v-a' },
+                { surface: 'は', vocabId: null },
+                { surface: 'テスト', vocabId: null },
+            ],
+            patternWordIndices: [2],
+        });
+        const unreadable = makeMinedExample({
+            jp: 'UNREADABLE',
+            words: [
+                { surface: 'これ', vocabId: 'v-a' },
+                { surface: 'あれ', vocabId: 'v-unknown-1' },
+                { surface: 'それ', vocabId: 'v-unknown-2' },
+                { surface: 'どれ', vocabId: 'v-unknown-3' },
+                { surface: 'テスト', vocabId: null },
+            ],
+            patternWordIndices: [4],
+        });
+        // Mined pool order deliberately puts the worse sentence first, so a
+        // naive "first eligible" pick would get this wrong.
+        vi.spyOn(GrammarService, 'loadMinedExamples').mockResolvedValue([unreadable, readable]);
+        const point = makeGrammarPoint();
+        const progress = makeProgress({
+            learningQueue: [makeVocabProgress({ vocabId: 'v-a', introductionAt: past })],
+        });
+
+        const plan = (await computeBlankPlan(point, progress, 1))!;
+        expect(plan.example?.jp).toBe('READABLE');
+    });
+
+    it('the most-productive sentence (highest target count) is the one chosen', async () => {
+        const oneTarget = makeMinedExample({
+            jp: 'ONE_TARGET',
+            words: [{ surface: 'これ', vocabId: 'v-a' }],
+            patternWordIndices: [],
+        });
+        const twoTargets = makeMinedExample({
+            jp: 'TWO_TARGETS',
+            words: [{ surface: 'これ', vocabId: 'v-a' }, { surface: 'それ', vocabId: 'v-b' }],
+            patternWordIndices: [],
+        });
+        vi.spyOn(GrammarService, 'loadMinedExamples').mockResolvedValue([oneTarget, twoTargets]);
+        const point = makeGrammarPoint();
+        const progress = makeProgress({
+            learningQueue: [
+                makeVocabProgress({ vocabId: 'v-a', introductionAt: past }),
+                makeVocabProgress({ vocabId: 'v-b', introductionAt: past }),
+            ],
+        });
+
+        const plan = (await computeBlankPlan(point, progress, 1))!;
+        expect(plan.example?.jp).toBe('TWO_TARGETS');
+    });
+
+    it('keeps the same sentence across reviews while the learner state is unchanged, even on an exact tie', async () => {
+        const a = makeMinedExample({ jp: 'A', words: [{ surface: 'これ', vocabId: 'v-a' }], patternWordIndices: [] });
+        const b = makeMinedExample({ jp: 'B', words: [{ surface: 'これ', vocabId: 'v-a' }], patternWordIndices: [] });
+        vi.spyOn(GrammarService, 'loadMinedExamples').mockResolvedValue([a, b]);
+        const point = makeGrammarPoint();
+        const progress = makeProgress({
+            learningQueue: [makeVocabProgress({ vocabId: 'v-a', introductionAt: past })],
+        });
+
+        const picks = new Set<string | undefined>();
+        for (const reviewCount of [1, 2, 3, 7]) {
+            picks.add((await computeBlankPlan(point, progress, reviewCount))!.example?.jp);
+        }
+        // Stickiness: the review count never reshuffles the pick, only the learner's vocab does.
+        expect(picks.size).toBe(1);
+        expect(['A', 'B']).toContain([...picks][0]);
+    });
+
+    it('a pattern-marker word is never scored as a vocab target', async () => {
+        // Only word is the pattern marker, and it is a known word: no target left, so curated fallback.
+        const mined = makeMinedExample({
+            words: [{ surface: 'これ', vocabId: 'v-a' }],
+            patternWordIndices: [0],
+        });
+        vi.spyOn(GrammarService, 'loadMinedExamples').mockResolvedValue([mined]);
+        const point = makeGrammarPoint();
+        const progress = makeProgress({
+            learningQueue: [makeVocabProgress({ vocabId: 'v-a', introductionAt: past })],
+        });
+
+        const plan = (await computeBlankPlan(point, progress, 1))!;
+        expect(plan.example).toEqual(point.examples[0]);
+    });
+
+    it('falls back to curated examples when no mined sentence has any target', async () => {
+        const mined = makeMinedExample({
+            words: [{ surface: 'これ', vocabId: 'v-unknown' }], // not known at all -> not a target
+            patternWordIndices: [],
+        });
+        vi.spyOn(GrammarService, 'loadMinedExamples').mockResolvedValue([mined]);
+        const point = makeGrammarPoint();
+        const progress = makeProgress({
+            learningQueue: [makeVocabProgress({ vocabId: 'v-sushi', introductionAt: past })],
+        });
+
+        const plan = (await computeBlankPlan(point, progress, 1))!;
+        expect(plan.example).toEqual(point.examples[0]);
+    });
+
+    it('falls back to curated examples when there is no mined pool at all', async () => {
+        vi.spyOn(GrammarService, 'loadMinedExamples').mockResolvedValue(null);
+        const point = makeGrammarPoint();
+        const progress = makeProgress({
+            learningQueue: [makeVocabProgress({ vocabId: 'v-sushi', introductionAt: past })],
+        });
+
+        const plan = (await computeBlankPlan(point, progress, 1))!;
+        expect(plan.example).toEqual(point.examples[0]);
     });
 });
 
@@ -1325,7 +1531,7 @@ describe('computeGrammarChapterProgress', () => {
         id: 'c01', title: 'C1', summary: '', jlptLevel: 5,
         points: ['n5-a', 'n5-b', 'n5-c'],
     };
-    const MASTERED_STRENGTH = 1270; // CONSTANTS.srs.formula.maxMemoryStrength
+    const MASTERED_STRENGTH = CONSTANTS.srs.formula.mastery.maxMemoryStrength;
 
     it('counts every point as untouched when the queue is empty', () => {
         expect(computeGrammarChapterProgress(chapter, [])).toEqual({ mastered: 0, learning: 0, total: 3 });

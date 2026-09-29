@@ -4,6 +4,7 @@ import type { QuizState } from './quizReducer';
 import type { UserProgress } from '../../models/user.model';
 import type { Vocabulary, VocabProgress } from '../../models/vocabulary.model';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../../models/vocabulary.model';
+import { CONSTANTS } from '../../commons/constants';
 
 function makeProgress(overrides: Partial<UserProgress> = {}): UserProgress {
     return {
@@ -569,5 +570,18 @@ describe('quizReducer', () => {
         expect(next.currentVocab).toBe(inFlightVocab);
         expect(next.userAnswer).toBe('partial-answer');
         expect(next.feedback).toEqual(state.feedback);
+    });
+
+    it('REBASE_STRENGTHS rebases the CURRENT progress, and is a no-op (same state) the second time', () => {
+        const { lnTarget } = CONSTANTS.srs.formula;
+        const reading = { ...DEFAULT_VOCABULARY_PROGRESS.reading, memoryStrength: 50, interval: 50 * lnTarget * 2, dueDate: new Date('2026-12-01') };
+        const state: QuizState = { ...initialState, progress: makeProgress({ learningQueue: [makeVocabProgress({ reading })] }) };
+
+        const once = quizReducer(state, { type: 'REBASE_STRENGTHS', payload: { frequencyModifier: 1 } });
+        expect(once.progress!.learningQueue[0].reading.memoryStrength).toBeCloseTo(100, 6);
+        expect(once.progress!.learningQueue[0].reading.dueDate).toEqual(reading.dueDate);
+
+        const twice = quizReducer(once, { type: 'REBASE_STRENGTHS', payload: { frequencyModifier: 1 } });
+        expect(twice).toBe(once);
     });
 });

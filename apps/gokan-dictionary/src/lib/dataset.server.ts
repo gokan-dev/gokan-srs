@@ -23,6 +23,7 @@ import type {
     GrammarContrastIndex,
     GrammarVariantGroupIndex,
     GrammarConjugationIndex,
+    GrammarExample,
 } from '../models/grammar.model';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -154,4 +155,16 @@ export function loadGrammarVariantGroups(compiledDir: string): GrammarVariantGro
 export function loadGrammarConjugations(compiledDir: string): GrammarConjugationIndex {
     const raw = fs.readFileSync(path.join(compiledDir, 'grammar', 'conjugations.json'), 'utf-8');
     return JSON.parse(raw) as GrammarConjugationIndex;
+}
+
+/**
+ * The corpus-mined example pool for a point (issue #73's dataset half), for the "Corpus
+ * examples" section on its page. One file per eligible point rather than a whole-index file
+ * (mirrors loadSentences' per-vocab layout) - most points (~350/828) have none at all, which
+ * is the common, permanent case, not an error.
+ */
+export function loadGrammarMinedExamples(compiledDir: string, id: string): GrammarExample[] | null {
+    const file = path.join(compiledDir, 'grammar', 'mined', `${id}.json`);
+    if (!fs.existsSync(file)) return null;
+    return JSON.parse(fs.readFileSync(file, 'utf-8')) as GrammarExample[];
 }

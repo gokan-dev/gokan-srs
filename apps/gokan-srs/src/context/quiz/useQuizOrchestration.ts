@@ -15,6 +15,10 @@ import { DEFAULT_SETTINGS } from '../../models/user.model';
 import type { SetupValues } from '../../models/state.model';
 import { calculateMasteryPercentage, clearStaleNeedsRetry } from '../../utils/srs.utils';
 import { pickProductionClozeSentence } from '../../utils/productionCloze.utils';
+import { indexLearnerVocab, pickSentenceForVocab } from '../../utils/sentenceRanking';
+import {
+    frequencyModifierOf, growthLevelOf, isCalibratedVocabReview, recordCalibratedAnswer, withCalibrationDefaults,
+} from '../../services/calibration';
 import { mergeProgress, mergeSettings } from '../../services/sync/mergeProgress';
 import type { ProgressWithMetadata } from '../../services/sync/types';
 import { useGoogleDrive } from '../GoogleDriveContext';
@@ -57,6 +61,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
         uploadAuthoritative,
         isAuthenticated,
         isDownloading,
+        isInitialLoadComplete,
         lastDownloadTime,
         lastBackgroundMergeTime,
     } = useGoogleDrive();
@@ -449,12 +454,18 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             const target = state.progress.learningQueue.find(v => v.vocabId === id);
             let historyItem = null;
 
-            const currentAdaptive = state.progress.adaptive || { level: 1.0, history: [] };
-            const newAdaptive = SRSService.updateAdaptiveStats(currentAdaptive, state.feedback.type);
-            const adaptiveLevel = newAdaptive.level;
+            // Calibration (services/calibration.ts): only a real review enters its
+            // quiz type's window. A confusable-synonym collision is not graded at all,
+            // so it is not one either.
+            const quizType = state.currentQuizItem.quizType;
+            const counted = !!target && state.feedback.synonymRelation !== 'confusable'
+                && isCalibratedVocabReview(target, quizType);
+            const calibration = counted
+                ? recordCalibratedAnswer(state.progress.calibration, quizType, state.feedback.type)
+                : withCalibrationDefaults(state.progress.calibration);
+            const growthLevel = growthLevelOf(calibration, quizType);
 
-            const frequencySetting = state.settings!.learningFrequency;
-            const frequencyModifier = CONSTANTS.srs.frequencyMultipliers[frequencySetting];
+            const frequencyModifier = frequencyModifierOf(state.settings);
             const meaningQuizEnabled = state.settings?.enableMeaningQuiz !== false;
             const productionQuizEnabled = state.settings?.enableProductionQuiz !== false;
 
@@ -480,7 +491,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                         latency,
                         now,
                         state.feedback.type,
-                        adaptiveLevel,
+                        growthLevel,
                         frequencyModifier,
                         meaningQuizEnabled,
                         productionQuizEnabled
@@ -522,7 +533,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                             ...state.progress.stats,
                             totalReviews: state.progress.stats.totalReviews + 1,
                         },
-                        adaptive: newAdaptive,
+                        calibration,
                     },
                     historyItem: historyItem!
                 },
@@ -648,9 +659,27 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                     type: 'SETUP_COMPLETE',
                     payload: { progress: refreshedProgress, settings: refreshedSettings }
                 });
+                // Calibration transition, only now that the Drive sync has brought the
+                // state up to date: it then rebases the merged state, and the auto-upload
+                // effect publishes the result. Dispatched after SETUP_COMPLETE so it
+                // applies to the reloaded progress, never to a pre-sync snapshot. It is
+                // idempotent (see rebaseStrengthsToSchedule), so a later re-download
+                // simply normalizes anything an older build wrote in the meantime.
+                dispatch({ type: 'REBASE_STRENGTHS', payload: { frequencyModifier: frequencyModifierOf(refreshedSettings) } });
             }, 0);
         }
     }, [lastDownloadTime]);
+
+    // The same transition for a user not signed in to Drive: there is no sync to
+    // wait for, so it runs once the initial load is complete.
+    const localRebaseDoneRef = useRef(false);
+    useEffect(() => {
+        if (localRebaseDoneRef.current || !state.progress || !state.settings) return;
+        if (!isInitialLoadComplete || isAuthenticated) return;
+        localRebaseDoneRef.current = true;
+        dispatch({ type: 'REBASE_STRENGTHS', payload: { frequencyModifier: frequencyModifierOf(state.settings) } });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [state.progress, state.settings, isInitialLoadComplete, isAuthenticated]);
 
     // React to a background sync that PULLED IN REMOTE CHANGES (routine uploads of
     // local-only changes never bump lastBackgroundMergeTime - see GoogleDriveContext).
@@ -705,10 +734,6 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
 
         const vid = 'vocabId' in queueItem ? queueItem.vocabId : queueItem.vocab.vocabId;
         const quizType = queueItem.quizType;
-        // Only a real QuizItem carries the VocabProgress (an intro candidate never
-        // does - it's always quizType 'reading'), which is all we need here: the
-        // per-entry production review count that seeds the cloze sentence pick below.
-        const target = 'vocab' in queueItem ? queueItem.vocab : undefined;
 
         // Exactly this card is already loaded OR currently being loaded
         // (selectNextView returns a fresh queueItem object on every recompute, so
@@ -767,10 +792,13 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             let productionCloze = null;
             let productionSynonyms: ProductionSynonymCandidate[] = [];
 
+            // Both sentence-driven cards rank the word's sentences with the shared
+            // ranker (utils/sentenceRanking.ts), the same rule the grammar review uses.
+            const learner = indexLearnerVocab(state.progress?.learningQueue);
+
             if (quizType === 'production') {
                 if (sentences && sentences.length > 0) {
-                    const reviewCount = target?.production?.history.length ?? 0;
-                    productionCloze = pickProductionClozeSentence(vid, sentences, reviewCount);
+                    productionCloze = pickProductionClozeSentence(vid, sentences, learner);
                 }
 
                 // Resolve the word's near-synonyms (embedded on its own vocab file,
@@ -796,8 +824,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                     if (loadingKeyRef.current !== loadKey) return; // superseded during the nested fetch
                 }
             } else if (sentences && sentences.length > 0) {
-                const idx = Math.floor(Math.random() * sentences.length);
-                selectedSentenceId = sentences[idx].id;
+                selectedSentenceId = pickSentenceForVocab(vid, sentences, learner)?.id ?? null;
             }
 
             dispatch({

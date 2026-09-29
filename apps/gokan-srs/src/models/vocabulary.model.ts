@@ -108,6 +108,12 @@ export interface ReviewLog {
     result: 'correct' | 'minor_error' | 'wrong' | 'pass';
     interval: number;
     latency: number; // ms
+    /**
+     * Set when the log was written by something other than this quiz type's own
+     * review: 'reinforcement' is grammar's positive-only vocab credit onto the
+     * production entry. The SRS calibration skips it (not a real review).
+     */
+    source?: 'reinforcement';
 }
 
 export interface SRSEntry {

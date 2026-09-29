@@ -37,6 +37,7 @@ import {
     loadGrammarContrasts,
     loadGrammarVariantGroups,
     loadGrammarConjugations,
+    loadGrammarMinedExamples,
 } from '../src/lib/dataset.server';
 import { vocabSummaryFrom } from '../src/lib/vocabSummary';
 import {
@@ -85,6 +86,9 @@ const DIST_DIR = path.join(APP_ROOT, 'dist');
 
 const MAX_KANJI_VOCAB_LIST = 50;
 const MAX_SENTENCES = 3;
+// Pools go up to 60 sentences across 477 points (see gokan-dataset's Corpus-mined sentences
+// note) - capped here to bound page size, same reasoning as MAX_KANJI_VOCAB_LIST above.
+const MAX_MINED_EXAMPLES = 25;
 
 interface ViteManifestEntry {
     file: string;
@@ -280,8 +284,13 @@ async function main(): Promise<void> {
         const chapterLocator = chapterLocatorIndex.get(id) ?? null;
         const variants = buildVariantSiblings(point, variantGroups, grammarPoints);
         const conjugation = conjugationIndex[id] ?? null;
+        const minedExamplesPool = loadGrammarMinedExamples(compiledDir, id) ?? [];
+        const minedExamples = minedExamplesPool.slice(0, MAX_MINED_EXAMPLES);
+        const minedExamplesTotalCount = minedExamplesPool.length;
 
-        const { body } = render(GrammarPage, { props: { point, related, chapterLocator, variants, conjugation } });
+        const { body } = render(GrammarPage, {
+            props: { point, related, chapterLocator, variants, conjugation, minedExamples, minedExamplesTotalCount },
+        });
         const meta = grammarMeta(point);
         const html = renderDocument({
             title: meta.title,

@@ -35,6 +35,27 @@ export const CONSTANTS = {
         },
 
         /**
+         * Shared sentence ranking (utils/sentenceRanking.ts): which example sentence
+         * a card shows, identically for the grammar review, the production cloze and
+         * the meaning-in-context card.
+         */
+        sentenceSelection: {
+            /**
+             * Penalty per UNKNOWN word in a sentence: a shorter, mostly-readable
+             * sentence should beat a long one with the same target payoff.
+             * `primary = targets - readabilityPenalty * unknowns`.
+             */
+            readabilityPenalty: 0.34,
+            /**
+             * A known word stops counting as a target once its PRODUCTION ring
+             * (MasteryRing's first loop, 0..100) reaches this value: the word is
+             * familiar enough to be plain context, so it no longer holds a sentence
+             * in place and the sentence is free to rotate.
+             */
+            targetRingCeiling: 100,
+        },
+
+        /**
          * Maximum number of quiz tasks one study session commits to. Unlike the
          * per-day limits above (both effectively disabled), this one is real: it
          * bounds a single sitting, not the day, so a user with a large backlog can
@@ -145,22 +166,42 @@ export const CONSTANTS = {
             },
 
             mastery: {
-                // Target memory strength for ~1 year interval (100% mastery visually)
-                // t = S * 0.28768  => S = t / 0.28768
-                // For 365 days: 365 / 0.28768 ≈ 1269
-                maxMemoryStrength: 1270,
+                // Memory strength at which an entry is mastered and retired (the
+                // ring's second loop full). t = S * 0.28768 => S = t / 0.28768.
+                // For 180 days: 180 / 0.28768 ≈ 626. 180 days is the longest
+                // retention horizon the research notes recommend designing for
+                // (docs/srs-meta-analysis-summary.txt: 30 / 90 / 180 days). It was
+                // 1270 (~1 year), which the research does not support and which,
+                // at the formula's per-review growth, took years of reviews beyond
+                // the first loop. Lowering it changes the exchange rate of points
+                // toward mastery only: one point is still one ring unit.
+                maxMemoryStrength: 626,
                 // Soft cap for visual mastery loop 1 (User Mastery)
                 // For ~60 days: 60 / 0.28768 ≈ 208
                 visualSoftCap: 208
             }
         },
 
+        /**
+         * Per-quiz-type calibration (services/calibration.ts). Each quiz type keeps
+         * its own rolling window of real reviews (retries and a word's first review
+         * right after its intro are excluded) and a level that multiplies the gain of
+         * a SUCCESSFUL answer. Above target the level rises, so strength grows faster,
+         * intervals lengthen and the win rate falls back toward target; below it the
+         * level falls. It never touches the interval directly: the interval is always
+         * strength x lnTarget x the user's frequency preference.
+         *
+         * The band is centred on the scheduler's own target (formula.targetRecall,
+         * 0.75): it used to be 0.70-0.85, which let a learner sit at 84% uncorrected.
+         */
         adaptive: {
             historySize: 50,
+            /** No adjustment until this many real reviews are in the window. */
+            minHistory: 10,
             targetWinRate: 0.75,
-            // If win rate > 0.85, increase level (harder)
-            increaseThreshold: 0.85,
-            // If win rate < 0.70, decrease level (easier)
+            // Win rate above this: raise the growth level (learner is ahead of the model)
+            increaseThreshold: 0.80,
+            // Win rate below this: lower it
             decreaseThreshold: 0.70,
             levelStep: 0.05,
             minLevel: 0.5,

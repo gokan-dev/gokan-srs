@@ -50,15 +50,35 @@ export interface UserProgress {
     /** Data format version for migration tracking */
     _formatVersion?: number;
 
-    /** Adaptive SRS Stats */
+    /**
+     * @deprecated Superseded by `calibration`. Its level used to stretch every
+     * interval; the calibration now grows memory strength instead (see
+     * services/calibration.ts). Kept, untouched, only so a tab still running an
+     * older build does not choke on its absence.
+     */
     adaptive: AdaptiveStats;
+
+    /**
+     * Per-quiz-type SRS calibration: each quiz type adapts its strength growth to
+     * its OWN recent win rate. Optional on the type because progress saved before
+     * it existed has none; hydration fills in the default.
+     */
+    calibration?: Calibration;
 }
 
+/** Every quiz type that runs through the SRS formula, vocab and grammar alike. */
+export type CalibratedQuizType = 'reading' | 'meaning' | 'production' | 'grammar';
+
+export const CALIBRATED_QUIZ_TYPES: readonly CalibratedQuizType[] = ['reading', 'meaning', 'production', 'grammar'];
+
+export type Calibration = Record<CalibratedQuizType, AdaptiveStats>;
+
 export interface AdaptiveStats {
-    /** 
-     * Global interval modifier (default 1.0).
-     * < 1.0: Easymode (shorter intervals)
-     * > 1.0: Hardmode (longer intervals)
+    /**
+     * Strength growth multiplier (default 1.0) applied to a successful answer's
+     * gain. Rises while this quiz type's recent win rate is above target, falls
+     * while below. (For the deprecated `adaptive` field it was an interval
+     * multiplier instead.)
      */
     level: number;
 
@@ -142,5 +162,11 @@ export const DEFAULT_PROGRESS: Omit<UserProgress, 'kanjiKnowledge'> = {
     adaptive: {
         level: 1.0,
         history: []
+    },
+    calibration: {
+        reading: { level: 1.0, history: [] },
+        meaning: { level: 1.0, history: [] },
+        production: { level: 1.0, history: [] },
+        grammar: { level: 1.0, history: [] },
     }
 }

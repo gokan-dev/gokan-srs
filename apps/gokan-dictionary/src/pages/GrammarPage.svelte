@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { GrammarPoint } from '../models/grammar.model';
+  import type { GrammarExample, GrammarPoint } from '../models/grammar.model';
   import type { GrammarSummary } from '../lib/types';
   import type { ChapterLocator } from '../lib/grammarChapters';
   import type { VariantSibling } from '../lib/grammarVariants';
@@ -17,9 +17,13 @@
     variants: VariantSibling[];
     /** This point's conjugation drill table, for `kind: 'inflection'` points that have one (issue #58). */
     conjugation: GrammarConjugationIndex[string] | null;
+    /** Capped corpus-mined sentence pool (issue #73), already truncated to MAX_MINED_EXAMPLES; [] when the point has no pool. */
+    minedExamples: GrammarExample[];
+    /** The pool's true size before truncation, for the "Showing N of total" note. */
+    minedExamplesTotalCount: number;
   }
 
-  let { point, related, chapterLocator, variants, conjugation }: Props = $props();
+  let { point, related, chapterLocator, variants, conjugation, minedExamples, minedExamplesTotalCount }: Props = $props();
 
   const RELATION_LABEL: Record<string, string> = {
     canonical: 'Base form',
@@ -149,6 +153,28 @@
             </li>
           {/each}
         </ul>
+      </section>
+    {/if}
+
+    {#if minedExamples.length > 0}
+      <section class="card">
+        <h2>Corpus examples</h2>
+        <ul class="sentence-list">
+          {#each minedExamples as example}
+            <li class="sentence">
+              <p class="sentence-original jp">
+                <!-- Same word-by-word linked rendering as the curated examples above - these
+                     corpus-mined sentences are the biggest new source of internal vocab links. -->
+                {#each example.words as word}{#if word.vocabId}<a class="sentence-word" href={vocabPath(word.vocabId)}>{word.surface}</a>{:else}{word.surface}{/if}{/each}
+              </p>
+              <p class="sentence-en">{example.en}</p>
+              {#if example.romaji}<p class="sentence-en muted">{example.romaji}</p>{/if}
+            </li>
+          {/each}
+        </ul>
+        {#if minedExamplesTotalCount > minedExamples.length}
+          <p class="muted">Showing {minedExamples.length} of {minedExamplesTotalCount} corpus examples.</p>
+        {/if}
       </section>
     {/if}
 

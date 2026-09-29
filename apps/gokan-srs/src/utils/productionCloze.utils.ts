@@ -1,5 +1,6 @@
 import type { Sentence } from '../models/sentence.model';
-import { hashString } from './deterministicPick';
+import type { LearnerVocab } from './sentenceRanking';
+import { pickSentenceForVocab } from './sentenceRanking';
 
 /**
  * A single sentence chosen to drive the production cloze card (issue #72): the
@@ -22,10 +23,11 @@ export interface ProductionCloze {
  * "exactly one vocab word blanked" means one blank, not necessarily the only
  * occurrence of its surface form.
  *
- * Deterministic on `${vocabId}:${reviewCount}` (see deterministicPick.ts),
- * mirroring computeBlankPlan's example selection: the same turn always picks the
- * same sentence, but successive reviews (reviewCount increasing) cycle through
- * the word's other available sentences instead of re-rolling on every render.
+ * Among usable sentences, the shared ranker (sentenceRanking.ts) picks the one
+ * built most from words the learner is currently learning, the same rule the
+ * grammar review uses. The word being tested is left out of the scoring, since
+ * every candidate contains it. The pick is seeded on the vocab id alone, so the
+ * same sentence keeps coming back until its surrounding words mature.
  *
  * Returns null when no sentence has a usable match - the caller reads that as
  * "fall back to the gloss-prompt card" (VocabProductionQuizCard). Coverage is
@@ -35,13 +37,11 @@ export interface ProductionCloze {
 export function pickProductionClozeSentence(
     vocabId: string,
     sentences: Sentence[],
-    reviewCount: number
+    learner: LearnerVocab
 ): ProductionCloze | null {
     const usable = sentences.filter(s => (s.matches?.[vocabId]?.length ?? 0) > 0);
-    if (usable.length === 0) return null;
-
-    const index = hashString(`${vocabId}:${reviewCount}`) % usable.length;
-    const sentence = usable[index];
+    const sentence = pickSentenceForVocab(vocabId, usable, learner);
+    if (!sentence) return null;
     const match = sentence.matches![vocabId][0];
 
     return { sentence, blankStart: match.start, blankLength: match.length };
