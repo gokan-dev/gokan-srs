@@ -166,10 +166,16 @@ export const CONSTANTS = {
             },
 
             mastery: {
-                // Target memory strength for ~1 year interval (100% mastery visually)
-                // t = S * 0.28768  => S = t / 0.28768
-                // For 365 days: 365 / 0.28768 ≈ 1269
-                maxMemoryStrength: 1270,
+                // Memory strength at which an entry is mastered and retired (the
+                // ring's second loop full). t = S * 0.28768 => S = t / 0.28768.
+                // For 180 days: 180 / 0.28768 ≈ 626. 180 days is the longest
+                // retention horizon the research notes recommend designing for
+                // (docs/srs-meta-analysis-summary.txt: 30 / 90 / 180 days). It was
+                // 1270 (~1 year), which the research does not support and which,
+                // at the formula's per-review growth, took years of reviews beyond
+                // the first loop. Lowering it changes the exchange rate of points
+                // toward mastery only: one point is still one ring unit.
+                maxMemoryStrength: 626,
                 // Soft cap for visual mastery loop 1 (User Mastery)
                 // For ~60 days: 60 / 0.28768 ≈ 208
                 visualSoftCap: 208

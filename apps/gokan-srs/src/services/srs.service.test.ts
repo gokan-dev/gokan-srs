@@ -752,7 +752,7 @@ describe('SRSService Formula Tests', () => {
         });
 
         it('should NOT graduate until BOTH are mastered', () => {
-            const MAX = 1270;
+            const MAX = CONSTANTS.srs.formula.mastery.maxMemoryStrength;
             const vocab = createDualVocab(MAX + 10, 1.0); // Reading Mastered, Meaning Weak
 
             // Update Meaning (still weak)

@@ -467,7 +467,7 @@ The vocab cards (`pickSentenceForVocab`) exclude the tested word from the scorin
 - `expectedLatency`: 1500ms
 - `minInterval`: 0.2 days (~5 hours)
 - `maxInterval`: 3650 days (10 years)
-- `maxMemoryStrength`: 1270 (≈1 year interval = mastery)
+- `maxMemoryStrength`: 626 (≈180-day interval = mastery, the longest retention horizon the research notes recommend; was 1270, ≈1 year, which the research does not support. Lowering it only changes how many points mastery takes: one point is still one ring unit. A word already past 626 graduates on its next correct answer, and words stored at 1270 by "skip" stay mastered)
 - `resultFactors`: correct +0.25, minor_error +0.10, wrong -0.40, pass -0.15
 
 ### Vocabulary Service (`vocabulary.service.ts`)
@@ -593,7 +593,7 @@ Previously both were the same constant, so the cheap synchronous pass could stam
 **Conversion Formula:**
 - `memoryStrength = (mastery / 100) * maxMemoryStrength`
 - mastery 0 → memoryStrength 0 (beginner)
-- mastery 100 → memoryStrength 1270 (≈1 year interval, mastered)
+- mastery 100 → memoryStrength `maxMemoryStrength` (mastered)
 
 ---
 

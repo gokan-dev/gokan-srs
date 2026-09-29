@@ -1531,7 +1531,7 @@ describe('computeGrammarChapterProgress', () => {
         id: 'c01', title: 'C1', summary: '', jlptLevel: 5,
         points: ['n5-a', 'n5-b', 'n5-c'],
     };
-    const MASTERED_STRENGTH = 1270; // CONSTANTS.srs.formula.maxMemoryStrength
+    const MASTERED_STRENGTH = CONSTANTS.srs.formula.mastery.maxMemoryStrength;
 
     it('counts every point as untouched when the queue is empty', () => {
         expect(computeGrammarChapterProgress(chapter, [])).toEqual({ mastered: 0, learning: 0, total: 3 });
