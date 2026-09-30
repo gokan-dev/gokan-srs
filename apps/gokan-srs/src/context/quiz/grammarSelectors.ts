@@ -996,3 +996,70 @@ export function computeGrammarChapterProgress(
 
     return { mastered, learning, total: chapter.points.length };
 }
+
+/**
+ * Status for the Main hub's grammar chapter line + progress bar (issue #87):
+ * the CURRENT chapter (has at least one introduced point), the NEXT one
+ * (none introduced yet), or COMPLETE (nothing left to introduce, counted
+ * over the whole curriculum). Always derived from the teaching order and the
+ * queue - it replaced an earlier version gated on `preview.new > 0`, which
+ * only ever counts points queued-but-never-reviewed and hit zero the moment
+ * a learner reviewed every introduced point at least once (the ordinary
+ * state BETWEEN chapters), hiding the chapter line and bar even though a
+ * chapter was genuinely in progress or a next one was waiting.
+ */
+export type HubChapterStatus =
+    | { status: 'current'; chapterNumber: number; chapterTitle: string; counts: GrammarChapterProgressCounts }
+    | { status: 'next'; chapterNumber: number; chapterTitle: string; counts: GrammarChapterProgressCounts }
+    | { status: 'complete'; totalChapters: number; counts: GrammarChapterProgressCounts };
+
+/**
+ * Derives the hub's chapter status from `GrammarSRSService.getCurrentChapter()`'s
+ * result and the queue - pure and testable independent of the async chapter
+ * lookup itself. `chapters` is the full teaching order's chapter list (used
+ * only for `chapterNumber`, its 1-based position among all chapters - the
+ * same numbering `GrammarDetailScreen`'s locator uses - and, for the
+ * `'complete'` case, to build a synthetic whole-curriculum chapter via
+ * `computeGrammarChapterProgress`).
+ *
+ * `currentChapter === null` means the curriculum is fully introduced (see
+ * `getCurrentChapter`'s own doc comment) - it means the SAME thing when the
+ * teaching order failed to load, which this function cannot tell apart on
+ * its own. The caller is responsible for that distinction: only call this
+ * once `GrammarService.loadTeachingOrder()` itself succeeded, and render
+ * nothing otherwise (mirroring the pre-existing fallback behaviour).
+ *
+ * `current` vs `next` is read off `counts` rather than re-scanning the queue:
+ * `computeGrammarChapterProgress` already counts a chapter's introduced
+ * points as mastered/learning, so "at least one introduced" is exactly
+ * `mastered + learning > 0`.
+ */
+export function describeHubChapter(
+    chapters: GrammarChapter[],
+    currentChapter: GrammarChapter | null,
+    grammarQueue: GrammarProgress[]
+): HubChapterStatus {
+    if (!currentChapter) {
+        const wholeCurriculum: GrammarChapter = {
+            id: '__hub-complete__',
+            title: '',
+            summary: '',
+            jlptLevel: 0,
+            points: chapters.flatMap(c => c.points),
+        };
+        return {
+            status: 'complete',
+            totalChapters: chapters.length,
+            counts: computeGrammarChapterProgress(wholeCurriculum, grammarQueue),
+        };
+    }
+
+    const counts = computeGrammarChapterProgress(currentChapter, grammarQueue);
+
+    return {
+        status: counts.mastered + counts.learning > 0 ? 'current' : 'next',
+        chapterNumber: chapters.indexOf(currentChapter) + 1,
+        chapterTitle: currentChapter.title,
+        counts,
+    };
+}

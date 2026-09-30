@@ -11,6 +11,7 @@ import {
     selectChapterEndFocusIds,
     selectNewlyCompletedChapterIds,
     computeGrammarChapterProgress,
+    describeHubChapter,
 } from './grammarSelectors';
 import type { QuizState } from './quizReducer';
 import type { UserProgress } from '../../models/user.model';
@@ -1671,5 +1672,94 @@ describe('computeGrammarChapterProgress', () => {
     it('total always reflects the chapter\'s own point count regardless of queue contents', () => {
         const emptyChapter: GrammarChapter = { id: 'c02', title: 'C2', summary: '', jlptLevel: 5, points: [] };
         expect(computeGrammarChapterProgress(emptyChapter, [])).toEqual({ mastered: 0, learning: 0, total: 0 });
+    });
+});
+
+describe('describeHubChapter', () => {
+    const MASTERED_STRENGTH = CONSTANTS.srs.formula.mastery.maxMemoryStrength;
+
+    const chapter1: GrammarChapter = {
+        id: 'c01', title: 'Basic particles', summary: '', jlptLevel: 5,
+        points: ['n5-a', 'n5-b'],
+    };
+    const chapter2: GrammarChapter = {
+        id: 'c02', title: 'Te-form', summary: '', jlptLevel: 5,
+        points: ['n5-c', 'n5-d'],
+    };
+    const chapters = [chapter1, chapter2];
+
+    it('a chapter with an introduced point is "current", with its 1-based number', () => {
+        const queue = [makeGrammarProgress({ grammarId: 'n5-a', introductionAt: now })];
+        const result = describeHubChapter(chapters, chapter1, queue);
+        expect(result.status).toBe('current');
+        if (result.status !== 'current') throw new Error('expected current');
+        expect(result.chapterNumber).toBe(1);
+        expect(result.chapterTitle).toBe('Basic particles');
+        expect(result.counts).toEqual({ mastered: 0, learning: 1, total: 2 });
+    });
+
+    it('a chapter with no introduced point is "next"', () => {
+        const result = describeHubChapter(chapters, chapter2, []);
+        expect(result.status).toBe('next');
+        if (result.status !== 'next') throw new Error('expected next');
+        expect(result.chapterNumber).toBe(2);
+        expect(result.chapterTitle).toBe('Te-form');
+        expect(result.counts).toEqual({ mastered: 0, learning: 0, total: 2 });
+    });
+
+    it('a queued-but-not-yet-introduced point does not make a chapter "current"', () => {
+        const queue = [makeGrammarProgress({ grammarId: 'n5-c', introductionAt: null })];
+        const result = describeHubChapter(chapters, chapter2, queue);
+        expect(result.status).toBe('next');
+    });
+
+    it('currentChapter === null with a loaded order gives "complete", with counts over every point of the order', () => {
+        const queue = [
+            makeGrammarProgress({
+                grammarId: 'n5-a',
+                introductionAt: now,
+                entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, memoryStrength: MASTERED_STRENGTH },
+            }),
+            makeGrammarProgress({ grammarId: 'n5-b', introductionAt: now }),
+            makeGrammarProgress({ grammarId: 'n5-c', introductionAt: now }),
+            // n5-d never queued -> untouched
+        ];
+        const result = describeHubChapter(chapters, null, queue);
+        expect(result.status).toBe('complete');
+        if (result.status !== 'complete') throw new Error('expected complete');
+        expect(result.totalChapters).toBe(2);
+        expect(result.counts).toEqual({ mastered: 1, learning: 2, total: 4 });
+    });
+
+    it('"complete" counts match computeGrammarChapterProgress over the flattened chapters', () => {
+        const queue = [makeGrammarProgress({ grammarId: 'n5-a', introductionAt: now })];
+        const result = describeHubChapter(chapters, null, queue);
+        if (result.status !== 'complete') throw new Error('expected complete');
+        const flattened: GrammarChapter = { id: '__any__', title: '', summary: '', jlptLevel: 0, points: chapters.flatMap(c => c.points) };
+        expect(result.counts).toEqual(computeGrammarChapterProgress(flattened, queue));
+    });
+
+    it('counts for the current/next chapter match computeGrammarChapterProgress for that chapter', () => {
+        const queue = [makeGrammarProgress({ grammarId: 'n5-a', introductionAt: now })];
+        const result = describeHubChapter(chapters, chapter1, queue);
+        if (result.status === 'complete') throw new Error('did not expect complete');
+        expect(result.counts).toEqual(computeGrammarChapterProgress(chapter1, queue));
+    });
+
+    it('does not depend on preview.new: a queue where every introduced point has totalReviews > 0 still yields current/next (the reported bug)', () => {
+        // Every point in chapter1 has been introduced AND reviewed at least
+        // once - preview.new (which only counts totalReviews === 0 points)
+        // would be 0 here, yet the chapter is still genuinely "current".
+        const queue = [
+            makeGrammarProgress({ grammarId: 'n5-a', introductionAt: now, totalReviews: 5 }),
+            makeGrammarProgress({ grammarId: 'n5-b', introductionAt: now, totalReviews: 3 }),
+        ];
+        const current = describeHubChapter(chapters, chapter1, queue);
+        expect(current.status).toBe('current');
+
+        // Same for a chapter not yet begun at all - "next" regardless of any
+        // review counts elsewhere in the queue.
+        const next = describeHubChapter(chapters, chapter2, queue);
+        expect(next.status).toBe('next');
     });
 });

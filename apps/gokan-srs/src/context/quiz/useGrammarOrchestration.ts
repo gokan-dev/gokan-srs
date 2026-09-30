@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch } from 'react';
 import { useLocation } from 'react-router-dom';
-import type { GrammarChapter, GrammarPoint } from '../../models/grammar.model';
+import type { GrammarPoint } from '../../models/grammar.model';
 import { GrammarService } from '../../services/grammar.service';
 import { GrammarSRSService } from '../../services/grammarSrs.service';
 import { clearStaleGrammarNeedsRetry } from '../../services/grammarScheduling';
@@ -19,8 +19,8 @@ import {
     selectGrammarSessionStats,
     selectChapterEndFocusIds,
     selectNewlyCompletedChapterIds,
-    computeGrammarChapterProgress,
-    type GrammarChapterProgressCounts,
+    describeHubChapter,
+    type HubChapterStatus,
     collectActionableGrammarIds,
     computeBlankPlan,
     gradeGrammarAnswers,
@@ -70,29 +70,33 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
         GrammarSRSService.hasMoreLearnableGrammar(state.progress.grammarQueue).then(setHasMoreLearnableGrammar);
     }, [state.progress]);
 
-    // The chapter the next new point would begin, for the Main hub's grammar
-    // card - named alongside the review/new/retry counts so the arrangement is
-    // visible before the learner even starts a session. Always re-derived
-    // (never stored - see GrammarSRSService.getCurrentChapter).
-    const [nextChapterTitle, setNextChapterTitle] = useState<string | null>(null);
-    // Same chapter, plus its own three-way point tally (mastered/learning/
-    // untouched) - issue #58's hub progress bar. A separate field rather than
-    // folded into nextChapterTitle so existing consumers of the title string
-    // are untouched.
-    const [currentChapterProgress, setCurrentChapterProgress] = useState<
-        { chapter: GrammarChapter; counts: GrammarChapterProgressCounts } | null
-    >(null);
+    // The hub's chapter status (current/next/complete) plus its progress bar
+    // counts (issue #87) - shown on the Main hub's grammar card unconditionally,
+    // not gated on preview.new (which only counts queued-but-never-reviewed
+    // points and reads 0 for the ordinary state BETWEEN chapters, once every
+    // introduced point has been reviewed at least once). Always re-derived,
+    // never stored - see GrammarSRSService.getCurrentChapter's own doc comment
+    // for why (the dataset can re-cut chapters at any time). Stays null when
+    // the teaching order itself fails to load, which `describeHubChapter`
+    // cannot distinguish from "curriculum complete" on its own - loadTeachingOrder
+    // is checked here first specifically so that distinction is made once, at
+    // the one place with the information to make it.
+    const [hubChapterStatus, setHubChapterStatus] = useState<HubChapterStatus | null>(null);
 
     useEffect(() => {
         if (!state.progress) return;
         let cancelled = false;
-        GrammarSRSService.getCurrentChapter(state.progress.grammarQueue).then(chapter => {
+        (async () => {
+            const teachingOrder = await GrammarService.loadTeachingOrder();
             if (cancelled) return;
-            setNextChapterTitle(chapter?.title ?? null);
-            setCurrentChapterProgress(
-                chapter ? { chapter, counts: computeGrammarChapterProgress(chapter, state.progress!.grammarQueue) } : null
-            );
-        });
+            if (!teachingOrder) {
+                setHubChapterStatus(null);
+                return;
+            }
+            const currentChapter = await GrammarSRSService.getCurrentChapter(state.progress!.grammarQueue);
+            if (cancelled) return;
+            setHubChapterStatus(describeHubChapter(teachingOrder.chapters, currentChapter, state.progress!.grammarQueue));
+        })();
         return () => { cancelled = true; };
     }, [state.progress]);
 
@@ -503,8 +507,7 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
         grammarComputed,
         nextGrammarSessionPreview,
         grammarSessionStats,
-        nextGrammarChapterTitle: nextChapterTitle,
-        currentGrammarChapterProgress: currentChapterProgress,
+        grammarHubChapter: hubChapterStatus,
         pendingGrammarChapterLesson: pendingChapterLesson,
     };
 }
