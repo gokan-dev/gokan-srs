@@ -3,6 +3,7 @@ import { clearStaleNeedsRetry, getNextVocabToStudy, meaningContextThresholdOf } 
 import { DEFAULT_SRS_ENTRY } from '../models/vocabulary.model';
 import type { VocabProgress } from '../models/vocabulary.model';
 import type { MeaningContextThreshold, UserSettings } from '../models/user.model';
+import { DEFAULT_SETTINGS } from '../models/user.model';
 import { CONSTANTS } from '../commons/constants';
 
 const now = new Date('2026-06-10T00:00:00Z');
@@ -128,6 +129,15 @@ function strengthForMastery(percentage: number): number {
 }
 
 describe('meaningContextThresholdOf', () => {
+    it("keeps an existing user's legacy preset when their settings are loaded over the defaults", () => {
+        // storage.service and googleDriveSync load settings as { ...DEFAULT_SETTINGS, ...stored }:
+        // a default for the new field would override the stored preset.
+        for (const [preset, expected] of [['early', 30], ['normal', 50], ['late', 70]] as const) {
+            const stored = { meaningContextThreshold: preset };
+            expect(meaningContextThresholdOf({ ...DEFAULT_SETTINGS, ...stored })).toBe(expected);
+        }
+    });
+
     it('prefers meaningContextThresholdPoints over the legacy enum when both are set', () => {
         const settings = makeSettings({ meaningContextThresholdPoints: 80, meaningContextThreshold: 'early' });
         expect(meaningContextThresholdOf(settings)).toBe(80);

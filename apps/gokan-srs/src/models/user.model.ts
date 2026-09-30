@@ -159,7 +159,11 @@ export const DEFAULT_SETTINGS: UserSettings = {
     enableGeminiContext: false,
     alwaysUseAiForMeaningContext: true,
     meaningContextThreshold: 'normal',
-    meaningContextThresholdPoints: 50,
+    // meaningContextThresholdPoints is deliberately NOT defaulted here. Stored
+    // and Drive settings load as { ...DEFAULT_SETTINGS, ...stored }, so a default
+    // would give every existing user points = 50, which wins over their legacy
+    // preset (early 30 / late 70) and silently moves it. Unset, it falls back to
+    // that preset, then to 50 (meaningContextThresholdOf).
     ignoreKnownKanjiRequirement: false,
     kanjiCountStep: 10,
 };
