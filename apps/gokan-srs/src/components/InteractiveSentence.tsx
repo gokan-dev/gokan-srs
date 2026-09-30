@@ -60,7 +60,7 @@ export function InteractiveSentence({
                 const isClickable = onVocabClick && (!segment.isTarget || allowTargetClickable);
 
                 const rawReading = showFurigana ? segment.reading : null;
-                const isKanaOnly = /^[぀-ゟ゠-ヿ]+$/.test(segment.content);
+                const isKanaOnly = /^[\u3040-\u309F\u30A0-\u30FF]+$/.test(segment.content);
                 const reading = rawReading && rawReading !== segment.content && !isKanaOnly ? rawReading : null;
 
                 const renderContent = () => {
