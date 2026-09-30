@@ -594,13 +594,15 @@ describe('computeBlankPlan - mined sentence productivity selection (issue #73)',
     });
 
     it('the most-productive sentence (highest target count) is the one chosen', async () => {
+        // Same length (and so the same length band), 0 unknowns either way: the
+        // target count is what decides between them.
         const oneTarget = makeMinedExample({
             jp: 'ONE_TARGET',
             words: [{ surface: 'これ', vocabId: 'v-a' }],
             patternWordIndices: [],
         });
         const twoTargets = makeMinedExample({
-            jp: 'TWO_TARGETS',
+            jp: 'TWO_TARGET',
             words: [{ surface: 'これ', vocabId: 'v-a' }, { surface: 'それ', vocabId: 'v-b' }],
             patternWordIndices: [],
         });
@@ -614,7 +616,7 @@ describe('computeBlankPlan - mined sentence productivity selection (issue #73)',
         });
 
         const plan = (await computeBlankPlan(point, progress, 1))!;
-        expect(plan.example?.jp).toBe('TWO_TARGETS');
+        expect(plan.example?.jp).toBe('TWO_TARGET');
     });
 
     it('keeps the same sentence across reviews while the learner state is unchanged, even on an exact tie', async () => {
@@ -675,6 +677,106 @@ describe('computeBlankPlan - mined sentence productivity selection (issue #73)',
 
         const plan = (await computeBlankPlan(point, progress, 1))!;
         expect(plan.example).toEqual(point.examples[0]);
+    });
+});
+
+describe('computeBlankPlan - curated examples compete with the mined pool (issue #85)', () => {
+    function makePatternExample(overrides: Partial<GrammarExample> = {}): GrammarExample {
+        return {
+            jp: 'SHORT',
+            romaji: '',
+            en: 'short',
+            patternWordIndices: [1],
+            words: [
+                { surface: 'A', vocabId: 'v-a' },
+                { surface: 'B', vocabId: null },
+            ],
+            ...overrides,
+        };
+    }
+
+    afterEach(() => { vi.restoreAllMocks(); });
+
+    it('a clean short curated example beats a longer mined one with the same unknown weight', async () => {
+        const curated = makePatternExample({ jp: 'SHORT' }); // length 5, band 1
+        const mined = makePatternExample({ jp: 'A_MUCH_LONGER_MINED_SENTENCE' }); // length 28, band 3
+        vi.spyOn(GrammarService, 'loadMinedExamples').mockResolvedValue([mined]);
+
+        const point = makeGrammarPoint({ examples: [curated] });
+        const progress = makeProgress({
+            learningQueue: [makeVocabProgress({ vocabId: 'v-a', introductionAt: past })],
+        });
+
+        const plan = (await computeBlankPlan(point, progress, 1))!;
+        expect(plan.example).toEqual(curated);
+    });
+
+    it('a mined one still wins when it is the most comprehensible', async () => {
+        // The curated example carries a genuinely unknown resolved word (v-unknown);
+        // the mined one is clean. Unknown weight decides regardless of source.
+        const curated = makePatternExample({
+            jp: 'CURATED',
+            words: [
+                { surface: 'A', vocabId: 'v-a' },
+                { surface: 'C', vocabId: 'v-unknown' },
+                { surface: 'B', vocabId: null },
+            ],
+            patternWordIndices: [2],
+        });
+        const mined = makePatternExample({ jp: 'MINED' });
+        vi.spyOn(GrammarService, 'loadMinedExamples').mockResolvedValue([mined]);
+
+        const point = makeGrammarPoint({ examples: [curated] });
+        const progress = makeProgress({
+            learningQueue: [makeVocabProgress({ vocabId: 'v-a', introductionAt: past })],
+        });
+
+        const plan = (await computeBlankPlan(point, progress, 1))!;
+        expect(plan.example).toEqual(mined);
+    });
+
+    it('with no target anywhere in either source, falls back to the existing curated passes', async () => {
+        // v-mastered is introduced but production-mastered - it counts as
+        // 'context', never as a target - so neither source has a single
+        // eligible candidate and selectProductivePlan must return null.
+        const curated = makePatternExample({
+            jp: 'CURATED',
+            words: [
+                { surface: 'A', vocabId: 'v-mastered' },
+                { surface: 'B', vocabId: null },
+            ],
+            patternWordIndices: [1],
+        });
+        const mined = makePatternExample({
+            jp: 'MINED',
+            words: [{ surface: 'B', vocabId: null }],
+            patternWordIndices: [0],
+        });
+        vi.spyOn(GrammarService, 'loadMinedExamples').mockResolvedValue([mined]);
+
+        const point = makeGrammarPoint({ examples: [curated] });
+        const progress = makeProgress({
+            learningQueue: [makeVocabProgress({
+                vocabId: 'v-mastered',
+                introductionAt: past,
+                production: {
+                    memoryStrength: CONSTANTS.srs.formula.mastery.maxMemoryStrength,
+                    interval: 300,
+                    difficulty: 0.3,
+                    lastReviewedAt: past,
+                    dueDate: future,
+                    history: [],
+                },
+            })],
+        });
+
+        const plan = (await computeBlankPlan(point, progress, 1))!;
+        // computeBlankPlanFor's Pass 1 blanks the pattern unconditionally, plus
+        // v-mastered as secondary reinforcement since it's KNOWN (introduced) -
+        // that pass only checks introductionAt, not production mastery.
+        expect(plan.example).toEqual(curated);
+        expect(plan.blankWordIndices).toEqual([0, 1]);
+        expect(plan.isPatternBlank).toEqual([false, true]);
     });
 });
 

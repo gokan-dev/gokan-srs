@@ -9,7 +9,7 @@ import type { VocabProgress } from '../../models/vocabulary.model';
 import { calculateMasteryPercentage } from '../../utils/srs.utils';
 import { GrammarService } from '../../services/grammar.service';
 import { hashString, pickStable } from '../../utils/deterministicPick';
-import { indexLearnerVocab, pickMostProductive, scoreSentence, wordRole } from '../../utils/sentenceRanking';
+import { indexLearnerVocab, pickMostProductive, scoreGrammarExample, wordRole } from '../../utils/sentenceRanking';
 import { computeSessionState } from './sessionState';
 import { computeSessionStats, computeSessionPreview } from './sessionStats';
 import type { QuizState } from './quizReducer';
@@ -438,41 +438,47 @@ async function applyFamilyInterchange(point: GrammarPoint): Promise<{ sameRegist
 }
 
 /**
- * Productivity-selected sentence for a REVIEW turn (issue #73's app half):
- * picks whichever corpus-mined example best exercises the vocabulary the
- * learner is currently trying to PRODUCE, instead of always drawing from the
- * point's 3-5 curated examples. The intro card and the very first review
- * (reviewCount === 0, gated by the caller) stay on curated examples - they are
- * hand-picked and clean, which matters most for a first encounter.
+ * Productivity-selected sentence for a REVIEW turn (issue #73's app half,
+ * extended in issue #85 to let curated examples compete on equal terms):
+ * ranks the point's curated examples that already have a located pattern
+ * together with its corpus-mined pool, and picks whichever is most
+ * comprehensible - fewest/lightest unknown words, then shortest, then most
+ * productive - rather than a mined sentence always winning outright whenever
+ * one qualifies. The intro card and the very first review (reviewCount === 0,
+ * gated by the caller) stay on curated examples only - they are hand-picked
+ * and clean, which matters most for a first encounter.
  *
  * The sentence is chosen by the shared ranker (utils/sentenceRanking.ts), the
- * same rule the vocab cards use: most target words (known, production ring
- * below the ceiling) net of a readability penalty per unknown word, then the
- * highest summed production ring, then a stable per-sentence hash. The ranking
- * is deterministic and seeded on the point id alone, so the same sentence keeps
+ * same rule the vocab cards use: unknown weight, then length band, then most
+ * target words (known, production ring below the ceiling), then the highest
+ * summed production ring, then a stable per-sentence hash. The ranking is
+ * deterministic and seeded on the point id alone, so the same sentence keeps
  * coming back until its words mature, which is the point: familiarity with a
  * sentence is shared with the vocab cards drawing from the same corpus.
  *
- * Pattern-marker words are excluded from the vocab scoring (they are blanked
+ * A curated example with no located pattern is not a candidate here at all -
+ * it cannot be blanked on the pattern, and the caller's fallback chain
+ * (computeBlankPlanFor) already knows how to handle that case. Pattern-marker
+ * words are excluded from the vocab scoring on both sources (they are blanked
  * regardless, as the grammar under test). Only sentences with at least one
  * target are eligible: a sentence that only drills mature vocab has nothing to
- * offer over a curated one. Returns null - the caller falls back to curated
- * `point.examples` via computeBlankPlanFor - when there is no mined pool for
- * this point at all, or when no mined sentence has a target.
+ * offer over any other. Returns null - the caller falls back to
+ * `computeBlankPlanFor`'s own curated passes - when neither source has a
+ * candidate with a target at all.
  */
-async function selectMinedPlan(
+async function selectProductivePlan(
     point: GrammarPoint,
     progress: UserProgress | null
 ): Promise<GrammarBlankPlan | null> {
     const mined = await GrammarService.loadMinedExamples(point.id);
-    if (!mined || mined.length === 0) return null;
-
     const learner = indexLearnerVocab(progress?.learningQueue);
-    const candidates = mined.map(example => {
-        const vocabIds = example.words
-            .filter((word, i) => word.vocabId && !example.patternWordIndices.includes(i))
-            .map(word => word.vocabId!);
-        const score = scoreSentence(vocabIds, learner);
+
+    const curatedCandidates = point.examples.filter(e => e.patternWordIndices.length > 0);
+    const candidateExamples = [...curatedCandidates, ...(mined ?? [])];
+    if (candidateExamples.length === 0) return null;
+
+    const candidates = candidateExamples.map(example => {
+        const score = scoreGrammarExample(example, learner);
         const targets = example.words.flatMap((word, i) =>
             word.vocabId && !example.patternWordIndices.includes(i) && wordRole(word.vocabId, learner) === 'target' ? [i] : []);
         return { example, score, targets };
@@ -492,8 +498,14 @@ async function selectMinedPlan(
 
     const { acceptLists, acceptListsMinor, glosses } = await buildBlankData(chosen.example, blankWordSpans);
 
+    // The chosen example may come from either source - report whichever index
+    // is meaningful. `example` is what every consumer actually reads (see
+    // GrammarBlankPlan.example's doc comment), so exampleIndex here is
+    // informational only.
+    const curatedIndex = point.examples.indexOf(chosen.example);
+
     return {
-        exampleIndex: mined.indexOf(chosen.example),
+        exampleIndex: curatedIndex !== -1 ? curatedIndex : (mined?.indexOf(chosen.example) ?? -1),
         example: chosen.example,
         blankWordIndices,
         blankWordSpans,
@@ -521,9 +533,9 @@ export async function computeBlankPlan(point: GrammarPoint, progress: UserProgre
     if (effectivePoint.examples.length === 0) return null;
 
     // Reviews only (reviewCount >= 1): the intro card and the first review stay
-    // on curated examples. See selectMinedPlan's doc comment for the full rule.
-    const minedPlan = reviewCount >= 1 ? await selectMinedPlan(effectivePoint, progress) : null;
-    const base = minedPlan ?? await computeBlankPlanFor(effectivePoint, progress, reviewCount);
+    // on curated examples. See selectProductivePlan's doc comment for the full rule.
+    const productivePlan = reviewCount >= 1 ? await selectProductivePlan(effectivePoint, progress) : null;
+    const base = productivePlan ?? await computeBlankPlanFor(effectivePoint, progress, reviewCount);
     if (!base) return null;
 
     // Two independent sources widen the PATTERN blanks: the variant-group rotation
