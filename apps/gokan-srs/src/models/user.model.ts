@@ -116,8 +116,22 @@ export interface UserSettings {
     geminiApiKey?: string;
     enableGeminiContext?: boolean;
     alwaysUseAiForMeaningContext?: boolean;
-    /** Mastery threshold at which meaning quizzes switch to sentence/context mode */
+    /**
+     * @deprecated Superseded by `meaningContextThresholdPoints`. Kept, untouched,
+     * so a tab on an older build (or a Drive-synced settings payload written by
+     * one) still has a value to fall back to - see
+     * `srs.utils.ts`'s `meaningContextThresholdOf`.
+     */
     meaningContextThreshold?: MeaningContextThreshold;
+    /**
+     * The meaning-ring value (0-200, in steps of 10) at which meaning quizzes
+     * switch from the bare word to sentence/context mode. 0 = context from the
+     * first meaning review on; 200 = only once the word is mastered (mastered
+     * words are retired, so effectively never). Resolved via
+     * `meaningContextThresholdOf`, which falls back to the legacy
+     * `meaningContextThreshold` enum, then 50, when unset.
+     */
+    meaningContextThresholdPoints?: number;
     /**
      * When true, drops the "all contained kanji must already be known" filter for
      * the `frequency`/`kanji_coverage`/`jlpt` orders. `jlpt` is kanji-filtered by
@@ -145,6 +159,11 @@ export const DEFAULT_SETTINGS: UserSettings = {
     enableGeminiContext: false,
     alwaysUseAiForMeaningContext: true,
     meaningContextThreshold: 'normal',
+    // meaningContextThresholdPoints is deliberately NOT defaulted here. Stored
+    // and Drive settings load as { ...DEFAULT_SETTINGS, ...stored }, so a default
+    // would give every existing user points = 50, which wins over their legacy
+    // preset (early 30 / late 70) and silently moves it. Unset, it falls back to
+    // that preset, then to 50 (meaningContextThresholdOf).
     ignoreKnownKanjiRequirement: false,
     kanjiCountStep: 10,
 };

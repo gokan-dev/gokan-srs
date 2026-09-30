@@ -1,7 +1,9 @@
 import { Sparkles } from "lucide-react";
 import { OptionGrid } from "../../../components/OptionGrid";
 import { SettingToggle } from "../../../components/ui/SettingToggle";
-import type { MeaningContextThreshold, UserSettings } from "../../../models/user.model";
+import { SettingSlider } from "../../../components/ui/SettingSlider";
+import { meaningContextThresholdOf } from "../../../utils/srs.utils";
+import type { UserSettings } from "../../../models/user.model";
 
 interface VocabQuizSettingsProps {
     settings: UserSettings;
@@ -110,31 +112,28 @@ export function VocabQuizSettings({ settings, onUpdateSettings, dense = false }:
                 onChange={(checked) => update({ enableProductionQuiz: checked })}
             />
 
-            {settings.enableMeaningQuiz !== false && (
-                <OptionGrid
-                    title="Train meaning in context"
-                    dense={dense}
-                    value={settings.meaningContextThreshold ?? 'normal'}
-                    onChange={(value) => update({ meaningContextThreshold: value as MeaningContextThreshold })}
-                    options={[
-                        {
-                            value: 'early',
-                            label: 'Early',
-                            description: 'Switch at 30% mastery',
-                        },
-                        {
-                            value: 'normal',
-                            label: 'Normal (Default)',
-                            description: 'Switch at 50% mastery',
-                        },
-                        {
-                            value: 'late',
-                            label: 'Late',
-                            description: 'Switch at 70% mastery',
-                        },
-                    ]}
-                />
-            )}
+            {settings.enableMeaningQuiz !== false && (() => {
+                const threshold = meaningContextThresholdOf(settings);
+                const valueText = threshold === 0
+                    ? 'From the first review'
+                    : threshold === 200
+                        ? 'Never'
+                        : `From ${threshold} on the meaning ring`;
+                return (
+                    <SettingSlider
+                        dense={dense}
+                        label="Train meaning in context"
+                        description="Meaning quizzes switch to example sentences once the word's meaning ring reaches this value. 100 fills the first loop; 200 means only mastered words, so never."
+                        min={0}
+                        max={200}
+                        step={10}
+                        value={threshold}
+                        valueText={valueText}
+                        ariaValueText={valueText}
+                        onChange={(value) => update({ meaningContextThresholdPoints: value })}
+                    />
+                );
+            })()}
         </div>
     );
 }
