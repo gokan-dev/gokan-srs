@@ -1,5 +1,6 @@
 import type { Sentence } from "../models/sentence.model";
 import { WordGlossTooltip } from "./WordGlossTooltip";
+import { segmentInteractiveSentence, type HighlightRange } from "../utils/interactiveSentence.utils";
 
 interface InteractiveSentenceProps {
     sentence: Sentence;
@@ -15,6 +16,15 @@ interface InteractiveSentenceProps {
      * definition and the card would only repeat it.
      */
     showGlossOnHover?: boolean;
+    /**
+     * Character-offset ranges into `sentence.original` to render with the same
+     * target styling as `targetVocabId` (accent, bold, underline) - e.g. a
+     * grammar point's pattern markers (`patternHighlightRanges`), which are
+     * often not a vocab word at all (から, のに). A range overlapping a vocab
+     * match flags that match's whole segment rather than splitting it, so its
+     * click/gloss behaviour stays intact.
+     */
+    highlightRanges?: HighlightRange[];
 }
 
 export function InteractiveSentence({
@@ -24,93 +34,32 @@ export function InteractiveSentence({
     className = "",
     showFurigana = false,
     allowTargetClickable = false,
-    showGlossOnHover = true
+    showGlossOnHover = true,
+    highlightRanges
 }: InteractiveSentenceProps) {
-    const text = sentence.original;
-    const matches = sentence.matches || {};
+    const segments = segmentInteractiveSentence(sentence, { targetVocabId, highlightRanges });
 
-    // 1. Flatten matches into a list of segments
-    // We need to handle potential overlaps, though our builder tries to avoid them.
-    // If overlaps exist, we prioritize the one that starts earlier, or is longer.
-    // For simplicity and speed, let's assume non-overlapping or just take valid ones.
-
-    interface Segment {
-        type: 'text' | 'match';
-        content: string;
-        vocabId?: string;
-        start: number;
-        end: number;
-        reading?: string;
-    }
-
-    const flatMatches: { vocabId: string, start: number, length: number, reading?: string }[] = [];
-    for (const vocabId in matches) {
-        const matchArray = matches[vocabId];
-        if (Array.isArray(matchArray)) {
-            for (const m of matchArray) {
-                flatMatches.push({ vocabId, ...m });
-            }
-        } else if (matchArray) {
-            // Fallback for old data format
-            flatMatches.push({ vocabId, ...(matchArray as any) });
-        }
-    }
-
-    flatMatches.sort((a, b) => a.start - b.start);
-
-    const segments: Segment[] = [];
-    let currentIndex = 0;
-
-    for (const match of flatMatches) {
-        // Skip if this match starts before current index (overlap handling: strict skip)
-        if (match.start < currentIndex) continue;
-
-        // Add pre-match text
-        if (match.start > currentIndex) {
-            segments.push({
-                type: 'text',
-                content: text.substring(currentIndex, match.start),
-                start: currentIndex,
-                end: match.start
-            });
-        }
-
-        // Add match
-        const end = match.start + match.length;
-        segments.push({
-            type: 'match',
-            content: text.substring(match.start, end),
-            vocabId: match.vocabId,
-            start: match.start,
-            end: end,
-            reading: match.reading
-        });
-
-        currentIndex = end;
-    }
-
-    // Add remaining text
-    if (currentIndex < text.length) {
-        segments.push({
-            type: 'text',
-            content: text.substring(currentIndex),
-            start: currentIndex,
-            end: text.length
-        });
-    }
-
-    // 2. Render
     return (
         <span className={`font-mincho leading-loose md:leading-relaxed break-words ${className}`}>
             {segments.map((segment, i) => {
+                // The target class (accent, bold, underline) applies whether the
+                // segment is the studied vocab word (isTarget) or falls inside a
+                // highlighted range (e.g. a grammar pattern marker) - the two are
+                // rendered identically, per issue #89.
+                const emphasized = segment.isTarget || segment.isHighlighted;
+
                 if (segment.type === 'text') {
-                    return <span key={i}>{segment.content}</span>;
+                    if (!emphasized) return <span key={i}>{segment.content}</span>;
+                    return (
+                        <span key={i} className="text-accent font-bold border-b-2 border-accent/30 mx-0.5 px-0.5">
+                            {segment.content}
+                        </span>
+                    );
                 }
 
-                const isTarget = segment.vocabId === targetVocabId;
-                const isClickable = onVocabClick && (!isTarget || allowTargetClickable);
+                const isClickable = onVocabClick && (!segment.isTarget || allowTargetClickable);
 
-                const rawReading = showFurigana && segment.type === 'match' ? segment.reading : null;
+                const rawReading = showFurigana ? segment.reading : null;
                 const isKanaOnly = /^[\u3040-\u309F\u30A0-\u30FF]+$/.test(segment.content);
                 const reading = rawReading && rawReading !== segment.content && !isKanaOnly ? rawReading : null;
 
@@ -129,15 +78,13 @@ export function InteractiveSentence({
                 // The word being studied is excluded from the gloss card - the
                 // surrounding card already shows its meaning, so the tooltip
                 // would only restate it.
-                const glossed = showGlossOnHover && !isTarget;
+                const glossed = showGlossOnHover && !segment.isTarget;
 
-                const className = isTarget
-                    ? `text-accent font-bold border-b-2 border-accent/30 mx-0.5 px-0.5 ${isClickable ? 'cursor-pointer hover:border-accent transition-colors' : ''}`
-                    : isClickable
-                        ? "cursor-pointer text-primary border-b border-dashed border-tertiary/50 hover:text-accent hover:border-accent transition-colors mx-0.5"
-                        : "";
+                const targetClass = `text-accent font-bold border-b-2 border-accent/30 mx-0.5 px-0.5 ${isClickable ? 'cursor-pointer hover:border-accent transition-colors' : ''}`;
+                const clickableClass = "cursor-pointer text-primary border-b border-dashed border-tertiary/50 hover:text-accent hover:border-accent transition-colors mx-0.5";
+                const matchClassName = emphasized ? targetClass : isClickable ? clickableClass : "";
 
-                if (!isClickable && !glossed) return <span key={i}>{renderContent()}</span>;
+                if (!isClickable && !glossed && !emphasized) return <span key={i}>{renderContent()}</span>;
 
                 const handleClick = isClickable
                     ? (e: React.MouseEvent) => {
@@ -148,7 +95,7 @@ export function InteractiveSentence({
 
                 if (!glossed) {
                     return (
-                        <span key={i} onClick={handleClick} className={className} title="Click to view details">
+                        <span key={i} onClick={handleClick} className={matchClassName} title={isClickable ? "Click to view details" : undefined}>
                             {renderContent()}
                         </span>
                     );
@@ -158,7 +105,7 @@ export function InteractiveSentence({
                     <WordGlossTooltip
                         key={i}
                         vocabId={segment.vocabId!}
-                        className={className}
+                        className={matchClassName}
                         onClick={handleClick}
                         fallbackTitle={isClickable ? "Click to view details" : undefined}
                     >

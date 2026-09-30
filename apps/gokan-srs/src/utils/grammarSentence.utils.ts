@@ -1,5 +1,6 @@
 import type { GrammarExample } from '../models/grammar.model';
 import type { Sentence } from '../models/sentence.model';
+import type { HighlightRange } from './interactiveSentence.utils';
 
 /**
  * Adapts a GrammarExample's already-resolved `words[]` into the `Sentence`
@@ -33,4 +34,35 @@ export function grammarExampleToSentence(example: GrammarExample, index: number)
         vocabIds: example.words.filter(w => w.vocabId !== null).map(w => w.vocabId as string),
         matches,
     };
+}
+
+/**
+ * Derives `InteractiveSentence`'s `highlightRanges` from a `GrammarExample`'s
+ * `patternWordIndices` - the character offsets of the point's literal
+ * grammar-pattern markers, for highlighting the construction on
+ * `GrammarDetailScreen` (a study page, so there is no answer to leak, unlike
+ * `GrammarQuizCard`'s blanks). Uses the same cumulative-`surface`-length
+ * technique as `grammarExampleToSentence`. Consecutive pattern words (no
+ * other word between them) merge into one range, so a multi-word marker like
+ * が + いちばん highlights as a single contiguous span rather than two
+ * separate ones.
+ */
+export function patternHighlightRanges(example: GrammarExample): HighlightRange[] {
+    const patternIndices = new Set(example.patternWordIndices);
+    const ranges: HighlightRange[] = [];
+    let cursor = 0;
+
+    example.words.forEach((word, i) => {
+        if (patternIndices.has(i)) {
+            const last = ranges[ranges.length - 1];
+            if (last && last.start + last.length === cursor) {
+                last.length += word.surface.length;
+            } else {
+                ranges.push({ start: cursor, length: word.surface.length });
+            }
+        }
+        cursor += word.surface.length;
+    });
+
+    return ranges;
 }

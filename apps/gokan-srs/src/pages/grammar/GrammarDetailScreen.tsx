@@ -15,7 +15,7 @@ import { GrammarRelatedPointsCard } from "./GrammarRelatedPointsCard";
 import { GrammarVariantsCard } from "./GrammarVariantsCard";
 import { GrammarDifferentiator } from "../../components/GrammarDifferentiator";
 import { InteractiveSentence } from "../../components/InteractiveSentence";
-import { grammarExampleToSentence } from "../../utils/grammarSentence.utils";
+import { grammarExampleToSentence, patternHighlightRanges } from "../../utils/grammarSentence.utils";
 import { ArrowLeft } from "lucide-react";
 
 const MINED_INITIAL_COUNT = 5;
@@ -247,6 +247,7 @@ export default function GrammarDetailScreen() {
                                 sentence={grammarExampleToSentence(example, i)}
                                 onVocabClick={(vid) => navigate(`/vocab/${vid}`)}
                                 showFurigana={true}
+                                highlightRanges={patternHighlightRanges(example)}
                             />
                         </div>
                         <div className="text-sm text-tertiary font-gothic mb-1">
@@ -290,6 +291,7 @@ export default function GrammarDetailScreen() {
                                     sentence={grammarExampleToSentence(example, i)}
                                     onVocabClick={(vid) => navigate(`/vocab/${vid}`)}
                                     showFurigana={true}
+                                    highlightRanges={patternHighlightRanges(example)}
                                 />
                             </div>
                             <div className="text-sm text-tertiary font-gothic mb-1">
