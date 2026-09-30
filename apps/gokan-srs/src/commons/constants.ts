@@ -41,18 +41,28 @@ export const CONSTANTS = {
          */
         sentenceSelection: {
             /**
-             * Penalty per UNKNOWN word in a sentence: a shorter, mostly-readable
-             * sentence should beat a long one with the same target payoff.
-             * `primary = targets - readabilityPenalty * unknowns`.
-             */
-            readabilityPenalty: 0.34,
-            /**
              * A known word stops counting as a target once its PRODUCTION ring
              * (MasteryRing's first loop, 0..100) reaches this value: the word is
              * familiar enough to be plain context, so it no longer holds a sentence
              * in place and the sentence is free to rotate.
              */
             targetRingCeiling: 100,
+            /**
+             * Weight of one unresolved KATAKANA word (2+ characters, no vocab id) in
+             * a sentence's unknown-weight tally. A resolved-but-not-introduced word,
+             * or an unresolved word containing kanji, weighs 1 - katakana is lighter
+             * because it can at least be sounded out, and is usually a name or
+             * loanword rather than genuinely unknown vocabulary.
+             */
+            unresolvedKatakanaWeight: 0.5,
+            /**
+             * Sentences are grouped into bands of this many characters
+             * (`Math.ceil(length / lengthBand)`) for the ranker's length key, so a
+             * 14-character sentence does not automatically beat a 15-character one -
+             * only a genuinely shorter band wins, and ties within a band still fall
+             * to the learner's own words (targets, then production ring).
+             */
+            lengthBand: 10,
         },
 
         /**
