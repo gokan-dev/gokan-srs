@@ -159,6 +159,25 @@ export function clearStaleNeedsRetry(
 }
 
 /**
+ * The meaning-ring value (0-200) at which meaning quizzes switch to
+ * sentence/context mode. Prefers the new `meaningContextThresholdPoints`
+ * slider value (clamped to 0-200 and rounded to the nearest multiple of 10,
+ * since Drive-synced settings from a stale tab or a hand-edited payload could
+ * carry an out-of-range or off-step value); falls back to the legacy
+ * `meaningContextThreshold` enum (30/50/70) when unset, then 50.
+ */
+export function meaningContextThresholdOf(settings?: UserSettings): number {
+    if (settings?.meaningContextThresholdPoints !== undefined) {
+        const clamped = Math.min(Math.max(settings.meaningContextThresholdPoints, 0), 200);
+        return Math.round(clamped / 10) * 10;
+    }
+    if (settings?.meaningContextThreshold !== undefined) {
+        return CONSTANTS.srs.meaningContextThresholds[settings.meaningContextThreshold];
+    }
+    return 50;
+}
+
+/**
  * `allowed` is the active session's committed task set (see SessionTracking).
  * When given, only tasks in it are ever served, which is what makes the
  * per-session quiz cap actually bind: without it, capping the committed set
@@ -208,9 +227,7 @@ export function getNextVocabToStudy(
     const pickMeaning = (): QuizItem => {
         const vocab = pickStable(dueMeanings)!;
         const mastery = calculateMasteryPercentage(vocab.meaning.memoryStrength);
-        // Resolve the configured threshold level (default 'normal' = 50%)
-        const thresholdKey = settings?.meaningContextThreshold ?? 'normal';
-        const masteryThreshold = CONSTANTS.srs.meaningContextThresholds[thresholdKey];
+        const masteryThreshold = meaningContextThresholdOf(settings);
         const mode: QuizMode = mastery >= masteryThreshold ? 'context' : 'base';
         return { vocab, quizType: 'meaning', quizMode: mode };
     };
