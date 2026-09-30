@@ -5,6 +5,12 @@
 >
 > This file is referenced from `CLAUDE.md` and `GEMINI.md`. It is not auto-loaded into agent context; read it on demand when you need the history behind a decision.
 
+- **[2026-09-30]**:
+  - **Grammar family coverage: every confusable point now has a family and a usage note.** Reported from real use: だれ and どなた kept getting mixed up with no guidance anywhere, because neither had a family, a usage note or a lesson. Measuring it found half the points (360 of 720) in no family, N5 worst at 38%, so a pass in gokan-dataset reviewed every unlinked point level by level: 123 families now cover 665 points. Three decisions in it a later change could undo:
+    - **A theme keeps the points it lists** (build-curriculum.ts, Tier 2b). Family chapters used to claim themed points, which fragmented the authored N3-N1 themes into 1-2 point chapters once families became broad (151 -> 197 chapters). Do not revert it to "family beats theme" without re-checking the chapter sizes.
+    - **The surviving copy of a duplicate is chosen by its lesson, not only by level.** ばかりか existed at N3 and N2; the N2 copy (n2-137) is kept because its contrast lesson's focus must be met after のみならず (n2-133), which the N3 copy is not.
+    - **CURRENT_FORMAT_VERSION went 11 -> 12**, since aliases and variant groups both gained entries; without the bump, progress on n4-093, n4-008 and the rest would stay stranded on retired ids.
+
 - **[2026-09-29]**:
   - **Mastery ceiling lowered from 1270 (~1 year) to 626 (~180 days).** Reported from a year of real use: the most-reviewed word (37 reviews, an 84.6-day interval) showed 80% of the FIRST loop, and no word was anywhere near mastery. Investigation found the ring is right to be review-proportional (strength grows by about x1.2 per success, and the ring is logarithmic in strength), but the ceiling sat far past anything the research supports: `docs/srs-meta-analysis-summary.txt` recommends designing for 30 / 90 / 180-day retention horizons, and 180 is its upper end. At current growth, 1270 needed ~32 successes from scratch against ~29 for 626, and the ones saved are the last, multi-year intervals.
     - **Only the exchange rate changed.** One knowledge point is still exactly one ring unit (`entryKnowledgePoints` returns `calculateMasteryPercentage` unchanged); mastery now simply takes fewer of them.

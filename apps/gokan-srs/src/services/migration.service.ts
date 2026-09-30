@@ -42,8 +42,11 @@ const MERGED_VOCAB_VERSION = 8;
  *           the curriculum re-cut: variants were NEVER transferred before this,
  *           so a user who met どこにも as six separate cards has been drilling
  *           five orphans against the canonical ever since they were collapsed.
+ * 11 -> 12: the family-coverage pass retired 14 more duplicates (aliases 74 -> 88,
+ *           e.g. n4-093 で onto n5-030, n3-088 ばかりか onto n2-137) and added 5
+ *           realizations (n4-008 / n4-009 / n4-090 plain forms, n1-194, n1-135).
  */
-export const CURRENT_FORMAT_VERSION = 11;
+export const CURRENT_FORMAT_VERSION = 12;
 
 /**
  * Migration service to handle data format upgrades
