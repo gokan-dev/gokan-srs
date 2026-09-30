@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { clearStaleNeedsRetry } from './srs.utils';
+import { clearStaleNeedsRetry, getNextVocabToStudy, meaningContextThresholdOf } from './srs.utils';
 import { DEFAULT_SRS_ENTRY } from '../models/vocabulary.model';
 import type { VocabProgress } from '../models/vocabulary.model';
-import type { UserSettings } from '../models/user.model';
+import type { MeaningContextThreshold, UserSettings } from '../models/user.model';
+import { CONSTANTS } from '../commons/constants';
 
 const now = new Date('2026-06-10T00:00:00Z');
 const past = new Date('2026-06-01T00:00:00Z');
@@ -113,5 +114,79 @@ describe('clearStaleNeedsRetry', () => {
 
     it('handles an empty queue', () => {
         expect(clearStaleNeedsRetry([], makeSettings(), now)).toEqual([]);
+    });
+});
+
+/** Inverse of calculateMasteryLoops/calculateMasteryPercentage - the memoryStrength that yields a given 0-200 mastery percentage exactly. */
+function strengthForMastery(percentage: number): number {
+    const sMin = CONSTANTS.srs.formula.minMemoryStrength;
+    const sSoft = CONSTANTS.srs.formula.mastery.visualSoftCap;
+    const sMax = CONSTANTS.srs.formula.mastery.maxMemoryStrength;
+    if (percentage <= 0) return sMin;
+    if (percentage <= 100) return sMin * Math.pow(sSoft / sMin, percentage / 100);
+    return sSoft * Math.pow(sMax / sSoft, (percentage - 100) / 100);
+}
+
+describe('meaningContextThresholdOf', () => {
+    it('prefers meaningContextThresholdPoints over the legacy enum when both are set', () => {
+        const settings = makeSettings({ meaningContextThresholdPoints: 80, meaningContextThreshold: 'early' });
+        expect(meaningContextThresholdOf(settings)).toBe(80);
+    });
+
+    it.each<[MeaningContextThreshold, number]>([
+        ['early', 30],
+        ['normal', 50],
+        ['late', 70],
+    ])('maps the legacy enum %s to %d when points is unset', (key, expected) => {
+        const settings = makeSettings({ meaningContextThreshold: key });
+        expect(meaningContextThresholdOf(settings)).toBe(expected);
+    });
+
+    it('defaults to 50 when neither field is set', () => {
+        expect(meaningContextThresholdOf(makeSettings())).toBe(50);
+    });
+
+    it('defaults to 50 when settings is undefined', () => {
+        expect(meaningContextThresholdOf(undefined)).toBe(50);
+    });
+
+    it.each([
+        [-5, 0],
+        [999, 200],
+        [44, 40],
+        [45, 50],
+    ])('clamps and rounds %d to the nearest step of 10 (%d)', (input, expected) => {
+        const settings = makeSettings({ meaningContextThresholdPoints: input });
+        expect(meaningContextThresholdOf(settings)).toBe(expected);
+    });
+});
+
+describe('getNextVocabToStudy meaning context mode', () => {
+    function makeDueMeaningVocab(masteryPercentage: number): VocabProgress {
+        return makeVocabProgress({
+            totalReviews: 5,
+            reading: { ...DEFAULT_SRS_ENTRY, dueDate: null },
+            meaning: { ...DEFAULT_SRS_ENTRY, memoryStrength: strengthForMastery(masteryPercentage), dueDate: past },
+        });
+    }
+
+    it('stays in base mode when the meaning ring is just below the threshold', () => {
+        const settings = makeSettings({ meaningContextThresholdPoints: 50 });
+        const item = getNextVocabToStudy([makeDueMeaningVocab(49)], settings, now);
+        expect(item?.quizType).toBe('meaning');
+        expect(item?.quizMode).toBe('base');
+    });
+
+    it('switches to context mode once the meaning ring reaches the threshold', () => {
+        const settings = makeSettings({ meaningContextThresholdPoints: 50 });
+        const item = getNextVocabToStudy([makeDueMeaningVocab(50)], settings, now);
+        expect(item?.quizType).toBe('meaning');
+        expect(item?.quizMode).toBe('context');
+    });
+
+    it('a threshold of 0 always gives context mode', () => {
+        const settings = makeSettings({ meaningContextThresholdPoints: 0 });
+        const item = getNextVocabToStudy([makeDueMeaningVocab(0)], settings, now);
+        expect(item?.quizMode).toBe('context');
     });
 });
