@@ -7,7 +7,7 @@ import { QuizSettingsMenu } from '../../components/QuizSettingsMenu';
 import { VocabQuizSettings } from '../settings/sections/VocabQuizSettings';
 import { GrammarQuizSettings } from '../settings/sections/GrammarQuizSettings';
 import { ChapterProgressBar } from '../../components/ChapterProgressBar';
-import type { GrammarChapterProgressCounts } from '../../context/quiz/grammarSelectors';
+import type { HubChapterStatus } from '../../context/quiz/grammarSelectors';
 
 /**
  * The activity hub - the app's landing page after setup. Activities (the main
@@ -23,8 +23,7 @@ export const MainScreen: React.FC = () => {
         nextSessionPreview,
         grammarNextReviewAt,
         nextGrammarSessionPreview,
-        nextGrammarChapterTitle,
-        currentGrammarChapterProgress,
+        grammarHubChapter,
     } = useQuiz();
     const navigate = useNavigate();
 
@@ -53,8 +52,7 @@ export const MainScreen: React.FC = () => {
                 <GrammarActivityCard
                     preview={nextGrammarSessionPreview}
                     nextReviewAt={grammarNextReviewAt}
-                    nextChapterTitle={nextGrammarChapterTitle}
-                    chapterProgress={currentGrammarChapterProgress?.counts ?? null}
+                    hubChapter={grammarHubChapter}
                     onClick={() => navigate('/grammar')}
                     settings={
                         <QuizSettingsMenu title="Grammar quiz settings">
@@ -168,28 +166,47 @@ const QuizActivityCard: React.FC<{
     />
 );
 
+/** The hub's chapter line: "Current chapter: Chapter {n}: {title}", "Next chapter: ...", or "All {count} chapters introduced". */
+function renderHubChapterLine(hubChapter: HubChapterStatus): string {
+    switch (hubChapter.status) {
+        case 'current':
+            return `Current chapter: Chapter ${hubChapter.chapterNumber}: ${hubChapter.chapterTitle}`;
+        case 'next':
+            return `Next chapter: Chapter ${hubChapter.chapterNumber}: ${hubChapter.chapterTitle}`;
+        case 'complete':
+            return `All ${hubChapter.totalChapters} chapters introduced`;
+    }
+}
+
 const GrammarActivityCard: React.FC<{
     preview: SessionPreview;
     nextReviewAt: Date | null;
-    /** The chapter the next NEW point would begin, named alongside the review/new/retry counts so the curriculum's arrangement is visible before the session starts. Null once nothing is left to introduce. */
-    nextChapterTitle: string | null;
-    /** That same chapter's own three-way point tally (mastered/in-progress/untouched) - null alongside nextChapterTitle. */
-    chapterProgress: GrammarChapterProgressCounts | null;
+    /**
+     * The hub's grammar chapter status (current/next/complete) plus its
+     * progress bar counts - null before it's loaded or when the teaching
+     * order failed to load (see describeHubChapter). Shown unconditionally,
+     * regardless of preview.new/review/retries (issue #87) - preview.new only
+     * counts points queued-but-never-reviewed, which reads 0 for the ordinary
+     * state between chapters once every introduced point has been reviewed at
+     * least once, so gating on it hid the chapter line and bar exactly when a
+     * learner was between chapters rather than mid-session.
+     */
+    hubChapter: HubChapterStatus | null;
     onClick: () => void;
     settings: React.ReactNode;
-}> = ({ preview, nextReviewAt, nextChapterTitle, chapterProgress, onClick, settings }) => (
+}> = ({ preview, nextReviewAt, hubChapter, onClick, settings }) => (
     <ActivityCard
         icon={<Puzzle size={22} className="text-accent" />}
         title="Grammar quiz session"
         description={
             <>
                 {renderSessionPreviewDescription(preview, nextReviewAt)}
-                {nextChapterTitle && preview.new > 0 && (
-                    <span className="block text-tertiary mt-1">Next chapter: {nextChapterTitle}</span>
+                {hubChapter && (
+                    <span className="block text-tertiary mt-1">{renderHubChapterLine(hubChapter)}</span>
                 )}
-                {chapterProgress && preview.new > 0 && chapterProgress.total > 0 && (
+                {hubChapter && hubChapter.counts.total > 0 && (
                     <span className="block mt-1">
-                        <ChapterProgressBar counts={chapterProgress} compact />
+                        <ChapterProgressBar counts={hubChapter.counts} compact />
                     </span>
                 )}
             </>
