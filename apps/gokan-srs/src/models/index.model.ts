@@ -49,5 +49,16 @@ export type SynonymRelation = 'interchangeable' | 'confusable';
  */
 export interface VocabSynonym {
     id: string;
+    /** Out-of-context tier: what the pair earns when the card does not use a shared meaning. */
     relation: SynonymRelation;
+    /**
+     * Normalized glosses both words carry. A pair is a synonym IN A SENSE: when the
+     * card's sentence or printed glosses use one of these, the answer counts as
+     * correct (see utils/synonymContext.utils.ts). Absent on data built before it.
+     */
+    shared?: string[];
+    /** Shared glosses over the smaller word's gloss count. */
+    overlap?: number;
+    /** Tier set by hand in the dataset; never upgraded from context. */
+    curated?: boolean;
 }

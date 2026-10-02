@@ -27,6 +27,37 @@ import { selectNextView, selectCurrentProgress, selectSessionStats, selectNextSe
 import { useSessionLifecycle } from './useSessionLifecycle';
 import { refillCandidates } from './refillCandidates';
 import { progressUploadSignature, stableStringify } from "../../services/progressSerialization";
+import { orderSynonymsForCue, productionCueOf, sharedMeaningUsed, synonymOutcome } from '../../utils/synonymContext.utils';
+import type { ProductionCue } from '../../utils/synonymContext.utils';
+import type { VocabSynonym } from '../../models/index.model';
+
+/**
+ * Finds which of the target's near-synonyms the learner typed, fetching the
+ * candidates' vocab files only now (after a wrong answer). Entries whose shared
+ * meaning the card uses are tried first, so the common case stops after a few
+ * fetches even for a word with hundreds of pairs.
+ */
+async function findProductionSynonym(input: string, entries: VocabSynonym[], cue: ProductionCue) {
+    const ordered = orderSynonymsForCue(entries, cue);
+    const load = async (group: VocabSynonym[]) => (await Promise.all(group.map(async (entry): Promise<ProductionSynonymCandidate | null> => {
+        try {
+            const vocab = await VocabularyService.loadVocab(entry.id);
+            return { vocabId: entry.id, relation: entry.relation, vocab, shared: entry.shared, curated: entry.curated };
+        } catch (e) {
+            // A stale reference (e.g. a retired vocab id) drops just that candidate.
+            console.error('[useQuizOrchestration] Failed to load synonym candidate', entry.id, e);
+            return null;
+        }
+    }))).filter((c): c is ProductionSynonymCandidate => c !== null);
+
+    // In batches, in priority order: stop at the first batch containing a match.
+    const BATCH = 25;
+    for (let i = 0; i < ordered.length; i += BATCH) {
+        const match = SRSService.evaluateProductionSynonyms(input, await load(ordered.slice(i, i + BATCH)));
+        if (match) return match;
+    }
+    return null;
+}
 
 export interface QuizActions {
     setupComplete(values: SetupValues): Promise<void>;
@@ -296,22 +327,34 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                     matchedAnswer = evaluation.matchedAnswer;
 
                     // A wrong answer might still be a genuine OTHER word from this
-                    // word's near-synonym cluster (issue #71 Part B) - the production
-                    // cue is gloss-based, and near-synonym clusters like 必ず/常に can't
-                    // be told apart from glosses alone. Checked only once the target
-                    // itself has graded wrong; a correct/minor_error answer never needs it.
-                    if (result === 'wrong') {
-                        const synonymMatch = SRSService.evaluateProductionSynonyms(
-                            state.userAnswer,
-                            state.currentProductionSynonyms
-                        );
+                    // word's near-synonym cluster (issue #71 Part B). Checked only once
+                    // the target itself has graded wrong.
+                    //
+                    // A pair is a synonym IN A SENSE: 狭い and 小さい share only "small".
+                    // So the outcome depends on the card's own text (synonymOutcome):
+                    // if the sentence or printed glosses use a shared meaning, the
+                    // answer is correct; otherwise the pair's tier decides between a
+                    // minor error and no credit / no penalty.
+                    const entries = state.currentVocab.synonyms ?? [];
+                    if (result === 'wrong' && entries.length > 0) {
+                        const cue = productionCueOf(state.currentVocab.senses, state.currentProductionCloze);
+                        // Candidates are fetched only now, on a wrong answer: a word can
+                        // list hundreds of pairs, far too many to fetch for every card.
+                        dispatch({ type: 'EVALUATING_AI_START' });
+                        const synonymMatch = await findProductionSynonym(state.userAnswer, entries, cue);
 
                         if (synonymMatch) {
                             const { candidate } = synonymMatch;
                             const candidateLabel = `${candidate.vocab.writtenForm.kanji} (${candidate.vocab.reading.primary})`;
                             const targetLabel = `${state.currentVocab.writtenForm.kanji} (${state.currentVocab.reading.primary})`;
+                            const outcome = synonymOutcome(candidate, cue);
+                            const meaning = sharedMeaningUsed(candidate.shared ?? [], cue);
 
-                            if (candidate.relation === 'interchangeable') {
+                            if (outcome === 'correct') {
+                                result = 'correct';
+                                synonymRelation = 'interchangeable';
+                                message = `Correct: ${candidateLabel} also means "${meaning}" here. The word being tested was ${targetLabel}.`;
+                            } else if (outcome === 'minor_error') {
                                 result = 'minor_error';
                                 synonymRelation = 'interchangeable';
                                 message = `${candidateLabel} is also accepted here - the word being tested was ${targetLabel}.`;
@@ -381,7 +424,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                 }
             }
 
-            if (result === 'correct' && !message.includes('AI Validated')) message = 'Correct.';
+            if (result === 'correct' && !message.includes('AI Validated') && !synonymRelation) message = 'Correct.';
             // Skip the generic "Close." default when a synonym collision already
             // wrote a message naming the word being tested (issue #71 Part B).
             else if (result === 'minor_error' && !synonymRelation && !message.includes('Close.')) message = 'Close.';
@@ -794,38 +837,17 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
 
             let selectedSentenceId: string | null = null;
             let productionCloze = null;
-            let productionSynonyms: ProductionSynonymCandidate[] = [];
 
             // Both sentence-driven cards rank the word's sentences with the shared
             // ranker (utils/sentenceRanking.ts), the same rule the grammar review uses.
             const learner = indexLearnerVocab(state.progress?.learningQueue);
 
+            // Near-synonyms are NOT fetched here: a word can list hundreds of pairs
+            // since every shared gloss makes one. submitAnswer fetches them only after
+            // a wrong answer (findProductionSynonym).
             if (quizType === 'production') {
                 if (sentences && sentences.length > 0) {
                     productionCloze = pickProductionClozeSentence(vid, sentences, learner);
-                }
-
-                // Resolve the word's near-synonyms (embedded on its own vocab file,
-                // issue #71 Part B) to full accept-lists up front - the same "fetch
-                // before render, grade synchronously" pattern computeBlankPlan uses -
-                // so a wrong-answer collision check in submitAnswer never needs a fetch.
-                const entries = vocab.synonyms ?? [];
-                if (entries.length > 0) {
-                    const fetched = await Promise.all(entries.map(async (entry): Promise<ProductionSynonymCandidate | null> => {
-                        try {
-                            const candidateVocab = await VocabularyService.loadVocab(entry.id);
-                            return { vocabId: entry.id, relation: entry.relation, vocab: candidateVocab };
-                        } catch (e) {
-                            // A stale reference (e.g. a retired vocab id) drops just
-                            // that candidate rather than failing the card - same
-                            // "inert wherever absent" spirit as a missing list.
-                            console.error('[useQuizOrchestration] Failed to load synonym candidate', entry.id, e);
-                            return null;
-                        }
-                    }));
-                    productionSynonyms = fetched.filter((c): c is ProductionSynonymCandidate => c !== null);
-
-                    if (loadingKeyRef.current !== loadKey) return; // superseded during the nested fetch
                 }
             } else if (sentences && sentences.length > 0) {
                 selectedSentenceId = pickSentenceForVocab(vid, sentences, learner)?.id ?? null;
@@ -836,7 +858,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                 // Production's own sentences aren't the meaning-context ones -
                 // currentSentences/currentSentenceId stay scoped to meaning, so they're
                 // left null here rather than carrying data nothing else reads.
-                payload: { vocab, sentences: quizType === 'production' ? null : sentences, selectedSentenceId, productionCloze, productionSynonyms },
+                payload: { vocab, sentences: quizType === 'production' ? null : sentences, selectedSentenceId, productionCloze },
             });
             startTimeRef.current = Date.now();
         }).catch(err => {
@@ -849,7 +871,9 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
 
     useEffect(() => {
         // Meaning quizzes have rich context (sentences) the user might want to read, so they don't auto-advance.
-        if (state.feedback?.correct && state.currentQuizItem?.quizType !== 'meaning') {
+        // Neither does a correct near-synonym answer: its message names the word
+        // that was actually being tested, which is the point of showing it.
+        if (state.feedback?.correct && !state.feedback.synonymRelation && state.currentQuizItem?.quizType !== 'meaning') {
             const timer = setTimeout(() => {
                 actions.continueToNext().then();
             }, CONSTANTS.quiz.correctAnswerAutoAdvanceDelay);
@@ -857,7 +881,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             return () => clearTimeout(timer);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [state.feedback?.correct, state.currentQuizItem]);
+    }, [state.feedback?.correct, state.feedback?.synonymRelation, state.currentQuizItem]);
 
     /* =========================
        COMPUTED FLAGS
@@ -871,7 +895,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             !state.isLoadingVocab &&
             !state.isEvaluatingAi,
 
-        canContinue: !!(state.feedback?.show && (!state.feedback.correct || state.currentQuizItem?.quizType === 'meaning')),
+        canContinue: !!(state.feedback?.show && (!state.feedback.correct || !!state.feedback.synonymRelation || state.currentQuizItem?.quizType === 'meaning')),
 
         isReady: !!state.currentVocab && !state.isLoadingVocab && !state.isEvaluatingAi,
     };

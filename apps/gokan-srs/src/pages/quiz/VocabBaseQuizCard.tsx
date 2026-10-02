@@ -83,7 +83,7 @@ export function VocabBaseQuizCard({
         {
             feedbackShown: !!feedback?.show,
             // A correct reading answer auto-advances (owned by useQuizOrchestration) - nothing to focus there.
-            skipContinueFocus: !!feedback?.show && feedback.correct && state.currentQuizItem?.quizType !== 'meaning',
+            skipContinueFocus: !!feedback?.show && feedback.correct && !feedback.synonymRelation && state.currentQuizItem?.quizType !== 'meaning',
             continueFocusDelay: feedback?.show && !feedback.correct ? CONSTANTS.quiz.incorrectAnswerRevealDelay : 50,
         },
         [currentVocab?.id, feedback, state.currentQuizItem?.quizType]
@@ -174,6 +174,18 @@ export function VocabBaseQuizCard({
                                 spellCheck="false"
                             />
                         </div>
+
+                        {/* A near-synonym that answers this card's meaning: correct, but
+                            the message names the word that was actually being tested. */}
+                        {feedback?.show && feedback.correct && feedback.synonymRelation && (
+                            <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                className="border rounded bg-feedback-background border-divider border-l-4 border-l-accent p-4"
+                            >
+                                <p className="text-secondary text-sm font-gothic">{feedback.message}</p>
+                            </motion.div>
+                        )}
 
                         {/* Incorrect / Minor Answer Feedback */}
                         {feedback?.show && !feedback.correct && (
@@ -282,7 +294,8 @@ export function VocabBaseQuizCard({
                             </div>
                         ) : (
                             // Show Continue button if incorrect OR if it's a Meaning Quiz (which doesn't auto-advance)
-                            (!feedback.correct || state.currentQuizItem?.quizType === 'meaning') && (
+                            // OR a correct near-synonym answer (which pauses on its message)
+                            (!feedback.correct || feedback.synonymRelation || state.currentQuizItem?.quizType === 'meaning') && (
                                 <button
                                     ref={continueRef}
                                     type="submit"

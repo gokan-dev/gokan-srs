@@ -5,7 +5,7 @@ import type {
 } from '../../models/user.model';
 import type { Vocabulary } from '../../models/vocabulary.model';
 import type { Sentence } from '../../models/sentence.model';
-import type { AnswerResult, ProductionSynonymCandidate } from '../../services/srs.service';
+import type { AnswerResult } from '../../services/srs.service';
 import { SRSService } from '../../services/srs.service';
 import { rebaseStrengthsToSchedule } from '../../services/calibration';
 import type { QuizItem, QuizType, QuizMode, TaskKey } from '../../utils/srs.utils';
@@ -87,14 +87,6 @@ interface QuizStateBase {
      * just for a single blank instead of one per word.
      */
     productionHintLevel: number;
-    /**
-     * The CURRENT production word's near-synonym cluster (issue #71 Part B),
-     * resolved to full accept-lists at card-load time - same "resolve before
-     * render" pattern as currentProductionCloze/computeBlankPlan, so grading a
-     * wrong answer against it stays synchronous. Empty when the word has no
-     * synonym-index entry, or the current card isn't production at all.
-     */
-    currentProductionSynonyms: ProductionSynonymCandidate[];
     currentQuizItem: PendingQuizItem | null;
     userAnswer: string;
     feedback: {
@@ -144,7 +136,7 @@ export type QuizState = QuizStateBase & GrammarQuizState;
 export type QuizAction =
     | { type: 'SETUP_COMPLETE'; payload: { progress: UserProgress; settings: UserSettings } }
     | { type: 'LOAD_VOCAB_START'; payload: PendingQuizItem }
-    | { type: 'LOAD_VOCAB_SUCCESS'; payload: { vocab: Vocabulary | null; sentences: Sentence[] | null; selectedSentenceId: string | null; productionCloze?: ProductionCloze | null; productionSynonyms?: ProductionSynonymCandidate[] } }
+    | { type: 'LOAD_VOCAB_SUCCESS'; payload: { vocab: Vocabulary | null; sentences: Sentence[] | null; selectedSentenceId: string | null; productionCloze?: ProductionCloze | null } }
     | { type: 'LOAD_VOCAB_ERROR'; payload: { vocabId: string, error: any } }
     | { type: 'EVALUATING_AI_START' }
     | { type: 'SET_ANSWER'; payload: string }
@@ -182,7 +174,6 @@ export const initialState: QuizState = {
     currentSentenceId: null,
     currentProductionCloze: null,
     productionHintLevel: 0,
-    currentProductionSynonyms: [],
     currentQuizItem: null,
     userAnswer: '',
     feedback: null,
@@ -242,7 +233,6 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
                 currentSentenceId: null,
                 currentProductionCloze: null,
                 productionHintLevel: 0,
-                currentProductionSynonyms: [],
                 userAnswer: '',
                 feedback: null,
             };
@@ -254,7 +244,6 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
                 currentSentences: action.payload.sentences,
                 currentSentenceId: action.payload.selectedSentenceId,
                 currentProductionCloze: action.payload.productionCloze ?? null,
-                currentProductionSynonyms: action.payload.productionSynonyms ?? [],
                 isLoadingVocab: false,
             };
 

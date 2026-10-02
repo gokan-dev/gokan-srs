@@ -62,7 +62,7 @@ export function VocabProductionClozeQuizCard({ onVocabClick }: { onVocabClick?: 
         {
             feedbackShown: !!feedback?.show,
             // A correct answer auto-advances (owned by useQuizOrchestration) - nothing to focus there.
-            skipContinueFocus: !!feedback?.show && feedback.correct,
+            skipContinueFocus: !!feedback?.show && feedback.correct && !feedback.synonymRelation,
             continueFocusDelay: 50,
         },
         [currentVocab?.id, feedback]
@@ -192,7 +192,7 @@ export function VocabProductionClozeQuizCard({ onVocabClick }: { onVocabClick?: 
                                 left only feedback.matchedAnswer (a bare reading) shown once
                                 below the whole sentence, never the written form that was
                                 actually blanked. Mirrors GrammarQuizCard's per-blank reveal. */}
-                            {feedback?.show && !feedback.correct && (
+                            {feedback?.show && (!feedback.correct || feedback.synonymRelation) && (
                                 // The form the sentence uses (食べたら / たべたら), not the
                                 // dictionary form: that is what fits the blank.
                                 <ruby className="ruby-text mt-1 text-feedback-correct">
