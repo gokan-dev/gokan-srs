@@ -5,6 +5,13 @@
 >
 > This file is referenced from `CLAUDE.md` and `GEMINI.md`. It is not auto-loaded into agent context; read it on demand when you need the history behind a decision.
 
+- **[2026-10-02]**:
+  - **Conjugation-aware grading (issue #95): three product decisions, and why the drill stays strict.** Reported from real use: typing a conjugated answer in hiragana was graded wrong, and the right word in another form was always `wrong`. Investigation found two concrete defects. The production cloze card blanks the sentence's conjugated surface (食べたら, from `Sentence.matches`) but graded only against the dictionary forms, so the exactly right answer failed and only 食べる passed. On the grammar side, `GrammarExampleWord.reading` is the lemma's reading for many inflected tokens (早かろ carries はやい), and `buildBlankData` put it in the ideal list, so the dictionary form graded `correct` and the right kana answer `wrong`. The fix adds a conjugation generator (`utils/inflection.utils.ts`) and applies the product owner's rules:
+    - **Production: any form of the word is `correct`**, the dictionary form included. The card tests producing the word, not conjugating it.
+    - **Grammar vocab blanks: exact form `correct`, any other form of the word `minor_error`**, never `wrong`.
+    - **Grammar pattern blanks and the conjugation drill stay strict.** There the form IS the point being tested; making another form a near miss would let an inflection point climb on every attempt without the form ever being learned. Only the kana fix applies to them. Do not widen `blankLemmas` to pattern blanks without revisiting this.
+    - The data defect itself (lemma reading stored on an inflected token, and at least one wrong resolution: 降ろう read くだろう) belongs in gokan-dataset; the app now derives the conjugated kana from the vocab's own reading, so it no longer depends on that field.
+
 - **[2026-09-30]**:
   - **Grammar family coverage: every confusable point now has a family and a usage note.** Reported from real use: だれ and どなた kept getting mixed up with no guidance anywhere, because neither had a family, a usage note or a lesson. Measuring it found half the points (360 of 720) in no family, N5 worst at 38%, so a pass in gokan-dataset reviewed every unlinked point level by level: 123 families now cover 665 points. Three decisions in it a later change could undo:
     - **A theme keeps the points it lists** (build-curriculum.ts, Tier 2b). Family chapters used to claim themed points, which fragmented the authored N3-N1 themes into 1-2 point chapters once families became broad (151 -> 197 chapters). Do not revert it to "family beats theme" without re-checking the chapter sizes.
