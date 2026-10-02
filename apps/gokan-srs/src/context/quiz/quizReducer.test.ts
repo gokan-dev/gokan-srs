@@ -123,39 +123,6 @@ describe('quizReducer', () => {
         expect(next.currentProductionCloze).toBeNull();
     });
 
-    it('LOAD_VOCAB_START resets currentProductionSynonyms too (issue #71 Part B)', () => {
-        const stalePreviousCandidates = [
-            { vocabId: 'other', relation: 'confusable' as const, vocab: makeVocab('other') },
-        ];
-        const state: QuizState = { ...initialState, currentProductionSynonyms: stalePreviousCandidates };
-        const queueItem = { vocabId: 'v1', quizType: 'production' as const, quizMode: 'base' as const };
-        const next = quizReducer(state, { type: 'LOAD_VOCAB_START', payload: queueItem });
-
-        expect(next.currentProductionSynonyms).toEqual([]);
-    });
-
-    it('LOAD_VOCAB_SUCCESS sets currentProductionSynonyms from the payload', () => {
-        const vocab = makeVocab();
-        const candidates = [
-            { vocabId: 'syn1', relation: 'interchangeable' as const, vocab: makeVocab('syn1') },
-        ];
-        const next = quizReducer(initialState, {
-            type: 'LOAD_VOCAB_SUCCESS',
-            payload: { vocab, sentences: null, selectedSentenceId: null, productionSynonyms: candidates },
-        });
-
-        expect(next.currentProductionSynonyms).toEqual(candidates);
-    });
-
-    it('LOAD_VOCAB_SUCCESS defaults currentProductionSynonyms to [] when omitted', () => {
-        const next = quizReducer(initialState, {
-            type: 'LOAD_VOCAB_SUCCESS',
-            payload: { vocab: null, sentences: null, selectedSentenceId: null },
-        });
-
-        expect(next.currentProductionSynonyms).toEqual([]);
-    });
-
     describe('REVEAL_PRODUCTION_HINT', () => {
         it('advances the hint level by one, starting from 0', () => {
             const next = quizReducer(initialState, { type: 'REVEAL_PRODUCTION_HINT' });

@@ -31,6 +31,9 @@ export interface ProductionSynonymCandidate {
     vocabId: string;
     relation: SynonymRelation;
     vocab: ProductionVocab;
+    /** See VocabSynonym.shared / curated. */
+    shared?: string[];
+    curated?: boolean;
 }
 
 export interface ProductionSynonymMatch {
