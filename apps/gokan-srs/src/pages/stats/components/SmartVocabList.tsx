@@ -8,6 +8,7 @@ import { Search, ArrowDown, ArrowUp } from "lucide-react";
 import { Button } from "../../../components/ui/Button";
 import { romajiToHiragana, looksLikeRomaji } from "../../../utils/romaji";
 import { isVocabFullyMastered } from "../../../services/scheduling";
+import { countWrongReviews } from "../../../utils/winRate.utils";
 import type { UserSettings } from "../../../models/user.model";
 
 interface SmartVocabListProps {
@@ -16,7 +17,7 @@ interface SmartVocabListProps {
     onVocabClick?: (vocabId: string) => void;
 }
 
-type SortField = 'added_date' | 'srs_stage' | 'next_review' | 'failures' | 'kanji_rank' | 'reading_mastery' | 'meaning_mastery';
+type SortField = 'added_date' | 'srs_stage' | 'next_review' | 'failures' | 'kanji_rank' | 'reading_mastery' | 'meaning_mastery' | 'production_mastery';
 type SortDirection = 'asc' | 'desc';
 
 // The list controls persist across navigation (e.g. into a vocab detail page and
@@ -111,10 +112,8 @@ export function SmartVocabList({ progress, settings, onVocabClick }: SmartVocabL
                     valB = b.stage === 'graduated' ? 1 : 0;
                     break;
                 case 'failures':
-                    valA = (a.reading?.history?.filter(h => h.result === 'wrong').length || 0) +
-                        (a.meaning?.history?.filter(h => h.result === 'wrong').length || 0);
-                    valB = (b.reading?.history?.filter(h => h.result === 'wrong').length || 0) +
-                        (b.meaning?.history?.filter(h => h.result === 'wrong').length || 0);
+                    valA = countWrongReviews(a);
+                    valB = countWrongReviews(b);
                     break;
                 case 'kanji_rank':
                     valA = frequencyRanks[a.vocabId] ?? 99999;
@@ -127,6 +126,10 @@ export function SmartVocabList({ progress, settings, onVocabClick }: SmartVocabL
                 case 'meaning_mastery':
                     valA = a.meaning?.memoryStrength ?? 0;
                     valB = b.meaning?.memoryStrength ?? 0;
+                    break;
+                case 'production_mastery':
+                    valA = a.production?.memoryStrength ?? 0;
+                    valB = b.production?.memoryStrength ?? 0;
                     break;
             }
 
@@ -229,6 +232,7 @@ export function SmartVocabList({ progress, settings, onVocabClick }: SmartVocabL
                         <option value="srs_stage">SRS Stage</option>
                         <option value="reading_mastery">Reading Advancement</option>
                         <option value="meaning_mastery">Meaning Advancement</option>
+                        <option value="production_mastery">Production Advancement</option>
                         <option value="failures">Failure Count</option>
                         <option value="kanji_rank">Frequency</option>
                     </select>

@@ -14,7 +14,7 @@ import { CONSTANTS } from '../../commons/constants';
 import { DEFAULT_SETTINGS } from '../../models/user.model';
 import type { SetupValues } from '../../models/state.model';
 import { calculateMasteryPercentage, clearStaleNeedsRetry } from '../../utils/srs.utils';
-import { pickProductionClozeSentence } from '../../utils/productionCloze.utils';
+import { clozeAcceptedForms, pickProductionClozeSentence } from '../../utils/productionCloze.utils';
 import { indexLearnerVocab, pickSentenceForVocab } from '../../utils/sentenceRanking';
 import {
     frequencyModifierOf, growthLevelOf, isCalibratedVocabReview, recordCalibratedAnswer, withCalibrationDefaults,
@@ -287,7 +287,11 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                     // wrong one (issue #71 Part A). Shared by both production cards (gloss
                     // and the sentence-cloze card, issue #72): both set quizType
                     // 'production', so this is the one place either grades through.
-                    const evaluation = SRSService.evaluateProductionAnswer(state.userAnswer, state.currentVocab);
+                    const evaluation = SRSService.evaluateProductionAnswer(
+                        state.userAnswer,
+                        state.currentVocab,
+                        clozeAcceptedForms(state.currentProductionCloze)
+                    );
                     result = evaluation.result;
                     matchedAnswer = evaluation.matchedAnswer;
 

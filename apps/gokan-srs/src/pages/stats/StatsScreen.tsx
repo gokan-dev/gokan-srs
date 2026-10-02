@@ -44,7 +44,7 @@ export function StatsScreen({ onBack, onVocabClick, onGrammarClick }: StatsScree
             <div className="w-full grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <section className={card}>
                     <h2 className="text-lg mb-4 text-primary font-serif">Review Forecast</h2>
-                    <ReviewForecast progress={state.progress} />
+                    <ReviewForecast progress={state.progress} settings={state.settings ?? undefined} />
                 </section>
 
                 <section className={card}>

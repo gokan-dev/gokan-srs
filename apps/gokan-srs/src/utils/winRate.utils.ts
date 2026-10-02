@@ -1,5 +1,5 @@
 import type { CalibratedQuizType, UserProgress } from '../models/user.model';
-import type { ReviewLog } from '../models/vocabulary.model';
+import type { ReviewLog, VocabProgress } from '../models/vocabulary.model';
 
 export interface WinRateTally {
     /** Graded reviews ('pass' excluded: a skip is not a recall attempt). */
@@ -40,6 +40,12 @@ export function winRatesByQuizType(progress: UserProgress): { byType: Record<Cal
         global.correct += tally.correct;
     }
     return { byType, global };
+}
+
+/** Wrong answers logged on a vocab across all three directions (the Stats list's failure sort). */
+export function countWrongReviews(vp: Pick<VocabProgress, 'reading' | 'meaning' | 'production'>): number {
+    return [vp.reading?.history, vp.meaning?.history, vp.production?.history]
+        .reduce((sum, history) => sum + (history ?? []).filter(h => h.result === 'wrong').length, 0);
 }
 
 /** A tally as a rounded percentage, or null when there is nothing to show. */

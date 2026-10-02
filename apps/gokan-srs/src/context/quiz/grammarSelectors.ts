@@ -11,6 +11,8 @@ import { GrammarService } from '../../services/grammar.service';
 import { hashString, pickStable } from '../../utils/deterministicPick';
 import { indexLearnerVocab, pickMostProductive, scoreGrammarExample, wordRole } from '../../utils/sentenceRanking';
 import { computeSessionState } from './sessionState';
+import { isFormOfWord, kanaOfSurface, toInflectableWord } from '../../utils/inflection.utils';
+import type { InflectableWord } from '../../utils/inflection.utils';
 import { computeSessionStats, computeSessionPreview } from './sessionStats';
 import type { QuizState } from './quizReducer';
 import type { GrammarBlankPlan, PendingGrammarQuizItem } from './grammarReducer';
@@ -127,12 +129,19 @@ function blankSpansOf(blankIndices: number[], isPatternBlank: boolean[]): number
     return spans;
 }
 
-async function buildBlankData(example: GrammarExample, blankSpans: number[][]): Promise<{ acceptLists: string[][]; acceptListsMinor: string[][]; glosses: string[] }> {
+async function buildBlankData(
+    example: GrammarExample,
+    blankSpans: number[][],
+    // Which spans are pattern markers. Only vocab spans get "any form of the word"
+    // leniency; omitted means none are pattern.
+    isPatternSpan: boolean[] = []
+): Promise<{ acceptLists: string[][]; acceptListsMinor: string[][]; glosses: string[]; blankLemmas: (InflectableWord | null)[] }> {
     const acceptLists: string[][] = [];
     const acceptListsMinor: string[][] = [];
     const glosses: string[] = [];
+    const blankLemmas: (InflectableWord | null)[] = [];
 
-    for (const span of blankSpans) {
+    for (const [spanIndex, span] of blankSpans.entries()) {
         // A merged span is graded on the concatenation of its words. Only the
         // surface and the reading are meaningful for a multi-token marker - a
         // per-word vocab lookup would offer alternatives for one token of a
@@ -146,6 +155,7 @@ async function buildBlankData(example: GrammarExample, blankSpans: number[][]): 
             acceptLists.push(Array.from(new Set([surface, ...(reading ? [reading] : [])])));
             acceptListsMinor.push([]);
             glosses.push('');
+            blankLemmas.push(null);
             continue;
         }
 
@@ -153,8 +163,8 @@ async function buildBlankData(example: GrammarExample, blankSpans: number[][]): 
         const word = example.words[wordIndex];
         const forms = new Set<string>();
         forms.add(word.surface);
-        if (word.reading) forms.add(word.reading);
         let gloss = '';
+        let lemma: InflectableWord | null = null;
 
         // The dictionary-form variants of an INFLECTED occurrence. Right word, wrong
         // form: graded 'minor_error' rather than 'correct'.
@@ -180,9 +190,26 @@ async function buildBlankData(example: GrammarExample, blankSpans: number[][]): 
                 vocab.reading.alternatives.forEach(a => target.add(a));
                 vocab.mergedVocabs?.forEach(m => target.add(m.originalPrimaryReading));
                 gloss = vocab.senses.flatMap(s => s.glosses)[0] ?? '';
+                lemma = toInflectableWord(vocab);
+
+                if (inflected) {
+                    // The kana of the surface AS CONJUGATED (はやかろ for 早かろ), so
+                    // the right answer typed in hiragana grades like the kanji one.
+                    const kana = kanaOfSurface(word.surface, lemma);
+                    if (kana) forms.add(kana);
+                    // word.reading is sometimes the surface's reading and sometimes
+                    // the LEMMA's (早かろ carries はやい). Only the former is an ideal
+                    // answer; the lemma reading is the dictionary form, a near miss.
+                    if (word.reading && !lemma.readings.includes(word.reading)) forms.add(word.reading);
+                } else if (word.reading) {
+                    forms.add(word.reading);
+                }
             } catch (e) {
                 console.error(`[grammarSelectors] Failed to load vocab ${word.vocabId} for blank ${wordIndex}, falling back to surface/reading only`, e);
+                if (word.reading) forms.add(word.reading);
             }
+        } else if (word.reading) {
+            forms.add(word.reading);
         }
 
         // Anything that is already an ideal answer for this occurrence cannot also be
@@ -193,9 +220,10 @@ async function buildBlankData(example: GrammarExample, blankSpans: number[][]): 
         acceptLists.push(Array.from(forms));
         acceptListsMinor.push(Array.from(minorForms));
         glosses.push(gloss);
+        blankLemmas.push(isPatternSpan[spanIndex] ? null : lemma);
     }
 
-    return { acceptLists, acceptListsMinor, glosses };
+    return { acceptLists, acceptListsMinor, glosses, blankLemmas };
 }
 
 /** The single most-frequent (lowest frequency.kanjiRank) candidate word in an example, used for the one-blank fallback (item 5.2). Falls back to the first candidate if every fetch fails. */
@@ -496,7 +524,7 @@ async function selectProductivePlan(
     const blankWordIndices = blankWordSpans.map(span => span[0]);
     const isPatternBlank = blankWordIndices.map(i => chosen.example.patternWordIndices.includes(i));
 
-    const { acceptLists, acceptListsMinor, glosses } = await buildBlankData(chosen.example, blankWordSpans);
+    const { acceptLists, acceptListsMinor, glosses, blankLemmas } = await buildBlankData(chosen.example, blankWordSpans, isPatternBlank);
 
     // The chosen example may come from either source - report whichever index
     // is meaningful. `example` is what every consumer actually reads (see
@@ -512,6 +540,7 @@ async function selectProductivePlan(
         isPatternBlank,
         acceptLists,
         acceptListsMinor,
+        blankLemmas,
         glosses,
         readOnly: false,
     };
@@ -594,8 +623,8 @@ async function computeBlankPlanFor(point: GrammarPoint, progress: UserProgress |
         const blankWordIndices = blankWordSpans.map(span => span[0]);
         const isPatternBlank = blankWordIndices.map(i => example.patternWordIndices.includes(i));
 
-        const { acceptLists, acceptListsMinor, glosses } = await buildBlankData(example, blankWordSpans);
-        return { exampleIndex, example, blankWordIndices, blankWordSpans, isPatternBlank, acceptLists, acceptListsMinor, glosses, readOnly: false };
+        const { acceptLists, acceptListsMinor, glosses, blankLemmas } = await buildBlankData(example, blankWordSpans, isPatternBlank);
+        return { exampleIndex, example, blankWordIndices, blankWordSpans, isPatternBlank, acceptLists, acceptListsMinor, blankLemmas, glosses, readOnly: false };
     }
 
     // Pass 2: FALLBACK - pattern not locatable anywhere in this point; an example with a known word.
@@ -606,10 +635,10 @@ async function computeBlankPlanFor(point: GrammarPoint, progress: UserProgress |
 
         const knownIndices = candidateIndices.filter(i => isKnown(example.words[i].vocabId!));
         if (knownIndices.length > 0) {
-            const { acceptLists, acceptListsMinor, glosses } = await buildBlankData(example, knownIndices.map(i => [i]));
+            const { acceptLists, acceptListsMinor, glosses, blankLemmas } = await buildBlankData(example, knownIndices.map(i => [i]));
             // No pattern located, so none of these are pattern blanks - they grade as
             // pure vocab (worst-of), the original pre-pattern behaviour.
-            return { exampleIndex, example, blankWordIndices: knownIndices, blankWordSpans: knownIndices.map(i => [i]), isPatternBlank: knownIndices.map(() => false), acceptLists, acceptListsMinor, glosses, readOnly: false };
+            return { exampleIndex, example, blankWordIndices: knownIndices, blankWordSpans: knownIndices.map(i => [i]), isPatternBlank: knownIndices.map(() => false), acceptLists, acceptListsMinor, blankLemmas, glosses, readOnly: false };
         }
     }
 
@@ -620,8 +649,8 @@ async function computeBlankPlanFor(point: GrammarPoint, progress: UserProgress |
         if (candidateIndices.length === 0) continue;
 
         const best = await pickMostFrequentCandidate(example, candidateIndices);
-        const { acceptLists, acceptListsMinor, glosses } = await buildBlankData(example, [[best]]);
-        return { exampleIndex, example, blankWordIndices: [best], blankWordSpans: [[best]], isPatternBlank: [false], acceptLists, acceptListsMinor, glosses, readOnly: false };
+        const { acceptLists, acceptListsMinor, glosses, blankLemmas } = await buildBlankData(example, [[best]]);
+        return { exampleIndex, example, blankWordIndices: [best], blankWordSpans: [[best]], isPatternBlank: [false], acceptLists, acceptListsMinor, blankLemmas, glosses, readOnly: false };
     }
 
     // Pass 4: no example has any blankable word at all - read-only study material.
@@ -750,7 +779,7 @@ export interface GrammarGradeResult {
 export function gradeGrammarAnswers(
     // isPatternBlank optional: a plan without it is treated as having no located
     // pattern (every blank vocab), which is the worst-of-all fallback path.
-    blankPlan: Pick<GrammarBlankPlan, 'acceptLists'> & Partial<Pick<GrammarBlankPlan, 'isPatternBlank' | 'acceptListsMinor'>>,
+    blankPlan: Pick<GrammarBlankPlan, 'acceptLists'> & Partial<Pick<GrammarBlankPlan, 'isPatternBlank' | 'acceptListsMinor' | 'blankLemmas'>>,
     answers: string[],
     hintLevels: number[]
 ): GrammarGradeResult {
@@ -796,6 +825,16 @@ export function gradeGrammarAnswers(
                 matchedAnswers.push(accepted[0] ?? minor.matchedAnswer);
                 return;
             }
+        }
+
+        // A vocab blank answered with another form of the right word (食べた where
+        // the sentence wants 食べて): a near miss, never `wrong` (issue #95). Pattern
+        // blanks never carry a lemma, so their form stays strictly graded.
+        const lemma = blankPlan.blankLemmas?.[i];
+        if (result === 'wrong' && lemma && !(blankPlan.isPatternBlank?.[i]) && isFormOfWord(userInput, lemma)) {
+            perBlankResults.push('minor_error');
+            matchedAnswers.push(accepted[0] ?? matchedAnswer);
+            return;
         }
 
         perBlankResults.push(result);

@@ -5,7 +5,7 @@ interface MasteryRingProps {
     memoryStrength: number; // SRS Memory Strength
     size?: number;
     showText?: boolean;
-    variant?: 'default' | 'reading' | 'meaning';
+    variant?: 'default' | 'reading' | 'meaning' | 'production';
 }
 
 export const MasteryRing: React.FC<MasteryRingProps> = ({ memoryStrength, size = 30, showText = true, variant = 'default' }) => {
@@ -39,6 +39,9 @@ export const MasteryRing: React.FC<MasteryRingProps> = ({ memoryStrength, size =
     } else if (variant === 'meaning') {
         loop1Color = THEME.mastery.meaning.loop1;
         loop2Color = THEME.mastery.meaning.loop1;
+    } else if (variant === 'production') {
+        loop1Color = THEME.mastery.production.loop1;
+        loop2Color = THEME.mastery.production.loop1;
     }
 
     return (

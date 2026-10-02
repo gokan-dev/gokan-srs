@@ -5,18 +5,20 @@ import { Card } from './ui/Card';
 interface ReviewTimelineProps {
     readingEntry: SRSEntry;
     meaningEntry: SRSEntry;
+    productionEntry?: SRSEntry;
 }
 
 interface TimelineEvent extends ReviewLog {
-    type: 'reading' | 'meaning';
+    type: 'reading' | 'meaning' | 'production';
 }
 
-export function ReviewTimeline({ readingEntry, meaningEntry }: ReviewTimelineProps) {
+export function ReviewTimeline({ readingEntry, meaningEntry, productionEntry }: ReviewTimelineProps) {
     const events = useMemo(() => {
         const rEvents: TimelineEvent[] = readingEntry.history.map(h => ({ ...h, type: 'reading' }));
         const mEvents: TimelineEvent[] = meaningEntry.history.map(h => ({ ...h, type: 'meaning' }));
-        return [...rEvents, ...mEvents].sort((a, b) => b.date - a.date);
-    }, [readingEntry, meaningEntry]);
+        const pEvents: TimelineEvent[] = (productionEntry?.history ?? []).map(h => ({ ...h, type: 'production' }));
+        return [...rEvents, ...mEvents, ...pEvents].sort((a, b) => b.date - a.date);
+    }, [readingEntry, meaningEntry, productionEntry]);
 
     if (events.length === 0) {
         return null;

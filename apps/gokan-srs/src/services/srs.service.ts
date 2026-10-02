@@ -8,6 +8,8 @@ import type { QuizType } from '../utils/srs.utils';
 import { JLPT_LEVELS } from '../models/index.model';
 import type { SynonymRelation } from '../models/index.model';
 import { collectJlptCandidates, countJlptCandidates } from './jlptWalk';
+import { hasKanji, kanjiSkeleton } from '../utils/kanji.utils';
+import { isFormOfWord, toInflectableWord } from '../utils/inflection.utils';
 
 
 export type AnswerResult = 'correct' | 'minor_error' | 'wrong' | 'pass';
@@ -18,10 +20,17 @@ export type AnswerResult = 'correct' | 'minor_error' | 'wrong' | 'pass';
  * shape at card-load time - see useQuizOrchestration's loading effect - so
  * grading a collision against it stays synchronous.
  */
+/**
+ * What production grading reads off a vocab. `senses` carries the part-of-speech
+ * tags the inflection generator needs; without it a word simply has no
+ * inflections and only its dictionary forms are accepted.
+ */
+export type ProductionVocab = Pick<Vocabulary, 'reading' | 'writtenForm' | 'mergedVocabs'> & Partial<Pick<Vocabulary, 'senses'>>;
+
 export interface ProductionSynonymCandidate {
     vocabId: string;
     relation: SynonymRelation;
-    vocab: Pick<Vocabulary, 'reading' | 'writtenForm' | 'mergedVocabs'>;
+    vocab: ProductionVocab;
 }
 
 export interface ProductionSynonymMatch {
@@ -148,17 +157,31 @@ export class SRSService {
      */
     static evaluateProductionAnswer(
         userInput: string,
-        vocab: Pick<Vocabulary, 'reading' | 'writtenForm' | 'mergedVocabs'>
+        vocab: ProductionVocab,
+        // The cloze card's blanked surface and its reading (食べたら / たべたら),
+        // accepted on the normal typo-tolerant path. They cover a sentence form
+        // the inflection tables do not produce.
+        extraForms: string[] = []
     ): { result: AnswerResult; matchedAnswer: string } {
-        return this.evaluateAnswer(userInput, {
+        const evaluation = this.evaluateAnswer(userInput, {
             primary: vocab.reading.primary,
             alternatives: [
                 ...vocab.reading.alternatives,
                 ...(vocab.mergedVocabs?.map(m => m.originalPrimaryReading) ?? []),
                 vocab.writtenForm.kanji,
                 ...vocab.writtenForm.alternatives,
+                ...extraForms,
             ],
         });
+        if (evaluation.result === 'correct' || evaluation.result === 'pass') return evaluation;
+
+        // Production tests whether the learner can produce the WORD, not its
+        // conjugation (issue #95). Any form of it, in kanji or kana, is a correct
+        // answer: 食べた, たべたら and 食べる all answer a cue for 食べる.
+        if (isFormOfWord(userInput, toInflectableWord(vocab))) {
+            return { result: 'correct', matchedAnswer: userInput.trim() };
+        }
+        return evaluation;
     }
 
     /**
@@ -589,8 +612,8 @@ export class SRSService {
         // also swallow 上がる / 上げる and 始まる / 始める, which differ by one
         // okurigana kana and ARE different words. Absent kana cannot do that:
         // nothing is a different word merely by having its tail cut off.
-        if (this.hasKanji(u) || this.hasKanji(e)) {
-            if (this.kanjiSkeleton(u) !== this.kanjiSkeleton(e)) return 'wrong';
+        if (hasKanji(u) || hasKanji(e)) {
+            if (kanjiSkeleton(u) !== kanjiSkeleton(e)) return 'wrong';
             return e.startsWith(u) ? 'minor_error' : 'wrong';
         }
 
@@ -621,22 +644,6 @@ export class SRSService {
     }
 
 
-
-    /**
-     * CJK ideographs plus the iteration mark 々, which belongs to the skeleton:
-     * 日 and 日々 are different words, so 々 must not read as an omittable tail
-     * the way kana does.
-     */
-    private static readonly KANJI = /[々㐀-䶿一-鿿]/;
-
-    private static hasKanji(s: string): boolean {
-        return this.KANJI.test(s);
-    }
-
-    /** The kanji of a form, in order, with all kana dropped. */
-    private static kanjiSkeleton(s: string): string {
-        return [...s].filter(c => this.KANJI.test(c)).join('');
-    }
 
     /**
      * Standard Levenshtein Distance

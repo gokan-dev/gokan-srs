@@ -16,6 +16,7 @@ import { ReviewTimeline } from "../../components/ReviewTimeline";
 import { VocabRelationshipsCard } from "./VocabRelationshipsCard";
 import { JlptChip } from "../../components/JlptChip";
 import { THEME } from "../../commons/theme";
+import { isEntryMastered, isProductionActivated } from "../../services/scheduling";
 
 export default function VocabDetailScreen() {
     const { vocabId } = useParams<{ vocabId: string }>();
@@ -37,6 +38,10 @@ export default function VocabDetailScreen() {
     }, [vocabId]);
 
     const progress = state.progress?.learningQueue.find(p => p.vocabId === vocabId);
+    // Activation, not a pending due date: a mastered production entry has no
+    // dueDate, and gating on one hid the ring and history of every word whose
+    // production was finished (or skipped as already known).
+    const productionActivated = isProductionActivated(progress?.production);
 
     if (error) {
         return (
@@ -108,9 +113,9 @@ export default function VocabDetailScreen() {
                             this word (see SRSService.seedProductionEntry). An empty third
                             ring on every word that has not reached it yet would read as
                             lost progress rather than a direction not started. */}
-                        {progress.production?.dueDate && (
+                        {productionActivated && (
                             <div className="flex flex-col items-center gap-2">
-                                <MasteryRing memoryStrength={progress.production.memoryStrength} size={60} variant="meaning" />
+                                <MasteryRing memoryStrength={progress.production!.memoryStrength} size={60} variant="production" />
                                 <span className="text-xs text-tertiary uppercase tracking-wider font-gothic font-semibold">
                                     Production
                                 </span>
@@ -262,7 +267,9 @@ export default function VocabDetailScreen() {
                                 <span className="text-base text-primary font-gothic">
                                     {progress.production?.dueDate
                                         ? new Date(progress.production.dueDate).toLocaleDateString()
-                                        : 'Not started'}
+                                        : productionActivated && isEntryMastered(progress.production!)
+                                            ? 'Mastered'
+                                            : 'Not started'}
                                 </span>
                             </div>
                         </div>
@@ -275,8 +282,8 @@ export default function VocabDetailScreen() {
                             { key: 'meaning', label: 'Meaning', entry: progress.meaning, color: THEME.mastery.meaning.loop1 },
                             // Only once activated: an un-started entry would draw a flat
                             // zero line that reads as lost progress.
-                            ...(progress.production?.dueDate
-                                ? [{ key: 'production', label: 'Production', entry: progress.production, color: THEME.mastery.production.loop1 }]
+                            ...(productionActivated
+                                ? [{ key: 'production', label: 'Production', entry: progress.production!, color: THEME.mastery.production.loop1 }]
                                 : []),
                         ]}
                         introDate={progress.introductionAt ? new Date(progress.introductionAt) : null}
@@ -287,7 +294,7 @@ export default function VocabDetailScreen() {
     ) : null;
 
     const timelineCard = progress && progress.introductionAt ? (
-        <ReviewTimeline readingEntry={progress.reading} meaningEntry={progress.meaning} />
+        <ReviewTimeline readingEntry={progress.reading} meaningEntry={progress.meaning} productionEntry={progress.production} />
     ) : null;
 
     const relationshipsCard = <VocabRelationshipsCard vocab={vocab} />;

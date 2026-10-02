@@ -13,6 +13,22 @@ export interface ProductionCloze {
     sentence: Sentence;
     blankStart: number;
     blankLength: number;
+    /**
+     * The blanked span's own reading, conjugation included (たべたら for the 食べたら
+     * span), from the same `matches` entry. Absent on data without one.
+     */
+    blankReading?: string;
+}
+
+/** The blanked text itself (食べたら): the form the sentence actually uses. */
+export function blankSurfaceOf(cloze: ProductionCloze): string {
+    return cloze.sentence.original.slice(cloze.blankStart, cloze.blankStart + cloze.blankLength);
+}
+
+/** The blank's surface and reading, the extra forms production grading accepts for a cloze card. */
+export function clozeAcceptedForms(cloze: ProductionCloze | null): string[] {
+    if (!cloze) return [];
+    return [blankSurfaceOf(cloze), ...(cloze.blankReading ? [cloze.blankReading] : [])];
 }
 
 /**
@@ -44,7 +60,12 @@ export function pickProductionClozeSentence(
     if (!sentence) return null;
     const match = sentence.matches![vocabId][0];
 
-    return { sentence, blankStart: match.start, blankLength: match.length };
+    return {
+        sentence,
+        blankStart: match.start,
+        blankLength: match.length,
+        ...(match.reading ? { blankReading: match.reading } : {}),
+    };
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { percentOf, winRatesByQuizType } from './winRate.utils';
+import { countWrongReviews, percentOf, winRatesByQuizType } from './winRate.utils';
 import type { UserProgress } from '../models/user.model';
 import type { AnswerResult } from '../services/srs.service';
 
@@ -30,5 +30,21 @@ describe('winRatesByQuizType', () => {
 
     it('reports null for a quiz type with no reviews', () => {
         expect(percentOf({ answers: 0, correct: 0 })).toBeNull();
+    });
+});
+
+describe('countWrongReviews', () => {
+    it('counts wrong answers across reading, meaning and production', () => {
+        const vp = {
+            reading: { history: logs('wrong', 'correct') },
+            meaning: { history: logs('wrong') },
+            production: { history: logs('wrong', 'wrong', 'minor_error') },
+        } as unknown as Parameters<typeof countWrongReviews>[0];
+        expect(countWrongReviews(vp)).toBe(4);
+    });
+
+    it('tolerates a word with no production entry', () => {
+        const vp = { reading: { history: logs('wrong') }, meaning: { history: [] } } as unknown as Parameters<typeof countWrongReviews>[0];
+        expect(countWrongReviews(vp)).toBe(1);
     });
 });

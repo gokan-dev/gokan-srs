@@ -812,6 +812,99 @@ describe('wrong conjugation of the right verb', () => {
     });
 });
 
+describe('conjugated blanks: kana accepted, other forms of a vocab word are minor (issue #95)', () => {
+    const taberu = makeVocab({
+        id: 'v-taberu',
+        writtenForm: { kanji: '食べる', alternatives: [], containedKanji: ['食'] },
+        reading: { primary: 'たべる', alternatives: [] },
+        senses: [{ pos: ['v1', 'vt'], glosses: ['to eat'], misc: [] }] as never,
+    });
+    const yasai = makeVocab({
+        id: 'v-yasai',
+        writtenForm: { kanji: '野菜', alternatives: [], containedKanji: ['野', '菜'] },
+        reading: { primary: 'やさい', alternatives: [] },
+        senses: [{ pos: ['n'], glosses: ['vegetable'], misc: [] }] as never,
+    });
+
+    // 野菜を食べたら？ with 食べ carrying the LEMMA reading, as the compiled data often does.
+    const pointWith = (patternWordIndices: number[]) => makeGrammarPoint({
+        examples: [{
+            jp: '野菜を食べたら？',
+            romaji: 'yasai o tabetara',
+            en: 'Why not eat vegetables?',
+            patternWordIndices,
+            words: [
+                { surface: '野菜', vocabId: 'v-yasai', reading: 'やさい' },
+                { surface: 'を', vocabId: null },
+                { surface: '食べ', vocabId: 'v-taberu', reading: 'たべる', baseForm: '食べる' },
+                { surface: 'たら', vocabId: null },
+                { surface: '？', vocabId: null },
+            ],
+        }],
+    });
+    const progress = makeProgress({
+        learningQueue: [
+            makeVocabProgress({ vocabId: 'v-taberu', introductionAt: past }),
+            makeVocabProgress({ vocabId: 'v-yasai', introductionAt: past }),
+        ],
+    });
+
+    const mockVocab = () => vi.spyOn(VocabularyService, 'loadVocab')
+        .mockImplementation(async (id: string) => (id === 'v-taberu' ? taberu : yasai));
+
+    async function vocabBlankPlan() {
+        mockVocab();
+        const plan = (await computeBlankPlan(pointWith([3]), progress, 0))!;
+        const blank = plan.blankWordIndices.indexOf(2);
+        expect(plan.isPatternBlank[blank]).toBe(false);
+        const grade = (input: string) => {
+            const answers = plan.blankWordIndices.map((_, i) => (i === blank ? input : plan.acceptLists[i][0]));
+            return gradeGrammarAnswers(plan, answers, []).perBlankResults[blank];
+        };
+        return { plan, blank, grade };
+    }
+
+    it('grades the conjugated surface correct in kanji and in kana', async () => {
+        const { grade } = await vocabBlankPlan();
+        expect(grade('食べ')).toBe('correct');
+        expect(grade('たべ')).toBe('correct');
+    });
+
+    it('no longer treats the lemma reading stored on the word as an ideal answer', async () => {
+        const { plan, blank, grade } = await vocabBlankPlan();
+        expect(plan.acceptLists[blank]).not.toContain('たべる');
+        expect(grade('たべる')).toBe('minor_error');
+        expect(grade('食べる')).toBe('minor_error');
+    });
+
+    it('grades another form of the same vocab word as a minor error, a different word as wrong', async () => {
+        const { grade } = await vocabBlankPlan();
+        expect(grade('食べた')).toBe('minor_error');
+        expect(grade('たべて')).toBe('minor_error');
+        expect(grade('野菜')).toBe('wrong');
+    });
+
+    it('accepts kana on a conjugated PATTERN blank but keeps its form strict', async () => {
+        mockVocab();
+        const plan = (await computeBlankPlan(pointWith([2]), progress, 0))!;
+        const blank = plan.blankWordIndices.indexOf(2);
+        expect(plan.isPatternBlank[blank]).toBe(true);
+        expect(plan.blankLemmas?.[blank] ?? null).toBeNull();
+        const grade = (input: string) => {
+            const answers = plan.blankWordIndices.map((_, i) => (i === blank ? input : plan.acceptLists[i][0]));
+            return gradeGrammarAnswers(plan, answers, []).perBlankResults[blank];
+        };
+        expect(grade('たべ')).toBe('correct');
+        expect(grade('食べた')).toBe('wrong');
+    });
+
+    it('leaves an uninflected vocab blank unchanged', async () => {
+        const { plan } = await vocabBlankPlan();
+        const yasaiBlank = plan.blankWordIndices.indexOf(0);
+        expect(new Set(plan.acceptLists[yasaiBlank])).toEqual(new Set(['野菜', 'やさい']));
+    });
+});
+
 describe('gradeGrammarAnswers', () => {
     const blankPlan = { acceptLists: [['すし', '寿司', '鮨', '鮓']] };
 
@@ -1142,6 +1235,30 @@ describe('computeConjugationPlan / computeBlankPlan for inflection points', () =
 
         expect(plan?.conjugation).toBeUndefined();
         expect(loadConjugations).not.toHaveBeenCalled();
+    });
+
+    it('keeps the drill strict while accepting the full-kana answer (issue #95: 大変 → じゃなくて)', async () => {
+        const negTePoint = { ...tePoint, id: 'n5-921', derives: 'negative て-form' } as GrammarPoint;
+        vi.spyOn(GrammarService, 'loadConjugations').mockResolvedValue({
+            'n5-921': {
+                form: 'na-adj-negative-te' as never,
+                formLabel: 'negative て-form (じゃなくて)',
+                items: [{
+                    vocabId: '1415000', lemma: '大変', lemmaReading: 'たいへん',
+                    target: '大変じゃなくて', targetReading: 'たいへんじゃなくて',
+                    alternatives: ['大変ではなくて', 'たいへんではなくて'], wordClass: 'na-adjective' as const,
+                }],
+            },
+        });
+
+        const plan = (await computeBlankPlan(negTePoint, null, 0))!;
+        const grade = (input: string) => gradeGrammarAnswers(plan, [input], [0]).overall;
+
+        expect(grade('たいへんじゃなくて')).toBe('correct');
+        expect(grade('大変じゃなくて')).toBe('correct');
+        expect(grade('たいへんではなくて')).toBe('correct');
+        // The form IS the point here, so another form of the right word stays wrong.
+        expect(grade('大変じゃない')).toBe('wrong');
     });
 });
 

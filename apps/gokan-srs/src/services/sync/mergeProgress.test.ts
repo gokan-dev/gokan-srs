@@ -204,6 +204,29 @@ describe('mergeVocabProgress (per-entry merge - the core fix)', () => {
         const remote = makeVocabProgress({ totalReviews: 7 });
         expect(mergeVocabProgress(local, remote).totalReviews).toBe(7);
     });
+
+    it('counts production reviews toward recency: a production-only device still wins', () => {
+        const older = new Date('2026-01-01');
+        const newer = new Date('2026-01-03');
+        const local = makeVocabProgress({
+            reading: makeEntry({ lastReviewedAt: older }),
+            meaning: makeEntry({ lastReviewedAt: older }),
+            production: makeEntry({ lastReviewedAt: older }),
+            lastReviewedAt: older,
+            consecutiveFailures: 0,
+        });
+        const remote = makeVocabProgress({
+            reading: makeEntry({ lastReviewedAt: older }),
+            meaning: makeEntry({ lastReviewedAt: older }),
+            production: makeEntry({ lastReviewedAt: newer }),
+            lastReviewedAt: newer,
+            consecutiveFailures: 2,
+        });
+
+        const merged = mergeVocabProgress(local, remote);
+        expect(merged.lastReviewedAt).toEqual(newer);
+        expect(merged.consecutiveFailures).toBe(2);
+    });
 });
 
 describe('mergeLearningQueues', () => {

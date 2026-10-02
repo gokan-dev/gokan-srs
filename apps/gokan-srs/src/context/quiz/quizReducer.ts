@@ -295,8 +295,11 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
             // though the card looks answered. Grading is unaffected either way (a
             // revealed blank is forced to 'minor_error' by productionHintLevel, not by
             // what userAnswer contains).
+            // On a cloze card the revealed answer is the blank's own reading
+            // (たべたら), so what fills the input fits the sentence.
             if (next === 2 && state.currentVocab) {
-                return { ...state, productionHintLevel: next, userAnswer: state.currentVocab.reading.primary };
+                const revealed = state.currentProductionCloze?.blankReading ?? state.currentVocab.reading.primary;
+                return { ...state, productionHintLevel: next, userAnswer: revealed };
             }
 
             return { ...state, productionHintLevel: next };
