@@ -61,4 +61,13 @@ export interface VocabSynonym {
     overlap?: number;
     /** Tier set by hand in the dataset; never upgraded from context. */
     curated?: boolean;
+    /**
+     * The other word's answerable forms, embedded so grading a wrong answer needs
+     * no fetch of its vocab file: written forms (kanji first), readings (primary
+     * first, merged homographs' readings included) and its inflecting POS codes.
+     * Absent on data built before them, which falls back to fetching.
+     */
+    w?: string[];
+    r?: string[];
+    pos?: string[];
 }

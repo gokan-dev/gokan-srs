@@ -283,6 +283,21 @@ async function pickMostFrequentCandidate(example: GrammarExample, candidateIndic
  *    no Submit step, rather than silently auto-granting SRS credit for an
  *    empty answer.
  */
+const KANA = /[぀-ヿ]/;
+
+/**
+ * The dataset's form label with the kana parts of its parentheticals removed,
+ * since those spell out the ending being asked for: "past negative (じゃなかった)"
+ * becomes "past negative". English parts stay, they name the form without giving
+ * it away: "prohibitive (な / do not)" becomes "prohibitive (do not)".
+ */
+export function cueFormLabel(label: string): string {
+    return label.replace(/\s*\(([^)]*)\)/g, (_, inner: string) => {
+        const kept = inner.split('/').map(part => part.trim()).filter(part => part && !KANA.test(part));
+        return kept.length > 0 ? ` (${kept.join(' / ')})` : '';
+    }).trim();
+}
+
 /**
  * Builds the drill plan for an `inflection` point - a point whose identity is a
  * derivation (て-form, causative, passive), so there is no invariant marker for
@@ -319,12 +334,13 @@ export async function computeConjugationPlan(point: GrammarPoint, reviewCount: n
         // The derivation IS the point, so this blank decides the point's result.
         isPatternBlank: [true],
         acceptLists: [accepted],
-        glosses: [entry.formLabel],
+        // The cue label, never the dataset's: its kana parenthetical is the answer.
+        glosses: [cueFormLabel(entry.formLabel)],
         readOnly: false,
         conjugation: {
             lemma: item.lemma,
             lemmaReading: item.lemmaReading,
-            formLabel: entry.formLabel,
+            formLabel: cueFormLabel(entry.formLabel),
             wordClass: item.wordClass,
             target: item.target,
             targetReading: item.targetReading,

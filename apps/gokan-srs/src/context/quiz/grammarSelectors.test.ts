@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import {
     selectNextGrammarView,
     computeBlankPlan,
+    cueFormLabel,
     gradeGrammarAnswers,
     selectCurrentGrammarProgress,
     selectNextGrammarSessionPreview,
@@ -1338,7 +1339,7 @@ describe('base-conjugation paradigm points (n5-905 plain-past, n5-911 na-adjecti
         const plan = await computeBlankPlan(plainPastPoint, null, 0);
 
         expect(plan).not.toBeNull();
-        expect(plan?.conjugation?.formLabel).toBe('plain past (た)');
+        expect(plan?.conjugation?.formLabel).toBe('plain past');
         expect(plan?.blankWordIndices).toEqual([0]);
         expect(plan?.isPatternBlank).toEqual([true]);
         expect(plan?.readOnly).toBe(false);
@@ -1350,7 +1351,7 @@ describe('base-conjugation paradigm points (n5-905 plain-past, n5-911 na-adjecti
         const plan = await computeBlankPlan(copulaPoint, null, 0);
 
         expect(plan).not.toBeNull();
-        expect(plan?.conjugation?.formLabel).toBe('plain (だ)');
+        expect(plan?.conjugation?.formLabel).toBe('plain');
         expect(plan?.conjugation?.wordClass).toBe('na-adjective');
         expect(plan?.blankWordIndices).toEqual([0]);
         expect(plan?.isPatternBlank).toEqual([true]);
@@ -1878,5 +1879,35 @@ describe('describeHubChapter', () => {
         // review counts elsewhere in the queue.
         const next = describeHubChapter(chapters, chapter2, queue);
         expect(next.status).toBe('next');
+    });
+});
+
+describe('cueFormLabel (the conjugation card must not print the ending it asks for)', () => {
+    it('drops a parenthetical that spells out the ending', () => {
+        expect(cueFormLabel('past negative (じゃなかった)')).toBe('past negative');
+        expect(cueFormLabel('ば conditional (ければ)')).toBe('ば conditional');
+        expect(cueFormLabel('て-form (で)')).toBe('て-form');
+    });
+
+    it('keeps English glosses, including the English half of a mixed parenthetical', () => {
+        expect(cueFormLabel('causative (make/let someone do)')).toBe('causative (make / let someone do)');
+        expect(cueFormLabel('potential (can do)')).toBe('potential (can do)');
+        expect(cueFormLabel('prohibitive (な / do not)')).toBe('prohibitive (do not)');
+        expect(cueFormLabel("volitional (よう / let's)")).toBe("volitional (let's)");
+    });
+
+    it('leaves a label without a parenthetical, and the form name outside one, unchanged', () => {
+        expect(cueFormLabel('passive')).toBe('passive');
+        expect(cueFormLabel('ず (without doing)')).toBe('ず (without doing)');
+    });
+
+    it('leaves no kana inside parentheses for any label the dataset ships', async () => {
+        const fs = await import('node:fs');
+        const path = 'dataset/compiled/grammar/conjugations.json';
+        if (!fs.existsSync(path)) return; // submodule not checked out
+        const entries = Object.values(JSON.parse(fs.readFileSync(path, 'utf-8'))) as { formLabel: string }[];
+        for (const { formLabel } of entries) {
+            expect(cueFormLabel(formLabel)).not.toMatch(/\([^)]*[぀-ヿ][^)]*\)/);
+        }
     });
 });

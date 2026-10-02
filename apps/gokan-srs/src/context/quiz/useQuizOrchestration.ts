@@ -27,18 +27,25 @@ import { selectNextView, selectCurrentProgress, selectSessionStats, selectNextSe
 import { useSessionLifecycle } from './useSessionLifecycle';
 import { refillCandidates } from './refillCandidates';
 import { progressUploadSignature, stableStringify } from "../../services/progressSerialization";
-import { orderSynonymsForCue, productionCueOf, sharedMeaningUsed, synonymOutcome } from '../../utils/synonymContext.utils';
+import { embeddedSynonymCandidate, orderSynonymsForCue, productionCueOf, sharedMeaningUsed, synonymOutcome } from '../../utils/synonymContext.utils';
 import type { ProductionCue } from '../../utils/synonymContext.utils';
 import type { VocabSynonym } from '../../models/index.model';
 
 /**
- * Finds which of the target's near-synonyms the learner typed, fetching the
- * candidates' vocab files only now (after a wrong answer). Entries whose shared
- * meaning the card uses are tried first, so the common case stops after a few
- * fetches even for a word with hundreds of pairs.
+ * Finds which of the target's near-synonyms the learner typed. Each entry
+ * carries the other word's forms, so this is normally a local check with no
+ * request at all; only an entry without them (older data) fetches that word's
+ * vocab file. Entries whose shared meaning the card uses are tried first.
  */
 async function findProductionSynonym(input: string, entries: VocabSynonym[], cue: ProductionCue) {
     const ordered = orderSynonymsForCue(entries, cue);
+    const embedded = ordered.map(embeddedSynonymCandidate);
+    const local = SRSService.evaluateProductionSynonyms(
+        input, embedded.filter((c): c is ProductionSynonymCandidate => c !== null)
+    );
+    if (local) return local;
+
+    const unembedded = ordered.filter((_, i) => embedded[i] === null);
     const load = async (group: VocabSynonym[]) => (await Promise.all(group.map(async (entry): Promise<ProductionSynonymCandidate | null> => {
         try {
             const vocab = await VocabularyService.loadVocab(entry.id);
@@ -52,8 +59,8 @@ async function findProductionSynonym(input: string, entries: VocabSynonym[], cue
 
     // In batches, in priority order: stop at the first batch containing a match.
     const BATCH = 25;
-    for (let i = 0; i < ordered.length; i += BATCH) {
-        const match = SRSService.evaluateProductionSynonyms(input, await load(ordered.slice(i, i + BATCH)));
+    for (let i = 0; i < unembedded.length; i += BATCH) {
+        const match = SRSService.evaluateProductionSynonyms(input, await load(unembedded.slice(i, i + BATCH)));
         if (match) return match;
     }
     return null;
@@ -842,9 +849,9 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             // ranker (utils/sentenceRanking.ts), the same rule the grammar review uses.
             const learner = indexLearnerVocab(state.progress?.learningQueue);
 
-            // Near-synonyms are NOT fetched here: a word can list hundreds of pairs
-            // since every shared gloss makes one. submitAnswer fetches them only after
-            // a wrong answer (findProductionSynonym).
+            // Near-synonyms need nothing loaded here: each entry on the vocab file
+            // carries the other word's forms, and submitAnswer checks them only
+            // after a wrong answer (findProductionSynonym).
             if (quizType === 'production') {
                 if (sentences && sentences.length > 0) {
                     productionCloze = pickProductionClozeSentence(vid, sentences, learner);

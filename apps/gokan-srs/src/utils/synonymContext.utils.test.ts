@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
-    glossPromptGlosses, normalizeGloss, orderSynonymsForCue, productionCueOf,
+    embeddedSynonymCandidate, glossPromptGlosses, normalizeGloss, orderSynonymsForCue, productionCueOf,
     sharedMeaningInCue, sharedMeaningUsed, synonymOutcome,
 } from './synonymContext.utils';
 import type { ProductionCloze } from './productionCloze.utils';
+import { SRSService } from '../services/srs.service';
 
 const cloze = (en: string): ProductionCloze => ({
     sentence: { id: 's', original: '', en: [{ id: 'e', text: en }], vocabIds: [] },
@@ -91,5 +92,35 @@ describe('orderSynonymsForCue', () => {
             { id: 'c', shared: ['tiny'] },
         ];
         expect(orderSynonymsForCue(entries, { sentence: 'Japan is a small country.' }).map(e => e.id)).toEqual(['b', 'a', 'c']);
+    });
+});
+
+describe('embeddedSynonymCandidate (grading without fetching the other word)', () => {
+    // 玄関's entry for 登場, as the dataset embeds it.
+    const toujou = { id: '1444800', relation: 'confusable' as const, shared: ['entrance'], overlap: 0.17, w: ['登場'], r: ['とうじょう'], pos: ['vs'] };
+
+    it('builds a candidate the production grader matches by reading or written form', () => {
+        const candidate = embeddedSynonymCandidate(toujou)!;
+        expect(candidate.vocab.writtenForm.kanji).toBe('登場');
+        expect(candidate.vocab.reading.primary).toBe('とうじょう');
+        expect(SRSService.evaluateProductionSynonyms('とうじょう', [candidate])?.candidate.vocabId).toBe('1444800');
+        expect(SRSService.evaluateProductionSynonyms('登場', [candidate])).not.toBeNull();
+        expect(SRSService.evaluateProductionSynonyms('げんかん', [candidate])).toBeNull();
+    });
+
+    it('carries the shared glosses and tier through, so context grading is unchanged', () => {
+        const candidate = embeddedSynonymCandidate(toujou)!;
+        expect(synonymOutcome(candidate, { sentence: "Let's take off our shoes at the entrance." })).toBe('correct');
+        expect(synonymOutcome(candidate, { glosses: ['front door'] })).toBe('confusable');
+    });
+
+    it('keeps alternatives and the inflecting POS, so a conjugated synonym still matches', () => {
+        const candidate = embeddedSynonymCandidate({ id: 'x', relation: 'interchangeable', w: ['並べる', '列べる'], r: ['ならべる'], pos: ['v1'] })!;
+        expect(SRSService.evaluateProductionSynonyms('列べる', [candidate])).not.toBeNull();
+        expect(SRSService.evaluateProductionSynonyms('並べた', [candidate])).not.toBeNull();
+    });
+
+    it('returns null for an entry without forms, which the caller fetches instead', () => {
+        expect(embeddedSynonymCandidate({ id: 'x', relation: 'confusable', shared: ['a'] })).toBeNull();
     });
 });
