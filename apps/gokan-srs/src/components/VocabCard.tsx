@@ -1,6 +1,7 @@
 import type { VocabProgress, Vocabulary } from "../models/vocabulary.model";
 
 import { MasteryRing } from "./MasteryRing";
+import { isProductionActivated } from "../services/scheduling";
 import { Card } from "./ui/Card";
 import { CardContent } from "./ui/CardContent";
 
@@ -58,6 +59,11 @@ export function VocabCard({
               <div className="flex flex-col items-center" title="Meaning Mastery">
                 <MasteryRing memoryStrength={progress.meaning.memoryStrength} size={20} variant="meaning" />
               </div>
+              {isProductionActivated(progress.production) && (
+                <div className="flex flex-col items-center" title="Production Mastery">
+                  <MasteryRing memoryStrength={progress.production!.memoryStrength} size={20} variant="production" />
+                </div>
+              )}
             </div>
           </div>
 

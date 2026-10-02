@@ -73,8 +73,15 @@ export function mergeVocabProgress(
         ? mergeEntry(local.production ?? DEFAULT_SRS_ENTRY, remote.production ?? DEFAULT_SRS_ENTRY)
         : undefined;
 
-    const localRecency = Math.max(toTime(local.reading.lastReviewedAt), toTime(local.meaning.lastReviewedAt));
-    const remoteRecency = Math.max(toTime(remote.reading.lastReviewedAt), toTime(remote.meaning.lastReviewedAt));
+    // All three directions: a device that only answered production cards must
+    // still win recency, or its lastReviewedAt/consecutiveFailures are dropped.
+    const recencyOf = (vp: VocabProgress) => Math.max(
+        toTime(vp.reading.lastReviewedAt),
+        toTime(vp.meaning.lastReviewedAt),
+        toTime(vp.production?.lastReviewedAt ?? null),
+    );
+    const localRecency = recencyOf(local);
+    const remoteRecency = recencyOf(remote);
     const recencyWinner = remoteRecency > localRecency ? remote : local;
 
     // needsRetry follows the SAME per-type recency as its entry, rather than a

@@ -286,7 +286,7 @@ export function getNextVocabToStudy(
 function pickStable(items: VocabProgress[]): VocabProgress | null {
     return pickStableGeneric(items, v => {
         const reviewedAt = v.lastReviewedAt instanceof Date ? v.lastReviewedAt.getTime() : 0;
-        const retry = `${v.needsRetry?.reading ? 1 : 0}${v.needsRetry?.meaning ? 1 : 0}`;
+        const retry = `${v.needsRetry?.reading ? 1 : 0}${v.needsRetry?.meaning ? 1 : 0}${v.needsRetry?.production ? 1 : 0}`;
         return `${v.vocabId}:${v.totalReviews}:${reviewedAt}:${retry}`;
     });
 }
