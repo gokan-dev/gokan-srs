@@ -268,6 +268,40 @@ describe('SRSService Formula Tests', () => {
         });
     });
 
+    describe('evaluateProductionAnswer: any form of the word is correct (issue #95)', () => {
+        const taberu = {
+            reading: { primary: 'たべる', alternatives: [] as string[] },
+            writtenForm: { kanji: '食べる', alternatives: [] as string[], containedKanji: ['食'] },
+            senses: [{ pos: ['v1', 'vt'], glosses: ['to eat'], misc: [] }],
+        } as never;
+        const kaiwa = {
+            reading: { primary: 'かいわ', alternatives: [] as string[] },
+            writtenForm: { kanji: '会話', alternatives: [] as string[], containedKanji: ['会', '話'] },
+            senses: [{ pos: ['n', 'vs'], glosses: ['conversation'], misc: [] }],
+        } as never;
+
+        it.each(['食べたら', 'たべたら', '食べた', '食べる', 'たべて'])('grades %s correct for 食べる', input => {
+            expect(SRSService.evaluateProductionAnswer(input, taberu).result).toBe('correct');
+        });
+
+        it('accepts the cloze blank surface and reading passed as extra forms', () => {
+            expect(SRSService.evaluateProductionAnswer('食べていた', taberu, ['食べていた', 'たべていた']).result).toBe('correct');
+        });
+
+        it('still grades a different word wrong', () => {
+            expect(SRSService.evaluateProductionAnswer('会社', kaiwa).result).toBe('wrong');
+        });
+
+        it('keeps a reading typo of the dictionary form a minor error', () => {
+            expect(SRSService.evaluateProductionAnswer('たべるう', taberu).result).toBe('minor_error');
+        });
+
+        it('matches a synonym candidate by one of its conjugated forms', () => {
+            const match = SRSService.evaluateProductionSynonyms('食べた', [{ vocabId: 'x', relation: 'interchangeable', vocab: taberu }]);
+            expect(match?.candidate.vocabId).toBe('x');
+        });
+    });
+
     describe('evaluateProductionAnswer (issue #71 Part A)', () => {
         const vocab = {
             reading: { primary: 'かならず', alternatives: [] as string[] },

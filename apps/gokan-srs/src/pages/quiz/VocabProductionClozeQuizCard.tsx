@@ -8,7 +8,7 @@ import { CardSection } from "../../components/ui/CardSection";
 import { MasteryRing } from "../../components/MasteryRing";
 import { JlptChip } from "../../components/JlptChip";
 import { blankWidthEm } from "../../utils/blankWidth";
-import { splitClozeContext, emphasizeGloss } from "../../utils/productionCloze.utils";
+import { splitClozeContext, emphasizeGloss, blankSurfaceOf } from "../../utils/productionCloze.utils";
 import { getCoarsePosLabels } from "./quizFormatting";
 import { InteractiveSentence } from "../../components/InteractiveSentence";
 
@@ -72,6 +72,7 @@ export function VocabProductionClozeQuizCard({ onVocabClick }: { onVocabClick?: 
 
     const { sentence } = currentProductionCloze;
     const { before, after } = splitClozeContext(currentProductionCloze);
+    const blankSurface = blankSurfaceOf(currentProductionCloze);
     const revealed = productionHintLevel >= 2;
     const allGlosses = currentVocab.senses.flatMap(s => s.glosses);
     const gloss = allGlosses[0] ?? '';
@@ -192,9 +193,13 @@ export function VocabProductionClozeQuizCard({ onVocabClick }: { onVocabClick?: 
                                 below the whole sentence, never the written form that was
                                 actually blanked. Mirrors GrammarQuizCard's per-blank reveal. */}
                             {feedback?.show && !feedback.correct && (
+                                // The form the sentence uses (食べたら / たべたら), not the
+                                // dictionary form: that is what fits the blank.
                                 <ruby className="ruby-text mt-1 text-feedback-correct">
-                                    {currentVocab.writtenForm.kanji}
-                                    <rt className="text-xs font-sans text-secondary not-italic">{feedback.matchedAnswer}</rt>
+                                    {blankSurface}
+                                    <rt className="text-xs font-sans text-secondary not-italic">
+                                        {currentProductionCloze.blankReading ?? feedback.matchedAnswer}
+                                    </rt>
                                 </ruby>
                             )}
                         </span>

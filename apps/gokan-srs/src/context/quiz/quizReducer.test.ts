@@ -177,6 +177,18 @@ describe('quizReducer', () => {
             expect(next.userAnswer).toBe(vocab.reading.primary);
         });
 
+        it('on a cloze card, reaching level 2 writes the blank\'s own conjugated reading', () => {
+            const vocab = makeVocab();
+            const cloze = {
+                sentence: { id: 's1', original: '野菜を食べたら？', en: [], vocabIds: ['v1'] },
+                blankStart: 3, blankLength: 4, blankReading: 'たべたら',
+            };
+            const state: QuizState = { ...initialState, currentVocab: vocab, currentProductionCloze: cloze, productionHintLevel: 1 };
+            const next = quizReducer(state, { type: 'REVEAL_PRODUCTION_HINT' });
+
+            expect(next.userAnswer).toBe('たべたら');
+        });
+
         it('does not touch userAnswer before reaching level 2', () => {
             const vocab = makeVocab();
             const state: QuizState = { ...initialState, currentVocab: vocab, productionHintLevel: 0, userAnswer: 'typed' };

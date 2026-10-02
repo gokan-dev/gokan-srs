@@ -3,6 +3,7 @@ import type { GrammarExample, GrammarPoint } from '../../models/grammar.model';
 import type { AnswerResult } from '../../services/srs.service';
 import { GrammarSRSService } from '../../services/grammarSrs.service';
 import type { QuizState, SessionGains } from './quizReducer';
+import type { InflectableWord } from '../../utils/inflection.utils';
 
 /** Which example (by index) and which of its words became blanks for the CURRENT quiz turn - fixed at load time so grading matches what was shown. */
 /**
@@ -98,6 +99,14 @@ export interface GrammarBlankPlan {
      * for the hint the learner was shown - a near miss, not a failure.
      */
     acceptListsMinor?: string[][];
+    /**
+     * Per-blank inflection data for VOCAB (non-pattern) blanks, null elsewhere
+     * (same order as blankWordIndices). Lets gradeGrammarAnswers grade any other
+     * form of the right word (食べた where the sentence wants 食べて) as
+     * `minor_error` rather than `wrong`, without listing every form up front.
+     * Pattern blanks never carry it: there the form IS what is being tested.
+     */
+    blankLemmas?: (InflectableWord | null)[];
     /**
      * Set when this turn is drilling one realization of a variant group. The
      * realization rotates between reviews, so the learner meets every form of the

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { pickProductionClozeSentence, splitSentenceAtBlank, splitClozeContext, emphasizeGloss } from './productionCloze.utils';
+import { pickProductionClozeSentence, splitSentenceAtBlank, splitClozeContext, emphasizeGloss, blankSurfaceOf, clozeAcceptedForms } from './productionCloze.utils';
 import type { Sentence } from '../models/sentence.model';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../models/vocabulary.model';
 import { indexLearnerVocab } from './sentenceRanking';
@@ -15,6 +15,33 @@ function makeSentence(overrides: Partial<Sentence> = {}): Sentence {
         ...overrides,
     };
 }
+
+describe('conjugated blank forms (issue #95)', () => {
+    const sentence = makeSentence({
+        id: 's1',
+        original: '野菜を食べたら？',
+        matches: { v1: [{ start: 3, length: 4, reading: 'たべたら' }] },
+    });
+
+    it('carries the blank\'s own reading from its match', () => {
+        const cloze = pickProductionClozeSentence('v1', [sentence], noLearner)!;
+        expect(cloze.blankReading).toBe('たべたら');
+        expect(blankSurfaceOf(cloze)).toBe('食べたら');
+    });
+
+    it('exposes the blank surface and reading as extra accepted forms', () => {
+        const cloze = pickProductionClozeSentence('v1', [sentence], noLearner)!;
+        expect(clozeAcceptedForms(cloze)).toEqual(['食べたら', 'たべたら']);
+        expect(clozeAcceptedForms(null)).toEqual([]);
+    });
+
+    it('omits blankReading when the match has none', () => {
+        const bare = makeSentence({ id: 's2', original: '食べた', matches: { v1: [{ start: 0, length: 3 }] } });
+        const cloze = pickProductionClozeSentence('v1', [bare], noLearner)!;
+        expect(cloze.blankReading).toBeUndefined();
+        expect(clozeAcceptedForms(cloze)).toEqual(['食べた']);
+    });
+});
 
 describe('pickProductionClozeSentence', () => {
     it('returns null when no sentence has a usable match for the vocab', () => {
