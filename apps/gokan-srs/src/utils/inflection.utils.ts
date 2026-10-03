@@ -291,7 +291,7 @@ const normalize = (s: string) => s.trim().replace(/\s+/g, '');
  * continues in kana. It is a prefix test on the STEM, which is what keeps 上げる
  * from passing as a form of 上がる (stem 上が) and 会社 from passing as 会話. A bare
  * stem (書 for 書く) is deliberately not a form: that stays the dropped-okurigana
- * `minor_error` analyzeError already gives it.
+ * `minor_error` matchAnswer already gives it.
  */
 export function isFormOfWord(input: string, word: InflectableWord): boolean {
     const u = normalize(input);

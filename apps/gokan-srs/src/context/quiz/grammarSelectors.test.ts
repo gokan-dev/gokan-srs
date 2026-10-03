@@ -988,7 +988,7 @@ describe('gradeGrammarAnswers', () => {
 
         it('wrong beats pass', () => {
             // Typing the literal word "pass" grades that blank as 'pass' independently
-            // of the hint system (SRSService.analyzeError) - still reachable even
+            // of the hint system (matchAnswer) - still reachable even
             // though a revealed hint no longer forces 'pass' itself.
             const result = gradeGrammarAnswers(twoBlankPlan, ['ねこ', 'pass'], [0, 0]);
             expect(result.perBlankResults[1]).toBe('pass');
@@ -1287,6 +1287,29 @@ describe('computeConjugationPlan / computeBlankPlan for inflection points', () =
         expect(grade('たいへんではなくて')).toBe('correct');
         // The form IS the point here, so another form of the right word stays wrong.
         expect(grade('大変じゃない')).toBe('wrong');
+    });
+
+    it('grades a slip in a long conjugated answer as a minor error (reported: ひつようじゃなかた)', async () => {
+        const pastNegPoint = { ...tePoint, id: 'n5-922', derives: 'past negative' } as GrammarPoint;
+        vi.spyOn(GrammarService, 'loadConjugations').mockResolvedValue({
+            'n5-922': {
+                form: 'na-adj-past-negative' as never,
+                formLabel: 'past negative (じゃなかった)',
+                items: [{
+                    vocabId: '1238680', lemma: '必要', lemmaReading: 'ひつよう',
+                    target: '必要じゃなかった', targetReading: 'ひつようじゃなかった',
+                    wordClass: 'na-adjective' as const,
+                }],
+            },
+        });
+
+        const plan = (await computeBlankPlan(pastNegPoint, null, 0))!;
+        const grade = (input: string) => gradeGrammarAnswers(plan, [input], [0]).overall;
+
+        expect(plan.leniency).toBe('lenient');
+        expect(grade('ひつようじゃなかた')).toBe('minor_error');
+        expect(grade('ひつよじゃなかた')).toBe('minor_error');
+        expect(grade('ひつようじゃない')).toBe('wrong');
     });
 });
 

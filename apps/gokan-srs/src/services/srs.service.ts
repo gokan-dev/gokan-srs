@@ -8,12 +8,10 @@ import type { QuizType } from '../utils/srs.utils';
 import { JLPT_LEVELS } from '../models/index.model';
 import type { SynonymRelation } from '../models/index.model';
 import { collectJlptCandidates, countJlptCandidates } from './jlptWalk';
-import { hasKanji, kanjiSkeleton } from '../utils/kanji.utils';
 import { isFormOfWord, toInflectableWord } from '../utils/inflection.utils';
-import { kanaToRomaji } from '../utils/romaji';
+import { matchAnswer, matchBest, type AnswerResult, type Leniency } from '../utils/answerMatching';
 
-
-export type AnswerResult = 'correct' | 'minor_error' | 'wrong' | 'pass';
+export type { AnswerResult } from '../utils/answerMatching';
 
 /**
  * One member of the current production word's near-synonym cluster (issue #71
@@ -52,85 +50,45 @@ export class SRSService {
        ======================= */
 
     /**
-     * Checks user input against ALL acceptable readings.
-     * Returns the best result found (Correct > Minor Error > Wrong).
+     * Checks user input against ALL acceptable readings, through the shared
+     * matcher (utils/answerMatching.ts). Returns the best result found.
      */
     static evaluateAnswer(
         userInput: string,
-        readings: { primary: string; alternatives: string[] }
+        readings: { primary: string; alternatives: string[] },
+        leniency: Leniency = 'standard'
     ): { result: AnswerResult; matchedAnswer: string } {
-        const allReadings = [readings.primary, ...readings.alternatives];
-        let bestResult: AnswerResult = 'wrong';
-        let bestMatch = readings.primary;
-
-        for (const reading of allReadings) {
-            const res = this.analyzeError(userInput, reading);
-
-            if (res === 'pass') {
-                return { result: 'pass', matchedAnswer: bestMatch };
-            }
-
-            if (res === 'correct') {
-                return { result: 'correct', matchedAnswer: reading };
-            }
-
-            if (res === 'minor_error') {
-                bestResult = 'minor_error';
-                bestMatch = reading;
-            }
-        }
-
-        return { result: bestResult, matchedAnswer: bestMatch };
+        return matchBest(userInput, [readings.primary, ...readings.alternatives], leniency);
     }
 
     /**
-     * Checks user input against ALL acceptable meanings (glosses).
-     * Returns the best result found.
+     * Checks user input against ALL acceptable meanings (glosses). Builds the
+     * accept-list (each gloss split on its separators); the comparison itself is
+     * the shared matcher's, like every other quiz.
      */
     static evaluateMeaning(
         userInput: string,
         meanings: string[]
     ): { result: AnswerResult; matchedAnswer: string } {
-        let bestResult: AnswerResult = 'wrong';
-        let bestMatch = meanings[0] || '';
-
-        // Pre-normalize user input once for efficiency
-        const normalizedUser = this.normalizeMeaning(userInput);
-
-        if (normalizedUser === 'pass' || normalizedUser === '') {
-            return { result: normalizedUser === 'pass' ? 'pass' : 'wrong', matchedAnswer: bestMatch };
-        }
-
-        for (const meaning of meanings) {
-            // [FIX] pre-strip parentheses iteratively so that commas inside them (e.g. "go (to, from)") don't break splitting
-            let cleanMeaning = meaning;
+        const parts = meanings.flatMap(meaning => {
+            // Parentheses go first so commas inside them ("go (to, from)") don't
+            // split the gloss.
+            let clean = meaning;
             let prev;
             do {
-                prev = cleanMeaning;
-                cleanMeaning = cleanMeaning.replace(/\s*\([^()]*\)\s*/g, " ");
-            } while (cleanMeaning !== prev);
+                prev = clean;
+                clean = clean.replace(/\s*\([^()]*\)\s*/g, ' ');
+            } while (clean !== prev);
 
-            // Split meaning by separators (comma, semicolon)
-            // e.g. "answer; reply; solution"
-            // [FIX] Split by comma only if not followed by a digit to avoid splitting numbers like 10,000
-            const parts = cleanMeaning.split(/;\s*|,(?!\d)\s*/).map(p => p.trim()).filter(p => p.length > 0);
+            // Split on ; and , but not a comma inside a number (10,000).
+            return clean.split(/;\s*|,(?!\d)\s*/).map(p => p.trim()).filter(p => p.length > 0);
+        });
 
-            for (const part of parts) {
-                const normalizedExpected = this.normalizeMeaning(part);
-                const res = this.compareMeaning(normalizedUser, normalizedExpected);
-
-                if (res === 'correct') {
-                    return { result: 'correct', matchedAnswer: part };
-                }
-
-                if (res === 'minor_error' && bestResult !== 'minor_error') {
-                    bestResult = 'minor_error';
-                    bestMatch = part;
-                }
-            }
-        }
-
-        return { result: bestResult, matchedAnswer: bestMatch };
+        const best = matchBest(userInput, parts);
+        // Nothing accepted to reveal beyond the first gloss when nothing matched.
+        return best.result === 'wrong' || best.result === 'pass'
+            ? { result: best.result, matchedAnswer: meanings[0] || '' }
+            : best;
     }
 
     /**
@@ -151,8 +109,8 @@ export class SRSService {
      * between two kanji strings is usually a different word. The protection was
      * right, the placement was not. Exact-only cannot express "right word, tail
      * missing", so it graded 六 for 六つ as `wrong` at -0.40 (reported from
-     * production). Moving the distinction into `analyzeError`, as a kanji-skeleton
-     * rule, protects every quiz at once instead of this one call site, and the
+     * production). Moving the distinction into the shared matcher
+     * (`matchAnswer`, utils/answerMatching.ts), as a kanji-skeleton rule, protects every quiz at once instead of this one call site, and the
      * special case here became dead weight.
      *
      * Shared by both production quiz cards (gloss-prompt and the sentence-cloze
@@ -248,59 +206,6 @@ export class SRSService {
         };
     }
 
-    private static normalizeMeaning(text: string): string {
-        // 1. Lowercase
-        let s = text.toLowerCase().trim();
-
-        // 2a. Remove content within parentheses (iteratively for nested parens)
-        // This must be done BEFORE removing punctuation so we can identify the parentheses
-        let prev;
-        do {
-            prev = s;
-            s = s.replace(/\s*\([^()]*\)\s*/g, " ");
-        } while (s !== prev);
-
-        // 3. Remove punctuation
-        s = s.replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "");
-
-        // 4. Remove stop words from START of string
-        // "to eat" -> "eat"
-        // "a cat" -> "cat"
-        // "to be seen" -> "seen"
-        s = s.replace(/^(to\s+be|to|be|a|an|the)\s+/g, "");
-
-        // 5. Collapse spaces
-        s = s.replace(/\s+/g, " ");
-
-        return s.trim();
-    }
-
-    private static compareMeaning(user: string, expected: string): AnswerResult {
-        if (user === expected) return 'correct';
-
-        // Partial match check (e.g., 'pain' for 'painful' or vice-versa)
-        if (user.length >= 3 && (expected.includes(user) || user.includes(expected))) {
-            if (Math.abs(user.length - expected.length) <= 5) {
-                return 'minor_error';
-            }
-        }
-
-        // Fuzzy check
-        const dist = this.levenshtein(user, expected);
-
-        // Allow distance 1 for short words (len>=3), distance 2 for long (len>=6)
-        // But strict for very short words (len < 3)
-        let allowed = 0;
-        if (expected.length >= 6) allowed = 2;
-        else if (expected.length >= 3) allowed = 1;
-
-        if (dist <= allowed) return 'minor_error';
-
-        return 'wrong';
-    }
-
-
-
     /* =======================
        ANSWER APPLICATION
        ======================= */
@@ -324,7 +229,7 @@ export class SRSService {
         // conditions than that direction's own quiz (see applyVocabReinforcement).
         strengthDeltaModifier: number = 1.0
     ): { updated: VocabProgress; result: AnswerResult, interval: number } {
-        const result = forcedResult ?? this.analyzeError(userAnswer, correctAnswer);
+        const result = forcedResult ?? matchAnswer(userAnswer, correctAnswer);
 
         // Entries keyed by quiz type rather than reading/meaning ternaries. With a
         // third type this is not a style preference: a ternary silently routes
@@ -598,101 +503,6 @@ export class SRSService {
             interval: newInterval
         };
     }
-
-    static analyzeError(user: string, expected: string): AnswerResult {
-        const u = user.trim().replace(/\s+/g, '');
-        const e = expected.trim().replace(/\s+/g, '');
-
-        if (u === e) return 'correct';
-        if (u === 'pass') return 'pass';
-
-        // Once kanji are involved, Levenshtein stops meaning "typo": 会社 and 会話
-        // are distance 1 apart and are different words, which is why this branch
-        // never falls through to the distance test below. (It used to, for grammar
-        // blanks, and 会社 scored `minor_error` against 会話.)
-        //
-        // The one tolerated difference is a DROPPED OKURIGANA TAIL: 六 for 六つ,
-        // 食 for 食べる. The learner produced the word and stopped at the kanji,
-        // which is a partial answer rather than the wrong word, and -0.40 is the
-        // wrong price for it (reported from production).
-        //
-        // Deliberately a prefix test, not a distance one. A distance test would
-        // also swallow 上がる / 上げる and 始まる / 始める, which differ by one
-        // okurigana kana and ARE different words. Absent kana cannot do that:
-        // nothing is a different word merely by having its tail cut off.
-        if (hasKanji(u) || hasKanji(e)) {
-            if (kanjiSkeleton(u) !== kanjiSkeleton(e)) return 'wrong';
-            return e.startsWith(u) ? 'minor_error' : 'wrong';
-        }
-
-        // Minor error check
-        // Rule: Levenshtein distance <= 1 AND length relative check
-        // User Examples:
-        // こたへ (subs) -> minor
-        // こたぇ (subs) -> minor
-        // こたええ (insert) -> minor
-        // こーたえ (insert) -> minor
-        // こえ (delete) -> wrong
-
-        // This implies we allow substitutions and insertions (user >= expected), but NOT deletions (user < expected).
-        // Or strictly: mora count check. For now, char length is a sufficient proxy for these examples.
-
-        // The distance is counted in ROMAJI, i.e. in the keystrokes a learner makes on
-        // an IME, not in kana. A typo is a mistyped key: つま for つむ is one key off
-        // (tsuma / tsumu). Counting kana instead made any one-kana swap a typo, which
-        // on a short word is a different word: やむ for つむ is one kana apart but
-        // three keys (yamu / tsumu), and graded minor_error as a near-synonym's typo
-        // (reported from production). The examples above all stay one key apart.
-        const dist = this.levenshtein(kanaToRomaji(u), kanaToRomaji(e));
-
-        // Allow distance 1 IF it's not a pure deletion that shortens the word effectively below target
-        // The user example 'こえ' (2 chars) vs 'こたえ' (3 chars) is WRONG.
-        // 'こーたえ' (4 chars) vs 'こたえ' (3 chars) is MINOR.
-        // So: dist <= 1 AND u.length >= e.length (lengths in kana, the distance in romaji)
-
-        if (dist <= 1 && u.length >= e.length) {
-            return 'minor_error';
-        }
-
-        return 'wrong';
-    }
-
-
-
-    /**
-     * Standard Levenshtein Distance
-     */
-    private static levenshtein(a: string, b: string): number {
-        const matrix = [];
-
-        // 1. Initialize matrix
-        for (let i = 0; i <= b.length; i++) {
-            matrix[i] = [i];
-        }
-        for (let j = 0; j <= a.length; j++) {
-            matrix[0][j] = j;
-        }
-
-        // 2. Fill matrix
-        for (let i = 1; i <= b.length; i++) {
-            for (let j = 1; j <= a.length; j++) {
-                if (b.charAt(i - 1) == a.charAt(j - 1)) {
-                    matrix[i][j] = matrix[i - 1][j - 1];
-                } else {
-                    matrix[i][j] = Math.min(
-                        matrix[i - 1][j - 1] + 1, // substitution
-                        Math.min(
-                            matrix[i][j - 1] + 1, // insertion
-                            matrix[i - 1][j] + 1 // deletion
-                        )
-                    );
-                }
-            }
-        }
-
-        return matrix[b.length][a.length];
-    }
-
 
     /* =======================
        VOCAB AVAILABILITY
