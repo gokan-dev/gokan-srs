@@ -142,6 +142,8 @@ export interface PendingGrammarQuizItem {
  */
 export interface GrammarSessionTracking {
     committed: string[];
+    /** Epoch ms at which a consult page paused the session; absent while it runs. See SessionTracking. */
+    suspendedAt?: number;
 }
 
 export interface GrammarQuizState {
@@ -211,6 +213,8 @@ export type GrammarQuizAction =
     | { type: 'GRAMMAR_CLEAR_FEEDBACK' }
     | { type: 'GRAMMAR_SESSION_START'; payload: { grammarIds: string[]; progress?: UserProgress } }
     | { type: 'GRAMMAR_SESSION_END' }
+    | { type: 'GRAMMAR_SESSION_SUSPEND'; payload: { now: number } }
+    | { type: 'GRAMMAR_SESSION_RESUME' }
     | { type: 'GRAMMAR_CHAPTER_COMPLETE'; payload: { chapterId: string } }
     | { type: 'GRAMMAR_RESET_PROGRESS'; payload: { progress: UserProgress } };
 
@@ -355,6 +359,19 @@ export function grammarReducer(state: QuizState, action: GrammarQuizAction): Qui
 
         case 'GRAMMAR_SESSION_END':
             return state.grammarSession ? { ...state, grammarSession: null } : state;
+
+        case 'GRAMMAR_SESSION_SUSPEND':
+            // Mirrors SESSION_SUSPEND: keeps the committed set, history and gains.
+            return state.grammarSession && state.grammarSession.suspendedAt === undefined
+                ? { ...state, grammarSession: { ...state.grammarSession, suspendedAt: action.payload.now } }
+                : state;
+
+        case 'GRAMMAR_SESSION_RESUME': {
+            if (!state.grammarSession || state.grammarSession.suspendedAt === undefined) return state;
+            const running = { ...state.grammarSession };
+            delete running.suspendedAt;
+            return { ...state, grammarSession: running };
+        }
 
         /**
          * Records that a chapter's end-of-chapter step has been handled - either

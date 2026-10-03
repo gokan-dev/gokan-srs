@@ -76,6 +76,14 @@ export const CONSTANTS = {
          */
         sessionQuizCap: 200,
 
+        /**
+         * How long a session paused by a visit to a consult page (a word, kanji or
+         * grammar point's detail page) stays resumable. Past this, returning to the
+         * quiz starts a fresh session: the paused one's committed set was taken long
+         * enough ago that picking it back up would be surprising.
+         */
+        sessionSuspendTtlMinutes: 30,
+
         production: {
             /**
              * Fraction of a word's meaning strength that its production entry starts
