@@ -283,6 +283,35 @@ describe('grammarReducer (via quizReducer)', () => {
         });
     });
 
+    describe('GRAMMAR_SESSION_SUSPEND / GRAMMAR_SESSION_RESUME', () => {
+        const history = [{ grammarId: 'n5-001', title: 'けど', result: 'correct' as const, delta: 6 }];
+        const running: QuizState = {
+            ...initialState,
+            grammarSession: { committed: ['n5-001', 'n5-002'] },
+            grammarSessionHistory: history,
+            grammarSessionGains: { net: 6, gained: 6, lost: 0, vocab: 0 },
+        };
+
+        it('suspend stamps the pause and keeps the committed set, history and gains', () => {
+            const next = quizReducer(running, { type: 'GRAMMAR_SESSION_SUSPEND', payload: { now: 42 } });
+            expect(next.grammarSession).toEqual({ committed: ['n5-001', 'n5-002'], suspendedAt: 42 });
+            expect(next.grammarSessionHistory).toBe(history);
+            expect(next.grammarSessionGains).toBe(running.grammarSessionGains);
+        });
+
+        it('resume clears the pause and keeps history and gains', () => {
+            const paused = quizReducer(running, { type: 'GRAMMAR_SESSION_SUSPEND', payload: { now: 42 } });
+            const next = quizReducer(paused, { type: 'GRAMMAR_SESSION_RESUME' });
+            expect(next.grammarSession).toEqual({ committed: ['n5-001', 'n5-002'] });
+            expect(next.grammarSessionHistory).toBe(history);
+        });
+
+        it('both are no-ops when there is nothing to pause or resume', () => {
+            expect(quizReducer(initialState, { type: 'GRAMMAR_SESSION_SUSPEND', payload: { now: 1 } })).toBe(initialState);
+            expect(quizReducer(running, { type: 'GRAMMAR_SESSION_RESUME' })).toBe(running);
+        });
+    });
+
     describe('GRAMMAR_CHAPTER_COMPLETE', () => {
         it('appends the chapter id to completedChapters', () => {
             const state: QuizState = { ...initialState, progress: makeProgress({ completedChapters: ['c00'] }) };

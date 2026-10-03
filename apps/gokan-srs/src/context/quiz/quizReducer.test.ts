@@ -417,6 +417,61 @@ describe('quizReducer', () => {
         expect(next).toBe(initialState);
     });
 
+    describe('SESSION_SUSPEND / SESSION_RESUME (consult pages pause the session)', () => {
+        const history = [{ vocabId: 'v1', writtenForm: '玄関', result: 'wrong' as const, delta: -4 }];
+        const running: QuizState = {
+            ...initialState,
+            session: { committed: [taskKey('v1', 'production'), taskKey('v2', 'reading')] },
+            sessionHistory: history,
+            sessionGains: { net: -4, gained: 0, lost: 4, vocab: 0 },
+        };
+
+        it('SESSION_SUSPEND stamps the pause and keeps the committed set, history and gains', () => {
+            const next = quizReducer(running, { type: 'SESSION_SUSPEND', payload: { now: 1234 } });
+            expect(next.session).toEqual({ committed: running.session!.committed, suspendedAt: 1234 });
+            expect(next.sessionHistory).toBe(history);
+            expect(next.sessionGains).toBe(running.sessionGains);
+        });
+
+        it('SESSION_SUSPEND keeps the first pause time when already paused', () => {
+            const paused = quizReducer(running, { type: 'SESSION_SUSPEND', payload: { now: 1234 } });
+            expect(quizReducer(paused, { type: 'SESSION_SUSPEND', payload: { now: 9999 } })).toBe(paused);
+        });
+
+        it('SESSION_SUSPEND is a no-op without a session', () => {
+            expect(quizReducer(initialState, { type: 'SESSION_SUSPEND', payload: { now: 1 } })).toBe(initialState);
+        });
+
+        it('SESSION_RESUME clears the pause and keeps history and gains, unlike SESSION_START', () => {
+            const paused = quizReducer(running, { type: 'SESSION_SUSPEND', payload: { now: 1234 } });
+            const next = quizReducer(paused, { type: 'SESSION_RESUME' });
+            expect(next.session).toEqual({ committed: running.session!.committed });
+            expect('suspendedAt' in next.session!).toBe(false);
+            expect(next.sessionHistory).toBe(history);
+            expect(next.sessionGains).toEqual({ net: -4, gained: 0, lost: 4, vocab: 0 });
+        });
+
+        it('SESSION_RESUME is a no-op on a running session or without one', () => {
+            expect(quizReducer(running, { type: 'SESSION_RESUME' })).toBe(running);
+            expect(quizReducer(initialState, { type: 'SESSION_RESUME' })).toBe(initialState);
+        });
+
+        it('a pending answer survives the pause: feedback and the current card are untouched', () => {
+            const withFeedback: QuizState = {
+                ...running,
+                userAnswer: 'とうじょう',
+                feedback: { show: true, correct: false, type: 'wrong', message: '', matchedAnswer: 'げんかん' },
+            };
+            const roundTrip = quizReducer(
+                quizReducer(withFeedback, { type: 'SESSION_SUSPEND', payload: { now: 1 } }),
+                { type: 'SESSION_RESUME' }
+            );
+            expect(roundTrip.feedback).toBe(withFeedback.feedback);
+            expect(roundTrip.userAnswer).toBe('とうじょう');
+            expect(roundTrip.progress).toBe(withFeedback.progress);
+        });
+    });
+
     it('UPDATE_AFTER_ANSWER leaves the committed session task set untouched', () => {
         const progress = makeProgress();
         const state: QuizState = {
