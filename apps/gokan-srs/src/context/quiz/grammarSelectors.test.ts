@@ -422,6 +422,33 @@ describe('computeBlankPlan', () => {
             expect(plan.acceptLists[0]).toContain(joined);
         });
 
+        it('accepts the kana of a merged span that carries a conjugated stem', async () => {
+            // Reported: 映画を見に来ました, blank に来まし. The dataset linked 来 to
+            // 来 "next" (らい), so the kana answer にきまし graded wrong. With the
+            // stem's own reading (き) the merged kana is what the learner types.
+            const point = makeGrammarPoint({
+                examples: [{
+                    jp: '映画を見に来ました。', romaji: '', en: 'I came to watch a movie.',
+                    patternWordIndices: [3, 4, 5],
+                    words: [
+                        { surface: '映画', vocabId: 'v-eiga', reading: 'えいが' },
+                        { surface: 'を', vocabId: null },
+                        { surface: '見', vocabId: 'v-miru', reading: 'み', baseForm: '見る' },
+                        { surface: 'に', vocabId: null },
+                        { surface: '来', vocabId: 'v-kuru', reading: 'き', baseForm: '来る' },
+                        { surface: 'まし', vocabId: null, baseForm: 'ます' },
+                        { surface: 'た', vocabId: null },
+                        { surface: '。', vocabId: null },
+                    ],
+                }],
+            });
+            const plan = (await computeBlankPlan(point, makeProgress({ learningQueue: [] }), 0))!;
+
+            expect(plan.blankWordSpans).toEqual([[3, 4, 5]]);
+            expect(gradeGrammarAnswers(plan, ['にきまし'], [0]).perBlankResults[0]).toBe('correct');
+            expect(gradeGrammarAnswers(plan, ['に来まし'], [0]).perBlankResults[0]).toBe('correct');
+        });
+
         it('carries the example the blanks were computed against', async () => {
             // The variant-rotation bug: computeBlankPlan indexes into the ROTATED
             // realization's examples while the orchestration dispatches the
