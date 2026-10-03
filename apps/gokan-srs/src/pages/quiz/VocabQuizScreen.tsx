@@ -94,7 +94,7 @@ export function VocabQuizScreen({ onVocabClick }: VocabQuizScreenProps) {
                             state.currentProductionCloze ? (
                                 <VocabProductionClozeQuizCard onVocabClick={onVocabClick} />
                             ) : (
-                                <VocabProductionQuizCard onKanjiClick={() => onVocabClick(state.currentVocab!.id)} />
+                                <VocabProductionQuizCard onKanjiClick={() => onVocabClick(state.currentVocab!.id)} onVocabClick={onVocabClick} />
                             )
                         ) : (
                             <VocabQuizCard onKanjiClick={() => onVocabClick(state.currentVocab!.id)} />

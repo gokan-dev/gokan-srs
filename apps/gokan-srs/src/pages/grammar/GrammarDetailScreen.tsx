@@ -16,7 +16,7 @@ import { GrammarVariantsCard } from "./GrammarVariantsCard";
 import { GrammarDifferentiator } from "../../components/GrammarDifferentiator";
 import { InteractiveSentence } from "../../components/InteractiveSentence";
 import { grammarExampleToSentence, patternHighlightRanges } from "../../utils/grammarSentence.utils";
-import { ArrowLeft } from "lucide-react";
+import { PageHeader } from "../../components/PageHeader";
 
 const MINED_INITIAL_COUNT = 5;
 
@@ -381,27 +381,20 @@ export default function GrammarDetailScreen() {
 
     return (
         <div className="min-h-screen flex flex-col md:max-w-5xl md:mx-auto w-full animate-fade-in">
-            {/*
-              * Three columns rather than a centred title with two absolutely
-              * positioned siblings: at 375px "Back", the title and "Browse
-              * dataset" all overlapped, because absolute children take no space
-              * and the title claimed the full width regardless.
-              */}
-            <div className="w-full flex items-center justify-between gap-2 p-4 md:p-8">
-                <Button variant="ghost" onClick={() => navigate(-1)} className="shrink-0">
-                    <ArrowLeft className="inline-block w-4 h-4 mr-1 align-text-bottom" aria-hidden="true" />Back
-                </Button>
-                <h1 className="min-w-0 flex-1 text-center text-base md:text-xl font-serif text-primary truncate">
-                    Grammar Point Details
-                </h1>
-                <Link
-                    to="/grammar/browse"
-                    className="shrink-0 text-accent font-gothic text-sm hover:underline whitespace-nowrap"
-                >
-                    <span className="hidden sm:inline">Browse dataset</span>
-                    <span className="sm:hidden">Browse</span>
-                </Link>
-            </div>
+            <PageHeader
+                title="Grammar Point Details"
+                onBack={() => navigate(-1)}
+                className="p-4 md:p-8"
+                right={
+                    <Link
+                        to="/grammar/browse"
+                        className="text-accent font-gothic text-sm hover:underline whitespace-nowrap"
+                    >
+                        <span className="hidden sm:inline">Browse dataset</span>
+                        <span className="sm:hidden">Browse</span>
+                    </Link>
+                }
+            />
 
             {/* Content */}
             <main className="flex-1 p-4 md:p-8 pt-0">

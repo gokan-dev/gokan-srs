@@ -27,6 +27,7 @@ import {
     summariseVocabGains,
 } from './grammarSelectors';
 import { useSessionLifecycle } from './useSessionLifecycle';
+import { sessionRouteRole } from './sessionRoutes';
 import { refillCandidates } from './refillCandidates';
 
 export interface GrammarActions {
@@ -173,16 +174,17 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
 
     // Mirrors useQuizOrchestration's vocab session lifecycle (see its doc comment
     // for the full rationale), sharing the generic edge-detection via
-    // useSessionLifecycle: a grammar session is active only while the user is on
-    // /grammar AND there is review/learn work, and ends the moment either
-    // condition stops holding.
-    const grammarSessionActive =
-        location.pathname === '/grammar' &&
-        (grammarNextView.sessionState === 'review' || grammarNextView.sessionState === 'learn');
+    // useSessionLifecycle: a grammar session runs while the user is on /grammar
+    // AND there is review/learn work, pauses on a consult page (sessionRoutes.ts)
+    // and ends anywhere else.
+    const grammarSessionRole = sessionRouteRole(location.pathname, 'grammar');
+    const grammarSessionHasWork =
+        grammarNextView.sessionState === 'review' || grammarNextView.sessionState === 'learn';
 
     useSessionLifecycle({
-        active: grammarSessionActive,
-        hasSession: !!state.grammarSession,
+        role: grammarSessionRole,
+        hasWork: grammarSessionHasWork,
+        session: state.grammarSession,
         onStart: (now) => {
             if (!state.progress) return;
 
@@ -202,6 +204,12 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
             });
         },
         onEnd: () => dispatch({ type: 'GRAMMAR_SESSION_END' }),
+        onSuspend: (now) => dispatch({ type: 'GRAMMAR_SESSION_SUSPEND', payload: { now: now.getTime() } }),
+        onResume: () => {
+            // Same as vocab: an unanswered card is not scored on the time spent away.
+            if (!state.grammarFeedback?.show && startTimeRef.current !== null) startTimeRef.current = Date.now();
+            dispatch({ type: 'GRAMMAR_SESSION_RESUME' });
+        },
     });
 
     /* =========================
@@ -460,7 +468,8 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
     }, [grammarNextView.queueItem, state.progress, grammarNextView.sessionState, location.pathname]);
 
     useEffect(() => {
-        if (state.grammarFeedback?.correct) {
+        // Only on the activity page: a paused session stays frozen until the learner returns.
+        if (grammarSessionRole === 'activity' && state.grammarFeedback?.correct) {
             const timer = setTimeout(() => {
                 grammarActions.continueGrammarToNext().then();
             }, CONSTANTS.quiz.correctAnswerAutoAdvanceDelay);
@@ -468,7 +477,7 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
             return () => clearTimeout(timer);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [state.grammarFeedback?.correct]);
+    }, [state.grammarFeedback?.correct, grammarSessionRole]);
 
     /* =========================
        COMPUTED FLAGS

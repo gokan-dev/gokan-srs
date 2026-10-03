@@ -6,9 +6,12 @@ import { MasteryRing } from "../../components/MasteryRing";
 import { JlptChip } from "../../components/JlptChip";
 import { VocabBaseQuizCard } from "./VocabBaseQuizCard";
 import { formatReadingList, getCoarsePosLabels } from "./quizFormatting";
+import { LookUpWords } from "../../components/LookUpWords";
 
 interface VocabProductionQuizCardProps {
     onKanjiClick?: () => void;
+    /** Opens a word's page; used for the near-synonym the learner typed, if any. */
+    onVocabClick?: (vocabId: string) => void;
 }
 
 /**
@@ -35,7 +38,7 @@ interface VocabProductionQuizCardProps {
  * useQuizOrchestration's submitAnswer - the same grading path the cloze card
  * uses, since both set quizType 'production'.
  */
-export function VocabProductionQuizCard({ onKanjiClick }: VocabProductionQuizCardProps) {
+export function VocabProductionQuizCard({ onKanjiClick, onVocabClick }: VocabProductionQuizCardProps) {
     const { state, currentProgress } = useQuiz();
     const { isMobile } = useResponsive();
 
@@ -117,15 +120,30 @@ export function VocabProductionQuizCard({ onKanjiClick }: VocabProductionQuizCar
                     animate={{ opacity: 1, y: 0 }}
                     className="text-center"
                 >
-                    <div
-                        className={`relative inline-flex items-start text-5xl leading-none text-primary font-mincho ${onKanjiClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+                    {/* Opens the word's page; the session pauses there instead of ending. */}
+                    <button
+                        type="button"
                         onClick={() => onKanjiClick?.()}
+                        disabled={!onKanjiClick}
+                        title={`Open the page for ${currentVocab.writtenForm.kanji}`}
+                        className="relative inline-flex items-start text-5xl leading-none text-primary font-mincho rounded underline decoration-dashed decoration-1 underline-offset-8 hover:opacity-80 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:no-underline"
                     >
                         <ruby className="ruby-text">
                             {currentVocab.writtenForm.kanji}
                             <rt className="text-sm font-sans text-secondary not-italic">{currentVocab.reading.primary}</rt>
                         </ruby>
-                    </div>
+                    </button>
+                    {feedback.synonymWord && (
+                        <div className="flex justify-center">
+                            <LookUpWords
+                                words={[
+                                    { vocabId: currentVocab.id, written: currentVocab.writtenForm.kanji },
+                                    feedback.synonymWord,
+                                ]}
+                                onVocabClick={onVocabClick}
+                            />
+                        </div>
+                    )}
                 </motion.div>
             )}
         </VocabBaseQuizCard>

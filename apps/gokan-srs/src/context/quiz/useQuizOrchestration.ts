@@ -22,9 +22,10 @@ import {
 import { mergeProgress, mergeSettings } from '../../services/sync/mergeProgress';
 import type { ProgressWithMetadata } from '../../services/sync/types';
 import { useGoogleDrive } from '../GoogleDriveContext';
-import type { QuizState, QuizAction } from './quizReducer';
+import type { QuizState, QuizAction, SynonymWord } from './quizReducer';
 import { selectNextView, selectCurrentProgress, selectSessionStats, selectNextSessionPreview, collectActionableTaskKeys, capSessionCommit, dedupTaskKeysByVocab } from './quizSelectors';
 import { useSessionLifecycle } from './useSessionLifecycle';
+import { sessionRouteRole } from './sessionRoutes';
 import { refillCandidates } from './refillCandidates';
 import { progressUploadSignature, stableStringify } from "../../services/progressSerialization";
 import { embeddedSynonymCandidate, orderSynonymsForCue, productionCueOf, sharedMeaningUsed, synonymOutcome } from '../../utils/synonymContext.utils';
@@ -215,15 +216,21 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
     // the start condition again (work is still due) and silently commit a fresh capped
     // set, making the cap invisible. Starting another one is the user's call, via
     // actions.startNewSession below.
-    const sessionActive =
-        location.pathname === '/quiz' &&
-        (nextView.sessionState === 'review' ||
-            nextView.sessionState === 'learn' ||
-            nextView.sessionState === 'session-complete');
+    //
+    // A consult page (a word, kanji or grammar point's detail page, see
+    // sessionRoutes.ts) pauses the session instead of ending it, so a learner can
+    // look up the answer they just missed and come back to the same card, progress
+    // bar and ticker. Coming back within the TTL resumes it; see useSessionLifecycle.
+    const sessionRole = sessionRouteRole(location.pathname, 'vocab');
+    const sessionHasWork =
+        nextView.sessionState === 'review' ||
+        nextView.sessionState === 'learn' ||
+        nextView.sessionState === 'session-complete';
 
     useSessionLifecycle({
-        active: sessionActive,
-        hasSession: !!state.session,
+        role: sessionRole,
+        hasWork: sessionHasWork,
+        session: state.session,
         onStart: (now) => {
             if (!state.progress || !state.settings) return;
 
@@ -253,6 +260,13 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             });
         },
         onEnd: () => dispatch({ type: 'SESSION_END' }),
+        onSuspend: (now) => dispatch({ type: 'SESSION_SUSPEND', payload: { now: now.getTime() } }),
+        onResume: () => {
+            // A card left unanswered must not be scored on the time spent away.
+            // Latency after an answer is already frozen at submit (submitLatencyRef).
+            if (!state.feedback?.show && startTimeRef.current !== null) startTimeRef.current = Date.now();
+            dispatch({ type: 'SESSION_RESUME' });
+        },
     });
 
     /* =========================
@@ -305,6 +319,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             // SRSService.applyConfusableSynonymAnswer instead of the normal
             // applyAnswer path.
             let synonymRelation: SynonymRelation | undefined;
+            let synonymWord: SynonymWord | undefined;
 
             if (quizType === 'reading') {
                 const evaluation = SRSService.evaluateAnswer(state.userAnswer, state.currentVocab.reading);
@@ -356,6 +371,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                             const targetLabel = `${state.currentVocab.writtenForm.kanji} (${state.currentVocab.reading.primary})`;
                             const outcome = synonymOutcome(candidate, cue);
                             const meaning = sharedMeaningUsed(candidate.shared ?? [], cue);
+                            synonymWord = { vocabId: candidate.vocabId, written: candidate.vocab.writtenForm.kanji };
 
                             if (outcome === 'correct') {
                                 result = 'correct';
@@ -436,7 +452,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             // wrote a message naming the word being tested (issue #71 Part B).
             else if (result === 'minor_error' && !synonymRelation && !message.includes('Close.')) message = 'Close.';
 
-            dispatch({ type: 'SUBMIT_ANSWER', payload: { type: result, message, matchedAnswer, synonymRelation } });
+            dispatch({ type: 'SUBMIT_ANSWER', payload: { type: result, message, matchedAnswer, synonymRelation, synonymWord } });
         },
 
         async advanceQueue({ now }) {
@@ -880,7 +896,9 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
         // Meaning quizzes have rich context (sentences) the user might want to read, so they don't auto-advance.
         // Neither does a correct near-synonym answer: its message names the word
         // that was actually being tested, which is the point of showing it.
-        if (state.feedback?.correct && !state.feedback.synonymRelation && state.currentQuizItem?.quizType !== 'meaning') {
+        // Only on the quiz itself: a session paused on a consult page stays frozen
+        // until the learner comes back.
+        if (sessionRole === 'activity' && state.feedback?.correct && !state.feedback.synonymRelation && state.currentQuizItem?.quizType !== 'meaning') {
             const timer = setTimeout(() => {
                 actions.continueToNext().then();
             }, CONSTANTS.quiz.correctAnswerAutoAdvanceDelay);
@@ -888,7 +906,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             return () => clearTimeout(timer);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [state.feedback?.correct, state.feedback?.synonymRelation, state.currentQuizItem]);
+    }, [state.feedback?.correct, state.feedback?.synonymRelation, state.currentQuizItem, sessionRole]);
 
     /* =========================
        COMPUTED FLAGS

@@ -1901,11 +1901,13 @@ describe('cueFormLabel (the conjugation card must not print the ending it asks f
         expect(cueFormLabel('ず (without doing)')).toBe('ず (without doing)');
     });
 
-    it('leaves no kana inside parentheses for any label the dataset ships', async () => {
-        const fs = await import('node:fs');
-        const path = 'dataset/compiled/grammar/conjugations.json';
-        if (!fs.existsSync(path)) return; // submodule not checked out
-        const entries = Object.values(JSON.parse(fs.readFileSync(path, 'utf-8'))) as { formLabel: string }[];
+    it('leaves no kana inside parentheses for any label the dataset ships', () => {
+        // import.meta.glob rather than node:fs, which this tsconfig has no types for;
+        // it yields nothing when the dataset submodule is not checked out.
+        const files = import.meta.glob<Record<string, { formLabel: string }>>(
+            '../../../dataset/compiled/grammar/conjugations.json', { eager: true, import: 'default' }
+        );
+        const entries = Object.values(files).flatMap(index => Object.values(index));
         for (const { formLabel } of entries) {
             expect(cueFormLabel(formLabel)).not.toMatch(/\([^)]*[぀-ヿ][^)]*\)/);
         }

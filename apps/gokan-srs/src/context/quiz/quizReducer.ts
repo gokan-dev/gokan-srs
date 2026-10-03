@@ -38,8 +38,21 @@ export { taskKey };
  * keeps the session-progress counter's denominator stable instead of tracking the
  * live, ever-shifting due count (which shrank on every wrong answer).
  */
+/** A word the feedback can link to its detail page. */
+export interface SynonymWord {
+    vocabId: string;
+    written: string;
+}
+
 export interface SessionTracking {
     committed: TaskKey[];
+    /**
+     * Epoch ms at which a consult page (a word, kanji or grammar point's detail
+     * page) paused the session; absent while it runs. A paused session keeps its
+     * committed set, history and gains, and resumes on return to /quiz within
+     * CONSTANTS.srs.sessionSuspendTtlMinutes (see useSessionLifecycle).
+     */
+    suspendedAt?: number;
 }
 
 /**
@@ -103,6 +116,11 @@ interface QuizStateBase {
          * applyAnswer path (no strength change, just sets needsRetry.production).
          */
         synonymRelation?: SynonymRelation;
+        /**
+         * The near-synonym the learner actually typed, when synonymRelation is set,
+         * so the card can link it next to the tested word for a side-by-side look.
+         */
+        synonymWord?: SynonymWord;
     } | null;
     isLoadingVocab: boolean;
     isEvaluatingAi: boolean;
@@ -141,7 +159,7 @@ export type QuizAction =
     | { type: 'EVALUATING_AI_START' }
     | { type: 'SET_ANSWER'; payload: string }
     | { type: 'REVEAL_PRODUCTION_HINT' }
-    | { type: 'SUBMIT_ANSWER'; payload: { type: AnswerResult; message: string; matchedAnswer: string; synonymRelation?: SynonymRelation } }
+    | { type: 'SUBMIT_ANSWER'; payload: { type: AnswerResult; message: string; matchedAnswer: string; synonymRelation?: SynonymRelation; synonymWord?: SynonymWord } }
     | { type: 'UPDATE_AFTER_ANSWER'; payload: { progress: UserProgress; historyItem: { vocabId: string, writtenForm: string, result: AnswerResult, delta: number } } }
     | { type: 'ADVANCE_QUEUE'; payload: { progress: UserProgress, candidates?: Vocabulary[] } }
     | { type: 'CLEAR_FEEDBACK' }
@@ -155,6 +173,8 @@ export type QuizAction =
     | { type: 'RESET_DAILY_STATS' }
     | { type: 'SESSION_START'; payload: { taskKeys: TaskKey[]; progress?: UserProgress } }
     | { type: 'SESSION_END' }
+    | { type: 'SESSION_SUSPEND'; payload: { now: number } }
+    | { type: 'SESSION_RESUME' }
     | { type: 'RECONCILE_REMOTE'; payload: { progress: UserProgress; settings: UserSettings } }
     /**
      * Folds the old interval-only adaptive level into strength (see
@@ -305,6 +325,7 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
                     message: action.payload.message,
                     matchedAnswer: action.payload.matchedAnswer,
                     synonymRelation: action.payload.synonymRelation,
+                    synonymWord: action.payload.synonymWord,
                 },
             };
 
@@ -406,6 +427,20 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
 
         case 'SESSION_END':
             return state.session ? { ...state, session: null } : state;
+
+        case 'SESSION_SUSPEND':
+            // Pausing keeps everything (committed set, history, gains); only the
+            // timestamp is new. `now` comes from the orchestration layer.
+            return state.session && state.session.suspendedAt === undefined
+                ? { ...state, session: { ...state.session, suspendedAt: action.payload.now } }
+                : state;
+
+        case 'SESSION_RESUME': {
+            if (!state.session || state.session.suspendedAt === undefined) return state;
+            const running = { ...state.session };
+            delete running.suspendedAt;
+            return { ...state, session: running };
+        }
 
         case 'REBASE_STRENGTHS': {
             if (!state.progress) return state;

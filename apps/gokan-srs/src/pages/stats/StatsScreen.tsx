@@ -1,4 +1,3 @@
-import { Button } from "../../components/ui/Button";
 import { useQuiz } from "../../context/useQuiz";
 import { StatsOverview } from "./components/StatsOverview";
 import { QuizTypeWinRates } from "./components/QuizTypeWinRates";
@@ -10,7 +9,7 @@ import { GrammarJlptCoverageChart } from "./components/GrammarJlptCoverageChart"
 import { GrammarChapterCoverageChart } from "./components/GrammarChapterCoverageChart";
 import { SmartVocabList } from "./components/SmartVocabList";
 import { SmartGrammarList } from "./components/SmartGrammarList";
-import { ArrowLeft } from "lucide-react";
+import { PageHeader } from "../../components/PageHeader";
 
 interface StatsScreenProps {
     onBack: () => void;
@@ -28,12 +27,7 @@ export function StatsScreen({ onBack, onVocabClick, onGrammarClick }: StatsScree
 
     return (
         <div className="w-full max-w-6xl flex flex-col gap-6 animate-fade-in pb-12">
-            <header className="w-full flex items-center justify-center relative h-12">
-                <Button variant="ghost" onClick={onBack} className="absolute left-0">
-                    <ArrowLeft className="inline-block w-4 h-4 mr-1 align-text-bottom" aria-hidden="true" />Back
-                </Button>
-                <h1 className="text-xl font-serif text-primary">Statistics</h1>
-            </header>
+            <PageHeader title="Statistics" onBack={onBack} className="h-12" />
 
             <StatsOverview progress={state.progress} />
 

@@ -1,11 +1,12 @@
 import { OptionGrid } from "../../components/OptionGrid";
 import type { UserSettings } from "../../models/user.model";
 import { useGoogleDrive } from "../../context/GoogleDriveContext";
-import { Cloud, Loader2, LogIn, RefreshCw, Moon, Sun, Monitor, Sparkles, KeyRound, ArrowLeft } from "lucide-react";
+import { Cloud, Loader2, LogIn, RefreshCw, Moon, Sun, Monitor, Sparkles, KeyRound } from "lucide-react";
 import { Button } from "../../components/ui/Button";
 import { SettingToggle } from "../../components/ui/SettingToggle";
 import { useTheme } from "../../context/ThemeContext";
 import { useState } from "react";
+import { PageHeader } from "../../components/PageHeader";
 
 function SyncControls() {
     const { login, logout, downloadProgress, isDownloading, isAuthenticated, user } = useGoogleDrive();
@@ -102,19 +103,7 @@ export function SettingsScreen({
         <div className="min-h-screen flex flex-col items-center bg-background transition-colors duration-200 max-w-2xl md:max-w-3xl">
 
             {/* Header */}
-            <div className="w-full max-w-2xl md:w-3xl flex items-center mb-12 relative animate-fade-in">
-                <Button
-                    variant="ghost"
-                    onClick={onBack}
-                    className="absolute left-0"
-                >
-                    <ArrowLeft className="inline-block w-4 h-4 mr-1 align-text-bottom" aria-hidden="true" />Back
-                </Button>
-
-                <h1 className="flex-1 text-center text-xl font-serif text-primary">
-                    Settings
-                </h1>
-            </div>
+            <PageHeader title="Settings" onBack={onBack} className="max-w-2xl md:w-3xl mb-12 animate-fade-in" />
 
             {/*
               * Account first: signing in is what makes every other setting (and
