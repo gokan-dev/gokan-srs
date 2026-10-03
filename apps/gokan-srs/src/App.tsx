@@ -9,6 +9,7 @@ import { useGoogleDrive } from "./context/GoogleDriveContext";
 import { Loader } from "./components/Loader";
 import { Routes, Route, useNavigate, useLocation, Navigate, Link } from 'react-router-dom';
 import { SearchBar } from './components/SearchBar';
+import { ResumeSessionBar } from './components/ResumeSessionBar';
 
 // Lazy Load Pages
 // Note: Adapting named exports to default exports for lazy loading where necessary
@@ -144,6 +145,9 @@ export const App: React.FC = () => {
                 {/* Last in the DOM, but `order` puts it between the logo and the spacer from `md` up. */}
                 <SearchBar className="order-4 w-full md:order-2 md:w-64 lg:w-96" />
             </header>
+
+            {/* Its own row beneath the header, only while a session is paused on a consult page. */}
+            <ResumeSessionBar />
 
             {/* Screen content */}
             <div className={`flex-1 flex flex-col items-center p-4 md:p-0 ${isQuizScreen ? 'justify-center' : 'justify-start'}`}>
