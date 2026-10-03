@@ -108,7 +108,7 @@ export function romajiToHiragana(input: string): string {
  * Kana -> the romaji a learner types to produce it on an IME, reusing the table
  * above in reverse (first spelling wins: sha over sya, chi over ti, tsu over tu).
  * Used to measure typos in keystrokes rather than in kana (see
- * SRSService.analyzeError): つま for つむ is one keystroke (tsuma / tsumu), but
+ * matchAnswer in utils/answerMatching.ts): つま for つむ is one keystroke (tsuma / tsumu), but
  * やむ for つむ is three (yamu / tsumu), though both are one kana apart.
  *
  * Small kana read as their own keystrokes (ぇ -> "xe"), っ doubles the next

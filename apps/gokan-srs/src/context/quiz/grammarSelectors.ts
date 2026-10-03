@@ -4,7 +4,6 @@ import type { SessionState } from '../../models/state.model';
 import { isGrammarDue, grammarNextReviewAt, isGrammarFullyMastered } from '../../services/grammarScheduling';
 import { VocabularyService } from '../../services/vocabulary.service';
 import type { AnswerResult } from '../../services/srs.service';
-import { SRSService } from '../../services/srs.service';
 import type { VocabProgress } from '../../models/vocabulary.model';
 import { calculateMasteryPercentage } from '../../utils/srs.utils';
 import { GrammarService } from '../../services/grammar.service';
@@ -12,6 +11,7 @@ import { hashString, pickStable } from '../../utils/deterministicPick';
 import { indexLearnerVocab, pickMostProductive, scoreGrammarExample, wordRole } from '../../utils/sentenceRanking';
 import { computeSessionState } from './sessionState';
 import { isFormOfWord, kanaOfSurface, toInflectableWord } from '../../utils/inflection.utils';
+import { matchBest } from '../../utils/answerMatching';
 import type { InflectableWord } from '../../utils/inflection.utils';
 import { computeSessionStats, computeSessionPreview } from './sessionStats';
 import type { QuizState } from './quizReducer';
@@ -337,6 +337,7 @@ export async function computeConjugationPlan(point: GrammarPoint, reviewCount: n
         // The cue label, never the dataset's: its kana parenthetical is the answer.
         glosses: [cueFormLabel(entry.formLabel)],
         readOnly: false,
+        leniency: 'lenient',
         conjugation: {
             lemma: item.lemma,
             lemmaReading: item.lemmaReading,
@@ -795,7 +796,7 @@ export interface GrammarGradeResult {
 export function gradeGrammarAnswers(
     // isPatternBlank optional: a plan without it is treated as having no located
     // pattern (every blank vocab), which is the worst-of-all fallback path.
-    blankPlan: Pick<GrammarBlankPlan, 'acceptLists'> & Partial<Pick<GrammarBlankPlan, 'isPatternBlank' | 'acceptListsMinor' | 'blankLemmas'>>,
+    blankPlan: Pick<GrammarBlankPlan, 'acceptLists'> & Partial<Pick<GrammarBlankPlan, 'isPatternBlank' | 'acceptListsMinor' | 'blankLemmas' | 'leniency'>>,
     answers: string[],
     hintLevels: number[]
 ): GrammarGradeResult {
@@ -822,20 +823,14 @@ export function gradeGrammarAnswers(
             return;
         }
 
-        const { result, matchedAnswer } = SRSService.evaluateAnswer(userInput, {
-            primary: accepted[0] ?? '',
-            alternatives: accepted.slice(1),
-        });
+        const { result, matchedAnswer } = matchBest(userInput, accepted, blankPlan.leniency);
 
         // Accepted-but-not-ideal tier: a realization of the same rule in the wrong
         // register. Downgraded from 'wrong' to 'minor_error' rather than accepted
         // outright, because the card showed which register was wanted.
         const minorList = blankPlan.acceptListsMinor?.[i] ?? [];
         if (result === 'wrong' && minorList.length > 0) {
-            const minor = SRSService.evaluateAnswer(userInput, {
-                primary: minorList[0],
-                alternatives: minorList.slice(1),
-            });
+            const minor = matchBest(userInput, minorList, blankPlan.leniency);
             if (minor.result === 'correct' || minor.result === 'minor_error') {
                 perBlankResults.push('minor_error');
                 matchedAnswers.push(accepted[0] ?? minor.matchedAnswer);

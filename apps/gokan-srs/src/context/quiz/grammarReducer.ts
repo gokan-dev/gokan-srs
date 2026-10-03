@@ -1,3 +1,4 @@
+import type { Leniency } from '../../utils/answerMatching';
 import type { UserProgress } from '../../models/user.model';
 import type { GrammarExample, GrammarPoint } from '../../models/grammar.model';
 import type { AnswerResult } from '../../services/srs.service';
@@ -89,6 +90,12 @@ export interface GrammarBlankPlan {
      * `exampleIndex` is meaningless - there is no sentence.
      */
     conjugation?: GrammarConjugationPrompt;
+    /**
+     * How forgiving grading is (see utils/answerMatching.ts). Absent means
+     * 'standard', like every other quiz. The conjugation drill sets 'lenient':
+     * its answers are whole conjugated forms, where a missed key is a slip.
+     */
+    leniency?: Leniency;
     /**
      * Per-blank forms that are ACCEPTED BUT NOT IDEAL, graded `minor_error`
      * instead of `wrong` (same order as blankWordIndices, empty array when none).

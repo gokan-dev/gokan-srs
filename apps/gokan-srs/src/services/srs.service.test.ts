@@ -389,65 +389,6 @@ describe('SRSService Formula Tests', () => {
         });
     });
 
-    describe('analyzeError kanji-skeleton rule', () => {
-        it('accepts a dropped okurigana tail as a minor error', () => {
-            expect(SRSService.analyzeError('六', '六つ')).toBe('minor_error');
-            expect(SRSService.analyzeError('食', '食べる')).toBe('minor_error');
-            expect(SRSService.analyzeError('食べ', '食べる')).toBe('minor_error');
-        });
-
-        it('never grades two different kanji as a typo', () => {
-            // Distance 1, and the reason written forms must not use the plain
-            // distance test: 会社 and 会話 are different words. This path is shared
-            // with the grammar quiz's blanks, which accepted this before.
-            expect(SRSService.analyzeError('会社', '会話')).toBe('wrong');
-            expect(SRSService.analyzeError('六', '六月')).toBe('wrong');
-            // 々 belongs to the skeleton, so it is not an omittable tail.
-            expect(SRSService.analyzeError('日', '日々')).toBe('wrong');
-        });
-
-        it('is a prefix test, so a swapped okurigana kana stays wrong', () => {
-            // Exactly why this is not a distance test: these differ by one kana
-            // of okurigana and are genuinely different words.
-            expect(SRSService.analyzeError('上げる', '上がる')).toBe('wrong');
-            expect(SRSService.analyzeError('始める', '始まる')).toBe('wrong');
-            expect(SRSService.analyzeError('必ぜ', '必ず')).toBe('wrong');
-        });
-
-        it('leaves the kana-only path untouched', () => {
-            expect(SRSService.analyzeError('こーたえ', 'こたえ')).toBe('minor_error');
-            expect(SRSService.analyzeError('こた', 'こたえ')).toBe('wrong');
-            expect(SRSService.analyzeError('こえ', 'こたえ')).toBe('wrong');
-        });
-    });
-
-    describe('analyzeError counts typos in romaji keystrokes, not kana', () => {
-        it('accepts a one-key slip on a short word (tsuma for tsumu)', () => {
-            expect(SRSService.analyzeError('つま', 'つむ')).toBe('minor_error');
-            expect(SRSService.analyzeError('すむ', 'つむ')).toBe('minor_error'); // sumu / tsumu
-        });
-
-        it('rejects a different mora that is several keys away (yamu for tsumu)', () => {
-            // One kana apart, which used to make やむ a "typo" of つむ and let a wrong
-            // answer match the near-synonym 止む (reported from production).
-            expect(SRSService.analyzeError('やむ', 'つむ')).toBe('wrong');
-            expect(SRSService.analyzeError('つむ', 'やむ')).toBe('wrong');
-            expect(SRSService.analyzeError('はな', 'みな')).toBe('wrong'); // hana / mina
-        });
-
-        it('keeps the documented kana typos one key apart', () => {
-            expect(SRSService.analyzeError('こたへ', 'こたえ')).toBe('minor_error');
-            expect(SRSService.analyzeError('こたぇ', 'こたえ')).toBe('minor_error');
-            expect(SRSService.analyzeError('こたええ', 'こたえ')).toBe('minor_error');
-            expect(SRSService.analyzeError('たべろ', 'たべる')).toBe('minor_error');
-        });
-
-        it('treats katakana like hiragana', () => {
-            expect(SRSService.analyzeError('テレビー', 'テレビ')).toBe('minor_error');
-            expect(SRSService.analyzeError('ヤム', 'ツム')).toBe('wrong');
-        });
-    });
-
     describe('Production synonym grading (issue #71 Part B)', () => {
         // The issue's own motivating example: 必ず (target) vs its near-synonym 常に.
         const interchangeableCandidate: ProductionSynonymCandidate = {
