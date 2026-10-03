@@ -22,7 +22,7 @@ import {
 import { mergeProgress, mergeSettings } from '../../services/sync/mergeProgress';
 import type { ProgressWithMetadata } from '../../services/sync/types';
 import { useGoogleDrive } from '../GoogleDriveContext';
-import type { QuizState, QuizAction } from './quizReducer';
+import type { QuizState, QuizAction, SynonymWord } from './quizReducer';
 import { selectNextView, selectCurrentProgress, selectSessionStats, selectNextSessionPreview, collectActionableTaskKeys, capSessionCommit, dedupTaskKeysByVocab } from './quizSelectors';
 import { useSessionLifecycle } from './useSessionLifecycle';
 import { sessionRouteRole } from './sessionRoutes';
@@ -319,6 +319,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             // SRSService.applyConfusableSynonymAnswer instead of the normal
             // applyAnswer path.
             let synonymRelation: SynonymRelation | undefined;
+            let synonymWord: SynonymWord | undefined;
 
             if (quizType === 'reading') {
                 const evaluation = SRSService.evaluateAnswer(state.userAnswer, state.currentVocab.reading);
@@ -370,6 +371,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                             const targetLabel = `${state.currentVocab.writtenForm.kanji} (${state.currentVocab.reading.primary})`;
                             const outcome = synonymOutcome(candidate, cue);
                             const meaning = sharedMeaningUsed(candidate.shared ?? [], cue);
+                            synonymWord = { vocabId: candidate.vocabId, written: candidate.vocab.writtenForm.kanji };
 
                             if (outcome === 'correct') {
                                 result = 'correct';
@@ -450,7 +452,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             // wrote a message naming the word being tested (issue #71 Part B).
             else if (result === 'minor_error' && !synonymRelation && !message.includes('Close.')) message = 'Close.';
 
-            dispatch({ type: 'SUBMIT_ANSWER', payload: { type: result, message, matchedAnswer, synonymRelation } });
+            dispatch({ type: 'SUBMIT_ANSWER', payload: { type: result, message, matchedAnswer, synonymRelation, synonymWord } });
         },
 
         async advanceQueue({ now }) {

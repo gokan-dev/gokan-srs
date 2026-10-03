@@ -38,6 +38,12 @@ export { taskKey };
  * keeps the session-progress counter's denominator stable instead of tracking the
  * live, ever-shifting due count (which shrank on every wrong answer).
  */
+/** A word the feedback can link to its detail page. */
+export interface SynonymWord {
+    vocabId: string;
+    written: string;
+}
+
 export interface SessionTracking {
     committed: TaskKey[];
     /**
@@ -110,6 +116,11 @@ interface QuizStateBase {
          * applyAnswer path (no strength change, just sets needsRetry.production).
          */
         synonymRelation?: SynonymRelation;
+        /**
+         * The near-synonym the learner actually typed, when synonymRelation is set,
+         * so the card can link it next to the tested word for a side-by-side look.
+         */
+        synonymWord?: SynonymWord;
     } | null;
     isLoadingVocab: boolean;
     isEvaluatingAi: boolean;
@@ -148,7 +159,7 @@ export type QuizAction =
     | { type: 'EVALUATING_AI_START' }
     | { type: 'SET_ANSWER'; payload: string }
     | { type: 'REVEAL_PRODUCTION_HINT' }
-    | { type: 'SUBMIT_ANSWER'; payload: { type: AnswerResult; message: string; matchedAnswer: string; synonymRelation?: SynonymRelation } }
+    | { type: 'SUBMIT_ANSWER'; payload: { type: AnswerResult; message: string; matchedAnswer: string; synonymRelation?: SynonymRelation; synonymWord?: SynonymWord } }
     | { type: 'UPDATE_AFTER_ANSWER'; payload: { progress: UserProgress; historyItem: { vocabId: string, writtenForm: string, result: AnswerResult, delta: number } } }
     | { type: 'ADVANCE_QUEUE'; payload: { progress: UserProgress, candidates?: Vocabulary[] } }
     | { type: 'CLEAR_FEEDBACK' }
@@ -314,6 +325,7 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
                     message: action.payload.message,
                     matchedAnswer: action.payload.matchedAnswer,
                     synonymRelation: action.payload.synonymRelation,
+                    synonymWord: action.payload.synonymWord,
                 },
             };
 

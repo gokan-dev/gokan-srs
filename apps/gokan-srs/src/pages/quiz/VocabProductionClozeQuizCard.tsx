@@ -11,6 +11,7 @@ import { blankWidthEm } from "../../utils/blankWidth";
 import { splitClozeContext, emphasizeGloss, blankSurfaceOf } from "../../utils/productionCloze.utils";
 import { getCoarsePosLabels } from "./quizFormatting";
 import { InteractiveSentence } from "../../components/InteractiveSentence";
+import { LookUpWords } from "../../components/LookUpWords";
 
 /**
  * The vocab production CLOZE card (issue #72): one example sentence with the
@@ -195,12 +196,21 @@ export function VocabProductionClozeQuizCard({ onVocabClick }: { onVocabClick?: 
                             {feedback?.show && (!feedback.correct || feedback.synonymRelation) && (
                                 // The form the sentence uses (食べたら / たべたら), not the
                                 // dictionary form: that is what fits the blank.
-                                <ruby className="ruby-text mt-1 text-feedback-correct">
-                                    {blankSurface}
-                                    <rt className="text-xs font-sans text-secondary not-italic">
-                                        {currentProductionCloze.blankReading ?? feedback.matchedAnswer}
-                                    </rt>
-                                </ruby>
+                                // Opens the word's page; the session pauses there instead of ending.
+                                <button
+                                    type="button"
+                                    onClick={() => onVocabClick?.(currentVocab.id)}
+                                    disabled={!onVocabClick}
+                                    title={`Open the page for ${currentVocab.writtenForm.kanji}`}
+                                    className="mt-1 rounded text-feedback-correct underline decoration-dashed underline-offset-4 decoration-1 hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:no-underline"
+                                >
+                                    <ruby className="ruby-text">
+                                        {blankSurface}
+                                        <rt className="text-xs font-sans text-secondary not-italic">
+                                            {currentProductionCloze.blankReading ?? feedback.matchedAnswer}
+                                        </rt>
+                                    </ruby>
+                                </button>
                             )}
                         </span>
                         <InteractiveSentence sentence={after} onVocabClick={onVocabClick} showFurigana={!!feedback?.show} />
@@ -215,6 +225,15 @@ export function VocabProductionClozeQuizCard({ onVocabClick }: { onVocabClick?: 
                             className={`border rounded bg-feedback-background border-divider border-l-4 p-4 mb-4 ${feedbackBorderClass}`}
                         >
                             <p className="text-sm font-gothic text-primary">{feedback.message}</p>
+                            {feedback.synonymWord && (
+                                <LookUpWords
+                                    words={[
+                                        { vocabId: currentVocab.id, written: currentVocab.writtenForm.kanji },
+                                        feedback.synonymWord,
+                                    ]}
+                                    onVocabClick={onVocabClick}
+                                />
+                            )}
                         </motion.div>
                     )}
 
