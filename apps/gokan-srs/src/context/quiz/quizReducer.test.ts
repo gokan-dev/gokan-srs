@@ -508,6 +508,22 @@ describe('quizReducer', () => {
         expect(next.session?.committed).toEqual([taskKey('v1', 'reading')]);
     });
 
+    // A word added from its detail page ("Add to Learning List") while the session
+    // is paused there joins that session: the learner chose it mid-session. The
+    // pause itself is kept, so the session still resumes on return.
+    it('VOCAB_INTRO_CHOICE "learn" on a paused session adds the task and keeps the pause', () => {
+        const state: QuizState = {
+            ...initialState,
+            progress: makeProgress(),
+            session: { committed: [taskKey('v9', 'production')], suspendedAt: 1234 },
+        };
+        const next = quizReducer(state, { type: 'VOCAB_INTRO_CHOICE', vocabId: 'v1', choice: 'learn', vocabulary: makeVocab('v1') });
+        expect(next.session).toEqual({
+            committed: [taskKey('v9', 'production'), taskKey('v1', 'reading')],
+            suspendedAt: 1234,
+        });
+    });
+
     it('VOCAB_INTRO_CHOICE "skip" adds nothing to the session (skips graduate immediately)', () => {
         const state: QuizState = {
             ...initialState,
