@@ -93,15 +93,20 @@ export type SynonymOutcome = 'correct' | 'minor_error' | 'confusable';
 /**
  * What a near-synonym answer earns:
  * - in context (the card uses a shared meaning): `correct`, still flagged as a synonym;
- * - otherwise its build-time tier: `interchangeable` is a `minor_error`,
- *   `confusable` is no credit and no penalty.
- * A curated `confusable` pair (必ず / 常に) is never upgraded by context: it was
- * hand-marked as not interchangeable even though the words share a gloss.
+ * - otherwise no credit and no penalty (`confusable`): the two words share a
+ *   meaning, just not the one this card asks for. 止む and 埋める share "stop"
+ *   (as in "stop a gap"), but in "Fill in the blanks" 止む is not an answer, and
+ *   the automatic `interchangeable` tier used to grade it `minor_error` anyway
+ *   (reported from production).
+ * Hand-curated pairs keep their tier: a curated `interchangeable` pair is a
+ * `minor_error` out of context, and a curated `confusable` pair (必ず / 常に) is
+ * never upgraded by context, since it was hand-marked as not interchangeable
+ * even though the words share a gloss.
  */
 export function synonymOutcome(entry: Pick<VocabSynonym, 'relation' | 'shared' | 'curated'>, cue: ProductionCue): SynonymOutcome {
     const curatedConfusable = entry.curated && entry.relation === 'confusable';
     if (!curatedConfusable && sharedMeaningInCue(entry.shared ?? [], cue)) return 'correct';
-    return entry.relation === 'interchangeable' ? 'minor_error' : 'confusable';
+    return entry.curated && entry.relation === 'interchangeable' ? 'minor_error' : 'confusable';
 }
 
 /**

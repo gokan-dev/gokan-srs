@@ -104,6 +104,50 @@ export function romajiToHiragana(input: string): string {
     return result;
 }
 
+/**
+ * Kana -> the romaji a learner types to produce it on an IME, reusing the table
+ * above in reverse (first spelling wins: sha over sya, chi over ti, tsu over tu).
+ * Used to measure typos in keystrokes rather than in kana (see
+ * SRSService.analyzeError): つま for つむ is one keystroke (tsuma / tsumu), but
+ * やむ for つむ is three (yamu / tsumu), though both are one kana apart.
+ *
+ * Small kana read as their own keystrokes (ぇ -> "xe"), っ doubles the next
+ * consonant, ー is "-", and anything else passes through unchanged.
+ */
+const KANA_TO_ROMAJI: Record<string, string> = {};
+for (const [romaji, kana] of Object.entries(ROMAJI_MAP)) {
+    if (!(kana in KANA_TO_ROMAJI)) KANA_TO_ROMAJI[kana] = romaji;
+}
+Object.assign(KANA_TO_ROMAJI, {
+    ん: 'n', ー: '-', を: 'wo',
+    ぁ: 'xa', ぃ: 'xi', ぅ: 'xu', ぇ: 'xe', ぉ: 'xo', ゃ: 'xya', ゅ: 'xyu', ょ: 'xyo', ゎ: 'xwa',
+});
+
+/** Katakana to hiragana; everything else unchanged. */
+function toHiragana(input: string): string {
+    return input.replace(/[ァ-ヶ]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60));
+}
+
+export function kanaToRomaji(input: string): string {
+    const s = toHiragana(input);
+    let result = '';
+    let i = 0;
+    while (i < s.length) {
+        if (s[i] === 'っ') {
+            // Doubles the next syllable's first letter (って -> tte), or stands alone.
+            const next = KANA_TO_ROMAJI[s.slice(i + 1, i + 3)] ?? KANA_TO_ROMAJI[s[i + 1]];
+            result += next && !VOWELS.has(next[0]) ? next[0] : 'xtsu';
+            i += 1;
+            continue;
+        }
+        const pair = KANA_TO_ROMAJI[s.slice(i, i + 2)];
+        if (pair !== undefined && i + 1 < s.length) { result += pair; i += 2; continue; }
+        result += KANA_TO_ROMAJI[s[i]] ?? s[i];
+        i += 1;
+    }
+    return result;
+}
+
 /** True if the string contains any latin letters (i.e. could be a romaji query worth converting). */
 export function looksLikeRomaji(input: string): boolean {
     return /[a-z]/i.test(input);

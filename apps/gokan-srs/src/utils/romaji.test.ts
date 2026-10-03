@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { romajiToHiragana, looksLikeRomaji } from './romaji';
+import { romajiToHiragana, looksLikeRomaji, kanaToRomaji } from './romaji';
 
 describe('romajiToHiragana', () => {
     it('converts basic syllables', () => {
@@ -51,5 +51,33 @@ describe('looksLikeRomaji', () => {
         expect(looksLikeRomaji('nichi')).toBe(true);
         expect(looksLikeRomaji('にち')).toBe(false);
         expect(looksLikeRomaji('日')).toBe(false);
+    });
+});
+
+describe('kanaToRomaji', () => {
+    it('spells kana the way an IME is typed, Hepburn first', () => {
+        expect(kanaToRomaji('つむ')).toBe('tsumu');
+        expect(kanaToRomaji('しゃしん')).toBe('shashin');
+        expect(kanaToRomaji('ちゃ')).toBe('cha');
+        expect(kanaToRomaji('じゅう')).toBe('juu');
+        expect(kanaToRomaji('ふじ')).toBe('fuji');
+    });
+
+    it('doubles the consonant after っ and keeps small kana and ー as keystrokes', () => {
+        expect(kanaToRomaji('きって')).toBe('kitte');
+        expect(kanaToRomaji('まっちゃ')).toBe('maccha');
+        expect(kanaToRomaji('こたぇ')).toBe('kotaxe');
+        expect(kanaToRomaji('こーひー')).toBe('ko-hi-');
+    });
+
+    it('reads katakana as hiragana and passes anything else through', () => {
+        expect(kanaToRomaji('テレビ')).toBe('terebi');
+        expect(kanaToRomaji('食べる')).toBe('食beru');
+    });
+
+    it('round-trips with romajiToHiragana on plain words', () => {
+        for (const word of ['にほん', 'わたし', 'しゃしん', 'きって']) {
+            expect(romajiToHiragana(kanaToRomaji(word))).toBe(word);
+        }
     });
 });

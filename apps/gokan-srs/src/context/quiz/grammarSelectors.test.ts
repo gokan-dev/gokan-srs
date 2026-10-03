@@ -969,7 +969,7 @@ describe('gradeGrammarAnswers', () => {
         });
 
         it('pass beats minor_error', () => {
-            const result = gradeGrammarAnswers(twoBlankPlan, ['すしぃ', 'pass'], [0, 0]);
+            const result = gradeGrammarAnswers(twoBlankPlan, ['すしい', 'pass'], [0, 0]);
             expect(result.perBlankResults[0]).toBe('minor_error');
             expect(result.perBlankResults[1]).toBe('pass');
             expect(result.overall).toBe('pass');
