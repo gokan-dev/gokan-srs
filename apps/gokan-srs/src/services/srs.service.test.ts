@@ -421,6 +421,33 @@ describe('SRSService Formula Tests', () => {
         });
     });
 
+    describe('analyzeError counts typos in romaji keystrokes, not kana', () => {
+        it('accepts a one-key slip on a short word (tsuma for tsumu)', () => {
+            expect(SRSService.analyzeError('つま', 'つむ')).toBe('minor_error');
+            expect(SRSService.analyzeError('すむ', 'つむ')).toBe('minor_error'); // sumu / tsumu
+        });
+
+        it('rejects a different mora that is several keys away (yamu for tsumu)', () => {
+            // One kana apart, which used to make やむ a "typo" of つむ and let a wrong
+            // answer match the near-synonym 止む (reported from production).
+            expect(SRSService.analyzeError('やむ', 'つむ')).toBe('wrong');
+            expect(SRSService.analyzeError('つむ', 'やむ')).toBe('wrong');
+            expect(SRSService.analyzeError('はな', 'みな')).toBe('wrong'); // hana / mina
+        });
+
+        it('keeps the documented kana typos one key apart', () => {
+            expect(SRSService.analyzeError('こたへ', 'こたえ')).toBe('minor_error');
+            expect(SRSService.analyzeError('こたぇ', 'こたえ')).toBe('minor_error');
+            expect(SRSService.analyzeError('こたええ', 'こたえ')).toBe('minor_error');
+            expect(SRSService.analyzeError('たべろ', 'たべる')).toBe('minor_error');
+        });
+
+        it('treats katakana like hiragana', () => {
+            expect(SRSService.analyzeError('テレビー', 'テレビ')).toBe('minor_error');
+            expect(SRSService.analyzeError('ヤム', 'ツム')).toBe('wrong');
+        });
+    });
+
     describe('Production synonym grading (issue #71 Part B)', () => {
         // The issue's own motivating example: 必ず (target) vs its near-synonym 常に.
         const interchangeableCandidate: ProductionSynonymCandidate = {
@@ -442,6 +469,26 @@ describe('SRSService Formula Tests', () => {
         };
 
         describe('evaluateProductionSynonyms', () => {
+            // The reported case: つむ is 積む exactly but was within one KANA of 止む
+            // (やむ). An exact match must win whatever the candidate order.
+            it('prefers an exact match over a typo match listed earlier', () => {
+                const yamu: ProductionSynonymCandidate = {
+                    vocabId: 'yamu', relation: 'interchangeable',
+                    vocab: { reading: { primary: 'やむ', alternatives: [] }, writtenForm: { kanji: '止む', alternatives: [], containedKanji: ['止'] } },
+                };
+                const tsumu: ProductionSynonymCandidate = {
+                    vocabId: 'tsumu', relation: 'confusable',
+                    vocab: { reading: { primary: 'つむ', alternatives: [] }, writtenForm: { kanji: '積む', alternatives: [], containedKanji: ['積'] } },
+                };
+                const kitto: ProductionSynonymCandidate = {
+                    vocabId: 'kitto', relation: 'interchangeable',
+                    vocab: { reading: { primary: 'きっと', alternatives: [] }, writtenForm: { kanji: 'きっと', alternatives: [], containedKanji: [] } },
+                };
+                expect(SRSService.evaluateProductionSynonyms('つむ', [yamu, tsumu])?.candidate.vocabId).toBe('tsumu');
+                // A typo match still counts when nothing matches exactly.
+                expect(SRSService.evaluateProductionSynonyms('きっとお', [yamu, kitto])?.candidate.vocabId).toBe('kitto');
+            });
+
             it('returns null with no candidates', () => {
                 expect(SRSService.evaluateProductionSynonyms('つねに', [])).toBeNull();
             });

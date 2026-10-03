@@ -10,6 +10,7 @@ import type { SynonymRelation } from '../models/index.model';
 import { collectJlptCandidates, countJlptCandidates } from './jlptWalk';
 import { hasKanji, kanjiSkeleton } from '../utils/kanji.utils';
 import { isFormOfWord, toInflectableWord } from '../utils/inflection.utils';
+import { kanaToRomaji } from '../utils/romaji';
 
 
 export type AnswerResult = 'correct' | 'minor_error' | 'wrong' | 'pass';
@@ -199,22 +200,26 @@ export class SRSService {
      * useQuizOrchestration's loading effect, same pattern as computeBlankPlan's
      * accept-lists), so this itself does no I/O and grading stays synchronous.
      *
-     * Returns the first candidate the input matches - real synonym clusters map a
-     * given written form/reading to exactly one word, so this should not need to
-     * pick among several simultaneous matches in practice.
+     * An EXACT match wins over a typo match, whatever the candidate order: with
+     * dozens of candidates per word, the input can be one candidate's exact form
+     * and another's typo at once. つむ is 積む exactly, but it used to match 止む
+     * (やむ) as a typo first and grade as that word instead (reported from
+     * production). Otherwise the first typo match is returned.
      */
     static evaluateProductionSynonyms(
         userInput: string,
         candidates: ProductionSynonymCandidate[]
     ): ProductionSynonymMatch | null {
+        let typoMatch: ProductionSynonymMatch | null = null;
         for (const candidate of candidates) {
             const evaluation = this.evaluateProductionAnswer(userInput, candidate.vocab);
-            if (evaluation.result !== 'wrong') {
-                return { candidate, matchedAnswer: evaluation.matchedAnswer };
-            }
+            if (evaluation.result === 'wrong') continue;
+            const match = { candidate, matchedAnswer: evaluation.matchedAnswer };
+            if (evaluation.result === 'correct') return match;
+            typoMatch ??= match;
         }
 
-        return null;
+        return typoMatch;
     }
 
     /**
@@ -632,12 +637,18 @@ export class SRSService {
         // This implies we allow substitutions and insertions (user >= expected), but NOT deletions (user < expected).
         // Or strictly: mora count check. For now, char length is a sufficient proxy for these examples.
 
-        const dist = this.levenshtein(u, e);
+        // The distance is counted in ROMAJI, i.e. in the keystrokes a learner makes on
+        // an IME, not in kana. A typo is a mistyped key: つま for つむ is one key off
+        // (tsuma / tsumu). Counting kana instead made any one-kana swap a typo, which
+        // on a short word is a different word: やむ for つむ is one kana apart but
+        // three keys (yamu / tsumu), and graded minor_error as a near-synonym's typo
+        // (reported from production). The examples above all stay one key apart.
+        const dist = this.levenshtein(kanaToRomaji(u), kanaToRomaji(e));
 
         // Allow distance 1 IF it's not a pure deletion that shortens the word effectively below target
         // The user example 'こえ' (2 chars) vs 'こたえ' (3 chars) is WRONG.
         // 'こーたえ' (4 chars) vs 'こたえ' (3 chars) is MINOR.
-        // So: dist <= 1 AND u.length >= e.length
+        // So: dist <= 1 AND u.length >= e.length (lengths in kana, the distance in romaji)
 
         if (dist <= 1 && u.length >= e.length) {
             return 'minor_error';

@@ -69,9 +69,21 @@ describe('synonymOutcome', () => {
         expect(synonymOutcome({ relation: 'interchangeable', shared: ['small'] }, inCue)).toBe('correct');
     });
 
-    it('falls back to the tier out of context', () => {
-        expect(synonymOutcome({ relation: 'interchangeable', shared: ['small'] }, outOfCue)).toBe('minor_error');
+    it('gives no credit out of context, whatever the automatic tier', () => {
+        expect(synonymOutcome({ relation: 'interchangeable', shared: ['small'] }, outOfCue)).toBe('confusable');
         expect(synonymOutcome({ relation: 'confusable', shared: ['small'] }, outOfCue)).toBe('confusable');
+    });
+
+    // The reported case: 止む shares "stop" with 埋める ("to stop (a gap)"), but the
+    // card asks for the "fill" meaning, so 止む earns nothing.
+    it('gives 止む no credit on a "fill" card for 埋める', () => {
+        const yamu = { relation: 'interchangeable' as const, shared: ['stop'], overlap: 0.33 };
+        expect(synonymOutcome(yamu, { sentence: 'Fill in the blanks.' })).toBe('confusable');
+        expect(synonymOutcome(yamu, { sentence: 'Stop the gap with cloth.' })).toBe('correct');
+    });
+
+    it('keeps a curated interchangeable pair a minor error out of context', () => {
+        expect(synonymOutcome({ relation: 'interchangeable', shared: ['small'], curated: true }, outOfCue)).toBe('minor_error');
     });
 
     it('never upgrades a curated confusable pair (必ず / 常に share "always")', () => {
@@ -80,7 +92,7 @@ describe('synonymOutcome', () => {
     });
 
     it('treats data built before `shared` existed as out of context', () => {
-        expect(synonymOutcome({ relation: 'interchangeable' }, inCue)).toBe('minor_error');
+        expect(synonymOutcome({ relation: 'interchangeable' }, inCue)).toBe('confusable');
     });
 });
 
