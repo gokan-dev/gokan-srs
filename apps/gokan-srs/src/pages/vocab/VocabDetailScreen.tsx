@@ -9,7 +9,7 @@ import { useQuiz } from "../../context/useQuiz";
 import { VocabularyService } from "../../services/vocabulary.service";
 import { Button } from "../../components/ui/Button";
 import { LoadingScreen } from "../../components/LoadingScreen";
-import { Combine , ArrowLeft} from "lucide-react";
+import { Combine } from "lucide-react";
 import { VocabSentencesCard } from "./VocabSentencesCard";
 import { SRSHistoryGraph } from "../../components/SRSHistoryGraph";
 import { ReviewTimeline } from "../../components/ReviewTimeline";
@@ -17,6 +17,7 @@ import { VocabRelationshipsCard } from "./VocabRelationshipsCard";
 import { JlptChip } from "../../components/JlptChip";
 import { THEME } from "../../commons/theme";
 import { isEntryMastered, isProductionActivated } from "../../services/scheduling";
+import { PageHeader } from "../../components/PageHeader";
 
 export default function VocabDetailScreen() {
     const { vocabId } = useParams<{ vocabId: string }>();
@@ -346,14 +347,7 @@ export default function VocabDetailScreen() {
     return (
         <div className="min-h-screen flex flex-col md:max-w-5xl md:mx-auto w-full animate-fade-in">
             {/* Header */}
-            <div className="w-full flex items-center p-4 md:p-8 relative">
-                <Button variant="ghost" onClick={() => navigate(-1)} className="absolute left-4 md:left-8">
-                    <ArrowLeft className="inline-block w-4 h-4 mr-1 align-text-bottom" aria-hidden="true" />Back
-                </Button>
-                <h1 className="flex-1 text-center text-xl font-serif text-primary">
-                    Vocabulary Details
-                </h1>
-            </div>
+            <PageHeader title="Vocabulary Details" onBack={() => navigate(-1)} className="p-4 md:p-8" />
 
             {/* Content */}
             <main className="flex-1 p-4 md:p-8 pt-0">

@@ -1,5 +1,4 @@
-import { Button } from "../../components/ui/Button";
-import { ArrowLeft } from "lucide-react";
+import { PageHeader } from "../../components/PageHeader";
 
 interface AboutScreenProps {
     onBack: () => void;
@@ -9,19 +8,7 @@ export function AboutScreen({ onBack }: AboutScreenProps) {
     return (
         <div className="w-full max-w-2xl md:max-w-3xl flex flex-col animate-fade-in">
             {/* Header */}
-            <div className="w-full flex items-center mb-8 relative">
-                <Button
-                    variant="ghost"
-                    onClick={onBack}
-                    className="absolute left-0"
-                >
-                    <ArrowLeft className="inline-block w-4 h-4 mr-1 align-text-bottom" aria-hidden="true" />Back
-                </Button>
-
-                <h1 className="flex-1 text-center text-xl font-serif text-primary">
-                    About Gokan SRS
-                </h1>
-            </div>
+            <PageHeader title="About Gokan SRS" onBack={onBack} className="mb-8" />
 
             {/* Content */}
             <article className="w-full space-y-8">

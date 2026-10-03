@@ -9,7 +9,7 @@ import { VocabularyService } from "../../services/vocabulary.service";
 import { Button } from "../../components/ui/Button";
 import { LoadingScreen } from "../../components/LoadingScreen";
 import { KanjiVocabListCard } from "./KanjiVocabListCard";
-import { ArrowLeft } from "lucide-react";
+import { PageHeader } from "../../components/PageHeader";
 
 export default function KanjiDetailScreen() {
     const { character } = useParams<{ character: string }>();
@@ -109,14 +109,7 @@ export default function KanjiDetailScreen() {
     return (
         <div className="min-h-screen flex flex-col md:max-w-3xl md:mx-auto w-full animate-fade-in">
             {/* Header */}
-            <div className="w-full flex items-center p-4 md:p-8 relative">
-                <Button variant="ghost" onClick={() => navigate(-1)} className="absolute left-4 md:left-8">
-                    <ArrowLeft className="inline-block w-4 h-4 mr-1 align-text-bottom" aria-hidden="true" />Back
-                </Button>
-                <h1 className="flex-1 text-center text-xl font-serif text-primary">
-                    Kanji Details
-                </h1>
-            </div>
+            <PageHeader title="Kanji Details" onBack={() => navigate(-1)} className="p-4 md:p-8" />
 
             {/* Content */}
             <main className="flex-1 p-4 md:p-8 pt-0 flex flex-col space-y-6">
