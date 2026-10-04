@@ -33,6 +33,10 @@ export interface MediaIndexEntry {
     /** Jiten's difficulty estimate, roughly 0 (easiest) to 5. */
     difficulty: number;
     links: { anilist?: string; myanimelist?: string };
+    /** Genre names, e.g. "Comedy", "Slice of Life". */
+    genres: string[];
+    /** Up to five of Jiten's strongest community tags, e.g. "Cute Girls Doing Cute Things". */
+    tags: string[];
     /**
      * Cover art on AniList's CDN (URLs only, the dataset never holds the images).
      * The artwork belongs to its studio; it is shown loaded from AniList and
@@ -41,6 +45,9 @@ export interface MediaIndexEntry {
     cover?: { url: string; urlHiRes: string; color?: string; source: 'AniList' };
     source: { name: 'Jiten'; url: string; license: 'CC BY-SA 4.0' };
 }
+
+/** `compiled/media/library.json`: each title's whole-series word list, so the library can be ranked without loading every title file. */
+export type MediaLibraryWords = Record<string, MediaWordCount[]>;
 
 export interface MediaTitle extends MediaIndexEntry {
     episodes: MediaEpisode[];

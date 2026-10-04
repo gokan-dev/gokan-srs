@@ -157,6 +157,11 @@ export interface UserSettings {
      * setting. Default `CONSTANTS.setup.defaultKanjiCountStep`.
      */
     kanjiCountStep?: number;
+    /**
+     * The listening library's genre filter: the categories the learner wants to
+     * see, e.g. ["Comedy", "Slice of Life"]. Empty or absent shows every title.
+     */
+    listeningGenres?: string[];
 }
 
 export const DEFAULT_SETTINGS: UserSettings = {

@@ -61,24 +61,28 @@ describe('quizReducer', () => {
         expect(next).toEqual(initialState);
     });
 
-    it('SET_EPISODE_WATCHED records the mark under its key, leaving other episodes alone', () => {
+    it('SET_EPISODES_WATCHED records the marks under their keys, leaving other episodes alone', () => {
         const state: QuizState = {
             ...initialState,
             progress: makeProgress({ watchedEpisodes: { '16685:1': { watched: true, updatedAt: 1 } } }),
         };
         const next = quizReducer(state, {
-            type: 'SET_EPISODE_WATCHED',
-            payload: { key: '16685:2', entry: { watched: true, updatedAt: 2, coverageAtWatch: 0.7 } },
+            type: 'SET_EPISODES_WATCHED',
+            payload: { entries: {
+                '16685:2': { watched: true, updatedAt: 2, coverageAtWatch: 0.7 },
+                '16685:3': { watched: true, updatedAt: 2, coverageAtWatch: 0.6 },
+            } },
         });
 
         expect(next.progress!.watchedEpisodes).toEqual({
             '16685:1': { watched: true, updatedAt: 1 },
             '16685:2': { watched: true, updatedAt: 2, coverageAtWatch: 0.7 },
+            '16685:3': { watched: true, updatedAt: 2, coverageAtWatch: 0.6 },
         });
     });
 
-    it('SET_EPISODE_WATCHED is a no-op without progress', () => {
-        const next = quizReducer(initialState, { type: 'SET_EPISODE_WATCHED', payload: { key: '1:1', entry: { watched: true, updatedAt: 1 } } });
+    it('SET_EPISODES_WATCHED is a no-op without progress', () => {
+        const next = quizReducer(initialState, { type: 'SET_EPISODES_WATCHED', payload: { entries: { '1:1': { watched: true, updatedAt: 1 } } } });
         expect(next).toBe(initialState);
     });
 

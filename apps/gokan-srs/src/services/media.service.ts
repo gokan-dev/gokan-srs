@@ -1,4 +1,4 @@
-import type { MediaIndexEntry, MediaTitle } from '../models/media.model';
+import type { MediaIndexEntry, MediaLibraryWords, MediaTitle } from '../models/media.model';
 
 /**
  * Loads the listening library compiled by the gokan-dataset submodule's
@@ -9,6 +9,7 @@ import type { MediaIndexEntry, MediaTitle } from '../models/media.model';
 export class MediaService {
     private static index: MediaIndexEntry[] | null = null;
     private static titleCache = new Map<string, MediaTitle>();
+    private static libraryWords: MediaLibraryWords | null = null;
 
     private static async fetchJson<T>(path: string): Promise<T> {
         const response = await fetch(path);
@@ -32,9 +33,10 @@ export class MediaService {
         return title;
     }
 
-    /** Every title with its episodes, for the library page's per-title coverage. Four to a few dozen small files. */
-    static async loadAllTitles(): Promise<MediaTitle[]> {
-        const index = await this.loadIndex();
-        return Promise.all(index.map(entry => this.loadTitle(entry.id)));
+    /** Every title's whole-series word list, for ranking the library by coverage without loading each title file. */
+    static async loadLibraryWords(): Promise<MediaLibraryWords> {
+        if (this.libraryWords) return this.libraryWords;
+        this.libraryWords = await this.fetchJson<MediaLibraryWords>(`/data/compiled/media/library.json?v=${Date.now()}`);
+        return this.libraryWords;
     }
 }

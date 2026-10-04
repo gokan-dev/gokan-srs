@@ -1,4 +1,4 @@
-import type { MediaEpisode, MediaWordCount, WatchedEpisode } from '../models/media.model';
+import type { MediaEpisode, MediaIndexEntry, MediaWordCount, WatchedEpisode } from '../models/media.model';
 import type { VocabProgress } from '../models/vocabulary.model';
 import type { UserSettings } from '../models/user.model';
 import { isVocabFullyMastered } from '../services/scheduling';
@@ -76,14 +76,9 @@ export function aggregateEpisodeWords(episodes: MediaEpisode[]): MediaWordCount[
     return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 }
 
-/**
- * The words not yet known, most frequent first. Learning the most frequent
- * unknown words raises an episode's coverage fastest, so these are the ones
- * worth learning before watching.
- */
-export function wordsToLearn(words: MediaWordCount[], knowledge: Map<string, WordKnowledge>, limit: number): MediaWordCount[] {
-    const unknown = words.filter(([vocabId]) => !knowledge.has(vocabId));
-    return [...unknown].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, limit);
+/** The words not yet known, in their original order; wordOrder.utils' sortWords orders them. */
+export function unknownWords(words: MediaWordCount[], knowledge: Map<string, WordKnowledge>): MediaWordCount[] {
+    return words.filter(([vocabId]) => !knowledge.has(vocabId));
 }
 
 /**
@@ -97,6 +92,32 @@ export function speechSpeedLabel(moraPerMinute: number): string | null {
     if (moraPerMinute < 320) return 'Moderate';
     if (moraPerMinute < 380) return 'Brisk';
     return 'Fast';
+}
+
+/** Every genre in the library, the most common first (ties alphabetical), for the genre filter. */
+export function libraryGenres(index: Pick<MediaIndexEntry, 'genres'>[]): string[] {
+    const counts = new Map<string, number>();
+    for (const entry of index) for (const genre of entry.genres) counts.set(genre, (counts.get(genre) ?? 0) + 1);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([genre]) => genre);
+}
+
+/**
+ * The titles to list: those with at least one of the chosen genres (every title
+ * when none is chosen) whose titles or tags contain the search text, ignoring case.
+ */
+export function filterLibrary<T extends Pick<MediaIndexEntry, 'genres' | 'title' | 'tags'>>(
+    index: T[],
+    genres: string[],
+    query: string
+): T[] {
+    const wanted = new Set(genres);
+    const needle = query.trim().toLowerCase();
+    return index.filter(entry => {
+        if (wanted.size > 0 && !entry.genres.some(genre => wanted.has(genre))) return false;
+        if (!needle) return true;
+        return [entry.title.original, entry.title.romaji, entry.title.english, ...entry.tags]
+            .some(text => text?.toLowerCase().includes(needle));
+    });
 }
 
 export function episodeKey(mediaId: string, episodeNumber: number): string {

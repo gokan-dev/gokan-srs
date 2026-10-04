@@ -5,11 +5,13 @@ import {
     computeCoverage,
     countWatchedEpisodes,
     episodeKey,
+    filterLibrary,
+    libraryGenres,
     isEpisodeWatched,
     knownRatio,
     mergeWatchedEpisodes,
     speechSpeedLabel,
-    wordsToLearn,
+    unknownWords,
 } from './mediaCoverage.utils';
 import type { WordKnowledge } from './mediaCoverage.utils';
 import type { VocabProgress } from '../models/vocabulary.model';
@@ -64,9 +66,9 @@ describe('aggregateEpisodeWords', () => {
     });
 });
 
-describe('wordsToLearn', () => {
-    it('lists only unknown words, most frequent first, up to the limit', () => {
-        expect(wordsToLearn([['a', 9], ['c', 2], ['d', 7], ['e', 7]], knowledge, 2)).toEqual([['d', 7], ['e', 7]]);
+describe('unknownWords', () => {
+    it('keeps only the words not known yet, in their original order', () => {
+        expect(unknownWords([['a', 9], ['c', 2], ['b', 7], ['e', 7]], knowledge)).toEqual([['c', 2], ['e', 7]]);
     });
 });
 
@@ -80,6 +82,30 @@ describe('speechSpeedLabel', () => {
 
     it('has no label when the speed is unknown', () => {
         expect(speechSpeedLabel(0)).toBeNull();
+    });
+});
+
+describe('library filtering', () => {
+    const library = [
+        { title: { original: 'のんのんびより', romaji: 'Non Non Biyori' }, genres: ['Comedy', 'Slice of Life'], tags: ['Countryside'] },
+        { title: { original: 'ガールズ&パンツァー', english: 'Girls und Panzer' }, genres: ['Action', 'Comedy'], tags: [] },
+        { title: { original: '月がきれい' }, genres: ['Romance'], tags: ['School'] },
+    ];
+
+    it('lists genres by how many titles carry them, ties alphabetical', () => {
+        expect(libraryGenres(library)).toEqual(['Comedy', 'Action', 'Romance', 'Slice of Life']);
+    });
+
+    it('keeps titles with any chosen genre, every title when none is chosen', () => {
+        expect(filterLibrary(library, ['Romance', 'Action'], '').map(e => e.title.original)).toEqual(['ガールズ&パンツァー', '月がきれい']);
+        expect(filterLibrary(library, [], '')).toHaveLength(3);
+    });
+
+    it('searches every title form and the tags, ignoring case', () => {
+        expect(filterLibrary(library, [], 'panzer')).toHaveLength(1);
+        expect(filterLibrary(library, [], 'のんのん')).toHaveLength(1);
+        expect(filterLibrary(library, [], 'countryside')).toHaveLength(1);
+        expect(filterLibrary(library, ['Romance'], 'panzer')).toHaveLength(0);
     });
 });
 

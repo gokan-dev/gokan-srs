@@ -172,8 +172,8 @@ export type QuizAction =
     | { type: 'SET_NEXT_KANJI'; payload: { step: number; kanjis: string[] } | null; }
     | { type: 'LEARN_NEXT_KANJI'; payload: UserProgress }
     | { type: 'RESET_DAILY_STATS' }
-    /** Marks or un-marks one listening-library episode. `entry.updatedAt` is stamped by the caller, keeping this reducer free of Date.now. */
-    | { type: 'SET_EPISODE_WATCHED'; payload: { key: string; entry: WatchedEpisode } }
+    /** Marks or un-marks listening-library episodes, one or a whole series at once. `updatedAt` is stamped by the caller, keeping this reducer free of Date.now. */
+    | { type: 'SET_EPISODES_WATCHED'; payload: { entries: Record<string, WatchedEpisode> } }
     | { type: 'SESSION_START'; payload: { taskKeys: TaskKey[]; progress?: UserProgress } }
     | { type: 'SESSION_END' }
     | { type: 'SESSION_SUSPEND'; payload: { now: number } }
@@ -402,13 +402,13 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
             };
         }
 
-        case 'SET_EPISODE_WATCHED':
+        case 'SET_EPISODES_WATCHED':
             if (!state.progress) return state;
             return {
                 ...state,
                 progress: {
                     ...state.progress,
-                    watchedEpisodes: { ...state.progress.watchedEpisodes, [action.payload.key]: action.payload.entry },
+                    watchedEpisodes: { ...state.progress.watchedEpisodes, ...action.payload.entries },
                 },
             };
 
