@@ -184,22 +184,42 @@ export class SRSService {
      * Applies a `confusable` synonym collision (issue #71 Part B): the answer is a
      * genuine OTHER word from the target's near-synonym cluster - overlapping
      * glosses, but distinct usage - not an acceptable substitute, but not the
-     * unrelated-word kind of wrong either. Reuses the existing per-quiz-type retry
-     * machinery (`needsRetry`) rather than a full grading pass: the established
-     * invariant is that a retry is training only, so this leaves
-     * memoryStrength/interval/difficulty/dueDate completely untouched and simply
-     * re-asks until the TARGET itself is produced. Crediting the confusion would
-     * reward exactly the coasting this exists to prevent (see the issue's
-     * 必ず/常に example); penalising it at -0.40 like an unrelated word would
-     * punish the learner for a mistake the gloss-only cue itself invites - so
-     * this applies neither.
+     * unrelated-word kind of wrong either. Crediting the confusion would reward
+     * exactly the coasting this exists to prevent (see the issue's 必ず/常に
+     * example); penalising it at -0.40 like an unrelated word would punish the
+     * learner for a mistake the gloss-only cue itself invites - so this applies
+     * neither: memoryStrength/interval/difficulty are untouched, and
+     * needsRetry.production re-asks until the TARGET itself is produced.
+     *
+     * The due date DOES move: to now plus the entry's own unchanged interval, as a
+     * review that changed nothing would. It used to stay where it was, i.e. in the
+     * past, since the word had just been asked. Once the retry was answered and
+     * the flag cleared, the word was due again at once and came back later in the
+     * same session as a full review with points (reported). A retry never touches
+     * scheduling, so the schedule has to be settled here, by the answer that
+     * started the retry, exactly as a wrong answer's is.
      */
-    static applyConfusableSynonymAnswer(vocab: VocabProgress, now: Date): VocabProgress {
+    static applyConfusableSynonymAnswer(
+        vocab: VocabProgress,
+        now: Date,
+        meaningQuizEnabled: boolean = true,
+        productionQuizEnabled: boolean = true
+    ): VocabProgress {
         const productionEntry = vocab.production ?? newSRSEntry(vocab.reading.difficulty);
+        const intervalDays = Math.max(productionEntry.interval, F.minInterval);
+        const production: SRSEntry = {
+            ...productionEntry,
+            lastReviewedAt: now,
+            dueDate: new Date(now.getTime() + intervalDays * 24 * 60 * 60 * 1000),
+        };
+        const settingsSlice = { enableMeaningQuiz: meaningQuizEnabled, enableProductionQuiz: productionQuizEnabled };
 
         return {
             ...vocab,
-            production: { ...productionEntry, lastReviewedAt: now },
+            production,
+            nextReviewAt: vocab.stage === 'graduated'
+                ? vocab.nextReviewAt
+                : vocabNextReviewAt({ reading: vocab.reading, meaning: vocab.meaning, production }, settingsSlice),
             needsRetry: { ...vocab.needsRetry, production: true },
             lastReviewedAt: now,
             totalReviews: vocab.totalReviews + 1,

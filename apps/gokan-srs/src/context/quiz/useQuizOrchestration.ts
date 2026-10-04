@@ -547,11 +547,11 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                 // A 'confusable' synonym collision (issue #71 Part B) bypasses the
                 // normal grading path entirely: it reuses the existing per-quiz-type
                 // retry machinery instead, leaving memoryStrength/interval/difficulty
-                // untouched and simply flagging needsRetry.production so the card
-                // re-asks until the TARGET itself is produced - see
-                // SRSService.applyConfusableSynonymAnswer's doc comment for why.
+                // untouched, rescheduling at the unchanged interval, and flagging
+                // needsRetry.production so the card re-asks until the TARGET itself
+                // is produced - see SRSService.applyConfusableSynonymAnswer.
                 const updated = state.feedback.synonymRelation === 'confusable'
-                    ? SRSService.applyConfusableSynonymAnswer(target, now)
+                    ? SRSService.applyConfusableSynonymAnswer(target, now, meaningQuizEnabled, productionQuizEnabled)
                     : SRSService.applyAnswer(
                         target,
                         state.currentQuizItem.quizType,
