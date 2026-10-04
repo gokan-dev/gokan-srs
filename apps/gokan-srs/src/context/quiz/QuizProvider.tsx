@@ -42,6 +42,8 @@ export interface QuizContextValue {
         saveSettings(settings: UserSettings): void;
         updateKanjiKnowledge(knowledge: KanjiKnowledge): void;
         overrideDailyLimit(): Promise<void>;
+        /** Marks or un-marks a listening-library episode; `coverage` (0..1) is recorded when marking it watched. */
+        setEpisodeWatched(mediaId: string, episodeNumber: number, watched: boolean, coverage?: number): void;
         saveVocabIntroChoice(vocabulary: Vocabulary, choice: 'learn' | 'skip'): void
         learnNextKanji(): Promise<void>;
         reset(): void;

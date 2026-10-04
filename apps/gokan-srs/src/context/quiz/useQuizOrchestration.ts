@@ -31,6 +31,7 @@ import { progressUploadSignature, stableStringify } from "../../services/progres
 import { embeddedSynonymCandidate, orderSynonymsForCue, productionCueOf, sharedMeaningUsed, synonymOutcome } from '../../utils/synonymContext.utils';
 import type { ProductionCue } from '../../utils/synonymContext.utils';
 import type { VocabSynonym } from '../../models/index.model';
+import { episodeKey } from '../../utils/mediaCoverage.utils';
 
 /**
  * Finds which of the target's near-synonyms the learner typed. Each entry
@@ -80,6 +81,8 @@ export interface QuizActions {
     saveSettings(settings: UserSettings): void;
     updateKanjiKnowledge(knowledge: KanjiKnowledge): void;
     overrideDailyLimit(): Promise<void>;
+    /** Marks or un-marks a listening-library episode; `coverage` (0..1) is recorded when marking it watched. */
+    setEpisodeWatched(mediaId: string, episodeNumber: number, watched: boolean, coverage?: number): void;
     saveVocabIntroChoice(vocabulary: Vocabulary, choice: 'learn' | 'skip'): void;
     learnNextKanji(): Promise<void>;
     /** Wipes grammar progress only, keeping vocab, kanji and settings. */
@@ -626,6 +629,20 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
 
         async overrideDailyLimit() {
             dispatch({ type: 'OVERRIDE_DAILY_LIMIT' });
+        },
+
+        setEpisodeWatched(mediaId, episodeNumber, watched, coverage) {
+            dispatch({
+                type: 'SET_EPISODE_WATCHED',
+                payload: {
+                    key: episodeKey(mediaId, episodeNumber),
+                    entry: {
+                        watched,
+                        updatedAt: Date.now(),
+                        ...(watched && coverage !== undefined ? { coverageAtWatch: coverage } : {}),
+                    },
+                },
+            });
         },
 
         async saveVocabIntroChoice(vocabulary, choice) {

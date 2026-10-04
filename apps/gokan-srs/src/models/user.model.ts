@@ -1,5 +1,6 @@
 import type { VocabProgress } from "./vocabulary.model";
 import type { GrammarProgress } from "./grammar.model";
+import type { WatchedEpisode } from "./media.model";
 
 export interface UserProgress {
     kanjiKnowledge: KanjiKnowledge;
@@ -28,6 +29,14 @@ export interface UserProgress {
      * re-fire forever.
      */
     completedChapters: string[];
+
+    /**
+     * The listening library's per-episode marks, keyed `${mediaId}:${episodeNumber}`
+     * (see episodeKey). Optional and deliberately not defaulted: progress that never
+     * used the library carries no field, so adding it changed nothing for anyone.
+     * Merged per episode, newest mark wins (mergeWatchedEpisodes).
+     */
+    watchedEpisodes?: Record<string, WatchedEpisode>;
 
     /**
      * Counters for progress

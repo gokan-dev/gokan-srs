@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { BookOpenText, Puzzle } from 'lucide-react';
+import { BookOpenText, Headphones, Puzzle } from 'lucide-react';
 import { useQuiz } from '../../context/useQuiz';
 import { DailyActivityCard } from './DailyActivityCard';
 import { QuizSettingsMenu } from '../../components/QuizSettingsMenu';
@@ -60,18 +60,33 @@ export const MainScreen: React.FC = () => {
                         </QuizSettingsMenu>
                     }
                 />
+                <ActivityCard
+                    icon={<Headphones size={22} className="text-accent" />}
+                    title="Listening"
+                    description={renderListeningDescription(watchedEpisodeCount(state.progress?.watchedEpisodes))}
+                    onClick={() => navigate('/listening')}
+                />
             </div>
         </div>
     );
 };
+
+function watchedEpisodeCount(watched: Record<string, { watched: boolean }> | undefined): number {
+    return watched ? Object.values(watched).filter(entry => entry.watched).length : 0;
+}
+
+function renderListeningDescription(watchedCount: number): string {
+    const lead = 'Find anime you can follow with the words you know, and track each episode.';
+    return watchedCount > 0 ? `${lead} ${watchedCount} episode${watchedCount > 1 ? 's' : ''} watched so far.` : lead;
+}
 
 const ActivityCard: React.FC<{
     icon: React.ReactNode;
     title: string;
     description: React.ReactNode;
     onClick: () => void;
-    /** The activity's own settings cog, pinned to the card's top right corner. */
-    settings: React.ReactNode;
+    /** The activity's own settings cog, pinned to the card's top right corner. Omitted for an activity with no settings. */
+    settings?: React.ReactNode;
     /** An optional secondary link below the card body, e.g. "View all chapters" - a sibling of the button for the same reason `settings` is. */
     footer?: React.ReactNode;
 }> = ({ icon, title, description, onClick, settings, footer }) => (
@@ -92,9 +107,11 @@ const ActivityCard: React.FC<{
           * nested in a button is invalid HTML, and a nested cog's click would
           * bubble up and start the session instead of opening the settings.
           */}
-        <div className="absolute top-5 right-4">
-            {settings}
-        </div>
+        {settings && (
+            <div className="absolute top-5 right-4">
+                {settings}
+            </div>
+        )}
 
         {footer && <div className="mt-2 text-right">{footer}</div>}
     </div>

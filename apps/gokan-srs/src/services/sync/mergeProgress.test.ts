@@ -370,6 +370,29 @@ describe('mergeProgress (top-level)', () => {
         expect(merged.completedChapters).toEqual(['n5-c01']);
     });
 
+    it('watchedEpisodes merges per episode, newest mark winning, so an un-mark propagates', () => {
+        const local = makeProgress({ watchedEpisodes: {
+            '16685:1': { watched: false, updatedAt: 200 },
+            '16685:2': { watched: true, updatedAt: 100, coverageAtWatch: 0.6 },
+        } });
+        const remote = makeProgress({ watchedEpisodes: {
+            '16685:1': { watched: true, updatedAt: 100 },
+            '16685:3': { watched: true, updatedAt: 150 },
+        } });
+
+        const merged = mergeProgress(local, remote)!;
+        expect(merged.watchedEpisodes).toEqual({
+            '16685:1': { watched: false, updatedAt: 200 },
+            '16685:2': { watched: true, updatedAt: 100, coverageAtWatch: 0.6 },
+            '16685:3': { watched: true, updatedAt: 150 },
+        });
+    });
+
+    it('watchedEpisodes stays absent when neither side has used the listening library', () => {
+        const merged = mergeProgress(makeProgress(), makeProgress())!;
+        expect(merged.watchedEpisodes).toBeUndefined();
+    });
+
     it('keeps a remote-only calibration (the top-level ...local spread would otherwise drop it)', () => {
         const remoteCalibration = {
             reading: { level: 1.4, history: [true, true, true] },

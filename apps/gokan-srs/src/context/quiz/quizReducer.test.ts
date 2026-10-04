@@ -61,6 +61,27 @@ describe('quizReducer', () => {
         expect(next).toEqual(initialState);
     });
 
+    it('SET_EPISODE_WATCHED records the mark under its key, leaving other episodes alone', () => {
+        const state: QuizState = {
+            ...initialState,
+            progress: makeProgress({ watchedEpisodes: { '16685:1': { watched: true, updatedAt: 1 } } }),
+        };
+        const next = quizReducer(state, {
+            type: 'SET_EPISODE_WATCHED',
+            payload: { key: '16685:2', entry: { watched: true, updatedAt: 2, coverageAtWatch: 0.7 } },
+        });
+
+        expect(next.progress!.watchedEpisodes).toEqual({
+            '16685:1': { watched: true, updatedAt: 1 },
+            '16685:2': { watched: true, updatedAt: 2, coverageAtWatch: 0.7 },
+        });
+    });
+
+    it('SET_EPISODE_WATCHED is a no-op without progress', () => {
+        const next = quizReducer(initialState, { type: 'SET_EPISODE_WATCHED', payload: { key: '1:1', entry: { watched: true, updatedAt: 1 } } });
+        expect(next).toBe(initialState);
+    });
+
     it('LOAD_VOCAB_START sets loading state and resets sentence/answer/feedback', () => {
         const state: QuizState = { ...initialState, userAnswer: 'stale', feedback: { show: true, correct: true, type: 'correct', message: '', matchedAnswer: '' } };
         const queueItem = { vocabId: 'v1', quizType: 'reading' as const, quizMode: 'base' as const };

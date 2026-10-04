@@ -6,6 +6,7 @@ import { isVocabFullyMastered, vocabNextReviewAt } from '../scheduling';
 import { isGrammarFullyMastered, grammarNextReviewAt } from '../grammarScheduling';
 import type { ProgressWithMetadata } from './types';
 import { mergeCalibration } from '../calibration';
+import { mergeWatchedEpisodes } from '../../utils/mediaCoverage.utils';
 
 /**
  * Pure merge logic for reconciling two devices' progress. Assumes both inputs
@@ -255,6 +256,8 @@ export function mergeProgress(
         learningQueue: mergedQueue,
         grammarQueue: mergedGrammarQueue,
         completedChapters: mergedCompletedChapters,
+        // Per episode, the newer mark wins, so an un-mark propagates too.
+        watchedEpisodes: mergeWatchedEpisodes(local.watchedEpisodes, remote.watchedEpisodes),
         // Per quiz type, the side with more recorded reviews (see mergeCalibration).
         calibration: mergeCalibration(local.calibration, remote.calibration),
         dailyOverride: local.dailyOverride || remote.dailyOverride,
