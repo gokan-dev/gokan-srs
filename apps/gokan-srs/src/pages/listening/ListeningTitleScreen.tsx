@@ -21,7 +21,7 @@ import {
     wordsToLearn,
 } from "../../utils/mediaCoverage.utils";
 import type { WordKnowledge } from "../../utils/mediaCoverage.utils";
-import { JitenCredit, VocabularyOnlyNote } from "./listeningShared";
+import { JitenCredit, MediaCover, VocabularyOnlyNote } from "./listeningShared";
 
 /** How many unknown words an episode suggests learning before watching it. */
 const WORDS_TO_LEARN = 10;
@@ -83,34 +83,37 @@ export function ListeningTitleScreen() {
                 className="mb-4"
             />
 
-            <section className="rounded-lg border border-divider bg-surface p-4 mb-6">
-                {subtitle && <p className="font-serif text-sm text-secondary">{subtitle}</p>}
-                <p className="font-gothic text-xs text-tertiary mt-1">
-                    {[
-                        title.releaseYear,
-                        `${title.episodeCount} episodes`,
-                        speed && `${speed} speech (${title.speechSpeed} morae per minute)`,
-                    ].filter(Boolean).join(' · ')}
-                </p>
+            <section className="rounded-lg border border-divider bg-surface p-4 mb-6 flex gap-4">
+                <MediaCover entry={title} hiRes className="w-24 sm:w-32 self-start" />
+                <div className="min-w-0 flex-1">
+                    {subtitle && <p className="font-serif text-sm text-secondary">{subtitle}</p>}
+                    <p className="font-gothic text-xs text-tertiary mt-1">
+                        {[
+                            title.releaseYear,
+                            `${title.episodeCount} episodes`,
+                            speed && `${speed} speech (${title.speechSpeed} morae per minute)`,
+                        ].filter(Boolean).join(' · ')}
+                    </p>
 
-                <div className="mt-4 flex items-end justify-between gap-4">
-                    <div className="min-w-0 flex-1">
-                        <p className="font-gothic text-xs text-secondary mb-1.5">Whole series</p>
-                        <ChapterProgressBar counts={seriesCoverage.occurrences} compact />
-                        <p className="font-gothic text-xs text-tertiary mt-1.5 tabular-nums">
-                            {seriesCoverage.unique.mastered + seriesCoverage.unique.learning} of {seriesCoverage.unique.total} distinct words known
-                            {' · '}{watchedCount} of {title.episodeCount} episodes watched
+                    <div className="mt-4 flex items-end justify-between gap-4">
+                        <div className="min-w-0 flex-1">
+                            <p className="font-gothic text-xs text-secondary mb-1.5">Whole series</p>
+                            <ChapterProgressBar counts={seriesCoverage.occurrences} compact />
+                            <p className="font-gothic text-xs text-tertiary mt-1.5 tabular-nums">
+                                {seriesCoverage.unique.mastered + seriesCoverage.unique.learning} of {seriesCoverage.unique.total} distinct words known
+                                {' · '}{watchedCount} of {title.episodeCount} episodes watched
+                            </p>
+                        </div>
+                        <p className="font-serif text-2xl text-primary tabular-nums leading-none shrink-0">
+                            {formatPercent(knownRatio(seriesCoverage.occurrences))}
                         </p>
                     </div>
-                    <p className="font-serif text-2xl text-primary tabular-nums leading-none shrink-0">
-                        {formatPercent(knownRatio(seriesCoverage.occurrences))}
-                    </p>
-                </div>
 
-                <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 font-gothic text-xs">
-                    {title.links.anilist && <ExternalTextLink href={title.links.anilist}>AniList</ExternalTextLink>}
-                    {title.links.myanimelist && <ExternalTextLink href={title.links.myanimelist}>MyAnimeList</ExternalTextLink>}
-                    <ExternalTextLink href={title.source.url}>Jiten</ExternalTextLink>
+                    <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 font-gothic text-xs">
+                        {title.links.anilist && <ExternalTextLink href={title.links.anilist}>AniList</ExternalTextLink>}
+                        {title.links.myanimelist && <ExternalTextLink href={title.links.myanimelist}>MyAnimeList</ExternalTextLink>}
+                        <ExternalTextLink href={title.source.url}>Jiten</ExternalTextLink>
+                    </div>
                 </div>
             </section>
 

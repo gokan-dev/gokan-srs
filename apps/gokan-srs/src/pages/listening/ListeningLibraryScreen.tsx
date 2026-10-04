@@ -15,7 +15,7 @@ import {
     knownRatio,
     speechSpeedLabel,
 } from "../../utils/mediaCoverage.utils";
-import { JitenCredit, VocabularyOnlyNote } from "./listeningShared";
+import { JitenCredit, MediaCover, VocabularyOnlyNote } from "./listeningShared";
 
 /**
  * Route /listening: the anime picked for listening practice, ranked by how much
@@ -75,42 +75,45 @@ export function ListeningLibraryScreen() {
                         <Link
                             key={title.id}
                             to={`/listening/${title.id}`}
-                            className="block rounded-lg border border-divider bg-surface p-4 hover:border-accent transition-colors duration-200"
+                            className="flex gap-4 rounded-lg border border-divider bg-surface p-4 hover:border-accent transition-colors duration-200"
                         >
-                            <div className="flex items-start justify-between gap-4">
-                                <div className="min-w-0">
-                                    <h2 className="font-mincho text-lg text-primary truncate">{title.title.original}</h2>
-                                    {subtitle && <p className="font-serif text-sm text-secondary truncate">{subtitle}</p>}
-                                    <p className="font-gothic text-xs text-tertiary mt-1">
-                                        {[
-                                            title.releaseYear,
-                                            `${title.episodeCount} episodes`,
-                                            speed && `${speed} speech`,
-                                        ].filter(Boolean).join(' · ')}
-                                    </p>
+                            <MediaCover entry={title} className="w-16 sm:w-20 self-start" />
+                            <div className="min-w-0 flex-1">
+                                <div className="flex items-start justify-between gap-4">
+                                    <div className="min-w-0">
+                                        <h2 className="font-mincho text-lg text-primary truncate">{title.title.original}</h2>
+                                        {subtitle && <p className="font-serif text-sm text-secondary truncate">{subtitle}</p>}
+                                        <p className="font-gothic text-xs text-tertiary mt-1">
+                                            {[
+                                                title.releaseYear,
+                                                `${title.episodeCount} episodes`,
+                                                speed && `${speed} speech`,
+                                            ].filter(Boolean).join(' · ')}
+                                        </p>
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                        <p className="font-serif text-2xl text-primary tabular-nums leading-none">
+                                            {formatPercent(knownRatio(coverage.occurrences))}
+                                        </p>
+                                        <p className="font-gothic text-[11px] text-tertiary mt-1">of the vocabulary heard</p>
+                                    </div>
                                 </div>
-                                <div className="text-right shrink-0">
-                                    <p className="font-serif text-2xl text-primary tabular-nums leading-none">
-                                        {formatPercent(knownRatio(coverage.occurrences))}
-                                    </p>
-                                    <p className="font-gothic text-[11px] text-tertiary mt-1">of the vocabulary heard</p>
-                                </div>
-                            </div>
 
-                            <div className="mt-3">
-                                <ChapterProgressBar counts={coverage.occurrences} compact />
-                                <p className="font-gothic text-xs text-tertiary mt-1.5 tabular-nums">
-                                    {coverage.unique.mastered + coverage.unique.learning} of {coverage.unique.total} distinct words known
-                                    {coverage.unique.mastered > 0 && ` (${coverage.unique.mastered} mastered)`}
+                                <div className="mt-3">
+                                    <ChapterProgressBar counts={coverage.occurrences} compact />
+                                    <p className="font-gothic text-xs text-tertiary mt-1.5 tabular-nums">
+                                        {coverage.unique.mastered + coverage.unique.learning} of {coverage.unique.total} distinct words known
+                                        {coverage.unique.mastered > 0 && ` (${coverage.unique.mastered} mastered)`}
+                                    </p>
+                                </div>
+
+                                <p className="font-gothic text-xs text-secondary mt-3">
+                                    {watchedCount > 0 && <span>{watchedCount} of {title.episodeCount} watched · </span>}
+                                    {nextEpisode
+                                        ? <span>Next: {nextEpisode.title}{nextCoverage !== null && `, ${formatPercent(nextCoverage)} known`}</span>
+                                        : <span>Every episode watched</span>}
                                 </p>
                             </div>
-
-                            <p className="font-gothic text-xs text-secondary mt-3">
-                                {watchedCount > 0 && <span>{watchedCount} of {title.episodeCount} watched · </span>}
-                                {nextEpisode
-                                    ? <span>Next: {nextEpisode.title}{nextCoverage !== null && `, ${formatPercent(nextCoverage)} known`}</span>
-                                    : <span>Every episode watched</span>}
-                            </p>
                         </Link>
                     );
                 })}

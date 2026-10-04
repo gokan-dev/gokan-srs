@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { BookOpenText, Headphones, Puzzle } from 'lucide-react';
 import { useQuiz } from '../../context/useQuiz';
@@ -8,6 +8,9 @@ import { VocabQuizSettings } from '../settings/sections/VocabQuizSettings';
 import { GrammarQuizSettings } from '../settings/sections/GrammarQuizSettings';
 import { ChapterProgressBar } from '../../components/ChapterProgressBar';
 import type { HubChapterStatus } from '../../context/quiz/grammarSelectors';
+import type { MediaIndexEntry } from '../../models/media.model';
+import { MediaService } from '../../services/media.service';
+import { MediaCover } from '../listening/listeningShared';
 
 /**
  * The activity hub - the app's landing page after setup. Activities (the main
@@ -26,6 +29,12 @@ export const MainScreen: React.FC = () => {
         grammarHubChapter,
     } = useQuiz();
     const navigate = useNavigate();
+    // The Listening card's covers. Optional decoration: if the index fails to
+    // load, the card simply shows without them.
+    const [mediaIndex, setMediaIndex] = useState<MediaIndexEntry[] | null>(null);
+    useEffect(() => {
+        MediaService.loadIndex().then(setMediaIndex).catch(() => setMediaIndex(null));
+    }, []);
 
     return (
         <div className="w-full max-w-3xl mx-auto py-8">
@@ -61,10 +70,18 @@ export const MainScreen: React.FC = () => {
                     }
                 />
                 <ActivityCard
+                    className="sm:col-span-2"
                     icon={<Headphones size={22} className="text-accent" />}
                     title="Listening"
                     description={renderListeningDescription(watchedEpisodeCount(state.progress?.watchedEpisodes))}
                     onClick={() => navigate('/listening')}
+                    aside={mediaIndex && mediaIndex.length > 0 && (
+                        <div className="flex gap-2 shrink-0" aria-hidden="true">
+                            {mediaIndex.slice(0, 4).map(entry => (
+                                <MediaCover key={entry.id} entry={entry} className="w-14 sm:w-16" />
+                            ))}
+                        </div>
+                    )}
                 />
             </div>
         </div>
@@ -87,19 +104,30 @@ const ActivityCard: React.FC<{
     onClick: () => void;
     /** The activity's own settings cog, pinned to the card's top right corner. Omitted for an activity with no settings. */
     settings?: React.ReactNode;
-    /** An optional secondary link below the card body, e.g. "View all chapters" - a sibling of the button for the same reason `settings` is. */
+    /**
+     * An optional secondary link, e.g. "View all chapters", pinned to the card's
+     * bottom right corner INSIDE its border. It used to sit below the card, which
+     * made that card's grid cell taller than its neighbour's card and left the two
+     * borders misaligned. A sibling of the button for the same reason `settings` is.
+     */
     footer?: React.ReactNode;
-}> = ({ icon, title, description, onClick, settings, footer }) => (
-    <div className="relative h-full flex flex-col">
+    /** Optional content beside the text from `sm` up (below it on a phone), e.g. the Listening card's covers. */
+    aside?: React.ReactNode;
+    className?: string;
+}> = ({ icon, title, description, onClick, settings, footer, aside, className = '' }) => (
+    <div className={`relative h-full ${className}`}>
         <button
             onClick={onClick}
-            className="w-full flex-1 text-left border border-divider rounded p-6 bg-surface hover:border-accent transition-colors duration-200 flex flex-col gap-3 cursor-pointer"
+            className={`w-full h-full text-left border border-divider rounded p-6 bg-surface hover:border-accent transition-colors duration-200 flex flex-col sm:flex-row sm:items-center gap-4 cursor-pointer ${footer ? 'pb-12' : ''}`}
         >
-            {icon}
-            <div>
-                <h2 className="font-serif text-lg text-primary mb-1">{title}</h2>
-                <p className="text-sm text-secondary">{description}</p>
+            <div className="flex flex-col gap-3 min-w-0 flex-1 self-stretch">
+                {icon}
+                <div>
+                    <h2 className="font-serif text-lg text-primary mb-1">{title}</h2>
+                    <p className="text-sm text-secondary">{description}</p>
+                </div>
             </div>
+            {aside}
         </button>
 
         {/*
@@ -113,7 +141,7 @@ const ActivityCard: React.FC<{
             </div>
         )}
 
-        {footer && <div className="mt-2 text-right">{footer}</div>}
+        {footer && <div className="absolute bottom-4 right-6">{footer}</div>}
     </div>
 );
 

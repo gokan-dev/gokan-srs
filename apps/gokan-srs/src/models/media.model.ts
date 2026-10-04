@@ -33,6 +33,12 @@ export interface MediaIndexEntry {
     /** Jiten's difficulty estimate, roughly 0 (easiest) to 5. */
     difficulty: number;
     links: { anilist?: string; myanimelist?: string };
+    /**
+     * Cover art on AniList's CDN (URLs only, the dataset never holds the images).
+     * The artwork belongs to its studio; it is shown loaded from AniList and
+     * credited, never bundled. `url` ~230px for cards, `urlHiRes` ~460px.
+     */
+    cover?: { url: string; urlHiRes: string; color?: string; source: 'AniList' };
     source: { name: 'Jiten'; url: string; license: 'CC BY-SA 4.0' };
 }
 
