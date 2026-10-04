@@ -5,6 +5,7 @@ import { DEFAULT_VOCABULARY_PROGRESS } from '../models/vocabulary.model';
 import type { VocabProgress } from '../models/vocabulary.model';
 import type { ProductionSynonymCandidate } from './srs.service';
 import { CONSTANTS } from '../commons/constants';
+import { isVocabDue } from './scheduling';
 
 // Use floating point tolerance
 const closeTo = (actual: number, expected: number, precision = 4) => {
@@ -491,13 +492,45 @@ describe('SRSService Formula Tests', () => {
                 },
             };
 
-            it('leaves memoryStrength/interval/difficulty/dueDate untouched - no penalty, no credit', () => {
+            it('leaves memoryStrength/interval/difficulty untouched - no penalty, no credit', () => {
                 const updated = SRSService.applyConfusableSynonymAnswer(baseVocab, mockConfusableNow);
 
                 expect(updated.production?.memoryStrength).toBe(12);
                 expect(updated.production?.interval).toBe(3);
                 expect(updated.production?.difficulty).toBe(0.4);
-                expect(updated.production?.dueDate).toEqual(new Date('2025-05-30T00:00:00Z'));
+            });
+
+            it('reschedules at the unchanged interval from now, so the past due date does not survive', () => {
+                const updated = SRSService.applyConfusableSynonymAnswer(baseVocab, mockConfusableNow);
+
+                expect(updated.production?.dueDate).toEqual(new Date('2025-06-04T00:00:00Z'));
+                expect(updated.nextReviewAt).toEqual(updated.production?.dueDate);
+            });
+
+            it('does not come back as a full review once the retry is answered (reported)', () => {
+                // Reading and meaning are not due, so only production could serve the word.
+                const later = new Date('2025-07-01T00:00:00Z');
+                const due: VocabProgress = {
+                    ...baseVocab,
+                    reading: { ...baseVocab.reading, dueDate: later },
+                    meaning: { ...baseVocab.meaning, dueDate: later },
+                };
+                const afterCollision = SRSService.applyConfusableSynonymAnswer(due, mockConfusableNow);
+                const retryAt = new Date(mockConfusableNow.getTime() + 60_000);
+                const { updated: afterRetry } = SRSService.applyAnswer(
+                    afterCollision, 'production', 'base', 'かならず', 'かならず', 3000, retryAt
+                );
+
+                expect(afterRetry.needsRetry?.production).toBe(false);
+                expect(isVocabDue(afterRetry, undefined, new Date(retryAt.getTime() + 10 * 60_000))).toBe(false);
+            });
+
+            it('never reschedules sooner than the minimum interval', () => {
+                const fresh: VocabProgress = { ...baseVocab, production: { ...baseVocab.production!, interval: 0 } };
+                const updated = SRSService.applyConfusableSynonymAnswer(fresh, mockConfusableNow);
+
+                const days = (updated.production!.dueDate!.getTime() - mockConfusableNow.getTime()) / 86_400_000;
+                expect(days).toBeCloseTo(CONSTANTS.srs.formula.minInterval);
             });
 
             it('sets needsRetry.production without touching another quiz type\'s retry flag', () => {
