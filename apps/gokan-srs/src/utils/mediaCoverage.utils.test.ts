@@ -7,6 +7,7 @@ import {
     episodeKey,
     filterLibrary,
     libraryGenres,
+    rankLibrary,
     isEpisodeWatched,
     knownRatio,
     mergeWatchedEpisodes,
@@ -106,6 +107,24 @@ describe('library filtering', () => {
         expect(filterLibrary(library, [], 'のんのん')).toHaveLength(1);
         expect(filterLibrary(library, [], 'countryside')).toHaveLength(1);
         expect(filterLibrary(library, ['Romance'], 'panzer')).toHaveLength(0);
+    });
+});
+
+describe('rankLibrary', () => {
+    const index = [
+        { id: 'x', title: { original: 'X' }, genres: ['Comedy'], tags: [] },
+        { id: 'y', title: { original: 'Y' }, genres: ['Romance'], tags: [] },
+        { id: 'z', title: { original: 'Z' }, genres: ['Comedy'], tags: [] },
+    ];
+    const words = { x: [['a', 1], ['c', 9]], y: [['a', 5]], z: [['a', 1], ['b', 1]] } as Record<string, [string, number][]>;
+
+    it('ranks the filtered titles by occurrence coverage, best fit first', () => {
+        expect(rankLibrary(index, words, knowledge, [], '').map(r => r.entry.id)).toEqual(['y', 'z', 'x']);
+        expect(rankLibrary(index, words, knowledge, ['Comedy'], '').map(r => r.entry.id)).toEqual(['z', 'x']);
+    });
+
+    it('treats a title missing from the word file as 0% rather than failing', () => {
+        expect(rankLibrary([...index, { id: 'w', title: { original: 'W' }, genres: [], tags: [] }], words, knowledge, [], '').at(-1)!.entry.id).toBe('w');
     });
 });
 

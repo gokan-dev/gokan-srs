@@ -1,4 +1,4 @@
-import type { MediaEpisode, MediaIndexEntry, MediaWordCount, WatchedEpisode } from '../models/media.model';
+import type { MediaEpisode, MediaIndexEntry, MediaLibraryWords, MediaWordCount, WatchedEpisode } from '../models/media.model';
 import type { VocabProgress } from '../models/vocabulary.model';
 import type { UserSettings } from '../models/user.model';
 import { isVocabFullyMastered } from '../services/scheduling';
@@ -118,6 +118,24 @@ export function filterLibrary<T extends Pick<MediaIndexEntry, 'genres' | 'title'
         return [entry.title.original, entry.title.romaji, entry.title.english, ...entry.tags]
             .some(text => text?.toLowerCase().includes(needle));
     });
+}
+
+/**
+ * THE library ranking: the titles passing the genre filter and search, each
+ * with its whole-series coverage, best fit (highest occurrence coverage) first.
+ * The library page lists it and the Main hub shows its first covers, so the
+ * two can never disagree about what fits the learner best.
+ */
+export function rankLibrary<T extends Pick<MediaIndexEntry, 'id' | 'genres' | 'title' | 'tags'>>(
+    index: T[],
+    libraryWords: MediaLibraryWords,
+    knowledge: Map<string, WordKnowledge>,
+    genres: string[],
+    query: string
+): { entry: T; coverage: MediaCoverage }[] {
+    return filterLibrary(index, genres, query)
+        .map(entry => ({ entry, coverage: computeCoverage(libraryWords[entry.id] ?? [], knowledge) }))
+        .sort((a, b) => knownRatio(b.coverage.occurrences) - knownRatio(a.coverage.occurrences));
 }
 
 export function episodeKey(mediaId: string, episodeNumber: number): string {

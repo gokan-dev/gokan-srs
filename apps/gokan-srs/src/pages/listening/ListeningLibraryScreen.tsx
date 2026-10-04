@@ -7,13 +7,12 @@ import { PageHeader } from "../../components/PageHeader";
 import { ChapterProgressBar } from "../../components/ChapterProgressBar";
 import {
     buildWordKnowledge,
-    computeCoverage,
     countWatchedEpisodes,
-    filterLibrary,
     formatPercent,
     isEpisodeWatched,
     knownRatio,
     libraryGenres,
+    rankLibrary,
     speechSpeedLabel,
 } from "../../utils/mediaCoverage.utils";
 import { JitenCredit, MediaCover, VocabularyOnlyNote } from "./listeningShared";
@@ -62,16 +61,13 @@ export function ListeningLibraryScreen() {
 
     const rows = useMemo(() => {
         if (!index || !libraryWords) return [];
-        return filterLibrary(index, selectedGenres, query)
-            .map(entry => {
-                const coverage = computeCoverage(libraryWords[entry.id] ?? [], knowledge);
-                let nextEpisode: number | null = null;
-                for (let n = 1; n <= entry.episodeCount; n++) {
-                    if (!isEpisodeWatched(watched, entry.id, n)) { nextEpisode = n; break; }
-                }
-                return { entry, coverage, nextEpisode, watchedCount: countWatchedEpisodes(watched, entry.id) };
-            })
-            .sort((a, b) => knownRatio(b.coverage.occurrences) - knownRatio(a.coverage.occurrences));
+        return rankLibrary(index, libraryWords, knowledge, selectedGenres, query).map(({ entry, coverage }) => {
+            let nextEpisode: number | null = null;
+            for (let n = 1; n <= entry.episodeCount; n++) {
+                if (!isEpisodeWatched(watched, entry.id, n)) { nextEpisode = n; break; }
+            }
+            return { entry, coverage, nextEpisode, watchedCount: countWatchedEpisodes(watched, entry.id) };
+        });
     }, [index, libraryWords, knowledge, watched, selectedGenres, query]);
 
     return (

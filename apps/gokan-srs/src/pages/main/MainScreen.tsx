@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { BookOpenText, Headphones, Puzzle } from 'lucide-react';
 import { useQuiz } from '../../context/useQuiz';
@@ -8,7 +8,8 @@ import { VocabQuizSettings } from '../settings/sections/VocabQuizSettings';
 import { GrammarQuizSettings } from '../settings/sections/GrammarQuizSettings';
 import { ChapterProgressBar } from '../../components/ChapterProgressBar';
 import type { HubChapterStatus } from '../../context/quiz/grammarSelectors';
-import type { MediaIndexEntry } from '../../models/media.model';
+import type { MediaIndexEntry, MediaLibraryWords } from '../../models/media.model';
+import { buildWordKnowledge, rankLibrary } from '../../utils/mediaCoverage.utils';
 import { MediaService } from '../../services/media.service';
 import { MediaCover } from '../listening/listeningShared';
 
@@ -29,12 +30,24 @@ export const MainScreen: React.FC = () => {
         grammarHubChapter,
     } = useQuiz();
     const navigate = useNavigate();
-    // The Listening card's covers. Optional decoration: if the index fails to
-    // load, the card simply shows without them.
-    const [mediaIndex, setMediaIndex] = useState<MediaIndexEntry[] | null>(null);
+    // The Listening card's covers: the four best fits for this learner under
+    // their genre filter, i.e. the top of the library page's own ranking
+    // (rankLibrary), from the same cached files. Loaded after the hub has
+    // rendered and purely decorative: if either file fails, the card simply
+    // shows without covers.
+    const [media, setMedia] = useState<{ index: MediaIndexEntry[]; words: MediaLibraryWords } | null>(null);
     useEffect(() => {
-        MediaService.loadIndex().then(setMediaIndex).catch(() => setMediaIndex(null));
+        Promise.all([MediaService.loadIndex(), MediaService.loadLibraryWords()])
+            .then(([index, words]) => setMedia({ index, words }))
+            .catch(() => setMedia(null));
     }, []);
+    const bestFits = useMemo(() => {
+        if (!media || !state.progress) return [];
+        const knowledge = buildWordKnowledge(state.progress.learningQueue, state.settings ?? undefined);
+        return rankLibrary(media.index, media.words, knowledge, state.settings?.listeningGenres ?? [], '')
+            .slice(0, 4)
+            .map(row => row.entry);
+    }, [media, state.progress, state.settings]);
 
     return (
         <div className="w-full max-w-3xl mx-auto py-8">
@@ -75,9 +88,9 @@ export const MainScreen: React.FC = () => {
                     title="Listening"
                     description={renderListeningDescription(watchedEpisodeCount(state.progress?.watchedEpisodes))}
                     onClick={() => navigate('/listening')}
-                    aside={mediaIndex && mediaIndex.length > 0 && (
+                    aside={bestFits.length > 0 && (
                         <div className="flex gap-2 shrink-0" aria-hidden="true">
-                            {mediaIndex.slice(0, 4).map(entry => (
+                            {bestFits.map(entry => (
                                 <MediaCover key={entry.id} entry={entry} className="w-14 sm:w-16" />
                             ))}
                         </div>
