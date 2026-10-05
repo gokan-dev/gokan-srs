@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { BookOpenText, Puzzle } from 'lucide-react';
+import { BookOpenText, Headphones, Puzzle } from 'lucide-react';
 import { useQuiz } from '../../context/useQuiz';
 import { DailyActivityCard } from './DailyActivityCard';
 import { QuizSettingsMenu } from '../../components/QuizSettingsMenu';
@@ -8,6 +8,10 @@ import { VocabQuizSettings } from '../settings/sections/VocabQuizSettings';
 import { GrammarQuizSettings } from '../settings/sections/GrammarQuizSettings';
 import { ChapterProgressBar } from '../../components/ChapterProgressBar';
 import type { HubChapterStatus } from '../../context/quiz/grammarSelectors';
+import type { MediaIndexEntry, MediaLibraryWords } from '../../models/media.model';
+import { buildWordKnowledge, rankLibrary } from '../../utils/mediaCoverage.utils';
+import { MediaService } from '../../services/media.service';
+import { MediaCover } from '../listening/listeningShared';
 
 /**
  * The activity hub - the app's landing page after setup. Activities (the main
@@ -26,6 +30,24 @@ export const MainScreen: React.FC = () => {
         grammarHubChapter,
     } = useQuiz();
     const navigate = useNavigate();
+    // The Listening card's covers: the four best fits for this learner under
+    // their genre filter, i.e. the top of the library page's own ranking
+    // (rankLibrary), from the same cached files. Loaded after the hub has
+    // rendered and purely decorative: if either file fails, the card simply
+    // shows without covers.
+    const [media, setMedia] = useState<{ index: MediaIndexEntry[]; words: MediaLibraryWords } | null>(null);
+    useEffect(() => {
+        Promise.all([MediaService.loadIndex(), MediaService.loadLibraryWords()])
+            .then(([index, words]) => setMedia({ index, words }))
+            .catch(() => setMedia(null));
+    }, []);
+    const bestFits = useMemo(() => {
+        if (!media || !state.progress) return [];
+        const knowledge = buildWordKnowledge(state.progress.learningQueue, state.settings ?? undefined);
+        return rankLibrary(media.index, media.words, knowledge, state.settings?.listeningGenres ?? [], '')
+            .slice(0, 4)
+            .map(row => row.entry);
+    }, [media, state.progress, state.settings]);
 
     return (
         <div className="w-full max-w-3xl mx-auto py-8">
@@ -60,31 +82,65 @@ export const MainScreen: React.FC = () => {
                         </QuizSettingsMenu>
                     }
                 />
+                <ActivityCard
+                    className="sm:col-span-2"
+                    icon={<Headphones size={22} className="text-accent" />}
+                    title="Listening"
+                    description={renderListeningDescription(watchedEpisodeCount(state.progress?.watchedEpisodes))}
+                    onClick={() => navigate('/listening')}
+                    aside={bestFits.length > 0 && (
+                        <div className="flex gap-2 shrink-0" aria-hidden="true">
+                            {bestFits.map(entry => (
+                                <MediaCover key={entry.id} entry={entry} className="w-14 sm:w-16" />
+                            ))}
+                        </div>
+                    )}
+                />
             </div>
         </div>
     );
 };
+
+function watchedEpisodeCount(watched: Record<string, { watched: boolean }> | undefined): number {
+    return watched ? Object.values(watched).filter(entry => entry.watched).length : 0;
+}
+
+function renderListeningDescription(watchedCount: number): string {
+    const lead = 'Find anime you can follow with the words you know, and track each episode.';
+    return watchedCount > 0 ? `${lead} ${watchedCount} episode${watchedCount > 1 ? 's' : ''} watched so far.` : lead;
+}
 
 const ActivityCard: React.FC<{
     icon: React.ReactNode;
     title: string;
     description: React.ReactNode;
     onClick: () => void;
-    /** The activity's own settings cog, pinned to the card's top right corner. */
-    settings: React.ReactNode;
-    /** An optional secondary link below the card body, e.g. "View all chapters" - a sibling of the button for the same reason `settings` is. */
+    /** The activity's own settings cog, pinned to the card's top right corner. Omitted for an activity with no settings. */
+    settings?: React.ReactNode;
+    /**
+     * An optional secondary link, e.g. "View all chapters", pinned to the card's
+     * bottom right corner INSIDE its border. It used to sit below the card, which
+     * made that card's grid cell taller than its neighbour's card and left the two
+     * borders misaligned. A sibling of the button for the same reason `settings` is.
+     */
     footer?: React.ReactNode;
-}> = ({ icon, title, description, onClick, settings, footer }) => (
-    <div className="relative h-full flex flex-col">
+    /** Optional content beside the text from `sm` up (below it on a phone), e.g. the Listening card's covers. */
+    aside?: React.ReactNode;
+    className?: string;
+}> = ({ icon, title, description, onClick, settings, footer, aside, className = '' }) => (
+    <div className={`relative h-full ${className}`}>
         <button
             onClick={onClick}
-            className="w-full flex-1 text-left border border-divider rounded p-6 bg-surface hover:border-accent transition-colors duration-200 flex flex-col gap-3 cursor-pointer"
+            className={`w-full h-full text-left border border-divider rounded p-6 bg-surface hover:border-accent transition-colors duration-200 flex flex-col sm:flex-row sm:items-center gap-4 cursor-pointer ${footer ? 'pb-12' : ''}`}
         >
-            {icon}
-            <div>
-                <h2 className="font-serif text-lg text-primary mb-1">{title}</h2>
-                <p className="text-sm text-secondary">{description}</p>
+            <div className="flex flex-col gap-3 min-w-0 flex-1 self-stretch">
+                {icon}
+                <div>
+                    <h2 className="font-serif text-lg text-primary mb-1">{title}</h2>
+                    <p className="text-sm text-secondary">{description}</p>
+                </div>
             </div>
+            {aside}
         </button>
 
         {/*
@@ -92,11 +148,13 @@ const ActivityCard: React.FC<{
           * nested in a button is invalid HTML, and a nested cog's click would
           * bubble up and start the session instead of opening the settings.
           */}
-        <div className="absolute top-5 right-4">
-            {settings}
-        </div>
+        {settings && (
+            <div className="absolute top-5 right-4">
+                {settings}
+            </div>
+        )}
 
-        {footer && <div className="mt-2 text-right">{footer}</div>}
+        {footer && <div className="absolute bottom-4 right-6">{footer}</div>}
     </div>
 );
 

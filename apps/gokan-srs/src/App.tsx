@@ -26,6 +26,8 @@ const VocabDetailScreen = lazy(() => import('./pages/vocab/VocabDetailScreen'));
 const KanjiDetailScreen = lazy(() => import('./pages/kanji/KanjiDetailScreen'));
 const GrammarDetailScreen = lazy(() => import('./pages/grammar/GrammarDetailScreen'));
 const GrammarFamilyScreen = lazy(() => import('./pages/grammar/GrammarFamilyScreen'));
+const ListeningLibraryScreen = lazy(() => import('./pages/listening/ListeningLibraryScreen').then(module => ({ default: module.ListeningLibraryScreen })));
+const ListeningTitleScreen = lazy(() => import('./pages/listening/ListeningTitleScreen').then(module => ({ default: module.ListeningTitleScreen })));
 
 function SyncStatusIndicator() {
     const { isUploading, isDownloading, isAuthenticated, syncPaused, login } = useGoogleDrive();
@@ -210,6 +212,12 @@ export const App: React.FC = () => {
                         } />
                         <Route path="/grammar/:grammarId" element={
                             <GrammarDetailScreen />
+                        } />
+                        <Route path="/listening" element={
+                            <ListeningLibraryScreen />
+                        } />
+                        <Route path="/listening/:mediaId" element={
+                            <ListeningTitleScreen />
                         } />
                         <Route path="*" element={<Navigate to="/" replace />} />
                     </Routes>

@@ -5,6 +5,7 @@ import type {
 } from '../../models/user.model';
 import type { Vocabulary } from '../../models/vocabulary.model';
 import type { Sentence } from '../../models/sentence.model';
+import type { WatchedEpisode } from '../../models/media.model';
 import type { AnswerResult } from '../../services/srs.service';
 import { SRSService } from '../../services/srs.service';
 import { rebaseStrengthsToSchedule } from '../../services/calibration';
@@ -171,6 +172,8 @@ export type QuizAction =
     | { type: 'SET_NEXT_KANJI'; payload: { step: number; kanjis: string[] } | null; }
     | { type: 'LEARN_NEXT_KANJI'; payload: UserProgress }
     | { type: 'RESET_DAILY_STATS' }
+    /** Marks or un-marks listening-library episodes, one or a whole series at once. `updatedAt` is stamped by the caller, keeping this reducer free of Date.now. */
+    | { type: 'SET_EPISODES_WATCHED'; payload: { entries: Record<string, WatchedEpisode> } }
     | { type: 'SESSION_START'; payload: { taskKeys: TaskKey[]; progress?: UserProgress } }
     | { type: 'SESSION_END' }
     | { type: 'SESSION_SUSPEND'; payload: { now: number } }
@@ -398,6 +401,16 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
                 nextKanjiToLearn: null,
             };
         }
+
+        case 'SET_EPISODES_WATCHED':
+            if (!state.progress) return state;
+            return {
+                ...state,
+                progress: {
+                    ...state.progress,
+                    watchedEpisodes: { ...state.progress.watchedEpisodes, ...action.payload.entries },
+                },
+            };
 
         case 'OVERRIDE_DAILY_LIMIT':
             return {

@@ -31,6 +31,8 @@ import { progressUploadSignature, stableStringify } from "../../services/progres
 import { embeddedSynonymCandidate, orderSynonymsForCue, productionCueOf, sharedMeaningUsed, synonymOutcome } from '../../utils/synonymContext.utils';
 import type { ProductionCue } from '../../utils/synonymContext.utils';
 import type { VocabSynonym } from '../../models/index.model';
+import { episodeKey } from '../../utils/mediaCoverage.utils';
+import type { WatchedEpisode } from '../../models/media.model';
 
 /**
  * Finds which of the target's near-synonyms the learner typed. Each entry
@@ -80,6 +82,12 @@ export interface QuizActions {
     saveSettings(settings: UserSettings): void;
     updateKanjiKnowledge(knowledge: KanjiKnowledge): void;
     overrideDailyLimit(): Promise<void>;
+    /**
+     * Marks or un-marks listening-library episodes of one title in a single update
+     * (one episode, or a whole series). Each episode's `coverage` (0..1) is
+     * recorded when it is marked watched.
+     */
+    setEpisodesWatched(mediaId: string, episodes: { number: number; coverage?: number }[], watched: boolean): void;
     saveVocabIntroChoice(vocabulary: Vocabulary, choice: 'learn' | 'skip'): void;
     learnNextKanji(): Promise<void>;
     /** Wipes grammar progress only, keeping vocab, kanji and settings. */
@@ -626,6 +634,19 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
 
         async overrideDailyLimit() {
             dispatch({ type: 'OVERRIDE_DAILY_LIMIT' });
+        },
+
+        setEpisodesWatched(mediaId, episodes, watched) {
+            const updatedAt = Date.now();
+            const entries: Record<string, WatchedEpisode> = {};
+            for (const { number, coverage } of episodes) {
+                entries[episodeKey(mediaId, number)] = {
+                    watched,
+                    updatedAt,
+                    ...(watched && coverage !== undefined ? { coverageAtWatch: coverage } : {}),
+                };
+            }
+            dispatch({ type: 'SET_EPISODES_WATCHED', payload: { entries } });
         },
 
         async saveVocabIntroChoice(vocabulary, choice) {
