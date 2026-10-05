@@ -1,39 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { initialState, quizReducer } from './quizReducer';
 import type { QuizState } from './quizReducer';
-import type { UserProgress } from '../../models/user.model';
 import type { GrammarPoint } from '@gokan/dataset-schema';
-import type { GrammarProgress } from '../../models/grammar.model';
-import { DEFAULT_GRAMMAR_PROGRESS } from '../../models/grammar.model';
+import { grammarPoint, grammarProgress, userProgress } from '../../test/fixtures';
 
-function makeProgress(overrides: Partial<UserProgress> = {}): UserProgress {
-    return {
-        kanjiKnowledge: { method: 'kklc', step: 10, kanjiSet: new Set(['日']) },
-        learningQueue: [],
-        grammarQueue: [],
-        completedChapters: [],
-        stats: { newLearnedToday: 0, totalLearned: 0, totalReviews: 0 },
-        dailyOverride: false,
-        adaptive: { level: 1.0, history: [] },
-        ...overrides,
-    };
-}
-
-function makeGrammarProgress(overrides: Partial<GrammarProgress> = {}): GrammarProgress {
-    return { ...DEFAULT_GRAMMAR_PROGRESS, grammarId: 'n5-001', ...overrides };
-}
-
-function makeGrammarPoint(id = 'n5-001'): GrammarPoint {
-    return {
-        id,
-        title: 'A が いちばん～',
-        jlptLevel: 5,
-        shortExplanation: 'superlative',
-        longExplanation: 'superlative, in detail',
-        formation: 'Noun + が + いちばん',
-        examples: [{ jp: '寿司が一番好きです。', romaji: 'sushi ga ichiban suki desu', en: 'I like sushi the most.', patternWordIndices: [], words: [] }],
-    };
-}
+const makeGrammarPoint = (id = 'n5-001'): GrammarPoint => grammarPoint({ id });
 
 describe('grammarReducer (via quizReducer)', () => {
     it('GRAMMAR_LOAD_START sets isLoadingGrammar and currentGrammarQuizItem, clears prior answers/hints/feedback', () => {
@@ -172,7 +143,7 @@ describe('grammarReducer (via quizReducer)', () => {
     });
 
     it('GRAMMAR_UPDATE_AFTER_ANSWER assigns progress and clears feedback/answers/hints', () => {
-        const progress = makeProgress({ grammarQueue: [makeGrammarProgress({ totalReviews: 1 })] });
+        const progress = userProgress({ grammarQueue: [grammarProgress({ totalReviews: 1 })] });
         const state: QuizState = {
             ...initialState,
             grammarFeedback: { show: true, correct: true, type: 'correct', message: '', matchedAnswers: [], perBlankResults: [], strengthDeltaModifier: 1, vocabCredits: [] },
@@ -188,7 +159,7 @@ describe('grammarReducer (via quizReducer)', () => {
     });
 
     it('GRAMMAR_UPDATE_AFTER_ANSWER prepends a historyItem to grammarSessionHistory when provided', () => {
-        const progress = makeProgress({ grammarQueue: [makeGrammarProgress({ totalReviews: 1 })] });
+        const progress = userProgress({ grammarQueue: [grammarProgress({ totalReviews: 1 })] });
         const state: QuizState = { ...initialState, grammarSessionHistory: [] };
         const historyItem = { grammarId: 'n5-001', title: 'A が いちばん～', result: 'correct' as const, delta: 12 };
         const next = quizReducer(state, { type: 'GRAMMAR_UPDATE_AFTER_ANSWER', payload: { progress, historyItem } });
@@ -197,7 +168,7 @@ describe('grammarReducer (via quizReducer)', () => {
     });
 
     it('GRAMMAR_UPDATE_AFTER_ANSWER leaves grammarSessionHistory untouched without a historyItem (the read-only no-credit path)', () => {
-        const progress = makeProgress({ grammarQueue: [makeGrammarProgress({ totalReviews: 1 })] });
+        const progress = userProgress({ grammarQueue: [grammarProgress({ totalReviews: 1 })] });
         const state: QuizState = { ...initialState, grammarSessionHistory: [{ grammarId: 'existing', title: 'x', result: 'correct', delta: 5 }] };
         const next = quizReducer(state, { type: 'GRAMMAR_UPDATE_AFTER_ANSWER', payload: { progress } });
 
@@ -208,7 +179,7 @@ describe('grammarReducer (via quizReducer)', () => {
     // session point total (including the vocab-reinforcement figure) must keep
     // growing past that.
     it('GRAMMAR_UPDATE_AFTER_ANSWER accumulates grammarSessionGains past the 50-entry history cap', () => {
-        const progress = makeProgress();
+        const progress = userProgress();
         let state: QuizState = { ...initialState };
 
         for (let i = 0; i < 60; i++) {
@@ -226,7 +197,7 @@ describe('grammarReducer (via quizReducer)', () => {
     });
 
     it('GRAMMAR_UPDATE_AFTER_ANSWER leaves grammarSessionGains untouched without a historyItem', () => {
-        const progress = makeProgress();
+        const progress = userProgress();
         const state: QuizState = { ...initialState, grammarSessionGains: { net: 10, gained: 10, lost: 0, vocab: 3 } };
         const next = quizReducer(state, { type: 'GRAMMAR_UPDATE_AFTER_ANSWER', payload: { progress } });
 
@@ -240,7 +211,7 @@ describe('grammarReducer (via quizReducer)', () => {
         });
 
         it('GRAMMAR_SESSION_START leaves progress untouched when no updated progress is supplied', () => {
-            const progress = makeProgress();
+            const progress = userProgress();
             const state: QuizState = { ...initialState, progress };
             const next = quizReducer(state, { type: 'GRAMMAR_SESSION_START', payload: { grammarIds: ['n5-001'] } });
             expect(next.progress).toBe(progress);
@@ -251,9 +222,9 @@ describe('grammarReducer (via quizReducer)', () => {
         // cross-session retry flag colliding with a fresh due review - the reducer
         // just assigns it.
         it('GRAMMAR_SESSION_START assigns the supplied progress (stale needsRetry already cleared upstream)', () => {
-            const state: QuizState = { ...initialState, progress: makeProgress() };
-            const clearedProgress = makeProgress({
-                grammarQueue: [makeGrammarProgress({ needsRetry: false })],
+            const state: QuizState = { ...initialState, progress: userProgress() };
+            const clearedProgress = userProgress({
+                grammarQueue: [grammarProgress({ needsRetry: false })],
             });
             const next = quizReducer(state, {
                 type: 'GRAMMAR_SESSION_START',
@@ -315,13 +286,13 @@ describe('grammarReducer (via quizReducer)', () => {
 
     describe('GRAMMAR_CHAPTER_COMPLETE', () => {
         it('appends the chapter id to completedChapters', () => {
-            const state: QuizState = { ...initialState, progress: makeProgress({ completedChapters: ['c00'] }) };
+            const state: QuizState = { ...initialState, progress: userProgress({ completedChapters: ['c00'] }) };
             const next = quizReducer(state, { type: 'GRAMMAR_CHAPTER_COMPLETE', payload: { chapterId: 'c01' } });
             expect(next.progress!.completedChapters).toEqual(['c00', 'c01']);
         });
 
         it('is a no-op (same reference) when the chapter is already recorded', () => {
-            const state: QuizState = { ...initialState, progress: makeProgress({ completedChapters: ['c01'] }) };
+            const state: QuizState = { ...initialState, progress: userProgress({ completedChapters: ['c01'] }) };
             const next = quizReducer(state, { type: 'GRAMMAR_CHAPTER_COMPLETE', payload: { chapterId: 'c01' } });
             expect(next).toBe(state);
         });
@@ -333,7 +304,7 @@ describe('grammarReducer (via quizReducer)', () => {
     });
 
     it('GRAMMAR_ADVANCE_QUEUE assigns progress and appends candidates when provided', () => {
-        const progress = makeProgress();
+        const progress = userProgress();
         const point = makeGrammarPoint();
         const next = quizReducer(initialState, {
             type: 'GRAMMAR_ADVANCE_QUEUE',
@@ -346,7 +317,7 @@ describe('grammarReducer (via quizReducer)', () => {
 
     describe('GRAMMAR_INTRO_CHOICE', () => {
         it('learn: appends a new GrammarProgress with nextReviewAt set to now', () => {
-            const state: QuizState = { ...initialState, progress: makeProgress() };
+            const state: QuizState = { ...initialState, progress: userProgress() };
             const next = quizReducer(state, { type: 'GRAMMAR_INTRO_CHOICE', grammarId: 'n5-001', choice: 'learn' });
 
             const added = next.progress!.grammarQueue.find(g => g.grammarId === 'n5-001');
@@ -356,7 +327,7 @@ describe('grammarReducer (via quizReducer)', () => {
         });
 
         it('skip: appends a graduated GrammarProgress', () => {
-            const state: QuizState = { ...initialState, progress: makeProgress() };
+            const state: QuizState = { ...initialState, progress: userProgress() };
             const next = quizReducer(state, { type: 'GRAMMAR_INTRO_CHOICE', grammarId: 'n5-001', choice: 'skip' });
 
             const added = next.progress!.grammarQueue.find(g => g.grammarId === 'n5-001');
@@ -367,7 +338,7 @@ describe('grammarReducer (via quizReducer)', () => {
             const point = makeGrammarPoint();
             const state: QuizState = {
                 ...initialState,
-                progress: makeProgress(),
+                progress: userProgress(),
                 grammarIntroCandidates: [point],
             };
             const next = quizReducer(state, { type: 'GRAMMAR_INTRO_CHOICE', grammarId: point.id, choice: 'learn', grammarPoint: point });
@@ -377,7 +348,7 @@ describe('grammarReducer (via quizReducer)', () => {
 
         it('inserts an out-of-band grammarPoint (detail-page style "learn") into candidates rather than requiring it be there first', () => {
             const point = makeGrammarPoint('n5-999');
-            const state: QuizState = { ...initialState, progress: makeProgress(), grammarIntroCandidates: [] };
+            const state: QuizState = { ...initialState, progress: userProgress(), grammarIntroCandidates: [] };
             const next = quizReducer(state, { type: 'GRAMMAR_INTRO_CHOICE', grammarId: point.id, choice: 'learn', grammarPoint: point });
 
             expect(next.grammarIntroCandidates).toEqual([point]);
@@ -389,21 +360,21 @@ describe('grammarReducer (via quizReducer)', () => {
         });
 
         it('learn with an active session adds the grammarId to grammarSession.committed', () => {
-            const state: QuizState = { ...initialState, progress: makeProgress(), grammarSession: { committed: [] } };
+            const state: QuizState = { ...initialState, progress: userProgress(), grammarSession: { committed: [] } };
             const next = quizReducer(state, { type: 'GRAMMAR_INTRO_CHOICE', grammarId: 'n5-001', choice: 'learn' });
 
             expect(next.grammarSession).toEqual({ committed: ['n5-001'] });
         });
 
         it('skip with an active session does not add the grammarId', () => {
-            const state: QuizState = { ...initialState, progress: makeProgress(), grammarSession: { committed: [] } };
+            const state: QuizState = { ...initialState, progress: userProgress(), grammarSession: { committed: [] } };
             const next = quizReducer(state, { type: 'GRAMMAR_INTRO_CHOICE', grammarId: 'n5-001', choice: 'skip' });
 
             expect(next.grammarSession).toEqual({ committed: [] });
         });
 
         it('learn without an active session leaves grammarSession null', () => {
-            const state: QuizState = { ...initialState, progress: makeProgress(), grammarSession: null };
+            const state: QuizState = { ...initialState, progress: userProgress(), grammarSession: null };
             const next = quizReducer(state, { type: 'GRAMMAR_INTRO_CHOICE', grammarId: 'n5-001', choice: 'learn' });
 
             expect(next.grammarSession).toBeNull();

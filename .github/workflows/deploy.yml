@@ -1,4 +1,4 @@
-# Production deploy: runs the test suites, then hands both apps to the shared deploy workflow
+# Production deploy: runs every project check (bun run check), then hands both apps to the shared deploy workflow
 # (deploy-site.yml), which builds and ships them from one checkout so they can never end up on
 # different dataset versions.
 
@@ -27,7 +27,7 @@ on:
 
 jobs:
   test:
-    name: Run Tests
+    name: Checks
     runs-on: ubuntu-latest
 
     permissions:
@@ -53,15 +53,12 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Run gokan-srs tests
-        run: bun run --cwd apps/gokan-srs test
-
-      - name: Run gokan-dictionary tests
-        run: bun run --cwd apps/gokan-dictionary test
+      - name: Conventions, lint, typecheck, tests, duplicates, unused code
+        run: bun run check
 
   deploy:
     name: Deploy to production
-    needs: test # Only deploy if tests pass
+    needs: test # Only deploy if every check passes
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     uses: ./.github/workflows/deploy-site.yml
     with:

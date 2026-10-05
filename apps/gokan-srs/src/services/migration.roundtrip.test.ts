@@ -203,14 +203,11 @@ describe('Migration round-trip (zero data loss)', () => {
 });
 
 describe('production entry survives a storage round trip', () => {
-    it('hydrates production dueDate into a real Date, not a string', () => {
-        // Regression: hydrateProgress converted dates for reading and meaning only.
-        // A string dueDate makes every `dueDate <= now` comparison against a Date
-        // evaluate false, so the production quiz never came due - silently, with
-        // nothing thrown and no pure-logic test able to see it, because the strings
-        // only exist on the far side of a storage round trip.
-        const due = new Date('2026-03-01T00:00:00Z');
-        const raw: StoredProgress = {
+    const due = new Date('2026-03-01T00:00:00Z');
+
+    /** A stored (string-dated) snapshot with one word whose production review is due. */
+    function storedWithProductionDue(): StoredProgress {
+        return {
             _formatVersion: 7,
             kanjiKnowledge: { method: 'kklc', step: 10, kanjiSet: [] },
             grammarQueue: [],
@@ -228,6 +225,14 @@ describe('production entry survives a storage round trip', () => {
                 production: { memoryStrength: 40, interval: 1, difficulty: 0.3, lastReviewedAt: null, dueDate: due.toISOString(), history: [] },
             }],
         };
+    }
+    it('hydrates production dueDate into a real Date, not a string', () => {
+        // Regression: hydrateProgress converted dates for reading and meaning only.
+        // A string dueDate makes every `dueDate <= now` comparison against a Date
+        // evaluate false, so the production quiz never came due - silently, with
+        // nothing thrown and no pure-logic test able to see it, because the strings
+        // only exist on the far side of a storage round trip.
+        const raw = storedWithProductionDue();
 
         const hydrated = migrateAndHydrateProgress(raw);
         const item = hydrated.learningQueue[0];
@@ -237,25 +242,7 @@ describe('production entry survives a storage round trip', () => {
     });
 
     it('round-trips a production schedule through serialize -> reparse without loss', () => {
-        const due = new Date('2026-03-01T00:00:00Z');
-        const raw: StoredProgress = {
-            _formatVersion: 7,
-            kanjiKnowledge: { method: 'kklc', step: 10, kanjiSet: [] },
-            grammarQueue: [],
-            stats: { newLearnedToday: 0, totalLearned: 1, totalReviews: 4 },
-            learningQueue: [{
-                vocabId: 'v1',
-                stage: 'learning',
-                introductionAt: '2025-01-01T00:00:00.000Z',
-                nextReviewAt: null,
-                lastReviewedAt: null,
-                totalReviews: 4,
-                consecutiveFailures: 0,
-                reading: { memoryStrength: 50, interval: 2, difficulty: 0.3, lastReviewedAt: null, dueDate: null, history: [] },
-                meaning: { memoryStrength: 80, interval: 3, difficulty: 0.3, lastReviewedAt: null, dueDate: null, history: [] },
-                production: { memoryStrength: 40, interval: 1, difficulty: 0.3, lastReviewedAt: null, dueDate: due.toISOString(), history: [] },
-            }],
-        };
+        const raw = storedWithProductionDue();
 
         const once = migrateAndHydrateProgress(raw);
         const reparsed = migrateAndHydrateProgress(parseStoredProgress(JSON.stringify(toPlainProgressJSON(once))));

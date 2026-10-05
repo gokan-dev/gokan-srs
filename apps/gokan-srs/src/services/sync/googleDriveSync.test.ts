@@ -71,6 +71,23 @@ const isContent = (url: string) => url.includes('alt=media');
 const isUpload = (url: string, method: string) => url.includes('/upload/drive/v3/files') && (method === 'POST' || method === 'PATCH');
 const isTrash = (url: string, method: string) => method === 'PATCH' && !url.includes('/upload/');
 
+type Route = Parameters<typeof createFetchRouter>[0][number];
+
+/**
+ * The common Drive layout: the app folder, an existing backup, and one live progress file
+ * at modifiedTime T1 whose content is `content()`. Uploads succeed unless `upload` is given.
+ */
+function singleFileRoutes(content: () => unknown, upload?: Route['respond']): Route[] {
+    return [
+        { match: isFolderSearch, respond: () => jsonResponse({ files: [{ id: 'folder-1' }] }) },
+        { match: (url) => isFileList(url, 'kanji-progress.pre-v8-backup.json'), respond: () => jsonResponse({ files: [{ id: 'backup-1' }] }) },
+        { match: (url) => isFileList(url, 'kanji-progress.json'), respond: () => jsonResponse({ files: [{ id: 'file-1', name: 'kanji-progress.json', modifiedTime: 'T1' }] }) },
+        { match: isContent, respond: () => jsonResponse(content()) },
+        { match: isMetadata, respond: () => jsonResponse({ modifiedTime: 'T1' }) },
+        { match: isUpload, respond: upload ?? (() => jsonResponse({ id: 'file-1' })) },
+    ];
+}
+
 /** Minimal in-memory localStorage polyfill - this suite runs under Node, which has no DOM storage. */
 function installLocalStorageStub(): void {
     const store = new Map<string, string>();
@@ -208,14 +225,7 @@ describe('GoogleDriveSync', () => {
         // Serialized content of whatever the previous sync uploaded; null until then.
         let uploadedBody: ReturnType<typeof stored> | null = null;
 
-        vi.stubGlobal('fetch', createFetchRouter([
-            { match: isFolderSearch, respond: () => jsonResponse({ files: [{ id: 'folder-1' }] }) },
-            { match: (url) => isFileList(url, 'kanji-progress.pre-v8-backup.json'), respond: () => jsonResponse({ files: [{ id: 'backup-1' }] }) },
-            { match: (url) => isFileList(url, 'kanji-progress.json'), respond: () => jsonResponse({ files: [{ id: 'file-1', name: 'kanji-progress.json', modifiedTime: 'T1' }] }) },
-            { match: isContent, respond: () => jsonResponse(uploadedBody ?? stored(remoteEnvelope)) },
-            { match: isMetadata, respond: () => jsonResponse({ modifiedTime: 'T1' }) },
-            { match: isUpload, respond: () => jsonResponse({ id: 'file-1' }) },
-        ]));
+        vi.stubGlobal('fetch', createFetchRouter(singleFileRoutes(() => uploadedBody ?? stored(remoteEnvelope))));
 
         const sync = new GoogleDriveSync('token');
 
@@ -253,14 +263,7 @@ describe('GoogleDriveSync', () => {
             grammarQueue: [{ grammarId: 'n5-040', stage: 'learning', totalReviews: 3, entry: {} }],
         });
 
-        vi.stubGlobal('fetch', createFetchRouter([
-            { match: isFolderSearch, respond: () => jsonResponse({ files: [{ id: 'folder-1' }] }) },
-            { match: (url) => isFileList(url, 'kanji-progress.pre-v8-backup.json'), respond: () => jsonResponse({ files: [{ id: 'backup-1' }] }) },
-            { match: (url) => isFileList(url, 'kanji-progress.json'), respond: () => jsonResponse({ files: [{ id: 'file-1', name: 'kanji-progress.json', modifiedTime: 'T1' }] }) },
-            { match: isContent, respond: () => jsonResponse(stored(remoteEnvelope)) },
-            { match: isMetadata, respond: () => jsonResponse({ modifiedTime: 'T1' }) },
-            { match: isUpload, respond: () => jsonResponse({ id: 'file-1' }) },
-        ]));
+        vi.stubGlobal('fetch', createFetchRouter(singleFileRoutes(() => stored(remoteEnvelope))));
 
         const sync = new GoogleDriveSync('token');
         const cleared = makeEnvelope(6, { grammarQueue: [] });
@@ -276,22 +279,12 @@ describe('GoogleDriveSync', () => {
         // A holder object, since TypeScript cannot see the callback below assign a plain variable.
         const upload: { body: { progress?: StoredProgress } | null } = { body: null };
 
-        vi.stubGlobal('fetch', createFetchRouter([
-            { match: isFolderSearch, respond: () => jsonResponse({ files: [{ id: 'folder-1' }] }) },
-            { match: (url) => isFileList(url, 'kanji-progress.pre-v8-backup.json'), respond: () => jsonResponse({ files: [{ id: 'backup-1' }] }) },
-            { match: (url) => isFileList(url, 'kanji-progress.json'), respond: () => jsonResponse({ files: [{ id: 'file-1', name: 'kanji-progress.json', modifiedTime: 'T1' }] }) },
-            { match: isContent, respond: () => jsonResponse(stored(remoteEnvelope)) },
-            { match: isMetadata, respond: () => jsonResponse({ modifiedTime: 'T1' }) },
-            {
-                match: isUpload,
-                respond: async (_i, _url, init) => {
-                    // Capture what actually goes to Drive: the local check below
-                    // would pass even if the write still carried the old queue.
-                    upload.body = await uploadedFile(init);
-                    return jsonResponse({ id: 'file-1' });
-                },
-            },
-        ]));
+        vi.stubGlobal('fetch', createFetchRouter(singleFileRoutes(() => stored(remoteEnvelope), async (_i, _url, init) => {
+            // Capture what actually goes to Drive: the local check below
+            // would pass even if the write still carried the old queue.
+            upload.body = await uploadedFile(init);
+            return jsonResponse({ id: 'file-1' });
+        })));
 
         const sync = new GoogleDriveSync('token');
         const cleared = makeEnvelope(6, { grammarQueue: [] });
@@ -311,14 +304,7 @@ describe('GoogleDriveSync', () => {
             grammarQueue: [{ grammarId: 'n5-040', stage: 'learning', totalReviews: 3, entry: {} }],
         });
 
-        vi.stubGlobal('fetch', createFetchRouter([
-            { match: isFolderSearch, respond: () => jsonResponse({ files: [{ id: 'folder-1' }] }) },
-            { match: (url) => isFileList(url, 'kanji-progress.pre-v8-backup.json'), respond: () => jsonResponse({ files: [{ id: 'backup-1' }] }) },
-            { match: (url) => isFileList(url, 'kanji-progress.json'), respond: () => jsonResponse({ files: [{ id: 'file-1', name: 'kanji-progress.json', modifiedTime: 'T1' }] }) },
-            { match: isContent, respond: () => jsonResponse(stored(remoteEnvelope)) },
-            { match: isMetadata, respond: () => jsonResponse({ modifiedTime: 'T1' }) },
-            { match: isUpload, respond: () => jsonResponse({ id: 'file-1' }) },
-        ]));
+        vi.stubGlobal('fetch', createFetchRouter(singleFileRoutes(() => stored(remoteEnvelope))));
 
         const sync = new GoogleDriveSync('token');
         const cleared = makeEnvelope(6, {

@@ -2,59 +2,23 @@ import { describe, it, expect } from 'vitest';
 import { selectNextView, selectCurrentProgress, selectCurrentSentence, selectSessionStats, capSessionCommit, collectActionableTaskKeys, selectNextSessionPreview, dedupTaskKeysByVocab } from './quizSelectors';
 import { initialState, taskKey } from './quizReducer';
 import type { QuizState, TaskKey } from './quizReducer';
-import type { UserProgress, UserSettings } from '../../models/user.model';
+import type { UserProgress } from '../../models/user.model';
 import type { Sentence, Vocabulary } from '@gokan/dataset-schema';
 import type { VocabProgress } from '../../models/vocabulary.model';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../../models/vocabulary.model';
 import { CONSTANTS } from '../../commons/constants';
+import { userProgress, userSettings, vocabProgress, vocabulary } from '../../test/fixtures';
 
 const now = new Date('2026-06-10T00:00:00Z');
 const past = new Date('2026-06-01T00:00:00Z');
 const future = new Date('2026-07-01T00:00:00Z');
 
-function makeSettings(overrides: Partial<UserSettings> = {}): UserSettings {
-    return {
-        preferredLearningOrder: 'frequency',
-        kanjiCoverageTarget: 1,
-        enableMeaningQuiz: true,
-        learningFrequency: 'medium',
-        ...overrides,
-    };
-}
+const makeProgress = (learningQueue: VocabProgress[] = []): UserProgress => userProgress({ learningQueue });
 
-function makeProgress(learningQueue: VocabProgress[] = []): UserProgress {
-    return {
-        kanjiKnowledge: { method: 'kklc', step: 10, kanjiSet: new Set(['日']) },
-        learningQueue,
-        grammarQueue: [],
-        completedChapters: [],
-        stats: { newLearnedToday: 0, totalLearned: 0, totalReviews: 0 },
-        dailyOverride: false,
-        adaptive: { level: 1.0, history: [] },
-    };
-}
+const makeVocabProgress = (overrides: Partial<VocabProgress> = {}): VocabProgress =>
+    vocabProgress({ introductionAt: past, totalReviews: 1, ...overrides });
 
-function makeVocabProgress(overrides: Partial<VocabProgress> = {}): VocabProgress {
-    return {
-        ...DEFAULT_VOCABULARY_PROGRESS,
-        vocabId: 'v1',
-        stage: 'learning',
-        introductionAt: past,
-        totalReviews: 1,
-        ...overrides,
-    };
-}
-
-function makeVocab(id = 'v1'): Vocabulary {
-    return {
-        id,
-        writtenForm: { kanji: '日本', alternatives: [], containedKanji: ['日', '本'] },
-        reading: { primary: 'にほん', alternatives: [] },
-        frequency: { kanjiRank: 1 },
-        progression: { kklcStep: 1 },
-        senses: [{ pos: ['n'], misc: { rawTags: [] }, glosses: ['Japan'], related: { compounds: [] } }],
-    };
-}
+const makeVocab = (id = 'v1'): Vocabulary => vocabulary({ id });
 
 describe('selectNextView', () => {
     it('returns exhausted with a null queueItem when there is no progress/settings', () => {
@@ -72,7 +36,7 @@ describe('selectNextView', () => {
         const state: QuizState = {
             ...initialState,
             progress: makeProgress([dueItem]),
-            settings: makeSettings(),
+            settings: userSettings(),
             introCandidates: [introVocab],
         };
 
@@ -82,7 +46,7 @@ describe('selectNextView', () => {
 
     it('reports sessionState "review" when a due item exists', () => {
         const dueItem = makeVocabProgress({ nextReviewAt: past, reading: { ...DEFAULT_VOCABULARY_PROGRESS.reading, dueDate: past } });
-        const state: QuizState = { ...initialState, progress: makeProgress([dueItem]), settings: makeSettings() };
+        const state: QuizState = { ...initialState, progress: makeProgress([dueItem]), settings: userSettings() };
 
         const result = selectNextView(state, false, now);
         expect(result.sessionState).toBe('review');
@@ -90,7 +54,7 @@ describe('selectNextView', () => {
     });
 
     it('reports sessionState "learn" when nothing is due but more vocab is learnable', () => {
-        const state: QuizState = { ...initialState, progress: makeProgress([]), settings: makeSettings() };
+        const state: QuizState = { ...initialState, progress: makeProgress([]), settings: userSettings() };
         const result = selectNextView(state, /* hasMoreLearnable */ true, now);
         expect(result.sessionState).toBe('learn');
     });
@@ -99,7 +63,7 @@ describe('selectNextView', () => {
         const state: QuizState = {
             ...initialState,
             progress: makeProgress([]),
-            settings: makeSettings(),
+            settings: userSettings(),
             nextKanjiToLearn: { step: 11, kanjis: ['月'] },
         };
         const result = selectNextView(state, false, now);
@@ -108,7 +72,7 @@ describe('selectNextView', () => {
 
     it('reports sessionState "waiting" with the earliest upcoming review date when nothing is due/learnable', () => {
         const upcoming = makeVocabProgress({ vocabId: 'later', nextReviewAt: future, stage: 'learning' });
-        const state: QuizState = { ...initialState, progress: makeProgress([upcoming]), settings: makeSettings() };
+        const state: QuizState = { ...initialState, progress: makeProgress([upcoming]), settings: userSettings() };
         const result = selectNextView(state, false, now);
 
         expect(result.sessionState).toBe('waiting');
@@ -116,7 +80,7 @@ describe('selectNextView', () => {
     });
 
     it('reports sessionState "exhausted" when there is nothing due, learnable, or upcoming', () => {
-        const state: QuizState = { ...initialState, progress: makeProgress([]), settings: makeSettings() };
+        const state: QuizState = { ...initialState, progress: makeProgress([]), settings: userSettings() };
         const result = selectNextView(state, false, now);
         expect(result.sessionState).toBe('exhausted');
     });
@@ -129,7 +93,7 @@ describe('selectNextView', () => {
             reading: { ...DEFAULT_VOCABULARY_PROGRESS.reading, memoryStrength: CONSTANTS.srs.formula.mastery.maxMemoryStrength, dueDate: null },
             meaning: { ...DEFAULT_VOCABULARY_PROGRESS.meaning, dueDate: past },
         });
-        const state: QuizState = { ...initialState, progress: makeProgress([meaningOnlyDue]), settings: makeSettings({ enableMeaningQuiz: false }) };
+        const state: QuizState = { ...initialState, progress: makeProgress([meaningOnlyDue]), settings: userSettings({ enableMeaningQuiz: false }) };
 
         const result = selectNextView(state, false, now);
         expect(result.sessionState).not.toBe('review');
@@ -159,7 +123,7 @@ describe('selectNextView', () => {
         const state: QuizState = {
             ...initialState,
             progress: makeProgress([meaningDue, readingRetry]),
-            settings: makeSettings(),
+            settings: userSettings(),
             // Currently showing a meaning card - this is the "phase" hint.
             currentQuizItem: { vocab: meaningDue, quizType: 'meaning', quizMode: 'base' },
         };
@@ -182,7 +146,7 @@ describe('selectNextView', () => {
         const state: QuizState = {
             ...initialState,
             progress: makeProgress([readingRetry]),
-            settings: makeSettings(),
+            settings: userSettings(),
             currentQuizItem: { vocab: readingRetry, quizType: 'meaning', quizMode: 'base' },
         };
 
@@ -192,7 +156,7 @@ describe('selectNextView', () => {
 
     it('shouldShowIntro is true when the loaded vocab has no matching queue entry yet', () => {
         const vocab = makeVocab('new-vocab');
-        const state: QuizState = { ...initialState, progress: makeProgress([]), settings: makeSettings(), currentVocab: vocab };
+        const state: QuizState = { ...initialState, progress: makeProgress([]), settings: userSettings(), currentVocab: vocab };
         const result = selectNextView(state, false, now);
         expect(result.shouldShowIntro).toBe(true);
     });
@@ -200,7 +164,7 @@ describe('selectNextView', () => {
     it('shouldShowIntro is true when the queue entry exists but has not been introduced yet', () => {
         const vocab = makeVocab('v1');
         const notIntroduced = makeVocabProgress({ vocabId: 'v1', introductionAt: null });
-        const state: QuizState = { ...initialState, progress: makeProgress([notIntroduced]), settings: makeSettings(), currentVocab: vocab };
+        const state: QuizState = { ...initialState, progress: makeProgress([notIntroduced]), settings: userSettings(), currentVocab: vocab };
         const result = selectNextView(state, false, now);
         expect(result.shouldShowIntro).toBe(true);
     });
@@ -208,7 +172,7 @@ describe('selectNextView', () => {
     it('shouldShowIntro is false once the vocab has been introduced', () => {
         const vocab = makeVocab('v1');
         const introduced = makeVocabProgress({ vocabId: 'v1', introductionAt: past });
-        const state: QuizState = { ...initialState, progress: makeProgress([introduced]), settings: makeSettings(), currentVocab: vocab };
+        const state: QuizState = { ...initialState, progress: makeProgress([introduced]), settings: userSettings(), currentVocab: vocab };
         const result = selectNextView(state, false, now);
         expect(result.shouldShowIntro).toBe(false);
     });
@@ -243,7 +207,7 @@ describe('selectCurrentSentence', () => {
 });
 
 describe('selectSessionStats', () => {
-    const settings = makeSettings();
+    const settings = userSettings();
 
     // Build vocab with fully explicit reading/meaning entries. Note: DEFAULT_VOCABULARY_PROGRESS
     // holds SHARED nested reading/meaning objects, and other test files mutate them - so these
@@ -349,7 +313,7 @@ describe('selectSessionStats', () => {
 });
 
 describe('selectNextSessionPreview', () => {
-    const settings = makeSettings();
+    const settings = userSettings();
 
     // Explicit reading/meaning entries, same rationale as selectSessionStats's local
     // helpers above: DEFAULT_VOCABULARY_PROGRESS's nested entries are shared/mutated
@@ -427,7 +391,7 @@ describe('selectNextSessionPreview', () => {
     });
 
     it('ignores a due meaning when meaning quizzes are disabled', () => {
-        const disabled = makeSettings({ enableMeaningQuiz: false });
+        const disabled = userSettings({ enableMeaningQuiz: false });
         const state = { progress: makeProgress([vocab('a', { meaningDue: past })]), settings: disabled };
         expect(selectNextSessionPreview(state, now)).toEqual({ review: 0, new: 0, retries: 0, remaining: 0 });
     });
@@ -502,7 +466,7 @@ describe('capSessionCommit', () => {
 });
 
 describe('selectNextView session cap', () => {
-    const settings = makeSettings();
+    const settings = userSettings();
 
     // nextReviewAt as well as reading.dueDate: the former drives computeSessionState's
     // review/waiting call, the latter drives isReadingActionable and queue selection.
@@ -606,7 +570,7 @@ describe('session cap with three quiz types', () => {
 });
 
 describe('production is actually servable alongside a due reading', () => {
-    const settings = makeSettings();
+    const settings = userSettings();
 
     it('commits production for a word whose reading is due too, and serves it', () => {
         // The end-to-end shape of the bug reported from staging: all three directions
@@ -641,7 +605,7 @@ describe('production is actually servable alongside a due reading', () => {
 });
 
 describe('selectNextSessionPreview counts cards, including production', () => {
-    const settings = makeSettings();
+    const settings = userSettings();
 
     function entry(due: Date | null) {
         return { ...DEFAULT_VOCABULARY_PROGRESS.reading, memoryStrength: 200, dueDate: due };
@@ -743,7 +707,7 @@ describe('dedupTaskKeysByVocab', () => {
 });
 
 describe('cross-session: a vocab with two due directions surfaces the other in a later session', () => {
-    const settings = makeSettings();
+    const settings = userSettings();
 
     function entry(due: Date | null) {
         return { memoryStrength: 1, interval: 0, difficulty: 0.3, lastReviewedAt: null, dueDate: due, history: [] };

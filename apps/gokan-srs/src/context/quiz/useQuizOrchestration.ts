@@ -733,7 +733,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
         if (!progressSignature || !state.progress || !state.settings || isDownloading) return;
         // Debounced and fire-and-forget: uploadProgress reports its own failures.
         uploadProgress({ progress: state.progress, settings: state.settings });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on content signatures so identical reconciled objects never re-upload; progress and settings are read, not tracked
     }, [progressSignature, settingsSignature, isDownloading, uploadProgress]);
 
     // React to a completed download: reload data when lastDownloadTime changes.
@@ -768,7 +768,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
         if (!isInitialLoadComplete || isAuthenticated) return;
         localRebaseDoneRef.current = true;
         dispatch({ type: 'REBASE_STRENGTHS', payload: { frequencyModifier: frequencyModifierOf(state.settings) } });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once (guarded by a ref) after the initial load; progress and settings changes must not re-trigger it
     }, [state.progress, state.settings, isInitialLoadComplete, isAuthenticated]);
 
     // React to a background sync that PULLED IN REMOTE CHANGES (routine uploads of
@@ -794,7 +794,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
         if (!reconciledProgress) return;
 
         dispatch({ type: 'RECONCILE_REMOTE', payload: { progress: reconciledProgress, settings: reconciledSettings } });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- reconciles only when a background merge lands; reacting to local state changes would merge on every answer
     }, [lastBackgroundMergeTime]);
 
     /* ---------- Load vocab ---------- */
@@ -916,7 +916,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             console.error('[useQuizOrchestration] Failed to load vocab/sentences', err);
             dispatch({ type: 'LOAD_VOCAB_ERROR', payload: { vocabId: vid, error: err as unknown } });
         });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the next item, progress and route; the load guard compares currentQuizItem, so helpers are stable inputs
     }, [nextView.queueItem, state.progress, state.settings, nextView.sessionState, location.pathname]);
 
     useEffect(() => {
@@ -932,7 +932,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
 
             return () => clearTimeout(timer);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- the timer restarts only on a new correct answer or role change, never on an actions identity change
     }, [state.feedback?.correct, state.feedback?.synonymRelation, state.currentQuizItem, sessionRole]);
 
     /* =========================

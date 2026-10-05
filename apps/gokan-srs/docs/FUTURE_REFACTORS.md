@@ -2,7 +2,7 @@
 
 Planned structural improvements identified during the sync-loop investigation
 ([2026-07-19], see `sync-loop-investigation.md` and the Modification Log in
-CLAUDE.md/GEMINI.md). None of these are urgent, the current code is correct and
+docs/ARCHITECTURE.md). None of these are urgent, the current code is correct and
 tested, but each one *removes* a class of bugs rather than guarding against it.
 Ordered by leverage.
 

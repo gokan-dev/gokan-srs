@@ -1,9 +1,6 @@
 {
-  "$comment": "Duplicate-code check (bun run check:duplicates). Any clone above these floors fails it: share the code instead (see AGENTS.md, No duplication).",
-  "path": ["apps/gokan-srs/src", "apps/gokan-srs/scripts", "apps/gokan-dictionary/src", "apps/gokan-dictionary/scripts", "packages", "scripts"],
+  "$comment": "Shared jscpd options. Paths and per-pass floors live in scripts/check-duplicates.ts (bun run check:duplicates). Any clone above the floors fails: share the code instead (AGENTS.md, No duplication).",
   "format": ["typescript", "tsx", "javascript", "svelte", "scss"],
-  "minTokens": 60,
-  "minLines": 6,
   "threshold": 0,
   "ignore": ["**/node_modules/**", "**/dist/**", "**/__fixtures__/**"],
   "ignorePattern": ["^\\s*import\\s.*$"],

@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { filterRows, groupRows, toBrowseRow, type GrammarBrowseRow } from './grammarBrowse';
+import { filterRows, groupRows, toBrowseRow, type BrowseRow } from './grammarBrowse';
 import type { GrammarPoint } from '@gokan/dataset-schema';
 
-function row(overrides: Partial<GrammarBrowseRow> & { id: string }): GrammarBrowseRow {
+function row(overrides: Partial<BrowseRow> & { id: string }): BrowseRow {
     return {
         title: '～けど',
         jlptLevel: 5,

@@ -7,27 +7,13 @@ import type { GrammarProgress } from '../models/grammar.model';
 import type { VocabProgress } from '../models/vocabulary.model';
 import type { UserSettings } from '../models/user.model';
 import { DEFAULT_SETTINGS } from '../models/user.model';
+import { grammarProgress, srsEntry } from '../test/fixtures';
 
-function makeProgress(overrides: Partial<GrammarProgress> = {}): GrammarProgress {
-    return {
-        grammarId: 'n5-001',
-        stage: 'learning',
-        introductionAt: new Date('2026-06-01T00:00:00Z'),
-        nextReviewAt: null,
-        lastReviewedAt: null,
-        totalReviews: 0,
-        consecutiveFailures: 0,
-        entry: {
-            memoryStrength: CONSTANTS.srs.formula.minMemoryStrength,
-            interval: 0,
-            difficulty: 0.5,
-            lastReviewedAt: null,
-            dueDate: null,
-            history: [],
-        },
-        ...overrides,
-    };
-}
+const makeProgress = (overrides: Partial<GrammarProgress> = {}): GrammarProgress => grammarProgress({
+    introductionAt: new Date('2026-06-01T00:00:00Z'),
+    entry: srsEntry({ memoryStrength: CONSTANTS.srs.formula.minMemoryStrength, difficulty: 0.5 }),
+    ...overrides,
+});
 
 afterEach(() => {
     vi.restoreAllMocks();
@@ -336,7 +322,6 @@ describe('GrammarSRSService candidate finding (JLPT order fallback)', () => {
     });
 });
 
-
 describe('GrammarSRSService candidate finding (authored teaching order)', () => {
     // Deliberately NOT in JLPT order: the whole point of the authored order is
     // that a register sibling from a harder level (n2-but) can sit next to the
@@ -480,7 +465,6 @@ describe('GrammarSRSService candidate finding stops at a chapter boundary', () =
         expect(await GrammarSRSService.getCurrentChapter(everything)).toBeNull();
     });
 });
-
 
 describe('GrammarSRSService pipeline filtering by kind', () => {
     const teachingOrder = {

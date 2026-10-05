@@ -220,8 +220,7 @@ export const GoogleDriveProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
         // Blocking download on mount. isDownloading already starts true for a stored token.
         void runDownload(syncService);
-        // Mount only: this restores the session a stored token represents, once.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- mount only: restores the session a stored token represents, once
     }, []);
 
     return (

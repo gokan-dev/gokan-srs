@@ -153,7 +153,7 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
         })();
 
         return () => { cancelled = true; };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- recomputed only when the queue or completed chapters change; the rest of progress is irrelevant here
     }, [state.progress?.grammarQueue, state.progress?.completedChapters]);
 
     // The selectors are pure: each memo hands them exactly the state it depends on, and the
@@ -474,7 +474,7 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
             console.error('[useGrammarOrchestration] Failed to load grammar point', err);
             dispatch({ type: 'GRAMMAR_LOAD_ERROR', payload: { grammarId: queueItem.grammarId, error: err as unknown } });
         });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the next item and route; the load guard compares currentGrammarQuizItem, so actions and dispatch are stable inputs
     }, [grammarNextView.queueItem, state.progress, grammarNextView.sessionState, location.pathname]);
 
     useEffect(() => {
@@ -486,7 +486,7 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
 
             return () => clearTimeout(timer);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- the timer restarts only on a new correct answer or role change, never on an actions identity change
     }, [state.grammarFeedback?.correct, grammarSessionRole]);
 
     /* =========================

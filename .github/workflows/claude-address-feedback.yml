@@ -87,8 +87,8 @@ jobs:
           prompt: |
             A reviewer left feedback on this PR. Read the review and all review/PR
             comments in context. For each actionable point, either:
-              - make the change on the PR branch (following CLAUDE.md, keeping
-                bun run typecheck / lint / test green), or
+              - make the change on the PR branch (following AGENTS.md, keeping
+                bun run check green), or
               - reply explaining why you disagree or need clarification.
             Push any code changes to the same branch and post a brief comment
             summarising how you addressed the feedback. Do not resolve threads you
@@ -103,7 +103,7 @@ jobs:
             origin main && git -C apps/gokan-srs/dataset log HEAD..origin/main --oneline`.
             If that shows anything relevant to this PR's changes, bump the submodule
             pointer (`git -C apps/gokan-srs/dataset checkout origin/main && git add
-            apps/gokan-srs/dataset`) and commit it. Re-run `bun run typecheck`/`test`/
+            apps/gokan-srs/dataset`) and commit it. Re-run `bun run check`/
             `build` after any merge/bump.
 
             After that, check whether this branch was already staged: `git fetch --tags`
@@ -115,7 +115,7 @@ jobs:
             it as a fresh release instead: find the highest release tag repo-wide (`git
             tag --list 'v*.*.*-rc.*' --sort=-v:refname | head -1`), bump its MINOR version
             by one, reset to `.0-rc.1`. Either way: `git tag -a <new-tag> -m "..." && git
-            push origin <new-tag>`, and only once `bun run typecheck`/`test`/`build` all
+            push origin <new-tag>`, and only once `bun run check`/`build` all
             pass on the final commit - never tag a broken build.
           # Posts an immediate tracking comment on the PR with a live-updating checklist
           # as the agent works, replaced with the final summary on completion - restores

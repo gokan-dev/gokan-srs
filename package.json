@@ -10,13 +10,18 @@
   "scripts": {
     "dev": "bun --cwd apps/gokan-srs dev",
     "build": "bun --cwd apps/gokan-srs build",
-    "typecheck": "bun --cwd apps/gokan-srs typecheck",
-    "lint": "bun --cwd apps/gokan-srs lint",
-    "test": "bun --cwd apps/gokan-srs test",
     "dictionary:dev": "bun --cwd apps/gokan-dictionary dev",
     "dictionary:build": "bun --cwd apps/gokan-dictionary build",
     "dataset:build": "bun --cwd apps/gokan-srs build:data",
-    "dataset:sync": "bun --cwd apps/gokan-srs sync:dataset"
+    "dataset:sync": "bun --cwd apps/gokan-srs sync:dataset",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "tsc -p tsconfig.json && bun --cwd packages/dataset-schema typecheck && bun --cwd apps/gokan-srs typecheck && bun --cwd apps/gokan-dictionary typecheck",
+    "test": "bun --cwd apps/gokan-srs test && bun --cwd apps/gokan-dictionary test",
+    "check:conventions": "bun scripts/check-conventions.ts",
+    "check:duplicates": "bun scripts/check-duplicates.ts",
+    "check:unused": "knip",
+    "check": "bun run check:conventions && bun run lint && bun run typecheck && bun run test && bun run check:duplicates && bun run check:unused",
+    "prepare": "git config core.hooksPath .githooks"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

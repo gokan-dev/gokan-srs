@@ -1,6 +1,6 @@
 # Gokan SRS: Architecture Audit
 
-> Snapshot audit performed 2026-07-18. See the Modification Log in [CLAUDE.md](CLAUDE.md) for
+> Snapshot audit performed 2026-07-18. See [docs/MODIFICATION_LOG.md](../../../docs/MODIFICATION_LOG.md) for
 > the remediation work that followed (tracked against this document's findings).
 
 ## Verdict up front
@@ -145,7 +145,7 @@ the code had drifted from the intent of keeping sync one step behind.
 
 ## 7. Remediation
 
-See the Modification Log in [CLAUDE.md](CLAUDE.md) / [GEMINI.md](GEMINI.md) for the phased fix
+See [docs/MODIFICATION_LOG.md](../../../docs/MODIFICATION_LOG.md) for the phased fix
 that followed this audit: dead-code removal, a single `scheduling.ts` source of truth for due
 dates, a modular `quizReducer`/`quizSelectors`/`useQuizOrchestration` split replacing the god
 context, a redesigned lossless/concurrency-safe Drive sync, corrected migration versioning, and

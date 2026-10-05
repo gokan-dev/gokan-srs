@@ -43,7 +43,7 @@ export function useQuizFocusManagement(
 
         const timer = setTimeout(() => continueRef.current?.focus(), continueFocusDelay);
         return () => clearTimeout(timer);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- the caller supplies what identifies a new question as deps
     }, deps);
 
     return { firstInputRef, continueRef };

@@ -2,7 +2,7 @@
  * One ESLint config for the whole monorepo. Both apps share the same TypeScript rules, so
  * a rule tightened here applies everywhere at once instead of drifting between two copies.
  *
- * The rules below encode project conventions (docs/CONVENTIONS.md). Each one exists because
+ * The rules below encode project conventions (AGENTS.md). Each one exists because
  * the problem it blocks has already happened in this codebase at least once; do not relax a
  * rule to make a change pass. Fix the code, or change the convention deliberately.
  */
@@ -12,6 +12,7 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import svelte from 'eslint-plugin-svelte'
 import tseslint from 'typescript-eslint'
+import type { Linter } from 'eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 const SRS = 'apps/gokan-srs'
@@ -33,7 +34,7 @@ const TYPE_ESCAPE_HATCHES = [
 ]
 
 /** Everything is typed: no `any`, explicit or leaked through an untyped value. */
-const typingRules = {
+const typingRules: Linter.RulesRecord = {
   '@typescript-eslint/no-explicit-any': ['error', { fixToUnknown: false, ignoreRestArgs: false }],
   '@typescript-eslint/no-unsafe-assignment': 'error',
   '@typescript-eslint/no-unsafe-member-access': 'error',
@@ -70,7 +71,7 @@ const typingRules = {
   // One import statement per module (a separate 'import type' line is fine).
   'no-duplicate-imports': ['error', { allowSeparateTypeImports: true }],
   'no-restricted-syntax': ['error', ...TYPE_ESCAPE_HATCHES],
-} as const
+}
 
 const LOCAL_STORAGE = { name: 'localStorage', message: 'Use StorageService (services/storage.service.ts).' }
 const SESSION_STORAGE = { name: 'sessionStorage', message: 'Use usePersistedControls (hooks/usePersistedControls.ts).' }
@@ -90,6 +91,8 @@ export default defineConfig([
   {
     files: ['**/*.ts', '**/*.tsx', '**/*.svelte'],
     extends: [js.configs.recommended, tseslint.configs.recommendedTypeChecked],
+    // A disable comment that no longer suppresses anything is noise that hides the next real one.
+    linterOptions: { reportUnusedDisableDirectives: 'error' },
     languageOptions: {
       ecmaVersion: 2022,
       parserOptions: {
@@ -164,6 +167,22 @@ export default defineConfig([
   {
     files: [`${SRS}/src/hooks/usePersistedControls.ts`],
     rules: { 'no-restricted-globals': ['error', LOCAL_STORAGE, FETCH] },
+  },
+
+  // ---------------------------------------------------------------- app boundaries
+  // The apps never import from each other. Code both need goes in a package under packages/
+  // (compiled-dataset types are @gokan/dataset-schema), never a second copy in each app.
+  {
+    files: [`${SRS}/**/*.{ts,tsx}`],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: [{ group: ['**/gokan-dictionary/**'], message: 'Share it through a package under packages/.' }] }],
+    },
+  },
+  {
+    files: [`${DICTIONARY}/**/*.{ts,svelte}`],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: [{ group: ['**/gokan-srs/src/**'], message: 'Share it through a package under packages/.' }] }],
+    },
   },
 
   // ---------------------------------------------------------------- gokan-dictionary (Svelte)

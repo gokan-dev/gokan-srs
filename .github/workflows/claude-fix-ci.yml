@@ -8,6 +8,7 @@ on:
     # Watch the CI workflows that run on pull_request. Names must match the
     # `name:` field of each workflow exactly.
     workflows:
+      - "CI: checks"
       - "Deploy: production"
       - "CI: gokan-dictionary"
     types: [completed]
@@ -61,9 +62,9 @@ jobs:
             run ${{ github.event.workflow_run.html_url }}).
 
             Find the open PR for this branch. Read the failing job logs, reproduce the
-            failure locally where possible (bun run typecheck / lint / test), fix the
+            failure locally where possible (bun run check), fix the
             root cause, not the symptom, and push the fix to the same branch.
-            Follow CLAUDE.md. Leave a short PR comment summarising what was wrong and
+            Follow AGENTS.md: fix the code, never relax a rule or add an exemption. Leave a short PR comment summarising what was wrong and
             what you changed. If you cannot fix it within a reasonable attempt, comment
             on the PR explaining the blocker instead of pushing a speculative change.
           claude_args: "--model claude-sonnet-5 --max-turns 200 --allowedTools Bash,Edit,Write,Read,Glob,Grep"

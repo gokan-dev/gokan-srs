@@ -36,12 +36,4 @@ export const BASE_PATH = (() => {
     return trimTrailingSlash(raw.startsWith('/') ? raw : `/${raw}`);
 })();
 
-/** Absolute base URL of the site, always with a trailing slash. */
-export const SITE_URL = `${SITE_ORIGIN}${BASE_PATH}/`;
-
 export const SITE_NAME = 'Gokan Dictionary';
-
-export const SITE_TAGLINE = 'A free Japanese kanji and vocabulary dictionary';
-
-export const SITE_DESCRIPTION =
-    'Look up Japanese kanji and vocabulary: readings, meanings, JLPT levels, and example sentences.';

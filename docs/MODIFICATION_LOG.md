@@ -1,9 +1,18 @@
 # Modification Log
 
 > [!IMPORTANT]
-> **This log is a companion to `git log`, not a replacement for it.** Record here only the *result* of investigations and the *reasoning* behind non-obvious system behavior that would not be obvious from the diff alone. Routine changes belong in git history, not here. See the note in `CLAUDE.md` / `GEMINI.md` on when an entry is worth adding.
+> **This log is a companion to `git log`, not a replacement for it.** Record here only the *result* of investigations and the *reasoning* behind non-obvious system behavior that would not be obvious from the diff alone. Routine changes belong in git history, not here. See the Workflow section of `AGENTS.md` on when an entry is worth adding.
 >
-> This file is referenced from `CLAUDE.md` and `GEMINI.md`. It is not auto-loaded into agent context; read it on demand when you need the history behind a decision.
+> It is not auto-loaded into agent context; read it on demand when you need the history behind a decision.
+
+- **[2026-10-05]**:
+  - **Code-quality audit: the conventions are now one file and enforced by tooling, not by reviewers remembering them.** The rules lived in a 310 KB CLAUDE.md (copied to GEMINI.md, already drifting), the design doc, the dictionary README and the CI agent prompts, and lint and typecheck were red with CI running neither. Every rule an agent repeatedly broke is now either a lint rule (`eslint.config.ts`, one config for the repo) or a check in `scripts/check-conventions.ts`, run by the git hooks, a Claude Code PostToolUse hook and CI (`bun run check`). `AGENTS.md` holds the rules; CLAUDE.md and GEMINI.md only import it; the architecture moved to `docs/ARCHITECTURE.md` so it is read on demand rather than loaded into every agent context. Worth not undoing:
+    - **Typing at boundaries.** Persisted progress is typed as stored (`Stored<T>`, strings for dates) and hydrated **before** migration. Migration used to run on raw JSON, so several date comparisons in it compared strings to Dates and silently did nothing. Untrusted data is narrowed once (`services/http.ts`, `progressHydration.ts`) and `no-unsafe-*` keeps untyped values from leaking past.
+    - **Token shade classes resolved to nothing.** `text-secondary-400`, `bg-primary-600` and `text-desaturated-red-600` were used throughout `SessionProgress` (the session progress bar's fill among them), but the theme tokens have no numeric scale, so Tailwind generated no CSS for them. The conventions check now rejects both default-palette classes and token shades. `commons/theme.ts` was a second hex copy of the tokens that ignored dark mode; it now holds CSS variables only.
+    - **Duplicate check has two floors** (`scripts/check-duplicates.ts`): 60 tokens for production code, 120 for tests, where a short repeated arrange step is normal style. Paths are passed on the command line because jscpd ignores a config file's `path` key and silently scans nothing.
+    - **Test fixtures return fresh nested objects** (`src/test/fixtures.ts`): spreading the `DEFAULT_` constants shares their `history` arrays across every fixture in a file.
+    - **The dataset types are one package**, `@gokan/dataset-schema`. The apps had three diverging copies; the check rejects a redeclared schema type in either app. The package belongs in the `gokan-dataset` repo eventually, since that repo produces the shape.
+    - **DESIGN_SYSTEM.md and the code disagree on the primary accent** (#2E3A59 in the doc and the dictionary, #3D5A80 in gokan-srs). Left as is: which one is right is a design decision, not an audit fix.
 
 - **[2026-10-04]**:
   - **JLPT levels: kana keys now have one owner, and the easiest listed level wins.** Reported from real use: 席巻 ("sweeping conquest") was labelled N5. The JLPT source has no 席巻; it has the kana key せっけん at N5, which is soap (石鹸). `resolveJlptLevel` fell back to readings and accepted any word whose primary reading equalled the key, a guard every homophone passes by definition.

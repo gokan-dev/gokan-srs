@@ -1,0 +1,4 @@
+#!/bin/sh
+# Everything CI runs, before anything leaves the machine: conventions, lint, typecheck,
+# tests, duplicates, unused code. See AGENTS.md.
+exec bun run check

@@ -27,7 +27,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: true   # gokan-dataset submodule, per CLAUDE.md
+          submodules: true   # gokan-dataset submodule, per AGENTS.md
           fetch-depth: 0
 
       - name: Setup Bun
@@ -53,8 +53,9 @@ jobs:
           # claude-fix-ci.yml. (Verify this on your first end-to-end run.)
           prompt: |
             Issue #${{ github.event.issue.number }} was just labeled `ready-for-dev`.
-            You are working autonomously, no human is present. Read CLAUDE.md fully first;
-            it documents the architecture, conventions, and test setup.
+            You are working autonomously, no human is present. Read AGENTS.md fully first: it holds
+            every project rule, and they apply from the first line you write. Then read the
+            docs/ARCHITECTURE.md sections for the area the issue touches.
 
             The branch for this issue is ALWAYS `agent/issue-${{ github.event.issue.number }}`
             (deterministic, no slug suffix), so an interrupted run can be resumed on it.
@@ -67,7 +68,7 @@ jobs:
                `git push -u origin agent/issue-${{ github.event.issue.number }}` so the branch exists on
                origin from the very start, runs get cut off (turn limit, usage limit) with no warning,
                and only pushed work survives.
-            1. If the issue (plus CLAUDE.md and existing conventions) leaves a LOAD-BEARING
+            1. If the issue (plus AGENTS.md, docs/ARCHITECTURE.md and existing conventions) leaves a LOAD-BEARING
                product/architecture decision genuinely undecided, not just an implementation
                detail you can reasonably choose, do NOT guess. Remove the `ready-for-dev`
                label, add `needs-precision`, comment the specific open questions, and stop.
@@ -80,10 +81,10 @@ jobs:
                once the feature is complete and tests pass, you MAY squash your own checkpoint commits
                into a clean set before opening the PR if you prefer. Squashing YOUR OWN commits on this
                branch is allowed; the "never force-push" hard rule only protects commits you did not
-               create. Update both CLAUDE.md and GEMINI.md if you make functional changes.
+               create. Update docs/ARCHITECTURE.md if you make functional changes.
             3. Write/update tests for what you change. Make these pass before opening the PR:
-               bun run typecheck · bun run lint · bun run test  (don't chase unrelated
-               pre-existing failures noted in CLAUDE.md unless your issue touches that code).
+               `bun run check` (conventions, lint, typecheck, tests, duplicates, unused code).
+               It must be fully green: never relax a rule, disable a lint or add an exemption to pass.
             4. Open a PULL REQUEST against `main`, NOT a draft, with `Closes
                #${{ github.event.issue.number }}` in the body (reuse the existing PR if one is
                already open for this branch), a concise summary of what changed and what you tested.
@@ -101,7 +102,7 @@ jobs:
                git -C apps/gokan-srs/dataset log HEAD..origin/main --oneline`. If that shows
                anything, decide whether picking it up is in scope for this issue; if yes, `git -C
                apps/gokan-srs/dataset checkout origin/main && git add apps/gokan-srs/dataset` and
-               commit the bump. Re-run `bun run typecheck`/`test`/`build` after any merge/bump,
+               commit the bump. Re-run `bun run check` and `bun run build` after any merge/bump,
                don't tag a build you haven't re-verified.
             7. Tag the branch for a staging preview so a human can test it without doing this
                step themselves: `git fetch --tags`, then find the highest existing release tag
@@ -110,8 +111,8 @@ jobs:
                `v1.4.0-rc.3` → next tag `v1.5.0-rc.1`, this is a NEW issue's first PR, not a
                continuation of an existing one, so it always gets a fresh minor version rather
                than bumping the previous rc number). `git tag -a <new-tag> -m "..." && git push
-               origin <new-tag>` on the final, re-verified HEAD. Only do this once typecheck/
-               test/build all pass, never tag a broken build.
+               origin <new-tag>` on the final, re-verified HEAD. Only do this once `bun run check`
+               and the build pass, never tag a broken build.
 
             Hard rules: never push to or merge `main`; never force-push commits you didn't
             create; never touch `.github/workflows/`, secrets, or deployment config; never

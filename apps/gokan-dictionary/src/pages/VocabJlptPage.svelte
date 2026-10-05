@@ -1,8 +1,8 @@
 <script lang="ts">
   import type { VocabSummary } from '../lib/types';
-  import { homePath, vocabIndexPath, vocabJlptPath, vocabPath } from '../lib/urls';
-  import SiteHeader from './SiteHeader.svelte';
-  import SiteFooter from './SiteFooter.svelte';
+  import { vocabIndexPath, vocabJlptPath } from '../lib/urls';
+  import PageLayout from './PageLayout.svelte';
+  import VocabEntryList from './VocabEntryList.svelte';
 
   interface Props {
     level: number;
@@ -14,40 +14,21 @@
   let { level, words, allLevels }: Props = $props();
 </script>
 
-<SiteHeader />
+<PageLayout trail={[{ label: 'Vocabulary', href: vocabIndexPath() }, { label: `JLPT N${level}` }]}>
 
-<main>
-  <div class="container">
-    <p class="breadcrumb">
-      <a href={homePath()}>Dictionary</a> / <a href={vocabIndexPath()}>Vocabulary</a> / JLPT N{level}
-    </p>
-
-    <div class="hero">
-      <h1>JLPT N{level} Vocabulary</h1>
-      <p>{words.length.toLocaleString()} words, ordered by frequency: the most common first.</p>
-    </div>
-
-    <section class="card">
-      <ul class="entry-list">
-        {#each words as word (word.id)}
-          <li>
-            <a class="entry-row" href={vocabPath(word.id)}>
-              <span class="entry-row-word jp">{word.kanji}</span>
-              <span class="entry-row-reading jp">{word.reading}</span>
-              <span class="entry-row-gloss">{word.gloss ?? ''}</span>
-            </a>
-          </li>
-        {/each}
-      </ul>
-    </section>
-
-    <nav class="level-nav">
-      <span class="muted">Other levels:</span>
-      {#each allLevels.filter(other => other !== level) as other (other)}
-        <a href={vocabJlptPath(other)}>N{other}</a>
-      {/each}
-    </nav>
+  <div class="hero">
+    <h1>JLPT N{level} Vocabulary</h1>
+    <p>{words.length.toLocaleString()} words, ordered by frequency: the most common first.</p>
   </div>
-</main>
 
-<SiteFooter />
+  <section class="card">
+    <VocabEntryList entries={words} />
+  </section>
+
+  <nav class="level-nav">
+    <span class="muted">Other levels:</span>
+    {#each allLevels.filter(other => other !== level) as other (other)}
+      <a href={vocabJlptPath(other)}>N{other}</a>
+    {/each}
+  </nav>
+</PageLayout>

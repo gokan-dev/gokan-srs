@@ -8,36 +8,15 @@ import {
 import { CONSTANTS } from '../commons/constants';
 import { calculateMasteryPercentage } from './srs.utils';
 import type { ReviewLog, SRSEntry, VocabProgress } from '../models/vocabulary.model';
+import { srsEntry, vocabProgress } from '../test/fixtures';
 
 const F = CONSTANTS.srs.formula;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-function makeEntry(overrides: Partial<SRSEntry> = {}): SRSEntry {
-    return {
-        memoryStrength: F.minMemoryStrength,
-        interval: 0,
-        difficulty: 0.5,
-        lastReviewedAt: null,
-        dueDate: null,
-        history: [],
-        ...overrides,
-    };
-}
+const makeEntry = (overrides: Partial<SRSEntry> = {}): SRSEntry => srsEntry({ memoryStrength: F.minMemoryStrength, difficulty: 0.5, ...overrides });
 
-function makeVocab(overrides: Partial<VocabProgress> = {}): VocabProgress {
-    return {
-        vocabId: 'v1',
-        stage: 'learning',
-        introductionAt: null,
-        nextReviewAt: null,
-        lastReviewedAt: null,
-        totalReviews: 0,
-        consecutiveFailures: 0,
-        reading: makeEntry(),
-        meaning: makeEntry(),
-        ...overrides,
-    };
-}
+const makeVocab = (overrides: Partial<VocabProgress> = {}): VocabProgress =>
+    vocabProgress({ reading: makeEntry(), meaning: makeEntry(), production: undefined, ...overrides });
 
 function log(date: number, interval: number, result: ReviewLog['result'] = 'correct'): ReviewLog {
     return { date, result, interval, latency: 5000 };

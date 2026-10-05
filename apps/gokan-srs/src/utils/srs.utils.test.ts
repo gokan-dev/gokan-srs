@@ -2,40 +2,17 @@ import { describe, it, expect } from 'vitest';
 import { clearStaleNeedsRetry, getNextVocabToStudy, meaningContextThresholdOf } from './srs.utils';
 import { DEFAULT_SRS_ENTRY } from '../models/vocabulary.model';
 import type { VocabProgress } from '../models/vocabulary.model';
-import type { MeaningContextThreshold, UserSettings } from '../models/user.model';
+import type { MeaningContextThreshold } from '../models/user.model';
 import { DEFAULT_SETTINGS } from '../models/user.model';
 import { CONSTANTS } from '../commons/constants';
+import { userSettings, vocabProgress } from '../test/fixtures';
 
 const now = new Date('2026-06-10T00:00:00Z');
 const past = new Date('2026-06-01T00:00:00Z');
 const future = new Date('2026-07-01T00:00:00Z');
 
-function makeSettings(overrides: Partial<UserSettings> = {}): UserSettings {
-    return {
-        preferredLearningOrder: 'frequency',
-        kanjiCoverageTarget: 1,
-        enableMeaningQuiz: true,
-        learningFrequency: 'medium',
-        ...overrides,
-    };
-}
-
-// Fully self-contained (no shared nested objects) - see quizSelectors.test.ts's note
-// on DEFAULT_VOCABULARY_PROGRESS's shared reading/meaning objects being a test-hygiene hazard.
-function makeVocabProgress(overrides: Partial<VocabProgress> = {}): VocabProgress {
-    return {
-        vocabId: 'v1',
-        stage: 'learning',
-        introductionAt: past,
-        nextReviewAt: null,
-        lastReviewedAt: null,
-        totalReviews: 1,
-        consecutiveFailures: 0,
-        reading: { ...DEFAULT_SRS_ENTRY },
-        meaning: { ...DEFAULT_SRS_ENTRY },
-        ...overrides,
-    };
-}
+const makeVocabProgress = (overrides: Partial<VocabProgress> = {}): VocabProgress =>
+    vocabProgress({ introductionAt: past, totalReviews: 1, production: undefined, ...overrides });
 
 describe('clearStaleNeedsRetry', () => {
     // issue #36: a needsRetry flag inherited from a previous session, colliding
@@ -47,7 +24,7 @@ describe('clearStaleNeedsRetry', () => {
             needsRetry: { reading: true },
             reading: { ...DEFAULT_SRS_ENTRY, dueDate: past },
         });
-        const [result] = clearStaleNeedsRetry([v], makeSettings(), now);
+        const [result] = clearStaleNeedsRetry([v], userSettings(), now);
         expect(result.needsRetry?.reading).toBe(false);
     });
 
@@ -56,7 +33,7 @@ describe('clearStaleNeedsRetry', () => {
             needsRetry: { meaning: true },
             meaning: { ...DEFAULT_SRS_ENTRY, dueDate: past },
         });
-        const [result] = clearStaleNeedsRetry([v], makeSettings(), now);
+        const [result] = clearStaleNeedsRetry([v], userSettings(), now);
         expect(result.needsRetry?.meaning).toBe(false);
     });
 
@@ -66,7 +43,7 @@ describe('clearStaleNeedsRetry', () => {
             reading: { ...DEFAULT_SRS_ENTRY, dueDate: past },
             meaning: { ...DEFAULT_SRS_ENTRY, dueDate: null }, // meaning not due - stays
         });
-        const [result] = clearStaleNeedsRetry([v], makeSettings(), now);
+        const [result] = clearStaleNeedsRetry([v], userSettings(), now);
         expect(result.needsRetry?.reading).toBe(false);
         expect(result.needsRetry?.meaning).toBe(true);
     });
@@ -76,7 +53,7 @@ describe('clearStaleNeedsRetry', () => {
             needsRetry: { reading: true },
             reading: { ...DEFAULT_SRS_ENTRY, dueDate: future },
         });
-        const [result] = clearStaleNeedsRetry([v], makeSettings(), now);
+        const [result] = clearStaleNeedsRetry([v], userSettings(), now);
         expect(result.needsRetry?.reading).toBe(true);
     });
 
@@ -86,7 +63,7 @@ describe('clearStaleNeedsRetry', () => {
             totalReviews: 0,
             reading: { ...DEFAULT_SRS_ENTRY, dueDate: past },
         });
-        const [result] = clearStaleNeedsRetry([v], makeSettings(), now);
+        const [result] = clearStaleNeedsRetry([v], userSettings(), now);
         expect(result.needsRetry?.reading).toBe(true);
     });
 
@@ -95,13 +72,13 @@ describe('clearStaleNeedsRetry', () => {
             needsRetry: { meaning: true },
             meaning: { ...DEFAULT_SRS_ENTRY, dueDate: past },
         });
-        const [result] = clearStaleNeedsRetry([v], makeSettings({ enableMeaningQuiz: false }), now);
+        const [result] = clearStaleNeedsRetry([v], userSettings({ enableMeaningQuiz: false }), now);
         expect(result.needsRetry?.meaning).toBe(true);
     });
 
     it('is a no-op for items without a needsRetry flag', () => {
         const v = makeVocabProgress({ reading: { ...DEFAULT_SRS_ENTRY, dueDate: past } });
-        const [result] = clearStaleNeedsRetry([v], makeSettings(), now);
+        const [result] = clearStaleNeedsRetry([v], userSettings(), now);
         expect(result.needsRetry).toBeUndefined();
     });
 
@@ -110,11 +87,11 @@ describe('clearStaleNeedsRetry', () => {
             needsRetry: { reading: true },
             reading: { ...DEFAULT_SRS_ENTRY, dueDate: future },
         })];
-        expect(clearStaleNeedsRetry(queue, makeSettings(), now)).toBe(queue);
+        expect(clearStaleNeedsRetry(queue, userSettings(), now)).toBe(queue);
     });
 
     it('handles an empty queue', () => {
-        expect(clearStaleNeedsRetry([], makeSettings(), now)).toEqual([]);
+        expect(clearStaleNeedsRetry([], userSettings(), now)).toEqual([]);
     });
 });
 
@@ -139,7 +116,7 @@ describe('meaningContextThresholdOf', () => {
     });
 
     it('prefers meaningContextThresholdPoints over the legacy enum when both are set', () => {
-        const settings = makeSettings({ meaningContextThresholdPoints: 80, meaningContextThreshold: 'early' });
+        const settings = userSettings({ meaningContextThresholdPoints: 80, meaningContextThreshold: 'early' });
         expect(meaningContextThresholdOf(settings)).toBe(80);
     });
 
@@ -148,12 +125,12 @@ describe('meaningContextThresholdOf', () => {
         ['normal', 50],
         ['late', 70],
     ])('maps the legacy enum %s to %d when points is unset', (key, expected) => {
-        const settings = makeSettings({ meaningContextThreshold: key });
+        const settings = userSettings({ meaningContextThreshold: key });
         expect(meaningContextThresholdOf(settings)).toBe(expected);
     });
 
     it('defaults to 50 when neither field is set', () => {
-        expect(meaningContextThresholdOf(makeSettings())).toBe(50);
+        expect(meaningContextThresholdOf(userSettings())).toBe(50);
     });
 
     it('defaults to 50 when settings is undefined', () => {
@@ -166,7 +143,7 @@ describe('meaningContextThresholdOf', () => {
         [44, 40],
         [45, 50],
     ])('clamps and rounds %d to the nearest step of 10 (%d)', (input, expected) => {
-        const settings = makeSettings({ meaningContextThresholdPoints: input });
+        const settings = userSettings({ meaningContextThresholdPoints: input });
         expect(meaningContextThresholdOf(settings)).toBe(expected);
     });
 });
@@ -181,21 +158,21 @@ describe('getNextVocabToStudy meaning context mode', () => {
     }
 
     it('stays in base mode when the meaning ring is just below the threshold', () => {
-        const settings = makeSettings({ meaningContextThresholdPoints: 50 });
+        const settings = userSettings({ meaningContextThresholdPoints: 50 });
         const item = getNextVocabToStudy([makeDueMeaningVocab(49)], settings, now);
         expect(item?.quizType).toBe('meaning');
         expect(item?.quizMode).toBe('base');
     });
 
     it('switches to context mode once the meaning ring reaches the threshold', () => {
-        const settings = makeSettings({ meaningContextThresholdPoints: 50 });
+        const settings = userSettings({ meaningContextThresholdPoints: 50 });
         const item = getNextVocabToStudy([makeDueMeaningVocab(50)], settings, now);
         expect(item?.quizType).toBe('meaning');
         expect(item?.quizMode).toBe('context');
     });
 
     it('a threshold of 0 always gives context mode', () => {
-        const settings = makeSettings({ meaningContextThresholdPoints: 0 });
+        const settings = userSettings({ meaningContextThresholdPoints: 0 });
         const item = getNextVocabToStudy([makeDueMeaningVocab(0)], settings, now);
         expect(item?.quizMode).toBe('context');
     });
