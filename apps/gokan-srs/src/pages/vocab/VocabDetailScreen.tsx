@@ -50,7 +50,7 @@ export default function VocabDetailScreen() {
                 <div>
                     <h2 className="text-xl font-bold text-error mb-2">Error</h2>
                     <p className="text-secondary mb-4">{error}</p>
-                    <Button onClick={() => navigate(-1)}>Go Back</Button>
+                    <Button onClick={() => void navigate(-1)}>Go Back</Button>
                 </div>
             </div>
         );
@@ -181,7 +181,7 @@ export default function VocabDetailScreen() {
                 {vocab.writtenForm.containedKanji.map(char => (
                     <span
                         key={char}
-                        onClick={() => navigate(`/kanji/${char}`)}
+                        onClick={() => void navigate(`/kanji/${char}`)}
                         className="px-3 py-1.5 text-lg rounded bg-accent/10 text-accent font-mincho font-medium dark:bg-accent/15 cursor-pointer hover:bg-accent/20 transition-colors"
                     >
                         {char}
@@ -347,7 +347,7 @@ export default function VocabDetailScreen() {
     return (
         <div className="min-h-screen flex flex-col md:max-w-5xl md:mx-auto w-full animate-fade-in">
             {/* Header */}
-            <PageHeader title="Vocabulary Details" onBack={() => navigate(-1)} className="p-4 md:p-8" />
+            <PageHeader title="Vocabulary Details" onBack={() => void navigate(-1)} className="p-4 md:p-8" />
 
             {/* Content */}
             <main className="flex-1 p-4 md:p-8 pt-0">

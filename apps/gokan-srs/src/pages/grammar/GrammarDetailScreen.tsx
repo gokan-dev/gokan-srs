@@ -113,7 +113,7 @@ export default function GrammarDetailScreen() {
                 <div>
                     <h2 className="text-xl font-bold text-error mb-2">Error</h2>
                     <p className="text-secondary mb-4">{error}</p>
-                    <Button onClick={() => navigate(-1)}>Go Back</Button>
+                    <Button onClick={() => void navigate(-1)}>Go Back</Button>
                 </div>
             </div>
         );
@@ -186,7 +186,7 @@ export default function GrammarDetailScreen() {
                         <span className="text-xs text-tertiary font-gothic uppercase tracking-wider">
                             {progress.stage === 'graduated' ? 'Graduated' : 'In your queue'}
                         </span>
-                        <Button variant="secondary" onClick={() => navigate('/grammar')}>
+                        <Button variant="secondary" onClick={() => void navigate('/grammar')}>
                             Go to grammar
                         </Button>
                     </div>
@@ -245,7 +245,7 @@ export default function GrammarDetailScreen() {
                         <div className="text-xl leading-relaxed text-primary mb-1">
                             <InteractiveSentence
                                 sentence={grammarExampleToSentence(example, i)}
-                                onVocabClick={(vid) => navigate(`/vocab/${vid}`)}
+                                onVocabClick={(vid) => void navigate(`/vocab/${vid}`)}
                                 showFurigana={true}
                                 highlightRanges={patternHighlightRanges(example)}
                             />
@@ -289,7 +289,7 @@ export default function GrammarDetailScreen() {
                             <div className="text-xl leading-relaxed text-primary mb-1">
                                 <InteractiveSentence
                                     sentence={grammarExampleToSentence(example, i)}
-                                    onVocabClick={(vid) => navigate(`/vocab/${vid}`)}
+                                    onVocabClick={(vid) => void navigate(`/vocab/${vid}`)}
                                     showFurigana={true}
                                     highlightRanges={patternHighlightRanges(example)}
                                 />
@@ -383,7 +383,7 @@ export default function GrammarDetailScreen() {
         <div className="min-h-screen flex flex-col md:max-w-5xl md:mx-auto w-full animate-fade-in">
             <PageHeader
                 title="Grammar Point Details"
-                onBack={() => navigate(-1)}
+                onBack={() => void navigate(-1)}
                 className="p-4 md:p-8"
                 right={
                     <Link

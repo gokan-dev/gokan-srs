@@ -49,7 +49,7 @@ export function KanjiVocabListCard({ vocabIds }: Props) {
                 {vocabs.map(v => (
                     <div
                         key={v.id}
-                        onClick={() => navigate(`/vocab/${v.id}`)}
+                        onClick={() => void navigate(`/vocab/${v.id}`)}
                         className="border-l-2 border-divider pl-3 cursor-pointer hover:border-accent transition-colors group"
                     >
                         <div className="flex items-center gap-2 mb-1">

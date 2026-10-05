@@ -29,7 +29,7 @@ export interface NextViewResult {
 export function selectNextView(
     state: Pick<QuizState, 'progress' | 'settings' | 'introCandidates' | 'currentVocab' | 'currentQuizItem' | 'nextKanjiToLearn' | 'session'>,
     hasMoreLearnable: boolean,
-    now: Date = new Date()
+    now: Date
 ): NextViewResult {
     const { progress, settings, introCandidates } = state;
 
@@ -118,7 +118,7 @@ export interface NextSessionPreview {
  */
 export function selectNextSessionPreview(
     state: Pick<QuizState, 'progress' | 'settings'>,
-    now: Date = new Date()
+    now: Date
 ): NextSessionPreview {
     const empty = { review: 0, new: 0, retries: 0, remaining: 0 };
     if (!state.progress) return empty;
@@ -357,7 +357,7 @@ export interface SessionStats {
 export function selectSessionStats(
     state: Pick<QuizState, 'progress' | 'settings' | 'session'>,
     hasMoreLearnable: boolean,
-    now: Date = new Date()
+    now: Date
 ): SessionStats {
     if (!state.progress) {
         return { done: 0, total: 0, retriesPending: 0, waiting: 0, moreNew: hasMoreLearnable };

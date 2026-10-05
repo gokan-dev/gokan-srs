@@ -19,7 +19,7 @@ function makeSettings(overrides: Partial<UserSettings> = {}): UserSettings {
         enableMeaningQuiz: true,
         learningFrequency: 'medium',
         ...overrides,
-    } as UserSettings;
+    };
 }
 
 function makeProgress(learningQueue: VocabProgress[] = []): UserProgress {

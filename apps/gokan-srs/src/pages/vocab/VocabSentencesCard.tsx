@@ -42,7 +42,7 @@ export function VocabSentencesCard({ vocabId }: VocabSentencesCardProps) {
                 <InteractiveSentence
                     sentence={sentence}
                     targetVocabId={vocabId}
-                    onVocabClick={(vid) => navigate(`/vocab/${vid}`)}
+                    onVocabClick={(vid) => void navigate(`/vocab/${vid}`)}
                     showFurigana={true}
                 />
             </div>

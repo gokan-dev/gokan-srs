@@ -1,19 +1,17 @@
 import React, { useReducer } from 'react';
 import type { ReactNode } from 'react';
-import type { KanjiKnowledge, UserSettings } from '../../models/user.model';
 import { DEFAULT_SETTINGS } from '../../models/user.model';
-import type { VocabProgress, Vocabulary } from '../../models/vocabulary.model';
-import type { GrammarProgress, GrammarPoint } from '../../models/grammar.model';
+import type { VocabProgress } from '../../models/vocabulary.model';
+import type { GrammarProgress } from '../../models/grammar.model';
 import { StorageService } from '../../services/storage.service';
-import type { SetupValues } from '../../models/state.model';
 import type { SessionState } from '../../models/state.model';
 import { QuizContext } from '../useQuiz';
 import { quizReducer, initialState } from './quizReducer';
 import type { QuizState } from './quizReducer';
 import type { SessionStats, NextSessionPreview } from './quizSelectors';
-import { useQuizOrchestration } from './useQuizOrchestration';
+import { useQuizOrchestration, type QuizActions, type QuizComputed } from './useQuizOrchestration';
 import { useGrammarOrchestration } from './useGrammarOrchestration';
-import type { PendingGrammarChapterLesson } from './useGrammarOrchestration';
+import type { GrammarActions, GrammarComputed, PendingGrammarChapterLesson } from './useGrammarOrchestration';
 import type { GrammarSessionState, NextGrammarSessionPreview, GrammarSessionStats, HubChapterStatus } from './grammarSelectors';
 
 export interface QuizContextValue {
@@ -29,33 +27,8 @@ export interface QuizContextValue {
     /** Preview of what the next study session will contain (review/new/retries), shown on the Main hub. */
     nextSessionPreview: NextSessionPreview;
 
-    actions: {
-        setupComplete(values: SetupValues): Promise<void>;
-        setAnswer(answer: string): void;
-        /** Progressive hint for the CURRENT production cloze card (gloss, then reveal). No-op outside a cloze card. */
-        revealProductionHint(): void;
-        submitAnswer(): Promise<void>;
-        advanceQueue({ now, overrideDailyLimit }: { now: Date, overrideDailyLimit?: boolean }): void;
-        continueToNext(): Promise<void>;
-        /** Ends the finished session so a fresh capped one is committed immediately. */
-        startNewSession(): void;
-        saveSettings(settings: UserSettings): void;
-        updateKanjiKnowledge(knowledge: KanjiKnowledge): void;
-        overrideDailyLimit(): Promise<void>;
-        /** Marks or un-marks listening-library episodes of one title (one episode or a whole series); each `coverage` (0..1) is recorded when marking watched. */
-        setEpisodesWatched(mediaId: string, episodes: { number: number; coverage?: number }[], watched: boolean): void;
-        saveVocabIntroChoice(vocabulary: Vocabulary, choice: 'learn' | 'skip'): void
-        learnNextKanji(): Promise<void>;
-        reset(): void;
-        /** Wipes grammar progress only, keeping vocab, kanji and settings. */
-        resetGrammarProgress(): Promise<void>;
-    };
-
-    computed: {
-        canSubmit: boolean;
-        canContinue: boolean;
-        isReady: boolean;
-    };
+    actions: QuizActions;
+    computed: QuizComputed;
 
     /* ---------- Grammar activity (see useGrammarOrchestration.ts) ---------- */
     grammarSessionState: GrammarSessionState;
@@ -69,20 +42,8 @@ export interface QuizContextValue {
     grammarHubChapter: HubChapterStatus | null;
     /** The end-of-chapter review step, when a chapter has just completed and has anchored contrast lessons - null otherwise. */
     pendingGrammarChapterLesson: PendingGrammarChapterLesson | null;
-    grammarActions: {
-        setGrammarAnswer(index: number, value: string): void;
-        revealGrammarHint(index: number): void;
-        submitGrammarAnswer(): Promise<void>;
-        advanceGrammarQueue(): Promise<void>;
-        continueGrammarToNext(): Promise<void>;
-        saveGrammarIntroChoice(grammarPoint: GrammarPoint, choice: 'learn' | 'skip'): void;
-        dismissGrammarChapterLesson(chapterId: string): void;
-    };
-    grammarComputed: {
-        canSubmitGrammar: boolean;
-        canContinueGrammar: boolean;
-        isGrammarReady: boolean;
-    };
+    grammarActions: GrammarActions;
+    grammarComputed: GrammarComputed;
 }
 
 export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) => {

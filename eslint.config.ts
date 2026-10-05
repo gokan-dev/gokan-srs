@@ -17,6 +17,21 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 const SRS = 'apps/gokan-srs'
 const DICTIONARY = 'apps/gokan-dictionary'
 
+/**
+ * Casts that switch the type checker off as completely as `any` does. A value that does
+ * not fit its type needs a real fix (a type guard, a corrected type, a full fixture).
+ */
+const TYPE_ESCAPE_HATCHES = [
+  {
+    selector: 'TSAsExpression > TSNeverKeyword.typeAnnotation',
+    message: '`as never` disables type checking. Fix the type instead.',
+  },
+  {
+    selector: "TSAsExpression[expression.type='TSAsExpression'][expression.typeAnnotation.type='TSUnknownKeyword']",
+    message: '`as unknown as` disables type checking. Fix the type instead.',
+  },
+]
+
 /** Everything is typed: no `any`, explicit or leaked through an untyped value. */
 const typingRules = {
   '@typescript-eslint/no-explicit-any': ['error', { fixToUnknown: false, ignoreRestArgs: false }],
@@ -52,6 +67,7 @@ const typingRules = {
     { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
   ],
   'no-console': ['error', { allow: ['warn', 'error'] }],
+  'no-restricted-syntax': ['error', ...TYPE_ESCAPE_HATCHES],
 } as const
 
 const LOCAL_STORAGE = { name: 'localStorage', message: 'Use StorageService (services/storage.service.ts).' }
@@ -109,6 +125,7 @@ export default defineConfig([
     rules: {
       'no-restricted-syntax': [
         'error',
+        ...TYPE_ESCAPE_HATCHES,
         {
           selector: "CallExpression[callee.object.name='Date'][callee.property.name='now']",
           message: 'Reducers and selectors are pure: take `now` as an argument.',

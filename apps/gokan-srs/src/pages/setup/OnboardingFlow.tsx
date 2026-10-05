@@ -4,7 +4,7 @@ import { WelcomeScreen } from "./WelcomeScreen";
 import { SetupScreen } from "./SetupScreen";
 
 interface OnboardingFlowProps {
-    onComplete: (values: SetupValues) => Promise<void>;
+    onComplete: (values: SetupValues) => void;
 }
 
 export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
@@ -26,7 +26,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 enableGeminiContext: false, // Default standard validations
             },
         };
-        onComplete(values).catch(console.error);
+        onComplete(values);
     };
 
     if (step === 'welcome') {

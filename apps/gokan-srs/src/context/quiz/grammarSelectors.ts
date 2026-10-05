@@ -43,7 +43,7 @@ function pickStableGrammar(items: GrammarProgress[]): GrammarProgress | null {
 export function selectNextGrammarView(
     state: Pick<QuizState, 'progress' | 'grammarIntroCandidates' | 'currentGrammarPoint'>,
     hasMoreLearnableGrammar: boolean,
-    now: Date = new Date()
+    now: Date
 ): GrammarNextViewResult {
     const { progress, grammarIntroCandidates } = state;
 
@@ -912,7 +912,7 @@ export interface GrammarSessionStats {
 export function selectGrammarSessionStats(
     state: Pick<QuizState, 'progress' | 'grammarSession'>,
     hasMoreLearnableGrammar: boolean,
-    now: Date = new Date()
+    now: Date
 ): GrammarSessionStats {
     if (!state.progress) {
         return { done: 0, total: 0, retriesPending: 0, waiting: 0, moreNew: hasMoreLearnableGrammar };
@@ -940,7 +940,7 @@ export interface NextGrammarSessionPreview {
 /** Preview of the next grammar session's contents, mirroring selectNextSessionPreview - shown on the Main hub's grammar activity card. */
 export function selectNextGrammarSessionPreview(
     state: Pick<QuizState, 'progress'>,
-    now: Date = new Date()
+    now: Date
 ): NextGrammarSessionPreview {
     if (!state.progress) return { review: 0, new: 0, retries: 0 };
 

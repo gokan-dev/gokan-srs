@@ -74,7 +74,7 @@ export function GrammarChapterCoverageChart({ progress }: GrammarChapterCoverage
                 keyColumnLabel="Chapter"
             />
             <button
-                onClick={() => navigate('/grammar/chapters')}
+                onClick={() => void navigate('/grammar/chapters')}
                 className="self-start text-xs text-accent font-gothic hover:underline"
             >
                 Browse the full curriculum &rarr;

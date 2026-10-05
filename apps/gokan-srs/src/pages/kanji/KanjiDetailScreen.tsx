@@ -52,7 +52,7 @@ export default function KanjiDetailScreen() {
                 <div>
                     <h2 className="text-xl font-bold text-error mb-2">Error</h2>
                     <p className="text-secondary mb-4">{error}</p>
-                    <Button onClick={() => navigate(-1)}>Go Back</Button>
+                    <Button onClick={() => void navigate(-1)}>Go Back</Button>
                 </div>
             </div>
         );
@@ -109,7 +109,7 @@ export default function KanjiDetailScreen() {
     return (
         <div className="min-h-screen flex flex-col md:max-w-3xl md:mx-auto w-full animate-fade-in">
             {/* Header */}
-            <PageHeader title="Kanji Details" onBack={() => navigate(-1)} className="p-4 md:p-8" />
+            <PageHeader title="Kanji Details" onBack={() => void navigate(-1)} className="p-4 md:p-8" />
 
             {/* Content */}
             <main className="flex-1 p-4 md:p-8 pt-0 flex flex-col space-y-6">

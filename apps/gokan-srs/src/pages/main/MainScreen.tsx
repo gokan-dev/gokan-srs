@@ -60,7 +60,7 @@ export const MainScreen: React.FC = () => {
                 <QuizActivityCard
                     preview={nextSessionPreview}
                     nextReviewAt={nextReviewAt}
-                    onClick={() => navigate('/quiz')}
+                    onClick={() => void navigate('/quiz')}
                     settings={
                         <QuizSettingsMenu title="Vocabulary quiz settings">
                             <VocabQuizSettings
@@ -75,7 +75,7 @@ export const MainScreen: React.FC = () => {
                     preview={nextGrammarSessionPreview}
                     nextReviewAt={grammarNextReviewAt}
                     hubChapter={grammarHubChapter}
-                    onClick={() => navigate('/grammar')}
+                    onClick={() => void navigate('/grammar')}
                     settings={
                         <QuizSettingsMenu title="Grammar quiz settings">
                             <GrammarQuizSettings />
@@ -87,7 +87,7 @@ export const MainScreen: React.FC = () => {
                     icon={<Headphones size={22} className="text-accent" />}
                     title="Listening"
                     description={renderListeningDescription(watchedEpisodeCount(state.progress?.watchedEpisodes))}
-                    onClick={() => navigate('/listening')}
+                    onClick={() => void navigate('/listening')}
                     aside={bestFits.length > 0 && (
                         <div className="flex gap-2 shrink-0" aria-hidden="true">
                             {bestFits.map(entry => (

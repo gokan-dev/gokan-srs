@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { quizReducer, initialState, taskKey } from './quizReducer';
 import type { QuizState } from './quizReducer';
-import type { UserProgress } from '../../models/user.model';
+import type { UserProgress, UserSettings } from '../../models/user.model';
+import { DEFAULT_SETTINGS } from '../../models/user.model';
 import type { Vocabulary, VocabProgress } from '../../models/vocabulary.model';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../../models/vocabulary.model';
 import { CONSTANTS } from '../../commons/constants';
@@ -37,7 +38,7 @@ function makeVocab(id = 'v1'): Vocabulary {
 describe('quizReducer', () => {
     it('SETUP_COMPLETE sets progress and settings', () => {
         const progress = makeProgress();
-        const settings = { preferredLearningOrder: 'frequency', enableMeaningQuiz: true, learningFrequency: 'medium' } as any;
+        const settings: UserSettings = { ...DEFAULT_SETTINGS, preferredLearningOrder: 'frequency', enableMeaningQuiz: true, learningFrequency: 'medium' };
         const state = quizReducer(initialState, { type: 'SETUP_COMPLETE', payload: { progress, settings } });
 
         expect(state.progress).toBe(progress);
@@ -317,12 +318,12 @@ describe('quizReducer', () => {
     it('SAVE_SETTINGS clears introCandidates when preferredLearningOrder changes', () => {
         const state: QuizState = {
             ...initialState,
-            settings: { preferredLearningOrder: 'frequency', kanjiCoverageTarget: 1 } as any,
+            settings: { ...DEFAULT_SETTINGS, preferredLearningOrder: 'frequency', kanjiCoverageTarget: 1 },
             introCandidates: [makeVocab()],
         };
         const next = quizReducer(state, {
             type: 'SAVE_SETTINGS',
-            payload: { preferredLearningOrder: 'kklc', kanjiCoverageTarget: 1 } as any,
+            payload: { ...DEFAULT_SETTINGS, preferredLearningOrder: 'kklc', kanjiCoverageTarget: 1 },
         });
 
         expect(next.introCandidates).toEqual([]);
@@ -332,12 +333,12 @@ describe('quizReducer', () => {
         const candidates = [makeVocab()];
         const state: QuizState = {
             ...initialState,
-            settings: { preferredLearningOrder: 'frequency', kanjiCoverageTarget: 1 } as any,
+            settings: { ...DEFAULT_SETTINGS, preferredLearningOrder: 'frequency', kanjiCoverageTarget: 1 },
             introCandidates: candidates,
         };
         const next = quizReducer(state, {
             type: 'SAVE_SETTINGS',
-            payload: { preferredLearningOrder: 'frequency', kanjiCoverageTarget: 1, enableMeaningQuiz: false } as any,
+            payload: { ...DEFAULT_SETTINGS, preferredLearningOrder: 'frequency', kanjiCoverageTarget: 1, enableMeaningQuiz: false },
         });
 
         expect(next.introCandidates).toBe(candidates);
@@ -621,18 +622,18 @@ describe('quizReducer', () => {
         // the reducer's job is just to assign the result while leaving whatever the
         // user is doing right now (currentVocab, userAnswer, feedback) untouched, so a
         // background sync can never interrupt an answer in progress.
-        const inFlightVocab = { id: 'v1' } as Vocabulary;
+        const inFlightVocab = makeVocab('v1');
         const state: QuizState = {
             ...initialState,
             progress: makeProgress({ stats: { newLearnedToday: 1, totalLearned: 1, totalReviews: 1 } }),
-            settings: { preferredLearningOrder: 'frequency' } as any,
+            settings: { ...DEFAULT_SETTINGS, preferredLearningOrder: 'frequency' },
             currentVocab: inFlightVocab,
             userAnswer: 'partial-answer',
             feedback: { show: true, correct: false, type: 'wrong', message: 'Incorrect.', matchedAnswer: 'x' },
         };
 
         const reconciledProgress = makeProgress({ stats: { newLearnedToday: 5, totalLearned: 5, totalReviews: 5 } });
-        const reconciledSettings = { preferredLearningOrder: 'kklc' } as any;
+        const reconciledSettings: UserSettings = { ...DEFAULT_SETTINGS, preferredLearningOrder: 'kklc' };
 
         const next = quizReducer(state, {
             type: 'RECONCILE_REMOTE',

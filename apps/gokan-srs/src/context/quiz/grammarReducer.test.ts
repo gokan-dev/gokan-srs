@@ -130,7 +130,7 @@ describe('grammarReducer (via quizReducer)', () => {
                     acceptLists: [['すし'], ['なか']],
                     glosses: ['sushi', 'inside'],
                     readOnly: false,
-                } as QuizState['currentGrammarBlankPlan'],
+                },
             };
             const next = quizReducer(state, { type: 'GRAMMAR_REVEAL_HINT', payload: { index: 0 } });
 
@@ -151,7 +151,7 @@ describe('grammarReducer (via quizReducer)', () => {
                     acceptLists: [['すし'], ['なか']],
                     glosses: ['sushi', 'inside'],
                     readOnly: false,
-                } as QuizState['currentGrammarBlankPlan'],
+                },
             };
             const next = quizReducer(state, { type: 'GRAMMAR_REVEAL_HINT', payload: { index: 0 } });
 

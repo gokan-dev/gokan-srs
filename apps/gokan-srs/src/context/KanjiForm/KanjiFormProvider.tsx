@@ -4,6 +4,14 @@ import type {KanjiFormState} from "./KanjiFormContext";
 import {VocabularyService} from "../../services/vocabulary.service";
 import {CONSTANTS} from "../../commons/constants";
 
+/** Flips `kanji` in a copy of `set`. */
+function toggled(set: ReadonlySet<string>, kanji: string): Set<string> {
+    const next = new Set(set);
+    if (next.has(kanji)) next.delete(kanji);
+    else next.add(kanji);
+    return next;
+}
+
 export function KanjiFormProvider({
     initialState,
     children,
@@ -12,57 +20,40 @@ export function KanjiFormProvider({
     children: React.ReactNode;
 }) {
     const [allKanji, setAllKanji] = useState<string[]>([])
-    const [kanjiCount, setKanjiCount] = useState<number>(initialState.kanjiCount ?? Number(CONSTANTS.setup.defaultKanjiCount));
-    const [knownKanji, setKnownKanji] = useState<Set<string>>(initialState.knownKanji ?? new Set());
+    const [kanjiCount, setKanjiCountState] = useState<number>(initialState.kanjiCount ?? Number(CONSTANTS.setup.defaultKanjiCount));
+    // Individual kanji flipped since the count last changed. The known set is derived
+    // from the count plus these, rather than mirrored into state by an effect.
+    const [toggledKanji, setToggledKanji] = useState<Set<string>>(new Set());
     const [kanjiMethod] = useState(initialState.kanjiMethod ?? CONSTANTS.setup.defaultKanjiLearningMethod);
-    const [loading,setLoading ] = useState<boolean>(true);
+    const [loading, setLoading] = useState<boolean>(true);
 
-    const getAllKanji = () => {
-        setLoading(true)
+    useEffect(() => {
         VocabularyService.loadKKLCKanjiIndex().then(index => {
-            if (!index) {
-                throw Error('No index to load all kanji!')
-            }
-
+            if (!index) throw new Error('No index to load all kanji!');
             setAllKanji(Object.keys(index).flatMap((_, i) => index[i] ?? []));
+        }).catch((error: unknown) => {
+            console.error('[KanjiFormProvider] Failed to load the kanji list', error);
         }).finally(() => setLoading(false));
-    }
+    }, []);
 
-    useEffect(() => {
-        getAllKanji()
-    }, [])
+    // The first `kanjiCount` kanji of the list, with the user's individual toggles applied.
+    // Until the list has loaded, the set the form was opened with.
+    const knownKanji = useMemo(() => {
+        if (!allKanji.length) return initialState.knownKanji ?? new Set<string>();
+        let known: Set<string> = new Set(allKanji.slice(0, kanjiCount));
+        for (const kanji of toggledKanji) known = toggled(known, kanji);
+        return known;
+    }, [allKanji, kanjiCount, toggledKanji, initialState.knownKanji]);
 
-    useEffect(() => {
-        if (!allKanji.length) return;
+    // Moving the count starts over from the first N kanji, dropping individual toggles.
+    const setKanjiCount = useCallback((count: number) => {
+        if (count === kanjiCount) return;
+        setKanjiCountState(count);
+        setToggledKanji(new Set());
+    }, [kanjiCount]);
 
-        setKnownKanji(prev => {
-            const next = new Set(prev);
-            const target = new Set(allKanji.slice(0, kanjiCount));
-
-            // Remove kanji that exceed the count
-            for (const k of next) {
-                if (!target.has(k)) {
-                    next.delete(k);
-                }
-            }
-
-            // Add missing kanji up to count
-            for (const k of target) {
-                if (!next.has(k)) {
-                    next.add(k);
-                }
-            }
-
-            return next;
-        });
-    }, [kanjiCount, allKanji]);
-
-    const toggleKanji = useCallback((k: string) => {
-        setKnownKanji(prev => {
-            const next = new Set(prev);
-            next.has(k) ? next.delete(k) : next.add(k);
-            return next;
-        });
+    const toggleKanji = useCallback((kanji: string) => {
+        setToggledKanji(prev => toggled(prev, kanji));
     }, []);
 
     const value = useMemo(
@@ -71,7 +62,7 @@ export function KanjiFormProvider({
             setKanjiCount,
             toggleKanji,
         }),
-        [allKanji, kanjiCount, knownKanji, kanjiMethod, loading]
+        [allKanji, kanjiCount, knownKanji, kanjiMethod, loading, setKanjiCount, toggleKanji]
     );
 
     return (

@@ -362,7 +362,8 @@ export type ConjugationForm =
     | 'i-adj-negative' | 'i-adj-past' | 'i-adj-past-negative' | 'i-adj-ba'
     | 'na-adj-adverbial' | 'na-adj' | 'na-adj-past' | 'na-adj-negative'
     | 'na-adj-past-negative' | 'na-adj-polite' | 'na-adj-past-polite'
-    | 'na-adj-negative-polite' | 'na-adj-te';
+    | 'na-adj-negative-polite' | 'na-adj-te'
+    | 'negative-te' | 'i-adj-negative-te' | 'na-adj-negative-te';
 
 /** One drill: conjugate `lemma` into `target`. */
 export interface ConjugationDrillItem {

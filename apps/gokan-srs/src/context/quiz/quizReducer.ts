@@ -3,6 +3,8 @@ import type {
     UserProgress,
     UserSettings,
 } from '../../models/user.model';
+import { insertAtFraction } from '../../utils/insertAtFraction';
+import type { ProgressWithMetadata } from '../../services/sync/types';
 import type { Vocabulary } from '../../models/vocabulary.model';
 import type { Sentence } from '../../models/sentence.model';
 import type { WatchedEpisode } from '../../models/media.model';
@@ -79,7 +81,8 @@ export interface SessionGains {
 export const ZERO_SESSION_GAINS: SessionGains = { net: 0, gained: 0, lost: 0, vocab: 0 };
 
 interface QuizStateBase {
-    progress: UserProgress | null;
+    /** Carries the Drive sync counter at runtime, so it is typed as what storage and the merge return. */
+    progress: ProgressWithMetadata | null;
     settings: UserSettings | null;
     currentVocab: Vocabulary | null;
     currentSentences: Sentence[] | null;
@@ -156,7 +159,7 @@ export type QuizAction =
     | { type: 'SETUP_COMPLETE'; payload: { progress: UserProgress; settings: UserSettings } }
     | { type: 'LOAD_VOCAB_START'; payload: PendingQuizItem }
     | { type: 'LOAD_VOCAB_SUCCESS'; payload: { vocab: Vocabulary | null; sentences: Sentence[] | null; selectedSentenceId: string | null; productionCloze?: ProductionCloze | null } }
-    | { type: 'LOAD_VOCAB_ERROR'; payload: { vocabId: string, error: any } }
+    | { type: 'LOAD_VOCAB_ERROR'; payload: { vocabId: string, error: unknown } }
     /** The vocab's data no longer exists in the dataset: drop it from learningQueue and tombstone it in retiredVocabIds so it is never served again (even if a merge respawns it). See VocabNotFoundError. */
     | { type: 'RETIRE_VOCAB'; payload: { vocabId: string } }
     | { type: 'EVALUATING_AI_START' }
@@ -170,7 +173,11 @@ export type QuizAction =
     | { type: 'SAVE_SETTINGS'; payload: UserSettings }
     | { type: 'OVERRIDE_DAILY_LIMIT' }
     | { type: 'RESET' }
-    | { type: 'VOCAB_INTRO_CHOICE'; vocabId: string; choice: 'learn' | 'skip'; vocabulary?: Vocabulary; }
+    | {
+        type: 'VOCAB_INTRO_CHOICE'; vocabId: string; choice: 'learn' | 'skip'; vocabulary?: Vocabulary;
+        /** Where (0..1) a word added from outside the candidates is slotted in among them. Random, chosen by the caller. */
+        insertionFraction?: number;
+    }
     | { type: 'SET_NEXT_KANJI'; payload: { step: number; kanjis: string[] } | null; }
     | { type: 'LEARN_NEXT_KANJI'; payload: UserProgress }
     | { type: 'RESET_DAILY_STATS' }
@@ -286,7 +293,6 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
             };
 
         case 'LOAD_VOCAB_ERROR':
-            console.error(`[quizReducer] CRITICAL: Failed to load vocab ${action.payload.vocabId}`, action.payload.error);
             return {
                 ...state,
                 isLoadingVocab: false,
@@ -536,12 +542,7 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
             let nextCandidates = state.introCandidates.filter(c => c.id !== action.vocabId);
 
             if (!wasInCandidates && action.vocabulary) {
-                const insertAt = Math.floor(Math.random() * (nextCandidates.length + 1));
-                nextCandidates = [
-                    ...nextCandidates.slice(0, insertAt),
-                    action.vocabulary,
-                    ...nextCandidates.slice(insertAt),
-                ];
+                nextCandidates = insertAtFraction(nextCandidates, action.vocabulary, action.insertionFraction ?? 0);
             }
 
             // A word the user chooses to Learn becomes part of the current session's

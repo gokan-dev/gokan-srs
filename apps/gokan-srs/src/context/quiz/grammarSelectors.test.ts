@@ -16,7 +16,7 @@ import {
 } from './grammarSelectors';
 import type { QuizState } from './quizReducer';
 import type { UserProgress } from '../../models/user.model';
-import type { GrammarChapter, GrammarContrastIndex, GrammarExample, GrammarPoint, GrammarProgress } from '../../models/grammar.model';
+import type { GrammarChapter, GrammarContrastIndex, GrammarExample, GrammarPoint, GrammarProgress, GrammarVariantGroupIndex } from '../../models/grammar.model';
 import { DEFAULT_GRAMMAR_PROGRESS } from '../../models/grammar.model';
 import type { VocabProgress } from '../../models/vocabulary.model';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../../models/vocabulary.model';
@@ -261,9 +261,9 @@ describe('computeBlankPlan', () => {
     });
 
     it('falls back to a single most-frequent-word blank when no example has a known word (item 5.2)', async () => {
-        vi.spyOn(VocabularyService, 'loadVocab').mockImplementation(async (id: string) => {
+        vi.spyOn(VocabularyService, 'loadVocab').mockImplementation((id: string) => {
             const ranks: Record<string, number> = { 'v-naka': 5000, 'v-sushi': 800, 'v-ichiban': 3000, 'v-suki': 1500 };
-            return makeVocab({ id, frequency: { kanjiRank: ranks[id] ?? 999999 } });
+            return Promise.resolve(makeVocab({ id, frequency: { kanjiRank: ranks[id] ?? 999999 } }));
         });
 
         const point = makeGrammarPoint();
@@ -845,13 +845,13 @@ describe('conjugated blanks: kana accepted, other forms of a vocab word are mino
         id: 'v-taberu',
         writtenForm: { kanji: '食べる', alternatives: [], containedKanji: ['食'] },
         reading: { primary: 'たべる', alternatives: [] },
-        senses: [{ pos: ['v1', 'vt'], glosses: ['to eat'], misc: [] }] as never,
+        senses: [{ pos: ['v1', 'vt'], glosses: ['to eat'], misc: { rawTags: [] }, related: { compounds: [] } }],
     });
     const yasai = makeVocab({
         id: 'v-yasai',
         writtenForm: { kanji: '野菜', alternatives: [], containedKanji: ['野', '菜'] },
         reading: { primary: 'やさい', alternatives: [] },
-        senses: [{ pos: ['n'], glosses: ['vegetable'], misc: [] }] as never,
+        senses: [{ pos: ['n'], glosses: ['vegetable'], misc: { rawTags: [] }, related: { compounds: [] } }],
     });
 
     // 野菜を食べたら？ with 食べ carrying the LEMMA reading, as the compiled data often does.
@@ -878,7 +878,7 @@ describe('conjugated blanks: kana accepted, other forms of a vocab word are mino
     });
 
     const mockVocab = () => vi.spyOn(VocabularyService, 'loadVocab')
-        .mockImplementation(async (id: string) => (id === 'v-taberu' ? taberu : yasai));
+        .mockImplementation((id: string) => Promise.resolve(id === 'v-taberu' ? taberu : yasai));
 
     async function vocabBlankPlan() {
         mockVocab();
@@ -1147,7 +1147,7 @@ describe('selectGrammarSessionStats', () => {
 });
 
 describe('computeConjugationPlan / computeBlankPlan for inflection points', () => {
-    const tePoint = {
+    const tePoint: GrammarPoint = {
         id: 'n5-046',
         title: 'Verb て～',
         jlptLevel: 5,
@@ -1155,7 +1155,7 @@ describe('computeConjugationPlan / computeBlankPlan for inflection points', () =
         derives: 'て-form',
         shortExplanation: '', longExplanation: '', formation: '',
         examples: [{ jp: '待って', romaji: '', en: '', words: [{ surface: '待って', vocabId: null }], patternWordIndices: [0] }],
-    } as unknown as GrammarPoint;
+    };
 
     const conjugations = {
         'n5-046': {
@@ -1211,7 +1211,7 @@ describe('computeConjugationPlan / computeBlankPlan for inflection points', () =
             },
         });
 
-        const point = { ...tePoint, id: 'n4-020' } as GrammarPoint;
+        const point: GrammarPoint = { ...tePoint, id: 'n4-020' };
         const plan = await computeBlankPlan(point, null, 0);
 
         expect(plan!.acceptLists[0]).toEqual(expect.arrayContaining(['書かせられる', 'かかせられる', '書かされる', 'かかされる']));
@@ -1257,7 +1257,7 @@ describe('computeConjugationPlan / computeBlankPlan for inflection points', () =
 
     it('leaves construction points on the cloze path entirely', async () => {
         const loadConjugations = vi.spyOn(GrammarService, 'loadConjugations');
-        const construction = { ...tePoint, id: 'n4-110', kind: 'construction' as const, derives: undefined } as GrammarPoint;
+        const construction: GrammarPoint = { ...tePoint, id: 'n4-110', kind: 'construction', derives: undefined };
 
         const plan = await computeBlankPlan(construction, null, 0);
 
@@ -1266,10 +1266,10 @@ describe('computeConjugationPlan / computeBlankPlan for inflection points', () =
     });
 
     it('keeps the drill strict while accepting the full-kana answer (issue #95: 大変 → じゃなくて)', async () => {
-        const negTePoint = { ...tePoint, id: 'n5-921', derives: 'negative て-form' } as GrammarPoint;
+        const negTePoint: GrammarPoint = { ...tePoint, id: 'n5-921', derives: 'negative て-form' };
         vi.spyOn(GrammarService, 'loadConjugations').mockResolvedValue({
             'n5-921': {
-                form: 'na-adj-negative-te' as never,
+                form: 'na-adj-negative-te',
                 formLabel: 'negative て-form (じゃなくて)',
                 items: [{
                     vocabId: '1415000', lemma: '大変', lemmaReading: 'たいへん',
@@ -1290,10 +1290,10 @@ describe('computeConjugationPlan / computeBlankPlan for inflection points', () =
     });
 
     it('grades a slip in a long conjugated answer as a minor error (reported: ひつようじゃなかた)', async () => {
-        const pastNegPoint = { ...tePoint, id: 'n5-922', derives: 'past negative' } as GrammarPoint;
+        const pastNegPoint: GrammarPoint = { ...tePoint, id: 'n5-922', derives: 'past negative' };
         vi.spyOn(GrammarService, 'loadConjugations').mockResolvedValue({
             'n5-922': {
-                form: 'na-adj-past-negative' as never,
+                form: 'na-adj-past-negative',
                 formLabel: 'past negative (じゃなかった)',
                 items: [{
                     vocabId: '1238680', lemma: '必要', lemmaReading: 'ひつよう',
@@ -1319,7 +1319,7 @@ describe('computeConjugationPlan / computeBlankPlan for inflection points', () =
 // alternatives (na-adjective negative polite). Item shapes below are trimmed
 // straight from the compiled conjugations.json for these ids.
 describe('base-conjugation paradigm points (n5-905 plain-past, n5-911 na-adjective copula)', () => {
-    const plainPastPoint = {
+    const plainPastPoint: GrammarPoint = {
         id: 'n5-905',
         title: 'Plain past: Verb た',
         jlptLevel: 5,
@@ -1327,9 +1327,9 @@ describe('base-conjugation paradigm points (n5-905 plain-past, n5-911 na-adjecti
         derives: 'plain past (た)',
         shortExplanation: '', longExplanation: '', formation: '',
         examples: [],
-    } as unknown as GrammarPoint;
+    };
 
-    const copulaPoint = {
+    const copulaPoint: GrammarPoint = {
         id: 'n5-911',
         title: 'Plain: Na-adjective だ',
         jlptLevel: 5,
@@ -1337,9 +1337,9 @@ describe('base-conjugation paradigm points (n5-905 plain-past, n5-911 na-adjecti
         derives: 'plain (だ)',
         shortExplanation: '', longExplanation: '', formation: '',
         examples: [],
-    } as unknown as GrammarPoint;
+    };
 
-    const negativePolitePoint = {
+    const negativePolitePoint: GrammarPoint = {
         id: 'n5-917',
         title: 'Negative polite: Na-adjective じゃないです',
         jlptLevel: 5,
@@ -1347,7 +1347,7 @@ describe('base-conjugation paradigm points (n5-905 plain-past, n5-911 na-adjecti
         derives: 'negative polite (じゃないです)',
         shortExplanation: '', longExplanation: '', formation: '',
         examples: [],
-    } as unknown as GrammarPoint;
+    };
 
     const conjugations = {
         'n5-905': {
@@ -1450,14 +1450,14 @@ describe('base-conjugation paradigm points (n5-905 plain-past, n5-911 na-adjecti
 describe('realization variant rotation and two-tier grading', () => {
     // Modelled on the real `nowhere` group: a particle slot (に / へ / none)
     // crossed with a politeness slot (ません / ないです).
-    function makeVariantPoint(id: string, title: string, pattern: string, formality: string): GrammarPoint {
+    function makeVariantPoint(id: string, title: string, pattern: string, formality: NonNullable<GrammarPoint['formalityLevel']>): GrammarPoint {
         const words = [{ surface: pattern, vocabId: null }, { surface: '行きません', vocabId: null }];
         return {
             id, title, jlptLevel: 5, kind: 'construction',
             shortExplanation: '', longExplanation: '', formation: '',
             formalityLevel: formality,
             examples: [{ jp: pattern + '行きません', romaji: '', en: 'I do not go anywhere.', words, patternWordIndices: [0] }],
-        } as unknown as GrammarPoint;
+        };
     }
 
     const canonical = makeVariantPoint('n5-105', 'どこにも ません', 'どこにも', 'polite');
@@ -1469,20 +1469,20 @@ describe('realization variant rotation and two-tier grading', () => {
         // register is simply untestable by that blank and 'correct' is right.
         'n5-104': makeVariantPoint('n5-104', 'どこにも ないです', 'どこにもないです', 'neutral'),
     };
-    const group = {
+    const group: GrammarVariantGroupIndex = {
         'n5-105': [
             { id: 'n5-105', relation: 'canonical', formalityLevel: 'polite', title: 'どこにも ません' },
             { id: 'n5-107', relation: 'particle', formalityLevel: 'polite', title: 'どこへも ません' },
             { id: 'n5-109', relation: 'particle', formalityLevel: 'polite', title: 'どこも ません' },
             { id: 'n5-104', relation: 'politeness', formalityLevel: 'neutral', title: 'どこにもないです' },
         ],
-    } as never;
+    };
 
     beforeEach(() => {
         vi.spyOn(GrammarService, 'loadVariantGroups').mockResolvedValue(group);
         vi.spyOn(GrammarService, 'loadConjugations').mockResolvedValue({});
-        vi.spyOn(GrammarService, 'loadGrammarPoint').mockImplementation(async (id: string) =>
-            (siblings[id] ?? canonical));
+        vi.spyOn(GrammarService, 'loadGrammarPoint').mockImplementation((id: string) =>
+            Promise.resolve(siblings[id] ?? canonical));
     });
 
     afterEach(() => { vi.restoreAllMocks(); });
@@ -1652,10 +1652,9 @@ describe('family interchange (issue #62): slot-gated, axis-tiered', () => {
 
     beforeEach(() => {
         vi.spyOn(GrammarService, 'loadVariantGroups').mockResolvedValue({});
-        vi.spyOn(GrammarService, 'loadGrammarPoint').mockImplementation(async (id: string) => {
+        vi.spyOn(GrammarService, 'loadGrammarPoint').mockImplementation((id: string) => {
             const p = siblings[id];
-            if (!p) throw new Error(`no sibling ${id}`);
-            return p;
+            return p ? Promise.resolve(p) : Promise.reject(new Error(`no sibling ${id}`));
         });
     });
 

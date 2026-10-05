@@ -90,6 +90,7 @@ export function useSessionLifecycle({ role, hasWork, session, onStart, onEnd, on
             case 'end': onEnd(); break;
             case 'suspend': onSuspend(now); break;
             case 'resume': onResume(); break;
+            case null: break; // nothing changed
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [role, hasWork, hasSession, suspendedAt]);

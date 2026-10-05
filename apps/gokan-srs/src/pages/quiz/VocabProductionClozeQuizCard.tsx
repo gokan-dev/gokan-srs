@@ -88,7 +88,7 @@ export function VocabProductionClozeQuizCard({ onVocabClick }: { onVocabClick?: 
         if (!feedback?.show) {
             actions.submitAnswer();
         } else if (computed.canContinue) {
-            actions.continueToNext().then();
+            actions.continueToNext();
         }
     };
 

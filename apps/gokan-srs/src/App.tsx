@@ -119,17 +119,17 @@ export const App: React.FC = () => {
                 <div className="order-3 flex gap-4 items-center md:order-4">
                     <SyncStatusIndicator />
                     <button
-                        onClick={() => navigate("/grammar/browse")}
+                        onClick={() => void navigate("/grammar/browse")}
                         title="Browse grammar points"
                         aria-label="Browse grammar points"
                         className={`cursor-pointer transition-colors ${location.pathname === '/grammar/browse' ? 'text-primary' : 'text-secondary hover:text-primary'}`}
                     >
                         <Library size={18} />
                     </button>
-                    <button onClick={() => navigate("/stats")} title="Statistics" className="cursor-pointer text-secondary hover:text-primary transition-colors">
+                    <button onClick={() => void navigate("/stats")} title="Statistics" className="cursor-pointer text-secondary hover:text-primary transition-colors">
                         <BarChart2 size={18} />
                     </button>
-                    <button onClick={() => navigate("/profile")} title="Kanji Configuration" className="cursor-pointer text-secondary hover:text-primary transition-colors flex items-center justify-center">
+                    <button onClick={() => void navigate("/profile")} title="Kanji Configuration" className="cursor-pointer text-secondary hover:text-primary transition-colors flex items-center justify-center">
                         <span className="font-mincho font-bold text-[18px] leading-none">漢</span>
                     </button>
                     {/*
@@ -139,7 +139,7 @@ export const App: React.FC = () => {
                       * leads with the Google account and holds what is genuinely
                       * account-wide.
                       */}
-                    <button onClick={() => navigate("/settings")} title="Profile and global settings" aria-label="Profile and global settings" className="cursor-pointer text-secondary hover:text-primary transition-colors">
+                    <button onClick={() => void navigate("/settings")} title="Profile and global settings" aria-label="Profile and global settings" className="cursor-pointer text-secondary hover:text-primary transition-colors">
                         <UserRound size={18} />
                     </button>
                 </div>
@@ -159,20 +159,20 @@ export const App: React.FC = () => {
                             <MainScreen />
                         } />
                         <Route path="/quiz" element={
-                            <VocabQuizScreen onVocabClick={(id) => navigate(`/vocab/${id}`)} />
+                            <VocabQuizScreen onVocabClick={(id) => void navigate(`/vocab/${id}`)} />
                         } />
                         <Route path="/grammar" element={
                             <GrammarScreen />
                         } />
                         <Route path="/stats" element={
                             <StatsScreen
-                                onBack={() => navigate('/')}
-                                onVocabClick={(id) => navigate(`/vocab/${id}`)}
-                                onGrammarClick={(id) => navigate(`/grammar/${id}`)}
+                                onBack={() => void navigate('/')}
+                                onVocabClick={(id) => void navigate(`/vocab/${id}`)}
+                                onGrammarClick={(id) => void navigate(`/grammar/${id}`)}
                             />
                         } />
                         <Route path="/about" element={
-                            <AboutScreen onBack={() => navigate('/')} />
+                            <AboutScreen onBack={() => void navigate('/')} />
                         } />
                         <Route path="/settings" element={
                             <SettingsScreen
@@ -180,7 +180,7 @@ export const App: React.FC = () => {
                                 onUpdateSettings={actions.saveSettings}
                                 onReset={actions.reset}
                                 onResetGrammar={actions.resetGrammarProgress}
-                                onBack={() => navigate('/')}
+                                onBack={() => void navigate('/')}
                             />
                         } />
                         <Route path="/profile" element={
@@ -190,8 +190,8 @@ export const App: React.FC = () => {
                                 knownKanji: state.progress!.kanjiKnowledge.kanjiSet
                             }}>
                                 <UserProfileScreen
-                                    onBack={() => navigate('/')}
-                                    onVocabClick={(id) => navigate(`/vocab/${id}`)}
+                                    onBack={() => void navigate('/')}
+                                    onVocabClick={(id) => void navigate(`/vocab/${id}`)}
                                 />
                             </KanjiFormProvider>
                         } />

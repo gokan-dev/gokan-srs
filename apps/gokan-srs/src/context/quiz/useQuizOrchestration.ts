@@ -20,7 +20,6 @@ import {
     frequencyModifierOf, growthLevelOf, isCalibratedVocabReview, recordCalibratedAnswer, withCalibrationDefaults,
 } from '../../services/calibration';
 import { mergeProgress, mergeSettings } from '../../services/sync/mergeProgress';
-import type { ProgressWithMetadata } from '../../services/sync/types';
 import { useGoogleDrive } from '../useGoogleDrive';
 import type { QuizState, QuizAction, SynonymWord } from './quizReducer';
 import { selectNextView, selectCurrentProgress, selectSessionStats, selectNextSessionPreview, collectActionableTaskKeys, capSessionCommit, dedupTaskKeysByVocab } from './quizSelectors';
@@ -70,29 +69,29 @@ async function findProductionSynonym(input: string, entries: VocabSynonym[], cue
 }
 
 export interface QuizActions {
-    setupComplete(values: SetupValues): Promise<void>;
-    setAnswer(answer: string): void;
+    setupComplete: (values: SetupValues) => void;
+    setAnswer: (answer: string) => void;
     /** Progressive hint for the CURRENT production cloze card (gloss, then reveal). No-op outside a cloze card. */
-    revealProductionHint(): void;
-    submitAnswer(): Promise<void>;
-    advanceQueue({ now, overrideDailyLimit }: { now: Date, overrideDailyLimit?: boolean }): void;
-    continueToNext(): Promise<void>;
+    revealProductionHint: () => void;
+    submitAnswer: () => Promise<void>;
+    advanceQueue: ({ now, overrideDailyLimit }: { now: Date, overrideDailyLimit?: boolean }) => Promise<void>;
+    continueToNext: () => void;
     /** Ends the finished session so the lifecycle effect immediately commits a fresh capped one. */
-    startNewSession(): void;
-    saveSettings(settings: UserSettings): void;
-    updateKanjiKnowledge(knowledge: KanjiKnowledge): void;
-    overrideDailyLimit(): Promise<void>;
+    startNewSession: () => void;
+    saveSettings: (settings: UserSettings) => void;
+    updateKanjiKnowledge: (knowledge: KanjiKnowledge) => void;
+    overrideDailyLimit: () => void;
     /**
      * Marks or un-marks listening-library episodes of one title in a single update
      * (one episode, or a whole series). Each episode's `coverage` (0..1) is
      * recorded when it is marked watched.
      */
-    setEpisodesWatched(mediaId: string, episodes: { number: number; coverage?: number }[], watched: boolean): void;
-    saveVocabIntroChoice(vocabulary: Vocabulary, choice: 'learn' | 'skip'): void;
-    learnNextKanji(): Promise<void>;
+    setEpisodesWatched: (mediaId: string, episodes: { number: number; coverage?: number }[], watched: boolean) => void;
+    saveVocabIntroChoice: (vocabulary: Vocabulary, choice: 'learn' | 'skip') => void;
+    learnNextKanji: () => void;
     /** Wipes grammar progress only, keeping vocab, kanji and settings. */
-    resetGrammarProgress(): Promise<void>;
-    reset(): void;
+    resetGrammarProgress: () => Promise<void>;
+    reset: () => void;
 }
 
 /**
@@ -101,6 +100,12 @@ export interface QuizActions {
  * migration triggering, and Drive sync wiring. QuizProvider stays a thin
  * assembler that just wires this hook's output into React context.
  */
+export interface QuizComputed {
+    canSubmit: boolean;
+    canContinue: boolean;
+    isReady: boolean;
+}
+
 export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAction>) {
     const {
         logout,
@@ -155,7 +160,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             dispatch({ type: 'RESET_DAILY_STATS' });
             StorageService.saveLastAccessDay(today);
         }
-    }, [state.progress]);
+    }, [state.progress, dispatch]);
 
     // Run the async homograph-merge migration exactly once when progress first loads.
     useEffect(() => {
@@ -176,7 +181,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
         }).catch(err => {
             console.error('[useQuizOrchestration] Async migration failed:', err);
         });
-    }, [state.progress, state.settings]);
+    }, [state.progress, state.settings, dispatch]);
 
     /* ---------- Derived view ---------- */
 
@@ -184,24 +189,28 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
 
     useEffect(() => {
         if (!state.progress || !state.settings) return;
-        SRSService.hasMoreLearnableVocabulary(state.progress, state.settings).then(setHasMoreLearnable);
+        void SRSService.hasMoreLearnableVocabulary(state.progress, state.settings).then(setHasMoreLearnable);
     }, [state.progress, state.settings]);
 
+    // The selectors are pure: each memo hands them exactly the state it depends on, and the
+    // current time as of that state change (the orchestration layer owns the clock).
+    const { progress, settings, introCandidates, currentVocab, currentQuizItem, nextKanjiToLearn, session } = state;
+
     const nextView = useMemo(
-        () => selectNextView(state, hasMoreLearnable),
-        [state.progress, state.settings, state.introCandidates, state.currentVocab, state.currentQuizItem, state.nextKanjiToLearn, state.session, hasMoreLearnable]
+        () => selectNextView({ progress, settings, introCandidates, currentVocab, currentQuizItem, nextKanjiToLearn, session }, hasMoreLearnable, new Date()),
+        [progress, settings, introCandidates, currentVocab, currentQuizItem, nextKanjiToLearn, session, hasMoreLearnable]
     );
 
-    const currentProgress = useMemo(() => selectCurrentProgress(state), [state.currentVocab, state.progress]);
+    const currentProgress = useMemo(() => selectCurrentProgress({ progress, currentVocab }), [currentVocab, progress]);
 
     const sessionStats = useMemo(
-        () => selectSessionStats(state, hasMoreLearnable),
-        [state.progress, state.settings, state.session, hasMoreLearnable]
+        () => selectSessionStats({ progress, settings, session }, hasMoreLearnable, new Date()),
+        [progress, settings, session, hasMoreLearnable]
     );
 
     const nextSessionPreview = useMemo(
-        () => selectNextSessionPreview(state),
-        [state.progress, state.settings]
+        () => selectNextSessionPreview({ progress, settings }, new Date()),
+        [progress, settings]
     );
 
     /* ---------- Session lifecycle ---------- */
@@ -281,7 +290,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
        ========================= */
 
     const actions: QuizActions = {
-        async setupComplete({ kanjiKnowledge, settings }: SetupValues) {
+        setupComplete({ kanjiKnowledge, settings }: SetupValues) {
             const progress: UserProgress = {
                 kanjiKnowledge,
                 learningQueue: [],
@@ -519,23 +528,23 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             });
         },
 
-        async continueToNext() {
+        continueToNext() {
             if (!state.progress || !state.feedback || !state.currentVocab || !state.currentQuizItem) return;
+            const id = state.currentVocab.id;
+            const target = state.progress.learningQueue.find(v => v.vocabId === id);
+            // Every answered card belongs to a queued word; without one there is nothing to update.
+            if (!target) return;
 
             const now = new Date();
-            const id = state.currentVocab.id;
             // Use the latency frozen at submit time, not the time up to this Continue
             // click (which would also count answer-review time).
             const latency = submitLatencyRef.current ?? 5000;
-
-            const target = state.progress.learningQueue.find(v => v.vocabId === id);
-            let historyItem = null;
 
             // Calibration (services/calibration.ts): only a real review enters its
             // quiz type's window. A confusable-synonym collision is not graded at all,
             // so it is not one either.
             const quizType = state.currentQuizItem.quizType;
-            const counted = !!target && state.feedback.synonymRelation !== 'confusable'
+            const counted = state.feedback.synonymRelation !== 'confusable'
                 && isCalibratedVocabReview(target, quizType);
             const calibration = counted
                 ? recordCalibratedAnswer(state.progress.calibration, quizType, state.feedback.type)
@@ -548,72 +557,65 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
 
             // Apply the SRS update exactly once per answer, then reuse the single
             // result both for the mastery-delta history entry and the queue update.
-            let updatedTarget: typeof target | null = null;
+            // A 'confusable' synonym collision (issue #71 Part B) bypasses the
+            // normal grading path entirely: it reuses the existing per-quiz-type
+            // retry machinery instead, leaving memoryStrength/interval/difficulty
+            // untouched, rescheduling at the unchanged interval, and flagging
+            // needsRetry.production so the card re-asks until the TARGET itself
+            // is produced - see SRSService.applyConfusableSynonymAnswer.
+            const updated = state.feedback.synonymRelation === 'confusable'
+                ? SRSService.applyConfusableSynonymAnswer(target, now, meaningQuizEnabled, productionQuizEnabled)
+                : SRSService.applyAnswer(
+                    target,
+                    state.currentQuizItem.quizType,
+                    state.currentQuizItem.quizMode,
+                    state.userAnswer,
+                    state.feedback.matchedAnswer,
+                    latency,
+                    now,
+                    state.feedback.type,
+                    growthLevel,
+                    frequencyModifier,
+                    meaningQuizEnabled,
+                    productionQuizEnabled
+                ).updated;
 
-            if (target) {
-                // A 'confusable' synonym collision (issue #71 Part B) bypasses the
-                // normal grading path entirely: it reuses the existing per-quiz-type
-                // retry machinery instead, leaving memoryStrength/interval/difficulty
-                // untouched, rescheduling at the unchanged interval, and flagging
-                // needsRetry.production so the card re-asks until the TARGET itself
-                // is produced - see SRSService.applyConfusableSynonymAnswer.
-                const updated = state.feedback.synonymRelation === 'confusable'
-                    ? SRSService.applyConfusableSynonymAnswer(target, now, meaningQuizEnabled, productionQuizEnabled)
-                    : SRSService.applyAnswer(
-                        target,
-                        state.currentQuizItem.quizType,
-                        state.currentQuizItem.quizMode,
-                        state.userAnswer,
-                        state.feedback.matchedAnswer,
-                        latency,
-                        now,
-                        state.feedback.type,
-                        growthLevel,
-                        frequencyModifier,
-                        meaningQuizEnabled,
-                        productionQuizEnabled
-                    ).updated;
-                updatedTarget = updated;
+            // Keyed rather than a reading/meaning ternary: with a third type, a
+            // ternary would silently report the meaning entry's delta for a
+            // production answer.
+            const strengthOf = (v: VocabProgress) =>
+                quizType === 'reading' ? v.reading.memoryStrength
+                    : quizType === 'production' ? (v.production?.memoryStrength ?? 0)
+                        : v.meaning.memoryStrength;
 
-                // Keyed rather than a reading/meaning ternary: with a third type, a
-                // ternary would silently report the meaning entry's delta for a
-                // production answer.
-                const strengthOf = (v: VocabProgress) =>
-                    state.currentQuizItem!.quizType === 'reading' ? v.reading.memoryStrength
-                        : state.currentQuizItem!.quizType === 'production' ? (v.production?.memoryStrength ?? 0)
-                            : v.meaning.memoryStrength;
+            const oldStrength = strengthOf(target);
+            const newStrength = strengthOf(updated);
 
-                const oldStrength = strengthOf(target);
-                const newStrength = strengthOf(updated);
+            const delta = calculateMasteryPercentage(newStrength) - calculateMasteryPercentage(oldStrength);
 
-                const delta = calculateMasteryPercentage(newStrength) - calculateMasteryPercentage(oldStrength);
+            const historyItem = {
+                vocabId: id,
+                writtenForm: state.currentVocab.writtenForm.kanji,
+                result: state.feedback.type,
+                delta
+            };
 
-                historyItem = {
-                    vocabId: id,
-                    writtenForm: state.currentVocab.writtenForm.kanji,
-                    result: state.feedback.type,
-                    delta
-                };
-            }
-
-            const updatedQueue = state.progress.learningQueue.map(v =>
-                v.vocabId === id && updatedTarget ? updatedTarget : v
-            );
+            const updatedQueue = state.progress.learningQueue.map(v => v.vocabId === id ? updated : v);
 
             dispatch({
-                type: 'UPDATE_AFTER_ANSWER',
-                payload: {
-                    progress: {
-                        ...state.progress,
-                        learningQueue: updatedQueue,
-                        stats: {
-                            ...state.progress.stats,
-                            totalReviews: state.progress.stats.totalReviews + 1,
-                        },
-                        calibration,
+            type: 'UPDATE_AFTER_ANSWER',
+            payload: {
+                progress: {
+                    ...state.progress,
+                    learningQueue: updatedQueue,
+                    stats: {
+                        ...state.progress.stats,
+                        totalReviews: state.progress.stats.totalReviews + 1,
                     },
-                    historyItem: historyItem!
+                    calibration,
                 },
+                historyItem,
+            },
             });
         },
 
@@ -631,7 +633,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             dispatch({ type: 'UPDATE_KANJI_KNOWLEDGE', payload: knowledge });
         },
 
-        async overrideDailyLimit() {
+        overrideDailyLimit() {
             dispatch({ type: 'OVERRIDE_DAILY_LIMIT' });
         },
 
@@ -648,12 +650,12 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             dispatch({ type: 'SET_EPISODES_WATCHED', payload: { entries } });
         },
 
-        async saveVocabIntroChoice(vocabulary, choice) {
+        saveVocabIntroChoice(vocabulary, choice) {
             if (!state.progress) return;
-            dispatch({ type: 'VOCAB_INTRO_CHOICE', choice, vocabId: vocabulary.id, vocabulary });
+            dispatch({ type: 'VOCAB_INTRO_CHOICE', choice, vocabId: vocabulary.id, vocabulary, insertionFraction: Math.random() });
         },
 
-        async learnNextKanji() {
+        learnNextKanji() {
             if (!state.progress || !state.nextKanjiToLearn) return;
 
             const newKanjiSet = new Set(state.progress.kanjiKnowledge.kanjiSet);
@@ -757,7 +759,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                 dispatch({ type: 'REBASE_STRENGTHS', payload: { frequencyModifier: frequencyModifierOf(refreshedSettings) } });
             }, 0);
         }
-    }, [lastDownloadTime]);
+    }, [lastDownloadTime, dispatch]);
 
     // The same transition for a user not signed in to Drive: there is no sync to
     // wait for, so it runs once the initial load is complete.
@@ -781,17 +783,13 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
         const settingsFromDisk = StorageService.loadSettings() ?? DEFAULT_SETTINGS;
         if (!fromDisk) return;
 
-        const liveVersion = (state.progress as ProgressWithMetadata)._sync?.version ?? 0;
-        const diskVersion = (fromDisk as ProgressWithMetadata)._sync?.version ?? 0;
+        const liveVersion = state.progress._sync?.version ?? 0;
+        const diskVersion = fromDisk._sync?.version ?? 0;
 
         // Nothing new landed on disk since we last reconciled - avoid a redundant dispatch.
         if (diskVersion <= liveVersion) return;
 
-        const reconciledProgress = mergeProgress(
-            state.progress as ProgressWithMetadata,
-            fromDisk as ProgressWithMetadata,
-            state.settings
-        );
+        const reconciledProgress = mergeProgress(state.progress, fromDisk, state.settings);
         const reconciledSettings = mergeSettings(state.settings, settingsFromDisk, liveVersion, diskVersion);
 
         if (!reconciledProgress) return;
@@ -816,7 +814,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             dispatch({ type: 'LOAD_VOCAB_SUCCESS', payload: { vocab: null, sentences: null, selectedSentenceId: null } });
 
             if (state.progress && state.settings && (nextView.sessionState === 'learn' || nextView.sessionState === 'exhausted')) {
-                actions.advanceQueue({ now: new Date() });
+                void actions.advanceQueue({ now: new Date() });
             }
             return;
         }
@@ -874,7 +872,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
         Promise.all([
             VocabularyService.loadVocab(vid),
             needsSentences ? VocabularyService.loadSentences(vid) : Promise.resolve(null),
-        ]).then(async ([vocab, sentences]) => {
+        ]).then(([vocab, sentences]) => {
             if (loadingKeyRef.current !== loadKey) return; // superseded by a newer target
 
             let selectedSentenceId: string | null = null;
@@ -917,7 +915,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                 return;
             }
             console.error('[useQuizOrchestration] Failed to load vocab/sentences', err);
-            dispatch({ type: 'LOAD_VOCAB_ERROR', payload: { vocabId: vid, error: err } });
+            dispatch({ type: 'LOAD_VOCAB_ERROR', payload: { vocabId: vid, error: err as unknown } });
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [nextView.queueItem, state.progress, state.settings, nextView.sessionState, location.pathname]);
@@ -930,7 +928,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
         // until the learner comes back.
         if (sessionRole === 'activity' && state.feedback?.correct && !state.feedback.synonymRelation && state.currentQuizItem?.quizType !== 'meaning') {
             const timer = setTimeout(() => {
-                actions.continueToNext().then();
+                actions.continueToNext();
             }, CONSTANTS.quiz.correctAnswerAutoAdvanceDelay);
 
             return () => clearTimeout(timer);
@@ -942,7 +940,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
        COMPUTED FLAGS
        ========================= */
 
-    const computed = {
+    const computed: QuizComputed = {
         canSubmit:
             !!state.userAnswer.trim() &&
             !!state.currentVocab &&

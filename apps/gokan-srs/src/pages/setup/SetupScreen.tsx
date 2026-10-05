@@ -10,7 +10,7 @@ import { useKanjiForm } from "../../context/KanjiForm/useKanjiForm";
 import { Button } from "../../components/ui/Button";
 import { Loader } from "../../components/Loader";
 
-export function SetupScreen({ onComplete }: { onComplete: (values: SetupValues) => Promise<void> }) {
+export function SetupScreen({ onComplete }: { onComplete: (values: SetupValues) => void }) {
     const { state } = useKanjiForm();
 
     const [learningOrder, setLearningOrder] = useState<LearningOrder>('kanji_coverage');
@@ -33,7 +33,7 @@ export function SetupScreen({ onComplete }: { onComplete: (values: SetupValues) 
                     learningFrequency: 'medium',
                 },
             }
-            onComplete(values).then();
+            onComplete(values);
         }
     };
 

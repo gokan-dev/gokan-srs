@@ -73,7 +73,7 @@ export default function GrammarFamilyScreen() {
                 <div>
                     <h2 className="text-xl font-bold text-primary mb-2">No contrast lessons yet</h2>
                     <p className="text-secondary mb-4">This family does not have situational lessons authored yet.</p>
-                    <Button onClick={() => navigate(-1)}>Go back</Button>
+                    <Button onClick={() => void navigate(-1)}>Go back</Button>
                 </div>
             </div>
         );
@@ -82,7 +82,7 @@ export default function GrammarFamilyScreen() {
     return (
         <div className="w-full max-w-3xl mx-auto px-4 py-6">
             <button
-                onClick={() => navigate(-1)}
+                onClick={() => void navigate(-1)}
                 className="flex items-center gap-1 text-sm text-secondary hover:text-primary transition-colors mb-4"
             >
                 <ArrowLeft size={16} /> Back

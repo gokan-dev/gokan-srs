@@ -75,7 +75,7 @@ export function ListeningTitleScreen() {
     if (failed) {
         return (
             <div className="w-full max-w-3xl mx-auto px-4 py-6">
-                <PageHeader title="Listening" onBack={() => navigate('/listening')} className="mb-4" />
+                <PageHeader title="Listening" onBack={() => void navigate('/listening')} className="mb-4" />
                 <p className="font-gothic text-sm text-secondary">Could not load this title.</p>
             </div>
         );
@@ -116,7 +116,7 @@ export function ListeningTitleScreen() {
         <div className="w-full max-w-3xl mx-auto px-4 py-6">
             <PageHeader
                 title={<span className="font-mincho">{title.title.original}</span>}
-                onBack={() => navigate('/listening')}
+                onBack={() => void navigate('/listening')}
                 className="mb-4"
             />
 

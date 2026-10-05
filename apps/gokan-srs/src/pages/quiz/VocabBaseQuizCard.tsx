@@ -95,7 +95,7 @@ export function VocabBaseQuizCard({
         if (!feedback?.show) {
             actions.submitAnswer();
         } else if (computed.canContinue) {
-            actions.continueToNext().then();
+            actions.continueToNext();
         }
     };
 
