@@ -8,6 +8,7 @@ import { vocabNextReviewAt } from './scheduling';
 import { grammarNextReviewAt } from './grammarScheduling';
 import { GrammarService } from './grammar.service';
 import { seedCalibrationFromHistory } from './calibration';
+import type { ProgressWithMetadata } from './sync/types';
 import { fetchJson } from './http';
 import {
     hydrateAdaptiveStats,
@@ -18,6 +19,7 @@ import {
     hydrateKanjiKnowledge,
     hydrateSRSEntry,
     hydrateStats,
+    hydrateSyncMetadata,
     hydrateVocabProgress,
     type StoredProgress,
     type StoredVocabProgress,
@@ -185,7 +187,7 @@ export class MigrationService {
      * passes ran on un-hydrated JSON typed as if it were hydrated, so due dates
      * were compared as strings.
      */
-    static migrateUserProgress(progress: StoredProgress, settings?: Pick<UserSettings, 'enableMeaningQuiz'>): UserProgress {
+    static migrateUserProgress(progress: StoredProgress, settings?: Pick<UserSettings, 'enableMeaningQuiz'>): ProgressWithMetadata {
         const currentVersion = progress._formatVersion ?? 0;
 
         // V1 to V3 Migrations
@@ -295,6 +297,7 @@ export class MigrationService {
                 grammarQueue: migratedGrammarQueue,
                 calibration: hydrateCalibration(progress.calibration),
             }),
+            _sync: hydrateSyncMetadata(progress._sync),
             _formatVersion: currentVersion < SYNC_MIGRATION_VERSION ? SYNC_MIGRATION_VERSION : currentVersion
         };
     }
@@ -303,7 +306,7 @@ export class MigrationService {
      * V4/V5 Migration (Async) - Merges homograph vocabularies
      * Upgraded to V5 to re-trigger for users who loaded when the map was empty due to a build bug.
      */
-    static async migrateMergedVocabsAsync(progress: UserProgress): Promise<UserProgress> {
+    static async migrateMergedVocabsAsync<T extends UserProgress>(progress: T): Promise<T> {
         const currentVersion = progress._formatVersion ?? 0;
         if (currentVersion >= MERGED_VOCAB_VERSION) return progress;
 
@@ -447,11 +450,11 @@ export class MigrationService {
      * merges don't disagree. It does discard the weaker entry's strength, which
      * is unavoidable: two entries become one.
      */
-    static async migrateGrammarQueueIdsAsync(progress: UserProgress): Promise<UserProgress> {
+    static async migrateGrammarQueueIdsAsync<T extends UserProgress>(progress: T): Promise<T> {
         const currentVersion = progress._formatVersion ?? 0;
         if (currentVersion >= CURRENT_FORMAT_VERSION) return progress;
 
-        const stamp = (queue: GrammarProgress[]): UserProgress =>
+        const stamp = (queue: GrammarProgress[]): T =>
             ({ ...progress, grammarQueue: queue, _formatVersion: CURRENT_FORMAT_VERSION });
 
         try {
@@ -543,7 +546,7 @@ export class MigrationService {
      * Runs every async migration pass in order. Call sites use this rather than
      * an individual pass, so adding a pass doesn't mean touching all of them.
      */
-    static async migrateAsync(progress: UserProgress): Promise<UserProgress> {
+    static async migrateAsync<T extends UserProgress>(progress: T): Promise<T> {
         const afterVocab = await this.migrateMergedVocabsAsync(progress);
         return this.migrateGrammarQueueIdsAsync(afterVocab);
     }

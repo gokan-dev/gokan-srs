@@ -1,8 +1,10 @@
 import { CONSTANTS } from '../../commons/constants';
-import { DEFAULT_SETTINGS } from '../../models/user.model';
+import { DEFAULT_SETTINGS, type UserSettings } from '../../models/user.model';
 import { MigrationService } from '../migration.service';
 import { BackupService } from '../backup.service';
+import { StorageService } from '../storage.service';
 import { toPlainProgressJSON, migrateAndHydrateProgress, progressUploadSignature, stableStringify } from '../progressSerialization';
+import type { StoredProgress } from '../progressHydration';
 import { DriveClient } from './driveClient';
 import { mergeProgress, mergeSettings } from './mergeProgress';
 import type { ProgressWithMetadata, SyncEnvelope } from './types';
@@ -14,6 +16,15 @@ export type { SyncEnvelope, ProgressWithMetadata } from './types';
 const DRIVE_FILE_NAME = CONSTANTS.storage.googleDriveFileName;
 const DRIVE_FOLDER_NAME = CONSTANTS.storage.googleDriveFolderName;
 const MAX_SYNC_RETRIES = 3;
+
+/** The Drive file's JSON: the {progress, settings} envelope, or a bare progress object from the oldest builds. */
+type StoredEnvelope = StoredProgress & { progress?: StoredProgress; settings?: Partial<UserSettings> };
+
+/** What this client writes to the Drive file. */
+interface SerializedEnvelope {
+    progress: StoredProgress;
+    settings: UserSettings;
+}
 
 export interface SyncOutcome {
     envelope: SyncEnvelope;
@@ -65,7 +76,7 @@ export class GoogleDriveSync {
         const remoteSettings = resolved.envelope?.settings ?? null;
 
         if (remoteProgress && MigrationService.needsMigration(remoteProgress)) {
-            remoteProgress = await MigrationService.migrateAsync(remoteProgress) as ProgressWithMetadata;
+            remoteProgress = await MigrationService.migrateAsync(remoteProgress);
         }
 
         if (!localEnvelope) {
@@ -93,7 +104,7 @@ export class GoogleDriveSync {
         }
 
         if (!mergedProgress) return null;
-        return { progress: mergedProgress, settings: mergedSettings! };
+        return { progress: mergedProgress, settings: mergedSettings };
     }
 
     /**
@@ -140,7 +151,7 @@ export class GoogleDriveSync {
             const remoteSettings = resolved.envelope?.settings ?? null;
 
             if (remoteProgress && MigrationService.needsMigration(remoteProgress)) {
-                remoteProgress = await MigrationService.migrateAsync(remoteProgress) as ProgressWithMetadata;
+                remoteProgress = await MigrationService.migrateAsync(remoteProgress);
             }
 
             const localVersion = effectiveLocalEnvelope.progress._sync?.version ?? 0;
@@ -167,7 +178,7 @@ export class GoogleDriveSync {
             // round trip (fast-forward silently degrading to merge-every-upload). If
             // this line appears after every answer, suspect the round trip.
             if (!options.authoritative && !remoteIsOwnLastWrite && remoteProgress !== null && this.lastWrittenProgressSignature !== null) {
-                console.info('[GoogleDriveSync] Remote diverged from this client\'s last write - performing full merge.');
+                console.warn('[GoogleDriveSync] Remote diverged from this client\'s last write - performing full merge.');
             }
 
             let mergedEnvelope: SyncEnvelope;
@@ -294,40 +305,40 @@ export class GoogleDriveSync {
         return { fileId: canonical.id, modifiedTime: canonicalMeta.modifiedTime, envelope: merged };
     }
 
-    private parseEnvelope(data: any): SyncEnvelope {
+    private parseEnvelope(data: unknown): SyncEnvelope {
+        if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+            throw new Error('The Drive progress file is not a JSON object');
+        }
+        const stored = data as StoredEnvelope;
         // BACKWARD COMPATIBILITY: raw UserProgress with no {progress, settings} wrapper.
-        if (data && !data.settings && data.learningQueue) {
+        if (!stored.settings && stored.learningQueue) {
             const settings = this.getLocalSettings() ?? DEFAULT_SETTINGS;
             return {
-                progress: migrateAndHydrateProgress(data, settings),
+                progress: migrateAndHydrateProgress(stored, settings),
                 settings,
             };
         }
-        const settings = { ...DEFAULT_SETTINGS, ...(data.settings as object ?? {}) };
+        const settings = { ...DEFAULT_SETTINGS, ...stored.settings };
         return {
-            progress: migrateAndHydrateProgress(data.progress, settings),
+            progress: migrateAndHydrateProgress(stored.progress ?? {}, settings),
             settings,
         };
     }
 
-    private serializeEnvelope(envelope: SyncEnvelope): any {
+    private serializeEnvelope(envelope: SyncEnvelope): SerializedEnvelope {
         return { progress: toPlainProgressJSON(envelope.progress), settings: envelope.settings };
     }
 
     private getLocalProgress(): ProgressWithMetadata | null {
-        const stored = localStorage.getItem(CONSTANTS.storage.progressStorageKey);
-        if (!stored) return null;
-        return migrateAndHydrateProgress(JSON.parse(stored), this.getLocalSettings() ?? undefined);
+        return StorageService.loadProgress();
     }
 
-    private getLocalSettings() {
-        const stored = localStorage.getItem(CONSTANTS.storage.settingsStorageKey);
-        if (!stored) return null;
-        return { ...DEFAULT_SETTINGS, ...JSON.parse(stored) };
+    private getLocalSettings(): UserSettings | null {
+        return StorageService.loadSettings();
     }
 
     private saveLocalEnvelope(envelope: SyncEnvelope): void {
-        localStorage.setItem(CONSTANTS.storage.progressStorageKey, JSON.stringify(toPlainProgressJSON(envelope.progress)));
-        localStorage.setItem(CONSTANTS.storage.settingsStorageKey, JSON.stringify(envelope.settings));
+        StorageService.saveProgress(envelope.progress);
+        StorageService.saveSettings(envelope.settings);
     }
 }

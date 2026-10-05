@@ -5,7 +5,7 @@ import { DEFAULT_SRS_ENTRY, DEFAULT_VOCABULARY_PROGRESS } from "../models/vocabu
 import { DEFAULT_PROGRESS } from "../models/user.model";
 import type { GrammarProgress } from "../models/grammar.model";
 import { DEFAULT_GRAMMAR_PROGRESS } from "../models/grammar.model";
-import type { ProgressWithMetadata } from "./sync/types";
+import type { ProgressWithMetadata, SyncMetadata } from "./sync/types";
 
 /**
  * The stored shape of progress, and its hydration into real objects.
@@ -190,4 +190,10 @@ export function hydrateWatchedEpisodes(
         episodes[key] = { ...mark, watched: mark.watched, updatedAt: mark.updatedAt };
     }
     return episodes;
+}
+
+/** The sync counter, kept only when it is whole: a half-written one would mislead the merge. */
+export function hydrateSyncMetadata(stored: Stored<SyncMetadata> | undefined): SyncMetadata | undefined {
+    if (typeof stored?.lastModified !== 'number' || typeof stored.version !== 'number') return undefined;
+    return { lastModified: stored.lastModified, version: stored.version };
 }

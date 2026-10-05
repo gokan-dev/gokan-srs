@@ -233,5 +233,7 @@ export const CONSTANTS = {
         googleDriveFileName: "kanji-progress.json",
         googleDriveFolderName: "KanjiApp",
         googleDriveTokenKey: "GOKAN_SRS_GOOGLE_TOKEN",
+        themeStorageKey: "gokan-theme",
+        lastAccessDateKey: "GOKAN_LAST_ACCESS_DATE",
     },
 } as const;

@@ -5,6 +5,7 @@ import type { SRSEntry, VocabProgress } from '../../models/vocabulary.model';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../../models/vocabulary.model';
 import type { GrammarProgress } from '../../models/grammar.model';
 import { DEFAULT_GRAMMAR_PROGRESS } from '../../models/grammar.model';
+import { DEFAULT_SETTINGS, type UserSettings } from '../../models/user.model';
 
 function makeEntry(overrides: Partial<SRSEntry> = {}): SRSEntry {
     return {
@@ -419,13 +420,13 @@ describe('mergeProgress (top-level)', () => {
 
 describe('mergeSettings', () => {
     it('returns local when remote is null', () => {
-        const local = { preferredLearningOrder: 'frequency' } as any;
+        const local: UserSettings = { ...DEFAULT_SETTINGS, preferredLearningOrder: 'frequency' };
         expect(mergeSettings(local, null, 1, 0)).toBe(local);
     });
 
     it('returns remote only when its version is strictly greater', () => {
-        const local = { preferredLearningOrder: 'frequency' } as any;
-        const remote = { preferredLearningOrder: 'kklc' } as any;
+        const local: UserSettings = { ...DEFAULT_SETTINGS, preferredLearningOrder: 'frequency' };
+        const remote: UserSettings = { ...DEFAULT_SETTINGS, preferredLearningOrder: 'kklc' };
 
         expect(mergeSettings(local, remote, 2, 1)).toBe(local);
         expect(mergeSettings(local, remote, 1, 1)).toBe(local); // tie -> local wins

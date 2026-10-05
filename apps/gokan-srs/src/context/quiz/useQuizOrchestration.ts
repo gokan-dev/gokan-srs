@@ -21,7 +21,7 @@ import {
 } from '../../services/calibration';
 import { mergeProgress, mergeSettings } from '../../services/sync/mergeProgress';
 import type { ProgressWithMetadata } from '../../services/sync/types';
-import { useGoogleDrive } from '../GoogleDriveContext';
+import { useGoogleDrive } from '../useGoogleDrive';
 import type { QuizState, QuizAction, SynonymWord } from './quizReducer';
 import { selectNextView, selectCurrentProgress, selectSessionStats, selectNextSessionPreview, collectActionableTaskKeys, capSessionCommit, dedupTaskKeysByVocab } from './quizSelectors';
 import { useSessionLifecycle } from './useSessionLifecycle';
@@ -147,14 +147,13 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
         if (!state.progress || dayBoundaryCheckedRef.current) return;
         dayBoundaryCheckedRef.current = true;
 
-        const lastAccessKey = 'GOKAN_LAST_ACCESS_DATE';
-        const lastAccess = localStorage.getItem(lastAccessKey);
+        const lastAccess = StorageService.loadLastAccessDay();
         const now = new Date();
         const today = now.toDateString();
 
         if (lastAccess !== today) {
             dispatch({ type: 'RESET_DAILY_STATS' });
-            localStorage.setItem(lastAccessKey, today);
+            StorageService.saveLastAccessDay(today);
         }
     }, [state.progress]);
 
@@ -731,9 +730,8 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
     // fresh-but-identical objects produced by each reconcile don't re-trigger it.
     useEffect(() => {
         if (!progressSignature || !state.progress || !state.settings || isDownloading) return;
-        uploadProgress({ progress: state.progress, settings: state.settings }).catch(err => {
-            console.error('[useQuizOrchestration] Auto-upload failed', err);
-        });
+        // Debounced and fire-and-forget: uploadProgress reports its own failures.
+        uploadProgress({ progress: state.progress, settings: state.settings });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [progressSignature, settingsSignature, isDownloading, uploadProgress]);
 

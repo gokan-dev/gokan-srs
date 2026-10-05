@@ -1,10 +1,10 @@
 import { OptionGrid } from "../../components/OptionGrid";
 import type { UserSettings } from "../../models/user.model";
-import { useGoogleDrive } from "../../context/GoogleDriveContext";
+import { useGoogleDrive } from "../../context/useGoogleDrive";
 import { Cloud, Loader2, LogIn, RefreshCw, Moon, Sun, Monitor, Sparkles, KeyRound } from "lucide-react";
 import { Button } from "../../components/ui/Button";
 import { SettingToggle } from "../../components/ui/SettingToggle";
-import { useTheme } from "../../context/ThemeContext";
+import { useTheme } from "../../context/useTheme";
 import { useState } from "react";
 import { PageHeader } from "../../components/PageHeader";
 
