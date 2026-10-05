@@ -7,12 +7,10 @@ import type { GrammarProgress } from '../models/grammar.model';
 import { vocabNextReviewAt } from './scheduling';
 import { grammarNextReviewAt } from './grammarScheduling';
 import { GrammarService } from './grammar.service';
-import { seedCalibrationFromHistory } from './calibration';
+import { adaptiveStatsWithDefaults, seedCalibrationFromHistory, withCalibrationDefaults } from './calibration';
 import type { ProgressWithMetadata } from './sync/types';
 import { fetchJson } from './http';
 import {
-    hydrateAdaptiveStats,
-    hydrateCalibration,
     hydrateDate,
     hydrateGrammarProgress,
     hydrateWatchedEpisodes,
@@ -286,7 +284,7 @@ export class MigrationService {
             // Tombstones for vocab the dataset dropped; the queue above is already
             // filtered by this set. Additive, carried through every load.
             retiredVocabIds,
-            adaptive: hydrateAdaptiveStats(progress.adaptive),
+            adaptive: adaptiveStatsWithDefaults(progress.adaptive),
             // Additive too. A quiz type starts where its own review logs put it
             // (replayed through the live update rule), not at x1 with an empty
             // window; a full live window always wins. The old single `adaptive`
@@ -295,7 +293,8 @@ export class MigrationService {
             calibration: seedCalibrationFromHistory({
                 learningQueue: migratedQueue,
                 grammarQueue: migratedGrammarQueue,
-                calibration: hydrateCalibration(progress.calibration),
+                // Absent stays absent: the seeding below replays the review logs instead.
+                calibration: progress.calibration ? withCalibrationDefaults(progress.calibration) : undefined,
             }),
             _sync: hydrateSyncMetadata(progress._sync),
             _formatVersion: currentVersion < SYNC_MIGRATION_VERSION ? SYNC_MIGRATION_VERSION : currentVersion

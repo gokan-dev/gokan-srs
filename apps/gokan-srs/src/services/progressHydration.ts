@@ -1,4 +1,4 @@
-import type { AdaptiveStats, Calibration, KanjiKnowledge, UserProgress, UserSettings } from "../models/user.model";
+import type { KanjiKnowledge, UserProgress, UserSettings } from "../models/user.model";
 import type { WatchedEpisode } from "../models/media.model";
 import type { NeedsRetryFlags, ReviewLog, SRSEntry, VocabProgress } from "../models/vocabulary.model";
 import { DEFAULT_SRS_ENTRY, DEFAULT_VOCABULARY_PROGRESS } from "../models/vocabulary.model";
@@ -158,21 +158,6 @@ export function hydrateKanjiKnowledge(stored: Stored<KanjiKnowledge> | undefined
 
 export function hydrateStats(stored: Stored<UserProgress['stats']> | undefined): UserProgress['stats'] {
     return { ...DEFAULT_PROGRESS.stats, ...stored };
-}
-
-export function hydrateAdaptiveStats(stored: Stored<AdaptiveStats> | undefined): AdaptiveStats {
-    return { level: stored?.level ?? 1.0, history: [...(stored?.history ?? [])] };
-}
-
-/** Absent stays absent: the calibration seeds itself from the review logs when there is none. */
-export function hydrateCalibration(stored: Stored<Calibration> | undefined): Calibration | undefined {
-    if (!stored) return undefined;
-    return {
-        reading: hydrateAdaptiveStats(stored.reading),
-        meaning: hydrateAdaptiveStats(stored.meaning),
-        production: hydrateAdaptiveStats(stored.production),
-        grammar: hydrateAdaptiveStats(stored.grammar),
-    };
 }
 
 /**

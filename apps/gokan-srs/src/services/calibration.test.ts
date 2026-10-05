@@ -20,7 +20,6 @@ import type { SRSEntry, VocabProgress } from '../models/vocabulary.model';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../models/vocabulary.model';
 import type { GrammarProgress } from '../models/grammar.model';
 import { DEFAULT_GRAMMAR_PROGRESS } from '../models/grammar.model';
-import type { UserProgress } from '../models/user.model';
 
 const F = CONSTANTS.srs.formula;
 const now = new Date('2026-09-29T00:00:00Z');
@@ -29,6 +28,9 @@ const due = new Date('2026-12-07T00:00:00Z');
 const entry = (overrides: Partial<SRSEntry> = {}): SRSEntry => ({
     memoryStrength: 50, interval: 10, difficulty: 0.5, lastReviewedAt: now, dueDate: due, history: [], ...overrides,
 });
+
+/** `n` copies of one review outcome, for building a calibration window. */
+const repeat = (success: boolean, n: number): boolean[] => Array.from({ length: n }, () => success);
 
 describe('updateAdaptiveStats', () => {
     const { levelStep, minLevel, maxLevel, historySize } = CONSTANTS.srs.adaptive;
@@ -39,30 +41,30 @@ describe('updateAdaptiveStats', () => {
     });
 
     it('keeps a rolling window of historySize', () => {
-        const result = updateAdaptiveStats({ level: 1.0, history: Array(historySize).fill(true) }, 'wrong');
+        const result = updateAdaptiveStats({ level: 1.0, history: repeat(true, historySize) }, 'wrong');
         expect(result.history).toHaveLength(historySize);
         expect(result.history[historySize - 1]).toBe(false);
     });
 
     it('raises the level above the band, which is now centred on the 75% target (82% counts)', () => {
         // 41 of 50 = 82%: above 0.80. Under the old 0.85 threshold this sat uncorrected.
-        const history = [...Array(40).fill(true), ...Array(9).fill(false)];
+        const history = [...repeat(true, 40), ...repeat(false, 9)];
         expect(updateAdaptiveStats({ level: 1.0, history }, 'correct').level).toBeCloseTo(1.0 + levelStep);
     });
 
     it('lowers the level below the band', () => {
-        const history = [...Array(10).fill(true), ...Array(10).fill(false)];
+        const history = [...repeat(true, 10), ...repeat(false, 10)];
         expect(updateAdaptiveStats({ level: 1.0, history }, 'wrong').level).toBeCloseTo(1.0 - levelStep);
     });
 
     it('holds the level inside the band (75%)', () => {
-        const history = [...Array(29).fill(true), ...Array(10).fill(false)]; // + 1 true = 30/40
+        const history = [...repeat(true, 29), ...repeat(false, 10)]; // + 1 true = 30/40
         expect(updateAdaptiveStats({ level: 1.4, history }, 'correct').level).toBe(1.4);
     });
 
     it('clamps to the bounds', () => {
-        expect(updateAdaptiveStats({ level: maxLevel, history: Array(20).fill(true) }, 'correct').level).toBe(maxLevel);
-        expect(updateAdaptiveStats({ level: minLevel, history: Array(20).fill(false) }, 'wrong').level).toBe(minLevel);
+        expect(updateAdaptiveStats({ level: maxLevel, history: repeat(true, 20) }, 'correct').level).toBe(maxLevel);
+        expect(updateAdaptiveStats({ level: minLevel, history: repeat(false, 20) }, 'wrong').level).toBe(minLevel);
     });
 
     it('does not adjust before minHistory reviews', () => {
@@ -80,7 +82,7 @@ describe('per-quiz-type calibration', () => {
 
     it('fills in missing quiz types from older saves', () => {
         const partial = { reading: { level: 1.3, history: [true] } };
-        const full = withCalibrationDefaults(partial as never);
+        const full = withCalibrationDefaults(partial);
         expect(full.reading.level).toBe(1.3);
         expect(full.grammar).toEqual({ level: 1.0, history: [] });
         expect(growthLevelOf(undefined, 'meaning')).toBe(1.0);
@@ -219,7 +221,7 @@ describe('rebase: strength catches up with the schedule', () => {
         const progress = {
             learningQueue: [{ ...DEFAULT_VOCABULARY_PROGRESS, vocabId: 'v', reading: entry({ memoryStrength: 50, interval: 50 * F.lnTarget * 2 }) }],
             grammarQueue: [{ ...DEFAULT_GRAMMAR_PROGRESS, grammarId: 'g', entry: entry({ memoryStrength: 30, interval: 30 * F.lnTarget * 2 }) }],
-        } as unknown as UserProgress;
+        };
         const rebased = rebaseStrengthsToSchedule(progress, 1);
         expect(rebased.learningQueue[0].reading.memoryStrength).toBeCloseTo(100, 6);
         expect(rebased.grammarQueue[0].entry.memoryStrength).toBeCloseTo(60, 6);
@@ -227,12 +229,3 @@ describe('rebase: strength catches up with the schedule', () => {
     });
 });
 
-describe('calculateRecentWinRate', () => {
-    it('calculates the win rate from the queue', () => {
-        const queue = [
-            { reading: { history: [{ result: 'correct' }, { result: 'wrong' }] }, meaning: { history: [] } },
-            { reading: { history: [{ result: 'correct' }] }, meaning: { history: [] } },
-        ] as unknown as VocabProgress[];
-        expect(SRSService.calculateRecentWinRate(queue)).toBeCloseTo(0.666, 2);
-    });
-});

@@ -6,6 +6,7 @@ import { CONSTANTS } from '../commons/constants';
 import type { GrammarProgress } from '../models/grammar.model';
 import type { VocabProgress } from '../models/vocabulary.model';
 import type { UserSettings } from '../models/user.model';
+import { DEFAULT_SETTINGS } from '../models/user.model';
 
 function makeProgress(overrides: Partial<GrammarProgress> = {}): GrammarProgress {
     return {
@@ -143,7 +144,7 @@ describe('GrammarSRSService.applyAnswer', () => {
 
 describe('GrammarSRSService.applyVocabReinforcement (positive-only vocab credit)', () => {
     const now = new Date('2026-06-10T00:00:00Z');
-    const settings = { learningFrequency: 'medium', enableMeaningQuiz: true } as UserSettings;
+    const settings: UserSettings = { ...DEFAULT_SETTINGS, learningFrequency: 'medium', enableMeaningQuiz: true };
 
     function makeVocabProgress(overrides: Partial<VocabProgress> = {}): VocabProgress {
         const entry = () => ({
@@ -229,7 +230,7 @@ describe('GrammarSRSService.applyVocabReinforcement (positive-only vocab credit)
         // The exercise trains a direction the user switched off, and crediting reading
         // instead would just restore the mismatch this change exists to remove.
         const queue = [makeVocabProgress({ vocabId: 'v-1' })];
-        const off = { ...settings, enableProductionQuiz: false } as UserSettings;
+        const off: UserSettings = { ...settings, enableProductionQuiz: false };
 
         expect(GrammarSRSService.applyVocabReinforcement(queue, [{ vocabId: 'v-1', result: 'correct' }], now, off)).toBe(queue);
     });

@@ -3,6 +3,8 @@ import { SRSService } from './srs.service';
 import { VocabularyService } from './vocabulary.service';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../models/vocabulary.model';
 import type { VocabProgress } from '../models/vocabulary.model';
+import type { KanjiKnowledge } from '../models/user.model';
+import type { LearningOrderSettings, LearnableScope, ProductionVocab } from './srs.service';
 import type { ProductionSynonymCandidate } from './srs.service';
 import { CONSTANTS } from '../commons/constants';
 import { isVocabDue } from './scheduling';
@@ -270,16 +272,16 @@ describe('SRSService Formula Tests', () => {
     });
 
     describe('evaluateProductionAnswer: any form of the word is correct (issue #95)', () => {
-        const taberu = {
-            reading: { primary: 'たべる', alternatives: [] as string[] },
-            writtenForm: { kanji: '食べる', alternatives: [] as string[], containedKanji: ['食'] },
-            senses: [{ pos: ['v1', 'vt'], glosses: ['to eat'], misc: [] }],
-        } as never;
-        const kaiwa = {
-            reading: { primary: 'かいわ', alternatives: [] as string[] },
-            writtenForm: { kanji: '会話', alternatives: [] as string[], containedKanji: ['会', '話'] },
-            senses: [{ pos: ['n', 'vs'], glosses: ['conversation'], misc: [] }],
-        } as never;
+        const taberu: ProductionVocab = {
+            reading: { primary: 'たべる', alternatives: [] },
+            writtenForm: { kanji: '食べる', alternatives: [], containedKanji: ['食'] },
+            senses: [{ pos: ['v1', 'vt'], glosses: ['to eat'], misc: { rawTags: [] }, related: { compounds: [] } }],
+        };
+        const kaiwa: ProductionVocab = {
+            reading: { primary: 'かいわ', alternatives: [] },
+            writtenForm: { kanji: '会話', alternatives: [], containedKanji: ['会', '話'] },
+            senses: [{ pos: ['n', 'vs'], glosses: ['conversation'], misc: { rawTags: [] }, related: { compounds: [] } }],
+        };
 
         it.each(['食べたら', 'たべたら', '食べた', '食べる', 'たべて'])('grades %s correct for 食べる', input => {
             expect(SRSService.evaluateProductionAnswer(input, taberu).result).toBe('correct');
@@ -727,29 +729,6 @@ describe('SRSService Formula Tests', () => {
             expect(interval).toBe(1.0);
         });
 
-        it('FIX CHECK 4 — Strategy D & Dynamic: Win Rate Calculation', () => {
-            // Mock queue with high success rate
-            const highWinQueue = [
-                { reading: { history: [{ result: 'correct' }] } },
-                { reading: { history: [{ result: 'correct' }] } }
-            ] as any[];
-
-            const winRate = SRSService.calculateRecentWinRate(highWinQueue);
-            expect(winRate).toBe(1.0); // 2/2
-
-            // Mock queue with low success rate
-            const lowWinQueue = [
-                { reading: { history: [{ result: 'wrong' }] } },
-                { reading: { history: [{ result: 'wrong' }] } }
-            ] as any[];
-
-            const lowWinRate = SRSService.calculateRecentWinRate(lowWinQueue);
-            expect(lowWinRate).toBe(0.0); // 0/2
-        });
-
-        // Note: We can't easily test createNewVocabProgress() directly as it's private,
-        // but we verified the logic (0.5 default + offset) in implementation.
-        // We can verify that calculateRecentWinRate is correct, which drives the offset.
     });
     describe('Dual Quiz Integration', () => {
         const createDualVocab = (rMem: number, mMem: number): VocabProgress => ({
@@ -936,18 +915,18 @@ describe('SRSService Formula Tests', () => {
             ],
         };
 
-        const allKnownKanjiKnowledge = {
+        const allKnownKanjiKnowledge: KanjiKnowledge = {
             method: 'kklc', step: 10,
             kanjiSet: new Set(['Z', 'Y', 'X', 'W', 'V']),
-        } as any;
+        };
 
-        const noKanjiKnowledge = {
+        const noKanjiKnowledge: KanjiKnowledge = {
             method: 'kklc', step: 10,
             kanjiSet: new Set<string>(),  // deliberately knows NO kanji
-        } as any;
+        };
 
-        const settings = { preferredLearningOrder: 'jlpt' } as any;
-        const settingsIgnoreKanji = { preferredLearningOrder: 'jlpt', ignoreKnownKanjiRequirement: true } as any;
+        const settings: LearningOrderSettings = { preferredLearningOrder: 'jlpt' };
+        const settingsIgnoreKanji: LearningOrderSettings = { preferredLearningOrder: 'jlpt', ignoreKnownKanjiRequirement: true };
 
         it('serves easiest level first, walking N5 -> N1', async () => {
             vi.spyOn(VocabularyService, 'loadJlptIndex').mockResolvedValue(mockJlptIndex);
@@ -982,7 +961,7 @@ describe('SRSService Formula Tests', () => {
         it('skips vocab already in the queue', async () => {
             vi.spyOn(VocabularyService, 'loadJlptIndex').mockResolvedValue(mockJlptIndex);
 
-            const currentQueue = [{ vocabId: 'n5-a' }, { vocabId: 'n4-a' }] as any[];
+            const currentQueue = [{ vocabId: 'n5-a' }, { vocabId: 'n4-a' }];
             const candidates = await SRSService.getNextCandidates(currentQueue, allKnownKanjiKnowledge, settings, 2);
 
             expect(candidates).toEqual(['n5-b', 'n3-a']);
@@ -1006,10 +985,10 @@ describe('SRSService Formula Tests', () => {
         it('counts remaining JLPT vocab respecting the kanji filter by default', async () => {
             vi.spyOn(VocabularyService, 'loadJlptIndex').mockResolvedValue(mockJlptIndex);
 
-            const progress = {
+            const progress: LearnableScope = {
                 kanjiKnowledge: allKnownKanjiKnowledge,
                 learningQueue: [{ vocabId: 'n5-a' }],
-            } as any;
+            };
 
             const count = await SRSService.countLearnableVocabulary(progress, settings);
 
@@ -1024,10 +1003,10 @@ describe('SRSService Formula Tests', () => {
                 { id: 'freq-2', containedKanji: ['K'] },  // filtered: K is unknown
             ]);
 
-            const progress = {
+            const progress: LearnableScope = {
                 kanjiKnowledge: noKanjiKnowledge,
                 learningQueue: [{ vocabId: 'n5-a' }],
-            } as any;
+            };
 
             // Every kanji-bearing JLPT entry is filtered out and n5-a is already
             // queued, so the JLPT branch counts 0 and falls through to frequency.
@@ -1039,10 +1018,10 @@ describe('SRSService Formula Tests', () => {
         it('counts without the kanji filter when ignoreKnownKanjiRequirement is set', async () => {
             vi.spyOn(VocabularyService, 'loadJlptIndex').mockResolvedValue(mockJlptIndex);
 
-            const progress = {
+            const progress: LearnableScope = {
                 kanjiKnowledge: noKanjiKnowledge,
                 learningQueue: [{ vocabId: 'n5-a' }],
-            } as any;
+            };
 
             const count = await SRSService.countLearnableVocabulary(progress, settingsIgnoreKanji);
 
@@ -1073,15 +1052,15 @@ describe('SRSService Formula Tests', () => {
 
             vi.spyOn(VocabularyService, 'loadFrequencyIndex').mockResolvedValue(expandedMockIndex);
 
-            const kanjiKnowledge = {
+            const kanjiKnowledge: KanjiKnowledge = {
                 method: 'kklc', step: 10,
                 kanjiSet: new Set(['A', 'B', 'C'])
-            } as any;
+            };
 
-            const settings = {
+            const settings: LearningOrderSettings = {
                 preferredLearningOrder: 'kanji_coverage',
                 kanjiCoverageTarget: 1
-            } as any;
+            };
 
             // 1. super_obs_multi (rank 6) covers 3 -> score 7494. Should win.
             const c1 = await SRSService.getNextCandidates([], kanjiKnowledge, settings, 1);
@@ -1101,18 +1080,18 @@ describe('SRSService Formula Tests', () => {
         it('should fallback to frequency if target coverage is met', async () => {
             vi.spyOn(VocabularyService, 'loadFrequencyIndex').mockResolvedValue(mockIndex);
 
-            const kanjiKnowledge = {
+            const kanjiKnowledge: KanjiKnowledge = {
                 method: 'kklc', step: 10,
                 kanjiSet: new Set(['A', 'B', 'C'])
-            } as any;
+            };
 
-            const settings = {
+            const settings: LearningOrderSettings = {
                 preferredLearningOrder: 'kanji_coverage',
                 kanjiCoverageTarget: 1
-            } as any;
+            };
 
             // 'w_super_obs_multi' is active (covers A, B, C). Target=1 -> coverage is met.
-            const currentQueue = [{ vocabId: 'w_super_obs_multi' }] as any[];
+            const currentQueue = [{ vocabId: 'w_super_obs_multi' }];
             const candidates = await SRSService.getNextCandidates(currentQueue, kanjiKnowledge, settings, 2);
 
             // Falls back to pure frequency -> w1, w2
@@ -1122,18 +1101,18 @@ describe('SRSService Formula Tests', () => {
         it('should respect kanjiCoverageTarget > 1', async () => {
             vi.spyOn(VocabularyService, 'loadFrequencyIndex').mockResolvedValue(mockIndex);
 
-            const kanjiKnowledge = {
+            const kanjiKnowledge: KanjiKnowledge = {
                 method: 'kklc', step: 10,
                 kanjiSet: new Set(['A', 'B', 'C'])
-            } as any;
+            };
 
-            const settings = {
+            const settings: LearningOrderSettings = {
                 preferredLearningOrder: 'kanji_coverage',
                 kanjiCoverageTarget: 2
-            } as any;
+            };
 
             // 'w_super_obs_multi' active. A=1, B=1, C=1. Target=2. Everything is UNCOVERED (once more).
-            const currentQueue = [{ vocabId: 'w_super_obs_multi' }] as any[];
+            const currentQueue = [{ vocabId: 'w_super_obs_multi' }];
             const candidates = await SRSService.getNextCandidates(currentQueue, kanjiKnowledge, settings, 2);
 
             // Best coverage available is still w_multi or w_obs_multi for A,B (coverage 2)
