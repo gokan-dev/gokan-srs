@@ -26,7 +26,7 @@
     <section class="card">
       <h2>Members</h2>
       <ul class="vocab-list">
-        {#each family.members as member}
+        {#each family.members as member (member.id)}
           <li class="vocab-list-item">
             <a class="jp" href={grammarPath(member.id)}>{member.title}</a>
             <span class="muted">JLPT N{member.jlptLevel}</span>
@@ -48,10 +48,10 @@
       </section>
     {/if}
 
-    {#each family.lessons as lesson}
+    {#each family.lessons as lesson (lesson.title)}
       <section class="card">
         <h2>{lesson.title}</h2>
-        {#each lesson.cases as case_}
+        {#each lesson.cases as case_, caseIndex (caseIndex)}
           <div class="family-case">
             <p class="family-case-situation">{case_.situation}</p>
             <p class="family-case-guidance">

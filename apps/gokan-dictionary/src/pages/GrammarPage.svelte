@@ -89,7 +89,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each conjugation.items as item}
+            {#each conjugation.items as item (item.vocabId)}
               <tr>
                 <td>
                   <a class="jp" href={vocabPath(item.vocabId)}>{item.lemma}</a>
@@ -113,7 +113,7 @@
       <section class="card">
         <h2>Other forms</h2>
         <ul class="vocab-list">
-          {#each variants as variant}
+          {#each variants as variant (variant.id)}
             <li class="vocab-list-item">
               <a class="jp" href={grammarPath(variant.id)}>{variant.title}</a>
               <span class="muted">{RELATION_LABEL[variant.relation] ?? variant.relation}</span>
@@ -135,7 +135,7 @@
       <section class="card">
         <h2>Example sentences</h2>
         <ul class="sentence-list">
-          {#each point.examples as example}
+          {#each point.examples as example, exampleIndex (exampleIndex)}
             <li class="sentence">
               <p class="sentence-original jp">
                 <!--
@@ -146,7 +146,7 @@
                   makes the ~36k vocab pages reachable by a crawler from grammar pages, instead
                   of only from kanji pages and the search box.
                 -->
-                {#each example.words as word}{#if word.vocabId}<a class="sentence-word" href={vocabPath(word.vocabId)}>{word.surface}</a>{:else}{word.surface}{/if}{/each}
+                {#each example.words as word, wordIndex (wordIndex)}{#if word.vocabId}<a class="sentence-word" href={vocabPath(word.vocabId)}>{word.surface}</a>{:else}{word.surface}{/if}{/each}
               </p>
               <p class="sentence-en">{example.en}</p>
               {#if example.romaji}<p class="sentence-en muted">{example.romaji}</p>{/if}
@@ -160,12 +160,12 @@
       <section class="card">
         <h2>Corpus examples</h2>
         <ul class="sentence-list">
-          {#each minedExamples as example}
+          {#each minedExamples as example, exampleIndex (exampleIndex)}
             <li class="sentence">
               <p class="sentence-original jp">
                 <!-- Same word-by-word linked rendering as the curated examples above - these
                      corpus-mined sentences are the biggest new source of internal vocab links. -->
-                {#each example.words as word}{#if word.vocabId}<a class="sentence-word" href={vocabPath(word.vocabId)}>{word.surface}</a>{:else}{word.surface}{/if}{/each}
+                {#each example.words as word, wordIndex (wordIndex)}{#if word.vocabId}<a class="sentence-word" href={vocabPath(word.vocabId)}>{word.surface}</a>{:else}{word.surface}{/if}{/each}
               </p>
               <p class="sentence-en">{example.en}</p>
               {#if example.romaji}<p class="sentence-en muted">{example.romaji}</p>{/if}
@@ -182,7 +182,7 @@
       <section class="card">
         <h2>{point.family?.name ?? 'Related points'}</h2>
         <ul class="vocab-list">
-          {#each related as other}
+          {#each related as other (other.id)}
             <li class="vocab-list-item">
               <a class="jp" href={grammarPath(other.id)}>{other.title}</a>
               <span class="muted">JLPT N{other.jlptLevel}</span>

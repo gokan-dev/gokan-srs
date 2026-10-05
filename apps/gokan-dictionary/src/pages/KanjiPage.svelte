@@ -34,7 +34,7 @@
       <h2>Vocabulary using {kanji.character}</h2>
       {#if vocabList.length > 0}
         <ul class="vocab-list">
-          {#each vocabList as word}
+          {#each vocabList as word (word.id)}
             <li class="vocab-list-item">
               <a class="jp" href={vocabPath(word.id)}>{word.kanji}</a>
               <span class="muted jp">{word.reading}</span>

@@ -83,7 +83,7 @@
   <div class="filter-row">
     <span class="filter-label">Level</span>
     <div class="toggle-group">
-      {#each JLPT_LEVELS as level}
+      {#each JLPT_LEVELS as level (level)}
         <button
           type="button"
           class="toggle"
@@ -97,7 +97,7 @@
   <div class="filter-row">
     <span class="filter-label">Type</span>
     <div class="toggle-group">
-      {#each KINDS as kind}
+      {#each KINDS as kind (kind)}
         <button
           type="button"
           class="toggle"

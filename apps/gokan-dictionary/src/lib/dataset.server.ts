@@ -48,7 +48,7 @@ export function resolveCompiledDir(): string {
     const compiledDir = path.join(REPO_ROOT, DATASET_SUBMODULE_PATH, 'compiled');
 
     if (!fs.existsSync(compiledDir)) {
-        console.log(`[dataset] ${compiledDir} not found, running "git submodule update --init ${DATASET_SUBMODULE_PATH}"...`);
+        console.warn(`[dataset] ${compiledDir} not found, running "git submodule update --init ${DATASET_SUBMODULE_PATH}"...`);
         execFileSync('git', ['submodule', 'update', '--init', DATASET_SUBMODULE_PATH], {
             cwd: REPO_ROOT,
             stdio: 'inherit',

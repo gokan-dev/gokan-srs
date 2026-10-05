@@ -80,11 +80,11 @@
         <section class="card">
           <h2>Meaning</h2>
           <ol class="sense-list">
-            {#each vocab.senses as sense}
+            {#each vocab.senses as sense, senseIndex (senseIndex)}
               <li class="sense">
                 <div class="pos-tags">
-                  {#each sense.pos as tag}<span class="pos-tag">{tag}</span>{/each}
-                  {#each misc_labels(sense.misc) as label}<span class="pos-tag">{label}</span>{/each}
+                  {#each sense.pos as tag, tagIndex (tagIndex)}<span class="pos-tag">{tag}</span>{/each}
+                  {#each misc_labels(sense.misc) as label (label)}<span class="pos-tag">{label}</span>{/each}
                 </div>
                 <span>{sense.glosses.join('; ')}</span>
               </li>
@@ -96,7 +96,7 @@
           <section class="card">
             <h2>Example sentences</h2>
             <ul class="sentence-list">
-              {#each sentences as sentence}
+              {#each sentences as sentence (sentence.id)}
                 <li class="sentence">
                   <p class="sentence-original jp">
                     <!--
@@ -106,7 +106,7 @@
                       what makes the ~36k vocab pages reachable by a crawler, as well as being
                       the natural thing for a reader to want when they hit an unknown word.
                     -->
-                    {#each segmentSentence(sentence, vocab.id) as segment}{#if segment.isTarget}<strong class="sentence-target">{segment.text}</strong>{:else if segment.vocabId}<a class="sentence-word" href={vocabPath(segment.vocabId)}>{segment.text}</a>{:else}{segment.text}{/if}{/each}
+                    {#each segmentSentence(sentence, vocab.id) as segment, segmentIndex (segmentIndex)}{#if segment.isTarget}<strong class="sentence-target">{segment.text}</strong>{:else if segment.vocabId}<a class="sentence-word" href={vocabPath(segment.vocabId)}>{segment.text}</a>{:else}{segment.text}{/if}{/each}
                   </p>
                   {#if sentence.en[0]}<p class="sentence-en">{sentence.en[0].text}</p>{/if}
                 </li>
@@ -122,7 +122,7 @@
             <section class="card">
               <h2>Kanji used</h2>
               <ul class="chip-list">
-                {#each vocab.writtenForm.containedKanji as character}
+                {#each vocab.writtenForm.containedKanji as character, characterIndex (characterIndex)}
                   <li><a class="chip jp" href={kanjiPath(character)}>{character}</a></li>
                 {/each}
               </ul>
@@ -133,7 +133,7 @@
             <section class="card">
               <h2>Made of</h2>
               <ul class="entry-list entry-list--compact">
-                {#each components as related}
+                {#each components as related (related.id)}
                   <li>
                     <a class="entry-row" href={vocabPath(related.id)}>
                       <span class="entry-row-word jp">{related.kanji}</span>
@@ -149,7 +149,7 @@
             <section class="card">
               <h2>Used in</h2>
               <ul class="entry-list entry-list--compact">
-                {#each parents as related}
+                {#each parents as related (related.id)}
                   <li>
                     <a class="entry-row" href={vocabPath(related.id)}>
                       <span class="entry-row-word jp">{related.kanji}</span>

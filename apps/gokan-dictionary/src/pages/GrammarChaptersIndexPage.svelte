@@ -32,7 +32,7 @@
       register sibling of something it already teaches). Grouping by level would hide that.
     -->
     <ol class="chapter-list">
-      {#each chapters as chapter}
+      {#each chapters as chapter (chapter.id)}
         <li class="chapter-row">
           <a class="chapter-row-link" href={grammarChapterPath(chapter.id)}>
             <span class="chapter-row-head">

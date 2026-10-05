@@ -157,16 +157,16 @@ function init(): void {
     const runSearch = debounce((rawQuery: string) => {
         activeIndex = -1;
         if (!rawQuery.trim()) {
-            results!.replaceChildren();
-            status!.textContent = '';
+            results.replaceChildren();
+            status.textContent = '';
             close();
             return;
         }
         if (!index) return;
 
         const matched = filterEntries(index, rawQuery, MAX_RESULTS);
-        results!.replaceChildren(...matched.map(buildResult));
-        status!.textContent = matched.length === 0 ? 'No results.' : '';
+        results.replaceChildren(...matched.map(buildResult));
+        status.textContent = matched.length === 0 ? 'No results.' : '';
         open();
     }, DEBOUNCE_MS);
 

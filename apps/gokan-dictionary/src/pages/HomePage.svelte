@@ -67,7 +67,7 @@
     <section class="card">
       <h2>Browse vocabulary by JLPT level</h2>
       <p class="level-nav">
-        {#each [5, 4, 3, 2, 1] as level}
+        {#each [5, 4, 3, 2, 1] as level (level)}
           <a href={vocabJlptPath(level)}>N{level}</a>
         {/each}
       </p>
@@ -77,7 +77,7 @@
       <section class="card">
         <h2>Common words</h2>
         <ul class="entry-list">
-          {#each featured as word}
+          {#each featured as word (word.id)}
             <li>
               <a class="entry-row" href={vocabPath(word.id)}>
                 <span class="entry-row-word jp">{word.kanji}</span>

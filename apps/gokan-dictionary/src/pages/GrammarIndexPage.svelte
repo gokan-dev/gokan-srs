@@ -47,7 +47,7 @@
 
         Every point is still linked from here, so each grammar page stays at crawl depth 2.
       -->
-      {#each groups as group}
+      {#each groups as group (group.key)}
         <section class="card">
           <h2>
             {group.title} <span class="muted">{group.subtitle}</span>
@@ -56,7 +56,7 @@
             {/if}
           </h2>
           <ul class="point-grid">
-            {#each group.rows as point}
+            {#each group.rows as point (point.id)}
               <li>
                 <a class="point-card" href={grammarPath(point.id)}>
                   <span class="point-card-head">

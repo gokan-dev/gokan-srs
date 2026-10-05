@@ -40,7 +40,7 @@
       kanji pages that contain them, and through the example sentences on grammar pages.
     -->
     <ul class="browse-grid">
-      {#each levels as { level, count }}
+      {#each levels as { level, count } (level)}
         <li>
           <a class="browse-tile" href={vocabJlptPath(level)}>
             <span class="browse-tile-title">JLPT N{level}</span>

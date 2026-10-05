@@ -34,7 +34,7 @@
     <section class="card">
       <h2>Points in this chapter <span class="muted">({chapter.points.length})</span></h2>
       <ul class="vocab-list">
-        {#each chapter.points as point}
+        {#each chapter.points as point (point.id)}
           <li class="vocab-list-item">
             <a class="jp" href={grammarPath(point.id)}>{point.title}</a>
             <span class="muted">JLPT N{point.jlptLevel}</span>

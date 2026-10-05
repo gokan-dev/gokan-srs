@@ -31,14 +31,14 @@
       orphaned (sitemap-listed, linked from nowhere) - the same problem the grammar index solves
       for grammar points. 2,300 links on one page is well within what a crawler handles.
     -->
-    {#each groups as group}
+    {#each groups as group (group.level)}
       <section class="card">
         <h2>
           {group.level === null ? 'Outside the JLPT lists' : `JLPT N${group.level}`}
           <span class="muted">({group.kanji.length})</span>
         </h2>
         <ul class="glyph-grid">
-          {#each group.kanji as kanji}
+          {#each group.kanji as kanji (kanji.character)}
             <li><a class="glyph-tile jp" href={kanjiPath(kanji.character)} title={`Kanji ${kanji.character}`}>{kanji.character}</a></li>
           {/each}
         </ul>

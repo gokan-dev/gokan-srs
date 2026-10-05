@@ -29,7 +29,7 @@
 
     <section class="card">
       <ul class="entry-list">
-        {#each words as word}
+        {#each words as word (word.id)}
           <li>
             <a class="entry-row" href={vocabPath(word.id)}>
               <span class="entry-row-word jp">{word.kanji}</span>
@@ -43,7 +43,7 @@
 
     <nav class="level-nav">
       <span class="muted">Other levels:</span>
-      {#each allLevels.filter(other => other !== level) as other}
+      {#each allLevels.filter(other => other !== level) as other (other)}
         <a href={vocabJlptPath(other)}>N{other}</a>
       {/each}
     </nav>
