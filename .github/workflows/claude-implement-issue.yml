@@ -49,15 +49,15 @@ jobs:
           # GitHub-side auth is intentionally NOT set here: with the Claude GitHub App
           # installed, the action authenticates git/API ops with the app's installation
           # token. Unlike the default GITHUB_TOKEN, an app token's pushes/PRs DO trigger
-          # downstream workflows — so the PR this opens gets CI, and a red build reaches
+          # downstream workflows: so the PR this opens gets CI, and a red build reaches
           # claude-fix-ci.yml. (Verify this on your first end-to-end run.)
           prompt: |
             Issue #${{ github.event.issue.number }} was just labeled `ready-for-dev`.
-            You are working autonomously — no human is present. Read CLAUDE.md fully first;
+            You are working autonomously, no human is present. Read CLAUDE.md fully first;
             it documents the architecture, conventions, and test setup.
 
             The branch for this issue is ALWAYS `agent/issue-${{ github.event.issue.number }}`
-            (deterministic — no slug suffix), so an interrupted run can be resumed on it.
+            (deterministic, no slug suffix), so an interrupted run can be resumed on it.
 
             0. Run `git fetch origin`, then check whether `agent/issue-${{ github.event.issue.number }}`
                already exists on origin. If it does, a previous run was interrupted before finishing:
@@ -65,18 +65,18 @@ jobs:
                PR to see what's already done) instead of starting over. If it does not exist, create it
                from the latest `main`. EITHER WAY, before writing a single line of code, run
                `git push -u origin agent/issue-${{ github.event.issue.number }}` so the branch exists on
-               origin from the very start — runs get cut off (turn limit, usage limit) with no warning,
+               origin from the very start, runs get cut off (turn limit, usage limit) with no warning,
                and only pushed work survives.
             1. If the issue (plus CLAUDE.md and existing conventions) leaves a LOAD-BEARING
-               product/architecture decision genuinely undecided — not just an implementation
-               detail you can reasonably choose — do NOT guess. Remove the `ready-for-dev`
+               product/architecture decision genuinely undecided, not just an implementation
+               detail you can reasonably choose, do NOT guess. Remove the `ready-for-dev`
                label, add `needs-precision`, comment the specific open questions, and stop.
             2. Otherwise implement it end to end on that branch, following existing conventions.
-               COMMIT VERY FREQUENTLY in small batches and `git push` after every commit — after each
+               COMMIT VERY FREQUENTLY in small batches and `git push` after every commit, after each
                file or small coherent change, NOT just at big milestones. Err deliberately on the side
                of too many tiny commits: each push is a checkpoint, and if the run is cut off (turn
                limit, usage limit) the next run can only resume from what you already pushed, so any
-               unpushed work is lost work. Do not worry about a messy commit history while building —
+               unpushed work is lost work. Do not worry about a messy commit history while building,
                once the feature is complete and tests pass, you MAY squash your own checkpoint commits
                into a clean set before opening the PR if you prefer. Squashing YOUR OWN commits on this
                branch is allowed; the "never force-push" hard rule only protects commits you did not
@@ -84,7 +84,7 @@ jobs:
             3. Write/update tests for what you change. Make these pass before opening the PR:
                bun run typecheck · bun run lint · bun run test  (don't chase unrelated
                pre-existing failures noted in CLAUDE.md unless your issue touches that code).
-            4. Open a PULL REQUEST against `main` — NOT a draft — with `Closes
+            4. Open a PULL REQUEST against `main`, NOT a draft, with `Closes
                #${{ github.event.issue.number }}` in the body (reuse the existing PR if one is
                already open for this branch), a concise summary of what changed and what you tested.
                Then remove `ready-for-dev` and add `pr-open`.
@@ -92,26 +92,26 @@ jobs:
                blocker rather than opening a broken PR.
             6. Before tagging (next step), sync with `main` so the branch is deployable against
                the current state of the repo, not whatever it branched from: `git fetch origin
-               main && git merge origin/main` (resolve conflicts if any arise — they're real
+               main && git merge origin/main` (resolve conflicts if any arise, they're real
                integration work, not something to paper over). If this PR touches the
                `apps/gokan-srs/dataset` submodule, ALSO check whether the submodule's own remote
-               has moved past what you last pointed it at — merging gokan-srs's own `main` does
+               has moved past what you last pointed it at, merging gokan-srs's own `main` does
                NOT automatically do this, since the submodule pointer only moves when something
                commits a new pointer value: `git -C apps/gokan-srs/dataset fetch origin main &&
                git -C apps/gokan-srs/dataset log HEAD..origin/main --oneline`. If that shows
                anything, decide whether picking it up is in scope for this issue; if yes, `git -C
                apps/gokan-srs/dataset checkout origin/main && git add apps/gokan-srs/dataset` and
-               commit the bump. Re-run `bun run typecheck`/`test`/`build` after any merge/bump —
+               commit the bump. Re-run `bun run typecheck`/`test`/`build` after any merge/bump,
                don't tag a build you haven't re-verified.
             7. Tag the branch for a staging preview so a human can test it without doing this
                step themselves: `git fetch --tags`, then find the highest existing release tag
                repo-wide (`git tag --list 'v*.*.*-rc.*' --sort=-v:refname | head -1`), bump its
                MINOR version by one and reset PATCH/rc to `.0-rc.1` (e.g. highest tag
-               `v1.4.0-rc.3` → next tag `v1.5.0-rc.1` — this is a NEW issue's first PR, not a
+               `v1.4.0-rc.3` → next tag `v1.5.0-rc.1`, this is a NEW issue's first PR, not a
                continuation of an existing one, so it always gets a fresh minor version rather
                than bumping the previous rc number). `git tag -a <new-tag> -m "..." && git push
                origin <new-tag>` on the final, re-verified HEAD. Only do this once typecheck/
-               test/build all pass — never tag a broken build.
+               test/build all pass, never tag a broken build.
 
             Hard rules: never push to or merge `main`; never force-push commits you didn't
             create; never touch `.github/workflows/`, secrets, or deployment config; never

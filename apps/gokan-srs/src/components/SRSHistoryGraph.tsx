@@ -99,7 +99,7 @@ export function SRSHistoryGraph({ series, introDate }: SRSHistoryGraphProps) {
 
                     {/* Max Mastery Guideline (If applicable within view) */}
                     {yMax >= maxStrength && (
-                        <line x1="0" y1={100 - ((maxStrength / yMax) * 100)} x2="100" y2={100 - ((maxStrength / yMax) * 100)} stroke="currentColor" className="text-green-500 opacity-20" strokeWidth="0.5" />
+                        <line x1="0" y1={100 - ((maxStrength / yMax) * 100)} x2="100" y2={100 - ((maxStrength / yMax) * 100)} stroke="currentColor" className="text-feedback-correct opacity-20" strokeWidth="0.5" />
                     )}
 
                     {series.map(s => {
@@ -110,7 +110,7 @@ export function SRSHistoryGraph({ series, introDate }: SRSHistoryGraphProps) {
                                 key={s.key}
                                 d={path}
                                 fill="none"
-                                stroke={s.color}
+                                style={{ stroke: s.color }}
                                 strokeWidth="2"
                                 vectorEffect="non-scaling-stroke"
                                 strokeLinecap="round"

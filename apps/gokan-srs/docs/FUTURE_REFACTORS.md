@@ -2,14 +2,14 @@
 
 Planned structural improvements identified during the sync-loop investigation
 ([2026-07-19], see `sync-loop-investigation.md` and the Modification Log in
-CLAUDE.md/GEMINI.md). None of these are urgent — the current code is correct and
-tested — but each one *removes* a class of bugs rather than guarding against it.
+CLAUDE.md/GEMINI.md). None of these are urgent, the current code is correct and
+tested, but each one *removes* a class of bugs rather than guarding against it.
 Ordered by leverage.
 
-## 1. Stop persisting `nextReviewAt` (and likely `stage`) — derive at read time
+## 1. Stop persisting `nextReviewAt` (and likely `stage`): derive at read time
 
 **The problem.** `VocabProgress.nextReviewAt` is a pure function of
-`(reading, meaning, settings)` — `scheduling.ts` even documents it as "always
+`(reading, meaning, settings)`, `scheduling.ts` even documents it as "always
 derived, never hand-set". But it is still *stored*, which forces every boundary
 that touches stored data (migration on load, `mergeVocabProgress`, `applyAnswer`)
 to re-derive and re-write it, and each of those call sites must agree on the

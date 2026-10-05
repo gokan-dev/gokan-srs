@@ -1,5 +1,5 @@
 # Runs Claude to fix a PR whose CI just failed. Triggered by the CI workflows
-# completing with a failure conclusion — no polling, fires only on an actual
+# completing with a failure conclusion: no polling, fires only on an actual
 # red build.
 name: "Agent: fix PR CI"
 
@@ -19,7 +19,7 @@ concurrency:
 jobs:
   fix:
     # Only on failure, only for PR-triggered runs, only for PRs from a branch in
-    # THIS repo (not a fork) — on a public repo, gating out forks stops an
+    # THIS repo (not a fork): on a public repo, gating out forks stops an
     # untrusted contributor's failing fork PR from driving the agent with secrets
     # in scope. And skip runs the bot itself started, so a bot push that re-fails
     # CI can't loop forever.
@@ -62,7 +62,7 @@ jobs:
 
             Find the open PR for this branch. Read the failing job logs, reproduce the
             failure locally where possible (bun run typecheck / lint / test), fix the
-            root cause — not the symptom — and push the fix to the same branch.
+            root cause, not the symptom, and push the fix to the same branch.
             Follow CLAUDE.md. Leave a short PR comment summarising what was wrong and
             what you changed. If you cannot fix it within a reasonable attempt, comment
             on the PR explaining the blocker instead of pushing a speculative change.

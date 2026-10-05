@@ -30,7 +30,7 @@ describe('SRSService Formula Tests', () => {
 
     // Test cases from srs-optimized-formula-tests.txt
 
-    it('TEST CASE 1 — Correct, fast recall', () => {
+    it('TEST CASE 1: Correct, fast recall', () => {
         // Input: { S: 10.0, D: 0.6, Result: correct, Latency: 900 }
         const vocab = createVocab(10.0, 0.6);
         const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'kotae', 'kotae', 900, mockNow);
@@ -40,7 +40,7 @@ describe('SRSService Formula Tests', () => {
         closeTo(interval, 4.04190);
     });
 
-    it('TEST CASE 2 — Correct, slow recall', () => {
+    it('TEST CASE 2: Correct, slow recall', () => {
         // Input: { S: 10.0, D: 0.2, Result: correct, Latency: 3000 }
         // UPDATE: With expectedLatency=10000, 3000 is FAST. To test SLOW, we need > 20000.
         // Let's use 20000 (ratio 0.5).
@@ -52,7 +52,7 @@ describe('SRSService Formula Tests', () => {
         closeTo(interval, 3.15010);
     });
 
-    it('TEST CASE 3 — Minor error', () => {
+    it('TEST CASE 3: Minor error', () => {
 
         // We simulate 'minor_error' by passing a typo: 'こたへ' vs 'こたえ'
         // Use 10000ms as neutral (ratio 1.0)
@@ -64,7 +64,7 @@ describe('SRSService Formula Tests', () => {
         closeTo(interval, 1.75923);
     });
 
-    it('TEST CASE 4 — Wrong answer', () => {
+    it('TEST CASE 4: Wrong answer', () => {
         // Input: { S: 12.0, D: 0.5, Result: wrong, Latency: 2000 }
         const vocab = createVocab(12.0, 0.5);
         const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'wrong', 'kotae', 2000, mockNow);
@@ -81,7 +81,7 @@ describe('SRSService Formula Tests', () => {
         closeTo(interval, 0.50000);
     });
 
-    it('TEST CASE 5 — Pass', () => {
+    it('TEST CASE 5: Pass', () => {
         // Input: { S: 6.0, D: 0.3, Result: pass, Latency: 1500 }
         // Neutral latency for pass
         const vocab = createVocab(6.0, 0.3);
@@ -93,7 +93,7 @@ describe('SRSService Formula Tests', () => {
         closeTo(interval, 1.50859);
     });
 
-    it('TEST CASE 6 — Floor enforcement', () => {
+    it('TEST CASE 6: Floor enforcement', () => {
         // Input: { S: 0.4, D: 0.1, Result: wrong, Latency: 4000 }
         const vocab = createVocab(0.4, 0.1);
         const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'wrong', 'kotae', 4000, mockNow);
@@ -110,7 +110,7 @@ describe('SRSService Formula Tests', () => {
         closeTo(interval, 0.50000);
     });
 
-    it('TEST CASE 6b — Floor enforcement TRIGGERED', () => {
+    it('TEST CASE 6b: Floor enforcement TRIGGERED', () => {
         // Construct a case where S drops below 0.3
         // S=0.35, Wrong, Fast (L=1.5), D=Normal (0.6 -> D factor ~1)
         // D = 0.6 + 0.8*0.5 = 1.0.
@@ -123,8 +123,8 @@ describe('SRSService Formula Tests', () => {
         closeTo(updated.reading.memoryStrength, 1.00000);
     });
 
-    it('TEST CASE 6c — Floor applied on Success to escape 0-trap (Recovery Floor Definition)', () => {
-        // If S is somehow below min (e.g. 0.2), and we get it right, 
+    it('TEST CASE 6c: Floor applied on Success to escape 0-trap (Recovery Floor Definition)', () => {
+        // If S is somehow below min (e.g. 0.2), and we get it right,
         // we should jump to the floor instantly to escape the 0-multiplier trap.
         const vocab = createVocab(0.2, 0.5); // Illegal state technically, but testing logic
         // Correct -> Delta > 0.
@@ -197,7 +197,7 @@ describe('SRSService Formula Tests', () => {
     });
 
 
-    it('TEST CASE 7 — Latency upper clamp', () => {
+    it('TEST CASE 7: Latency upper clamp', () => {
         // Input: { S: 5.0, D: 0.7, Result: correct, Latency: 200 }
         const vocab = createVocab(5.0, 0.7);
         const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'kotae', 'kotae', 200, mockNow);
@@ -209,7 +209,7 @@ describe('SRSService Formula Tests', () => {
         closeTo(interval, 2.06410);
     });
 
-    it('TEST CASE 8 — Latency lower clamp', () => {
+    it('TEST CASE 8: Latency lower clamp', () => {
         // Input: { S: 5.0, D: 0.7, Result: correct, Latency: 10000 }
         const vocab = createVocab(5.0, 0.7);
         const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'kotae', 'kotae', 10000, mockNow);
@@ -677,8 +677,8 @@ describe('SRSService Formula Tests', () => {
     });
 
     describe('Optimization Fixes Verification', () => {
-        it('FIX CHECK 1 — Initial Memory Strength should be 1.0', () => {
-            // We can't access private createNewVocabProgress directly, 
+        it('FIX CHECK 1: Initial Memory Strength should be 1.0', () => {
+            // We can't access private createNewVocabProgress directly,
             // but we can check if we were to manually init or relies on constants if they are exported.
             // Better: Check the CONSTANTS or if we have a public method creating vocab.
             // Since createNewVocabProgress is private and used in refillQueue, let's refrain from full integration test here.
@@ -704,7 +704,7 @@ describe('SRSService Formula Tests', () => {
             // Prior to fix (0.3 base): Int would be ~0.1
         });
 
-        it('FIX CHECK 2 — Wrong answer floor (0.5d)', () => {
+        it('FIX CHECK 2: Wrong answer floor (0.5d)', () => {
             // Case: New item (S=1.0), immediately wrong.
             // S_new = 1.0 * (1 - 0.4) = 0.6
             // Raw Interval = 0.6 * 0.28768 = 0.1726
@@ -718,7 +718,7 @@ describe('SRSService Formula Tests', () => {
             expect(interval).toBe(0.5);
         });
 
-        it('FIX CHECK 3 — Strategy A: Success interval clamped to 1.0 day', () => {
+        it('FIX CHECK 3: Strategy A: Success interval clamped to 1.0 day', () => {
             // New item, correct answer.
             // S_new = 1.25. raw Interval = 0.36.
             // Should clamp to 1.0.

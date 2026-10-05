@@ -47,11 +47,11 @@ function SyncStatusIndicator() {
     }
 
     if (isUploading || isDownloading) {
-        return <RefreshCw size={18} className="animate-spin text-gray-400" />;
+        return <RefreshCw size={18} className="animate-spin text-muted" />;
     }
 
     return (
-        <div className="text-green-500" title="Synced with Google Drive">
+        <div className="text-feedback-correct" title="Synced with Google Drive">
             <Cloud size={18} />
         </div>
     );
@@ -71,13 +71,13 @@ export const App: React.FC = () => {
     // Fatal Error Gate
     if (state.fatalError) {
         return (
-            <div className="h-screen w-full flex flex-col items-center justify-center bg-red-50 p-8 text-center text-red-900">
+            <div className="h-screen w-full flex flex-col items-center justify-center bg-background p-8 text-center text-error">
                 <div className="text-4xl mb-4">⚠️</div>
                 <h1 className="text-2xl font-bold mb-2">System Error</h1>
                 <p className="max-w-md mb-6">{state.fatalError}</p>
                 <button
                     onClick={() => window.location.reload()}
-                    className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition"
+                    className="px-4 py-2 bg-error text-white rounded hover:opacity-90 transition"
                 >
                     Reload Application
                 </button>

@@ -7,6 +7,13 @@ export function resultAccentClass(result: AnswerResult | undefined): string {
     return 'border-l-accent';
 }
 
+/** Text colour for a graded result: correct, a muted near miss, or the error colour for wrong and pass. */
+export function resultTextClass(result: AnswerResult): string {
+    if (result === 'correct') return 'text-feedback-correct';
+    if (result === 'minor_error') return 'text-secondary';
+    return 'text-error';
+}
+
 /**
  * The underline of an inline answer blank: neutral (accent on focus) while answering,
  * muted once its hint revealed the answer, then coloured by the graded result.

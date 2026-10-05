@@ -35,7 +35,7 @@ export function GoogleLoginButton({ onSyncComplete, className }: { onSyncComplet
 
     if (isDownloading) {
         return (
-            <div className={`flex items-center gap-2 px-4 py-2 text-sm text-green-600 ${className}`}>
+            <div className={`flex items-center gap-2 px-4 py-2 text-sm text-feedback-correct ${className}`}>
                 <Loader2 size={16} className="animate-spin" />
                 <span>Restoring your progress...</span>
             </div>

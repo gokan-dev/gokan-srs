@@ -59,7 +59,7 @@ export function ReviewForecast({ progress, settings }: ReviewForecastProps) {
                                 </div>
 
                                 {/* Total Label (Top) */}
-                                <span className="text-xs font-bold mb-1 opacity-0 group-hover:opacity-100 transition-opacity absolute -top-6 text-gray-600 dark:text-gray-400">
+                                <span className="text-xs font-bold mb-1 opacity-0 group-hover:opacity-100 transition-opacity absolute -top-6 text-secondary">
                                     {total}
                                 </span>
                             </div>

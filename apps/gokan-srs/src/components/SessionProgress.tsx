@@ -5,6 +5,7 @@ import { CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { AnswerResult } from '../services/srs.service';
 import type { SessionGains } from '../context/quiz/quizReducer';
+import { resultTextClass } from './quiz/quizStyles';
 
 export interface SessionProgressStats {
     done: number;
@@ -67,9 +68,9 @@ const SessionCounter: React.FC<{
     retriesPending: number;
 }> = ({ done, total, retriesPending }) => (
     <span className="tabular-nums">
-        {done} <span className="text-secondary-400 font-normal">/ {total}</span>
+        {done} <span className="text-tertiary font-normal">/ {total}</span>
         {retriesPending > 0 && (
-            <span className="text-desaturated-red-600 font-normal" title="Answers to redo before this session is complete">
+            <span className="text-error font-normal" title="Answers to redo before this session is complete">
                 {' '}+{retriesPending}
             </span>
         )}
@@ -79,7 +80,7 @@ const SessionCounter: React.FC<{
 const WaitingNote: React.FC<{ waiting: number; moreNew: boolean; noun: string }> = ({ waiting, moreNew, noun }) => {
     if (waiting === 0) return null;
     const label = `${waiting}${moreNew ? '+' : ''} ${noun} waiting after this session`;
-    return <span className="text-secondary-400 text-xs italic">{label}</span>;
+    return <span className="text-tertiary text-xs italic">{label}</span>;
 };
 
 /**
@@ -118,15 +119,15 @@ const GainsSummary: React.FC<{ gains: SessionGains; hasAnswered: boolean }> = ({
 
     return (
         <span className="text-xs tabular-nums" title={title}>
-            <span className={net < 0 ? 'text-desaturated-red-600' : 'text-emerald-600'}>
+            <span className={net < 0 ? 'text-error' : 'text-feedback-correct'}>
                 {net > 0 ? '+' : ''}{net}
             </span>
-            <span className="text-secondary-400"> pts</span>
+            <span className="text-tertiary"> pts</span>
             {vocab > 0 && (
                 <>
-                    <span className="text-secondary-300 mx-1">·</span>
-                    <span className="text-emerald-600">+{vocab}</span>
-                    <span className="text-secondary-400"> vocab</span>
+                    <span className="text-tertiary mx-1">·</span>
+                    <span className="text-feedback-correct">+{vocab}</span>
+                    <span className="text-tertiary"> vocab</span>
                 </>
             )}
         </span>
@@ -161,18 +162,18 @@ export const SessionProgress: React.FC<SessionProgressProps> = ({ stats, history
                     <div className="flex flex-col gap-2">
                         <div className="flex justify-between items-end mb-1">
                             <div className="flex items-center gap-3">
-                                <span className="text-secondary-400 text-sm font-medium">Session Progress</span>
+                                <span className="text-tertiary text-sm font-medium">Session Progress</span>
                                 <GainsSummary gains={gains} hasAnswered={hasAnswered} />
                             </div>
-                            <div className="text-secondary-400 text-sm font-medium">
+                            <div className="text-tertiary text-sm font-medium">
                                 <SessionCounter done={done} total={total} retriesPending={retriesPending} />
                             </div>
                         </div>
 
-                        <div className="h-2 bg-secondary-200/50 rounded-full overflow-hidden flex">
+                        <div className="h-2 bg-divider rounded-full overflow-hidden flex">
                             {/* Progress Segment */}
                             <div
-                                className="h-full bg-primary-600 transition-all duration-500 ease-out"
+                                className="h-full bg-accent transition-all duration-500 ease-out"
                                 style={{ width: `${progressPercent}%` }}
                             />
                         </div>
@@ -189,15 +190,15 @@ export const SessionProgress: React.FC<SessionProgressProps> = ({ stats, history
             {isMobile && (
                 <>
                     <div className="flex items-center justify-between px-1">
-                        <div className="text-xs font-medium text-secondary-500 uppercase tracking-wider">Session Progress</div>
-                        <div className="text-sm font-bold text-primary-700">
+                        <div className="text-xs font-medium text-tertiary uppercase tracking-wider">Session Progress</div>
+                        <div className="text-sm font-bold text-primary">
                             <SessionCounter done={done} total={total} retriesPending={retriesPending} />
                         </div>
                     </div>
                     {/* Mobile Thin Line */}
-                    <div className="h-1 w-full bg-secondary-200 mt-2 rounded-full overflow-hidden">
+                    <div className="h-1 w-full bg-divider mt-2 rounded-full overflow-hidden">
                         <div
-                            className="h-full bg-primary-600 transition-all duration-500 ease-out"
+                            className="h-full bg-accent transition-all duration-500 ease-out"
                             style={{ width: `${progressPercent}%` }}
                         />
                     </div>
@@ -234,9 +235,9 @@ const VocabBreakdownTooltip: React.FC<{
         <span className="text-xs whitespace-nowrap tabular-nums">
             {breakdown.map((w, i) => (
                 <React.Fragment key={`${w.label}-${i}`}>
-                    {i > 0 && <span className="text-secondary-300 mx-1">·</span>}
+                    {i > 0 && <span className="text-tertiary mx-1">·</span>}
                     <span className="font-mincho text-primary">{w.label}</span>
-                    <span className="text-emerald-600"> +{Math.round(w.delta)}</span>
+                    <span className="text-feedback-correct"> +{Math.round(w.delta)}</span>
                 </React.Fragment>
             ))}
         </span>
@@ -268,10 +269,7 @@ const HistoryTicker: React.FC<{ history: SessionHistoryEntry[] }> = ({ history }
                     >
                         <Link
                             to={item.href}
-                            className={`font-mincho hover:underline cursor-pointer ${item.result === 'correct' ? 'text-emerald-600' :
-                                item.result === 'minor_error' ? 'text-amber-600' :
-                                    'text-desaturated-red-600'
-                                }`}
+                            className={`font-mincho hover:underline cursor-pointer ${resultTextClass(item.result)}`}
                             onClick={(e) => {
                                 // Since it's within a ticker, stop propagation isn't strictly necessary but safe
                                 e.stopPropagation();
@@ -281,13 +279,13 @@ const HistoryTicker: React.FC<{ history: SessionHistoryEntry[] }> = ({ history }
                         </Link>
 
                         {/* Result Icon/Indicator */}
-                        {item.result === 'correct' && <CheckCircle className="w-3 h-3 text-emerald-500" />}
-                        {item.result === 'minor_error' && <AlertCircle className="w-3 h-3 text-amber-500" />}
-                        {(item.result === 'wrong' || item.result === 'pass') && <XCircle className="w-3 h-3 text-desaturated-red-500" />}
+                        {item.result === 'correct' && <CheckCircle className="w-3 h-3 text-feedback-correct" />}
+                        {item.result === 'minor_error' && <AlertCircle className="w-3 h-3 text-secondary" />}
+                        {(item.result === 'wrong' || item.result === 'pass') && <XCircle className="w-3 h-3 text-error" />}
 
                         {/* Knowledge points, the same unit the total above sums. Was
                             printed as a percentage that was twice its point value. */}
-                        <span className="text-xs text-secondary-400 tabular-nums">
+                        <span className="text-xs text-tertiary tabular-nums">
                             {item.delta > 0 ? '+' : ''}{Math.round(item.delta)}
                         </span>
 
@@ -295,22 +293,22 @@ const HistoryTicker: React.FC<{ history: SessionHistoryEntry[] }> = ({ history }
                             something to hover: an affordance nobody can see is one
                             nobody finds. The per-word split is the tooltip. */}
                         {!!item.vocabDelta && item.vocabDelta > 0 && (
-                            <span className="text-xs text-emerald-600/70 tabular-nums">
+                            <span className="text-xs text-feedback-correct/70 tabular-nums">
                                 +{Math.round(item.vocabDelta)}
-                                <span className="text-secondary-400"> vocab</span>
+                                <span className="text-tertiary"> vocab</span>
                             </span>
                         )}
 
                         {/* Separator for all but last visible */}
                         {index < recentItems.length - 1 && (
-                            <span className="text-secondary-300 mx-1">•</span>
+                            <span className="text-tertiary mx-1">•</span>
                         )}
                     </motion.div>
                 ))}
             </AnimatePresence>
 
             {history.length === 0 && (
-                <span className="text-secondary-400 text-sm italic">Session started...</span>
+                <span className="text-tertiary text-sm italic">Session started...</span>
             )}
 
             {hovered && (() => {

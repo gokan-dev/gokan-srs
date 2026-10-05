@@ -1,4 +1,4 @@
-# Staging stack for staging.gokan-srs.com — an independent Terraform root with
+# Staging stack for staging.gokan-srs.com: an independent Terraform root with
 # its own state, so applying it can never affect the production stack in
 # ../main.tf. Mirrors the production infra: private S3 bucket, CloudFront with
 # SPA error handling, an ACM cert (us-east-1) for the staging subdomain, and a
@@ -67,7 +67,7 @@ provider "aws" {
 
 data "aws_caller_identity" "current" {}
 
-# Read-only lookup of the existing zone — production owns/creates it.
+# Read-only lookup of the existing zone: production owns/creates it.
 data "aws_route53_zone" "main" {
   name         = var.zone_name
   private_zone = false
@@ -305,12 +305,12 @@ resource "aws_route53_record" "website_a_record" {
 }
 
 output "s3_bucket_name" {
-  description = "Staging S3 bucket name — set as the STAGING_S3_BUCKET_NAME Actions variable"
+  description = "Staging S3 bucket name, set as the STAGING_S3_BUCKET_NAME Actions variable"
   value       = aws_s3_bucket.website.id
 }
 
 output "cloudfront_distribution_id" {
-  description = "Staging CloudFront distribution ID — set as the STAGING_CLOUDFRONT_DISTRIBUTION_ID Actions secret"
+  description = "Staging CloudFront distribution ID, set as the STAGING_CLOUDFRONT_DISTRIBUTION_ID Actions secret"
   value       = aws_cloudfront_distribution.website.id
 }
 
