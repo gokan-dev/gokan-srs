@@ -3,6 +3,8 @@ import { Search, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { VocabularyService } from '../services/vocabulary.service';
 import type { SearchIndex } from '../models/index.model';
+import { useAsyncData } from '../hooks/useAsyncData';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { useResponsive } from '../context/Responsive/useResponsive';
 
 interface SearchBarProps {
@@ -16,9 +18,7 @@ interface SearchBarProps {
 
 export const SearchBar: React.FC<SearchBarProps> = ({ className = '' }) => {
     const [query, setQuery] = useState('');
-    const [results, setResults] = useState<SearchIndex>([]);
     const [isOpen, setIsOpen] = useState(false);
-    const [isSearching, setIsSearching] = useState(false);
     const [panel, setPanel] = useState({ top: 0, height: 0 });
     const wrapperRef = useRef<HTMLDivElement>(null);
     const fieldRef = useRef<HTMLDivElement>(null);
@@ -34,24 +34,11 @@ export const SearchBar: React.FC<SearchBarProps> = ({ className = '' }) => {
      */
     const isFullScreen = isMobile && isPanelOpen;
 
-    useEffect(() => {
-        const fetchResults = async () => {
-            if (query.trim().length === 0) {
-                setResults([]);
-                return;
-            }
-            setIsSearching(true);
-            const res = await VocabularyService.searchVocab(query);
-            setResults(res);
-            setIsSearching(false);
-        };
-
-        const timer = setTimeout(() => {
-            fetchResults();
-        }, 300);
-
-        return () => clearTimeout(timer);
-    }, [query]);
+    // Searched once typing pauses; an empty field searches nothing.
+    const searchTerm = useDebouncedValue(query.trim(), 300);
+    const search = useAsyncData(searchTerm || null, () => VocabularyService.searchVocab(searchTerm), { keepPrevious: true });
+    const results: SearchIndex = query.trim() ? search.data ?? [] : [];
+    const isSearching = search.status === 'loading' && search.data === undefined;
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -111,8 +98,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ className = '' }) => {
     const handleSelect = (id: string) => {
         setIsOpen(false);
         setQuery('');
-        setResults([]);
-        navigate(`/vocab/${id}`);
+        void navigate(`/vocab/${id}`);
     };
 
     return (
@@ -133,7 +119,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ className = '' }) => {
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-tertiary" />
                 {query && (
                     <button
-                        onClick={() => { setQuery(''); setResults([]); }}
+                        onClick={() => setQuery('')}
                         aria-label="Clear search"
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-tertiary hover:text-primary transition-colors cursor-pointer"
                     >

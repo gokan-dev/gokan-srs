@@ -1,6 +1,7 @@
 import type { MediaWordCount } from '../models/media.model';
 import type { FrequencyIndex, JlptIndex, KKLCIndex } from '../models/index.model';
 import type { LearningOrder } from '../models/user.model';
+import { numericEntries } from './records';
 
 /**
  * Ordering for the listening library's "words to learn" lists, per episode and
@@ -36,12 +37,12 @@ export function buildWordOrderContext(frequency: FrequencyIndex, jlpt: JlptIndex
         kanjiOf.set(entry.id, entry.containedKanji);
     });
     const jlptLevel = new Map<string, number>();
-    for (const [level, entries] of Object.entries(jlpt)) {
-        for (const entry of entries) jlptLevel.set(entry.id, Number(level));
+    for (const [level, entries] of numericEntries(jlpt)) {
+        for (const entry of entries) jlptLevel.set(entry.id, level);
     }
     const kklcStep = new Map<string, number>();
-    for (const [step, ids] of Object.entries(kklc)) {
-        for (const id of ids) if (!kklcStep.has(id)) kklcStep.set(id, Number(step));
+    for (const [step, ids] of numericEntries(kklc)) {
+        for (const id of ids) if (!kklcStep.has(id)) kklcStep.set(id, step);
     }
     return { frequencyRank, kanjiOf, jlptLevel, kklcStep };
 }

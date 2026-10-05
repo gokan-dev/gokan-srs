@@ -59,7 +59,7 @@ function SyncControls() {
 
             <Button
                 variant="primary"
-                onClick={() => downloadProgress()}
+                onClick={() => void downloadProgress()}
                 disabled={isDownloading}
                 className="w-full justify-center"
             >
@@ -321,7 +321,7 @@ export function SettingsScreen({
                                     Cancel
                                 </Button>
                                 <Button
-                                    onClick={async () => {
+                                    onClick={() => void (async () => {
                                         setGrammarResetState('working');
                                         try {
                                             await onResetGrammar();
@@ -330,7 +330,7 @@ export function SettingsScreen({
                                             setGrammarResetState('failed');
                                         }
                                         setIsConfirmingGrammarReset(false);
-                                    }}
+                                    })()}
                                     disabled={grammarResetState === 'working'}
                                     className="flex-1 justify-center bg-error text-white border-transparent hover:brightness-110"
                                 >

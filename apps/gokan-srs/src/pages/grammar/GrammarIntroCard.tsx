@@ -1,4 +1,3 @@
-import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import type { GrammarChapter, GrammarPoint } from "../../models/grammar.model";
 import { CardSection } from "../../components/ui/CardSection";
@@ -9,6 +8,8 @@ import { GrammarDifferentiator } from "../../components/GrammarDifferentiator";
 import { GrammarContrastCard } from "../../components/GrammarContrastCard";
 import { GrammarService } from "../../services/grammar.service";
 import { useQuiz } from "../../context/useQuiz";
+import { useAsyncData } from "../../hooks/useAsyncData";
+import { useIntroducedGrammarIds } from "../../hooks/useIntroducedGrammarIds";
 
 interface GrammarIntroCardProps {
     grammarPoint: GrammarPoint;
@@ -17,26 +18,10 @@ interface GrammarIntroCardProps {
 }
 
 export function GrammarIntroCard({ grammarPoint, onLearn, onSkip }: GrammarIntroCardProps) {
-    const { currentGrammarProgress, state } = useQuiz();
-    const [chapter, setChapter] = useState<GrammarChapter | null>(null);
+    const { currentGrammarProgress } = useQuiz();
+    const chapter: GrammarChapter | null = useAsyncData(grammarPoint.id, () => GrammarService.loadChapterFor(grammarPoint.id)).data ?? null;
 
-    useEffect(() => {
-        let cancelled = false;
-        GrammarService.loadChapterFor(grammarPoint.id).then(found => {
-            if (!cancelled) setChapter(found);
-        });
-        return () => { cancelled = true; };
-    }, [grammarPoint.id]);
-
-    // Which family siblings the learner has already met, so the register ladder
-    // can mark them rather than presenting every rung as new.
-    const knownIds = useMemo(() => {
-        const ids = new Set<string>();
-        for (const g of state.progress?.grammarQueue ?? []) {
-            if (g.introductionAt) ids.add(g.grammarId);
-        }
-        return ids;
-    }, [state.progress?.grammarQueue]);
+    const knownIds = useIntroducedGrammarIds();
 
     // Where this point sits in its chapter. Worth showing because a chapter is
     // the unit that carries the lesson - "2 of 9 in the register ladder" tells

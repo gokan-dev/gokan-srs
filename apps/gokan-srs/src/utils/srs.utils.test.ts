@@ -17,7 +17,7 @@ function makeSettings(overrides: Partial<UserSettings> = {}): UserSettings {
         enableMeaningQuiz: true,
         learningFrequency: 'medium',
         ...overrides,
-    } as UserSettings;
+    };
 }
 
 // Fully self-contained (no shared nested objects) - see quizSelectors.test.ts's note

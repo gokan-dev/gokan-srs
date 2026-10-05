@@ -3,10 +3,11 @@ import { usePersistControls, usePersistedControlsSnapshot } from "../../../hooks
 import type { GrammarProgress, GrammarPoint } from "../../../models/grammar.model";
 import { GrammarService } from "../../../services/grammar.service";
 import { GrammarCard } from "../../../components/GrammarCard";
-import { VocabCardSkeleton } from "../../../components/VocabCardLoader";
+import { CardSkeleton } from "../../../components/CardSkeleton";
 import { Search, ArrowDown, ArrowUp } from "lucide-react";
 import { Button } from "../../../components/ui/Button";
 import { isGrammarFullyMastered } from "../../../services/grammarScheduling";
+import { useAsyncData } from "../../../hooks/useAsyncData";
 
 interface SmartGrammarListProps {
     progress: GrammarProgress[];
@@ -32,7 +33,14 @@ interface PersistedListState {
 
 /** Grammar's equivalent of SmartVocabList - simplified since a GrammarProgress has one SRSEntry (no reading/meaning split) and grammar has no frequency data (JLPT level stands in for that sort). */
 export function SmartGrammarList({ progress, onGrammarClick }: SmartGrammarListProps) {
-    const [pointCache, setPointCache] = useState<Record<string, GrammarPoint>>({});
+    // Every point's file is loaded up front so search filters instantly; the service
+    // caches them, so a later change to the list only fetches what is new.
+    const grammarIds = useMemo(() => progress.map(g => g.grammarId), [progress]);
+    const loadedPoints = useAsyncData(grammarIds.join(','), () => GrammarService.loadGrammarPoints(grammarIds), { keepPrevious: true }).data;
+    const pointCache = useMemo<Partial<Record<string, GrammarPoint>>>(
+        () => Object.fromEntries((loadedPoints ?? []).map(p => [p.id, p])),
+        [loadedPoints]
+    );
 
     const persisted = usePersistedControlsSnapshot<PersistedListState>(LIST_STATE_KEY);
     const [searchQuery, setSearchQuery] = useState(persisted.searchQuery ?? "");
@@ -137,42 +145,6 @@ export function SmartGrammarList({ progress, onGrammarClick }: SmartGrammarListP
     );
 
     // Fetch all grammar-point JSON files at once so search/sort filters instantly
-    useEffect(() => {
-        let isCancelled = false;
-
-        const loadMissing = async () => {
-            const missingIds = progress
-                .map(g => g.grammarId)
-                .filter(id => !pointCache[id]);
-
-            if (missingIds.length === 0) return;
-
-            const promises = missingIds.map(id => GrammarService.loadGrammarPoint(id).catch(e => {
-                console.error(`Failed to load grammar point ${id}`, e);
-                return null;
-            }));
-
-            const results = await Promise.all(promises);
-
-            if (!isCancelled) {
-                setPointCache(prev => {
-                    const next = { ...prev };
-                    let changed = false;
-                    for (const p of results) {
-                        if (p) {
-                            next[p.id] = p;
-                            changed = true;
-                        }
-                    }
-                    return changed ? next : prev;
-                });
-            }
-        };
-
-        loadMissing();
-
-        return () => { isCancelled = true; };
-    }, [progress, pointCache]);
 
     return (
         <div className="flex flex-col gap-4 animate-fade-in">
@@ -230,7 +202,7 @@ export function SmartGrammarList({ progress, onGrammarClick }: SmartGrammarListP
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {displayedItems.map((g) => {
                     const point = pointCache[g.grammarId];
-                    if (!point) return <VocabCardSkeleton key={g.grammarId} />;
+                    if (!point) return <CardSkeleton key={g.grammarId} />;
                     return (
                         <GrammarCard
                             key={point.id}

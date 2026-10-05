@@ -26,6 +26,7 @@ import { WORD_SORTS, isLearnableNow, sortWords } from "../../utils/wordOrder.uti
 import type { LearnerOrder, WordOrderContext, WordSort } from "../../utils/wordOrder.utils";
 import { JitenCredit, MediaCover, VocabularyOnlyNote } from "./listeningShared";
 import { useWordOrdering } from "./useWordOrdering";
+import { useAsyncData } from "../../hooks/useAsyncData";
 
 /** Words shown at first in a "words to learn" list, and how many more each "Show more" adds. */
 const PAGE_SIZE = 10;
@@ -294,23 +295,10 @@ function WordsToLearn({ words, countHint, knowledge, sort, onSortChange, orderCo
         [words, knowledge, sort, orderContext, learner]
     );
     const visible = useMemo(() => sorted.slice(0, shown), [sorted, shown]);
-    const [vocabs, setVocabs] = useState<Map<string, Vocabulary>>(new Map());
-
-    useEffect(() => {
-        let cancelled = false;
-        const missing = visible.filter(([id]) => !vocabs.has(id));
-        if (missing.length === 0) return;
-        Promise.all(missing.map(([id]) => VocabularyService.loadVocab(id).catch(() => null)))
-            .then(loaded => {
-                if (cancelled) return;
-                setVocabs(prev => {
-                    const next = new Map(prev);
-                    for (const vocab of loaded) if (vocab) next.set(vocab.id, vocab);
-                    return next;
-                });
-            });
-        return () => { cancelled = true; };
-    }, [visible, vocabs]);
+    // The service caches every word, so re-requesting the visible page on "show more" only fetches the new ones.
+    const visibleIds = visible.map(([id]) => id);
+    const loadedVocabs = useAsyncData(visibleIds.join(','), () => VocabularyService.loadVocabs(visibleIds), { keepPrevious: true }).data;
+    const vocabs = useMemo(() => new Map<string, Vocabulary>((loadedVocabs ?? []).map(v => [v.id, v])), [loadedVocabs]);
 
     if (sorted.length === 0) {
         return (

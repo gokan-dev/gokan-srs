@@ -1,15 +1,16 @@
 import { describe, it, expect } from 'vitest';
 import { generateInflections, isFormOfWord, kanaOfSurface, readingMatchesWord, toInflectableWord, wordClassesOf } from './inflection.utils';
 import type { InflectableWord } from './inflection.utils';
+import type { Sense } from '../models/vocabulary.model';
 
-const sensesOf = (...tags: string[][]) => tags.map(pos => ({ pos, glosses: [], misc: [] })) as never;
+const sensesOf = (...tags: string[][]): Sense[] => tags.map(pos => ({ pos, glosses: [], misc: { rawTags: [] }, related: { compounds: [] } }));
 
 const word = (written: string, reading: string, ...pos: string[]): InflectableWord =>
     toInflectableWord({
         writtenForm: { kanji: written, alternatives: [], containedKanji: [] },
         reading: { primary: reading, alternatives: [] },
         senses: sensesOf(pos),
-    } as never);
+    });
 
 const formsOf = (w: InflectableWord) => {
     const all = generateInflections(w);

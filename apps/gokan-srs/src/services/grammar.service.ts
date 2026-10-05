@@ -283,4 +283,10 @@ export class GrammarService {
         this.pointCache.set(id, point);
         return point;
     }
+
+    /** Several points at once, in the order asked, skipping any that fail to load (see VocabularyService.loadVocabs). */
+    static async loadGrammarPoints(ids: readonly string[]): Promise<GrammarPoint[]> {
+        const loaded = await Promise.all(ids.map(id => this.loadGrammarPoint(id).catch(() => null)));
+        return loaded.filter((p): p is GrammarPoint => p !== null);
+    }
 }

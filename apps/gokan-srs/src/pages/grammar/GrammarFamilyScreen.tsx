@@ -1,4 +1,3 @@
-import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import type { GrammarContrastIndex, GrammarPoint } from "../../models/grammar.model";
@@ -6,8 +5,9 @@ import { Card } from "../../components/ui/Card";
 import { JlptChip } from "../../components/JlptChip";
 import { Button } from "../../components/ui/Button";
 import { LoadingScreen } from "../../components/LoadingScreen";
-import { useQuiz } from "../../context/useQuiz";
 import { GrammarService } from "../../services/grammar.service";
+import { useIntroducedGrammarIds } from "../../hooks/useIntroducedGrammarIds";
+import { useAsyncData } from "../../hooks/useAsyncData";
 
 type FamilyEntry = GrammarContrastIndex[string];
 
@@ -21,46 +21,23 @@ type FamilyEntry = GrammarContrastIndex[string];
 export default function GrammarFamilyScreen() {
     const { familyId } = useParams<{ familyId: string }>();
     const navigate = useNavigate();
-    const { state } = useQuiz();
 
-    // One result object keyed by the familyId it was loaded for. Loading is then
-    // DERIVED (result?.familyId !== familyId) rather than set synchronously in the
-    // effect, so switching families shows the loading state without a stale flash
-    // and without a cascading setState-in-effect.
-    const [result, setResult] = useState<{ familyId: string; entry: FamilyEntry | null; members: Map<string, GrammarPoint> } | null>(null);
+    const family = useAsyncData(familyId ?? null, async (): Promise<{ entry: FamilyEntry | null; members: Map<string, GrammarPoint> }> => {
+        const entry = (await GrammarService.loadContrasts())[familyId ?? ''] ?? null;
+        if (!entry) return { entry, members: new Map() };
+        const ids = Array.from(new Set([
+            ...entry.lessons.flatMap(c => c.points),
+            ...(entry.interchangeable ?? []),
+        ]));
+        const points = await GrammarService.loadGrammarPoints(ids);
+        return { entry, members: new Map(points.map(p => [p.id, p])) };
+    });
 
-    useEffect(() => {
-        if (!familyId) return;
-        let cancelled = false;
+    const ready = family.status === 'ready';
+    const entry = family.data?.entry ?? null;
+    const members = family.data?.members ?? new Map<string, GrammarPoint>();
 
-        GrammarService.loadContrasts().then(async index => {
-            const found = index[familyId] ?? null;
-            const map = new Map<string, GrammarPoint>();
-            if (found) {
-                const ids = Array.from(new Set([
-                    ...found.lessons.flatMap(c => c.points),
-                    ...(found.interchangeable ?? []),
-                ]));
-                const loaded = await Promise.all(ids.map(id => GrammarService.loadGrammarPoint(id).catch(() => null)));
-                loaded.forEach(p => { if (p) map.set(p.id, p); });
-            }
-            if (!cancelled) setResult({ familyId, entry: found, members: map });
-        });
-
-        return () => { cancelled = true; };
-    }, [familyId]);
-
-    const ready = result?.familyId === familyId;
-    const entry = ready ? result!.entry : null;
-    const members = ready ? result!.members : new Map<string, GrammarPoint>();
-
-    const knownIds = useMemo(() => {
-        const ids = new Set<string>();
-        for (const g of state.progress?.grammarQueue ?? []) {
-            if (g.introductionAt) ids.add(g.grammarId);
-        }
-        return ids;
-    }, [state.progress?.grammarQueue]);
+    const knownIds = useIntroducedGrammarIds();
 
     if (!ready) return <LoadingScreen />;
 

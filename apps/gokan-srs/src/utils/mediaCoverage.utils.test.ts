@@ -116,7 +116,7 @@ describe('rankLibrary', () => {
         { id: 'y', title: { original: 'Y' }, genres: ['Romance'], tags: [] },
         { id: 'z', title: { original: 'Z' }, genres: ['Comedy'], tags: [] },
     ];
-    const words = { x: [['a', 1], ['c', 9]], y: [['a', 5]], z: [['a', 1], ['b', 1]] } as Record<string, [string, number][]>;
+    const words: Record<string, [string, number][]> = { x: [['a', 1], ['c', 9]], y: [['a', 5]], z: [['a', 1], ['b', 1]] };
 
     it('ranks the filtered titles by occurrence coverage, best fit first', () => {
         expect(rankLibrary(index, words, knowledge, [], '').map(r => r.entry.id)).toEqual(['y', 'z', 'x']);

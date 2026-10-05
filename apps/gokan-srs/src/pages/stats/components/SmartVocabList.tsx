@@ -3,12 +3,13 @@ import { usePersistControls, usePersistedControlsSnapshot } from "../../../hooks
 import type { VocabProgress, Vocabulary } from "../../../models/vocabulary.model";
 import { VocabularyService } from "../../../services/vocabulary.service";
 import { VocabCard } from "../../../components/VocabCard";
-import { VocabCardSkeleton } from "../../../components/VocabCardLoader";
+import { CardSkeleton } from "../../../components/CardSkeleton";
 import { Search, ArrowDown, ArrowUp } from "lucide-react";
 import { Button } from "../../../components/ui/Button";
 import { romajiToHiragana, looksLikeRomaji } from "../../../utils/romaji";
 import { isVocabFullyMastered } from "../../../services/scheduling";
 import { countWrongReviews } from "../../../utils/winRate.utils";
+import { useAsyncData } from "../../../hooks/useAsyncData";
 import type { UserSettings } from "../../../models/user.model";
 
 interface SmartVocabListProps {
@@ -34,7 +35,14 @@ interface PersistedListState {
 
 
 export function SmartVocabList({ progress, settings, onVocabClick }: SmartVocabListProps) {
-    const [vocabCache, setVocabCache] = useState<Record<string, Vocabulary>>({});
+    // Every word's file is loaded up front so search filters instantly; the service
+    // caches them, so a later change to the list only fetches what is new.
+    const vocabIds = useMemo(() => progress.map(p => p.vocabId), [progress]);
+    const loadedVocabs = useAsyncData(vocabIds.join(','), () => VocabularyService.loadVocabs(vocabIds), { keepPrevious: true }).data;
+    const vocabCache = useMemo<Partial<Record<string, Vocabulary>>>(
+        () => Object.fromEntries((loadedVocabs ?? []).map(v => [v.id, v])),
+        [loadedVocabs]
+    );
 
     const persisted = usePersistedControlsSnapshot<PersistedListState>(LIST_STATE_KEY);
     const [searchQuery, setSearchQuery] = useState(persisted.searchQuery ?? "");
@@ -49,18 +57,12 @@ export function SmartVocabList({ progress, settings, onVocabClick }: SmartVocabL
     const ITEMS_PER_PAGE = 30;
 
     // Load frequency index for sorting by kanji rank on unloaded items
-    const [frequencyRanks, setFrequencyRanks] = useState<Record<string, number>>({});
-    useEffect(() => {
-        let mounted = true;
-        VocabularyService.loadFrequencyIndex().then(idx => {
-            if (idx && mounted) {
-                const ranks: Record<string, number> = {};
-                idx.forEach((entry, i) => ranks[entry.id] = i);
-                setFrequencyRanks(ranks);
-            }
-        });
-        return () => { mounted = false; };
-    }, []);
+    const frequencyIndex = useAsyncData('frequency-index', () => VocabularyService.loadFrequencyIndex()).data;
+    const frequencyRanks = useMemo(() => {
+        const ranks: Partial<Record<string, number>> = {};
+        frequencyIndex?.forEach((entry, i) => { ranks[entry.id] = i; });
+        return ranks;
+    }, [frequencyIndex]);
 
     const masteredCount = useMemo(
         () => progress.filter(p => isVocabFullyMastered(p, settings)).length,
@@ -163,48 +165,9 @@ export function SmartVocabList({ progress, settings, onVocabClick }: SmartVocabL
         [searchQuery, sortField, sortDir, page, showMastered],
     );
 
-    // Fetch all Vocab JSON files at once so search filters instantly
-    useEffect(() => {
-        let isCancelled = false;
-
-        const loadMissing = async () => {
-            const missingIds = progress
-                .map(p => p.vocabId)
-                .filter(id => !vocabCache[id]);
-
-            if (missingIds.length === 0) return;
-
-            // Fetch in larger chunks or all at once to avoid overloading network? 
-            // 2000 local JSONs usually resolve in ~50ms in Vite
-            const promises = missingIds.map(id => VocabularyService.loadVocab(id).catch(e => {
-                console.error(`Failed to load vocab ${id}`, e);
-                return null;
-            }));
-
-            const results = await Promise.all(promises);
-
-            if (!isCancelled) {
-                setVocabCache(prev => {
-                    const next = { ...prev };
-                    let changed = false;
-                    for (const v of results) {
-                        if (v) {
-                            next[v.id] = v;
-                            changed = true;
-                        }
-                    }
-                    return changed ? next : prev;
-                });
-            }
-        };
-
-        loadMissing();
-
-        return () => { isCancelled = true; };
-    }, [progress, vocabCache]);
 
     // Remove the full-screen skeleton block so the search input stays usable immediately,
-    // and let the grid render individual VocabCardSkeletons instead.
+    // and let the grid render individual CardSkeletons instead.
 
     return (
         <div className="flex flex-col gap-4 animate-fade-in">
@@ -264,7 +227,7 @@ export function SmartVocabList({ progress, settings, onVocabClick }: SmartVocabL
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {displayedItems.map((p) => {
                     const vocab = vocabCache[p.vocabId];
-                    if (!vocab) return <VocabCardSkeleton key={p.vocabId} />;
+                    if (!vocab) return <CardSkeleton key={p.vocabId} />;
                     return (
                         <VocabCard
                             key={vocab.id}

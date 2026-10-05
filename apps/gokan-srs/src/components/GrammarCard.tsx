@@ -4,6 +4,8 @@ import { MasteryRing } from "./MasteryRing";
 import { JlptChip } from "./JlptChip";
 import { Card } from "./ui/Card";
 import { CardContent } from "./ui/CardContent";
+import { useNow } from "../hooks/useNow";
+import { formatTimeUntil } from "../utils/time.utils";
 
 /** Grammar's equivalent of VocabCard, for SmartGrammarList's grid. */
 export function GrammarCard({
@@ -15,25 +17,7 @@ export function GrammarCard({
   progress: GrammarProgress;
   onClick?: () => void;
 }) {
-  function formatNextReview(date: Date | null): string {
-    if (!date) return '-';
-
-    const now = new Date();
-    const diffMs = date.getTime() - now.getTime();
-
-    if (diffMs <= 0) return 'Now';
-
-    const minutes = Math.floor(diffMs / 60000);
-    if (minutes < 60) return `in ${minutes} min`;
-
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `in ${hours} h`;
-
-    const days = Math.floor(hours / 24);
-    if (days < 7) return `in ${days} d`;
-
-    return date.toLocaleDateString();
-  }
+  const now = useNow();
 
   return (
     <div
@@ -65,7 +49,7 @@ export function GrammarCard({
                 ? "Mastered"
                 : `Reviews: ${progress.totalReviews}`}
             </span>
-            <span>{formatNextReview(progress.nextReviewAt)}</span>
+            <span>{formatTimeUntil(progress.nextReviewAt, now)}</span>
           </div>
         </CardContent>
       </Card>

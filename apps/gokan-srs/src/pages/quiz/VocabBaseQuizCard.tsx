@@ -57,7 +57,9 @@ export function VocabBaseQuizCard({
     const { isMobile } = useResponsive();
 
     // Local state for UI effects
-    const [showCorrectAnswer, setShowCorrectAnswer] = useState(false);
+    // The feedback whose correct answer has been revealed. Keyed by the feedback object,
+    // so a new answer (or a new card) starts hidden without resetting state in an effect.
+    const [revealedFor, setRevealedFor] = useState<object | null>(null);
     const [isInputFocused, setIsInputFocused] = useState(false);
 
     // Get data from centralized state
@@ -71,13 +73,12 @@ export function VocabBaseQuizCard({
     // a fresh question, Continue once feedback is showing) is a separate
     // concern owned by useQuizFocusManagement, shared with the grammar quiz.
     useEffect(() => {
-        setShowCorrectAnswer(false);
-
         if (feedback?.show && !feedback.correct) {
-            const timer = setTimeout(() => setShowCorrectAnswer(true), CONSTANTS.quiz.incorrectAnswerRevealDelay);
+            const timer = setTimeout(() => setRevealedFor(feedback), CONSTANTS.quiz.incorrectAnswerRevealDelay);
             return () => clearTimeout(timer);
         }
-    }, [currentVocab?.id, feedback]);
+    }, [feedback]);
+    const showCorrectAnswer = feedback !== null && revealedFor === feedback;
 
     const { firstInputRef: inputRef, continueRef } = useQuizFocusManagement(
         {
@@ -93,7 +94,7 @@ export function VocabBaseQuizCard({
         e.preventDefault();
 
         if (!feedback?.show) {
-            actions.submitAnswer();
+            void actions.submitAnswer();
         } else if (computed.canContinue) {
             actions.continueToNext();
         }

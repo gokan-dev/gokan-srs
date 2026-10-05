@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
 import { JlptChip } from "../../components/JlptChip";
-import type { GrammarPoint } from "../../models/grammar.model";
+import type { GrammarPoint, GrammarVariantGroupIndex } from "../../models/grammar.model";
 import { GrammarService } from "../../services/grammar.service";
 import { RelatedEntriesCard, type RelatedEntry } from "../../components/RelatedEntriesCard";
+import { useAsyncData } from "../../hooks/useAsyncData";
 
 interface Props {
     point: GrammarPoint;
@@ -23,7 +23,7 @@ const RELATION_LABELS: Record<string, string> = {
 
 interface VariantRow {
     point: GrammarPoint;
-    relation: string;
+    relation: GrammarVariantGroupIndex[string][number]['relation'];
 }
 
 /**
@@ -37,33 +37,21 @@ interface VariantRow {
  * matches the vocab detail page's related-entry lists.
  */
 export function GrammarVariantsCard({ point }: Props) {
-    const [rows, setRows] = useState<VariantRow[]>([]);
-
     // A variant points at its canonical; a canonical heads its own group.
     const canonicalId = point.variantOf ?? point.id;
 
-    useEffect(() => {
-        let cancelled = false;
-        const load = async () => {
-            const groups = await GrammarService.loadVariantGroups();
-            const group = groups[canonicalId];
-            if (!group) {
-                if (!cancelled) setRows([]);
-                return;
-            }
-            // Every OTHER member of the group - the current point is the page you are on.
-            const others = group.filter(m => m.id !== point.id);
-            const loaded = await Promise.all(
-                others.map(async m => {
-                    const p = await GrammarService.loadGrammarPoint(m.id).catch(() => null);
-                    return p ? { point: p, relation: m.relation } : null;
-                })
-            );
-            if (!cancelled) setRows(loaded.filter((r): r is VariantRow => r !== null));
-        };
-        load();
-        return () => { cancelled = true; };
-    }, [point.id, canonicalId]);
+    const rows: VariantRow[] = useAsyncData(`:${point.id}`, async () => {
+        const group = (await GrammarService.loadVariantGroups())[canonicalId];
+        if (!group) return [];
+        // Every OTHER member of the group - the current point is the page you are on.
+        const others = group.filter(m => m.id !== point.id);
+        const relationOf = new Map(others.map(m => [m.id, m.relation]));
+        const points = await GrammarService.loadGrammarPoints(others.map(m => m.id));
+        return points.flatMap(p => {
+            const relation = relationOf.get(p.id);
+            return relation ? [{ point: p, relation }] : [];
+        });
+    }).data ?? [];
 
     if (rows.length === 0) {
         return null;

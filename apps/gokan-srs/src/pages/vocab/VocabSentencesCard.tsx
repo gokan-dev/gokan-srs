@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Virtuoso } from 'react-virtuoso';
 import { Card } from '../../components/ui/Card';
 import { VocabularyService } from '../../services/vocabulary.service';
 import type { Sentence } from '../../models/sentence.model';
 import { InteractiveSentence } from '../../components/InteractiveSentence';
+import { useAsyncData } from '../../hooks/useAsyncData';
 
 interface VocabSentencesCardProps {
     vocabId: string;
@@ -12,24 +13,13 @@ interface VocabSentencesCardProps {
 
 export function VocabSentencesCard({ vocabId }: VocabSentencesCardProps) {
     const navigate = useNavigate();
-    const [sentences, setSentences] = useState<Sentence[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [isExpanded, setIsExpanded] = useState(false);
+    const loaded = useAsyncData(vocabId, () => VocabularyService.loadSentences(vocabId));
+    // Expansion belongs to one word: keyed by it, so moving to another word starts collapsed.
+    const [expandedFor, setExpandedFor] = useState<string | null>(null);
+    const isExpanded = expandedFor === vocabId;
+    const setIsExpanded = (expanded: boolean) => setExpandedFor(expanded ? vocabId : null);
 
-    useEffect(() => {
-        let mounted = true;
-        setLoading(true);
-        setIsExpanded(false); // Reset expansion state on vocab change
-        VocabularyService.loadSentences(vocabId).then(data => {
-            if (mounted && data) {
-                setSentences(data);
-            }
-            setLoading(false);
-        });
-        return () => { mounted = false; };
-    }, [vocabId]);
-
-    if (loading) return null;
+    const sentences: Sentence[] = loaded.data ?? [];
     if (sentences.length === 0) return null;
 
     const INITIAL_COUNT = 5;

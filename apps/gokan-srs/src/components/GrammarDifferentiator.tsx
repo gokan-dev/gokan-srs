@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
 import type { GrammarPoint } from "../models/grammar.model";
 import { GrammarService } from "../services/grammar.service";
+import { useAsyncData } from "../hooks/useAsyncData";
 
 /** Casual -> literary. The register ladder's rungs, in order. */
 const FORMALITY_ORDER: NonNullable<GrammarPoint['formalityLevel']>[] = [
@@ -37,24 +37,10 @@ interface Props {
  * of points that have no family.
  */
 export function GrammarDifferentiator({ point, knownIds }: Props) {
-    const [siblings, setSiblings] = useState<GrammarPoint[]>([]);
-
     const family = point.family;
     const siblingIds = family?.relatedPoints ?? [];
 
-    useEffect(() => {
-        let cancelled = false;
-        if (siblingIds.length === 0) {
-            setSiblings([]);
-            return;
-        }
-        Promise.all(siblingIds.map(id => GrammarService.loadGrammarPoint(id).catch(() => null)))
-            .then(loaded => {
-                if (cancelled) return;
-                setSiblings(loaded.filter((p): p is GrammarPoint => p !== null));
-            });
-        return () => { cancelled = true; };
-    }, [point.id, siblingIds.join(',')]);
+    const siblings: GrammarPoint[] = useAsyncData(siblingIds.join(','), () => GrammarService.loadGrammarPoints(siblingIds)).data ?? [];
 
     if (!family || siblingIds.length === 0) return null;
 

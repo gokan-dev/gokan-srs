@@ -82,13 +82,13 @@ export interface Word {
 export interface Kanji {
     common: boolean
     text: string
-    tags: any[]
+    tags: string[]
 }
 
 export interface Kana {
     common: boolean
     text: string
-    tags: any[]
+    tags: string[]
     appliesToKanji: string[]
 }
 

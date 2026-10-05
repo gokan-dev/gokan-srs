@@ -29,7 +29,7 @@ export function GoogleLoginButton({ onSyncComplete, className }: { onSyncComplet
                 }
             }
         };
-        tryRestore();
+        void tryRestore();
         return () => { mounted = false; };
     }, [isAuthenticated, isDownloading, hasAttemptedAutoRestore, downloadProgress, onSyncComplete]);
 
@@ -48,10 +48,7 @@ export function GoogleLoginButton({ onSyncComplete, className }: { onSyncComplet
         return (
             <Button
                 variant="ghost"
-                onClick={async () => {
-                    await downloadProgress();
-                    onSyncComplete();
-                }}
+                onClick={() => void downloadProgress().then(onSyncComplete)}
                 className={`text-sm font-medium hover:bg-black/5 text-primary ${className}`}
             >
                 <Cloud size={16} className="mr-2" />

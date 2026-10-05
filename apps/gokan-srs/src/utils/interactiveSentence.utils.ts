@@ -44,21 +44,14 @@ export function segmentInteractiveSentence(
     { targetVocabId, highlightRanges = [] }: SegmentInteractiveSentenceOptions = {}
 ): InteractiveSentenceSegment[] {
     const text = sentence.original;
-    const matches = sentence.matches || {};
+    const matches = sentence.matches ?? {};
 
     // 1. Flatten + sort vocab matches. Overlaps are resolved by earliest-start-wins,
     // mirroring the original component's handling.
     const flatMatches: { vocabId: string; start: number; length: number; reading?: string }[] = [];
-    for (const vocabId in matches) {
-        const matchArray = matches[vocabId];
-        if (Array.isArray(matchArray)) {
-            for (const m of matchArray) {
-                flatMatches.push({ vocabId, ...m });
-            }
-        } else if (matchArray) {
-            // Fallback for old data format.
-            flatMatches.push({ vocabId, ...(matchArray as unknown as { start: number; length: number; reading?: string }) });
-        }
+    // The dataset has always written each vocab's matches as an array (build-data.ts).
+    for (const [vocabId, matchArray] of Object.entries(matches)) {
+        for (const m of matchArray) flatMatches.push({ vocabId, ...m });
     }
     flatMatches.sort((a, b) => a.start - b.start);
 

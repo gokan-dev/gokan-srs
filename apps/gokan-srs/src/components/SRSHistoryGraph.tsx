@@ -1,5 +1,6 @@
 import type { SRSEntry, ReviewLog } from "../models/vocabulary.model";
 import { useMemo } from "react";
+import { useNow } from "../hooks/useNow";
 
 export interface SRSHistorySeries {
     /** Stable key distinguishing this series from others in the same graph (e.g. 'reading', 'meaning', 'grammar'). */
@@ -24,6 +25,7 @@ const clamp = (value: number, min: number, max: number) => Math.min(Math.max(val
  * covers both rather than duplicating the plotting logic per activity.
  */
 export function SRSHistoryGraph({ series, introDate }: SRSHistoryGraphProps) {
+    const now = useNow();
     const data = useMemo(() => {
         // Collect all history points
         const points: { date: number; key: string; strength: number }[] = [];
@@ -40,14 +42,13 @@ export function SRSHistoryGraph({ series, introDate }: SRSHistoryGraphProps) {
         });
 
         // Current actual states as final points if they differ from last history or if history is empty
-        const now = Date.now();
         series.forEach(s => points.push({ date: now, key: s.key, strength: s.entry.interval }));
 
         // Sort by date
         points.sort((a, b) => a.date - b.date);
 
         return points;
-    }, [series, introDate]);
+    }, [series, introDate, now]);
 
     // If practically no data, don't render graph (one intro + one end point per series is not real history)
     if (data.length <= series.length * 2) return null;

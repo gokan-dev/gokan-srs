@@ -1113,3 +1113,12 @@ export function describeHubChapter(
         counts,
     };
 }
+
+/** Ids of every grammar point already introduced to the learner, whatever its mastery. */
+export function selectIntroducedGrammarIds(grammarQueue: readonly GrammarProgress[]): Set<string> {
+    const ids = new Set<string>();
+    for (const g of grammarQueue) {
+        if (g.introductionAt) ids.add(g.grammarId);
+    }
+    return ids;
+}

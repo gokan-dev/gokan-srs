@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import type { GrammarChapter, GrammarExample, GrammarPoint } from "../../models/grammar.model";
 import { Card } from "../../components/ui/Card";
@@ -17,6 +17,8 @@ import { GrammarDifferentiator } from "../../components/GrammarDifferentiator";
 import { InteractiveSentence } from "../../components/InteractiveSentence";
 import { grammarExampleToSentence, patternHighlightRanges } from "../../utils/grammarSentence.utils";
 import { PageHeader } from "../../components/PageHeader";
+import { useIntroducedGrammarIds } from "../../hooks/useIntroducedGrammarIds";
+import { useAsyncData } from "../../hooks/useAsyncData";
 
 const MINED_INITIAL_COUNT = 5;
 
@@ -43,69 +45,36 @@ export default function GrammarDetailScreen() {
     const navigate = useNavigate();
     const { isMobile } = useResponsive();
     const { state, grammarActions } = useQuiz();
-    const [point, setPoint] = useState<GrammarPoint | null>(null);
-    const [error, setError] = useState<string | null>(null);
+    const pointLoad = useAsyncData(grammarId ?? null, () => GrammarService.loadGrammarPoint(grammarId ?? ''));
+    const point: GrammarPoint | null = pointLoad.data ?? null;
+    const error = pointLoad.status === 'error' ? "Could not load grammar point details." : null;
     // The point's chapter + its 1-based position among all chapters (issue
     // #58's detail-page locator). null while loading, or when the order file
     // isn't available - same "just don't show it" failure direction
     // GrammarSRSService.getCurrentChapter uses.
-    const [chapterLocation, setChapterLocation] = useState<{ chapter: GrammarChapter; chapterNumber: number } | null>(null);
+    const chapterLocation: { chapter: GrammarChapter; chapterNumber: number } | null = useAsyncData(grammarId ?? null, async () => {
+        const order = await GrammarService.loadTeachingOrder();
+        const chapter = order?.chapters.find(c => c.points.includes(grammarId ?? ''));
+        return order && chapter ? { chapter, chapterNumber: order.chapters.indexOf(chapter) + 1 } : null;
+    }).data ?? null;
     // Corpus-mined examples (issue #73's follow-up): a read-only browsing view
     // of the same pool computeBlankPlan draws review sentences from, so the
     // mined data is inspectable without grinding a point to its 2nd review.
     // null while loading or when the point has no mined pool at all - both
     // read as "render nothing", same as GrammarRelatedPointsCard's failure
     // direction.
-    const [minedExamples, setMinedExamples] = useState<GrammarExample[] | null>(null);
-    const [isMinedSectionOpen, setIsMinedSectionOpen] = useState(false);
-    const [isMinedExpanded, setIsMinedExpanded] = useState(false);
-
-    useEffect(() => {
-        if (!grammarId) return;
-
-        setPoint(null);
-        setError(null);
-
-        GrammarService.loadGrammarPoint(grammarId)
-            .then(setPoint)
-            .catch(err => {
-                console.error("Failed to load grammar point", err);
-                setError("Could not load grammar point details.");
-            });
-    }, [grammarId]);
-
-    useEffect(() => {
-        if (!grammarId) return;
-
-        setMinedExamples(null);
-        setIsMinedSectionOpen(false);
-        setIsMinedExpanded(false);
-        GrammarService.loadMinedExamples(grammarId).then(setMinedExamples);
-    }, [grammarId]);
-
-    useEffect(() => {
-        if (!grammarId) return;
-
-        setChapterLocation(null);
-        GrammarService.loadTeachingOrder().then(order => {
-            if (!order) return;
-            const chapter = order.chapters.find(c => c.points.includes(grammarId));
-            if (!chapter) return;
-            setChapterLocation({ chapter, chapterNumber: order.chapters.indexOf(chapter) + 1 });
-        });
-    }, [grammarId]);
+    const minedExamples: GrammarExample[] | null = useAsyncData(grammarId ?? null, () => GrammarService.loadMinedExamples(grammarId ?? '')).data ?? null;
+    // Both belong to one point: keyed by it, so another point's page starts collapsed.
+    const [minedOpenFor, setMinedOpenFor] = useState<string | null>(null);
+    const [minedExpandedFor, setMinedExpandedFor] = useState<string | null>(null);
+    const isMinedSectionOpen = minedOpenFor === grammarId;
+    const isMinedExpanded = minedExpandedFor === grammarId;
+    const setIsMinedSectionOpen = (open: boolean) => setMinedOpenFor(open ? grammarId ?? null : null);
+    const setIsMinedExpanded = (expanded: boolean) => setMinedExpandedFor(expanded ? grammarId ?? null : null);
 
     const progress = state.progress?.grammarQueue.find(g => g.grammarId === grammarId);
 
-    // Which family siblings the learner has already met, for GrammarDifferentiator's
-    // register ladder (mirrors GrammarIntroCard's own knownIds computation).
-    const knownIds = useMemo(() => {
-        const ids = new Set<string>();
-        for (const g of state.progress?.grammarQueue ?? []) {
-            if (g.introductionAt) ids.add(g.grammarId);
-        }
-        return ids;
-    }, [state.progress?.grammarQueue]);
+    const knownIds = useIntroducedGrammarIds();
 
     if (error) {
         return (
@@ -272,7 +241,7 @@ export default function GrammarDetailScreen() {
         <Card size={isMobile ? "sm" : "md"}>
             <button
                 type="button"
-                onClick={() => setIsMinedSectionOpen(v => !v)}
+                onClick={() => setIsMinedSectionOpen(!isMinedSectionOpen)}
                 className="w-full flex items-center justify-between gap-2 text-left"
             >
                 <h2 className="text-lg font-gothic font-semibold text-primary">

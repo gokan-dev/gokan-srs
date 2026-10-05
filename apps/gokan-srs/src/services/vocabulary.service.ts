@@ -94,6 +94,16 @@ export class VocabularyService {
         return vocab;
     }
 
+    /**
+     * Several words at once, in the order asked, skipping any that fail to load (a
+     * stale id in a related-words list must not take the whole list down). For a
+     * quiz card, where a missing word is a data-integrity error, use loadVocab.
+     */
+    static async loadVocabs(ids: readonly string[]): Promise<Vocabulary[]> {
+        const loaded = await Promise.all(ids.map(id => this.loadVocab(id).catch(() => null)));
+        return loaded.filter((v): v is Vocabulary => v !== null);
+    }
+
     static async loadSearchIndex(): Promise<SearchIndex | null> {
         if (this.searchIndex) return this.searchIndex;
 

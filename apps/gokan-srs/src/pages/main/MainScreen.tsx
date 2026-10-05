@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { BookOpenText, Headphones, Puzzle } from 'lucide-react';
 import { useQuiz } from '../../context/useQuiz';
@@ -8,10 +8,12 @@ import { VocabQuizSettings } from '../settings/sections/VocabQuizSettings';
 import { GrammarQuizSettings } from '../settings/sections/GrammarQuizSettings';
 import { ChapterProgressBar } from '../../components/ChapterProgressBar';
 import type { HubChapterStatus } from '../../context/quiz/grammarSelectors';
-import type { MediaIndexEntry, MediaLibraryWords } from '../../models/media.model';
 import { buildWordKnowledge, rankLibrary } from '../../utils/mediaCoverage.utils';
 import { MediaService } from '../../services/media.service';
 import { MediaCover } from '../listening/listeningShared';
+import { useAsyncData } from '../../hooks/useAsyncData';
+import { useNow } from '../../hooks/useNow';
+import { formatMinutes, minutesUntil } from '../../utils/time.utils';
 
 /**
  * The activity hub - the app's landing page after setup. Activities (the main
@@ -35,12 +37,11 @@ export const MainScreen: React.FC = () => {
     // (rankLibrary), from the same cached files. Loaded after the hub has
     // rendered and purely decorative: if either file fails, the card simply
     // shows without covers.
-    const [media, setMedia] = useState<{ index: MediaIndexEntry[]; words: MediaLibraryWords } | null>(null);
-    useEffect(() => {
-        Promise.all([MediaService.loadIndex(), MediaService.loadLibraryWords()])
-            .then(([index, words]) => setMedia({ index, words }))
-            .catch(() => setMedia(null));
-    }, []);
+    const media = useAsyncData('listening-library', async () => {
+        const [index, words] = await Promise.all([MediaService.loadIndex(), MediaService.loadLibraryWords()]);
+        return { index, words };
+    }).data;
+    const now = useNow();
     const bestFits = useMemo(() => {
         if (!media || !state.progress) return [];
         const knowledge = buildWordKnowledge(state.progress.learningQueue, state.settings ?? undefined);
@@ -60,6 +61,7 @@ export const MainScreen: React.FC = () => {
                 <QuizActivityCard
                     preview={nextSessionPreview}
                     nextReviewAt={nextReviewAt}
+                    now={now}
                     onClick={() => void navigate('/quiz')}
                     settings={
                         <QuizSettingsMenu title="Vocabulary quiz settings">
@@ -74,6 +76,7 @@ export const MainScreen: React.FC = () => {
                 <GrammarActivityCard
                     preview={nextGrammarSessionPreview}
                     nextReviewAt={grammarNextReviewAt}
+                    now={now}
                     hubChapter={grammarHubChapter}
                     onClick={() => void navigate('/grammar')}
                     settings={
@@ -159,9 +162,8 @@ const ActivityCard: React.FC<{
 );
 
 /** Minutes-until-next-review, rounded up, matching WaitingScreen's phrasing. */
-function formatNextReview(nextReviewAt: Date): string {
-    const minutes = Math.max(1, Math.ceil((nextReviewAt.getTime() - Date.now()) / 60000));
-    return `Next review in ${minutes} minute${minutes > 1 ? 's' : ''}.`;
+function formatNextReview(nextReviewAt: Date, now: number): string {
+    return `Next review in ${formatMinutes(minutesUntil(nextReviewAt, now))}.`;
 }
 
 interface SessionPreview {
@@ -173,13 +175,13 @@ interface SessionPreview {
 }
 
 /** Shared by every activity card that previews an upcoming SRS session (vocab, grammar): "{review} review · {new} new", appending retries in the error color, falling back to a caught-up message with an ETA when known. */
-function renderSessionPreviewDescription(preview: SessionPreview, nextReviewAt: Date | null): React.ReactNode {
+function renderSessionPreviewDescription(preview: SessionPreview, nextReviewAt: Date | null, now: number): React.ReactNode {
     const { review, new: newCount, retries } = preview;
     const remaining = preview.remaining ?? 0;
     const caughtUp = review === 0 && newCount === 0 && retries === 0;
 
     if (caughtUp) {
-        return nextReviewAt ? formatNextReview(nextReviewAt) : "You're all caught up.";
+        return nextReviewAt ? formatNextReview(nextReviewAt, now) : "You're all caught up.";
     }
 
     const parts: React.ReactNode[] = [`${review} review`, `${newCount} new`];
@@ -212,13 +214,14 @@ function renderSessionPreviewDescription(preview: SessionPreview, nextReviewAt: 
 const QuizActivityCard: React.FC<{
     preview: SessionPreview;
     nextReviewAt: Date | null;
+    now: number;
     onClick: () => void;
     settings: React.ReactNode;
-}> = ({ preview, nextReviewAt, onClick, settings }) => (
+}> = ({ preview, nextReviewAt, now, onClick, settings }) => (
     <ActivityCard
         icon={<BookOpenText size={22} className="text-accent" />}
         title="Vocabulary quiz session"
-        description={renderSessionPreviewDescription(preview, nextReviewAt)}
+        description={renderSessionPreviewDescription(preview, nextReviewAt, now)}
         onClick={onClick}
         settings={settings}
     />
@@ -250,15 +253,16 @@ const GrammarActivityCard: React.FC<{
      * learner was between chapters rather than mid-session.
      */
     hubChapter: HubChapterStatus | null;
+    now: number;
     onClick: () => void;
     settings: React.ReactNode;
-}> = ({ preview, nextReviewAt, hubChapter, onClick, settings }) => (
+}> = ({ preview, nextReviewAt, now, hubChapter, onClick, settings }) => (
     <ActivityCard
         icon={<Puzzle size={22} className="text-accent" />}
         title="Grammar quiz session"
         description={
             <>
-                {renderSessionPreviewDescription(preview, nextReviewAt)}
+                {renderSessionPreviewDescription(preview, nextReviewAt, now)}
                 {hubChapter && (
                     <span className="block text-tertiary mt-1">{renderHubChapterLine(hubChapter)}</span>
                 )}

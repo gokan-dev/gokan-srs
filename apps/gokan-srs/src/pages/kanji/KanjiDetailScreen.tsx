@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import type { Kanji } from "../../models/kanji.model";
 import { Card } from "../../components/ui/Card";
@@ -10,39 +9,20 @@ import { Button } from "../../components/ui/Button";
 import { LoadingScreen } from "../../components/LoadingScreen";
 import { KanjiVocabListCard } from "./KanjiVocabListCard";
 import { PageHeader } from "../../components/PageHeader";
+import { useAsyncData } from "../../hooks/useAsyncData";
 
 export default function KanjiDetailScreen() {
     const { character } = useParams<{ character: string }>();
     const navigate = useNavigate();
     const { isMobile } = useResponsive();
     const { state } = useQuiz();
-    const [kanji, setKanji] = useState<Kanji | null>(null);
-    const [vocabIds, setVocabIds] = useState<string[]>([]);
-    const [error, setError] = useState<string | null>(null);
-
-    useEffect(() => {
-        if (!character) return;
-
-        setKanji(null);
-        setError(null);
-
-        VocabularyService.loadKanji(character)
-            .then(k => {
-                if (!k) {
-                    setError("This kanji isn't in the app's known kanji set.");
-                    return;
-                }
-                setKanji(k);
-            })
-            .catch(err => {
-                console.error("Failed to load kanji", err);
-                setError("Could not load kanji details.");
-            });
-
-        VocabularyService.loadKanjiVocabIndex()
-            .then(index => setVocabIds(index[character] ?? []))
-            .catch(err => console.error("Failed to load kanji-vocab index", err));
-    }, [character]);
+    const kanjiLoad = useAsyncData(character ?? null, () => VocabularyService.loadKanji(character ?? ''));
+    const vocabIdsLoad = useAsyncData(character ?? null, async () => (await VocabularyService.loadKanjiVocabIndex())[character ?? ''] ?? []);
+    const kanji: Kanji | null = kanjiLoad.data ?? null;
+    const vocabIds = vocabIdsLoad.data ?? [];
+    const error = kanjiLoad.status === 'error'
+        ? "Could not load kanji details."
+        : kanjiLoad.status === 'ready' && !kanjiLoad.data ? "This kanji isn't in the app's known kanji set." : null;
 
     const isKnown = state.progress?.kanjiKnowledge.kanjiSet.has(character ?? '') ?? false;
 

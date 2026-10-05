@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { usePersistControls, usePersistedControlsSnapshot } from "../../hooks/usePersistedControls";
 import { Link } from "react-router-dom";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import type { GrammarAxis, GrammarBrowseIndex, GrammarBrowseRow, GrammarPoint } from "../../models/grammar.model";
 import { GrammarService } from "../../services/grammar.service";
 import { JlptChip } from "../../components/JlptChip";
+import { useAsyncData } from "../../hooks/useAsyncData";
 
 type Kind = NonNullable<GrammarPoint['kind']>;
 type GroupMode = 'level' | 'family';
@@ -153,13 +154,18 @@ function PointCard({ row }: { row: GrammarBrowseRow }) {
  * visible here instead.
  */
 export function GrammarBrowseScreen() {
-    const [index, setIndex] = useState<GrammarBrowseIndex | null>(null);
-    const [failed, setFailed] = useState(false);
+    const indexLoad = useAsyncData('grammar-browse-index', () => GrammarService.loadBrowseIndex());
+    const index: GrammarBrowseIndex | null = indexLoad.data ?? null;
+    const failed = indexLoad.status === 'error' || (indexLoad.status === 'ready' && !indexLoad.data);
     // Families that have at least one authored contrast lesson, so the
     // family-grouped view can link out to the page comparing them - the browse
     // screen's family grouping is the closest thing this app has to a family
     // index, so it is where a "which families have lessons" entry point fits.
-    const [familiesWithLessons, setFamiliesWithLessons] = useState<Set<string>>(new Set());
+    const familiesWithLessons = useAsyncData('families-with-lessons', async () => new Set(
+        Object.entries(await GrammarService.loadContrasts())
+            .filter(([, entry]) => entry.lessons.length > 0)
+            .map(([familyId]) => familyId)
+    )).data ?? new Set<string>();
 
     const persisted = usePersistedControlsSnapshot<PersistedBrowseState>(BROWSE_STATE_KEY);
 
@@ -187,23 +193,6 @@ export function GrammarBrowseScreen() {
         },
         [query, levels, kinds, axes, onlyVariants, onlyFamilied, group],
     );
-
-    useEffect(() => {
-        GrammarService.loadBrowseIndex().then(loaded => {
-            if (loaded) setIndex(loaded); else setFailed(true);
-        });
-    }, []);
-
-    useEffect(() => {
-        GrammarService.loadContrasts().then(contrasts => {
-            const withLessons = new Set(
-                Object.entries(contrasts)
-                    .filter(([, entry]) => entry.lessons.length > 0)
-                    .map(([familyId]) => familyId)
-            );
-            setFamiliesWithLessons(withLessons);
-        });
-    }, []);
 
     const toggle = <T,>(set: Set<T>, value: T, apply: (next: Set<T>) => void) => {
         const next = new Set(set);

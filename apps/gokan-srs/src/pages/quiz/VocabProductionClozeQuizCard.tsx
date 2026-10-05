@@ -86,7 +86,7 @@ export function VocabProductionClozeQuizCard({ onVocabClick }: { onVocabClick?: 
     const handleSubmit = (e: FormEvent) => {
         e.preventDefault();
         if (!feedback?.show) {
-            actions.submitAnswer();
+            void actions.submitAnswer();
         } else if (computed.canContinue) {
             actions.continueToNext();
         }

@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { Vocabulary } from "../../models/vocabulary.model";
 import { VocabularyService } from "../../services/vocabulary.service";
 import { RelatedEntriesCard, type RelatedEntry, type RelatedSection } from "../../components/RelatedEntriesCard";
+import { useAsyncData } from "../../hooks/useAsyncData";
 
 interface Props {
     vocab: Vocabulary;
@@ -26,9 +27,10 @@ function toEntry(v: Vocabulary): RelatedEntry {
  * grammar detail page's related/variant lists exactly.
  */
 export function VocabRelationshipsCard({ vocab }: Props) {
-    const [parents, setParents] = useState<Vocabulary[]>([]);
-    const [components, setComponents] = useState<Vocabulary[]>([]);
-    const [isExpanded, setIsExpanded] = useState(false);
+    // Expansion belongs to one word: keyed by it, so another word's card starts collapsed.
+    const [expandedFor, setExpandedFor] = useState<string | null>(null);
+    const isExpanded = expandedFor === vocab.id;
+    const setIsExpanded = (expanded: boolean) => setExpandedFor(expanded ? vocab.id : null);
 
     const componentIds = vocab.components || [];
     const parentIds = vocab.parents || [];
@@ -37,29 +39,9 @@ export function VocabRelationshipsCard({ vocab }: Props) {
     const displayedComponentIds = isExpanded ? componentIds : componentIds.slice(0, INITIAL_COUNT);
     const displayedParentIds = isExpanded ? parentIds : parentIds.slice(0, INITIAL_COUNT);
 
-    // Reset expansion when navigating to a different word.
-    useEffect(() => {
-        setIsExpanded(false);
-    }, [vocab.id]);
-
-    // Load only the currently displayed ids, re-loading when expanded.
-    useEffect(() => {
-        const load = async () => {
-            if (displayedComponentIds.length > 0) {
-                const c = await Promise.all(displayedComponentIds.map(id => VocabularyService.loadVocab(id).catch(() => null)));
-                setComponents(c.filter((v): v is Vocabulary => v !== null));
-            } else {
-                setComponents([]);
-            }
-            if (displayedParentIds.length > 0) {
-                const p = await Promise.all(displayedParentIds.map(id => VocabularyService.loadVocab(id).catch(() => null)));
-                setParents(p.filter((v): v is Vocabulary => v !== null));
-            } else {
-                setParents([]);
-            }
-        };
-        load();
-    }, [isExpanded, vocab]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Load only the currently displayed ids; expanding loads the rest.
+    const components = useAsyncData(displayedComponentIds.join(','), () => VocabularyService.loadVocabs(displayedComponentIds), { keepPrevious: true }).data ?? [];
+    const parents = useAsyncData(displayedParentIds.join(','), () => VocabularyService.loadVocabs(displayedParentIds), { keepPrevious: true }).data ?? [];
 
     if (componentIds.length === 0 && parentIds.length === 0) {
         return null;
@@ -80,7 +62,7 @@ export function VocabRelationshipsCard({ vocab }: Props) {
             primarySize="xl"
             isExpandable={isExpandable}
             isExpanded={isExpanded}
-            onToggleExpand={() => setIsExpanded(v => !v)}
+            onToggleExpand={() => setIsExpanded(!isExpanded)}
             expandLabel="Show all relationships"
             collapseLabel="Show fewer relationships"
         />
