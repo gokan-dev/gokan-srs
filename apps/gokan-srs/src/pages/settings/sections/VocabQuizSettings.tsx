@@ -1,5 +1,4 @@
-import { Sparkles } from "lucide-react";
-import { OptionGrid } from "../../../components/OptionGrid";
+import { LearningOrderPicker } from "../../../components/LearningOrderPicker";
 import { SettingToggle } from "../../../components/ui/SettingToggle";
 import { SettingSlider } from "../../../components/ui/SettingSlider";
 import { meaningContextThresholdOf } from "../../../utils/srs.utils";
@@ -27,38 +26,10 @@ export function VocabQuizSettings({ settings, onUpdateSettings, dense = false }:
 
     return (
         <div className={dense ? "space-y-4" : "space-y-8"}>
-            <OptionGrid
-                title="Vocabulary order"
+            <LearningOrderPicker
                 dense={dense}
                 value={settings.preferredLearningOrder}
                 onChange={(value) => update({ preferredLearningOrder: value })}
-                options={[
-                    {
-                        value: 'kanji_coverage',
-                        label: 'Kanji Coverage Priority',
-                        description: (
-                            <span className="flex items-center gap-1.5 text-accent font-medium">
-                                <Sparkles size={14} className="flex-shrink-0" />
-                                Recommended: Efficiently covers known kanji
-                            </span>
-                        ),
-                    },
-                    {
-                        value: 'frequency',
-                        label: 'Frequency',
-                        description: 'Most common words first',
-                    },
-                    {
-                        value: 'kklc',
-                        label: 'By Kanji',
-                        description: 'Follow kanji progression',
-                    },
-                    {
-                        value: 'jlpt',
-                        label: 'JLPT Level',
-                        description: 'N5 first, up to N1',
-                    },
-                ]}
             />
 
             {settings.preferredLearningOrder !== 'kklc' && (
@@ -72,28 +43,17 @@ export function VocabQuizSettings({ settings, onUpdateSettings, dense = false }:
             )}
 
             {settings.preferredLearningOrder === 'kanji_coverage' && (
-                <div className={`bg-surface dark:bg-surface/5 rounded-lg border border-divider ${dense ? 'p-3' : 'p-4'}`}>
-                    <div className={`flex flex-col gap-1 ${dense ? 'mb-3' : 'mb-4'}`}>
-                        <span className={`font-medium text-primary ${dense ? 'text-sm' : ''}`}>Target vocab per Kanji</span>
-                        <span className="text-secondary text-xs">
-                            How many words to learn for each kanji before prioritizing new kanji (1-5).
-                        </span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <input
-                            type="range"
-                            min="1"
-                            max="5"
-                            step="1"
-                            value={settings.kanjiCoverageTarget || 1}
-                            onChange={(e) => update({ kanjiCoverageTarget: parseInt(e.target.value, 10) })}
-                            className="flex-1 h-2 bg-divider rounded-lg appearance-none cursor-pointer accent-accent"
-                        />
-                        <span className="w-8 text-center font-bold text-primary">
-                            {settings.kanjiCoverageTarget || 1}
-                        </span>
-                    </div>
-                </div>
+                <SettingSlider
+                    dense={dense}
+                    label="Target vocab per Kanji"
+                    description="How many words to learn for each kanji before prioritizing new kanji (1-5)."
+                    min={1}
+                    max={5}
+                    step={1}
+                    value={settings.kanjiCoverageTarget ?? 1}
+                    valueText={String(settings.kanjiCoverageTarget ?? 1)}
+                    onChange={(value) => update({ kanjiCoverageTarget: value })}
+                />
             )}
 
             <SettingToggle

@@ -17,6 +17,7 @@ import type { InflectableWord } from '../../utils/inflection.utils';
 import { computeSessionStats, computeSessionPreview } from './sessionStats';
 import type { QuizState } from './quizReducer';
 import type { GrammarBlankPlan, PendingGrammarQuizItem } from './grammarReducer';
+import { coverageOf, statusIndex, type CoverageCounts } from '../../utils/coverage.utils';
 
 /** Grammar has no kanji-gated learning step, so 'learn-kanji' never applies here. */
 // 'session-complete' is excluded alongside 'learn-kanji': the per-session quiz cap
@@ -1013,12 +1014,8 @@ export function selectNewlyCompletedChapterIds(
         .map(chapter => chapter.id);
 }
 
-/** Three-way point tally for one chapter: mastered / in-progress (introduced, not mastered) / total. `untouched` is `total - mastered - learning`, left for the caller to derive (mirrors JlptLevelRow, which does the same). */
-export interface GrammarChapterProgressCounts {
-    mastered: number;
-    learning: number;
-    total: number;
-}
+/** Three-way point tally for one chapter: mastered / in-progress (introduced, not mastered) / total. */
+export type GrammarChapterProgressCounts = CoverageCounts;
 
 /**
  * A chapter's own progress, counted over its member points - the same
@@ -1034,18 +1031,10 @@ export function computeGrammarChapterProgress(
     chapter: GrammarChapter,
     grammarQueue: GrammarProgress[]
 ): GrammarChapterProgressCounts {
-    const byId = new Map(grammarQueue.map(g => [g.grammarId, g]));
-    let mastered = 0;
-    let learning = 0;
-
-    for (const id of chapter.points) {
-        const g = byId.get(id);
-        if (!g || !g.introductionAt) continue;
-        if (isGrammarFullyMastered(g)) mastered++;
-        else learning++;
-    }
-
-    return { mastered, learning, total: chapter.points.length };
+    // Only an introduced point counts as started; a queued one not yet met is untouched.
+    const status = statusIndex(grammarQueue, g => g.grammarId, g =>
+        !g.introductionAt ? undefined : isGrammarFullyMastered(g) ? 'mastered' : 'learning');
+    return coverageOf(chapter.points, status);
 }
 
 /**

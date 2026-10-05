@@ -148,8 +148,6 @@ export type GrammarAxis = 'register' | 'constraint' | 'variant';
 /** JLPT level (1..5) -> grammar point ids, in the source's original order (alphabetical - grammar has no frequency data to sort by, unlike vocab). */
 export type GrammarJlptIndex = Record<number, string[]>;
 
-export const GRAMMAR_JLPT_LEVELS = [5, 4, 3, 2, 1] as const;
-
 /**
  * One chapter of the dataset's authored teaching order - a run of grammar points
  * meant to be met together. Mirrors the dataset's GrammarChapter (see its
