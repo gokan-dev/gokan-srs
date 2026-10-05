@@ -1,6 +1,11 @@
 import type { Sentence } from '../models/sentence.model';
+import type { Vocabulary } from '../models/vocabulary.model';
 import type { LearnerVocab } from './sentenceRanking';
 import { pickSentenceForVocab } from './sentenceRanking';
+import { readingMatchesWord, toInflectableWord } from './inflection.utils';
+
+/** The target-vocab fields the cloze guard needs (see pickProductionClozeSentence). */
+export type ClozeTargetVocab = Pick<Vocabulary, 'writtenForm' | 'reading'> & Partial<Pick<Vocabulary, 'senses'>>;
 
 /**
  * A single sentence chosen to drive the production cloze card (issue #72): the
@@ -45,6 +50,15 @@ export function clozeAcceptedForms(cloze: ProductionCloze | null): string[] {
  * every candidate contains it. The pick is seeded on the vocab id alone, so the
  * same sentence keeps coming back until its surrounding words mature.
  *
+ * When `vocab` is given, a sentence is usable only if the blanked span is
+ * actually read as that word. The dataset keys sentence matches by written form,
+ * so a form shared by differently-read homographs (遊ぶ is both あそぶ and the rare
+ * すさぶ) can leave a sentence about あそぶ carrying a match for the すさぶ entry;
+ * without this guard its cloze would blank 遊んでる and grade it correct against a
+ * "grow wild" cue (the reported production-quiz bug). `readingMatchesWord` drops
+ * such a match; a reading-mismatched sole candidate just falls back to the gloss
+ * card. (Omitting `vocab` skips the guard - used only by selection-logic tests.)
+ *
  * Returns null when no sentence has a usable match - the caller reads that as
  * "fall back to the gloss-prompt card" (VocabProductionQuizCard). Coverage is
  * inherently partial: not every vocab has sentences, and not every sentence a
@@ -53,9 +67,16 @@ export function clozeAcceptedForms(cloze: ProductionCloze | null): string[] {
 export function pickProductionClozeSentence(
     vocabId: string,
     sentences: Sentence[],
-    learner: LearnerVocab
+    learner: LearnerVocab,
+    vocab?: ClozeTargetVocab,
 ): ProductionCloze | null {
-    const usable = sentences.filter(s => (s.matches?.[vocabId]?.length ?? 0) > 0);
+    const word = vocab ? toInflectableWord(vocab) : null;
+    const usable = sentences.filter(s => {
+        const matches = s.matches?.[vocabId];
+        if (!matches || matches.length === 0) return false;
+        // The span this sentence would blank is matches[0] (the first occurrence).
+        return !word || readingMatchesWord(matches[0].reading ?? '', word);
+    });
     const sentence = pickSentenceForVocab(vocabId, usable, learner);
     if (!sentence) return null;
     const match = sentence.matches![vocabId][0];

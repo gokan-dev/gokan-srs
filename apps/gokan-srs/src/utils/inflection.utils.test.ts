@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateInflections, isFormOfWord, kanaOfSurface, toInflectableWord, wordClassesOf } from './inflection.utils';
+import { generateInflections, isFormOfWord, kanaOfSurface, readingMatchesWord, toInflectableWord, wordClassesOf } from './inflection.utils';
 import type { InflectableWord } from './inflection.utils';
 
 const sensesOf = (...tags: string[][]) => tags.map(pos => ({ pos, glosses: [], misc: [] })) as never;
@@ -142,5 +142,61 @@ describe('isFormOfWord', () => {
     it('does not count a bare stem as a form', () => {
         expect(isFormOfWord('書', KAKU)).toBe(false);
         expect(isFormOfWord('', KAKU)).toBe(false);
+    });
+});
+
+describe('readingMatchesWord', () => {
+    // The two differently-read entries that share the written form 遊ぶ:
+    // 遊ぶ (あそぶ, "play") and the rare 荒ぶ (すさぶ, "grow wild").
+    const ASOBU = word('遊ぶ', 'あそぶ', 'v5b', 'vi');
+    const SUSABU = toInflectableWord({
+        writtenForm: { kanji: '荒ぶ', alternatives: ['進ぶ', '遊ぶ'], containedKanji: [] },
+        reading: { primary: 'すさぶ', alternatives: [] },
+        senses: sensesOf(['v5b', 'vi']),
+    } as never);
+
+    it('accepts an inflected reading that keeps the dictionary stem', () => {
+        expect(readingMatchesWord('あそんでる', ASOBU)).toBe(true);     // 遊んでる
+        expect(readingMatchesWord('あそびました', ASOBU)).toBe(true);
+        expect(readingMatchesWord('すさんで', SUSABU)).toBe(true);      // 荒んで
+    });
+
+    it('rejects a reading that belongs to a differently-read homograph (the bug)', () => {
+        // 遊んでる (あそぶ) must NOT read as the rare すさぶ entry.
+        expect(readingMatchesWord('あそんでる', SUSABU)).toBe(false);
+        // すすんでいた (進む/すすむ) must not attach to a すさぶ/すさむ entry, nor あそぶ.
+        expect(readingMatchesWord('すすんでいた', SUSABU)).toBe(false);
+        expect(readingMatchesWord('すさんで', ASOBU)).toBe(false);
+    });
+
+    it('tolerates trailing auxiliaries and particles the tables do not enumerate', () => {
+        expect(readingMatchesWord('あそんでるよ', ASOBU)).toBe(true);
+        const IERU = word('言える', 'いえる', 'v1', 'vi');
+        expect(readingMatchesWord('いえるでしょう', IERU)).toBe(true);
+        const WARUI = word('悪い', 'わるい', 'adj-i');
+        expect(readingMatchesWord('わるいから', WARUI)).toBe(true);
+    });
+
+    it('requires an exact reading for a non-inflecting word', () => {
+        const KARE = word('彼', 'かれ', 'n');     // "he"
+        const ANO = word('彼の', 'あの', 'adj-pn'); // "that", also written 彼
+        expect(readingMatchesWord('かれ', KARE)).toBe(true);
+        expect(readingMatchesWord('かれ', ANO)).toBe(false);
+    });
+
+    it('normalizes katakana so a loanword hiragana reading matches its katakana reading', () => {
+        const COFFEE = word('珈琲', 'コーヒー', 'n');
+        expect(readingMatchesWord('こーひー', COFFEE)).toBe(true);
+    });
+
+    it('handles する / 来る irregular stems without rejecting a real form', () => {
+        expect(readingMatchesWord('きて', KURU)).toBe(true);
+        expect(readingMatchesWord('きた', KURU)).toBe(true);
+        expect(readingMatchesWord('こない', KURU)).toBe(true);
+        expect(readingMatchesWord('して', SURU)).toBe(true);
+    });
+
+    it('never excludes a match that carries no reading', () => {
+        expect(readingMatchesWord('', SUSABU)).toBe(true);
     });
 });

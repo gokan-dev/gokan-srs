@@ -1,5 +1,6 @@
 import type { Vocabulary } from '../models/vocabulary.model';
 import { hasKanji, isKanaOnly, kanjiSkeleton } from './kanji.utils';
+import { toHiragana } from './romaji';
 
 /**
  * How a word inflects, from its JMdict part-of-speech tags.
@@ -265,6 +266,38 @@ export function generateInflections(word: InflectableWord): InflectedForm[] {
 export function kanaOfSurface(surface: string, word: InflectableWord): string | null {
     const match = generateInflections(word).find(f => f.written === surface);
     return match ? match.kana : null;
+}
+
+/**
+ * True when a sentence span READ `reading` (hiragana, possibly inflected and
+ * extended with auxiliaries, e.g. あそんでる / いえるでしょう) plausibly belongs to
+ * `word`. Unlike `isFormOfWord`, this asks only about the reading, and tolerates
+ * trailing auxiliaries/particles the inflection tables do not enumerate.
+ *
+ * It is the app-side guard against the dataset's homograph-match bug: a written
+ * form shared by differently-read entries (遊ぶ is both あそぶ and the rare すさぶ)
+ * can leave a sentence about あそぶ carrying a match for the すさぶ entry, whose
+ * production cloze would then blank 遊んでる and grade it correct against a "grow
+ * wild" cue. The reading tells them apart - あそんでる is not a form of すさぶ.
+ *
+ * A non-inflecting word must match a reading (or a kana written form) exactly. An
+ * inflecting word fits when the reading begins with a generated inflection: every
+ * form of あそぶ starts あそ, of いえる starts いえ, so すすんでいた (すすむ) does not
+ * belong to a すさむ entry. Katakana is normalized so a loanword's hiragana
+ * sentence reading (こーひー) matches its katakana dictionary reading (コーヒー).
+ */
+export function readingMatchesWord(reading: string, word: InflectableWord): boolean {
+    const r = toHiragana(normalize(reading));
+    if (!r) return true; // no reading to judge by -> never exclude on this basis
+    const readings = word.readings.map(toHiragana);
+    if (readings.includes(r)) return true;
+    if (word.written.map(toHiragana).includes(r)) return true; // kana-only written forms
+    if (word.classes.length === 0) return false;
+    // generateInflections off the normalized readings yields hiragana kana forms;
+    // a real occurrence begins with one (trailing particles/auxiliaries aside).
+    return generateInflections({ ...word, readings }).some(
+        f => f.kana.length >= 2 && r.startsWith(toHiragana(f.kana)),
+    );
 }
 
 /** A written form's stem: what stays fixed while the word inflects. */

@@ -124,7 +124,7 @@ Object.assign(KANA_TO_ROMAJI, {
 });
 
 /** Katakana to hiragana; everything else unchanged. */
-function toHiragana(input: string): string {
+export function toHiragana(input: string): string {
     return input.replace(/[ァ-ヶ]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60));
 }
 

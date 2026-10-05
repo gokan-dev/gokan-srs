@@ -891,7 +891,10 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             // after a wrong answer (findProductionSynonym).
             if (quizType === 'production') {
                 if (sentences && sentences.length > 0) {
-                    productionCloze = pickProductionClozeSentence(vid, sentences, learner);
+                    // Pass the loaded vocab so the cloze guard rejects a sentence whose
+                    // blanked span is a differently-read homograph (遊ぶ/あそぶ matched to
+                    // the rare すさぶ entry) - see pickProductionClozeSentence.
+                    productionCloze = pickProductionClozeSentence(vid, sentences, learner, vocab);
                 }
             } else if (sentences && sentences.length > 0) {
                 selectedSentenceId = pickSentenceForVocab(vid, sentences, learner)?.id ?? null;

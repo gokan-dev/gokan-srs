@@ -106,6 +106,40 @@ describe('pickProductionClozeSentence', () => {
         ];
         expect(pickProductionClozeSentence('v1', sentences, noLearner)).toBeNull();
     });
+
+    // The reported production-quiz bug: the dataset keys matches by written form,
+    // so the rare 荒ぶ (すさぶ) entry claimed a 遊ぶ (あそぶ) sentence (shared kanji
+    // 遊ぶ), whose cloze then blanked 遊んでる and graded it correct against a
+    // "grow wild" cue. Passing the target vocab filters by reading.
+    const susabu = {
+        writtenForm: { kanji: '荒ぶ', alternatives: ['遊ぶ'], containedKanji: [] },
+        reading: { primary: 'すさぶ', alternatives: [] },
+        senses: [{ pos: ['v5b', 'vi'], glosses: ['to grow wild'], misc: [] }],
+    } as never;
+    const asobu = {
+        writtenForm: { kanji: '遊ぶ', alternatives: [], containedKanji: [] },
+        reading: { primary: 'あそぶ', alternatives: [] },
+        senses: [{ pos: ['v5b', 'vi'], glosses: ['to play'], misc: [] }],
+    } as never;
+    const asobuSentence = makeSentence({
+        id: 'cat', original: '猫が犬と遊んでるよ。', en: [{ id: 'e', text: 'The cat is playing with the dog.' }],
+        matches: { v1: [{ start: 4, length: 4, reading: 'あそんでる' }] },
+    });
+
+    it('rejects a sentence whose blanked span is read as a different homograph', () => {
+        // すさぶ must not blank 遊んでる (read あそんでる) - no other sentence, so null.
+        expect(pickProductionClozeSentence('v1', [asobuSentence], noLearner, susabu)).toBeNull();
+    });
+
+    it('keeps the sentence for the entry it is actually read as', () => {
+        const cloze = pickProductionClozeSentence('v1', [asobuSentence], noLearner, asobu);
+        expect(cloze?.sentence.id).toBe('cat');
+        expect(blankSurfaceOf(cloze!)).toBe('遊んでる');
+    });
+
+    it('skips the guard when no target vocab is supplied (legacy selection-logic path)', () => {
+        expect(pickProductionClozeSentence('v1', [asobuSentence], noLearner)?.sentence.id).toBe('cat');
+    });
 });
 
 describe('splitSentenceAtBlank', () => {
