@@ -1,13 +1,27 @@
 import { CONSTANTS } from '../commons/constants';
-import type { VocabProgress, SRSEntry } from '../models/vocabulary.model';
+import type { NeedsRetryFlags, ReviewLog, SRSEntry, VocabProgress } from '../models/vocabulary.model';
 import type { UserProgress, UserSettings } from '../models/user.model';
-import { DEFAULT_SRS_ENTRY, DEFAULT_VOCABULARY_PROGRESS } from '../models/vocabulary.model';
+import { DEFAULT_PROGRESS } from '../models/user.model';
+import { DEFAULT_SRS_ENTRY } from '../models/vocabulary.model';
 import type { GrammarProgress } from '../models/grammar.model';
-import { DEFAULT_GRAMMAR_PROGRESS } from '../models/grammar.model';
 import { vocabNextReviewAt } from './scheduling';
 import { grammarNextReviewAt } from './grammarScheduling';
 import { GrammarService } from './grammar.service';
 import { seedCalibrationFromHistory } from './calibration';
+import { fetchJson } from './http';
+import {
+    hydrateAdaptiveStats,
+    hydrateCalibration,
+    hydrateDate,
+    hydrateGrammarProgress,
+    hydrateWatchedEpisodes,
+    hydrateKanjiKnowledge,
+    hydrateSRSEntry,
+    hydrateStats,
+    hydrateVocabProgress,
+    type StoredProgress,
+    type StoredVocabProgress,
+} from './progressHydration';
 
 /**
  * Two-tier version scheme:
@@ -54,28 +68,28 @@ export const CURRENT_FORMAT_VERSION = 12;
  */
 export class MigrationService {
     /**
-     * Migrates a single vocab progress item from old format to new format
-     * Handles conversion from mastery (0-100) to memoryStrength/interval system
+     * Migrates and hydrates a single stored vocab item. Below format version 3 an
+     * item can still carry the old single `mastery` percentage, which is converted
+     * into the reading entry; every item gets the per-type retry flag.
+     *
+     * The `mastery` field itself is deliberately preserved on the item (the spread
+     * in hydrateVocabProgress keeps it), which is exactly why the conversion must be
+     * gated on the format version: from version 3 on it is a leftover, not a source.
      */
-    static migrateVocabProgress(item: any): VocabProgress {
-        // Check if item has the old 'mastery' field
-        // If it does, we need to migrate regardless of whether reading/meaning exist
-        const hasOldFormat = item.mastery !== undefined;
-
-        if (!hasOldFormat) {
-            // Already migrated (no mastery field), just ensure all fields are present
-            return this.normalizeNeedsRetry({
-                ...DEFAULT_VOCABULARY_PROGRESS,
-                ...item,
-                reading: { ...DEFAULT_SRS_ENTRY, ...item.reading },
-                meaning: { ...DEFAULT_SRS_ENTRY, ...item.meaning },
-                // Cloned rather than left to the DEFAULT_VOCABULARY_PROGRESS spread above,
-                // which would hand every migrated item the same entry object to share.
-                production: { ...DEFAULT_SRS_ENTRY, ...item.production }
-            });
+    static migrateVocabProgress(item: StoredVocabProgress, formatVersion = 0): VocabProgress {
+        const needsRetry = this.normalizeNeedsRetry(item.needsRetry);
+        if (formatVersion >= 3 || item.mastery === undefined) {
+            return hydrateVocabProgress(item, needsRetry);
         }
+        return hydrateVocabProgress(item, needsRetry, {
+            reading: this.readingEntryFromMastery(item),
+            meaning: hydrateSRSEntry(undefined), // Meaning starts fresh
+            production: hydrateSRSEntry(undefined), // Inert until activated (see backfillProduction)
+        });
+    }
 
-        // Old format detected - migrate from mastery to memoryStrength
+    /** Converts the pre-v3 mastery percentage into a reading SRS entry. */
+    private static readingEntryFromMastery(item: StoredVocabProgress): SRSEntry {
         const mastery = item.mastery ?? 0;
         const maxMemoryStrength = CONSTANTS.srs.formula.mastery.maxMemoryStrength;
 
@@ -97,27 +111,14 @@ export class MigrationService {
             Math.min(interval, CONSTANTS.srs.formula.maxInterval)
         );
 
-        // Create migrated SRSEntry
-        const migratedEntry: SRSEntry = {
+        return {
             memoryStrength,
             interval: clampedInterval,
             difficulty: 0.3, // Default difficulty
-            lastReviewedAt: item.lastReviewedAt || null,
-            dueDate: item.nextReviewAt || null,
+            lastReviewedAt: hydrateDate(item.lastReviewedAt),
+            dueDate: hydrateDate(item.nextReviewAt),
             history: []
         };
-
-        // Build migrated vocab progress (without mastery field)
-        // IMPORTANT: We do NOT remove the 'mastery' field anymore.
-        // It is preserved for future reference if needed.
-
-        return this.normalizeNeedsRetry({
-            ...DEFAULT_VOCABULARY_PROGRESS,
-            ...item, // Keep all original fields including mastery
-            reading: { ...migratedEntry },
-            meaning: { ...DEFAULT_SRS_ENTRY }, // Meaning starts fresh
-            production: { ...DEFAULT_SRS_ENTRY } // Inert until activated (see backfillProduction)
-        });
     }
 
     /**
@@ -126,12 +127,9 @@ export class MigrationService {
      * never blocks a due meaning review (and vice versa). Historically the flag
      * was only ever set for reading quizzes, so an old `true` maps to {reading: true}.
      */
-    private static normalizeNeedsRetry(item: VocabProgress): VocabProgress {
-        const raw = (item as any).needsRetry;
-        if (typeof raw === 'boolean') {
-            return { ...item, needsRetry: raw ? { reading: true } : undefined };
-        }
-        return item;
+    private static normalizeNeedsRetry(raw: StoredVocabProgress['needsRetry']): NeedsRetryFlags | undefined {
+        if (typeof raw === 'boolean') return raw ? { reading: true } : undefined;
+        return raw;
     }
 
     /**
@@ -180,21 +178,26 @@ export class MigrationService {
     /**
      * Migrates base progress
      */
-    static migrateUserProgress(progress: any, settings?: Pick<UserSettings, 'enableMeaningQuiz'>): UserProgress {
+    /**
+     * Migrates a stored payload and hydrates it into a UserProgress, in that order:
+     * legacy shapes are converted while still in stored form (they only exist
+     * there), then every pass below runs on real Dates. Before this ordering the
+     * passes ran on un-hydrated JSON typed as if it were hydrated, so due dates
+     * were compared as strings.
+     */
+    static migrateUserProgress(progress: StoredProgress, settings?: Pick<UserSettings, 'enableMeaningQuiz'>): UserProgress {
         const currentVersion = progress._formatVersion ?? 0;
 
         // V1 to V3 Migrations
-        let migratedQueue = progress.learningQueue ?? [];
+        let migratedQueue = (progress.learningQueue ?? []).map(item => this.migrateVocabProgress(item, currentVersion));
         if (currentVersion < 3) {
-            migratedQueue = migratedQueue.map((item: any) => this.migrateVocabProgress(item));
-
             migratedQueue = migratedQueue.map((item: VocabProgress) => {
                 if (item.stage === 'learning' && !item.meaning.dueDate && item.meaning.interval === 0) {
                     return {
                         ...item,
                         meaning: {
                             ...item.meaning,
-                            dueDate: new Date().toISOString()
+                            dueDate: new Date()
                         }
                     };
                 }
@@ -204,7 +207,7 @@ export class MigrationService {
 
         // V7 Migration: Fix skipped vocabularies that have high reading strength but stuck meaning schedules
         if (currentVersion < 7) {
-            migratedQueue = migratedQueue.map((item: VocabProgress) => {
+            migratedQueue = migratedQueue.map((item: VocabProgress): VocabProgress => {
                 // Identify items skipped before Meaning Quiz was fully integrated
                 // Characteristic: High reading memory, but meaning is 0/1, and stage is learning but no nextReviewAt
                 if (
@@ -228,11 +231,6 @@ export class MigrationService {
                 return item;
             });
         }
-
-        // Normalize needsRetry (boolean -> per-type object) unconditionally, since
-        // this field can exist regardless of format version and isn't covered by
-        // the version-gated passes above.
-        migratedQueue = migratedQueue.map((item: VocabProgress) => this.normalizeNeedsRetry(item));
 
         // Production entry backfill, unconditional (additive field, no version gate).
         migratedQueue = migratedQueue.map((item: VocabProgress) => this.backfillProduction(item));
@@ -262,12 +260,8 @@ export class MigrationService {
         // grammarQueue is a purely additive field (issue #17), so it needs no
         // version-gated migration pass - just defaults filled in and nextReviewAt
         // derived the same way vocab's is (unconditionally, on every load).
-        const migratedGrammarQueue: GrammarProgress[] = (progress.grammarQueue ?? []).map((item: any) => {
-            const withDefaults: GrammarProgress = {
-                ...DEFAULT_GRAMMAR_PROGRESS,
-                ...item,
-                entry: { ...DEFAULT_SRS_ENTRY, ...item.entry },
-            };
+        const migratedGrammarQueue: GrammarProgress[] = (progress.grammarQueue ?? []).map(item => {
+            const withDefaults = hydrateGrammarProgress(item);
             return withDefaults.stage === 'graduated'
                 ? withDefaults
                 : { ...withDefaults, nextReviewAt: grammarNextReviewAt(withDefaults) };
@@ -275,8 +269,13 @@ export class MigrationService {
 
         // Cap at SYNC_MIGRATION_VERSION (never CURRENT_FORMAT_VERSION) so
         // needsMigration() keeps reporting true until the async pass has run.
+        // The spread keeps fields this build does not know (and the _sync metadata).
         return {
             ...progress,
+            kanjiKnowledge: hydrateKanjiKnowledge(progress.kanjiKnowledge),
+            stats: hydrateStats(progress.stats),
+            dailyOverride: progress.dailyOverride ?? DEFAULT_PROGRESS.dailyOverride,
+            watchedEpisodes: hydrateWatchedEpisodes(progress.watchedEpisodes),
             learningQueue: migratedQueue,
             grammarQueue: migratedGrammarQueue,
             // Purely additive, like grammarQueue itself - just default to [] on
@@ -285,7 +284,7 @@ export class MigrationService {
             // Tombstones for vocab the dataset dropped; the queue above is already
             // filtered by this set. Additive, carried through every load.
             retiredVocabIds,
-            adaptive: progress.adaptive ?? { level: 1.0, history: [] },
+            adaptive: hydrateAdaptiveStats(progress.adaptive),
             // Additive too. A quiz type starts where its own review logs put it
             // (replayed through the live update rule), not at x1 with an empty
             // window; a full live window always wins. The old single `adaptive`
@@ -294,7 +293,7 @@ export class MigrationService {
             calibration: seedCalibrationFromHistory({
                 learningQueue: migratedQueue,
                 grammarQueue: migratedGrammarQueue,
-                calibration: progress.calibration,
+                calibration: hydrateCalibration(progress.calibration),
             }),
             _formatVersion: currentVersion < SYNC_MIGRATION_VERSION ? SYNC_MIGRATION_VERSION : currentVersion
         };
@@ -310,9 +309,7 @@ export class MigrationService {
 
         try {
             // Fetch the map generated by the build script (with cache-busting)
-            const res = await fetch(`/data/compiled/index/merged-map.json?t=${Date.now()}`);
-            if (!res.ok) throw new Error("Could not fetch merged map");
-            const mergedMap: Record<string, string> = await res.json();
+            const mergedMap = await fetchJson<Record<string, string>>(`/data/compiled/index/merged-map.json?t=${Date.now()}`);
 
             // Group by the target (new) ID
             const queueMap = new Map<string, VocabProgress[]>();
@@ -340,8 +337,8 @@ export class MigrationService {
                     let maxReadingInterval = 0;
                     let maxMeaningStrength = 0;
                     let maxMeaningInterval = 0;
-                    const uniqueReadingHistory = new Map<number, any>();
-                    const uniqueMeaningHistory = new Map<number, any>();
+                    const uniqueReadingHistory = new Map<number, ReviewLog>();
+                    const uniqueMeaningHistory = new Map<number, ReviewLog>();
 
                     let earliestIntro = items[0].introductionAt;
 
@@ -358,21 +355,21 @@ export class MigrationService {
                         item.reading.history.forEach(log => uniqueReadingHistory.set(log.date, log));
                         item.meaning.history.forEach(log => uniqueMeaningHistory.set(log.date, log));
 
-                        if (item.introductionAt && (!earliestIntro || new Date(item.introductionAt) < new Date(earliestIntro))) {
+                        if (item.introductionAt && (!earliestIntro || item.introductionAt < earliestIntro)) {
                             earliestIntro = item.introductionAt;
                         }
                     }
 
                     // Sort histories
-                    const allReadingHistory = Array.from(uniqueReadingHistory.values()).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-                    const allMeaningHistory = Array.from(uniqueMeaningHistory.values()).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                    const allReadingHistory = Array.from(uniqueReadingHistory.values()).sort((a, b) => a.date - b.date);
+                    const allMeaningHistory = Array.from(uniqueMeaningHistory.values()).sort((a, b) => a.date - b.date);
 
                     // Determine stage (if any graduated, it's graduated)
                     const isGraduated = items.some(i => i.stage === 'graduated');
 
                     // Determine due date (closest due date)
-                    const closestReadingDue = items.map(i => i.reading.dueDate).filter(Boolean).sort()[0] || null;
-                    const closestMeaningDue = items.map(i => i.meaning.dueDate).filter(Boolean).sort()[0] || null;
+                    const closestReadingDue = earliestDate(items.map(i => i.reading.dueDate));
+                    const closestMeaningDue = earliestDate(items.map(i => i.meaning.dueDate));
 
                     baseItem.totalReviews = totalReviews;
                     baseItem.consecutiveFailures = consecutiveFailures;
@@ -383,7 +380,7 @@ export class MigrationService {
                         ...baseItem.reading,
                         memoryStrength: maxReadingStrength,
                         interval: maxReadingInterval,
-                        dueDate: closestReadingDue as any,
+                        dueDate: closestReadingDue,
                         history: allReadingHistory
                     };
 
@@ -391,7 +388,7 @@ export class MigrationService {
                         ...baseItem.meaning,
                         memoryStrength: maxMeaningStrength,
                         interval: maxMeaningInterval,
-                        dueDate: closestMeaningDue as any,
+                        dueDate: closestMeaningDue,
                         history: allMeaningHistory
                     };
 
@@ -462,7 +459,7 @@ export class MigrationService {
                 GrammarService.loadAliases(),
                 GrammarService.loadVariantGroups(),
             ]);
-            const queue = progress.grammarQueue ?? [];
+            const queue = progress.grammarQueue;
 
             // One remap from both sources. Aliases win a collision: a dropped id
             // cannot be loaded at all, so its target is the only reachable one.
@@ -501,18 +498,17 @@ export class MigrationService {
                             : item.totalReviews > best.totalReviews ? item : best
                 );
 
-                const dates = (values: (Date | string | null)[]) =>
-                    values.filter((v): v is Date | string => v !== null && v !== undefined)
-                        .map(v => new Date(v))
+                const dates = (values: (Date | null)[]) =>
+                    values.filter((v): v is Date => v !== null)
                         .sort((a, b) => a.getTime() - b.getTime());
 
                 const introductions = dates(items.map(i => i.introductionAt));
                 const dueDates = dates(items.map(i => i.nextReviewAt));
                 const lastReviews = dates(items.map(i => i.lastReviewedAt));
 
-                const history = new Map<number, unknown>();
+                const history = new Map<number, ReviewLog>();
                 for (const item of items) {
-                    for (const log of item.entry.history ?? []) history.set((log as { date: number }).date, log);
+                    for (const log of item.entry.history) history.set(log.date, log);
                 }
 
                 merged.push({
@@ -527,18 +523,11 @@ export class MigrationService {
                     needsRetry: items.some(i => i.needsRetry === true) ? true : undefined,
                     entry: {
                         ...strongest.entry,
-                        history: Array.from(history.values()).sort(
-                            (a, b) => (a as { date: number }).date - (b as { date: number }).date
-                        ) as GrammarProgress['entry']['history'],
+                        history: Array.from(history.values()).sort((a, b) => a.date - b.date),
                     },
                 });
             }
 
-            const transferred = queue.length - merged.length;
-            console.log(
-                `[MigrationService] Grammar queue id migration: ${queue.length} -> ${merged.length} entries ` +
-                `(${transferred} merged onto a canonical id)`
-            );
             return stamp(merged);
 
         } catch (e) {
@@ -562,8 +551,13 @@ export class MigrationService {
     /**
      * Check if data needs migration
      */
-    static needsMigration(progress: any): boolean {
+    static needsMigration(progress: StoredProgress): boolean {
         const currentVersion = progress._formatVersion ?? 0;
         return currentVersion < CURRENT_FORMAT_VERSION;
     }
+}
+
+/** The earliest of some optional dates, compared as instants (a default sort would compare their strings). */
+function earliestDate(values: (Date | null)[]): Date | null {
+    return values.reduce<Date | null>((earliest, d) => (d && (!earliest || d < earliest) ? d : earliest), null);
 }

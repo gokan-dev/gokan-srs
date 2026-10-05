@@ -16,5 +16,20 @@
     "dictionary:build": "bun --cwd apps/gokan-dictionary build",
     "dataset:build": "bun --cwd apps/gokan-srs build:data",
     "dataset:sync": "bun --cwd apps/gokan-srs sync:dataset"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/node": "^24.10.1",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "eslint-plugin-svelte": "^3.23.0",
+    "globals": "^16.5.0",
+    "jiti": "^2.7.0",
+    "jscpd": "^4.3.0",
+    "knip": "^5.88.1",
+    "svelte-eslint-parser": "^1.8.1",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.46.4"
   }
 }

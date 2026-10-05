@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { MigrationService, CURRENT_FORMAT_VERSION } from './migration.service';
 import { CONSTANTS } from '../commons/constants';
-import type { VocabProgress } from '../models/vocabulary.model';
+import type { ReviewLog, VocabProgress } from '../models/vocabulary.model';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../models/vocabulary.model';
+import type { UserProgress } from '../models/user.model';
+import type { StoredProgress, StoredVocabProgress } from './progressHydration';
 import { GrammarService } from './grammar.service';
 import type { GrammarProgress } from '../models/grammar.model';
 
@@ -11,7 +13,7 @@ describe('MigrationService', () => {
 
     describe('migrateVocabProgress', () => {
         it('should migrate old format (mastery only) to new format', () => {
-            const oldFormat = {
+            const oldFormat: StoredVocabProgress = {
                 vocabId: 'test-123',
                 stage: 'learning',
                 mastery: 75,
@@ -35,7 +37,7 @@ describe('MigrationService', () => {
             expect(migrated.reading.difficulty).toBe(0.3);
 
             // Should PRESERVE mastery field
-            expect((migrated as any).mastery).toBe(75);
+            expect(migrated).toHaveProperty('mastery', 75);
 
             // Should preserve other fields
             expect(migrated.vocabId).toBe('test-123');
@@ -117,13 +119,13 @@ describe('MigrationService', () => {
 
             const migrated = MigrationService.migrateVocabProgress(oldFormat);
 
-            expect(migrated.reading.dueDate).toBe('2026-02-01T12:00:00Z');
+            expect(migrated.reading.dueDate).toEqual(new Date('2026-02-01T12:00:00Z'));
         });
 
         it('should migrate data that has both mastery and reading/meaning fields with zero values', () => {
             // This is the bug case - old data that has both mastery and reading/meaning
             // with default/zero values should still be migrated
-            const mixedFormat = {
+            const mixedFormat: StoredVocabProgress = {
                 vocabId: 'test-123',
                 stage: 'learning',
                 mastery: 75,
@@ -157,17 +159,17 @@ describe('MigrationService', () => {
             expect(migrated.reading.interval).toBeGreaterThan(0);
 
             // Should PRESERVE mastery field
-            expect((migrated as any).mastery).toBe(75);
+            expect(migrated).toHaveProperty('mastery', 75);
 
             // Should preserve other fields
             expect(migrated.totalReviews).toBe(1);
-            expect(migrated.reading.dueDate).toBe('2026-01-18T23:08:48.846Z');
+            expect(migrated.reading.dueDate).toEqual(new Date('2026-01-18T23:08:48.846Z'));
         });
     });
 
     describe('migrateUserProgress', () => {
         it('should migrate entire learning queue', () => {
-            const oldProgress = {
+            const oldProgress: StoredProgress = {
                 kanjiKnowledge: {
                     method: 'kklc',
                     step: 100,
@@ -217,7 +219,7 @@ describe('MigrationService', () => {
             // recomputed nextReviewAt WITHOUT settings (=> meaning treated as
             // enabled), while mergeVocabProgress recomputed WITH settings, so the
             // derived value flipped on every load->merge round trip.
-            const progress = {
+            const progress: StoredProgress = {
                 _formatVersion: 7,
                 kanjiKnowledge: { method: 'kklc', step: 1, kanjiSet: [] },
                 learningQueue: [
@@ -238,16 +240,16 @@ describe('MigrationService', () => {
             };
 
             // Meaning quizzes disabled: only the reading due date is authoritative.
-            const disabled = MigrationService.migrateUserProgress(structuredClone(progress) as any, { enableMeaningQuiz: false });
-            expect(disabled.learningQueue[0].nextReviewAt).toBe('2026-07-24T00:00:00.000Z' as any);
+            const disabled = MigrationService.migrateUserProgress(structuredClone(progress), { enableMeaningQuiz: false });
+            expect(disabled.learningQueue[0].nextReviewAt).toEqual(new Date('2026-07-24T00:00:00.000Z'));
 
             // Meaning quizzes enabled: the earlier meaning due date wins.
-            const enabled = MigrationService.migrateUserProgress(structuredClone(progress) as any, { enableMeaningQuiz: true });
-            expect(enabled.learningQueue[0].nextReviewAt).toBe('2026-07-19T00:00:00.000Z' as any);
+            const enabled = MigrationService.migrateUserProgress(structuredClone(progress), { enableMeaningQuiz: true });
+            expect(enabled.learningQueue[0].nextReviewAt).toEqual(new Date('2026-07-19T00:00:00.000Z'));
         });
 
         it('should not re-migrate if already at current version or V3 sync cap', () => {
-            const alreadyMigrated = {
+            const alreadyMigrated: StoredProgress = {
                 _formatVersion: 3,
                 kanjiKnowledge: {
                     method: 'kklc', // Only partial check needed for types, casting if needed
@@ -260,15 +262,14 @@ describe('MigrationService', () => {
                 adaptive: { level: 1.0, history: [] }
             };
 
-            // Cast to solve type issues in test
-            const result = MigrationService.migrateUserProgress(alreadyMigrated as any);
+            const result = MigrationService.migrateUserProgress(alreadyMigrated);
 
             // Should return as-is (sync cap is 7)
             expect(result._formatVersion).toBe(7);
         });
 
         it('should migrate version 2 to version 3 (add adaptive stats AND init meaning)', () => {
-            const v2Progress = {
+            const v2Progress: StoredProgress = {
                 _formatVersion: 2,
                 kanjiKnowledge: { method: 'kklc', step: 1, kanjiSet: [] },
                 learningQueue: [
@@ -299,19 +300,19 @@ describe('MigrationService', () => {
 
     describe('needsRetry normalization (boolean -> per-type object)', () => {
         it('converts a legacy true boolean to {reading: true}', () => {
-            const item: any = { vocabId: 'v1', totalReviews: 1, consecutiveFailures: 0, needsRetry: true };
+            const item: StoredVocabProgress = { vocabId: 'v1', totalReviews: 1, consecutiveFailures: 0, needsRetry: true };
             const migrated = MigrationService.migrateVocabProgress(item);
             expect(migrated.needsRetry).toEqual({ reading: true });
         });
 
         it('converts a legacy false boolean to undefined', () => {
-            const item: any = { vocabId: 'v1', totalReviews: 1, consecutiveFailures: 0, needsRetry: false };
+            const item: StoredVocabProgress = { vocabId: 'v1', totalReviews: 1, consecutiveFailures: 0, needsRetry: false };
             const migrated = MigrationService.migrateVocabProgress(item);
             expect(migrated.needsRetry).toBeUndefined();
         });
 
         it('leaves an already-migrated per-type object untouched', () => {
-            const item: any = { vocabId: 'v1', totalReviews: 1, consecutiveFailures: 0, needsRetry: { meaning: true } };
+            const item: StoredVocabProgress = { vocabId: 'v1', totalReviews: 1, consecutiveFailures: 0, needsRetry: { meaning: true } };
             const migrated = MigrationService.migrateVocabProgress(item);
             expect(migrated.needsRetry).toEqual({ meaning: true });
         });
@@ -320,7 +321,7 @@ describe('MigrationService', () => {
             // Simulates an already-current-version user (V7) whose stored data still
             // has the legacy boolean shape - migrateVocabProgress's V1-V3 gate would
             // never touch this item, so migrateUserProgress must normalize unconditionally.
-            const progress: any = {
+            const progress: StoredProgress = {
                 _formatVersion: 7,
                 kanjiKnowledge: { method: 'kklc', step: 10, kanjiSet: [] },
                 learningQueue: [
@@ -392,7 +393,7 @@ describe('MigrationService', () => {
             // The core regression test: previously migrateUserProgress jumped straight
             // to CURRENT_FORMAT_VERSION, so a single synchronous load would silently
             // skip the async merge forever. It must now always leave needsMigration() true.
-            const oldProgress: any = { learningQueue: [], stats: { newLearnedToday: 0, totalLearned: 0, totalReviews: 0 }, dailyOverride: false };
+            const oldProgress: StoredProgress = { learningQueue: [], stats: { newLearnedToday: 0, totalLearned: 0, totalReviews: 0 }, dailyOverride: false };
             const migratedSync = MigrationService.migrateUserProgress(oldProgress);
 
             expect(migratedSync._formatVersion).toBe(7);
@@ -412,7 +413,7 @@ describe('MigrationService', () => {
     describe('Real Production Data Sample', () => {
         it('should successfully migrate a sample from production data', () => {
             // Sample from actual kanji-progress.json
-            const productionSample = {
+            const productionSample: StoredVocabProgress = {
                 vocabId: '1375610',
                 stage: 'learning',
                 mastery: 75,
@@ -428,29 +429,26 @@ describe('MigrationService', () => {
             // Should have valid SRS data
             expect(migrated.reading.memoryStrength).toBeGreaterThan(0);
             expect(migrated.reading.interval).toBeGreaterThan(0);
-            expect(migrated.reading.dueDate).toBe('2026-02-09T13:25:07.640Z');
+            expect(migrated.reading.dueDate).toEqual(new Date('2026-02-09T13:25:07.640Z'));
 
             // Should preserve review history
             expect(migrated.totalReviews).toBe(5);
-            expect(migrated.lastReviewedAt).toBe('2026-01-27T23:47:24.343Z');
+            expect(migrated.lastReviewedAt).toEqual(new Date('2026-01-27T23:47:24.343Z'));
 
             // Should PRESERVE mastery
-            expect((migrated as any).mastery).toBe(75);
+            expect(migrated).toHaveProperty('mastery', 75);
         });
     });
 
     describe('migrateMergedVocabsAsync V6 Deduplication', () => {
         it('should correctly deduplicate histories and use max totalReviews', async () => {
             // Mock fetch to return a simple map
-            globalThis.fetch = async () => ({
-                ok: true,
-                json: async () => ({
-                    'old-id-1': 'new-base-id',
-                    'old-id-2': 'new-base-id'
-                })
-            }) as any;
+            vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+                'old-id-1': 'new-base-id',
+                'old-id-2': 'new-base-id'
+            })));
 
-            const duplicateProgress: any = {
+            const duplicateProgress = MigrationService.migrateUserProgress({
                 _formatVersion: 5,
                 learningQueue: [
                     {
@@ -497,9 +495,10 @@ describe('MigrationService', () => {
                         }
                     }
                 ]
-            };
+            });
 
             const migrated = await MigrationService.migrateMergedVocabsAsync(duplicateProgress);
+            vi.restoreAllMocks();
 
             expect(migrated._formatVersion).toBe(8); // the vocab-merge pass's own version, not the terminal one
             expect(migrated.learningQueue).toHaveLength(1); // Properly merged
@@ -521,7 +520,7 @@ describe('MigrationService', () => {
 
     describe('grammarQueue (additive field, no version gate needed)', () => {
         it('defaults to an empty array when absent from stored data', () => {
-            const progress: any = {
+            const progress: StoredProgress = {
                 kanjiKnowledge: { method: 'kklc', step: 10, kanjiSet: [] },
                 learningQueue: [],
                 stats: { newLearnedToday: 0, totalLearned: 0, totalReviews: 0 },
@@ -533,7 +532,7 @@ describe('MigrationService', () => {
         });
 
         it('fills in defaults for a partial GrammarProgress item', () => {
-            const progress: any = {
+            const progress: StoredProgress = {
                 kanjiKnowledge: { method: 'kklc', step: 10, kanjiSet: [] },
                 learningQueue: [],
                 grammarQueue: [{ grammarId: 'n5-001', stage: 'learning', entry: { memoryStrength: 5, interval: 2, dueDate: '2026-06-01T00:00:00.000Z' } }],
@@ -544,11 +543,11 @@ describe('MigrationService', () => {
             const migrated = MigrationService.migrateUserProgress(progress);
             expect(migrated.grammarQueue).toHaveLength(1);
             expect(migrated.grammarQueue[0].entry.difficulty).toBeDefined();
-            expect(migrated.grammarQueue[0].nextReviewAt).toEqual('2026-06-01T00:00:00.000Z');
+            expect(migrated.grammarQueue[0].nextReviewAt).toEqual(new Date('2026-06-01T00:00:00.000Z'));
         });
 
         it('leaves a graduated grammar item nextReviewAt null rather than re-deriving from a stale dueDate', () => {
-            const progress: any = {
+            const progress: StoredProgress = {
                 kanjiKnowledge: { method: 'kklc', step: 10, kanjiSet: [] },
                 learningQueue: [],
                 grammarQueue: [{
@@ -568,7 +567,7 @@ describe('MigrationService', () => {
 
     describe('completedChapters (additive field, no version gate needed)', () => {
         it('defaults to an empty array when absent from stored data', () => {
-            const progress = {
+            const progress: StoredProgress = {
                 kanjiKnowledge: { method: 'kklc', step: 10, kanjiSet: [] },
                 learningQueue: [],
                 stats: { newLearnedToday: 0, totalLearned: 0, totalReviews: 0 },
@@ -580,7 +579,7 @@ describe('MigrationService', () => {
         });
 
         it('leaves an already-stored completedChapters list untouched', () => {
-            const progress = {
+            const progress: StoredProgress = {
                 kanjiKnowledge: { method: 'kklc', step: 10, kanjiSet: [] },
                 learningQueue: [],
                 completedChapters: ['n5-c01', 'n5-c02'],
@@ -622,7 +621,7 @@ describe('MigrationService', () => {
     });
 
     describe('calibration (additive field, no version gate needed)', () => {
-        const base = {
+        const base: StoredProgress = {
             kanjiKnowledge: { method: 'kklc', step: 10, kanjiSet: [] },
             learningQueue: [],
             stats: { newLearnedToday: 0, totalLearned: 0, totalReviews: 0 },
@@ -660,14 +659,18 @@ describe('MigrationService.migrateGrammarQueueIdsAsync', () => {
                 difficulty: 0.5,
                 lastReviewedAt: null,
                 dueDate: null,
-                history: [{ date: 1000, result: 'correct' } as any],
+                history: [log(1000, 'correct')],
             },
             ...overrides,
         };
     }
 
-    function makeProgressWith(grammarQueue: GrammarProgress[], version = 8): any {
-        return { _formatVersion: version, learningQueue: [], grammarQueue };
+    function log(date: number, result: ReviewLog['result']): ReviewLog {
+        return { date, result, interval: 0, latency: 0 };
+    }
+
+    function makeProgressWith(grammarQueue: GrammarProgress[], version = 8): UserProgress {
+        return { ...MigrationService.migrateUserProgress({}), learningQueue: [], grammarQueue, _formatVersion: version };
     }
 
     beforeEach(() => {
@@ -704,7 +707,7 @@ describe('MigrationService.migrateGrammarQueueIdsAsync', () => {
                 totalReviews: 2,
                 introductionAt: new Date('2026-06-10T00:00:00Z'),
                 nextReviewAt: new Date('2026-07-20T00:00:00Z'),
-                entry: { ...makeGrammar().entry, memoryStrength: 4, history: [{ date: 2000, result: 'wrong' } as any] },
+                entry: { ...makeGrammar().entry, memoryStrength: 4, history: [log(2000, 'wrong')] },
             }),
             makeGrammar({
                 grammarId: 'n4-079',
@@ -712,7 +715,7 @@ describe('MigrationService.migrateGrammarQueueIdsAsync', () => {
                 introductionAt: new Date('2026-06-01T00:00:00Z'),
                 nextReviewAt: new Date('2026-07-05T00:00:00Z'),
                 stage: 'graduated',
-                entry: { ...makeGrammar().entry, memoryStrength: 30, history: [{ date: 1000, result: 'correct' } as any] },
+                entry: { ...makeGrammar().entry, memoryStrength: 30, history: [log(1000, 'correct')] },
             }),
         ]);
 
@@ -726,7 +729,7 @@ describe('MigrationService.migrateGrammarQueueIdsAsync', () => {
         expect(merged.stage).toBe('graduated');                 // graduated if either was
         expect(merged.introductionAt).toEqual(new Date('2026-06-01T00:00:00Z')); // earliest
         expect(merged.nextReviewAt).toEqual(new Date('2026-07-05T00:00:00Z'));   // soonest due
-        expect(merged.entry.history.map((h: any) => h.date)).toEqual([1000, 2000]); // union, sorted
+        expect(merged.entry.history.map(h => h.date)).toEqual([1000, 2000]); // union, sorted
     });
 
     it('leaves a queue with no aliased ids untouched but still stamps the version', async () => {
@@ -791,7 +794,7 @@ describe('MigrationService.migrateGrammarQueueIdsAsync', () => {
                 { id: 'n5-005', relation: 'contraction', title: 'A。それじゃ、～B。' },
                 { id: 'n5-004', relation: 'contraction', title: 'A。じゃ、～B。' },
             ],
-        } as any);
+        });
         const progress = makeProgressWith([
             makeGrammar({ grammarId: 'n5-004', totalReviews: 9, entry: { ...makeGrammar().entry, memoryStrength: 40 } }),
         ]);
@@ -814,7 +817,7 @@ describe('MigrationService.migrateGrammarQueueIdsAsync', () => {
                 { id: 'n5-104', relation: 'politeness', title: 'どこにも〜ないです' },
                 { id: 'n5-107', relation: 'particle', title: 'どこへも〜ません' },
             ],
-        } as any);
+        });
         const progress = makeProgressWith([
             makeGrammar({ grammarId: 'n5-105', totalReviews: 2, entry: { ...makeGrammar().entry, memoryStrength: 5 } }),
             makeGrammar({ grammarId: 'n5-104', totalReviews: 8, entry: { ...makeGrammar().entry, memoryStrength: 50 } }),
@@ -839,7 +842,7 @@ describe('MigrationService.migrateGrammarQueueIdsAsync', () => {
                 { id: 'n5-006', relation: 'canonical', title: 'A。それでは、～B。' },
                 { id: 'n5-004', relation: 'contraction', title: 'A。じゃ、～B。' },
             ],
-        } as any);
+        });
 
         const migrated = await MigrationService.migrateGrammarQueueIdsAsync(
             makeProgressWith([makeGrammar({ grammarId: 'n5-004' })])
@@ -872,7 +875,7 @@ describe('MigrationService.migrateGrammarQueueIdsAsync', () => {
 describe('production entry backfill', () => {
     const maxMemoryStrength = CONSTANTS.srs.formula.mastery.maxMemoryStrength;
 
-    const progressWith = (queue: unknown[]) => ({
+    const progressWith = (queue: StoredVocabProgress[]): StoredProgress => ({
         _formatVersion: 7,
         learningQueue: queue,
         grammarQueue: [],
@@ -880,7 +883,7 @@ describe('production entry backfill', () => {
         stats: { newLearnedToday: 0, totalLearned: 0, totalReviews: 0 },
     });
 
-    const learningItem = (overrides: Record<string, unknown> = {}) => ({
+    const learningItem = (overrides: StoredVocabProgress = {}): StoredVocabProgress => ({
         vocabId: 'v1',
         stage: 'learning',
         introductionAt: new Date('2025-01-01T00:00:00Z'),
