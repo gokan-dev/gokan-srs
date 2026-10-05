@@ -1,7 +1,7 @@
 import type { Leniency } from '../../utils/answerMatching';
 import { insertAtFraction } from '../../utils/insertAtFraction';
 import type { UserProgress } from '../../models/user.model';
-import type { GrammarExample, GrammarPoint } from '../../models/grammar.model';
+import type { GrammarExample, GrammarPoint } from '@gokan/dataset-schema';
 import type { AnswerResult } from '../../services/srs.service';
 import { GrammarSRSService } from '../../services/grammarSrs.service';
 import type { QuizState, SessionGains } from './quizReducer';

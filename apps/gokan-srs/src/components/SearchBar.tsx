@@ -2,7 +2,7 @@ import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { Search, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { VocabularyService } from '../services/vocabulary.service';
-import type { SearchIndex } from '../models/index.model';
+import type { SearchIndex } from '@gokan/dataset-schema';
 import { useAsyncData } from '../hooks/useAsyncData';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { useResponsive } from '../context/Responsive/useResponsive';

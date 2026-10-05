@@ -1,5 +1,4 @@
-import type { GrammarExample } from '../models/grammar.model';
-import type { Sentence } from '../models/sentence.model';
+import type { GrammarExample, Sentence } from '@gokan/dataset-schema';
 import type { HighlightRange } from './interactiveSentence.utils';
 
 /**

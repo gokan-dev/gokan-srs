@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { generateInflections, isFormOfWord, kanaOfSurface, readingMatchesWord, toInflectableWord, wordClassesOf } from './inflection.utils';
 import type { InflectableWord } from './inflection.utils';
-import type { Sense } from '../models/vocabulary.model';
+import type { Sense } from '@gokan/dataset-schema';
 
 const sensesOf = (...tags: string[][]): Sense[] => tags.map(pos => ({ pos, glosses: [], misc: { rawTags: [] }, related: { compounds: [] } }));
 

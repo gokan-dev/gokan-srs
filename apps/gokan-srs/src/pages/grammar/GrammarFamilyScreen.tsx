@@ -1,6 +1,6 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
-import type { GrammarContrastIndex, GrammarPoint } from "../../models/grammar.model";
+import type { GrammarContrastIndex, GrammarPoint } from "@gokan/dataset-schema";
 import { Card } from "../../components/ui/Card";
 import { JlptChip } from "../../components/JlptChip";
 import { Button } from "../../components/ui/Button";

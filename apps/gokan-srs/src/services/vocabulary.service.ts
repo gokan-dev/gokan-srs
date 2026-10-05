@@ -1,9 +1,6 @@
-import type { Vocabulary } from '../models/vocabulary.model';
-import type { Kanji } from '../models/kanji.model';
-import type { FrequencyIndex, JlptIndex, KKLCIndex, KKLCKanjiIndex, KanjiVocabIndex, SearchIndex } from '../models/index.model';
+import type { FrequencyIndex, JlptIndex, KKLCIndex, KKLCKanjiIndex, Kanji, KanjiVocabIndex, SearchIndex, Sentence, Vocabulary } from '@gokan/dataset-schema';
 import { romajiToHiragana, looksLikeRomaji } from '../utils/romaji';
 import { fetchJson, readJson } from './http';
-import type { Sentence } from '../models/sentence.model';
 
 /**
  * A vocab's compiled file genuinely does not exist (it was dropped from the

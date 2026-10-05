@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { UserProgress } from "../../../models/user.model";
-import type { GrammarTeachingOrder } from "../../../models/grammar.model";
+import type { GrammarTeachingOrder } from "@gokan/dataset-schema";
 import { GrammarService } from "../../../services/grammar.service";
 import { computeGrammarChapterProgress } from "../../../context/quiz/grammarSelectors";
 import { JlptCoverageBars, type JlptLevelRow } from "./JlptCoverageBars";

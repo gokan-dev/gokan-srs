@@ -1,11 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { SRSService } from './srs.service';
+import type { LearnableScope, LearningOrderSettings, ProductionSynonymCandidate, ProductionVocab } from './srs.service';
 import { VocabularyService } from './vocabulary.service';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../models/vocabulary.model';
 import type { VocabProgress } from '../models/vocabulary.model';
 import type { KanjiKnowledge } from '../models/user.model';
-import type { LearningOrderSettings, LearnableScope, ProductionVocab } from './srs.service';
-import type { ProductionSynonymCandidate } from './srs.service';
 import { CONSTANTS } from '../commons/constants';
 import { isVocabDue } from './scheduling';
 

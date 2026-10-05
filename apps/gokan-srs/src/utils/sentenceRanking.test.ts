@@ -11,8 +11,7 @@ import {
 } from './sentenceRanking';
 import type { VocabProgress } from '../models/vocabulary.model';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../models/vocabulary.model';
-import type { Sentence } from '../models/sentence.model';
-import type { GrammarExample } from '../models/grammar.model';
+import type { GrammarExample, Sentence } from '@gokan/dataset-schema';
 import { CONSTANTS } from '../commons/constants';
 
 const past = new Date('2026-06-01T00:00:00Z');

@@ -8,7 +8,7 @@
 // family fields (the ones this page groups by), so rows are built here from the point files
 // prerender already loads plus index/families.json.
 
-import type { GrammarPoint } from '../models/grammar.model';
+import type { GrammarPoint } from '@gokan/dataset-schema';
 
 export type GrammarKind = NonNullable<GrammarPoint['kind']>;
 export type GroupMode = 'level' | 'family';

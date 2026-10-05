@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { UserProgress } from "../../../models/user.model";
-import type { GrammarJlptIndex } from "../../../models/grammar.model";
-import { GRAMMAR_JLPT_LEVELS } from "../../../models/grammar.model";
+import type { GrammarJlptIndex } from "@gokan/dataset-schema";
+import { GRAMMAR_JLPT_LEVELS } from "@gokan/dataset-schema";
 import { GrammarService } from "../../../services/grammar.service";
 import { isGrammarFullyMastered } from "../../../services/grammarScheduling";
 import { JlptCoverageBars, type JlptLevelRow } from "./JlptCoverageBars";

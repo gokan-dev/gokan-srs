@@ -1,5 +1,5 @@
 import { CONSTANTS } from '../commons/constants';
-import type { AdaptiveStats, Calibration, CalibratedQuizType, UserProgress, UserSettings } from '../models/user.model';
+import type { AdaptiveStats, CalibratedQuizType, Calibration, UserProgress, UserSettings } from '../models/user.model';
 import { CALIBRATED_QUIZ_TYPES } from '../models/user.model';
 import type { ReviewLog, SRSEntry, VocabProgress } from '../models/vocabulary.model';
 import type { GrammarProgress } from '../models/grammar.model';

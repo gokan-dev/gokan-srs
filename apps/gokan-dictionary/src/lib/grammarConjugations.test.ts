@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { groupConjugationsByForm } from './grammarConjugations';
-import type { GrammarConjugationIndex, GrammarPoint } from '../models/grammar.model';
+import type { GrammarConjugationIndex, GrammarPoint } from '@gokan/dataset-schema';
 
 function makePoint(overrides: Partial<GrammarPoint> = {}): GrammarPoint {
     return {

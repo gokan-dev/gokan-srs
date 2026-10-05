@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import type { GrammarChapter, GrammarExample, GrammarPoint } from "../../models/grammar.model";
+import type { GrammarChapter, GrammarExample, GrammarPoint } from "@gokan/dataset-schema";
 import { Card } from "../../components/ui/Card";
 import { MasteryRing } from "../../components/MasteryRing";
 import { JlptChip } from "../../components/JlptChip";

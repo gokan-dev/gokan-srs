@@ -1,8 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { vocabMeta, kanjiMeta, homeMeta, grammarChaptersIndexMeta, grammarChapterMeta, grammarFamilyMeta, grammarConjugationsIndexMeta } from './seo';
-import type { Vocabulary } from '../models/vocabulary.model';
-import type { Kanji } from '../models/kanji.model';
-import type { GrammarChapter } from '../models/grammar.model';
+import type { GrammarChapter, Kanji, Vocabulary } from '@gokan/dataset-schema';
 
 function makeVocab(overrides: Partial<Vocabulary> = {}): Vocabulary {
     return {

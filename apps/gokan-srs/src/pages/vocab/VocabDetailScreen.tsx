@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import type { Vocabulary } from "../../models/vocabulary.model";
+import { TagsLookup } from "@gokan/dataset-schema";
+import type { Tags, Vocabulary } from "@gokan/dataset-schema";
 import { Card } from "../../components/ui/Card";
 import { MasteryRing } from "../../components/MasteryRing";
-import { TagsLookup, type Tags } from "../../models/data.model";
 import { useResponsive } from "../../context/Responsive/useResponsive";
 import { useQuiz } from "../../context/useQuiz";
 import { VocabularyService } from "../../services/vocabulary.service";

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { JlptChip } from "../../components/JlptChip";
-import type { GrammarPoint } from "../../models/grammar.model";
+import type { GrammarPoint } from "@gokan/dataset-schema";
 import { GrammarService } from "../../services/grammar.service";
 import { RelatedEntriesCard, type RelatedEntry } from "../../components/RelatedEntriesCard";
 import { useAsyncData } from "../../hooks/useAsyncData";

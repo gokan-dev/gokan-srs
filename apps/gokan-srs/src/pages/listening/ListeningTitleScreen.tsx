@@ -2,25 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Check, ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
-import type { MediaEpisode, MediaTitle, MediaWordCount, WatchedEpisode } from "../../models/media.model";
-import type { Vocabulary } from "../../models/vocabulary.model";
+import type { MediaEpisode, MediaTitle, MediaWordCount, Vocabulary } from "@gokan/dataset-schema";
+import type { WatchedEpisode } from "../../models/media.model";
 import { MediaService } from "../../services/media.service";
 import { VocabularyService } from "../../services/vocabulary.service";
 import { useQuiz } from "../../context/useQuiz";
 import { PageHeader } from "../../components/PageHeader";
 import { ChapterProgressBar } from "../../components/ChapterProgressBar";
 import { usePersistControls, usePersistedControlsSnapshot } from "../../hooks/usePersistedControls";
-import {
-    aggregateEpisodeWords,
-    buildWordKnowledge,
-    computeCoverage,
-    countWatchedEpisodes,
-    episodeKey,
-    formatPercent,
-    knownRatio,
-    speechSpeedLabel,
-    unknownWords,
-} from "../../utils/mediaCoverage.utils";
+import { aggregateEpisodeWords, buildWordKnowledge, computeCoverage, countWatchedEpisodes, episodeKey, formatPercent, knownRatio, speechSpeedLabel, unknownWords } from "../../utils/mediaCoverage.utils";
 import type { WordKnowledge } from "../../utils/mediaCoverage.utils";
 import { WORD_SORTS, isLearnableNow, sortWords } from "../../utils/wordOrder.utils";
 import type { LearnerOrder, WordOrderContext, WordSort } from "../../utils/wordOrder.utils";

@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { quizReducer, initialState, taskKey } from './quizReducer';
+import { initialState, quizReducer, taskKey } from './quizReducer';
 import type { QuizState } from './quizReducer';
 import type { UserProgress, UserSettings } from '../../models/user.model';
 import { DEFAULT_SETTINGS } from '../../models/user.model';
-import type { Vocabulary, VocabProgress } from '../../models/vocabulary.model';
+import type { Vocabulary } from '@gokan/dataset-schema';
+import type { VocabProgress } from '../../models/vocabulary.model';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../../models/vocabulary.model';
 import { CONSTANTS } from '../../commons/constants';
 

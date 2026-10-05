@@ -1,4 +1,5 @@
-import type { VocabProgress, Vocabulary } from "../models/vocabulary.model";
+import type { Vocabulary } from "@gokan/dataset-schema";
+import type { VocabProgress } from "../models/vocabulary.model";
 
 import { MasteryRing } from "./MasteryRing";
 import { isProductionActivated } from "../services/scheduling";

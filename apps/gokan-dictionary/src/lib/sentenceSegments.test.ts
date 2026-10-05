@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { segmentSentence } from './sentenceSegments';
-import type { Sentence } from '../models/sentence.model';
+import type { Sentence } from '@gokan/dataset-schema';
 
 function sentence(original: string, matches: Sentence['matches']): Sentence {
     return { id: 's1', original, en: [], vocabIds: Object.keys(matches ?? {}), matches };

@@ -1,6 +1,5 @@
 import type { VocabProgress } from '../models/vocabulary.model';
-import type { Sentence } from '../models/sentence.model';
-import type { GrammarExample } from '../models/grammar.model';
+import type { GrammarExample, Sentence } from '@gokan/dataset-schema';
 import { CONSTANTS } from '../commons/constants';
 import { isProductionActivated } from '../services/scheduling';
 import { calculateMasteryLoops } from './srs.utils';

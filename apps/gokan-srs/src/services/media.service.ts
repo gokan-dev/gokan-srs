@@ -1,4 +1,4 @@
-import type { MediaIndexEntry, MediaLibraryWords, MediaTitle } from '../models/media.model';
+import type { MediaIndexEntry, MediaLibraryWords, MediaTitle } from '@gokan/dataset-schema';
 import { fetchJson } from './http';
 
 /**

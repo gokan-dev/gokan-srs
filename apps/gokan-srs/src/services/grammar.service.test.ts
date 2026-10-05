@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { GrammarService } from './grammar.service';
-import type { GrammarExample } from '../models/grammar.model';
+import type { GrammarExample } from '@gokan/dataset-schema';
 
 function makeExample(overrides: Partial<GrammarExample> = {}): GrammarExample {
     return {

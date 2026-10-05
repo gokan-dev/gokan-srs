@@ -2,9 +2,9 @@ import { motion } from "framer-motion";
 import { useQuiz } from "../../context/useQuiz";
 import { useResponsive } from "../../context/Responsive/useResponsive";
 import { MasteryRing } from "../../components/MasteryRing";
-import { TagsLookup } from "../../models/data.model";
+import { TagsLookup } from "@gokan/dataset-schema";
 import { Combine } from "lucide-react";
-import type { Tags } from "../../models/data.model";
+import type { Tags } from "@gokan/dataset-schema";
 import { JlptChip } from "../../components/JlptChip";
 
 import { VocabBaseQuizCard } from "./VocabBaseQuizCard";

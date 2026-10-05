@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { quizReducer, initialState } from './quizReducer';
+import { initialState, quizReducer } from './quizReducer';
 import type { QuizState } from './quizReducer';
 import type { UserProgress } from '../../models/user.model';
-import type { GrammarPoint, GrammarProgress } from '../../models/grammar.model';
+import type { GrammarPoint } from '@gokan/dataset-schema';
+import type { GrammarProgress } from '../../models/grammar.model';
 import { DEFAULT_GRAMMAR_PROGRESS } from '../../models/grammar.model';
 
 function makeProgress(overrides: Partial<UserProgress> = {}): UserProgress {

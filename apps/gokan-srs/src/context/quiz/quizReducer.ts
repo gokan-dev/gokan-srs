@@ -5,18 +5,16 @@ import type {
 } from '../../models/user.model';
 import { insertAtFraction } from '../../utils/insertAtFraction';
 import type { ProgressWithMetadata } from '../../services/sync/types';
-import type { Vocabulary } from '../../models/vocabulary.model';
-import type { Sentence } from '../../models/sentence.model';
+import type { Sentence, SynonymRelation, Vocabulary } from '@gokan/dataset-schema';
 import type { WatchedEpisode } from '../../models/media.model';
 import type { AnswerResult } from '../../services/srs.service';
 import { SRSService } from '../../services/srs.service';
 import { rebaseStrengthsToSchedule } from '../../services/calibration';
-import type { QuizItem, QuizType, QuizMode, TaskKey } from '../../utils/srs.utils';
+import type { QuizItem, QuizMode, QuizType, TaskKey } from '../../utils/srs.utils';
 import { taskKey } from '../../utils/srs.utils';
 import type { ProductionCloze } from '../../utils/productionCloze.utils';
-import type { SynonymRelation } from '../../models/index.model';
-import type { GrammarQuizState, GrammarQuizAction } from './grammarReducer';
-import { initialGrammarState, isGrammarAction, grammarReducer } from './grammarReducer';
+import { grammarReducer, initialGrammarState, isGrammarAction } from './grammarReducer';
+import type { GrammarQuizAction, GrammarQuizState } from './grammarReducer';
 
 /* =========================
    STATE & TYPES

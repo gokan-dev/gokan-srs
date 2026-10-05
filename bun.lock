@@ -22,6 +22,9 @@
     "apps/gokan-dictionary": {
       "name": "gokan-dictionary",
       "version": "0.0.0",
+      "dependencies": {
+        "@gokan/dataset-schema": "workspace:*",
+      },
       "devDependencies": {
         "@sveltejs/vite-plugin-svelte": "^4.0.0",
         "@types/bun": "^1.4.2",
@@ -38,6 +41,7 @@
       "name": "gokan-srs",
       "version": "0.0.0",
       "dependencies": {
+        "@gokan/dataset-schema": "workspace:*",
         "@react-oauth/google": "^0.13.4",
         "framer-motion": "^12.26.2",
         "lucide-react": "^0.562.0",
@@ -62,6 +66,10 @@
         "vite-plugin-checker": "^0.12.0",
         "vitest": "^4.0.17",
       },
+    },
+    "packages/dataset-schema": {
+      "name": "@gokan/dataset-schema",
+      "version": "0.0.0",
     },
   },
   "packages": {
@@ -174,6 +182,8 @@
     "@eslint/object-schema": ["@eslint/object-schema@2.1.7", "", {}, "sha512-VtAOaymWVfZcmZbp6E2mympDIHvyjXs/12LqWYjVw6qjrfF+VK+fyG33kChz3nnK+SU5/NeHOqrTEHS8sXO3OA=="],
 
     "@eslint/plugin-kit": ["@eslint/plugin-kit@0.4.1", "", { "dependencies": { "@eslint/core": "^0.17.0", "levn": "^0.4.1" } }, "sha512-43/qtrDUokr7LJqoF2c3+RInu/t4zfrpYdoSDfYyhg52rwLV6TnOvdG4fXm7IkSB3wErkcmJS9iEhjVtOSEjjA=="],
+
+    "@gokan/dataset-schema": ["@gokan/dataset-schema@workspace:packages/dataset-schema"],
 
     "@humanfs/core": ["@humanfs/core@0.19.2", "", { "dependencies": { "@humanfs/types": "^0.15.0" } }, "sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA=="],
 

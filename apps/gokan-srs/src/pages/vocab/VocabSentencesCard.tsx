@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Virtuoso } from 'react-virtuoso';
 import { Card } from '../../components/ui/Card';
 import { VocabularyService } from '../../services/vocabulary.service';
-import type { Sentence } from '../../models/sentence.model';
+import type { Sentence } from '@gokan/dataset-schema';
 import { InteractiveSentence } from '../../components/InteractiveSentence';
 import { useAsyncData } from '../../hooks/useAsyncData';
 

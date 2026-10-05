@@ -1,4 +1,5 @@
-import type { GrammarAliasIndex, GrammarBrowseIndex, GrammarChapter, GrammarConjugationIndex, GrammarContrastForFocus, GrammarContrastIndex, GrammarExample, GrammarInterchangeableForPoint, GrammarJlptIndex, GrammarKindIndex, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex } from '../models/grammar.model';
+import type { GrammarAliasIndex, GrammarBrowseIndex, GrammarChapter, GrammarConjugationIndex, GrammarContrastIndex, GrammarExample, GrammarJlptIndex, GrammarKindIndex, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex } from '@gokan/dataset-schema';
+import type { GrammarContrastForFocus, GrammarInterchangeableForPoint } from '../models/grammar.model';
 import { fetchJson, readJson } from './http';
 
 /**

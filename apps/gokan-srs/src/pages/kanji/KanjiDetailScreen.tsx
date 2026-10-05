@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import type { Kanji } from "../../models/kanji.model";
+import type { Kanji } from "@gokan/dataset-schema";
 import { Card } from "../../components/ui/Card";
 import { JlptChip } from "../../components/JlptChip";
 import { useResponsive } from "../../context/Responsive/useResponsive";

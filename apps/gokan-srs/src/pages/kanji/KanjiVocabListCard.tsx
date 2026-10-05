@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Card } from "../../components/ui/Card";
-import type { Vocabulary } from "../../models/vocabulary.model";
+import type { Vocabulary } from "@gokan/dataset-schema";
 import { VocabularyService } from "../../services/vocabulary.service";
 import { useNavigate } from "react-router-dom";
 import { useResponsive } from "../../context/Responsive/useResponsive";

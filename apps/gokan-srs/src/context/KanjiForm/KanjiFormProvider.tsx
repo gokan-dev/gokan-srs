@@ -1,6 +1,6 @@
 import React, {useCallback, useEffect, useMemo, useState} from "react";
-import {KanjiFormContext} from "./KanjiFormContext";
-import type {KanjiFormState} from "./KanjiFormContext";
+import { KanjiFormContext } from "./KanjiFormContext";
+import type { KanjiFormState } from "./KanjiFormContext";
 import {VocabularyService} from "../../services/vocabulary.service";
 import {CONSTANTS} from "../../commons/constants";
 

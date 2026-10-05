@@ -1,4 +1,4 @@
-import type { Vocabulary } from "../models/vocabulary.model";
+import type { Vocabulary } from "@gokan/dataset-schema";
 import { CardSection } from "./ui/CardSection";
 import { Combine } from "lucide-react";
 import { formatReadingList } from "../pages/quiz/quizFormatting";

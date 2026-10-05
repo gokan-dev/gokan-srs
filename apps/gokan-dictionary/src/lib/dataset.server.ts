@@ -12,19 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import type { Vocabulary } from '../models/vocabulary.model';
-import type { Kanji } from '../models/kanji.model';
-import type { Sentence } from '../models/sentence.model';
-import type { KanjiVocabIndex, SearchIndex, VocabJlptIndex } from '../models/index.model';
-import type {
-    GrammarJlptIndex,
-    GrammarPoint,
-    GrammarTeachingOrder,
-    GrammarContrastIndex,
-    GrammarVariantGroupIndex,
-    GrammarConjugationIndex,
-    GrammarExample,
-} from '../models/grammar.model';
+import type { GrammarConjugationIndex, GrammarContrastIndex, GrammarExample, GrammarJlptIndex, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex, JlptIndex, Kanji, KanjiVocabIndex, SearchIndex, Sentence, Vocabulary } from '@gokan/dataset-schema';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -93,9 +81,9 @@ export function loadSentences(compiledDir: string, vocabId: string): Sentence[] 
 }
 
 /** JLPT level -> that level's vocab, frequency-ordered. Only ~6.4k of ~36k vocab are listed. */
-export function loadVocabJlptIndex(compiledDir: string): VocabJlptIndex {
+export function loadVocabJlptIndex(compiledDir: string): JlptIndex {
     const raw = fs.readFileSync(path.join(compiledDir, 'index', 'jlpt.json'), 'utf-8');
-    return JSON.parse(raw) as VocabJlptIndex;
+    return JSON.parse(raw) as JlptIndex;
 }
 
 export function loadSearchIndex(compiledDir: string): SearchIndex {
@@ -118,7 +106,7 @@ export function listGrammarIds(compiledDir: string): string[] {
     const index = loadGrammarJlptIndex(compiledDir);
     const ids: string[] = [];
     for (const level of [5, 4, 3, 2, 1]) {
-        ids.push(...(index[String(level)] ?? []));
+        ids.push(...(index[level] ?? []));
     }
     return ids;
 }

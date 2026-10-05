@@ -1,24 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import {
-    aggregateEpisodeWords,
-    buildWordKnowledge,
-    computeCoverage,
-    countWatchedEpisodes,
-    episodeKey,
-    filterLibrary,
-    libraryGenres,
-    rankLibrary,
-    isEpisodeWatched,
-    knownRatio,
-    mergeWatchedEpisodes,
-    speechSpeedLabel,
-    unknownWords,
-} from './mediaCoverage.utils';
+import { aggregateEpisodeWords, buildWordKnowledge, computeCoverage, countWatchedEpisodes, episodeKey, filterLibrary, isEpisodeWatched, knownRatio, libraryGenres, mergeWatchedEpisodes, rankLibrary, speechSpeedLabel, unknownWords } from './mediaCoverage.utils';
 import type { WordKnowledge } from './mediaCoverage.utils';
 import type { VocabProgress } from '../models/vocabulary.model';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../models/vocabulary.model';
 import { CONSTANTS } from '../commons/constants';
-import type { MediaEpisode } from '../models/media.model';
+import type { MediaEpisode } from '@gokan/dataset-schema';
 
 const MASTERED = { ...DEFAULT_VOCABULARY_PROGRESS.reading, memoryStrength: CONSTANTS.srs.formula.mastery.maxMemoryStrength };
 

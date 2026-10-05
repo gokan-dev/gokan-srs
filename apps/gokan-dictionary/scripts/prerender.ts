@@ -77,8 +77,7 @@ import { buildChapterLocatorIndex, buildChapterIndexRows } from '../src/lib/gram
 import { buildFamilyPages } from '../src/lib/grammarFamilies';
 import { buildVariantSiblings } from '../src/lib/grammarVariants';
 import { groupConjugationsByForm } from '../src/lib/grammarConjugations';
-import type { Vocabulary } from '../src/models/vocabulary.model';
-import type { GrammarPoint } from '../src/models/grammar.model';
+import type { GrammarPoint, Vocabulary } from '@gokan/dataset-schema';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = path.join(__dirname, '..');
@@ -458,7 +457,7 @@ async function main(): Promise<void> {
         level,
         // The index carries only {id, containedKanji}; the display fields come from the summary
         // map built above. An id with no summary is dropped rather than rendered blank.
-        words: (vocabJlptIndex[String(level)] ?? [])
+        words: (vocabJlptIndex[level] ?? [])
             .map(entry => summaryById.get(entry.id))
             .filter((summary): summary is VocabSummary => Boolean(summary)),
     })).filter(group => group.words.length > 0);

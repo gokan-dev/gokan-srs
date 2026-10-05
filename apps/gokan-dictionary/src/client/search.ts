@@ -6,7 +6,7 @@
 // in the shared header; pages stay fully static otherwise, and the ~3MB index is fetched
 // lazily on first focus rather than at page load.
 
-import type { SearchIndex, SearchIndexEntry } from '../models/index.model';
+import type { SearchIndex, SearchIndexEntry } from '@gokan/dataset-schema';
 import { searchIndexPath, vocabPath } from '../lib/urls';
 
 const MAX_RESULTS = 12;

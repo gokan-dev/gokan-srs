@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { filterRows, groupRows, toBrowseRow, type GrammarBrowseRow } from './grammarBrowse';
-import type { GrammarPoint } from '../models/grammar.model';
+import type { GrammarPoint } from '@gokan/dataset-schema';
 
 function row(overrides: Partial<GrammarBrowseRow> & { id: string }): GrammarBrowseRow {
     return {

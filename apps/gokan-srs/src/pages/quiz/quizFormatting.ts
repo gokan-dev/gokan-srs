@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Sense } from '../../models/vocabulary.model';
+import type { Sense } from '@gokan/dataset-schema';
 
 /** "primary, alt1, alt2" - shared by the intro card and reading quiz's correct-answer reveal. */
 export function formatReadingList(reading: { primary: string; alternatives: string[] }): string {

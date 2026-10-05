@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import type { GrammarChapter, GrammarPoint } from "../../models/grammar.model";
+import type { GrammarChapter, GrammarPoint } from "@gokan/dataset-schema";
 import { CardSection } from "../../components/ui/CardSection";
 import { JlptChip } from "../../components/JlptChip";
 import { MasteryRing } from "../../components/MasteryRing";

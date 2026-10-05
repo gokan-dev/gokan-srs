@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { matches, filterEntries, scoreEntry } from './search';
-import type { SearchIndex, SearchIndexEntry } from '../models/index.model';
+import type { SearchIndex, SearchIndexEntry } from '@gokan/dataset-schema';
 
 const OMOU: SearchIndexEntry = { id: '1589350', w: '思う', r: 'おもう', m: 'to think, to consider' };
 const IU: SearchIndexEntry = { id: '1587040', w: '言う', r: 'いう', m: 'to say, to utter' };

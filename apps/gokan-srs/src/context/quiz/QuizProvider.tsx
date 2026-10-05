@@ -6,7 +6,7 @@ import type { GrammarProgress } from '../../models/grammar.model';
 import { StorageService } from '../../services/storage.service';
 import type { SessionState } from '../../models/state.model';
 import { QuizContext } from '../useQuiz';
-import { quizReducer, initialState } from './quizReducer';
+import { initialState, quizReducer } from './quizReducer';
 import type { QuizState } from './quizReducer';
 import type { SessionStats, NextSessionPreview } from './quizSelectors';
 import { useQuizOrchestration, type QuizActions, type QuizComputed } from './useQuizOrchestration';

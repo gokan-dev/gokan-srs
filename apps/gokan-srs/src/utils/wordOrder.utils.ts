@@ -1,5 +1,4 @@
-import type { MediaWordCount } from '../models/media.model';
-import type { FrequencyIndex, JlptIndex, KKLCIndex } from '../models/index.model';
+import type { FrequencyIndex, JlptIndex, KKLCIndex, MediaWordCount } from '@gokan/dataset-schema';
 import type { LearningOrder } from '../models/user.model';
 import { numericEntries } from './records';
 

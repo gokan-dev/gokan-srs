@@ -1,4 +1,5 @@
-import type { MediaEpisode, MediaIndexEntry, MediaLibraryWords, MediaWordCount, WatchedEpisode } from '../models/media.model';
+import type { MediaEpisode, MediaIndexEntry, MediaLibraryWords, MediaWordCount } from '@gokan/dataset-schema';
+import type { WatchedEpisode } from '../models/media.model';
 import type { VocabProgress } from '../models/vocabulary.model';
 import type { UserSettings } from '../models/user.model';
 import { isVocabFullyMastered } from '../services/scheduling';

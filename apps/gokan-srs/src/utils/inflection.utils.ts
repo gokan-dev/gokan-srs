@@ -1,4 +1,4 @@
-import type { Vocabulary } from '../models/vocabulary.model';
+import type { Vocabulary } from '@gokan/dataset-schema';
 import { hasKanji, isKanaOnly, kanjiSkeleton } from './kanji.utils';
 import { toHiragana } from './romaji';
 

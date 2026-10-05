@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildVariantSiblings } from './grammarVariants';
-import type { GrammarPoint, GrammarVariantGroupIndex } from '../models/grammar.model';
+import type { GrammarPoint, GrammarVariantGroupIndex } from '@gokan/dataset-schema';
 
 function makePoint(overrides: Partial<GrammarPoint> = {}): GrammarPoint {
     return {

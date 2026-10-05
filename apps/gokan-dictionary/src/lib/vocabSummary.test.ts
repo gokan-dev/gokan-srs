@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { vocabSummaryFrom } from './vocabSummary';
-import type { Vocabulary } from '../models/vocabulary.model';
+import type { Vocabulary } from '@gokan/dataset-schema';
 
 function makeVocab(overrides: Partial<Vocabulary> = {}): Vocabulary {
     return {

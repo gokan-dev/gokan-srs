@@ -1,4 +1,4 @@
-import type { Sentence } from "../models/sentence.model";
+import type { Sentence } from "@gokan/dataset-schema";
 
 /** A character-offset range into `Sentence.original` to render with the target styling. */
 export interface HighlightRange {

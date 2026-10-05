@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import type { MediaIndexEntry, MediaLibraryWords } from "../../models/media.model";
+import type { MediaIndexEntry, MediaLibraryWords } from "@gokan/dataset-schema";
 import { MediaService } from "../../services/media.service";
 import { useQuiz } from "../../context/useQuiz";
 import { PageHeader } from "../../components/PageHeader";

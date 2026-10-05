@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch } from 'react';
 import { useLocation } from 'react-router-dom';
 import type { KanjiKnowledge, UserProgress, UserSettings } from '../../models/user.model';
-import type { Vocabulary, VocabProgress } from '../../models/vocabulary.model';
-import type { SynonymRelation } from '../../models/index.model';
+import type { SynonymRelation, VocabSynonym, Vocabulary } from '@gokan/dataset-schema';
+import type { VocabProgress } from '../../models/vocabulary.model';
 import { StorageService } from '../../services/storage.service';
 import { VocabularyService, VocabNotFoundError } from '../../services/vocabulary.service';
 import { SRSService } from '../../services/srs.service';
@@ -29,7 +29,6 @@ import { refillCandidates } from './refillCandidates';
 import { progressUploadSignature, stableStringify } from "../../services/progressSerialization";
 import { embeddedSynonymCandidate, orderSynonymsForCue, productionCueOf, sharedMeaningUsed, synonymOutcome } from '../../utils/synonymContext.utils';
 import type { ProductionCue } from '../../utils/synonymContext.utils';
-import type { VocabSynonym } from '../../models/index.model';
 import { episodeKey } from '../../utils/mediaCoverage.utils';
 import type { WatchedEpisode } from '../../models/media.model';
 

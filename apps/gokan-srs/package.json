@@ -19,6 +19,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@gokan/dataset-schema": "workspace:*",
     "@react-oauth/google": "^0.13.4",
     "framer-motion": "^12.26.2",
     "lucide-react": "^0.562.0",

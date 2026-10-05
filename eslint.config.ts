@@ -67,6 +67,8 @@ const typingRules = {
     { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
   ],
   'no-console': ['error', { allow: ['warn', 'error'] }],
+  // One import statement per module (a separate 'import type' line is fine).
+  'no-duplicate-imports': ['error', { allowSeparateTypeImports: true }],
   'no-restricted-syntax': ['error', ...TYPE_ESCAPE_HATCHES],
 } as const
 

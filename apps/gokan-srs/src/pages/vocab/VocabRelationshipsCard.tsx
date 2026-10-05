@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { Vocabulary } from "../../models/vocabulary.model";
+import type { Vocabulary } from "@gokan/dataset-schema";
 import { VocabularyService } from "../../services/vocabulary.service";
 import { RelatedEntriesCard, type RelatedEntry, type RelatedSection } from "../../components/RelatedEntriesCard";
 import { useAsyncData } from "../../hooks/useAsyncData";

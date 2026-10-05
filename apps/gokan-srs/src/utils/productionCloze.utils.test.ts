@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { pickProductionClozeSentence, splitSentenceAtBlank, splitClozeContext, emphasizeGloss, blankSurfaceOf, clozeAcceptedForms } from './productionCloze.utils';
-import type { Sentence } from '../models/sentence.model';
+import type { Sentence } from '@gokan/dataset-schema';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../models/vocabulary.model';
 import { indexLearnerVocab } from './sentenceRanking';
 

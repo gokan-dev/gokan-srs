@@ -1,5 +1,5 @@
 import { JlptChip } from "../../components/JlptChip";
-import type { GrammarPoint, GrammarVariantGroupIndex } from "../../models/grammar.model";
+import type { GrammarPoint, GrammarVariantGroupIndex } from "@gokan/dataset-schema";
 import { GrammarService } from "../../services/grammar.service";
 import { RelatedEntriesCard, type RelatedEntry } from "../../components/RelatedEntriesCard";
 import { useAsyncData } from "../../hooks/useAsyncData";

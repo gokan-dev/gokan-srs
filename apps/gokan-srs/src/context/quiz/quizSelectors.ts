@@ -1,11 +1,11 @@
 import type { VocabProgress } from '../../models/vocabulary.model';
-import type { Sentence } from '../../models/sentence.model';
+import type { Sentence } from '@gokan/dataset-schema';
 import type { SessionState } from '../../models/state.model';
 import type { UserSettings } from '../../models/user.model';
-import { getNextVocabToStudy, isReadingActionable, isMeaningActionable, isProductionActionable } from '../../utils/srs.utils';
+import { getNextVocabToStudy, isMeaningActionable, isProductionActionable, isReadingActionable } from '../../utils/srs.utils';
 import type { QuizType } from '../../utils/srs.utils';
 import { CONSTANTS } from '../../commons/constants';
-import type { QuizState, PendingQuizItem, TaskKey } from './quizReducer';
+import type { PendingQuizItem, QuizState, TaskKey } from './quizReducer';
 import { taskKey } from './quizReducer';
 import { computeSessionState } from './sessionState';
 import { computeSessionStats } from './sessionStats';

@@ -1,4 +1,5 @@
-import type { GrammarProgress, GrammarPoint } from "../models/grammar.model";
+import type { GrammarPoint } from "@gokan/dataset-schema";
+import type { GrammarProgress } from "../models/grammar.model";
 
 import { MasteryRing } from "./MasteryRing";
 import { JlptChip } from "./JlptChip";

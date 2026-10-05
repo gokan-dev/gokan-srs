@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { UserProgress, UserSettings } from "../../../models/user.model";
-import type { JlptIndex } from "../../../models/index.model";
-import { JLPT_LEVELS } from "../../../models/index.model";
+import type { JlptIndex } from "@gokan/dataset-schema";
+import { JLPT_LEVELS } from "@gokan/dataset-schema";
 import { VocabularyService } from "../../../services/vocabulary.service";
 import { isVocabFullyMastered } from "../../../services/scheduling";
 import { JlptCoverageBars, type JlptLevelRow } from "./JlptCoverageBars";

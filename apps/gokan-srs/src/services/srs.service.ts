@@ -1,12 +1,12 @@
 // src/services/srs.service.ts
-import type { ReviewLog, SRSEntry, VocabProgress, Vocabulary } from '../models/vocabulary.model';
+import { JLPT_LEVELS } from '@gokan/dataset-schema';
+import type { SynonymRelation, Vocabulary } from '@gokan/dataset-schema';
+import type { ReviewLog, SRSEntry, VocabProgress } from '../models/vocabulary.model';
 import { CONSTANTS } from '../commons/constants';
 import { VocabularyService } from './vocabulary.service';
 import type { KanjiKnowledge, UserSettings } from '../models/user.model';
 import { isVocabFullyMastered, vocabNextReviewAt, newSRSEntry, isProductionActivated } from './scheduling';
 import type { QuizType } from '../utils/srs.utils';
-import { JLPT_LEVELS } from '../models/index.model';
-import type { SynonymRelation } from '../models/index.model';
 import { collectJlptCandidates, countJlptCandidates } from './jlptWalk';
 import { isFormOfWord, toInflectableWord } from '../utils/inflection.utils';
 import { matchAnswer, matchBest, type AnswerResult, type Leniency } from '../utils/answerMatching';

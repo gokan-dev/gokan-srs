@@ -3,9 +3,9 @@ import { selectNextView, selectCurrentProgress, selectCurrentSentence, selectSes
 import { initialState, taskKey } from './quizReducer';
 import type { QuizState, TaskKey } from './quizReducer';
 import type { UserProgress, UserSettings } from '../../models/user.model';
-import type { Vocabulary, VocabProgress } from '../../models/vocabulary.model';
+import type { Sentence, Vocabulary } from '@gokan/dataset-schema';
+import type { VocabProgress } from '../../models/vocabulary.model';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../../models/vocabulary.model';
-import type { Sentence } from '../../models/sentence.model';
 import { CONSTANTS } from '../../commons/constants';
 
 const now = new Date('2026-06-10T00:00:00Z');

@@ -1,9 +1,8 @@
 <script lang="ts">
-  import type { GrammarExample, GrammarPoint } from '../models/grammar.model';
+  import type { GrammarConjugationIndex, GrammarExample, GrammarPoint } from '@gokan/dataset-schema';
   import type { GrammarSummary } from '../lib/types';
   import type { ChapterLocator } from '../lib/grammarChapters';
   import type { VariantSibling } from '../lib/grammarVariants';
-  import type { GrammarConjugationIndex } from '../models/grammar.model';
   import { grammarChapterPath, grammarFamilyPath, grammarPath, homePath, vocabPath } from '../lib/urls';
   import SiteHeader from './SiteHeader.svelte';
   import SiteFooter from './SiteFooter.svelte';

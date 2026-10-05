@@ -1,4 +1,5 @@
-import type { GrammarChapter, GrammarContrastIndex, GrammarExample, GrammarPoint, GrammarProgress } from '../../models/grammar.model';
+import type { GrammarChapter, GrammarContrastIndex, GrammarExample, GrammarPoint } from '@gokan/dataset-schema';
+import type { GrammarProgress } from '../../models/grammar.model';
 import type { UserProgress } from '../../models/user.model';
 import type { SessionState } from '../../models/state.model';
 import { isGrammarDue, grammarNextReviewAt, isGrammarFullyMastered } from '../../services/grammarScheduling';

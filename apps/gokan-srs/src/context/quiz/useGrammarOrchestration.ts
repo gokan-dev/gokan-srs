@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch } from 'react';
 import { useLocation } from 'react-router-dom';
-import type { GrammarPoint } from '../../models/grammar.model';
+import type { GrammarPoint } from '@gokan/dataset-schema';
 import { GrammarService } from '../../services/grammar.service';
 import { GrammarSRSService } from '../../services/grammarSrs.service';
 import { clearStaleGrammarNeedsRetry } from '../../services/grammarScheduling';

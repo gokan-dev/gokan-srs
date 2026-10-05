@@ -1,5 +1,6 @@
-import type { GrammarChapter, GrammarProgress } from '../models/grammar.model';
-import { GRAMMAR_JLPT_LEVELS } from '../models/grammar.model';
+import type { GrammarChapter } from '@gokan/dataset-schema';
+import type { GrammarProgress } from '../models/grammar.model';
+import { GRAMMAR_JLPT_LEVELS } from '@gokan/dataset-schema';
 import type { VocabProgress } from '../models/vocabulary.model';
 import type { UserSettings } from '../models/user.model';
 import type { AnswerResult } from './srs.service';

@@ -1,6 +1,5 @@
 <script lang="ts">
-  import type { Vocabulary } from '../models/vocabulary.model';
-  import type { Sentence } from '../models/sentence.model';
+  import type { Sentence, Vocabulary } from '@gokan/dataset-schema';
   import type { VocabSummary } from '../lib/types';
   import { homePath, kanjiPath, vocabIndexPath, vocabJlptPath, vocabPath } from '../lib/urls';
   import { segmentSentence } from '../lib/sentenceSegments';

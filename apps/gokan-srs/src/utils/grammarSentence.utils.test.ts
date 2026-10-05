@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { grammarExampleToSentence, patternHighlightRanges } from './grammarSentence.utils';
-import type { GrammarExample } from '../models/grammar.model';
+import type { GrammarExample } from '@gokan/dataset-schema';
 
 function makeExample(overrides: Partial<GrammarExample> = {}): GrammarExample {
     return {

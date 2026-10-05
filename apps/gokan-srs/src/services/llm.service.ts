@@ -1,5 +1,4 @@
-import type { Vocabulary } from "../models/vocabulary.model";
-import type { Sentence } from "../models/sentence.model";
+import type { Sentence, Vocabulary } from "@gokan/dataset-schema";
 import { readJson } from "./http";
 
 /** The AI's verdict on a meaning answer in context. */

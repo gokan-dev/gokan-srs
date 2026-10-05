@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { usePersistControls, usePersistedControlsSnapshot } from "../../hooks/usePersistedControls";
 import { Link } from "react-router-dom";
 import { ArrowLeft, ArrowRight } from "lucide-react";
-import type { GrammarAxis, GrammarBrowseIndex, GrammarBrowseRow, GrammarPoint } from "../../models/grammar.model";
+import type { GrammarAxis, GrammarBrowseIndex, GrammarBrowseRow, GrammarPoint } from "@gokan/dataset-schema";
 import { GrammarService } from "../../services/grammar.service";
 import { JlptChip } from "../../components/JlptChip";
 import { useAsyncData } from "../../hooks/useAsyncData";

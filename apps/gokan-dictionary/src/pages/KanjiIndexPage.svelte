@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Kanji } from '../models/kanji.model';
+  import type { Kanji } from '@gokan/dataset-schema';
   import { homePath, kanjiPath } from '../lib/urls';
   import SiteHeader from './SiteHeader.svelte';
   import SiteFooter from './SiteFooter.svelte';
