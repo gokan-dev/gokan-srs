@@ -1,0 +1,10 @@
+# Every text file is LF, in the repository and in every working copy, on every OS.
+# Without this, Windows checkouts get CRLF (core.autocrlf), so tools and agents that
+# write LF leave a mix of endings in the working tree.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff binary
+*.woff2 binary
