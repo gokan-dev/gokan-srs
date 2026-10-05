@@ -4,6 +4,7 @@ import { useResponsive } from "../../context/Responsive/useResponsive";
 import { CONSTANTS } from "../../commons/constants";
 import { MasteryRing } from "../../components/MasteryRing";
 import { JlptChip } from "../../components/JlptChip";
+import { TagChip } from "../../components/TagChip";
 import { VocabBaseQuizCard } from "./VocabBaseQuizCard";
 import { formatReadingList, getCoarsePosLabels } from "./quizFormatting";
 import { LookUpWords } from "../../components/LookUpWords";
@@ -101,14 +102,7 @@ export function VocabProductionQuizCard({ onKanjiClick, onVocabClick }: VocabPro
                 {(currentVocab.senses.length > 0 || currentVocab.jlptLevel) && (
                     <div className="flex flex-wrap justify-center items-center gap-2 mt-4">
                         {currentVocab.jlptLevel && <JlptChip level={currentVocab.jlptLevel} />}
-                        {getCoarsePosLabels(currentVocab.senses).map(label => (
-                            <span
-                                key={label}
-                                className="px-2 py-0.5 text-xs rounded bg-accent/10 text-accent font-gothic font-medium dark:bg-accent/15"
-                            >
-                                {label}
-                            </span>
-                        ))}
+                        {getCoarsePosLabels(currentVocab.senses).map(label => <TagChip key={label}>{label}</TagChip>)}
                     </div>
                 )}
             </div>

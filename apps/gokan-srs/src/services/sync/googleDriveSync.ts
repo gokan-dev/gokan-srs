@@ -71,13 +71,7 @@ export class GoogleDriveSync {
 
     async initialize(localEnvelope?: SyncEnvelope): Promise<SyncEnvelope | null> {
         await this.ensureFolder();
-        const resolved = await this.resolveCanonicalFile();
-        let remoteProgress = resolved.envelope?.progress ?? null;
-        const remoteSettings = resolved.envelope?.settings ?? null;
-
-        if (remoteProgress && MigrationService.needsMigration(remoteProgress)) {
-            remoteProgress = await MigrationService.migrateAsync(remoteProgress);
-        }
+        const { remoteProgress, remoteSettings } = await this.readRemote();
 
         if (!localEnvelope) {
             const localProgress = this.getLocalProgress();
@@ -146,13 +140,7 @@ export class GoogleDriveSync {
         }
 
         for (let attempt = 0; attempt < MAX_SYNC_RETRIES; attempt++) {
-            const resolved = await this.resolveCanonicalFile();
-            let remoteProgress = resolved.envelope?.progress ?? null;
-            const remoteSettings = resolved.envelope?.settings ?? null;
-
-            if (remoteProgress && MigrationService.needsMigration(remoteProgress)) {
-                remoteProgress = await MigrationService.migrateAsync(remoteProgress);
-            }
+            const { resolved, remoteProgress, remoteSettings } = await this.readRemote();
 
             const localVersion = effectiveLocalEnvelope.progress._sync?.version ?? 0;
             const remoteVersion = remoteProgress?._sync?.version ?? 0;
@@ -219,6 +207,20 @@ export class GoogleDriveSync {
 
         console.error('[GoogleDriveSync] Sync CAS retries exhausted under high write contention; the next auto-upload will retry.');
         return null;
+    }
+
+    /** The canonical remote file, its progress already migrated to the current format. */
+    private async readRemote(): Promise<{
+        resolved: Awaited<ReturnType<GoogleDriveSync['resolveCanonicalFile']>>;
+        remoteProgress: ProgressWithMetadata | null;
+        remoteSettings: UserSettings | null;
+    }> {
+        const resolved = await this.resolveCanonicalFile();
+        let remoteProgress = resolved.envelope?.progress ?? null;
+        if (remoteProgress && MigrationService.needsMigration(remoteProgress)) {
+            remoteProgress = await MigrationService.migrateAsync(remoteProgress);
+        }
+        return { resolved, remoteProgress, remoteSettings: resolved.envelope?.settings ?? null };
     }
 
     private finishSync(envelope: SyncEnvelope): void {

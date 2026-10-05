@@ -76,12 +76,8 @@ export function romajiToHiragana(input: string): string {
         if (c === 'n') {
             if (next === "'") { result += 'ん'; i += 2; continue; }
             if (next === 'n') { result += 'ん'; i += 1; continue; }
-            let matched = false;
-            for (let len = 3; len >= 2; len--) {
-                const chunk = s.slice(i, i + len);
-                if (ROMAJI_MAP[chunk]) { result += ROMAJI_MAP[chunk]; i += len; matched = true; break; }
-            }
-            if (matched) continue;
+            const syllable = longestSyllable(s, i, 2);
+            if (syllable) { result += syllable.kana; i += syllable.length; continue; }
             // 'n' before a consonant or at the end -> ん.
             result += 'ん';
             i += 1;
@@ -89,12 +85,8 @@ export function romajiToHiragana(input: string): string {
         }
 
         // Longest-match against the syllable table.
-        let matched = false;
-        for (let len = 3; len >= 1; len--) {
-            const chunk = s.slice(i, i + len);
-            if (ROMAJI_MAP[chunk]) { result += ROMAJI_MAP[chunk]; i += len; matched = true; break; }
-        }
-        if (matched) continue;
+        const syllable = longestSyllable(s, i, 1);
+        if (syllable) { result += syllable.kana; i += syllable.length; continue; }
 
         // Unconvertible character (e.g. a letter from an English meaning search): pass through.
         result += c;
@@ -151,4 +143,13 @@ export function kanaToRomaji(input: string): string {
 /** True if the string contains any latin letters (i.e. could be a romaji query worth converting). */
 export function looksLikeRomaji(input: string): boolean {
     return /[a-z]/i.test(input);
+}
+
+/** The longest syllable (3 letters down to `minLength`) starting at `i`, or null. */
+function longestSyllable(s: string, i: number, minLength: number): { kana: string; length: number } | null {
+    for (let length = 3; length >= minLength; length--) {
+        const kana = ROMAJI_MAP[s.slice(i, i + length)];
+        if (kana) return { kana, length };
+    }
+    return null;
 }

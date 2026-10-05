@@ -6,7 +6,6 @@ import { MasteryRing } from "../../components/MasteryRing";
 import { JlptChip } from "../../components/JlptChip";
 import { Button } from "../../components/ui/Button";
 import { LoadingScreen } from "../../components/LoadingScreen";
-import { SRSHistoryGraph } from "../../components/SRSHistoryGraph";
 import { useResponsive } from "../../context/Responsive/useResponsive";
 import { useQuiz } from "../../context/useQuiz";
 import { GrammarService } from "../../services/grammar.service";
@@ -14,11 +13,13 @@ import { THEME } from "../../commons/theme";
 import { GrammarRelatedPointsCard } from "./GrammarRelatedPointsCard";
 import { GrammarVariantsCard } from "./GrammarVariantsCard";
 import { GrammarDifferentiator } from "../../components/GrammarDifferentiator";
-import { InteractiveSentence } from "../../components/InteractiveSentence";
-import { grammarExampleToSentence, patternHighlightRanges } from "../../utils/grammarSentence.utils";
 import { PageHeader } from "../../components/PageHeader";
 import { useIntroducedGrammarIds } from "../../hooks/useIntroducedGrammarIds";
 import { useAsyncData } from "../../hooks/useAsyncData";
+import { DetailErrorScreen } from "../../components/detail/DetailErrorScreen";
+import { SrsStatsCard } from "../../components/detail/SrsStatsCard";
+import { GrammarExampleList } from "./GrammarExampleList";
+import { DetailCard } from "../../components/detail/DetailCard";
 
 const MINED_INITIAL_COUNT = 5;
 
@@ -76,17 +77,7 @@ export default function GrammarDetailScreen() {
 
     const knownIds = useIntroducedGrammarIds();
 
-    if (error) {
-        return (
-            <div className="min-h-screen flex items-center justify-center p-4 text-center">
-                <div>
-                    <h2 className="text-xl font-bold text-error mb-2">Error</h2>
-                    <p className="text-secondary mb-4">{error}</p>
-                    <Button onClick={() => void navigate(-1)}>Go Back</Button>
-                </div>
-            </div>
-        );
-    }
+    if (error) return <DetailErrorScreen message={error} />;
 
     if (!point) {
         return <LoadingScreen />;
@@ -204,31 +195,9 @@ export default function GrammarDetailScreen() {
     // point.examples is always empty for them - render nothing rather than an
     // empty "Example Sentences (0)" card.
     const examplesCard = point.examples.length === 0 ? null : (
-        <Card size={isMobile ? "sm" : "md"}>
-            <h2 className="text-lg font-gothic font-semibold text-primary mb-4">
-                Example Sentences <span className="text-sm font-normal text-tertiary ml-2">({point.examples.length})</span>
-            </h2>
-            <div>
-                {point.examples.map((example, i) => (
-                    <div key={i} className={`pb-4 ${i < point.examples.length - 1 ? 'border-b border-divider mb-4' : ''}`}>
-                        <div className="text-xl leading-relaxed text-primary mb-1">
-                            <InteractiveSentence
-                                sentence={grammarExampleToSentence(example, i)}
-                                onVocabClick={(vid) => void navigate(`/vocab/${vid}`)}
-                                showFurigana={true}
-                                highlightRanges={patternHighlightRanges(example)}
-                            />
-                        </div>
-                        <div className="text-sm text-tertiary font-gothic mb-1">
-                            {example.romaji}
-                        </div>
-                        <div className="text-sm text-secondary font-serif">
-                            {example.en}
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </Card>
+        <DetailCard title="Example Sentences" count={point.examples.length}>
+            <GrammarExampleList examples={point.examples} />
+        </DetailCard>
     );
 
     // Read-only browsing of the corpus-mined pool (issue #73 follow-up): full
@@ -253,24 +222,7 @@ export default function GrammarDetailScreen() {
             </button>
             {isMinedSectionOpen && (
                 <div className="mt-4">
-                    {displayedMinedExamples.map((example, i) => (
-                        <div key={i} className={`pb-4 ${i < displayedMinedExamples.length - 1 ? 'border-b border-divider mb-4' : ''}`}>
-                            <div className="text-xl leading-relaxed text-primary mb-1">
-                                <InteractiveSentence
-                                    sentence={grammarExampleToSentence(example, i)}
-                                    onVocabClick={(vid) => void navigate(`/vocab/${vid}`)}
-                                    showFurigana={true}
-                                    highlightRanges={patternHighlightRanges(example)}
-                                />
-                            </div>
-                            <div className="text-sm text-tertiary font-gothic mb-1">
-                                {example.romaji}
-                            </div>
-                            <div className="text-sm text-secondary font-serif">
-                                {example.en}
-                            </div>
-                        </div>
-                    ))}
+                    <GrammarExampleList examples={displayedMinedExamples} />
                     {!isMinedExpanded && minedExamples.length > MINED_INITIAL_COUNT && (
                         <button
                             type="button"
@@ -303,49 +255,13 @@ export default function GrammarDetailScreen() {
     const relatedPointsCard = <GrammarRelatedPointsCard point={point} />;
 
     const statsCard = progress && progress.introductionAt ? (
-        <Card size={isMobile ? "sm" : "md"}>
-            <h2 className="text-lg font-gothic font-semibold text-primary mb-4">Stats</h2>
-            <div className="grid grid-cols-2 gap-4">
-                <div>
-                    <div className="text-xs text-tertiary uppercase tracking-wider font-gothic mb-1">
-                        Reviews
-                    </div>
-                    <div className="text-xl text-primary font-gothic">
-                        {progress.totalReviews}
-                    </div>
-                </div>
-                <div>
-                    <div className="text-xs text-tertiary uppercase tracking-wider font-gothic mb-1">
-                        Interval
-                    </div>
-                    <div className="text-xl text-primary font-gothic">
-                        {progress.entry.interval.toFixed(1)}d
-                    </div>
-                </div>
-                <div>
-                    <div className="text-xs text-tertiary uppercase tracking-wider font-gothic mb-1">
-                        Introduced
-                    </div>
-                    <div className="text-base text-primary font-gothic">
-                        {new Date(progress.introductionAt).toLocaleDateString()}
-                    </div>
-                </div>
-                <div>
-                    <div className="text-xs text-tertiary uppercase tracking-wider font-gothic mb-1">
-                        Next Review
-                    </div>
-                    <div className="text-base text-primary font-gothic">
-                        {progress.entry.dueDate ? new Date(progress.entry.dueDate).toLocaleDateString() : 'Ready'}
-                    </div>
-                </div>
-                <div className="col-span-2">
-                    <SRSHistoryGraph
-                        series={[{ key: 'grammar', label: 'Grammar', entry: progress.entry, color: THEME.mastery.loop1 }]}
-                        introDate={progress.introductionAt ? new Date(progress.introductionAt) : null}
-                    />
-                </div>
-            </div>
-        </Card>
+        <SrsStatsCard
+            totalReviews={progress.totalReviews}
+            interval={progress.entry.interval}
+            introductionAt={progress.introductionAt}
+            nextReview={progress.entry.dueDate?.toLocaleDateString() ?? 'Ready'}
+            series={[{ key: 'grammar', label: 'Grammar', entry: progress.entry, color: THEME.mastery.loop1 }]}
+        />
     ) : null;
 
     return (

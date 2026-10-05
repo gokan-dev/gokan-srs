@@ -11,13 +11,15 @@ import { Button } from "../../components/ui/Button";
 import { LoadingScreen } from "../../components/LoadingScreen";
 import { Combine } from "lucide-react";
 import { VocabSentencesCard } from "./VocabSentencesCard";
-import { SRSHistoryGraph } from "../../components/SRSHistoryGraph";
 import { ReviewTimeline } from "../../components/ReviewTimeline";
 import { VocabRelationshipsCard } from "./VocabRelationshipsCard";
 import { JlptChip } from "../../components/JlptChip";
 import { THEME } from "../../commons/theme";
 import { isEntryMastered, isProductionActivated } from "../../services/scheduling";
 import { PageHeader } from "../../components/PageHeader";
+import { DetailErrorScreen } from "../../components/detail/DetailErrorScreen";
+import { DetailField } from "../../components/detail/DetailCard";
+import { SrsStatsCard } from "../../components/detail/SrsStatsCard";
 
 export default function VocabDetailScreen() {
     const { vocabId } = useParams<{ vocabId: string }>();
@@ -44,17 +46,7 @@ export default function VocabDetailScreen() {
     // production was finished (or skipped as already known).
     const productionActivated = isProductionActivated(progress?.production);
 
-    if (error) {
-        return (
-            <div className="min-h-screen flex items-center justify-center p-4 text-center">
-                <div>
-                    <h2 className="text-xl font-bold text-error mb-2">Error</h2>
-                    <p className="text-secondary mb-4">{error}</p>
-                    <Button onClick={() => void navigate(-1)}>Go Back</Button>
-                </div>
-            </div>
-        );
-    }
+    if (error) return <DetailErrorScreen message={error} />;
 
     if (!vocab) {
         return <LoadingScreen />;
@@ -132,22 +124,12 @@ export default function VocabDetailScreen() {
         <Card size={isMobile ? "sm" : "md"}>
             <h2 className="text-lg font-gothic font-semibold text-primary mb-4">Information</h2>
             <div className="grid grid-cols-2 gap-4">
-                <div>
-                    <div className="text-xs text-tertiary uppercase tracking-wider font-gothic mb-1">
-                        Frequency
-                    </div>
-                    <div className="text-base text-primary font-gothic">
-                        #{vocab.frequency.kanjiRank.toLocaleString()}
-                    </div>
-                </div>
-                <div>
-                    <div className="text-xs text-tertiary uppercase tracking-wider font-gothic mb-1">
-                        KKLC Step
-                    </div>
-                    <div className="text-base text-primary font-gothic">
-                        Step {vocab.progression.kklcStep}
-                    </div>
-                </div>
+                <DetailField label="Frequency">
+                    #{vocab.frequency.kanjiRank.toLocaleString()}
+                </DetailField>
+                <DetailField label="KKLC Step">
+                    Step {vocab.progression.kklcStep}
+                </DetailField>
                 {vocab.usageHints?.examplePattern && (
                     <div className="col-span-2 pt-2 border-t border-divider">
                         <div className="text-xs text-tertiary uppercase tracking-wider font-gothic mb-1">
@@ -218,80 +200,38 @@ export default function VocabDetailScreen() {
     ) : null;
 
     const statsCard = progress && progress.introductionAt ? (
-        <Card size={isMobile ? "sm" : "md"}>
-            <h2 className="text-lg font-gothic font-semibold text-primary mb-4">Stats</h2>
-            <div className="grid grid-cols-2 gap-4">
-                <div>
-                    <div className="text-xs text-tertiary uppercase tracking-wider font-gothic mb-1">
-                        Reviews
-                    </div>
-                    <div className="text-xl text-primary font-gothic">
-                        {progress.totalReviews}
-                    </div>
-                </div>
-                <div>
-                    <div className="text-xs text-tertiary uppercase tracking-wider font-gothic mb-1">
-                        Interval
-                    </div>
-                    <div className="text-xl text-primary font-gothic">
-                        {progress.reading.interval.toFixed(1)}d
-                    </div>
-                </div>
-                <div className="col-span-2 pt-2 border-t border-divider grid grid-cols-2 gap-4">
-                    <div>
-                        <div className="text-xs text-tertiary uppercase tracking-wider font-gothic mb-1">
-                            Introduced
-                        </div>
-                        <div className="text-base text-primary font-gothic">
-                            {new Date(progress.introductionAt).toLocaleDateString()}
-                        </div>
-                    </div>
-                    <div>
-                        <div className="text-xs text-tertiary uppercase tracking-wider font-gothic mb-1">
-                            Next Review
-                        </div>
-                        <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                                <span className="text-sm text-secondary font-gothic w-16">Reading:</span>
-                                <span className="text-base text-primary font-gothic">{progress.reading.dueDate ? new Date(progress.reading.dueDate).toLocaleDateString() : 'Ready'}</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className="text-sm text-secondary font-gothic w-16">Meaning:</span>
-                                <span className="text-base text-primary font-gothic">{progress.meaning.dueDate ? new Date(progress.meaning.dueDate).toLocaleDateString() : 'Ready'}</span>
-                            </div>
-                            {/* "Not started" rather than a hidden row or a bare "Ready":
-                                production activates lazily, so a word that has not reached
-                                it yet needs to say so, or its absence reads as the feature
-                                being broken. */}
-                            <div className="flex items-center gap-2">
-                                <span className="text-sm text-secondary font-gothic w-16">Production:</span>
-                                <span className="text-base text-primary font-gothic">
-                                    {progress.production?.dueDate
-                                        ? new Date(progress.production.dueDate).toLocaleDateString()
-                                        : productionActivated && isEntryMastered(progress.production!)
-                                            ? 'Mastered'
-                                            : 'Not started'}
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div className="col-span-2">
-                    <SRSHistoryGraph
-                        series={[
-                            { key: 'reading', label: 'Reading', entry: progress.reading, color: THEME.mastery.reading.loop1 },
-                            { key: 'meaning', label: 'Meaning', entry: progress.meaning, color: THEME.mastery.meaning.loop1 },
-                            // Only once activated: an un-started entry would draw a flat
-                            // zero line that reads as lost progress.
-                            ...(productionActivated
-                                ? [{ key: 'production', label: 'Production', entry: progress.production!, color: THEME.mastery.production.loop1 }]
-                                : []),
-                        ]}
-                        introDate={progress.introductionAt ? new Date(progress.introductionAt) : null}
+        <SrsStatsCard
+            totalReviews={progress.totalReviews}
+            interval={progress.reading.interval}
+            introductionAt={progress.introductionAt}
+            nextReview={
+                <div className="space-y-1">
+                    <NextReviewLine label="Reading" value={progress.reading.dueDate?.toLocaleDateString() ?? 'Ready'} />
+                    <NextReviewLine label="Meaning" value={progress.meaning.dueDate?.toLocaleDateString() ?? 'Ready'} />
+                    {/* "Not started" rather than a hidden row or a bare "Ready":
+                        production activates lazily, so a word that has not reached
+                        it yet needs to say so, or its absence reads as the feature
+                        being broken. */}
+                    <NextReviewLine
+                        label="Production"
+                        value={progress.production?.dueDate
+                            ? progress.production.dueDate.toLocaleDateString()
+                            : productionActivated && progress.production && isEntryMastered(progress.production)
+                                ? 'Mastered'
+                                : 'Not started'}
                     />
                 </div>
-            </div>
-        </Card>
+            }
+            series={[
+                { key: 'reading', label: 'Reading', entry: progress.reading, color: THEME.mastery.reading.loop1 },
+                { key: 'meaning', label: 'Meaning', entry: progress.meaning, color: THEME.mastery.meaning.loop1 },
+                // Only once activated: an un-started entry would draw a flat
+                // zero line that reads as lost progress.
+                ...(productionActivated && progress.production
+                    ? [{ key: 'production', label: 'Production', entry: progress.production, color: THEME.mastery.production.loop1 }]
+                    : []),
+            ]}
+        />
     ) : null;
 
     const timelineCard = progress && progress.introductionAt ? (
@@ -395,4 +335,14 @@ function compoundList(compounds: string[]) {
             {i < compounds.length - 1 && <span className="text-divider mx-2">|</span>}
         </span>
     ));
+}
+
+/** One direction's next review date in the stats card. */
+function NextReviewLine({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="flex items-center gap-2">
+            <span className="text-sm text-secondary font-gothic w-16">{label}:</span>
+            <span className="text-base text-primary font-gothic">{value}</span>
+        </div>
+    );
 }

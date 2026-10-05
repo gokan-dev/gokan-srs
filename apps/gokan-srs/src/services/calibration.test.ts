@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
     calibrationFromHistory,
-    defaultCalibration,
     growthLevelOf,
     seedCalibrationFromHistory,
     isCalibratedGrammarReview,
@@ -15,6 +14,7 @@ import {
     withCalibrationDefaults,
 } from './calibration';
 import { SRSService } from './srs.service';
+import { defaultCalibration } from '../models/user.model';
 import { CONSTANTS } from '../commons/constants';
 import type { SRSEntry, VocabProgress } from '../models/vocabulary.model';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../models/vocabulary.model';

@@ -5,11 +5,12 @@ import { JlptChip } from "../../components/JlptChip";
 import { useResponsive } from "../../context/Responsive/useResponsive";
 import { useQuiz } from "../../context/useQuiz";
 import { VocabularyService } from "../../services/vocabulary.service";
-import { Button } from "../../components/ui/Button";
 import { LoadingScreen } from "../../components/LoadingScreen";
 import { KanjiVocabListCard } from "./KanjiVocabListCard";
 import { PageHeader } from "../../components/PageHeader";
 import { useAsyncData } from "../../hooks/useAsyncData";
+import { DetailErrorScreen } from "../../components/detail/DetailErrorScreen";
+import { DetailField } from "../../components/detail/DetailCard";
 
 export default function KanjiDetailScreen() {
     const { character } = useParams<{ character: string }>();
@@ -26,17 +27,7 @@ export default function KanjiDetailScreen() {
 
     const isKnown = state.progress?.kanjiKnowledge.kanjiSet.has(character ?? '') ?? false;
 
-    if (error) {
-        return (
-            <div className="min-h-screen flex items-center justify-center p-4 text-center">
-                <div>
-                    <h2 className="text-xl font-bold text-error mb-2">Error</h2>
-                    <p className="text-secondary mb-4">{error}</p>
-                    <Button onClick={() => void navigate(-1)}>Go Back</Button>
-                </div>
-            </div>
-        );
-    }
+    if (error) return <DetailErrorScreen message={error} />;
 
     if (!kanji) {
         return <LoadingScreen />;
@@ -64,22 +55,12 @@ export default function KanjiDetailScreen() {
         <Card size={isMobile ? "sm" : "md"}>
             <h2 className="text-lg font-gothic font-semibold text-primary mb-4">Information</h2>
             <div className="grid grid-cols-2 gap-4">
-                <div>
-                    <div className="text-xs text-tertiary uppercase tracking-wider font-gothic mb-1">
-                        KKLC Step
-                    </div>
-                    <div className="text-base text-primary font-gothic">
-                        {kanji.steps.kklc ? `Step ${kanji.steps.kklc}` : '-'}
-                    </div>
-                </div>
-                <div>
-                    <div className="text-xs text-tertiary uppercase tracking-wider font-gothic mb-1">
-                        Frequency
-                    </div>
-                    <div className="text-base text-primary font-gothic">
-                        {kanji.frequency ? `#${kanji.frequency.toLocaleString()}` : '-'}
-                    </div>
-                </div>
+                <DetailField label="KKLC Step">
+                    {kanji.steps.kklc ? `Step ${kanji.steps.kklc}` : '-'}
+                </DetailField>
+                <DetailField label="Frequency">
+                    {kanji.frequency ? `#${kanji.frequency.toLocaleString()}` : '-'}
+                </DetailField>
             </div>
         </Card>
     );

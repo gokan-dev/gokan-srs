@@ -29,13 +29,6 @@ import type { Stored } from './progressHydration';
  * successes that inflated the old single window.
  */
 
-export const defaultCalibration = (): Calibration => ({
-    reading: { level: 1.0, history: [] },
-    meaning: { level: 1.0, history: [] },
-    production: { level: 1.0, history: [] },
-    grammar: { level: 1.0, history: [] },
-});
-
 /** One quiz type's stats with any missing field filled in (level 1, empty window). */
 export function adaptiveStatsWithDefaults(stats: Stored<AdaptiveStats> | undefined): AdaptiveStats {
     return { level: stats?.level ?? 1.0, history: [...(stats?.history ?? [])] };
