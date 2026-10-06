@@ -248,6 +248,17 @@ export class MigrationService {
             item.stage === 'graduated' ? item : { ...item, nextReviewAt: vocabNextReviewAt(item, settings) }
         );
 
+        // Enforce the invariant "learningQueue holds no retired id" on every load
+        // (additive, no version gate). A word whose data the dataset dropped is
+        // tombstoned in retiredVocabIds (RETIRE_VOCAB); dropping it here means a
+        // Drive merge that unioned it back in is re-cleaned next load, so a retired
+        // word can never respawn into active learning. See UserProgress.retiredVocabIds.
+        const retiredVocabIds = progress.retiredVocabIds ?? [];
+        if (retiredVocabIds.length > 0) {
+            const retiredSet = new Set(retiredVocabIds);
+            migratedQueue = migratedQueue.filter((item: VocabProgress) => !retiredSet.has(item.vocabId));
+        }
+
         // grammarQueue is a purely additive field (issue #17), so it needs no
         // version-gated migration pass - just defaults filled in and nextReviewAt
         // derived the same way vocab's is (unconditionally, on every load).
@@ -271,6 +282,9 @@ export class MigrationService {
             // Purely additive, like grammarQueue itself - just default to [] on
             // every load, unconditionally, no version gate needed.
             completedChapters: progress.completedChapters ?? [],
+            // Tombstones for vocab the dataset dropped; the queue above is already
+            // filtered by this set. Additive, carried through every load.
+            retiredVocabIds,
             adaptive: progress.adaptive ?? { level: 1.0, history: [] },
             // Additive too. A quiz type starts where its own review logs put it
             // (replayed through the live update rule), not at x1 with an empty

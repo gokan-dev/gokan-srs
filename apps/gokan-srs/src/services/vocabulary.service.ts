@@ -4,6 +4,26 @@ import type { Kanji } from '../models/kanji.model';
 import type { FrequencyIndex, JlptIndex, KKLCIndex, KKLCKanjiIndex, KanjiVocabIndex, SearchIndex } from '../models/index.model';
 import { romajiToHiragana, looksLikeRomaji } from '../utils/romaji';
 
+/**
+ * A vocab's compiled file genuinely does not exist (it was dropped from the
+ * dataset), as opposed to a transient network failure. Thrown by loadVocab so a
+ * caller can RETIRE the id rather than fatal-erroring - see RETIRE_VOCAB.
+ *
+ * Absence looks different per environment: a dev server returns 404, while
+ * production CloudFront's distribution-wide SPA fallback rewrites a missing file
+ * to index.html at 200 (text/html). Both are detected here. A thrown fetch
+ * (offline / DNS) is NOT turned into this error, so a blip never deletes real
+ * progress - it propagates and stays a genuine (fatal) failure.
+ */
+export class VocabNotFoundError extends Error {
+    readonly vocabId: string;
+    constructor(vocabId: string) {
+        super(`Vocabulary ${vocabId} not found (retired or missing from the dataset)`);
+        this.name = 'VocabNotFoundError';
+        this.vocabId = vocabId;
+    }
+}
+
 export class VocabularyService {
     private static kklcIndex: KKLCIndex | null = null;
     private static kklcKanjiIndex: KKLCKanjiIndex | null = null;
@@ -56,7 +76,20 @@ export class VocabularyService {
             return this.vocabCache.get(id)!;
         }
 
-        const vocab = await this.fetchJson<Vocabulary>(`/data/compiled/vocab/${id}.json`);
+        // A thrown fetch (offline) propagates as-is: a blip must not look like a
+        // retired word. Only a definitive "the server does not have this file"
+        // (404, or the prod SPA shell served at 200/text/html) becomes
+        // VocabNotFoundError so the caller can retire the id instead of crashing.
+        const response = await fetch(`/data/compiled/vocab/${id}.json`);
+        if (!response.ok || (response.headers.get('content-type') || '').includes('text/html')) {
+            throw new VocabNotFoundError(id);
+        }
+        let vocab: Vocabulary;
+        try {
+            vocab = await response.json();
+        } catch {
+            throw new VocabNotFoundError(id);
+        }
         this.vocabCache.set(id, vocab);
         return vocab;
     }

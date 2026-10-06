@@ -659,4 +659,50 @@ describe('quizReducer', () => {
         const twice = quizReducer(once, { type: 'REBASE_STRENGTHS', payload: { frequencyModifier: 1 } });
         expect(twice).toBe(once);
     });
+
+    describe('RETIRE_VOCAB', () => {
+        it('drops the vocab from learningQueue, tombstones it, and clears the failed load', () => {
+            const state: QuizState = {
+                ...initialState,
+                progress: makeProgress({
+                    learningQueue: [makeVocabProgress({ vocabId: 'dead' }), makeVocabProgress({ vocabId: 'alive' })],
+                }),
+                currentQuizItem: { vocabId: 'dead', quizType: 'reading', quizMode: 'base' },
+                isLoadingVocab: true,
+            };
+            const next = quizReducer(state, { type: 'RETIRE_VOCAB', payload: { vocabId: 'dead' } });
+            expect(next.progress!.learningQueue.map(v => v.vocabId)).toEqual(['alive']);
+            expect(next.progress!.retiredVocabIds).toEqual(['dead']);
+            expect(next.isLoadingVocab).toBe(false);
+            expect(next.currentVocab).toBeNull();
+            expect(next.currentQuizItem).toBeNull();
+        });
+
+        it('keeps the tombstone deduped when the id is already retired', () => {
+            const state: QuizState = {
+                ...initialState,
+                progress: makeProgress({
+                    learningQueue: [makeVocabProgress({ vocabId: 'dead' })],
+                    retiredVocabIds: ['dead'],
+                }),
+            };
+            const next = quizReducer(state, { type: 'RETIRE_VOCAB', payload: { vocabId: 'dead' } });
+            expect(next.progress!.retiredVocabIds).toEqual(['dead']);
+            expect(next.progress!.learningQueue).toEqual([]);
+        });
+
+        it('is a no-op when the id is already retired and not in the queue', () => {
+            const state: QuizState = {
+                ...initialState,
+                progress: makeProgress({ learningQueue: [], retiredVocabIds: ['dead'] }),
+            };
+            const next = quizReducer(state, { type: 'RETIRE_VOCAB', payload: { vocabId: 'dead' } });
+            expect(next).toBe(state);
+        });
+
+        it('is a no-op without progress', () => {
+            const next = quizReducer(initialState, { type: 'RETIRE_VOCAB', payload: { vocabId: 'dead' } });
+            expect(next).toBe(initialState);
+        });
+    });
 });

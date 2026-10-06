@@ -39,6 +39,20 @@ export interface UserProgress {
     watchedEpisodes?: Record<string, WatchedEpisode>;
 
     /**
+     * Vocab ids whose compiled data no longer exists in the dataset (e.g. a word
+     * the dataset build dropped), discovered when a load returns not-found. A
+     * tombstone set: the entry is removed from learningQueue and recorded here so
+     * it is never served again, AND stays excluded if it respawns - a Drive merge
+     * unions learningQueue and would otherwise re-add a word another device still
+     * carries. Merged as a union (mergeProgress) and re-applied to learningQueue
+     * on every load (migrateUserProgress) and after every merge, so the invariant
+     * "learningQueue contains no retired id" always holds. Optional and not in
+     * DEFAULT_PROGRESS, additive like watchedEpisodes - progress that never hit a
+     * retired word carries no field. See VocabNotFoundError / RETIRE_VOCAB.
+     */
+    retiredVocabIds?: string[];
+
+    /**
      * Counters for progress
      * - learned: queue items (not just intro'd)
      * - graduated: longer interval items
