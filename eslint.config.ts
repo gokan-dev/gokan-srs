@@ -17,6 +17,7 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 
 const SRS = 'apps/gokan-srs'
 const DICTIONARY = 'apps/gokan-dictionary'
+const DEPLOY = 'packages/deploy'
 
 /**
  * Casts that switch the type checker off as completely as `any` does. A value that does
@@ -107,9 +108,13 @@ export default defineConfig([
   // ---------------------------------------------------------------- command-line scripts
   // Build and maintenance scripts run in Node/Bun, and their console output is their interface.
   {
-    files: ['*.ts', 'scripts/**/*.ts', `${SRS}/scripts/**/*.ts`, `${DICTIONARY}/scripts/**/*.ts`],
+    files: ['*.ts', 'scripts/**/*.ts', `${SRS}/scripts/**/*.ts`, `${DICTIONARY}/scripts/**/*.ts`, `${DEPLOY}/scripts/**/*.ts`],
     languageOptions: { globals: globals.node },
     rules: { 'no-console': 'off' },
+  },
+  {
+    files: [`${DEPLOY}/**/*.ts`],
+    languageOptions: { globals: globals.node },
   },
 
   // ---------------------------------------------------------------- gokan-srs (React)

@@ -1,0 +1,16 @@
+{
+  "name": "@gokan/deploy",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Content-addressed S3 deploy for both apps: uploads only the files whose content changed.",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "typescript": "~5.9.3",
+    "vitest": "^4.0.17"
+  }
+}

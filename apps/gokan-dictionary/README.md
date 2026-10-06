@@ -23,7 +23,6 @@ src/
 scripts/
   prerender.ts          The generator.
   svelte-ssr-loader.ts  Compiles .svelte server-side for the generator.
-  deploy-s3.ts          Content-addressed upload: only changed files are sent.
 ```
 
 Two conventions worth knowing before editing:
@@ -50,6 +49,6 @@ The build reads the compiled dataset from the [gokan-dataset](https://github.com
 
 The site is served from the `/dictionary` prefix of the main app's origin rather than its own subdomain, so both share one hostname's ranking signals. `VITE_BASE_PATH` controls that prefix; setting it to an empty string builds for a bare origin instead, which is the only source change a move to a subdomain would need.
 
-Uploads go through `scripts/deploy-s3.ts`, which hashes every built file, compares against a manifest stored alongside the site, and sends only what changed. A dataset change touching 200 entries uploads 200 pages rather than 38,900.
+Uploads go through the shared `packages/deploy/scripts/deploy-s3.ts` (the main app uses it too), which hashes every built file, compares against a manifest stored alongside the site, and sends only what changed. A dataset change touching 200 entries uploads 200 pages rather than 38,900.
 
 Rules are in [AGENTS.md](../../AGENTS.md), architecture notes in [docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md#gokan-dictionary-app).

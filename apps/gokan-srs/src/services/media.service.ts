@@ -1,5 +1,5 @@
 import type { MediaIndexEntry, MediaLibraryWords, MediaTitle } from '@gokan/dataset-schema';
-import { fetchJson } from './http';
+import { datasetUrl, fetchJson } from './http';
 
 /**
  * Loads the listening library compiled by the gokan-dataset submodule's
@@ -14,14 +14,14 @@ export class MediaService {
 
     static async loadIndex(): Promise<MediaIndexEntry[]> {
         if (this.index) return this.index;
-        this.index = await fetchJson<MediaIndexEntry[]>(`/data/compiled/media/index.json?v=${Date.now()}`);
+        this.index = await fetchJson<MediaIndexEntry[]>(datasetUrl('media/index.json'));
         return this.index;
     }
 
     static async loadTitle(id: string): Promise<MediaTitle> {
         const cached = this.titleCache.get(id);
         if (cached) return cached;
-        const title = await fetchJson<MediaTitle>(`/data/compiled/media/${encodeURIComponent(id)}.json`);
+        const title = await fetchJson<MediaTitle>(datasetUrl(`media/${encodeURIComponent(id)}.json`));
         this.titleCache.set(id, title);
         return title;
     }
@@ -29,7 +29,7 @@ export class MediaService {
     /** Every title's whole-series word list, for ranking the library by coverage without loading each title file. */
     static async loadLibraryWords(): Promise<MediaLibraryWords> {
         if (this.libraryWords) return this.libraryWords;
-        this.libraryWords = await fetchJson<MediaLibraryWords>(`/data/compiled/media/library.json?v=${Date.now()}`);
+        this.libraryWords = await fetchJson<MediaLibraryWords>(datasetUrl('media/library.json'));
         return this.libraryWords;
     }
 }

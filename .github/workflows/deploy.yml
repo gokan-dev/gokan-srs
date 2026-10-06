@@ -11,6 +11,7 @@ on:
     paths:
       - 'apps/gokan-srs/**'
       - 'apps/gokan-dictionary/**'
+      - 'packages/**'
       - 'package.json'
       - 'bun.lock'
       - '.github/workflows/deploy.yml'
@@ -19,6 +20,7 @@ on:
     paths:
       - 'apps/gokan-srs/**'
       - 'apps/gokan-dictionary/**'
+      - 'packages/**'
       - 'package.json'
       - 'bun.lock'
       - '.github/workflows/deploy.yml'

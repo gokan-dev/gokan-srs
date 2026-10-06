@@ -8,6 +8,22 @@ export async function readJson<T>(response: Response): Promise<T> {
     return body as T;
 }
 
+/** The dataset submodule's commit, injected by vite.config.ts. */
+declare const __DATASET_VERSION__: string;
+
+/**
+ * URL of a compiled dataset file, e.g. `datasetUrl('vocab/123.json')`. Every dataset request is
+ * built here (enforced by the conventions check).
+ *
+ * Dataset files keep their names from one dataset release to the next, so the URL carries the
+ * dataset version: a new dataset is a new URL, and a browser never answers it from a cached
+ * older file. Files used to be served as immutable for a year with no version, which kept an
+ * entry's old JLPT level in browsers after the data changed.
+ */
+export function datasetUrl(path: string): string {
+    return `/data/compiled/${path}?v=${__DATASET_VERSION__}`;
+}
+
 /**
  * Fetches a URL and parses its JSON body, failing on a non-2xx status. Every
  * service loads JSON through this rather than keeping its own copy.

@@ -27,6 +27,15 @@
         "tailwindcss"
       ]
     },
+    "packages/deploy": {
+      "entry": [
+        "scripts/*.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "scripts/**/*.ts"
+      ]
+    },
     "apps/gokan-dictionary": {
       "entry": [
         "src/client/*.ts",
