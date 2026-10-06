@@ -157,6 +157,8 @@ export type QuizAction =
     | { type: 'LOAD_VOCAB_START'; payload: PendingQuizItem }
     | { type: 'LOAD_VOCAB_SUCCESS'; payload: { vocab: Vocabulary | null; sentences: Sentence[] | null; selectedSentenceId: string | null; productionCloze?: ProductionCloze | null } }
     | { type: 'LOAD_VOCAB_ERROR'; payload: { vocabId: string, error: any } }
+    /** The vocab's data no longer exists in the dataset: drop it from learningQueue and tombstone it in retiredVocabIds so it is never served again (even if a merge respawns it). See VocabNotFoundError. */
+    | { type: 'RETIRE_VOCAB'; payload: { vocabId: string } }
     | { type: 'EVALUATING_AI_START' }
     | { type: 'SET_ANSWER'; payload: string }
     | { type: 'REVEAL_PRODUCTION_HINT' }
@@ -290,6 +292,33 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
                 isLoadingVocab: false,
                 fatalError: `Failed to load vocabulary data for ID: ${action.payload.vocabId}. The application data may be corrupted. Please reload or contact support.`,
             };
+
+        case 'RETIRE_VOCAB': {
+            if (!state.progress) return state;
+            const { vocabId } = action.payload;
+            const retired = state.progress.retiredVocabIds ?? [];
+            const alreadyRetired = retired.includes(vocabId);
+            const inQueue = state.progress.learningQueue.some(v => v.vocabId === vocabId);
+            if (alreadyRetired && !inQueue) return state; // nothing to change
+            // Clear the failed load and reset selection so selectNextView recomputes
+            // over a queue the retired word is no longer in and serves the next item.
+            return {
+                ...state,
+                progress: {
+                    ...state.progress,
+                    learningQueue: state.progress.learningQueue.filter(v => v.vocabId !== vocabId),
+                    retiredVocabIds: alreadyRetired ? retired : [...retired, vocabId],
+                },
+                currentVocab: null,
+                currentQuizItem: null,
+                currentSentences: null,
+                currentSentenceId: null,
+                currentProductionCloze: null,
+                isLoadingVocab: false,
+                userAnswer: '',
+                feedback: null,
+            };
+        }
 
         case 'EVALUATING_AI_START':
             return { ...state, isEvaluatingAi: true };

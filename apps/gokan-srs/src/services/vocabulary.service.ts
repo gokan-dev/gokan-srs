@@ -4,6 +4,26 @@ import type { Kanji } from '../models/kanji.model';
 import type { FrequencyIndex, JlptIndex, KKLCIndex, KKLCKanjiIndex, KanjiVocabIndex, SearchIndex } from '../models/index.model';
 import { romajiToHiragana, looksLikeRomaji } from '../utils/romaji';
 
+/**
+ * A vocab's compiled file genuinely does not exist (it was dropped from the
+ * dataset), as opposed to a transient network failure. Thrown by loadVocab so a
+ * caller can RETIRE the id rather than fatal-erroring - see RETIRE_VOCAB.
+ *
+ * Absence looks different per environment: a dev server returns 404, while
+ * production CloudFront's distribution-wide SPA fallback rewrites a missing file
+ * to index.html at 200 (text/html). Both are detected here. A thrown fetch
+ * (offline / DNS) is NOT turned into this error, so a blip never deletes real
+ * progress - it propagates and stays a genuine (fatal) failure.
+ */
+export class VocabNotFoundError extends Error {
+    readonly vocabId: string;
+    constructor(vocabId: string) {
+        super(`Vocabulary ${vocabId} not found (retired or missing from the dataset)`);
+        this.name = 'VocabNotFoundError';
+        this.vocabId = vocabId;
+    }
+}
+
 export class VocabularyService {
     private static kklcIndex: KKLCIndex | null = null;
     private static kklcKanjiIndex: KKLCKanjiIndex | null = null;
@@ -56,7 +76,27 @@ export class VocabularyService {
             return this.vocabCache.get(id)!;
         }
 
-        const vocab = await this.fetchJson<Vocabulary>(`/data/compiled/vocab/${id}.json`);
+        const path = `/data/compiled/vocab/${id}.json`;
+        const response = await fetch(path);
+
+        // Retire ONLY on a definitive "the server does not have this file", never
+        // on a transient failure - retirement is a permanent tombstone, so it must
+        // not fire during a deploy or a CloudFront/S3 hiccup. The two definitive
+        // signals are a real 404 (dev server, or a true origin 404) and the prod
+        // SPA fallback (CloudFront's distribution-wide custom_error_response
+        // rewrites a missing key to index.html at 200/text/html). Everything else -
+        // a 5xx, 403, 429, an offline fetch rejection (never reaches here), or a
+        // 200 whose body is unparseable - is treated as a normal (recoverable,
+        // fatal) error below, so a legitimate word is never retired by a blip.
+        const contentType = response.headers.get('content-type') || '';
+        const notFound = response.status === 404 || (response.ok && contentType.includes('text/html'));
+        if (notFound) {
+            throw new VocabNotFoundError(id);
+        }
+        if (!response.ok) {
+            throw new Error(`Failed to fetch ${path}: ${response.status} ${response.statusText}`);
+        }
+        const vocab: Vocabulary = await response.json();
         this.vocabCache.set(id, vocab);
         return vocab;
     }

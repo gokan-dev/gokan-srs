@@ -5,7 +5,7 @@ import type { KanjiKnowledge, UserProgress, UserSettings } from '../../models/us
 import type { Vocabulary, VocabProgress } from '../../models/vocabulary.model';
 import type { SynonymRelation } from '../../models/index.model';
 import { StorageService } from '../../services/storage.service';
-import { VocabularyService } from '../../services/vocabulary.service';
+import { VocabularyService, VocabNotFoundError } from '../../services/vocabulary.service';
 import { SRSService } from '../../services/srs.service';
 import type { AnswerResult, ProductionSynonymCandidate } from '../../services/srs.service';
 import { MigrationService } from '../../services/migration.service';
@@ -910,6 +910,14 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             startTimeRef.current = Date.now();
         }).catch(err => {
             if (loadingKeyRef.current !== loadKey) return;
+            // A vocab the dataset dropped (file genuinely absent) is retired, not
+            // fatal: it leaves the queue and is tombstoned so it never returns. A
+            // transient failure is NOT VocabNotFoundError, so it still fatal-errors.
+            if (err instanceof VocabNotFoundError) {
+                console.warn(`[useQuizOrchestration] Retiring vocab ${vid}: data no longer exists in the dataset`);
+                dispatch({ type: 'RETIRE_VOCAB', payload: { vocabId: vid } });
+                return;
+            }
             console.error('[useQuizOrchestration] Failed to load vocab/sentences', err);
             dispatch({ type: 'LOAD_VOCAB_ERROR', payload: { vocabId: vid, error: err } });
         });

@@ -370,6 +370,17 @@ describe('mergeProgress (top-level)', () => {
         expect(merged.completedChapters).toEqual(['n5-c01']);
     });
 
+    it('retiredVocabIds unions, and a retired id drops the other device queue entry (respawn prevention)', () => {
+        // Device A retired 'dead'; device B never did and still carries it in its queue.
+        const local = makeProgress({ retiredVocabIds: ['dead'], learningQueue: [] });
+        const remote = makeProgress({ learningQueue: [makeVocabProgress({ vocabId: 'dead' })], retiredVocabIds: [] });
+
+        const merged = mergeProgress(local, remote)!;
+        expect(merged.retiredVocabIds).toEqual(['dead']);
+        // The union would re-add 'dead' to the queue; the retired filter removes it.
+        expect(merged.learningQueue.map(v => v.vocabId)).not.toContain('dead');
+    });
+
     it('watchedEpisodes merges per episode, newest mark winning, so an un-mark propagates', () => {
         const local = makeProgress({ watchedEpisodes: {
             '16685:1': { watched: false, updatedAt: 200 },

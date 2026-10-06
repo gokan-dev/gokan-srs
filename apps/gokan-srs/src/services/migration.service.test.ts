@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { MigrationService, CURRENT_FORMAT_VERSION } from './migration.service';
 import { CONSTANTS } from '../commons/constants';
 import type { VocabProgress } from '../models/vocabulary.model';
+import { DEFAULT_VOCABULARY_PROGRESS } from '../models/vocabulary.model';
 import { GrammarService } from './grammar.service';
 import type { GrammarProgress } from '../models/grammar.model';
 
@@ -589,6 +590,34 @@ describe('MigrationService', () => {
 
             const migrated = MigrationService.migrateUserProgress(progress);
             expect(migrated.completedChapters).toEqual(['n5-c01', 'n5-c02']);
+        });
+    });
+
+    describe('retiredVocabIds (additive tombstones, no version gate)', () => {
+        const item = (vocabId: string) => ({
+            ...DEFAULT_VOCABULARY_PROGRESS, vocabId, introductionAt: new Date('2026-06-01'),
+        });
+
+        it('defaults to an empty array when absent', () => {
+            const migrated = MigrationService.migrateUserProgress({
+                kanjiKnowledge: { method: 'kklc', step: 10, kanjiSet: [] },
+                learningQueue: [],
+                stats: { newLearnedToday: 0, totalLearned: 0, totalReviews: 0 },
+                dailyOverride: false,
+            });
+            expect(migrated.retiredVocabIds).toEqual([]);
+        });
+
+        it('drops a retired id from learningQueue on every load (enforces the invariant)', () => {
+            const migrated = MigrationService.migrateUserProgress({
+                kanjiKnowledge: { method: 'kklc', step: 10, kanjiSet: [] },
+                learningQueue: [item('dead'), item('alive')],
+                retiredVocabIds: ['dead'],
+                stats: { newLearnedToday: 0, totalLearned: 0, totalReviews: 0 },
+                dailyOverride: false,
+            });
+            expect(migrated.learningQueue.map(v => v.vocabId)).toEqual(['alive']);
+            expect(migrated.retiredVocabIds).toEqual(['dead']);
         });
     });
 

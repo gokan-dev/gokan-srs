@@ -236,7 +236,16 @@ export function mergeProgress(
     const remoteVersion = remote._sync?.version ?? 0;
 
     const mergedKanjiKnowledge = remoteVersion > localVersion ? remote.kanjiKnowledge : local.kanjiKnowledge;
-    const mergedQueue = mergeLearningQueues(local.learningQueue, remote.learningQueue, settings);
+    // Union the retirement tombstones, then drop any retired id the queue union
+    // re-introduced: once a device learns a word's data is gone, that must stick
+    // even if the other device still carries the (now-dead) VocabProgress entry.
+    const mergedRetiredVocabIds = Array.from(new Set([
+        ...(local.retiredVocabIds ?? []),
+        ...(remote.retiredVocabIds ?? []),
+    ]));
+    const retiredSet = new Set(mergedRetiredVocabIds);
+    const mergedQueue = mergeLearningQueues(local.learningQueue, remote.learningQueue, settings)
+        .filter(v => !retiredSet.has(v.vocabId));
     const mergedGrammarQueue = mergeGrammarQueues(local.grammarQueue ?? [], remote.grammarQueue ?? []);
     // Pure union, like mergeGrammarQueues: a chapter step shown on one device
     // must not un-show on another.
@@ -256,6 +265,7 @@ export function mergeProgress(
         learningQueue: mergedQueue,
         grammarQueue: mergedGrammarQueue,
         completedChapters: mergedCompletedChapters,
+        retiredVocabIds: mergedRetiredVocabIds,
         // Per episode, the newer mark wins, so an un-mark propagates too.
         watchedEpisodes: mergeWatchedEpisodes(local.watchedEpisodes, remote.watchedEpisodes),
         // Per quiz type, the side with more recorded reviews (see mergeCalibration).
