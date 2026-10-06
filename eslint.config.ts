@@ -159,7 +159,6 @@ export default defineConfig([
     files: [`${SRS}/src/services/**/*.ts`],
     ignores: [
       `${SRS}/src/services/storage.service.ts`,
-      `${SRS}/src/services/backup.service.ts`,
       `${SRS}/src/**/*.test.ts`,
     ],
     rules: { 'no-restricted-globals': ['error', LOCAL_STORAGE, SESSION_STORAGE] },

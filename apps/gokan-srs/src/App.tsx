@@ -10,6 +10,7 @@ import { Loader } from "./components/Loader";
 import { Routes, Route, useNavigate, useLocation, Navigate, Link } from 'react-router-dom';
 import { SearchBar } from './components/SearchBar';
 import { ResumeSessionBar } from './components/ResumeSessionBar';
+import { StorageFullBanner } from './components/StorageFullBanner';
 
 // Lazy Load Pages
 // Note: Adapting named exports to default exports for lazy loading where necessary
@@ -149,6 +150,7 @@ export const App: React.FC = () => {
             </header>
 
             {/* Its own row beneath the header, only while a session is paused on a consult page. */}
+            <StorageFullBanner />
             <ResumeSessionBar />
 
             {/* Screen content */}

@@ -147,6 +147,10 @@ gokan-dictionary:
 - **Persistence and network go through one layer each** (enforced): `localStorage` only via
   `StorageService`, `sessionStorage` only via `hooks/usePersistedControls.ts`, `fetch` only in
   `services/`.
+- **Progress in localStorage is compacted** (`services/progressCompaction.ts`), behind
+  `StorageService`, so code always uses the readable names. A new persisted date field goes in
+  its `DATE_KEYS`; a value may be left out of storage only when hydration restores it. Storage
+  writes never throw: a full origin is reported (`StorageFullBanner`), never a crash.
 - **Data integrity fails loudly.** A dataset file that fails to load is a fatal error, never
   silently skipped.
 - **Sync never loses data.** Drive merges are per entry and per direction; queues merge as

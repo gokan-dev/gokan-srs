@@ -46,7 +46,11 @@ export interface StoredProgress extends Omit<Stored<ProgressWithMetadata>, 'lear
  * optional, so any JSON object is one; the migration fills in what is missing.
  */
 export function parseStoredProgress(json: string): StoredProgress {
-    const parsed: unknown = JSON.parse(json);
+    return toStoredProgress(JSON.parse(json));
+}
+
+/** A parsed JSON value as a stored progress payload: any JSON object is one, anything else is corrupt. */
+export function toStoredProgress(parsed: unknown): StoredProgress {
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
         throw new Error('Stored progress is not a JSON object');
     }

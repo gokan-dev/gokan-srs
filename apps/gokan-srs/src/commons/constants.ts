@@ -235,5 +235,9 @@ export const CONSTANTS = {
         googleDriveTokenKey: "GOKAN_SRS_GOOGLE_TOKEN",
         themeStorageKey: "gokan-theme",
         lastAccessDateKey: "GOKAN_LAST_ACCESS_DATE",
+        /** Drive file holding the write-once snapshot taken before the v8 migration wave. */
+        driveBackupFileName: "kanji-progress.pre-v8-backup.json",
+        /** Keys older builds wrote that nothing reads any more; removed on load (each pre-v8 backup was a full progress copy). */
+        obsoleteKeys: ["GOKAN_SRS_PROGRESS_BACKUP_PREV8", "GOKAN_SRS_PROGRESS_BACKUP_PREV8_SETTINGS"],
     },
 } as const;

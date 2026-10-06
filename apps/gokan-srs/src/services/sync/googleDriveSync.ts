@@ -1,7 +1,6 @@
 import { CONSTANTS } from '../../commons/constants';
 import { DEFAULT_SETTINGS, type UserSettings } from '../../models/user.model';
 import { MigrationService } from '../migration.service';
-import { BackupService } from '../backup.service';
 import { StorageService } from '../storage.service';
 import { toPlainProgressJSON, migrateAndHydrateProgress, progressUploadSignature, stableStringify } from '../progressSerialization';
 import type { StoredProgress } from '../progressHydration';
@@ -236,8 +235,7 @@ export class GoogleDriveSync {
      * Write-once safety net: before this instance's first write, snapshot the
      * current live remote file under a backup name. No-ops if a backup already
      * exists (never overwritten) or if there's nothing live to back up yet.
-     * Failures are logged but non-fatal - the local backup (backup.service.ts)
-     * is the primary safety net; this is defense in depth for cross-device sync.
+     * Failures are logged but non-fatal: this is defense in depth for cross-device sync.
      */
     async ensureRemoteBackupOnce(): Promise<void> {
         if (this.remoteBackupChecked) return;
@@ -246,14 +244,14 @@ export class GoogleDriveSync {
         try {
             if (!this.folderId) await this.ensureFolder();
 
-            const existingBackups = await this.driveClient.listFilesByName(this.folderId!, BackupService.REMOTE_BACKUP_FILE_NAME);
+            const existingBackups = await this.driveClient.listFilesByName(this.folderId!, CONSTANTS.storage.driveBackupFileName);
             if (existingBackups.length > 0) return;
 
             const liveFiles = await this.driveClient.listFilesByName(this.folderId!, DRIVE_FILE_NAME);
             if (liveFiles.length === 0) return;
 
             const raw = await this.driveClient.downloadFileContent(liveFiles[0].id);
-            await this.driveClient.uploadNewFile(this.folderId!, BackupService.REMOTE_BACKUP_FILE_NAME, raw);
+            await this.driveClient.uploadNewFile(this.folderId!, CONSTANTS.storage.driveBackupFileName, raw);
         } catch (e) {
             console.error('[GoogleDriveSync] Remote backup failed (non-fatal):', e);
         }
