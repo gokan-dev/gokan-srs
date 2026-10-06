@@ -1,10 +1,12 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { VocabularyService, VocabNotFoundError } from './vocabulary.service';
 
-// Minimal Response stub for loadVocab's checks (ok, content-type, json()).
-function res(opts: { ok?: boolean; contentType?: string; json?: () => unknown }): Response {
+// Minimal Response stub for loadVocab's checks (status, ok, content-type, json()).
+function res(opts: { status?: number; ok?: boolean; contentType?: string; json?: () => unknown }): Response {
+    const status = opts.status ?? 200;
     return {
-        ok: opts.ok ?? true,
+        status,
+        ok: opts.ok ?? (status >= 200 && status < 300),
         headers: { get: (k: string) => (k.toLowerCase() === 'content-type' ? (opts.contentType ?? 'application/json') : null) },
         json: opts.json ?? (async () => ({})),
     } as unknown as Response;
@@ -24,19 +26,32 @@ describe('VocabularyService.loadVocab not-found detection', () => {
         expect((await VocabularyService.loadVocab('100')).id).toBe('100');
     });
 
-    it('throws VocabNotFoundError on a 404 (dev server)', async () => {
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue(res({ ok: false }));
+    it('throws VocabNotFoundError on a 404 (dev server / true origin 404)', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(res({ status: 404 }));
         await expect(VocabularyService.loadVocab('404id')).rejects.toBeInstanceOf(VocabNotFoundError);
     });
 
-    it('throws VocabNotFoundError on a 200 text/html (prod CloudFront SPA fallback)', async () => {
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue(res({ ok: true, contentType: 'text/html', json: async () => { throw new Error('<'); } }));
+    it('throws VocabNotFoundError on a 200 text/html (prod CloudFront SPA fallback for a missing key)', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(res({ status: 200, contentType: 'text/html', json: async () => { throw new Error('<'); } }));
         await expect(VocabularyService.loadVocab('spa')).rejects.toBeInstanceOf(VocabNotFoundError);
     });
 
-    it('throws VocabNotFoundError when the body is not valid JSON', async () => {
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue(res({ ok: true, json: async () => { throw new SyntaxError('bad'); } }));
-        await expect(VocabularyService.loadVocab('badjson')).rejects.toBeInstanceOf(VocabNotFoundError);
+    // The deploy-safety cases: a transient server/edge failure must NEVER retire a
+    // legitimate word (retirement is a permanent tombstone). These stay recoverable
+    // errors, not VocabNotFoundError.
+    it('does NOT retire on a transient 503 (CloudFront/S3 hiccup or mid-deploy)', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(res({ status: 503 }));
+        await expect(VocabularyService.loadVocab('busy')).rejects.not.toBeInstanceOf(VocabNotFoundError);
+    });
+
+    it('does NOT retire on a 403', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(res({ status: 403 }));
+        await expect(VocabularyService.loadVocab('forbidden')).rejects.not.toBeInstanceOf(VocabNotFoundError);
+    });
+
+    it('does NOT retire on a 200 with an unparseable JSON body (corruption, not absence)', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(res({ status: 200, json: async () => { throw new SyntaxError('bad'); } }));
+        await expect(VocabularyService.loadVocab('corrupt')).rejects.not.toBeInstanceOf(VocabNotFoundError);
     });
 
     it('propagates a transient network error (NOT VocabNotFoundError) so a blip never retires a word', async () => {

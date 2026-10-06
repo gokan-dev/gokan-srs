@@ -76,20 +76,27 @@ export class VocabularyService {
             return this.vocabCache.get(id)!;
         }
 
-        // A thrown fetch (offline) propagates as-is: a blip must not look like a
-        // retired word. Only a definitive "the server does not have this file"
-        // (404, or the prod SPA shell served at 200/text/html) becomes
-        // VocabNotFoundError so the caller can retire the id instead of crashing.
-        const response = await fetch(`/data/compiled/vocab/${id}.json`);
-        if (!response.ok || (response.headers.get('content-type') || '').includes('text/html')) {
+        const path = `/data/compiled/vocab/${id}.json`;
+        const response = await fetch(path);
+
+        // Retire ONLY on a definitive "the server does not have this file", never
+        // on a transient failure - retirement is a permanent tombstone, so it must
+        // not fire during a deploy or a CloudFront/S3 hiccup. The two definitive
+        // signals are a real 404 (dev server, or a true origin 404) and the prod
+        // SPA fallback (CloudFront's distribution-wide custom_error_response
+        // rewrites a missing key to index.html at 200/text/html). Everything else -
+        // a 5xx, 403, 429, an offline fetch rejection (never reaches here), or a
+        // 200 whose body is unparseable - is treated as a normal (recoverable,
+        // fatal) error below, so a legitimate word is never retired by a blip.
+        const contentType = response.headers.get('content-type') || '';
+        const notFound = response.status === 404 || (response.ok && contentType.includes('text/html'));
+        if (notFound) {
             throw new VocabNotFoundError(id);
         }
-        let vocab: Vocabulary;
-        try {
-            vocab = await response.json();
-        } catch {
-            throw new VocabNotFoundError(id);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch ${path}: ${response.status} ${response.statusText}`);
         }
+        const vocab: Vocabulary = await response.json();
         this.vocabCache.set(id, vocab);
         return vocab;
     }
