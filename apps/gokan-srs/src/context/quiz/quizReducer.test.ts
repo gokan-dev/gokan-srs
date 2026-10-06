@@ -1,43 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { quizReducer, initialState, taskKey } from './quizReducer';
+import { initialState, quizReducer, taskKey } from './quizReducer';
 import type { QuizState } from './quizReducer';
-import type { UserProgress } from '../../models/user.model';
-import type { Vocabulary, VocabProgress } from '../../models/vocabulary.model';
+import type { UserSettings } from '../../models/user.model';
+import { DEFAULT_SETTINGS } from '../../models/user.model';
+import type { Vocabulary } from '@gokan/dataset-schema';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../../models/vocabulary.model';
 import { CONSTANTS } from '../../commons/constants';
+import { userProgress, vocabProgress, vocabulary } from '../../test/fixtures';
 
-function makeProgress(overrides: Partial<UserProgress> = {}): UserProgress {
-    return {
-        kanjiKnowledge: { method: 'kklc', step: 10, kanjiSet: new Set(['日']) },
-        learningQueue: [],
-        grammarQueue: [],
-        completedChapters: [],
-        stats: { newLearnedToday: 0, totalLearned: 0, totalReviews: 0 },
-        dailyOverride: false,
-        adaptive: { level: 1.0, history: [] },
-        ...overrides,
-    };
-}
-
-function makeVocabProgress(overrides: Partial<VocabProgress> = {}): VocabProgress {
-    return { ...DEFAULT_VOCABULARY_PROGRESS, vocabId: 'v1', ...overrides };
-}
-
-function makeVocab(id = 'v1'): Vocabulary {
-    return {
-        id,
-        writtenForm: { kanji: '日本', alternatives: [], containedKanji: ['日', '本'] },
-        reading: { primary: 'にほん', alternatives: [] },
-        frequency: { kanjiRank: 1 },
-        progression: { kklcStep: 1 },
-        senses: [{ pos: ['n'], misc: { rawTags: [] }, glosses: ['Japan'], related: { compounds: [] } }],
-    };
-}
+const makeVocab = (id = 'v1'): Vocabulary => vocabulary({ id });
 
 describe('quizReducer', () => {
     it('SETUP_COMPLETE sets progress and settings', () => {
-        const progress = makeProgress();
-        const settings = { preferredLearningOrder: 'frequency', enableMeaningQuiz: true, learningFrequency: 'medium' } as any;
+        const progress = userProgress();
+        const settings: UserSettings = { ...DEFAULT_SETTINGS, preferredLearningOrder: 'frequency', enableMeaningQuiz: true, learningFrequency: 'medium' };
         const state = quizReducer(initialState, { type: 'SETUP_COMPLETE', payload: { progress, settings } });
 
         expect(state.progress).toBe(progress);
@@ -47,7 +23,7 @@ describe('quizReducer', () => {
     it('RESET_DAILY_STATS zeroes newLearnedToday and clears dailyOverride', () => {
         const state: QuizState = {
             ...initialState,
-            progress: makeProgress({ stats: { newLearnedToday: 5, totalLearned: 10, totalReviews: 20 }, dailyOverride: true }),
+            progress: userProgress({ stats: { newLearnedToday: 5, totalLearned: 10, totalReviews: 20 }, dailyOverride: true }),
         };
         const next = quizReducer(state, { type: 'RESET_DAILY_STATS' });
 
@@ -64,7 +40,7 @@ describe('quizReducer', () => {
     it('SET_EPISODES_WATCHED records the marks under their keys, leaving other episodes alone', () => {
         const state: QuizState = {
             ...initialState,
-            progress: makeProgress({ watchedEpisodes: { '16685:1': { watched: true, updatedAt: 1 } } }),
+            progress: userProgress({ watchedEpisodes: { '16685:1': { watched: true, updatedAt: 1 } } }),
         };
         const next = quizReducer(state, {
             type: 'SET_EPISODES_WATCHED',
@@ -249,7 +225,7 @@ describe('quizReducer', () => {
             introCandidates: [vocab, makeVocab('v2')],
             sessionHistory: [],
         };
-        const newProgress = makeProgress();
+        const newProgress = userProgress();
         const historyItem = { vocabId: 'v1', writtenForm: '日本', result: 'correct' as const, delta: 5 };
 
         const next = quizReducer(state, { type: 'UPDATE_AFTER_ANSWER', payload: { progress: newProgress, historyItem } });
@@ -268,7 +244,7 @@ describe('quizReducer', () => {
         };
         const next = quizReducer(state, {
             type: 'UPDATE_AFTER_ANSWER',
-            payload: { progress: makeProgress(), historyItem: { vocabId: 'new', writtenForm: 'x', result: 'correct', delta: 0 } },
+            payload: { progress: userProgress(), historyItem: { vocabId: 'new', writtenForm: 'x', result: 'correct', delta: 0 } },
         });
 
         expect(next.sessionHistory).toHaveLength(50);
@@ -285,7 +261,7 @@ describe('quizReducer', () => {
             state = quizReducer(state, {
                 type: 'UPDATE_AFTER_ANSWER',
                 payload: {
-                    progress: makeProgress(),
+                    progress: userProgress(),
                     historyItem: { vocabId: `v${i}`, writtenForm: 'x', result: 'correct', delta: 5 },
                 },
             });
@@ -304,11 +280,11 @@ describe('quizReducer', () => {
 
         state = quizReducer(state, {
             type: 'UPDATE_AFTER_ANSWER',
-            payload: { progress: makeProgress(), historyItem: { vocabId: 'v1', writtenForm: 'x', result: 'correct', delta: 10 } },
+            payload: { progress: userProgress(), historyItem: { vocabId: 'v1', writtenForm: 'x', result: 'correct', delta: 10 } },
         });
         state = quizReducer(state, {
             type: 'UPDATE_AFTER_ANSWER',
-            payload: { progress: makeProgress(), historyItem: { vocabId: 'v2', writtenForm: 'x', result: 'wrong', delta: -4 } },
+            payload: { progress: userProgress(), historyItem: { vocabId: 'v2', writtenForm: 'x', result: 'wrong', delta: -4 } },
         });
 
         expect(state.sessionGains).toEqual({ net: 6, gained: 10, lost: 4, vocab: 0 });
@@ -317,12 +293,12 @@ describe('quizReducer', () => {
     it('SAVE_SETTINGS clears introCandidates when preferredLearningOrder changes', () => {
         const state: QuizState = {
             ...initialState,
-            settings: { preferredLearningOrder: 'frequency', kanjiCoverageTarget: 1 } as any,
+            settings: { ...DEFAULT_SETTINGS, preferredLearningOrder: 'frequency', kanjiCoverageTarget: 1 },
             introCandidates: [makeVocab()],
         };
         const next = quizReducer(state, {
             type: 'SAVE_SETTINGS',
-            payload: { preferredLearningOrder: 'kklc', kanjiCoverageTarget: 1 } as any,
+            payload: { ...DEFAULT_SETTINGS, preferredLearningOrder: 'kklc', kanjiCoverageTarget: 1 },
         });
 
         expect(next.introCandidates).toEqual([]);
@@ -332,12 +308,12 @@ describe('quizReducer', () => {
         const candidates = [makeVocab()];
         const state: QuizState = {
             ...initialState,
-            settings: { preferredLearningOrder: 'frequency', kanjiCoverageTarget: 1 } as any,
+            settings: { ...DEFAULT_SETTINGS, preferredLearningOrder: 'frequency', kanjiCoverageTarget: 1 },
             introCandidates: candidates,
         };
         const next = quizReducer(state, {
             type: 'SAVE_SETTINGS',
-            payload: { preferredLearningOrder: 'frequency', kanjiCoverageTarget: 1, enableMeaningQuiz: false } as any,
+            payload: { ...DEFAULT_SETTINGS, preferredLearningOrder: 'frequency', kanjiCoverageTarget: 1, enableMeaningQuiz: false },
         });
 
         expect(next.introCandidates).toBe(candidates);
@@ -346,7 +322,7 @@ describe('quizReducer', () => {
     it('UPDATE_KANJI_KNOWLEDGE clears introCandidates when the known kanji set changes', () => {
         const state: QuizState = {
             ...initialState,
-            progress: makeProgress(),
+            progress: userProgress(),
             introCandidates: [makeVocab()],
             nextKanjiToLearn: { step: 11, kanjis: ['月'] },
         };
@@ -363,7 +339,7 @@ describe('quizReducer', () => {
     it('UPDATE_KANJI_KNOWLEDGE clears introCandidates when only the step changes', () => {
         const state: QuizState = {
             ...initialState,
-            progress: makeProgress(),
+            progress: userProgress(),
             introCandidates: [makeVocab()],
         };
         const next = quizReducer(state, {
@@ -379,7 +355,7 @@ describe('quizReducer', () => {
         const candidates = [makeVocab()];
         const state: QuizState = {
             ...initialState,
-            progress: makeProgress(),
+            progress: userProgress(),
             introCandidates: candidates,
         };
         const next = quizReducer(state, {
@@ -398,7 +374,7 @@ describe('quizReducer', () => {
     });
 
     it('SESSION_START leaves progress untouched when no updated progress is supplied', () => {
-        const progress = makeProgress();
+        const progress = userProgress();
         const state: QuizState = { ...initialState, progress };
         const keys = [taskKey('v1', 'reading')];
         const next = quizReducer(state, { type: 'SESSION_START', payload: { taskKeys: keys } });
@@ -409,9 +385,9 @@ describe('quizReducer', () => {
     // taskKeys when clearStaleNeedsRetry actually cleared a stale cross-session
     // retry flag colliding with a fresh due review - the reducer just assigns it.
     it('SESSION_START assigns the supplied progress (stale needsRetry already cleared upstream)', () => {
-        const state: QuizState = { ...initialState, progress: makeProgress() };
-        const clearedProgress = makeProgress({
-            learningQueue: [makeVocabProgress({ needsRetry: { reading: false } })],
+        const state: QuizState = { ...initialState, progress: userProgress() };
+        const clearedProgress = userProgress({
+            learningQueue: [vocabProgress({ needsRetry: { reading: false } })],
         });
         const keys = [taskKey('v1', 'reading')];
         const next = quizReducer(state, { type: 'SESSION_START', payload: { taskKeys: keys, progress: clearedProgress } });
@@ -498,7 +474,7 @@ describe('quizReducer', () => {
     });
 
     it('UPDATE_AFTER_ANSWER leaves the committed session task set untouched', () => {
-        const progress = makeProgress();
+        const progress = userProgress();
         const state: QuizState = {
             ...initialState,
             progress,
@@ -513,7 +489,7 @@ describe('quizReducer', () => {
     });
 
     it('UPDATE_AFTER_ANSWER leaves session untouched (null) when no session is active', () => {
-        const progress = makeProgress();
+        const progress = userProgress();
         const state: QuizState = { ...initialState, progress, session: null };
         const next = quizReducer(state, {
             type: 'UPDATE_AFTER_ANSWER',
@@ -525,7 +501,7 @@ describe('quizReducer', () => {
     it('VOCAB_INTRO_CHOICE "learn" adds the reading task to the active session', () => {
         const state: QuizState = {
             ...initialState,
-            progress: makeProgress(),
+            progress: userProgress(),
             introCandidates: [makeVocab('v1')],
             session: { committed: [] },
         };
@@ -539,7 +515,7 @@ describe('quizReducer', () => {
     it('VOCAB_INTRO_CHOICE "learn" on a paused session adds the task and keeps the pause', () => {
         const state: QuizState = {
             ...initialState,
-            progress: makeProgress(),
+            progress: userProgress(),
             session: { committed: [taskKey('v9', 'production')], suspendedAt: 1234 },
         };
         const next = quizReducer(state, { type: 'VOCAB_INTRO_CHOICE', vocabId: 'v1', choice: 'learn', vocabulary: makeVocab('v1') });
@@ -552,7 +528,7 @@ describe('quizReducer', () => {
     it('VOCAB_INTRO_CHOICE "skip" adds nothing to the session (skips graduate immediately)', () => {
         const state: QuizState = {
             ...initialState,
-            progress: makeProgress(),
+            progress: userProgress(),
             introCandidates: [makeVocab('v1')],
             session: { committed: [] },
         };
@@ -563,7 +539,7 @@ describe('quizReducer', () => {
     it('VOCAB_INTRO_CHOICE leaves the session untouched when none is active', () => {
         const state: QuizState = {
             ...initialState,
-            progress: makeProgress(),
+            progress: userProgress(),
             introCandidates: [makeVocab('v1')],
             session: null,
         };
@@ -572,7 +548,7 @@ describe('quizReducer', () => {
     });
 
     it('VOCAB_INTRO_CHOICE appends a new item to the learning queue', () => {
-        const state: QuizState = { ...initialState, progress: makeProgress(), introCandidates: [makeVocab('v1')] };
+        const state: QuizState = { ...initialState, progress: userProgress(), introCandidates: [makeVocab('v1')] };
         const next = quizReducer(state, { type: 'VOCAB_INTRO_CHOICE', vocabId: 'v1', choice: 'learn' });
 
         expect(next.progress!.learningQueue).toHaveLength(1);
@@ -583,7 +559,7 @@ describe('quizReducer', () => {
     });
 
     it('VOCAB_INTRO_CHOICE "skip" does not increment newLearnedToday but does increment totalLearned', () => {
-        const state: QuizState = { ...initialState, progress: makeProgress(), introCandidates: [makeVocab('v1')] };
+        const state: QuizState = { ...initialState, progress: userProgress(), introCandidates: [makeVocab('v1')] };
         const next = quizReducer(state, { type: 'VOCAB_INTRO_CHOICE', vocabId: 'v1', choice: 'skip' });
 
         expect(next.progress!.stats.newLearnedToday).toBe(0);
@@ -593,7 +569,7 @@ describe('quizReducer', () => {
 
     it('VOCAB_INTRO_CHOICE from the detail page (not in introCandidates) inserts the vocab into introCandidates', () => {
         const vocab = makeVocab('detail-add');
-        const state: QuizState = { ...initialState, progress: makeProgress(), introCandidates: [] };
+        const state: QuizState = { ...initialState, progress: userProgress(), introCandidates: [] };
         const next = quizReducer(state, { type: 'VOCAB_INTRO_CHOICE', vocabId: 'detail-add', choice: 'learn', vocabulary: vocab });
 
         expect(next.introCandidates.map(v => v.id)).toEqual(['detail-add']);
@@ -601,8 +577,8 @@ describe('quizReducer', () => {
 
     it('VOCAB_INTRO_CHOICE updates an existing queue entry rather than duplicating it, preserving history', () => {
         const existingHistory = [{ date: 1, result: 'correct' as const, interval: 1, latency: 100 }];
-        const existing = makeVocabProgress({ vocabId: 'v1', reading: { ...DEFAULT_VOCABULARY_PROGRESS.reading, history: existingHistory } });
-        const state: QuizState = { ...initialState, progress: makeProgress({ learningQueue: [existing] }), introCandidates: [makeVocab('v1')] };
+        const existing = vocabProgress({ vocabId: 'v1', reading: { ...DEFAULT_VOCABULARY_PROGRESS.reading, history: existingHistory } });
+        const state: QuizState = { ...initialState, progress: userProgress({ learningQueue: [existing] }), introCandidates: [makeVocab('v1')] };
 
         const next = quizReducer(state, { type: 'VOCAB_INTRO_CHOICE', vocabId: 'v1', choice: 'learn' });
 
@@ -611,7 +587,7 @@ describe('quizReducer', () => {
     });
 
     it('RESET restores the initial state', () => {
-        const state: QuizState = { ...initialState, progress: makeProgress(), userAnswer: 'x' };
+        const state: QuizState = { ...initialState, progress: userProgress(), userAnswer: 'x' };
         const next = quizReducer(state, { type: 'RESET' });
         expect(next).toEqual(initialState);
     });
@@ -621,18 +597,18 @@ describe('quizReducer', () => {
         // the reducer's job is just to assign the result while leaving whatever the
         // user is doing right now (currentVocab, userAnswer, feedback) untouched, so a
         // background sync can never interrupt an answer in progress.
-        const inFlightVocab = { id: 'v1' } as Vocabulary;
+        const inFlightVocab = makeVocab('v1');
         const state: QuizState = {
             ...initialState,
-            progress: makeProgress({ stats: { newLearnedToday: 1, totalLearned: 1, totalReviews: 1 } }),
-            settings: { preferredLearningOrder: 'frequency' } as any,
+            progress: userProgress({ stats: { newLearnedToday: 1, totalLearned: 1, totalReviews: 1 } }),
+            settings: { ...DEFAULT_SETTINGS, preferredLearningOrder: 'frequency' },
             currentVocab: inFlightVocab,
             userAnswer: 'partial-answer',
             feedback: { show: true, correct: false, type: 'wrong', message: 'Incorrect.', matchedAnswer: 'x' },
         };
 
-        const reconciledProgress = makeProgress({ stats: { newLearnedToday: 5, totalLearned: 5, totalReviews: 5 } });
-        const reconciledSettings = { preferredLearningOrder: 'kklc' } as any;
+        const reconciledProgress = userProgress({ stats: { newLearnedToday: 5, totalLearned: 5, totalReviews: 5 } });
+        const reconciledSettings: UserSettings = { ...DEFAULT_SETTINGS, preferredLearningOrder: 'kklc' };
 
         const next = quizReducer(state, {
             type: 'RECONCILE_REMOTE',
@@ -650,7 +626,7 @@ describe('quizReducer', () => {
     it('REBASE_STRENGTHS rebases the CURRENT progress, and is a no-op (same state) the second time', () => {
         const { lnTarget } = CONSTANTS.srs.formula;
         const reading = { ...DEFAULT_VOCABULARY_PROGRESS.reading, memoryStrength: 50, interval: 50 * lnTarget * 2, dueDate: new Date('2026-12-01') };
-        const state: QuizState = { ...initialState, progress: makeProgress({ learningQueue: [makeVocabProgress({ reading })] }) };
+        const state: QuizState = { ...initialState, progress: userProgress({ learningQueue: [vocabProgress({ reading })] }) };
 
         const once = quizReducer(state, { type: 'REBASE_STRENGTHS', payload: { frequencyModifier: 1 } });
         expect(once.progress!.learningQueue[0].reading.memoryStrength).toBeCloseTo(100, 6);
@@ -664,8 +640,8 @@ describe('quizReducer', () => {
         it('drops the vocab from learningQueue, tombstones it, and clears the failed load', () => {
             const state: QuizState = {
                 ...initialState,
-                progress: makeProgress({
-                    learningQueue: [makeVocabProgress({ vocabId: 'dead' }), makeVocabProgress({ vocabId: 'alive' })],
+                progress: userProgress({
+                    learningQueue: [vocabProgress({ vocabId: 'dead' }), vocabProgress({ vocabId: 'alive' })],
                 }),
                 currentQuizItem: { vocabId: 'dead', quizType: 'reading', quizMode: 'base' },
                 isLoadingVocab: true,
@@ -681,8 +657,8 @@ describe('quizReducer', () => {
         it('keeps the tombstone deduped when the id is already retired', () => {
             const state: QuizState = {
                 ...initialState,
-                progress: makeProgress({
-                    learningQueue: [makeVocabProgress({ vocabId: 'dead' })],
+                progress: userProgress({
+                    learningQueue: [vocabProgress({ vocabId: 'dead' })],
                     retiredVocabIds: ['dead'],
                 }),
             };
@@ -694,7 +670,7 @@ describe('quizReducer', () => {
         it('is a no-op when the id is already retired and not in the queue', () => {
             const state: QuizState = {
                 ...initialState,
-                progress: makeProgress({ learningQueue: [], retiredVocabIds: ['dead'] }),
+                progress: userProgress({ learningQueue: [], retiredVocabIds: ['dead'] }),
             };
             const next = quizReducer(state, { type: 'RETIRE_VOCAB', payload: { vocabId: 'dead' } });
             expect(next).toBe(state);

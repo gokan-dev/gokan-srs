@@ -5,7 +5,8 @@
  * Latin digit occupies roughly half of one. That difference is the whole reason
  * this module exists.
  */
-const FULL_WIDTH = /[　-〿぀-ゟ゠-ヿ㐀-䶿一-鿿＀-｠￠-￦]/;
+// Written as escapes: the first range starts at U+3000, an invisible ideographic space.
+const FULL_WIDTH = /[\u3000-\u303F\u3040-\u309F\u30A0-\u30FF\u3400-\u4DBF\u4E00-\u9FFF\uFF00-\uFF60\uFFE0-\uFFE6]/;
 
 /** Advance width of a half-width character, as a fraction of one em. */
 const HALF_WIDTH_EM = 0.55;

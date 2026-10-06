@@ -10,7 +10,7 @@
 // grammar examples carry a full tokenization while vocab sentences carry only offsets. Both
 // paths exist to produce the same thing: a crawlable link graph between the ~36k vocab pages.
 
-import type { Sentence } from '../models/sentence.model';
+import type { Sentence } from '@gokan/dataset-schema';
 
 export interface SentenceSegment {
     text: string;

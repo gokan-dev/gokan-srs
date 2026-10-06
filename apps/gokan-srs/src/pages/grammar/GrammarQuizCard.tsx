@@ -1,16 +1,18 @@
 import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
 import { useQuiz } from "../../context/useQuiz";
-import { useResponsive } from "../../context/Responsive/useResponsive";
 import { useQuizFocusManagement } from "../../hooks/useQuizFocusManagement";
-import { Card } from "../../components/ui/Card";
 import { CardSection } from "../../components/ui/CardSection";
 import { Button } from "../../components/ui/Button";
 import { JlptChip } from "../../components/JlptChip";
-import { MasteryRing } from "../../components/MasteryRing";
 import { WordGlossTooltip } from "../../components/WordGlossTooltip";
-import { blankWidthEm } from "../../utils/blankWidth";
+import { QuizCardFrame } from "../../components/quiz/QuizCardFrame";
+import { QuizMasteryCorner } from "../../components/quiz/QuizMasteryCorner";
+import { ClozeBlank } from "../../components/quiz/ClozeBlank";
+import { FeedbackNote } from "../../components/quiz/FeedbackNote";
+import { ContinueButton, SubmitButton } from "../../components/quiz/QuizButtons";
+import { blankBorderClass, resultAccentClass } from "../../components/quiz/quizStyles";
+import { PointLink } from "./PointLink";
 
 /**
  * Register hint shown while the question is still open. Deliberately the
@@ -40,7 +42,6 @@ const FORMALITY_HINT: Record<string, string> = {
  */
 export function GrammarQuizCard() {
     const { state, grammarActions, grammarComputed, currentGrammarProgress } = useQuiz();
-    const { isMobile } = useResponsive();
 
     const point = state.currentGrammarPoint;
     const plan = state.currentGrammarBlankPlan;
@@ -65,62 +66,54 @@ export function GrammarQuizCard() {
     // The register hint must describe the realization actually shown - it is the
     // only thing distinguishing どこにも from どこへも on the card.
     const formalityLevel = plan.realization?.formalityLevel ?? point.formalityLevel;
+    const memoryStrength = currentGrammarProgress?.entry.memoryStrength ?? 0;
 
     if (plan.readOnly) {
         return (
-            <motion.div
-                initial={{ opacity: 0, scale: 0.98, y: 10 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.98 }}
-                transition={{ duration: 0.3, ease: "easeOut" }}
-            >
-                <Card size="lg" className={isMobile ? '!p-4' : ''}>
-                    <CardSection>
-                        <div className="flex justify-end mb-2">
-                            <MasteryRing memoryStrength={currentGrammarProgress?.entry.memoryStrength ?? 0} size={40} />
+            <QuizCardFrame>
+                <CardSection>
+                    <QuizMasteryCorner memoryStrength={memoryStrength} />
+                    <div className="mb-4">
+                        <div className="flex items-center justify-center gap-2">
+                            <JlptChip level={point.jlptLevel} />
+                            {/* The study view has no answer to spoil. */}
+                            <PointLink pointId={point.id} revealed />
                         </div>
-                        <div className="mb-4">
-                            <div className="flex items-center justify-center gap-2">
-                                <JlptChip level={point.jlptLevel} />
-                                {/* The study view has no answer to spoil. */}
-                                <PointLink pointId={point.id} revealed />
-                            </div>
-                            {point.usageNote && (
-                                <p className="text-center text-xs text-secondary font-gothic italic mt-1 max-w-sm mx-auto">
-                                    {point.usageNote}
-                                </p>
-                            )}
-                        </div>
+                        {point.usageNote && (
+                            <p className="text-center text-xs text-secondary font-gothic italic mt-1 max-w-sm mx-auto">
+                                {point.usageNote}
+                            </p>
+                        )}
+                    </div>
 
-                        <p className="text-center text-sm text-secondary font-gothic mb-1">
-                            No quizzable words in this example - study it instead
-                        </p>
-                        <p className="text-center text-lg text-primary font-serif mb-6">
-                            {example.en}
-                        </p>
-                        <p className="text-center text-2xl font-gothic leading-loose text-primary">
-                            {example.words.map((word, i) =>
-                                word.vocabId != null ? (
-                                    <GlossedWord key={i} vocabId={word.vocabId} surface={word.surface} />
-                                ) : (
-                                    <span key={i}>{word.surface}</span>
-                                )
-                            )}
-                        </p>
-                    </CardSection>
+                    <p className="text-center text-sm text-secondary font-gothic mb-1">
+                        No quizzable words in this example - study it instead
+                    </p>
+                    <p className="text-center text-lg text-primary font-serif mb-6">
+                        {example.en}
+                    </p>
+                    <p className="text-center text-2xl font-gothic leading-loose text-primary">
+                        {example.words.map((word, i) =>
+                            word.vocabId != null ? (
+                                <GlossedWord key={i} vocabId={word.vocabId} surface={word.surface} />
+                            ) : (
+                                <span key={i}>{word.surface}</span>
+                            )
+                        )}
+                    </p>
+                </CardSection>
 
-                    <CardSection>
-                        <Button
-                            variant="primary"
-                            type="button"
-                            className="w-full"
-                            onClick={() => grammarActions.continueGrammarToNext()}
-                        >
-                            Continue
-                        </Button>
-                    </CardSection>
-                </Card>
-            </motion.div>
+                <CardSection>
+                    <Button
+                        variant="primary"
+                        type="button"
+                        className="w-full"
+                        onClick={() => grammarActions.continueGrammarToNext()}
+                    >
+                        Continue
+                    </Button>
+                </CardSection>
+            </QuizCardFrame>
         );
     }
 
@@ -141,168 +134,97 @@ export function GrammarQuizCard() {
         }
     };
 
-    const feedbackBorderClass = feedback?.type === 'wrong'
-        ? 'border-l-error-accent'
-        : feedback?.type === 'minor_error' || feedback?.type === 'pass'
-            ? 'border-l-secondary'
-            : 'border-l-accent';
-
     return (
-        <motion.form
-            onSubmit={handleSubmit}
-            initial={{ opacity: 0, scale: 0.98, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.98 }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
-        >
-            <Card size="lg" className={isMobile ? '!p-4' : ''}>
-                <CardSection>
-                    <div className="flex justify-end mb-2">
-                        <MasteryRing memoryStrength={currentGrammarProgress?.entry.memoryStrength ?? 0} size={40} />
+        <QuizCardFrame onSubmit={handleSubmit}>
+            <CardSection>
+                <QuizMasteryCorner memoryStrength={memoryStrength} />
+                <div className="mb-4">
+                    <div className="flex items-center justify-center gap-2">
+                        <JlptChip level={point.jlptLevel} />
+                        {formalityLevel && FORMALITY_HINT[formalityLevel] && (
+                            <span className="text-xs font-gothic text-secondary border border-divider rounded px-2 py-0.5">
+                                {FORMALITY_HINT[formalityLevel]}
+                            </span>
+                        )}
+                        {plan.realization && plan.realization.total > 1 && (
+                            <span
+                                className="text-xs font-gothic text-tertiary"
+                                title="This rule has several equivalent forms; one is drilled per review, and they share one mastery score."
+                            >
+                                form {plan.realization.index} of {plan.realization.total}
+                            </span>
+                        )}
+                        <PointLink pointId={point.id} revealed={!!feedback?.show} />
                     </div>
-                    <div className="mb-4">
-                        <div className="flex items-center justify-center gap-2">
-                            <JlptChip level={point.jlptLevel} />
-                            {formalityLevel && FORMALITY_HINT[formalityLevel] && (
-                                <span className="text-xs font-gothic text-secondary border border-divider rounded px-2 py-0.5">
-                                    {FORMALITY_HINT[formalityLevel]}
-                                </span>
-                            )}
-                            {plan.realization && plan.realization.total > 1 && (
-                                <span
-                                    className="text-xs font-gothic text-tertiary"
-                                    title="This rule has several equivalent forms; one is drilled per review, and they share one mastery score."
-                                >
-                                    form {plan.realization.index} of {plan.realization.total}
-                                </span>
-                            )}
-                            <PointLink pointId={point.id} revealed={!!feedback?.show} />
-                        </div>
-                    </div>
+                </div>
 
-                    <p className="text-center text-sm text-secondary font-gothic mb-1">
-                        Translate into Japanese
-                    </p>
-                    <p className="text-center text-lg text-primary font-serif mb-8">
-                        {example.en}
-                    </p>
+                <p className="text-center text-sm text-secondary font-gothic mb-1">
+                    Translate into Japanese
+                </p>
+                <p className="text-center text-lg text-primary font-serif mb-8">
+                    {example.en}
+                </p>
 
-                    <div className="flex flex-wrap items-end justify-center gap-y-3 text-2xl font-gothic leading-loose text-primary">
-                        {example.words.map((word, i) => {
-                            if (swallowedWordIndices.has(i)) return null;
-                            const answerIndex = answerIndexByWordIndex.get(i);
+                <div className="flex flex-wrap items-end justify-center gap-y-3 text-2xl font-gothic leading-loose text-primary">
+                    {example.words.map((word, i) => {
+                        if (swallowedWordIndices.has(i)) return null;
+                        const answerIndex = answerIndexByWordIndex.get(i);
 
-                            if (answerIndex === undefined) {
-                                if (word.vocabId != null) {
-                                    return <GlossedWord key={i} vocabId={word.vocabId} surface={word.surface} />;
-                                }
-                                return <span key={i}>{word.surface}</span>;
+                        if (answerIndex === undefined) {
+                            if (word.vocabId != null) {
+                                return <GlossedWord key={i} vocabId={word.vocabId} surface={word.surface} />;
                             }
+                            return <span key={i}>{word.surface}</span>;
+                        }
 
-                            const result = feedback?.perBlankResults[answerIndex];
-                            const hintLevel = state.grammarHintLevels[answerIndex] ?? 0;
-                            const revealed = hintLevel >= 2;
-                            // Straight from state: revealing a blank now writes the
-                            // accepted form into grammarAnswers (see GRAMMAR_REVEAL_HINT),
-                            // so there is no longer a render-time substitution that can
-                            // disagree with what the reducer holds.
-                            const displayValue = state.grammarAnswers[answerIndex] ?? '';
+                        const result = feedback?.perBlankResults[answerIndex];
+                        const hintLevel = state.grammarHintLevels[answerIndex] ?? 0;
 
-                            const borderClass = !feedback?.show
-                                ? revealed
-                                    ? 'border-secondary'
-                                    : 'border-divider focus:border-accent'
-                                : result === 'wrong'
-                                    ? 'border-error'
-                                    : result === 'minor_error' || result === 'pass'
-                                        ? 'border-secondary'
-                                        : 'border-accent';
-
-                            return (
-                                <span key={i} className="inline-flex flex-col items-center mx-0.5">
-                                    <span className="inline-flex items-center gap-1">
-                                        <input
-                                            ref={answerIndex === 0 ? firstInputRef : undefined}
-                                            type="text"
-                                            value={displayValue}
-                                            onChange={(e) => grammarActions.setGrammarAnswer(answerIndex, e.target.value)}
-                                            disabled={feedback?.show || revealed}
-                                            autoComplete="off"
-                                            autoCorrect="off"
-                                            autoCapitalize="off"
-                                            spellCheck="false"
-                                            style={{ width: `${blankWidthEm(displayValue)}em` }}
-                                            className={`border-b-2 bg-transparent text-center focus:outline-none transition-colors font-gothic caret-accent ${borderClass}`}
-                                        />
-                                        {!feedback?.show && !revealed && (
-                                            <button
-                                                type="button"
-                                                onClick={() => grammarActions.revealGrammarHint(answerIndex)}
-                                                className="text-xs text-secondary hover:text-primary transition-colors font-gothic w-4 h-4 rounded-full border border-divider flex items-center justify-center shrink-0"
-                                                aria-label="Show hint"
-                                            >
-                                                ?
-                                            </button>
-                                        )}
+                        return (
+                            <ClozeBlank
+                                key={i}
+                                // Straight from state: revealing a blank writes the accepted
+                                // form into grammarAnswers (see GRAMMAR_REVEAL_HINT), so there is
+                                // no render-time substitution that can disagree with the reducer.
+                                value={state.grammarAnswers[answerIndex] ?? ''}
+                                onChange={(value) => grammarActions.setGrammarAnswer(answerIndex, value)}
+                                inputRef={answerIndex === 0 ? firstInputRef : undefined}
+                                borderClass={blankBorderClass(result, { feedbackShown: !!feedback?.show, revealed: hintLevel >= 2 })}
+                                feedbackShown={!!feedback?.show}
+                                hintLevel={hintLevel}
+                                onHint={() => grammarActions.revealGrammarHint(answerIndex)}
+                                gloss={plan.glosses[answerIndex] ?? ''}
+                                reveal={result !== 'correct' && (
+                                    // The correct form, under the wrong one. Was text-xs
+                                    // beneath a text-2xl answer, which sized the thing you
+                                    // need to read at a third of the thing you got wrong.
+                                    <span className="text-base text-feedback-correct font-gothic mt-1 whitespace-nowrap">
+                                        {feedback?.matchedAnswers[answerIndex]}
                                     </span>
-                                    {!feedback?.show && hintLevel === 1 && (
-                                        <span className="text-xs text-secondary font-gothic mt-1">
-                                            {plan.glosses[answerIndex] || 'No hint available'}
-                                        </span>
-                                    )}
-                                    {feedback?.show && result !== 'correct' && (
-                                        // The correct form, under the wrong one. Was text-xs
-                                        // beneath a text-2xl answer, which sized the thing you
-                                        // need to read at a third of the thing you got wrong.
-                                        <span className="text-base text-feedback-correct font-gothic mt-1 whitespace-nowrap">
-                                            {feedback.matchedAnswers[answerIndex]}
-                                        </span>
-                                    )}
-                                </span>
-                            );
-                        })}
-                    </div>
-                </CardSection>
+                                )}
+                            />
+                        );
+                    })}
+                </div>
+            </CardSection>
 
-                <CardSection>
-                    {feedback?.show && (
-                        <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            className={`border rounded bg-feedback-background border-divider border-l-4 p-4 mb-4 ${feedbackBorderClass}`}
-                        >
-                            <p className="text-sm font-gothic text-primary">{feedback.message}</p>
-                            {point.usageNote && (
-                                <p className="text-xs font-gothic text-secondary italic mt-2">
-                                    {point.usageNote}
-                                </p>
-                            )}
-                        </motion.div>
-                    )}
+            <CardSection>
+                {feedback?.show && (
+                    <FeedbackNote accentClass={resultAccentClass(feedback.type)} className="mb-4">
+                        <p className="text-sm font-gothic text-primary">{feedback.message}</p>
+                        {point.usageNote && (
+                            <p className="text-xs font-gothic text-secondary italic mt-2">
+                                {point.usageNote}
+                            </p>
+                        )}
+                    </FeedbackNote>
+                )}
 
-                    {!feedback?.show ? (
-                        <button
-                            type="submit"
-                            disabled={!grammarComputed.canSubmitGrammar}
-                            className={`w-full font-medium rounded-lg transition-all duration-200 font-serif flex items-center justify-center gap-2 h-12
-                                ${grammarComputed.canSubmitGrammar
-                                    ? 'bg-accent text-surface hover:bg-accent-hover shadow-md hover:shadow-lg'
-                                    : 'bg-accent/50 text-surface/80 cursor-not-allowed'}`}
-                        >
-                            <span>Submit</span>
-                        </button>
-                    ) : (
-                        <button
-                            ref={continueRef}
-                            type="submit"
-                            className="w-full font-medium rounded-lg transition-colors font-serif bg-accent text-surface hover:bg-accent-hover shadow-md flex items-center justify-center gap-2 h-12"
-                        >
-                            <span>Continue</span>
-                        </button>
-                    )}
-                </CardSection>
-            </Card>
-        </motion.form>
+                {!feedback?.show
+                    ? <SubmitButton canSubmit={grammarComputed.canSubmitGrammar} flush />
+                    : <ContinueButton buttonRef={continueRef} flush />}
+            </CardSection>
+        </QuizCardFrame>
     );
 }
 
@@ -325,29 +247,5 @@ function GlossedWord({ vocabId, surface }: { vocabId: string; surface: string })
                 {surface}
             </Link>
         </WordGlossTooltip>
-    );
-}
-
-/**
- * The route to the grammar point's detail page, available only AFTER answering.
- *
- * Before answering it is a spoiler route: the detail page carries the point's
- * formation and every example sentence, which is the answer. The JLPT chip used
- * to be a link unconditionally, so it was reachable mid-question by anyone who
- * thought to click it.
- *
- * After answering the opposite is true - checking the point is exactly what a
- * learner wants to do with a form they just got wrong - so it becomes an
- * explicit labelled link rather than a chip you have to guess is clickable.
- */
-function PointLink({ pointId, revealed }: { pointId: string; revealed: boolean }) {
-    if (!revealed) return null;
-    return (
-        <Link
-            to={`/grammar/${pointId}`}
-            className="text-xs font-gothic text-accent hover:underline whitespace-nowrap"
-        >
-            View grammar point
-        </Link>
     );
 }

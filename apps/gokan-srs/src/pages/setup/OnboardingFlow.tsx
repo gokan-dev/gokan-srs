@@ -1,10 +1,11 @@
 import { useState } from "react";
 import type { SetupValues } from "../../models/state.model";
+import { DEFAULT_SETTINGS } from "../../models/user.model";
 import { WelcomeScreen } from "./WelcomeScreen";
 import { SetupScreen } from "./SetupScreen";
 
 interface OnboardingFlowProps {
-    onComplete: (values: SetupValues) => Promise<void>;
+    onComplete: (values: SetupValues) => void;
 }
 
 export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
@@ -18,15 +19,9 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 step: 0,
                 kanjiSet: new Set(),
             },
-            settings: {
-                preferredLearningOrder: 'kanji_coverage',
-                kanjiCoverageTarget: 1,
-                enableMeaningQuiz: true,
-                learningFrequency: 'medium',
-                enableGeminiContext: false, // Default standard validations
-            },
+            settings: { ...DEFAULT_SETTINGS, preferredLearningOrder: 'kanji_coverage' },
         };
-        onComplete(values).catch(console.error);
+        onComplete(values);
     };
 
     if (step === 'welcome') {

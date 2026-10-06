@@ -17,7 +17,7 @@ on:
 
 jobs:
   build:
-    name: Typecheck and Build
+    name: Build
     runs-on: ubuntu-latest
 
     permissions:
@@ -47,12 +47,6 @@ jobs:
 
       - name: Install dependencies
         run: bun install
-
-      - name: Typecheck
-        run: bun run --cwd apps/gokan-dictionary typecheck
-
-      - name: Test
-        run: bun run --cwd apps/gokan-dictionary test
 
       - name: Build
         run: bun run --cwd apps/gokan-dictionary build

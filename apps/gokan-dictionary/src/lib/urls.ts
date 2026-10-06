@@ -88,7 +88,7 @@ export function searchIndexPath(): string {
 }
 
 export function absoluteUrl(pathname: string): string {
-    // Resolved against the bare origin, not SITE_URL: pathname already carries BASE_PATH, and
+    // Resolved against the bare origin, not the site URL: pathname already carries BASE_PATH, and
     // resolving an absolute path against a base with a path would be a silent no-op that only
     // shows up as a wrong canonical.
     return new URL(pathname, SITE_ORIGIN).toString();

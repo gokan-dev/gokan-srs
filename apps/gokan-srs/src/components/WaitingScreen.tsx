@@ -3,6 +3,8 @@ import React from "react";
 import { Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 import { CenteredCard } from "./CenteredCard";
+import { useNow } from "../hooks/useNow";
+import { formatMinutes, minutesUntil } from "../utils/time.utils";
 
 interface WaitingScreenProps {
     nextReviewAt: Date;
@@ -13,10 +15,7 @@ export const WaitingScreen: React.FC<WaitingScreenProps> = ({
     nextReviewAt,
     onLearnMore,
 }) => {
-    const minutes = Math.max(
-        1,
-        Math.ceil((nextReviewAt.getTime() - Date.now()) / 60000)
-    );
+    const minutes = minutesUntil(nextReviewAt, useNow());
 
     return (
         <CenteredCard>
@@ -26,7 +25,7 @@ export const WaitingScreen: React.FC<WaitingScreenProps> = ({
 
             <p className="text-sm mb-6 text-secondary font-serif">
                 Your next review will be available in{' '}
-                <strong>{minutes} minute{minutes > 1 ? 's' : ''}</strong>.
+                <strong>{formatMinutes(minutes)}</strong>.
             </p>
 
             <div className="flex flex-col gap-3">

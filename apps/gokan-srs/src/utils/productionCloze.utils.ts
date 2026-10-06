@@ -1,5 +1,4 @@
-import type { Sentence } from '../models/sentence.model';
-import type { Vocabulary } from '../models/vocabulary.model';
+import type { Sentence, Vocabulary } from '@gokan/dataset-schema';
 import type { LearnerVocab } from './sentenceRanking';
 import { pickSentenceForVocab } from './sentenceRanking';
 import { readingMatchesWord, toInflectableWord } from './inflection.utils';

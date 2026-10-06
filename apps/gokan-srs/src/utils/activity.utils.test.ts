@@ -3,56 +3,22 @@ import { buildDailyActivity } from './activity.utils';
 import type { ReviewLog, SRSEntry, VocabProgress } from '../models/vocabulary.model';
 import type { UserProgress } from '../models/user.model';
 import type { GrammarProgress } from '../models/grammar.model';
+import { grammarProgress, reviewLog, srsEntry, userProgress, vocabProgress } from '../test/fixtures';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const now = new Date('2026-06-10T12:00:00Z');
 
-function makeLog(overrides: Partial<ReviewLog> = {}): ReviewLog {
-    return { date: now.getTime(), result: 'correct', interval: 1, latency: 1000, ...overrides };
-}
+const makeLog = (overrides: Partial<ReviewLog> = {}): ReviewLog => reviewLog({ date: now.getTime(), ...overrides });
 
-function makeEntry(history: ReviewLog[] = []): SRSEntry {
-    return { memoryStrength: 1, interval: 0, difficulty: 0.3, lastReviewedAt: null, dueDate: null, history };
-}
+const makeEntry = (history: ReviewLog[] = []): SRSEntry => srsEntry({ history });
 
-function makeVocab(reading: ReviewLog[] = [], meaning: ReviewLog[] = []): VocabProgress {
-    return {
-        vocabId: 'v1',
-        stage: 'learning',
-        introductionAt: null,
-        nextReviewAt: null,
-        lastReviewedAt: null,
-        totalReviews: 1,
-        consecutiveFailures: 0,
-        reading: makeEntry(reading),
-        meaning: makeEntry(meaning),
-    };
-}
+const makeVocab = (reading: ReviewLog[] = [], meaning: ReviewLog[] = []): VocabProgress =>
+    vocabProgress({ totalReviews: 1, reading: makeEntry(reading), meaning: makeEntry(meaning), production: undefined });
 
-function makeGrammar(history: ReviewLog[] = []): GrammarProgress {
-    return {
-        grammarId: 'g1',
-        stage: 'learning',
-        introductionAt: null,
-        nextReviewAt: null,
-        lastReviewedAt: null,
-        totalReviews: 1,
-        consecutiveFailures: 0,
-        entry: makeEntry(history),
-    };
-}
+const makeGrammar = (history: ReviewLog[] = []): GrammarProgress => grammarProgress({ grammarId: 'g1', totalReviews: 1, entry: makeEntry(history) });
 
-function makeProgress(queue: VocabProgress[], grammarQueue: GrammarProgress[] = []): UserProgress {
-    return {
-        kanjiKnowledge: { method: 'kklc', step: 1, kanjiSet: new Set() },
-        learningQueue: queue,
-        grammarQueue,
-        completedChapters: [],
-        stats: { newLearnedToday: 0, totalLearned: 0, totalReviews: 0 },
-        dailyOverride: false,
-        adaptive: { level: 1.0, history: [] },
-    };
-}
+const makeProgress = (learningQueue: VocabProgress[], grammarQueue: GrammarProgress[] = []): UserProgress =>
+    userProgress({ kanjiKnowledge: { method: 'kklc', step: 1, kanjiSet: new Set() }, learningQueue, grammarQueue });
 
 describe('buildDailyActivity', () => {
     it('returns `days` buckets ending today, all zeroed with no history', () => {

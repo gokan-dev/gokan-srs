@@ -1,13 +1,15 @@
 import type { FormEvent } from "react";
-import { motion } from "framer-motion";
 import { useQuiz } from "../../context/useQuiz";
-import { useResponsive } from "../../context/Responsive/useResponsive";
 import { useQuizFocusManagement } from "../../hooks/useQuizFocusManagement";
-import { Card } from "../../components/ui/Card";
 import { CardSection } from "../../components/ui/CardSection";
-import { MasteryRing } from "../../components/MasteryRing";
 import { JlptChip } from "../../components/JlptChip";
-import { blankWidthEm } from "../../utils/blankWidth";
+import { TagChip } from "../../components/TagChip";
+import { QuizCardFrame } from "../../components/quiz/QuizCardFrame";
+import { QuizMasteryCorner } from "../../components/quiz/QuizMasteryCorner";
+import { ClozeBlank } from "../../components/quiz/ClozeBlank";
+import { FeedbackNote } from "../../components/quiz/FeedbackNote";
+import { ContinueButton, SubmitButton } from "../../components/quiz/QuizButtons";
+import { blankBorderClass, resultAccentClass } from "../../components/quiz/quizStyles";
 import { splitClozeContext, emphasizeGloss, blankSurfaceOf } from "../../utils/productionCloze.utils";
 import { getCoarsePosLabels } from "./quizFormatting";
 import { InteractiveSentence } from "../../components/InteractiveSentence";
@@ -55,7 +57,6 @@ import { LookUpWords } from "../../components/LookUpWords";
  */
 export function VocabProductionClozeQuizCard({ onVocabClick }: { onVocabClick?: (vocabId: string) => void }) {
     const { state, actions, computed, currentProgress } = useQuiz();
-    const { isMobile } = useResponsive();
 
     const { currentVocab, currentProductionCloze, userAnswer, feedback, productionHintLevel } = state;
 
@@ -86,39 +87,16 @@ export function VocabProductionClozeQuizCard({ onVocabClick }: { onVocabClick?: 
     const handleSubmit = (e: FormEvent) => {
         e.preventDefault();
         if (!feedback?.show) {
-            actions.submitAnswer();
+            void actions.submitAnswer();
         } else if (computed.canContinue) {
-            actions.continueToNext().then();
+            actions.continueToNext();
         }
     };
 
-    const inputBorderClass = !feedback?.show
-        ? revealed ? 'border-secondary' : 'border-divider focus:border-accent'
-        : feedback.type === 'wrong'
-            ? 'border-error'
-            : feedback.type === 'minor_error' || feedback.type === 'pass'
-                ? 'border-secondary'
-                : 'border-accent';
-
-    const feedbackBorderClass = feedback?.type === 'wrong'
-        ? 'border-l-error-accent'
-        : feedback?.type === 'minor_error' || feedback?.type === 'pass'
-            ? 'border-l-secondary'
-            : 'border-l-accent';
-
     return (
-        <motion.form
-            onSubmit={handleSubmit}
-            initial={{ opacity: 0, scale: 0.98, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.98 }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
-        >
-            <Card size="lg" className={isMobile ? '!p-4' : ''}>
+        <QuizCardFrame onSubmit={handleSubmit}>
                 <CardSection>
-                    <div className="flex justify-end mb-2">
-                        <MasteryRing memoryStrength={currentProgress?.production?.memoryStrength ?? 0} size={40} />
-                    </div>
+                    <QuizMasteryCorner memoryStrength={currentProgress?.production?.memoryStrength ?? 0} />
 
                     {/* JLPT level + the word type (verb / noun / adjective) being
                         produced - a coarse cue that helps pick the right word among
@@ -126,14 +104,7 @@ export function VocabProductionClozeQuizCard({ onVocabClick }: { onVocabClick?: 
                     {(currentVocab.jlptLevel || posLabels.length > 0) && (
                         <div className="mb-4 flex flex-wrap items-center justify-center gap-2">
                             {currentVocab.jlptLevel && <JlptChip level={currentVocab.jlptLevel} />}
-                            {posLabels.map(label => (
-                                <span
-                                    key={label}
-                                    className="px-2 py-0.5 text-xs rounded bg-accent/10 text-accent font-gothic font-medium dark:bg-accent/15"
-                                >
-                                    {label}
-                                </span>
-                            ))}
+                            {posLabels.map(label => <TagChip key={label}>{label}</TagChip>)}
                         </div>
                     )}
 
@@ -157,46 +128,20 @@ export function VocabProductionClozeQuizCard({ onVocabClick }: { onVocabClick?: 
 
                     <p className="text-center text-2xl font-gothic leading-loose text-primary">
                         <InteractiveSentence sentence={before} onVocabClick={onVocabClick} showFurigana={!!feedback?.show} />
-                        <span className="inline-flex flex-col items-center mx-0.5 align-middle">
-                            <span className="inline-flex items-center gap-1">
-                                <input
-                                    ref={firstInputRef}
-                                    type="text"
-                                    value={userAnswer}
-                                    onChange={(e) => actions.setAnswer(e.target.value)}
-                                    disabled={feedback?.show || revealed}
-                                    autoComplete="off"
-                                    autoCorrect="off"
-                                    autoCapitalize="off"
-                                    spellCheck="false"
-                                    style={{ width: `${blankWidthEm(userAnswer)}em` }}
-                                    className={`border-b-2 bg-transparent text-center focus:outline-none transition-colors font-gothic caret-accent ${inputBorderClass}`}
-                                />
-                                {!feedback?.show && !revealed && (
-                                    <button
-                                        type="button"
-                                        onClick={() => actions.revealProductionHint()}
-                                        className="text-xs text-secondary hover:text-primary transition-colors font-gothic w-4 h-4 rounded-full border border-divider flex items-center justify-center shrink-0"
-                                        aria-label="Show hint"
-                                    >
-                                        ?
-                                    </button>
-                                )}
-                            </span>
-                            {!feedback?.show && productionHintLevel === 1 && (
-                                <span className="text-xs text-secondary font-gothic mt-1 whitespace-nowrap">
-                                    {gloss || 'No hint available'}
-                                </span>
-                            )}
-                            {/* The correct word, revealed right at the blank on anything
-                                short of a strict match - a wrong/confusable answer previously
-                                left only feedback.matchedAnswer (a bare reading) shown once
-                                below the whole sentence, never the written form that was
-                                actually blanked. Mirrors GrammarQuizCard's per-blank reveal. */}
-                            {feedback?.show && (!feedback.correct || feedback.synonymRelation) && (
-                                // The form the sentence uses (食べたら / たべたら), not the
-                                // dictionary form: that is what fits the blank.
-                                // Opens the word's page; the session pauses there instead of ending.
+                        <ClozeBlank
+                            value={userAnswer}
+                            onChange={actions.setAnswer}
+                            inputRef={firstInputRef}
+                            borderClass={blankBorderClass(feedback?.type, { feedbackShown: !!feedback?.show, revealed })}
+                            feedbackShown={!!feedback?.show}
+                            hintLevel={productionHintLevel}
+                            onHint={actions.revealProductionHint}
+                            gloss={gloss}
+                            // The correct word, revealed right at the blank on anything short of
+                            // a strict match, in the form the sentence uses (食べたら / たべたら),
+                            // which is what fits the blank. Opens the word's page; the session
+                            // pauses there instead of ending.
+                            reveal={feedback && (!feedback.correct || feedback.synonymRelation) && (
                                 <button
                                     type="button"
                                     onClick={() => onVocabClick?.(currentVocab.id)}
@@ -212,18 +157,14 @@ export function VocabProductionClozeQuizCard({ onVocabClick }: { onVocabClick?: 
                                     </ruby>
                                 </button>
                             )}
-                        </span>
+                        />
                         <InteractiveSentence sentence={after} onVocabClick={onVocabClick} showFurigana={!!feedback?.show} />
                     </p>
                 </CardSection>
 
                 <CardSection>
                     {feedback?.show && (
-                        <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            className={`border rounded bg-feedback-background border-divider border-l-4 p-4 mb-4 ${feedbackBorderClass}`}
-                        >
+                        <FeedbackNote accentClass={resultAccentClass(feedback.type)} className="mb-4">
                             <p className="text-sm font-gothic text-primary">{feedback.message}</p>
                             {feedback.synonymWord && (
                                 <LookUpWords
@@ -234,33 +175,13 @@ export function VocabProductionClozeQuizCard({ onVocabClick }: { onVocabClick?: 
                                     onVocabClick={onVocabClick}
                                 />
                             )}
-                        </motion.div>
+                        </FeedbackNote>
                     )}
 
-                    {!feedback?.show ? (
-                        <button
-                            type="submit"
-                            disabled={!computed.canSubmit}
-                            className={`w-full font-medium rounded-lg transition-all duration-200 font-serif flex items-center justify-center gap-2 h-12
-                                ${computed.canSubmit
-                                    ? 'bg-accent text-surface hover:bg-accent-hover shadow-md hover:shadow-lg'
-                                    : 'bg-accent/50 text-surface/80 cursor-not-allowed'}`}
-                        >
-                            <span>Submit</span>
-                        </button>
-                    ) : (
-                        computed.canContinue && (
-                            <button
-                                ref={continueRef}
-                                type="submit"
-                                className="w-full font-medium rounded-lg transition-colors font-serif bg-accent text-surface hover:bg-accent-hover shadow-md flex items-center justify-center gap-2 h-12"
-                            >
-                                <span>Continue</span>
-                            </button>
-                        )
-                    )}
+                    {!feedback?.show
+                        ? <SubmitButton canSubmit={computed.canSubmit} flush />
+                        : computed.canContinue && <ContinueButton buttonRef={continueRef} flush />}
                 </CardSection>
-            </Card>
-        </motion.form>
+        </QuizCardFrame>
     );
 }

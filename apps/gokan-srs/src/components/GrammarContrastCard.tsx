@@ -1,8 +1,7 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import type { GrammarContrastForFocus } from "../models/grammar.model";
 import { GrammarService } from "../services/grammar.service";
 import { selectKnownInterchangeableSiblings, selectReadyContrasts } from "../utils/grammarContrast.utils";
+import { useAsyncData } from "../hooks/useAsyncData";
 
 interface Props {
     /** The point being introduced - its contrast lessons (where it is the `focus`) are the ones shown. */
@@ -32,26 +31,18 @@ interface Props {
  * distinction exists and goes looking for one.
  */
 export function GrammarContrastCard({ pointId, knownIds, showFamilyLink = true }: Props) {
-    const [ready, setReady] = useState<GrammarContrastForFocus[]>([]);
-    const [interchangeable, setInterchangeable] = useState<{ familyId: string; known: string[] } | null>(null);
+    // The indexes load once; which lessons are ready depends on knownIds, so it is
+    // worked out during render rather than stored.
+    const byFocus = useAsyncData('contrasts-by-focus', () => GrammarService.loadContrastsByFocus()).data;
+    const byPoint = useAsyncData('interchangeable-by-point', () => GrammarService.loadInterchangeableByPoint()).data;
 
-    useEffect(() => {
-        let cancelled = false;
-        GrammarService.loadContrastsByFocus().then(byFocus => {
-            if (cancelled) return;
-            const forFocus = byFocus.get(pointId) ?? [];
-            // Defer any lesson whose contrast sibling the learner has not met yet.
-            setReady(selectReadyContrasts(forFocus, knownIds));
-        });
-        GrammarService.loadInterchangeableByPoint().then(byPoint => {
-            if (cancelled) return;
-            const entry = byPoint.get(pointId);
-            const known = selectKnownInterchangeableSiblings(entry, knownIds);
-            setInterchangeable(entry && known.length > 0 ? { familyId: entry.familyId, known } : null);
-        });
-        return () => { cancelled = true; };
-        // knownIds is rebuilt each render; key on its size so a newly-known sibling re-runs the filter.
-    }, [pointId, knownIds]);
+    // Defer any lesson whose contrast sibling the learner has not met yet.
+    const ready = selectReadyContrasts(byFocus?.get(pointId) ?? [], knownIds);
+    const interchangeableEntry = byPoint?.get(pointId);
+    const knownInterchangeable = selectKnownInterchangeableSiblings(interchangeableEntry, knownIds);
+    const interchangeable = interchangeableEntry && knownInterchangeable.length > 0
+        ? { familyId: interchangeableEntry.familyId, known: knownInterchangeable }
+        : null;
 
     if (ready.length === 0 && !interchangeable) return null;
 

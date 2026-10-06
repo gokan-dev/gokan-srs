@@ -1,6 +1,6 @@
 /** Small pieces shared by the listening library's pages and the Main hub's Listening card. */
 import { useState } from "react";
-import type { MediaIndexEntry } from "../../models/media.model";
+import type { MediaIndexEntry } from "@gokan/dataset-schema";
 
 /**
  * Coverage counts Gokan vocabulary only, which leaves out particles, kana-only

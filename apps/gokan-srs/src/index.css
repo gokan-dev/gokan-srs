@@ -49,8 +49,9 @@
 }
 
 /*
-  Theme Definitions
-  Based on src/commons/theme.ts
+  Theme Definitions: the only place colours are written as values. Everything
+  else uses these tokens (Tailwind classes, or src/commons/theme.ts for inline
+  styles and SVG attributes).
 */
 :root {
   --background: #F5F0E8;
@@ -78,6 +79,15 @@
   --quiz-conjugation-soft: rgba(162, 102, 28, 0.12);
   --quiz-lexical: #6B4E9A;
   --quiz-lexical-soft: rgba(107, 78, 154, 0.10);
+
+  /*
+    Mastery directions: one hue in three steps (the design system reserves a
+    second hue for errors). Derived from the accent, so dark mode follows.
+  */
+  --mastery-track: var(--divider);
+  --mastery-reading: var(--accent);
+  --mastery-meaning: color-mix(in srgb, var(--accent) 60%, transparent);
+  --mastery-production: color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
 .dark {

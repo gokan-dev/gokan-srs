@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildFamilyPages } from './grammarFamilies';
-import type { GrammarContrastIndex, GrammarPoint } from '../models/grammar.model';
+import type { GrammarContrastIndex, GrammarPoint } from '@gokan/dataset-schema';
 
 function makePoint(overrides: Partial<GrammarPoint> = {}): GrammarPoint {
     return {

@@ -6,27 +6,14 @@ import { CONSTANTS } from '../commons/constants';
 import type { GrammarProgress } from '../models/grammar.model';
 import type { VocabProgress } from '../models/vocabulary.model';
 import type { UserSettings } from '../models/user.model';
+import { DEFAULT_SETTINGS } from '../models/user.model';
+import { grammarProgress, srsEntry } from '../test/fixtures';
 
-function makeProgress(overrides: Partial<GrammarProgress> = {}): GrammarProgress {
-    return {
-        grammarId: 'n5-001',
-        stage: 'learning',
-        introductionAt: new Date('2026-06-01T00:00:00Z'),
-        nextReviewAt: null,
-        lastReviewedAt: null,
-        totalReviews: 0,
-        consecutiveFailures: 0,
-        entry: {
-            memoryStrength: CONSTANTS.srs.formula.minMemoryStrength,
-            interval: 0,
-            difficulty: 0.5,
-            lastReviewedAt: null,
-            dueDate: null,
-            history: [],
-        },
-        ...overrides,
-    };
-}
+const makeProgress = (overrides: Partial<GrammarProgress> = {}): GrammarProgress => grammarProgress({
+    introductionAt: new Date('2026-06-01T00:00:00Z'),
+    entry: srsEntry({ memoryStrength: CONSTANTS.srs.formula.minMemoryStrength, difficulty: 0.5 }),
+    ...overrides,
+});
 
 afterEach(() => {
     vi.restoreAllMocks();
@@ -143,7 +130,7 @@ describe('GrammarSRSService.applyAnswer', () => {
 
 describe('GrammarSRSService.applyVocabReinforcement (positive-only vocab credit)', () => {
     const now = new Date('2026-06-10T00:00:00Z');
-    const settings = { learningFrequency: 'medium', enableMeaningQuiz: true } as UserSettings;
+    const settings: UserSettings = { ...DEFAULT_SETTINGS, learningFrequency: 'medium', enableMeaningQuiz: true };
 
     function makeVocabProgress(overrides: Partial<VocabProgress> = {}): VocabProgress {
         const entry = () => ({
@@ -229,7 +216,7 @@ describe('GrammarSRSService.applyVocabReinforcement (positive-only vocab credit)
         // The exercise trains a direction the user switched off, and crediting reading
         // instead would just restore the mismatch this change exists to remove.
         const queue = [makeVocabProgress({ vocabId: 'v-1' })];
-        const off = { ...settings, enableProductionQuiz: false } as UserSettings;
+        const off: UserSettings = { ...settings, enableProductionQuiz: false };
 
         expect(GrammarSRSService.applyVocabReinforcement(queue, [{ vocabId: 'v-1', result: 'correct' }], now, off)).toBe(queue);
     });
@@ -334,7 +321,6 @@ describe('GrammarSRSService candidate finding (JLPT order fallback)', () => {
         expect(await GrammarSRSService.hasMoreLearnableGrammar([])).toBe(false);
     });
 });
-
 
 describe('GrammarSRSService candidate finding (authored teaching order)', () => {
     // Deliberately NOT in JLPT order: the whole point of the authored order is
@@ -479,7 +465,6 @@ describe('GrammarSRSService candidate finding stops at a chapter boundary', () =
         expect(await GrammarSRSService.getCurrentChapter(everything)).toBeNull();
     });
 });
-
 
 describe('GrammarSRSService pipeline filtering by kind', () => {
     const teachingOrder = {

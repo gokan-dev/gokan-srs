@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildWordOrderContext, computeUncoveredKanji, isLearnableNow, sortWords } from './wordOrder.utils';
 import type { LearnerOrder } from './wordOrder.utils';
-import type { MediaWordCount } from '../models/media.model';
+import type { MediaWordCount } from '@gokan/dataset-schema';
 
 // Frequency order: a (most frequent), b, c, d.
 const context = buildWordOrderContext(

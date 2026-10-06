@@ -1,9 +1,15 @@
+import { readJson } from '../http';
 import { GoogleAuthError } from './types';
 
 export interface DriveFile {
     id: string;
     name: string;
     modifiedTime: string;
+}
+
+/** The subset of a Drive `files.list` response this client reads. */
+interface DriveFileList {
+    files?: DriveFile[];
 }
 
 /**
@@ -18,11 +24,11 @@ export class DriveClient {
         this.accessToken = accessToken;
     }
 
-    private authHeader() {
+    private authHeader(): { Authorization: string } {
         return { Authorization: `Bearer ${this.accessToken}` };
     }
 
-    private async checkOk(response: Response, action: string): Promise<void> {
+    private checkOk(response: Response, action: string): void {
         if (response.ok) return;
         if (response.status === 401 || response.status === 403) {
             throw new GoogleAuthError('Authentication failed or token expired', response.status);
@@ -35,9 +41,9 @@ export class DriveClient {
             `https://www.googleapis.com/drive/v3/files?q=name='${encodeURIComponent(name)}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
             { headers: this.authHeader() }
         );
-        await this.checkOk(response, 'list folders');
-        const { files } = await response.json();
-        return files?.length > 0 ? files[0].id : null;
+        this.checkOk(response, 'list folders');
+        const { files } = await readJson<DriveFileList>(response);
+        return files?.[0]?.id ?? null;
     }
 
     async createFolder(name: string): Promise<string> {
@@ -46,8 +52,8 @@ export class DriveClient {
             headers: { ...this.authHeader(), 'Content-Type': 'application/json' },
             body: JSON.stringify({ name, mimeType: 'application/vnd.google-apps.folder' }),
         });
-        await this.checkOk(response, 'create folder');
-        const { id } = await response.json();
+        this.checkOk(response, 'create folder');
+        const { id } = await readJson<{ id: string }>(response);
         return id;
     }
 
@@ -57,8 +63,8 @@ export class DriveClient {
             `https://www.googleapis.com/drive/v3/files?q=name='${encodeURIComponent(name)}' and '${folderId}' in parents and trashed=false&fields=files(id,name,modifiedTime)`,
             { headers: this.authHeader() }
         );
-        await this.checkOk(response, 'list files');
-        const { files } = await response.json();
+        this.checkOk(response, 'list files');
+        const { files } = await readJson<DriveFileList>(response);
         return files ?? [];
     }
 
@@ -67,17 +73,18 @@ export class DriveClient {
             `https://www.googleapis.com/drive/v3/files/${fileId}?fields=modifiedTime`,
             { headers: this.authHeader() }
         );
-        await this.checkOk(response, 'fetch file metadata');
-        return response.json();
+        this.checkOk(response, 'fetch file metadata');
+        return readJson<{ modifiedTime: string }>(response);
     }
 
-    async downloadFileContent(fileId: string): Promise<any> {
+    /** The file's parsed JSON. Its shape is the caller's to check: it is whatever any build of the app last wrote. */
+    async downloadFileContent(fileId: string): Promise<unknown> {
         const response = await fetch(
             `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
             { headers: this.authHeader() }
         );
-        await this.checkOk(response, 'fetch file content');
-        return response.json();
+        this.checkOk(response, 'fetch file content');
+        return readJson<unknown>(response);
     }
 
     async uploadNewFile(folderId: string, name: string, content: unknown): Promise<string> {
@@ -91,8 +98,8 @@ export class DriveClient {
             headers: this.authHeader(),
             body: form,
         });
-        await this.checkOk(response, 'upload new file');
-        const result = await response.json();
+        this.checkOk(response, 'upload new file');
+        const result = await readJson<{ id: string }>(response);
         return result.id;
     }
 
@@ -107,7 +114,7 @@ export class DriveClient {
             headers: this.authHeader(),
             body: form,
         });
-        await this.checkOk(response, 'update file');
+        this.checkOk(response, 'update file');
     }
 
     async trashFile(fileId: string): Promise<void> {
@@ -116,6 +123,6 @@ export class DriveClient {
             headers: { ...this.authHeader(), 'Content-Type': 'application/json' },
             body: JSON.stringify({ trashed: true }),
         });
-        await this.checkOk(response, 'trash duplicate file');
+        this.checkOk(response, 'trash duplicate file');
     }
 }

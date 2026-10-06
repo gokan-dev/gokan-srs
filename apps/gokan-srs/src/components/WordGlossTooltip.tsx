@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import type { Vocabulary } from "../models/vocabulary.model";
+import type { Vocabulary } from "@gokan/dataset-schema";
 import { VocabularyService } from "../services/vocabulary.service";
 
 /** Hover dwell before a lookup starts, so sweeping the cursor over a sentence fetches nothing. */

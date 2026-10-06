@@ -196,6 +196,14 @@ export const DEFAULT_SETTINGS: UserSettings = {
     kanjiCountStep: 10,
 };
 
+/** Every quiz type at level 1 with an empty window: where calibration starts. */
+export const defaultCalibration = (): Calibration => ({
+    reading: { level: 1.0, history: [] },
+    meaning: { level: 1.0, history: [] },
+    production: { level: 1.0, history: [] },
+    grammar: { level: 1.0, history: [] },
+});
+
 export const DEFAULT_PROGRESS: Omit<UserProgress, 'kanjiKnowledge'> = {
     stats: {
         newLearnedToday: 0,
@@ -210,10 +218,5 @@ export const DEFAULT_PROGRESS: Omit<UserProgress, 'kanjiKnowledge'> = {
         level: 1.0,
         history: []
     },
-    calibration: {
-        reading: { level: 1.0, history: [] },
-        meaning: { level: 1.0, history: [] },
-        production: { level: 1.0, history: [] },
-        grammar: { level: 1.0, history: [] },
-    }
-}
+    calibration: defaultCalibration(),
+};

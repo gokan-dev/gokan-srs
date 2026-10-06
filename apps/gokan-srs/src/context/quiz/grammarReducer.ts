@@ -1,6 +1,7 @@
 import type { Leniency } from '../../utils/answerMatching';
+import { insertAtFraction } from '../../utils/insertAtFraction';
 import type { UserProgress } from '../../models/user.model';
-import type { GrammarExample, GrammarPoint } from '../../models/grammar.model';
+import type { GrammarExample, GrammarPoint } from '@gokan/dataset-schema';
 import type { AnswerResult } from '../../services/srs.service';
 import { GrammarSRSService } from '../../services/grammarSrs.service';
 import type { QuizState, SessionGains } from './quizReducer';
@@ -210,13 +211,17 @@ export const initialGrammarState: GrammarQuizState = {
 export type GrammarQuizAction =
     | { type: 'GRAMMAR_LOAD_START'; payload: PendingGrammarQuizItem }
     | { type: 'GRAMMAR_LOAD_SUCCESS'; payload: { point: GrammarPoint | null; blankPlan: GrammarBlankPlan | null } }
-    | { type: 'GRAMMAR_LOAD_ERROR'; payload: { grammarId: string; error: any } }
+    | { type: 'GRAMMAR_LOAD_ERROR'; payload: { grammarId: string; error: unknown } }
     | { type: 'GRAMMAR_SET_ANSWER'; payload: { index: number; value: string } }
     | { type: 'GRAMMAR_REVEAL_HINT'; payload: { index: number } }
     | { type: 'GRAMMAR_SUBMIT_ANSWER'; payload: { type: AnswerResult; message: string; matchedAnswers: string[]; perBlankResults: AnswerResult[]; strengthDeltaModifier: number; vocabCredits: { vocabId: string; result: AnswerResult }[] } }
     | { type: 'GRAMMAR_UPDATE_AFTER_ANSWER'; payload: { progress: UserProgress; historyItem?: { grammarId: string; title: string; result: AnswerResult; delta: number; vocabDelta?: number; vocabBreakdown?: { label: string; delta: number }[] } | null } }
     | { type: 'GRAMMAR_ADVANCE_QUEUE'; payload: { progress: UserProgress; candidates?: GrammarPoint[] } }
-    | { type: 'GRAMMAR_INTRO_CHOICE'; grammarId: string; choice: 'learn' | 'skip'; grammarPoint?: GrammarPoint }
+    | {
+        type: 'GRAMMAR_INTRO_CHOICE'; grammarId: string; choice: 'learn' | 'skip'; grammarPoint?: GrammarPoint;
+        /** Where (0..1) a point added from outside the candidates is slotted in among them. Random, chosen by the caller. */
+        insertionFraction?: number;
+    }
     | { type: 'GRAMMAR_CLEAR_FEEDBACK' }
     | { type: 'GRAMMAR_SESSION_START'; payload: { grammarIds: string[]; progress?: UserProgress } }
     | { type: 'GRAMMAR_SESSION_END' }
@@ -248,14 +253,13 @@ export function grammarReducer(state: QuizState, action: GrammarQuizAction): Qui
                 ...state,
                 currentGrammarPoint: action.payload.point,
                 currentGrammarBlankPlan: action.payload.blankPlan,
-                grammarAnswers: new Array(blankCount).fill(''),
-                grammarHintLevels: new Array(blankCount).fill(0),
+                grammarAnswers: Array.from({ length: blankCount }, () => ''),
+                grammarHintLevels: Array.from({ length: blankCount }, () => 0),
                 isLoadingGrammar: false,
             };
         }
 
         case 'GRAMMAR_LOAD_ERROR':
-            console.error(`[grammarReducer] CRITICAL: Failed to load grammar point ${action.payload.grammarId}`, action.payload.error);
             return {
                 ...state,
                 isLoadingGrammar: false,
@@ -421,12 +425,7 @@ export function grammarReducer(state: QuizState, action: GrammarQuizAction): Qui
             let nextCandidates = state.grammarIntroCandidates.filter(c => c.id !== action.grammarId);
 
             if (!wasInCandidates && action.grammarPoint) {
-                const insertAt = Math.floor(Math.random() * (nextCandidates.length + 1));
-                nextCandidates = [
-                    ...nextCandidates.slice(0, insertAt),
-                    action.grammarPoint,
-                    ...nextCandidates.slice(insertAt),
-                ];
+                nextCandidates = insertAtFraction(nextCandidates, action.grammarPoint, action.insertionFraction ?? 0);
             }
 
             // A point the user chooses to Learn becomes part of the current session's

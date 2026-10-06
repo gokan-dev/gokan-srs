@@ -8,31 +8,26 @@
 // family fields (the ones this page groups by), so rows are built here from the point files
 // prerender already loads plus index/families.json.
 
-import type { GrammarPoint } from '../models/grammar.model';
+import type { GrammarBrowseRow, GrammarPoint } from '@gokan/dataset-schema';
 
 export type GrammarKind = NonNullable<GrammarPoint['kind']>;
 export type GroupMode = 'level' | 'family';
 
-/** A grammar point reduced to what a browse row displays and filters on. */
-export interface GrammarBrowseRow {
-    id: string;
-    title: string;
-    romaji?: string;
-    jlptLevel: number;
-    kind?: GrammarKind;
-    formation: string;
-    shortExplanation: string;
-    usageNote?: string;
-    formalityLevel?: NonNullable<GrammarPoint['formalityLevel']>;
-    familyId?: string;
-    familyName?: string;
-}
+/**
+ * A grammar point reduced to what a browse row displays and filters on: a subset of the
+ * dataset's own browse row, so the two can never disagree on a field's type. `kind` is
+ * optional because the dictionary derives rows from points, where it is optional.
+ */
+export type BrowseRow = Pick<
+    GrammarBrowseRow,
+    'id' | 'title' | 'romaji' | 'jlptLevel' | 'formation' | 'shortExplanation' | 'usageNote' | 'formalityLevel' | 'familyId' | 'familyName'
+> & { kind?: GrammarKind };
 
 export interface BrowseGroup {
     key: string;
     title: string;
     subtitle: string;
-    rows: GrammarBrowseRow[];
+    rows: BrowseRow[];
 }
 
 export const JLPT_LEVELS = [5, 4, 3, 2, 1];
@@ -51,7 +46,7 @@ export const FORMALITY_LABEL: Record<string, string> = {
     'very-formal-literary': 'Literary',
 };
 
-export function toBrowseRow(point: GrammarPoint): GrammarBrowseRow {
+export function toBrowseRow(point: GrammarPoint): BrowseRow {
     return {
         id: point.id,
         title: point.title,
@@ -80,7 +75,7 @@ export interface FilterOptions {
  * "contradiction" finds the whole けれど/しかし/でも cluster even though no individual point's
  * title contains that word. This is the main thing that makes 755 points navigable at all.
  */
-export function filterRows(rows: GrammarBrowseRow[], options: FilterOptions): GrammarBrowseRow[] {
+export function filterRows(rows: BrowseRow[], options: FilterOptions): BrowseRow[] {
     const query = options.query.trim().toLowerCase();
     const levels = new Set(options.levels);
     const kinds = new Set(options.kinds);
@@ -109,7 +104,7 @@ export function filterRows(rows: GrammarBrowseRow[], options: FilterOptions): Gr
  * a learner most needs disambiguated. Points with no family are collected into one trailing
  * group rather than dropped, so the two modes always show the same total.
  */
-export function groupRows(rows: GrammarBrowseRow[], mode: GroupMode): BrowseGroup[] {
+export function groupRows(rows: BrowseRow[], mode: GroupMode): BrowseGroup[] {
     if (mode === 'level') {
         return JLPT_LEVELS
             .map(level => ({
@@ -121,8 +116,8 @@ export function groupRows(rows: GrammarBrowseRow[], mode: GroupMode): BrowseGrou
             .filter(group => group.rows.length > 0);
     }
 
-    const byFamily = new Map<string, GrammarBrowseRow[]>();
-    const unfamilied: GrammarBrowseRow[] = [];
+    const byFamily = new Map<string, BrowseRow[]>();
+    const unfamilied: BrowseRow[] = [];
     for (const row of rows) {
         if (!row.familyId) {
             unfamilied.push(row);

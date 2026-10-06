@@ -1,6 +1,6 @@
 Below is a deterministic test dataset you can use to validate that your SRS math is implemented correctly.
 
-Assumptions (fixed for all tests — must match your implementation):
+Assumptions (fixed for all tests, must match your implementation):
 
 LN_TARGET = 0.28768
 EXPECTED_LATENCY = 1500
@@ -19,7 +19,7 @@ MIN_MEMORY_STRENGTH = 0.3
 MIN_INTERVAL = 0.2
 
 All results rounded to 5 decimals.
-✅ TEST CASE 1 — Correct, fast recall
+✅ TEST CASE 1: Correct, fast recall
 
 Input
 
@@ -49,7 +49,7 @@ Expected output
   "interval": 4.04190
 }
 
-✅ TEST CASE 2 — Correct, slow recall
+✅ TEST CASE 2: Correct, slow recall
 
 Input
 
@@ -79,7 +79,7 @@ Expected output
   "interval": 3.15010
 }
 
-✅ TEST CASE 3 — Minor error
+✅ TEST CASE 3: Minor error
 
 Input
 
@@ -109,7 +109,7 @@ Expected output
   "interval": 1.75923
 }
 
-✅ TEST CASE 4 — Wrong answer
+✅ TEST CASE 4: Wrong answer
 
 Input
 
@@ -141,7 +141,7 @@ Expected output
   "interval": 0.72495
 }
 
-✅ TEST CASE 5 — Pass
+✅ TEST CASE 5: Pass
 
 Input
 
@@ -169,7 +169,7 @@ Expected output
   "interval": 1.50771
 }
 
-✅ TEST CASE 6 — Floor enforcement
+✅ TEST CASE 6: Floor enforcement
 
 Input
 
@@ -203,7 +203,7 @@ Expected output
   "interval": 0.20000
 }
 
-✅ TEST CASE 7 — Latency upper clamp
+✅ TEST CASE 7: Latency upper clamp
 
 Input
 
@@ -233,7 +233,7 @@ Expected output
   "interval": 2.06341
 }
 
-✅ TEST CASE 8 — Latency lower clamp
+✅ TEST CASE 8: Latency lower clamp
 
 Input
 

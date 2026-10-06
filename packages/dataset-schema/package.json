@@ -1,0 +1,13 @@
+{
+  "name": "@gokan/dataset-schema",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Types (and JMdict tag labels) for the compiled gokan-dataset files both apps read.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}

@@ -1,28 +1,22 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { VocabularyService, VocabNotFoundError } from './vocabulary.service';
+import { vocabulary } from '../test/fixtures';
 
-// Minimal Response stub for loadVocab's checks (status, ok, content-type, json()).
-function res(opts: { status?: number; ok?: boolean; contentType?: string; json?: () => unknown }): Response {
-    const status = opts.status ?? 200;
-    return {
-        status,
-        ok: opts.ok ?? (status >= 200 && status < 300),
-        headers: { get: (k: string) => (k.toLowerCase() === 'content-type' ? (opts.contentType ?? 'application/json') : null) },
-        json: opts.json ?? (async () => ({})),
-    } as unknown as Response;
+/** A real Response, so loadVocab's status, content-type and body handling run unmodified. */
+function res(opts: { status?: number; contentType?: string; body?: string }): Response {
+    return new Response(opts.body ?? '{}', {
+        status: opts.status ?? 200,
+        headers: { 'content-type': opts.contentType ?? 'application/json' },
+    });
 }
 
-const vocab = (id: string) => ({
-    id, writtenForm: { kanji: '日', alternatives: [], containedKanji: ['日'] },
-    reading: { primary: 'ひ', alternatives: [] }, frequency: { kanjiRank: 1 },
-    progression: { kklcStep: 1 }, senses: [],
-});
+const vocabBody = (id: string) => JSON.stringify(vocabulary({ id }));
 
 afterEach(() => vi.restoreAllMocks());
 
 describe('VocabularyService.loadVocab not-found detection', () => {
     it('returns the vocab on a normal JSON response', async () => {
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue(res({ json: async () => vocab('100') }));
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(res({ body: vocabBody('100') }));
         expect((await VocabularyService.loadVocab('100')).id).toBe('100');
     });
 
@@ -32,7 +26,7 @@ describe('VocabularyService.loadVocab not-found detection', () => {
     });
 
     it('throws VocabNotFoundError on a 200 text/html (prod CloudFront SPA fallback for a missing key)', async () => {
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue(res({ status: 200, contentType: 'text/html', json: async () => { throw new Error('<'); } }));
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(res({ status: 200, contentType: 'text/html', body: '<!doctype html><html></html>' }));
         await expect(VocabularyService.loadVocab('spa')).rejects.toBeInstanceOf(VocabNotFoundError);
     });
 
@@ -50,7 +44,7 @@ describe('VocabularyService.loadVocab not-found detection', () => {
     });
 
     it('does NOT retire on a 200 with an unparseable JSON body (corruption, not absence)', async () => {
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue(res({ status: 200, json: async () => { throw new SyntaxError('bad'); } }));
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(res({ status: 200, body: '{ not json' }));
         await expect(VocabularyService.loadVocab('corrupt')).rejects.not.toBeInstanceOf(VocabNotFoundError);
     });
 

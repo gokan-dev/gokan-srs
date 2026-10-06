@@ -2,7 +2,7 @@
 // in the authored teaching order. Kept out of prerender.ts and the page components so the
 // lookup logic is unit-testable without rendering anything or touching the filesystem.
 
-import type { GrammarPoint, GrammarTeachingOrder } from '../models/grammar.model';
+import type { GrammarPoint, GrammarTeachingOrder } from '@gokan/dataset-schema';
 import type { GrammarSummary } from './types';
 
 /** Where one grammar point sits in the curriculum. */

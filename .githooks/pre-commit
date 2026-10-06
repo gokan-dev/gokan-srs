@@ -1,0 +1,16 @@
+#!/bin/sh
+# Fast checks on the staged files only: project conventions, then lint. The full suite
+# (typecheck, tests, duplicates, unused code) runs in pre-push and CI: `bun run check`.
+# Installed by `bun install` (the root `prepare` script sets core.hooksPath to .githooks).
+
+files=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -z "$files" ] && exit 0
+
+# shellcheck disable=SC2086
+bun scripts/check-conventions.ts $files || exit 1
+
+lintable=$(printf '%s\n' "$files" | grep -E '\.(ts|tsx|svelte)$' | grep -v '^apps/gokan-srs/dataset/' || true)
+if [ -n "$lintable" ]; then
+  # shellcheck disable=SC2086
+  bunx eslint --max-warnings 0 --no-warn-ignored $lintable || exit 1
+fi

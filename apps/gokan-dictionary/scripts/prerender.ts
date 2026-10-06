@@ -77,8 +77,7 @@ import { buildChapterLocatorIndex, buildChapterIndexRows } from '../src/lib/gram
 import { buildFamilyPages } from '../src/lib/grammarFamilies';
 import { buildVariantSiblings } from '../src/lib/grammarVariants';
 import { groupConjugationsByForm } from '../src/lib/grammarConjugations';
-import type { Vocabulary } from '../src/models/vocabulary.model';
-import type { GrammarPoint } from '../src/models/grammar.model';
+import type { GrammarPoint, Vocabulary } from '@gokan/dataset-schema';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = path.join(__dirname, '..');
@@ -99,7 +98,8 @@ function readClientManifest(): Record<string, ViteManifestEntry> {
     if (!fs.existsSync(manifestPath)) {
         throw new Error(`[prerender] ${manifestPath} not found - run "vite build" before prerendering.`);
     }
-    return JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+    const manifest: unknown = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+    return manifest as Record<string, ViteManifestEntry>;
 }
 
 function writePage(distRelSegments: string[], html: string): void {
@@ -431,9 +431,9 @@ async function main(): Promise<void> {
     const JLPT_LEVELS = [5, 4, 3, 2, 1];
 
     console.log('[prerender] writing kanji index...');
-    const kanjiGroups = [
+    const kanjiGroups: { level: number | null; kanji: typeof kanjiList }[] = [
         ...JLPT_LEVELS.map(level => ({
-            level: level as number | null,
+            level,
             kanji: kanjiList.filter(kanji => kanji.steps.jlpt === level),
         })),
         { level: null, kanji: kanjiList.filter(kanji => kanji.steps.jlpt === undefined) },
@@ -457,7 +457,7 @@ async function main(): Promise<void> {
         level,
         // The index carries only {id, containedKanji}; the display fields come from the summary
         // map built above. An id with no summary is dropped rather than rendered blank.
-        words: (vocabJlptIndex[String(level)] ?? [])
+        words: (vocabJlptIndex[level] ?? [])
             .map(entry => summaryById.get(entry.id))
             .filter((summary): summary is VocabSummary => Boolean(summary)),
     })).filter(group => group.words.length > 0);

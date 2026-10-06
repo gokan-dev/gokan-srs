@@ -49,8 +49,6 @@ export function usePersistedControlsSnapshot<T>(key: string): Partial<T> {
 export function usePersistControls<T>(key: string, value: T, deps: React.DependencyList): void {
     useEffect(() => {
         writePersistedControls(key, value);
-        // The caller passes the individual control values as deps: `value` is rebuilt every
-        // render, so depending on it directly would write on every render instead of on change.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- the caller supplies the control values as deps: value is rebuilt every render, so depending on it would write on every render
     }, deps);
 }

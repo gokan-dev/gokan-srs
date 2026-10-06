@@ -2,7 +2,7 @@
 // `kind: 'inflection'` points by their conjugation form. Kept out of prerender.ts and the
 // .svelte component for the same unit-testability reason as the other grammar*.ts helpers.
 
-import type { GrammarConjugationIndex, GrammarPoint } from '../models/grammar.model';
+import type { GrammarConjugationIndex, GrammarPoint } from '@gokan/dataset-schema';
 
 export interface ConjugationGroupPoint {
     id: string;

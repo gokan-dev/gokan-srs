@@ -1,12 +1,12 @@
 // src/services/srs.service.ts
-import type { ReviewLog, SRSEntry, VocabProgress, Vocabulary } from '../models/vocabulary.model';
+import { JLPT_LEVELS } from '@gokan/dataset-schema';
+import type { SynonymRelation, Vocabulary } from '@gokan/dataset-schema';
+import type { ReviewLog, SRSEntry, VocabProgress } from '../models/vocabulary.model';
 import { CONSTANTS } from '../commons/constants';
 import { VocabularyService } from './vocabulary.service';
-import type { KanjiKnowledge, UserProgress, UserSettings } from '../models/user.model';
+import type { KanjiKnowledge, UserSettings } from '../models/user.model';
 import { isVocabFullyMastered, vocabNextReviewAt, newSRSEntry, isProductionActivated } from './scheduling';
 import type { QuizType } from '../utils/srs.utils';
-import { JLPT_LEVELS } from '../models/index.model';
-import type { SynonymRelation } from '../models/index.model';
 import { collectJlptCandidates, countJlptCandidates } from './jlptWalk';
 import { isFormOfWord, toInflectableWord } from '../utils/inflection.utils';
 import { matchAnswer, matchBest, type AnswerResult, type Leniency } from '../utils/answerMatching';
@@ -42,6 +42,15 @@ export interface ProductionSynonymMatch {
 }
 
 const F = CONSTANTS.srs.formula;
+
+/** The settings that decide which vocabulary is introduced next. */
+export type LearningOrderSettings = Pick<UserSettings, 'preferredLearningOrder' | 'kanjiCoverageTarget' | 'ignoreKnownKanjiRequirement'>;
+
+/** What the learnable-vocabulary count reads from the user's progress. */
+export interface LearnableScope {
+    kanjiKnowledge: KanjiKnowledge;
+    learningQueue: readonly Pick<VocabProgress, 'vocabId'>[];
+}
 
 export class SRSService {
 
@@ -529,8 +538,8 @@ export class SRSService {
        ======================= */
 
     static async hasMoreLearnableVocabulary(
-        progress: UserProgress,
-        settings: UserSettings
+        progress: LearnableScope,
+        settings: LearningOrderSettings
     ): Promise<boolean> {
         const count = await this.countLearnableVocabulary(
             progress,
@@ -542,8 +551,8 @@ export class SRSService {
     }
 
     static async countLearnableVocabulary(
-        progress: UserProgress,
-        settings: UserSettings,
+        progress: LearnableScope,
+        settings: LearningOrderSettings,
         limit = Infinity
     ): Promise<number> {
         let count = 0;
@@ -635,9 +644,9 @@ export class SRSService {
      * Does NOT create VocabProgress objects or modify the queue.
      */
     static async getNextCandidates(
-        currentQueue: VocabProgress[],
+        currentQueue: readonly Pick<VocabProgress, 'vocabId'>[],
         kanjiKnowledge: KanjiKnowledge,
-        settings: UserSettings,
+        settings: LearningOrderSettings,
         maxToFind: number,
         ignoredIds: Set<string> = new Set()
     ): Promise<string[]> {
@@ -959,34 +968,6 @@ export class SRSService {
         }
 
         return updated;
-    }
-
-    /**
-     * Calculates user's recent win rate from the queue.
-     * Uses the last 20 reviews of each item in the queue.
-     */
-    static calculateRecentWinRate(queue: VocabProgress[]): number {
-        let totalReviews = 0;
-        let successfulReviews = 0;
-
-        for (const vocab of queue) {
-            // Helper to count history
-            const processHistory = (history: ReviewLog[]) => {
-                for (const log of history) {
-                    totalReviews++;
-                    if (log.result === 'correct' || log.result === 'minor_error') {
-                        successfulReviews++;
-                    }
-                }
-            };
-
-            processHistory(vocab.reading.history);
-            // processHistory(vocab.meaning.history); // Uncomment if we track meaning
-        }
-
-        if (totalReviews === 0) return 0.75; // Default assumption
-
-        return successfulReviews / totalReviews;
     }
 
     // Per-quiz-type calibration (the old single "adaptive" level) lives in

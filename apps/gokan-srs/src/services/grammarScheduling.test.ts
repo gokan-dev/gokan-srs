@@ -3,34 +3,14 @@ import { isGrammarFullyMastered, grammarNextReviewAt, isGrammarDue, clearStaleGr
 import { CONSTANTS } from '../commons/constants';
 import type { SRSEntry } from '../models/vocabulary.model';
 import type { GrammarProgress } from '../models/grammar.model';
+import { grammarProgress, srsEntry } from '../test/fixtures';
 
 const MAX = CONSTANTS.srs.formula.mastery.maxMemoryStrength;
 
-function makeEntry(overrides: Partial<SRSEntry> = {}): SRSEntry {
-    return {
-        memoryStrength: 10,
-        interval: 5,
-        difficulty: 0.3,
-        lastReviewedAt: null,
-        dueDate: null,
-        history: [],
-        ...overrides,
-    };
-}
+const makeEntry = (overrides: Partial<SRSEntry> = {}): SRSEntry => srsEntry({ memoryStrength: 10, interval: 5, ...overrides });
 
-function makeGrammarProgress(overrides: Partial<GrammarProgress> = {}): GrammarProgress {
-    return {
-        grammarId: 'n5-001',
-        stage: 'learning',
-        introductionAt: new Date('2026-06-01T00:00:00Z'),
-        nextReviewAt: null,
-        lastReviewedAt: null,
-        totalReviews: 1,
-        consecutiveFailures: 0,
-        entry: makeEntry(),
-        ...overrides,
-    };
-}
+const makeGrammarProgress = (overrides: Partial<GrammarProgress> = {}): GrammarProgress =>
+    grammarProgress({ introductionAt: new Date('2026-06-01T00:00:00Z'), totalReviews: 1, entry: makeEntry(), ...overrides });
 
 describe('grammarScheduling', () => {
     describe('isGrammarFullyMastered', () => {

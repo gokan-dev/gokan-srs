@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useGoogleDrive } from "../../context/GoogleDriveContext";
+import { useGoogleDrive } from "../../context/useGoogleDrive";
 import { StorageService } from "../../services/storage.service";
 import { Button } from "../../components/ui/Button";
 import { Cloud, Loader2, LogIn, BookOpen, GraduationCap, ChevronRight } from "lucide-react";
@@ -29,13 +29,13 @@ export function GoogleLoginButton({ onSyncComplete, className }: { onSyncComplet
                 }
             }
         };
-        tryRestore();
+        void tryRestore();
         return () => { mounted = false; };
     }, [isAuthenticated, isDownloading, hasAttemptedAutoRestore, downloadProgress, onSyncComplete]);
 
     if (isDownloading) {
         return (
-            <div className={`flex items-center gap-2 px-4 py-2 text-sm text-green-600 ${className}`}>
+            <div className={`flex items-center gap-2 px-4 py-2 text-sm text-feedback-correct ${className}`}>
                 <Loader2 size={16} className="animate-spin" />
                 <span>Restoring your progress...</span>
             </div>
@@ -48,10 +48,7 @@ export function GoogleLoginButton({ onSyncComplete, className }: { onSyncComplet
         return (
             <Button
                 variant="ghost"
-                onClick={async () => {
-                    await downloadProgress();
-                    onSyncComplete();
-                }}
+                onClick={() => void downloadProgress().then(onSyncComplete)}
                 className={`text-sm font-medium hover:bg-black/5 text-primary ${className}`}
             >
                 <Cloud size={16} className="mr-2" />

@@ -51,7 +51,7 @@ describe('path builders', () => {
 
 describe('absoluteUrl', () => {
     it('resolves an already-prefixed path against the bare origin', () => {
-        // Regression guard: resolving against a base that itself has a path (SITE_URL) silently
+        // Regression guard: resolving against a base that itself has a path (the site URL) silently
         // drops that path for absolute inputs, which would emit canonicals missing /dictionary.
         expect(absoluteUrl(vocabPath('1589350'))).toBe(`${SITE_ORIGIN}${BASE_PATH}/vocab/1589350/`);
     });

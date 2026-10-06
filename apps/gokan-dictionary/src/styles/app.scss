@@ -121,6 +121,11 @@ main {
   color: var(--secondary);
   margin-bottom: $space-2;
 
+  // The separator's spacing lives here: Svelte trims whitespace at the edges of an element.
+  .breadcrumb-sep {
+    margin: 0 0.4em;
+  }
+
   a {
     color: var(--secondary);
   }

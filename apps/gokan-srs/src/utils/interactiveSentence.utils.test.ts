@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { segmentInteractiveSentence } from './interactiveSentence.utils';
-import type { Sentence } from '../models/sentence.model';
+import type { Sentence } from '@gokan/dataset-schema';
 
 function makeSentence(overrides: Partial<Sentence> = {}): Sentence {
     return {

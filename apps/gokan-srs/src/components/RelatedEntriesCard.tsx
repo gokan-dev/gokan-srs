@@ -75,7 +75,7 @@ export function RelatedEntriesCard({
             {entries.map((entry) => (
                 <div
                     key={entry.key}
-                    onClick={() => navigate(entry.to)}
+                    onClick={() => void navigate(entry.to)}
                     className="border-l-2 border-divider pl-3 cursor-pointer hover:border-accent transition-colors group"
                 >
                     <div className={`flex items-center gap-2 ${entry.description ? "mb-1" : ""}`}>

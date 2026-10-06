@@ -1,43 +1,17 @@
 import { describe, it, expect } from 'vitest';
 import { mergeEntry, mergeVocabProgress, mergeLearningQueues, mergeGrammarProgress, mergeGrammarQueues, mergeProgress, mergeSettings } from './mergeProgress';
 import type { ProgressWithMetadata } from './types';
-import type { SRSEntry, VocabProgress } from '../../models/vocabulary.model';
-import { DEFAULT_VOCABULARY_PROGRESS } from '../../models/vocabulary.model';
+import type { SRSEntry } from '../../models/vocabulary.model';
 import type { GrammarProgress } from '../../models/grammar.model';
-import { DEFAULT_GRAMMAR_PROGRESS } from '../../models/grammar.model';
+import { DEFAULT_SETTINGS, type UserSettings } from '../../models/user.model';
+import { grammarProgress, srsEntry, userProgress, vocabProgress } from '../../test/fixtures';
 
-function makeEntry(overrides: Partial<SRSEntry> = {}): SRSEntry {
-    return {
-        memoryStrength: 10,
-        interval: 5,
-        difficulty: 0.3,
-        lastReviewedAt: null,
-        dueDate: null,
-        history: [],
-        ...overrides,
-    };
-}
+const makeEntry = (overrides: Partial<SRSEntry> = {}): SRSEntry => srsEntry({ memoryStrength: 10, interval: 5, ...overrides });
 
-function makeVocabProgress(overrides: Partial<VocabProgress> = {}): VocabProgress {
-    return { ...DEFAULT_VOCABULARY_PROGRESS, vocabId: 'v1', ...overrides };
-}
+const makeGrammarProgress = (overrides: Partial<GrammarProgress> = {}): GrammarProgress => grammarProgress({ grammarId: 'g1', ...overrides });
 
-function makeGrammarProgress(overrides: Partial<GrammarProgress> = {}): GrammarProgress {
-    return { ...DEFAULT_GRAMMAR_PROGRESS, grammarId: 'g1', ...overrides };
-}
-
-function makeProgress(overrides: Partial<ProgressWithMetadata> = {}): ProgressWithMetadata {
-    return {
-        kanjiKnowledge: { method: 'kklc', step: 100, kanjiSet: new Set(['A']) },
-        learningQueue: [],
-        grammarQueue: [],
-        completedChapters: [],
-        stats: { totalReviews: 0, totalLearned: 0, newLearnedToday: 0 },
-        dailyOverride: false,
-        adaptive: { level: 1.0, history: [] },
-        ...overrides,
-    };
-}
+const makeProgress = (overrides: Partial<ProgressWithMetadata> = {}): ProgressWithMetadata =>
+    userProgress({ kanjiKnowledge: { method: 'kklc', step: 100, kanjiSet: new Set(['A']) }, ...overrides });
 
 describe('mergeEntry', () => {
     it('takes scheduling fields from whichever side reviewed more recently', () => {
@@ -78,12 +52,12 @@ describe('mergeEntry', () => {
 describe('mergeVocabProgress (per-entry merge - the core fix)', () => {
     it('never lets a reading-only review on one device clobber a meaning review on another', () => {
         // Device A reviewed READING only (meaning untouched, still at defaults).
-        const deviceA = makeVocabProgress({
+        const deviceA = vocabProgress({
             reading: makeEntry({ memoryStrength: 200, lastReviewedAt: new Date('2026-02-01') }),
             meaning: makeEntry({ memoryStrength: 1, lastReviewedAt: null }),
         });
         // Device B reviewed MEANING only (reading untouched, still at defaults).
-        const deviceB = makeVocabProgress({
+        const deviceB = vocabProgress({
             reading: makeEntry({ memoryStrength: 1, lastReviewedAt: null }),
             meaning: makeEntry({ memoryStrength: 150, lastReviewedAt: new Date('2026-02-02') }),
         });
@@ -96,11 +70,11 @@ describe('mergeVocabProgress (per-entry merge - the core fix)', () => {
     });
 
     it('re-derives stage/nextReviewAt rather than merging them directly', () => {
-        const local = makeVocabProgress({
+        const local = vocabProgress({
             reading: makeEntry({ memoryStrength: 1270, dueDate: null }), // mastered
             meaning: makeEntry({ memoryStrength: 1, dueDate: new Date('2026-03-01') }),
         });
-        const remote = makeVocabProgress({
+        const remote = vocabProgress({
             reading: makeEntry({ memoryStrength: 1270, dueDate: null }),
             meaning: makeEntry({ memoryStrength: 1, dueDate: new Date('2026-03-02') }),
         });
@@ -111,11 +85,11 @@ describe('mergeVocabProgress (per-entry merge - the core fix)', () => {
     });
 
     it('graduates when meaning quizzes are disabled and only reading is mastered, regardless of stale meaning fields', () => {
-        const local = makeVocabProgress({
+        const local = vocabProgress({
             reading: makeEntry({ memoryStrength: 1270, dueDate: null }),
             meaning: makeEntry({ memoryStrength: 1, dueDate: new Date('2026-03-01') }),
         });
-        const remote = makeVocabProgress({
+        const remote = vocabProgress({
             reading: makeEntry({ memoryStrength: 1270, dueDate: null }),
             meaning: makeEntry({ memoryStrength: 1, dueDate: new Date('2026-03-02') }),
         });
@@ -126,14 +100,14 @@ describe('mergeVocabProgress (per-entry merge - the core fix)', () => {
     });
 
     it('graduates if either side already graduated', () => {
-        const local = makeVocabProgress({ stage: 'graduated' });
-        const remote = makeVocabProgress({ stage: 'learning' });
+        const local = vocabProgress({ stage: 'graduated' });
+        const remote = vocabProgress({ stage: 'learning' });
         expect(mergeVocabProgress(local, remote).stage).toBe('graduated');
     });
 
     it('merges needsRetry per-type via OR when neither side can be ordered (a tie), never silently dropping a pending retry', () => {
-        const local = makeVocabProgress({ needsRetry: { reading: true } });
-        const remote = makeVocabProgress({ needsRetry: { meaning: true } });
+        const local = vocabProgress({ needsRetry: { reading: true } });
+        const remote = vocabProgress({ needsRetry: { meaning: true } });
 
         const merged = mergeVocabProgress(local, remote);
         expect(merged.needsRetry).toEqual({ reading: true, meaning: true, production: false });
@@ -144,11 +118,11 @@ describe('mergeVocabProgress (per-entry merge - the core fix)', () => {
         // srs.service.ts) without touching scheduling fields. `remote` here models
         // a copy of progress uploaded BEFORE the retry was answered - if a background
         // sync merges this in afterwards, the flag must not come back.
-        const local = makeVocabProgress({
+        const local = vocabProgress({
             needsRetry: undefined, // just resolved locally
             reading: makeEntry({ lastReviewedAt: new Date('2026-04-01T12:00:05Z') }),
         });
-        const remote = makeVocabProgress({
+        const remote = vocabProgress({
             needsRetry: { reading: true }, // stale - predates the retry resolution
             reading: makeEntry({ lastReviewedAt: new Date('2026-04-01T12:00:00Z') }),
         });
@@ -158,11 +132,11 @@ describe('mergeVocabProgress (per-entry merge - the core fix)', () => {
     });
 
     it('mirrors the fix when remote is the side that resolved the retry more recently', () => {
-        const local = makeVocabProgress({
+        const local = vocabProgress({
             needsRetry: { reading: true }, // stale on this side
             reading: makeEntry({ lastReviewedAt: new Date('2026-04-01T12:00:00Z') }),
         });
-        const remote = makeVocabProgress({
+        const remote = vocabProgress({
             needsRetry: undefined, // resolved on remote, more recently
             reading: makeEntry({ lastReviewedAt: new Date('2026-04-01T12:00:05Z') }),
         });
@@ -175,11 +149,11 @@ describe('mergeVocabProgress (per-entry merge - the core fix)', () => {
         // Local's snapshot is older and never saw the retry at all; remote is more
         // recent and still needs it - this must NOT be cleared just because one
         // side lacks the flag.
-        const local = makeVocabProgress({
+        const local = vocabProgress({
             needsRetry: undefined,
             reading: makeEntry({ lastReviewedAt: new Date('2026-04-01T12:00:00Z') }),
         });
-        const remote = makeVocabProgress({
+        const remote = vocabProgress({
             needsRetry: { reading: true },
             reading: makeEntry({ lastReviewedAt: new Date('2026-04-01T12:00:05Z') }),
         });
@@ -189,33 +163,33 @@ describe('mergeVocabProgress (per-entry merge - the core fix)', () => {
     });
 
     it('leaves needsRetry undefined when neither side has a pending retry', () => {
-        const merged = mergeVocabProgress(makeVocabProgress(), makeVocabProgress());
+        const merged = mergeVocabProgress(vocabProgress(), vocabProgress());
         expect(merged.needsRetry).toBeUndefined();
     });
 
     it('takes the earliest non-null introductionAt', () => {
-        const local = makeVocabProgress({ introductionAt: new Date('2026-01-05') });
-        const remote = makeVocabProgress({ introductionAt: new Date('2026-01-01') });
+        const local = vocabProgress({ introductionAt: new Date('2026-01-05') });
+        const remote = vocabProgress({ introductionAt: new Date('2026-01-01') });
         expect(mergeVocabProgress(local, remote).introductionAt).toEqual(new Date('2026-01-01'));
     });
 
     it('takes totalReviews as the max of both sides', () => {
-        const local = makeVocabProgress({ totalReviews: 3 });
-        const remote = makeVocabProgress({ totalReviews: 7 });
+        const local = vocabProgress({ totalReviews: 3 });
+        const remote = vocabProgress({ totalReviews: 7 });
         expect(mergeVocabProgress(local, remote).totalReviews).toBe(7);
     });
 
     it('counts production reviews toward recency: a production-only device still wins', () => {
         const older = new Date('2026-01-01');
         const newer = new Date('2026-01-03');
-        const local = makeVocabProgress({
+        const local = vocabProgress({
             reading: makeEntry({ lastReviewedAt: older }),
             meaning: makeEntry({ lastReviewedAt: older }),
             production: makeEntry({ lastReviewedAt: older }),
             lastReviewedAt: older,
             consecutiveFailures: 0,
         });
-        const remote = makeVocabProgress({
+        const remote = vocabProgress({
             reading: makeEntry({ lastReviewedAt: older }),
             meaning: makeEntry({ lastReviewedAt: older }),
             production: makeEntry({ lastReviewedAt: newer }),
@@ -231,16 +205,16 @@ describe('mergeVocabProgress (per-entry merge - the core fix)', () => {
 
 describe('mergeLearningQueues', () => {
     it('is a pure union - items present on only one side are preserved, never dropped', () => {
-        const local = [makeVocabProgress({ vocabId: 'only-local' })];
-        const remote = [makeVocabProgress({ vocabId: 'only-remote' })];
+        const local = [vocabProgress({ vocabId: 'only-local' })];
+        const remote = [vocabProgress({ vocabId: 'only-remote' })];
 
         const merged = mergeLearningQueues(local, remote);
         expect(merged.map(v => v.vocabId).sort()).toEqual(['only-local', 'only-remote']);
     });
 
     it('merges items present on both sides via mergeVocabProgress', () => {
-        const local = [makeVocabProgress({ vocabId: 'shared', totalReviews: 2 })];
-        const remote = [makeVocabProgress({ vocabId: 'shared', totalReviews: 9 })];
+        const local = [vocabProgress({ vocabId: 'shared', totalReviews: 2 })];
+        const remote = [vocabProgress({ vocabId: 'shared', totalReviews: 9 })];
 
         const merged = mergeLearningQueues(local, remote);
         expect(merged).toHaveLength(1);
@@ -373,7 +347,7 @@ describe('mergeProgress (top-level)', () => {
     it('retiredVocabIds unions, and a retired id drops the other device queue entry (respawn prevention)', () => {
         // Device A retired 'dead'; device B never did and still carries it in its queue.
         const local = makeProgress({ retiredVocabIds: ['dead'], learningQueue: [] });
-        const remote = makeProgress({ learningQueue: [makeVocabProgress({ vocabId: 'dead' })], retiredVocabIds: [] });
+        const remote = makeProgress({ learningQueue: [vocabProgress({ vocabId: 'dead' })], retiredVocabIds: [] });
 
         const merged = mergeProgress(local, remote)!;
         expect(merged.retiredVocabIds).toEqual(['dead']);
@@ -419,13 +393,13 @@ describe('mergeProgress (top-level)', () => {
 
 describe('mergeSettings', () => {
     it('returns local when remote is null', () => {
-        const local = { preferredLearningOrder: 'frequency' } as any;
+        const local: UserSettings = { ...DEFAULT_SETTINGS, preferredLearningOrder: 'frequency' };
         expect(mergeSettings(local, null, 1, 0)).toBe(local);
     });
 
     it('returns remote only when its version is strictly greater', () => {
-        const local = { preferredLearningOrder: 'frequency' } as any;
-        const remote = { preferredLearningOrder: 'kklc' } as any;
+        const local: UserSettings = { ...DEFAULT_SETTINGS, preferredLearningOrder: 'frequency' };
+        const remote: UserSettings = { ...DEFAULT_SETTINGS, preferredLearningOrder: 'kklc' };
 
         expect(mergeSettings(local, remote, 2, 1)).toBe(local);
         expect(mergeSettings(local, remote, 1, 1)).toBe(local); // tie -> local wins

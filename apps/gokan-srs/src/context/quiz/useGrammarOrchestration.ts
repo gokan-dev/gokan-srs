@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch } from 'react';
 import { useLocation } from 'react-router-dom';
-import type { GrammarPoint } from '../../models/grammar.model';
+import type { GrammarPoint } from '@gokan/dataset-schema';
 import { GrammarService } from '../../services/grammar.service';
 import { GrammarSRSService } from '../../services/grammarSrs.service';
 import { clearStaleGrammarNeedsRetry } from '../../services/grammarScheduling';
@@ -31,14 +31,20 @@ import { sessionRouteRole } from './sessionRoutes';
 import { refillCandidates } from './refillCandidates';
 
 export interface GrammarActions {
-    setGrammarAnswer(index: number, value: string): void;
-    revealGrammarHint(index: number): void;
-    submitGrammarAnswer(): Promise<void>;
-    advanceGrammarQueue(): Promise<void>;
-    continueGrammarToNext(): Promise<void>;
-    saveGrammarIntroChoice(grammarPoint: GrammarPoint, choice: 'learn' | 'skip'): void;
+    setGrammarAnswer: (index: number, value: string) => void;
+    revealGrammarHint: (index: number) => void;
+    submitGrammarAnswer: () => void;
+    advanceGrammarQueue: () => Promise<void>;
+    continueGrammarToNext: () => void;
+    saveGrammarIntroChoice: (grammarPoint: GrammarPoint, choice: 'learn' | 'skip') => void;
     /** Acknowledges the shown end-of-chapter review step, so it doesn't re-fire. */
-    dismissGrammarChapterLesson(chapterId: string): void;
+    dismissGrammarChapterLesson: (chapterId: string) => void;
+}
+
+export interface GrammarComputed {
+    canSubmitGrammar: boolean;
+    canContinueGrammar: boolean;
+    isGrammarReady: boolean;
 }
 
 /** The end-of-chapter review step's content, once a chapter completes and has anchored lessons - see selectChapterEndFocusIds. */
@@ -68,7 +74,7 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
 
     useEffect(() => {
         if (!state.progress) return;
-        GrammarSRSService.hasMoreLearnableGrammar(state.progress.grammarQueue).then(setHasMoreLearnableGrammar);
+        void GrammarSRSService.hasMoreLearnableGrammar(state.progress.grammarQueue).then(setHasMoreLearnableGrammar);
     }, [state.progress]);
 
     // The hub's chapter status (current/next/complete) plus its progress bar
@@ -87,7 +93,7 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
     useEffect(() => {
         if (!state.progress) return;
         let cancelled = false;
-        (async () => {
+        void (async () => {
             const teachingOrder = await GrammarService.loadTeachingOrder();
             if (cancelled) return;
             if (!teachingOrder) {
@@ -112,7 +118,7 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
         if (!state.progress) return;
         let cancelled = false;
 
-        (async () => {
+        void (async () => {
             const teachingOrder = await GrammarService.loadTeachingOrder();
             if (!teachingOrder || cancelled) return;
 
@@ -147,27 +153,31 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
         })();
 
         return () => { cancelled = true; };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- recomputed only when the queue or completed chapters change; the rest of progress is irrelevant here
     }, [state.progress?.grammarQueue, state.progress?.completedChapters]);
 
+    // The selectors are pure: each memo hands them exactly the state it depends on, and the
+    // current time as of that state change (the orchestration layer owns the clock).
+    const { progress, grammarIntroCandidates, currentGrammarPoint, grammarSession } = state;
+
     const grammarNextView = useMemo(
-        () => selectNextGrammarView(state, hasMoreLearnableGrammar),
-        [state.progress, state.grammarIntroCandidates, state.currentGrammarPoint, hasMoreLearnableGrammar]
+        () => selectNextGrammarView({ progress, grammarIntroCandidates, currentGrammarPoint }, hasMoreLearnableGrammar, new Date()),
+        [progress, grammarIntroCandidates, currentGrammarPoint, hasMoreLearnableGrammar]
     );
 
     const currentGrammarProgress = useMemo(
-        () => selectCurrentGrammarProgress(state),
-        [state.currentGrammarPoint, state.progress]
+        () => selectCurrentGrammarProgress({ progress, currentGrammarPoint }),
+        [currentGrammarPoint, progress]
     );
 
     const nextGrammarSessionPreview = useMemo(
-        () => selectNextGrammarSessionPreview(state),
-        [state.progress]
+        () => selectNextGrammarSessionPreview({ progress }, new Date()),
+        [progress]
     );
 
     const grammarSessionStats = useMemo(
-        () => selectGrammarSessionStats(state, hasMoreLearnableGrammar),
-        [state.progress, state.grammarSession, hasMoreLearnableGrammar]
+        () => selectGrammarSessionStats({ progress, grammarSession }, hasMoreLearnableGrammar, new Date()),
+        [progress, grammarSession, hasMoreLearnableGrammar]
     );
 
     /* ---------- Session lifecycle ---------- */
@@ -225,7 +235,7 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
             dispatch({ type: 'GRAMMAR_REVEAL_HINT', payload: { index } });
         },
 
-        async submitGrammarAnswer() {
+        submitGrammarAnswer() {
             if (!state.currentGrammarPoint || state.grammarFeedback?.show || !state.currentGrammarBlankPlan) return;
             if (state.currentGrammarBlankPlan.readOnly) return; // nothing to grade - handled by continueGrammarToNext directly
 
@@ -325,7 +335,7 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
             });
         },
 
-        async continueGrammarToNext() {
+        continueGrammarToNext() {
             if (!state.progress || !state.currentGrammarPoint) return;
 
             const now = new Date();
@@ -409,7 +419,7 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
 
         saveGrammarIntroChoice(grammarPoint, choice) {
             if (!state.progress) return;
-            dispatch({ type: 'GRAMMAR_INTRO_CHOICE', choice, grammarId: grammarPoint.id, grammarPoint });
+            dispatch({ type: 'GRAMMAR_INTRO_CHOICE', choice, grammarId: grammarPoint.id, grammarPoint, insertionFraction: Math.random() });
         },
 
         dismissGrammarChapterLesson(chapterId) {
@@ -431,7 +441,7 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
             dispatch({ type: 'GRAMMAR_LOAD_SUCCESS', payload: { point: null, blankPlan: null } });
 
             if (state.progress && (grammarNextView.sessionState === 'learn' || grammarNextView.sessionState === 'exhausted')) {
-                grammarActions.advanceGrammarQueue();
+                void grammarActions.advanceGrammarQueue();
             }
             return;
         }
@@ -462,28 +472,28 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
         }).catch(err => {
             if (loadingKeyRef.current !== loadKey) return;
             console.error('[useGrammarOrchestration] Failed to load grammar point', err);
-            dispatch({ type: 'GRAMMAR_LOAD_ERROR', payload: { grammarId: queueItem.grammarId, error: err } });
+            dispatch({ type: 'GRAMMAR_LOAD_ERROR', payload: { grammarId: queueItem.grammarId, error: err as unknown } });
         });
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the next item and route; the load guard compares currentGrammarQuizItem, so actions and dispatch are stable inputs
     }, [grammarNextView.queueItem, state.progress, grammarNextView.sessionState, location.pathname]);
 
     useEffect(() => {
         // Only on the activity page: a paused session stays frozen until the learner returns.
         if (grammarSessionRole === 'activity' && state.grammarFeedback?.correct) {
             const timer = setTimeout(() => {
-                grammarActions.continueGrammarToNext().then();
+                grammarActions.continueGrammarToNext();
             }, CONSTANTS.quiz.correctAnswerAutoAdvanceDelay);
 
             return () => clearTimeout(timer);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- the timer restarts only on a new correct answer or role change, never on an actions identity change
     }, [state.grammarFeedback?.correct, grammarSessionRole]);
 
     /* =========================
        COMPUTED FLAGS
        ========================= */
 
-    const grammarComputed = {
+    const grammarComputed: GrammarComputed = {
         // Deliberately does NOT require every blank to be filled. Requiring it made
         // the card blockable: any state where an input could not be filled left the
         // learner with no way forward at all, and revealing a blank via its hint

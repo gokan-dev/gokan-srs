@@ -10,7 +10,7 @@ export function Loader({ title, description }: LoaderProps) {
             <div className="flex flex-col items-center gap-10">
                 {/* Breathing Seal Logo with ripple rings */}
                 <div className="relative flex items-center justify-center" style={{ width: 220, height: 220 }}>
-                    {/* Ripple rings — triggered in sync with the heartbeat */}
+                    {/* Ripple rings, triggered in sync with the heartbeat */}
                     <div className="absolute inset-0 rounded-full animate-ripple opacity-0" style={{ animationDelay: '0s' }} />
                     <div className="absolute inset-0 rounded-full animate-ripple opacity-0" style={{ animationDelay: '1.5s' }} />
 
@@ -23,7 +23,7 @@ export function Loader({ title, description }: LoaderProps) {
                         xmlns="http://www.w3.org/2000/svg"
                         className="animate-heartbeat relative z-10"
                     >
-                        {/* Thin circle ring — the seal frame */}
+                        {/* Thin circle ring, the seal frame */}
                         <circle
                             cx="50"
                             cy="50"
@@ -78,23 +78,23 @@ export function Loader({ title, description }: LoaderProps) {
                     }
                 }
 
-                /* Text color pulse — brightens at the beat */
+                /* Text color pulse, brightens at the beat */
                 @keyframes color-breathe {
                     0%, 100% {
-                        fill: var(--color-primary, #2E3A59);
+                        fill: var(--color-primary);
                         opacity: 0.85;
                     }
                     8% {
-                        fill: var(--color-accent, #4A5A8A);
+                        fill: var(--color-accent);
                         opacity: 1;
                     }
                     30% {
-                        fill: var(--color-primary, #2E3A59);
+                        fill: var(--color-primary);
                         opacity: 0.9;
                     }
                 }
 
-                /* Circle stroke pulse — matches the text */
+                /* Circle stroke pulse, matches the text */
                 @keyframes color-stroke {
                     0%, 100% {
                         stroke-opacity: 0.45;
@@ -140,17 +140,17 @@ export function Loader({ title, description }: LoaderProps) {
 
                 .animate-color-breathe {
                     animation: color-breathe 3s ease-out infinite;
-                    fill: var(--color-primary, #2E3A59);
+                    fill: var(--color-primary);
                 }
 
                 .animate-color-stroke {
                     animation: color-stroke 3s ease-out infinite;
                 }
 
-                /* Same 3s cycle — locked to the heartbeat */
+                /* Same 3s cycle, locked to the heartbeat */
                 .animate-ripple {
                     animation: ripple 3s ease-out infinite;
-                    color: var(--color-primary, #2E3A59);
+                    color: var(--color-primary);
                     border: 1px solid currentColor;
                 }
 

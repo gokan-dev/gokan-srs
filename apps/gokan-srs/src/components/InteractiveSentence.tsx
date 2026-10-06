@@ -1,4 +1,4 @@
-import type { Sentence } from "../models/sentence.model";
+import type { Sentence } from "@gokan/dataset-schema";
 import { WordGlossTooltip } from "./WordGlossTooltip";
 import { segmentInteractiveSentence, type HighlightRange } from "../utils/interactiveSentence.utils";
 

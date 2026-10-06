@@ -13,15 +13,15 @@
     groupRows,
     JLPT_LEVELS,
     KIND_LABEL,
-    FORMALITY_LABEL,
-    type GrammarBrowseRow,
+    type BrowseRow,
     type GrammarKind,
     type GroupMode,
   } from '../lib/grammarBrowse';
-  import { grammarPath, grammarFamilyPath } from '../lib/urls';
+  import { grammarFamilyPath } from '../lib/urls';
+  import GrammarPointCard from './GrammarPointCard.svelte';
 
   interface Props {
-    rows: GrammarBrowseRow[];
+    rows: BrowseRow[];
   }
 
   let { rows }: Props = $props();
@@ -83,7 +83,7 @@
   <div class="filter-row">
     <span class="filter-label">Level</span>
     <div class="toggle-group">
-      {#each JLPT_LEVELS as level}
+      {#each JLPT_LEVELS as level (level)}
         <button
           type="button"
           class="toggle"
@@ -97,7 +97,7 @@
   <div class="filter-row">
     <span class="filter-label">Type</span>
     <div class="toggle-group">
-      {#each KINDS as kind}
+      {#each KINDS as kind (kind)}
         <button
           type="button"
           class="toggle"
@@ -134,25 +134,7 @@
     <ul class="point-grid">
       {#each browseGroup.rows as point (point.id)}
         <li>
-          <a class="point-card" href={grammarPath(point.id)}>
-            <span class="point-card-head">
-              <span class="jp point-card-title">{point.title}</span>
-              <span class="badge">N{point.jlptLevel}</span>
-            </span>
-            {#if point.romaji}<span class="point-card-romaji">{point.romaji}</span>{/if}
-            <span class="point-card-explanation">{point.shortExplanation}</span>
-            <span class="jp point-card-formation">{point.formation}</span>
-            {#if point.usageNote}<span class="point-card-note">{point.usageNote}</span>{/if}
-            <span class="point-card-chips">
-              {#if point.kind}<span class="chip-sm">{KIND_LABEL[point.kind]}</span>{/if}
-              {#if point.formalityLevel}
-                <span class="chip-sm">{FORMALITY_LABEL[point.formalityLevel] ?? point.formalityLevel}</span>
-              {/if}
-              {#if group === 'level' && point.familyName}
-                <span class="chip-sm">{point.familyName}</span>
-              {/if}
-            </span>
-          </a>
+          <GrammarPointCard {point} detailed showFamily={group === 'level'} />
         </li>
       {/each}
     </ul>

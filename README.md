@@ -104,13 +104,12 @@ The dataset lives in its own repository and the build reads from it, so if you a
 
 ```bash
 bun run dev              # the SRS app
-bun run test             # its test suite
-bun run typecheck
+bun run check            # every project check: conventions, lint, typecheck, tests, duplicates, unused code
 bun run dictionary:dev   # the dictionary
 bun run dictionary:build # generate all ~38,900 static pages
 ```
 
-Anything else scopes to one workspace with `--cwd`, for example `bun run --cwd apps/gokan-dictionary test`.
+Anything else scopes to one workspace with `--cwd`, for example `bun run --cwd apps/gokan-dictionary test`. `bun install` also installs the git hooks (conventions and lint before each commit, `bun run check` before each push).
 
 ## How it is put together
 
@@ -118,7 +117,9 @@ Anything else scopes to one workspace with `--cwd`, for example `bun run --cwd a
 apps/
   gokan-srs/          React 19 SRS app
   gokan-dictionary/   Svelte static site generator, one page per entry
-docs/                 Design system, roadmap, modification log
+packages/
+  dataset-schema/     the compiled dataset's types, shared by both apps
+docs/                 Architecture, design system, roadmap, modification log
 ```
 
 No backend. The SRS engine runs entirely in the browser, progress lives in local storage, and Google Drive sync is opt-in and writes a single private file in your own Drive. Hosting is S3 and CloudFront, which is most of why it costs nearly nothing to run and can stay free.
@@ -133,7 +134,7 @@ The dataset is not vendored here: `apps/gokan-srs/dataset/` is a submodule, and 
 | Tests | Vitest |
 | Hosting | S3 and CloudFront, provisioned with Terraform |
 
-Architecture notes are in [CLAUDE.md](CLAUDE.md), the visual language in [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md).
+Project rules (for people and coding agents alike) are in [AGENTS.md](AGENTS.md), architecture in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), the visual language in [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md).
 
 ## Credits
 

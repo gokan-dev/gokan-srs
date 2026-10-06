@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Card } from "../../components/ui/Card";
-import type { Vocabulary } from "../../models/vocabulary.model";
+import type { Vocabulary } from "@gokan/dataset-schema";
 import { VocabularyService } from "../../services/vocabulary.service";
 import { useNavigate } from "react-router-dom";
 import { useResponsive } from "../../context/Responsive/useResponsive";
+import { useAsyncData } from "../../hooks/useAsyncData";
 
 interface Props {
     vocabIds: string[];
@@ -15,28 +16,17 @@ export function KanjiVocabListCard({ vocabIds }: Props) {
     const { isMobile } = useResponsive();
     const navigate = useNavigate();
 
-    const [vocabs, setVocabs] = useState<Vocabulary[]>([]);
-    const [isExpanded, setIsExpanded] = useState(false);
+    // Expansion belongs to one list: keyed by it, so another kanji's list starts collapsed.
+    const listKey = vocabIds.join(',');
+    const [expandedFor, setExpandedFor] = useState<string | null>(null);
+    const isExpanded = expandedFor === listKey;
+    const setIsExpanded = (expanded: boolean) => setExpandedFor(expanded ? listKey : null);
 
     const isExpandable = vocabIds.length > INITIAL_COUNT;
     const displayedIds = isExpanded ? vocabIds : vocabIds.slice(0, INITIAL_COUNT);
 
-    useEffect(() => {
-        setIsExpanded(false);
-    }, [vocabIds]);
-
-    useEffect(() => {
-        const load = async () => {
-            if (displayedIds.length === 0) {
-                setVocabs([]);
-                return;
-            }
-            const loaded = await Promise.all(displayedIds.map(id => VocabularyService.loadVocab(id).catch(() => null)));
-            setVocabs(loaded.filter(v => v !== null) as Vocabulary[]);
-        };
-        load();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isExpanded, vocabIds]);
+    // Only the displayed ids are fetched, so expanding loads the rest.
+    const vocabs: Vocabulary[] = useAsyncData(displayedIds.join(','), () => VocabularyService.loadVocabs(displayedIds), { keepPrevious: true }).data ?? [];
 
     if (vocabIds.length === 0) return null;
 
@@ -49,7 +39,7 @@ export function KanjiVocabListCard({ vocabIds }: Props) {
                 {vocabs.map(v => (
                     <div
                         key={v.id}
-                        onClick={() => navigate(`/vocab/${v.id}`)}
+                        onClick={() => void navigate(`/vocab/${v.id}`)}
                         className="border-l-2 border-divider pl-3 cursor-pointer hover:border-accent transition-colors group"
                     >
                         <div className="flex items-center gap-2 mb-1">

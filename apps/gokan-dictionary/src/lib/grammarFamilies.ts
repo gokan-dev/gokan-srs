@@ -4,7 +4,7 @@
 // pure presentation. Kept out of prerender.ts and the .svelte component for the same
 // unit-testability reason as grammarChapters.ts/grammarBrowse.ts.
 
-import type { GrammarContrastIndex, GrammarPoint } from '../models/grammar.model';
+import type { GrammarContrastIndex, GrammarPoint } from '@gokan/dataset-schema';
 import type { GrammarSummary } from './types';
 
 export interface FamilyLessonCase {

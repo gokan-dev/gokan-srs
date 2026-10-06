@@ -1,16 +1,23 @@
 import type { UserProgress } from "../../../models/user.model";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo } from "react";
 import { percentOf, winRatesByQuizType } from "../../../utils/winRate.utils";
+import { useAsyncData } from "../../../hooks/useAsyncData";
+import { VocabularyService } from "../../../services/vocabulary.service";
+import { kanjiCoverage as computeKanjiCoverage } from "../../../utils/kanjiCoverage.utils";
 
 interface StatsOverviewProps {
     progress: UserProgress;
 }
 
 export function StatsOverview({ progress }: StatsOverviewProps) {
-    const [kanjiCoverage, setKanjiCoverage] = useState<{ covered: number, total: number } | null>(null);
+    const frequencyIndex = useAsyncData('frequency-index', () => VocabularyService.loadFrequencyIndex()).data;
+    const kanjiCoverage = useMemo(
+        () => frequencyIndex ? computeKanjiCoverage(frequencyIndex, progress.learningQueue, progress.kanjiKnowledge) : null,
+        [frequencyIndex, progress.learningQueue, progress.kanjiKnowledge]
+    );
 
     const stats = useMemo(() => {
-        const queue = progress.learningQueue || [];
+        const queue = progress.learningQueue;
 
         // Volume
         const totalLearned = queue.length;
@@ -32,39 +39,6 @@ export function StatsOverview({ progress }: StatsOverviewProps) {
         };
     }, [progress]);
 
-    useEffect(() => {
-        let mounted = true;
-        // Load frequency index to get kanji for each vocab
-        import('../../../services/vocabulary.service').then(({ VocabularyService }) => {
-            VocabularyService.loadFrequencyIndex().then(idx => {
-                if (!idx || !mounted) return;
-                
-                const learnedVocabIds = new Set((progress.learningQueue || []).map(v => v.vocabId));
-                
-                const uniqueKanji = new Set<string>();
-                idx.forEach(entry => {
-                    if (learnedVocabIds.has(entry.id)) {
-                        entry.containedKanji.forEach(k => uniqueKanji.add(k));
-                    }
-                });
-
-                let coveredCount = 0;
-                const totalKnown = progress.kanjiKnowledge?.kanjiSet?.size || 0;
-                
-                if (progress.kanjiKnowledge?.kanjiSet) {
-                    progress.kanjiKnowledge.kanjiSet.forEach(k => {
-                        if (uniqueKanji.has(k)) {
-                            coveredCount++;
-                        }
-                    });
-                }
-
-                setKanjiCoverage({ covered: coveredCount, total: totalKnown });
-            });
-        });
-
-        return () => { mounted = false; };
-    }, [progress]);
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 animate-slide-up">

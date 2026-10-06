@@ -30,7 +30,7 @@ Two conventions worth knowing before editing:
 
 **Stylesheets are split per page type.** Only rules used by two or more page types belong in `app.scss`. This is not just tidiness: the stylesheet's content hash is embedded in every page's `<link>`, so a rule added to `app.scss` changes all 38,900 pages and re-uploads the entire site, while a rule in `pages/vocab.scss` re-uploads only the vocabulary pages.
 
-**Everything is typed.** No JavaScript files, no implicit `any`. `bun run typecheck` covers `.svelte` files as well as `.ts` and must report zero errors and zero warnings.
+**Everything is typed.** No JavaScript files, no implicit `any`. `bun run typecheck` (part of `bun run check`) covers `.svelte` files as well as `.ts` and must report zero errors and zero warnings.
 
 ## Running locally
 
@@ -52,4 +52,4 @@ The site is served from the `/dictionary` prefix of the main app's origin rather
 
 Uploads go through `scripts/deploy-s3.ts`, which hashes every built file, compares against a manifest stored alongside the site, and sends only what changed. A dataset change touching 200 entries uploads 200 pages rather than 38,900.
 
-Architecture notes are in [CLAUDE.md](../../CLAUDE.md#gokan-dictionary-app).
+Rules are in [AGENTS.md](../../AGENTS.md), architecture notes in [docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md#gokan-dictionary-app).

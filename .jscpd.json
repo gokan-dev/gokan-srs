@@ -1,0 +1,11 @@
+{
+  "$comment": "Shared jscpd options. Paths and per-pass floors live in scripts/check-duplicates.ts (bun run check:duplicates). Any clone above the floors fails: share the code instead (AGENTS.md, No duplication).",
+  "format": ["typescript", "tsx", "javascript", "svelte", "scss"],
+  "threshold": 0,
+  "ignore": ["**/node_modules/**", "**/dist/**", "**/__fixtures__/**"],
+  "ignorePattern": ["^\\s*import\\s.*$"],
+  "reporters": ["consoleFull"],
+  "absolute": false,
+  "gitignore": true,
+  "silent": false
+}

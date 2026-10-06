@@ -12,7 +12,7 @@ export const LogoMark: React.FC<{ size?: number }> = ({ size = 48 }) => (
         aria-label="Gokan SRS Logo"
     >
         <title>Gokan SRS - Japanese Vocabulary Learning</title>
-        {/* Thin circle ring — same seal as the loader */}
+        {/* Thin circle ring, same seal as the loader */}
         <circle cx="50" cy="50" r="46" className="stroke-primary" strokeWidth="3" fill="none" />
         <text
             x="50"

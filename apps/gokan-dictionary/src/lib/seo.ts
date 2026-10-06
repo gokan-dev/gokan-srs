@@ -2,9 +2,7 @@
 // trivially unit-testable without rendering anything, and separate from documentShell.ts
 // (which only knows how to wrap an already-decided {title, description} into HTML).
 
-import type { Vocabulary } from '../models/vocabulary.model';
-import type { Kanji } from '../models/kanji.model';
-import type { GrammarChapter, GrammarPoint } from '../models/grammar.model';
+import type { GrammarChapter, GrammarPoint, Kanji, Vocabulary } from '@gokan/dataset-schema';
 import { SITE_NAME } from './site';
 
 export interface PageMeta {

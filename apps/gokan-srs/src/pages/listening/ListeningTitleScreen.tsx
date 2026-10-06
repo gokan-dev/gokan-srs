@@ -2,30 +2,21 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Check, ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
-import type { MediaEpisode, MediaTitle, MediaWordCount, WatchedEpisode } from "../../models/media.model";
-import type { Vocabulary } from "../../models/vocabulary.model";
+import type { MediaEpisode, MediaTitle, MediaWordCount, Vocabulary } from "@gokan/dataset-schema";
+import type { WatchedEpisode } from "../../models/media.model";
 import { MediaService } from "../../services/media.service";
 import { VocabularyService } from "../../services/vocabulary.service";
 import { useQuiz } from "../../context/useQuiz";
 import { PageHeader } from "../../components/PageHeader";
 import { ChapterProgressBar } from "../../components/ChapterProgressBar";
 import { usePersistControls, usePersistedControlsSnapshot } from "../../hooks/usePersistedControls";
-import {
-    aggregateEpisodeWords,
-    buildWordKnowledge,
-    computeCoverage,
-    countWatchedEpisodes,
-    episodeKey,
-    formatPercent,
-    knownRatio,
-    speechSpeedLabel,
-    unknownWords,
-} from "../../utils/mediaCoverage.utils";
+import { aggregateEpisodeWords, buildWordKnowledge, computeCoverage, countWatchedEpisodes, episodeKey, formatPercent, knownRatio, speechSpeedLabel, unknownWords } from "../../utils/mediaCoverage.utils";
 import type { WordKnowledge } from "../../utils/mediaCoverage.utils";
 import { WORD_SORTS, isLearnableNow, sortWords } from "../../utils/wordOrder.utils";
 import type { LearnerOrder, WordOrderContext, WordSort } from "../../utils/wordOrder.utils";
 import { JitenCredit, MediaCover, VocabularyOnlyNote } from "./listeningShared";
 import { useWordOrdering } from "./useWordOrdering";
+import { useAsyncData } from "../../hooks/useAsyncData";
 
 /** Words shown at first in a "words to learn" list, and how many more each "Show more" adds. */
 const PAGE_SIZE = 10;
@@ -75,7 +66,7 @@ export function ListeningTitleScreen() {
     if (failed) {
         return (
             <div className="w-full max-w-3xl mx-auto px-4 py-6">
-                <PageHeader title="Listening" onBack={() => navigate('/listening')} className="mb-4" />
+                <PageHeader title="Listening" onBack={() => void navigate('/listening')} className="mb-4" />
                 <p className="font-gothic text-sm text-secondary">Could not load this title.</p>
             </div>
         );
@@ -116,7 +107,7 @@ export function ListeningTitleScreen() {
         <div className="w-full max-w-3xl mx-auto px-4 py-6">
             <PageHeader
                 title={<span className="font-mincho">{title.title.original}</span>}
-                onBack={() => navigate('/listening')}
+                onBack={() => void navigate('/listening')}
                 className="mb-4"
             />
 
@@ -294,23 +285,10 @@ function WordsToLearn({ words, countHint, knowledge, sort, onSortChange, orderCo
         [words, knowledge, sort, orderContext, learner]
     );
     const visible = useMemo(() => sorted.slice(0, shown), [sorted, shown]);
-    const [vocabs, setVocabs] = useState<Map<string, Vocabulary>>(new Map());
-
-    useEffect(() => {
-        let cancelled = false;
-        const missing = visible.filter(([id]) => !vocabs.has(id));
-        if (missing.length === 0) return;
-        Promise.all(missing.map(([id]) => VocabularyService.loadVocab(id).catch(() => null)))
-            .then(loaded => {
-                if (cancelled) return;
-                setVocabs(prev => {
-                    const next = new Map(prev);
-                    for (const vocab of loaded) if (vocab) next.set(vocab.id, vocab);
-                    return next;
-                });
-            });
-        return () => { cancelled = true; };
-    }, [visible, vocabs]);
+    // The service caches every word, so re-requesting the visible page on "show more" only fetches the new ones.
+    const visibleIds = visible.map(([id]) => id);
+    const loadedVocabs = useAsyncData(visibleIds.join(','), () => VocabularyService.loadVocabs(visibleIds), { keepPrevious: true }).data;
+    const vocabs = useMemo(() => new Map<string, Vocabulary>((loadedVocabs ?? []).map(v => [v.id, v])), [loadedVocabs]);
 
     if (sorted.length === 0) {
         return (

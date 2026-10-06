@@ -1,0 +1,42 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "ignoreExportsUsedInFile": true,
+  "ignore": [
+    "apps/gokan-srs/dataset/**"
+  ],
+  "workspaces": {
+    ".": {
+      "entry": [
+        "scripts/*.ts"
+      ],
+      "ignoreDependencies": [
+        "svelte-eslint-parser",
+        "jscpd"
+      ]
+    },
+    "apps/gokan-srs": {
+      "entry": [
+        "src/main.tsx",
+        "scripts/*.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx}",
+        "scripts/**/*.ts"
+      ],
+      "ignoreDependencies": [
+        "tailwindcss"
+      ]
+    },
+    "apps/gokan-dictionary": {
+      "entry": [
+        "src/client/*.ts",
+        "scripts/*.ts",
+        "src/pages/*.svelte"
+      ],
+      "project": [
+        "src/**/*.{ts,svelte}",
+        "scripts/**/*.ts"
+      ]
+    }
+  }
+}

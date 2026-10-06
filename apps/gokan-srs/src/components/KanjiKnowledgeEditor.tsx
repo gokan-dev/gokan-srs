@@ -3,7 +3,7 @@ import { KanjiCountStepper } from "./KanjiCountStepper";
 import { KanjiKnowledgeGrid } from "./KanjiKnowledgeGrid";
 import type { KanjiKnowledge, KanjiLearningMethod } from "../models/user.model";
 import { useKanjiForm } from "../context/KanjiForm/useKanjiForm";
-import { useEffect } from "react";
+import { useEffect, useEffectEvent } from "react";
 
 interface KanjiKnowledgeEditorProps {
     onKanjiKnowledgeChange?: (knowledge: KanjiKnowledge) => void;
@@ -26,15 +26,16 @@ export function KanjiKnowledgeEditor({
 }: KanjiKnowledgeEditorProps) {
     const { state } = useKanjiForm();
 
-    if (onKanjiKnowledgeChange) {
-        useEffect(() => {
-            onKanjiKnowledgeChange({
-                step: state.kanjiCount,
-                method: state.kanjiMethod,
-                kanjiSet: state.knownKanji,
-            })
-        }, [state.kanjiMethod, state.kanjiCount, state.knownKanji]);
-    }
+    // Reports every change to the knowledge being edited (and the initial value, on
+    // mount). The callback is read fresh each time without re-running the effect.
+    const reportChange = useEffectEvent((knowledge: KanjiKnowledge) => onKanjiKnowledgeChange?.(knowledge));
+    useEffect(() => {
+        reportChange({
+            step: state.kanjiCount,
+            method: state.kanjiMethod,
+            kanjiSet: state.knownKanji,
+        });
+    }, [state.kanjiMethod, state.kanjiCount, state.knownKanji]);
 
     return (
         <>

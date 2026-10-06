@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { Sense } from '../../models/vocabulary.model';
+import type { Sense } from '@gokan/dataset-schema';
 import { coarsePosLabel, getCoarsePosLabels } from './quizFormatting';
 
 /** Minimal Sense - getCoarsePosLabels only reads `pos`. */

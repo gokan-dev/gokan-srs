@@ -1,23 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { vocabMeta, kanjiMeta, homeMeta, grammarChaptersIndexMeta, grammarChapterMeta, grammarFamilyMeta, grammarConjugationsIndexMeta } from './seo';
-import type { Vocabulary } from '../models/vocabulary.model';
-import type { Kanji } from '../models/kanji.model';
-import type { GrammarChapter } from '../models/grammar.model';
-
-function makeVocab(overrides: Partial<Vocabulary> = {}): Vocabulary {
-    return {
-        id: '1589350',
-        writtenForm: { kanji: '思う', alternatives: [], containedKanji: ['思'] },
-        reading: { primary: 'おもう', alternatives: [] },
-        frequency: { kanjiRank: 1 },
-        progression: { kklcStep: 1 },
-        senses: [
-            { pos: ['v5u'], misc: { rawTags: [] }, glosses: ['to think', 'to consider'], related: { compounds: [] } },
-        ],
-        isCommon: true,
-        ...overrides,
-    };
-}
+import type { GrammarChapter, Kanji } from '@gokan/dataset-schema';
+import { vocabulary } from '../test/fixtures';
 
 function makeKanji(overrides: Partial<Kanji> = {}): Kanji {
     return {
@@ -30,24 +14,24 @@ function makeKanji(overrides: Partial<Kanji> = {}): Kanji {
 
 describe('vocabMeta', () => {
     it('includes the written form, reading, and first gloss', () => {
-        const { title, description } = vocabMeta(makeVocab());
+        const { title, description } = vocabMeta(vocabulary());
         expect(title).toContain('思う');
         expect(title).toContain('おもう');
         expect(description).toContain('to think');
     });
 
     it('appends the JLPT level when present', () => {
-        const { title } = vocabMeta(makeVocab({ jlptLevel: 4 }));
+        const { title } = vocabMeta(vocabulary({ jlptLevel: 4 }));
         expect(title).toContain('JLPT N4');
     });
 
     it('omits the JLPT suffix when absent', () => {
-        const { title } = vocabMeta(makeVocab());
+        const { title } = vocabMeta(vocabulary());
         expect(title).not.toContain('JLPT');
     });
 
     it('falls back to a generic description when there are no glosses', () => {
-        const { description } = vocabMeta(makeVocab({ senses: [] }));
+        const { description } = vocabMeta(vocabulary({ senses: [] }));
         expect(description).not.toContain('undefined');
         expect(description).toContain('思う');
     });

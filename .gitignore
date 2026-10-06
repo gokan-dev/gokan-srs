@@ -38,3 +38,6 @@ apps/gokan-srs/public/data/compiled
 # files a given deploy actually changed, and the manifest uploaded alongside the site.
 apps/gokan-dictionary/.deploy-stage/
 apps/gokan-dictionary/.build-manifest.json
+
+# Personal Claude Code overrides (the shared hook config is .claude/settings.json)
+.claude/settings.local.json

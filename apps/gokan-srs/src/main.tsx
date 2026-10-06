@@ -20,11 +20,10 @@ export const FONT_IMPORTS = `
 createRoot(document.getElementById('root')!).render(
     <StrictMode>
         <style>{FONT_IMPORTS}</style>
-        <ThemeProvider defaultTheme="system" storageKey="gokan-theme">
+        <ThemeProvider defaultTheme="system">
             <GoogleOAuthProvider
                 clientId="1088130501377-pe580cj85dt179hltgba6v153m12esmh.apps.googleusercontent.com"
                 onScriptLoadError={() => console.error("[GoogleOAuth] Script failed to load")}
-                onScriptLoadSuccess={() => console.log("[GoogleOAuth] Script loaded successfully")}
             >
                 <GoogleDriveProvider>
                     <BrowserRouter>

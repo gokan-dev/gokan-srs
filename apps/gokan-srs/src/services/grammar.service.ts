@@ -1,4 +1,6 @@
-import type { GrammarAliasIndex, GrammarBrowseIndex, GrammarChapter, GrammarConjugationIndex, GrammarContrastForFocus, GrammarContrastIndex, GrammarExample, GrammarInterchangeableForPoint, GrammarJlptIndex, GrammarKindIndex, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex } from '../models/grammar.model';
+import type { GrammarAliasIndex, GrammarBrowseIndex, GrammarChapter, GrammarConjugationIndex, GrammarContrastIndex, GrammarExample, GrammarJlptIndex, GrammarKindIndex, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex } from '@gokan/dataset-schema';
+import type { GrammarContrastForFocus, GrammarInterchangeableForPoint } from '../models/grammar.model';
+import { fetchJson, readJson } from './http';
 
 /**
  * Loads grammar data compiled by the gokan-dataset submodule's
@@ -22,18 +24,27 @@ export class GrammarService {
     private static pointCache = new Map<string, GrammarPoint>();
     private static minedCache = new Map<string, GrammarExample[] | null>();
 
-    private static async fetchJson<T>(path: string): Promise<T> {
-        const response = await fetch(path);
-        if (!response.ok) {
-            throw new Error(`Failed to fetch ${path}: ${response.statusText}`);
-        }
-        return response.json();
+    /** Drops every cached file, so the next load fetches it again. */
+    static clearCache(): void {
+        this.jlptIndex = null;
+        this.teachingOrder = null;
+        this.chapterByPointId = null;
+        this.aliases = null;
+        this.kinds = null;
+        this.conjugations = null;
+        this.variantGroups = null;
+        this.browseIndex = null;
+        this.contrasts = null;
+        this.contrastsByFocus = null;
+        this.interchangeableByPoint = null;
+        this.pointCache.clear();
+        this.minedCache.clear();
     }
 
     static async loadJlptIndex(): Promise<GrammarJlptIndex | null> {
         if (this.jlptIndex) return this.jlptIndex;
 
-        this.jlptIndex = await this.fetchJson<GrammarJlptIndex>(`/data/compiled/grammar/index/jlpt.json?v=${Date.now()}`);
+        this.jlptIndex = await fetchJson<GrammarJlptIndex>(`/data/compiled/grammar/index/jlpt.json?v=${Date.now()}`);
         return this.jlptIndex;
     }
 
@@ -51,7 +62,7 @@ export class GrammarService {
         if (this.teachingOrder) return this.teachingOrder;
 
         try {
-            const loaded = await this.fetchJson<GrammarTeachingOrder>(`/data/compiled/grammar/index/teaching-order.json?v=${Date.now()}`);
+            const loaded = await fetchJson<GrammarTeachingOrder>(`/data/compiled/grammar/index/teaching-order.json?v=${Date.now()}`);
             if (!loaded?.order?.length || !loaded?.chapters?.length) return null;
             this.teachingOrder = loaded;
             return this.teachingOrder;
@@ -70,7 +81,7 @@ export class GrammarService {
         if (this.kinds) return this.kinds;
 
         try {
-            this.kinds = await this.fetchJson<GrammarKindIndex>(`/data/compiled/grammar/index/kinds.json?v=${Date.now()}`);
+            this.kinds = await fetchJson<GrammarKindIndex>(`/data/compiled/grammar/index/kinds.json?v=${Date.now()}`);
             return this.kinds;
         } catch (e) {
             console.error('[GrammarService] Failed to load grammar kinds; not filtering the pipeline by kind', e);
@@ -89,7 +100,7 @@ export class GrammarService {
         if (this.conjugations) return this.conjugations;
 
         try {
-            this.conjugations = await this.fetchJson<GrammarConjugationIndex>(`/data/compiled/grammar/conjugations.json?v=${Date.now()}`);
+            this.conjugations = await fetchJson<GrammarConjugationIndex>(`/data/compiled/grammar/conjugations.json?v=${Date.now()}`);
             return this.conjugations;
         } catch (e) {
             console.error('[GrammarService] Failed to load conjugation drills; inflection points stay out of the pipeline', e);
@@ -106,7 +117,7 @@ export class GrammarService {
         if (this.variantGroups) return this.variantGroups;
 
         try {
-            this.variantGroups = await this.fetchJson<GrammarVariantGroupIndex>(`/data/compiled/grammar/index/variant-groups.json?v=${Date.now()}`);
+            this.variantGroups = await fetchJson<GrammarVariantGroupIndex>(`/data/compiled/grammar/index/variant-groups.json?v=${Date.now()}`);
             return this.variantGroups;
         } catch (e) {
             console.error('[GrammarService] Failed to load variant groups; drilling canonical forms only', e);
@@ -122,7 +133,7 @@ export class GrammarService {
         if (this.browseIndex) return this.browseIndex;
 
         try {
-            this.browseIndex = await this.fetchJson<GrammarBrowseIndex>(`/data/compiled/grammar/index/browse.json?v=${Date.now()}`);
+            this.browseIndex = await fetchJson<GrammarBrowseIndex>(`/data/compiled/grammar/index/browse.json?v=${Date.now()}`);
             return this.browseIndex;
         } catch (e) {
             console.error('[GrammarService] Failed to load the grammar browse index', e);
@@ -141,7 +152,7 @@ export class GrammarService {
         if (this.contrasts) return this.contrasts;
 
         try {
-            const loaded = await this.fetchJson<GrammarContrastIndex>(`/data/compiled/grammar/index/contrasts.json?v=${Date.now()}`);
+            const loaded = await fetchJson<GrammarContrastIndex>(`/data/compiled/grammar/index/contrasts.json?v=${Date.now()}`);
             this.contrasts = loaded;
             return loaded;
         } catch (e) {
@@ -223,7 +234,7 @@ export class GrammarService {
         if (this.aliases) return this.aliases;
 
         try {
-            this.aliases = await this.fetchJson<GrammarAliasIndex>(`/data/compiled/grammar/index/aliases.json?v=${Date.now()}`);
+            this.aliases = await fetchJson<GrammarAliasIndex>(`/data/compiled/grammar/index/aliases.json?v=${Date.now()}`);
             return this.aliases;
         } catch (e) {
             console.error('[GrammarService] Failed to load grammar aliases; skipping id migration this run', e);
@@ -255,7 +266,7 @@ export class GrammarService {
             if (!response.ok) {
                 throw new Error(`Failed to fetch mined examples for ${pointId}: ${response.statusText}`);
             }
-            const examples = await response.json() as GrammarExample[];
+            const examples = await readJson<GrammarExample[]>(response);
             this.minedCache.set(pointId, examples);
             return examples;
         } catch (e) {
@@ -269,8 +280,14 @@ export class GrammarService {
             return this.pointCache.get(id)!;
         }
 
-        const point = await this.fetchJson<GrammarPoint>(`/data/compiled/grammar/points/${id}.json`);
+        const point = await fetchJson<GrammarPoint>(`/data/compiled/grammar/points/${id}.json`);
         this.pointCache.set(id, point);
         return point;
+    }
+
+    /** Several points at once, in the order asked, skipping any that fail to load (see VocabularyService.loadVocabs). */
+    static async loadGrammarPoints(ids: readonly string[]): Promise<GrammarPoint[]> {
+        const loaded = await Promise.all(ids.map(id => this.loadGrammarPoint(id).catch(() => null)));
+        return loaded.filter((p): p is GrammarPoint => p !== null);
     }
 }

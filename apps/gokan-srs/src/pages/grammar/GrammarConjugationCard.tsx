@@ -1,15 +1,14 @@
 import type { FormEvent } from "react";
-import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
 import { ArrowDown } from "lucide-react";
 import { useQuiz } from "../../context/useQuiz";
-import { useResponsive } from "../../context/Responsive/useResponsive";
 import { useQuizFocusManagement } from "../../hooks/useQuizFocusManagement";
-import { Card } from "../../components/ui/Card";
 import { CardSection } from "../../components/ui/CardSection";
 import { Button } from "../../components/ui/Button";
 import { JlptChip } from "../../components/JlptChip";
-import { MasteryRing } from "../../components/MasteryRing";
+import { QuizCardFrame } from "../../components/quiz/QuizCardFrame";
+import { QuizMasteryCorner } from "../../components/quiz/QuizMasteryCorner";
+import { ContinueButton } from "../../components/quiz/QuizButtons";
+import { PointLink } from "./PointLink";
 
 const CLASS_LABELS: Record<string, string> = {
     'godan': 'godan (u-verb)',
@@ -35,7 +34,6 @@ const CLASS_LABELS: Record<string, string> = {
  */
 export function GrammarConjugationCard() {
     const { state, grammarActions, currentGrammarProgress } = useQuiz();
-    const { isMobile } = useResponsive();
 
     const point = state.currentGrammarPoint;
     const plan = state.currentGrammarBlankPlan;
@@ -63,17 +61,9 @@ export function GrammarConjugationCard() {
     };
 
     return (
-        <motion.div
-            initial={{ opacity: 0, scale: 0.98, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.98 }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
-        >
-            <Card size="lg" className={isMobile ? '!p-4' : ''}>
+        <QuizCardFrame>
                 <CardSection>
-                    <div className="flex justify-end mb-2">
-                        <MasteryRing memoryStrength={currentGrammarProgress?.entry.memoryStrength ?? 0} size={40} />
-                    </div>
+                    <QuizMasteryCorner memoryStrength={currentGrammarProgress?.entry.memoryStrength ?? 0} />
                     <div className="flex items-center justify-center gap-2 mb-1">
                         <JlptChip level={point.jlptLevel} />
                         <PointLink pointId={point.id} revealed={!!feedback?.show} />
@@ -139,14 +129,7 @@ export function GrammarConjugationCard() {
 
                 <CardSection>
                     {feedback?.show ? (
-                        <button
-                            ref={continueRef}
-                            type="button"
-                            onClick={() => grammarActions.continueGrammarToNext()}
-                            className="w-full font-medium rounded-lg transition-colors font-serif bg-accent text-surface hover:bg-accent-hover shadow-md flex items-center justify-center gap-2 h-12"
-                        >
-                            <span>Continue</span>
-                        </button>
+                        <ContinueButton buttonRef={continueRef} onClick={() => grammarActions.continueGrammarToNext()} flush />
                     ) : (
                         <div className="flex gap-2">
                             <Button
@@ -163,8 +146,7 @@ export function GrammarConjugationCard() {
                         </div>
                     )}
                 </CardSection>
-            </Card>
-        </motion.div>
+        </QuizCardFrame>
     );
 }
 
@@ -196,29 +178,5 @@ function AnswerWithReading({ written, reading, size }: { written: string; readin
                 <rt className={`${rt} font-gothic text-tertiary select-none tracking-wide`}>{reading}</rt>
             </ruby>
         </p>
-    );
-}
-
-/**
- * The route to the grammar point's detail page, available only AFTER answering.
- *
- * Before answering it is a spoiler route: the detail page carries the point's
- * formation and every example sentence, which is the answer. The JLPT chip used
- * to be a link unconditionally, so it was reachable mid-question by anyone who
- * thought to click it.
- *
- * After answering the opposite is true - checking the point is exactly what a
- * learner wants to do with a form they just got wrong - so it becomes an
- * explicit labelled link rather than a chip you have to guess is clickable.
- */
-function PointLink({ pointId, revealed }: { pointId: string; revealed: boolean }) {
-    if (!revealed) return null;
-    return (
-        <Link
-            to={`/grammar/${pointId}`}
-            className="text-xs font-gothic text-accent hover:underline whitespace-nowrap"
-        >
-            View grammar point
-        </Link>
     );
 }

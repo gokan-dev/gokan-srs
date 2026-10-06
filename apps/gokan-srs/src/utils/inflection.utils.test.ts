@@ -1,15 +1,16 @@
 import { describe, it, expect } from 'vitest';
 import { generateInflections, isFormOfWord, kanaOfSurface, readingMatchesWord, toInflectableWord, wordClassesOf } from './inflection.utils';
 import type { InflectableWord } from './inflection.utils';
+import type { Sense } from '@gokan/dataset-schema';
 
-const sensesOf = (...tags: string[][]) => tags.map(pos => ({ pos, glosses: [], misc: [] })) as never;
+const sensesOf = (...tags: string[][]): Sense[] => tags.map(pos => ({ pos, glosses: [], misc: { rawTags: [] }, related: { compounds: [] } }));
 
 const word = (written: string, reading: string, ...pos: string[]): InflectableWord =>
     toInflectableWord({
         writtenForm: { kanji: written, alternatives: [], containedKanji: [] },
         reading: { primary: reading, alternatives: [] },
         senses: sensesOf(pos),
-    } as never);
+    });
 
 const formsOf = (w: InflectableWord) => {
     const all = generateInflections(w);
@@ -153,7 +154,7 @@ describe('readingMatchesWord', () => {
         writtenForm: { kanji: '荒ぶ', alternatives: ['進ぶ', '遊ぶ'], containedKanji: [] },
         reading: { primary: 'すさぶ', alternatives: [] },
         senses: sensesOf(['v5b', 'vi']),
-    } as never);
+    });
 
     it('accepts an inflected reading that keeps the dictionary stem', () => {
         expect(readingMatchesWord('あそんでる', ASOBU)).toBe(true);     // 遊んでる

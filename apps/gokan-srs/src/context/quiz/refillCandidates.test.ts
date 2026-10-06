@@ -5,12 +5,12 @@ type Item = { id: string };
 
 describe('refillCandidates', () => {
     it('loads the ids returned by getNextIds, excluding existing candidates', async () => {
-        const getNextIds = vi.fn(async (max: number, ignored: Set<string>) => {
+        const getNextIds = vi.fn((max: number, ignored: Set<string>) => {
             expect(max).toBe(2); // batchSize 3 - 1 existing
             expect(ignored.has('x')).toBe(true);
-            return ['a', 'b'];
+            return Promise.resolve(['a', 'b']);
         });
-        const loadItem = vi.fn(async (id: string) => ({ id }));
+        const loadItem = vi.fn((id: string) => Promise.resolve({ id }));
 
         const res = await refillCandidates<Item>({
             existing: [{ id: 'x' }],
@@ -28,8 +28,8 @@ describe('refillCandidates', () => {
         const res = await refillCandidates<Item>({
             existing: [],
             batchSize: 3,
-            getNextIds: async () => ['a', 'b', 'c'],
-            loadItem: async (id) => (id === 'b' ? (() => { throw new Error('boom'); })() : { id }),
+            getNextIds: () => Promise.resolve(['a', 'b', 'c']),
+            loadItem: (id) => (id === 'b' ? Promise.reject(new Error('boom')) : Promise.resolve({ id })),
             logLabel: 'test',
         });
         expect(res.criticalErrorId).toBeNull();
@@ -40,8 +40,8 @@ describe('refillCandidates', () => {
         const res = await refillCandidates<Item>({
             existing: [],
             batchSize: 3,
-            getNextIds: async () => ['a', 'b'],
-            loadItem: async () => { throw new Error('all fail'); },
+            getNextIds: () => Promise.resolve(['a', 'b']),
+            loadItem: () => Promise.reject(new Error('all fail')),
             logLabel: 'test',
         });
         expect(res.criticalErrorId).toBe('a');
@@ -52,8 +52,8 @@ describe('refillCandidates', () => {
         const res = await refillCandidates<Item>({
             existing: [],
             batchSize: 3,
-            getNextIds: async () => [],
-            loadItem: async (id) => ({ id }),
+            getNextIds: () => Promise.resolve([]),
+            loadItem: (id) => Promise.resolve({ id }),
             logLabel: 'test',
         });
         expect(res.criticalErrorId).toBeNull();

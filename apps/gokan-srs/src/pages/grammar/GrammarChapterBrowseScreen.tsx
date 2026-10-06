@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ArrowLeft, ChevronDown, ChevronRight } from "lucide-react";
-import type { GrammarBrowseIndex, GrammarBrowseRow, GrammarTeachingOrder } from "../../models/grammar.model";
+import type { GrammarBrowseIndex, GrammarBrowseRow, GrammarTeachingOrder } from "@gokan/dataset-schema";
 import { GrammarService } from "../../services/grammar.service";
 import { isGrammarFullyMastered } from "../../services/grammarScheduling";
 import { useQuiz } from "../../context/useQuiz";

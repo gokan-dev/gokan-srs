@@ -28,21 +28,8 @@ export const MasteryRing: React.FC<MasteryRingProps> = ({ memoryStrength, size =
     // Percentage text to show
     const displayPercentage = Math.round(p1);
 
-    // Color Logic
-    let loop1Color: string = THEME.mastery.loop1;
-    let loop2Color: string = THEME.mastery.reading.loop1; // Default fallback for loop2 now solid
-
-    // We simplified THEME.mastery colors. Now we just use the solid loop1 color.
-    if (variant === 'reading') {
-        loop1Color = THEME.mastery.reading.loop1;
-        loop2Color = THEME.mastery.reading.loop1;
-    } else if (variant === 'meaning') {
-        loop1Color = THEME.mastery.meaning.loop1;
-        loop2Color = THEME.mastery.meaning.loop1;
-    } else if (variant === 'production') {
-        loop1Color = THEME.mastery.production.loop1;
-        loop2Color = THEME.mastery.production.loop1;
-    }
+    // One hue per direction; 'default' is the reading colour. Both loops share it.
+    const loopColor: string = THEME.mastery[variant === 'default' ? 'reading' : variant].loop1;
 
     return (
         <div className="relative flex items-center justify-center shrink-0" style={{ width: size, height: size }}>
@@ -70,7 +57,7 @@ export const MasteryRing: React.FC<MasteryRingProps> = ({ memoryStrength, size =
                     strokeDasharray={circumference}
                     strokeDashoffset={offset1}
                     strokeLinecap="round"
-                    stroke={p2 > 0 ? THEME.mastery.track : loop1Color}
+                    style={{ stroke: p2 > 0 ? THEME.mastery.track : loopColor }}
                     fill="transparent"
                     r={radius}
                     cx={size / 2}
@@ -86,7 +73,7 @@ export const MasteryRing: React.FC<MasteryRingProps> = ({ memoryStrength, size =
                         strokeDasharray={circumference}
                         strokeDashoffset={offset2}
                         strokeLinecap="round"
-                        stroke={loop2Color}
+                        style={{ stroke: loopColor }}
                         fill="transparent"
                         r={radius}
                         cx={size / 2}
@@ -99,7 +86,7 @@ export const MasteryRing: React.FC<MasteryRingProps> = ({ memoryStrength, size =
             {shouldShowText && (
                 <div className="absolute inset-0 flex items-center justify-center">
                     <span
-                        className="font-bold leading-none text-slate-600 select-none"
+                        className="font-bold leading-none text-subtle select-none"
                         style={{ fontSize: fontSize }}
                     >
                         {displayPercentage}

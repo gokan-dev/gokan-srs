@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { GrammarService } from './grammar.service';
-import type { GrammarExample } from '../models/grammar.model';
+import type { GrammarExample } from '@gokan/dataset-schema';
 
 function makeExample(overrides: Partial<GrammarExample> = {}): GrammarExample {
     return {
@@ -19,18 +19,11 @@ function makeExample(overrides: Partial<GrammarExample> = {}): GrammarExample {
     };
 }
 
-// GrammarService caches on the class itself, so a private-field reset is
-// needed between tests exactly like the other private-cache loaders in this
-// service (loadJlptIndex, loadTeachingOrder, ...) would need if they were
-// tested here.
-function resetMinedCache() {
-    (GrammarService as unknown as { minedCache: Map<string, unknown> }).minedCache = new Map();
-}
-
 afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
-    resetMinedCache();
+    // GrammarService caches on the class itself, so each test starts from an empty cache.
+    GrammarService.clearCache();
 });
 
 describe('GrammarService.loadMinedExamples', () => {

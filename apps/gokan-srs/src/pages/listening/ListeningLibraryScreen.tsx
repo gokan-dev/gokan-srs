@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import type { MediaIndexEntry, MediaLibraryWords } from "../../models/media.model";
+import type { MediaIndexEntry, MediaLibraryWords } from "@gokan/dataset-schema";
 import { MediaService } from "../../services/media.service";
 import { useQuiz } from "../../context/useQuiz";
 import { PageHeader } from "../../components/PageHeader";
@@ -72,7 +72,7 @@ export function ListeningLibraryScreen() {
 
     return (
         <div className="w-full max-w-3xl mx-auto px-4 py-6">
-            <PageHeader title="Listening" onBack={() => navigate('/')} className="mb-4" />
+            <PageHeader title="Listening" onBack={() => void navigate('/')} className="mb-4" />
 
             <p className="font-serif text-sm text-secondary mb-1">
                 Anime for listening practice, ordered by how much of their vocabulary you already know.

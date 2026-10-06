@@ -2,20 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { isEntryMastered, isMeaningQuizEnabled, isVocabFullyMastered, vocabNextReviewAt, isVocabDue } from './scheduling';
 import { CONSTANTS } from '../commons/constants';
 import type { SRSEntry, VocabProgress } from '../models/vocabulary.model';
+import { srsEntry } from '../test/fixtures';
 
 const MAX = CONSTANTS.srs.formula.mastery.maxMemoryStrength;
 
-function makeEntry(overrides: Partial<SRSEntry> = {}): SRSEntry {
-    return {
-        memoryStrength: 10,
-        interval: 5,
-        difficulty: 0.3,
-        lastReviewedAt: null,
-        dueDate: null,
-        history: [],
-        ...overrides,
-    };
-}
+const makeEntry = (overrides: Partial<SRSEntry> = {}): SRSEntry => srsEntry({ memoryStrength: 10, interval: 5, ...overrides });
 
 describe('scheduling', () => {
     describe('isEntryMastered', () => {

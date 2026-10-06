@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildChapterLocatorIndex, buildChapterIndexRows } from './grammarChapters';
-import type { GrammarPoint, GrammarTeachingOrder } from '../models/grammar.model';
+import type { GrammarPoint, GrammarTeachingOrder } from '@gokan/dataset-schema';
 
 function makeOrder(): GrammarTeachingOrder {
     return {

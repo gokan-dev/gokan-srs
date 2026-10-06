@@ -1,8 +1,6 @@
-// src/services/VocabularyLoader.ts
-import type { Vocabulary } from '../models/vocabulary.model';
-import type { Kanji } from '../models/kanji.model';
-import type { FrequencyIndex, JlptIndex, KKLCIndex, KKLCKanjiIndex, KanjiVocabIndex, SearchIndex } from '../models/index.model';
+import type { FrequencyIndex, JlptIndex, KKLCIndex, KKLCKanjiIndex, Kanji, KanjiVocabIndex, SearchIndex, Sentence, Vocabulary } from '@gokan/dataset-schema';
 import { romajiToHiragana, looksLikeRomaji } from '../utils/romaji';
+import { fetchJson, readJson } from './http';
 
 /**
  * A vocab's compiled file genuinely does not exist (it was dropped from the
@@ -35,39 +33,31 @@ export class VocabularyService {
     private static kanjiVocabIndex: KanjiVocabIndex | null = null;
     private static jlptIndex: JlptIndex | null = null;
 
-    private static async fetchJson<T>(path: string): Promise<T> {
-        const response = await fetch(path);
-        if (!response.ok) {
-            throw new Error(`Failed to fetch ${path}: ${response.statusText}`);
-        }
-        return response.json();
-    }
-
     static async loadKKLCKanjiIndex(): Promise<KKLCKanjiIndex | null> {
         if (this.kklcKanjiIndex) return this.kklcKanjiIndex;
 
-        this.kklcKanjiIndex = await this.fetchJson<KKLCKanjiIndex>(`/data/compiled/index/kklc-kanji.json?v=${Date.now()}`);
+        this.kklcKanjiIndex = await fetchJson<KKLCKanjiIndex>(`/data/compiled/index/kklc-kanji.json?v=${Date.now()}`);
         return this.kklcKanjiIndex;
     }
 
     static async loadKKLCIndex(): Promise<KKLCIndex | null> {
         if (this.kklcIndex) return this.kklcIndex;
 
-        this.kklcIndex = await this.fetchJson<KKLCIndex>(`/data/compiled/index/kklc.json?v=${Date.now()}`);
+        this.kklcIndex = await fetchJson<KKLCIndex>(`/data/compiled/index/kklc.json?v=${Date.now()}`);
         return this.kklcIndex;
     }
 
     static async loadFrequencyIndex(): Promise<FrequencyIndex | null> {
         if (this.frequencyIndex) return this.frequencyIndex;
 
-        this.frequencyIndex = await this.fetchJson<FrequencyIndex>(`/data/compiled/index/frequency.json?v=${Date.now()}`);
+        this.frequencyIndex = await fetchJson<FrequencyIndex>(`/data/compiled/index/frequency.json?v=${Date.now()}`);
         return this.frequencyIndex;
     }
 
     static async loadJlptIndex(): Promise<JlptIndex | null> {
         if (this.jlptIndex) return this.jlptIndex;
 
-        this.jlptIndex = await this.fetchJson<JlptIndex>(`/data/compiled/index/jlpt.json?v=${Date.now()}`);
+        this.jlptIndex = await fetchJson<JlptIndex>(`/data/compiled/index/jlpt.json?v=${Date.now()}`);
         return this.jlptIndex;
     }
 
@@ -96,16 +86,26 @@ export class VocabularyService {
         if (!response.ok) {
             throw new Error(`Failed to fetch ${path}: ${response.status} ${response.statusText}`);
         }
-        const vocab: Vocabulary = await response.json();
+        const vocab = await readJson<Vocabulary>(response);
         this.vocabCache.set(id, vocab);
         return vocab;
+    }
+
+    /**
+     * Several words at once, in the order asked, skipping any that fail to load (a
+     * stale id in a related-words list must not take the whole list down). For a
+     * quiz card, where a missing word is a data-integrity error, use loadVocab.
+     */
+    static async loadVocabs(ids: readonly string[]): Promise<Vocabulary[]> {
+        const loaded = await Promise.all(ids.map(id => this.loadVocab(id).catch(() => null)));
+        return loaded.filter((v): v is Vocabulary => v !== null);
     }
 
     static async loadSearchIndex(): Promise<SearchIndex | null> {
         if (this.searchIndex) return this.searchIndex;
 
         try {
-            this.searchIndex = await this.fetchJson<SearchIndex>(`/data/compiled/index/search.json?v=${Date.now()}`);
+            this.searchIndex = await fetchJson<SearchIndex>(`/data/compiled/index/search.json?v=${Date.now()}`);
             return this.searchIndex;
         } catch (e) {
             console.error("Failed to load search index", e);
@@ -136,7 +136,7 @@ export class VocabularyService {
     static async loadKanjiIndex(): Promise<Kanji[]> {
         if (this.kanjiIndex) return this.kanjiIndex;
 
-        this.kanjiIndex = await this.fetchJson<Kanji[]>(`/data/compiled/kanji.json?v=${Date.now()}`);
+        this.kanjiIndex = await fetchJson<Kanji[]>(`/data/compiled/kanji.json?v=${Date.now()}`);
         for (const k of this.kanjiIndex) this.kanjiByChar.set(k.character, k);
         return this.kanjiIndex;
     }
@@ -149,17 +149,15 @@ export class VocabularyService {
     static async loadKanjiVocabIndex(): Promise<KanjiVocabIndex> {
         if (this.kanjiVocabIndex) return this.kanjiVocabIndex;
 
-        this.kanjiVocabIndex = await this.fetchJson<KanjiVocabIndex>(`/data/compiled/index/kanji-vocab.json?v=${Date.now()}`);
+        this.kanjiVocabIndex = await fetchJson<KanjiVocabIndex>(`/data/compiled/index/kanji-vocab.json?v=${Date.now()}`);
         return this.kanjiVocabIndex;
     }
 
-    static async loadSentences(vocabId: string): Promise<import('../models/sentence.model').Sentence[] | null> {
+    /** The word's example sentences (the file is a plain Sentence array), or null when it has none. */
+    static async loadSentences(vocabId: string): Promise<Sentence[] | null> {
         try {
-            return await this.fetchJson<import('../models/sentence.model').Sentence[]>(`/data/compiled/sentences/${vocabId}.json`);
-            // The file contains an array of sentences directly, or is it a SentenceSet?
-            // Based on previous inspection of build-sentences.ts, it generates an array of Sentences?
-            // Wait, checking the file content will confirm.
-        } catch (e) {
+            return await fetchJson<Sentence[]>(`/data/compiled/sentences/${vocabId}.json`);
+        } catch {
             // No sentences found for this vocab is a valid state
             return null;
         }

@@ -1,5 +1,4 @@
-import type { Sense } from '../models/vocabulary.model';
-import type { VocabSynonym } from '../models/index.model';
+import type { Sense, VocabSynonym } from '@gokan/dataset-schema';
 import type { ProductionCloze } from './productionCloze.utils';
 import type { ProductionSynonymCandidate } from '../services/srs.service';
 

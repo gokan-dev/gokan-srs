@@ -8,7 +8,7 @@
 
 import { mount } from 'svelte';
 import GrammarBrowser from '../pages/GrammarBrowser.svelte';
-import type { GrammarBrowseRow } from '../lib/grammarBrowse';
+import type { BrowseRow } from '../lib/grammarBrowse';
 import { grammarBrowseDataPath } from '../lib/urls';
 
 async function init(): Promise<void> {
@@ -16,11 +16,11 @@ async function init(): Promise<void> {
     const fallback = document.querySelector<HTMLElement>('[data-grammar-static]');
     if (!target) return;
 
-    let rows: GrammarBrowseRow[];
+    let rows: BrowseRow[];
     try {
         const response = await fetch(grammarBrowseDataPath());
         if (!response.ok) throw new Error(`grammar browse data request failed: ${response.status}`);
-        rows = (await response.json()) as GrammarBrowseRow[];
+        rows = (await response.json()) as BrowseRow[];
     } catch {
         return; // Leave the server-rendered list in place.
     }

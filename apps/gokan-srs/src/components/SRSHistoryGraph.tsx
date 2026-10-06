@@ -1,5 +1,6 @@
 import type { SRSEntry, ReviewLog } from "../models/vocabulary.model";
 import { useMemo } from "react";
+import { useNow } from "../hooks/useNow";
 
 export interface SRSHistorySeries {
     /** Stable key distinguishing this series from others in the same graph (e.g. 'reading', 'meaning', 'grammar'). */
@@ -24,6 +25,7 @@ const clamp = (value: number, min: number, max: number) => Math.min(Math.max(val
  * covers both rather than duplicating the plotting logic per activity.
  */
 export function SRSHistoryGraph({ series, introDate }: SRSHistoryGraphProps) {
+    const now = useNow();
     const data = useMemo(() => {
         // Collect all history points
         const points: { date: number; key: string; strength: number }[] = [];
@@ -40,14 +42,13 @@ export function SRSHistoryGraph({ series, introDate }: SRSHistoryGraphProps) {
         });
 
         // Current actual states as final points if they differ from last history or if history is empty
-        const now = Date.now();
         series.forEach(s => points.push({ date: now, key: s.key, strength: s.entry.interval }));
 
         // Sort by date
         points.sort((a, b) => a.date - b.date);
 
         return points;
-    }, [series, introDate]);
+    }, [series, introDate, now]);
 
     // If practically no data, don't render graph (one intro + one end point per series is not real history)
     if (data.length <= series.length * 2) return null;
@@ -98,7 +99,7 @@ export function SRSHistoryGraph({ series, introDate }: SRSHistoryGraphProps) {
 
                     {/* Max Mastery Guideline (If applicable within view) */}
                     {yMax >= maxStrength && (
-                        <line x1="0" y1={100 - ((maxStrength / yMax) * 100)} x2="100" y2={100 - ((maxStrength / yMax) * 100)} stroke="currentColor" className="text-green-500 opacity-20" strokeWidth="0.5" />
+                        <line x1="0" y1={100 - ((maxStrength / yMax) * 100)} x2="100" y2={100 - ((maxStrength / yMax) * 100)} stroke="currentColor" className="text-feedback-correct opacity-20" strokeWidth="0.5" />
                     )}
 
                     {series.map(s => {
@@ -109,7 +110,7 @@ export function SRSHistoryGraph({ series, introDate }: SRSHistoryGraphProps) {
                                 key={s.key}
                                 d={path}
                                 fill="none"
-                                stroke={s.color}
+                                style={{ stroke: s.color }}
                                 strokeWidth="2"
                                 vectorEffect="non-scaling-stroke"
                                 strokeLinecap="round"

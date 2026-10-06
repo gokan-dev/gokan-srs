@@ -3,7 +3,7 @@
 // display, excluding the point itself. Kept out of the .svelte component for the same
 // unit-testability reason as the other grammar*.ts helpers.
 
-import type { GrammarPoint, GrammarVariantGroupIndex } from '../models/grammar.model';
+import type { GrammarPoint, GrammarVariantGroupIndex } from '@gokan/dataset-schema';
 
 export interface VariantSibling {
     id: string;

@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import type { GrammarChapter, GrammarExample, GrammarPoint } from "../../models/grammar.model";
+import type { GrammarChapter, GrammarExample, GrammarPoint } from "@gokan/dataset-schema";
 import { Card } from "../../components/ui/Card";
 import { MasteryRing } from "../../components/MasteryRing";
 import { JlptChip } from "../../components/JlptChip";
 import { Button } from "../../components/ui/Button";
 import { LoadingScreen } from "../../components/LoadingScreen";
-import { SRSHistoryGraph } from "../../components/SRSHistoryGraph";
 import { useResponsive } from "../../context/Responsive/useResponsive";
 import { useQuiz } from "../../context/useQuiz";
 import { GrammarService } from "../../services/grammar.service";
@@ -14,9 +13,13 @@ import { THEME } from "../../commons/theme";
 import { GrammarRelatedPointsCard } from "./GrammarRelatedPointsCard";
 import { GrammarVariantsCard } from "./GrammarVariantsCard";
 import { GrammarDifferentiator } from "../../components/GrammarDifferentiator";
-import { InteractiveSentence } from "../../components/InteractiveSentence";
-import { grammarExampleToSentence, patternHighlightRanges } from "../../utils/grammarSentence.utils";
 import { PageHeader } from "../../components/PageHeader";
+import { useIntroducedGrammarIds } from "../../hooks/useIntroducedGrammarIds";
+import { useAsyncData } from "../../hooks/useAsyncData";
+import { DetailErrorScreen } from "../../components/detail/DetailErrorScreen";
+import { SrsStatsCard } from "../../components/detail/SrsStatsCard";
+import { GrammarExampleList } from "./GrammarExampleList";
+import { DetailCard } from "../../components/detail/DetailCard";
 
 const MINED_INITIAL_COUNT = 5;
 
@@ -43,81 +46,38 @@ export default function GrammarDetailScreen() {
     const navigate = useNavigate();
     const { isMobile } = useResponsive();
     const { state, grammarActions } = useQuiz();
-    const [point, setPoint] = useState<GrammarPoint | null>(null);
-    const [error, setError] = useState<string | null>(null);
+    const pointLoad = useAsyncData(grammarId ?? null, () => GrammarService.loadGrammarPoint(grammarId ?? ''));
+    const point: GrammarPoint | null = pointLoad.data ?? null;
+    const error = pointLoad.status === 'error' ? "Could not load grammar point details." : null;
     // The point's chapter + its 1-based position among all chapters (issue
     // #58's detail-page locator). null while loading, or when the order file
     // isn't available - same "just don't show it" failure direction
     // GrammarSRSService.getCurrentChapter uses.
-    const [chapterLocation, setChapterLocation] = useState<{ chapter: GrammarChapter; chapterNumber: number } | null>(null);
+    const chapterLocation: { chapter: GrammarChapter; chapterNumber: number } | null = useAsyncData(grammarId ?? null, async () => {
+        const order = await GrammarService.loadTeachingOrder();
+        const chapter = order?.chapters.find(c => c.points.includes(grammarId ?? ''));
+        return order && chapter ? { chapter, chapterNumber: order.chapters.indexOf(chapter) + 1 } : null;
+    }).data ?? null;
     // Corpus-mined examples (issue #73's follow-up): a read-only browsing view
     // of the same pool computeBlankPlan draws review sentences from, so the
     // mined data is inspectable without grinding a point to its 2nd review.
     // null while loading or when the point has no mined pool at all - both
     // read as "render nothing", same as GrammarRelatedPointsCard's failure
     // direction.
-    const [minedExamples, setMinedExamples] = useState<GrammarExample[] | null>(null);
-    const [isMinedSectionOpen, setIsMinedSectionOpen] = useState(false);
-    const [isMinedExpanded, setIsMinedExpanded] = useState(false);
-
-    useEffect(() => {
-        if (!grammarId) return;
-
-        setPoint(null);
-        setError(null);
-
-        GrammarService.loadGrammarPoint(grammarId)
-            .then(setPoint)
-            .catch(err => {
-                console.error("Failed to load grammar point", err);
-                setError("Could not load grammar point details.");
-            });
-    }, [grammarId]);
-
-    useEffect(() => {
-        if (!grammarId) return;
-
-        setMinedExamples(null);
-        setIsMinedSectionOpen(false);
-        setIsMinedExpanded(false);
-        GrammarService.loadMinedExamples(grammarId).then(setMinedExamples);
-    }, [grammarId]);
-
-    useEffect(() => {
-        if (!grammarId) return;
-
-        setChapterLocation(null);
-        GrammarService.loadTeachingOrder().then(order => {
-            if (!order) return;
-            const chapter = order.chapters.find(c => c.points.includes(grammarId));
-            if (!chapter) return;
-            setChapterLocation({ chapter, chapterNumber: order.chapters.indexOf(chapter) + 1 });
-        });
-    }, [grammarId]);
+    const minedExamples: GrammarExample[] | null = useAsyncData(grammarId ?? null, () => GrammarService.loadMinedExamples(grammarId ?? '')).data ?? null;
+    // Both belong to one point: keyed by it, so another point's page starts collapsed.
+    const [minedOpenFor, setMinedOpenFor] = useState<string | null>(null);
+    const [minedExpandedFor, setMinedExpandedFor] = useState<string | null>(null);
+    const isMinedSectionOpen = minedOpenFor === grammarId;
+    const isMinedExpanded = minedExpandedFor === grammarId;
+    const setIsMinedSectionOpen = (open: boolean) => setMinedOpenFor(open ? grammarId ?? null : null);
+    const setIsMinedExpanded = (expanded: boolean) => setMinedExpandedFor(expanded ? grammarId ?? null : null);
 
     const progress = state.progress?.grammarQueue.find(g => g.grammarId === grammarId);
 
-    // Which family siblings the learner has already met, for GrammarDifferentiator's
-    // register ladder (mirrors GrammarIntroCard's own knownIds computation).
-    const knownIds = useMemo(() => {
-        const ids = new Set<string>();
-        for (const g of state.progress?.grammarQueue ?? []) {
-            if (g.introductionAt) ids.add(g.grammarId);
-        }
-        return ids;
-    }, [state.progress?.grammarQueue]);
+    const knownIds = useIntroducedGrammarIds();
 
-    if (error) {
-        return (
-            <div className="min-h-screen flex items-center justify-center p-4 text-center">
-                <div>
-                    <h2 className="text-xl font-bold text-error mb-2">Error</h2>
-                    <p className="text-secondary mb-4">{error}</p>
-                    <Button onClick={() => navigate(-1)}>Go Back</Button>
-                </div>
-            </div>
-        );
-    }
+    if (error) return <DetailErrorScreen message={error} />;
 
     if (!point) {
         return <LoadingScreen />;
@@ -186,7 +146,7 @@ export default function GrammarDetailScreen() {
                         <span className="text-xs text-tertiary font-gothic uppercase tracking-wider">
                             {progress.stage === 'graduated' ? 'Graduated' : 'In your queue'}
                         </span>
-                        <Button variant="secondary" onClick={() => navigate('/grammar')}>
+                        <Button variant="secondary" onClick={() => void navigate('/grammar')}>
                             Go to grammar
                         </Button>
                     </div>
@@ -235,31 +195,9 @@ export default function GrammarDetailScreen() {
     // point.examples is always empty for them - render nothing rather than an
     // empty "Example Sentences (0)" card.
     const examplesCard = point.examples.length === 0 ? null : (
-        <Card size={isMobile ? "sm" : "md"}>
-            <h2 className="text-lg font-gothic font-semibold text-primary mb-4">
-                Example Sentences <span className="text-sm font-normal text-tertiary ml-2">({point.examples.length})</span>
-            </h2>
-            <div>
-                {point.examples.map((example, i) => (
-                    <div key={i} className={`pb-4 ${i < point.examples.length - 1 ? 'border-b border-divider mb-4' : ''}`}>
-                        <div className="text-xl leading-relaxed text-primary mb-1">
-                            <InteractiveSentence
-                                sentence={grammarExampleToSentence(example, i)}
-                                onVocabClick={(vid) => navigate(`/vocab/${vid}`)}
-                                showFurigana={true}
-                                highlightRanges={patternHighlightRanges(example)}
-                            />
-                        </div>
-                        <div className="text-sm text-tertiary font-gothic mb-1">
-                            {example.romaji}
-                        </div>
-                        <div className="text-sm text-secondary font-serif">
-                            {example.en}
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </Card>
+        <DetailCard title="Example Sentences" count={point.examples.length}>
+            <GrammarExampleList examples={point.examples} />
+        </DetailCard>
     );
 
     // Read-only browsing of the corpus-mined pool (issue #73 follow-up): full
@@ -272,7 +210,7 @@ export default function GrammarDetailScreen() {
         <Card size={isMobile ? "sm" : "md"}>
             <button
                 type="button"
-                onClick={() => setIsMinedSectionOpen(v => !v)}
+                onClick={() => setIsMinedSectionOpen(!isMinedSectionOpen)}
                 className="w-full flex items-center justify-between gap-2 text-left"
             >
                 <h2 className="text-lg font-gothic font-semibold text-primary">
@@ -284,24 +222,7 @@ export default function GrammarDetailScreen() {
             </button>
             {isMinedSectionOpen && (
                 <div className="mt-4">
-                    {displayedMinedExamples.map((example, i) => (
-                        <div key={i} className={`pb-4 ${i < displayedMinedExamples.length - 1 ? 'border-b border-divider mb-4' : ''}`}>
-                            <div className="text-xl leading-relaxed text-primary mb-1">
-                                <InteractiveSentence
-                                    sentence={grammarExampleToSentence(example, i)}
-                                    onVocabClick={(vid) => navigate(`/vocab/${vid}`)}
-                                    showFurigana={true}
-                                    highlightRanges={patternHighlightRanges(example)}
-                                />
-                            </div>
-                            <div className="text-sm text-tertiary font-gothic mb-1">
-                                {example.romaji}
-                            </div>
-                            <div className="text-sm text-secondary font-serif">
-                                {example.en}
-                            </div>
-                        </div>
-                    ))}
+                    <GrammarExampleList examples={displayedMinedExamples} />
                     {!isMinedExpanded && minedExamples.length > MINED_INITIAL_COUNT && (
                         <button
                             type="button"
@@ -334,56 +255,20 @@ export default function GrammarDetailScreen() {
     const relatedPointsCard = <GrammarRelatedPointsCard point={point} />;
 
     const statsCard = progress && progress.introductionAt ? (
-        <Card size={isMobile ? "sm" : "md"}>
-            <h2 className="text-lg font-gothic font-semibold text-primary mb-4">Stats</h2>
-            <div className="grid grid-cols-2 gap-4">
-                <div>
-                    <div className="text-xs text-tertiary uppercase tracking-wider font-gothic mb-1">
-                        Reviews
-                    </div>
-                    <div className="text-xl text-primary font-gothic">
-                        {progress.totalReviews}
-                    </div>
-                </div>
-                <div>
-                    <div className="text-xs text-tertiary uppercase tracking-wider font-gothic mb-1">
-                        Interval
-                    </div>
-                    <div className="text-xl text-primary font-gothic">
-                        {progress.entry.interval.toFixed(1)}d
-                    </div>
-                </div>
-                <div>
-                    <div className="text-xs text-tertiary uppercase tracking-wider font-gothic mb-1">
-                        Introduced
-                    </div>
-                    <div className="text-base text-primary font-gothic">
-                        {new Date(progress.introductionAt).toLocaleDateString()}
-                    </div>
-                </div>
-                <div>
-                    <div className="text-xs text-tertiary uppercase tracking-wider font-gothic mb-1">
-                        Next Review
-                    </div>
-                    <div className="text-base text-primary font-gothic">
-                        {progress.entry.dueDate ? new Date(progress.entry.dueDate).toLocaleDateString() : 'Ready'}
-                    </div>
-                </div>
-                <div className="col-span-2">
-                    <SRSHistoryGraph
-                        series={[{ key: 'grammar', label: 'Grammar', entry: progress.entry, color: THEME.mastery.loop1 }]}
-                        introDate={progress.introductionAt ? new Date(progress.introductionAt) : null}
-                    />
-                </div>
-            </div>
-        </Card>
+        <SrsStatsCard
+            totalReviews={progress.totalReviews}
+            interval={progress.entry.interval}
+            introductionAt={progress.introductionAt}
+            nextReview={progress.entry.dueDate?.toLocaleDateString() ?? 'Ready'}
+            series={[{ key: 'grammar', label: 'Grammar', entry: progress.entry, color: THEME.mastery.loop1 }]}
+        />
     ) : null;
 
     return (
         <div className="min-h-screen flex flex-col md:max-w-5xl md:mx-auto w-full animate-fade-in">
             <PageHeader
                 title="Grammar Point Details"
-                onBack={() => navigate(-1)}
+                onBack={() => void navigate(-1)}
                 className="p-4 md:p-8"
                 right={
                     <Link

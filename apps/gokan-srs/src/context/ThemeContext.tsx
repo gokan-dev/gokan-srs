@@ -1,33 +1,15 @@
-import { createContext, useContext, useEffect, useState } from "react";
-
-type Theme = "dark" | "light" | "system";
+import { useEffect, useState } from "react";
+import type { Theme } from "../models/theme.model";
+import { StorageService } from "../services/storage.service";
+import { ThemeContext } from "./useTheme";
 
 interface ThemeProviderProps {
     children: React.ReactNode;
     defaultTheme?: Theme;
-    storageKey?: string;
 }
 
-interface ThemeProviderState {
-    theme: Theme;
-    setTheme: (theme: Theme) => void;
-}
-
-const initialState: ThemeProviderState = {
-    theme: "system",
-    setTheme: () => null,
-};
-
-const ThemeContext = createContext<ThemeProviderState>(initialState);
-
-export function ThemeProvider({
-    children,
-    defaultTheme = "system",
-    storageKey = "vite-ui-theme",
-}: ThemeProviderProps) {
-    const [theme, setTheme] = useState<Theme>(
-        () => (localStorage.getItem(storageKey) as Theme) || defaultTheme
-    );
+export function ThemeProvider({ children, defaultTheme = "system" }: ThemeProviderProps) {
+    const [theme, setTheme] = useState<Theme>(() => StorageService.loadTheme() ?? defaultTheme);
 
     useEffect(() => {
         const root = window.document.documentElement;
@@ -49,9 +31,9 @@ export function ThemeProvider({
 
     const value = {
         theme,
-        setTheme: (theme: Theme) => {
-            localStorage.setItem(storageKey, theme);
-            setTheme(theme);
+        setTheme: (next: Theme) => {
+            StorageService.saveTheme(next);
+            setTheme(next);
         },
     };
 
@@ -60,17 +42,4 @@ export function ThemeProvider({
             {children}
         </ThemeContext.Provider>
     );
-
-    // Helper to avoid passing props explicitly if not needed, but cleaner to just pass value
-    // Actually, I spread {...props} above which is weird because props isn't defined in the args except children/etc.
-    // Let me fix the return statement in the file generation.
 }
-
-export const useTheme = () => {
-    const context = useContext(ThemeContext);
-
-    if (context === undefined)
-        throw new Error("useTheme must be used within a ThemeProvider");
-
-    return context;
-};

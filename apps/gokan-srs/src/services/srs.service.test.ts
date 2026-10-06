@@ -1,9 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { SRSService } from './srs.service';
+import type { LearnableScope, LearningOrderSettings, ProductionSynonymCandidate, ProductionVocab } from './srs.service';
 import { VocabularyService } from './vocabulary.service';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../models/vocabulary.model';
 import type { VocabProgress } from '../models/vocabulary.model';
-import type { ProductionSynonymCandidate } from './srs.service';
+import type { KanjiKnowledge } from '../models/user.model';
 import { CONSTANTS } from '../commons/constants';
 import { isVocabDue } from './scheduling';
 
@@ -29,7 +30,7 @@ describe('SRSService Formula Tests', () => {
 
     // Test cases from srs-optimized-formula-tests.txt
 
-    it('TEST CASE 1 — Correct, fast recall', () => {
+    it('TEST CASE 1: Correct, fast recall', () => {
         // Input: { S: 10.0, D: 0.6, Result: correct, Latency: 900 }
         const vocab = createVocab(10.0, 0.6);
         const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'kotae', 'kotae', 900, mockNow);
@@ -39,7 +40,7 @@ describe('SRSService Formula Tests', () => {
         closeTo(interval, 4.04190);
     });
 
-    it('TEST CASE 2 — Correct, slow recall', () => {
+    it('TEST CASE 2: Correct, slow recall', () => {
         // Input: { S: 10.0, D: 0.2, Result: correct, Latency: 3000 }
         // UPDATE: With expectedLatency=10000, 3000 is FAST. To test SLOW, we need > 20000.
         // Let's use 20000 (ratio 0.5).
@@ -51,7 +52,7 @@ describe('SRSService Formula Tests', () => {
         closeTo(interval, 3.15010);
     });
 
-    it('TEST CASE 3 — Minor error', () => {
+    it('TEST CASE 3: Minor error', () => {
 
         // We simulate 'minor_error' by passing a typo: 'こたへ' vs 'こたえ'
         // Use 10000ms as neutral (ratio 1.0)
@@ -63,7 +64,7 @@ describe('SRSService Formula Tests', () => {
         closeTo(interval, 1.75923);
     });
 
-    it('TEST CASE 4 — Wrong answer', () => {
+    it('TEST CASE 4: Wrong answer', () => {
         // Input: { S: 12.0, D: 0.5, Result: wrong, Latency: 2000 }
         const vocab = createVocab(12.0, 0.5);
         const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'wrong', 'kotae', 2000, mockNow);
@@ -80,7 +81,7 @@ describe('SRSService Formula Tests', () => {
         closeTo(interval, 0.50000);
     });
 
-    it('TEST CASE 5 — Pass', () => {
+    it('TEST CASE 5: Pass', () => {
         // Input: { S: 6.0, D: 0.3, Result: pass, Latency: 1500 }
         // Neutral latency for pass
         const vocab = createVocab(6.0, 0.3);
@@ -92,7 +93,7 @@ describe('SRSService Formula Tests', () => {
         closeTo(interval, 1.50859);
     });
 
-    it('TEST CASE 6 — Floor enforcement', () => {
+    it('TEST CASE 6: Floor enforcement', () => {
         // Input: { S: 0.4, D: 0.1, Result: wrong, Latency: 4000 }
         const vocab = createVocab(0.4, 0.1);
         const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'wrong', 'kotae', 4000, mockNow);
@@ -109,7 +110,7 @@ describe('SRSService Formula Tests', () => {
         closeTo(interval, 0.50000);
     });
 
-    it('TEST CASE 6b — Floor enforcement TRIGGERED', () => {
+    it('TEST CASE 6b: Floor enforcement TRIGGERED', () => {
         // Construct a case where S drops below 0.3
         // S=0.35, Wrong, Fast (L=1.5), D=Normal (0.6 -> D factor ~1)
         // D = 0.6 + 0.8*0.5 = 1.0.
@@ -122,8 +123,8 @@ describe('SRSService Formula Tests', () => {
         closeTo(updated.reading.memoryStrength, 1.00000);
     });
 
-    it('TEST CASE 6c — Floor applied on Success to escape 0-trap (Recovery Floor Definition)', () => {
-        // If S is somehow below min (e.g. 0.2), and we get it right, 
+    it('TEST CASE 6c: Floor applied on Success to escape 0-trap (Recovery Floor Definition)', () => {
+        // If S is somehow below min (e.g. 0.2), and we get it right,
         // we should jump to the floor instantly to escape the 0-multiplier trap.
         const vocab = createVocab(0.2, 0.5); // Illegal state technically, but testing logic
         // Correct -> Delta > 0.
@@ -196,7 +197,7 @@ describe('SRSService Formula Tests', () => {
     });
 
 
-    it('TEST CASE 7 — Latency upper clamp', () => {
+    it('TEST CASE 7: Latency upper clamp', () => {
         // Input: { S: 5.0, D: 0.7, Result: correct, Latency: 200 }
         const vocab = createVocab(5.0, 0.7);
         const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'kotae', 'kotae', 200, mockNow);
@@ -208,7 +209,7 @@ describe('SRSService Formula Tests', () => {
         closeTo(interval, 2.06410);
     });
 
-    it('TEST CASE 8 — Latency lower clamp', () => {
+    it('TEST CASE 8: Latency lower clamp', () => {
         // Input: { S: 5.0, D: 0.7, Result: correct, Latency: 10000 }
         const vocab = createVocab(5.0, 0.7);
         const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'kotae', 'kotae', 10000, mockNow);
@@ -270,16 +271,16 @@ describe('SRSService Formula Tests', () => {
     });
 
     describe('evaluateProductionAnswer: any form of the word is correct (issue #95)', () => {
-        const taberu = {
-            reading: { primary: 'たべる', alternatives: [] as string[] },
-            writtenForm: { kanji: '食べる', alternatives: [] as string[], containedKanji: ['食'] },
-            senses: [{ pos: ['v1', 'vt'], glosses: ['to eat'], misc: [] }],
-        } as never;
-        const kaiwa = {
-            reading: { primary: 'かいわ', alternatives: [] as string[] },
-            writtenForm: { kanji: '会話', alternatives: [] as string[], containedKanji: ['会', '話'] },
-            senses: [{ pos: ['n', 'vs'], glosses: ['conversation'], misc: [] }],
-        } as never;
+        const taberu: ProductionVocab = {
+            reading: { primary: 'たべる', alternatives: [] },
+            writtenForm: { kanji: '食べる', alternatives: [], containedKanji: ['食'] },
+            senses: [{ pos: ['v1', 'vt'], glosses: ['to eat'], misc: { rawTags: [] }, related: { compounds: [] } }],
+        };
+        const kaiwa: ProductionVocab = {
+            reading: { primary: 'かいわ', alternatives: [] },
+            writtenForm: { kanji: '会話', alternatives: [], containedKanji: ['会', '話'] },
+            senses: [{ pos: ['n', 'vs'], glosses: ['conversation'], misc: { rawTags: [] }, related: { compounds: [] } }],
+        };
 
         it.each(['食べたら', 'たべたら', '食べた', '食べる', 'たべて'])('grades %s correct for 食べる', input => {
             expect(SRSService.evaluateProductionAnswer(input, taberu).result).toBe('correct');
@@ -676,8 +677,8 @@ describe('SRSService Formula Tests', () => {
     });
 
     describe('Optimization Fixes Verification', () => {
-        it('FIX CHECK 1 — Initial Memory Strength should be 1.0', () => {
-            // We can't access private createNewVocabProgress directly, 
+        it('FIX CHECK 1: Initial Memory Strength should be 1.0', () => {
+            // We can't access private createNewVocabProgress directly,
             // but we can check if we were to manually init or relies on constants if they are exported.
             // Better: Check the CONSTANTS or if we have a public method creating vocab.
             // Since createNewVocabProgress is private and used in refillQueue, let's refrain from full integration test here.
@@ -703,7 +704,7 @@ describe('SRSService Formula Tests', () => {
             // Prior to fix (0.3 base): Int would be ~0.1
         });
 
-        it('FIX CHECK 2 — Wrong answer floor (0.5d)', () => {
+        it('FIX CHECK 2: Wrong answer floor (0.5d)', () => {
             // Case: New item (S=1.0), immediately wrong.
             // S_new = 1.0 * (1 - 0.4) = 0.6
             // Raw Interval = 0.6 * 0.28768 = 0.1726
@@ -717,7 +718,7 @@ describe('SRSService Formula Tests', () => {
             expect(interval).toBe(0.5);
         });
 
-        it('FIX CHECK 3 — Strategy A: Success interval clamped to 1.0 day', () => {
+        it('FIX CHECK 3: Strategy A: Success interval clamped to 1.0 day', () => {
             // New item, correct answer.
             // S_new = 1.25. raw Interval = 0.36.
             // Should clamp to 1.0.
@@ -727,29 +728,6 @@ describe('SRSService Formula Tests', () => {
             expect(interval).toBe(1.0);
         });
 
-        it('FIX CHECK 4 — Strategy D & Dynamic: Win Rate Calculation', () => {
-            // Mock queue with high success rate
-            const highWinQueue = [
-                { reading: { history: [{ result: 'correct' }] } },
-                { reading: { history: [{ result: 'correct' }] } }
-            ] as any[];
-
-            const winRate = SRSService.calculateRecentWinRate(highWinQueue);
-            expect(winRate).toBe(1.0); // 2/2
-
-            // Mock queue with low success rate
-            const lowWinQueue = [
-                { reading: { history: [{ result: 'wrong' }] } },
-                { reading: { history: [{ result: 'wrong' }] } }
-            ] as any[];
-
-            const lowWinRate = SRSService.calculateRecentWinRate(lowWinQueue);
-            expect(lowWinRate).toBe(0.0); // 0/2
-        });
-
-        // Note: We can't easily test createNewVocabProgress() directly as it's private,
-        // but we verified the logic (0.5 default + offset) in implementation.
-        // We can verify that calculateRecentWinRate is correct, which drives the offset.
     });
     describe('Dual Quiz Integration', () => {
         const createDualVocab = (rMem: number, mMem: number): VocabProgress => ({
@@ -936,18 +914,18 @@ describe('SRSService Formula Tests', () => {
             ],
         };
 
-        const allKnownKanjiKnowledge = {
+        const allKnownKanjiKnowledge: KanjiKnowledge = {
             method: 'kklc', step: 10,
             kanjiSet: new Set(['Z', 'Y', 'X', 'W', 'V']),
-        } as any;
+        };
 
-        const noKanjiKnowledge = {
+        const noKanjiKnowledge: KanjiKnowledge = {
             method: 'kklc', step: 10,
             kanjiSet: new Set<string>(),  // deliberately knows NO kanji
-        } as any;
+        };
 
-        const settings = { preferredLearningOrder: 'jlpt' } as any;
-        const settingsIgnoreKanji = { preferredLearningOrder: 'jlpt', ignoreKnownKanjiRequirement: true } as any;
+        const settings: LearningOrderSettings = { preferredLearningOrder: 'jlpt' };
+        const settingsIgnoreKanji: LearningOrderSettings = { preferredLearningOrder: 'jlpt', ignoreKnownKanjiRequirement: true };
 
         it('serves easiest level first, walking N5 -> N1', async () => {
             vi.spyOn(VocabularyService, 'loadJlptIndex').mockResolvedValue(mockJlptIndex);
@@ -982,7 +960,7 @@ describe('SRSService Formula Tests', () => {
         it('skips vocab already in the queue', async () => {
             vi.spyOn(VocabularyService, 'loadJlptIndex').mockResolvedValue(mockJlptIndex);
 
-            const currentQueue = [{ vocabId: 'n5-a' }, { vocabId: 'n4-a' }] as any[];
+            const currentQueue = [{ vocabId: 'n5-a' }, { vocabId: 'n4-a' }];
             const candidates = await SRSService.getNextCandidates(currentQueue, allKnownKanjiKnowledge, settings, 2);
 
             expect(candidates).toEqual(['n5-b', 'n3-a']);
@@ -1006,10 +984,10 @@ describe('SRSService Formula Tests', () => {
         it('counts remaining JLPT vocab respecting the kanji filter by default', async () => {
             vi.spyOn(VocabularyService, 'loadJlptIndex').mockResolvedValue(mockJlptIndex);
 
-            const progress = {
+            const progress: LearnableScope = {
                 kanjiKnowledge: allKnownKanjiKnowledge,
                 learningQueue: [{ vocabId: 'n5-a' }],
-            } as any;
+            };
 
             const count = await SRSService.countLearnableVocabulary(progress, settings);
 
@@ -1024,10 +1002,10 @@ describe('SRSService Formula Tests', () => {
                 { id: 'freq-2', containedKanji: ['K'] },  // filtered: K is unknown
             ]);
 
-            const progress = {
+            const progress: LearnableScope = {
                 kanjiKnowledge: noKanjiKnowledge,
                 learningQueue: [{ vocabId: 'n5-a' }],
-            } as any;
+            };
 
             // Every kanji-bearing JLPT entry is filtered out and n5-a is already
             // queued, so the JLPT branch counts 0 and falls through to frequency.
@@ -1039,10 +1017,10 @@ describe('SRSService Formula Tests', () => {
         it('counts without the kanji filter when ignoreKnownKanjiRequirement is set', async () => {
             vi.spyOn(VocabularyService, 'loadJlptIndex').mockResolvedValue(mockJlptIndex);
 
-            const progress = {
+            const progress: LearnableScope = {
                 kanjiKnowledge: noKanjiKnowledge,
                 learningQueue: [{ vocabId: 'n5-a' }],
-            } as any;
+            };
 
             const count = await SRSService.countLearnableVocabulary(progress, settingsIgnoreKanji);
 
@@ -1073,15 +1051,15 @@ describe('SRSService Formula Tests', () => {
 
             vi.spyOn(VocabularyService, 'loadFrequencyIndex').mockResolvedValue(expandedMockIndex);
 
-            const kanjiKnowledge = {
+            const kanjiKnowledge: KanjiKnowledge = {
                 method: 'kklc', step: 10,
                 kanjiSet: new Set(['A', 'B', 'C'])
-            } as any;
+            };
 
-            const settings = {
+            const settings: LearningOrderSettings = {
                 preferredLearningOrder: 'kanji_coverage',
                 kanjiCoverageTarget: 1
-            } as any;
+            };
 
             // 1. super_obs_multi (rank 6) covers 3 -> score 7494. Should win.
             const c1 = await SRSService.getNextCandidates([], kanjiKnowledge, settings, 1);
@@ -1101,18 +1079,18 @@ describe('SRSService Formula Tests', () => {
         it('should fallback to frequency if target coverage is met', async () => {
             vi.spyOn(VocabularyService, 'loadFrequencyIndex').mockResolvedValue(mockIndex);
 
-            const kanjiKnowledge = {
+            const kanjiKnowledge: KanjiKnowledge = {
                 method: 'kklc', step: 10,
                 kanjiSet: new Set(['A', 'B', 'C'])
-            } as any;
+            };
 
-            const settings = {
+            const settings: LearningOrderSettings = {
                 preferredLearningOrder: 'kanji_coverage',
                 kanjiCoverageTarget: 1
-            } as any;
+            };
 
             // 'w_super_obs_multi' is active (covers A, B, C). Target=1 -> coverage is met.
-            const currentQueue = [{ vocabId: 'w_super_obs_multi' }] as any[];
+            const currentQueue = [{ vocabId: 'w_super_obs_multi' }];
             const candidates = await SRSService.getNextCandidates(currentQueue, kanjiKnowledge, settings, 2);
 
             // Falls back to pure frequency -> w1, w2
@@ -1122,18 +1100,18 @@ describe('SRSService Formula Tests', () => {
         it('should respect kanjiCoverageTarget > 1', async () => {
             vi.spyOn(VocabularyService, 'loadFrequencyIndex').mockResolvedValue(mockIndex);
 
-            const kanjiKnowledge = {
+            const kanjiKnowledge: KanjiKnowledge = {
                 method: 'kklc', step: 10,
                 kanjiSet: new Set(['A', 'B', 'C'])
-            } as any;
+            };
 
-            const settings = {
+            const settings: LearningOrderSettings = {
                 preferredLearningOrder: 'kanji_coverage',
                 kanjiCoverageTarget: 2
-            } as any;
+            };
 
             // 'w_super_obs_multi' active. A=1, B=1, C=1. Target=2. Everything is UNCOVERED (once more).
-            const currentQueue = [{ vocabId: 'w_super_obs_multi' }] as any[];
+            const currentQueue = [{ vocabId: 'w_super_obs_multi' }];
             const candidates = await SRSService.getNextCandidates(currentQueue, kanjiKnowledge, settings, 2);
 
             // Best coverage available is still w_multi or w_obs_multi for A,B (coverage 2)

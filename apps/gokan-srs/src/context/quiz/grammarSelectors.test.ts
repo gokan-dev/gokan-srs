@@ -16,35 +16,21 @@ import {
 } from './grammarSelectors';
 import type { QuizState } from './quizReducer';
 import type { UserProgress } from '../../models/user.model';
-import type { GrammarChapter, GrammarContrastIndex, GrammarExample, GrammarPoint, GrammarProgress } from '../../models/grammar.model';
+import type { GrammarChapter, GrammarContrastIndex, GrammarExample, GrammarPoint, GrammarVariantGroupIndex, Vocabulary } from '@gokan/dataset-schema';
+import type { GrammarProgress } from '../../models/grammar.model';
 import { DEFAULT_GRAMMAR_PROGRESS } from '../../models/grammar.model';
 import type { VocabProgress } from '../../models/vocabulary.model';
-import { DEFAULT_VOCABULARY_PROGRESS } from '../../models/vocabulary.model';
-import type { Vocabulary } from '../../models/vocabulary.model';
 import { VocabularyService } from '../../services/vocabulary.service';
 import { GrammarService } from '../../services/grammar.service';
 import { CONSTANTS } from '../../commons/constants';
+import { grammarProgress, userProgress, vocabProgress } from '../../test/fixtures';
 
 const now = new Date('2026-06-10T00:00:00Z');
 const past = new Date('2026-06-01T00:00:00Z');
 const future = new Date('2026-07-01T00:00:00Z');
 
-function makeProgress(overrides: Partial<UserProgress> = {}): UserProgress {
-    return {
-        kanjiKnowledge: { method: 'kklc', step: 10, kanjiSet: new Set() },
-        learningQueue: [],
-        grammarQueue: [],
-        completedChapters: [],
-        stats: { newLearnedToday: 0, totalLearned: 0, totalReviews: 0 },
-        dailyOverride: false,
-        adaptive: { level: 1.0, history: [] },
-        ...overrides,
-    };
-}
-
-function makeGrammarProgress(overrides: Partial<GrammarProgress> = {}): GrammarProgress {
-    return { ...DEFAULT_GRAMMAR_PROGRESS, grammarId: 'n5-001', ...overrides };
-}
+const makeProgress = (overrides: Partial<UserProgress> = {}): UserProgress =>
+    userProgress({ kanjiKnowledge: { method: 'kklc', step: 10, kanjiSet: new Set() }, ...overrides });
 
 /**
  * Default fixture has `patternWordIndices: []` (pattern NOT located) so every
@@ -82,9 +68,7 @@ function makeGrammarPoint(overrides: Partial<GrammarPoint> = {}): GrammarPoint {
     };
 }
 
-function makeVocabProgress(overrides: Partial<VocabProgress> = {}): VocabProgress {
-    return { ...DEFAULT_VOCABULARY_PROGRESS, ...overrides };
-}
+const makeVocabProgress = (overrides: Partial<VocabProgress> = {}): VocabProgress => vocabProgress({ vocabId: '', ...overrides });
 
 function makeVocab(overrides: Partial<Vocabulary> = {}): Vocabulary {
     return {
@@ -106,7 +90,7 @@ describe('selectNextGrammarView', () => {
     it('prioritizes grammarIntroCandidates for queueItem over the due pool', () => {
         const point = makeGrammarPoint();
         const state: Pick<QuizState, 'progress' | 'grammarIntroCandidates' | 'currentGrammarPoint'> = {
-            progress: makeProgress({ grammarQueue: [makeGrammarProgress({ entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, dueDate: past } })] }),
+            progress: makeProgress({ grammarQueue: [grammarProgress({ entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, dueDate: past } })] }),
             grammarIntroCandidates: [point],
             currentGrammarPoint: null,
         };
@@ -117,7 +101,7 @@ describe('selectNextGrammarView', () => {
 
     it('sessionState is "review" when a queued grammar point is due', () => {
         const state: Pick<QuizState, 'progress' | 'grammarIntroCandidates' | 'currentGrammarPoint'> = {
-            progress: makeProgress({ grammarQueue: [makeGrammarProgress({ entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, dueDate: past } })] }),
+            progress: makeProgress({ grammarQueue: [grammarProgress({ entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, dueDate: past } })] }),
             grammarIntroCandidates: [],
             currentGrammarPoint: null,
         };
@@ -137,7 +121,7 @@ describe('selectNextGrammarView', () => {
 
     it('sessionState is "waiting" when learning items exist but none are due and nothing more to learn', () => {
         const state: Pick<QuizState, 'progress' | 'grammarIntroCandidates' | 'currentGrammarPoint'> = {
-            progress: makeProgress({ grammarQueue: [makeGrammarProgress({ entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, dueDate: future } })] }),
+            progress: makeProgress({ grammarQueue: [grammarProgress({ entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, dueDate: future } })] }),
             grammarIntroCandidates: [],
             currentGrammarPoint: null,
         };
@@ -171,7 +155,7 @@ describe('selectNextGrammarView', () => {
     it('shouldShowIntro is false once the point has been introduced', () => {
         const point = makeGrammarPoint();
         const state: Pick<QuizState, 'progress' | 'grammarIntroCandidates' | 'currentGrammarPoint'> = {
-            progress: makeProgress({ grammarQueue: [makeGrammarProgress({ grammarId: point.id, introductionAt: past })] }),
+            progress: makeProgress({ grammarQueue: [grammarProgress({ grammarId: point.id, introductionAt: past })] }),
             grammarIntroCandidates: [],
             currentGrammarPoint: point,
         };
@@ -261,9 +245,9 @@ describe('computeBlankPlan', () => {
     });
 
     it('falls back to a single most-frequent-word blank when no example has a known word (item 5.2)', async () => {
-        vi.spyOn(VocabularyService, 'loadVocab').mockImplementation(async (id: string) => {
+        vi.spyOn(VocabularyService, 'loadVocab').mockImplementation((id: string) => {
             const ranks: Record<string, number> = { 'v-naka': 5000, 'v-sushi': 800, 'v-ichiban': 3000, 'v-suki': 1500 };
-            return makeVocab({ id, frequency: { kanjiRank: ranks[id] ?? 999999 } });
+            return Promise.resolve(makeVocab({ id, frequency: { kanjiRank: ranks[id] ?? 999999 } }));
         });
 
         const point = makeGrammarPoint();
@@ -845,13 +829,13 @@ describe('conjugated blanks: kana accepted, other forms of a vocab word are mino
         id: 'v-taberu',
         writtenForm: { kanji: '食べる', alternatives: [], containedKanji: ['食'] },
         reading: { primary: 'たべる', alternatives: [] },
-        senses: [{ pos: ['v1', 'vt'], glosses: ['to eat'], misc: [] }] as never,
+        senses: [{ pos: ['v1', 'vt'], glosses: ['to eat'], misc: { rawTags: [] }, related: { compounds: [] } }],
     });
     const yasai = makeVocab({
         id: 'v-yasai',
         writtenForm: { kanji: '野菜', alternatives: [], containedKanji: ['野', '菜'] },
         reading: { primary: 'やさい', alternatives: [] },
-        senses: [{ pos: ['n'], glosses: ['vegetable'], misc: [] }] as never,
+        senses: [{ pos: ['n'], glosses: ['vegetable'], misc: { rawTags: [] }, related: { compounds: [] } }],
     });
 
     // 野菜を食べたら？ with 食べ carrying the LEMMA reading, as the compiled data often does.
@@ -878,7 +862,7 @@ describe('conjugated blanks: kana accepted, other forms of a vocab word are mino
     });
 
     const mockVocab = () => vi.spyOn(VocabularyService, 'loadVocab')
-        .mockImplementation(async (id: string) => (id === 'v-taberu' ? taberu : yasai));
+        .mockImplementation((id: string) => Promise.resolve(id === 'v-taberu' ? taberu : yasai));
 
     async function vocabBlankPlan() {
         mockVocab();
@@ -1067,7 +1051,7 @@ describe('selectCurrentGrammarProgress', () => {
 
     it('finds the matching GrammarProgress by id', () => {
         const point = makeGrammarPoint();
-        const gp = makeGrammarProgress({ grammarId: point.id });
+        const gp = grammarProgress({ grammarId: point.id });
         const result = selectCurrentGrammarProgress({ currentGrammarPoint: point, progress: makeProgress({ grammarQueue: [gp] }) });
         expect(result).toBe(gp);
     });
@@ -1077,10 +1061,10 @@ describe('selectNextGrammarSessionPreview', () => {
     it('buckets retries, new, and review as mutually exclusive, retries taking precedence', () => {
         const progress = makeProgress({
             grammarQueue: [
-                makeGrammarProgress({ grammarId: 'retry-1', needsRetry: true, totalReviews: 1 }),
-                makeGrammarProgress({ grammarId: 'new-1', totalReviews: 0 }),
-                makeGrammarProgress({ grammarId: 'review-1', totalReviews: 1, entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, dueDate: past } }),
-                makeGrammarProgress({ grammarId: 'graduated-1', stage: 'graduated', totalReviews: 5 }),
+                grammarProgress({ grammarId: 'retry-1', needsRetry: true, totalReviews: 1 }),
+                grammarProgress({ grammarId: 'new-1', totalReviews: 0 }),
+                grammarProgress({ grammarId: 'review-1', totalReviews: 1, entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, dueDate: past } }),
+                grammarProgress({ grammarId: 'graduated-1', stage: 'graduated', totalReviews: 5 }),
             ],
         });
 
@@ -1096,10 +1080,10 @@ describe('selectNextGrammarSessionPreview', () => {
 describe('collectActionableGrammarIds', () => {
     it('includes a due point and a needsRetry point, excludes not-yet-due and graduated', () => {
         const queue: GrammarProgress[] = [
-            makeGrammarProgress({ grammarId: 'due', entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, dueDate: past } }),
-            makeGrammarProgress({ grammarId: 'retry', needsRetry: true, entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, dueDate: future } }),
-            makeGrammarProgress({ grammarId: 'not-due', entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, dueDate: future } }),
-            makeGrammarProgress({ grammarId: 'graduated', stage: 'graduated', needsRetry: true, entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, dueDate: past } }),
+            grammarProgress({ grammarId: 'due', entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, dueDate: past } }),
+            grammarProgress({ grammarId: 'retry', needsRetry: true, entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, dueDate: future } }),
+            grammarProgress({ grammarId: 'not-due', entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, dueDate: future } }),
+            grammarProgress({ grammarId: 'graduated', stage: 'graduated', needsRetry: true, entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, dueDate: past } }),
         ];
 
         expect(collectActionableGrammarIds(queue, now).sort()).toEqual(['due', 'retry'].sort());
@@ -1117,8 +1101,8 @@ describe('selectGrammarSessionStats', () => {
     });
 
     it('total is the committed set size; done counts committed points no longer actionable', () => {
-        const stillDue = makeGrammarProgress({ grammarId: 'a', entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, dueDate: past } });
-        const answered = makeGrammarProgress({ grammarId: 'b', entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, dueDate: future } });
+        const stillDue = grammarProgress({ grammarId: 'a', entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, dueDate: past } });
+        const answered = grammarProgress({ grammarId: 'b', entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, dueDate: future } });
         const state = stateWith([stillDue, answered], ['a', 'b']);
 
         const stats = selectGrammarSessionStats(state, false, now);
@@ -1127,7 +1111,7 @@ describe('selectGrammarSessionStats', () => {
     });
 
     it('retriesPending counts committed points currently awaiting a retry', () => {
-        const retrying = makeGrammarProgress({ grammarId: 'a', needsRetry: true, entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, dueDate: past } });
+        const retrying = grammarProgress({ grammarId: 'a', needsRetry: true, entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, dueDate: past } });
         const state = stateWith([retrying], ['a']);
 
         const stats = selectGrammarSessionStats(state, false, now);
@@ -1136,7 +1120,7 @@ describe('selectGrammarSessionStats', () => {
     });
 
     it('waiting counts actionable points that were NOT committed (came due mid-session)', () => {
-        const midSessionArrival = makeGrammarProgress({ grammarId: 'c', entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, dueDate: past } });
+        const midSessionArrival = grammarProgress({ grammarId: 'c', entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, dueDate: past } });
         const state = stateWith([midSessionArrival], []);
 
         const stats = selectGrammarSessionStats(state, true, now);
@@ -1147,7 +1131,7 @@ describe('selectGrammarSessionStats', () => {
 });
 
 describe('computeConjugationPlan / computeBlankPlan for inflection points', () => {
-    const tePoint = {
+    const tePoint: GrammarPoint = {
         id: 'n5-046',
         title: 'Verb て～',
         jlptLevel: 5,
@@ -1155,7 +1139,7 @@ describe('computeConjugationPlan / computeBlankPlan for inflection points', () =
         derives: 'て-form',
         shortExplanation: '', longExplanation: '', formation: '',
         examples: [{ jp: '待って', romaji: '', en: '', words: [{ surface: '待って', vocabId: null }], patternWordIndices: [0] }],
-    } as unknown as GrammarPoint;
+    };
 
     const conjugations = {
         'n5-046': {
@@ -1211,7 +1195,7 @@ describe('computeConjugationPlan / computeBlankPlan for inflection points', () =
             },
         });
 
-        const point = { ...tePoint, id: 'n4-020' } as GrammarPoint;
+        const point: GrammarPoint = { ...tePoint, id: 'n4-020' };
         const plan = await computeBlankPlan(point, null, 0);
 
         expect(plan!.acceptLists[0]).toEqual(expect.arrayContaining(['書かせられる', 'かかせられる', '書かされる', 'かかされる']));
@@ -1257,7 +1241,7 @@ describe('computeConjugationPlan / computeBlankPlan for inflection points', () =
 
     it('leaves construction points on the cloze path entirely', async () => {
         const loadConjugations = vi.spyOn(GrammarService, 'loadConjugations');
-        const construction = { ...tePoint, id: 'n4-110', kind: 'construction' as const, derives: undefined } as GrammarPoint;
+        const construction: GrammarPoint = { ...tePoint, id: 'n4-110', kind: 'construction', derives: undefined };
 
         const plan = await computeBlankPlan(construction, null, 0);
 
@@ -1266,10 +1250,10 @@ describe('computeConjugationPlan / computeBlankPlan for inflection points', () =
     });
 
     it('keeps the drill strict while accepting the full-kana answer (issue #95: 大変 → じゃなくて)', async () => {
-        const negTePoint = { ...tePoint, id: 'n5-921', derives: 'negative て-form' } as GrammarPoint;
+        const negTePoint: GrammarPoint = { ...tePoint, id: 'n5-921', derives: 'negative て-form' };
         vi.spyOn(GrammarService, 'loadConjugations').mockResolvedValue({
             'n5-921': {
-                form: 'na-adj-negative-te' as never,
+                form: 'na-adj-negative-te',
                 formLabel: 'negative て-form (じゃなくて)',
                 items: [{
                     vocabId: '1415000', lemma: '大変', lemmaReading: 'たいへん',
@@ -1290,10 +1274,10 @@ describe('computeConjugationPlan / computeBlankPlan for inflection points', () =
     });
 
     it('grades a slip in a long conjugated answer as a minor error (reported: ひつようじゃなかた)', async () => {
-        const pastNegPoint = { ...tePoint, id: 'n5-922', derives: 'past negative' } as GrammarPoint;
+        const pastNegPoint: GrammarPoint = { ...tePoint, id: 'n5-922', derives: 'past negative' };
         vi.spyOn(GrammarService, 'loadConjugations').mockResolvedValue({
             'n5-922': {
-                form: 'na-adj-past-negative' as never,
+                form: 'na-adj-past-negative',
                 formLabel: 'past negative (じゃなかった)',
                 items: [{
                     vocabId: '1238680', lemma: '必要', lemmaReading: 'ひつよう',
@@ -1319,7 +1303,7 @@ describe('computeConjugationPlan / computeBlankPlan for inflection points', () =
 // alternatives (na-adjective negative polite). Item shapes below are trimmed
 // straight from the compiled conjugations.json for these ids.
 describe('base-conjugation paradigm points (n5-905 plain-past, n5-911 na-adjective copula)', () => {
-    const plainPastPoint = {
+    const plainPastPoint: GrammarPoint = {
         id: 'n5-905',
         title: 'Plain past: Verb た',
         jlptLevel: 5,
@@ -1327,9 +1311,9 @@ describe('base-conjugation paradigm points (n5-905 plain-past, n5-911 na-adjecti
         derives: 'plain past (た)',
         shortExplanation: '', longExplanation: '', formation: '',
         examples: [],
-    } as unknown as GrammarPoint;
+    };
 
-    const copulaPoint = {
+    const copulaPoint: GrammarPoint = {
         id: 'n5-911',
         title: 'Plain: Na-adjective だ',
         jlptLevel: 5,
@@ -1337,9 +1321,9 @@ describe('base-conjugation paradigm points (n5-905 plain-past, n5-911 na-adjecti
         derives: 'plain (だ)',
         shortExplanation: '', longExplanation: '', formation: '',
         examples: [],
-    } as unknown as GrammarPoint;
+    };
 
-    const negativePolitePoint = {
+    const negativePolitePoint: GrammarPoint = {
         id: 'n5-917',
         title: 'Negative polite: Na-adjective じゃないです',
         jlptLevel: 5,
@@ -1347,7 +1331,7 @@ describe('base-conjugation paradigm points (n5-905 plain-past, n5-911 na-adjecti
         derives: 'negative polite (じゃないです)',
         shortExplanation: '', longExplanation: '', formation: '',
         examples: [],
-    } as unknown as GrammarPoint;
+    };
 
     const conjugations = {
         'n5-905': {
@@ -1450,14 +1434,14 @@ describe('base-conjugation paradigm points (n5-905 plain-past, n5-911 na-adjecti
 describe('realization variant rotation and two-tier grading', () => {
     // Modelled on the real `nowhere` group: a particle slot (に / へ / none)
     // crossed with a politeness slot (ません / ないです).
-    function makeVariantPoint(id: string, title: string, pattern: string, formality: string): GrammarPoint {
+    function makeVariantPoint(id: string, title: string, pattern: string, formality: NonNullable<GrammarPoint['formalityLevel']>): GrammarPoint {
         const words = [{ surface: pattern, vocabId: null }, { surface: '行きません', vocabId: null }];
         return {
             id, title, jlptLevel: 5, kind: 'construction',
             shortExplanation: '', longExplanation: '', formation: '',
             formalityLevel: formality,
             examples: [{ jp: pattern + '行きません', romaji: '', en: 'I do not go anywhere.', words, patternWordIndices: [0] }],
-        } as unknown as GrammarPoint;
+        };
     }
 
     const canonical = makeVariantPoint('n5-105', 'どこにも ません', 'どこにも', 'polite');
@@ -1469,20 +1453,20 @@ describe('realization variant rotation and two-tier grading', () => {
         // register is simply untestable by that blank and 'correct' is right.
         'n5-104': makeVariantPoint('n5-104', 'どこにも ないです', 'どこにもないです', 'neutral'),
     };
-    const group = {
+    const group: GrammarVariantGroupIndex = {
         'n5-105': [
             { id: 'n5-105', relation: 'canonical', formalityLevel: 'polite', title: 'どこにも ません' },
             { id: 'n5-107', relation: 'particle', formalityLevel: 'polite', title: 'どこへも ません' },
             { id: 'n5-109', relation: 'particle', formalityLevel: 'polite', title: 'どこも ません' },
             { id: 'n5-104', relation: 'politeness', formalityLevel: 'neutral', title: 'どこにもないです' },
         ],
-    } as never;
+    };
 
     beforeEach(() => {
         vi.spyOn(GrammarService, 'loadVariantGroups').mockResolvedValue(group);
         vi.spyOn(GrammarService, 'loadConjugations').mockResolvedValue({});
-        vi.spyOn(GrammarService, 'loadGrammarPoint').mockImplementation(async (id: string) =>
-            (siblings[id] ?? canonical));
+        vi.spyOn(GrammarService, 'loadGrammarPoint').mockImplementation((id: string) =>
+            Promise.resolve(siblings[id] ?? canonical));
     });
 
     afterEach(() => { vi.restoreAllMocks(); });
@@ -1652,10 +1636,9 @@ describe('family interchange (issue #62): slot-gated, axis-tiered', () => {
 
     beforeEach(() => {
         vi.spyOn(GrammarService, 'loadVariantGroups').mockResolvedValue({});
-        vi.spyOn(GrammarService, 'loadGrammarPoint').mockImplementation(async (id: string) => {
+        vi.spyOn(GrammarService, 'loadGrammarPoint').mockImplementation((id: string) => {
             const p = siblings[id];
-            if (!p) throw new Error(`no sibling ${id}`);
-            return p;
+            return p ? Promise.resolve(p) : Promise.reject(new Error(`no sibling ${id}`));
         });
     });
 
@@ -1754,44 +1737,44 @@ describe('selectNewlyCompletedChapterIds', () => {
 
     it('reports a chapter complete once every point is introduced', () => {
         const queue = [
-            makeGrammarProgress({ grammarId: 'n5-a', introductionAt: now }),
-            makeGrammarProgress({ grammarId: 'n5-b', introductionAt: now }),
+            grammarProgress({ grammarId: 'n5-a', introductionAt: now }),
+            grammarProgress({ grammarId: 'n5-b', introductionAt: now }),
         ];
         expect(selectNewlyCompletedChapterIds(chapters, queue, [], alwaysTeachable)).toEqual(['c01']);
     });
 
     it('does not report a chapter with an un-introduced point', () => {
-        const queue = [makeGrammarProgress({ grammarId: 'n5-a', introductionAt: now })];
+        const queue = [grammarProgress({ grammarId: 'n5-a', introductionAt: now })];
         expect(selectNewlyCompletedChapterIds(chapters, queue, [], alwaysTeachable)).toEqual([]);
     });
 
     it('excludes a chapter already recorded as completed', () => {
         const queue = [
-            makeGrammarProgress({ grammarId: 'n5-a', introductionAt: now }),
-            makeGrammarProgress({ grammarId: 'n5-b', introductionAt: now }),
+            grammarProgress({ grammarId: 'n5-a', introductionAt: now }),
+            grammarProgress({ grammarId: 'n5-b', introductionAt: now }),
         ];
         expect(selectNewlyCompletedChapterIds(chapters, queue, ['c01'], alwaysTeachable)).toEqual([]);
     });
 
     it('a chapter with an untestable point completes once every OTHER point is introduced', () => {
         const isTeachable = (id: string) => id !== 'n5-b';
-        const queue = [makeGrammarProgress({ grammarId: 'n5-a', introductionAt: now })];
+        const queue = [grammarProgress({ grammarId: 'n5-a', introductionAt: now })];
         expect(selectNewlyCompletedChapterIds(chapters, queue, [], isTeachable)).toEqual(['c01']);
     });
 
     it('reports every newly-completed chapter, in chapter order', () => {
         const queue = [
-            makeGrammarProgress({ grammarId: 'n5-a', introductionAt: now }),
-            makeGrammarProgress({ grammarId: 'n5-b', introductionAt: now }),
-            makeGrammarProgress({ grammarId: 'n5-c', introductionAt: now }),
+            grammarProgress({ grammarId: 'n5-a', introductionAt: now }),
+            grammarProgress({ grammarId: 'n5-b', introductionAt: now }),
+            grammarProgress({ grammarId: 'n5-c', introductionAt: now }),
         ];
         expect(selectNewlyCompletedChapterIds(chapters, queue, [], alwaysTeachable)).toEqual(['c01', 'c02']);
     });
 
     it('a queued-but-not-yet-introduced point does not count', () => {
         const queue = [
-            makeGrammarProgress({ grammarId: 'n5-a', introductionAt: now }),
-            makeGrammarProgress({ grammarId: 'n5-b', introductionAt: null }),
+            grammarProgress({ grammarId: 'n5-a', introductionAt: now }),
+            grammarProgress({ grammarId: 'n5-b', introductionAt: null }),
         ];
         expect(selectNewlyCompletedChapterIds(chapters, queue, [], alwaysTeachable)).toEqual([]);
     });
@@ -1810,25 +1793,25 @@ describe('computeGrammarChapterProgress', () => {
 
     it('splits mastered / learning / untouched across the chapter\'s own points', () => {
         const queue = [
-            makeGrammarProgress({
+            grammarProgress({
                 grammarId: 'n5-a',
                 introductionAt: now,
                 entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, memoryStrength: MASTERED_STRENGTH },
             }),
-            makeGrammarProgress({ grammarId: 'n5-b', introductionAt: now }), // learning: introduced, not mastered
+            grammarProgress({ grammarId: 'n5-b', introductionAt: now }), // learning: introduced, not mastered
             // n5-c never queued at all -> untouched
         ];
         expect(computeGrammarChapterProgress(chapter, queue)).toEqual({ mastered: 1, learning: 1, total: 3 });
     });
 
     it('a queued-but-not-yet-introduced point counts as untouched, not learning', () => {
-        const queue = [makeGrammarProgress({ grammarId: 'n5-a', introductionAt: null })];
+        const queue = [grammarProgress({ grammarId: 'n5-a', introductionAt: null })];
         expect(computeGrammarChapterProgress(chapter, queue)).toEqual({ mastered: 0, learning: 0, total: 3 });
     });
 
     it('ignores progress for points outside this chapter', () => {
         const queue = [
-            makeGrammarProgress({
+            grammarProgress({
                 grammarId: 'other-chapter-point',
                 introductionAt: now,
                 entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, memoryStrength: MASTERED_STRENGTH },
@@ -1857,7 +1840,7 @@ describe('describeHubChapter', () => {
     const chapters = [chapter1, chapter2];
 
     it('a chapter with an introduced point is "current", with its 1-based number', () => {
-        const queue = [makeGrammarProgress({ grammarId: 'n5-a', introductionAt: now })];
+        const queue = [grammarProgress({ grammarId: 'n5-a', introductionAt: now })];
         const result = describeHubChapter(chapters, chapter1, queue);
         expect(result.status).toBe('current');
         if (result.status !== 'current') throw new Error('expected current');
@@ -1876,20 +1859,20 @@ describe('describeHubChapter', () => {
     });
 
     it('a queued-but-not-yet-introduced point does not make a chapter "current"', () => {
-        const queue = [makeGrammarProgress({ grammarId: 'n5-c', introductionAt: null })];
+        const queue = [grammarProgress({ grammarId: 'n5-c', introductionAt: null })];
         const result = describeHubChapter(chapters, chapter2, queue);
         expect(result.status).toBe('next');
     });
 
     it('currentChapter === null with a loaded order gives "complete", with counts over every point of the order', () => {
         const queue = [
-            makeGrammarProgress({
+            grammarProgress({
                 grammarId: 'n5-a',
                 introductionAt: now,
                 entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, memoryStrength: MASTERED_STRENGTH },
             }),
-            makeGrammarProgress({ grammarId: 'n5-b', introductionAt: now }),
-            makeGrammarProgress({ grammarId: 'n5-c', introductionAt: now }),
+            grammarProgress({ grammarId: 'n5-b', introductionAt: now }),
+            grammarProgress({ grammarId: 'n5-c', introductionAt: now }),
             // n5-d never queued -> untouched
         ];
         const result = describeHubChapter(chapters, null, queue);
@@ -1900,7 +1883,7 @@ describe('describeHubChapter', () => {
     });
 
     it('"complete" counts match computeGrammarChapterProgress over the flattened chapters', () => {
-        const queue = [makeGrammarProgress({ grammarId: 'n5-a', introductionAt: now })];
+        const queue = [grammarProgress({ grammarId: 'n5-a', introductionAt: now })];
         const result = describeHubChapter(chapters, null, queue);
         if (result.status !== 'complete') throw new Error('expected complete');
         const flattened: GrammarChapter = { id: '__any__', title: '', summary: '', jlptLevel: 0, points: chapters.flatMap(c => c.points) };
@@ -1908,7 +1891,7 @@ describe('describeHubChapter', () => {
     });
 
     it('counts for the current/next chapter match computeGrammarChapterProgress for that chapter', () => {
-        const queue = [makeGrammarProgress({ grammarId: 'n5-a', introductionAt: now })];
+        const queue = [grammarProgress({ grammarId: 'n5-a', introductionAt: now })];
         const result = describeHubChapter(chapters, chapter1, queue);
         if (result.status === 'complete') throw new Error('did not expect complete');
         expect(result.counts).toEqual(computeGrammarChapterProgress(chapter1, queue));
@@ -1919,8 +1902,8 @@ describe('describeHubChapter', () => {
         // once - preview.new (which only counts totalReviews === 0 points)
         // would be 0 here, yet the chapter is still genuinely "current".
         const queue = [
-            makeGrammarProgress({ grammarId: 'n5-a', introductionAt: now, totalReviews: 5 }),
-            makeGrammarProgress({ grammarId: 'n5-b', introductionAt: now, totalReviews: 3 }),
+            grammarProgress({ grammarId: 'n5-a', introductionAt: now, totalReviews: 5 }),
+            grammarProgress({ grammarId: 'n5-b', introductionAt: now, totalReviews: 3 }),
         ];
         const current = describeHubChapter(chapters, chapter1, queue);
         expect(current.status).toBe('current');

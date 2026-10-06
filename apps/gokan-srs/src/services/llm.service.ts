@@ -1,5 +1,24 @@
-import type { Vocabulary } from "../models/vocabulary.model";
-import type { Sentence } from "../models/sentence.model";
+import type { Sentence, Vocabulary } from "@gokan/dataset-schema";
+import { readJson } from "./http";
+
+/** The AI's verdict on a meaning answer in context. */
+export interface ContextVerdict {
+    result: 'correct' | 'minor_error' | 'wrong';
+    reason?: string;
+}
+
+/** The subset of a Gemini generateContent response this service reads. */
+interface GeminiResponse {
+    candidates?: { content?: { parts?: { text?: string }[] } }[];
+}
+
+/** The model is asked for JSON, but it is still untrusted text: check the shape before using it. */
+function isContextVerdict(value: unknown): value is ContextVerdict {
+    if (typeof value !== 'object' || value === null) return false;
+    const { result, reason } = value as Record<string, unknown>;
+    return (result === 'correct' || result === 'minor_error' || result === 'wrong')
+        && (reason === undefined || typeof reason === 'string');
+}
 
 export class LLMService {
     /**
@@ -10,14 +29,14 @@ export class LLMService {
      * @param vocab The target vocabulary being tested
      * @param sentence The sentence providing context
      * @param userAnswer The user's submitted English meaning
-     * @returns A boolean indicating if the answer is considered correct in context
+     * @returns The verdict, with a short reason
      */
     static async validateMeaningContext(
         apiKey: string,
         vocab: Vocabulary,
         sentence: Sentence,
         userAnswer: string
-    ): Promise<{ result: 'correct' | 'minor_error' | 'wrong', reason?: string }> {
+    ): Promise<ContextVerdict> {
         if (!apiKey) {
             throw new Error("No API key provided for Gemini validation");
         }
@@ -88,25 +107,19 @@ Respond ONLY with valid JSON in the following schema:
                 throw new Error(`Gemini API Error (${response.status}): ${errorText}`);
             }
 
-            const data = await response.json();
+            const data = await readJson<GeminiResponse>(response);
+            const textResult = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!textResult) throw new Error("Empty response from AI.");
 
-            if (data.candidates && data.candidates.length > 0 && data.candidates[0].content.parts.length > 0) {
-                const textResult = data.candidates[0].content.parts[0].text;
-
-                // We requested JSON, so it should parse safely
-                try {
-                    const parsedInfo = JSON.parse(textResult);
-                    return {
-                        result: parsedInfo.result as 'correct' | 'minor_error' | 'wrong',
-                        reason: parsedInfo.reason
-                    };
-                } catch (parseError) {
-                    console.error("[LLMService] Failed to parse Gemini response", parseError);
-                    throw new Error("Failed to parse AI response format.");
-                }
+            let parsed: unknown;
+            try {
+                parsed = JSON.parse(textResult);
+            } catch (parseError) {
+                console.error("[LLMService] Failed to parse Gemini response", parseError);
+                throw new Error("Failed to parse AI response format.");
             }
-
-            throw new Error("Empty response from AI.");
+            if (!isContextVerdict(parsed)) throw new Error("Unexpected AI response format.");
+            return { result: parsed.result, reason: parsed.reason };
 
         } catch (error) {
             console.error("[LLMService] API Call Failed:", error);

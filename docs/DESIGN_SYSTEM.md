@@ -1,4 +1,4 @@
-Gokan SRS — Design System v1
+Gokan SRS: Design System v1
 1. Brand principles (the “why”)
 
 Gokan SRS is a study instrument, not a game.
@@ -84,7 +84,7 @@ Light neutral gray
 #D8D6D0
 
 Accent color (use sparingly)
-Primary accent — Indigo (藍)
+Primary accent: Indigo (藍)
 
 #2E3A59
 

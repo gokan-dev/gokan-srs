@@ -3,7 +3,7 @@
 // vocab list). Separated from scripts/prerender.ts so it's unit-testable without the Bun
 // svelte-loader/dataset-fs machinery that script needs.
 
-import type { Vocabulary } from '../models/vocabulary.model';
+import type { Vocabulary } from '@gokan/dataset-schema';
 import type { VocabSummary } from './types';
 
 export function vocabSummaryFrom(vocab: Vocabulary): VocabSummary {

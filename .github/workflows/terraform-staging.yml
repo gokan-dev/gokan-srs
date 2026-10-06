@@ -48,7 +48,7 @@ jobs:
         if: always()
         run: |
           {
-            echo "## Terraform plan — staging"
+            echo "## Terraform plan: staging"
             echo '```'
             cat plan.txt 2>/dev/null || echo "(no plan output)"
             echo '```'
@@ -74,7 +74,7 @@ jobs:
         if: always()
         run: |
           {
-            echo "## Terraform apply — staging"
+            echo "## Terraform apply: staging"
             echo '```'
             terraform output 2>/dev/null || echo "(no outputs)"
             echo '```'

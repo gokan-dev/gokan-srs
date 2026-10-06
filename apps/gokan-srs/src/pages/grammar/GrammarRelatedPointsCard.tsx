@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { JlptChip } from "../../components/JlptChip";
-import type { GrammarPoint } from "../../models/grammar.model";
+import type { GrammarPoint } from "@gokan/dataset-schema";
 import { GrammarService } from "../../services/grammar.service";
 import { RelatedEntriesCard, type RelatedEntry } from "../../components/RelatedEntriesCard";
+import { useAsyncData } from "../../hooks/useAsyncData";
 
 interface Props {
     point: GrammarPoint;
@@ -18,9 +19,10 @@ const INITIAL_COUNT = 5;
  * differently), which is a distinct relationship.
  */
 export function GrammarRelatedPointsCard({ point }: Props) {
-    const [related, setRelated] = useState<GrammarPoint[]>([]);
-    const [isExpanded, setIsExpanded] = useState(false);
-    const [hasContrasts, setHasContrasts] = useState(false);
+    // Expansion belongs to one point: keyed by it, so another point's card starts collapsed.
+    const [expandedFor, setExpandedFor] = useState<string | null>(null);
+    const isExpanded = expandedFor === point.id;
+    const setIsExpanded = (expanded: boolean) => setExpandedFor(expanded ? point.id : null);
 
     const relatedIds = point.family?.relatedPoints || [];
     const familyId = point.family?.id;
@@ -28,33 +30,12 @@ export function GrammarRelatedPointsCard({ point }: Props) {
     // Only surface the "compare when to use each" link when this family actually
     // has situational lessons authored (issue #62) - otherwise the family page
     // would just show its empty-state.
-    useEffect(() => {
-        if (!familyId) return;
-        let cancelled = false;
-        GrammarService.loadContrasts().then(index => {
-            if (!cancelled) setHasContrasts(Boolean(index[familyId]));
-        });
-        return () => { cancelled = true; };
-    }, [familyId]);
+    const hasContrasts = useAsyncData(familyId ?? null, async () => Boolean((await GrammarService.loadContrasts())[familyId ?? ''])).data ?? false;
 
     const isExpandable = relatedIds.length > INITIAL_COUNT;
     const displayedIds = isExpanded ? relatedIds : relatedIds.slice(0, INITIAL_COUNT);
 
-    useEffect(() => {
-        setIsExpanded(false);
-    }, [point.id]);
-
-    useEffect(() => {
-        const load = async () => {
-            if (displayedIds.length === 0) {
-                setRelated([]);
-                return;
-            }
-            const points = await Promise.all(displayedIds.map(id => GrammarService.loadGrammarPoint(id).catch(() => null)));
-            setRelated(points.filter((p): p is GrammarPoint => p !== null));
-        };
-        load();
-    }, [isExpanded, point]); // eslint-disable-line react-hooks/exhaustive-deps
+    const related: GrammarPoint[] = useAsyncData(displayedIds.join(','), () => GrammarService.loadGrammarPoints(displayedIds), { keepPrevious: true }).data ?? [];
 
     if (relatedIds.length === 0) {
         return null;
@@ -75,7 +56,7 @@ export function GrammarRelatedPointsCard({ point }: Props) {
             sections={[{ entries }]}
             isExpandable={isExpandable}
             isExpanded={isExpanded}
-            onToggleExpand={() => setIsExpanded(v => !v)}
+            onToggleExpand={() => setIsExpanded(!isExpanded)}
             expandLabel="Show all related points"
             collapseLabel="Show fewer related points"
         />

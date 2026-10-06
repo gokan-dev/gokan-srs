@@ -1,24 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import {
-    aggregateEpisodeWords,
-    buildWordKnowledge,
-    computeCoverage,
-    countWatchedEpisodes,
-    episodeKey,
-    filterLibrary,
-    libraryGenres,
-    rankLibrary,
-    isEpisodeWatched,
-    knownRatio,
-    mergeWatchedEpisodes,
-    speechSpeedLabel,
-    unknownWords,
-} from './mediaCoverage.utils';
+import { aggregateEpisodeWords, buildWordKnowledge, computeCoverage, countWatchedEpisodes, episodeKey, filterLibrary, isEpisodeWatched, knownRatio, libraryGenres, mergeWatchedEpisodes, rankLibrary, speechSpeedLabel, unknownWords } from './mediaCoverage.utils';
 import type { WordKnowledge } from './mediaCoverage.utils';
 import type { VocabProgress } from '../models/vocabulary.model';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../models/vocabulary.model';
 import { CONSTANTS } from '../commons/constants';
-import type { MediaEpisode } from '../models/media.model';
+import type { MediaEpisode } from '@gokan/dataset-schema';
 
 const MASTERED = { ...DEFAULT_VOCABULARY_PROGRESS.reading, memoryStrength: CONSTANTS.srs.formula.mastery.maxMemoryStrength };
 
@@ -116,7 +102,7 @@ describe('rankLibrary', () => {
         { id: 'y', title: { original: 'Y' }, genres: ['Romance'], tags: [] },
         { id: 'z', title: { original: 'Z' }, genres: ['Comedy'], tags: [] },
     ];
-    const words = { x: [['a', 1], ['c', 9]], y: [['a', 5]], z: [['a', 1], ['b', 1]] } as Record<string, [string, number][]>;
+    const words: Record<string, [string, number][]> = { x: [['a', 1], ['c', 9]], y: [['a', 5]], z: [['a', 1], ['b', 1]] };
 
     it('ranks the filtered titles by occurrence coverage, best fit first', () => {
         expect(rankLibrary(index, words, knowledge, [], '').map(r => r.entry.id)).toEqual(['y', 'z', 'x']);

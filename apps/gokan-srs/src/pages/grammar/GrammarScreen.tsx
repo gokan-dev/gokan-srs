@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useQuiz } from "../../context/useQuiz";
 import { ActivityStatusCard } from "../../components/ActivityStatusCard";
@@ -8,6 +7,9 @@ import { GrammarIntroCard } from "./GrammarIntroCard";
 import { GrammarQuizCard } from "./GrammarQuizCard";
 import { GrammarConjugationCard } from "./GrammarConjugationCard";
 import { GrammarChapterLessonCard } from "./GrammarChapterLessonCard";
+import { useIntroducedGrammarIds } from "../../hooks/useIntroducedGrammarIds";
+import { useNow } from "../../hooks/useNow";
+import { formatMinutes, minutesUntil } from "../../utils/time.utils";
 
 /**
  * Route /grammar - the Grammar activity, alongside the vocab quiz on /quiz.
@@ -26,21 +28,16 @@ export function GrammarScreen() {
         pendingGrammarChapterLesson,
     } = useQuiz();
 
-    const knownGrammarIds = useMemo(() => {
-        const ids = new Set<string>();
-        for (const g of state.progress?.grammarQueue ?? []) {
-            if (g.introductionAt) ids.add(g.grammarId);
-        }
-        return ids;
-    }, [state.progress?.grammarQueue]);
+    const knownGrammarIds = useIntroducedGrammarIds();
+    const now = useNow();
 
     switch (grammarSessionState) {
         case "waiting": {
-            const minutes = Math.max(1, Math.ceil((grammarNextReviewAt!.getTime() - Date.now()) / 60000));
+            const minutes = grammarNextReviewAt ? minutesUntil(grammarNextReviewAt, now) : 1;
             return (
                 <ActivityStatusCard title="You're done for now">
                     Your next grammar review will be available in{' '}
-                    <strong>{minutes} minute{minutes > 1 ? 's' : ''}</strong>.
+                    <strong>{formatMinutes(minutes)}</strong>.
                     <div className="mt-3">
                         <Link to="/grammar/browse" className="text-accent font-gothic text-sm hover:underline">
                             Browse all grammar points

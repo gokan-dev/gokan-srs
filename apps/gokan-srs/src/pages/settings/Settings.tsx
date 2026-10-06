@@ -1,10 +1,10 @@
 import { OptionGrid } from "../../components/OptionGrid";
 import type { UserSettings } from "../../models/user.model";
-import { useGoogleDrive } from "../../context/GoogleDriveContext";
+import { useGoogleDrive } from "../../context/useGoogleDrive";
 import { Cloud, Loader2, LogIn, RefreshCw, Moon, Sun, Monitor, Sparkles, KeyRound } from "lucide-react";
 import { Button } from "../../components/ui/Button";
 import { SettingToggle } from "../../components/ui/SettingToggle";
-import { useTheme } from "../../context/ThemeContext";
+import { useTheme } from "../../context/useTheme";
 import { useState } from "react";
 import { PageHeader } from "../../components/PageHeader";
 
@@ -26,7 +26,7 @@ function SyncControls() {
 
     return (
         <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between p-4 rounded-lg bg-green-500/10 border border-green-500/20">
+            <div className="flex items-center justify-between p-4 rounded-lg bg-feedback-correct/10 border border-feedback-correct/20">
                 <div className="flex items-center gap-3">
                     {user?.picture && (
                         <img
@@ -37,13 +37,13 @@ function SyncControls() {
                     )}
                     <div className="flex flex-col">
                         <div className="flex items-center gap-2">
-                            <Cloud size={16} className="text-green-600" />
-                            <span className="text-sm font-medium text-green-700 dark:text-green-400">
+                            <Cloud size={16} className="text-feedback-correct" />
+                            <span className="text-sm font-medium text-feedback-correct">
                                 {user?.name || 'Connected to Google Drive'}
                             </span>
                         </div>
                         {user?.email && (
-                            <span className="text-xs text-green-600/70 dark:text-green-400/70">
+                            <span className="text-xs text-feedback-correct/70">
                                 {user.email}
                             </span>
                         )}
@@ -51,7 +51,7 @@ function SyncControls() {
                 </div>
                 <button
                     onClick={() => logout()}
-                    className="text-xs text-error hover:text-red-700 font-medium cursor-pointer"
+                    className="text-xs text-error hover:opacity-80 font-medium cursor-pointer"
                 >
                     Disconnect
                 </button>
@@ -59,7 +59,7 @@ function SyncControls() {
 
             <Button
                 variant="primary"
-                onClick={() => downloadProgress()}
+                onClick={() => void downloadProgress()}
                 disabled={isDownloading}
                 className="w-full justify-center"
             >
@@ -321,7 +321,7 @@ export function SettingsScreen({
                                     Cancel
                                 </Button>
                                 <Button
-                                    onClick={async () => {
+                                    onClick={() => void (async () => {
                                         setGrammarResetState('working');
                                         try {
                                             await onResetGrammar();
@@ -330,7 +330,7 @@ export function SettingsScreen({
                                             setGrammarResetState('failed');
                                         }
                                         setIsConfirmingGrammarReset(false);
-                                    }}
+                                    })()}
                                     disabled={grammarResetState === 'working'}
                                     className="flex-1 justify-center bg-error text-white border-transparent hover:brightness-110"
                                 >

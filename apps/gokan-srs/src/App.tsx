@@ -5,11 +5,12 @@ import { Logo } from './components/Logo';
 import { UserRound, Cloud, CloudOff, RefreshCw, BarChart2, Library } from 'lucide-react';
 import { useQuiz } from "./context/useQuiz";
 import { KanjiFormProvider } from "./context/KanjiForm/KanjiFormProvider";
-import { useGoogleDrive } from "./context/GoogleDriveContext";
+import { useGoogleDrive } from "./context/useGoogleDrive";
 import { Loader } from "./components/Loader";
 import { Routes, Route, useNavigate, useLocation, Navigate, Link } from 'react-router-dom';
 import { SearchBar } from './components/SearchBar';
 import { ResumeSessionBar } from './components/ResumeSessionBar';
+import { StorageFullBanner } from './components/StorageFullBanner';
 
 // Lazy Load Pages
 // Note: Adapting named exports to default exports for lazy loading where necessary
@@ -47,11 +48,11 @@ function SyncStatusIndicator() {
     }
 
     if (isUploading || isDownloading) {
-        return <RefreshCw size={18} className="animate-spin text-gray-400" />;
+        return <RefreshCw size={18} className="animate-spin text-muted" />;
     }
 
     return (
-        <div className="text-green-500" title="Synced with Google Drive">
+        <div className="text-feedback-correct" title="Synced with Google Drive">
             <Cloud size={18} />
         </div>
     );
@@ -71,13 +72,13 @@ export const App: React.FC = () => {
     // Fatal Error Gate
     if (state.fatalError) {
         return (
-            <div className="h-screen w-full flex flex-col items-center justify-center bg-red-50 p-8 text-center text-red-900">
+            <div className="h-screen w-full flex flex-col items-center justify-center bg-background p-8 text-center text-error">
                 <div className="text-4xl mb-4">⚠️</div>
                 <h1 className="text-2xl font-bold mb-2">System Error</h1>
                 <p className="max-w-md mb-6">{state.fatalError}</p>
                 <button
                     onClick={() => window.location.reload()}
-                    className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition"
+                    className="px-4 py-2 bg-error text-white rounded hover:opacity-90 transition"
                 >
                     Reload Application
                 </button>
@@ -119,17 +120,17 @@ export const App: React.FC = () => {
                 <div className="order-3 flex gap-4 items-center md:order-4">
                     <SyncStatusIndicator />
                     <button
-                        onClick={() => navigate("/grammar/browse")}
+                        onClick={() => void navigate("/grammar/browse")}
                         title="Browse grammar points"
                         aria-label="Browse grammar points"
                         className={`cursor-pointer transition-colors ${location.pathname === '/grammar/browse' ? 'text-primary' : 'text-secondary hover:text-primary'}`}
                     >
                         <Library size={18} />
                     </button>
-                    <button onClick={() => navigate("/stats")} title="Statistics" className="cursor-pointer text-secondary hover:text-primary transition-colors">
+                    <button onClick={() => void navigate("/stats")} title="Statistics" className="cursor-pointer text-secondary hover:text-primary transition-colors">
                         <BarChart2 size={18} />
                     </button>
-                    <button onClick={() => navigate("/profile")} title="Kanji Configuration" className="cursor-pointer text-secondary hover:text-primary transition-colors flex items-center justify-center">
+                    <button onClick={() => void navigate("/profile")} title="Kanji Configuration" className="cursor-pointer text-secondary hover:text-primary transition-colors flex items-center justify-center">
                         <span className="font-mincho font-bold text-[18px] leading-none">漢</span>
                     </button>
                     {/*
@@ -139,7 +140,7 @@ export const App: React.FC = () => {
                       * leads with the Google account and holds what is genuinely
                       * account-wide.
                       */}
-                    <button onClick={() => navigate("/settings")} title="Profile and global settings" aria-label="Profile and global settings" className="cursor-pointer text-secondary hover:text-primary transition-colors">
+                    <button onClick={() => void navigate("/settings")} title="Profile and global settings" aria-label="Profile and global settings" className="cursor-pointer text-secondary hover:text-primary transition-colors">
                         <UserRound size={18} />
                     </button>
                 </div>
@@ -149,6 +150,7 @@ export const App: React.FC = () => {
             </header>
 
             {/* Its own row beneath the header, only while a session is paused on a consult page. */}
+            <StorageFullBanner />
             <ResumeSessionBar />
 
             {/* Screen content */}
@@ -159,20 +161,20 @@ export const App: React.FC = () => {
                             <MainScreen />
                         } />
                         <Route path="/quiz" element={
-                            <VocabQuizScreen onVocabClick={(id) => navigate(`/vocab/${id}`)} />
+                            <VocabQuizScreen onVocabClick={(id) => void navigate(`/vocab/${id}`)} />
                         } />
                         <Route path="/grammar" element={
                             <GrammarScreen />
                         } />
                         <Route path="/stats" element={
                             <StatsScreen
-                                onBack={() => navigate('/')}
-                                onVocabClick={(id) => navigate(`/vocab/${id}`)}
-                                onGrammarClick={(id) => navigate(`/grammar/${id}`)}
+                                onBack={() => void navigate('/')}
+                                onVocabClick={(id) => void navigate(`/vocab/${id}`)}
+                                onGrammarClick={(id) => void navigate(`/grammar/${id}`)}
                             />
                         } />
                         <Route path="/about" element={
-                            <AboutScreen onBack={() => navigate('/')} />
+                            <AboutScreen onBack={() => void navigate('/')} />
                         } />
                         <Route path="/settings" element={
                             <SettingsScreen
@@ -180,7 +182,7 @@ export const App: React.FC = () => {
                                 onUpdateSettings={actions.saveSettings}
                                 onReset={actions.reset}
                                 onResetGrammar={actions.resetGrammarProgress}
-                                onBack={() => navigate('/')}
+                                onBack={() => void navigate('/')}
                             />
                         } />
                         <Route path="/profile" element={
@@ -190,8 +192,8 @@ export const App: React.FC = () => {
                                 knownKanji: state.progress!.kanjiKnowledge.kanjiSet
                             }}>
                                 <UserProfileScreen
-                                    onBack={() => navigate('/')}
-                                    onVocabClick={(id) => navigate(`/vocab/${id}`)}
+                                    onBack={() => void navigate('/')}
+                                    onVocabClick={(id) => void navigate(`/vocab/${id}`)}
                                 />
                             </KanjiFormProvider>
                         } />

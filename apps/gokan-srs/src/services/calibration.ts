@@ -1,9 +1,10 @@
 import { CONSTANTS } from '../commons/constants';
-import type { AdaptiveStats, Calibration, CalibratedQuizType, UserProgress, UserSettings } from '../models/user.model';
+import type { AdaptiveStats, CalibratedQuizType, Calibration, UserProgress, UserSettings } from '../models/user.model';
 import { CALIBRATED_QUIZ_TYPES } from '../models/user.model';
 import type { ReviewLog, SRSEntry, VocabProgress } from '../models/vocabulary.model';
 import type { GrammarProgress } from '../models/grammar.model';
 import type { AnswerResult } from './srs.service';
+import type { Stored } from './progressHydration';
 
 /**
  * SRS calibration: each quiz type adapts its strength growth to its OWN recent
@@ -28,21 +29,19 @@ import type { AnswerResult } from './srs.service';
  * successes that inflated the old single window.
  */
 
-export const defaultCalibration = (): Calibration => ({
-    reading: { level: 1.0, history: [] },
-    meaning: { level: 1.0, history: [] },
-    production: { level: 1.0, history: [] },
-    grammar: { level: 1.0, history: [] },
-});
+/** One quiz type's stats with any missing field filled in (level 1, empty window). */
+export function adaptiveStatsWithDefaults(stats: Stored<AdaptiveStats> | undefined): AdaptiveStats {
+    return { level: stats?.level ?? 1.0, history: [...(stats?.history ?? [])] };
+}
 
-/** Fills in any missing quiz type (older saves, partial remote data). */
-export function withCalibrationDefaults(calibration: Partial<Calibration> | undefined): Calibration {
-    const defaults = defaultCalibration();
-    if (!calibration) return defaults;
-    return Object.fromEntries(CALIBRATED_QUIZ_TYPES.map(type => [
-        type,
-        calibration[type] ? { level: calibration[type]!.level ?? 1.0, history: calibration[type]!.history ?? [] } : defaults[type],
-    ])) as Calibration;
+/** Fills in any missing quiz type or field (older saves, partial remote data). */
+export function withCalibrationDefaults(calibration: Stored<Calibration> | undefined): Calibration {
+    return {
+        reading: adaptiveStatsWithDefaults(calibration?.reading),
+        meaning: adaptiveStatsWithDefaults(calibration?.meaning),
+        production: adaptiveStatsWithDefaults(calibration?.production),
+        grammar: adaptiveStatsWithDefaults(calibration?.grammar),
+    };
 }
 
 const isSuccess = (result: AnswerResult) => result === 'correct' || result === 'minor_error';
@@ -237,14 +236,14 @@ function rebaseGrammar(gp: GrammarProgress, frequencyModifier: number): GrammarP
  * word that the rebase lifts past mastery graduates on its next answer through
  * the normal path, like any other entry that crossed the ceiling.
  */
-export function rebaseStrengthsToSchedule(progress: UserProgress, frequencyModifier: number): UserProgress {
+export function rebaseStrengthsToSchedule<T extends Pick<UserProgress, 'learningQueue' | 'grammarQueue'>>(progress: T, frequencyModifier: number): T {
     let changed = false;
     const learningQueue = progress.learningQueue.map(vp => {
         const next = rebaseVocab(vp, frequencyModifier);
         if (next !== vp) changed = true;
         return next;
     });
-    const grammarQueue = (progress.grammarQueue ?? []).map(gp => {
+    const grammarQueue = progress.grammarQueue.map(gp => {
         const next = rebaseGrammar(gp, frequencyModifier);
         if (next !== gp) changed = true;
         return next;

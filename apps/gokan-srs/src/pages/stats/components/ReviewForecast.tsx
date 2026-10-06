@@ -2,6 +2,7 @@ import { THEME } from "../../../commons/theme";
 import type { UserProgress, UserSettings } from "../../../models/user.model";
 import { useMemo } from "react";
 import { buildReviewForecast } from "../../../utils/reviewForecast.utils";
+import { useNow } from "../../../hooks/useNow";
 
 interface ReviewForecastProps {
     progress: UserProgress;
@@ -17,12 +18,13 @@ const SEGMENTS = [
 ] as const;
 
 export function ReviewForecast({ progress, settings }: ReviewForecastProps) {
+    const now = useNow();
     const forecast = useMemo(() => {
-        const buckets = buildReviewForecast(progress.learningQueue || [], settings, new Date());
+        const buckets = buildReviewForecast(progress.learningQueue, settings, new Date(now));
         // Min 10 so a near-empty week does not draw full-height bars.
         const maxCount = Math.max(10, ...buckets.map(b => b.reading + b.meaning + b.production));
         return { buckets, maxCount };
-    }, [progress, settings]);
+    }, [progress, settings, now]);
 
     return (
         <div className="w-full">
@@ -57,7 +59,7 @@ export function ReviewForecast({ progress, settings }: ReviewForecastProps) {
                                 </div>
 
                                 {/* Total Label (Top) */}
-                                <span className="text-xs font-bold mb-1 opacity-0 group-hover:opacity-100 transition-opacity absolute -top-6 text-gray-600 dark:text-gray-400">
+                                <span className="text-xs font-bold mb-1 opacity-0 group-hover:opacity-100 transition-opacity absolute -top-6 text-secondary">
                                     {total}
                                 </span>
                             </div>

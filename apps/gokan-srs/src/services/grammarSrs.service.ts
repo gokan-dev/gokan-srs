@@ -1,5 +1,6 @@
-import type { GrammarChapter, GrammarProgress } from '../models/grammar.model';
-import { GRAMMAR_JLPT_LEVELS } from '../models/grammar.model';
+import type { GrammarChapter } from '@gokan/dataset-schema';
+import type { GrammarProgress } from '../models/grammar.model';
+import { JLPT_LEVELS } from '@gokan/dataset-schema';
 import type { VocabProgress } from '../models/vocabulary.model';
 import type { UserSettings } from '../models/user.model';
 import type { AnswerResult } from './srs.service';
@@ -324,7 +325,7 @@ export class GrammarSRSService {
         if (!index) return [];
 
         return collectJlptCandidates<string>(
-            GRAMMAR_JLPT_LEVELS,
+            JLPT_LEVELS,
             level => index[level] ?? [],
             id => id,
             id => !activeIds.has(id) && isTeachable(id),
@@ -391,7 +392,7 @@ export class GrammarSRSService {
         if (!index) return 0;
 
         return countJlptCandidates<string>(
-            GRAMMAR_JLPT_LEVELS,
+            JLPT_LEVELS,
             level => index[level] ?? [],
             id => !activeIds.has(id) && isTeachable(id),
             limit
