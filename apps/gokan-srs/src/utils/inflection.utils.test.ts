@@ -154,7 +154,7 @@ describe('readingMatchesWord', () => {
         writtenForm: { kanji: '荒ぶ', alternatives: ['進ぶ', '遊ぶ'], containedKanji: [] },
         reading: { primary: 'すさぶ', alternatives: [] },
         senses: sensesOf(['v5b', 'vi']),
-    } as never);
+    });
 
     it('accepts an inflected reading that keeps the dictionary stem', () => {
         expect(readingMatchesWord('あそんでる', ASOBU)).toBe(true);     // 遊んでる

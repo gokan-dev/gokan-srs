@@ -640,8 +640,8 @@ describe('quizReducer', () => {
         it('drops the vocab from learningQueue, tombstones it, and clears the failed load', () => {
             const state: QuizState = {
                 ...initialState,
-                progress: makeProgress({
-                    learningQueue: [makeVocabProgress({ vocabId: 'dead' }), makeVocabProgress({ vocabId: 'alive' })],
+                progress: userProgress({
+                    learningQueue: [vocabProgress({ vocabId: 'dead' }), vocabProgress({ vocabId: 'alive' })],
                 }),
                 currentQuizItem: { vocabId: 'dead', quizType: 'reading', quizMode: 'base' },
                 isLoadingVocab: true,
@@ -657,8 +657,8 @@ describe('quizReducer', () => {
         it('keeps the tombstone deduped when the id is already retired', () => {
             const state: QuizState = {
                 ...initialState,
-                progress: makeProgress({
-                    learningQueue: [makeVocabProgress({ vocabId: 'dead' })],
+                progress: userProgress({
+                    learningQueue: [vocabProgress({ vocabId: 'dead' })],
                     retiredVocabIds: ['dead'],
                 }),
             };
@@ -670,7 +670,7 @@ describe('quizReducer', () => {
         it('is a no-op when the id is already retired and not in the queue', () => {
             const state: QuizState = {
                 ...initialState,
-                progress: makeProgress({ learningQueue: [], retiredVocabIds: ['dead'] }),
+                progress: userProgress({ learningQueue: [], retiredVocabIds: ['dead'] }),
             };
             const next = quizReducer(state, { type: 'RETIRE_VOCAB', payload: { vocabId: 'dead' } });
             expect(next).toBe(state);

@@ -347,7 +347,7 @@ describe('mergeProgress (top-level)', () => {
     it('retiredVocabIds unions, and a retired id drops the other device queue entry (respawn prevention)', () => {
         // Device A retired 'dead'; device B never did and still carries it in its queue.
         const local = makeProgress({ retiredVocabIds: ['dead'], learningQueue: [] });
-        const remote = makeProgress({ learningQueue: [makeVocabProgress({ vocabId: 'dead' })], retiredVocabIds: [] });
+        const remote = makeProgress({ learningQueue: [vocabProgress({ vocabId: 'dead' })], retiredVocabIds: [] });
 
         const merged = mergeProgress(local, remote)!;
         expect(merged.retiredVocabIds).toEqual(['dead']);

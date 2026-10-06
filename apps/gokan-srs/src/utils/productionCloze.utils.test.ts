@@ -3,6 +3,7 @@ import { pickProductionClozeSentence, splitSentenceAtBlank, splitClozeContext, e
 import type { Sentence } from '@gokan/dataset-schema';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../models/vocabulary.model';
 import { indexLearnerVocab } from './sentenceRanking';
+import { vocabulary } from '../test/fixtures';
 
 const noLearner = indexLearnerVocab([]);
 
@@ -111,16 +112,17 @@ describe('pickProductionClozeSentence', () => {
     // so the rare 荒ぶ (すさぶ) entry claimed a 遊ぶ (あそぶ) sentence (shared kanji
     // 遊ぶ), whose cloze then blanked 遊んでる and graded it correct against a
     // "grow wild" cue. Passing the target vocab filters by reading.
-    const susabu = {
+    const verbSense = (gloss: string) => ({ pos: ['v5b', 'vi'], glosses: [gloss], misc: { rawTags: [] }, related: { compounds: [] } });
+    const susabu = vocabulary({
         writtenForm: { kanji: '荒ぶ', alternatives: ['遊ぶ'], containedKanji: [] },
         reading: { primary: 'すさぶ', alternatives: [] },
-        senses: [{ pos: ['v5b', 'vi'], glosses: ['to grow wild'], misc: [] }],
-    } as never;
-    const asobu = {
+        senses: [verbSense('to grow wild')],
+    });
+    const asobu = vocabulary({
         writtenForm: { kanji: '遊ぶ', alternatives: [], containedKanji: [] },
         reading: { primary: 'あそぶ', alternatives: [] },
-        senses: [{ pos: ['v5b', 'vi'], glosses: ['to play'], misc: [] }],
-    } as never;
+        senses: [verbSense('to play')],
+    });
     const asobuSentence = makeSentence({
         id: 'cat', original: '猫が犬と遊んでるよ。', en: [{ id: 'e', text: 'The cat is playing with the dog.' }],
         matches: { v1: [{ start: 4, length: 4, reading: 'あそんでる' }] },
