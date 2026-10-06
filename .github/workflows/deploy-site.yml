@@ -100,41 +100,19 @@ jobs:
           aws-secret-access-key: ${{ secrets.aws_secret_access_key }}
           aws-region: ${{ inputs.aws_region }}
 
-      - name: Sync gokan-srs to S3
-        run: |
-          # Hashed static assets and compiled data: long cache, prune stale keys.
-          #
-          # --exclude "dictionary/*" on the --delete pass is LOAD-BEARING. `aws s3 sync --delete`
-          # removes everything in the destination that is absent from the source, and the
-          # dictionary lives under that prefix in this same bucket - without this, every app
-          # deploy would silently wipe all ~39k dictionary pages with no error reported.
-          aws s3 sync apps/gokan-srs/dist/ s3://${{ inputs.s3_bucket }}/ \
-            --delete \
-            --size-only \
-            --cache-control "public, max-age=31536000, immutable" \
-            --exclude "*.html" \
-            --exclude "dictionary/*"
-
-          # HTML entry points: always revalidate. No --size-only, because index.html frequently
-          # changes only its embedded asset hashes and keeps the same byte length.
-          aws s3 sync apps/gokan-srs/dist/ s3://${{ inputs.s3_bucket }}/ \
-            --cache-control "public, max-age=0, must-revalidate" \
-            --exclude "*" \
-            --include "*.html"
+      # Both sites use the content-addressed upload rather than `aws s3 sync`: it hashes every
+      # built file, compares against a manifest stored beside the site in S3, and uploads only
+      # what differs. Sync's default mtime comparison re-uploads everything from a fresh CI
+      # checkout, and --size-only silently skips edits that keep a file's length (a vocab entry
+      # moving from N1 to N5 stayed N1 in production). See packages/deploy/src/deployManifest.ts.
+      #
+      # Each site prunes only keys its own previous manifest listed, so the app deploy at the
+      # bucket root can never delete the dictionary pages under dictionary/.
+      - name: Deploy gokan-srs to S3
+        run: bun packages/deploy/scripts/deploy-s3.ts --site srs --bucket ${{ inputs.s3_bucket }}
 
       - name: Deploy gokan-dictionary to S3
-        run: |
-          # Content-addressed upload rather than `aws s3 sync`. Sync compares mtime by default,
-          # and CI rebuilds from a fresh checkout every run, so all ~38k generated pages looked
-          # new on every deploy: even a deploy touching only the SRS app re-uploaded the whole
-          # dictionary, ~20 minutes each time. The script hashes every built file, compares
-          # against a manifest stored beside the site in S3, and uploads only what differs.
-          #
-          # --size-only would have been the tempting one-word fix and is unsafe here: asset
-          # filenames are content-hashed to a fixed length, so a CSS-only change produces HTML
-          # of identical byte length, and every page would keep pointing at a deleted
-          # stylesheet. See apps/gokan-dictionary/src/lib/deployManifest.ts.
-          bun apps/gokan-dictionary/scripts/deploy-s3.ts --bucket ${{ inputs.s3_bucket }} --prefix dictionary
+        run: bun packages/deploy/scripts/deploy-s3.ts --site dictionary --bucket ${{ inputs.s3_bucket }}
 
       - name: Invalidate CloudFront cache
         run: |

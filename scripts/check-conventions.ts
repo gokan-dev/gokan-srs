@@ -37,12 +37,19 @@ const TOKEN_SHADE_CLASS = new RegExp(`\\b(?:${UTILITY})-(?:${TOKENS})-\\d{2,3}\\
 const RAW_COLOUR = /#[0-9a-fA-F]{3,8}\b(?![-\w])|\b(?:rgba?|hsla?)\(/;
 
 /** Pure-logic directories: every module has a colocated test. */
-const TESTED_DIRS = ['apps/gokan-srs/src/utils', 'apps/gokan-dictionary/src/lib'];
+const TESTED_DIRS = ['apps/gokan-srs/src/utils', 'apps/gokan-dictionary/src/lib', 'packages/deploy/src'];
 /** Modules with no logic to test: constants and type declarations only. */
 const TEST_EXEMPT = new Set(['apps/gokan-dictionary/src/lib/site.ts', 'apps/gokan-dictionary/src/lib/types.ts']);
 
 const AGENT_STUBS = ['CLAUDE.md', 'GEMINI.md'];
 const AGENT_STUB_CONTENT = '@AGENTS.md';
+
+/**
+ * Dataset files keep their names across dataset releases and are cached by browsers, so every
+ * request carries the dataset version. One helper builds those URLs; nothing else names the path.
+ */
+const DATASET_URL_SOURCE = /^apps\/gokan-srs\/src\/.*\.tsx?$/;
+const DATASET_URL_HELPER = 'apps/gokan-srs/src/services/http.ts';
 
 const SCHEMA_DIR = 'packages/dataset-schema/src';
 const APP_SOURCE = /^apps\/(gokan-srs|gokan-dictionary)\/(src|scripts)\/.*\.(tsx?|svelte)$/;
@@ -114,6 +121,11 @@ function check(files: string[]): Violation[] {
         if (/\.(tsx?|svelte)$/.test(file)) {
             eachLine(text, l => /(\/\/|\/\*)\s*eslint-disable/.test(l) && !/eslint-disable\S*(\s+[\w@/-]+,?)*\s+--\s+\S/.test(l), line =>
                 add({ file, line, rule: 'justified-disable', message: 'eslint-disable needs a reason: "// eslint-disable-next-line rule -- why".' }));
+        }
+
+        if (DATASET_URL_SOURCE.test(file) && file !== DATASET_URL_HELPER && !/\.test\.tsx?$/.test(file)) {
+            eachLine(text, l => l.includes('/data/compiled/') && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
+                add({ file, line, rule: 'dataset-url', message: 'Build dataset URLs with datasetUrl() (services/http.ts); it adds the dataset version browsers cache by.' }));
         }
 
         if (redeclaration && APP_SOURCE.test(file)) {

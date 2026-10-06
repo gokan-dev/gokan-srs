@@ -17,6 +17,7 @@ Gokan (語感) is a Japanese study instrument, not a game: calm, precise, trustw
 - `apps/gokan-srs`: the SRS learning app (React 19, TypeScript, Vite, Tailwind v4).
 - `apps/gokan-dictionary`: a static, crawlable dictionary (Svelte 5 SSR at build time).
 - `packages/dataset-schema` (`@gokan/dataset-schema`): the compiled-dataset types both apps use.
+- `packages/deploy` (`@gokan/deploy`): the content-addressed S3 deploy both apps ship with.
 - `apps/gokan-srs/dataset`: git submodule of the separate `gokan-dataset` repo (raw data, build
   pipeline, compiled output). It has its own conventions and tests.
 
@@ -146,7 +147,8 @@ gokan-dictionary:
   a second place that answers the same question.
 - **Persistence and network go through one layer each** (enforced): `localStorage` only via
   `StorageService`, `sessionStorage` only via `hooks/usePersistedControls.ts`, `fetch` only in
-  `services/`.
+  `services/`. Every dataset URL is built by `datasetUrl()` (`services/http.ts`), which adds
+  the dataset version browsers cache by (enforced).
 - **Progress in localStorage is compacted** (`services/progressCompaction.ts`), behind
   `StorageService`, so code always uses the readable names. A new persisted date field goes in
   its `DATE_KEYS`; a value may be left out of storage only when hydration restores it. Storage

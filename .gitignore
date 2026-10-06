@@ -34,10 +34,9 @@ terraform.tfstate
 # no longer the source of truth, see apps/gokan-srs/scripts/sync-dataset.ts
 apps/gokan-srs/public/data/compiled
 
-# gokan-dictionary's content-addressed deploy (scripts/deploy-s3.ts): a staging tree of the
-# files a given deploy actually changed, and the manifest uploaded alongside the site.
-apps/gokan-dictionary/.deploy-stage/
-apps/gokan-dictionary/.build-manifest.json
+# The content-addressed deploy (packages/deploy/scripts/deploy-s3.ts): a staging tree of the
+# files a given deploy actually changed, and the manifest uploaded alongside each site.
+packages/deploy/.deploy-stage/
 
 # Personal Claude Code overrides (the shared hook config is .claude/settings.json)
 .claude/settings.local.json

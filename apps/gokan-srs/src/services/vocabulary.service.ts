@@ -1,6 +1,6 @@
 import type { FrequencyIndex, JlptIndex, KKLCIndex, KKLCKanjiIndex, Kanji, KanjiVocabIndex, SearchIndex, Sentence, Vocabulary } from '@gokan/dataset-schema';
 import { romajiToHiragana, looksLikeRomaji } from '../utils/romaji';
-import { fetchJson, readJson } from './http';
+import { datasetUrl, fetchJson, readJson } from './http';
 
 /**
  * A vocab's compiled file genuinely does not exist (it was dropped from the
@@ -36,28 +36,28 @@ export class VocabularyService {
     static async loadKKLCKanjiIndex(): Promise<KKLCKanjiIndex | null> {
         if (this.kklcKanjiIndex) return this.kklcKanjiIndex;
 
-        this.kklcKanjiIndex = await fetchJson<KKLCKanjiIndex>(`/data/compiled/index/kklc-kanji.json?v=${Date.now()}`);
+        this.kklcKanjiIndex = await fetchJson<KKLCKanjiIndex>(datasetUrl('index/kklc-kanji.json'));
         return this.kklcKanjiIndex;
     }
 
     static async loadKKLCIndex(): Promise<KKLCIndex | null> {
         if (this.kklcIndex) return this.kklcIndex;
 
-        this.kklcIndex = await fetchJson<KKLCIndex>(`/data/compiled/index/kklc.json?v=${Date.now()}`);
+        this.kklcIndex = await fetchJson<KKLCIndex>(datasetUrl('index/kklc.json'));
         return this.kklcIndex;
     }
 
     static async loadFrequencyIndex(): Promise<FrequencyIndex | null> {
         if (this.frequencyIndex) return this.frequencyIndex;
 
-        this.frequencyIndex = await fetchJson<FrequencyIndex>(`/data/compiled/index/frequency.json?v=${Date.now()}`);
+        this.frequencyIndex = await fetchJson<FrequencyIndex>(datasetUrl('index/frequency.json'));
         return this.frequencyIndex;
     }
 
     static async loadJlptIndex(): Promise<JlptIndex | null> {
         if (this.jlptIndex) return this.jlptIndex;
 
-        this.jlptIndex = await fetchJson<JlptIndex>(`/data/compiled/index/jlpt.json?v=${Date.now()}`);
+        this.jlptIndex = await fetchJson<JlptIndex>(datasetUrl('index/jlpt.json'));
         return this.jlptIndex;
     }
 
@@ -66,7 +66,7 @@ export class VocabularyService {
             return this.vocabCache.get(id)!;
         }
 
-        const path = `/data/compiled/vocab/${id}.json`;
+        const path = datasetUrl(`vocab/${id}.json`);
         const response = await fetch(path);
 
         // Retire ONLY on a definitive "the server does not have this file", never
@@ -105,7 +105,7 @@ export class VocabularyService {
         if (this.searchIndex) return this.searchIndex;
 
         try {
-            this.searchIndex = await fetchJson<SearchIndex>(`/data/compiled/index/search.json?v=${Date.now()}`);
+            this.searchIndex = await fetchJson<SearchIndex>(datasetUrl('index/search.json'));
             return this.searchIndex;
         } catch (e) {
             console.error("Failed to load search index", e);
@@ -136,7 +136,7 @@ export class VocabularyService {
     static async loadKanjiIndex(): Promise<Kanji[]> {
         if (this.kanjiIndex) return this.kanjiIndex;
 
-        this.kanjiIndex = await fetchJson<Kanji[]>(`/data/compiled/kanji.json?v=${Date.now()}`);
+        this.kanjiIndex = await fetchJson<Kanji[]>(datasetUrl('kanji.json'));
         for (const k of this.kanjiIndex) this.kanjiByChar.set(k.character, k);
         return this.kanjiIndex;
     }
@@ -149,14 +149,14 @@ export class VocabularyService {
     static async loadKanjiVocabIndex(): Promise<KanjiVocabIndex> {
         if (this.kanjiVocabIndex) return this.kanjiVocabIndex;
 
-        this.kanjiVocabIndex = await fetchJson<KanjiVocabIndex>(`/data/compiled/index/kanji-vocab.json?v=${Date.now()}`);
+        this.kanjiVocabIndex = await fetchJson<KanjiVocabIndex>(datasetUrl('index/kanji-vocab.json'));
         return this.kanjiVocabIndex;
     }
 
     /** The word's example sentences (the file is a plain Sentence array), or null when it has none. */
     static async loadSentences(vocabId: string): Promise<Sentence[] | null> {
         try {
-            return await fetchJson<Sentence[]>(`/data/compiled/sentences/${vocabId}.json`);
+            return await fetchJson<Sentence[]>(datasetUrl(`sentences/${vocabId}.json`));
         } catch {
             // No sentences found for this vocab is a valid state
             return null;
