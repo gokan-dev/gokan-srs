@@ -51,6 +51,16 @@ const AGENT_STUB_CONTENT = '@AGENTS.md';
 const DATASET_URL_SOURCE = /^apps\/gokan-srs\/src\/.*\.tsx?$/;
 const DATASET_URL_HELPER = 'apps/gokan-srs/src/services/http.ts';
 
+/**
+ * A word learned in kana (ここ) has a rare kanji spelling (此処) in writtenForm.kanji, so the UI
+ * names words through headwordOf/secondaryForm (@gokan/dataset-schema). Rendering
+ * writtenForm.kanji in a JSX or Svelte expression is how the rare spelling would come back.
+ * The one exemption is the note whose job is to show that spelling.
+ */
+const UI_SOURCE = /^apps\/(gokan-srs|gokan-dictionary)\/src\/.*\.(tsx|svelte)$/;
+const RENDERED_KANJI_SPELLING = /\{[^{}]*\bwrittenForm\.kanji\b[^{}]*\}/;
+const KANJI_SPELLING_NOTE = 'apps/gokan-srs/src/components/KanjiSpellingNote.tsx';
+
 const SCHEMA_DIR = 'packages/dataset-schema/src';
 const APP_SOURCE = /^apps\/(gokan-srs|gokan-dictionary)\/(src|scripts)\/.*\.(tsx?|svelte)$/;
 
@@ -126,6 +136,11 @@ function check(files: string[]): Violation[] {
         if (DATASET_URL_SOURCE.test(file) && file !== DATASET_URL_HELPER && !/\.test\.tsx?$/.test(file)) {
             eachLine(text, l => l.includes('/data/compiled/') && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
                 add({ file, line, rule: 'dataset-url', message: 'Build dataset URLs with datasetUrl() (services/http.ts); it adds the dataset version browsers cache by.' }));
+        }
+
+        if (UI_SOURCE.test(file) && file !== KANJI_SPELLING_NOTE) {
+            eachLine(text, l => RENDERED_KANJI_SPELLING.test(l), line =>
+                add({ file, line, rule: 'headword', message: 'Renders writtenForm.kanji. Name the word with headwordOf/secondaryForm (@gokan/dataset-schema): a word learned in kana is shown in kana.' }));
         }
 
         if (redeclaration && APP_SOURCE.test(file)) {

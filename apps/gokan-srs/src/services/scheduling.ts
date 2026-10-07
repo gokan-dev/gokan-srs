@@ -1,6 +1,7 @@
 import type { SRSEntry, VocabProgress } from "../models/vocabulary.model";
 import type { UserSettings } from "../models/user.model";
 import { CONSTANTS } from "../commons/constants";
+import type { QuizType } from "../utils/srs.utils";
 
 const MAX_MEMORY_STRENGTH = CONSTANTS.srs.formula.mastery.maxMemoryStrength;
 
@@ -66,16 +67,44 @@ export function isProductionActivated(entry: SRSEntry | undefined): boolean {
     return !!entry && (entry.dueDate !== null || entry.lastReviewedAt !== null || entry.history.length > 0);
 }
 
+/** What scheduling reads off a vocab: its entries, and whether it has a reading direction at all. */
+export type ScheduledVocab = Pick<VocabProgress, 'reading' | 'meaning' | 'production' | 'usuallyKana'>;
+
+/**
+ * Whether the reading quiz applies to this word. A word learned in kana is shown
+ * by its reading (ここ), so asking for that reading tests nothing: its reading
+ * entry is ignored by mastery and due dates, whatever it holds.
+ */
+export function isReadingRelevant(vocab: { usuallyKana?: boolean }): boolean {
+    return !vocab.usuallyKana;
+}
+
+/**
+ * The quiz type a word is first asked in once the learner chooses to learn it:
+ * reading, or for a word learned in kana the first enabled direction after it.
+ * Null when no direction applies (a word learned in kana, with meaning and
+ * production both disabled), which is why such a word is never offered then.
+ */
+export function introQuizType(
+    vocab: { usuallyKana?: boolean },
+    settings?: Pick<UserSettings, 'enableMeaningQuiz' | 'enableProductionQuiz'>
+): QuizType | null {
+    if (isReadingRelevant(vocab)) return 'reading';
+    if (isMeaningQuizEnabled(settings)) return 'meaning';
+    if (isProductionQuizEnabled(settings)) return 'production';
+    return null;
+}
+
 /**
  * True if this vocab is fully mastered given whether meaning quizzes are enabled.
  * When meaning quizzes are disabled, meaning mastery is irrelevant to graduation -
  * a word can graduate on reading mastery alone.
  */
 export function isVocabFullyMastered(
-    vocab: Pick<VocabProgress, 'reading' | 'meaning' | 'production'>,
+    vocab: ScheduledVocab,
     settings?: Pick<UserSettings, 'enableMeaningQuiz' | 'enableProductionQuiz'>
 ): boolean {
-    const readingMastered = isEntryMastered(vocab.reading);
+    const readingMastered = !isReadingRelevant(vocab) || isEntryMastered(vocab.reading);
     const meaningRelevant = isMeaningQuizEnabled(settings);
     const production = relevantProductionEntry(vocab, settings);
     return readingMastered
@@ -90,12 +119,12 @@ export function isVocabFullyMastered(
  * independently-stored field - always recompute it from this function.
  */
 export function vocabNextReviewAt(
-    vocab: Pick<VocabProgress, 'reading' | 'meaning' | 'production'>,
+    vocab: ScheduledVocab,
     settings?: Pick<UserSettings, 'enableMeaningQuiz' | 'enableProductionQuiz'>
 ): Date | null {
     if (isVocabFullyMastered(vocab, settings)) return null;
 
-    const readingMastered = isEntryMastered(vocab.reading);
+    const readingMastered = !isReadingRelevant(vocab) || isEntryMastered(vocab.reading);
     const meaningRelevant = isMeaningQuizEnabled(settings);
     const meaningMastered = !meaningRelevant || isEntryMastered(vocab.meaning);
     const production = relevantProductionEntry(vocab, settings);
@@ -112,7 +141,7 @@ export function vocabNextReviewAt(
 
 /** True if the given vocab has a review due now (never true for graduated items). */
 export function isVocabDue(
-    vocab: Pick<VocabProgress, 'reading' | 'meaning' | 'production' | 'stage'>,
+    vocab: ScheduledVocab & Pick<VocabProgress, 'stage'>,
     settings: Pick<UserSettings, 'enableMeaningQuiz' | 'enableProductionQuiz'> | undefined,
     now: Date = new Date()
 ): boolean {

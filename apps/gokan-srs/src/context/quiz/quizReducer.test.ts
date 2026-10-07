@@ -509,6 +509,25 @@ describe('quizReducer', () => {
         expect(next.session?.committed).toEqual([taskKey('v1', 'reading')]);
     });
 
+    it('VOCAB_INTRO_CHOICE "learn" on a word learned in kana commits its meaning task and counts it toward the session cap', () => {
+        const here = vocabulary({ id: 'here', usuallyKana: true });
+        const state: QuizState = { ...initialState, progress: userProgress(), introCandidates: [here], session: { committed: [] } };
+        const next = quizReducer(state, { type: 'VOCAB_INTRO_CHOICE', vocabId: 'here', choice: 'learn', vocabulary: here });
+        expect(next.session).toEqual({ committed: [taskKey('here', 'meaning')], usuallyKanaIntroduced: 1 });
+        expect(next.progress!.learningQueue[0].usuallyKana).toBe(true);
+    });
+
+    it('SYNC_USUALLY_KANA applies the dataset flags to the current queue, and is a no-op when they already match', () => {
+        const state: QuizState = {
+            ...initialState,
+            progress: userProgress({ learningQueue: [vocabProgress({ vocabId: 'here' }), vocabProgress({ vocabId: 'mountain' })] }),
+        };
+        const now = new Date('2026-10-07T10:00:00Z');
+        const synced = quizReducer(state, { type: 'SYNC_USUALLY_KANA', payload: { ids: new Set(['here']), now } });
+        expect(synced.progress!.learningQueue.map(v => v.usuallyKana)).toEqual([true, false]);
+        expect(quizReducer(synced, { type: 'SYNC_USUALLY_KANA', payload: { ids: new Set(['here']), now } })).toBe(synced);
+    });
+
     // A word added from its detail page ("Add to Learning List") while the session
     // is paused there joins that session: the learner chose it mid-session. The
     // pause itself is kept, so the session still resumes on return.
@@ -549,7 +568,7 @@ describe('quizReducer', () => {
 
     it('VOCAB_INTRO_CHOICE appends a new item to the learning queue', () => {
         const state: QuizState = { ...initialState, progress: userProgress(), introCandidates: [makeVocab('v1')] };
-        const next = quizReducer(state, { type: 'VOCAB_INTRO_CHOICE', vocabId: 'v1', choice: 'learn' });
+        const next = quizReducer(state, { type: 'VOCAB_INTRO_CHOICE', vocabId: 'v1', choice: 'learn', vocabulary: makeVocab('v1') });
 
         expect(next.progress!.learningQueue).toHaveLength(1);
         expect(next.progress!.learningQueue[0].vocabId).toBe('v1');
@@ -560,7 +579,7 @@ describe('quizReducer', () => {
 
     it('VOCAB_INTRO_CHOICE "skip" does not increment newLearnedToday but does increment totalLearned', () => {
         const state: QuizState = { ...initialState, progress: userProgress(), introCandidates: [makeVocab('v1')] };
-        const next = quizReducer(state, { type: 'VOCAB_INTRO_CHOICE', vocabId: 'v1', choice: 'skip' });
+        const next = quizReducer(state, { type: 'VOCAB_INTRO_CHOICE', vocabId: 'v1', choice: 'skip', vocabulary: makeVocab('v1') });
 
         expect(next.progress!.stats.newLearnedToday).toBe(0);
         expect(next.progress!.stats.totalLearned).toBe(1);
@@ -580,7 +599,7 @@ describe('quizReducer', () => {
         const existing = vocabProgress({ vocabId: 'v1', reading: { ...DEFAULT_VOCABULARY_PROGRESS.reading, history: existingHistory } });
         const state: QuizState = { ...initialState, progress: userProgress({ learningQueue: [existing] }), introCandidates: [makeVocab('v1')] };
 
-        const next = quizReducer(state, { type: 'VOCAB_INTRO_CHOICE', vocabId: 'v1', choice: 'learn' });
+        const next = quizReducer(state, { type: 'VOCAB_INTRO_CHOICE', vocabId: 'v1', choice: 'learn', vocabulary: makeVocab('v1') });
 
         expect(next.progress!.learningQueue).toHaveLength(1);
         expect(next.progress!.learningQueue[0].reading.history).toEqual(existingHistory);

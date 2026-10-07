@@ -71,6 +71,11 @@ describe('buildReviewForecast', () => {
         expect(buildReviewForecast(queue, undefined, NOW)[0].reading).toBe(0);
     });
 
+    it('ignores the reading entry of a word learned in kana', () => {
+        const queue = [vocab({ usuallyKana: true, reading: entry({ dueDate: hoursFromNow(-1) }), meaning: entry({ dueDate: hoursFromNow(-1) }) })];
+        expect(buildReviewForecast(queue, undefined, NOW)[0]).toMatchObject({ reading: 0, meaning: 1 });
+    });
+
     it('ignores graduated words', () => {
         const queue = [vocab({ stage: 'graduated', reading: entry({ dueDate: hoursFromNow(-1) }) })];
         expect(buildReviewForecast(queue, undefined, NOW).every(b => total(b) === 0)).toBe(true);

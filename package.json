@@ -16,7 +16,7 @@
     "dataset:sync": "bun --cwd apps/gokan-srs sync:dataset",
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc -p tsconfig.json && bun --cwd packages/dataset-schema typecheck && bun --cwd packages/deploy typecheck && bun --cwd apps/gokan-srs typecheck && bun --cwd apps/gokan-dictionary typecheck",
-    "test": "bun --cwd apps/gokan-srs test && bun --cwd apps/gokan-dictionary test && bun --cwd packages/deploy test",
+    "test": "bun --cwd apps/gokan-srs test && bun --cwd apps/gokan-dictionary test && bun --cwd packages/deploy test && bun --cwd packages/dataset-schema test",
     "check:conventions": "bun scripts/check-conventions.ts",
     "check:duplicates": "bun scripts/check-duplicates.ts",
     "check:unused": "knip",

@@ -6,6 +6,7 @@
 // in the shared header; pages stay fully static otherwise, and the ~3MB index is fetched
 // lazily on first focus rather than at page load.
 
+import { searchHeadword, searchSecondaryForm } from '@gokan/dataset-schema';
 import type { SearchIndex, SearchIndexEntry } from '@gokan/dataset-schema';
 import { searchIndexPath, vocabPath } from '../lib/urls';
 
@@ -81,11 +82,11 @@ function buildResult(entry: SearchIndexEntry): HTMLLIElement {
 
     const kanji = document.createElement('span');
     kanji.className = 'jp search-result-kanji';
-    kanji.textContent = entry.w;
+    kanji.textContent = searchHeadword(entry);
 
     const reading = document.createElement('span');
     reading.className = 'jp search-result-reading';
-    reading.textContent = entry.r;
+    reading.textContent = searchSecondaryForm(entry);
 
     head.append(kanji, reading);
 

@@ -5,11 +5,12 @@ import type { ReviewLog, SRSEntry, VocabProgress } from '../models/vocabulary.mo
 import { CONSTANTS } from '../commons/constants';
 import { VocabularyService } from './vocabulary.service';
 import type { KanjiKnowledge, UserSettings } from '../models/user.model';
-import { isVocabFullyMastered, vocabNextReviewAt, newSRSEntry, isProductionActivated } from './scheduling';
+import { introQuizType, isVocabFullyMastered, vocabNextReviewAt, newSRSEntry, isProductionActivated } from './scheduling';
 import type { QuizType } from '../utils/srs.utils';
 import { collectJlptCandidates, countJlptCandidates } from './jlptWalk';
 import { isFormOfWord, toInflectableWord } from '../utils/inflection.utils';
 import { matchAnswer, matchBest, type AnswerResult, type Leniency } from '../utils/answerMatching';
+import { orderIncludesUsuallyKana, usuallyKanaPacer, type UsuallyKanaPacer } from '../utils/usuallyKana.utils';
 
 export type { AnswerResult } from '../utils/answerMatching';
 
@@ -24,7 +25,7 @@ export type { AnswerResult } from '../utils/answerMatching';
  * tags the inflection generator needs; without it a word simply has no
  * inflections and only its dictionary forms are accepted.
  */
-export type ProductionVocab = Pick<Vocabulary, 'reading' | 'writtenForm' | 'mergedVocabs'> & Partial<Pick<Vocabulary, 'senses'>>;
+export type ProductionVocab = Pick<Vocabulary, 'reading' | 'writtenForm' | 'mergedVocabs' | 'usuallyKana'> & Partial<Pick<Vocabulary, 'senses'>>;
 
 export interface ProductionSynonymCandidate {
     vocabId: string;
@@ -228,7 +229,7 @@ export class SRSService {
             production,
             nextReviewAt: vocab.stage === 'graduated'
                 ? vocab.nextReviewAt
-                : vocabNextReviewAt({ reading: vocab.reading, meaning: vocab.meaning, production }, settingsSlice),
+                : vocabNextReviewAt({ reading: vocab.reading, meaning: vocab.meaning, production, usuallyKana: vocab.usuallyKana }, settingsSlice),
             needsRetry: { ...vocab.needsRetry, production: true },
             lastReviewedAt: now,
             totalReviews: vocab.totalReviews + 1,
@@ -339,7 +340,7 @@ export class SRSService {
         // pile back into rotation. That is the same wave the lazy activation exists to
         // avoid, just arriving one word at a time instead of all at once.
         const masteredBeforeProduction = isVocabFullyMastered(
-            { reading: updatedReading, meaning: updatedMeaning, production: undefined },
+            { reading: updatedReading, meaning: updatedMeaning, production: undefined, usuallyKana: vocab.usuallyKana },
             settingsSlice
         );
         if (productionQuizEnabled && quizType !== 'production' && !masteredBeforeProduction) {
@@ -350,7 +351,7 @@ export class SRSService {
         // scheduling.ts, which also correctly excludes meaning entirely when the
         // user has meaning quizzes disabled - so a word can graduate on reading
         // mastery alone instead of being stuck forever waiting on an untested meaning entry.
-        const candidateVocab = { reading: updatedReading, meaning: updatedMeaning, production: updatedProduction };
+        const candidateVocab = { reading: updatedReading, meaning: updatedMeaning, production: updatedProduction, usuallyKana: vocab.usuallyKana };
         const finalStage = isVocabFullyMastered(candidateVocab, settingsSlice) ? 'graduated' : vocab.stage;
         const finalNextReviewAt = finalStage === 'graduated' ? null : vocabNextReviewAt(candidateVocab, settingsSlice);
 
@@ -602,8 +603,10 @@ export class SRSService {
                 if (!index) return 0;
 
                 const ignoreKnownKanji = !!settings.ignoreKnownKanjiRequirement;
+                const includesUsuallyKana = orderIncludesUsuallyKana(settings.preferredLearningOrder);
 
                 for (const entry of index) {
+                    if (entry.usuallyKana && !includesUsuallyKana) continue;
                     if (progress.learningQueue.find(vocab => vocab.vocabId === entry.id)) continue;
 
                     const allKanjiKnown = ignoreKnownKanji || entry.containedKanji.every(k =>
@@ -648,7 +651,10 @@ export class SRSService {
         kanjiKnowledge: KanjiKnowledge,
         settings: LearningOrderSettings,
         maxToFind: number,
-        ignoredIds: Set<string> = new Set()
+        ignoredIds: Set<string> = new Set(),
+        // How many words learned in kana may still be offered (usuallyKanaBudget).
+        // Only the frequency and JLPT orders offer them at all.
+        usuallyKanaBudgetLeft: number = Number.POSITIVE_INFINITY
     ): Promise<string[]> {
         if (maxToFind <= 0) return [];
 
@@ -670,28 +676,34 @@ export class SRSService {
             case "kanji_coverage":
                 return this.findCandidatesKanjiCoverage(activeIds, kanjiKnowledge, maxToFind, settings.kanjiCoverageTarget || 1, ignoreKnownKanji);
 
-            case "frequency":
-                return this.findCandidatesFrequency(activeIds, kanjiKnowledge, maxToFind, ignoreKnownKanji);
+            case "frequency": {
+                const pacer = usuallyKanaPacer(usuallyKanaBudgetLeft);
+                const found = await this.findCandidatesFrequency(activeIds, kanjiKnowledge, maxToFind, ignoreKnownKanji, pacer);
+                return found.length > 0 ? found : pacer.deferred(maxToFind);
+            }
 
-            case "jlpt":
-                return this.findCandidatesJLPT(activeIds, kanjiKnowledge, maxToFind, ignoreKnownKanji);
+            case "jlpt": {
+                const pacer = usuallyKanaPacer(usuallyKanaBudgetLeft);
+                const found = await this.findCandidatesJLPT(activeIds, kanjiKnowledge, maxToFind, ignoreKnownKanji, pacer);
+                return found.length > 0 ? found : pacer.deferred(maxToFind);
+            }
         }
     }
 
     /**
-     * Creates a new VocabProgress object for a given vocab ID.
+     * Creates a new VocabProgress object for a given vocab.
      * Use this when the user explicitly accepts a new vocabulary item.
      *
-     * @param vocabId ID of the vocabulary to learn
+     * @param vocab The vocabulary to learn: its id, and whether it is learned in kana
      * @param difficultyOffset Optional difficulty adjustment based on user performance
      */
-    static createVocabProgress(vocabId: string, difficultyOffset = 0): VocabProgress {
+    static createVocabProgress(vocab: Pick<Vocabulary, 'id' | 'usuallyKana'>, difficultyOffset = 0): VocabProgress {
         // Strategy D + Dynamic: InitialDifficulty (0.5) + Offset
         const baseDiff = CONSTANTS.srs.formula.initialDifficulty;
         const finalDiff = Math.min(Math.max(baseDiff + difficultyOffset, 0.1), 1.0);
 
         return {
-            vocabId,
+            vocabId: vocab.id,
             stage: 'learning',
             introductionAt: null,
             nextReviewAt: null,
@@ -700,7 +712,8 @@ export class SRSService {
             consecutiveFailures: 0,
             reading: newSRSEntry(finalDiff),
             meaning: newSRSEntry(finalDiff),
-            production: newSRSEntry(finalDiff)
+            production: newSRSEntry(finalDiff),
+            usuallyKana: vocab.usuallyKana === true,
         };
     }
 
@@ -735,7 +748,8 @@ export class SRSService {
         activeIds: Set<string>,
         kanjiKnowledge: KanjiKnowledge,
         maxToFind: number,
-        ignoreKnownKanji: boolean = false
+        ignoreKnownKanji: boolean = false,
+        pacer: Pick<UsuallyKanaPacer, 'admit'> = usuallyKanaPacer(Number.POSITIVE_INFINITY)
     ): Promise<string[]> {
         const index = await VocabularyService.loadFrequencyIndex();
         if (!index) return [];
@@ -750,7 +764,7 @@ export class SRSService {
                 kanjiKnowledge.kanjiSet.has(k)
             );
 
-            if (allKanjiKnown) {
+            if (allKanjiKnown && pacer.admit(entry)) {
                 candidates.push(entry.id);
             }
         }
@@ -774,7 +788,8 @@ export class SRSService {
         activeIds: Set<string>,
         kanjiKnowledge: KanjiKnowledge,
         maxToFind: number,
-        ignoreKnownKanji: boolean = false
+        ignoreKnownKanji: boolean = false,
+        pacer: Pick<UsuallyKanaPacer, 'admit'> = usuallyKanaPacer(Number.POSITIVE_INFINITY)
     ): Promise<string[]> {
         const index = await VocabularyService.loadJlptIndex();
         if (!index) return [];
@@ -785,7 +800,7 @@ export class SRSService {
             entry => entry.id,
             entry => !activeIds.has(entry.id) && (
                 ignoreKnownKanji || entry.containedKanji.every(k => kanjiKnowledge.kanjiSet.has(k))
-            ),
+            ) && pacer.admit(entry),
             maxToFind
         );
 
@@ -796,7 +811,8 @@ export class SRSService {
                 new Set([...activeIds, ...candidates]),
                 kanjiKnowledge,
                 maxToFind - candidates.length,
-                ignoreKnownKanji
+                ignoreKnownKanji,
+                pacer
             );
             candidates.push(...filler);
         }
@@ -850,6 +866,8 @@ export class SRSService {
         for (let rank = 0; rank < index.length; rank++) {
             const entry = index[rank];
             if (activeIds.has(entry.id)) continue;
+            // A kanji-driven order: words learned in kana have no place in it (orderIncludesUsuallyKana).
+            if (entry.usuallyKana) continue;
 
             const allKanjiKnown = ignoreKnownKanji || entry.containedKanji.every((k) => kanjiKnowledge.kanjiSet.has(k));
             if (allKanjiKnown) {
@@ -915,7 +933,8 @@ export class SRSService {
 
     static applyVocabIntroChoice(
         progress: VocabProgress,
-        choice: 'learn' | 'skip'
+        choice: 'learn' | 'skip',
+        settings?: Pick<UserSettings, 'enableMeaningQuiz' | 'enableProductionQuiz'>
     ): VocabProgress {
         const updated: VocabProgress = {
             ...progress,
@@ -965,6 +984,21 @@ export class SRSService {
                 ...(updated.production ?? newSRSEntry(updated.reading.difficulty)),
                 dueDate: new Date(now.getTime() + CONSTANTS.srs.production.seedDelayHours * 60 * 60 * 1000),
             };
+
+            // A word learned in kana has no reading quiz: its first review is the
+            // first direction that applies, due now in reading's place.
+            // With meaning and production both off no direction applies at all, so
+            // the word has nothing to learn and graduates as it is added.
+            const first = introQuizType(updated, settings);
+            if (first !== 'reading') {
+                updated.reading.dueDate = null;
+                if (first === 'meaning') updated.meaning.dueDate = now;
+                if (first === 'production') updated.production = { ...updated.production, dueDate: now };
+                if (first === null) {
+                    updated.nextReviewAt = null;
+                    updated.stage = 'graduated';
+                }
+            }
         }
 
         return updated;

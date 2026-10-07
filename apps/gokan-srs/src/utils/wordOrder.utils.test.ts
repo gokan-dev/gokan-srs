@@ -85,6 +85,14 @@ describe('isLearnableNow', () => {
         expect(isLearnableNow('a', context, learner({ knownKanji: new Set(['日']) }))).toBe(true);
         expect(isLearnableNow('zzz', context, learner())).toBe(false);
     });
+
+    it('lets a word learned in kana through without kanji, except in the kanji-driven orders', () => {
+        const withKana = buildWordOrderContext([{ id: 'kono', containedKanji: [], usuallyKana: true }], {}, {});
+        expect(isLearnableNow('kono', withKana, learner({ order: 'frequency' }))).toBe(true);
+        expect(isLearnableNow('kono', withKana, learner({ order: 'jlpt' }))).toBe(true);
+        expect(isLearnableNow('kono', withKana, learner({ order: 'kanji_coverage' }))).toBe(false);
+        expect(isLearnableNow('kono', withKana, learner({ order: 'kklc', kklcStep: 9999 }))).toBe(false);
+    });
 });
 
 describe('computeUncoveredKanji', () => {

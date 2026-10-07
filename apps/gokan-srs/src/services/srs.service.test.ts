@@ -883,7 +883,7 @@ describe('SRSService Formula Tests', () => {
     });
     describe('applyVocabIntroChoice', () => {
         it('should initialize due dates for Learn choice', () => {
-            const vocab = SRSService.createVocabProgress('test-vocab');
+            const vocab = SRSService.createVocabProgress({ id: 'test-vocab' });
             const updated = SRSService.applyVocabIntroChoice(vocab, 'learn');
 
             expect(updated.nextReviewAt).not.toBeNull();
@@ -892,7 +892,7 @@ describe('SRSService Formula Tests', () => {
         });
 
         it('should graduate immediately for Skip choice', () => {
-            const vocab = SRSService.createVocabProgress('test-vocab');
+            const vocab = SRSService.createVocabProgress({ id: 'test-vocab' });
             const updated = SRSService.applyVocabIntroChoice(vocab, 'skip');
 
             expect(updated.stage).toBe('graduated');
@@ -1126,6 +1126,49 @@ describe('SRSService Formula Tests', () => {
             // So w3 (covers C) wins.
             expect(candidates).toEqual(['w_multi', 'w3']);
         });
+
+        it('never offers a word learned in kana, even once coverage falls back to frequency', async () => {
+            vi.spyOn(VocabularyService, 'loadFrequencyIndex').mockResolvedValue([
+                { id: 'kono', containedKanji: [], usuallyKana: true },
+                ...mockIndex,
+            ]);
+            const kanjiKnowledge: KanjiKnowledge = { method: 'kklc', step: 10, kanjiSet: new Set(['A', 'B', 'C']) };
+            const settings: LearningOrderSettings = { preferredLearningOrder: 'kanji_coverage', kanjiCoverageTarget: 1 };
+
+            const candidates = await SRSService.getNextCandidates([{ vocabId: 'w_super_obs_multi' }], kanjiKnowledge, settings, 3);
+            expect(candidates).toEqual(['w1', 'w2', 'w3']);
+            expect(await SRSService.countLearnableVocabulary({ kanjiKnowledge, learningQueue: [] }, settings)).toBe(mockIndex.length - 1);
+        });
+    });
+
+    describe('Words learned in kana: per-session pacing', () => {
+        const noKanji: KanjiKnowledge = { method: 'kklc', step: 0, kanjiSet: new Set<string>() };
+        const index = [
+            { id: 'kono', containedKanji: [], usuallyKana: true as const },
+            { id: 'sono', containedKanji: [], usuallyKana: true as const },
+            { id: 'ano', containedKanji: [], usuallyKana: true as const },
+            { id: 'hito', containedKanji: [] },
+        ];
+
+        it('offers at most the remaining budget of them in the frequency order', async () => {
+            vi.spyOn(VocabularyService, 'loadFrequencyIndex').mockResolvedValue(index);
+            const settings: LearningOrderSettings = { preferredLearningOrder: 'frequency' };
+            expect(await SRSService.getNextCandidates([], noKanji, settings, 4, new Set(), 2)).toEqual(['kono', 'sono', 'hito']);
+            expect(await SRSService.getNextCandidates([], noKanji, settings, 4, new Set(), 0)).toEqual(['hito']);
+        });
+
+        it('applies the same budget across the JLPT walk and its frequency fallback', async () => {
+            vi.spyOn(VocabularyService, 'loadJlptIndex').mockResolvedValue({ 1: [], 2: [], 3: [], 4: [], 5: [index[0], index[1]] });
+            vi.spyOn(VocabularyService, 'loadFrequencyIndex').mockResolvedValue(index);
+            const settings: LearningOrderSettings = { preferredLearningOrder: 'jlpt' };
+            expect(await SRSService.getNextCandidates([], noKanji, settings, 4, new Set(), 1)).toEqual(['kono', 'hito']);
+        });
+
+        it('still offers them when nothing else is left, rather than no new word at all', async () => {
+            vi.spyOn(VocabularyService, 'loadFrequencyIndex').mockResolvedValue(index.slice(0, 3));
+            const settings: LearningOrderSettings = { preferredLearningOrder: 'frequency' };
+            expect(await SRSService.getNextCandidates([], noKanji, settings, 2, new Set(), 0)).toEqual(['kono', 'sono']);
+        });
     });
 });
 
@@ -1246,7 +1289,7 @@ describe('Production quiz (English meaning -> Japanese reading)', () => {
 
     describe('intro choice', () => {
         it('schedules production behind reading and meaning on Learn', () => {
-            const created = SRSService.createVocabProgress('v1');
+            const created = SRSService.createVocabProgress({ id: 'v1' });
             const learned = SRSService.applyVocabIntroChoice(created, 'learn');
 
             expect(learned.production!.dueDate!.getTime())
@@ -1254,7 +1297,7 @@ describe('Production quiz (English meaning -> Japanese reading)', () => {
         });
 
         it('masters production on Skip, so a skipped word cannot come back as a production review', () => {
-            const created = SRSService.createVocabProgress('v1');
+            const created = SRSService.createVocabProgress({ id: 'v1' });
             const skipped = SRSService.applyVocabIntroChoice(created, 'skip');
 
             expect(skipped.stage).toBe('graduated');

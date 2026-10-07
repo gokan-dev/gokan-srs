@@ -2,6 +2,7 @@
 // trivially unit-testable without rendering anything, and separate from documentShell.ts
 // (which only knows how to wrap an already-decided {title, description} into HTML).
 
+import { headwordOf, secondaryForm } from '@gokan/dataset-schema';
 import type { GrammarChapter, GrammarPoint, Kanji, Vocabulary } from '@gokan/dataset-schema';
 import { SITE_NAME } from './site';
 
@@ -15,11 +16,13 @@ const JLPT_LABEL = (level: number) => `N${level}`;
 export function vocabMeta(vocab: Vocabulary): PageMeta {
     const gloss = vocab.senses[0]?.glosses[0];
     const jlpt = vocab.jlptLevel ? ` (JLPT ${JLPT_LABEL(vocab.jlptLevel)})` : '';
+    // "思う (おもう)", or "ここ (此処)" for a word learned in kana: both spellings stay searchable.
+    const label = `${headwordOf(vocab)} (${secondaryForm(vocab)})`;
 
-    const title = `${vocab.writtenForm.kanji} (${vocab.reading.primary})${jlpt} - ${SITE_NAME}`;
+    const title = `${label}${jlpt} - ${SITE_NAME}`;
     const description = gloss
-        ? `${vocab.writtenForm.kanji} (${vocab.reading.primary}): ${gloss}. Japanese dictionary entry with readings, meanings, and usage examples.`
-        : `${vocab.writtenForm.kanji} (${vocab.reading.primary}) - Japanese dictionary entry with readings and meanings.`;
+        ? `${label}: ${gloss}. Japanese dictionary entry with readings, meanings, and usage examples.`
+        : `${label} - Japanese dictionary entry with readings and meanings.`;
 
     return { title, description };
 }

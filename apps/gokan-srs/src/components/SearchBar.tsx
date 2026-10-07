@@ -2,6 +2,7 @@ import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { Search, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { VocabularyService } from '../services/vocabulary.service';
+import { searchHeadword, searchSecondaryForm } from '@gokan/dataset-schema';
 import type { SearchIndex } from '@gokan/dataset-schema';
 import { useAsyncData } from '../hooks/useAsyncData';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
@@ -148,8 +149,9 @@ export const SearchBar: React.FC<SearchBarProps> = ({ className = '' }) => {
                                     className="flex flex-col items-start p-3 border-b border-divider/50 hover:bg-surface-hover transition-colors text-left last:border-0"
                                 >
                                     <div className="flex items-center gap-2">
-                                        <span className="font-mincho text-primary text-lg">{item.w}</span>
-                                        <span className="font-gothic text-secondary text-sm">{item.r}</span>
+                                        <span className="font-mincho text-primary text-lg">{searchHeadword(item)}</span>
+                                        {/* A word shown in kana names its kanji spelling where the reading would go. */}
+                                        <span className={`${item.u ? 'font-mincho' : 'font-gothic'} text-secondary text-sm`}>{searchSecondaryForm(item)}</span>
                                     </div>
                                     <span className="font-serif text-tertiary text-xs truncate w-full mt-1">
                                         {item.m}

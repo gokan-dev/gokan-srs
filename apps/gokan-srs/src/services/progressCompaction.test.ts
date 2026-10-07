@@ -33,6 +33,7 @@ function realisticProgress(vocabCount = 40): UserProgress {
             totalReviews: i % 5,
             consecutiveFailures: i % 3,
             needsRetry: i % 4 === 0 ? { reading: true } : undefined,
+            usuallyKana: i % 6 === 1,
             reading: srsEntry({ memoryStrength: 3.141592653589793 * (i + 1), interval: 0.9038 * (i + 1), difficulty: 0.31, dueDate: new Date(T0 + (i + 2) * DAY), lastReviewedAt: new Date(T0 + i * DAY), history: logs(i % 9, T0) }),
             meaning: srsEntry({ memoryStrength: 1.5 + i, interval: 2.25, dueDate: graduated ? null : new Date(T0 + (i + 4) * DAY), history: logs(i % 4, T0 + DAY) }),
             production: i % 2 === 0
@@ -77,6 +78,14 @@ describe('progress compaction', () => {
         const viaCompact = migrateAndHydrateProgress(storageRoundTrip(stored), settings);
         const viaReadable = migrateAndHydrateProgress(stored, settings);
         expect(viaCompact).toEqual(viaReadable);
+    });
+
+    it('stores the usuallyKana flag only when set, and restores it either way', () => {
+        const stored = toPlainProgressJSON(userProgress({ learningQueue: [vocabProgress({ vocabId: 'here', usuallyKana: true }), vocabProgress({ vocabId: 'mountain' })] }));
+        const compactQueue = JSON.stringify(compactProgress(stored));
+        expect(compactQueue.match(/"uk"/g)).toHaveLength(1);
+        const hydrated = migrateAndHydrateProgress(storageRoundTrip(stored), settings);
+        expect(hydrated.learningQueue.map(v => v.usuallyKana)).toEqual([true, false]);
     });
 
     it('is stable: compacting an expanded payload gives the same compact payload', () => {

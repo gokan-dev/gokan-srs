@@ -5,8 +5,10 @@
 
 export interface VocabSummary {
     id: string;
-    kanji: string;
-    reading: string;
+    /** The headword (headwordOf): the kanji spelling, or the kana for a word learned in kana. */
+    word: string;
+    /** Shown beside it (secondaryForm): the reading, or that word's kanji spelling. */
+    secondary: string;
     gloss?: string;
 }
 

@@ -23,7 +23,7 @@ import type { VocabProgress } from '../../models/vocabulary.model';
 import { VocabularyService } from '../../services/vocabulary.service';
 import { GrammarService } from '../../services/grammar.service';
 import { CONSTANTS } from '../../commons/constants';
-import { grammarProgress, userProgress, vocabProgress } from '../../test/fixtures';
+import { grammarProgress, srsEntry, userProgress, vocabProgress } from '../../test/fixtures';
 
 const now = new Date('2026-06-10T00:00:00Z');
 const past = new Date('2026-06-01T00:00:00Z');
@@ -1540,15 +1540,11 @@ describe('realization variant rotation and two-tier grading', () => {
 });
 
 describe('summariseVocabGains', () => {
-    const entry = (strength: number) => ({
-        memoryStrength: strength, interval: 1, difficulty: 0.3,
-        lastReviewedAt: null, dueDate: null, history: [],
-    });
+    const entry = (strength: number) => srsEntry({ memoryStrength: strength, interval: 1 });
     // `strength` moves the PRODUCTION entry, because that is where
     // applyVocabReinforcement puts the credit and therefore what this must measure.
-    const word = (vocabId: string, strength: number) => ({
-        vocabId, stage: 'learning' as const, introductionAt: null, nextReviewAt: null,
-        lastReviewedAt: null, totalReviews: 1, consecutiveFailures: 0,
+    const word = (vocabId: string, strength: number) => vocabProgress({
+        vocabId, totalReviews: 1,
         reading: entry(100), meaning: entry(100), production: entry(strength),
     });
     const words = [

@@ -27,9 +27,10 @@ export function LearningOrderPicker({ value, onChange, dense }: LearningOrderPic
                         </span>
                     ),
                 },
-                { value: 'frequency', label: 'Frequency', description: 'Most common words first' },
-                { value: 'kklc', label: 'By Kanji', description: 'Follow kanji progression' },
-                { value: 'jlpt', label: 'JLPT Level', description: 'N5 first, up to N1' },
+                // Words usually written in kana (この, ここ) come only in the frequency and JLPT orders.
+                { value: 'frequency', label: 'Frequency', description: 'Most common words first, including words written in kana' },
+                { value: 'kklc', label: 'By Kanji', description: 'Follow kanji progression, kanji words only' },
+                { value: 'jlpt', label: 'JLPT Level', description: 'N5 first, up to N1, including words written in kana' },
             ]}
         />
     );

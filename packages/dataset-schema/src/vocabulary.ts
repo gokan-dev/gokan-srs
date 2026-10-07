@@ -59,6 +59,13 @@ export interface Vocabulary {
      * matching one of these grades by its relation tier instead of flat wrong.
      */
     synonyms?: VocabSynonym[];
+
+    /**
+     * Learned in kana: ここ, not its rare kanji spelling 此処. Shown by its reading
+     * (headwordOf), learnable without knowing any kanji, outside the kanji-driven
+     * orders, and with no reading quiz. Decided at dataset build time; absent otherwise.
+     */
+    usuallyKana?: true;
 }
 
 export interface MergedVocabInfo {
@@ -141,4 +148,6 @@ export interface VocabSynonym {
     w?: string[];
     r?: string[];
     pos?: string[];
+    /** The other word is learned in kana (Vocabulary.usuallyKana): name it by `r[0]`. */
+    u?: true;
 }

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { headwordOf, secondaryForm } from "@gokan/dataset-schema";
 import type { Vocabulary } from "@gokan/dataset-schema";
 import { VocabularyService } from "../../services/vocabulary.service";
 import { RelatedEntriesCard, type RelatedEntry, type RelatedSection } from "../../components/RelatedEntriesCard";
@@ -14,8 +15,9 @@ function toEntry(v: Vocabulary): RelatedEntry {
     return {
         key: v.id,
         to: `/vocab/${v.id}`,
-        primary: v.writtenForm.kanji,
-        secondary: <span className="font-gothic font-bold text-secondary">{v.reading.primary}</span>,
+        primary: headwordOf(v),
+        // A word shown in kana names its kanji spelling where the reading would go.
+        secondary: <span className={`${v.usuallyKana ? 'font-mincho' : 'font-gothic font-bold'} text-secondary`}>{secondaryForm(v)}</span>,
         meta: <span className="text-xs text-tertiary font-mono">ID: {v.id}</span>,
         description: v.senses && v.senses[0] ? v.senses[0].glosses.join(", ") : "No definition available",
     };

@@ -92,6 +92,10 @@ block of 60+ tokens in production code (120+ in tests).
 
 ### Shared building blocks (use these)
 
+Both apps: a word is named through `headwordOf`, `secondaryForm` and `headwordWithReading`
+(`searchHeadword` / `searchSecondaryForm` for search rows) from `@gokan/dataset-schema`, never by
+reading `writtenForm.kanji` for display: a word learned in kana (`usuallyKana`) is shown in kana.
+
 gokan-srs, quiz and study flow. **Every quiz shares the same machinery; a new quiz type or card
 is built from these, never as a standalone flow:**
 
@@ -123,7 +127,10 @@ gokan-srs, everything else:
   `pages/grammar/GrammarExampleList.tsx`.
 - Settings controls: `components/ui/SettingToggle.tsx`, `SettingSlider.tsx`, `components/OptionGrid.tsx`,
   `components/LearningOrderPicker.tsx`, `components/QuizSettingsMenu.tsx`.
-- Small UI: `components/TagChip.tsx`, `components/CardSkeleton.tsx`.
+- Small UI: `components/TagChip.tsx`, `components/CardSkeleton.tsx`,
+  `components/KanjiSpellingNote.tsx` (the kanji spelling of a word learned in kana).
+- Words learned in kana in the learning orders: `utils/usuallyKana.utils.ts`
+  (`orderIncludesUsuallyKana`, the per-session pacer); scheduling asks `isReadingRelevant`.
 - Test fixtures: `src/test/fixtures.ts` (`vocabProgress`, `grammarProgress`, `userProgress`,
   `userSettings`, `vocabulary`, `grammarPoint`, `srsEntry`...). A test may wrap one in a
   one-line local default, never redeclare it.

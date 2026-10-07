@@ -11,7 +11,8 @@ import type { AnswerResult } from '../../services/srs.service';
 import { SRSService } from '../../services/srs.service';
 import { rebaseStrengthsToSchedule } from '../../services/calibration';
 import type { QuizItem, QuizMode, QuizType, TaskKey } from '../../utils/srs.utils';
-import { taskKey } from '../../utils/srs.utils';
+import { syncUsuallyKana, taskKey } from '../../utils/srs.utils';
+import { introQuizType } from '../../services/scheduling';
 import type { ProductionCloze } from '../../utils/productionCloze.utils';
 import { grammarReducer, initialGrammarState, isGrammarAction } from './grammarReducer';
 import type { GrammarQuizAction, GrammarQuizState } from './grammarReducer';
@@ -54,6 +55,11 @@ export interface SessionTracking {
      * CONSTANTS.srs.sessionSuspendTtlMinutes (see useSessionLifecycle).
      */
     suspendedAt?: number;
+    /**
+     * Words learned in kana this session introduced (Learn), for the per-session
+     * cap CONSTANTS.srs.newUsuallyKanaPerSession. Absent means none.
+     */
+    usuallyKanaIntroduced?: number;
 }
 
 /**
@@ -172,7 +178,7 @@ export type QuizAction =
     | { type: 'OVERRIDE_DAILY_LIMIT' }
     | { type: 'RESET' }
     | {
-        type: 'VOCAB_INTRO_CHOICE'; vocabId: string; choice: 'learn' | 'skip'; vocabulary?: Vocabulary;
+        type: 'VOCAB_INTRO_CHOICE'; vocabId: string; choice: 'learn' | 'skip'; vocabulary: Vocabulary;
         /** Where (0..1) a word added from outside the candidates is slotted in among them. Random, chosen by the caller. */
         insertionFraction?: number;
     }
@@ -193,6 +199,12 @@ export type QuizAction =
      * landed between scheduling the rebase and applying it.
      */
     | { type: 'REBASE_STRENGTHS'; payload: { frequencyModifier: number } }
+    /**
+     * Brings the queue's usuallyKana flags in line with the dataset (syncUsuallyKana).
+     * Like REBASE_STRENGTHS, applied to the CURRENT progress in the reducer, so an
+     * answer landing in between is never overwritten. `now` comes from the caller.
+     */
+    | { type: 'SYNC_USUALLY_KANA'; payload: { ids: ReadonlySet<string>; now: Date } }
     | GrammarQuizAction;
 
 export const initialState: QuizState = {
@@ -494,6 +506,12 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
             return rebased === state.progress ? state : { ...state, progress: rebased };
         }
 
+        case 'SYNC_USUALLY_KANA': {
+            if (!state.progress) return state;
+            const queue = syncUsuallyKana(state.progress.learningQueue, action.payload.ids, state.settings ?? undefined, action.payload.now);
+            return queue === state.progress.learningQueue ? state : { ...state, progress: { ...state.progress, learningQueue: queue } };
+        }
+
         case 'RECONCILE_REMOTE':
             // The merge itself (reconciling remote changes against whatever the user
             // is doing right now) already happened in useQuizOrchestration before this
@@ -510,8 +528,8 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
             if (!state.progress) return state;
 
             // Create new VocabProgress and APPEND to queue
-            const newProgressItem = SRSService.createVocabProgress(action.vocabId);
-            const processedItem = SRSService.applyVocabIntroChoice(newProgressItem, action.choice);
+            const newProgressItem = SRSService.createVocabProgress(action.vocabulary);
+            const processedItem = SRSService.applyVocabIntroChoice(newProgressItem, action.choice, state.settings ?? undefined);
 
             // Check if item already exists in queue to avoid duplicates
             const existingIndex = state.progress.learningQueue.findIndex(v => v.vocabId === action.vocabId);
@@ -539,21 +557,27 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
             const wasInCandidates = state.introCandidates.some(c => c.id === action.vocabId);
             let nextCandidates = state.introCandidates.filter(c => c.id !== action.vocabId);
 
-            if (!wasInCandidates && action.vocabulary) {
+            if (!wasInCandidates) {
                 nextCandidates = insertAtFraction(nextCandidates, action.vocabulary, action.insertionFraction ?? 0);
             }
 
             // A word the user chooses to Learn becomes part of the current session's
-            // committed workload (its reading is now due immediately). Skipped words
+            // committed workload (its first quiz is now due immediately: reading, or
+            // for a word learned in kana the direction that replaces it). Skipped words
             // graduate straight away and never produce a quiz, so they add nothing.
-            // Meaning is staggered +12h and typically lands after this session, so it
-            // is intentionally left to surface as "waiting" rather than inflating the total.
+            // The other directions are staggered and typically land after this session,
+            // so they are intentionally left to surface as "waiting" rather than
+            // inflating the total.
             let nextSession = state.session;
-            if (nextSession && action.choice === 'learn') {
-                const key = taskKey(action.vocabId, 'reading');
+            const firstQuiz = introQuizType(processedItem, state.settings ?? undefined);
+            if (nextSession && action.choice === 'learn' && firstQuiz) {
+                const key = taskKey(action.vocabId, firstQuiz);
                 if (!nextSession.committed.includes(key)) {
                     nextSession = { ...nextSession, committed: [...nextSession.committed, key] };
                 }
+            }
+            if (nextSession && action.choice === 'learn' && processedItem.usuallyKana) {
+                nextSession = { ...nextSession, usuallyKanaIntroduced: (nextSession.usuallyKanaIntroduced ?? 0) + 1 };
             }
 
             return {

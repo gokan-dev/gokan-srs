@@ -58,6 +58,19 @@ export interface VocabProgress {
      */
     production?: SRSEntry;
     needsRetry?: NeedsRetryFlags;
+    /**
+     * The word is learned in kana (the dataset's `Vocabulary.usuallyKana`: ここ, not
+     * 此処), so it has no reading direction: a card showing ここ and asking its
+     * reading tests nothing. Its reading entry is ignored by scheduling and mastery,
+     * and its first review is meaning (or production).
+     *
+     * A copy of dataset knowledge, kept on the progress so the pure scheduling
+     * functions can answer without the dataset. Set when the word is added and
+     * re-synced from the frequency index on every load (syncUsuallyKana), so a
+     * dataset change reaches existing progress. Required, not optional, so every
+     * object handed to scheduling has to say which it is.
+     */
+    usuallyKana: boolean;
 }
 
 export const DEFAULT_SRS_ENTRY: SRSEntry = {
@@ -79,5 +92,6 @@ export const DEFAULT_VOCABULARY_PROGRESS: VocabProgress = {
     consecutiveFailures: 0,
     reading: { ...DEFAULT_SRS_ENTRY },
     meaning: { ...DEFAULT_SRS_ENTRY },
-    production: { ...DEFAULT_SRS_ENTRY }
+    production: { ...DEFAULT_SRS_ENTRY },
+    usuallyKana: false,
 };

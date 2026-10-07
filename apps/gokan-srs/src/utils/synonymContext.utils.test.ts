@@ -5,6 +5,7 @@ import {
 } from './synonymContext.utils';
 import type { ProductionCloze } from './productionCloze.utils';
 import { SRSService } from '../services/srs.service';
+import { headwordOf } from '@gokan/dataset-schema';
 
 const cloze = (en: string): ProductionCloze => ({
     sentence: { id: 's', original: '', en: [{ id: 'e', text: en }], vocabIds: [] },
@@ -134,5 +135,13 @@ describe('embeddedSynonymCandidate (grading without fetching the other word)', (
 
     it('returns null for an entry without forms, which the caller fetches instead', () => {
         expect(embeddedSynonymCandidate({ id: 'x', relation: 'confusable', shared: ['a'] })).toBeNull();
+    });
+
+    it('marks a word learned in kana, so the feedback names it by its kana', () => {
+        const kana = embeddedSynonymCandidate({ id: 'x', relation: 'confusable', w: ['此処'], r: ['ここ'], u: true })!;
+        expect(headwordOf(kana.vocab)).toBe('ここ');
+        // Typing its rare kanji spelling still identifies it.
+        expect(SRSService.evaluateProductionSynonyms('此処', [kana])).not.toBeNull();
+        expect(headwordOf(embeddedSynonymCandidate(toujou)!.vocab)).toBe('登場');
     });
 });

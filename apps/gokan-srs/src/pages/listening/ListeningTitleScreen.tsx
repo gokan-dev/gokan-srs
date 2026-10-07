@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Check, ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
+import { headwordOf } from "@gokan/dataset-schema";
 import type { MediaEpisode, MediaTitle, MediaWordCount, Vocabulary } from "@gokan/dataset-schema";
 import type { WatchedEpisode } from "../../models/media.model";
 import { MediaService } from "../../services/media.service";
@@ -316,12 +317,13 @@ function WordsToLearn({ words, countHint, knowledge, sort, onSortChange, orderCo
             <ul className="flex flex-col">
                 {visible.map(([id, count]) => {
                     const vocab = vocabs.get(id);
-                    const newKanji = orderContext && learner && !isLearnableNow(id, orderContext, learner);
+                    // A word learned in kana uses no kanji, so it never carries the badge.
+                    const newKanji = orderContext && learner && !vocab?.usuallyKana && !isLearnableNow(id, orderContext, learner);
                     return (
                         <li key={id} className="flex items-center gap-3 py-1.5 border-b border-divider last:border-b-0">
                             <Link to={`/vocab/${id}`} className="min-w-0 flex-1 flex items-baseline gap-2 hover:text-accent">
-                                <span className="font-mincho text-base text-primary">{vocab?.writtenForm.kanji ?? '…'}</span>
-                                {vocab && <span className="font-mincho text-xs text-secondary">{vocab.reading.primary}</span>}
+                                <span className="font-mincho text-base text-primary">{vocab ? headwordOf(vocab) : '…'}</span>
+                                {vocab && !vocab.usuallyKana && <span className="font-mincho text-xs text-secondary">{vocab.reading.primary}</span>}
                                 {vocab && (
                                     <span className="font-serif text-xs text-tertiary truncate">
                                         {vocab.senses[0]?.glosses.slice(0, 2).join(', ')}

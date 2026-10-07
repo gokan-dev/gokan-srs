@@ -3,11 +3,15 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "Types (and JMdict tag labels) for the compiled gokan-dataset files both apps read.",
+  "description": "Types (and JMdict tag labels, headword choice) for the compiled gokan-dataset files both apps read.",
   "exports": {
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.17"
   }
 }
