@@ -896,24 +896,72 @@ describe('conjugated blanks: kana accepted, other forms of a vocab word are mino
         expect(grade('野菜')).toBe('wrong');
     });
 
-    it('accepts kana on a conjugated PATTERN blank but keeps its form strict', async () => {
+    it('accepts kana on a conjugated PATTERN blank, and grades another conjugation a minor error (right formation, wrong conjugation)', async () => {
         mockVocab();
         const plan = (await computeBlankPlan(pointWith([2]), progress, 0))!;
         const blank = plan.blankWordIndices.indexOf(2);
         expect(plan.isPatternBlank[blank]).toBe(true);
-        expect(plan.blankLemmas?.[blank] ?? null).toBeNull();
+        // Pattern markers now carry their lemma (issue #95 had nulled it), so a wrong
+        // conjugation of the right word is a near miss rather than flat wrong. Only the
+        // conjugation drill (a separate plan with no blankLemmas) stays strict.
+        expect(plan.blankLemmas?.[blank] ?? null).not.toBeNull();
         const grade = (input: string) => {
             const answers = plan.blankWordIndices.map((_, i) => (i === blank ? input : plan.acceptLists[i][0]));
             return gradeGrammarAnswers(plan, answers, []).perBlankResults[blank];
         };
         expect(grade('たべ')).toBe('correct');
-        expect(grade('食べた')).toBe('wrong');
+        expect(grade('食べた')).toBe('minor_error'); // another form of 食べる: partial credit
+        expect(grade('野菜')).toBe('wrong');          // a different word is still wrong
     });
 
     it('leaves an uninflected vocab blank unchanged', async () => {
         const { plan } = await vocabBlankPlan();
         const yasaiBlank = plan.blankWordIndices.indexOf(0);
         expect(new Set(plan.acceptLists[yasaiBlank])).toEqual(new Set(['野菜', 'やさい']));
+    });
+
+    it('grades the dictionary form of a multi-token pattern marker (ある for あります) a minor error, not wrong', async () => {
+        const hon = makeVocab({
+            id: 'v-hon',
+            writtenForm: { kanji: '本', alternatives: [], containedKanji: ['本'] },
+            reading: { primary: 'ほん', alternatives: [] },
+            senses: [{ pos: ['n'], glosses: ['book'], misc: { rawTags: [] }, related: { compounds: [] } }],
+        });
+        vi.spyOn(VocabularyService, 'loadVocab').mockResolvedValue(hon);
+
+        // あります tokenized as あり (base ある, no vocab id) + ます, exactly as the
+        // compiled dataset does: a multi-token pattern marker with no resolved vocab.
+        const point = makeGrammarPoint({
+            examples: [{
+                jp: '本があります。',
+                romaji: 'hon ga arimasu',
+                en: 'There is a book.',
+                patternWordIndices: [2, 3],
+                words: [
+                    { surface: '本', vocabId: 'v-hon', reading: 'ほん' },
+                    { surface: 'が', vocabId: null },
+                    { surface: 'あり', vocabId: null, baseForm: 'ある' },
+                    { surface: 'ます', vocabId: null },
+                    { surface: '。', vocabId: null },
+                ],
+            }],
+        });
+        const progress = makeProgress({
+            learningQueue: [makeVocabProgress({ vocabId: 'v-hon', introductionAt: past })],
+        });
+
+        const plan = (await computeBlankPlan(point, progress, 0))!;
+        const span = plan.blankWordSpans.findIndex(s => s.includes(2));
+        expect(span).toBeGreaterThanOrEqual(0);
+        expect(plan.isPatternBlank[span]).toBe(true);
+
+        const grade = (input: string) => {
+            const answers = plan.acceptLists.map((list, i) => (i === span ? input : list[0]));
+            return gradeGrammarAnswers(plan, answers, []).perBlankResults[span];
+        };
+        expect(grade('あります')).toBe('correct');
+        expect(grade('ある')).toBe('minor_error'); // right formation, dictionary form instead of polite
+        expect(grade('ねこ')).toBe('wrong');
     });
 });
 

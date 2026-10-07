@@ -155,7 +155,15 @@ async function buildBlankData(
                 ? words.map(w => w.reading ?? w.surface).join('')
                 : null;
             acceptLists.push(Array.from(new Set([surface, ...(reading ? [reading] : [])])));
-            acceptListsMinor.push([]);
+            // Right word, wrong conjugation (ある for あります): accept the marker's
+            // dictionary form as a near miss. For a conjugated multi-token marker
+            // (あり + ます) that is the base form of its head content token - the one
+            // token kuromoji tagged with a baseForm. Pattern markers only: a
+            // multi-token vocab span is not a single word to deinflect.
+            const dictForm = isPatternSpan[spanIndex]
+                ? words.find(w => w.baseForm && w.baseForm !== w.surface)?.baseForm ?? null
+                : null;
+            acceptListsMinor.push(dictForm && dictForm !== surface ? [dictForm] : []);
             glosses.push('');
             blankLemmas.push(null);
             continue;
@@ -214,6 +222,14 @@ async function buildBlankData(
             forms.add(word.reading);
         }
 
+        // Right word, wrong conjugation on a pattern marker (ある for あります): the
+        // dictionary form is a near miss. The vocab branch above already put the full
+        // dictionary forms in minorForms when the word resolved; this also covers a
+        // marker token kuromoji tagged with a baseForm but no vocab id (あり -> ある).
+        if (isPatternSpan[spanIndex] && word.baseForm && word.baseForm !== word.surface) {
+            minorForms.add(word.baseForm);
+        }
+
         // Anything that is already an ideal answer for this occurrence cannot also be
         // a near miss: the two lists must not overlap, or a correct answer could be
         // downgraded depending on match order.
@@ -222,7 +238,12 @@ async function buildBlankData(
         acceptLists.push(Array.from(forms));
         acceptListsMinor.push(Array.from(minorForms));
         glosses.push(gloss);
-        blankLemmas.push(isPatternSpan[spanIndex] ? null : lemma);
+        // Pattern markers now carry their lemma too (issue #95 had nulled it): a wrong
+        // conjugation of the right word is a near miss, not a failure, on the grammar
+        // quiz. The conjugation DRILL is a separate plan (computeConjugationPlan) with
+        // no blankLemmas, so the form stays strictly graded there - that is where the
+        // conjugation itself is the whole point.
+        blankLemmas.push(lemma);
     }
 
     return { acceptLists, acceptListsMinor, glosses, blankLemmas };
@@ -840,11 +861,13 @@ export function gradeGrammarAnswers(
             }
         }
 
-        // A vocab blank answered with another form of the right word (食べた where
-        // the sentence wants 食べて): a near miss, never `wrong` (issue #95). Pattern
-        // blanks never carry a lemma, so their form stays strictly graded.
+        // Another form of the right word (食べた where the sentence wants 食べて, or
+        // ある for あります): a near miss, never `wrong`. This now applies to pattern
+        // markers too - right formation, wrong conjugation still earns partial credit.
+        // The one exception is the conjugation drill, whose whole point is the form;
+        // it is a separate plan carrying no blankLemmas, so it never reaches here.
         const lemma = blankPlan.blankLemmas?.[i];
-        if (result === 'wrong' && lemma && !(blankPlan.isPatternBlank?.[i]) && isFormOfWord(userInput, lemma)) {
+        if (result === 'wrong' && lemma && isFormOfWord(userInput, lemma)) {
             perBlankResults.push('minor_error');
             matchedAnswers.push(accepted[0] ?? matchedAnswer);
             return;
