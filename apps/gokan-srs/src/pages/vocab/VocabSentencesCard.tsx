@@ -27,7 +27,10 @@ export function VocabSentencesCard({ vocabId }: VocabSentencesCardProps) {
     const displayedSentences = isExpanded ? sentences : sentences.slice(0, INITIAL_COUNT);
 
     const SentenceItem = ({ sentence, isLast }: { sentence: Sentence, isLast: boolean }) => (
-        <div key={sentence.id} className={`pb-4 ${isLast && !isExpandable ? '' : 'border-b border-divider mb-4'}`}>
+        // No margins: Virtuoso measures each item's box height, and a margin sits
+        // outside it, so the list under-measures and the tail spills past the card.
+        // Symmetric py-4 keeps the same gap around the divider, inside the box.
+        <div key={sentence.id} className={`py-4 ${isLast && !isExpandable ? '' : 'border-b border-divider'}`}>
             <div className="text-xl leading-relaxed text-primary mb-1">
                 <InteractiveSentence
                     sentence={sentence}
@@ -59,7 +62,9 @@ export function VocabSentencesCard({ vocabId }: VocabSentencesCardProps) {
                         )}
                         components={{
                             Footer: () => (
-                                <div className="mt-4 text-center">
+                                // pt-4 (not mt-4): Virtuoso measures the footer box too,
+                                // and a top margin would be excluded, overflowing the card.
+                                <div className="pt-4 text-center">
                                     <button
                                         onClick={() => setIsExpanded(false)}
                                         className="text-sm font-gothic text-accent hover:text-accent/80 transition-colors py-2 px-4 rounded-md border border-accent/20 hover:bg-accent/5 w-full md:w-auto"
