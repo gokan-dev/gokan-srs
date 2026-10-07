@@ -208,8 +208,12 @@ export function VocabBaseQuizCard({
                         </FeedbackNote>
                     )}
 
-                    {/* Correct Answer Feedback */}
-                    {feedback?.show && feedback.correct && (
+                    {/* Correct Answer Feedback. Not for a correct-via-synonym answer:
+                        that already shows the synonym note above (which names the word
+                        tested), and rendering this generic box too printed the same
+                        "Correct: ..." message twice, stacked (production only - synonyms
+                        are production-only). */}
+                    {feedback?.show && feedback.correct && !feedback.synonymRelation && (
                         <motion.div
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
