@@ -1287,6 +1287,47 @@ describe('Production quiz (English meaning -> Japanese reading)', () => {
         });
     });
 
+    describe('applyProductionReinforcement (indirect production credit)', () => {
+        it('seeds an inactive production entry, credits it, and tags the log as reinforcement', () => {
+            const vocab = vocabWith(); // production inert (dueDate null), meaning strength 100
+            const updated = SRSService.applyProductionReinforcement(vocab, 'correct', mockNow, true, true);
+
+            // Seeded from meaning (100 * seedStrengthRatio) then credited on top.
+            const seededBaseline = 100 * CONSTANTS.srs.production.seedStrengthRatio;
+            expect(updated.production!.memoryStrength).toBeGreaterThan(seededBaseline);
+            expect(updated.production!.dueDate).not.toBeNull();
+            expect(updated.production!.history.at(-1)?.source).toBe('reinforcement');
+        });
+
+        it('credits an already-active production entry without re-seeding', () => {
+            const vocab = vocabWith({
+                production: { ...DEFAULT_VOCABULARY_PROGRESS.production!, memoryStrength: 200, dueDate: mockNow },
+            });
+            const updated = SRSService.applyProductionReinforcement(vocab, 'correct', mockNow, true, true);
+
+            expect(updated.production!.memoryStrength).toBeGreaterThan(200);
+            expect(updated.production!.history.at(-1)?.source).toBe('reinforcement');
+        });
+
+        it('leaves reading and meaning untouched', () => {
+            const vocab = vocabWith({ production: { ...DEFAULT_VOCABULARY_PROGRESS.production!, memoryStrength: 200, dueDate: mockNow } });
+            const updated = SRSService.applyProductionReinforcement(vocab, 'minor_error', mockNow, true, true);
+
+            expect(updated.reading.memoryStrength).toBe(vocab.reading.memoryStrength);
+            expect(updated.meaning.memoryStrength).toBe(vocab.meaning.memoryStrength);
+        });
+
+        it('credits less than a full production answer would (the reinforcement discount)', () => {
+            const base = vocabWith({ production: { ...DEFAULT_VOCABULARY_PROGRESS.production!, memoryStrength: 200, dueDate: mockNow } });
+            const neutral = CONSTANTS.srs.quizProperties.production.expectedLatency;
+            const reinforced = SRSService.applyProductionReinforcement(base, 'correct', mockNow, true, true);
+            const full = SRSService.applyAnswer(base, 'production', 'base', 'a', 'a', neutral, mockNow, 'correct').updated;
+
+            expect(reinforced.production!.memoryStrength).toBeGreaterThan(200);
+            expect(reinforced.production!.memoryStrength).toBeLessThan(full.production!.memoryStrength);
+        });
+    });
+
     describe('intro choice', () => {
         it('schedules production behind reading and meaning on Learn', () => {
             const created = SRSService.createVocabProgress({ id: 'v1' });

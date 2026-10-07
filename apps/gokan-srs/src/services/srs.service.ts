@@ -423,6 +423,60 @@ export class SRSService {
         };
     }
 
+    /**
+     * Credits one word's PRODUCTION entry for a correct/near answer the learner
+     * produced INDIRECTLY - not on that word's own scheduled card, but as a
+     * by-product of another card's cue: a grammar sentence's blank, or a
+     * near-synonym typed on a DIFFERENT word's production card (issue #71 follow-up).
+     * The direction is genuinely production (English meaning in, Japanese out), so
+     * it feeds the production entry; the credit is discounted (strengthRatio) and
+     * the log is tagged `reinforcement` so the calibration replay does not count it
+     * as a scheduled production review. Latency is neutralised, since the host
+     * card's single timing cannot be attributed to this word.
+     *
+     * A word whose production entry is not yet activated is seeded first
+     * (seedProductionEntry) so it joins the rotation at its designed baseline. The
+     * caller pre-filters to correct/minor_error results.
+     *
+     * Shared by GrammarSRSService.applyVocabReinforcement (batch, over a grammar
+     * sentence's blanks) and the production synonym credit in useQuizOrchestration
+     * (single word, the synonym actually typed) so the two cannot diverge.
+     */
+    static applyProductionReinforcement(
+        vocab: VocabProgress,
+        result: AnswerResult,
+        now: Date,
+        meaningQuizEnabled: boolean,
+        productionQuizEnabled: boolean,
+        growthLevel: number = 1.0,
+        frequencyModifier: number = 1.0,
+        strengthRatio: number = CONSTANTS.srs.production.reinforcementStrengthRatio
+    ): VocabProgress {
+        const neutralLatency = CONSTANTS.srs.quizProperties.production.expectedLatency;
+        const seeded: VocabProgress = isProductionActivated(vocab.production)
+            ? vocab
+            : { ...vocab, production: this.seedProductionEntry(vocab.production, vocab.meaning, now) };
+
+        // correctAnswer is unused because forcedResult (result) is supplied.
+        const { updated } = this.applyAnswer(
+            seeded, 'production', 'base', '', '',
+            neutralLatency, now, result, growthLevel, frequencyModifier,
+            meaningQuizEnabled, productionQuizEnabled, strengthRatio
+        );
+
+        // Tag the log this credit wrote, so the calibration's replay of the review
+        // logs does not count it as a production review.
+        const history = updated.production?.history ?? [];
+        if (!updated.production || history.length === 0) return updated;
+        return {
+            ...updated,
+            production: {
+                ...updated.production,
+                history: [...history.slice(0, -1), { ...history[history.length - 1], source: 'reinforcement' as const }],
+            },
+        };
+    }
+
     /* =======================
        CORE ALGORITHM (FORMULA)
        ======================= */

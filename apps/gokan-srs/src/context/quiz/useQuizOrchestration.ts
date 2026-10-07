@@ -566,7 +566,10 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             // quiz type's window. A confusable-synonym collision is not graded at all,
             // so it is not one either.
             const quizType = state.currentQuizItem.quizType;
-            const counted = state.feedback.synonymRelation !== 'confusable'
+            // A synonym answer (interchangeable OR confusable) never grades the
+            // target as a real review - the learner produced a different word - so
+            // it is not a calibrated review of the target either.
+            const counted = !state.feedback.synonymRelation
                 && isCalibratedVocabReview(target, quizType);
             const calibration = counted
                 ? recordCalibratedAnswer(state.progress.calibration, quizType, state.feedback.type)
@@ -577,30 +580,81 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             const meaningQuizEnabled = state.settings?.enableMeaningQuiz !== false;
             const productionQuizEnabled = state.settings?.enableProductionQuiz !== false;
 
-            // Apply the SRS update exactly once per answer, then reuse the single
-            // result both for the mastery-delta history entry and the queue update.
-            // A 'confusable' synonym collision (issue #71 Part B) bypasses the
-            // normal grading path entirely: it reuses the existing per-quiz-type
-            // retry machinery instead, leaving memoryStrength/interval/difficulty
-            // untouched, rescheduling at the unchanged interval, and flagging
-            // needsRetry.production so the card re-asks until the TARGET itself
-            // is produced - see SRSService.applyConfusableSynonymAnswer.
-            const updated = state.feedback.synonymRelation === 'confusable'
-                ? SRSService.applyConfusableSynonymAnswer(target, now, meaningQuizEnabled, productionQuizEnabled)
-                : SRSService.applyAnswer(
-                    target,
-                    state.currentQuizItem.quizType,
-                    state.currentQuizItem.quizMode,
-                    state.userAnswer,
-                    state.feedback.matchedAnswer,
-                    latency,
-                    now,
-                    state.feedback.type,
-                    growthLevel,
-                    frequencyModifier,
-                    meaningQuizEnabled,
-                    productionQuizEnabled
-                ).updated;
+            // A synonym answer (interchangeable OR confusable) never credits the
+            // TARGET: the learner produced a different word. The target is rescheduled
+            // and flagged for retry (the same path a 'confusable' collision has always
+            // used), so it is re-asked until the target word itself is produced - see
+            // SRSService.applyConfusableSynonymAnswer. An INTERCHANGEABLE synonym then
+            // additionally credits the word the learner ACTUALLY produced
+            // (feedback.synonymWord), rather than the target - issue #71 follow-up.
+            const synonymRelation = state.feedback.synonymRelation;
+            if (synonymRelation) {
+                const updatedTarget = SRSService.applyConfusableSynonymAnswer(target, now, meaningQuizEnabled, productionQuizEnabled);
+                let queue = state.progress.learningQueue.map(v => v.vocabId === id ? updatedTarget : v);
+
+                // The synonym bonus is granted only the FIRST time per target per
+                // session (so it can't be farmed on the retry loop), and only when the
+                // produced word is one the learner is actually studying. It is a
+                // production reinforcement (discounted, calibration-excluded) since it
+                // was produced indirectly, off the target's cue.
+                const synId = state.feedback.synonymWord?.vocabId;
+                const synWritten = state.feedback.synonymWord?.written;
+                const alreadyCredited = !!state.session?.synonymCredited?.includes(id);
+                const yProgress = synId ? queue.find(v => v.vocabId === synId) : undefined;
+
+                let historyItem = { vocabId: id, writtenForm: headwordOf(state.currentVocab), result: state.feedback.type, delta: 0 };
+                let synonymCreditedVocabId: string | undefined;
+
+                if (
+                    synonymRelation === 'interchangeable'
+                    && !alreadyCredited
+                    && synId && synWritten && yProgress
+                    && (state.feedback.type === 'correct' || state.feedback.type === 'minor_error')
+                ) {
+                    const productionGrowthLevel = growthLevelOf(calibration, 'production');
+                    const creditedY = SRSService.applyProductionReinforcement(
+                        yProgress, state.feedback.type, now, meaningQuizEnabled, productionQuizEnabled,
+                        productionGrowthLevel, frequencyModifier
+                    );
+                    queue = queue.map(v => v.vocabId === synId ? creditedY : v);
+                    const before = calculateMasteryPercentage(yProgress.production?.memoryStrength ?? 0);
+                    const after = calculateMasteryPercentage(creditedY.production?.memoryStrength ?? 0);
+                    // The points went to the word actually produced, so the ticker shows IT.
+                    historyItem = { vocabId: synId, writtenForm: synWritten, result: state.feedback.type, delta: after - before };
+                    synonymCreditedVocabId = id;
+                }
+
+                dispatch({
+                    type: 'UPDATE_AFTER_ANSWER',
+                    payload: {
+                        progress: {
+                            ...state.progress,
+                            learningQueue: queue,
+                            stats: { ...state.progress.stats, totalReviews: state.progress.stats.totalReviews + 1 },
+                            calibration,
+                        },
+                        historyItem,
+                        synonymCreditedVocabId,
+                    },
+                });
+                return;
+            }
+
+            // Normal (non-synonym) answer: grade and credit the target itself.
+            const updated = SRSService.applyAnswer(
+                target,
+                state.currentQuizItem.quizType,
+                state.currentQuizItem.quizMode,
+                state.userAnswer,
+                state.feedback.matchedAnswer,
+                latency,
+                now,
+                state.feedback.type,
+                growthLevel,
+                frequencyModifier,
+                meaningQuizEnabled,
+                productionQuizEnabled
+            ).updated;
 
             // Keyed rather than a reading/meaning ternary: with a third type, a
             // ternary would silently report the meaning entry's delta for a
@@ -610,10 +664,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                     : quizType === 'production' ? (v.production?.memoryStrength ?? 0)
                         : v.meaning.memoryStrength;
 
-            const oldStrength = strengthOf(target);
-            const newStrength = strengthOf(updated);
-
-            const delta = calculateMasteryPercentage(newStrength) - calculateMasteryPercentage(oldStrength);
+            const delta = calculateMasteryPercentage(strengthOf(updated)) - calculateMasteryPercentage(strengthOf(target));
 
             const historyItem = {
                 vocabId: id,

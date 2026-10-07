@@ -8,7 +8,7 @@ import { SRSService } from './srs.service';
 import { CONSTANTS } from '../commons/constants';
 import { GrammarService } from './grammar.service';
 import { isGrammarFullyMastered, grammarNextReviewAt } from './grammarScheduling';
-import { newSRSEntry, isProductionActivated } from './scheduling';
+import { newSRSEntry } from './scheduling';
 import { collectJlptCandidates, countJlptCandidates } from './jlptWalk';
 
 /**
@@ -200,38 +200,18 @@ export class GrammarSRSService {
         if (!productionEnabled) return learningQueue;
 
         const frequencyModifier = CONSTANTS.srs.frequencyMultipliers[settings.learningFrequency];
-        const neutralLatency = CONSTANTS.srs.quizProperties.production.expectedLatency;
 
         let changed = false;
         const next = learningQueue.map(vp => {
             const credit = credits.find(c => c.vocabId === vp.vocabId);
             if (!credit || (credit.result !== 'correct' && credit.result !== 'minor_error')) return vp;
-
-            // Bring production online at its designed baseline before crediting, so a
-            // word met first through grammar does not enter the rotation at whatever
-            // strength one scaffolded blank produces.
-            const seeded: VocabProgress = isProductionActivated(vp.production)
-                ? vp
-                : { ...vp, production: SRSService.seedProductionEntry(vp.production, vp.meaning, now) };
-
-            // correctAnswer is unused because forcedResult (credit.result) is supplied.
-            const { updated } = SRSService.applyAnswer(
-                seeded, 'production', 'base', '', '',
-                neutralLatency, now, credit.result, productionGrowthLevel, frequencyModifier, meaningEnabled,
-                productionEnabled, CONSTANTS.srs.production.reinforcementStrengthRatio
-            );
             changed = true;
-            // Mark the log this credit wrote, so the calibration's replay of the
-            // review logs does not count it as a production review.
-            const history = updated.production?.history ?? [];
-            if (!updated.production || history.length === 0) return updated;
-            return {
-                ...updated,
-                production: {
-                    ...updated.production,
-                    history: [...history.slice(0, -1), { ...history[history.length - 1], source: 'reinforcement' as const }],
-                },
-            };
+            // Shared with the production synonym credit (see SRSService): seed if not
+            // activated, credit production at the reinforcement discount, tag the log.
+            return SRSService.applyProductionReinforcement(
+                vp, credit.result, now, meaningEnabled, productionEnabled,
+                productionGrowthLevel, frequencyModifier
+            );
         });
 
         return changed ? next : learningQueue;

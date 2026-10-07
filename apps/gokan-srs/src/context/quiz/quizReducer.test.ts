@@ -498,6 +498,25 @@ describe('quizReducer', () => {
         expect(next.session).toBeNull();
     });
 
+    it('UPDATE_AFTER_ANSWER records the synonym-credited target once per session, no duplicates', () => {
+        const progress = userProgress();
+        const state: QuizState = { ...initialState, progress, session: { committed: [taskKey('v1', 'production')] } };
+
+        // First synonym bonus for target v1 is recorded.
+        const after1 = quizReducer(state, {
+            type: 'UPDATE_AFTER_ANSWER',
+            payload: { progress, historyItem: { vocabId: 'v2', writtenForm: '強い', result: 'minor_error', delta: 2 }, synonymCreditedVocabId: 'v1' },
+        });
+        expect(after1.session?.synonymCredited).toEqual(['v1']);
+
+        // A second bonus attempt for the same target does not duplicate it.
+        const after2 = quizReducer(after1, {
+            type: 'UPDATE_AFTER_ANSWER',
+            payload: { progress, historyItem: { vocabId: 'v2', writtenForm: '強い', result: 'minor_error', delta: 2 }, synonymCreditedVocabId: 'v1' },
+        });
+        expect(after2.session?.synonymCredited).toEqual(['v1']);
+    });
+
     it('VOCAB_INTRO_CHOICE "learn" adds the reading task to the active session', () => {
         const state: QuizState = {
             ...initialState,

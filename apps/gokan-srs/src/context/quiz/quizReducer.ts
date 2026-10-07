@@ -60,6 +60,14 @@ export interface SessionTracking {
      * cap CONSTANTS.srs.newUsuallyKanaPerSession. Absent means none.
      */
     usuallyKanaIntroduced?: number;
+    /**
+     * Target vocab ids that have already granted a production synonym bonus this
+     * session. The bonus (crediting the word the learner actually typed, not the
+     * target) is granted only the FIRST time per target per session, so it cannot
+     * be farmed by re-answering the needsRetry loop with a synonym again until the
+     * target itself is produced. Reset with the session (absent means none).
+     */
+    synonymCredited?: string[];
 }
 
 /**
@@ -170,7 +178,7 @@ export type QuizAction =
     | { type: 'SET_ANSWER'; payload: string }
     | { type: 'REVEAL_PRODUCTION_HINT' }
     | { type: 'SUBMIT_ANSWER'; payload: { type: AnswerResult; message: string; matchedAnswer: string; synonymRelation?: SynonymRelation; synonymWord?: SynonymWord } }
-    | { type: 'UPDATE_AFTER_ANSWER'; payload: { progress: UserProgress; historyItem: { vocabId: string, writtenForm: string, result: AnswerResult, delta: number } } }
+    | { type: 'UPDATE_AFTER_ANSWER'; payload: { progress: UserProgress; historyItem: { vocabId: string, writtenForm: string, result: AnswerResult, delta: number }; /** Target vocab id whose production synonym bonus was just granted; recorded in session.synonymCredited so it fires only once per target per session. */ synonymCreditedVocabId?: string } }
     | { type: 'ADVANCE_QUEUE'; payload: { progress: UserProgress, candidates?: Vocabulary[] } }
     | { type: 'CLEAR_FEEDBACK' }
     | { type: 'UPDATE_KANJI_KNOWLEDGE'; payload: KanjiKnowledge }
@@ -379,11 +387,19 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
 
         case 'UPDATE_AFTER_ANSWER': {
             const { delta } = action.payload.historyItem;
+            const { synonymCreditedVocabId } = action.payload;
+            // Record the target whose synonym bonus just fired, so it is granted only
+            // once per target per session (see SessionTracking.synonymCredited).
+            const session = synonymCreditedVocabId && state.session
+                && !state.session.synonymCredited?.includes(synonymCreditedVocabId)
+                ? { ...state.session, synonymCredited: [...(state.session.synonymCredited ?? []), synonymCreditedVocabId] }
+                : state.session;
             return {
                 ...state,
                 progress: action.payload.progress,
                 feedback: null,
                 userAnswer: '',
+                session,
                 sessionHistory: [action.payload.historyItem, ...state.sessionHistory].slice(0, 50),
                 sessionGains: {
                     net: state.sessionGains.net + delta,
