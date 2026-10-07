@@ -26,6 +26,7 @@ export class VocabularyService {
     private static kklcIndex: KKLCIndex | null = null;
     private static kklcKanjiIndex: KKLCKanjiIndex | null = null;
     private static frequencyIndex: FrequencyIndex | null = null;
+    private static usuallyKanaIds: ReadonlySet<string> | null = null;
     private static searchIndex: SearchIndex | null = null;
     private static vocabCache = new Map<string, Vocabulary>();
     private static kanjiIndex: Kanji[] | null = null;
@@ -52,6 +53,14 @@ export class VocabularyService {
 
         this.frequencyIndex = await fetchJson<FrequencyIndex>(datasetUrl('index/frequency.json'));
         return this.frequencyIndex;
+    }
+
+    /** Ids of the words learned in kana (VocabIndexEntry.usuallyKana), read off the frequency index. */
+    static async loadUsuallyKanaIds(): Promise<ReadonlySet<string>> {
+        if (this.usuallyKanaIds) return this.usuallyKanaIds;
+        const index = await this.loadFrequencyIndex();
+        this.usuallyKanaIds = new Set((index ?? []).filter(entry => entry.usuallyKana).map(entry => entry.id));
+        return this.usuallyKanaIds;
     }
 
     static async loadJlptIndex(): Promise<JlptIndex | null> {

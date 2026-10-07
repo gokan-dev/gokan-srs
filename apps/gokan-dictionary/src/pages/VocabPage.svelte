@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { headwordOf, secondaryForm } from '@gokan/dataset-schema';
   import type { Sentence, Vocabulary } from '@gokan/dataset-schema';
   import type { VocabSummary } from '../lib/types';
   import { kanjiPath, vocabIndexPath, vocabJlptPath, vocabPath } from '../lib/urls';
@@ -34,17 +35,24 @@
   );
 </script>
 
-<PageLayout trail={[{ label: 'Vocabulary', href: vocabIndexPath() }, { label: vocab.writtenForm.kanji, jp: true }]} wide>
+<PageLayout trail={[{ label: 'Vocabulary', href: vocabIndexPath() }, { label: headwordOf(vocab), jp: true }]} wide>
 
   <header class="entry-head">
-    <h1 class="entry-word jp">{vocab.writtenForm.kanji}</h1>
+    <h1 class="entry-word jp">{headwordOf(vocab)}</h1>
 
-    <p class="entry-reading jp">
-      {vocab.reading.primary}
-      {#if vocab.reading.alternatives.length > 0}
-        <span class="muted">&middot; also {vocab.reading.alternatives.join('、')}</span>
-      {/if}
-    </p>
+    {#if vocab.usuallyKana}
+      <!-- Learned in kana (ここ): the headword already is the reading, so name the kanji spelling. -->
+      <p class="entry-reading">
+        <span class="muted">Usually written in kana. Kanji spelling</span> <span class="jp">{secondaryForm(vocab)}</span>
+      </p>
+    {:else}
+      <p class="entry-reading jp">
+        {vocab.reading.primary}
+        {#if vocab.reading.alternatives.length > 0}
+          <span class="muted">&middot; also {vocab.reading.alternatives.join('、')}</span>
+        {/if}
+      </p>
+    {/if}
 
     {#if summaryGloss}
       <p class="entry-gloss">{summaryGloss}</p>

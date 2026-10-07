@@ -1,5 +1,7 @@
+import { headwordOf } from "@gokan/dataset-schema";
 import type { Vocabulary } from "@gokan/dataset-schema";
 import { CardSection } from "./ui/CardSection";
+import { KanjiSpellingNote } from "./KanjiSpellingNote";
 import { Combine } from "lucide-react";
 import { formatReadingList } from "../pages/quiz/quizFormatting";
 import { JlptChip } from "./JlptChip";
@@ -22,15 +24,20 @@ export default function VocabIntroCard({ vocab, onLearn, onSkip }: IntroVocabCar
                         className="text-primary font-mincho leading-none text-kanji flex items-center justify-center gap-3"
                         title={vocab.mergedVocabs && vocab.mergedVocabs.length > 1 ? "Merged Entry (combines multiple JMDict words)" : undefined}
                     >
-                        {vocab.writtenForm.kanji}
+                        {headwordOf(vocab)}
                         {vocab.mergedVocabs && vocab.mergedVocabs.length > 1 && (
                             <Combine size={40} className="text-divider" />
                         )}
                     </div>
 
-                    <div className="flex flex-row justify-center items-center gap-1 mt-4 text-base font-gothic text-secondary/90 opacity-90">
-                        {formatReadingList(vocab.reading)}
-                    </div>
+                    {/* A word shown in kana already shows its reading: name its kanji spelling instead. */}
+                    {vocab.usuallyKana ? (
+                        <KanjiSpellingNote vocab={vocab} className="mt-4" />
+                    ) : (
+                        <div className="flex flex-row justify-center items-center gap-1 mt-4 text-base font-gothic text-secondary/90 opacity-90">
+                            {formatReadingList(vocab.reading)}
+                        </div>
+                    )}
                     {vocab.jlptLevel && (
                         <div className="flex justify-center mt-3">
                             <JlptChip level={vocab.jlptLevel} />

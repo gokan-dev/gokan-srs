@@ -9,6 +9,7 @@ import type { PendingQuizItem, QuizState, TaskKey } from './quizReducer';
 import { taskKey } from './quizReducer';
 import { computeSessionState } from './sessionState';
 import { computeSessionStats } from './sessionStats';
+import { introQuizType } from '../../services/scheduling';
 
 /**
  * Single source of truth for "what should the quiz screen show right now".
@@ -43,8 +44,10 @@ export function selectNextView(
     // just the progress counter. No session means no bound (the queue is live).
     const committed = state.session ? new Set(state.session.committed) : undefined;
 
+    // An intro candidate is loaded to show its intro card; its quiz type is the one it
+    // will first be asked in, which for a word learned in kana is not reading.
     const queueItem: PendingQuizItem | null = introCandidates.length > 0
-        ? { vocabId: introCandidates[0].id, quizType: 'reading', quizMode: 'base' }
+        ? { vocabId: introCandidates[0].id, quizType: introQuizType(introCandidates[0], settings ?? undefined) ?? 'meaning', quizMode: 'base' }
         : getNextVocabToStudy(progress?.learningQueue, settings ?? undefined, now, preferredType, committed);
 
     const { sessionState, nextReviewAt } = computeSessionState<VocabProgress, SessionState>(

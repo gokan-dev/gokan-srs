@@ -12,3 +12,4 @@ export * from './indexes';
 export * from './grammar';
 export * from './media';
 export * from './tags';
+export * from './headword';

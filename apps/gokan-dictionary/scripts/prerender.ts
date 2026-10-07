@@ -77,6 +77,7 @@ import { buildChapterLocatorIndex, buildChapterIndexRows } from '../src/lib/gram
 import { buildFamilyPages } from '../src/lib/grammarFamilies';
 import { buildVariantSiblings } from '../src/lib/grammarVariants';
 import { groupConjugationsByForm } from '../src/lib/grammarConjugations';
+import { headwordOf } from '@gokan/dataset-schema';
 import type { GrammarPoint, Vocabulary } from '@gokan/dataset-schema';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -207,7 +208,7 @@ async function main(): Promise<void> {
             structuredData: {
                 '@context': 'https://schema.org',
                 '@type': 'DefinedTerm',
-                name: vocab.writtenForm.kanji,
+                name: headwordOf(vocab),
                 description: meta.description,
             },
         });

@@ -25,6 +25,15 @@ describe('vocabMeta', () => {
         expect(title).toContain('JLPT N4');
     });
 
+    it('leads with the kana for a word learned in kana, keeping its kanji spelling', () => {
+        const here = vocabulary({
+            writtenForm: { kanji: '此処', alternatives: [], containedKanji: ['此', '処'] },
+            reading: { primary: 'ここ', alternatives: [] },
+            usuallyKana: true,
+        });
+        expect(vocabMeta(here).title).toMatch(/^ここ \(此処\)/);
+    });
+
     it('omits the JLPT suffix when absent', () => {
         const { title } = vocabMeta(vocabulary());
         expect(title).not.toContain('JLPT');

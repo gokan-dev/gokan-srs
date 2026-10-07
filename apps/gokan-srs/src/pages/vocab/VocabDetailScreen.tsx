@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { TagsLookup } from "@gokan/dataset-schema";
+import { TagsLookup, headwordOf } from "@gokan/dataset-schema";
 import type { Tags, Vocabulary } from "@gokan/dataset-schema";
 import { Card } from "../../components/ui/Card";
 import { MasteryRing } from "../../components/MasteryRing";
@@ -15,7 +15,8 @@ import { ReviewTimeline } from "../../components/ReviewTimeline";
 import { VocabRelationshipsCard } from "./VocabRelationshipsCard";
 import { JlptChip } from "../../components/JlptChip";
 import { THEME } from "../../commons/theme";
-import { isEntryMastered, isProductionActivated } from "../../services/scheduling";
+import { isEntryMastered, isProductionActivated, isReadingRelevant } from "../../services/scheduling";
+import { KanjiSpellingNote } from "../../components/KanjiSpellingNote";
 import { PageHeader } from "../../components/PageHeader";
 import { DetailErrorScreen } from "../../components/detail/DetailErrorScreen";
 import { DetailField } from "../../components/detail/DetailCard";
@@ -45,6 +46,8 @@ export default function VocabDetailScreen() {
     // dueDate, and gating on one hid the ring and history of every word whose
     // production was finished (or skipped as already known).
     const productionActivated = isProductionActivated(progress?.production);
+    // A word learned in kana has no reading direction: no ring, due date or curve for it.
+    const readingRelevant = !progress || isReadingRelevant(progress);
 
     if (error) return <DetailErrorScreen message={error} />;
 
@@ -60,22 +63,27 @@ export default function VocabDetailScreen() {
                         className="relative inline-flex items-start text-7xl md:text-8xl font-mincho text-primary mb-2"
                         title={vocab.mergedVocabs && vocab.mergedVocabs.length > 1 ? "Merged Entry (combines multiple JMDict words)" : undefined}
                     >
-                        <span>{vocab.writtenForm.kanji}</span>
+                        <span>{headwordOf(vocab)}</span>
                         {vocab.mergedVocabs && vocab.mergedVocabs.length > 1 && (
                             <span className="absolute -right-10 top-0">
                                 <Combine size={24} className="text-divider opacity-40" />
                             </span>
                         )}
                     </div>
-                    {vocab.writtenForm.alternatives && vocab.writtenForm.alternatives.length > 0 && (
+                    {/* A word shown in kana names its kanji spellings in a note instead. */}
+                    {!vocab.usuallyKana && vocab.writtenForm.alternatives && vocab.writtenForm.alternatives.length > 0 && (
                         <div className="text-2xl md:text-3xl font-mincho text-tertiary mb-4 text-center">
                             {vocab.writtenForm.alternatives.join(' ・ ')}
                         </div>
                     )}
                     <div className="space-y-2">
-                        <div className="text-3xl font-gothic text-secondary/90 opacity-90">
-                            {vocab.reading.primary}
-                        </div>
+                        {vocab.usuallyKana ? (
+                            <KanjiSpellingNote vocab={vocab} className="text-center" />
+                        ) : (
+                            <div className="text-3xl font-gothic text-secondary/90 opacity-90">
+                                {vocab.reading.primary}
+                            </div>
+                        )}
                         {vocab.reading.alternatives.length > 0 && (
                             <div className="text-sm text-tertiary font-gothic">
                                 Also: {vocab.reading.alternatives.join(', ')}
@@ -90,12 +98,14 @@ export default function VocabDetailScreen() {
                 </div>
                 {progress && (
                     <div className="flex justify-center gap-8 border-t border-divider pt-6 w-full">
-                        <div className="flex flex-col items-center gap-2">
-                            <MasteryRing memoryStrength={progress.reading.memoryStrength} size={60} variant="reading" />
-                            <span className="text-xs text-tertiary uppercase tracking-wider font-gothic font-semibold">
-                                Reading
-                            </span>
-                        </div>
+                        {readingRelevant && (
+                            <div className="flex flex-col items-center gap-2">
+                                <MasteryRing memoryStrength={progress.reading.memoryStrength} size={60} variant="reading" />
+                                <span className="text-xs text-tertiary uppercase tracking-wider font-gothic font-semibold">
+                                    Reading
+                                </span>
+                            </div>
+                        )}
                         <div className="flex flex-col items-center gap-2">
                             <MasteryRing memoryStrength={progress.meaning.memoryStrength} size={60} variant="meaning" />
                             <span className="text-xs text-tertiary uppercase tracking-wider font-gothic font-semibold">
@@ -124,11 +134,12 @@ export default function VocabDetailScreen() {
         <Card size={isMobile ? "sm" : "md"}>
             <h2 className="text-lg font-gothic font-semibold text-primary mb-4">Information</h2>
             <div className="grid grid-cols-2 gap-4">
+                {/* A word learned in kana is met at its kana spelling's rank, and is not part of the kanji order. */}
                 <DetailField label="Frequency">
-                    #{vocab.frequency.kanjiRank.toLocaleString()}
+                    #{(vocab.usuallyKana ? vocab.frequency.kanaRank ?? vocab.frequency.kanjiRank : vocab.frequency.kanjiRank).toLocaleString()}
                 </DetailField>
                 <DetailField label="KKLC Step">
-                    Step {vocab.progression.kklcStep}
+                    {vocab.usuallyKana ? 'Learned in kana' : `Step ${vocab.progression.kklcStep}`}
                 </DetailField>
                 {vocab.usageHints?.examplePattern && (
                     <div className="col-span-2 pt-2 border-t border-divider">
@@ -202,11 +213,13 @@ export default function VocabDetailScreen() {
     const statsCard = progress && progress.introductionAt ? (
         <SrsStatsCard
             totalReviews={progress.totalReviews}
-            interval={progress.reading.interval}
+            interval={readingRelevant ? progress.reading.interval : progress.meaning.interval}
             introductionAt={progress.introductionAt}
             nextReview={
                 <div className="space-y-1">
-                    <NextReviewLine label="Reading" value={progress.reading.dueDate?.toLocaleDateString() ?? 'Ready'} />
+                    {readingRelevant && (
+                        <NextReviewLine label="Reading" value={progress.reading.dueDate?.toLocaleDateString() ?? 'Ready'} />
+                    )}
                     <NextReviewLine label="Meaning" value={progress.meaning.dueDate?.toLocaleDateString() ?? 'Ready'} />
                     {/* "Not started" rather than a hidden row or a bare "Ready":
                         production activates lazily, so a word that has not reached
@@ -223,7 +236,9 @@ export default function VocabDetailScreen() {
                 </div>
             }
             series={[
-                { key: 'reading', label: 'Reading', entry: progress.reading, color: THEME.mastery.reading.loop1 },
+                ...(readingRelevant
+                    ? [{ key: 'reading', label: 'Reading', entry: progress.reading, color: THEME.mastery.reading.loop1 }]
+                    : []),
                 { key: 'meaning', label: 'Meaning', entry: progress.meaning, color: THEME.mastery.meaning.loop1 },
                 // Only once activated: an un-started entry would draw a flat
                 // zero line that reads as lost progress.

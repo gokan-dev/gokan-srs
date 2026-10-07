@@ -7,7 +7,7 @@ import type { GrammarProgress } from '../models/grammar.model';
 import type { VocabProgress } from '../models/vocabulary.model';
 import type { UserSettings } from '../models/user.model';
 import { DEFAULT_SETTINGS } from '../models/user.model';
-import { grammarProgress, srsEntry } from '../test/fixtures';
+import { grammarProgress, srsEntry, vocabProgress } from '../test/fixtures';
 
 const makeProgress = (overrides: Partial<GrammarProgress> = {}): GrammarProgress => grammarProgress({
     introductionAt: new Date('2026-06-01T00:00:00Z'),
@@ -133,24 +133,18 @@ describe('GrammarSRSService.applyVocabReinforcement (positive-only vocab credit)
     const settings: UserSettings = { ...DEFAULT_SETTINGS, learningFrequency: 'medium', enableMeaningQuiz: true };
 
     function makeVocabProgress(overrides: Partial<VocabProgress> = {}): VocabProgress {
-        const entry = () => ({
-            memoryStrength: 100, interval: 1, difficulty: 0.5,
-            lastReviewedAt: null, dueDate: now, history: [],
-        });
-        return {
+        const entry = () => srsEntry({ memoryStrength: 100, interval: 1, difficulty: 0.5, dueDate: now });
+        return vocabProgress({
             vocabId: 'v-1',
-            stage: 'learning',
             introductionAt: new Date('2026-06-01T00:00:00Z'),
             nextReviewAt: now,
-            lastReviewedAt: null,
             totalReviews: 1,
-            consecutiveFailures: 0,
             reading: entry(),
             meaning: entry(),
             // Already activated, so the seed-first path is not what these exercise.
-            production: { ...entry(), dueDate: now },
+            production: entry(),
             ...overrides,
-        };
+        });
     }
 
     it('boosts the PRODUCTION entry of a credited word and leaves untouched words alone', () => {

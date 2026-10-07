@@ -7,6 +7,7 @@ import type { UserProgress } from '../models/user.model';
 import type { StoredProgress, StoredVocabProgress } from './progressHydration';
 import { GrammarService } from './grammar.service';
 import type { GrammarProgress } from '../models/grammar.model';
+import { srsEntry, vocabProgress } from '../test/fixtures';
 
 describe('MigrationService', () => {
     const maxMemoryStrength = CONSTANTS.srs.formula.mastery.maxMemoryStrength;
@@ -74,31 +75,12 @@ describe('MigrationService', () => {
         });
 
         it('should not re-migrate already migrated data', () => {
-            const alreadyMigrated: VocabProgress = {
+            const alreadyMigrated: VocabProgress = vocabProgress({
                 vocabId: 'test-123',
-                stage: 'learning',
-                introductionAt: null,
-                nextReviewAt: null,
-                lastReviewedAt: null,
                 totalReviews: 5,
-                consecutiveFailures: 0,
-                reading: {
-                    memoryStrength: 500,
-                    interval: 50,
-                    difficulty: 0.4,
-                    lastReviewedAt: null,
-                    dueDate: null,
-                    history: []
-                },
-                meaning: {
-                    memoryStrength: 0,
-                    interval: 0,
-                    difficulty: 0.3,
-                    lastReviewedAt: null,
-                    dueDate: null,
-                    history: []
-                }
-            };
+                reading: srsEntry({ memoryStrength: 500, interval: 50, difficulty: 0.4 }),
+                meaning: srsEntry({ memoryStrength: 0, interval: 0, difficulty: 0.3 }),
+            });
 
             const result = MigrationService.migrateVocabProgress(alreadyMigrated);
 
@@ -515,6 +497,26 @@ describe('MigrationService', () => {
 
             // 0 memory strength rescue check
             expect(mergedItem.meaning.memoryStrength).toBe(CONSTANTS.srs.formula.minMemoryStrength);
+        });
+
+        it('re-runs below the terminal version, moving progress off a merged word\'s old base id', async () => {
+            // The dataset moved 点's base from 1007860 (ちょぼ) to 1441390 (てん): progress
+            // already past version 8 still holds the old id, whose file no longer exists.
+            vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ '1007860': '1441390' })));
+            const progress = MigrationService.migrateUserProgress({
+                _formatVersion: 12,
+                learningQueue: [{ vocabId: '1007860', stage: 'learning', totalReviews: 3, reading: { memoryStrength: 40 } }],
+            });
+
+            const migrated = await MigrationService.migrateMergedVocabsAsync(progress);
+            vi.restoreAllMocks();
+
+            expect(migrated.learningQueue.map(v => v.vocabId)).toEqual(['1441390']);
+            expect(migrated.learningQueue[0].reading.memoryStrength).toBe(40);
+            // Never lowered to the pass's own version 8; the grammar pass stamps the terminal one.
+            expect(migrated._formatVersion).toBe(12);
+            expect(await MigrationService.migrateMergedVocabsAsync({ ...migrated, _formatVersion: CURRENT_FORMAT_VERSION }))
+                .toEqual({ ...migrated, _formatVersion: CURRENT_FORMAT_VERSION });
         });
     });
 

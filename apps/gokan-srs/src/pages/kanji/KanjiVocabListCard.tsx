@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Card } from "../../components/ui/Card";
+import { headwordOf, secondaryForm } from "@gokan/dataset-schema";
 import type { Vocabulary } from "@gokan/dataset-schema";
 import { VocabularyService } from "../../services/vocabulary.service";
 import { useNavigate } from "react-router-dom";
@@ -43,11 +44,12 @@ export function KanjiVocabListCard({ vocabIds }: Props) {
                         className="border-l-2 border-divider pl-3 cursor-pointer hover:border-accent transition-colors group"
                     >
                         <div className="flex items-center gap-2 mb-1">
+                            {/* A word learned in kana lists as ここ with 此処 beside it, as in the dictionary. */}
                             <span className="font-mincho text-xl text-primary group-hover:text-accent transition-colors">
-                                {v.writtenForm.kanji}
+                                {headwordOf(v)}
                             </span>
-                            <span className="font-gothic font-bold text-secondary">
-                                {v.reading.primary}
+                            <span className={`${v.usuallyKana ? 'font-mincho' : 'font-gothic font-bold'} text-secondary`}>
+                                {secondaryForm(v)}
                             </span>
                         </div>
                         <div className="text-sm text-meaning-muted font-serif line-clamp-2">

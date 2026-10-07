@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type MouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { headwordOf } from "@gokan/dataset-schema";
 import type { Vocabulary } from "@gokan/dataset-schema";
 import { VocabularyService } from "../services/vocabulary.service";
 
@@ -174,9 +175,9 @@ function GlossCard({ id, vocab, left, top }: { id: string; vocab: Vocabulary | n
                 <>
                     <div className="flex items-baseline gap-2 mb-1">
                         <span className="text-lg font-mincho text-primary leading-none">
-                            {vocab.writtenForm.kanji}
+                            {headwordOf(vocab)}
                         </span>
-                        {vocab.reading.primary !== vocab.writtenForm.kanji && (
+                        {vocab.reading.primary !== headwordOf(vocab) && (
                             <span className="text-xs font-gothic text-tertiary">{vocab.reading.primary}</span>
                         )}
                     </div>

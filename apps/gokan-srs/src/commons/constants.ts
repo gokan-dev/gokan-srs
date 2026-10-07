@@ -20,6 +20,14 @@ export const CONSTANTS = {
         /** Maximum number of new vocab introduced per day (Limit removed) */
         dailyNewLimit: 999999,
         newVocabBatchSize: 3,
+        /**
+         * New words learned in kana (Vocabulary.usuallyKana: この, ほど, もらう) one
+         * session introduces at most, in the frequency and JLPT orders. They are mostly
+         * function words, hard to tell apart when several arrive together, and with no
+         * kanji to gate them they would otherwise all come first. A soft cap: when
+         * nothing else can be offered they still come (usuallyKanaPacer).
+         */
+        newUsuallyKanaPerSession: 2,
 
         /** Maximum number of reviews per day (Limit removed) */
         maxReviewsPerDay: 999999,

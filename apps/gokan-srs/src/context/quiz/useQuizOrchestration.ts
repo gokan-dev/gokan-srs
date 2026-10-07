@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch } from 'react';
 import { useLocation } from 'react-router-dom';
 import type { KanjiKnowledge, UserProgress, UserSettings } from '../../models/user.model';
+import { headwordOf, headwordWithReading } from '@gokan/dataset-schema';
 import type { SynonymRelation, VocabSynonym, Vocabulary } from '@gokan/dataset-schema';
 import type { VocabProgress } from '../../models/vocabulary.model';
 import { StorageService } from '../../services/storage.service';
@@ -13,7 +14,8 @@ import { LLMService } from '../../services/llm.service';
 import { CONSTANTS } from '../../commons/constants';
 import { DEFAULT_SETTINGS } from '../../models/user.model';
 import type { SetupValues } from '../../models/state.model';
-import { calculateMasteryPercentage, clearStaleNeedsRetry } from '../../utils/srs.utils';
+import { calculateMasteryPercentage, clearStaleNeedsRetry, syncUsuallyKana } from '../../utils/srs.utils';
+import { usuallyKanaBudget } from '../../utils/usuallyKana.utils';
 import { clozeAcceptedForms, pickProductionClozeSentence } from '../../utils/productionCloze.utils';
 import { indexLearnerVocab, pickSentenceForVocab } from '../../utils/sentenceRanking';
 import {
@@ -190,6 +192,22 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
         if (!state.progress || !state.settings) return;
         void SRSService.hasMoreLearnableVocabulary(state.progress, state.settings).then(setHasMoreLearnable);
     }, [state.progress, state.settings]);
+
+    // The dataset decides which words are learned in kana; progress keeps a copy for
+    // scheduling (VocabProgress.usuallyKana). Synced on load and whenever the queue
+    // changes (a reconcile can bring in words added on another build), dispatching
+    // only when something actually differs.
+    const [usuallyKanaIds, setUsuallyKanaIds] = useState<ReadonlySet<string> | null>(null);
+    useEffect(() => {
+        if (!state.progress || usuallyKanaIds) return;
+        void VocabularyService.loadUsuallyKanaIds().then(setUsuallyKanaIds);
+    }, [state.progress, usuallyKanaIds]);
+    useEffect(() => {
+        if (!state.progress || !usuallyKanaIds) return;
+        const now = new Date();
+        if (syncUsuallyKana(state.progress.learningQueue, usuallyKanaIds, state.settings ?? undefined, now) === state.progress.learningQueue) return;
+        dispatch({ type: 'SYNC_USUALLY_KANA', payload: { ids: usuallyKanaIds, now } });
+    }, [state.progress, state.settings, usuallyKanaIds, dispatch]);
 
     // The selectors are pure: each memo hands them exactly the state it depends on, and the
     // current time as of that state change (the orchestration layer owns the clock).
@@ -382,11 +400,11 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
 
                         if (synonymMatch) {
                             const { candidate } = synonymMatch;
-                            const candidateLabel = `${candidate.vocab.writtenForm.kanji} (${candidate.vocab.reading.primary})`;
-                            const targetLabel = `${state.currentVocab.writtenForm.kanji} (${state.currentVocab.reading.primary})`;
+                            const candidateLabel = headwordWithReading(candidate.vocab);
+                            const targetLabel = headwordWithReading(state.currentVocab);
                             const outcome = synonymOutcome(candidate, cue);
                             const meaning = sharedMeaningUsed(candidate.shared ?? [], cue);
-                            synonymWord = { vocabId: candidate.vocabId, written: candidate.vocab.writtenForm.kanji };
+                            synonymWord = { vocabId: candidate.vocabId, written: headwordOf(candidate.vocab) };
 
                             if (outcome === 'correct') {
                                 result = 'correct';
@@ -484,7 +502,12 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                     existing: state.introCandidates,
                     batchSize: CONSTANTS.srs.newVocabBatchSize,
                     getNextIds: (maxToFind, ignored) => SRSService.getNextCandidates(
-                        updatedQueue, state.progress!.kanjiKnowledge, state.settings!, maxToFind, ignored
+                        updatedQueue, state.progress!.kanjiKnowledge, state.settings!, maxToFind, ignored,
+                        usuallyKanaBudget(
+                            CONSTANTS.srs.newUsuallyKanaPerSession,
+                            state.session?.usuallyKanaIntroduced ?? 0,
+                            state.introCandidates
+                        )
                     ),
                     loadItem: (id) => VocabularyService.loadVocab(id),
                     logLabel: 'useQuizOrchestration',
@@ -594,7 +617,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
 
             const historyItem = {
                 vocabId: id,
-                writtenForm: state.currentVocab.writtenForm.kanji,
+                writtenForm: headwordOf(state.currentVocab),
                 result: state.feedback.type,
                 delta
             };

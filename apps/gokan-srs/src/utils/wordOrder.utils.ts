@@ -1,6 +1,7 @@
 import type { FrequencyIndex, JlptIndex, KKLCIndex, MediaWordCount } from '@gokan/dataset-schema';
 import type { LearningOrder } from '../models/user.model';
 import { numericEntries } from './records';
+import { orderIncludesUsuallyKana } from './usuallyKana.utils';
 
 /**
  * Ordering for the listening library's "words to learn" lists, per episode and
@@ -26,14 +27,18 @@ export interface WordOrderContext {
     /** 5 = N5 (easiest) .. 1 = N1. Absent for the majority of words, which have no JLPT level. */
     jlptLevel: Map<string, number>;
     kklcStep: Map<string, number>;
+    /** Words learned in kana (VocabIndexEntry.usuallyKana): no kanji needed, absent from the kanji-driven orders. */
+    usuallyKana: Set<string>;
 }
 
 export function buildWordOrderContext(frequency: FrequencyIndex, jlpt: JlptIndex, kklc: KKLCIndex): WordOrderContext {
     const frequencyRank = new Map<string, number>();
     const kanjiOf = new Map<string, string[]>();
+    const usuallyKana = new Set<string>();
     frequency.forEach((entry, rank) => {
         frequencyRank.set(entry.id, rank);
         kanjiOf.set(entry.id, entry.containedKanji);
+        if (entry.usuallyKana) usuallyKana.add(entry.id);
     });
     const jlptLevel = new Map<string, number>();
     for (const [level, entries] of numericEntries(jlpt)) {
@@ -43,7 +48,7 @@ export function buildWordOrderContext(frequency: FrequencyIndex, jlpt: JlptIndex
     for (const [step, ids] of numericEntries(kklc)) {
         for (const id of ids) if (!kklcStep.has(id)) kklcStep.set(id, step);
     }
-    return { frequencyRank, kanjiOf, jlptLevel, kklcStep };
+    return { frequencyRank, kanjiOf, jlptLevel, kklcStep, usuallyKana };
 }
 
 /** What the learner's own vocab order depends on: their settings and kanji. */
@@ -84,9 +89,11 @@ export function computeUncoveredKanji(
 /**
  * Whether the learner's own queue could introduce this word right now: under
  * the kklc order, its step is reached; under every other order, all its kanji
- * are known (unless they turned that requirement off).
+ * are known (unless they turned that requirement off). A word learned in kana
+ * needs no kanji, but the kanji-driven orders never introduce it.
  */
 export function isLearnableNow(vocabId: string, context: WordOrderContext, learner: LearnerOrder): boolean {
+    if (context.usuallyKana.has(vocabId)) return orderIncludesUsuallyKana(learner.order);
     if (learner.order === 'kklc') return (context.kklcStep.get(vocabId) ?? Infinity) <= learner.kklcStep;
     if (learner.ignoreKnownKanji) return true;
     const kanji = context.kanjiOf.get(vocabId);

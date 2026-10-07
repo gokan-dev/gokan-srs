@@ -1,7 +1,8 @@
 import { useQuiz } from "../../context/useQuiz";
 import { useResponsive } from "../../context/Responsive/useResponsive";
 import { MasteryRing } from "../../components/MasteryRing";
-import { TagsLookup, type Tags } from "@gokan/dataset-schema";
+import { TagsLookup, headwordOf, type Tags } from "@gokan/dataset-schema";
+import { KanjiSpellingNote } from "../../components/KanjiSpellingNote";
 import { JlptChip } from "../../components/JlptChip";
 import { TagChip } from "../../components/TagChip";
 import { Headword } from "../../components/quiz/Headword";
@@ -56,7 +57,7 @@ export function VocabMeaningQuizCard({ onKanjiClick, onVocabClick }: VocabMeanin
                 <h2 className="text-xl md:text-2xl font-serif text-secondary text-center leading-relaxed max-w-2xl mx-auto">
                     {sentence ? (
                         <>
-                            What is the original meaning of <span className="text-primary font-bold mx-1">{currentVocab.writtenForm.kanji}</span> in this sentence?
+                            What is the original meaning of <span className="text-primary font-bold mx-1">{headwordOf(currentVocab)}</span> in this sentence?
                         </>
                     ) : (
                         <>What is the meaning of this word?</>
@@ -83,13 +84,17 @@ export function VocabMeaningQuizCard({ onKanjiClick, onVocabClick }: VocabMeanin
                         </div>
                     </div>
                 ) : (
-                    <div className="flex justify-center mb-4">
+                    <div className="flex flex-col items-center mb-4">
                         <Headword
                             vocab={currentVocab}
                             size="md"
                             showReading={!!feedback?.show}
                             onClick={feedback?.show && onKanjiClick ? onKanjiClick : undefined}
                         />
+                        {/* Shown before answering: a word in kana can share its kana with
+                            another word (いる is 居る and 要る), and the kanji spelling tells
+                            them apart. It is also how the learner meets that spelling. */}
+                        <KanjiSpellingNote vocab={currentVocab} className="mt-3" />
                     </div>
                 )}
 

@@ -36,7 +36,7 @@ const KEY_CODES = {
     vocabId: 'i', grammarId: 'gi', stage: 's', introductionAt: 'ia', nextReviewAt: 'na',
     lastReviewedAt: 'lr', consecutiveFailures: 'cf', needsRetry: 'nr', entry: 'e',
     memoryStrength: 'ms', interval: 'iv', difficulty: 'd', dueDate: 'dd',
-    date: 'dt', result: 'rs', latency: 'lt', source: 'so',
+    date: 'dt', result: 'rs', latency: 'lt', source: 'so', usuallyKana: 'uk',
 } as const satisfies Record<string, string>;
 
 const CODE_KEYS: ReadonlyMap<string, string> = new Map(Object.entries(KEY_CODES).map(([key, code]) => [code, key]));
@@ -52,12 +52,13 @@ const SOURCES = ['reinforcement'] as const satisfies readonly NonNullable<Review
 const LOG_FIELDS: ReadonlySet<string> = new Set(['date', 'result', 'interval', 'latency', 'source']);
 
 /** Values hydration puts back when the field is missing (DEFAULT_SRS_ENTRY / DEFAULT_*_PROGRESS spreads). */
-const HYDRATION_DEFAULTS: ReadonlyMap<string, number> = new Map([
+const HYDRATION_DEFAULTS: ReadonlyMap<string, number | boolean> = new Map<string, number | boolean>([
     ['memoryStrength', DEFAULT_SRS_ENTRY.memoryStrength],
     ['interval', DEFAULT_SRS_ENTRY.interval],
     ['difficulty', DEFAULT_SRS_ENTRY.difficulty],
     ['consecutiveFailures', DEFAULT_VOCABULARY_PROGRESS.consecutiveFailures],
     ['totalReviews', DEFAULT_VOCABULARY_PROGRESS.totalReviews],
+    ['usuallyKana', DEFAULT_VOCABULARY_PROGRESS.usuallyKana],
 ]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {

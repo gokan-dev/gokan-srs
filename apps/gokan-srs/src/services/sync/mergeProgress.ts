@@ -122,6 +122,9 @@ export function mergeVocabProgress(
         production: mergedProduction,
         needsRetry,
         nextReviewAt: null,
+        // Dataset knowledge, not learner history: this device's copy was synced
+        // against the dataset it runs (syncUsuallyKana), so it wins.
+        usuallyKana: local.usuallyKana,
     };
 
     // Stage/nextReviewAt are always re-derived (never merged directly): graduated

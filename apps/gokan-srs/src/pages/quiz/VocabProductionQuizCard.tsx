@@ -8,6 +8,8 @@ import { TagChip } from "../../components/TagChip";
 import { VocabBaseQuizCard } from "./VocabBaseQuizCard";
 import { formatReadingList, getCoarsePosLabels } from "./quizFormatting";
 import { LookUpWords } from "../../components/LookUpWords";
+import { KanjiSpellingNote } from "../../components/KanjiSpellingNote";
+import { headwordOf } from "@gokan/dataset-schema";
 
 interface VocabProductionQuizCardProps {
     onKanjiClick?: () => void;
@@ -119,19 +121,24 @@ export function VocabProductionQuizCard({ onKanjiClick, onVocabClick }: VocabPro
                         type="button"
                         onClick={() => onKanjiClick?.()}
                         disabled={!onKanjiClick}
-                        title={`Open the page for ${currentVocab.writtenForm.kanji}`}
+                        title={`Open the page for ${headwordOf(currentVocab)}`}
                         className="relative inline-flex items-start text-5xl leading-none text-primary font-mincho rounded underline decoration-dashed decoration-1 underline-offset-8 hover:opacity-80 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:no-underline"
                     >
-                        <ruby className="ruby-text">
-                            {currentVocab.writtenForm.kanji}
-                            <rt className="text-sm font-sans text-secondary not-italic">{currentVocab.reading.primary}</rt>
-                        </ruby>
+                        {currentVocab.usuallyKana ? (
+                            <span>{headwordOf(currentVocab)}</span>
+                        ) : (
+                            <ruby className="ruby-text">
+                                {headwordOf(currentVocab)}
+                                <rt className="text-sm font-sans text-secondary not-italic">{currentVocab.reading.primary}</rt>
+                            </ruby>
+                        )}
                     </button>
+                    <KanjiSpellingNote vocab={currentVocab} className="mt-3" />
                     {feedback.synonymWord && (
                         <div className="flex justify-center">
                             <LookUpWords
                                 words={[
-                                    { vocabId: currentVocab.id, written: currentVocab.writtenForm.kanji },
+                                    { vocabId: currentVocab.id, written: headwordOf(currentVocab) },
                                     feedback.synonymWord,
                                 ]}
                                 onVocabClick={onVocabClick}

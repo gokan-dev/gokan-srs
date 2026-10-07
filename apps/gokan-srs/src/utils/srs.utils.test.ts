@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { clearStaleNeedsRetry, getNextVocabToStudy, meaningContextThresholdOf } from './srs.utils';
+import { clearStaleNeedsRetry, getNextVocabToStudy, isMeaningActionable, isReadingActionable, meaningContextThresholdOf, syncUsuallyKana } from './srs.utils';
 import { DEFAULT_SRS_ENTRY } from '../models/vocabulary.model';
 import type { VocabProgress } from '../models/vocabulary.model';
 import type { MeaningContextThreshold } from '../models/user.model';
 import { DEFAULT_SETTINGS } from '../models/user.model';
 import { CONSTANTS } from '../commons/constants';
-import { userSettings, vocabProgress } from '../test/fixtures';
+import { srsEntry, userSettings, vocabProgress } from '../test/fixtures';
 
 const now = new Date('2026-06-10T00:00:00Z');
 const past = new Date('2026-06-01T00:00:00Z');
@@ -104,6 +104,60 @@ function strengthForMastery(percentage: number): number {
     if (percentage <= 100) return sMin * Math.pow(sSoft / sMin, percentage / 100);
     return sSoft * Math.pow(sMax / sSoft, (percentage - 100) / 100);
 }
+
+describe('words learned in kana', () => {
+    const now = new Date('2026-10-07T10:00:00Z');
+    const past = new Date('2026-10-01T00:00:00Z');
+
+    it('never makes the reading quiz actionable, not even a pending retry', () => {
+        const v = vocabProgress({ usuallyKana: true, totalReviews: 2, reading: srsEntry({ dueDate: past }), needsRetry: { reading: true } });
+        expect(isReadingActionable(v, now)).toBe(false);
+    });
+
+    it('makes meaning their first review: due before any review is recorded', () => {
+        const introduced = { introductionAt: past, nextReviewAt: past, meaning: srsEntry({ dueDate: past }) };
+        expect(isMeaningActionable(vocabProgress({ ...introduced, usuallyKana: true }), undefined, now)).toBe(true);
+        // A word with a reading quiz still waits for its first reading review.
+        expect(isMeaningActionable(vocabProgress(introduced), undefined, now)).toBe(false);
+    });
+});
+
+describe('syncUsuallyKana', () => {
+    const now = new Date('2026-10-07T10:00:00Z');
+
+    it('flags the words the dataset learns in kana and re-derives their schedule', () => {
+        const queue = [
+            vocabProgress({ vocabId: 'here', totalReviews: 3, reading: srsEntry({ dueDate: new Date('2026-10-01') }), meaning: srsEntry({ dueDate: new Date('2026-10-20') }) }),
+            vocabProgress({ vocabId: 'mountain' }),
+        ];
+        const [here, mountain] = syncUsuallyKana(queue, new Set(['here']), undefined, now);
+        expect(here.usuallyKana).toBe(true);
+        // The overdue reading no longer counts; meaning decides.
+        expect(here.nextReviewAt).toEqual(new Date('2026-10-20'));
+        expect(mountain).toBe(queue[1]);
+    });
+
+    it('gives a word the dataset stops flagging its reading quiz back, due now', () => {
+        const reviewed = vocabProgress({ vocabId: 'sude', usuallyKana: true, totalReviews: 4, meaning: srsEntry({ dueDate: new Date('2026-10-20') }) });
+        const [synced] = syncUsuallyKana([reviewed], new Set(), undefined, now);
+        expect(synced.usuallyKana).toBe(false);
+        expect(synced.reading.dueDate).toEqual(now);
+        expect(isReadingActionable(synced, now)).toBe(true);
+    });
+
+    it('graduates a word whose only unmastered direction was reading', () => {
+        const mastered = srsEntry({ memoryStrength: CONSTANTS.srs.formula.mastery.maxMemoryStrength });
+        const word = vocabProgress({ vocabId: 'kono', totalReviews: 9, meaning: mastered, production: mastered });
+        const [synced] = syncUsuallyKana([word], new Set(['kono']), undefined, now);
+        expect(synced.stage).toBe('graduated');
+        expect(synced.nextReviewAt).toBeNull();
+    });
+
+    it('returns the same array when every flag already matches', () => {
+        const queue = [vocabProgress({ vocabId: 'here', usuallyKana: true })];
+        expect(syncUsuallyKana(queue, new Set(['here']), undefined, now)).toBe(queue);
+    });
+});
 
 describe('meaningContextThresholdOf', () => {
     it("keeps an existing user's legacy preset when their settings are loaded over the defaults", () => {

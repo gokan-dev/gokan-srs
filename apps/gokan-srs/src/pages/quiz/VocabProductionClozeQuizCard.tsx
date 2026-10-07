@@ -14,6 +14,7 @@ import { splitClozeContext, emphasizeGloss, blankSurfaceOf } from "../../utils/p
 import { getCoarsePosLabels } from "./quizFormatting";
 import { InteractiveSentence } from "../../components/InteractiveSentence";
 import { LookUpWords } from "../../components/LookUpWords";
+import { headwordOf } from "@gokan/dataset-schema";
 
 /**
  * The vocab production CLOZE card (issue #72): one example sentence with the
@@ -146,7 +147,7 @@ export function VocabProductionClozeQuizCard({ onVocabClick }: { onVocabClick?: 
                                     type="button"
                                     onClick={() => onVocabClick?.(currentVocab.id)}
                                     disabled={!onVocabClick}
-                                    title={`Open the page for ${currentVocab.writtenForm.kanji}`}
+                                    title={`Open the page for ${headwordOf(currentVocab)}`}
                                     className="mt-1 rounded text-feedback-correct underline decoration-dashed underline-offset-4 decoration-1 hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:no-underline"
                                 >
                                     <ruby className="ruby-text">
@@ -169,7 +170,7 @@ export function VocabProductionClozeQuizCard({ onVocabClick }: { onVocabClick?: 
                             {feedback.synonymWord && (
                                 <LookUpWords
                                     words={[
-                                        { vocabId: currentVocab.id, written: currentVocab.writtenForm.kanji },
+                                        { vocabId: currentVocab.id, written: headwordOf(currentVocab) },
                                         feedback.synonymWord,
                                     ]}
                                     onVocabClick={onVocabClick}

@@ -127,6 +127,8 @@ export function embeddedSynonymCandidate(entry: VocabSynonym): ProductionSynonym
             reading: { primary: r[0], alternatives: r.slice(1) },
             // Only pos is read, by the inflection generator (wordClassesOf).
             senses: pos ? [{ pos, glosses: [], misc: { rawTags: [] }, related: { compounds: [] } }] : [],
+            // So the feedback names a word learned in kana by its kana (headwordOf).
+            ...(entry.u ? { usuallyKana: true as const } : {}),
         },
     };
 }

@@ -1,7 +1,14 @@
 import type { VocabProgress } from "../models/vocabulary.model";
 import type { UserSettings } from "../models/user.model";
 import { CONSTANTS } from "../commons/constants";
-import { isMeaningQuizEnabled, isProductionQuizEnabled } from "../services/scheduling";
+import {
+    isEntryMastered,
+    isMeaningQuizEnabled,
+    isProductionQuizEnabled,
+    isReadingRelevant,
+    isVocabFullyMastered,
+    vocabNextReviewAt,
+} from "../services/scheduling";
 import { pickStable as pickStableGeneric } from "./deterministicPick";
 
 /**
@@ -48,6 +55,8 @@ export interface QuizItem {
  * trying to decide whether to clear.
  */
 function isReadingDue(v: VocabProgress, now: Date): boolean {
+    if (!isReadingRelevant(v)) return false;
+
     const isFirstReview =
         v.totalReviews === 0 &&
         v.introductionAt !== null &&
@@ -63,15 +72,24 @@ function isReadingDue(v: VocabProgress, now: Date): boolean {
     return isFirstReview || isDueReading;
 }
 
+/**
+ * Meaning and production wait for the first review, which is a reading quiz. A word
+ * learned in kana has no reading quiz, so its first review is one of these: the
+ * intro sets that direction's due date (SRSService.applyVocabIntroChoice).
+ */
+function isPastFirstReview(v: VocabProgress): boolean {
+    return v.totalReviews > 0 || !isReadingRelevant(v);
+}
+
 /** Is this vocab's MEANING quiz due for a genuine, regularly-scheduled review - independent of `needsRetry`. See isReadingDue. */
 function isMeaningDue(v: VocabProgress, now: Date): boolean {
-    return v.totalReviews > 0 && v.meaning.dueDate !== null && v.meaning.dueDate <= now;
+    return isPastFirstReview(v) && v.meaning.dueDate !== null && v.meaning.dueDate <= now;
 }
 
 /** Is this vocab's PRODUCTION quiz due for a genuine, regularly-scheduled review - independent of `needsRetry`. See isReadingDue. */
 function isProductionDue(v: VocabProgress, now: Date): boolean {
     const entry = v.production;
-    return v.totalReviews > 0 && !!entry && entry.dueDate !== null && entry.dueDate <= now;
+    return isPastFirstReview(v) && !!entry && entry.dueDate !== null && entry.dueDate <= now;
 }
 
 /**
@@ -81,6 +99,8 @@ function isProductionDue(v: VocabProgress, now: Date): boolean {
  * as "a quiz the user has to do now".
  */
 export function isReadingActionable(v: VocabProgress, now: Date = new Date()): boolean {
+    // A retry flag set before the word was found to be learned in kana is moot too.
+    if (!isReadingRelevant(v)) return false;
     return isReadingDue(v, now) || v.needsRetry?.reading === true;
 }
 
@@ -155,6 +175,40 @@ export function clearStaleNeedsRetry(
         };
     });
 
+    return changed ? next : queue;
+}
+
+/**
+ * Brings every queued word's `usuallyKana` in line with the dataset (`ids`: the
+ * frequency index's usually-kana entries). Run on load, so a word added before it
+ * was flagged loses its reading quiz, and a word the dataset stops flagging (an
+ * exclusion added by hand) gets it back.
+ *
+ * Getting it back needs a due date: a word already reviewed in other directions
+ * has a reading entry nobody scheduled, and a null due date never comes due, so
+ * the word would wait forever on a reading it is never asked. It is asked now.
+ * Stage and nextReviewAt are re-derived, as the Drive merge does: losing the
+ * reading direction can leave a word with nothing left to master.
+ * Returns the same array when nothing changed, so the caller can skip a dispatch.
+ */
+export function syncUsuallyKana(
+    queue: VocabProgress[],
+    ids: ReadonlySet<string>,
+    settings: UserSettings | undefined,
+    now: Date
+): VocabProgress[] {
+    let changed = false;
+    const next = queue.map(v => {
+        const usuallyKana = ids.has(v.vocabId);
+        if (usuallyKana === v.usuallyKana) return v;
+        changed = true;
+        const reading = !usuallyKana && v.totalReviews > 0 && v.reading.dueDate === null && !isEntryMastered(v.reading)
+            ? { ...v.reading, dueDate: now }
+            : v.reading;
+        const synced = { ...v, usuallyKana, reading };
+        const stage: VocabProgress['stage'] = v.stage === 'graduated' || (v.totalReviews > 0 && isVocabFullyMastered(synced, settings)) ? 'graduated' : 'learning';
+        return { ...synced, stage, nextReviewAt: stage === 'graduated' ? null : vocabNextReviewAt(synced, settings) };
+    });
     return changed ? next : queue;
 }
 

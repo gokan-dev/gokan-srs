@@ -5,6 +5,7 @@ import {
     isMeaningQuizEnabled,
     isProductionActivated,
     isProductionQuizEnabled,
+    isReadingRelevant,
 } from "../services/scheduling";
 
 export interface ReviewForecastBucket {
@@ -71,7 +72,8 @@ export function buildReviewForecast(
     for (const v of queue) {
         // Graduated items may carry a legacy stale dueDate.
         if (v.stage === 'graduated') continue;
-        place(v.reading, 'reading');
+        // A word learned in kana is never asked its reading, whatever the entry holds.
+        if (isReadingRelevant(v)) place(v.reading, 'reading');
         if (meaningOn) place(v.meaning, 'meaning');
         if (productionOn && v.production && isProductionActivated(v.production)) place(v.production, 'production');
     }

@@ -1,8 +1,9 @@
 import { Combine } from "lucide-react";
+import { headwordOf } from "@gokan/dataset-schema";
 import type { Vocabulary } from "@gokan/dataset-schema";
 
 interface HeadwordProps {
-    vocab: Pick<Vocabulary, 'writtenForm' | 'reading' | 'mergedVocabs'>;
+    vocab: Pick<Vocabulary, 'writtenForm' | 'reading' | 'mergedVocabs' | 'usuallyKana'>;
     size: 'md' | 'lg';
     /** Clicking opens the word's page; only offered once the card is answered. */
     onClick?: () => void;
@@ -12,24 +13,26 @@ interface HeadwordProps {
 
 /**
  * A word's written form on a quiz card, marked when it is a merged entry (several
- * JMdict homographs sharing one written form).
+ * JMdict homographs sharing one written form). A word learned in kana is shown in
+ * kana (headwordOf), and needs no furigana.
  */
 export function Headword({ vocab, size, onClick, showReading = false }: HeadwordProps) {
     const merged = !!vocab.mergedVocabs && vocab.mergedVocabs.length > 1;
     const large = size === 'lg';
+    const headword = headwordOf(vocab);
     return (
         <div
             className={`relative inline-flex items-start leading-none text-primary font-mincho ${large ? 'text-kanji' : 'text-5xl'} ${onClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
             onClick={onClick}
             title={merged ? "Merged Entry (combines multiple JMDict words)" : undefined}
         >
-            {showReading ? (
+            {showReading && headword !== vocab.reading.primary ? (
                 <ruby className="ruby-text">
-                    {vocab.writtenForm.kanji}
+                    {headword}
                     <rt className="text-sm font-sans text-secondary not-italic">{vocab.reading.primary}</rt>
                 </ruby>
             ) : (
-                <span>{vocab.writtenForm.kanji}</span>
+                <span>{headword}</span>
             )}
             {merged && (
                 <span className={`absolute top-0 ${large ? '-right-8' : '-right-6'}`}>
