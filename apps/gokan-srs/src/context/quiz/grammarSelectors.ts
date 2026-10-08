@@ -8,7 +8,7 @@ import { GrammarService } from '../../services/grammar.service';
 import { hashString, pickStable } from '../../utils/deterministicPick';
 import { indexLearnerVocab, pickMostProductive, scoreGrammarExample, wordRole } from '../../utils/sentenceRanking';
 import { computeSessionState } from './sessionState';
-import { wordSlot } from '../../services/exercise/slots';
+import { synonymsOf, wordSlot } from '../../services/exercise/slots';
 import type { AnswerSlot } from '../../services/exercise/types';
 import { computeSessionStats, computeSessionPreview } from './sessionStats';
 import type { QuizState } from './quizReducer';
@@ -200,7 +200,10 @@ async function buildBlankSlots(
                     occurrence: { surface: word.surface, reading: word.reading, inflected: !!word.baseForm },
                     otherForm: 'minor_error',
                     role,
-                    synonyms: [],
+                    // A word blank grades a near-synonym against the sentence exactly as a
+                    // production card does. A marker is the point's own form: another word
+                    // in its place is simply wrong.
+                    synonyms: isPattern ? [] : synonymsOf(vocab),
                 });
             } catch (e) {
                 console.error(`[grammarSelectors] Failed to load vocab ${word.vocabId} for blank ${span[0]}, falling back to surface/reading only`, e);

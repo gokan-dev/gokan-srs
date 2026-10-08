@@ -930,6 +930,32 @@ describe('conjugated blanks: kana accepted, other forms of a vocab word are mino
         expect(new Set(plan.slots[yasaiBlank].accept)).toEqual(new Set(['野菜', 'やさい']));
     });
 
+    describe('a near-synonym typed in a blank', () => {
+        const withSynonym: Vocabulary = { ...taberu, synonyms: [{ id: 'v-kuu', relation: 'interchangeable', shared: ['eat'], w: ['食う'], r: ['くう'], pos: ['v5u'] }] };
+        const mockSynonyms = () => vi.spyOn(VocabularyService, 'loadVocab')
+            .mockImplementation((id: string) => Promise.resolve(id === 'v-taberu' ? withSynonym : yasai));
+
+        it('is graded against the sentence on a word blank, exactly as a production card would', async () => {
+            mockSynonyms();
+            const plan = (await computeBlankPlan(pointWith([3]), progress, 0))!;
+            const blank = plan.blankWordIndices.indexOf(2);
+            expect(plan.slots[blank].word?.synonyms.map(s => s.vocabId)).toEqual(['v-kuu']);
+
+            const answers = plan.blankWordIndices.map((_, i) => (i === blank ? '食う' : plan.slots[i].accept[0]));
+            const graded = gradePlan(plan, answers, []);
+            // "Why not eat vegetables?" uses the meaning the two words share.
+            expect(graded.slots[blank]).toMatchObject({ result: 'correct', synonym: { vocabId: 'v-kuu', outcome: 'correct' } });
+            expect(graded.overall).toBe('correct');
+            expect(graded.autoAdvance).toBe(false);
+        });
+
+        it('is never looked for on a pattern marker: another word there is wrong', async () => {
+            mockSynonyms();
+            const plan = (await computeBlankPlan(pointWith([2]), progress, 0))!;
+            expect(plan.slots[plan.blankWordIndices.indexOf(2)].word?.synonyms).toEqual([]);
+        });
+    });
+
     it('grades the dictionary form of a multi-token pattern marker (ある for あります) a minor error, not wrong', async () => {
         const hon = makeVocab({
             id: 'v-hon',

@@ -4,6 +4,7 @@ import { meaningSlot, readingSlot, wordSlot } from './slots';
 import { vocabExercise } from './builders';
 import type { AnswerSlot, GradedExercise, SynonymCandidate, WordForms } from './types';
 import type { ProductionCue } from '../../utils/synonymContext.utils';
+import type { AnswerResult } from '../../utils/answerMatching';
 import type { ProductionCloze } from '../../utils/productionCloze.utils';
 import type { Vocabulary } from '@gokan/dataset-schema';
 import { vocabulary } from '../../test/fixtures';
@@ -172,6 +173,26 @@ describe('parity: a production card and a grammar blank grade the same answer th
         // Production tests the word; a sentence blank also tests the form it takes there.
         expect(grade(card, input).result).toBe('correct');
         expect(grade(blank, input).result).toBe('minor_error');
+    });
+
+    describe('with near-synonyms', () => {
+        const kuu = candidate('kuu', 'interchangeable', '食う', 'くう', { shared: ['eat'] });
+        const curated = candidate('kuu', 'interchangeable', '食う', 'くう', { curated: true });
+        const blankWith = (synonyms: SynonymCandidate[]) => ({ ...blank, word: { ...blank.word!, synonyms } });
+
+        const cases: [sentence: string, synonyms: SynonymCandidate[], expected: AnswerResult, why: string][] = [
+            ['Why not eat vegetables?', [kuu], 'correct', 'a synonym the sentence means'],
+            ['The vegetables are fresh.', [kuu], 'wrong', 'a synonym the sentence does not mean'],
+            ['The vegetables are fresh.', [curated], 'minor_error', 'a curated pair out of context'],
+        ];
+
+        it.each(cases)('grades 食う against "%s" identically', (sentence, synonyms, expected) => {
+            const onBlank = grade(blankWith(synonyms), '食う', { sentence });
+            const onCard = grade(production(taberu, synonyms), '食う', { sentence });
+            expect(onBlank.result).toBe(expected);
+            // Each shows its own reveal; the grade and the word recognized are the same.
+            expect({ result: onBlank.result, synonym: onBlank.synonym }).toEqual({ result: onCard.result, synonym: onCard.synonym });
+        });
     });
 });
 

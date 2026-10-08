@@ -83,6 +83,17 @@ describe('effectsOf', () => {
             expect(effects.map(e => e.kind)).toEqual(['review']);
         });
 
+        it('credits the word typed, never the blank\'s word, for a near-synonym that fits the sentence', () => {
+            const semaiBlank = wordSlot(forms('狭い', 'せまい'), { vocabId: 'semai', otherForm: 'minor_error', role: 'support', synonyms: [chiisai] });
+            const effects = answer({ ...card([pattern, semaiBlank]), cue: { sentence: 'Japan is a small country.' } }, ['が', '小さい']);
+
+            expect(effects.map(e => e.kind)).toEqual(['review', 'reinforce']);
+            expect(effects[1]).toEqual({ kind: 'reinforce', vocabId: 'chiisai', label: '小さい', result: 'correct' });
+            // Answered right, so the vocab blank does not discount the point's reward.
+            const [asked] = effects;
+            expect(asked.kind === 'review' && asked.strengthModifier).toBe(1);
+        });
+
         it('retries the point when every deciding blank was a confusable near-synonym', () => {
             const decider = { ...wordSlot(forms('狭い', 'せまい'), { vocabId: 'semai', otherForm: 'minor_error', role: 'core', synonyms: [chiisai] }) };
             const effects = answer(card([decider]), ['小さい']);
