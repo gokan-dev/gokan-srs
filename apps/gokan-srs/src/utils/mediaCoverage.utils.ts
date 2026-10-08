@@ -1,4 +1,5 @@
-import type { MediaEpisode, MediaIndexEntry, MediaLibraryWords, MediaWordCount } from '@gokan/dataset-schema';
+import type { JlptIndex, MediaEpisode, MediaIndexEntry, MediaLibraryWords, MediaWordCount } from '@gokan/dataset-schema';
+import { JLPT_LEVELS } from '@gokan/dataset-schema';
 import type { WatchedEpisode } from '../models/media.model';
 import type { VocabProgress } from '../models/vocabulary.model';
 import type { UserSettings } from '../models/user.model';
@@ -66,6 +67,53 @@ export function knownRatio(counts: KnowledgeCounts): number {
 
 export function formatPercent(ratio: number): string {
     return `${Math.round(ratio * 100)}%`;
+}
+
+/**
+ * A JLPT reference mark on a coverage bar: the share of what the media SAYS the
+ * learner would cover if they knew every vocabulary word up to this JLPT level
+ * (this level and every easier one). Occurrence-weighted, the same axis as the
+ * bar's fill, so a mark sits where the fill would reach at that point.
+ */
+export interface JlptCoverageMark {
+    /** 5 = N5 (easiest) .. 1 = N1 (hardest). */
+    level: number;
+    /** Cumulative occurrence share from this level and easier, 0..1. */
+    ratio: number;
+}
+
+/** Vocab id -> its JLPT level, from index/jlpt.json; a word at no level is simply absent. */
+export function jlptLevelIndex(index: JlptIndex): Map<string, number> {
+    const levelOf = new Map<string, number>();
+    // Easiest first, so a word somehow listed under two levels keeps the easier one.
+    for (const level of JLPT_LEVELS) {
+        for (const entry of index[level] ?? []) {
+            if (!levelOf.has(entry.id)) levelOf.set(entry.id, level);
+        }
+    }
+    return levelOf;
+}
+
+/**
+ * The JLPT threshold marks for a media word list: for each level, easiest first,
+ * the occurrence share covered by knowing every word up to it. Returns none when
+ * the media has no JLPT-tagged vocabulary, so the bar shows no marks rather than
+ * five sitting at 0.
+ */
+export function computeJlptCoverageMarks(words: MediaWordCount[], levelOf: Map<string, number>): JlptCoverageMark[] {
+    let total = 0;
+    const perLevel = new Map<number, number>();
+    for (const [vocabId, count] of words) {
+        total += count;
+        const level = levelOf.get(vocabId);
+        if (level !== undefined) perLevel.set(level, (perLevel.get(level) ?? 0) + count);
+    }
+    if (total === 0 || perLevel.size === 0) return [];
+    let cumulative = 0;
+    return JLPT_LEVELS.map(level => {
+        cumulative += perLevel.get(level) ?? 0;
+        return { level, ratio: cumulative / total };
+    });
 }
 
 /** A whole series' word list: every episode's counts summed, most frequent first. */
