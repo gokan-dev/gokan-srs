@@ -140,13 +140,14 @@ export interface VocabSynonym {
     /** Tier set by hand in the dataset; never upgraded from context. */
     curated?: boolean;
     /**
-     * The other word's answerable forms, embedded so grading a wrong answer needs
-     * no fetch of its vocab file: written forms (kanji first), readings (primary
-     * first, merged homographs' readings included) and its inflecting POS codes.
-     * Absent on data built before them, which falls back to fetching.
+     * The other word's answerable forms, embedded so grading a wrong answer never
+     * fetches its vocab file: written forms (kanji first, empty for a kana-only
+     * word), readings (primary first, merged homographs' readings included) and its
+     * inflecting POS codes. The build writes them on every entry, so grading is
+     * synchronous.
      */
-    w?: string[];
-    r?: string[];
+    w: string[];
+    r: string[];
     pos?: string[];
     /** The other word is learned in kana (Vocabulary.usuallyKana): name it by `r[0]`. */
     u?: true;

@@ -1,6 +1,6 @@
 // src/services/srs.service.ts
 import { JLPT_LEVELS } from '@gokan/dataset-schema';
-import type { SynonymRelation, Vocabulary } from '@gokan/dataset-schema';
+import type { Vocabulary } from '@gokan/dataset-schema';
 import type { ReviewLog, SRSEntry, VocabProgress } from '../models/vocabulary.model';
 import { CONSTANTS } from '../commons/constants';
 import { VocabularyService } from './vocabulary.service';
@@ -8,39 +8,10 @@ import type { KanjiKnowledge, UserSettings } from '../models/user.model';
 import { introQuizType, isVocabFullyMastered, vocabNextReviewAt, newSRSEntry, isProductionActivated } from './scheduling';
 import type { QuizType } from '../utils/srs.utils';
 import { collectJlptCandidates, countJlptCandidates } from './jlptWalk';
-import { isFormOfWord, toInflectableWord } from '../utils/inflection.utils';
-import { matchAnswer, matchBest, type AnswerResult, type Leniency } from '../utils/answerMatching';
+import { matchAnswer, type AnswerResult } from '../utils/answerMatching';
 import { orderIncludesUsuallyKana, usuallyKanaPacer, type UsuallyKanaPacer } from '../utils/usuallyKana.utils';
 
 export type { AnswerResult } from '../utils/answerMatching';
-
-/**
- * One member of the current production word's near-synonym cluster (issue #71
- * Part B, gokan-dataset's index/synonyms.json), resolved to its own accept-list
- * shape at card-load time - see useQuizOrchestration's loading effect - so
- * grading a collision against it stays synchronous.
- */
-/**
- * What production grading reads off a vocab. `senses` carries the part-of-speech
- * tags the inflection generator needs; without it a word simply has no
- * inflections and only its dictionary forms are accepted.
- */
-export type ProductionVocab = Pick<Vocabulary, 'reading' | 'writtenForm' | 'mergedVocabs' | 'usuallyKana'> & Partial<Pick<Vocabulary, 'senses'>>;
-
-export interface ProductionSynonymCandidate {
-    vocabId: string;
-    relation: SynonymRelation;
-    vocab: ProductionVocab;
-    /** See VocabSynonym.shared / curated. */
-    shared?: string[];
-    curated?: boolean;
-}
-
-export interface ProductionSynonymMatch {
-    candidate: ProductionSynonymCandidate;
-    /** The candidate's OWN matched form (mirrors evaluateProductionAnswer's matchedAnswer). */
-    matchedAnswer: string;
-}
 
 const F = CONSTANTS.srs.formula;
 
@@ -56,139 +27,8 @@ export interface LearnableScope {
 export class SRSService {
 
     /* =======================
-       ANSWER EVALUATION
+       ANSWER APPLICATION
        ======================= */
-
-    /**
-     * Checks user input against ALL acceptable readings, through the shared
-     * matcher (utils/answerMatching.ts). Returns the best result found.
-     */
-    static evaluateAnswer(
-        userInput: string,
-        readings: { primary: string; alternatives: string[] },
-        leniency: Leniency = 'standard'
-    ): { result: AnswerResult; matchedAnswer: string } {
-        return matchBest(userInput, [readings.primary, ...readings.alternatives], leniency);
-    }
-
-    /**
-     * Checks user input against ALL acceptable meanings (glosses). Builds the
-     * accept-list (each gloss split on its separators); the comparison itself is
-     * the shared matcher's, like every other quiz.
-     */
-    static evaluateMeaning(
-        userInput: string,
-        meanings: string[]
-    ): { result: AnswerResult; matchedAnswer: string } {
-        const parts = meanings.flatMap(meaning => {
-            // Parentheses go first so commas inside them ("go (to, from)") don't
-            // split the gloss.
-            let clean = meaning;
-            let prev;
-            do {
-                prev = clean;
-                clean = clean.replace(/\s*\([^()]*\)\s*/g, ' ');
-            } while (clean !== prev);
-
-            // Split on ; and , but not a comma inside a number (10,000).
-            return clean.split(/;\s*|,(?!\d)\s*/).map(p => p.trim()).filter(p => p.length > 0);
-        });
-
-        const best = matchBest(userInput, parts);
-        // Nothing accepted to reveal beyond the first gloss when nothing matched.
-        return best.result === 'wrong' || best.result === 'pass'
-            ? { result: best.result, matchedAnswer: meanings[0] || '' }
-            : best;
-    }
-
-    /**
-     * Checks a production answer (English prompt, Japanese reading answer)
-     * against the FULL accept-list the way `computeBlankPlan` (`grammarSelectors.ts`)
-     * already builds its own: the reading primary and alternatives, plus
-     * `writtenForm.kanji` and its alternatives, plus any `mergedVocabs` readings
-     * (issue #71 Part A). Previously this graded against `evaluateAnswer` on the
-     * reading alone, so a correct kanji answer (必ず for かならず) graded `wrong`.
-     *
-     * ONE accept-list, ONE comparison rule. Production does not orchestrate its
-     * own matching: it assembles the forms it will accept and hands them to
-     * `evaluateAnswer`, exactly as the reading quiz and the grammar blanks do,
-     * so a given typo is graded identically whichever quiz asked the question.
-     *
-     * Written forms briefly had a bespoke path here, matched EXACTLY and nothing
-     * else, to keep them off the Levenshtein comparison: a distance-1 difference
-     * between two kanji strings is usually a different word. The protection was
-     * right, the placement was not. Exact-only cannot express "right word, tail
-     * missing", so it graded 六 for 六つ as `wrong` at -0.40 (reported from
-     * production). Moving the distinction into the shared matcher
-     * (`matchAnswer`, utils/answerMatching.ts), as a kanji-skeleton rule, protects every quiz at once instead of this one call site, and the
-     * special case here became dead weight.
-     *
-     * Shared by both production quiz cards (gloss-prompt and the sentence-cloze
-     * card from issue #72) - both set `quizType: 'production'`, so this is the
-     * single grading path either one goes through.
-     */
-    static evaluateProductionAnswer(
-        userInput: string,
-        vocab: ProductionVocab,
-        // The cloze card's blanked surface and its reading (食べたら / たべたら),
-        // accepted on the normal typo-tolerant path. They cover a sentence form
-        // the inflection tables do not produce.
-        extraForms: string[] = []
-    ): { result: AnswerResult; matchedAnswer: string } {
-        const evaluation = this.evaluateAnswer(userInput, {
-            primary: vocab.reading.primary,
-            alternatives: [
-                ...vocab.reading.alternatives,
-                ...(vocab.mergedVocabs?.map(m => m.originalPrimaryReading) ?? []),
-                vocab.writtenForm.kanji,
-                ...vocab.writtenForm.alternatives,
-                ...extraForms,
-            ],
-        });
-        if (evaluation.result === 'correct' || evaluation.result === 'pass') return evaluation;
-
-        // Production tests whether the learner can produce the WORD, not its
-        // conjugation (issue #95). Any form of it, in kanji or kana, is a correct
-        // answer: 食べた, たべたら and 食べる all answer a cue for 食べる.
-        if (isFormOfWord(userInput, toInflectableWord(vocab))) {
-            return { result: 'correct', matchedAnswer: userInput.trim() };
-        }
-        return evaluation;
-    }
-
-    /**
-     * Checks a WRONG production answer (per evaluateProductionAnswer above) against
-     * the target word's precomputed near-synonym cluster (issue #71 Part B). Reuses
-     * evaluateProductionAnswer per candidate - the identical accept-list logic used
-     * to grade the target itself - so a "collision" here means the input is a
-     * genuine written/reading form of that OTHER word, never a loose partial match.
-     *
-     * Only ever meaningful once the target's own evaluateProductionAnswer has
-     * already graded 'wrong'; candidates are precomputed at card-load time (see
-     * useQuizOrchestration's loading effect, same pattern as computeBlankPlan's
-     * accept-lists), so this itself does no I/O and grading stays synchronous.
-     *
-     * An EXACT match wins over a typo match, whatever the candidate order: with
-     * dozens of candidates per word, the input can be one candidate's exact form
-     * and another's typo at once. つむ is 積む exactly, but it used to match 止む
-     * (やむ) as a typo first and grade as that word instead (reported from
-     * production). Otherwise the first typo match is returned.
-     */
-    static evaluateProductionSynonyms(
-        userInput: string,
-        candidates: ProductionSynonymCandidate[]
-    ): ProductionSynonymMatch | null {
-        let typoMatch: ProductionSynonymMatch | null = null;
-        for (const candidate of candidates) {
-            const evaluation = this.evaluateProductionAnswer(userInput, candidate.vocab);
-            if (evaluation.result === 'wrong') continue;
-            const match = { candidate, matchedAnswer: evaluation.matchedAnswer };
-            if (evaluation.result === 'correct') return match;
-            typoMatch ??= match;
-        }
-
-        return typoMatch;
-    }
 
     /**
      * Applies a `confusable` synonym collision (issue #71 Part B): the answer is a
@@ -235,10 +75,6 @@ export class SRSService {
             totalReviews: vocab.totalReviews + 1,
         };
     }
-
-    /* =======================
-       ANSWER APPLICATION
-       ======================= */
 
     static applyAnswer(
         vocab: VocabProgress,

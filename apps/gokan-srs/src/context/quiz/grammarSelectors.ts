@@ -13,6 +13,7 @@ import { indexLearnerVocab, pickMostProductive, scoreGrammarExample, wordRole } 
 import { computeSessionState } from './sessionState';
 import { isFormOfWord, kanaOfSurface, toInflectableWord } from '../../utils/inflection.utils';
 import { matchBest } from '../../utils/answerMatching';
+import { supportCoefficient, worstOf } from '../../services/exercise/grading';
 import type { InflectableWord } from '../../utils/inflection.utils';
 import { computeSessionStats, computeSessionPreview } from './sessionStats';
 import type { QuizState } from './quizReducer';
@@ -756,28 +757,6 @@ export function summariseVocabGains(
     return { total, breakdown };
 }
 
-/** Floor of the vocab coefficient: a grammar answer whose pattern is right but whose vocab blanks were ALL missed still earns this fraction of the full strength gain (never zero, never negative - the grammar core was demonstrated). */
-export const GRAMMAR_VOCAB_COEFF_FLOOR = 0.5;
-
-/** Worst-of across a set of per-blank results: wrong > pass > minor_error > correct. */
-function worstOf(results: AnswerResult[]): AnswerResult {
-    if (results.some(r => r === 'wrong')) return 'wrong';
-    if (results.some(r => r === 'pass')) return 'pass';
-    if (results.some(r => r === 'minor_error')) return 'minor_error';
-    return 'correct';
-}
-
-/**
- * Vocab coefficient in [GRAMMAR_VOCAB_COEFF_FLOOR, 1] from the fraction of vocab
- * blanks answered correctly. No vocab blanks -> 1 (nothing to modulate).
- */
-function vocabCoefficient(vocabResults: AnswerResult[]): number {
-    if (vocabResults.length === 0) return 1;
-    const successes = vocabResults.filter(r => r === 'correct' || r === 'minor_error').length;
-    const ratio = successes / vocabResults.length;
-    return GRAMMAR_VOCAB_COEFF_FLOOR + (1 - GRAMMAR_VOCAB_COEFF_FLOOR) * ratio;
-}
-
 export interface GrammarGradeResult {
     /** Same order as blankWordIndices - which specific blank(s) were wrong/passed. */
     perBlankResults: AnswerResult[];
@@ -889,7 +868,7 @@ export function gradeGrammarAnswers(
         overall = worstOf(patternResults);
         // Only a successful grammar core has a positive gain to modulate.
         if (overall === 'correct' || overall === 'minor_error') {
-            strengthDeltaModifier = vocabCoefficient(vocabResults);
+            strengthDeltaModifier = supportCoefficient(vocabResults);
         }
     } else {
         // No located pattern (fallback examples): every blank is vocab, so keep the

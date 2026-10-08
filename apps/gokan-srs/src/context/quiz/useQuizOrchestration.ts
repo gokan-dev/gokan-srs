@@ -2,13 +2,14 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch } from 'react';
 import { useLocation } from 'react-router-dom';
 import type { KanjiKnowledge, UserProgress, UserSettings } from '../../models/user.model';
-import { headwordOf, headwordWithReading } from '@gokan/dataset-schema';
-import type { SynonymRelation, VocabSynonym, Vocabulary } from '@gokan/dataset-schema';
+import { headwordOf } from '@gokan/dataset-schema';
+import type { SynonymRelation, Vocabulary } from '@gokan/dataset-schema';
 import type { VocabProgress } from '../../models/vocabulary.model';
 import { StorageService } from '../../services/storage.service';
 import { VocabularyService, VocabNotFoundError } from '../../services/vocabulary.service';
 import { SRSService } from '../../services/srs.service';
-import type { AnswerResult, ProductionSynonymCandidate } from '../../services/srs.service';
+import { gradeExercise } from '../../services/exercise/grading';
+import { meaningExercise, productionExercise, readingExercise } from '../../services/exercise/builders';
 import { MigrationService } from '../../services/migration.service';
 import { LLMService } from '../../services/llm.service';
 import { CONSTANTS } from '../../commons/constants';
@@ -16,7 +17,7 @@ import { DEFAULT_SETTINGS } from '../../models/user.model';
 import type { SetupValues } from '../../models/state.model';
 import { calculateMasteryPercentage, clearStaleNeedsRetry, syncUsuallyKana } from '../../utils/srs.utils';
 import { usuallyKanaBudget } from '../../utils/usuallyKana.utils';
-import { clozeAcceptedForms, pickProductionClozeSentence } from '../../utils/productionCloze.utils';
+import { pickProductionClozeSentence } from '../../utils/productionCloze.utils';
 import { indexLearnerVocab, pickSentenceForVocab } from '../../utils/sentenceRanking';
 import {
     frequencyModifierOf, growthLevelOf, isCalibratedVocabReview, recordCalibratedAnswer, withCalibrationDefaults,
@@ -29,45 +30,8 @@ import { useSessionLifecycle } from './useSessionLifecycle';
 import { sessionRouteRole } from './sessionRoutes';
 import { refillCandidates } from './refillCandidates';
 import { progressUploadSignature, stableStringify } from "../../services/progressSerialization";
-import { embeddedSynonymCandidate, orderSynonymsForCue, productionCueOf, sharedMeaningUsed, synonymOutcome } from '../../utils/synonymContext.utils';
-import type { ProductionCue } from '../../utils/synonymContext.utils';
 import { episodeKey } from '../../utils/mediaCoverage.utils';
 import type { WatchedEpisode } from '../../models/media.model';
-
-/**
- * Finds which of the target's near-synonyms the learner typed. Each entry
- * carries the other word's forms, so this is normally a local check with no
- * request at all; only an entry without them (older data) fetches that word's
- * vocab file. Entries whose shared meaning the card uses are tried first.
- */
-async function findProductionSynonym(input: string, entries: VocabSynonym[], cue: ProductionCue) {
-    const ordered = orderSynonymsForCue(entries, cue);
-    const embedded = ordered.map(embeddedSynonymCandidate);
-    const local = SRSService.evaluateProductionSynonyms(
-        input, embedded.filter((c): c is ProductionSynonymCandidate => c !== null)
-    );
-    if (local) return local;
-
-    const unembedded = ordered.filter((_, i) => embedded[i] === null);
-    const load = async (group: VocabSynonym[]) => (await Promise.all(group.map(async (entry): Promise<ProductionSynonymCandidate | null> => {
-        try {
-            const vocab = await VocabularyService.loadVocab(entry.id);
-            return { vocabId: entry.id, relation: entry.relation, vocab, shared: entry.shared, curated: entry.curated };
-        } catch (e) {
-            // A stale reference (e.g. a retired vocab id) drops just that candidate.
-            console.error('[useQuizOrchestration] Failed to load synonym candidate', entry.id, e);
-            return null;
-        }
-    }))).filter((c): c is ProductionSynonymCandidate => c !== null);
-
-    // In batches, in priority order: stop at the first batch containing a match.
-    const BATCH = 25;
-    for (let i = 0; i < unembedded.length; i += BATCH) {
-        const match = SRSService.evaluateProductionSynonyms(input, await load(unembedded.slice(i, i + BATCH)));
-        if (match) return match;
-    }
-    return null;
-}
 
 export interface QuizActions {
     setupComplete: (values: SetupValues) => void;
@@ -344,146 +308,70 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             submitLatencyRef.current = startTimeRef.current ? Date.now() - startTimeRef.current : null;
 
             const quizType = state.currentQuizItem.quizType;
-            let result: AnswerResult;
-            let matchedAnswer: string;
-            let message = 'Incorrect.';
-            // Set only on a near-synonym collision (issue #71 Part B) - see
-            // continueToNext, which routes a 'confusable' collision through
-            // SRSService.applyConfusableSynonymAnswer instead of the normal
-            // applyAnswer path.
-            let synonymRelation: SynonymRelation | undefined;
-            let synonymWord: SynonymWord | undefined;
+            const vocab = state.currentVocab;
+            // Every vocab card grades through the shared engine (services/exercise);
+            // the production cloze's revealed hint is its only hint level.
+            const exercise = quizType === 'reading' ? readingExercise(vocab)
+                : quizType === 'production' ? productionExercise(vocab, state.currentProductionCloze)
+                    : meaningExercise(vocab);
+            const grade = gradeExercise(exercise, [state.userAnswer], [state.productionHintLevel]);
+            const [slot] = grade.slots;
+            let result = grade.overall;
+            let matchedAnswer = slot.shown;
+            let message = grade.message;
+            // Set only on a near-synonym answer (issue #71 Part B): continueToNext
+            // retries the tested word instead of crediting it.
+            const synonymRelation: SynonymRelation | undefined = slot.synonym
+                && (slot.synonym.outcome === 'confusable' ? 'confusable' : 'interchangeable');
+            const synonymWord: SynonymWord | undefined = slot.synonym
+                && { vocabId: slot.synonym.vocabId, written: slot.synonym.written };
 
-            if (quizType === 'reading') {
-                const evaluation = SRSService.evaluateAnswer(state.userAnswer, state.currentVocab.reading);
-                result = evaluation.result;
-                matchedAnswer = evaluation.matchedAnswer;
-            } else if (quizType === 'production') {
-                // A fully-revealed hint (cloze card only - see productionHintLevel) always
-                // grades minor_error regardless of what userAnswer holds, mirroring
-                // gradeGrammarAnswers' treatment of a revealed grammar blank: giving up on
-                // a word still leaves an impression from reading the answer.
-                if (state.productionHintLevel >= 2) {
-                    result = 'minor_error';
-                    matchedAnswer = state.currentVocab.reading.primary;
-                } else {
-                    // Graded against the full accept-list (readings + written forms, see
-                    // evaluateProductionAnswer) rather than the reading quiz's reading-only
-                    // list - a production answer given in kanji is a correct answer, not a
-                    // wrong one (issue #71 Part A). Shared by both production cards (gloss
-                    // and the sentence-cloze card, issue #72): both set quizType
-                    // 'production', so this is the one place either grades through.
-                    const evaluation = SRSService.evaluateProductionAnswer(
-                        state.userAnswer,
-                        state.currentVocab,
-                        clozeAcceptedForms(state.currentProductionCloze)
-                    );
-                    result = evaluation.result;
-                    matchedAnswer = evaluation.matchedAnswer;
+            // Gemini API contextual validation, only when in 'context' mode and
+            // the user has the feature enabled (enableGeminiContext is the Settings
+            // master toggle - a leftover geminiApiKey from before the user disabled
+            // it must not silently keep triggering AI calls).
+            if (quizType === 'meaning' && state.currentQuizItem.quizMode === 'context' &&
+                state.settings?.enableGeminiContext &&
+                state.settings?.geminiApiKey &&
+                state.currentSentenceId &&
+                state.currentSentences &&
+                state.userAnswer.trim().length > 0) {
 
-                    // A wrong answer might still be a genuine OTHER word from this
-                    // word's near-synonym cluster (issue #71 Part B). Checked only once
-                    // the target itself has graded wrong.
-                    //
-                    // A pair is a synonym IN A SENSE: 狭い and 小さい share only "small".
-                    // So the outcome depends on the card's own text (synonymOutcome):
-                    // if the sentence or printed glosses use a shared meaning, the
-                    // answer is correct; otherwise the pair's tier decides between a
-                    // minor error and no credit / no penalty.
-                    const entries = state.currentVocab.synonyms ?? [];
-                    if (result === 'wrong' && entries.length > 0) {
-                        const cue = productionCueOf(state.currentVocab.senses, state.currentProductionCloze);
-                        // Candidates are fetched only now, on a wrong answer: a word can
-                        // list hundreds of pairs, far too many to fetch for every card.
-                        dispatch({ type: 'EVALUATING_AI_START' });
-                        const synonymMatch = await findProductionSynonym(state.userAnswer, entries, cue);
+                // If alwaysUseAiForMeaningContext is true, AI validates ALL answers, even strict-correct.
+                // If false, only strict-wrong/minor_error answers get AI-validated.
+                const shouldEvaluate = state.settings.alwaysUseAiForMeaningContext ||
+                    (result === 'wrong' || result === 'minor_error');
 
-                        if (synonymMatch) {
-                            const { candidate } = synonymMatch;
-                            const candidateLabel = headwordWithReading(candidate.vocab);
-                            const targetLabel = headwordWithReading(state.currentVocab);
-                            const outcome = synonymOutcome(candidate, cue);
-                            const meaning = sharedMeaningUsed(candidate.shared ?? [], cue);
-                            synonymWord = { vocabId: candidate.vocabId, written: headwordOf(candidate.vocab) };
+                if (shouldEvaluate) {
+                    const sentence = state.currentSentences.find(s => s.id === state.currentSentenceId);
 
-                            if (outcome === 'correct') {
-                                result = 'correct';
-                                synonymRelation = 'interchangeable';
-                                message = `Correct: ${candidateLabel} also means "${meaning}" here. The word being tested was ${targetLabel}.`;
-                            } else if (outcome === 'minor_error') {
-                                result = 'minor_error';
-                                synonymRelation = 'interchangeable';
-                                message = `${candidateLabel} is also accepted here - the word being tested was ${targetLabel}.`;
+                    if (sentence) {
+                        try {
+                            dispatch({ type: 'EVALUATING_AI_START' });
+
+                            const aiEvaluation = await LLMService.validateMeaningContext(
+                                state.settings.geminiApiKey,
+                                state.currentVocab,
+                                sentence,
+                                state.userAnswer
+                            );
+
+                            if (aiEvaluation.result === 'correct' || aiEvaluation.result === 'minor_error') {
+                                result = aiEvaluation.result;
+                                matchedAnswer = state.userAnswer;
+                                message = result === 'correct'
+                                    ? `Correct. (AI Validated: ${aiEvaluation.reason})`
+                                    : `Close. ${aiEvaluation.reason}`;
                             } else {
-                                // confusable: no penalty, no credit - needsRetry.production
-                                // re-asks until the target itself is produced (see
-                                // continueToNext and SRSService.applyConfusableSynonymAnswer).
-                                synonymRelation = 'confusable';
-                                message = `${candidateLabel} is a close synonym but not interchangeable here - the word being tested was ${targetLabel}.`;
+                                result = 'wrong';
+                                message = aiEvaluation.reason ? `Incorrect. (AI: ${aiEvaluation.reason})` : 'Incorrect.';
                             }
-                        }
-                    }
-                }
-            } else {
-                const meanings = state.currentVocab.senses.flatMap(s => s.glosses);
-                const evaluation = SRSService.evaluateMeaning(state.userAnswer, meanings);
-                result = evaluation.result;
-                matchedAnswer = evaluation.matchedAnswer;
-
-                // Gemini API contextual validation, only when in 'context' mode and
-                // the user has the feature enabled (enableGeminiContext is the Settings
-                // master toggle - a leftover geminiApiKey from before the user disabled
-                // it must not silently keep triggering AI calls).
-                if (quizType === 'meaning' && state.currentQuizItem.quizMode === 'context' &&
-                    state.settings?.enableGeminiContext &&
-                    state.settings?.geminiApiKey &&
-                    state.currentSentenceId &&
-                    state.currentSentences &&
-                    state.userAnswer.trim().length > 0) {
-
-                    // If alwaysUseAiForMeaningContext is true, AI validates ALL answers, even strict-correct.
-                    // If false, only strict-wrong/minor_error answers get AI-validated.
-                    const shouldEvaluate = state.settings.alwaysUseAiForMeaningContext ||
-                        (result === 'wrong' || result === 'minor_error');
-
-                    if (shouldEvaluate) {
-                        const sentence = state.currentSentences.find(s => s.id === state.currentSentenceId);
-
-                        if (sentence) {
-                            try {
-                                dispatch({ type: 'EVALUATING_AI_START' });
-
-                                const aiEvaluation = await LLMService.validateMeaningContext(
-                                    state.settings.geminiApiKey,
-                                    state.currentVocab,
-                                    sentence,
-                                    state.userAnswer
-                                );
-
-                                if (aiEvaluation.result === 'correct' || aiEvaluation.result === 'minor_error') {
-                                    result = aiEvaluation.result;
-                                    matchedAnswer = state.userAnswer;
-                                    message = result === 'correct'
-                                        ? `Correct. (AI Validated: ${aiEvaluation.reason})`
-                                        : `Close. ${aiEvaluation.reason}`;
-                                } else {
-                                    result = 'wrong';
-                                    if (aiEvaluation.reason) {
-                                        message = `Incorrect. (AI: ${aiEvaluation.reason})`;
-                                    }
-                                }
-                            } catch (e) {
-                                console.error('[useQuizOrchestration] AI evaluation failed, falling back to strict result.', e);
-                            }
+                        } catch (e) {
+                            console.error('[useQuizOrchestration] AI evaluation failed, falling back to strict result.', e);
                         }
                     }
                 }
             }
-
-            if (result === 'correct' && !message.includes('AI Validated') && !synonymRelation) message = 'Correct.';
-            // Skip the generic "Close." default when a synonym collision already
-            // wrote a message naming the word being tested (issue #71 Part B).
-            else if (result === 'minor_error' && !synonymRelation && !message.includes('Close.')) message = 'Close.';
 
             dispatch({ type: 'SUBMIT_ANSWER', payload: { type: result, message, matchedAnswer, synonymRelation, synonymWord } });
         },
@@ -956,8 +844,8 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             const learner = indexLearnerVocab(state.progress?.learningQueue);
 
             // Near-synonyms need nothing loaded here: each entry on the vocab file
-            // carries the other word's forms, and submitAnswer checks them only
-            // after a wrong answer (findProductionSynonym).
+            // carries the other word's forms, which the grader checks only after a
+            // wrong answer (services/exercise/grading.ts).
             if (quizType === 'production') {
                 if (sentences && sentences.length > 0) {
                     // Pass the loaded vocab so the cloze guard rejects a sentence whose

@@ -1,6 +1,6 @@
 import type { Sense, VocabSynonym } from '@gokan/dataset-schema';
 import type { ProductionCloze } from './productionCloze.utils';
-import type { ProductionSynonymCandidate } from '../services/srs.service';
+import type { SynonymCandidate } from '../services/exercise/types';
 
 /**
  * The text a production card puts in front of the learner, which is what decides
@@ -111,12 +111,9 @@ export function synonymOutcome(entry: Pick<VocabSynonym, 'relation' | 'shared' |
 /**
  * A grading candidate built from the forms the dataset embeds on the entry, so
  * matching a wrong answer against hundreds of pairs needs no vocab-file fetch.
- * Null for an entry without them (data built before they existed, or a
- * hand-added pair the scan skipped): the caller fetches those instead.
  */
-export function embeddedSynonymCandidate(entry: VocabSynonym): ProductionSynonymCandidate | null {
-    const { w = [], r = [], pos } = entry;
-    if (r.length === 0) return null;
+export function embeddedSynonymCandidate(entry: VocabSynonym): SynonymCandidate {
+    const { w, r, pos } = entry;
     return {
         vocabId: entry.id,
         relation: entry.relation,
@@ -133,7 +130,7 @@ export function embeddedSynonymCandidate(entry: VocabSynonym): ProductionSynonym
     };
 }
 
-/** Entries whose shared meaning the cue uses come first, so a lazy lookup usually stops early. */
+/** Entries whose shared meaning the cue uses come first, so when an answer is only a typo of several of them, the one this card means wins. */
 export function orderSynonymsForCue<T extends { shared?: string[] }>(entries: T[], cue: ProductionCue): T[] {
     const inCue = entries.filter(e => sharedMeaningInCue(e.shared ?? [], cue));
     return [...inCue, ...entries.filter(e => !inCue.includes(e))];
