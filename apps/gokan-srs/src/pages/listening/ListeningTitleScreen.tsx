@@ -10,9 +10,10 @@ import { VocabularyService } from "../../services/vocabulary.service";
 import { useQuiz } from "../../context/useQuiz";
 import { PageHeader } from "../../components/PageHeader";
 import { ChapterProgressBar } from "../../components/ChapterProgressBar";
+import type { ProgressBarMark } from "../../components/ChapterProgressBar";
 import { usePersistControls, usePersistedControlsSnapshot } from "../../hooks/usePersistedControls";
-import { aggregateEpisodeWords, buildWordKnowledge, computeCoverage, countWatchedEpisodes, episodeKey, formatPercent, knownRatio, speechSpeedLabel, unknownWords } from "../../utils/mediaCoverage.utils";
-import type { WordKnowledge } from "../../utils/mediaCoverage.utils";
+import { aggregateEpisodeWords, buildWordKnowledge, computeCoverage, computeJlptCoverageMarks, countWatchedEpisodes, episodeKey, formatPercent, jlptLevelIndex, knownRatio, speechSpeedLabel, unknownWords } from "../../utils/mediaCoverage.utils";
+import type { JlptCoverageMark, WordKnowledge } from "../../utils/mediaCoverage.utils";
 import { WORD_SORTS, isLearnableNow, sortWords } from "../../utils/wordOrder.utils";
 import type { LearnerOrder, WordOrderContext, WordSort } from "../../utils/wordOrder.utils";
 import { JitenCredit, MediaCover, VocabularyOnlyNote } from "./listeningShared";
@@ -32,6 +33,30 @@ interface WordListProps {
     orderContext: WordOrderContext | null;
     learner: LearnerOrder | null;
     onLearn: (vocab: Vocabulary) => void;
+}
+
+/** JLPT coverage marks as bar ticks, each labelled with the level it unlocks and the share it reaches. */
+function toBarMarks(marks: JlptCoverageMark[]): ProgressBarMark[] {
+    return marks.map(mark => ({ position: mark.ratio, label: `N${mark.level} and easier: ${formatPercent(mark.ratio)}` }));
+}
+
+/**
+ * The labelled key for the JLPT ticks, shown under the whole-series bar: each
+ * level and the coverage the learner would reach knowing every word up to it.
+ * The per-episode bars carry the same tick positions without repeating this.
+ */
+function JlptThresholdLegend({ marks }: { marks: JlptCoverageMark[] }) {
+    if (marks.length === 0) return null;
+    return (
+        <div className="mt-2">
+            <p className="font-gothic text-[11px] text-tertiary">Coverage if you learned every word up to each JLPT level</p>
+            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 font-gothic text-[11px] text-secondary tabular-nums">
+                {marks.map(mark => (
+                    <span key={mark.level}><span className="text-tertiary">N{mark.level}</span> {formatPercent(mark.ratio)}</span>
+                ))}
+            </div>
+        </div>
+    );
 }
 
 /**
@@ -63,6 +88,15 @@ export function ListeningTitleScreen() {
     const watched = state.progress?.watchedEpisodes;
     const seriesWords = useMemo(() => (title ? aggregateEpisodeWords(title.episodes) : []), [title]);
     const seriesCoverage = useMemo(() => computeCoverage(seriesWords, knowledge), [seriesWords, knowledge]);
+
+    // JLPT reference marks: where the coverage bar would reach if the learner knew
+    // every word up to each level. Independent of their own progress, so it loads once.
+    const jlptIndex = useAsyncData('jlpt-index', () => VocabularyService.loadJlptIndex()).data;
+    const jlptLevelOf = useMemo(() => (jlptIndex ? jlptLevelIndex(jlptIndex) : null), [jlptIndex]);
+    const seriesMarks = useMemo(
+        () => (jlptLevelOf ? computeJlptCoverageMarks(seriesWords, jlptLevelOf) : []),
+        [seriesWords, jlptLevelOf]
+    );
 
     if (failed) {
         return (
@@ -130,7 +164,7 @@ export function ListeningTitleScreen() {
                     <div className="mt-4 flex items-end justify-between gap-4">
                         <div className="min-w-0 flex-1">
                             <p className="font-gothic text-xs text-secondary mb-1.5">Whole series</p>
-                            <ChapterProgressBar counts={seriesCoverage.occurrences} compact />
+                            <ChapterProgressBar counts={seriesCoverage.occurrences} compact marks={toBarMarks(seriesMarks)} />
                             <p className="font-gothic text-xs text-tertiary mt-1.5 tabular-nums">
                                 {seriesCoverage.unique.mastered + seriesCoverage.unique.learning} of {seriesCoverage.unique.total} distinct words known
                                 {' · '}{watchedCount} of {title.episodeCount} watched
@@ -140,6 +174,8 @@ export function ListeningTitleScreen() {
                             {formatPercent(knownRatio(seriesCoverage.occurrences))}
                         </p>
                     </div>
+
+                    <JlptThresholdLegend marks={seriesMarks} />
 
                     <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                         <div className="flex flex-wrap gap-x-4 gap-y-1 font-gothic text-xs">
@@ -188,6 +224,7 @@ export function ListeningTitleScreen() {
                         isOpen={expanded === episode.number}
                         onToggleOpen={() => toggle(episode.number)}
                         onToggleWatched={(isWatched, coverage) => actions.setEpisodesWatched(title.id, [{ number: episode.number, coverage }], isWatched)}
+                        jlptLevelOf={jlptLevelOf}
                         listProps={listProps}
                     />
                 ))}
@@ -212,12 +249,14 @@ interface EpisodeRowProps {
     isOpen: boolean;
     onToggleOpen: () => void;
     onToggleWatched: (watched: boolean, coverage: number) => void;
+    jlptLevelOf: Map<string, number> | null;
     listProps: WordListProps;
 }
 
-function EpisodeRow({ episode, mark, isOpen, onToggleOpen, onToggleWatched, listProps }: EpisodeRowProps) {
+function EpisodeRow({ episode, mark, isOpen, onToggleOpen, onToggleWatched, jlptLevelOf, listProps }: EpisodeRowProps) {
     const coverage = computeCoverage(episode.words, listProps.knowledge);
     const ratio = knownRatio(coverage.occurrences);
+    const marks = jlptLevelOf ? computeJlptCoverageMarks(episode.words, jlptLevelOf) : [];
     const isWatched = mark?.watched === true;
     const speed = speechSpeedLabel(episode.speechSpeed);
 
@@ -239,7 +278,7 @@ function EpisodeRow({ episode, mark, isOpen, onToggleOpen, onToggleWatched, list
                             <span className="font-gothic text-sm text-primary tabular-nums">{formatPercent(ratio)}</span>
                         </div>
                         <div className="mt-1.5">
-                            <ChapterProgressBar counts={coverage.occurrences} compact />
+                            <ChapterProgressBar counts={coverage.occurrences} compact marks={toBarMarks(marks)} />
                         </div>
                         <p className="font-gothic text-[11px] text-tertiary mt-1 tabular-nums">
                             {coverage.unique.mastered + coverage.unique.learning} of {coverage.unique.total} words known

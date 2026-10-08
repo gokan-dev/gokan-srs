@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { aggregateEpisodeWords, buildWordKnowledge, computeCoverage, countWatchedEpisodes, episodeKey, filterLibrary, isEpisodeWatched, knownRatio, libraryGenres, mergeWatchedEpisodes, rankLibrary, speechSpeedLabel, unknownWords } from './mediaCoverage.utils';
+import { aggregateEpisodeWords, buildWordKnowledge, computeCoverage, computeJlptCoverageMarks, countWatchedEpisodes, episodeKey, filterLibrary, isEpisodeWatched, jlptLevelIndex, knownRatio, libraryGenres, mergeWatchedEpisodes, rankLibrary, speechSpeedLabel, unknownWords } from './mediaCoverage.utils';
 import type { WordKnowledge } from './mediaCoverage.utils';
 import type { VocabProgress } from '../models/vocabulary.model';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../models/vocabulary.model';
 import { CONSTANTS } from '../commons/constants';
-import type { MediaEpisode } from '@gokan/dataset-schema';
+import type { JlptIndex, MediaEpisode } from '@gokan/dataset-schema';
 
 const MASTERED = { ...DEFAULT_VOCABULARY_PROGRESS.reading, memoryStrength: CONSTANTS.srs.formula.mastery.maxMemoryStrength };
 
@@ -40,6 +40,52 @@ describe('computeCoverage', () => {
 
     it('reads 0 for an empty word list rather than dividing by zero', () => {
         expect(knownRatio(computeCoverage([], knowledge).occurrences)).toBe(0);
+    });
+});
+
+describe('jlptLevelIndex', () => {
+    it('maps each vocab id to its JLPT level', () => {
+        const index: JlptIndex = {
+            5: [{ id: 'a', containedKanji: [] }],
+            4: [{ id: 'b', containedKanji: [] }],
+            3: [],
+            2: [],
+            1: [{ id: 'c', containedKanji: [] }],
+        };
+        const map = jlptLevelIndex(index);
+        expect(map.get('a')).toBe(5);
+        expect(map.get('b')).toBe(4);
+        expect(map.get('c')).toBe(1);
+        expect(map.has('z')).toBe(false);
+    });
+
+    it('keeps the easier level when an id is listed under two', () => {
+        const index: JlptIndex = { 5: [{ id: 'a', containedKanji: [] }], 4: [], 3: [{ id: 'a', containedKanji: [] }], 2: [], 1: [] };
+        expect(jlptLevelIndex(index).get('a')).toBe(5);
+    });
+});
+
+describe('computeJlptCoverageMarks', () => {
+    const levelOf = new Map<string, number>([['a', 5], ['b', 4], ['c', 3], ['d', 1]]);
+
+    it('gives the cumulative occurrence share up to each level, easiest first', () => {
+        // a(N5)=2, b(N4)=1, c(N3)=1, d(N1)=1, e(untagged)=5; total 10. N2 adds nothing.
+        const marks = computeJlptCoverageMarks([['a', 2], ['b', 1], ['c', 1], ['d', 1], ['e', 5]], levelOf);
+        expect(marks).toEqual([
+            { level: 5, ratio: 0.2 },
+            { level: 4, ratio: 0.3 },
+            { level: 3, ratio: 0.4 },
+            { level: 2, ratio: 0.4 },
+            { level: 1, ratio: 0.5 },
+        ]);
+    });
+
+    it('returns no marks when no word is JLPT-tagged', () => {
+        expect(computeJlptCoverageMarks([['e', 3], ['f', 1]], levelOf)).toEqual([]);
+    });
+
+    it('returns no marks for an empty word list', () => {
+        expect(computeJlptCoverageMarks([], levelOf)).toEqual([]);
     });
 });
 
