@@ -1,4 +1,4 @@
-import type { GrammarChapter, GrammarContrastIndex, GrammarExample, GrammarPoint } from '@gokan/dataset-schema';
+import type { GrammarChapter, GrammarContrastIndex, GrammarExample, GrammarExampleWord, GrammarPoint } from '@gokan/dataset-schema';
 import type { GrammarProgress } from '../../models/grammar.model';
 import type { UserProgress } from '../../models/user.model';
 import type { SessionState } from '../../models/state.model';
@@ -6,6 +6,7 @@ import { isGrammarDue, grammarNextReviewAt, isGrammarFullyMastered } from '../..
 import { VocabularyService } from '../../services/vocabulary.service';
 import { GrammarService } from '../../services/grammar.service';
 import { hashString, pickStable } from '../../utils/deterministicPick';
+import { surfaceReading } from '../../utils/grammarSentence.utils';
 import { indexLearnerVocab, pickMostProductive, scoreGrammarExample, wordRole } from '../../utils/sentenceRanking';
 import { computeSessionState } from './sessionState';
 import { synonymsOf, wordSlot } from '../../services/exercise/slots';
@@ -126,6 +127,28 @@ function withNear(slot: AnswerSlot, extra: string[]): AnswerSlot {
 }
 
 /**
+ * Right word, wrong conjugation on a marker: the marker in its dictionary form, a
+ * near miss. Kuromoji tags the dictionary form on the marker's conjugated head
+ * token, which often has no vocab id (あり -> ある) and so no word to deinflect.
+ * What comes before the head stays (a span reading があります wants がある, reported:
+ * the bare ある alone matched nothing typed with its particle), and what comes
+ * after it, the inflection (ます), goes. The bare dictionary form stays a near
+ * miss too, as it was before the particle was taken into account.
+ */
+function markerDictionaryForms(words: GrammarExampleWord[]): string[] {
+    const head = words.findIndex(w => w.baseForm && w.baseForm !== w.surface);
+    const base = words[head]?.baseForm;
+    if (!base) return [];
+    const before = words.slice(0, head);
+    const forms = [base, before.map(w => w.surface).join('') + base];
+    // Typed in kana: only when every token before the head can be read.
+    if (!/[一-鿿]/.test(base) && before.every(w => surfaceReading(w) || !/[一-鿿]/.test(w.surface))) {
+        forms.push(before.map(w => surfaceReading(w) ?? w.surface).join('') + base);
+    }
+    return Array.from(new Set(forms));
+}
+
+/**
  * One answer slot per blank span, built by the exercise engine's slot builders so
  * a grammar blank accepts and grades a word exactly as a production card would,
  * up to the conjugation: a sentence blank also tests the form, so another form of
@@ -156,12 +179,7 @@ async function buildBlankSlots(
         const isPattern = !!isPatternSpan[spanIndex];
         const role = !decidedByPattern || isPattern ? 'core' : 'support';
         const words = span.map(i => example.words[i]);
-        // Right word, wrong conjugation on a marker (ある for あります): the dictionary
-        // form kuromoji tagged on its head token is a near miss. It covers a marker
-        // token with no vocab id (あり -> ある), which has no word to deinflect.
-        const markerBaseForm = isPattern
-            ? words.find(w => w.baseForm && w.baseForm !== w.surface)?.baseForm
-            : undefined;
+        const markerNear = isPattern ? markerDictionaryForms(words) : [];
 
         // A merged span is graded on the concatenation of its words. Only the
         // surface and the reading are meaningful for a multi-token marker: a
@@ -174,7 +192,7 @@ async function buildBlankSlots(
                 : null;
             slots.push(withNear(
                 { accept: Array.from(new Set([surface, ...(reading ? [reading] : [])])), near: [], leniency: 'standard', role, reveal: surface, gloss: '' },
-                markerBaseForm ? [markerBaseForm] : [],
+                markerNear,
             ));
             continue;
         }
@@ -210,7 +228,7 @@ async function buildBlankSlots(
                 if (!isPattern) slot = { ...plain, word: { vocabId: word.vocabId, label: word.surface, headword: word.baseForm ?? word.surface, lemma: null, otherForm: 'minor_error', synonyms: [] } };
             }
         }
-        slots.push(withNear(slot, markerBaseForm ? [markerBaseForm] : []));
+        slots.push(withNear(slot, markerNear));
     }
 
     return slots;

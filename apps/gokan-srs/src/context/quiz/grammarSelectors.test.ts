@@ -999,6 +999,35 @@ describe('conjugated blanks: kana accepted, other forms of a vocab word are mino
         expect(grade('ある')).toBe('minor_error'); // right formation, dictionary form instead of polite
         expect(grade('ねこ')).toBe('wrong');
     });
+
+    it('grades the dictionary form a minor error when the marker span starts with its particle (がある for があります, reported)', async () => {
+        // n5-064's own shape: が, あり and ます are one pattern span, so the blank wants
+        // があります, and its dictionary form keeps the particle in front of ある.
+        const point = makeGrammarPoint({
+            examples: [{
+                jp: '教室に机があります。',
+                romaji: 'kyoushitsu ni tsukue ga arimasu',
+                en: 'There is a desk in the classroom.',
+                patternWordIndices: [3, 4, 5],
+                words: [
+                    { surface: '教室', vocabId: 'v-kyoushitsu', reading: 'きょうしつ' },
+                    { surface: 'に', vocabId: null },
+                    { surface: '机', vocabId: 'v-tsukue', reading: 'つくえ' },
+                    { surface: 'が', vocabId: null },
+                    { surface: 'あり', vocabId: null, baseForm: 'ある' },
+                    { surface: 'ます', vocabId: null },
+                    { surface: '。', vocabId: null },
+                ],
+            }],
+        });
+        const plan = (await computeBlankPlan(point, makeProgress({ learningQueue: [] }), 0))!;
+        expect(plan.blankWordSpans).toEqual([[3, 4, 5]]);
+
+        const grade = (input: string) => gradePlan(plan, [input], []).slots[0].result;
+        expect(grade('があります')).toBe('correct');
+        expect(grade('がある')).toBe('minor_error');
+        expect(grade('ねこ')).toBe('wrong');
+    });
 });
 
 describe('grading a grammar card', () => {
