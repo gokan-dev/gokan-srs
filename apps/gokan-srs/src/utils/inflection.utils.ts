@@ -326,6 +326,115 @@ function writtenStem(w: string, cls: WordClass): string | null {
     }
 }
 
+/* ---------- politeness: the same form, plain or polite ---------- */
+
+/** The forms of a verb that carry politeness, all built off these. */
+interface VerbStems { dict: string; masu: string; te: string; nai: string; vol: string }
+
+const ichidanStems = (stem: string): VerbStems => ({ dict: stem + 'る', masu: stem, te: stem + 'て', nai: stem + 'ない', vol: stem + 'よう' });
+
+/** Each group is one tense and polarity of the verb, plain then polite. */
+function verbRegisterGroups({ dict, masu, te, nai, vol }: VerbStems): string[][] {
+    const ta = te.slice(0, -1) + (te.endsWith('で') ? 'だ' : 'た');
+    const nakatta = nai.slice(0, -1) + 'かった';
+    return [
+        [dict, masu + 'ます'],
+        [ta, masu + 'ました'],
+        [nai, masu + 'ません', nai + 'です'],
+        [nakatta, masu + 'ませんでした', nakatta + 'です'],
+        [vol, masu + 'ましょう'],
+        [te + 'いる', te + 'います'],
+        [te + 'いた', te + 'いました'],
+        [te + 'いない', te + 'いません'],
+        [te + 'いなかった', te + 'いませんでした'],
+        [masu + 'たい', masu + 'たいです'],
+        [masu + 'たかった', masu + 'たかったです'],
+        [masu + 'たくない', masu + 'たくないです', masu + 'たくありません'],
+    ];
+}
+
+/** An い-adjective's groups off its stem (高). */
+const iAdjRegisterGroups = (s: string): string[][] => [
+    [s + 'かった', s + 'かったです'],
+    [s + 'くない', s + 'くないです', s + 'くありません'],
+    [s + 'くなかった', s + 'くなかったです', s + 'くありませんでした'],
+];
+
+/** The copula's groups after `p` (a な-adjective, or nothing for the copula itself). である is its written plain form. */
+const copulaRegisterGroups = (p: string): string[][] => [
+    [p + 'だ', p + 'です', p + 'である'],
+    [p + 'だった', p + 'でした', p + 'であった'],
+    [p + 'だろう', p + 'でしょう', p + 'であろう'],
+    ['ではない', 'じゃない', 'ではありません', 'じゃありません', 'じゃないです', 'ではないです'].map(s => p + s),
+    ['ではなかった', 'じゃなかった', 'ではありませんでした', 'じゃありませんでした', 'じゃなかったです', 'ではなかったです'].map(s => p + s),
+];
+
+/** One (written, kana) source's groups under one class, in the same order for both sides. */
+function registerGroupsOf(w: string, cls: WordClass, side: 'written' | 'kana'): string[][] {
+    switch (cls) {
+        case 'godan':
+        case 'godan-iku':
+        case 'godan-aru':
+        case 'godan-aru-honorific': {
+            const row = GODAN_ROWS[w.slice(-1)];
+            if (!row) return [];
+            const s = w.slice(0, -1);
+            const verb = verbRegisterGroups({
+                dict: w,
+                masu: s + (cls === 'godan-aru-honorific' ? 'い' : row.i),
+                te: s + (cls === 'godan-iku' ? 'って' : row.te),
+                nai: cls === 'godan-aru' ? 'ない' : s + row.a + 'ない',
+                vol: s + row.o + 'う',
+            });
+            // Potential, passive and causative are ichidan verbs of their own.
+            const derived = [row.e, row.a + 'れ', row.a + 'せ'].flatMap(d => verbRegisterGroups(ichidanStems(s + d)));
+            return [...verb, ...derived];
+        }
+        case 'ichidan':
+            return w.endsWith('る') ? verbRegisterGroups(ichidanStems(w.slice(0, -1))) : [];
+        case 'kuru': {
+            const p = w.slice(0, -2);
+            const kanji = side === 'written' && w.endsWith('来る');
+            const st = (kana: string) => p + (kanji ? '来' : kana);
+            return verbRegisterGroups({ dict: w, masu: st('き'), te: st('き') + 'て', nai: st('こ') + 'ない', vol: st('こ') + 'よう' });
+        }
+        case 'suru':
+        case 'suru-s':
+            return w.endsWith('する') ? verbRegisterGroups({ dict: w, masu: w.slice(0, -2) + 'し', te: w.slice(0, -2) + 'して', nai: w.slice(0, -2) + 'しない', vol: w.slice(0, -2) + 'しよう' }) : [];
+        case 'suru-noun':
+            return verbRegisterGroups({ dict: w + 'する', masu: w + 'し', te: w + 'して', nai: w + 'しない', vol: w + 'しよう' });
+        case 'i-adj':
+            return w.endsWith('い') ? [[w, w + 'です'], ...iAdjRegisterGroups(w.slice(0, -1))] : [];
+        case 'ii':
+            return [[w, w + 'です'], ...iAdjRegisterGroups(w === 'いい' ? 'よ' : w.slice(0, -1))];
+        case 'na-adj':
+        case 'copula':
+            return copulaRegisterGroups(w);
+    }
+}
+
+/**
+ * True when `a` and `b` are the same form of the word up to politeness: one tense and
+ * polarity, plain or polite (ある / あります, なかった / ありませんでした, だ / です,
+ * ではない / じゃありません), in kanji or in kana. Any other difference (tense,
+ * polarity, て-form, volitional) is another form.
+ */
+export function sameFormUpToRegister(a: string, b: string, word: InflectableWord): boolean {
+    const [x, y] = [normalize(a), normalize(b)];
+    if (!x || !y) return false;
+    const primary = word.readings[0] ?? '';
+    const sources: Array<[string, string]> = [...word.written.map((w): [string, string] => [w, primary]), ...word.readings.map((r): [string, string] => [r, r])];
+    return sources.some(([w, k]) => word.classes.some(cls => {
+        const written = registerGroupsOf(w, cls, 'written');
+        const kana = registerGroupsOf(k, cls, 'kana');
+        // A group holds both spellings, so 来ます answers くる.
+        return written.some((group, i) => {
+            const all = [...group, ...(kana[i] ?? [])];
+            return all.includes(x) && all.includes(y);
+        });
+    }));
+}
+
 const HONORIFIC_ARU = ['なさる', 'くださる', '下さる', 'いらっしゃる', 'おっしゃる', 'ござる'];
 const U_ROW = 'うくぐすつぬぶむる';
 

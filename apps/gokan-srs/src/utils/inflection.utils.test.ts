@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateInflections, inferredWord, isFormOfWord, kanaOfSurface, readingMatchesWord, toInflectableWord, wordClassesOf } from './inflection.utils';
+import { generateInflections, inferredWord, isFormOfWord, kanaOfSurface, readingMatchesWord, sameFormUpToRegister, toInflectableWord, wordClassesOf } from './inflection.utils';
 import type { InflectableWord } from './inflection.utils';
 import type { Sense } from '@gokan/dataset-schema';
 
@@ -252,5 +252,44 @@ describe('inferredWord: how a token with no dictionary entry conjugates', () => 
         for (const [base, surface] of [['ます', 'ませ'], ['た', 'た'], ['ぬ', 'ぬ'], ['べし', 'べき'], ['こと', 'こと']]) {
             expect(inferredWord(base, surface)).toBeNull();
         }
+    });
+});
+
+describe('sameFormUpToRegister: one tense and polarity, plain or polite', () => {
+    const same = (a: string, b: string, w: InflectableWord) => sameFormUpToRegister(a, b, w);
+
+    it('pairs a verb\'s plain and polite forms, tense and polarity kept', () => {
+        expect(same('ある', 'あります', ARU)).toBe(true);
+        expect(same('なかった', 'ありませんでした', ARU)).toBe(true);
+        expect(same('ない', 'ありません', ARU)).toBe(true);
+        expect(same('食べる', 'たべます', TABERU)).toBe(true);
+        expect(same('食べている', '食べています', TABERU)).toBe(true);
+        expect(same('書いた', '書きました', KAKU)).toBe(true);
+        expect(same('書こう', '書きましょう', KAKU)).toBe(true);
+        expect(same('行った', 'いきました', IKU)).toBe(true);
+        expect(same('来る', 'きます', KURU)).toBe(true);
+        expect(same('しない', 'しません', SURU)).toBe(true);
+        expect(same('勉強した', '勉強しました', BENKYOU)).toBe(true);
+        // A derived verb (the potential) has its own plain and polite forms.
+        expect(same('書ける', '書けます', KAKU)).toBe(true);
+    });
+
+    it('pairs adjectives and the copula the same way', () => {
+        expect(same('早い', '早いです', HAYAI)).toBe(true);
+        expect(same('早くない', '早くありません', HAYAI)).toBe(true);
+        expect(same('よかった', 'よかったです', II)).toBe(true);
+        expect(same('大変だ', '大変です', TAIHEN)).toBe(true);
+        expect(same('大変ではない', '大変じゃありません', TAIHEN)).toBe(true);
+        expect(same('だ', 'です', inferredWord('だ', 'で')!)).toBe(true);
+    });
+
+    it('keeps tense, polarity and every other form apart', () => {
+        expect(same('ある', 'ありました', ARU)).toBe(false);
+        expect(same('ある', 'ありません', ARU)).toBe(false);
+        expect(same('食べる', '食べて', TABERU)).toBe(false);
+        expect(same('食べる', '食べている', TABERU)).toBe(false);
+        expect(same('書く', '書けます', KAKU)).toBe(false);
+        expect(same('早い', '早かったです', HAYAI)).toBe(false);
+        expect(same('ある', 'いる', ARU)).toBe(false);
     });
 });

@@ -73,15 +73,20 @@ export interface SlotWord {
 
 /**
  * A conjugated word inside a slot's text (ある in があります), with the text around
- * it: the same text with the word in any other of its forms is the right
- * construction in another conjugation (がありません, があった), a near miss.
+ * it: the same text with the word in another of its forms is the right construction
+ * in another conjugation. Only politeness changed (がある): correct, unless the card
+ * asks for a register. Anything else (がありません, があった): a near miss.
  */
 export interface SlotInflection {
     /** The slot's text before the word, in each spelling (written, kana). `''` when the word starts it. */
     lead: string[];
     word: InflectableWord;
+    /** The word as the slot's text has it, inflection included (あります), in each spelling. */
+    form: string[];
     /** The slot's text after the word's inflection, in each spelling. `''` when the word ends it. */
     tail: string[];
+    /** True when the card asks for no register (no formality hint, or neutral), so plain for polite is right. */
+    registerFree: boolean;
 }
 
 /** One answer the learner types. Built once when the exercise is built, so grading stays pure and synchronous. */

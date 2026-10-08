@@ -7,7 +7,7 @@
 import { headwordOf, headwordWithReading } from '@gokan/dataset-schema';
 import { matchBest } from '../../utils/answerMatching';
 import type { AnswerResult } from '../../utils/answerMatching';
-import { isFormOfWord } from '../../utils/inflection.utils';
+import { isFormOfWord, sameFormUpToRegister } from '../../utils/inflection.utils';
 import { orderSynonymsForCue, sharedMeaningUsed, synonymOutcome } from '../../utils/synonymContext.utils';
 import type { ProductionCue } from '../../utils/synonymContext.utils';
 import { wordSlot } from './slots';
@@ -55,13 +55,24 @@ function findSynonym(input: string, candidates: SynonymCandidate[], cue: Product
     return typo;
 }
 
-/** True when the answer is the slot's text with this word in another of its forms. */
-function isReconjugation(input: string, { lead, word, tail }: SlotInflection): boolean {
+/**
+ * The grade of an answer that is the slot's text with this word in another of its
+ * forms, or null when it is not. Politeness alone (がある for があります) is still
+ * the right answer when the card asks for no register: the sense is the same.
+ */
+function reconjugationGrade(input: string, { lead, word, form, tail, registerFree }: SlotInflection): AnswerResult | null {
     const answer = input.trim();
-    return lead.some(l => tail.some(t =>
-        answer.length > l.length + t.length
-        && answer.startsWith(l) && answer.endsWith(t)
-        && isFormOfWord(answer.slice(l.length, answer.length - t.length), word)));
+    let grade: AnswerResult | null = null;
+    for (const l of lead) {
+        for (const t of tail) {
+            if (answer.length <= l.length + t.length || !answer.startsWith(l) || !answer.endsWith(t)) continue;
+            const middle = answer.slice(l.length, answer.length - t.length);
+            if (!isFormOfWord(middle, word)) continue;
+            if (registerFree && form.some(f => sameFormUpToRegister(middle, f, word))) return 'correct';
+            grade = 'minor_error';
+        }
+    }
+    return grade;
 }
 
 /**
@@ -69,8 +80,9 @@ function isReconjugation(input: string, { lead, word, tail }: SlotInflection): b
  * 1. a revealed hint is a near miss (reading the answer still leaves an impression);
  * 2. an empty answer is an explicit "I do not know this one": `pass`, not a wrong guess;
  * 3. the accepted forms, typo-tolerant (`matchBest`);
- * 4. the near forms, a near miss at best, and the slot's text with one of its
- *    conjugated words in another form (がある for があります);
+ * 4. the near forms, a near miss at best, then the slot's text with one of its
+ *    conjugated words in another form: correct when only politeness changed and
+ *    the card asks for no register (がある for があります), a near miss otherwise;
  * 5. another form of the slot's word, graded by its OtherFormGrade;
  * 6. only for a genuine miss, the word's near-synonyms, judged against the cue.
  * Each step can only improve the grade.
@@ -92,8 +104,12 @@ export function gradeSlot(slot: AnswerSlot, input: string, hintLevel: number, cu
         if (near === 'correct' || near === 'minor_error') best = { result: 'minor_error', shown: slot.reveal };
     }
 
-    if (best.result === 'wrong' && slot.inflections?.some(inflection => isReconjugation(input, inflection))) {
-        best = { result: 'minor_error', shown: slot.reveal };
+    // Only a genuine miss: a form the near tier holds (another register a sibling
+    // point covers) stays the near miss it is.
+    if (best.result === 'wrong' && slot.inflections) {
+        const grades = slot.inflections.map(inflection => reconjugationGrade(input, inflection));
+        if (grades.includes('correct')) best = { result: 'correct', shown: input.trim() };
+        else if (grades.includes('minor_error')) best = { result: 'minor_error', shown: slot.reveal };
     }
 
     const word = slot.word;

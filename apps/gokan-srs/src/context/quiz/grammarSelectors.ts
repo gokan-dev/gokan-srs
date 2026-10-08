@@ -182,8 +182,11 @@ async function buildBlankSlots(
     example: GrammarExample,
     blankSpans: number[][],
     // Which spans are pattern markers; omitted means none are.
-    isPatternSpan: boolean[] = []
+    isPatternSpan: boolean[] = [],
+    // The register the card asks for (its formality hint): plain for polite is right only without one.
+    formalityLevel?: string
 ): Promise<AnswerSlot[]> {
+    const registerFree = !formalityLevel || formalityLevel === 'neutral';
     const decidedByPattern = isPatternSpan.some(Boolean);
     const slots: AnswerSlot[] = [];
 
@@ -191,7 +194,7 @@ async function buildBlankSlots(
         const isPattern = !!isPatternSpan[spanIndex];
         const role = !decidedByPattern || isPattern ? 'core' : 'support';
         const words = span.map(i => example.words[i]);
-        const inflections = isPattern ? markerInflections(await markerTokens(words)) : [];
+        const inflections = isPattern ? markerInflections(await markerTokens(words), registerFree) : [];
         const withInflections = (slot: AnswerSlot): AnswerSlot => (inflections.length > 0 ? { ...slot, inflections } : slot);
 
         // A merged span is graded on the concatenation of its words. Only the
@@ -568,7 +571,7 @@ async function selectProductivePlan(
     const blankWordIndices = blankWordSpans.map(span => span[0]);
     const isPatternBlank = blankWordIndices.map(i => chosen.example.patternWordIndices.includes(i));
 
-    const slots = await buildBlankSlots(chosen.example, blankWordSpans, isPatternBlank);
+    const slots = await buildBlankSlots(chosen.example, blankWordSpans, isPatternBlank, point.formalityLevel);
 
     // The chosen example may come from either source - report whichever index
     // is meaningful. `example` is what every consumer actually reads (see
@@ -661,7 +664,7 @@ async function computeBlankPlanFor(point: GrammarPoint, progress: UserProgress |
         const blankWordIndices = blankWordSpans.map(span => span[0]);
         const isPatternBlank = blankWordIndices.map(i => example.patternWordIndices.includes(i));
 
-        const slots = await buildBlankSlots(example, blankWordSpans, isPatternBlank);
+        const slots = await buildBlankSlots(example, blankWordSpans, isPatternBlank, point.formalityLevel);
         return { exampleIndex, example, blankWordIndices, blankWordSpans, slots, readOnly: false };
     }
 

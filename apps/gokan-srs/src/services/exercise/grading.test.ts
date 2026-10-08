@@ -200,19 +200,29 @@ describe('parity: a production card and a grammar blank grade the same answer th
 describe('a grammar marker: the right construction in another conjugation', () => {
     const aru = inferredWord('ある', 'あり')!;
     // n5-064's blank, があります: が, then ある inflected by ます.
-    const [inflection] = markerInflections([
+    const tokens = [
         { surface: 'が', kana: 'が', word: null },
         { surface: 'あり', kana: 'あり', word: aru },
         { surface: 'ます', kana: 'ます', word: null },
-    ]);
+    ];
+    const [inflection] = markerInflections(tokens, true);
     const slot = answerSlot({ accept: ['があります'], inflections: [inflection] });
 
     it('finds the word, the text before it and how far its inflection reaches', () => {
-        expect(inflection).toEqual({ lead: ['が'], word: aru, tail: [''] });
+        expect(inflection).toEqual({ lead: ['が'], word: aru, form: ['あります'], tail: [''], registerFree: true });
     });
 
-    it.each(['がある', 'がありません', 'があった', 'がない'])('grades %s a near miss, showing the expected form', input => {
+    it('grades the same form in the other politeness correct: the sense is the same', () => {
+        expect(grade(slot, 'がある')).toEqual({ result: 'correct', shown: 'がある' });
+    });
+
+    it.each(['がありません', 'があった', 'がない', 'がありました'])('grades %s, another tense or polarity, a near miss showing the expected form', input => {
         expect(grade(slot, input)).toEqual({ result: 'minor_error', shown: 'があります' });
+    });
+
+    it('keeps politeness a near miss when the card asks for a register', () => {
+        const asked = answerSlot({ accept: ['があります'], inflections: markerInflections(tokens, false) });
+        expect(grade(asked, 'がある').result).toBe('minor_error');
     });
 
     it('keeps the rest of the construction: another particle, a missing one or another verb is wrong', () => {
@@ -228,11 +238,12 @@ describe('a grammar marker: the right construction in another conjugation', () =
             { surface: 'ば', kana: 'ば', word: null },
             { surface: 'なら', kana: 'なら', word: inferredWord('なる', 'なら') },
             { surface: 'ない', kana: 'ない', word: null },
-        ]);
+        ], true);
         expect(nai).toMatchObject({ lead: [''], tail: ['ならない'] });
         expect(naru).toMatchObject({ lead: ['なければ'], tail: [''] });
         const nakereba = answerSlot({ accept: ['なければならない'], inflections: [nai, naru] });
-        expect(grade(nakereba, 'なければなりません').result).toBe('minor_error');
+        expect(grade(nakereba, 'なければなりません').result).toBe('correct');
+        expect(grade(nakereba, 'なければならなかった').result).toBe('minor_error');
         expect(grade(nakereba, 'なければいけない').result).toBe('wrong');
     });
 
@@ -243,8 +254,9 @@ describe('a grammar marker: the right construction in another conjugation', () =
             { surface: 'し', kana: 'し', word: inferredWord('する', 'し') },
             { surface: 'て', kana: 'て', word: null },
             { surface: 'いる', kana: 'いる', word: null },
-        ]);
+        ], true);
         const slot2 = answerSlot({ accept: ['事にしている'], inflections: [inf] });
+        expect(grade(slot2, 'ことにしています').result).toBe('correct');
         expect(grade(slot2, '事にする').result).toBe('minor_error');
         expect(grade(slot2, 'ことにした').result).toBe('minor_error');
     });

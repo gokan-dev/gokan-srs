@@ -956,7 +956,7 @@ describe('conjugated blanks: kana accepted, other forms of a vocab word are mino
         });
     });
 
-    it('grades the dictionary form of a multi-token pattern marker (ある for あります) a minor error, not wrong', async () => {
+    it('grades a multi-token pattern marker in its plain form correct and in another tense a minor error (ある, あった for あります)', async () => {
         const hon = makeVocab({
             id: 'v-hon',
             writtenForm: { kanji: '本', alternatives: [], containedKanji: ['本'] },
@@ -996,11 +996,12 @@ describe('conjugated blanks: kana accepted, other forms of a vocab word are mino
             return gradePlan(plan, answers, []).slots[span].result;
         };
         expect(grade('あります')).toBe('correct');
-        expect(grade('ある')).toBe('minor_error'); // right formation, dictionary form instead of polite
+        expect(grade('ある')).toBe('correct'); // only politeness differs, and the point asks for no register
+        expect(grade('あった')).toBe('minor_error'); // right formation, another tense
         expect(grade('ねこ')).toBe('wrong');
     });
 
-    it('grades the marker in any other conjugation a minor error, its particle kept (がある, がありません for があります, reported)', async () => {
+    it('grades the marker in its other politeness correct and in another conjugation a minor error, its particle kept (がある, がありません for があります, reported)', async () => {
         // n5-064's own shape: が, あり and ます are one pattern span, so the blank wants
         // があります; ある links to no vocab entry, so its conjugation is read off あり.
         const point = makeGrammarPoint({
@@ -1025,14 +1026,16 @@ describe('conjugated blanks: kana accepted, other forms of a vocab word are mino
 
         const grade = (input: string) => gradePlan(plan, [input], []).slots[0].result;
         expect(grade('があります')).toBe('correct');
-        for (const other of ['がある', 'がありません', 'があった', 'がありました', 'がない']) expect(grade(other)).toBe('minor_error');
+        // Only politeness changed: the point asks for no register, so the sense is right.
+        expect(grade('がある')).toBe('correct');
+        for (const other of ['がありません', 'があった', 'がありました', 'がない']) expect(grade(other)).toBe('minor_error');
         // The particle is part of the construction.
         expect(grade('ある')).toBe('wrong');
         expect(grade('がいる')).toBe('wrong');
         expect(grade('ねこ')).toBe('wrong');
     });
 
-    it('grades a verb ending the marker in its dictionary form in any other conjugation a minor error (ことがある)', async () => {
+    it('grades a verb ending the marker in its dictionary form in another conjugation, politeness aside, a minor error (ことがある)', async () => {
         const point = makeGrammarPoint({
             examples: [{
                 jp: '日本に行ったことがある。',
@@ -1055,7 +1058,7 @@ describe('conjugated blanks: kana accepted, other forms of a vocab word are mino
 
         const grade = (input: string) => gradePlan(plan, [input], []).slots[0].result;
         expect(grade('ことがある')).toBe('correct');
-        expect(grade('ことがあります')).toBe('minor_error');
+        expect(grade('ことがあります')).toBe('correct');
         expect(grade('ことがあった')).toBe('minor_error');
         expect(grade('ことがする')).toBe('wrong');
     });
@@ -1088,9 +1091,33 @@ describe('conjugated blanks: kana accepted, other forms of a vocab word are mino
 
         const grade = (input: string) => gradePlan(plan, [input], []).slots[0].result;
         expect(grade('に行きます')).toBe('correct');
+        expect(grade('にいく')).toBe('correct');
         expect(grade('に行った')).toBe('minor_error');
         expect(grade('にいかない')).toBe('minor_error');
         expect(grade('に来た')).toBe('wrong');
+    });
+
+    it('keeps the other politeness a minor error when the card asks for a register', async () => {
+        const point = makeGrammarPoint({
+            formalityLevel: 'polite',
+            examples: [{
+                jp: '教室に机があります。',
+                romaji: 'kyoushitsu ni tsukue ga arimasu',
+                en: 'There is a desk in the classroom.',
+                patternWordIndices: [3, 4, 5],
+                words: [
+                    { surface: '教室', vocabId: 'v-kyoushitsu', reading: 'きょうしつ' },
+                    { surface: 'に', vocabId: null },
+                    { surface: '机', vocabId: 'v-tsukue', reading: 'つくえ' },
+                    { surface: 'が', vocabId: null },
+                    { surface: 'あり', vocabId: null, baseForm: 'ある' },
+                    { surface: 'ます', vocabId: null },
+                    { surface: '。', vocabId: null },
+                ],
+            }],
+        });
+        const plan = (await computeBlankPlan(point, makeProgress({ learningQueue: [] }), 0))!;
+        expect(gradePlan(plan, ['がある'], []).slots[0].result).toBe('minor_error');
     });
 });
 

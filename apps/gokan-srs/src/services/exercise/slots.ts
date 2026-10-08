@@ -147,12 +147,12 @@ function spellings(tokens: MarkerToken[]): string[] {
 
 /**
  * The conjugated words of a grammar marker (があります, なければならない), each with
- * the text around it, so the right construction in another conjugation is a near
- * miss (がありません, なければなりません). A word's inflection reaches as far as the
- * tokens after it still spell one of its forms (あり + ます is あります); what
- * follows is fixed text.
+ * the text around it, so the right construction in another conjugation grades as
+ * one (がある, がありません, なければなりません). A word's inflection reaches as far
+ * as the tokens after it still spell one of its forms (あり + ます is あります);
+ * what follows is fixed text. `registerFree`: see SlotInflection.
  */
-export function markerInflections(tokens: MarkerToken[]): SlotInflection[] {
+export function markerInflections(tokens: MarkerToken[], registerFree: boolean): SlotInflection[] {
     return tokens.flatMap((token, head) => {
         const { word } = token;
         if (!word) return [];
@@ -161,6 +161,12 @@ export function markerInflections(tokens: MarkerToken[]): SlotInflection[] {
             if (spellings(tokens.slice(head, j + 1)).some(s => isFormOfWord(s, word))) end = j;
         }
         if (end === -1) return [];
-        return [{ lead: spellings(tokens.slice(0, head)), word, tail: spellings(tokens.slice(end + 1)) }];
+        return [{
+            lead: spellings(tokens.slice(0, head)),
+            word,
+            form: spellings(tokens.slice(head, end + 1)),
+            tail: spellings(tokens.slice(end + 1)),
+            registerFree,
+        }];
     });
 }
