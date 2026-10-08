@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Sentence } from '@gokan/dataset-schema';
-import { grammarClozeSentence, grammarExampleToSentence, productionClozeSentence, splitAtBlanks } from './clozeSentence.utils';
+import { grammarClozeSentence, productionClozeSentence, splitAtBlanks } from './clozeSentence.utils';
 import type { ClozePart, ClozeSentence } from './clozeSentence.utils';
 import { grammarExample } from '../test/fixtures';
 
@@ -60,7 +60,7 @@ describe('productionClozeSentence', () => {
     });
 });
 
-describe('grammar examples as sentences', () => {
+describe('grammarClozeSentence', () => {
     const example = grammarExample({
         en: 'Why not eat vegetables?',
         words: [
@@ -72,12 +72,6 @@ describe('grammar examples as sentences', () => {
         ],
     });
 
-    it('joins the words and links every vocab word, without the lemma reading of a conjugated one', () => {
-        const s = grammarExampleToSentence(example, 'g1');
-        expect(s.original).toBe('野菜を食べたら？');
-        expect(s.en[0].text).toBe('Why not eat vegetables?');
-        expect(s.matches).toEqual({ 'v-yasai': [{ start: 0, length: 2, reading: 'やさい' }], 'v-taberu': [{ start: 3, length: 2 }] });
-    });
 
     it('places one blank per span, a marker run being a single blank', () => {
         const cloze = grammarClozeSentence(example, [[0], [2, 3]], 'g1');

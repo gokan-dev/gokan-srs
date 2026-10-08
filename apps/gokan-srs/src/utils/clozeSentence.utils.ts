@@ -1,4 +1,5 @@
 import type { GrammarExample, Sentence } from '@gokan/dataset-schema';
+import { grammarExampleToSentence, surfaceReading } from './grammarSentence.utils';
 import type { ProductionCloze } from './productionCloze.utils';
 
 /** One blank in a cloze sentence: a character range of `sentence.original`. */
@@ -31,31 +32,6 @@ export function productionClozeSentence(cloze: ProductionCloze): ClozeSentence {
     };
 }
 
-/**
- * A grammar example as a Sentence: its words joined, each vocab word a match, so it
- * renders through the same InteractiveSentence as every other sentence. A word's
- * stored reading is the lemma's on some conjugated tokens (早かろ carries はやい),
- * so only an unconjugated word gets one.
- */
-export function grammarExampleToSentence(example: GrammarExample, id: string): Sentence {
-    const matches: NonNullable<Sentence['matches']> = {};
-    let offset = 0;
-    for (const word of example.words) {
-        if (word.vocabId) {
-            const reading = word.baseForm ? undefined : word.reading;
-            (matches[word.vocabId] ??= []).push({ start: offset, length: word.surface.length, ...(reading ? { reading } : {}) });
-        }
-        offset += word.surface.length;
-    }
-    return {
-        id,
-        original: example.words.map(w => w.surface).join(''),
-        en: [{ id: `${id}:en`, text: example.en }],
-        vocabIds: Object.keys(matches),
-        matches,
-    };
-}
-
 const HAS_KANJI = /[一-鿿]/;
 
 /** A grammar example with one blank per span (a span is one input: a marker run, or one known word). */
@@ -68,9 +44,9 @@ export function grammarClozeSentence(example: GrammarExample, spans: number[][],
     }
     const blanks = spans.map(span => {
         const words = span.map(i => example.words[i]);
-        // A reading only when every token's is the surface's own: no conjugated token, no kanji left unread.
-        const readable = words.every(w => !w.baseForm && (w.reading || !HAS_KANJI.test(w.surface)));
-        const reading = readable ? words.map(w => w.reading ?? w.surface).join('') : undefined;
+        // A reading only when every token's is known: its own (surfaceReading), or no kanji to read.
+        const readable = words.every(w => surfaceReading(w) || !HAS_KANJI.test(w.surface));
+        const reading = readable ? words.map(w => surfaceReading(w) ?? w.surface).join('') : undefined;
         return {
             start: starts[span[0]],
             length: words.reduce((sum, w) => sum + w.surface.length, 0),

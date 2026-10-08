@@ -16,7 +16,7 @@ export function GrammarExampleList({ examples }: { examples: GrammarExample[] })
                 <div key={i} className={`pb-4 ${i < examples.length - 1 ? 'border-b border-divider mb-4' : ''}`}>
                     <div className="text-xl leading-relaxed text-primary mb-1">
                         <InteractiveSentence
-                            sentence={grammarExampleToSentence(example, i)}
+                            sentence={grammarExampleToSentence(example, `grammar-example-${i}`)}
                             onVocabClick={(vid) => void navigate(`/vocab/${vid}`)}
                             showFurigana={true}
                             highlightRanges={patternHighlightRanges(example)}

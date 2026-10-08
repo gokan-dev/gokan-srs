@@ -5,7 +5,8 @@
 // SRS effects then come from the shared engine, never from the builder.
 import { headwordOf } from '@gokan/dataset-schema';
 import type { GrammarPoint, Sentence, Vocabulary } from '@gokan/dataset-schema';
-import { grammarClozeSentence, grammarExampleToSentence, productionClozeSentence } from '../../utils/clozeSentence.utils';
+import { grammarClozeSentence, productionClozeSentence } from '../../utils/clozeSentence.utils';
+import { grammarExampleToSentence } from '../../utils/grammarSentence.utils';
 import { blankSurfaceOf } from '../../utils/productionCloze.utils';
 import type { ProductionCloze } from '../../utils/productionCloze.utils';
 import type { QuizMode, QuizType } from '../../utils/srs.utils';
