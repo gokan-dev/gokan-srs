@@ -53,7 +53,7 @@ export function blankSurfaceOf(cloze: ProductionCloze): string {
  * card. (Omitting `vocab` skips the guard - used only by selection-logic tests.)
  *
  * Returns null when no sentence has a usable match - the caller reads that as
- * "fall back to the gloss-prompt card" (VocabProductionQuizCard). Coverage is
+ * "fall back to the gloss-prompt card" (the `production` exercise). Coverage is
  * inherently partial: not every vocab has sentences, and not every sentence a
  * word appears in was tokenized with a resolved match for it.
  */

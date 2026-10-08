@@ -405,8 +405,8 @@ describe('computeBlankPlan', () => {
 
         it('grades a merged span on the concatenation of its words, not per token', async () => {
             // The bug this fixes: どこ/に/も rendered as three inputs, and there is
-            // no way to know which box wants which token. Worse, canSubmitGrammar
-            // needs EVERY input filled, so typing どこにも into the first box and
+            // no way to know which box wants which token. Worse, Submit then
+            // needed EVERY input filled, so typing どこにも into the first box and
             // leaving the others empty left the learner unable to submit at all.
             const point = makePatternPoint();
             const plan = (await computeBlankPlan(point, makeProgress({ learningQueue: [] }), 0))!;
@@ -1026,7 +1026,7 @@ describe('grading a grammar card', () => {
     it('an empty blank grades as pass: a deliberate skip, not a wrong guess', () => {
         // Was 'wrong' while Submit required every blank filled, when an empty blank
         // could only mean a broken card. Submitting with blanks left empty is now a
-        // supported way to say "I do not know this one" (see canSubmitGrammar), so it
+        // supported way to say "I do not know this one" (submitsEmpty in useExerciseTurn), so it
         // grades as the same skip a literally typed "pass" gives, and the accepted
         // form is revealed in the feedback.
         const result = gradeSlots(blankSlots, [''], [0]);

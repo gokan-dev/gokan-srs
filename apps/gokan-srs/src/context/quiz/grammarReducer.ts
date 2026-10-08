@@ -52,7 +52,7 @@ export interface GrammarBlankPlan {
      * n5-105's どこ|に|も|お金|を|置いていません, blanking も and swallowing お金を
      * while どこに sat there as given text. Where the realization had MORE blanks
      * than the canonical sentence has words, the extra answer slot could never be
-     * filled and `canSubmitGrammar` locked the card permanently.
+     * filled and the submit gate of the time locked the card permanently.
      */
     example?: GrammarExample;
     /**
@@ -82,7 +82,7 @@ export interface GrammarBlankPlan {
     readOnly: boolean;
     /**
      * Present only for a conjugation drill (an `inflection` point). When set,
-     * the card renders GrammarConjugationCard instead of the sentence cloze, and
+     * the exercise is the conjugation drill instead of the sentence cloze, and
      * `exampleIndex` is meaningless - there is no sentence.
      */
     conjugation?: GrammarConjugationPrompt;

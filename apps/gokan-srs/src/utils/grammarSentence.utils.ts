@@ -52,7 +52,7 @@ export function grammarExampleToSentence(example: GrammarExample, id: string): S
  * `patternWordIndices` - the character offsets of the point's literal
  * grammar-pattern markers, for highlighting the construction on
  * `GrammarDetailScreen` (a study page, so there is no answer to leak, unlike
- * `GrammarQuizCard`'s blanks). Uses the same cumulative-`surface`-length
+ * the grammar cloze's blanks). Uses the same cumulative-`surface`-length
  * technique as `grammarExampleToSentence`. Consecutive pattern words (no
  * other word between them) merge into one range, so a multi-word marker like
  * が + いちばん highlights as a single contiguous span rather than two

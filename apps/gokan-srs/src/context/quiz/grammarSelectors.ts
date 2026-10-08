@@ -91,7 +91,7 @@ function candidateIndicesOf(example: GrammarExample): number[] {
  * marker regularly spans several tokens - どこ/に/も is three, にしろ is two - and
  * one input per token asks the learner which box wants どこ, which wants に and
  * which wants も. That is unanswerable, and it also made the card impossible to
- * submit: `canSubmitGrammar` requires every input non-empty, so typing どこにも
+ * submit: Submit then required every input non-empty, so typing どこにも
  * into the first box and leaving the other two blank left the learner stuck with
  * no way forward and Reveal overwriting what they had typed.
  *

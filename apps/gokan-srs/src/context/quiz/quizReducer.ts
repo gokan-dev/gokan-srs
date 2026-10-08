@@ -66,7 +66,7 @@ export interface SessionTracking {
  * total silently stopped growing (plateaued) once a session passed 50 answers,
  * since the oldest deltas fell out of the array (issue #80). Reset to zero on
  * SESSION_START/GRAMMAR_SESSION_START, incremented on every
- * UPDATE_AFTER_ANSWER/GRAMMAR_UPDATE_AFTER_ANSWER from the same delta already
+ * EXERCISE_CONTINUE from the same delta already
  * pushed into the (capped) history array, so the two can never disagree on
  * a per-answer basis - only on how far back they remember.
  */
