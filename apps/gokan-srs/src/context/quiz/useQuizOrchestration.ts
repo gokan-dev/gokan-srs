@@ -4,24 +4,22 @@ import { useLocation } from 'react-router-dom';
 import type { KanjiKnowledge, UserProgress, UserSettings } from '../../models/user.model';
 import { headwordOf } from '@gokan/dataset-schema';
 import type { SynonymRelation, Vocabulary } from '@gokan/dataset-schema';
-import type { VocabProgress } from '../../models/vocabulary.model';
 import { StorageService } from '../../services/storage.service';
 import { VocabularyService, VocabNotFoundError } from '../../services/vocabulary.service';
 import { SRSService } from '../../services/srs.service';
 import { gradeExercise } from '../../services/exercise/grading';
+import { effectsOf } from '../../services/exercise/effects';
 import { meaningExercise, productionExercise, readingExercise } from '../../services/exercise/builders';
 import { MigrationService } from '../../services/migration.service';
 import { LLMService } from '../../services/llm.service';
 import { CONSTANTS } from '../../commons/constants';
 import { DEFAULT_SETTINGS } from '../../models/user.model';
 import type { SetupValues } from '../../models/state.model';
-import { calculateMasteryPercentage, clearStaleNeedsRetry, syncUsuallyKana } from '../../utils/srs.utils';
+import { clearStaleNeedsRetry, syncUsuallyKana } from '../../utils/srs.utils';
 import { usuallyKanaBudget } from '../../utils/usuallyKana.utils';
 import { pickProductionClozeSentence } from '../../utils/productionCloze.utils';
 import { indexLearnerVocab, pickSentenceForVocab } from '../../utils/sentenceRanking';
-import {
-    frequencyModifierOf, growthLevelOf, isCalibratedVocabReview, recordCalibratedAnswer, withCalibrationDefaults,
-} from '../../services/calibration';
+import { frequencyModifierOf } from '../../services/calibration';
 import { mergeProgress, mergeSettings } from '../../services/sync/mergeProgress';
 import { useGoogleDrive } from '../useGoogleDrive';
 import type { QuizState, QuizAction, SynonymWord } from './quizReducer';
@@ -373,7 +371,16 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                 }
             }
 
-            dispatch({ type: 'SUBMIT_ANSWER', payload: { type: result, message, matchedAnswer, synonymRelation, synonymWord } });
+            // What Continue will write, decided now: the latency is frozen at submit and
+            // the AI step may have changed the result.
+            const effects = effectsOf(exercise, { ...grade, overall: result }, {
+                item: { kind: 'vocab', vocabId: vocab.id, quizType, quizMode: state.currentQuizItem.quizMode },
+                label: headwordOf(vocab),
+                latencyMs: submitLatencyRef.current ?? 5000,
+                hintLevels: [state.productionHintLevel],
+            });
+
+            dispatch({ type: 'SUBMIT_ANSWER', payload: { type: result, message, matchedAnswer, synonymRelation, synonymWord, effects } });
         },
 
         async advanceQueue({ now }) {
@@ -439,145 +446,10 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
         },
 
         continueToNext() {
-            if (!state.progress || !state.feedback || !state.currentVocab || !state.currentQuizItem) return;
-            const id = state.currentVocab.id;
-            const target = state.progress.learningQueue.find(v => v.vocabId === id);
-            // Every answered card belongs to a queued word; without one there is nothing to update.
-            if (!target) return;
-
-            const now = new Date();
-            // Use the latency frozen at submit time, not the time up to this Continue
-            // click (which would also count answer-review time).
-            const latency = submitLatencyRef.current ?? 5000;
-
-            // Calibration (services/calibration.ts): only a real review enters its
-            // quiz type's window. A confusable-synonym collision is not graded at all,
-            // so it is not one either.
-            const quizType = state.currentQuizItem.quizType;
-            // A synonym answer (interchangeable OR confusable) never grades the
-            // target as a real review - the learner produced a different word - so
-            // it is not a calibrated review of the target either.
-            const counted = !state.feedback.synonymRelation
-                && isCalibratedVocabReview(target, quizType);
-            const calibration = counted
-                ? recordCalibratedAnswer(state.progress.calibration, quizType, state.feedback.type)
-                : withCalibrationDefaults(state.progress.calibration);
-            const growthLevel = growthLevelOf(calibration, quizType);
-
-            const frequencyModifier = frequencyModifierOf(state.settings);
-            const meaningQuizEnabled = state.settings?.enableMeaningQuiz !== false;
-            const productionQuizEnabled = state.settings?.enableProductionQuiz !== false;
-
-            // A synonym answer (interchangeable OR confusable) never credits the
-            // TARGET: the learner produced a different word. The target is rescheduled
-            // and flagged for retry (the same path a 'confusable' collision has always
-            // used), so it is re-asked until the target word itself is produced - see
-            // SRSService.applyConfusableSynonymAnswer. An INTERCHANGEABLE synonym then
-            // additionally credits the word the learner ACTUALLY produced
-            // (feedback.synonymWord), rather than the target - issue #71 follow-up.
-            const synonymRelation = state.feedback.synonymRelation;
-            if (synonymRelation) {
-                const updatedTarget = SRSService.applyConfusableSynonymAnswer(target, now, meaningQuizEnabled, productionQuizEnabled);
-                let queue = state.progress.learningQueue.map(v => v.vocabId === id ? updatedTarget : v);
-
-                // The synonym bonus is granted only the FIRST time per target per
-                // session (so it can't be farmed on the retry loop), and only when the
-                // produced word is one the learner is actually studying. It is a
-                // production reinforcement (discounted, calibration-excluded) since it
-                // was produced indirectly, off the target's cue.
-                const synId = state.feedback.synonymWord?.vocabId;
-                const synWritten = state.feedback.synonymWord?.written;
-                const alreadyCredited = !!state.session?.synonymCredited?.includes(id);
-                const yProgress = synId ? queue.find(v => v.vocabId === synId) : undefined;
-
-                let historyItem = { vocabId: id, writtenForm: headwordOf(state.currentVocab), result: state.feedback.type, delta: 0 };
-                let synonymCreditedVocabId: string | undefined;
-
-                if (
-                    synonymRelation === 'interchangeable'
-                    && !alreadyCredited
-                    && synId && synWritten && yProgress
-                    && (state.feedback.type === 'correct' || state.feedback.type === 'minor_error')
-                ) {
-                    const productionGrowthLevel = growthLevelOf(calibration, 'production');
-                    const creditedY = SRSService.applyProductionReinforcement(
-                        yProgress, state.feedback.type, now, meaningQuizEnabled, productionQuizEnabled,
-                        productionGrowthLevel, frequencyModifier
-                    );
-                    queue = queue.map(v => v.vocabId === synId ? creditedY : v);
-                    const before = calculateMasteryPercentage(yProgress.production?.memoryStrength ?? 0);
-                    const after = calculateMasteryPercentage(creditedY.production?.memoryStrength ?? 0);
-                    // The points went to the word actually produced, so the ticker shows IT.
-                    historyItem = { vocabId: synId, writtenForm: synWritten, result: state.feedback.type, delta: after - before };
-                    synonymCreditedVocabId = id;
-                }
-
-                dispatch({
-                    type: 'UPDATE_AFTER_ANSWER',
-                    payload: {
-                        progress: {
-                            ...state.progress,
-                            learningQueue: queue,
-                            stats: { ...state.progress.stats, totalReviews: state.progress.stats.totalReviews + 1 },
-                            calibration,
-                        },
-                        historyItem,
-                        synonymCreditedVocabId,
-                    },
-                });
-                return;
-            }
-
-            // Normal (non-synonym) answer: grade and credit the target itself.
-            const updated = SRSService.applyAnswer(
-                target,
-                state.currentQuizItem.quizType,
-                state.currentQuizItem.quizMode,
-                state.userAnswer,
-                state.feedback.matchedAnswer,
-                latency,
-                now,
-                state.feedback.type,
-                growthLevel,
-                frequencyModifier,
-                meaningQuizEnabled,
-                productionQuizEnabled
-            ).updated;
-
-            // Keyed rather than a reading/meaning ternary: with a third type, a
-            // ternary would silently report the meaning entry's delta for a
-            // production answer.
-            const strengthOf = (v: VocabProgress) =>
-                quizType === 'reading' ? v.reading.memoryStrength
-                    : quizType === 'production' ? (v.production?.memoryStrength ?? 0)
-                        : v.meaning.memoryStrength;
-
-            const delta = calculateMasteryPercentage(strengthOf(updated)) - calculateMasteryPercentage(strengthOf(target));
-
-            const historyItem = {
-                vocabId: id,
-                writtenForm: headwordOf(state.currentVocab),
-                result: state.feedback.type,
-                delta
-            };
-
-            const updatedQueue = state.progress.learningQueue.map(v => v.vocabId === id ? updated : v);
-
-            dispatch({
-            type: 'UPDATE_AFTER_ANSWER',
-            payload: {
-                progress: {
-                    ...state.progress,
-                    learningQueue: updatedQueue,
-                    stats: {
-                        ...state.progress.stats,
-                        totalReviews: state.progress.stats.totalReviews + 1,
-                    },
-                    calibration,
-                },
-                historyItem,
-            },
-            });
+            if (!state.feedback) return;
+            // The effects were decided at submit; the reducer writes them to the
+            // current progress (services/exercise/effects.ts).
+            dispatch({ type: 'UPDATE_AFTER_ANSWER', payload: { effects: state.feedback.effects, now: new Date() } });
         },
 
         startNewSession() {

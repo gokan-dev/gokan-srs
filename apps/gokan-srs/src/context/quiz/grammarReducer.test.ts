@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { initialState, quizReducer } from './quizReducer';
 import type { QuizState } from './quizReducer';
 import type { GrammarPoint } from '@gokan/dataset-schema';
-import { answerSlot, grammarPoint, grammarProgress, userProgress } from '../../test/fixtures';
+import { answerSlot, grammarPoint, grammarProgress, userProgress, vocabProgress } from '../../test/fixtures';
+import type { Effect } from '../../services/exercise/effects';
+import type { HostItem } from '../../services/exercise/types';
 
 const makeGrammarPoint = (id = 'n5-001'): GrammarPoint => grammarPoint({ id });
 /** A pattern blank (すし) then a vocab blank (なか). */
@@ -14,7 +16,7 @@ describe('grammarReducer (via quizReducer)', () => {
             ...initialState,
             grammarAnswers: ['stale'],
             grammarHintLevels: [2],
-            grammarFeedback: { show: true, correct: true, type: 'correct', message: '', matchedAnswers: [], perBlankResults: [], strengthDeltaModifier: 1, vocabCredits: [] },
+            grammarFeedback: { show: true, correct: true, type: 'correct', message: '', matchedAnswers: [], perBlankResults: [], effects: [] },
         };
         const next = quizReducer(state, { type: 'GRAMMAR_LOAD_START', payload: { grammarId: 'n5-001' } });
 
@@ -130,7 +132,7 @@ describe('grammarReducer (via quizReducer)', () => {
     it('GRAMMAR_SUBMIT_ANSWER shows feedback with correct=true only for a strict correct result', () => {
         const next = quizReducer(initialState, {
             type: 'GRAMMAR_SUBMIT_ANSWER',
-            payload: { type: 'minor_error', message: 'Close.', matchedAnswers: ['えいが'], perBlankResults: ['minor_error'], strengthDeltaModifier: 1, vocabCredits: [] },
+            payload: { type: 'minor_error', message: 'Close.', matchedAnswers: ['えいが'], perBlankResults: ['minor_error'], effects: [] },
         });
 
         expect(next.grammarFeedback?.show).toBe(true);
@@ -138,66 +140,66 @@ describe('grammarReducer (via quizReducer)', () => {
         expect(next.grammarFeedback?.perBlankResults).toEqual(['minor_error']);
     });
 
-    it('GRAMMAR_UPDATE_AFTER_ANSWER assigns progress and clears feedback/answers/hints', () => {
-        const progress = userProgress({ grammarQueue: [grammarProgress({ totalReviews: 1 })] });
-        const state: QuizState = {
-            ...initialState,
-            grammarFeedback: { show: true, correct: true, type: 'correct', message: '', matchedAnswers: [], perBlankResults: [], strengthDeltaModifier: 1, vocabCredits: [] },
-            grammarAnswers: ['x'],
-            grammarHintLevels: [2],
-        };
-        const next = quizReducer(state, { type: 'GRAMMAR_UPDATE_AFTER_ANSWER', payload: { progress } });
+    describe('GRAMMAR_UPDATE_AFTER_ANSWER', () => {
+        const now = new Date('2026-06-10T00:00:00Z');
+        const point: HostItem = { kind: 'grammar', grammarId: 'n5-001' };
+        const review: Effect = { kind: 'review', item: point, label: 'A が いちばん～', result: 'correct', strengthModifier: 1, latencyMs: 4000, blankCount: 1 };
+        const studying = () => userProgress({
+            grammarQueue: [grammarProgress({ totalReviews: 1 })],
+            learningQueue: [vocabProgress({ vocabId: 'v-sushi', totalReviews: 1 })],
+        });
+        const update = (state: QuizState, effects: Effect[]) => quizReducer(state, { type: 'GRAMMAR_UPDATE_AFTER_ANSWER', payload: { effects, now } });
 
-        expect(next.progress).toBe(progress);
-        expect(next.grammarFeedback).toBeNull();
-        expect(next.grammarAnswers).toEqual([]);
-        expect(next.grammarHintLevels).toEqual([]);
-    });
+        it('writes the effects and clears feedback/answers/hints', () => {
+            const state: QuizState = {
+                ...initialState,
+                progress: studying(),
+                grammarFeedback: { show: true, correct: true, type: 'correct', message: '', matchedAnswers: [], perBlankResults: [], effects: [review] },
+                grammarAnswers: ['x'],
+                grammarHintLevels: [2],
+            };
+            const next = update(state, [review]);
 
-    it('GRAMMAR_UPDATE_AFTER_ANSWER prepends a historyItem to grammarSessionHistory when provided', () => {
-        const progress = userProgress({ grammarQueue: [grammarProgress({ totalReviews: 1 })] });
-        const state: QuizState = { ...initialState, grammarSessionHistory: [] };
-        const historyItem = { grammarId: 'n5-001', title: 'A が いちばん～', result: 'correct' as const, delta: 12 };
-        const next = quizReducer(state, { type: 'GRAMMAR_UPDATE_AFTER_ANSWER', payload: { progress, historyItem } });
+            expect(next.progress!.grammarQueue[0].entry.memoryStrength).toBeGreaterThan(state.progress!.grammarQueue[0].entry.memoryStrength);
+            expect(next.grammarFeedback).toBeNull();
+            expect(next.grammarAnswers).toEqual([]);
+            expect(next.grammarHintLevels).toEqual([]);
+        });
 
-        expect(next.grammarSessionHistory).toEqual([historyItem]);
-    });
+        it('prepends the answer to the ticker, with the vocab it credited', () => {
+            const next = update({ ...initialState, progress: studying() }, [review, { kind: 'reinforce', vocabId: 'v-sushi', label: '寿司', result: 'correct' }]);
 
-    it('GRAMMAR_UPDATE_AFTER_ANSWER leaves grammarSessionHistory untouched without a historyItem (the read-only no-credit path)', () => {
-        const progress = userProgress({ grammarQueue: [grammarProgress({ totalReviews: 1 })] });
-        const state: QuizState = { ...initialState, grammarSessionHistory: [{ grammarId: 'existing', title: 'x', result: 'correct', delta: 5 }] };
-        const next = quizReducer(state, { type: 'GRAMMAR_UPDATE_AFTER_ANSWER', payload: { progress } });
+            expect(next.grammarSessionHistory[0]).toMatchObject({ grammarId: 'n5-001', title: 'A が いちばん～', result: 'correct' });
+            expect(next.grammarSessionHistory[0].vocabBreakdown?.[0].label).toBe('寿司');
+            expect(next.grammarSessionGains.vocab).toBe(next.grammarSessionHistory[0].vocabDelta);
+        });
 
-        expect(next.grammarSessionHistory).toEqual(state.grammarSessionHistory);
-    });
+        it('leaves the ticker and the gains untouched on the study card (no credit)', () => {
+            const state: QuizState = {
+                ...initialState,
+                progress: studying(),
+                grammarSessionHistory: [{ grammarId: 'existing', title: 'x', result: 'correct', delta: 5 }],
+                grammarSessionGains: { net: 10, gained: 10, lost: 0, vocab: 3 },
+            };
+            const next = update(state, [{ kind: 'defer', item: point }]);
 
-    // issue #80: grammarSessionHistory is capped at 50 for the ticker, but the
-    // session point total (including the vocab-reinforcement figure) must keep
-    // growing past that.
-    it('GRAMMAR_UPDATE_AFTER_ANSWER accumulates grammarSessionGains past the 50-entry history cap', () => {
-        const progress = userProgress();
-        let state: QuizState = { ...initialState };
+            expect(next.grammarSessionHistory).toEqual(state.grammarSessionHistory);
+            expect(next.grammarSessionGains).toEqual({ net: 10, gained: 10, lost: 0, vocab: 3 });
+        });
 
-        for (let i = 0; i < 60; i++) {
-            state = quizReducer(state, {
-                type: 'GRAMMAR_UPDATE_AFTER_ANSWER',
-                payload: {
-                    progress,
-                    historyItem: { grammarId: `n5-${i}`, title: 'x', result: 'correct', delta: 5, vocabDelta: 2 },
-                },
-            });
-        }
+        // issue #80: grammarSessionHistory is capped at 50 for the ticker, but the
+        // session point total must keep growing past that.
+        it('accumulates grammarSessionGains past the 50-entry history cap', () => {
+            let state: QuizState = { ...initialState, progress: studying() };
+            let total = 0;
+            for (let i = 0; i < 60; i++) {
+                state = update(state, [review]);
+                total += state.grammarSessionHistory[0].delta;
+            }
 
-        expect(state.grammarSessionHistory).toHaveLength(50);
-        expect(state.grammarSessionGains).toEqual({ net: 300, gained: 300, lost: 0, vocab: 120 });
-    });
-
-    it('GRAMMAR_UPDATE_AFTER_ANSWER leaves grammarSessionGains untouched without a historyItem', () => {
-        const progress = userProgress();
-        const state: QuizState = { ...initialState, grammarSessionGains: { net: 10, gained: 10, lost: 0, vocab: 3 } };
-        const next = quizReducer(state, { type: 'GRAMMAR_UPDATE_AFTER_ANSWER', payload: { progress } });
-
-        expect(next.grammarSessionGains).toEqual({ net: 10, gained: 10, lost: 0, vocab: 3 });
+            expect(state.grammarSessionHistory).toHaveLength(50);
+            expect(state.grammarSessionGains.net).toBeCloseTo(total, 6);
+        });
     });
 
     describe('GRAMMAR_SESSION_START / GRAMMAR_SESSION_END', () => {

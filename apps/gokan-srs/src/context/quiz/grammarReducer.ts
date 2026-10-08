@@ -5,6 +5,9 @@ import type { AnswerResult } from '../../services/srs.service';
 import { GrammarSRSService } from '../../services/grammarSrs.service';
 import type { QuizState, SessionGains } from './quizReducer';
 import type { AnswerSlot } from '../../services/exercise/types';
+import { applyEffects } from '../../services/exercise/effects';
+import type { Effect } from '../../services/exercise/effects';
+import { addToGains } from './sessionGains';
 
 /**
  * Set when the plan is a CONJUGATION drill rather than a sentence cloze - i.e.
@@ -139,10 +142,8 @@ export interface GrammarQuizState {
         message: string;
         matchedAnswers: string[]; // same order as blankWordIndices
         perBlankResults: AnswerResult[]; // same order as blankWordIndices - which specific blank(s) were wrong
-        /** Coefficient in [floor, 1] applied to the grammar point's strength gain, from how many vocab blanks were right. 1 = full gain. */
-        strengthDeltaModifier: number;
-        /** Vocab blanks the user got right (non-pattern, not revealed) - fed as positive-only credit to those words' own SRS on continue. */
-        vocabCredits: { vocabId: string; result: AnswerResult }[];
+        /** What Continue writes to the learner's progress: the point's review and its vocab blanks' credit (services/exercise/effects.ts). */
+        effects: Effect[];
     } | null;
     isLoadingGrammar: boolean;
     /** Potential new grammar points, not yet in grammarQueue - mirrors introCandidates. */
@@ -151,17 +152,19 @@ export interface GrammarQuizState {
     grammarSession: GrammarSessionTracking | null;
     /** Cumulative knowledge points earned this session, both the grammar point's own and the reinforced vocab's (`vocab`) - see SessionGains in quizReducer.ts. */
     grammarSessionGains: SessionGains;
-    grammarSessionHistory: Array<{
-        grammarId: string;
-        title: string;
-        result: AnswerResult;
-        delta: number;
-        /** Knowledge points the same answer credited to the sentence's vocabulary via
-         *  applyVocabReinforcement. Absent when nothing was reinforced. */
-        vocabDelta?: number;
-        /** Per-word split of vocabDelta, biggest gain first, for the ticker's hover detail. */
-        vocabBreakdown?: { label: string; delta: number }[];
-    }>;
+    grammarSessionHistory: GrammarHistoryItem[];
+}
+
+/** One answered grammar card in the session ticker. */
+export interface GrammarHistoryItem {
+    grammarId: string;
+    title: string;
+    result: AnswerResult;
+    delta: number;
+    /** Knowledge points the same answer credited to the sentence's vocabulary. Absent when nothing was reinforced. */
+    vocabDelta?: number;
+    /** Per-word split of vocabDelta, biggest gain first, for the ticker's hover detail. */
+    vocabBreakdown?: { label: string; delta: number }[];
 }
 
 export const initialGrammarState: GrammarQuizState = {
@@ -184,8 +187,9 @@ export type GrammarQuizAction =
     | { type: 'GRAMMAR_LOAD_ERROR'; payload: { grammarId: string; error: unknown } }
     | { type: 'GRAMMAR_SET_ANSWER'; payload: { index: number; value: string } }
     | { type: 'GRAMMAR_REVEAL_HINT'; payload: { index: number } }
-    | { type: 'GRAMMAR_SUBMIT_ANSWER'; payload: { type: AnswerResult; message: string; matchedAnswers: string[]; perBlankResults: AnswerResult[]; strengthDeltaModifier: number; vocabCredits: { vocabId: string; result: AnswerResult }[] } }
-    | { type: 'GRAMMAR_UPDATE_AFTER_ANSWER'; payload: { progress: UserProgress; historyItem?: { grammarId: string; title: string; result: AnswerResult; delta: number; vocabDelta?: number; vocabBreakdown?: { label: string; delta: number }[] } | null } }
+    | { type: 'GRAMMAR_SUBMIT_ANSWER'; payload: { type: AnswerResult; message: string; matchedAnswers: string[]; perBlankResults: AnswerResult[]; effects: Effect[] } }
+    /** Writes the answer's effects to the CURRENT progress (see UPDATE_AFTER_ANSWER). The study card passes its deferral; `now` comes from the caller. */
+    | { type: 'GRAMMAR_UPDATE_AFTER_ANSWER'; payload: { effects: Effect[]; now: Date } }
     | { type: 'GRAMMAR_ADVANCE_QUEUE'; payload: { progress: UserProgress; candidates?: GrammarPoint[] } }
     | {
         type: 'GRAMMAR_INTRO_CHOICE'; grammarId: string; choice: 'learn' | 'skip'; grammarPoint?: GrammarPoint;
@@ -282,30 +286,27 @@ export function grammarReducer(state: QuizState, action: GrammarQuizAction): Qui
                     message: action.payload.message,
                     matchedAnswers: action.payload.matchedAnswers,
                     perBlankResults: action.payload.perBlankResults,
-                    strengthDeltaModifier: action.payload.strengthDeltaModifier,
-                    vocabCredits: action.payload.vocabCredits,
+                    effects: action.payload.effects,
                 },
             };
 
         case 'GRAMMAR_UPDATE_AFTER_ANSWER': {
-            const historyItem = action.payload.historyItem;
+            if (!state.progress) return state;
+            const { progress, record } = applyEffects(state.progress, action.payload.effects, { now: action.payload.now, settings: state.settings });
+            const cleared = { ...state, progress, grammarFeedback: null, grammarAnswers: [], grammarHintLevels: [] };
+            if (!record || record.item.kind !== 'grammar') return cleared;
+
+            const historyItem: GrammarHistoryItem = {
+                grammarId: record.item.grammarId,
+                title: record.label,
+                result: record.result,
+                delta: record.delta,
+                ...(record.vocabDelta > 0 ? { vocabDelta: record.vocabDelta, vocabBreakdown: record.vocabBreakdown } : {}),
+            };
             return {
-                ...state,
-                progress: action.payload.progress,
-                grammarFeedback: null,
-                grammarAnswers: [],
-                grammarHintLevels: [],
-                grammarSessionHistory: historyItem
-                    ? [historyItem, ...state.grammarSessionHistory].slice(0, 50)
-                    : state.grammarSessionHistory,
-                grammarSessionGains: historyItem
-                    ? {
-                        net: state.grammarSessionGains.net + historyItem.delta,
-                        gained: state.grammarSessionGains.gained + (historyItem.delta > 0 ? historyItem.delta : 0),
-                        lost: state.grammarSessionGains.lost + (historyItem.delta < 0 ? -historyItem.delta : 0),
-                        vocab: state.grammarSessionGains.vocab + (historyItem.vocabDelta ?? 0),
-                    }
-                    : state.grammarSessionGains,
+                ...cleared,
+                grammarSessionHistory: [historyItem, ...state.grammarSessionHistory].slice(0, 50),
+                grammarSessionGains: addToGains(state.grammarSessionGains, record.delta, record.vocabDelta),
             };
         }
 

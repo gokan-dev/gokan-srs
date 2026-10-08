@@ -29,10 +29,10 @@ export interface SessionHistoryEntry {
      */
     delta: number;
     /**
-     * Points credited to the sentence's *vocabulary* by this answer, separately from
-     * the item's own delta. Grammar only: a grammar answer also reinforces the words
-     * the learner filled in correctly (see GrammarSRSService.applyVocabReinforcement),
-     * and that gain was previously invisible. Absent for vocab answers.
+     * Points this answer credited to other words than the one asked, separately from
+     * the item's own delta: the vocab blanks a grammar answer filled in correctly, or
+     * the near-synonym typed on a vocab card (services/exercise/effects.ts). Absent
+     * when the answer credited no other word.
      */
     vocabDelta?: number;
     /** Per-word split of `vocabDelta`, biggest gain first, shown on hover. */

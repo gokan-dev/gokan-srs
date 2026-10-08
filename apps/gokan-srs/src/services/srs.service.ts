@@ -8,7 +8,7 @@ import type { KanjiKnowledge, UserSettings } from '../models/user.model';
 import { introQuizType, isVocabFullyMastered, vocabNextReviewAt, newSRSEntry, isProductionActivated } from './scheduling';
 import type { QuizType } from '../utils/srs.utils';
 import { collectJlptCandidates, countJlptCandidates } from './jlptWalk';
-import { matchAnswer, type AnswerResult } from '../utils/answerMatching';
+import type { AnswerResult } from '../utils/answerMatching';
 import { orderIncludesUsuallyKana, usuallyKanaPacer, type UsuallyKanaPacer } from '../utils/usuallyKana.utils';
 
 export type { AnswerResult } from '../utils/answerMatching';
@@ -31,15 +31,12 @@ export class SRSService {
        ======================= */
 
     /**
-     * Applies a `confusable` synonym collision (issue #71 Part B): the answer is a
-     * genuine OTHER word from the target's near-synonym cluster - overlapping
-     * glosses, but distinct usage - not an acceptable substitute, but not the
-     * unrelated-word kind of wrong either. Crediting the confusion would reward
-     * exactly the coasting this exists to prevent (see the issue's 必ず/常に
-     * example); penalising it at -0.40 like an unrelated word would punish the
-     * learner for a mistake the gloss-only cue itself invites - so this applies
-     * neither: memoryStrength/interval/difficulty are untouched, and
-     * needsRetry.production re-asks until the TARGET itself is produced.
+     * An answer that gets no credit and no penalty, and asks the quiz again until
+     * the word itself is produced: the learner typed one of its near-synonyms
+     * instead (issue #71 Part B). Crediting it would reward exactly the coasting
+     * the synonym check exists to prevent (必ず/常に); penalising it at -0.40 like
+     * an unrelated word would punish a mistake the cue itself invites. So
+     * memoryStrength/interval/difficulty are untouched, and needsRetry re-asks.
      *
      * The due date DOES move: to now plus the entry's own unchanged interval, as a
      * review that changed nothing would. It used to stay where it was, i.e. in the
@@ -49,42 +46,52 @@ export class SRSService {
      * scheduling, so the schedule has to be settled here, by the answer that
      * started the retry, exactly as a wrong answer's is.
      */
-    static applyConfusableSynonymAnswer(
+    static rescheduleForRetry(
         vocab: VocabProgress,
+        quizType: QuizType,
         now: Date,
         meaningQuizEnabled: boolean = true,
         productionQuizEnabled: boolean = true
     ): VocabProgress {
-        const productionEntry = vocab.production ?? newSRSEntry(vocab.reading.difficulty);
-        const intervalDays = Math.max(productionEntry.interval, F.minInterval);
-        const production: SRSEntry = {
-            ...productionEntry,
+        const current = quizType === 'reading' ? vocab.reading
+            : quizType === 'meaning' ? vocab.meaning
+                : (vocab.production ?? newSRSEntry(vocab.reading.difficulty));
+        const intervalDays = Math.max(current.interval, F.minInterval);
+        const entry: SRSEntry = {
+            ...current,
             lastReviewedAt: now,
             dueDate: new Date(now.getTime() + intervalDays * 24 * 60 * 60 * 1000),
+        };
+        const entries = {
+            reading: quizType === 'reading' ? entry : vocab.reading,
+            meaning: quizType === 'meaning' ? entry : vocab.meaning,
+            production: quizType === 'production' ? entry : vocab.production,
         };
         const settingsSlice = { enableMeaningQuiz: meaningQuizEnabled, enableProductionQuiz: productionQuizEnabled };
 
         return {
             ...vocab,
-            production,
+            ...entries,
             nextReviewAt: vocab.stage === 'graduated'
                 ? vocab.nextReviewAt
-                : vocabNextReviewAt({ reading: vocab.reading, meaning: vocab.meaning, production, usuallyKana: vocab.usuallyKana }, settingsSlice),
-            needsRetry: { ...vocab.needsRetry, production: true },
+                : vocabNextReviewAt({ ...entries, usuallyKana: vocab.usuallyKana }, settingsSlice),
+            needsRetry: { ...vocab.needsRetry, [quizType]: true },
             lastReviewedAt: now,
             totalReviews: vocab.totalReviews + 1,
         };
     }
 
+    /**
+     * Applies one graded answer to the quiz type's entry. The result comes from the
+     * exercise engine (services/exercise): nothing here compares answers.
+     */
     static applyAnswer(
         vocab: VocabProgress,
         quizType: QuizType,
-        quizMode: 'base' | 'context' | undefined, // [NEW] Mode
-        userAnswer: string,
-        correctAnswer: string, // The specific reading/meaning matched
+        quizMode: 'base' | 'context' | undefined,
+        result: AnswerResult,
         latencyMs: number,
         now: Date,
-        forcedResult?: AnswerResult, // Optional override
         growthLevel: number = 1.0, // This quiz type's calibration level (services/calibration.ts)
         frequencyModifier: number = 1.0, // User preference modifier
         meaningQuizEnabled: boolean = true, // Whether meaning quizzes are active for this user
@@ -92,11 +99,9 @@ export class SRSService {
         // Scales the memory-strength gain, mirroring the parameter calculateNextState
         // already takes and GrammarSRSService.applyAnswer already forwards. Used to
         // credit an exercise that genuinely trains a direction, but under easier
-        // conditions than that direction's own quiz (see applyVocabReinforcement).
+        // conditions than that direction's own quiz (see applyProductionReinforcement).
         strengthDeltaModifier: number = 1.0
     ): { updated: VocabProgress; result: AnswerResult, interval: number } {
-        const result = forcedResult ?? matchAnswer(userAnswer, correctAnswer);
-
         // Entries keyed by quiz type rather than reading/meaning ternaries. With a
         // third type this is not a style preference: a ternary silently routes
         // anything that is not 'reading' into the meaning entry, so production
@@ -274,9 +279,9 @@ export class SRSService {
      * (seedProductionEntry) so it joins the rotation at its designed baseline. The
      * caller pre-filters to correct/minor_error results.
      *
-     * Shared by GrammarSRSService.applyVocabReinforcement (batch, over a grammar
-     * sentence's blanks) and the production synonym credit in useQuizOrchestration
-     * (single word, the synonym actually typed) so the two cannot diverge.
+     * Called only by the exercise engine's `reinforce` effect (services/exercise/
+     * effects.ts), for a grammar sentence's vocab blanks and for the synonym a
+     * learner typed alike, so the two cannot diverge.
      */
     static applyProductionReinforcement(
         vocab: VocabProgress,
@@ -293,10 +298,8 @@ export class SRSService {
             ? vocab
             : { ...vocab, production: this.seedProductionEntry(vocab.production, vocab.meaning, now) };
 
-        // correctAnswer is unused because forcedResult (result) is supplied.
         const { updated } = this.applyAnswer(
-            seeded, 'production', 'base', '', '',
-            neutralLatency, now, result, growthLevel, frequencyModifier,
+            seeded, 'production', 'base', result, neutralLatency, now, growthLevel, frequencyModifier,
             meaningQuizEnabled, productionQuizEnabled, strengthRatio
         );
 

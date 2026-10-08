@@ -78,6 +78,8 @@ export function VocabQuizScreen({ onVocabClick }: VocabQuizScreenProps) {
                 label: item.writtenForm,
                 result: item.result,
                 delta: item.delta,
+                vocabDelta: item.vocabDelta,
+                vocabBreakdown: item.vocabBreakdown,
             }));
 
             return (

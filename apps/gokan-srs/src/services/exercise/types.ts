@@ -7,10 +7,16 @@
 import type { SynonymRelation, Vocabulary } from '@gokan/dataset-schema';
 import type { AnswerResult, Leniency } from '../../utils/answerMatching';
 import type { InflectableWord } from '../../utils/inflection.utils';
+import type { QuizMode, QuizType } from '../../utils/srs.utils';
 import type { ProductionCue, SynonymOutcome } from '../../utils/synonymContext.utils';
 
 /** Every exercise the app serves. A switch over it must name each one, so a new kind fails to compile until it is handled. */
 export type ExerciseKind = 'reading' | 'meaning' | 'production' | 'production-cloze' | 'grammar-cloze' | 'conjugation' | 'study';
+
+/** The item an exercise reviews: one direction of a word, or a grammar point. Its SRS entry is what a `review` effect moves. */
+export type HostItem =
+    | { kind: 'vocab'; vocabId: string; quizType: QuizType; quizMode: QuizMode }
+    | { kind: 'grammar'; grammarId: string };
 
 /**
  * What grading reads off a word: its forms, and `senses` for the part-of-speech
@@ -52,6 +58,8 @@ export interface SlotWord {
     vocabId?: string;
     /** Names the word in feedback ("the word being tested was 狭い (せまい)"). */
     label: string;
+    /** Names the word in the session ticker, where a credit to it is listed. */
+    headword: string;
     lemma: InflectableWord | null;
     otherForm: OtherFormGrade;
     /** Its near-synonyms, tried only once the answer has missed the word itself. Empty turns the rule off. */

@@ -4,7 +4,7 @@
 // or text a slot asks for; turning that into accepted forms is the same for every
 // exercise, so a production card and a grammar blank asking for the same word
 // accept the same answers, up to their OtherFormGrade.
-import { headwordWithReading } from '@gokan/dataset-schema';
+import { headwordOf, headwordWithReading } from '@gokan/dataset-schema';
 import type { Vocabulary } from '@gokan/dataset-schema';
 import { kanaOfSurface, toInflectableWord } from '../../utils/inflection.utils';
 import type { InflectableWord } from '../../utils/inflection.utils';
@@ -86,6 +86,7 @@ export function wordSlot(vocab: WordForms, { vocabId, occurrence, otherForm, rol
         word: {
             ...(vocabId ? { vocabId } : {}),
             label: headwordWithReading(vocab),
+            headword: headwordOf(vocab),
             lemma,
             otherForm,
             synonyms,

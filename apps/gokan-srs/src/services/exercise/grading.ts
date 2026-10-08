@@ -141,6 +141,12 @@ function feedbackMessage(exercise: Exercise, slots: SlotGrade[], overall: Answer
     return [base, ...notes.map(n => n.note)].join(' ');
 }
 
+/** The indices of the slots that decide the exercise's result. An exercise without core slots is decided by all of them. */
+export function coreSlots(exercise: Pick<Exercise, 'slots'>): number[] {
+    const hasCore = exercise.slots.some(s => s.role === 'core');
+    return exercise.slots.flatMap((slot, i) => (!hasCore || slot.role === 'core' ? [i] : []));
+}
+
 /**
  * Grades every slot, then the exercise. A confusable synonym is neutral: it counts
  * neither for nor against the result or the reward. The core slots left decide the
@@ -151,14 +157,11 @@ export function gradeExercise(exercise: Exercise, answers: string[], hintLevels:
     const slots = exercise.slots.map((slot, i) => gradeSlot(slot, answers[i] ?? '', hintLevels[i] ?? 0, exercise.cue));
     const counted = (i: number) => slots[i].synonym?.outcome !== 'confusable';
 
-    // An exercise without core slots is decided by all of them.
-    const hasCore = exercise.slots.some(s => s.role === 'core');
-    const isCore = (i: number) => !hasCore || exercise.slots[i].role === 'core';
-    const core = slots.flatMap((_, i) => (isCore(i) ? [i] : []));
+    const core = coreSlots(exercise);
     const deciding = core.filter(counted);
     const overall = worstOf((deciding.length > 0 ? deciding : core).map(i => slots[i].result));
 
-    const support = slots.flatMap((grade, i) => (!isCore(i) && counted(i) ? [grade.result] : []));
+    const support = slots.flatMap((grade, i) => (!core.includes(i) && counted(i) ? [grade.result] : []));
     const success = overall === 'correct' || overall === 'minor_error';
 
     return {

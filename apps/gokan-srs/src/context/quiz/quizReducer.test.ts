@@ -7,8 +7,17 @@ import type { Vocabulary } from '@gokan/dataset-schema';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../../models/vocabulary.model';
 import { CONSTANTS } from '../../commons/constants';
 import { userProgress, vocabProgress, vocabulary } from '../../test/fixtures';
+import type { Effect } from '../../services/exercise/effects';
+import type { AnswerResult } from '../../services/srs.service';
 
 const makeVocab = (id = 'v1'): Vocabulary => vocabulary({ id });
+const now = new Date('2026-06-10T00:00:00Z');
+/** Progress studying these words, each already reviewed once. */
+const studying = (...vocabIds: string[]) => userProgress({ learningQueue: vocabIds.map(vocabId => vocabProgress({ vocabId, totalReviews: 1 })) });
+const review = (vocabId: string, result: AnswerResult = 'correct'): Effect => ({
+    kind: 'review', item: { kind: 'vocab', vocabId, quizType: 'reading', quizMode: 'base' }, label: '日本', result, strengthModifier: 1, latencyMs: 3000, blankCount: 1,
+});
+const update = (state: QuizState, effects: Effect[]) => quizReducer(state, { type: 'UPDATE_AFTER_ANSWER', payload: { effects, now } });
 
 describe('quizReducer', () => {
     it('SETUP_COMPLETE sets progress and settings', () => {
@@ -63,7 +72,7 @@ describe('quizReducer', () => {
     });
 
     it('LOAD_VOCAB_START sets loading state and resets sentence/answer/feedback', () => {
-        const state: QuizState = { ...initialState, userAnswer: 'stale', feedback: { show: true, correct: true, type: 'correct', message: '', matchedAnswer: '' } };
+        const state: QuizState = { ...initialState, userAnswer: 'stale', feedback: { show: true, correct: true, type: 'correct', message: '', matchedAnswer: '', effects: [] } };
         const queueItem = { vocabId: 'v1', quizType: 'reading' as const, quizMode: 'base' as const };
         const next = quizReducer(state, { type: 'LOAD_VOCAB_START', payload: queueItem });
 
@@ -188,7 +197,7 @@ describe('quizReducer', () => {
     it('SUBMIT_ANSWER sets feedback.correct true only for strict correct', () => {
         const next = quizReducer(initialState, {
             type: 'SUBMIT_ANSWER',
-            payload: { type: 'minor_error', message: 'Close.', matchedAnswer: 'x' },
+            payload: { type: 'minor_error', message: 'Close.', matchedAnswer: 'x', effects: [] },
         });
 
         expect(next.feedback?.show).toBe(true);
@@ -199,7 +208,7 @@ describe('quizReducer', () => {
     it('SUBMIT_ANSWER carries synonymRelation through to feedback (issue #71 Part B)', () => {
         const next = quizReducer(initialState, {
             type: 'SUBMIT_ANSWER',
-            payload: { type: 'wrong', message: 'confusable note', matchedAnswer: 'x', synonymRelation: 'confusable' },
+            payload: { type: 'wrong', message: 'confusable note', matchedAnswer: 'x', synonymRelation: 'confusable', effects: [] },
         });
 
         expect(next.feedback?.type).toBe('wrong');
@@ -210,42 +219,59 @@ describe('quizReducer', () => {
     it('SUBMIT_ANSWER leaves synonymRelation undefined when omitted', () => {
         const next = quizReducer(initialState, {
             type: 'SUBMIT_ANSWER',
-            payload: { type: 'wrong', message: 'Incorrect.', matchedAnswer: 'x' },
+            payload: { type: 'wrong', message: 'Incorrect.', matchedAnswer: 'x', effects: [] },
         });
 
         expect(next.feedback?.synonymRelation).toBeUndefined();
     });
 
-    it('UPDATE_AFTER_ANSWER updates progress, clears feedback/answer, prepends history, and drops the item from introCandidates', () => {
-        const vocab = makeVocab('v1');
+    it('UPDATE_AFTER_ANSWER writes the effects, clears feedback/answer, prepends history, and drops the item from introCandidates', () => {
         const state: QuizState = {
             ...initialState,
+            progress: studying('v1'),
             userAnswer: 'answer',
-            feedback: { show: true, correct: true, type: 'correct', message: 'Correct.', matchedAnswer: 'x' },
-            introCandidates: [vocab, makeVocab('v2')],
-            sessionHistory: [],
+            feedback: { show: true, correct: true, type: 'correct', message: 'Correct.', matchedAnswer: 'x', effects: [review('v1')] },
+            introCandidates: [makeVocab('v1'), makeVocab('v2')],
         };
-        const newProgress = userProgress();
-        const historyItem = { vocabId: 'v1', writtenForm: '日本', result: 'correct' as const, delta: 5 };
 
-        const next = quizReducer(state, { type: 'UPDATE_AFTER_ANSWER', payload: { progress: newProgress, historyItem } });
+        const next = update(state, [review('v1')]);
 
-        expect(next.progress).toBe(newProgress);
+        expect(next.progress!.learningQueue[0].reading.memoryStrength).toBeGreaterThan(state.progress!.learningQueue[0].reading.memoryStrength);
         expect(next.feedback).toBeNull();
         expect(next.userAnswer).toBe('');
-        expect(next.sessionHistory[0]).toEqual(historyItem);
+        expect(next.sessionHistory[0]).toMatchObject({ vocabId: 'v1', writtenForm: '日本', result: 'correct' });
         expect(next.introCandidates.map(v => v.id)).toEqual(['v2']);
+    });
+
+    it('UPDATE_AFTER_ANSWER writes to the CURRENT progress: a reconcile landing after submit is kept', () => {
+        const submitted = quizReducer({ ...initialState, progress: studying('v1') }, {
+            type: 'SUBMIT_ANSWER', payload: { type: 'correct', message: 'Correct.', matchedAnswer: 'x', effects: [review('v1')] },
+        });
+        const reconciled = quizReducer(submitted, { type: 'RECONCILE_REMOTE', payload: { progress: studying('v1', 'from-drive'), settings: DEFAULT_SETTINGS } });
+
+        const next = update(reconciled, submitted.feedback!.effects);
+
+        expect(next.progress!.learningQueue.map(v => v.vocabId)).toEqual(['v1', 'from-drive']);
+    });
+
+    it('UPDATE_AFTER_ANSWER names the tested word in the ticker, crediting the near-synonym typed', () => {
+        const retry: Effect = { kind: 'retry', item: { kind: 'vocab', vocabId: 'v1', quizType: 'production', quizMode: 'base' }, label: '狭い', result: 'correct' };
+        const credit: Effect = { kind: 'reinforce', vocabId: 'v2', label: '小さい', result: 'correct' };
+
+        const next = update({ ...initialState, progress: studying('v1', 'v2') }, [retry, credit]);
+
+        expect(next.sessionHistory[0]).toMatchObject({ vocabId: 'v1', writtenForm: '狭い', delta: 0 });
+        expect(next.sessionHistory[0].vocabBreakdown?.[0].label).toBe('小さい');
+        expect(next.sessionGains.vocab).toBe(next.sessionHistory[0].vocabDelta);
     });
 
     it('UPDATE_AFTER_ANSWER caps sessionHistory at 50 entries', () => {
         const state: QuizState = {
             ...initialState,
+            progress: studying('new'),
             sessionHistory: Array.from({ length: 50 }, (_, i) => ({ vocabId: `old-${i}`, writtenForm: 'x', result: 'correct' as const, delta: 0 })),
         };
-        const next = quizReducer(state, {
-            type: 'UPDATE_AFTER_ANSWER',
-            payload: { progress: userProgress(), historyItem: { vocabId: 'new', writtenForm: 'x', result: 'correct', delta: 0 } },
-        });
+        const next = update(state, [review('new')]);
 
         expect(next.sessionHistory).toHaveLength(50);
         expect(next.sessionHistory[0].vocabId).toBe('new');
@@ -255,39 +281,27 @@ describe('quizReducer', () => {
     // point total must keep growing past that - it must NOT be derived by
     // summing the (capped) history array.
     it('UPDATE_AFTER_ANSWER accumulates sessionGains past the 50-entry history cap', () => {
-        let state: QuizState = { ...initialState };
+        let state: QuizState = { ...initialState, progress: studying('v1') };
+        let total = 0;
 
         for (let i = 0; i < 60; i++) {
-            state = quizReducer(state, {
-                type: 'UPDATE_AFTER_ANSWER',
-                payload: {
-                    progress: userProgress(),
-                    historyItem: { vocabId: `v${i}`, writtenForm: 'x', result: 'correct', delta: 5 },
-                },
-            });
+            state = update(state, [review('v1')]);
+            total += state.sessionHistory[0].delta;
         }
 
         // The ticker-facing history is still capped...
         expect(state.sessionHistory).toHaveLength(50);
         // ...but the cumulative total reflects all 60 answers, not just the last 50.
-        expect(state.sessionGains.net).toBe(300);
-        expect(state.sessionGains.gained).toBe(300);
+        expect(state.sessionGains.net).toBeCloseTo(total, 6);
         expect(state.sessionGains.lost).toBe(0);
     });
 
     it('UPDATE_AFTER_ANSWER splits sessionGains into gained/lost by sign', () => {
-        let state: QuizState = { ...initialState };
+        const gained = update({ ...initialState, progress: studying('v1') }, [review('v1', 'correct')]);
+        const lost = update(gained, [review('v1', 'wrong')]);
+        const [wrong, right] = lost.sessionHistory;
 
-        state = quizReducer(state, {
-            type: 'UPDATE_AFTER_ANSWER',
-            payload: { progress: userProgress(), historyItem: { vocabId: 'v1', writtenForm: 'x', result: 'correct', delta: 10 } },
-        });
-        state = quizReducer(state, {
-            type: 'UPDATE_AFTER_ANSWER',
-            payload: { progress: userProgress(), historyItem: { vocabId: 'v2', writtenForm: 'x', result: 'wrong', delta: -4 } },
-        });
-
-        expect(state.sessionGains).toEqual({ net: 6, gained: 10, lost: 4, vocab: 0 });
+        expect(lost.sessionGains).toEqual({ net: right.delta + wrong.delta, gained: right.delta, lost: -wrong.delta, vocab: 0 });
     });
 
     it('SAVE_SETTINGS clears introCandidates when preferredLearningOrder changes', () => {
@@ -461,7 +475,7 @@ describe('quizReducer', () => {
             const withFeedback: QuizState = {
                 ...running,
                 userAnswer: 'とうじょう',
-                feedback: { show: true, correct: false, type: 'wrong', message: '', matchedAnswer: 'げんかん' },
+                feedback: { show: true, correct: false, type: 'wrong', message: '', matchedAnswer: 'げんかん', effects: [] },
             };
             const roundTrip = quizReducer(
                 quizReducer(withFeedback, { type: 'SESSION_SUSPEND', payload: { now: 1 } }),
@@ -474,47 +488,19 @@ describe('quizReducer', () => {
     });
 
     it('UPDATE_AFTER_ANSWER leaves the committed session task set untouched', () => {
-        const progress = userProgress();
         const state: QuizState = {
             ...initialState,
-            progress,
+            progress: studying('v1'),
             session: { committed: [taskKey('v1', 'reading')] },
         };
 
-        const next = quizReducer(state, {
-            type: 'UPDATE_AFTER_ANSWER',
-            payload: { progress, historyItem: { vocabId: 'v1', writtenForm: '日本', result: 'minor_error', delta: 1 } },
-        });
+        const next = update(state, [review('v1', 'minor_error')]);
         expect(next.session).toEqual({ committed: [taskKey('v1', 'reading')] });
     });
 
     it('UPDATE_AFTER_ANSWER leaves session untouched (null) when no session is active', () => {
-        const progress = userProgress();
-        const state: QuizState = { ...initialState, progress, session: null };
-        const next = quizReducer(state, {
-            type: 'UPDATE_AFTER_ANSWER',
-            payload: { progress, historyItem: { vocabId: 'v1', writtenForm: '日本', result: 'correct', delta: 5 } },
-        });
+        const next = update({ ...initialState, progress: studying('v1'), session: null }, [review('v1')]);
         expect(next.session).toBeNull();
-    });
-
-    it('UPDATE_AFTER_ANSWER records the synonym-credited target once per session, no duplicates', () => {
-        const progress = userProgress();
-        const state: QuizState = { ...initialState, progress, session: { committed: [taskKey('v1', 'production')] } };
-
-        // First synonym bonus for target v1 is recorded.
-        const after1 = quizReducer(state, {
-            type: 'UPDATE_AFTER_ANSWER',
-            payload: { progress, historyItem: { vocabId: 'v2', writtenForm: '強い', result: 'minor_error', delta: 2 }, synonymCreditedVocabId: 'v1' },
-        });
-        expect(after1.session?.synonymCredited).toEqual(['v1']);
-
-        // A second bonus attempt for the same target does not duplicate it.
-        const after2 = quizReducer(after1, {
-            type: 'UPDATE_AFTER_ANSWER',
-            payload: { progress, historyItem: { vocabId: 'v2', writtenForm: '強い', result: 'minor_error', delta: 2 }, synonymCreditedVocabId: 'v1' },
-        });
-        expect(after2.session?.synonymCredited).toEqual(['v1']);
     });
 
     it('VOCAB_INTRO_CHOICE "learn" adds the reading task to the active session', () => {
@@ -642,7 +628,7 @@ describe('quizReducer', () => {
             settings: { ...DEFAULT_SETTINGS, preferredLearningOrder: 'frequency' },
             currentVocab: inFlightVocab,
             userAnswer: 'partial-answer',
-            feedback: { show: true, correct: false, type: 'wrong', message: 'Incorrect.', matchedAnswer: 'x' },
+            feedback: { show: true, correct: false, type: 'wrong', message: 'Incorrect.', matchedAnswer: 'x', effects: [] },
         };
 
         const reconciledProgress = userProgress({ stats: { newLearnedToday: 5, totalLearned: 5, totalReviews: 5 } });

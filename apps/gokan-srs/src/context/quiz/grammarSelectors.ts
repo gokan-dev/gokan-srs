@@ -4,8 +4,6 @@ import type { UserProgress } from '../../models/user.model';
 import type { SessionState } from '../../models/state.model';
 import { isGrammarDue, grammarNextReviewAt, isGrammarFullyMastered } from '../../services/grammarScheduling';
 import { VocabularyService } from '../../services/vocabulary.service';
-import type { VocabProgress } from '../../models/vocabulary.model';
-import { calculateMasteryPercentage } from '../../utils/srs.utils';
 import { GrammarService } from '../../services/grammar.service';
 import { hashString, pickStable } from '../../utils/deterministicPick';
 import { indexLearnerVocab, pickMostProductive, scoreGrammarExample, wordRole } from '../../utils/sentenceRanking';
@@ -206,7 +204,7 @@ async function buildBlankSlots(
                 });
             } catch (e) {
                 console.error(`[grammarSelectors] Failed to load vocab ${word.vocabId} for blank ${span[0]}, falling back to surface/reading only`, e);
-                if (!isPattern) slot = { ...plain, word: { vocabId: word.vocabId, label: word.surface, lemma: null, otherForm: 'minor_error', synonyms: [] } };
+                if (!isPattern) slot = { ...plain, word: { vocabId: word.vocabId, label: word.surface, headword: word.baseForm ?? word.surface, lemma: null, otherForm: 'minor_error', synonyms: [] } };
             }
         }
         slots.push(withNear(slot, markerBaseForm ? [markerBaseForm] : []));
@@ -662,65 +660,6 @@ async function computeBlankPlanFor(point: GrammarPoint, progress: UserProgress |
 
     // Pass 4: no example has any blankable word at all - read-only study material.
     return { exampleIndex: startIndex, example: point.examples[startIndex], blankWordIndices: [], blankWordSpans: [], slots: [], readOnly: true };
-}
-
-export interface VocabGainSummary {
-    /** Total knowledge points credited to vocabulary by one grammar answer. */
-    total: number;
-    /** Per-word split, biggest gain first. */
-    breakdown: { label: string; delta: number }[];
-}
-
-/**
- * What one grammar answer gave the sentence's vocabulary, measured by diffing the
- * learning queue around `applyVocabReinforcement` rather than re-deriving it from
- * the credits list. The diff reports what was actually written: reinforcement is
- * skipped wholesale on a retry, and skips words absent from the queue, so a
- * re-derivation would claim gains that never happened.
- *
- * Labels come from the sentence the learner just answered, preferring each word's
- * dictionary form over the inflected surface it appeared in: "思う +3" is a word
- * they can look up, "思っ +3" is a fragment. Falls back to the vocab id only if the
- * sentence somehow has no matching word, which should not happen.
- */
-export function summariseVocabGains(
-    before: VocabProgress[],
-    after: VocabProgress[],
-    exampleWords: { surface: string; vocabId: string | null; baseForm?: string }[] = []
-): VocabGainSummary {
-    if (before === after) return { total: 0, breakdown: [] };
-
-    const priorById = new Map(before.map(v => [v.vocabId, v]));
-    const labelById = new Map<string, string>();
-    for (const word of exampleWords) {
-        if (word.vocabId && !labelById.has(word.vocabId)) {
-            labelById.set(word.vocabId, word.baseForm ?? word.surface);
-        }
-    }
-
-    let total = 0;
-    const breakdown: { label: string; delta: number }[] = [];
-
-    for (const updated of after) {
-        const prior = priorById.get(updated.vocabId);
-        if (!prior || prior === updated) continue;
-
-        // The production entry, because that is where applyVocabReinforcement puts the
-        // credit. These two must name the same entry or the "+N vocab" figure reports
-        // a schedule the answer never moved.
-        const delta = calculateMasteryPercentage(updated.production?.memoryStrength ?? 0)
-            - calculateMasteryPercentage(prior.production?.memoryStrength ?? 0);
-        if (delta === 0) continue;
-
-        total += delta;
-        breakdown.push({ label: labelById.get(updated.vocabId) ?? updated.vocabId, delta });
-    }
-
-    // Biggest gain first: this is read at a glance, and which word moved most is the
-    // only ordering anyone scans a short list like this for.
-    breakdown.sort((a, b) => b.delta - a.delta);
-
-    return { total, breakdown };
 }
 
 export function selectCurrentGrammarProgress(

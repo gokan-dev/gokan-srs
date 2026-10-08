@@ -16,6 +16,9 @@ import { introQuizType } from '../../services/scheduling';
 import type { ProductionCloze } from '../../utils/productionCloze.utils';
 import { grammarReducer, initialGrammarState, isGrammarAction } from './grammarReducer';
 import type { GrammarQuizAction, GrammarQuizState } from './grammarReducer';
+import { applyEffects } from '../../services/exercise/effects';
+import type { Effect } from '../../services/exercise/effects';
+import { addToGains } from './sessionGains';
 
 /* =========================
    STATE & TYPES
@@ -60,14 +63,6 @@ export interface SessionTracking {
      * cap CONSTANTS.srs.newUsuallyKanaPerSession. Absent means none.
      */
     usuallyKanaIntroduced?: number;
-    /**
-     * Target vocab ids that have already granted a production synonym bonus this
-     * session. The bonus (crediting the word the learner actually typed, not the
-     * target) is granted only the FIRST time per target per session, so it cannot
-     * be farmed by re-answering the needsRetry loop with a synonym again until the
-     * target itself is produced. Reset with the session (absent means none).
-     */
-    synonymCredited?: string[];
 }
 
 /**
@@ -86,8 +81,19 @@ export interface SessionGains {
     net: number;
     gained: number;
     lost: number;
-    /** Grammar only: points credited to reinforced vocabulary. Always 0 for vocab's own sessionGains. */
+    /** Points credited to other words than the one asked: a grammar sentence's vocab blanks, a near-synonym typed. */
     vocab: number;
+}
+
+/** One answered card in the session ticker. */
+export interface VocabHistoryItem {
+    vocabId: string;
+    writtenForm: string;
+    result: AnswerResult;
+    delta: number;
+    /** Credit the answer gave another word (the near-synonym typed). Absent when none. */
+    vocabDelta?: number;
+    vocabBreakdown?: { label: string; delta: number }[];
 }
 
 export const ZERO_SESSION_GAINS: SessionGains = { net: 0, gained: 0, lost: 0, vocab: 0 };
@@ -124,30 +130,21 @@ interface QuizStateBase {
         type: AnswerResult;
         message: string;
         matchedAnswer: string;
-        /**
-         * Set only when this answer collided with a near-synonym of the target
-         * (issue #71 Part B) - 'interchangeable' grades minor_error normally,
-         * 'confusable' tells continueToNext to route through
-         * SRSService.applyConfusableSynonymAnswer instead of the normal
-         * applyAnswer path (no strength change, just sets needsRetry.production).
-         */
+        /** Set only when the answer was a near-synonym of the tested word (issue #71 Part B). */
         synonymRelation?: SynonymRelation;
         /**
          * The near-synonym the learner actually typed, when synonymRelation is set,
          * so the card can link it next to the tested word for a side-by-side look.
          */
         synonymWord?: SynonymWord;
+        /** What Continue writes to the learner's progress (services/exercise/effects.ts). */
+        effects: Effect[];
     } | null;
     isLoadingVocab: boolean;
     isEvaluatingAi: boolean;
     introCandidates: Vocabulary[]; // Potential new items, not yet in learningQueue
     nextKanjiToLearn: { step: number; kanjis: string[] } | null;
-    sessionHistory: Array<{
-        vocabId: string;
-        writtenForm: string;
-        result: AnswerResult;
-        delta: number;
-    }>;
+    sessionHistory: VocabHistoryItem[];
     /** Task set of the active study session (null between sessions). See SessionTracking. */
     session: SessionTracking | null;
     /** Cumulative knowledge points earned this session - see SessionGains. */
@@ -177,8 +174,9 @@ export type QuizAction =
     | { type: 'EVALUATING_AI_START' }
     | { type: 'SET_ANSWER'; payload: string }
     | { type: 'REVEAL_PRODUCTION_HINT' }
-    | { type: 'SUBMIT_ANSWER'; payload: { type: AnswerResult; message: string; matchedAnswer: string; synonymRelation?: SynonymRelation; synonymWord?: SynonymWord } }
-    | { type: 'UPDATE_AFTER_ANSWER'; payload: { progress: UserProgress; historyItem: { vocabId: string, writtenForm: string, result: AnswerResult, delta: number }; /** Target vocab id whose production synonym bonus was just granted; recorded in session.synonymCredited so it fires only once per target per session. */ synonymCreditedVocabId?: string } }
+    | { type: 'SUBMIT_ANSWER'; payload: { type: AnswerResult; message: string; matchedAnswer: string; synonymRelation?: SynonymRelation; synonymWord?: SynonymWord; effects: Effect[] } }
+    /** Writes the answer's effects to the CURRENT progress, so a Drive reconcile landing between submit and Continue is never overwritten. `now` comes from the caller. */
+    | { type: 'UPDATE_AFTER_ANSWER'; payload: { effects: Effect[]; now: Date } }
     | { type: 'ADVANCE_QUEUE'; payload: { progress: UserProgress, candidates?: Vocabulary[] } }
     | { type: 'CLEAR_FEEDBACK' }
     | { type: 'UPDATE_KANJI_KNOWLEDGE'; payload: KanjiKnowledge }
@@ -382,32 +380,28 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
                     matchedAnswer: action.payload.matchedAnswer,
                     synonymRelation: action.payload.synonymRelation,
                     synonymWord: action.payload.synonymWord,
+                    effects: action.payload.effects,
                 },
             };
 
         case 'UPDATE_AFTER_ANSWER': {
-            const { delta } = action.payload.historyItem;
-            const { synonymCreditedVocabId } = action.payload;
-            // Record the target whose synonym bonus just fired, so it is granted only
-            // once per target per session (see SessionTracking.synonymCredited).
-            const session = synonymCreditedVocabId && state.session
-                && !state.session.synonymCredited?.includes(synonymCreditedVocabId)
-                ? { ...state.session, synonymCredited: [...(state.session.synonymCredited ?? []), synonymCreditedVocabId] }
-                : state.session;
+            if (!state.progress) return state;
+            const { progress, record } = applyEffects(state.progress, action.payload.effects, { now: action.payload.now, settings: state.settings });
+            const cleared = { ...state, progress, feedback: null, userAnswer: '' };
+            if (!record || record.item.kind !== 'vocab') return cleared;
+
+            const historyItem: VocabHistoryItem = {
+                vocabId: record.item.vocabId,
+                writtenForm: record.label,
+                result: record.result,
+                delta: record.delta,
+                ...(record.vocabDelta > 0 ? { vocabDelta: record.vocabDelta, vocabBreakdown: record.vocabBreakdown } : {}),
+            };
             return {
-                ...state,
-                progress: action.payload.progress,
-                feedback: null,
-                userAnswer: '',
-                session,
-                sessionHistory: [action.payload.historyItem, ...state.sessionHistory].slice(0, 50),
-                sessionGains: {
-                    net: state.sessionGains.net + delta,
-                    gained: state.sessionGains.gained + (delta > 0 ? delta : 0),
-                    lost: state.sessionGains.lost + (delta < 0 ? -delta : 0),
-                    vocab: state.sessionGains.vocab,
-                },
-                introCandidates: state.introCandidates.filter(c => c.id !== action.payload.historyItem.vocabId),
+                ...cleared,
+                sessionHistory: [historyItem, ...state.sessionHistory].slice(0, 50),
+                sessionGains: addToGains(state.sessionGains, record.delta, record.vocabDelta),
+                introCandidates: state.introCandidates.filter(c => c.id !== historyItem.vocabId),
             };
         }
 

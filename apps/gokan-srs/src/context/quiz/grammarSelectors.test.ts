@@ -7,7 +7,6 @@ import {
     selectNextGrammarSessionPreview,
     collectActionableGrammarIds,
     selectGrammarSessionStats,
-    summariseVocabGains,
     selectChapterEndFocusIds,
     selectNewlyCompletedChapterIds,
     computeGrammarChapterProgress,
@@ -22,7 +21,7 @@ import type { VocabProgress } from '../../models/vocabulary.model';
 import { VocabularyService } from '../../services/vocabulary.service';
 import { GrammarService } from '../../services/grammar.service';
 import { CONSTANTS } from '../../commons/constants';
-import { answerSlot, grammarProgress, srsEntry, userProgress, vocabProgress } from '../../test/fixtures';
+import { answerSlot, grammarProgress, userProgress, vocabProgress } from '../../test/fixtures';
 import { gradeExercise } from '../../services/exercise/grading';
 import { grammarExercise } from '../../services/exercise/builders';
 import type { AnswerSlot } from '../../services/exercise/types';
@@ -1594,69 +1593,6 @@ describe('realization variant rotation and two-tier grading', () => {
         // Every slot has a near tier (inflected vocab blanks fill theirs), so the
         // invariant is that it offers no near-miss forms here.
         expect(plan?.slots.every(slot => slot.near.length === 0)).toBe(true);
-    });
-});
-
-describe('summariseVocabGains', () => {
-    const entry = (strength: number) => srsEntry({ memoryStrength: strength, interval: 1 });
-    // `strength` moves the PRODUCTION entry, because that is where
-    // applyVocabReinforcement puts the credit and therefore what this must measure.
-    const word = (vocabId: string, strength: number) => vocabProgress({
-        vocabId, totalReviews: 1,
-        reading: entry(100), meaning: entry(100), production: entry(strength),
-    });
-    const words = [
-        { surface: '私', vocabId: 'a', baseForm: undefined },
-        { surface: '思っ', vocabId: 'b', baseForm: '思う' },
-    ];
-
-    it('reports nothing when the queue was not touched (same reference)', () => {
-        const queue = [word('a', 100)];
-        expect(summariseVocabGains(queue, queue, words)).toEqual({ total: 0, breakdown: [] });
-    });
-
-    it('splits the gain per word and sums it', () => {
-        const before = [word('a', 100), word('b', 100)];
-        const after = [word('a', 140), word('b', 200)];
-
-        const { total, breakdown } = summariseVocabGains(before, after, words);
-
-        expect(breakdown).toHaveLength(2);
-        expect(total).toBeCloseTo(breakdown.reduce((s, w) => s + w.delta, 0), 5);
-    });
-
-    it('orders the breakdown by biggest gain first', () => {
-        const before = [word('a', 100), word('b', 100)];
-        const after = [word('a', 120), word('b', 300)];
-
-        const { breakdown } = summariseVocabGains(before, after, words);
-
-        expect(breakdown[0].label).toBe('思う');
-        expect(breakdown[0].delta).toBeGreaterThan(breakdown[1].delta);
-    });
-
-    it('labels a word by its dictionary form, not the inflected surface in the sentence', () => {
-        // "思う +3" is a word the learner can look up; "思っ +3" is a fragment.
-        const { breakdown } = summariseVocabGains([word('b', 100)], [word('b', 200)], words);
-        expect(breakdown[0].label).toBe('思う');
-    });
-
-    it('uses the surface when the word has no separate dictionary form', () => {
-        const { breakdown } = summariseVocabGains([word('a', 100)], [word('a', 200)], words);
-        expect(breakdown[0].label).toBe('私');
-    });
-
-    it('skips words whose strength did not move', () => {
-        const before = [word('a', 100), word('b', 100)];
-        const after = [{ ...word('a', 100) }, word('b', 200)]; // 'a' is a new object but unchanged
-        const { breakdown } = summariseVocabGains(before, after, words);
-
-        expect(breakdown.map(w => w.label)).toEqual(['思う']);
-    });
-
-    it('falls back to the vocab id when the sentence has no matching word', () => {
-        const { breakdown } = summariseVocabGains([word('z', 100)], [word('z', 200)], words);
-        expect(breakdown[0].label).toBe('z');
     });
 });
 

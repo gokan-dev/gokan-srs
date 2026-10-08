@@ -1,13 +1,9 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { GrammarSRSService } from './grammarSrs.service';
-import { SRSService } from './srs.service';
 import { GrammarService } from './grammar.service';
 import { CONSTANTS } from '../commons/constants';
 import type { GrammarProgress } from '../models/grammar.model';
-import type { VocabProgress } from '../models/vocabulary.model';
-import type { UserSettings } from '../models/user.model';
-import { DEFAULT_SETTINGS } from '../models/user.model';
-import { grammarProgress, srsEntry, vocabProgress } from '../test/fixtures';
+import { grammarProgress, srsEntry } from '../test/fixtures';
 
 const makeProgress = (overrides: Partial<GrammarProgress> = {}): GrammarProgress => grammarProgress({
     introductionAt: new Date('2026-06-01T00:00:00Z'),
@@ -128,105 +124,20 @@ describe('GrammarSRSService.applyAnswer', () => {
     });
 });
 
-describe('GrammarSRSService.applyVocabReinforcement (positive-only vocab credit)', () => {
+describe('GrammarSRSService.rescheduleForRetry', () => {
     const now = new Date('2026-06-10T00:00:00Z');
-    const settings: UserSettings = { ...DEFAULT_SETTINGS, learningFrequency: 'medium', enableMeaningQuiz: true };
 
-    function makeVocabProgress(overrides: Partial<VocabProgress> = {}): VocabProgress {
-        const entry = () => srsEntry({ memoryStrength: 100, interval: 1, difficulty: 0.5, dueDate: now });
-        return vocabProgress({
-            vocabId: 'v-1',
-            introductionAt: new Date('2026-06-01T00:00:00Z'),
-            nextReviewAt: now,
-            totalReviews: 1,
-            reading: entry(),
-            meaning: entry(),
-            // Already activated, so the seed-first path is not what these exercise.
-            production: entry(),
-            ...overrides,
-        });
-    }
+    it('asks the point again without credit: strength untouched, due date settled at the unchanged interval', () => {
+        const progress = makeProgress({ entry: { ...makeProgress().entry, memoryStrength: 42, interval: 3 } });
+        const updated = GrammarSRSService.rescheduleForRetry(progress, now);
 
-    it('boosts the PRODUCTION entry of a credited word and leaves untouched words alone', () => {
-        // Filling a grammar blank is English sentence in, Japanese out, which is
-        // production. It used to credit reading: the one direction of the three that
-        // the exercise structurally cannot test, since a blank shows nothing to read.
-        const queue = [makeVocabProgress({ vocabId: 'v-1' }), makeVocabProgress({ vocabId: 'v-2' })];
-        const next = GrammarSRSService.applyVocabReinforcement(queue, [{ vocabId: 'v-1', result: 'correct' }], now, settings);
-
-        const v1 = next.find(v => v.vocabId === 'v-1')!;
-        const v2 = next.find(v => v.vocabId === 'v-2')!;
-        expect(v1.production!.memoryStrength).toBeGreaterThan(100);
-        expect(v2).toBe(queue[1]); // reference-equal: untouched
-    });
-
-    it('tags the production log it writes as reinforcement, so the calibration does not count it as a review', () => {
-        const queue = [makeVocabProgress({ vocabId: 'v-1' })];
-        const next = GrammarSRSService.applyVocabReinforcement(queue, [{ vocabId: 'v-1', result: 'correct' }], now, settings);
-        const history = next[0].production!.history;
-        expect(history[history.length - 1].source).toBe('reinforcement');
-    });
-
-    it('leaves reading and meaning untouched (production-only credit)', () => {
-        const queue = [makeVocabProgress({ vocabId: 'v-1' })];
-        const next = GrammarSRSService.applyVocabReinforcement(queue, [{ vocabId: 'v-1', result: 'correct' }], now, settings);
-
-        expect(next[0].reading.memoryStrength).toBe(100);
-        expect(next[0].meaning.memoryStrength).toBe(100);
-    });
-
-    it('credits less than a real production answer would, for the same result', () => {
-        // Right direction, easier conditions: the English sentence and the surrounding
-        // Japanese narrow the candidates far more than a production card's bare glosses.
-        const queue = [makeVocabProgress({ vocabId: 'v-1' })];
-        const reinforced = GrammarSRSService.applyVocabReinforcement(queue, [{ vocabId: 'v-1', result: 'correct' }], now, settings);
-
-        const { updated: full } = SRSService.applyAnswer(
-            queue[0], 'production', 'base', '', '',
-            CONSTANTS.srs.quizProperties.production.expectedLatency, now, 'correct'
-        );
-
-        expect(reinforced[0].production!.memoryStrength).toBeGreaterThan(100);
-        expect(reinforced[0].production!.memoryStrength).toBeLessThan(full.production!.memoryStrength);
-    });
-
-    it('seeds an unactivated production entry before crediting it', () => {
-        // A word met first through grammar joins the production rotation at its
-        // designed baseline (meaning strength x seedStrengthRatio) rather than at
-        // whatever one scaffolded blank happens to compute.
-        const inert = makeVocabProgress({
-            vocabId: 'v-1',
-            meaning: { memoryStrength: 400, interval: 1, difficulty: 0.5, lastReviewedAt: null, dueDate: now, history: [] },
-            production: { memoryStrength: 1, interval: 0, difficulty: 0.5, lastReviewedAt: null, dueDate: null, history: [] },
-        });
-        const next = GrammarSRSService.applyVocabReinforcement([inert], [{ vocabId: 'v-1', result: 'correct' }], now, settings);
-
-        const seedBaseline = 400 * CONSTANTS.srs.production.seedStrengthRatio;
-        expect(next[0].production!.memoryStrength).toBeGreaterThan(seedBaseline);
-        expect(next[0].production!.dueDate).not.toBeNull();
-    });
-
-    it('does nothing when production quizzes are disabled', () => {
-        // The exercise trains a direction the user switched off, and crediting reading
-        // instead would just restore the mismatch this change exists to remove.
-        const queue = [makeVocabProgress({ vocabId: 'v-1' })];
-        const off: UserSettings = { ...settings, enableProductionQuiz: false };
-
-        expect(GrammarSRSService.applyVocabReinforcement(queue, [{ vocabId: 'v-1', result: 'correct' }], now, off)).toBe(queue);
-    });
-
-    it('returns the same queue reference when there are no credits', () => {
-        const queue = [makeVocabProgress()];
-        expect(GrammarSRSService.applyVocabReinforcement(queue, [], now, settings)).toBe(queue);
-    });
-
-    it('skips a credit whose word is not in the learning queue', () => {
-        const queue = [makeVocabProgress({ vocabId: 'v-1' })];
-        const next = GrammarSRSService.applyVocabReinforcement(queue, [{ vocabId: 'v-missing', result: 'correct' }], now, settings);
-        expect(next).toBe(queue);
+        expect(updated.entry.memoryStrength).toBe(42);
+        expect(updated.entry.interval).toBe(3);
+        expect(updated.needsRetry).toBe(true);
+        expect(updated.entry.dueDate).toEqual(new Date('2026-06-13T00:00:00Z'));
+        expect(updated.totalReviews).toBe(progress.totalReviews + 1);
     });
 });
-
 describe('GrammarSRSService.deferWithoutCredit', () => {
     const now = new Date('2026-06-10T00:00:00Z');
 
