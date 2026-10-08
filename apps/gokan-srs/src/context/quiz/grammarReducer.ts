@@ -4,10 +4,8 @@ import type { GrammarExample, GrammarPoint } from '@gokan/dataset-schema';
 import type { AnswerResult } from '../../services/srs.service';
 import { GrammarSRSService } from '../../services/grammarSrs.service';
 import type { QuizState, SessionGains } from './quizReducer';
-import type { AnswerSlot } from '../../services/exercise/types';
-import { applyEffects } from '../../services/exercise/effects';
-import type { Effect } from '../../services/exercise/effects';
-import { addToGains } from './sessionGains';
+import type { AnswerSlot, Exercise } from '../../services/exercise/types';
+import { clearedTurn, newTurn, withTurn } from './exerciseReducer';
 
 /**
  * Set when the plan is a CONJUGATION drill rather than a sentence cloze - i.e.
@@ -130,21 +128,6 @@ export interface GrammarSessionTracking {
 export interface GrammarQuizState {
     currentGrammarPoint: GrammarPoint | null;
     currentGrammarQuizItem: PendingGrammarQuizItem | null;
-    currentGrammarBlankPlan: GrammarBlankPlan | null;
-    /** One answer per entry in currentGrammarBlankPlan.blankWordIndices, same order. */
-    grammarAnswers: string[];
-    /** Per-blank progressive hint level, same order as blankWordIndices: 0 = none, 1 = gloss shown, 2 = answer revealed (grades as 'pass'). */
-    grammarHintLevels: number[];
-    grammarFeedback: {
-        show: boolean;
-        correct: boolean; // true only when every blank was strictly correct (drives auto-advance)
-        type: AnswerResult; // the grammar point's result: pattern blanks decide it, not worst-of-all
-        message: string;
-        matchedAnswers: string[]; // same order as blankWordIndices
-        perBlankResults: AnswerResult[]; // same order as blankWordIndices - which specific blank(s) were wrong
-        /** What Continue writes to the learner's progress: the point's review and its vocab blanks' credit (services/exercise/effects.ts). */
-        effects: Effect[];
-    } | null;
     isLoadingGrammar: boolean;
     /** Potential new grammar points, not yet in grammarQueue - mirrors introCandidates. */
     grammarIntroCandidates: GrammarPoint[];
@@ -170,10 +153,6 @@ export interface GrammarHistoryItem {
 export const initialGrammarState: GrammarQuizState = {
     currentGrammarPoint: null,
     currentGrammarQuizItem: null,
-    currentGrammarBlankPlan: null,
-    grammarAnswers: [],
-    grammarHintLevels: [],
-    grammarFeedback: null,
     isLoadingGrammar: false,
     grammarIntroCandidates: [],
     grammarSession: null,
@@ -183,20 +162,15 @@ export const initialGrammarState: GrammarQuizState = {
 
 export type GrammarQuizAction =
     | { type: 'GRAMMAR_LOAD_START'; payload: PendingGrammarQuizItem }
-    | { type: 'GRAMMAR_LOAD_SUCCESS'; payload: { point: GrammarPoint | null; blankPlan: GrammarBlankPlan | null } }
+    /** The loaded point and the exercise built from its blank plan (services/exercise/builders.ts); both null when nothing is due. */
+    | { type: 'GRAMMAR_LOAD_SUCCESS'; payload: { point: GrammarPoint | null; exercise: Exercise | null } }
     | { type: 'GRAMMAR_LOAD_ERROR'; payload: { grammarId: string; error: unknown } }
-    | { type: 'GRAMMAR_SET_ANSWER'; payload: { index: number; value: string } }
-    | { type: 'GRAMMAR_REVEAL_HINT'; payload: { index: number } }
-    | { type: 'GRAMMAR_SUBMIT_ANSWER'; payload: { type: AnswerResult; message: string; matchedAnswers: string[]; perBlankResults: AnswerResult[]; effects: Effect[] } }
-    /** Writes the answer's effects to the CURRENT progress (see UPDATE_AFTER_ANSWER). The study card passes its deferral; `now` comes from the caller. */
-    | { type: 'GRAMMAR_UPDATE_AFTER_ANSWER'; payload: { effects: Effect[]; now: Date } }
     | { type: 'GRAMMAR_ADVANCE_QUEUE'; payload: { progress: UserProgress; candidates?: GrammarPoint[] } }
     | {
         type: 'GRAMMAR_INTRO_CHOICE'; grammarId: string; choice: 'learn' | 'skip'; grammarPoint?: GrammarPoint;
         /** Where (0..1) a point added from outside the candidates is slotted in among them. Random, chosen by the caller. */
         insertionFraction?: number;
     }
-    | { type: 'GRAMMAR_CLEAR_FEEDBACK' }
     | { type: 'GRAMMAR_SESSION_START'; payload: { grammarIds: string[]; progress?: UserProgress } }
     | { type: 'GRAMMAR_SESSION_END' }
     | { type: 'GRAMMAR_SESSION_SUSPEND'; payload: { now: number } }
@@ -212,26 +186,14 @@ export function isGrammarAction(action: { type: string }): action is GrammarQuiz
 export function grammarReducer(state: QuizState, action: GrammarQuizAction): QuizState {
     switch (action.type) {
         case 'GRAMMAR_LOAD_START':
-            return {
-                ...state,
-                isLoadingGrammar: true,
-                currentGrammarQuizItem: action.payload,
-                grammarAnswers: [],
-                grammarHintLevels: [],
-                grammarFeedback: null,
-            };
+            return { ...withTurn(state, 'grammar', null), isLoadingGrammar: true, currentGrammarQuizItem: action.payload };
 
-        case 'GRAMMAR_LOAD_SUCCESS': {
-            const blankCount = action.payload.blankPlan?.blankWordIndices.length ?? 0;
+        case 'GRAMMAR_LOAD_SUCCESS':
             return {
-                ...state,
+                ...withTurn(state, 'grammar', action.payload.exercise && newTurn(action.payload.exercise)),
                 currentGrammarPoint: action.payload.point,
-                currentGrammarBlankPlan: action.payload.blankPlan,
-                grammarAnswers: Array.from({ length: blankCount }, () => ''),
-                grammarHintLevels: Array.from({ length: blankCount }, () => 0),
                 isLoadingGrammar: false,
             };
-        }
 
         case 'GRAMMAR_LOAD_ERROR':
             return {
@@ -240,89 +202,12 @@ export function grammarReducer(state: QuizState, action: GrammarQuizAction): Qui
                 fatalError: `Failed to load grammar data for ID: ${action.payload.grammarId}. The application data may be corrupted. Please reload or contact support.`,
             };
 
-        case 'GRAMMAR_SET_ANSWER': {
-            const answers = [...state.grammarAnswers];
-            answers[action.payload.index] = action.payload.value;
-            return { ...state, grammarAnswers: answers };
-        }
-
-        case 'GRAMMAR_REVEAL_HINT': {
-            const levels = [...state.grammarHintLevels];
-            const current = levels[action.payload.index] ?? 0;
-            const next = Math.min(2, current + 1);
-            levels[action.payload.index] = next;
-
-            // Reaching level 2 writes the revealed form into grammarAnswers rather
-            // than leaving the card to substitute it at render time. The card used to
-            // display `revealed ? <accepted form> : answers[i]`, so what the learner
-            // saw in the input and what the state held disagreed: the input showed the
-            // answer while grammarAnswers[i] stayed empty. That divergence is what
-            // blocked submission when the last remaining blank was revealed.
-            // Grading is unaffected (a revealed blank is forced to 'minor_error' by
-            // its hint level, whatever the text says).
-            if (next === 2) {
-                const revealed = state.currentGrammarBlankPlan?.slots[action.payload.index]?.reveal;
-                if (revealed) {
-                    const answers = [...state.grammarAnswers];
-                    answers[action.payload.index] = revealed;
-                    return { ...state, grammarHintLevels: levels, grammarAnswers: answers };
-                }
-            }
-
-            return { ...state, grammarHintLevels: levels };
-        }
-
-        case 'GRAMMAR_SUBMIT_ANSWER':
-            return {
-                ...state,
-                grammarFeedback: {
-                    show: true,
-                    // Auto-advance only when EVERY blank was strictly correct - a
-                    // pattern-correct answer with a missed vocab blank still reports
-                    // 'correct' as the grammar result, but should pause so the user
-                    // can see which word they got wrong before continuing.
-                    correct: action.payload.perBlankResults.every(r => r === 'correct'),
-                    type: action.payload.type,
-                    message: action.payload.message,
-                    matchedAnswers: action.payload.matchedAnswers,
-                    perBlankResults: action.payload.perBlankResults,
-                    effects: action.payload.effects,
-                },
-            };
-
-        case 'GRAMMAR_UPDATE_AFTER_ANSWER': {
-            if (!state.progress) return state;
-            const { progress, record } = applyEffects(state.progress, action.payload.effects, { now: action.payload.now, settings: state.settings });
-            const cleared = { ...state, progress, grammarFeedback: null, grammarAnswers: [], grammarHintLevels: [] };
-            if (!record || record.item.kind !== 'grammar') return cleared;
-
-            const historyItem: GrammarHistoryItem = {
-                grammarId: record.item.grammarId,
-                title: record.label,
-                result: record.result,
-                delta: record.delta,
-                ...(record.vocabDelta > 0 ? { vocabDelta: record.vocabDelta, vocabBreakdown: record.vocabBreakdown } : {}),
-            };
-            return {
-                ...cleared,
-                grammarSessionHistory: [historyItem, ...state.grammarSessionHistory].slice(0, 50),
-                grammarSessionGains: addToGains(state.grammarSessionGains, record.delta, record.vocabDelta),
-            };
-        }
-
         case 'GRAMMAR_ADVANCE_QUEUE':
             return {
-                ...state,
+                ...withTurn(state, 'grammar', state.turns.grammar && clearedTurn(state.turns.grammar)),
                 progress: action.payload.progress,
                 grammarIntroCandidates: action.payload.candidates ?? state.grammarIntroCandidates,
-                grammarFeedback: null,
-                grammarAnswers: [],
-                grammarHintLevels: [],
             };
-
-        case 'GRAMMAR_CLEAR_FEEDBACK':
-            return { ...state, grammarFeedback: null };
-
         case 'GRAMMAR_SESSION_START':
             // Snapshot the session's committed grammar-id set. Computed with `now` in
             // the orchestration layer (keeping this reducer free of Date.now) and passed in.
@@ -427,7 +312,7 @@ export function grammarReducer(state: QuizState, action: GrammarQuizAction): Qui
          */
         case 'GRAMMAR_RESET_PROGRESS':
             return {
-                ...state,
+                ...withTurn(state, 'grammar', null),
                 ...initialGrammarState,
                 progress: action.payload.progress,
             };

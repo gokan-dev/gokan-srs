@@ -9,9 +9,11 @@ import { QuizContext } from '../useQuiz';
 import { initialState, quizReducer } from './quizReducer';
 import type { QuizState } from './quizReducer';
 import type { SessionStats, NextSessionPreview } from './quizSelectors';
-import { useQuizOrchestration, type QuizActions, type QuizComputed } from './useQuizOrchestration';
+import { useQuizOrchestration, type QuizActions } from './useQuizOrchestration';
 import { useGrammarOrchestration } from './useGrammarOrchestration';
-import type { GrammarActions, GrammarComputed, PendingGrammarChapterLesson } from './useGrammarOrchestration';
+import type { GrammarActions, PendingGrammarChapterLesson } from './useGrammarOrchestration';
+import type { ExerciseTurnApi } from './useExerciseTurn';
+import type { ExerciseHost } from './exerciseReducer';
 import type { GrammarSessionState, NextGrammarSessionPreview, GrammarSessionStats, HubChapterStatus } from './grammarSelectors';
 
 export interface QuizContextValue {
@@ -28,7 +30,8 @@ export interface QuizContextValue {
     nextSessionPreview: NextSessionPreview;
 
     actions: QuizActions;
-    computed: QuizComputed;
+    /** The exercise on screen in each activity, and how to answer it (useExerciseTurn). */
+    exercises: Record<ExerciseHost, ExerciseTurnApi>;
 
     /* ---------- Grammar activity (see useGrammarOrchestration.ts) ---------- */
     grammarSessionState: GrammarSessionState;
@@ -43,7 +46,6 @@ export interface QuizContextValue {
     /** The end-of-chapter review step, when a chapter has just completed and has anchored contrast lessons - null otherwise. */
     pendingGrammarChapterLesson: PendingGrammarChapterLesson | null;
     grammarActions: GrammarActions;
-    grammarComputed: GrammarComputed;
 }
 
 export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -53,12 +55,12 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         settings: StorageService.loadSettings() ?? DEFAULT_SETTINGS,
     });
 
-    const { actions, nextView, currentProgress, computed, sessionStats, nextSessionPreview } = useQuizOrchestration(state, dispatch);
+    const { actions, exercise, nextView, currentProgress, sessionStats, nextSessionPreview } = useQuizOrchestration(state, dispatch);
     const {
         grammarActions,
+        grammarExercise,
         grammarNextView,
         currentGrammarProgress,
-        grammarComputed,
         nextGrammarSessionPreview,
         grammarSessionStats,
         grammarHubChapter,
@@ -77,7 +79,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 sessionStats,
                 nextSessionPreview,
                 actions,
-                computed,
+                exercises: { vocab: exercise, grammar: grammarExercise },
                 grammarSessionState: grammarNextView.sessionState,
                 grammarNextReviewAt: grammarNextView.nextReviewAt,
                 currentGrammarProgress,
@@ -87,7 +89,6 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 grammarHubChapter,
                 pendingGrammarChapterLesson,
                 grammarActions,
-                grammarComputed,
             }}
         >
             {children}

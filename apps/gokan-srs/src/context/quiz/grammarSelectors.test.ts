@@ -27,9 +27,9 @@ import { grammarExercise } from '../../services/exercise/builders';
 import type { AnswerSlot } from '../../services/exercise/types';
 import type { GrammarBlankPlan } from './grammarReducer';
 
-/** Grades answers against a plan exactly as the grammar card does. */
+/** Grades answers against a plan exactly as the grammar card does (a sentence plan carries its own example). */
 const gradePlan = (plan: GrammarBlankPlan, answers: string[], hintLevels: number[] = []) =>
-    gradeExercise(grammarExercise(plan), answers, hintLevels);
+    gradeExercise(grammarExercise({ id: 'test-point', title: 'test point', examples: [] }, plan), answers, hintLevels);
 /** Grades answers against hand-built slots. */
 const gradeSlots = (slots: AnswerSlot[], answers: string[], hintLevels: number[] = []) =>
     gradeExercise({ kind: 'grammar-cloze', slots, cue: {} }, answers, hintLevels);

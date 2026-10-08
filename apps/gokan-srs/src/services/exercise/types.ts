@@ -4,11 +4,16 @@
 // production, both clozes, the conjugation drill) is an Exercise: a prompt plus
 // answer slots. What differs between exercises is data on the slots, never a
 // separate grading path, so a rule added to the grader reaches every exercise.
-import type { SynonymRelation, Vocabulary } from '@gokan/dataset-schema';
+import type { Sentence, SynonymRelation, Vocabulary } from '@gokan/dataset-schema';
 import type { AnswerResult, Leniency } from '../../utils/answerMatching';
+import type { ClozeSentence } from '../../utils/clozeSentence.utils';
 import type { InflectableWord } from '../../utils/inflection.utils';
+import type { ProductionCloze } from '../../utils/productionCloze.utils';
 import type { QuizMode, QuizType } from '../../utils/srs.utils';
 import type { ProductionCue, SynonymOutcome } from '../../utils/synonymContext.utils';
+import type { GrammarBlankPlan, GrammarConjugationPrompt } from '../../context/quiz/grammarReducer';
+
+type GrammarRealization = NonNullable<GrammarBlankPlan['realization']>;
 
 /** Every exercise the app serves. A switch over it must name each one, so a new kind fails to compile until it is handled. */
 export type ExerciseKind = 'reading' | 'meaning' | 'production' | 'production-cloze' | 'grammar-cloze' | 'conjugation' | 'study';
@@ -101,12 +106,38 @@ export interface SlotGrade {
     synonym?: SynonymAnswer;
 }
 
-export interface Exercise {
-    kind: ExerciseKind;
+interface ExerciseBase {
+    /** The item this exercise reviews. */
+    host: HostItem;
+    /** Names the item in the session ticker. */
+    label: string;
     slots: AnswerSlot[];
     /** The text in front of the learner, which decides whether a near-synonym answers a slot. */
     cue: ProductionCue;
 }
+
+/**
+ * One exercise: what it asks (slots), what decides a synonym (cue), and what its card
+ * shows, keyed by kind. ExerciseCard switches on `kind`, so a new kind fails to compile
+ * until it has a card.
+ */
+export type Exercise = ExerciseBase & (
+    | { kind: 'reading' }
+    /** `sentence` is the context sentence; `contextRequested` without one shows the fallback note. */
+    | { kind: 'meaning'; sentence: Sentence | null; contextRequested: boolean }
+    | { kind: 'production' }
+    | { kind: 'production-cloze'; cloze: ProductionCloze; sentence: ClozeSentence }
+    | { kind: 'grammar-cloze'; sentence: ClozeSentence; realization?: GrammarRealization }
+    | { kind: 'conjugation'; prompt: GrammarConjugationPrompt }
+    /** Nothing in the point's examples can be blanked: the sentence is shown to read. */
+    | { kind: 'study'; sentence: Sentence }
+);
+
+/** The exercise as the grader reads it. */
+export type GradedExercise = Pick<Exercise, 'kind' | 'slots' | 'cue'>;
+
+/** The exercise as its effects read it: what was asked, of which item. */
+export type AnsweredExercise = Pick<Exercise, 'kind' | 'host' | 'label' | 'slots'>;
 
 export interface ExerciseGrade {
     slots: SlotGrade[];

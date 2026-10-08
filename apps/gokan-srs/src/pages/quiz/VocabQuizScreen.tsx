@@ -3,10 +3,7 @@ import { ExhaustedScreen } from "../../components/ExhaustedScreen";
 import { SessionCompleteScreen } from "../../components/SessionCompleteScreen";
 import { SessionProgress } from "../../components/SessionProgress";
 import type { SessionHistoryEntry } from "../../components/SessionProgress";
-import { VocabQuizCard } from "./VocabQuizCard";
-import { VocabMeaningQuizCard } from "./VocabMeaningQuizCard";
-import { VocabProductionQuizCard } from "./VocabProductionQuizCard";
-import { VocabProductionClozeQuizCard } from "./VocabProductionClozeQuizCard";
+import { ExerciseCard } from "../exercise/ExerciseCard";
 import { LoadingScreen } from "../../components/LoadingScreen";
 import { useQuiz } from "../../context/useQuiz";
 import VocabIntroCard from "../../components/VocabIntroCard";
@@ -17,7 +14,7 @@ interface VocabQuizScreenProps {
 }
 
 export function VocabQuizScreen({ onVocabClick }: VocabQuizScreenProps) {
-    const { state, shouldShowIntro, sessionState, nextReviewAt, actions, sessionStats } = useQuiz();
+    const { state, shouldShowIntro, sessionState, nextReviewAt, actions, exercises, sessionStats } = useQuiz();
 
     // Exhaustive switch over every SessionState - this is the single place that
     // decides what the quiz screen shows, replacing what used to be three
@@ -87,20 +84,7 @@ export function VocabQuizScreen({ onVocabClick }: VocabQuizScreenProps) {
                     <SessionProgress stats={sessionStats} history={history} gains={state.sessionGains} waitingNoun="vocab" />
 
                     <div className="flex-1 flex items-center justify-center py-6 w-full">
-                        {state.currentQuizItem?.quizType === 'meaning' ? (
-                            <VocabMeaningQuizCard
-                                onKanjiClick={() => onVocabClick(state.currentVocab!.id)}
-                                onVocabClick={onVocabClick}
-                            />
-                        ) : state.currentQuizItem?.quizType === 'production' ? (
-                            state.currentProductionCloze ? (
-                                <VocabProductionClozeQuizCard onVocabClick={onVocabClick} />
-                            ) : (
-                                <VocabProductionQuizCard onKanjiClick={() => onVocabClick(state.currentVocab!.id)} onVocabClick={onVocabClick} />
-                            )
-                        ) : (
-                            <VocabQuizCard onKanjiClick={() => onVocabClick(state.currentVocab!.id)} />
-                        )}
+                        <ExerciseCard api={exercises.vocab} onVocabClick={onVocabClick} />
                     </div>
                 </div>
             );

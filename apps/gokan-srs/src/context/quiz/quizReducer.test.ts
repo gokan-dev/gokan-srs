@@ -7,17 +7,12 @@ import type { Vocabulary } from '@gokan/dataset-schema';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../../models/vocabulary.model';
 import { CONSTANTS } from '../../commons/constants';
 import { userProgress, vocabProgress, vocabulary } from '../../test/fixtures';
-import type { Effect } from '../../services/exercise/effects';
-import type { AnswerResult } from '../../services/srs.service';
+import { vocabExercise } from '../../services/exercise/builders';
+import { newTurn } from './exerciseReducer';
 
 const makeVocab = (id = 'v1'): Vocabulary => vocabulary({ id });
-const now = new Date('2026-06-10T00:00:00Z');
-/** Progress studying these words, each already reviewed once. */
-const studying = (...vocabIds: string[]) => userProgress({ learningQueue: vocabIds.map(vocabId => vocabProgress({ vocabId, totalReviews: 1 })) });
-const review = (vocabId: string, result: AnswerResult = 'correct'): Effect => ({
-    kind: 'review', item: { kind: 'vocab', vocabId, quizType: 'reading', quizMode: 'base' }, label: '日本', result, strengthModifier: 1, latencyMs: 3000, blankCount: 1,
-});
-const update = (state: QuizState, effects: Effect[]) => quizReducer(state, { type: 'UPDATE_AFTER_ANSWER', payload: { effects, now } });
+/** A reading card for the vocabulary fixture, being answered. */
+const readingTurn = (answer = '') => ({ ...newTurn(vocabExercise(makeVocab(), { quizType: 'reading', quizMode: 'base' }, { sentence: null, cloze: null })), answers: [answer] });
 
 describe('quizReducer', () => {
     it('SETUP_COMPLETE sets progress and settings', () => {
@@ -71,117 +66,29 @@ describe('quizReducer', () => {
         expect(next).toBe(initialState);
     });
 
-    it('LOAD_VOCAB_START sets loading state and resets sentence/answer/feedback', () => {
-        const state: QuizState = { ...initialState, userAnswer: 'stale', feedback: { show: true, correct: true, type: 'correct', message: '', matchedAnswer: '', effects: [] } };
+    it('LOAD_VOCAB_START sets loading state and clears the card on screen', () => {
+        const state: QuizState = { ...initialState, turns: { vocab: readingTurn('stale'), grammar: null } };
         const queueItem = { vocabId: 'v1', quizType: 'reading' as const, quizMode: 'base' as const };
         const next = quizReducer(state, { type: 'LOAD_VOCAB_START', payload: queueItem });
 
         expect(next.isLoadingVocab).toBe(true);
         expect(next.currentQuizItem).toEqual(queueItem);
-        expect(next.currentSentences).toBeNull();
-        expect(next.currentSentenceId).toBeNull();
-        expect(next.userAnswer).toBe('');
-        expect(next.feedback).toBeNull();
+        expect(next.turns.vocab).toBeNull();
     });
 
-    it('LOAD_VOCAB_SUCCESS populates vocab/sentences and clears loading', () => {
+    it('LOAD_VOCAB_SUCCESS sets the word and its exercise, ready to answer, and clears loading', () => {
         const vocab = makeVocab();
-        const next = quizReducer(initialState, {
-            type: 'LOAD_VOCAB_SUCCESS',
-            payload: { vocab, sentences: null, selectedSentenceId: null },
-        });
+        const { exercise } = readingTurn();
+        const next = quizReducer(initialState, { type: 'LOAD_VOCAB_SUCCESS', payload: { vocab, exercise } });
 
         expect(next.currentVocab).toBe(vocab);
+        expect(next.turns.vocab).toEqual(newTurn(exercise));
         expect(next.isLoadingVocab).toBe(false);
     });
 
-    it('LOAD_VOCAB_START resets currentProductionCloze and productionHintLevel too', () => {
-        const cloze = {
-            sentence: { id: 's1', original: '必ず来る', en: [{ id: 'e1', text: 'will certainly come' }], vocabIds: [] },
-            blankStart: 0,
-            blankLength: 2,
-        };
-        const state: QuizState = { ...initialState, currentProductionCloze: cloze, productionHintLevel: 2 };
-        const queueItem = { vocabId: 'v1', quizType: 'production' as const, quizMode: 'base' as const };
-        const next = quizReducer(state, { type: 'LOAD_VOCAB_START', payload: queueItem });
-
-        expect(next.currentProductionCloze).toBeNull();
-        expect(next.productionHintLevel).toBe(0);
-    });
-
-    it('LOAD_VOCAB_SUCCESS sets currentProductionCloze from the payload', () => {
-        const vocab = makeVocab();
-        const cloze = {
-            sentence: { id: 's1', original: '必ず来る', en: [{ id: 'e1', text: 'will certainly come' }], vocabIds: [] },
-            blankStart: 0,
-            blankLength: 2,
-        };
-        const next = quizReducer(initialState, {
-            type: 'LOAD_VOCAB_SUCCESS',
-            payload: { vocab, sentences: null, selectedSentenceId: null, productionCloze: cloze },
-        });
-
-        expect(next.currentProductionCloze).toEqual(cloze);
-    });
-
-    it('LOAD_VOCAB_SUCCESS defaults currentProductionCloze to null when omitted (e.g. no queue item)', () => {
-        const next = quizReducer(initialState, {
-            type: 'LOAD_VOCAB_SUCCESS',
-            payload: { vocab: null, sentences: null, selectedSentenceId: null },
-        });
-
-        expect(next.currentProductionCloze).toBeNull();
-    });
-
-    describe('REVEAL_PRODUCTION_HINT', () => {
-        it('advances the hint level by one, starting from 0', () => {
-            const next = quizReducer(initialState, { type: 'REVEAL_PRODUCTION_HINT' });
-            expect(next.productionHintLevel).toBe(1);
-        });
-
-        it('caps at level 2 and does not advance further', () => {
-            const state: QuizState = { ...initialState, productionHintLevel: 2 };
-            const next = quizReducer(state, { type: 'REVEAL_PRODUCTION_HINT' });
-            expect(next.productionHintLevel).toBe(2);
-        });
-
-        it('reaching level 2 writes the primary reading into userAnswer', () => {
-            const vocab = makeVocab();
-            const state: QuizState = { ...initialState, currentVocab: vocab, productionHintLevel: 1, userAnswer: 'partial' };
-            const next = quizReducer(state, { type: 'REVEAL_PRODUCTION_HINT' });
-
-            expect(next.productionHintLevel).toBe(2);
-            expect(next.userAnswer).toBe(vocab.reading.primary);
-        });
-
-        it('on a cloze card, reaching level 2 writes the blank\'s own conjugated reading', () => {
-            const vocab = makeVocab();
-            const cloze = {
-                sentence: { id: 's1', original: '野菜を食べたら？', en: [], vocabIds: ['v1'] },
-                blankStart: 3, blankLength: 4, blankReading: 'たべたら',
-            };
-            const state: QuizState = { ...initialState, currentVocab: vocab, currentProductionCloze: cloze, productionHintLevel: 1 };
-            const next = quizReducer(state, { type: 'REVEAL_PRODUCTION_HINT' });
-
-            expect(next.userAnswer).toBe('たべたら');
-        });
-
-        it('does not touch userAnswer before reaching level 2', () => {
-            const vocab = makeVocab();
-            const state: QuizState = { ...initialState, currentVocab: vocab, productionHintLevel: 0, userAnswer: 'typed' };
-            const next = quizReducer(state, { type: 'REVEAL_PRODUCTION_HINT' });
-
-            expect(next.productionHintLevel).toBe(1);
-            expect(next.userAnswer).toBe('typed');
-        });
-
-        it('is a no-op on userAnswer without a currentVocab even at level 2', () => {
-            const state: QuizState = { ...initialState, currentVocab: null, productionHintLevel: 1, userAnswer: 'typed' };
-            const next = quizReducer(state, { type: 'REVEAL_PRODUCTION_HINT' });
-
-            expect(next.productionHintLevel).toBe(2);
-            expect(next.userAnswer).toBe('typed');
-        });
+    it('LOAD_VOCAB_SUCCESS without a queue item leaves no card on screen', () => {
+        const next = quizReducer(initialState, { type: 'LOAD_VOCAB_SUCCESS', payload: { vocab: null, exercise: null } });
+        expect(next.turns.vocab).toBeNull();
     });
 
     it('LOAD_VOCAB_ERROR sets a fatalError and clears loading', () => {
@@ -192,116 +99,6 @@ describe('quizReducer', () => {
 
         expect(next.isLoadingVocab).toBe(false);
         expect(next.fatalError).toContain('v1');
-    });
-
-    it('SUBMIT_ANSWER sets feedback.correct true only for strict correct', () => {
-        const next = quizReducer(initialState, {
-            type: 'SUBMIT_ANSWER',
-            payload: { type: 'minor_error', message: 'Close.', matchedAnswer: 'x', effects: [] },
-        });
-
-        expect(next.feedback?.show).toBe(true);
-        expect(next.feedback?.correct).toBe(false);
-        expect(next.feedback?.type).toBe('minor_error');
-    });
-
-    it('SUBMIT_ANSWER carries synonymRelation through to feedback (issue #71 Part B)', () => {
-        const next = quizReducer(initialState, {
-            type: 'SUBMIT_ANSWER',
-            payload: { type: 'wrong', message: 'confusable note', matchedAnswer: 'x', synonymRelation: 'confusable', effects: [] },
-        });
-
-        expect(next.feedback?.type).toBe('wrong');
-        expect(next.feedback?.correct).toBe(false);
-        expect(next.feedback?.synonymRelation).toBe('confusable');
-    });
-
-    it('SUBMIT_ANSWER leaves synonymRelation undefined when omitted', () => {
-        const next = quizReducer(initialState, {
-            type: 'SUBMIT_ANSWER',
-            payload: { type: 'wrong', message: 'Incorrect.', matchedAnswer: 'x', effects: [] },
-        });
-
-        expect(next.feedback?.synonymRelation).toBeUndefined();
-    });
-
-    it('UPDATE_AFTER_ANSWER writes the effects, clears feedback/answer, prepends history, and drops the item from introCandidates', () => {
-        const state: QuizState = {
-            ...initialState,
-            progress: studying('v1'),
-            userAnswer: 'answer',
-            feedback: { show: true, correct: true, type: 'correct', message: 'Correct.', matchedAnswer: 'x', effects: [review('v1')] },
-            introCandidates: [makeVocab('v1'), makeVocab('v2')],
-        };
-
-        const next = update(state, [review('v1')]);
-
-        expect(next.progress!.learningQueue[0].reading.memoryStrength).toBeGreaterThan(state.progress!.learningQueue[0].reading.memoryStrength);
-        expect(next.feedback).toBeNull();
-        expect(next.userAnswer).toBe('');
-        expect(next.sessionHistory[0]).toMatchObject({ vocabId: 'v1', writtenForm: '日本', result: 'correct' });
-        expect(next.introCandidates.map(v => v.id)).toEqual(['v2']);
-    });
-
-    it('UPDATE_AFTER_ANSWER writes to the CURRENT progress: a reconcile landing after submit is kept', () => {
-        const submitted = quizReducer({ ...initialState, progress: studying('v1') }, {
-            type: 'SUBMIT_ANSWER', payload: { type: 'correct', message: 'Correct.', matchedAnswer: 'x', effects: [review('v1')] },
-        });
-        const reconciled = quizReducer(submitted, { type: 'RECONCILE_REMOTE', payload: { progress: studying('v1', 'from-drive'), settings: DEFAULT_SETTINGS } });
-
-        const next = update(reconciled, submitted.feedback!.effects);
-
-        expect(next.progress!.learningQueue.map(v => v.vocabId)).toEqual(['v1', 'from-drive']);
-    });
-
-    it('UPDATE_AFTER_ANSWER names the tested word in the ticker, crediting the near-synonym typed', () => {
-        const retry: Effect = { kind: 'retry', item: { kind: 'vocab', vocabId: 'v1', quizType: 'production', quizMode: 'base' }, label: '狭い', result: 'correct' };
-        const credit: Effect = { kind: 'reinforce', vocabId: 'v2', label: '小さい', result: 'correct' };
-
-        const next = update({ ...initialState, progress: studying('v1', 'v2') }, [retry, credit]);
-
-        expect(next.sessionHistory[0]).toMatchObject({ vocabId: 'v1', writtenForm: '狭い', delta: 0 });
-        expect(next.sessionHistory[0].vocabBreakdown?.[0].label).toBe('小さい');
-        expect(next.sessionGains.vocab).toBe(next.sessionHistory[0].vocabDelta);
-    });
-
-    it('UPDATE_AFTER_ANSWER caps sessionHistory at 50 entries', () => {
-        const state: QuizState = {
-            ...initialState,
-            progress: studying('new'),
-            sessionHistory: Array.from({ length: 50 }, (_, i) => ({ vocabId: `old-${i}`, writtenForm: 'x', result: 'correct' as const, delta: 0 })),
-        };
-        const next = update(state, [review('new')]);
-
-        expect(next.sessionHistory).toHaveLength(50);
-        expect(next.sessionHistory[0].vocabId).toBe('new');
-    });
-
-    // issue #80: sessionHistory is capped at 50 for the ticker, but the session
-    // point total must keep growing past that - it must NOT be derived by
-    // summing the (capped) history array.
-    it('UPDATE_AFTER_ANSWER accumulates sessionGains past the 50-entry history cap', () => {
-        let state: QuizState = { ...initialState, progress: studying('v1') };
-        let total = 0;
-
-        for (let i = 0; i < 60; i++) {
-            state = update(state, [review('v1')]);
-            total += state.sessionHistory[0].delta;
-        }
-
-        // The ticker-facing history is still capped...
-        expect(state.sessionHistory).toHaveLength(50);
-        // ...but the cumulative total reflects all 60 answers, not just the last 50.
-        expect(state.sessionGains.net).toBeCloseTo(total, 6);
-        expect(state.sessionGains.lost).toBe(0);
-    });
-
-    it('UPDATE_AFTER_ANSWER splits sessionGains into gained/lost by sign', () => {
-        const gained = update({ ...initialState, progress: studying('v1') }, [review('v1', 'correct')]);
-        const lost = update(gained, [review('v1', 'wrong')]);
-        const [wrong, right] = lost.sessionHistory;
-
-        expect(lost.sessionGains).toEqual({ net: right.delta + wrong.delta, gained: right.delta, lost: -wrong.delta, vocab: 0 });
     });
 
     it('SAVE_SETTINGS clears introCandidates when preferredLearningOrder changes', () => {
@@ -471,36 +268,15 @@ describe('quizReducer', () => {
             expect(quizReducer(initialState, { type: 'SESSION_RESUME' })).toBe(initialState);
         });
 
-        it('a pending answer survives the pause: feedback and the current card are untouched', () => {
-            const withFeedback: QuizState = {
-                ...running,
-                userAnswer: 'とうじょう',
-                feedback: { show: true, correct: false, type: 'wrong', message: '', matchedAnswer: 'げんかん', effects: [] },
-            };
+        it('a pending answer survives the pause: the card on screen is untouched', () => {
+            const withAnswer: QuizState = { ...running, turns: { vocab: readingTurn('とうじょう'), grammar: null } };
             const roundTrip = quizReducer(
-                quizReducer(withFeedback, { type: 'SESSION_SUSPEND', payload: { now: 1 } }),
+                quizReducer(withAnswer, { type: 'SESSION_SUSPEND', payload: { now: 1 } }),
                 { type: 'SESSION_RESUME' }
             );
-            expect(roundTrip.feedback).toBe(withFeedback.feedback);
-            expect(roundTrip.userAnswer).toBe('とうじょう');
-            expect(roundTrip.progress).toBe(withFeedback.progress);
+            expect(roundTrip.turns).toBe(withAnswer.turns);
+            expect(roundTrip.progress).toBe(withAnswer.progress);
         });
-    });
-
-    it('UPDATE_AFTER_ANSWER leaves the committed session task set untouched', () => {
-        const state: QuizState = {
-            ...initialState,
-            progress: studying('v1'),
-            session: { committed: [taskKey('v1', 'reading')] },
-        };
-
-        const next = update(state, [review('v1', 'minor_error')]);
-        expect(next.session).toEqual({ committed: [taskKey('v1', 'reading')] });
-    });
-
-    it('UPDATE_AFTER_ANSWER leaves session untouched (null) when no session is active', () => {
-        const next = update({ ...initialState, progress: studying('v1'), session: null }, [review('v1')]);
-        expect(next.session).toBeNull();
     });
 
     it('VOCAB_INTRO_CHOICE "learn" adds the reading task to the active session', () => {
@@ -611,7 +387,7 @@ describe('quizReducer', () => {
     });
 
     it('RESET restores the initial state', () => {
-        const state: QuizState = { ...initialState, progress: userProgress(), userAnswer: 'x' };
+        const state: QuizState = { ...initialState, progress: userProgress(), turns: { vocab: readingTurn('x'), grammar: null } };
         const next = quizReducer(state, { type: 'RESET' });
         expect(next).toEqual(initialState);
     });
@@ -619,16 +395,15 @@ describe('quizReducer', () => {
     it('RECONCILE_REMOTE assigns the already-merged progress/settings without touching in-flight quiz state', () => {
         // The actual merge happens in useQuizOrchestration before this is dispatched -
         // the reducer's job is just to assign the result while leaving whatever the
-        // user is doing right now (currentVocab, userAnswer, feedback) untouched, so a
-        // background sync can never interrupt an answer in progress.
+        // user is doing right now (currentVocab, the card being answered) untouched, so
+        // a background sync can never interrupt an answer in progress.
         const inFlightVocab = makeVocab('v1');
         const state: QuizState = {
             ...initialState,
             progress: userProgress({ stats: { newLearnedToday: 1, totalLearned: 1, totalReviews: 1 } }),
             settings: { ...DEFAULT_SETTINGS, preferredLearningOrder: 'frequency' },
             currentVocab: inFlightVocab,
-            userAnswer: 'partial-answer',
-            feedback: { show: true, correct: false, type: 'wrong', message: 'Incorrect.', matchedAnswer: 'x', effects: [] },
+            turns: { vocab: readingTurn('partial-answer'), grammar: null },
         };
 
         const reconciledProgress = userProgress({ stats: { newLearnedToday: 5, totalLearned: 5, totalReviews: 5 } });
@@ -643,8 +418,7 @@ describe('quizReducer', () => {
         expect(next.settings).toBe(reconciledSettings);
         // In-flight quiz state must survive untouched.
         expect(next.currentVocab).toBe(inFlightVocab);
-        expect(next.userAnswer).toBe('partial-answer');
-        expect(next.feedback).toEqual(state.feedback);
+        expect(next.turns).toBe(state.turns);
     });
 
     it('REBASE_STRENGTHS rebases the CURRENT progress, and is a no-op (same state) the second time', () => {

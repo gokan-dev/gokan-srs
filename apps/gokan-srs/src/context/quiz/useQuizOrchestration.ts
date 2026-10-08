@@ -2,27 +2,26 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch } from 'react';
 import { useLocation } from 'react-router-dom';
 import type { KanjiKnowledge, UserProgress, UserSettings } from '../../models/user.model';
-import { headwordOf } from '@gokan/dataset-schema';
-import type { SynonymRelation, Vocabulary } from '@gokan/dataset-schema';
+import type { Sentence, Vocabulary } from '@gokan/dataset-schema';
 import { StorageService } from '../../services/storage.service';
 import { VocabularyService, VocabNotFoundError } from '../../services/vocabulary.service';
 import { SRSService } from '../../services/srs.service';
-import { gradeExercise } from '../../services/exercise/grading';
-import { effectsOf } from '../../services/exercise/effects';
-import { meaningExercise, productionExercise, readingExercise } from '../../services/exercise/builders';
+import { vocabExercise } from '../../services/exercise/builders';
+import { refineMeaningWithAi } from '../../services/exercise/aiRefine';
 import { MigrationService } from '../../services/migration.service';
-import { LLMService } from '../../services/llm.service';
 import { CONSTANTS } from '../../commons/constants';
 import { DEFAULT_SETTINGS } from '../../models/user.model';
 import type { SetupValues } from '../../models/state.model';
 import { clearStaleNeedsRetry, syncUsuallyKana } from '../../utils/srs.utils';
 import { usuallyKanaBudget } from '../../utils/usuallyKana.utils';
 import { pickProductionClozeSentence } from '../../utils/productionCloze.utils';
+import type { ProductionCloze } from '../../utils/productionCloze.utils';
 import { indexLearnerVocab, pickSentenceForVocab } from '../../utils/sentenceRanking';
 import { frequencyModifierOf } from '../../services/calibration';
 import { mergeProgress, mergeSettings } from '../../services/sync/mergeProgress';
 import { useGoogleDrive } from '../useGoogleDrive';
-import type { QuizState, QuizAction, SynonymWord } from './quizReducer';
+import type { QuizState, QuizAction } from './quizReducer';
+import { useExerciseTurn } from './useExerciseTurn';
 import { selectNextView, selectCurrentProgress, selectSessionStats, selectNextSessionPreview, collectActionableTaskKeys, capSessionCommit, dedupTaskKeysByVocab } from './quizSelectors';
 import { useSessionLifecycle } from './useSessionLifecycle';
 import { sessionRouteRole } from './sessionRoutes';
@@ -33,12 +32,7 @@ import type { WatchedEpisode } from '../../models/media.model';
 
 export interface QuizActions {
     setupComplete: (values: SetupValues) => void;
-    setAnswer: (answer: string) => void;
-    /** Progressive hint for the CURRENT production cloze card (gloss, then reveal). No-op outside a cloze card. */
-    revealProductionHint: () => void;
-    submitAnswer: () => Promise<void>;
     advanceQueue: ({ now, overrideDailyLimit }: { now: Date, overrideDailyLimit?: boolean }) => Promise<void>;
-    continueToNext: () => void;
     /** Ends the finished session so the lifecycle effect immediately commits a fresh capped one. */
     startNewSession: () => void;
     saveSettings: (settings: UserSettings) => void;
@@ -59,16 +53,7 @@ export interface QuizActions {
 
 /**
  * All side effects and business-logic actions for the quiz state machine:
- * vocab/sentence loading, auto-advance timing, daily reset, persistence,
- * migration triggering, and Drive sync wiring. QuizProvider stays a thin
- * assembler that just wires this hook's output into React context.
- */
-export interface QuizComputed {
-    canSubmit: boolean;
-    canContinue: boolean;
-    isReady: boolean;
-}
-
+$1 */
 export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAction>) {
     const {
         logout,
@@ -83,11 +68,6 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
 
     const location = useLocation();
 
-    const startTimeRef = useRef<number | null>(null);
-    // Latency captured at the moment the user SUBMITS their answer, not when they
-    // later click Continue. Otherwise time spent reviewing the revealed correct
-    // answer would inflate the latency and skew the SRS speed multiplier.
-    const submitLatencyRef = useRef<number | null>(null);
     const dayBoundaryCheckedRef = useRef(false);
     const migrationTriggeredRef = useRef(false);
     // Identifies the most recently dispatched vocab load ("vid:quizType:quizMode").
@@ -217,6 +197,26 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
     // look up the answer they just missed and come back to the same card, progress
     // bar and ticker. Coming back within the TTL resumes it; see useSessionLifecycle.
     const sessionRole = sessionRouteRole(location.pathname, 'vocab');
+
+    // Answering, hints, submit and Continue: the flow every exercise shares. The
+    // meaning card in context mode may ask Gemini for a second opinion, only when
+    // the Settings toggle is on (a leftover API key must not keep triggering calls).
+    const { api: exercise, restartClock } = useExerciseTurn({
+        host: 'vocab',
+        turn: state.turns.vocab,
+        dispatch,
+        active: sessionRole === 'activity',
+        loading: state.isLoadingVocab,
+        refine: (current, grade, answers, onStart) => {
+            const settings = state.settings;
+            const check = settings?.enableGeminiContext && settings.geminiApiKey
+                ? { apiKey: settings.geminiApiKey, always: !!settings.alwaysUseAiForMeaningContext }
+                : null;
+            return state.currentVocab
+                ? refineMeaningWithAi(current, grade, answers[0] ?? '', state.currentVocab, check, onStart)
+                : Promise.resolve(grade);
+        },
+    });
     const sessionHasWork =
         nextView.sessionState === 'review' ||
         nextView.sessionState === 'learn' ||
@@ -257,9 +257,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
         onEnd: () => dispatch({ type: 'SESSION_END' }),
         onSuspend: (now) => dispatch({ type: 'SESSION_SUSPEND', payload: { now: now.getTime() } }),
         onResume: () => {
-            // A card left unanswered must not be scored on the time spent away.
-            // Latency after an answer is already frozen at submit (submitLatencyRef).
-            if (!state.feedback?.show && startTimeRef.current !== null) startTimeRef.current = Date.now();
+            restartClock();
             dispatch({ type: 'SESSION_RESUME' });
         },
     });
@@ -288,99 +286,6 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             };
 
             dispatch({ type: 'SETUP_COMPLETE', payload: { progress, settings } });
-        },
-
-        setAnswer(answer) {
-            dispatch({ type: 'SET_ANSWER', payload: answer });
-        },
-
-        revealProductionHint() {
-            dispatch({ type: 'REVEAL_PRODUCTION_HINT' });
-        },
-
-        async submitAnswer() {
-            if (!state.currentVocab || state.feedback?.show || !state.currentQuizItem || state.isEvaluatingAi) return;
-
-            // Freeze the answer latency here (start -> submit), before any AI
-            // evaluation delay and before the user reviews the correct answer.
-            submitLatencyRef.current = startTimeRef.current ? Date.now() - startTimeRef.current : null;
-
-            const quizType = state.currentQuizItem.quizType;
-            const vocab = state.currentVocab;
-            // Every vocab card grades through the shared engine (services/exercise);
-            // the production cloze's revealed hint is its only hint level.
-            const exercise = quizType === 'reading' ? readingExercise(vocab)
-                : quizType === 'production' ? productionExercise(vocab, state.currentProductionCloze)
-                    : meaningExercise(vocab);
-            const grade = gradeExercise(exercise, [state.userAnswer], [state.productionHintLevel]);
-            const [slot] = grade.slots;
-            let result = grade.overall;
-            let matchedAnswer = slot.shown;
-            let message = grade.message;
-            // Set only on a near-synonym answer (issue #71 Part B): continueToNext
-            // retries the tested word instead of crediting it.
-            const synonymRelation: SynonymRelation | undefined = slot.synonym
-                && (slot.synonym.outcome === 'confusable' ? 'confusable' : 'interchangeable');
-            const synonymWord: SynonymWord | undefined = slot.synonym
-                && { vocabId: slot.synonym.vocabId, written: slot.synonym.written };
-
-            // Gemini API contextual validation, only when in 'context' mode and
-            // the user has the feature enabled (enableGeminiContext is the Settings
-            // master toggle - a leftover geminiApiKey from before the user disabled
-            // it must not silently keep triggering AI calls).
-            if (quizType === 'meaning' && state.currentQuizItem.quizMode === 'context' &&
-                state.settings?.enableGeminiContext &&
-                state.settings?.geminiApiKey &&
-                state.currentSentenceId &&
-                state.currentSentences &&
-                state.userAnswer.trim().length > 0) {
-
-                // If alwaysUseAiForMeaningContext is true, AI validates ALL answers, even strict-correct.
-                // If false, only strict-wrong/minor_error answers get AI-validated.
-                const shouldEvaluate = state.settings.alwaysUseAiForMeaningContext ||
-                    (result === 'wrong' || result === 'minor_error');
-
-                if (shouldEvaluate) {
-                    const sentence = state.currentSentences.find(s => s.id === state.currentSentenceId);
-
-                    if (sentence) {
-                        try {
-                            dispatch({ type: 'EVALUATING_AI_START' });
-
-                            const aiEvaluation = await LLMService.validateMeaningContext(
-                                state.settings.geminiApiKey,
-                                state.currentVocab,
-                                sentence,
-                                state.userAnswer
-                            );
-
-                            if (aiEvaluation.result === 'correct' || aiEvaluation.result === 'minor_error') {
-                                result = aiEvaluation.result;
-                                matchedAnswer = state.userAnswer;
-                                message = result === 'correct'
-                                    ? `Correct. (AI Validated: ${aiEvaluation.reason})`
-                                    : `Close. ${aiEvaluation.reason}`;
-                            } else {
-                                result = 'wrong';
-                                message = aiEvaluation.reason ? `Incorrect. (AI: ${aiEvaluation.reason})` : 'Incorrect.';
-                            }
-                        } catch (e) {
-                            console.error('[useQuizOrchestration] AI evaluation failed, falling back to strict result.', e);
-                        }
-                    }
-                }
-            }
-
-            // What Continue will write, decided now: the latency is frozen at submit and
-            // the AI step may have changed the result.
-            const effects = effectsOf(exercise, { ...grade, overall: result }, {
-                item: { kind: 'vocab', vocabId: vocab.id, quizType, quizMode: state.currentQuizItem.quizMode },
-                label: headwordOf(vocab),
-                latencyMs: submitLatencyRef.current ?? 5000,
-                hintLevels: [state.productionHintLevel],
-            });
-
-            dispatch({ type: 'SUBMIT_ANSWER', payload: { type: result, message, matchedAnswer, synonymRelation, synonymWord, effects } });
         },
 
         async advanceQueue({ now }) {
@@ -443,13 +348,6 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                     candidates: newCandidates.length > 0 ? [...state.introCandidates, ...newCandidates] : undefined
                 },
             });
-        },
-
-        continueToNext() {
-            if (!state.feedback) return;
-            // The effects were decided at submit; the reducer writes them to the
-            // current progress (services/exercise/effects.ts).
-            dispatch({ type: 'UPDATE_AFTER_ANSWER', payload: { effects: state.feedback.effects, now: new Date() } });
         },
 
         startNewSession() {
@@ -644,7 +542,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
         const queueItem = nextView.queueItem;
 
         if (!queueItem) {
-            dispatch({ type: 'LOAD_VOCAB_SUCCESS', payload: { vocab: null, sentences: null, selectedSentenceId: null } });
+            dispatch({ type: 'LOAD_VOCAB_SUCCESS', payload: { vocab: null, exercise: null } });
 
             if (state.progress && state.settings && (nextView.sessionState === 'learn' || nextView.sessionState === 'exhausted')) {
                 void actions.advanceQueue({ now: new Date() });
@@ -708,8 +606,8 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
         ]).then(([vocab, sentences]) => {
             if (loadingKeyRef.current !== loadKey) return; // superseded by a newer target
 
-            let selectedSentenceId: string | null = null;
-            let productionCloze = null;
+            let sentence: Sentence | null = null;
+            let cloze: ProductionCloze | null = null;
 
             // Both sentence-driven cards rank the word's sentences with the shared
             // ranker (utils/sentenceRanking.ts), the same rule the grammar review uses.
@@ -723,20 +621,15 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                     // Pass the loaded vocab so the cloze guard rejects a sentence whose
                     // blanked span is a differently-read homograph (遊ぶ/あそぶ matched to
                     // the rare すさぶ entry) - see pickProductionClozeSentence.
-                    productionCloze = pickProductionClozeSentence(vid, sentences, learner, vocab);
+                    cloze = pickProductionClozeSentence(vid, sentences, learner, vocab);
                 }
             } else if (sentences && sentences.length > 0) {
-                selectedSentenceId = pickSentenceForVocab(vid, sentences, learner)?.id ?? null;
+                sentence = pickSentenceForVocab(vid, sentences, learner) ?? null;
             }
 
-            dispatch({
-                type: 'LOAD_VOCAB_SUCCESS',
-                // Production's own sentences aren't the meaning-context ones -
-                // currentSentences/currentSentenceId stay scoped to meaning, so they're
-                // left null here rather than carrying data nothing else reads.
-                payload: { vocab, sentences: quizType === 'production' ? null : sentences, selectedSentenceId, productionCloze },
-            });
-            startTimeRef.current = Date.now();
+            // The card's exercise is built once, here: what it asks, what decides a
+            // synonym, and what it shows (services/exercise/builders.ts).
+            dispatch({ type: 'LOAD_VOCAB_SUCCESS', payload: { vocab, exercise: vocabExercise(vocab, queueItem, { sentence, cloze }) } });
         }).catch(err => {
             if (loadingKeyRef.current !== loadKey) return;
             // A vocab the dataset dropped (file genuinely absent) is retired, not
@@ -753,38 +646,5 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
         // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the next item, progress and route; the load guard compares currentQuizItem, so helpers are stable inputs
     }, [nextView.queueItem, state.progress, state.settings, nextView.sessionState, location.pathname]);
 
-    useEffect(() => {
-        // Meaning quizzes have rich context (sentences) the user might want to read, so they don't auto-advance.
-        // Neither does a correct near-synonym answer: its message names the word
-        // that was actually being tested, which is the point of showing it.
-        // Only on the quiz itself: a session paused on a consult page stays frozen
-        // until the learner comes back.
-        if (sessionRole === 'activity' && state.feedback?.correct && !state.feedback.synonymRelation && state.currentQuizItem?.quizType !== 'meaning') {
-            const timer = setTimeout(() => {
-                actions.continueToNext();
-            }, CONSTANTS.quiz.correctAnswerAutoAdvanceDelay);
-
-            return () => clearTimeout(timer);
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- the timer restarts only on a new correct answer or role change, never on an actions identity change
-    }, [state.feedback?.correct, state.feedback?.synonymRelation, state.currentQuizItem, sessionRole]);
-
-    /* =========================
-       COMPUTED FLAGS
-       ========================= */
-
-    const computed: QuizComputed = {
-        canSubmit:
-            !!state.userAnswer.trim() &&
-            !!state.currentVocab &&
-            !state.feedback?.show &&
-            !state.isLoadingVocab &&
-            !state.isEvaluatingAi,
-
-        canContinue: !!(state.feedback?.show && (!state.feedback.correct || !!state.feedback.synonymRelation || state.currentQuizItem?.quizType === 'meaning')),
-
-        isReady: !!state.currentVocab && !state.isLoadingVocab && !state.isEvaluatingAi,
-    };
-
-    return { actions, nextView, currentProgress, computed, sessionStats, nextSessionPreview };
+    return { actions, exercise, nextView, currentProgress, sessionStats, nextSessionPreview };
 }

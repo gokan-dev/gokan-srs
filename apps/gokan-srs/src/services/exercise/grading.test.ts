@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { gradeExercise, gradeSlot, supportCoefficient, SUPPORT_COEFFICIENT_FLOOR, worstOf } from './grading';
 import { meaningSlot, readingSlot, wordSlot } from './slots';
-import { meaningExercise, productionExercise, readingExercise } from './builders';
-import type { AnswerSlot, Exercise, SynonymCandidate, WordForms } from './types';
+import { vocabExercise } from './builders';
+import type { AnswerSlot, GradedExercise, SynonymCandidate, WordForms } from './types';
 import type { ProductionCue } from '../../utils/synonymContext.utils';
 import type { ProductionCloze } from '../../utils/productionCloze.utils';
+import type { Vocabulary } from '@gokan/dataset-schema';
 import { vocabulary } from '../../test/fixtures';
 
 const grade = (slot: AnswerSlot, input: string, cue: ProductionCue = {}) => gradeSlot(slot, input, 0, cue);
@@ -50,7 +51,7 @@ describe('the reading slot (alternatives)', () => {
     });
 
     it('accepts only readings: the written form is what is being read', () => {
-        const nihon = readingExercise(vocabulary());
+        const nihon = vocabExercise(vocabulary(), { quizType: 'reading', quizMode: 'base' }, { sentence: null, cloze: null });
         expect(gradeExercise(nihon, ['日本'], [0]).overall).toBe('wrong');
     });
 });
@@ -83,7 +84,7 @@ describe('the meaning slot', () => {
     });
 
     it('never moves on by itself: the card has glosses worth reading', () => {
-        const exercise = meaningExercise(vocabulary());
+        const exercise = vocabExercise(vocabulary(), { quizType: 'meaning', quizMode: 'base' }, { sentence: null, cloze: null });
         expect(gradeExercise(exercise, ['Japan'], [0]).autoAdvance).toBe(false);
     });
 });
@@ -245,7 +246,7 @@ describe('near-synonyms (issue #71 Part B)', () => {
 });
 
 describe('gradeExercise', () => {
-    const exercise = (slots: AnswerSlot[], cue: ProductionCue = {}): Exercise => ({ kind: 'grammar-cloze', slots, cue });
+    const exercise = (slots: AnswerSlot[], cue: ProductionCue = {}): GradedExercise => ({ kind: 'grammar-cloze', slots, cue });
     const core = production(kanarazu);
     const support = { ...production(taberu), role: 'support' as const };
 
@@ -276,7 +277,7 @@ describe('gradeExercise', () => {
     describe('a near-synonym answer', () => {
         const chiisai = candidate('chiisai', 'interchangeable', '小さい', 'ちいさい', { shared: ['small'] });
         const withSynonym = production({ ...kanarazu, reading: { primary: 'せまい', alternatives: [] }, writtenForm: { kanji: '狭い', alternatives: [], containedKanji: ['狭'] } }, [chiisai]);
-        const card = (cue: ProductionCue): Exercise => ({ kind: 'production-cloze', slots: [withSynonym], cue });
+        const card = (cue: ProductionCue): GradedExercise => ({ kind: 'production-cloze', slots: [withSynonym], cue });
 
         it('names both words, and pauses instead of auto-advancing', () => {
             const inCue = gradeExercise(card({ sentence: 'Japan is a small country.' }), ['小さい'], [0]);
@@ -307,9 +308,12 @@ describe('the production builder', () => {
         ...(blankReading ? { blankReading } : {}),
     });
 
+    const productionCard = (vocab: Vocabulary, sentenceCloze: ProductionCloze | null) =>
+        vocabExercise(vocab, { quizType: 'production', quizMode: 'base' }, { sentence: null, cloze: sentenceCloze });
+
     it('serves the gloss card without a sentence and the cloze card with one', () => {
-        expect(productionExercise(vocabulary(), null).kind).toBe('production');
-        expect(productionExercise(vocabulary(), cloze('Japan.', '日本')).kind).toBe('production-cloze');
+        expect(productionCard(vocabulary(), null).kind).toBe('production');
+        expect(productionCard(vocabulary(), cloze('Japan.', '日本')).kind).toBe('production-cloze');
     });
 
     it('reveals the blank as the sentence writes it, and grades its synonyms against the sentence', () => {
@@ -320,7 +324,7 @@ describe('the production builder', () => {
             senses: [{ pos: ['adj-i'], misc: { rawTags: [] }, glosses: ['narrow', 'small'], related: { compounds: [] } }],
             synonyms: [{ id: 'chiisai', relation: 'interchangeable', shared: ['small'], w: ['小さい'], r: ['ちいさい'], pos: ['adj-i'] }],
         });
-        const exercise = productionExercise(semai, cloze('Japan is a small country.', '狭い', 'せまい'));
+        const exercise = productionCard(semai, cloze('Japan is a small country.', '狭い', 'せまい'));
         expect(exercise.slots[0].reveal).toBe('狭い');
         expect(gradeExercise(exercise, ['小さかった'], [0]).slots[0].synonym?.outcome).toBe('correct');
     });

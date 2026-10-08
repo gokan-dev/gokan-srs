@@ -4,8 +4,7 @@ import { ActivityStatusCard } from "../../components/ActivityStatusCard";
 import { SessionProgress } from "../../components/SessionProgress";
 import type { SessionHistoryEntry } from "../../components/SessionProgress";
 import { GrammarIntroCard } from "./GrammarIntroCard";
-import { GrammarQuizCard } from "./GrammarQuizCard";
-import { GrammarConjugationCard } from "./GrammarConjugationCard";
+import { ExerciseCard } from "../exercise/ExerciseCard";
 import { GrammarChapterLessonCard } from "./GrammarChapterLessonCard";
 import { useIntroducedGrammarIds } from "../../hooks/useIntroducedGrammarIds";
 import { useNow } from "../../hooks/useNow";
@@ -17,9 +16,14 @@ import { formatMinutes, minutesUntil } from "../../utils/time.utils";
  * 'learn-kanji' case: grammar has no kanji-gated learning step (see
  * GrammarSessionState in grammarSelectors.ts).
  */
-export function GrammarScreen() {
+interface GrammarScreenProps {
+    onVocabClick: (vocabId: string) => void;
+}
+
+export function GrammarScreen({ onVocabClick }: GrammarScreenProps) {
     const {
         state,
+        exercises,
         grammarSessionState,
         grammarNextReviewAt,
         shouldShowGrammarIntro,
@@ -108,12 +112,7 @@ export function GrammarScreen() {
                     <SessionProgress stats={grammarSessionStats} history={history} gains={state.grammarSessionGains} waitingNoun="grammar points" />
 
                     <div className="flex-1 flex items-center justify-center py-6 w-full">
-                        {/* An `inflection` point is served by the transformation
-                            drill: its identity is a derivation, so there is no
-                            invariant marker for the sentence cloze to blank. */}
-                        {state.currentGrammarBlankPlan?.conjugation
-                            ? <GrammarConjugationCard />
-                            : <GrammarQuizCard />}
+                        <ExerciseCard api={exercises.grammar} onVocabClick={onVocabClick} />
                     </div>
                 </div>
             );

@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { selectNextView, selectCurrentProgress, selectCurrentSentence, selectSessionStats, capSessionCommit, collectActionableTaskKeys, selectNextSessionPreview, dedupTaskKeysByVocab } from './quizSelectors';
+import { selectNextView, selectCurrentProgress, selectSessionStats, capSessionCommit, collectActionableTaskKeys, selectNextSessionPreview, dedupTaskKeysByVocab } from './quizSelectors';
 import { initialState, taskKey } from './quizReducer';
 import type { QuizState, TaskKey } from './quizReducer';
 import type { UserProgress } from '../../models/user.model';
-import type { Sentence, Vocabulary } from '@gokan/dataset-schema';
+import type { Vocabulary } from '@gokan/dataset-schema';
 import type { VocabProgress } from '../../models/vocabulary.model';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../../models/vocabulary.model';
 import { CONSTANTS } from '../../commons/constants';
@@ -190,21 +190,6 @@ describe('selectCurrentProgress', () => {
     });
 });
 
-describe('selectCurrentSentence', () => {
-    const sentences: Sentence[] = [
-        { id: 's1', original: '日本語', en: [{ id: 'e1', text: 'Japanese' }], vocabIds: ['v1'] },
-        { id: 's2', original: '日本人', en: [{ id: 'e2', text: 'Japanese person' }], vocabIds: ['v1'] },
-    ];
-
-    it('returns null without a selected sentence id', () => {
-        expect(selectCurrentSentence({ currentSentences: sentences, currentSentenceId: null })).toBeNull();
-    });
-
-    it('finds the sentence matching currentSentenceId', () => {
-        const result = selectCurrentSentence({ currentSentences: sentences, currentSentenceId: 's2' });
-        expect(result?.original).toBe('日本人');
-    });
-});
 
 describe('selectSessionStats', () => {
     const settings = userSettings();

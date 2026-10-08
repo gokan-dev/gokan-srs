@@ -19,29 +19,17 @@ import {
     collectActionableGrammarIds,
     computeBlankPlan,
 } from './grammarSelectors';
-import { gradeExercise } from '../../services/exercise/grading';
 import { grammarExercise } from '../../services/exercise/builders';
-import { effectsOf } from '../../services/exercise/effects';
-import type { Effect } from '../../services/exercise/effects';
+import { useExerciseTurn } from './useExerciseTurn';
 import { useSessionLifecycle } from './useSessionLifecycle';
 import { sessionRouteRole } from './sessionRoutes';
 import { refillCandidates } from './refillCandidates';
 
 export interface GrammarActions {
-    setGrammarAnswer: (index: number, value: string) => void;
-    revealGrammarHint: (index: number) => void;
-    submitGrammarAnswer: () => void;
     advanceGrammarQueue: () => Promise<void>;
-    continueGrammarToNext: () => void;
     saveGrammarIntroChoice: (grammarPoint: GrammarPoint, choice: 'learn' | 'skip') => void;
     /** Acknowledges the shown end-of-chapter review step, so it doesn't re-fire. */
     dismissGrammarChapterLesson: (chapterId: string) => void;
-}
-
-export interface GrammarComputed {
-    canSubmitGrammar: boolean;
-    canContinueGrammar: boolean;
-    isGrammarReady: boolean;
 }
 
 /** The end-of-chapter review step's content, once a chapter completes and has anchored lessons - see selectChapterEndFocusIds. */
@@ -52,8 +40,9 @@ export interface PendingGrammarChapterLesson {
 }
 
 /**
- * Grammar's equivalent of useQuizOrchestration: loading, auto-advance timing,
- * and the submit/continue/advance/intro actions for the Grammar activity.
+ * Grammar's equivalent of useQuizOrchestration: loading, the session lifecycle,
+ * and the advance/intro actions for the Grammar activity. Answering is the shared
+ * exercise turn (useExerciseTurn).
  * Deliberately does NOT duplicate persistence or Drive-sync wiring - those
  * effects in useQuizOrchestration already key off `state.progress` generically
  * (any dispatch that changes it gets saved/synced), and grammarQueue lives on
@@ -63,8 +52,6 @@ export interface PendingGrammarChapterLesson {
 export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<QuizAction>) {
     const location = useLocation();
 
-    const startTimeRef = useRef<number | null>(null);
-    const submitLatencyRef = useRef<number | null>(null);
     const loadingKeyRef = useRef<string | null>(null);
 
     const [hasMoreLearnableGrammar, setHasMoreLearnableGrammar] = useState(false);
@@ -185,6 +172,15 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
     // AND there is review/learn work, pauses on a consult page (sessionRoutes.ts)
     // and ends anywhere else.
     const grammarSessionRole = sessionRouteRole(location.pathname, 'grammar');
+    // Answering, hints, submit and Continue: the flow every exercise shares.
+    const { api: exercise, restartClock } = useExerciseTurn({
+        host: 'grammar',
+        turn: state.turns.grammar,
+        dispatch,
+        active: grammarSessionRole === 'activity',
+        loading: state.isLoadingGrammar,
+    });
+
     const grammarSessionHasWork =
         grammarNextView.sessionState === 'review' || grammarNextView.sessionState === 'learn';
 
@@ -213,8 +209,7 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
         onEnd: () => dispatch({ type: 'GRAMMAR_SESSION_END' }),
         onSuspend: (now) => dispatch({ type: 'GRAMMAR_SESSION_SUSPEND', payload: { now: now.getTime() } }),
         onResume: () => {
-            // Same as vocab: an unanswered card is not scored on the time spent away.
-            if (!state.grammarFeedback?.show && startTimeRef.current !== null) startTimeRef.current = Date.now();
+            restartClock();
             dispatch({ type: 'GRAMMAR_SESSION_RESUME' });
         },
     });
@@ -224,44 +219,6 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
        ========================= */
 
     const grammarActions: GrammarActions = {
-        setGrammarAnswer(index, value) {
-            dispatch({ type: 'GRAMMAR_SET_ANSWER', payload: { index, value } });
-        },
-
-        revealGrammarHint(index) {
-            dispatch({ type: 'GRAMMAR_REVEAL_HINT', payload: { index } });
-        },
-
-        submitGrammarAnswer() {
-            if (!state.currentGrammarPoint || state.grammarFeedback?.show || !state.currentGrammarBlankPlan) return;
-            if (state.currentGrammarBlankPlan.readOnly) return; // nothing to grade - handled by continueGrammarToNext directly
-
-            submitLatencyRef.current = startTimeRef.current ? Date.now() - startTimeRef.current : null;
-
-            const plan = state.currentGrammarBlankPlan;
-            const exercise = grammarExercise(plan);
-            const grade = gradeExercise(exercise, state.grammarAnswers, state.grammarHintLevels);
-            // What Continue will write, decided now, with the latency frozen at submit:
-            // the point's review, and credit to the vocab blanks answered right.
-            const effects = effectsOf(exercise, grade, {
-                item: { kind: 'grammar', grammarId: state.currentGrammarPoint.id },
-                label: state.currentGrammarPoint.title,
-                latencyMs: submitLatencyRef.current ?? 5000,
-                hintLevels: state.grammarHintLevels,
-            });
-
-            dispatch({
-                type: 'GRAMMAR_SUBMIT_ANSWER',
-                payload: {
-                    type: grade.overall,
-                    message: grade.message,
-                    matchedAnswers: grade.slots.map(s => s.shown),
-                    perBlankResults: grade.slots.map(s => s.result),
-                    effects,
-                },
-            });
-        },
-
         async advanceGrammarQueue() {
             if (!state.progress) return;
             const updatedQueue = state.progress.grammarQueue;
@@ -313,18 +270,6 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
             });
         },
 
-        continueGrammarToNext() {
-            if (!state.currentGrammarPoint) return;
-            // The study card has nothing to grade: no credit either way, the due date
-            // only moves so the same card does not reappear on the next pick.
-            const effects: Effect[] | undefined = state.currentGrammarBlankPlan?.readOnly
-                ? [{ kind: 'defer', item: { kind: 'grammar', grammarId: state.currentGrammarPoint.id } }]
-                : state.grammarFeedback?.effects;
-            if (!effects) return;
-            // The reducer writes them to the current progress (services/exercise/effects.ts).
-            dispatch({ type: 'GRAMMAR_UPDATE_AFTER_ANSWER', payload: { effects, now: new Date() } });
-        },
-
         saveGrammarIntroChoice(grammarPoint, choice) {
             if (!state.progress) return;
             dispatch({ type: 'GRAMMAR_INTRO_CHOICE', choice, grammarId: grammarPoint.id, grammarPoint, insertionFraction: Math.random() });
@@ -346,7 +291,7 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
         const queueItem = grammarNextView.queueItem;
 
         if (!queueItem) {
-            dispatch({ type: 'GRAMMAR_LOAD_SUCCESS', payload: { point: null, blankPlan: null } });
+            dispatch({ type: 'GRAMMAR_LOAD_SUCCESS', payload: { point: null, exercise: null } });
 
             if (state.progress && (grammarNextView.sessionState === 'learn' || grammarNextView.sessionState === 'exhausted')) {
                 void grammarActions.advanceGrammarQueue();
@@ -375,8 +320,7 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
             const blankPlan = await computeBlankPlan(point, state.progress, existing?.totalReviews ?? 0);
             if (loadingKeyRef.current !== loadKey) return; // superseded while awaiting the blank plan's vocab fetches
 
-            dispatch({ type: 'GRAMMAR_LOAD_SUCCESS', payload: { point, blankPlan } });
-            startTimeRef.current = Date.now();
+            dispatch({ type: 'GRAMMAR_LOAD_SUCCESS', payload: { point, exercise: blankPlan ? grammarExercise(point, blankPlan) : null } });
         }).catch(err => {
             if (loadingKeyRef.current !== loadKey) return;
             console.error('[useGrammarOrchestration] Failed to load grammar point', err);
@@ -385,53 +329,11 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
         // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the next item and route; the load guard compares currentGrammarQuizItem, so actions and dispatch are stable inputs
     }, [grammarNextView.queueItem, state.progress, grammarNextView.sessionState, location.pathname]);
 
-    useEffect(() => {
-        // Only on the activity page: a paused session stays frozen until the learner returns.
-        if (grammarSessionRole === 'activity' && state.grammarFeedback?.correct) {
-            const timer = setTimeout(() => {
-                grammarActions.continueGrammarToNext();
-            }, CONSTANTS.quiz.correctAnswerAutoAdvanceDelay);
-
-            return () => clearTimeout(timer);
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- the timer restarts only on a new correct answer or role change, never on an actions identity change
-    }, [state.grammarFeedback?.correct, grammarSessionRole]);
-
-    /* =========================
-       COMPUTED FLAGS
-       ========================= */
-
-    const grammarComputed: GrammarComputed = {
-        // Deliberately does NOT require every blank to be filled. Requiring it made
-        // the card blockable: any state where an input could not be filled left the
-        // learner with no way forward at all, and revealing a blank via its hint
-        // button was exactly that (the reveal was a render-time display value and
-        // never reached grammarAnswers, so the "all filled" check stayed false).
-        // Two earlier variants of the same trap are recorded on blankWordSpans and
-        // on GrammarQuizState.example.
-        //
-        // An empty blank is now a legitimate answer meaning "I do not know this one":
-        // it grades as 'pass' and the accepted form is revealed in the feedback, which
-        // is what the learner wanted from the hint button anyway. Leaving Submit
-        // always reachable also means no future blank-selection bug can strand a card.
-        canSubmitGrammar:
-            !!state.currentGrammarPoint &&
-            !!state.currentGrammarBlankPlan &&
-            !state.currentGrammarBlankPlan.readOnly &&
-            state.currentGrammarBlankPlan.blankWordIndices.length > 0 &&
-            !state.grammarFeedback?.show &&
-            !state.isLoadingGrammar,
-
-        canContinueGrammar: !!state.grammarFeedback?.show,
-
-        isGrammarReady: !!state.currentGrammarPoint && !state.isLoadingGrammar,
-    };
-
     return {
         grammarActions,
+        grammarExercise: exercise,
         grammarNextView,
         currentGrammarProgress,
-        grammarComputed,
         nextGrammarSessionPreview,
         grammarSessionStats,
         grammarHubChapter: hubChapterStatus,

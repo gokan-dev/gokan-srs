@@ -16,7 +16,7 @@ import {
     frequencyModifierOf, growthLevelOf, isCalibratedGrammarReview, isCalibratedVocabReview, recordCalibratedAnswer, withCalibrationDefaults,
 } from '../calibration';
 import { coreSlots } from './grading';
-import type { Exercise, ExerciseGrade, HostItem } from './types';
+import type { AnsweredExercise, ExerciseGrade, HostItem } from './types';
 
 export type Effect =
     /** The asked item's own review, through the one SRS formula. */
@@ -29,9 +29,7 @@ export type Effect =
     | { kind: 'defer'; item: HostItem };
 
 export interface AnswerContext {
-    item: HostItem;
-    /** Names the asked item in the session ticker. */
-    label: string;
+    /** Frozen at submit, before any AI check and before the learner reads the feedback. */
     latencyMs: number;
     hintLevels: number[];
 }
@@ -48,7 +46,8 @@ export interface AnswerContext {
  * - any other word answered right without its hint revealed earns indirect
  *   credit, once per word.
  */
-export function effectsOf(exercise: Exercise, grade: ExerciseGrade, { item, label, latencyMs, hintLevels }: AnswerContext): Effect[] {
+export function effectsOf(exercise: AnsweredExercise, grade: ExerciseGrade, { latencyMs, hintLevels }: AnswerContext): Effect[] {
+    const { host: item, label } = exercise;
     if (exercise.kind === 'study') return [{ kind: 'defer', item }];
 
     const askedWord = item.kind === 'vocab' ? item.vocabId : null;

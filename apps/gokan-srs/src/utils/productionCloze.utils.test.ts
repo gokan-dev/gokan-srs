@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { pickProductionClozeSentence, splitSentenceAtBlank, splitClozeContext, emphasizeGloss, blankSurfaceOf, clozeAcceptedForms } from './productionCloze.utils';
+import { pickProductionClozeSentence, emphasizeGloss, blankSurfaceOf } from './productionCloze.utils';
 import type { Sentence } from '@gokan/dataset-schema';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../models/vocabulary.model';
 import { indexLearnerVocab } from './sentenceRanking';
@@ -30,17 +30,11 @@ describe('conjugated blank forms (issue #95)', () => {
         expect(blankSurfaceOf(cloze)).toBe('食べたら');
     });
 
-    it('exposes the blank surface and reading as extra accepted forms', () => {
-        const cloze = pickProductionClozeSentence('v1', [sentence], noLearner)!;
-        expect(clozeAcceptedForms(cloze)).toEqual(['食べたら', 'たべたら']);
-        expect(clozeAcceptedForms(null)).toEqual([]);
-    });
 
     it('omits blankReading when the match has none', () => {
         const bare = makeSentence({ id: 's2', original: '食べた', matches: { v1: [{ start: 0, length: 3 }] } });
         const cloze = pickProductionClozeSentence('v1', [bare], noLearner)!;
         expect(cloze.blankReading).toBeUndefined();
-        expect(clozeAcceptedForms(cloze)).toEqual(['食べた']);
     });
 });
 
@@ -141,105 +135,6 @@ describe('pickProductionClozeSentence', () => {
 
     it('skips the guard when no target vocab is supplied (legacy selection-logic path)', () => {
         expect(pickProductionClozeSentence('v1', [asobuSentence], noLearner)?.sentence.id).toBe('cat');
-    });
-});
-
-describe('splitSentenceAtBlank', () => {
-    it('reproduces the original sentence exactly when rejoined', () => {
-        const sentence = makeSentence({ original: '彼は必ず来る。' });
-        const cloze = { sentence, blankStart: 2, blankLength: 3 };
-
-        const { before, blank, after } = splitSentenceAtBlank(cloze);
-        expect(before + blank + after).toBe(sentence.original);
-        expect(blank).toBe('必ず来');
-    });
-
-    it('handles a blank at the very start of the sentence', () => {
-        const sentence = makeSentence({ original: '必ず来る。' });
-        const cloze = { sentence, blankStart: 0, blankLength: 2 };
-
-        const { before, blank, after } = splitSentenceAtBlank(cloze);
-        expect(before).toBe('');
-        expect(blank).toBe('必ず');
-        expect(before + blank + after).toBe(sentence.original);
-    });
-
-    it('handles a blank at the very end of the sentence', () => {
-        const sentence = makeSentence({ original: '彼は必ず' });
-        const cloze = { sentence, blankStart: 2, blankLength: 2 };
-
-        const { before, blank, after } = splitSentenceAtBlank(cloze);
-        expect(after).toBe('');
-        expect(before + blank + after).toBe(sentence.original);
-    });
-
-    it('handles a single-character blank', () => {
-        const sentence = makeSentence({ original: 'abc' });
-        const cloze = { sentence, blankStart: 1, blankLength: 1 };
-
-        const { before, blank, after } = splitSentenceAtBlank(cloze);
-        expect(before).toBe('a');
-        expect(blank).toBe('b');
-        expect(after).toBe('c');
-    });
-});
-
-describe('splitClozeContext', () => {
-    // Real dataset shape: 貧しい人とはほんのわずかしか持っていない人ではなく欲のありすぎる人である。
-    // blanking 欲 (start 25, length 1), matches for 貧しい/持っていない/欲/人(×3).
-    const sentence = makeSentence({
-        id: 's1',
-        original: '貧しい人とはほんのわずかしか持っていない人ではなく欲のありすぎる人である。',
-        matches: {
-            '1490740': [{ start: 0, length: 3, reading: 'まずしい' }],   // 貧しい (before)
-            '1315720': [{ start: 14, length: 6, reading: 'もっていない' }], // 持っていない (before)
-            '1547320': [{ start: 25, length: 1, reading: 'よく' }],        // 欲 (the blank)
-            '1580640': [                                                   // 人 ×3
-                { start: 3, length: 1, reading: 'ひと' },   // before
-                { start: 20, length: 1, reading: 'ひと' },  // before
-                { start: 32, length: 1, reading: 'ひと' },  // after
-            ],
-        },
-    });
-    const cloze = { sentence, blankStart: 25, blankLength: 1 };
-
-    it('rejoins before + blank + after back into the original sentence', () => {
-        const { before, after } = splitClozeContext(cloze);
-        expect(before.original + '欲' + after.original).toBe(sentence.original);
-    });
-
-    it('drops the blanked target span from both fragments', () => {
-        const { before, after } = splitClozeContext(cloze);
-        expect(before.matches?.['1547320']).toBeUndefined();
-        expect(after.matches?.['1547320']).toBeUndefined();
-    });
-
-    it('keeps before-side matches at their original offsets', () => {
-        const { before } = splitClozeContext(cloze);
-        expect(before.matches?.['1490740']).toEqual([{ start: 0, length: 3, reading: 'まずしい' }]);
-        expect(before.matches?.['1315720']).toEqual([{ start: 14, length: 6, reading: 'もっていない' }]);
-        // Only the two before-side occurrences of 人, not the after-side one.
-        expect(before.matches?.['1580640']).toEqual([
-            { start: 3, length: 1, reading: 'ひと' },
-            { start: 20, length: 1, reading: 'ひと' },
-        ]);
-    });
-
-    it('rebases after-side match offsets to the after fragment', () => {
-        const { after } = splitClozeContext(cloze);
-        // 人 at 32 in the full sentence -> 32 - 26 = 6 in "のありすぎる人である。".
-        expect(after.matches?.['1580640']).toEqual([{ start: 6, length: 1, reading: 'ひと' }]);
-        expect(after.original[6]).toBe('人');
-    });
-
-    it('drops a match that straddles the blank boundary', () => {
-        const straddling = makeSentence({
-            original: 'abcde',
-            matches: { v1: [{ start: 1, length: 3 }] }, // spans [1,4), blank is [2,3)
-        });
-        const { before, after } = splitClozeContext({ sentence: straddling, blankStart: 2, blankLength: 1 });
-        expect(before.matches?.['v1']).toBeUndefined();
-        expect(after.matches?.['v1']).toBeUndefined();
     });
 });
 

@@ -3,7 +3,7 @@ import { applyEffects, effectsOf } from './effects';
 import type { Effect } from './effects';
 import { gradeExercise, SUPPORT_COEFFICIENT_FLOOR } from './grading';
 import { wordSlot } from './slots';
-import type { Exercise, HostItem, SynonymCandidate, WordForms } from './types';
+import type { AnswerSlot, Exercise, HostItem, SynonymCandidate, WordForms } from './types';
 import { SRSService } from '../srs.service';
 import type { AnswerResult } from '../../utils/answerMatching';
 import { CONSTANTS } from '../../commons/constants';
@@ -27,17 +27,20 @@ const forms = (kanji: string, reading: string): WordForms => ({
 });
 const chiisai: SynonymCandidate = { vocabId: 'chiisai', relation: 'interchangeable', vocab: forms('小さい', 'ちいさい'), shared: ['small'] };
 
+const semaiItem: HostItem = { kind: 'vocab', vocabId: 'semai', quizType: 'production', quizMode: 'base' };
 /** A production card for 狭い (せまい) whose cue decides whether 小さい answers it. */
 function semaiCard(sentence: string): Exercise {
     return {
-        kind: 'production-cloze',
+        kind: 'production',
+        host: semaiItem,
+        label: '狭い',
         slots: [wordSlot(forms('狭い', 'せまい'), { vocabId: 'semai', otherForm: 'correct', role: 'core', synonyms: [chiisai] })],
         cue: { sentence },
     };
 }
-const semaiItem: HostItem = { kind: 'vocab', vocabId: 'semai', quizType: 'production', quizMode: 'base' };
-const answer = (exercise: Exercise, answers: string[], item: HostItem = semaiItem, hintLevels: number[] = answers.map(() => 0)) =>
-    effectsOf(exercise, gradeExercise(exercise, answers, hintLevels), { item, label: '狭い', latencyMs: 4000, hintLevels });
+type Answered = Parameters<typeof effectsOf>[0] & Parameters<typeof gradeExercise>[0];
+const answer = (exercise: Answered, answers: string[], hintLevels: number[] = answers.map(() => 0)) =>
+    effectsOf(exercise, gradeExercise(exercise, answers, hintLevels), { latencyMs: 4000, hintLevels });
 
 describe('effectsOf', () => {
     it('reviews the asked word on an ordinary answer', () => {
@@ -63,10 +66,10 @@ describe('effectsOf', () => {
         const point: HostItem = { kind: 'grammar', grammarId: 'n5-001' };
         const pattern = answerSlot({ accept: ['が'] });
         const blank = (vocabId: string, accept: string) => ({ ...answerSlot({ accept: [accept], role: 'support' }), word: { vocabId, label: accept, headword: accept, lemma: null, otherForm: 'minor_error' as const, synonyms: [] } });
-        const card = (slots: Exercise['slots']): Exercise => ({ kind: 'grammar-cloze', slots, cue: {} });
+        const card = (slots: AnswerSlot[]): Answered => ({ kind: 'grammar-cloze', host: point, label: 'A が いちばん', slots, cue: {} });
 
         it('reviews the point and credits the vocab blanks answered right, once per word', () => {
-            const effects = answer(card([pattern, blank('sushi', 'すし'), blank('naka', 'なか'), blank('sushi', 'すし')]), ['が', 'すし', 'ねこ', 'すし'], point);
+            const effects = answer(card([pattern, blank('sushi', 'すし'), blank('naka', 'なか'), blank('sushi', 'すし')]), ['が', 'すし', 'ねこ', 'すし']);
             expect(effects.map(e => e.kind)).toEqual(['review', 'reinforce']);
             expect(effects[1]).toMatchObject({ vocabId: 'sushi', result: 'correct' });
             const [asked] = effects;
@@ -76,20 +79,20 @@ describe('effectsOf', () => {
         });
 
         it('credits nothing for a blank whose hint was revealed: it was read, not produced', () => {
-            const effects = answer(card([pattern, blank('sushi', 'すし')]), ['が', 'すし'], point, [0, 2]);
+            const effects = answer(card([pattern, blank('sushi', 'すし')]), ['が', 'すし'], [0, 2]);
             expect(effects.map(e => e.kind)).toEqual(['review']);
         });
 
         it('retries the point when every deciding blank was a confusable near-synonym', () => {
             const decider = { ...wordSlot(forms('狭い', 'せまい'), { vocabId: 'semai', otherForm: 'minor_error', role: 'core', synonyms: [chiisai] }) };
-            const effects = answer(card([decider]), ['小さい'], point);
-            expect(effects).toEqual([{ kind: 'retry', item: point, label: '狭い', result: 'wrong' }]);
+            const effects = answer(card([decider]), ['小さい']);
+            expect(effects).toEqual([{ kind: 'retry', item: point, label: 'A が いちばん', result: 'wrong' }]);
         });
     });
 
     it('only defers the study card: nothing was asked', () => {
         const point: HostItem = { kind: 'grammar', grammarId: 'n5-001' };
-        expect(answer({ kind: 'study', slots: [], cue: {} }, [], point)).toEqual([{ kind: 'defer', item: point }]);
+        expect(answer({ kind: 'study', host: point, label: 'A が いちばん', slots: [], cue: {} }, [])).toEqual([{ kind: 'defer', item: point }]);
     });
 });
 

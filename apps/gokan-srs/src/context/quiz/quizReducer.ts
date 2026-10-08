@@ -5,7 +5,7 @@ import type {
 } from '../../models/user.model';
 import { insertAtFraction } from '../../utils/insertAtFraction';
 import type { ProgressWithMetadata } from '../../services/sync/types';
-import type { Sentence, SynonymRelation, Vocabulary } from '@gokan/dataset-schema';
+import type { Vocabulary } from '@gokan/dataset-schema';
 import type { WatchedEpisode } from '../../models/media.model';
 import type { AnswerResult } from '../../services/srs.service';
 import { SRSService } from '../../services/srs.service';
@@ -13,12 +13,11 @@ import { rebaseStrengthsToSchedule } from '../../services/calibration';
 import type { QuizItem, QuizMode, QuizType, TaskKey } from '../../utils/srs.utils';
 import { syncUsuallyKana, taskKey } from '../../utils/srs.utils';
 import { introQuizType } from '../../services/scheduling';
-import type { ProductionCloze } from '../../utils/productionCloze.utils';
 import { grammarReducer, initialGrammarState, isGrammarAction } from './grammarReducer';
 import type { GrammarQuizAction, GrammarQuizState } from './grammarReducer';
-import { applyEffects } from '../../services/exercise/effects';
-import type { Effect } from '../../services/exercise/effects';
-import { addToGains } from './sessionGains';
+import { clearedTurn, exerciseReducer, initialExerciseTurns, isExerciseAction, newTurn, withTurn } from './exerciseReducer';
+import type { ExerciseAction, ExerciseTurnsState } from './exerciseReducer';
+import type { Exercise } from '../../services/exercise/types';
 
 /* =========================
    STATE & TYPES
@@ -43,12 +42,6 @@ export { taskKey };
  * keeps the session-progress counter's denominator stable instead of tracking the
  * live, ever-shifting due count (which shrank on every wrong answer).
  */
-/** A word the feedback can link to its detail page. */
-export interface SynonymWord {
-    vocabId: string;
-    written: string;
-}
-
 export interface SessionTracking {
     committed: TaskKey[];
     /**
@@ -102,46 +95,10 @@ interface QuizStateBase {
     /** Carries the Drive sync counter at runtime, so it is typed as what storage and the merge return. */
     progress: ProgressWithMetadata | null;
     settings: UserSettings | null;
+    /** The word whose card is on screen; its exercise (answers, feedback) is turns.vocab. */
     currentVocab: Vocabulary | null;
-    currentSentences: Sentence[] | null;
-    currentSentenceId: string | null;
-    /**
-     * The sentence + blank span driving the CURRENT production quiz card (issue
-     * #72), when one could be found. Null means "no usable sentence match for
-     * this word" - VocabQuizScreen falls back to the gloss-prompt
-     * VocabProductionQuizCard - or simply that the current card isn't a
-     * production quiz at all. Resolved once at load time (see
-     * useQuizOrchestration's loading effect), same pattern as
-     * currentGrammarBlankPlan, so grading stays synchronous.
-     */
-    currentProductionCloze: ProductionCloze | null;
-    /**
-     * Progressive hint level for the CURRENT production cloze card: 0 = none,
-     * 1 = gloss shown, 2 = answer revealed into userAnswer (grades
-     * 'minor_error' regardless of what was typed) - mirrors grammarHintLevels,
-     * just for a single blank instead of one per word.
-     */
-    productionHintLevel: number;
     currentQuizItem: PendingQuizItem | null;
-    userAnswer: string;
-    feedback: {
-        show: boolean;
-        correct: boolean; // true only for strict 'correct', not minor_error
-        type: AnswerResult;
-        message: string;
-        matchedAnswer: string;
-        /** Set only when the answer was a near-synonym of the tested word (issue #71 Part B). */
-        synonymRelation?: SynonymRelation;
-        /**
-         * The near-synonym the learner actually typed, when synonymRelation is set,
-         * so the card can link it next to the tested word for a side-by-side look.
-         */
-        synonymWord?: SynonymWord;
-        /** What Continue writes to the learner's progress (services/exercise/effects.ts). */
-        effects: Effect[];
-    } | null;
     isLoadingVocab: boolean;
-    isEvaluatingAi: boolean;
     introCandidates: Vocabulary[]; // Potential new items, not yet in learningQueue
     nextKanjiToLearn: { step: number; kanjis: string[] } | null;
     sessionHistory: VocabHistoryItem[];
@@ -160,25 +117,20 @@ interface QuizStateBase {
  * object as learningQueue), racing this provider's storage/Drive-sync effects
  * - which are keyed off `state.progress` reference changes generically, so
  * dispatching grammar actions through this single reducer gets persistence and
- * sync for free instead of duplicating that wiring.
+ * sync for free instead of duplicating that wiring. The exercise each activity has
+ * on screen lives in one shared slice (exerciseReducer.ts).
  */
-export type QuizState = QuizStateBase & GrammarQuizState;
+export type QuizState = QuizStateBase & GrammarQuizState & ExerciseTurnsState;
 
 export type QuizAction =
     | { type: 'SETUP_COMPLETE'; payload: { progress: UserProgress; settings: UserSettings } }
     | { type: 'LOAD_VOCAB_START'; payload: PendingQuizItem }
-    | { type: 'LOAD_VOCAB_SUCCESS'; payload: { vocab: Vocabulary | null; sentences: Sentence[] | null; selectedSentenceId: string | null; productionCloze?: ProductionCloze | null } }
+    /** The loaded word and the exercise built for it (services/exercise/builders.ts); both null when nothing is due. */
+    | { type: 'LOAD_VOCAB_SUCCESS'; payload: { vocab: Vocabulary | null; exercise: Exercise | null } }
     | { type: 'LOAD_VOCAB_ERROR'; payload: { vocabId: string, error: unknown } }
     /** The vocab's data no longer exists in the dataset: drop it from learningQueue and tombstone it in retiredVocabIds so it is never served again (even if a merge respawns it). See VocabNotFoundError. */
     | { type: 'RETIRE_VOCAB'; payload: { vocabId: string } }
-    | { type: 'EVALUATING_AI_START' }
-    | { type: 'SET_ANSWER'; payload: string }
-    | { type: 'REVEAL_PRODUCTION_HINT' }
-    | { type: 'SUBMIT_ANSWER'; payload: { type: AnswerResult; message: string; matchedAnswer: string; synonymRelation?: SynonymRelation; synonymWord?: SynonymWord; effects: Effect[] } }
-    /** Writes the answer's effects to the CURRENT progress, so a Drive reconcile landing between submit and Continue is never overwritten. `now` comes from the caller. */
-    | { type: 'UPDATE_AFTER_ANSWER'; payload: { effects: Effect[]; now: Date } }
     | { type: 'ADVANCE_QUEUE'; payload: { progress: UserProgress, candidates?: Vocabulary[] } }
-    | { type: 'CLEAR_FEEDBACK' }
     | { type: 'UPDATE_KANJI_KNOWLEDGE'; payload: KanjiKnowledge }
     | { type: 'SAVE_SETTINGS'; payload: UserSettings }
     | { type: 'OVERRIDE_DAILY_LIMIT' }
@@ -211,22 +163,17 @@ export type QuizAction =
      * answer landing in between is never overwritten. `now` comes from the caller.
      */
     | { type: 'SYNC_USUALLY_KANA'; payload: { ids: ReadonlySet<string>; now: Date } }
-    | GrammarQuizAction;
+    | GrammarQuizAction
+    | ExerciseAction;
 
 export const initialState: QuizState = {
     ...initialGrammarState,
+    ...initialExerciseTurns,
     progress: null,
     settings: null,
     currentVocab: null,
-    currentSentences: null,
-    currentSentenceId: null,
-    currentProductionCloze: null,
-    productionHintLevel: 0,
     currentQuizItem: null,
-    userAnswer: '',
-    feedback: null,
     isLoadingVocab: false,
-    isEvaluatingAi: false,
     introCandidates: [],
     nextKanjiToLearn: null,
     sessionHistory: [],
@@ -248,6 +195,7 @@ function sameKanjiKnowledge(a: KanjiKnowledge | undefined, b: KanjiKnowledge): b
 }
 
 export function quizReducer(state: QuizState, action: QuizAction): QuizState {
+    if (isExerciseAction(action)) return exerciseReducer(state, action);
     if (isGrammarAction(action)) return grammarReducer(state, action);
 
     switch (action.type) {
@@ -273,25 +221,12 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
             };
 
         case 'LOAD_VOCAB_START':
-            return {
-                ...state,
-                isLoadingVocab: true,
-                currentQuizItem: action.payload,
-                currentSentences: null,
-                currentSentenceId: null,
-                currentProductionCloze: null,
-                productionHintLevel: 0,
-                userAnswer: '',
-                feedback: null,
-            };
+            return { ...withTurn(state, 'vocab', null), isLoadingVocab: true, currentQuizItem: action.payload };
 
         case 'LOAD_VOCAB_SUCCESS':
             return {
-                ...state,
+                ...withTurn(state, 'vocab', action.payload.exercise && newTurn(action.payload.exercise)),
                 currentVocab: action.payload.vocab,
-                currentSentences: action.payload.sentences,
-                currentSentenceId: action.payload.selectedSentenceId,
-                currentProductionCloze: action.payload.productionCloze ?? null,
                 isLoadingVocab: false,
             };
 
@@ -333,89 +268,17 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
                 },
                 currentVocab: null,
                 currentQuizItem: null,
-                currentSentences: null,
-                currentSentenceId: null,
-                currentProductionCloze: null,
                 isLoadingVocab: false,
-                userAnswer: '',
-                feedback: null,
-            };
-        }
-
-        case 'EVALUATING_AI_START':
-            return { ...state, isEvaluatingAi: true };
-
-        case 'SET_ANSWER':
-            return { ...state, userAnswer: action.payload };
-
-        case 'REVEAL_PRODUCTION_HINT': {
-            const next = Math.min(2, state.productionHintLevel + 1);
-
-            // Reaching level 2 writes the primary reading into userAnswer rather than
-            // leaving the card to substitute it at render time - same reasoning as
-            // GRAMMAR_REVEAL_HINT: the input has to show what state actually holds, or
-            // Submit stays disabled (canSubmit requires a non-empty userAnswer) even
-            // though the card looks answered. Grading is unaffected either way (a
-            // revealed blank is forced to 'minor_error' by productionHintLevel, not by
-            // what userAnswer contains).
-            // On a cloze card the revealed answer is the blank's own reading
-            // (たべたら), so what fills the input fits the sentence.
-            if (next === 2 && state.currentVocab) {
-                const revealed = state.currentProductionCloze?.blankReading ?? state.currentVocab.reading.primary;
-                return { ...state, productionHintLevel: next, userAnswer: revealed };
-            }
-
-            return { ...state, productionHintLevel: next };
-        }
-
-        case 'SUBMIT_ANSWER':
-            return {
-                ...state,
-                isEvaluatingAi: false,
-                feedback: {
-                    show: true,
-                    correct: action.payload.type === 'correct',
-                    type: action.payload.type,
-                    message: action.payload.message,
-                    matchedAnswer: action.payload.matchedAnswer,
-                    synonymRelation: action.payload.synonymRelation,
-                    synonymWord: action.payload.synonymWord,
-                    effects: action.payload.effects,
-                },
-            };
-
-        case 'UPDATE_AFTER_ANSWER': {
-            if (!state.progress) return state;
-            const { progress, record } = applyEffects(state.progress, action.payload.effects, { now: action.payload.now, settings: state.settings });
-            const cleared = { ...state, progress, feedback: null, userAnswer: '' };
-            if (!record || record.item.kind !== 'vocab') return cleared;
-
-            const historyItem: VocabHistoryItem = {
-                vocabId: record.item.vocabId,
-                writtenForm: record.label,
-                result: record.result,
-                delta: record.delta,
-                ...(record.vocabDelta > 0 ? { vocabDelta: record.vocabDelta, vocabBreakdown: record.vocabBreakdown } : {}),
-            };
-            return {
-                ...cleared,
-                sessionHistory: [historyItem, ...state.sessionHistory].slice(0, 50),
-                sessionGains: addToGains(state.sessionGains, record.delta, record.vocabDelta),
-                introCandidates: state.introCandidates.filter(c => c.id !== historyItem.vocabId),
+                turns: { ...state.turns, vocab: null },
             };
         }
 
         case 'ADVANCE_QUEUE':
             return {
-                ...state,
+                ...withTurn(state, 'vocab', state.turns.vocab && clearedTurn(state.turns.vocab)),
                 progress: action.payload.progress,
                 introCandidates: action.payload.candidates ?? state.introCandidates,
-                feedback: null,
-                userAnswer: '',
             };
-
-        case 'CLEAR_FEEDBACK':
-            return { ...state, feedback: null };
 
         case 'SAVE_SETTINGS': {
             const orderChanged =
@@ -526,7 +389,7 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
             // The merge itself (reconciling remote changes against whatever the user
             // is doing right now) already happened in useQuizOrchestration before this
             // was dispatched - the reducer just assigns the reconciled result. Everything
-            // else (currentVocab, userAnswer, feedback) is left untouched so an in-flight
+            // else (currentVocab, the exercise turns) is left untouched so an in-flight
             // answer isn't interrupted by a background sync.
             return {
                 ...state,

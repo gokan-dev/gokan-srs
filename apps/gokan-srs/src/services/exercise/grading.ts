@@ -11,7 +11,7 @@ import { isFormOfWord } from '../../utils/inflection.utils';
 import { orderSynonymsForCue, sharedMeaningUsed, synonymOutcome } from '../../utils/synonymContext.utils';
 import type { ProductionCue } from '../../utils/synonymContext.utils';
 import { wordSlot } from './slots';
-import type { AnswerSlot, Exercise, ExerciseGrade, SlotGrade, SynonymAnswer, SynonymCandidate } from './types';
+import type { AnswerSlot, ExerciseGrade, GradedExercise, SlotGrade, SynonymAnswer, SynonymCandidate } from './types';
 
 /** How good a result is, best last. `pass` sits between: the learner skipped rather than mis-recalled. */
 const STANDING: Record<AnswerResult, number> = { wrong: 0, pass: 1, minor_error: 2, correct: 3 };
@@ -118,7 +118,7 @@ function synonymNote(synonym: SynonymAnswer, tested: string): string {
     }
 }
 
-function feedbackMessage(exercise: Exercise, slots: SlotGrade[], overall: AnswerResult): string {
+function feedbackMessage(exercise: GradedExercise, slots: SlotGrade[], overall: AnswerResult): string {
     const notes = slots.flatMap((grade, i) => {
         const word = exercise.slots[i].word;
         return grade.synonym && word ? [{ synonym: grade.synonym, note: synonymNote(grade.synonym, word.label) }] : [];
@@ -142,7 +142,7 @@ function feedbackMessage(exercise: Exercise, slots: SlotGrade[], overall: Answer
 }
 
 /** The indices of the slots that decide the exercise's result. An exercise without core slots is decided by all of them. */
-export function coreSlots(exercise: Pick<Exercise, 'slots'>): number[] {
+export function coreSlots(exercise: Pick<GradedExercise, 'slots'>): number[] {
     const hasCore = exercise.slots.some(s => s.role === 'core');
     return exercise.slots.flatMap((slot, i) => (!hasCore || slot.role === 'core' ? [i] : []));
 }
@@ -153,7 +153,7 @@ export function coreSlots(exercise: Pick<Exercise, 'slots'>): number[] {
  * result (all of them if every one was neutral, so a lone confusable answer still
  * reads as a miss); the support slots left scale a successful result's reward.
  */
-export function gradeExercise(exercise: Exercise, answers: string[], hintLevels: number[]): ExerciseGrade {
+export function gradeExercise(exercise: GradedExercise, answers: string[], hintLevels: number[]): ExerciseGrade {
     const slots = exercise.slots.map((slot, i) => gradeSlot(slot, answers[i] ?? '', hintLevels[i] ?? 0, exercise.cue));
     const counted = (i: number) => slots[i].synonym?.outcome !== 'confusable';
 
