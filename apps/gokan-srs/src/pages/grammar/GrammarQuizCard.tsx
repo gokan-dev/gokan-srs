@@ -193,7 +193,7 @@ export function GrammarQuizCard() {
                                 feedbackShown={!!feedback?.show}
                                 hintLevel={hintLevel}
                                 onHint={() => grammarActions.revealGrammarHint(answerIndex)}
-                                gloss={plan.glosses[answerIndex] ?? ''}
+                                gloss={plan.slots[answerIndex]?.gloss ?? ''}
                                 reveal={result !== 'correct' && (
                                     // The correct form, under the wrong one. Was text-xs
                                     // beneath a text-2xl answer, which sized the thing you

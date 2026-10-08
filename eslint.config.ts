@@ -85,6 +85,16 @@ const NOT_FROM_DICTIONARY = { group: ['**/gokan-dictionary/**'], message: 'Share
  */
 const GRADING_PRIMITIVES = [
   {
+    group: ['**/utils/answerMatching'],
+    importNames: ['matchBest'],
+    message: 'Grading belongs to the exercise engine (services/exercise): build slots and call gradeExercise.',
+  },
+  {
+    group: ['**/utils/inflection.utils'],
+    importNames: ['isFormOfWord'],
+    message: 'Grading belongs to the exercise engine (services/exercise): build slots and call gradeExercise.',
+  },
+  {
     group: ['**/utils/synonymContext.utils'],
     importNames: ['synonymOutcome', 'embeddedSynonymCandidate', 'orderSynonymsForCue'],
     message: 'Grading belongs to the exercise engine (services/exercise): build slots and call gradeExercise.',

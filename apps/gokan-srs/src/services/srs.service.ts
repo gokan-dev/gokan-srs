@@ -335,7 +335,7 @@ export class SRSService {
         // [NEW] Scales the memory-strength delta (the resultFactor * L * D gain).
         // Default 1.0 leaves vocab behaviour untouched; the Grammar activity uses
         // it to modulate a successful grammar answer's gain by how many of the
-        // sentence's vocab blanks were also right (see gradeGrammarAnswers).
+        // sentence's vocab blanks were also right (see gradeExercise).
         strengthDeltaModifier: number = 1.0
     ): { newEntry: SRSEntry; interval: number } {
 

@@ -2,9 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { initialState, quizReducer } from './quizReducer';
 import type { QuizState } from './quizReducer';
 import type { GrammarPoint } from '@gokan/dataset-schema';
-import { grammarPoint, grammarProgress, userProgress } from '../../test/fixtures';
+import { answerSlot, grammarPoint, grammarProgress, userProgress } from '../../test/fixtures';
 
 const makeGrammarPoint = (id = 'n5-001'): GrammarPoint => grammarPoint({ id });
+/** A pattern blank (すし) then a vocab blank (なか). */
+const twoSlots = () => [answerSlot({ accept: ['すし'], gloss: 'sushi' }), answerSlot({ accept: ['なか'], gloss: 'inside', role: 'support' })];
 
 describe('grammarReducer (via quizReducer)', () => {
     it('GRAMMAR_LOAD_START sets isLoadingGrammar and currentGrammarQuizItem, clears prior answers/hints/feedback', () => {
@@ -33,9 +35,7 @@ describe('grammarReducer (via quizReducer)', () => {
                     exampleIndex: 0,
                     blankWordIndices: [1, 3],
                     blankWordSpans: [[1], [3]],
-                    isPatternBlank: [false, false],
-                    acceptLists: [['なか'], ['すし']],
-                    glosses: ['inside', 'sushi'],
+                    slots: [answerSlot({ accept: ['なか'], gloss: 'inside' }), answerSlot({ accept: ['すし'], gloss: 'sushi' })],
                     readOnly: false,
                 },
             },
@@ -98,9 +98,7 @@ describe('grammarReducer (via quizReducer)', () => {
                     exampleIndex: 0,
                     blankWordIndices: [0, 1],
                     blankWordSpans: [[0], [1]],
-                    isPatternBlank: [true, false],
-                    acceptLists: [['すし'], ['なか']],
-                    glosses: ['sushi', 'inside'],
+                    slots: twoSlots(),
                     readOnly: false,
                 },
             };
@@ -119,9 +117,7 @@ describe('grammarReducer (via quizReducer)', () => {
                     exampleIndex: 0,
                     blankWordIndices: [0, 1],
                     blankWordSpans: [[0], [1]],
-                    isPatternBlank: [true, false],
-                    acceptLists: [['すし'], ['なか']],
-                    glosses: ['sushi', 'inside'],
+                    slots: twoSlots(),
                     readOnly: false,
                 },
             };

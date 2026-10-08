@@ -145,6 +145,35 @@ describe('a production slot: readings and written forms (issue #71 Part A)', () 
     });
 });
 
+describe('parity: a production card and a grammar blank grade the same answer the same way', () => {
+    // The sentence wants 食べ (to be followed by たら); the dataset stores the lemma reading on it.
+    const blank = wordSlot(taberu, {
+        vocabId: 'taberu', otherForm: 'minor_error', role: 'support', synonyms: [],
+        occurrence: { surface: '食べ', reading: 'たべる', inflected: true },
+    });
+    const card = production(taberu);
+
+    it.each([
+        ['たべるう', 'a reading typo'],
+        ['食', 'a dropped okurigana tail'],
+        ['会社', 'another word'],
+        ['pass', 'a literal pass'],
+        ['', 'an empty answer'],
+    ])('grades %s (%s) identically', input => {
+        expect(grade(blank, input).result).toBe(grade(card, input).result);
+    });
+
+    it('grades a revealed slot identically', () => {
+        expect(gradeSlot(blank, 'x', 2, {}).result).toBe(gradeSlot(card, 'x', 2, {}).result);
+    });
+
+    it.each(['食べる', 'たべる', '食べた'])('differs only where the conjugation counts: %s', input => {
+        // Production tests the word; a sentence blank also tests the form it takes there.
+        expect(grade(card, input).result).toBe('correct');
+        expect(grade(blank, input).result).toBe('minor_error');
+    });
+});
+
 describe('hints and empty answers', () => {
     const slot = production(kanarazu);
 

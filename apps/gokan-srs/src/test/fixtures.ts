@@ -12,6 +12,7 @@ import { DEFAULT_GRAMMAR_PROGRESS, type GrammarProgress } from '../models/gramma
 import { DEFAULT_SETTINGS, type UserSettings } from '../models/user.model';
 import { DEFAULT_SRS_ENTRY, DEFAULT_VOCABULARY_PROGRESS, type ReviewLog, type SRSEntry, type VocabProgress } from '../models/vocabulary.model';
 import type { ProgressWithMetadata } from '../services/sync/types';
+import type { AnswerSlot } from '../services/exercise/types';
 
 export function srsEntry(overrides: Partial<SRSEntry> = {}): SRSEntry {
     return { ...DEFAULT_SRS_ENTRY, history: [], ...overrides };
@@ -64,6 +65,12 @@ export function vocabulary(overrides: Partial<Vocabulary> = {}): Vocabulary {
         senses: [{ pos: ['n'], misc: { rawTags: [] }, glosses: ['Japan'], related: { compounds: [] } }],
         ...overrides,
     };
+}
+
+/** A deciding answer slot with no word: revealing it shows its first accepted form. */
+export function answerSlot(overrides: Partial<AnswerSlot> = {}): AnswerSlot {
+    const accept = overrides.accept ?? [];
+    return { accept, near: [], leniency: 'standard', role: 'core', reveal: accept[0] ?? '', gloss: '', ...overrides };
 }
 
 export function grammarExample(overrides: Partial<GrammarExample> = {}): GrammarExample {

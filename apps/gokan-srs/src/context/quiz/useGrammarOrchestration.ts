@@ -23,9 +23,10 @@ import {
     type HubChapterStatus,
     collectActionableGrammarIds,
     computeBlankPlan,
-    gradeGrammarAnswers,
     summariseVocabGains,
 } from './grammarSelectors';
+import { gradeExercise } from '../../services/exercise/grading';
+import { grammarExercise } from '../../services/exercise/builders';
 import { useSessionLifecycle } from './useSessionLifecycle';
 import { sessionRouteRole } from './sessionRoutes';
 import { refillCandidates } from './refillCandidates';
@@ -242,46 +243,32 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
             submitLatencyRef.current = startTimeRef.current ? Date.now() - startTimeRef.current : null;
 
             const plan = state.currentGrammarBlankPlan;
-            const { perBlankResults, matchedAnswers, overall, strengthDeltaModifier } = gradeGrammarAnswers(
-                plan,
-                state.grammarAnswers,
-                state.grammarHintLevels
-            );
+            const grade = gradeExercise(grammarExercise(plan), state.grammarAnswers, state.grammarHintLevels);
+            const perBlankResults = grade.slots.map(s => s.result);
 
-            // Positive-only vocab credit: the non-pattern (reinforcement) blanks the
-            // user actually answered right, without revealing the hint. Applied to
-            // those words' own SRS on continue - never for wrong/passed/revealed blanks.
-            //
-            // plan.example, NOT point.examples[plan.exampleIndex]: the plan was
-            // computed against a rotated variant realization or a corpus-mined
-            // sentence (issue #73), neither of which lives in point.examples, so
-            // indexing there would read the wrong sentence's words entirely (see
-            // GrammarQuizCard's identical guard, and GrammarBlankPlan.example's own
-            // doc comment for the variant-rotation case this was first written for).
-            const example = plan.example ?? state.currentGrammarPoint.examples[plan.exampleIndex];
+            // Positive-only vocab credit: the slots that practise a word (not the
+            // pattern markers) the user actually answered right, without revealing the
+            // hint. Applied to those words' own SRS on continue - never for
+            // wrong/passed/revealed blanks.
             const vocabCredits: { vocabId: string; result: AnswerResult }[] = [];
-            plan.blankWordIndices.forEach((wordIndex, i) => {
-                if (plan.isPatternBlank[i]) return;
-                if ((state.grammarHintLevels[i] ?? 0) >= 2) return;
+            plan.slots.forEach((slot, i) => {
+                const vocabId = slot.word?.vocabId;
+                if (!vocabId || (state.grammarHintLevels[i] ?? 0) >= 2) return;
                 const r = perBlankResults[i];
-                if (r !== 'correct' && r !== 'minor_error') return;
-                const vocabId = example?.words[wordIndex]?.vocabId;
-                if (vocabId) vocabCredits.push({ vocabId, result: r });
+                if (r === 'correct' || r === 'minor_error') vocabCredits.push({ vocabId, result: r });
             });
 
-            const allStrictlyCorrect = perBlankResults.every(r => r === 'correct');
-            const message = overall === 'correct'
-                // A correct grammar core with a missed vocab blank still grades
-                // 'correct' (the point's result rides on the pattern) - say so
-                // explicitly rather than a bare "Correct." next to a red blank.
-                ? (allStrictlyCorrect ? 'Correct.' : 'Grammar correct - check the highlighted word(s).')
-                : overall === 'pass'
-                    ? 'Revealed - marked as passed.'
-                    : overall === 'minor_error'
-                        ? 'Close.'
-                        : 'Incorrect.';
-
-            dispatch({ type: 'GRAMMAR_SUBMIT_ANSWER', payload: { type: overall, message, matchedAnswers, perBlankResults, strengthDeltaModifier, vocabCredits } });
+            dispatch({
+                type: 'GRAMMAR_SUBMIT_ANSWER',
+                payload: {
+                    type: grade.overall,
+                    message: grade.message,
+                    matchedAnswers: grade.slots.map(s => s.shown),
+                    perBlankResults,
+                    strengthDeltaModifier: grade.strengthModifier,
+                    vocabCredits,
+                },
+            });
         },
 
         async advanceGrammarQueue() {

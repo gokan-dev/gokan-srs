@@ -75,7 +75,7 @@ export class GrammarSRSService {
         growthLevel: number = 1.0,
         frequencyModifier: number = 1.0,
         // Scales the grammar point's memory-strength gain by how well the
-        // sentence's *vocab* blanks went (see gradeGrammarAnswers): a demonstrated
+        // sentence's *vocab* blanks went (see gradeExercise): a demonstrated
         // grammar core always keeps its result, but earns proportionally less when
         // the surrounding vocab was missed. 1.0 = full gain.
         strengthDeltaModifier: number = 1.0,

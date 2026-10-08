@@ -1,23 +1,21 @@
-import type { Leniency } from '../../utils/answerMatching';
 import { insertAtFraction } from '../../utils/insertAtFraction';
 import type { UserProgress } from '../../models/user.model';
 import type { GrammarExample, GrammarPoint } from '@gokan/dataset-schema';
 import type { AnswerResult } from '../../services/srs.service';
 import { GrammarSRSService } from '../../services/grammarSrs.service';
 import type { QuizState, SessionGains } from './quizReducer';
-import type { InflectableWord } from '../../utils/inflection.utils';
+import type { AnswerSlot } from '../../services/exercise/types';
 
-/** Which example (by index) and which of its words became blanks for the CURRENT quiz turn - fixed at load time so grading matches what was shown. */
 /**
  * Set when the plan is a CONJUGATION drill rather than a sentence cloze - i.e.
  * the point is `kind: 'inflection'`, whose identity is an operation with no
  * invariant marker to blank.
  *
  * The drill deliberately reuses GrammarBlankPlan rather than introducing a
- * parallel state branch: a conjugation is a single blank with an accept-list, so
- * `gradeGrammarAnswers`, the answer/hint arrays, and the whole SRS path work
- * unchanged. `blankWordIndices` is `[0]` and `isPatternBlank` is `[true]`,
- * because the derivation IS the point.
+ * parallel state branch: a conjugation is a single answer slot, so the shared
+ * grader, the answer/hint arrays, and the whole SRS path work unchanged.
+ * `blankWordIndices` is `[0]` and its one slot is `core`, because the
+ * derivation IS the point.
  */
 export interface GrammarConjugationPrompt {
     lemma: string;
@@ -71,18 +69,14 @@ export interface GrammarBlankPlan {
      */
     blankWordSpans: number[][];
     /**
-     * Per-blank flag (same order as blankWordIndices): true when this blank is one
-     * of the point's grammar-pattern markers (example.patternWordIndices), false
-     * when it's a vocab word blanked as secondary reinforcement. Grading treats the
-     * two differently - the pattern blanks decide the grammar point's result, the
-     * vocab blanks only modulate the reward (see gradeGrammarAnswers). Empty/all-false
-     * on the fallback examples that had no locatable pattern.
+     * One answer slot per input, same order as blankWordIndices: what it accepts,
+     * its near-miss tier (a realization in the wrong register, the dictionary form
+     * of a conjugated word), whether it decides the point's result (`core`, the
+     * pattern markers) or only scales the reward (`support`, vocab reinforcement),
+     * and what its hint shows. Built once at load time, so grading is the shared
+     * engine's pure gradeExercise.
      */
-    isPatternBlank: boolean[];
-    /** Per-blank list of accepted answer forms (surface, reading, kanji alternatives, ...), same order as blankWordIndices - resolved once at load time so grading stays synchronous. */
-    acceptLists: string[][];
-    /** Per-blank English gloss for the hint control, same order as blankWordIndices. Empty string when unavailable. */
-    glosses: string[];
+    slots: AnswerSlot[];
     /** True when no word in ANY of the point's examples resolved to a vocab id - nothing gradable, rendered as read-only study material instead of a quiz. */
     readOnly: boolean;
     /**
@@ -91,30 +85,6 @@ export interface GrammarBlankPlan {
      * `exampleIndex` is meaningless - there is no sentence.
      */
     conjugation?: GrammarConjugationPrompt;
-    /**
-     * How forgiving grading is (see utils/answerMatching.ts). Absent means
-     * 'standard', like every other quiz. The conjugation drill sets 'lenient':
-     * its answers are whole conjugated forms, where a missed key is a slip.
-     */
-    leniency?: Leniency;
-    /**
-     * Per-blank forms that are ACCEPTED BUT NOT IDEAL, graded `minor_error`
-     * instead of `wrong` (same order as blankWordIndices, empty array when none).
-     *
-     * Used by realization-variant drills: within a variant group, a sibling that
-     * differs only by a substitutable particle is genuinely interchangeable and
-     * grades `correct`, but one that differs in POLITENESS is the wrong register
-     * for the hint the learner was shown - a near miss, not a failure.
-     */
-    acceptListsMinor?: string[][];
-    /**
-     * Per-blank inflection data for VOCAB (non-pattern) blanks, null elsewhere
-     * (same order as blankWordIndices). Lets gradeGrammarAnswers grade any other
-     * form of the right word (食べた where the sentence wants 食べて) as
-     * `minor_error` rather than `wrong`, without listing every form up front.
-     * Pattern blanks never carry it: there the form IS what is being tested.
-     */
-    blankLemmas?: (InflectableWord | null)[];
     /**
      * Set when this turn is drilling one realization of a variant group. The
      * realization rotates between reviews, so the learner meets every form of the
@@ -280,14 +250,14 @@ export function grammarReducer(state: QuizState, action: GrammarQuizAction): Qui
 
             // Reaching level 2 writes the revealed form into grammarAnswers rather
             // than leaving the card to substitute it at render time. The card used to
-            // display `revealed ? acceptLists[i][0] : answers[i]`, so what the learner
+            // display `revealed ? <accepted form> : answers[i]`, so what the learner
             // saw in the input and what the state held disagreed: the input showed the
             // answer while grammarAnswers[i] stayed empty. That divergence is what
             // blocked submission when the last remaining blank was revealed.
             // Grading is unaffected (a revealed blank is forced to 'minor_error' by
             // its hint level, whatever the text says).
             if (next === 2) {
-                const revealed = state.currentGrammarBlankPlan?.acceptLists[action.payload.index]?.[0];
+                const revealed = state.currentGrammarBlankPlan?.slots[action.payload.index]?.reveal;
                 if (revealed) {
                     const answers = [...state.grammarAnswers];
                     answers[action.payload.index] = revealed;

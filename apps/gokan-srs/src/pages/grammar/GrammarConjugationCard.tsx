@@ -29,7 +29,7 @@ const CLASS_LABELS: Record<string, string> = {
  * for the ichidan potential).
  *
  * Deliberately thin: the plan is a one-blank GrammarBlankPlan, so this card
- * shares `grammarAnswers`, the hint semantics, `gradeGrammarAnswers` and the
+ * shares `grammarAnswers`, the hint semantics, the shared grader and the
  * whole SRS path with the cloze card rather than duplicating any of it.
  */
 export function GrammarConjugationCard() {

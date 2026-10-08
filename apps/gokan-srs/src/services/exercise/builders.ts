@@ -3,13 +3,13 @@
 // One builder per exercise kind. A builder decides what the exercise asks (its
 // slots) and what decides a near-synonym (its cue); grading, feedback and SRS
 // effects then come from the shared engine, never from the builder.
-import type { Vocabulary } from '@gokan/dataset-schema';
+import type { GrammarExample, Vocabulary } from '@gokan/dataset-schema';
 import { blankSurfaceOf } from '../../utils/productionCloze.utils';
 import type { ProductionCloze } from '../../utils/productionCloze.utils';
 import { productionCueOf } from '../../utils/synonymContext.utils';
 import { meaningSlot, readingSlot, synonymsOf, wordSlot } from './slots';
 import type { Occurrence } from './slots';
-import type { Exercise } from './types';
+import type { AnswerSlot, Exercise } from './types';
 
 export function readingExercise(vocab: Vocabulary): Exercise {
     return { kind: 'reading', slots: [readingSlot(vocab)], cue: {} };
@@ -43,5 +43,18 @@ export function productionExercise(vocab: Vocabulary, cloze: ProductionCloze | n
             synonyms: synonymsOf(vocab),
         })],
         cue: productionCueOf(vocab.senses, cloze),
+    };
+}
+
+/**
+ * A grammar card from its blank plan (computeBlankPlan): the conjugation drill,
+ * the sentence cloze, or the study card when nothing in the point is blankable.
+ * The plan's slots already say what each blank accepts and how it counts.
+ */
+export function grammarExercise(plan: { slots: AnswerSlot[]; readOnly: boolean; conjugation?: object; example?: GrammarExample }): Exercise {
+    return {
+        kind: plan.conjugation ? 'conjugation' : plan.readOnly ? 'study' : 'grammar-cloze',
+        slots: plan.slots,
+        cue: plan.example ? { sentence: plan.example.en } : {},
     };
 }
