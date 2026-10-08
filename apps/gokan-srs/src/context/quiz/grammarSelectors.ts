@@ -1,19 +1,19 @@
-import type { GrammarChapter, GrammarContrastIndex, GrammarExample, GrammarPoint } from '@gokan/dataset-schema';
+import type { GrammarChapter, GrammarContrastIndex, GrammarExample, GrammarExampleWord, GrammarPoint } from '@gokan/dataset-schema';
 import type { GrammarProgress } from '../../models/grammar.model';
 import type { UserProgress } from '../../models/user.model';
 import type { SessionState } from '../../models/state.model';
 import { isGrammarDue, grammarNextReviewAt, isGrammarFullyMastered } from '../../services/grammarScheduling';
 import { VocabularyService } from '../../services/vocabulary.service';
-import type { AnswerResult } from '../../services/srs.service';
-import type { VocabProgress } from '../../models/vocabulary.model';
-import { calculateMasteryPercentage } from '../../utils/srs.utils';
 import { GrammarService } from '../../services/grammar.service';
 import { hashString, pickStable } from '../../utils/deterministicPick';
+import { surfaceReading } from '../../utils/grammarSentence.utils';
 import { indexLearnerVocab, pickMostProductive, scoreGrammarExample, wordRole } from '../../utils/sentenceRanking';
 import { computeSessionState } from './sessionState';
-import { isFormOfWord, kanaOfSurface, toInflectableWord } from '../../utils/inflection.utils';
-import { matchBest } from '../../utils/answerMatching';
+import { markerInflections, synonymsOf, wordSlot } from '../../services/exercise/slots';
+import type { MarkerToken } from '../../services/exercise/slots';
+import { inferredWord, toInflectableWord } from '../../utils/inflection.utils';
 import type { InflectableWord } from '../../utils/inflection.utils';
+import type { AnswerSlot } from '../../services/exercise/types';
 import { computeSessionStats, computeSessionPreview } from './sessionStats';
 import type { QuizState } from './quizReducer';
 import type { GrammarBlankPlan, PendingGrammarQuizItem } from './grammarReducer';
@@ -89,21 +89,13 @@ function candidateIndicesOf(example: GrammarExample): number[] {
 }
 
 /**
- * Resolves the accept-list (surface, embedded reading, plus every writing
- * variant a full vocab fetch can offer) and the hint gloss for each blank in
- * `blankIndices`. Fetched once at load time (VocabularyService.loadVocab is
- * cached in-memory) so grading later stays synchronous. A failed fetch simply
- * falls back to surface+reading and an empty gloss rather than blocking the
- * card - the word is still gradable, just without the extra variants.
- */
-/**
  * Groups blanked word indices into the spans that become one input each.
  *
  * A contiguous run of PATTERN blanks collapses into a single span. A grammar
  * marker regularly spans several tokens - どこ/に/も is three, にしろ is two - and
  * one input per token asks the learner which box wants どこ, which wants に and
  * which wants も. That is unanswerable, and it also made the card impossible to
- * submit: `canSubmitGrammar` requires every input non-empty, so typing どこにも
+ * submit: Submit then required every input non-empty, so typing どこにも
  * into the first box and leaving the other two blank left the learner stuck with
  * no way forward and Reveal overwriting what they had typed.
  *
@@ -131,101 +123,130 @@ function blankSpansOf(blankIndices: number[], isPatternBlank: boolean[]): number
     return spans;
 }
 
-async function buildBlankData(
+/** Adds `extra` to a slot's near tier, never duplicating an accepted form. */
+function withNear(slot: AnswerSlot, extra: string[]): AnswerSlot {
+    const near = Array.from(new Set([...slot.near, ...extra])).filter(f => !slot.accept.includes(f));
+    return { ...slot, near };
+}
+
+/**
+ * A marker's tokens for its slot's conjugation rule (markerInflections), each
+ * conjugated token, and a verb ending the marker in its dictionary form (ことがある),
+ * carrying how its word inflects: from its dictionary entry when it has one, read
+ * off the token itself otherwise (inferredWord), since most marker tokens link to
+ * no entry (あり for ある, し for する).
+ */
+async function markerTokens(words: GrammarExampleWord[]): Promise<MarkerToken[]> {
+    return Promise.all(words.map(async (w, i) => {
+        const kana = surfaceReading(w) ?? (/[一-鿿]/.test(w.surface) ? null : w.surface);
+        const conjugated = !!w.baseForm && w.baseForm !== w.surface;
+        // Unconjugated, only the marker's last token can be a verb in its dictionary form.
+        const finalVerb = i === words.length - 1 && /[うくぐすつぬぶむる]$/.test(w.surface);
+        if (!conjugated && !finalVerb) return { surface: w.surface, kana, word: null };
+        return { surface: w.surface, kana, word: await inflectingWordOf(w) };
+    }));
+}
+
+/** How a marker token's word inflects, or null when it does not (a noun). */
+async function inflectingWordOf(w: GrammarExampleWord): Promise<InflectableWord | null> {
+    if (w.vocabId) {
+        try {
+            const word = toInflectableWord(await VocabularyService.loadVocab(w.vocabId));
+            return word.classes.length > 0 ? word : null;
+        } catch (e) {
+            console.error(`[grammarSelectors] Failed to load vocab ${w.vocabId} for a marker token, reading its conjugation off the token instead`, e);
+        }
+    }
+    return inferredWord(w.baseForm ?? w.surface, w.surface);
+}
+/**
+ * One answer slot per blank span, built by the exercise engine's slot builders so
+ * a grammar blank accepts and grades a word exactly as a production card would,
+ * up to the conjugation: a sentence blank also tests the form, so another form of
+ * the right word is a near miss (`otherForm: 'minor_error'`), and the dictionary
+ * forms of a conjugated occurrence (思う where the sentence needs 思っ) sit in the
+ * near tier rather than the ideal one.
+ *
+ * Roles: when the plan blanks the pattern, its markers decide the result and the
+ * vocab blanks only scale the reward, since there is one SRS entry per point and
+ * it must mean grammar-point recall. With no pattern located (the fallback passes),
+ * every blank decides. A marker practises the point, not the word, so its slot
+ * credits no vocab, and the right construction in another conjugation is a near
+ * miss on it (がありません for があります: see markerInflections).
+ *
+ * Vocab files are fetched here, once at load time (VocabularyService.loadVocab is
+ * cached), so grading stays synchronous. A failed fetch falls back to the surface
+ * and reading rather than blocking the card.
+ */
+async function buildBlankSlots(
     example: GrammarExample,
     blankSpans: number[][],
-    // Which spans are pattern markers. Only vocab spans get "any form of the word"
-    // leniency; omitted means none are pattern.
-    isPatternSpan: boolean[] = []
-): Promise<{ acceptLists: string[][]; acceptListsMinor: string[][]; glosses: string[]; blankLemmas: (InflectableWord | null)[] }> {
-    const acceptLists: string[][] = [];
-    const acceptListsMinor: string[][] = [];
-    const glosses: string[] = [];
-    const blankLemmas: (InflectableWord | null)[] = [];
+    // Which spans are pattern markers; omitted means none are.
+    isPatternSpan: boolean[] = [],
+    // The register the card asks for (its formality hint): plain for polite is right only without one.
+    formalityLevel?: string
+): Promise<AnswerSlot[]> {
+    const registerFree = !formalityLevel || formalityLevel === 'neutral';
+    const decidedByPattern = isPatternSpan.some(Boolean);
+    const slots: AnswerSlot[] = [];
 
     for (const [spanIndex, span] of blankSpans.entries()) {
+        const isPattern = !!isPatternSpan[spanIndex];
+        const role = !decidedByPattern || isPattern ? 'core' : 'support';
+        const words = span.map(i => example.words[i]);
+        const inflections = isPattern ? markerInflections(await markerTokens(words), registerFree) : [];
+        const withInflections = (slot: AnswerSlot): AnswerSlot => (inflections.length > 0 ? { ...slot, inflections } : slot);
+
         // A merged span is graded on the concatenation of its words. Only the
-        // surface and the reading are meaningful for a multi-token marker - a
-        // per-word vocab lookup would offer alternatives for one token of a
-        // marker, which is not a form of anything.
+        // surface and the reading are meaningful for a multi-token marker: a
+        // per-word vocab lookup would offer alternatives for one token of a marker,
+        // which is not a form of anything.
         if (span.length > 1) {
-            const words = span.map(i => example.words[i]);
             const surface = words.map(w => w.surface).join('');
             const reading = words.every(w => w.reading || !/[一-鿿]/.test(w.surface))
                 ? words.map(w => w.reading ?? w.surface).join('')
                 : null;
-            acceptLists.push(Array.from(new Set([surface, ...(reading ? [reading] : [])])));
-            acceptListsMinor.push([]);
-            glosses.push('');
-            blankLemmas.push(null);
+            slots.push(withInflections(
+                { accept: Array.from(new Set([surface, ...(reading ? [reading] : [])])), near: [], leniency: 'standard', role, reveal: surface, gloss: '' },
+            ));
             continue;
         }
 
-        const wordIndex = span[0];
-        const word = example.words[wordIndex];
-        const forms = new Set<string>();
-        forms.add(word.surface);
-        let gloss = '';
-        let lemma: InflectableWord | null = null;
+        const [word] = words;
+        const plain: AnswerSlot = {
+            accept: Array.from(new Set([word.surface, ...(word.reading ? [word.reading] : [])])),
+            near: [],
+            leniency: 'standard',
+            role,
+            reveal: word.surface,
+            gloss: '',
+        };
 
-        // The dictionary-form variants of an INFLECTED occurrence. Right word, wrong
-        // form: graded 'minor_error' rather than 'correct'.
-        //
-        // These all used to sit in the ideal list, so answering 思う where the sentence
-        // needs 思っ scored full marks - the conjugation is a large part of what the
-        // sentence is testing, and getting it wrong was free.
-        //
-        // Gated on `word.baseForm`, which the dataset sets only when the base form
-        // differs from the surface. For an uninflected word (every noun, and a verb
-        // that happens to appear in dictionary form) it is absent and nothing moves:
-        // writing 寿司 as すし stays fully correct, which it should.
-        const inflected = !!word.baseForm;
-        const minorForms = new Set<string>();
-
+        let slot = plain;
         if (word.vocabId) {
             try {
                 const vocab = await VocabularyService.loadVocab(word.vocabId);
-                const target = inflected ? minorForms : forms;
-                target.add(vocab.writtenForm.kanji);
-                vocab.writtenForm.alternatives.forEach(a => target.add(a));
-                target.add(vocab.reading.primary);
-                vocab.reading.alternatives.forEach(a => target.add(a));
-                vocab.mergedVocabs?.forEach(m => target.add(m.originalPrimaryReading));
-                gloss = vocab.senses.flatMap(s => s.glosses)[0] ?? '';
-                lemma = toInflectableWord(vocab);
-
-                if (inflected) {
-                    // The kana of the surface AS CONJUGATED (はやかろ for 早かろ), so
-                    // the right answer typed in hiragana grades like the kanji one.
-                    const kana = kanaOfSurface(word.surface, lemma);
-                    if (kana) forms.add(kana);
-                    // word.reading is sometimes the surface's reading and sometimes
-                    // the LEMMA's (早かろ carries はやい). Only the former is an ideal
-                    // answer; the lemma reading is the dictionary form, a near miss.
-                    if (word.reading && !lemma.readings.includes(word.reading)) forms.add(word.reading);
-                } else if (word.reading) {
-                    forms.add(word.reading);
-                }
+                slot = wordSlot(vocab, {
+                    ...(isPattern ? {} : { vocabId: word.vocabId }),
+                    // Gated on `baseForm`, which the dataset sets only when the base form
+                    // differs from the surface: writing 寿司 as すし stays fully correct.
+                    occurrence: { surface: word.surface, reading: word.reading, inflected: !!word.baseForm },
+                    otherForm: 'minor_error',
+                    role,
+                    // A word blank grades a near-synonym against the sentence exactly as a
+                    // production card does. A marker is the point's own form: another word
+                    // in its place is simply wrong.
+                    synonyms: isPattern ? [] : synonymsOf(vocab),
+                });
             } catch (e) {
-                console.error(`[grammarSelectors] Failed to load vocab ${word.vocabId} for blank ${wordIndex}, falling back to surface/reading only`, e);
-                if (word.reading) forms.add(word.reading);
+                console.error(`[grammarSelectors] Failed to load vocab ${word.vocabId} for blank ${span[0]}, falling back to surface/reading only`, e);
+                if (!isPattern) slot = { ...plain, word: { vocabId: word.vocabId, label: word.surface, headword: word.baseForm ?? word.surface, lemma: null, otherForm: 'minor_error', synonyms: [] } };
             }
-        } else if (word.reading) {
-            forms.add(word.reading);
         }
-
-        // Anything that is already an ideal answer for this occurrence cannot also be
-        // a near miss: the two lists must not overlap, or a correct answer could be
-        // downgraded depending on match order.
-        for (const f of forms) minorForms.delete(f);
-
-        acceptLists.push(Array.from(forms));
-        acceptListsMinor.push(Array.from(minorForms));
-        glosses.push(gloss);
-        blankLemmas.push(isPatternSpan[spanIndex] ? null : lemma);
+        slots.push(withInflections(slot));
     }
 
-    return { acceptLists, acceptListsMinor, glosses, blankLemmas };
+    return slots;
 }
 
 /** The single most-frequent (lowest frequency.kanjiRank) candidate word in an example, used for the one-blank fallback (item 5.2). Falls back to the first candidate if every fetch fails. */
@@ -333,13 +354,20 @@ export async function computeConjugationPlan(point: GrammarPoint, reviewCount: n
         exampleIndex: 0,
         blankWordIndices: [0],
         blankWordSpans: [[0]],
-        // The derivation IS the point, so this blank decides the point's result.
-        isPatternBlank: [true],
-        acceptLists: [accepted],
-        // The cue label, never the dataset's: its kana parenthetical is the answer.
-        glosses: [cueFormLabel(entry.formLabel)],
+        slots: [{
+            accept: accepted,
+            near: [],
+            // Its answers are whole conjugated forms, where a missed key is a slip.
+            leniency: 'lenient',
+            // The derivation IS the point, so this slot decides the point's result.
+            role: 'core',
+            reveal: accepted[0] ?? '',
+            // The cue label, never the dataset's: its kana parenthetical is the answer.
+            gloss: cueFormLabel(entry.formLabel),
+            // No word: the form is what is tested, so another form of the right
+            // word stays wrong here (大変じゃない for 大変じゃなくて).
+        }],
         readOnly: false,
-        leniency: 'lenient',
         conjugation: {
             lemma: item.lemma,
             lemmaReading: item.lemmaReading,
@@ -543,7 +571,7 @@ async function selectProductivePlan(
     const blankWordIndices = blankWordSpans.map(span => span[0]);
     const isPatternBlank = blankWordIndices.map(i => chosen.example.patternWordIndices.includes(i));
 
-    const { acceptLists, acceptListsMinor, glosses, blankLemmas } = await buildBlankData(chosen.example, blankWordSpans, isPatternBlank);
+    const slots = await buildBlankSlots(chosen.example, blankWordSpans, isPatternBlank, point.formalityLevel);
 
     // The chosen example may come from either source - report whichever index
     // is meaningful. `example` is what every consumer actually reads (see
@@ -556,11 +584,7 @@ async function selectProductivePlan(
         example: chosen.example,
         blankWordIndices,
         blankWordSpans,
-        isPatternBlank,
-        acceptLists,
-        acceptListsMinor,
-        blankLemmas,
-        glosses,
+        slots,
         readOnly: false,
     };
 }
@@ -596,20 +620,18 @@ export async function computeBlankPlan(point: GrammarPoint, progress: UserProgre
     // Nothing to add and no realization to record: the base plan stands unchanged.
     if (!rotation && sameRegister.length === 0 && otherRegister.length === 0) return base;
 
+    const patternWordIndices = base.example?.patternWordIndices ?? [];
     return {
         ...base,
         ...(rotation ? { realization: rotation.realization } : {}),
         // Widen only the PATTERN blanks: a vocab blank has nothing to do with the
-        // alternation and must keep grading strictly.
-        acceptLists: base.acceptLists.map((list, i) =>
-            base.isPatternBlank[i] ? Array.from(new Set([...list, ...sameRegister])) : list),
-        // Merged, not replaced: the base plan's minor tier already carries each
-        // inflected vocab blank's dictionary forms (right word, wrong conjugation),
-        // and overwriting it here would silently restore full credit for those.
-        acceptListsMinor: base.acceptLists.map((_, i) => Array.from(new Set([
-            ...(base.acceptListsMinor?.[i] ?? []),
-            ...(base.isPatternBlank[i] ? otherRegister : []),
-        ]))),
+        // alternation and must keep grading strictly. A same-register sibling is
+        // interchangeable; another register is the wrong one for the hint shown.
+        slots: base.slots.map((slot, i) => {
+            if (!patternWordIndices.includes(base.blankWordIndices[i])) return slot;
+            const accept = Array.from(new Set([...slot.accept, ...sameRegister]));
+            return withNear({ ...slot, accept }, otherRegister);
+        }),
     };
 }
 
@@ -642,8 +664,8 @@ async function computeBlankPlanFor(point: GrammarPoint, progress: UserProgress |
         const blankWordIndices = blankWordSpans.map(span => span[0]);
         const isPatternBlank = blankWordIndices.map(i => example.patternWordIndices.includes(i));
 
-        const { acceptLists, acceptListsMinor, glosses, blankLemmas } = await buildBlankData(example, blankWordSpans, isPatternBlank);
-        return { exampleIndex, example, blankWordIndices, blankWordSpans, isPatternBlank, acceptLists, acceptListsMinor, blankLemmas, glosses, readOnly: false };
+        const slots = await buildBlankSlots(example, blankWordSpans, isPatternBlank, point.formalityLevel);
+        return { exampleIndex, example, blankWordIndices, blankWordSpans, slots, readOnly: false };
     }
 
     // Pass 2: FALLBACK - pattern not locatable anywhere in this point; an example with a known word.
@@ -654,10 +676,10 @@ async function computeBlankPlanFor(point: GrammarPoint, progress: UserProgress |
 
         const knownIndices = candidateIndices.filter(i => isKnown(example.words[i].vocabId!));
         if (knownIndices.length > 0) {
-            const { acceptLists, acceptListsMinor, glosses, blankLemmas } = await buildBlankData(example, knownIndices.map(i => [i]));
-            // No pattern located, so none of these are pattern blanks - they grade as
-            // pure vocab (worst-of), the original pre-pattern behaviour.
-            return { exampleIndex, example, blankWordIndices: knownIndices, blankWordSpans: knownIndices.map(i => [i]), isPatternBlank: knownIndices.map(() => false), acceptLists, acceptListsMinor, blankLemmas, glosses, readOnly: false };
+            // No pattern located, so every blank decides the result (worst-of), the
+            // original pre-pattern behaviour.
+            const slots = await buildBlankSlots(example, knownIndices.map(i => [i]));
+            return { exampleIndex, example, blankWordIndices: knownIndices, blankWordSpans: knownIndices.map(i => [i]), slots, readOnly: false };
         }
     }
 
@@ -668,213 +690,12 @@ async function computeBlankPlanFor(point: GrammarPoint, progress: UserProgress |
         if (candidateIndices.length === 0) continue;
 
         const best = await pickMostFrequentCandidate(example, candidateIndices);
-        const { acceptLists, acceptListsMinor, glosses, blankLemmas } = await buildBlankData(example, [[best]]);
-        return { exampleIndex, example, blankWordIndices: [best], blankWordSpans: [[best]], isPatternBlank: [false], acceptLists, acceptListsMinor, blankLemmas, glosses, readOnly: false };
+        const slots = await buildBlankSlots(example, [[best]]);
+        return { exampleIndex, example, blankWordIndices: [best], blankWordSpans: [[best]], slots, readOnly: false };
     }
 
     // Pass 4: no example has any blankable word at all - read-only study material.
-    return { exampleIndex: startIndex, example: point.examples[startIndex], blankWordIndices: [], blankWordSpans: [], isPatternBlank: [], acceptLists: [], glosses: [], readOnly: true };
-}
-
-export interface VocabGainSummary {
-    /** Total knowledge points credited to vocabulary by one grammar answer. */
-    total: number;
-    /** Per-word split, biggest gain first. */
-    breakdown: { label: string; delta: number }[];
-}
-
-/**
- * What one grammar answer gave the sentence's vocabulary, measured by diffing the
- * learning queue around `applyVocabReinforcement` rather than re-deriving it from
- * the credits list. The diff reports what was actually written: reinforcement is
- * skipped wholesale on a retry, and skips words absent from the queue, so a
- * re-derivation would claim gains that never happened.
- *
- * Labels come from the sentence the learner just answered, preferring each word's
- * dictionary form over the inflected surface it appeared in: "思う +3" is a word
- * they can look up, "思っ +3" is a fragment. Falls back to the vocab id only if the
- * sentence somehow has no matching word, which should not happen.
- */
-export function summariseVocabGains(
-    before: VocabProgress[],
-    after: VocabProgress[],
-    exampleWords: { surface: string; vocabId: string | null; baseForm?: string }[] = []
-): VocabGainSummary {
-    if (before === after) return { total: 0, breakdown: [] };
-
-    const priorById = new Map(before.map(v => [v.vocabId, v]));
-    const labelById = new Map<string, string>();
-    for (const word of exampleWords) {
-        if (word.vocabId && !labelById.has(word.vocabId)) {
-            labelById.set(word.vocabId, word.baseForm ?? word.surface);
-        }
-    }
-
-    let total = 0;
-    const breakdown: { label: string; delta: number }[] = [];
-
-    for (const updated of after) {
-        const prior = priorById.get(updated.vocabId);
-        if (!prior || prior === updated) continue;
-
-        // The production entry, because that is where applyVocabReinforcement puts the
-        // credit. These two must name the same entry or the "+N vocab" figure reports
-        // a schedule the answer never moved.
-        const delta = calculateMasteryPercentage(updated.production?.memoryStrength ?? 0)
-            - calculateMasteryPercentage(prior.production?.memoryStrength ?? 0);
-        if (delta === 0) continue;
-
-        total += delta;
-        breakdown.push({ label: labelById.get(updated.vocabId) ?? updated.vocabId, delta });
-    }
-
-    // Biggest gain first: this is read at a glance, and which word moved most is the
-    // only ordering anyone scans a short list like this for.
-    breakdown.sort((a, b) => b.delta - a.delta);
-
-    return { total, breakdown };
-}
-
-/** Floor of the vocab coefficient: a grammar answer whose pattern is right but whose vocab blanks were ALL missed still earns this fraction of the full strength gain (never zero, never negative - the grammar core was demonstrated). */
-export const GRAMMAR_VOCAB_COEFF_FLOOR = 0.5;
-
-/** Worst-of across a set of per-blank results: wrong > pass > minor_error > correct. */
-function worstOf(results: AnswerResult[]): AnswerResult {
-    if (results.some(r => r === 'wrong')) return 'wrong';
-    if (results.some(r => r === 'pass')) return 'pass';
-    if (results.some(r => r === 'minor_error')) return 'minor_error';
-    return 'correct';
-}
-
-/**
- * Vocab coefficient in [GRAMMAR_VOCAB_COEFF_FLOOR, 1] from the fraction of vocab
- * blanks answered correctly. No vocab blanks -> 1 (nothing to modulate).
- */
-function vocabCoefficient(vocabResults: AnswerResult[]): number {
-    if (vocabResults.length === 0) return 1;
-    const successes = vocabResults.filter(r => r === 'correct' || r === 'minor_error').length;
-    const ratio = successes / vocabResults.length;
-    return GRAMMAR_VOCAB_COEFF_FLOOR + (1 - GRAMMAR_VOCAB_COEFF_FLOOR) * ratio;
-}
-
-export interface GrammarGradeResult {
-    /** Same order as blankWordIndices - which specific blank(s) were wrong/passed. */
-    perBlankResults: AnswerResult[];
-    /** Same order as blankWordIndices - the accepted form each blank matched (or was revealed to, for a passed blank). */
-    matchedAnswers: string[];
-    /**
-     * The grammar point's result. Decided by the pattern-marker blanks alone when
-     * the plan has any (pattern wrong -> wrong; else the pattern's worst-of),
-     * because there's one SRSEntry per point and it must mean grammar-point recall.
-     * A missed vocab blank never turns a demonstrated grammar core into 'wrong'.
-     * On the fallback examples with no located pattern, this falls back to
-     * worst-of across every blank (the original vocab-only behaviour).
-     */
-    overall: AnswerResult;
-    /**
-     * Coefficient in [GRAMMAR_VOCAB_COEFF_FLOOR, 1] to scale the grammar point's
-     * strength gain by, from how many vocab (non-pattern) blanks were right. 1.0
-     * whenever the pattern wasn't a success (no gain to modulate) or there are no
-     * vocab blanks.
-     */
-    strengthDeltaModifier: number;
-}
-
-/**
- * Grades every blank in a submitted grammar answer against its accept-list
- * (built once at load time by computeBlankPlan, so this is pure and
- * synchronous - no vocab fetch here). A blank whose hint was revealed
- * (hintLevel >= 2) always grades as 'minor_error' regardless of what was
- * typed - the user gave up on it rather than answering, but reading the
- * answer still leaves an impression, so it's graded less harshly than a
- * genuinely wrong guess (matching CONSTANTS.srs.formula.resultFactors:
- * minor_error +0.10 vs wrong -0.40).
- *
- * The grammar CONSTRUCTION is what this quiz tests, so the point's result is
- * driven by the pattern-marker blanks; vocab blanks are secondary reinforcement
- * and only modulate the *reward* (strengthDeltaModifier), never the pass/fail of
- * a demonstrated grammar core. See GrammarGradeResult.
- */
-export function gradeGrammarAnswers(
-    // isPatternBlank optional: a plan without it is treated as having no located
-    // pattern (every blank vocab), which is the worst-of-all fallback path.
-    blankPlan: Pick<GrammarBlankPlan, 'acceptLists'> & Partial<Pick<GrammarBlankPlan, 'isPatternBlank' | 'acceptListsMinor' | 'blankLemmas' | 'leniency'>>,
-    answers: string[],
-    hintLevels: number[]
-): GrammarGradeResult {
-    const perBlankResults: AnswerResult[] = [];
-    const matchedAnswers: string[] = [];
-
-    blankPlan.acceptLists.forEach((accepted, i) => {
-        if ((hintLevels[i] ?? 0) >= 2) {
-            perBlankResults.push('minor_error');
-            matchedAnswers.push(accepted[0] ?? '');
-            return;
-        }
-
-        const userInput = answers[i] ?? '';
-
-        // An empty blank is an explicit "I do not know this one", not a wrong guess.
-        // Submit no longer requires every blank to be filled (see canSubmitGrammar),
-        // so this is a reachable, intentional answer. Graded 'pass' - the same result
-        // a literally typed "pass" gives - rather than 'wrong': the learner skipped
-        // rather than mis-recalled, and the accepted form is revealed in the feedback.
-        if (userInput.trim().length === 0) {
-            perBlankResults.push('pass');
-            matchedAnswers.push(accepted[0] ?? '');
-            return;
-        }
-
-        const { result, matchedAnswer } = matchBest(userInput, accepted, blankPlan.leniency);
-
-        // Accepted-but-not-ideal tier: a realization of the same rule in the wrong
-        // register. Downgraded from 'wrong' to 'minor_error' rather than accepted
-        // outright, because the card showed which register was wanted.
-        const minorList = blankPlan.acceptListsMinor?.[i] ?? [];
-        if (result === 'wrong' && minorList.length > 0) {
-            const minor = matchBest(userInput, minorList, blankPlan.leniency);
-            if (minor.result === 'correct' || minor.result === 'minor_error') {
-                perBlankResults.push('minor_error');
-                matchedAnswers.push(accepted[0] ?? minor.matchedAnswer);
-                return;
-            }
-        }
-
-        // A vocab blank answered with another form of the right word (食べた where
-        // the sentence wants 食べて): a near miss, never `wrong` (issue #95). Pattern
-        // blanks never carry a lemma, so their form stays strictly graded.
-        const lemma = blankPlan.blankLemmas?.[i];
-        if (result === 'wrong' && lemma && !(blankPlan.isPatternBlank?.[i]) && isFormOfWord(userInput, lemma)) {
-            perBlankResults.push('minor_error');
-            matchedAnswers.push(accepted[0] ?? matchedAnswer);
-            return;
-        }
-
-        perBlankResults.push(result);
-        matchedAnswers.push(matchedAnswer);
-    });
-
-    const isPattern = blankPlan.isPatternBlank ?? [];
-    const hasPattern = perBlankResults.some((_, i) => isPattern[i]);
-
-    let overall: AnswerResult;
-    let strengthDeltaModifier = 1;
-
-    if (hasPattern) {
-        const patternResults = perBlankResults.filter((_, i) => isPattern[i]);
-        const vocabResults = perBlankResults.filter((_, i) => !isPattern[i]);
-        overall = worstOf(patternResults);
-        // Only a successful grammar core has a positive gain to modulate.
-        if (overall === 'correct' || overall === 'minor_error') {
-            strengthDeltaModifier = vocabCoefficient(vocabResults);
-        }
-    } else {
-        // No located pattern (fallback examples): every blank is vocab, so keep the
-        // original worst-of-all behaviour at full strength.
-        overall = worstOf(perBlankResults);
-    }
-
-    return { perBlankResults, matchedAnswers, overall, strengthDeltaModifier };
+    return { exampleIndex: startIndex, example: point.examples[startIndex], blankWordIndices: [], blankWordSpans: [], slots: [], readOnly: true };
 }
 
 export function selectCurrentGrammarProgress(

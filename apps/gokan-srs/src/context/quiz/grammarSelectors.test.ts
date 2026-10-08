@@ -3,12 +3,10 @@ import {
     selectNextGrammarView,
     computeBlankPlan,
     cueFormLabel,
-    gradeGrammarAnswers,
     selectCurrentGrammarProgress,
     selectNextGrammarSessionPreview,
     collectActionableGrammarIds,
     selectGrammarSessionStats,
-    summariseVocabGains,
     selectChapterEndFocusIds,
     selectNewlyCompletedChapterIds,
     computeGrammarChapterProgress,
@@ -23,7 +21,18 @@ import type { VocabProgress } from '../../models/vocabulary.model';
 import { VocabularyService } from '../../services/vocabulary.service';
 import { GrammarService } from '../../services/grammar.service';
 import { CONSTANTS } from '../../commons/constants';
-import { grammarProgress, srsEntry, userProgress, vocabProgress } from '../../test/fixtures';
+import { answerSlot, grammarProgress, userProgress, vocabProgress } from '../../test/fixtures';
+import { gradeExercise } from '../../services/exercise/grading';
+import { grammarExercise } from '../../services/exercise/builders';
+import type { AnswerSlot } from '../../services/exercise/types';
+import type { GrammarBlankPlan } from './grammarReducer';
+
+/** Grades answers against a plan exactly as the grammar card does (a sentence plan carries its own example). */
+const gradePlan = (plan: GrammarBlankPlan, answers: string[], hintLevels: number[] = []) =>
+    gradeExercise(grammarExercise({ id: 'test-point', title: 'test point', examples: [] }, plan), answers, hintLevels);
+/** Grades answers against hand-built slots. */
+const gradeSlots = (slots: AnswerSlot[], answers: string[], hintLevels: number[] = []) =>
+    gradeExercise({ kind: 'grammar-cloze', slots, cue: {} }, answers, hintLevels);
 
 const now = new Date('2026-06-10T00:00:00Z');
 const past = new Date('2026-06-01T00:00:00Z');
@@ -185,7 +194,9 @@ describe('computeBlankPlan', () => {
         });
 
         const plan = (await computeBlankPlan(point, progress, 0))!;
-        expect(plan.acceptLists[0]).toEqual(expect.arrayContaining(['寿司', 'すし']));
+        expect(plan.slots[0].accept).toEqual(expect.arrayContaining(['寿司', 'すし']));
+        // The word is still credited when answered right.
+        expect(plan.slots[0].word?.vocabId).toBe('v-sushi');
     });
 
     it('extends the accept list with vocab writtenForm/reading alternatives and merged-vocab readings', async () => {
@@ -202,7 +213,7 @@ describe('computeBlankPlan', () => {
         });
 
         const plan = (await computeBlankPlan(point, progress, 0))!;
-        expect(new Set(plan.acceptLists[0])).toEqual(new Set(['寿司', 'すし', '鮨', '鮓', '寿し', '壽司']));
+        expect(new Set(plan.slots[0].accept)).toEqual(new Set(['寿司', 'すし', '鮨', '鮓', '寿し', '壽司']));
     });
 
     it('resolves a hint gloss from the vocab senses', async () => {
@@ -217,7 +228,7 @@ describe('computeBlankPlan', () => {
         });
 
         const plan = (await computeBlankPlan(point, progress, 0))!;
-        expect(plan.glosses[0]).toBe('sushi');
+        expect(plan.slots[0].gloss).toBe('sushi');
     });
 
     it('prefers a different example containing a known word over blanking every word in an example with none known (item 5.1)', async () => {
@@ -301,7 +312,7 @@ describe('computeBlankPlan', () => {
         const plan = (await computeBlankPlan(point, null, 0))!;
         expect(plan.readOnly).toBe(true);
         expect(plan.blankWordIndices).toEqual([]);
-        expect(plan.acceptLists).toEqual([]);
+        expect(plan.slots).toEqual([]);
     });
 
     it('returns null when the grammar point has no examples', async () => {
@@ -369,9 +380,9 @@ describe('computeBlankPlan', () => {
             const plan = (await computeBlankPlan(point, progress, 0))!;
             // 寿司 (known vocab) is its own input; が + 一番 (the pattern) are one.
             expect(plan.blankWordSpans).toEqual([[4], [5, 6]]);
-            // Classification is what lets grading credit the pattern vs the vocab
-            // separately: 寿司 is the vocab reinforcement blank, が/一番 are the pattern.
-            expect(plan.isPatternBlank).toEqual([false, true]);
+            // The roles are what let grading treat the pattern and the vocab
+            // separately: 寿司 only scales the reward, が/一番 decide the result.
+            expect(plan.slots.map(s => s.role)).toEqual(['support', 'core']);
         });
 
         it('does not double-count a pattern word that also resolves to a known vocab id', async () => {
@@ -394,16 +405,16 @@ describe('computeBlankPlan', () => {
 
         it('grades a merged span on the concatenation of its words, not per token', async () => {
             // The bug this fixes: どこ/に/も rendered as three inputs, and there is
-            // no way to know which box wants which token. Worse, canSubmitGrammar
-            // needs EVERY input filled, so typing どこにも into the first box and
+            // no way to know which box wants which token. Worse, Submit then
+            // needed EVERY input filled, so typing どこにも into the first box and
             // leaving the others empty left the learner unable to submit at all.
             const point = makePatternPoint();
             const plan = (await computeBlankPlan(point, makeProgress({ learningQueue: [] }), 0))!;
             const example = point.examples[plan.exampleIndex];
             const joined = plan.blankWordSpans[0].map(i => example.words[i].surface).join('');
 
-            expect(plan.acceptLists).toHaveLength(1);
-            expect(plan.acceptLists[0]).toContain(joined);
+            expect(plan.slots).toHaveLength(1);
+            expect(plan.slots[0].accept).toContain(joined);
         });
 
         it('accepts the kana of a merged span that carries a conjugated stem', async () => {
@@ -429,8 +440,8 @@ describe('computeBlankPlan', () => {
             const plan = (await computeBlankPlan(point, makeProgress({ learningQueue: [] }), 0))!;
 
             expect(plan.blankWordSpans).toEqual([[3, 4, 5]]);
-            expect(gradeGrammarAnswers(plan, ['にきまし'], [0]).perBlankResults[0]).toBe('correct');
-            expect(gradeGrammarAnswers(plan, ['に来まし'], [0]).perBlankResults[0]).toBe('correct');
+            expect(gradePlan(plan, ['にきまし']).slots[0].result).toBe('correct');
+            expect(gradePlan(plan, ['に来まし']).slots[0].result).toBe('correct');
         });
 
         it('carries the example the blanks were computed against', async () => {
@@ -479,9 +490,10 @@ describe('computeBlankPlan', () => {
 
             const plan = (await computeBlankPlan(point, progress, 0))!;
             expect(plan.blankWordIndices).toEqual([4]);
-            // No pattern located, so the vocab blank is not classified as pattern -
-            // grading falls back to worst-of-all at full strength.
-            expect(plan.isPatternBlank).toEqual([false]);
+            // No pattern located, so the vocab blank decides the result itself -
+            // worst-of-all at full strength - and is still credited as a word.
+            expect(plan.slots.map(s => s.role)).toEqual(['core']);
+            expect(plan.slots[0].word?.vocabId).toBe('v-sushi');
         });
     });
 });
@@ -546,7 +558,7 @@ describe('computeBlankPlan - mined sentence productivity selection (issue #73)',
         expect(plan.example).toEqual(mined);
         // index 0 ('v-a', a target) + index 2 (the pattern marker)
         expect(plan.blankWordIndices).toEqual([0, 2]);
-        expect(plan.isPatternBlank).toEqual([false, true]);
+        expect(plan.slots.map(s => s.role)).toEqual(['support', 'core']);
     });
 
     it('excludes a known word whose production is already mastered from targets - it stays visible as context', async () => {
@@ -789,7 +801,7 @@ describe('computeBlankPlan - curated examples compete with the mined pool (issue
         // that pass only checks introductionAt, not production mastery.
         expect(plan.example).toEqual(curated);
         expect(plan.blankWordIndices).toEqual([0, 1]);
-        expect(plan.isPatternBlank).toEqual([false, true]);
+        expect(plan.slots.map(s => s.role)).toEqual(['support', 'core']);
     });
 });
 
@@ -797,30 +809,27 @@ describe('wrong conjugation of the right verb', () => {
     // The sentence needs 思っ (te-form stem); 思う/おもう are the dictionary forms.
     // They used to sit in the ideal accept-list, so answering the dictionary form
     // scored full marks even though the conjugation is much of what is being tested.
-    const inflectedPlan = {
-        acceptLists: [['思っ', 'おもっ']],
-        acceptListsMinor: [['思う', 'おもう']],
-    };
+    const inflectedSlots = [answerSlot({ accept: ['思っ', 'おもっ'], near: ['思う', 'おもう'] })];
 
     it('grades the required inflected form as correct', () => {
-        expect(gradeGrammarAnswers(inflectedPlan, ['思っ'], [0]).perBlankResults[0]).toBe('correct');
-        expect(gradeGrammarAnswers(inflectedPlan, ['おもっ'], [0]).perBlankResults[0]).toBe('correct');
+        expect(gradeSlots(inflectedSlots, ['思っ'], [0]).slots[0].result).toBe('correct');
+        expect(gradeSlots(inflectedSlots, ['おもっ'], [0]).slots[0].result).toBe('correct');
     });
 
     it('gives partial credit for the right verb in the wrong conjugation', () => {
-        expect(gradeGrammarAnswers(inflectedPlan, ['思う'], [0]).perBlankResults[0]).toBe('minor_error');
-        expect(gradeGrammarAnswers(inflectedPlan, ['おもう'], [0]).perBlankResults[0]).toBe('minor_error');
+        expect(gradeSlots(inflectedSlots, ['思う'], [0]).slots[0].result).toBe('minor_error');
+        expect(gradeSlots(inflectedSlots, ['おもう'], [0]).slots[0].result).toBe('minor_error');
     });
 
     it('still grades an unrelated verb as wrong', () => {
-        expect(gradeGrammarAnswers(inflectedPlan, ['たべる'], [0]).perBlankResults[0]).toBe('wrong');
+        expect(gradeSlots(inflectedSlots, ['たべる'], [0]).slots[0].result).toBe('wrong');
     });
 
     it('leaves an uninflected word fully correct in any of its writings', () => {
         // No minor tier is built when the occurrence is not inflected, so writing a
         // noun in kana instead of kanji stays correct rather than becoming a near miss.
-        const nounPlan = { acceptLists: [['寿司', 'すし']], acceptListsMinor: [[]] };
-        expect(gradeGrammarAnswers(nounPlan, ['すし'], [0]).perBlankResults[0]).toBe('correct');
+        const nounSlots = [answerSlot({ accept: ['寿司', 'すし'] })];
+        expect(gradeSlots(nounSlots, ['すし'], [0]).slots[0].result).toBe('correct');
     });
 });
 
@@ -868,10 +877,10 @@ describe('conjugated blanks: kana accepted, other forms of a vocab word are mino
         mockVocab();
         const plan = (await computeBlankPlan(pointWith([3]), progress, 0))!;
         const blank = plan.blankWordIndices.indexOf(2);
-        expect(plan.isPatternBlank[blank]).toBe(false);
+        expect(plan.slots[blank].word?.vocabId).toBe('v-taberu');
         const grade = (input: string) => {
-            const answers = plan.blankWordIndices.map((_, i) => (i === blank ? input : plan.acceptLists[i][0]));
-            return gradeGrammarAnswers(plan, answers, []).perBlankResults[blank];
+            const answers = plan.blankWordIndices.map((_, i) => (i === blank ? input : plan.slots[i].accept[0]));
+            return gradePlan(plan, answers, []).slots[blank].result;
         };
         return { plan, blank, grade };
     }
@@ -884,7 +893,7 @@ describe('conjugated blanks: kana accepted, other forms of a vocab word are mino
 
     it('no longer treats the lemma reading stored on the word as an ideal answer', async () => {
         const { plan, blank, grade } = await vocabBlankPlan();
-        expect(plan.acceptLists[blank]).not.toContain('たべる');
+        expect(plan.slots[blank].accept).not.toContain('たべる');
         expect(grade('たべる')).toBe('minor_error');
         expect(grade('食べる')).toBe('minor_error');
     });
@@ -896,77 +905,272 @@ describe('conjugated blanks: kana accepted, other forms of a vocab word are mino
         expect(grade('野菜')).toBe('wrong');
     });
 
-    it('accepts kana on a conjugated PATTERN blank but keeps its form strict', async () => {
+    it('accepts kana on a conjugated PATTERN blank, and grades another conjugation a minor error (right formation, wrong conjugation)', async () => {
         mockVocab();
         const plan = (await computeBlankPlan(pointWith([2]), progress, 0))!;
         const blank = plan.blankWordIndices.indexOf(2);
-        expect(plan.isPatternBlank[blank]).toBe(true);
-        expect(plan.blankLemmas?.[blank] ?? null).toBeNull();
+        // A marker practises the point, so it credits no word.
+        expect(plan.slots[blank].word?.vocabId).toBeUndefined();
+        // Pattern markers now carry their lemma (issue #95 had nulled it), so a wrong
+        // conjugation of the right word is a near miss rather than flat wrong. Only the
+        // conjugation drill (a separate plan whose slot has no word) stays strict.
+        expect(plan.slots[blank].word?.lemma ?? null).not.toBeNull();
         const grade = (input: string) => {
-            const answers = plan.blankWordIndices.map((_, i) => (i === blank ? input : plan.acceptLists[i][0]));
-            return gradeGrammarAnswers(plan, answers, []).perBlankResults[blank];
+            const answers = plan.blankWordIndices.map((_, i) => (i === blank ? input : plan.slots[i].accept[0]));
+            return gradePlan(plan, answers, []).slots[blank].result;
         };
         expect(grade('たべ')).toBe('correct');
-        expect(grade('食べた')).toBe('wrong');
+        expect(grade('食べた')).toBe('minor_error'); // another form of 食べる: partial credit
+        expect(grade('野菜')).toBe('wrong');          // a different word is still wrong
     });
 
     it('leaves an uninflected vocab blank unchanged', async () => {
         const { plan } = await vocabBlankPlan();
         const yasaiBlank = plan.blankWordIndices.indexOf(0);
-        expect(new Set(plan.acceptLists[yasaiBlank])).toEqual(new Set(['野菜', 'やさい']));
+        expect(new Set(plan.slots[yasaiBlank].accept)).toEqual(new Set(['野菜', 'やさい']));
+    });
+
+    describe('a near-synonym typed in a blank', () => {
+        const withSynonym: Vocabulary = { ...taberu, synonyms: [{ id: 'v-kuu', relation: 'interchangeable', shared: ['eat'], w: ['食う'], r: ['くう'], pos: ['v5u'] }] };
+        const mockSynonyms = () => vi.spyOn(VocabularyService, 'loadVocab')
+            .mockImplementation((id: string) => Promise.resolve(id === 'v-taberu' ? withSynonym : yasai));
+
+        it('is graded against the sentence on a word blank, exactly as a production card would', async () => {
+            mockSynonyms();
+            const plan = (await computeBlankPlan(pointWith([3]), progress, 0))!;
+            const blank = plan.blankWordIndices.indexOf(2);
+            expect(plan.slots[blank].word?.synonyms.map(s => s.vocabId)).toEqual(['v-kuu']);
+
+            const answers = plan.blankWordIndices.map((_, i) => (i === blank ? '食う' : plan.slots[i].accept[0]));
+            const graded = gradePlan(plan, answers, []);
+            // "Why not eat vegetables?" uses the meaning the two words share.
+            expect(graded.slots[blank]).toMatchObject({ result: 'correct', synonym: { vocabId: 'v-kuu', outcome: 'correct' } });
+            expect(graded.overall).toBe('correct');
+            expect(graded.autoAdvance).toBe(false);
+        });
+
+        it('is never looked for on a pattern marker: another word there is wrong', async () => {
+            mockSynonyms();
+            const plan = (await computeBlankPlan(pointWith([2]), progress, 0))!;
+            expect(plan.slots[plan.blankWordIndices.indexOf(2)].word?.synonyms).toEqual([]);
+        });
+    });
+
+    it('grades a multi-token pattern marker in its plain form correct and in another tense a minor error (ある, あった for あります)', async () => {
+        const hon = makeVocab({
+            id: 'v-hon',
+            writtenForm: { kanji: '本', alternatives: [], containedKanji: ['本'] },
+            reading: { primary: 'ほん', alternatives: [] },
+            senses: [{ pos: ['n'], glosses: ['book'], misc: { rawTags: [] }, related: { compounds: [] } }],
+        });
+        vi.spyOn(VocabularyService, 'loadVocab').mockResolvedValue(hon);
+
+        // あります tokenized as あり (base ある, no vocab id) + ます, exactly as the
+        // compiled dataset does: a multi-token pattern marker with no resolved vocab.
+        const point = makeGrammarPoint({
+            examples: [{
+                jp: '本があります。',
+                romaji: 'hon ga arimasu',
+                en: 'There is a book.',
+                patternWordIndices: [2, 3],
+                words: [
+                    { surface: '本', vocabId: 'v-hon', reading: 'ほん' },
+                    { surface: 'が', vocabId: null },
+                    { surface: 'あり', vocabId: null, baseForm: 'ある' },
+                    { surface: 'ます', vocabId: null },
+                    { surface: '。', vocabId: null },
+                ],
+            }],
+        });
+        const progress = makeProgress({
+            learningQueue: [makeVocabProgress({ vocabId: 'v-hon', introductionAt: past })],
+        });
+
+        const plan = (await computeBlankPlan(point, progress, 0))!;
+        const span = plan.blankWordSpans.findIndex(s => s.includes(2));
+        expect(span).toBeGreaterThanOrEqual(0);
+        expect(plan.slots[span].role).toBe('core');
+
+        const grade = (input: string) => {
+            const answers = plan.slots.map((slot, i) => (i === span ? input : slot.accept[0]));
+            return gradePlan(plan, answers, []).slots[span].result;
+        };
+        expect(grade('あります')).toBe('correct');
+        expect(grade('ある')).toBe('correct'); // only politeness differs, and the point asks for no register
+        expect(grade('あった')).toBe('minor_error'); // right formation, another tense
+        expect(grade('ねこ')).toBe('wrong');
+    });
+
+    it('grades the marker in its other politeness correct and in another conjugation a minor error, its particle kept (がある, がありません for があります, reported)', async () => {
+        // n5-064's own shape: が, あり and ます are one pattern span, so the blank wants
+        // があります; ある links to no vocab entry, so its conjugation is read off あり.
+        const point = makeGrammarPoint({
+            examples: [{
+                jp: '教室に机があります。',
+                romaji: 'kyoushitsu ni tsukue ga arimasu',
+                en: 'There is a desk in the classroom.',
+                patternWordIndices: [3, 4, 5],
+                words: [
+                    { surface: '教室', vocabId: 'v-kyoushitsu', reading: 'きょうしつ' },
+                    { surface: 'に', vocabId: null },
+                    { surface: '机', vocabId: 'v-tsukue', reading: 'つくえ' },
+                    { surface: 'が', vocabId: null },
+                    { surface: 'あり', vocabId: null, baseForm: 'ある' },
+                    { surface: 'ます', vocabId: null },
+                    { surface: '。', vocabId: null },
+                ],
+            }],
+        });
+        const plan = (await computeBlankPlan(point, makeProgress({ learningQueue: [] }), 0))!;
+        expect(plan.blankWordSpans).toEqual([[3, 4, 5]]);
+
+        const grade = (input: string) => gradePlan(plan, [input], []).slots[0].result;
+        expect(grade('があります')).toBe('correct');
+        // Only politeness changed: the point asks for no register, so the sense is right.
+        expect(grade('がある')).toBe('correct');
+        for (const other of ['がありません', 'があった', 'がありました', 'がない']) expect(grade(other)).toBe('minor_error');
+        // The particle is part of the construction.
+        expect(grade('ある')).toBe('wrong');
+        expect(grade('がいる')).toBe('wrong');
+        expect(grade('ねこ')).toBe('wrong');
+    });
+
+    it('grades a verb ending the marker in its dictionary form in another conjugation, politeness aside, a minor error (ことがある)', async () => {
+        const point = makeGrammarPoint({
+            examples: [{
+                jp: '日本に行ったことがある。',
+                romaji: 'nihon ni itta koto ga aru',
+                en: 'I have been to Japan.',
+                patternWordIndices: [3, 4, 5],
+                words: [
+                    { surface: '日本', vocabId: 'v-nihon', reading: 'にほん' },
+                    { surface: 'に', vocabId: null },
+                    { surface: '行った', vocabId: 'v-iku', reading: 'いった', baseForm: '行く' },
+                    { surface: 'こと', vocabId: null },
+                    { surface: 'が', vocabId: null },
+                    { surface: 'ある', vocabId: null },
+                    { surface: '。', vocabId: null },
+                ],
+            }],
+        });
+        const plan = (await computeBlankPlan(point, makeProgress({ learningQueue: [] }), 0))!;
+        expect(plan.blankWordSpans).toEqual([[3, 4, 5]]);
+
+        const grade = (input: string) => gradePlan(plan, [input], []).slots[0].result;
+        expect(grade('ことがある')).toBe('correct');
+        expect(grade('ことがあります')).toBe('correct');
+        expect(grade('ことがあった')).toBe('minor_error');
+        expect(grade('ことがする')).toBe('wrong');
+    });
+
+    it('conjugates a marker verb from its vocab entry when it has one, in kanji or in kana (に行きます)', async () => {
+        const iku = makeVocab({
+            id: 'v-iku',
+            writtenForm: { kanji: '行く', alternatives: [], containedKanji: ['行'] },
+            reading: { primary: 'いく', alternatives: [] },
+            senses: [{ pos: ['v5k-s', 'vi'], glosses: ['to go'], misc: { rawTags: [] }, related: { compounds: [] } }],
+        });
+        vi.spyOn(VocabularyService, 'loadVocab').mockResolvedValue(iku);
+        const point = makeGrammarPoint({
+            examples: [{
+                jp: '学校に行きます。',
+                romaji: 'gakkou ni ikimasu',
+                en: 'I go to school.',
+                patternWordIndices: [1, 2, 3],
+                words: [
+                    { surface: '学校', vocabId: 'v-gakkou', reading: 'がっこう' },
+                    { surface: 'に', vocabId: null },
+                    { surface: '行き', vocabId: 'v-iku', reading: 'いき', baseForm: '行く' },
+                    { surface: 'ます', vocabId: null },
+                    { surface: '。', vocabId: null },
+                ],
+            }],
+        });
+        const plan = (await computeBlankPlan(point, makeProgress({ learningQueue: [] }), 0))!;
+        expect(plan.blankWordSpans).toEqual([[1, 2, 3]]);
+
+        const grade = (input: string) => gradePlan(plan, [input], []).slots[0].result;
+        expect(grade('に行きます')).toBe('correct');
+        expect(grade('にいく')).toBe('correct');
+        expect(grade('に行った')).toBe('minor_error');
+        expect(grade('にいかない')).toBe('minor_error');
+        expect(grade('に来た')).toBe('wrong');
+    });
+
+    it('keeps the other politeness a minor error when the card asks for a register', async () => {
+        const point = makeGrammarPoint({
+            formalityLevel: 'polite',
+            examples: [{
+                jp: '教室に机があります。',
+                romaji: 'kyoushitsu ni tsukue ga arimasu',
+                en: 'There is a desk in the classroom.',
+                patternWordIndices: [3, 4, 5],
+                words: [
+                    { surface: '教室', vocabId: 'v-kyoushitsu', reading: 'きょうしつ' },
+                    { surface: 'に', vocabId: null },
+                    { surface: '机', vocabId: 'v-tsukue', reading: 'つくえ' },
+                    { surface: 'が', vocabId: null },
+                    { surface: 'あり', vocabId: null, baseForm: 'ある' },
+                    { surface: 'ます', vocabId: null },
+                    { surface: '。', vocabId: null },
+                ],
+            }],
+        });
+        const plan = (await computeBlankPlan(point, makeProgress({ learningQueue: [] }), 0))!;
+        expect(gradePlan(plan, ['がある'], []).slots[0].result).toBe('minor_error');
     });
 });
 
-describe('gradeGrammarAnswers', () => {
-    const blankPlan = { acceptLists: [['すし', '寿司', '鮨', '鮓']] };
+describe('grading a grammar card', () => {
+    const blankSlots = [answerSlot({ accept: ['すし', '寿司', '鮨', '鮓'] })];
 
     it('grades a kanji-form answer, a variant-spelling answer, and a reading answer all as correct for the same blank', () => {
-        expect(gradeGrammarAnswers(blankPlan, ['寿司'], [0]).overall).toBe('correct');
-        expect(gradeGrammarAnswers(blankPlan, ['鮨'], [0]).overall).toBe('correct');
-        expect(gradeGrammarAnswers(blankPlan, ['すし'], [0]).overall).toBe('correct');
+        expect(gradeSlots(blankSlots, ['寿司'], [0]).overall).toBe('correct');
+        expect(gradeSlots(blankSlots, ['鮨'], [0]).overall).toBe('correct');
+        expect(gradeSlots(blankSlots, ['すし'], [0]).overall).toBe('correct');
     });
 
     it('grades an unrelated answer as wrong', () => {
-        const result = gradeGrammarAnswers(blankPlan, ['ねこ'], [0]);
+        const result = gradeSlots(blankSlots, ['ねこ'], [0]);
         expect(result.overall).toBe('wrong');
-        expect(result.perBlankResults).toEqual(['wrong']);
+        expect(result.slots.map(s => s.result)).toEqual(['wrong']);
     });
 
     it('a blank with hintLevel >= 2 grades as minor_error regardless of what was typed', () => {
-        const result = gradeGrammarAnswers(blankPlan, ['garbage'], [2]);
-        expect(result.perBlankResults).toEqual(['minor_error']);
-        expect(result.matchedAnswers).toEqual(['すし']);
+        const result = gradeSlots(blankSlots, ['garbage'], [2]);
+        expect(result.slots.map(s => s.result)).toEqual(['minor_error']);
+        expect(result.slots.map(s => s.shown)).toEqual(['すし']);
         expect(result.overall).toBe('minor_error');
     });
 
     it('an empty blank grades as pass: a deliberate skip, not a wrong guess', () => {
         // Was 'wrong' while Submit required every blank filled, when an empty blank
         // could only mean a broken card. Submitting with blanks left empty is now a
-        // supported way to say "I do not know this one" (see canSubmitGrammar), so it
+        // supported way to say "I do not know this one" (submitsEmpty in useExerciseTurn), so it
         // grades as the same skip a literally typed "pass" gives, and the accepted
         // form is revealed in the feedback.
-        const result = gradeGrammarAnswers(blankPlan, [''], [0]);
-        expect(result.perBlankResults[0]).toBe('pass');
+        const result = gradeSlots(blankSlots, [''], [0]);
+        expect(result.slots[0].result).toBe('pass');
         expect(result.overall).toBe('pass');
     });
 
     it('grades a whitespace-only blank as a skip too', () => {
-        expect(gradeGrammarAnswers(blankPlan, ['   '], [0]).perBlankResults[0]).toBe('pass');
+        expect(gradeSlots(blankSlots, ['   '], [0]).slots[0].result).toBe('pass');
     });
 
     it('still reveals the accepted form for a skipped blank', () => {
         // The point of allowing an empty submit: the learner sees what it should have
         // been, which is what they were reaching for the hint button to get.
-        const result = gradeGrammarAnswers(blankPlan, [''], [0]);
-        expect(result.matchedAnswers[0]).toBe('すし');
+        const result = gradeSlots(blankSlots, [''], [0]);
+        expect(result.slots.map(s => s.shown)[0]).toBe('すし');
     });
 
     describe('worst-of precedence: wrong > pass > minor_error > correct', () => {
-        const twoBlankPlan = { acceptLists: [['すし'], ['なか']] };
+        const twoBlankSlots = [answerSlot({ accept: ['すし'] }), answerSlot({ accept: ['なか'] })];
 
         it('wrong beats a revealed (minor_error) blank', () => {
-            const result = gradeGrammarAnswers(twoBlankPlan, ['ねこ', 'anything'], [0, 2]);
-            expect(result.perBlankResults[1]).toBe('minor_error');
+            const result = gradeSlots(twoBlankSlots, ['ねこ', 'anything'], [0, 2]);
+            expect(result.slots[1].result).toBe('minor_error');
             expect(result.overall).toBe('wrong');
         });
 
@@ -974,72 +1178,72 @@ describe('gradeGrammarAnswers', () => {
             // Typing the literal word "pass" grades that blank as 'pass' independently
             // of the hint system (matchAnswer) - still reachable even
             // though a revealed hint no longer forces 'pass' itself.
-            const result = gradeGrammarAnswers(twoBlankPlan, ['ねこ', 'pass'], [0, 0]);
-            expect(result.perBlankResults[1]).toBe('pass');
+            const result = gradeSlots(twoBlankSlots, ['ねこ', 'pass'], [0, 0]);
+            expect(result.slots[1].result).toBe('pass');
             expect(result.overall).toBe('wrong');
         });
 
         it('pass beats minor_error', () => {
-            const result = gradeGrammarAnswers(twoBlankPlan, ['すしい', 'pass'], [0, 0]);
-            expect(result.perBlankResults[0]).toBe('minor_error');
-            expect(result.perBlankResults[1]).toBe('pass');
+            const result = gradeSlots(twoBlankSlots, ['すしい', 'pass'], [0, 0]);
+            expect(result.slots[0].result).toBe('minor_error');
+            expect(result.slots[1].result).toBe('pass');
             expect(result.overall).toBe('pass');
         });
 
         it('pass beats correct', () => {
-            const result = gradeGrammarAnswers(twoBlankPlan, ['すし', 'pass'], [0, 0]);
-            expect(result.perBlankResults[0]).toBe('correct');
+            const result = gradeSlots(twoBlankSlots, ['すし', 'pass'], [0, 0]);
+            expect(result.slots[0].result).toBe('correct');
             expect(result.overall).toBe('pass');
         });
 
         it('a revealed (minor_error) blank beats correct', () => {
-            const result = gradeGrammarAnswers(twoBlankPlan, ['すし', 'anything'], [0, 2]);
-            expect(result.perBlankResults[0]).toBe('correct');
-            expect(result.perBlankResults[1]).toBe('minor_error');
+            const result = gradeSlots(twoBlankSlots, ['すし', 'anything'], [0, 2]);
+            expect(result.slots[0].result).toBe('correct');
+            expect(result.slots[1].result).toBe('minor_error');
             expect(result.overall).toBe('minor_error');
         });
 
         it('all correct grades overall correct', () => {
-            const result = gradeGrammarAnswers(twoBlankPlan, ['すし', 'なか'], [0, 0]);
+            const result = gradeSlots(twoBlankSlots, ['すし', 'なか'], [0, 0]);
             expect(result.overall).toBe('correct');
         });
     });
 
     describe('pattern decides the result; vocab only scales the reward (issue #33 follow-up)', () => {
         // blank 0 = grammar pattern marker, blank 1 = vocab reinforcement.
-        const plan = { acceptLists: [['いちばん'], ['すし']], isPatternBlank: [true, false] };
+        const slots = [answerSlot({ accept: ['いちばん'] }), answerSlot({ accept: ['すし'], role: 'support' })];
 
         it('pattern correct + vocab wrong stays a success (correct), never wrong', () => {
-            const result = gradeGrammarAnswers(plan, ['いちばん', 'ねこ'], [0, 0]);
-            expect(result.perBlankResults).toEqual(['correct', 'wrong']);
+            const result = gradeSlots(slots, ['いちばん', 'ねこ'], [0, 0]);
+            expect(result.slots.map(s => s.result)).toEqual(['correct', 'wrong']);
             expect(result.overall).toBe('correct');
         });
 
         it('pattern wrong is wrong even when every vocab blank is right', () => {
-            const result = gradeGrammarAnswers(plan, ['ちがう', 'すし'], [0, 0]);
+            const result = gradeSlots(slots, ['ちがう', 'すし'], [0, 0]);
             expect(result.overall).toBe('wrong');
-            expect(result.strengthDeltaModifier).toBe(1);
+            expect(result.strengthModifier).toBe(1);
         });
 
         it('a missed vocab blank reduces the strength gain but not below the floor', () => {
-            const bothMissed = gradeGrammarAnswers(plan, ['いちばん', 'ねこ'], [0, 0]);
-            expect(bothMissed.strengthDeltaModifier).toBe(0.5); // 1 pattern ok, 0/1 vocab -> floor
+            const bothMissed = gradeSlots(slots, ['いちばん', 'ねこ'], [0, 0]);
+            expect(bothMissed.strengthModifier).toBe(0.5); // 1 pattern ok, 0/1 vocab -> floor
 
-            const bothRight = gradeGrammarAnswers(plan, ['いちばん', 'すし'], [0, 0]);
-            expect(bothRight.strengthDeltaModifier).toBe(1); // all vocab right -> full gain
+            const bothRight = gradeSlots(slots, ['いちばん', 'すし'], [0, 0]);
+            expect(bothRight.strengthModifier).toBe(1); // all vocab right -> full gain
         });
 
         it('partial vocab success scales the coefficient linearly between floor and 1', () => {
-            const twoVocab = { acceptLists: [['いちばん'], ['すし'], ['なか']], isPatternBlank: [true, false, false] };
-            const result = gradeGrammarAnswers(twoVocab, ['いちばん', 'すし', 'ねこ'], [0, 0, 0]);
+            const twoVocab = [answerSlot({ accept: ['いちばん'] }), answerSlot({ accept: ['すし'], role: 'support' }), answerSlot({ accept: ['なか'], role: 'support' })];
+            const result = gradeSlots(twoVocab, ['いちばん', 'すし', 'ねこ'], [0, 0, 0]);
             expect(result.overall).toBe('correct');
-            expect(result.strengthDeltaModifier).toBe(0.75); // floor 0.5 + 0.5 * (1/2)
+            expect(result.strengthModifier).toBe(0.75); // floor 0.5 + 0.5 * (1/2)
         });
 
         it('with no vocab blanks the coefficient is a full 1', () => {
-            const patternOnly = { acceptLists: [['いちばん']], isPatternBlank: [true] };
-            const result = gradeGrammarAnswers(patternOnly, ['いちばん'], [0]);
-            expect(result.strengthDeltaModifier).toBe(1);
+            const patternOnly = [answerSlot({ accept: ['いちばん'] })];
+            const result = gradeSlots(patternOnly, ['いちばん'], [0]);
+            expect(result.strengthModifier).toBe(1);
         });
     });
 });
@@ -1164,7 +1368,7 @@ describe('computeConjugationPlan / computeBlankPlan for inflection points', () =
         expect(plan?.conjugation?.formLabel).toBe('て-form');
         // One blank, and it decides the point's result - the derivation IS the point.
         expect(plan?.blankWordIndices).toEqual([0]);
-        expect(plan?.isPatternBlank).toEqual([true]);
+        expect(plan?.slots.map(s => s.role)).toEqual(['core']);
         expect(plan?.readOnly).toBe(false);
     });
 
@@ -1172,7 +1376,7 @@ describe('computeConjugationPlan / computeBlankPlan for inflection points', () =
         vi.spyOn(GrammarService, 'loadConjugations').mockResolvedValue(conjugations);
 
         const plan = await computeBlankPlan(tePoint, null, 0);
-        const accepted = plan!.acceptLists[0];
+        const accepted = plan!.slots[0].accept;
 
         expect(accepted).toContain(plan!.conjugation!.target);
         // Whichever item was picked, its reading is accepted too.
@@ -1198,7 +1402,7 @@ describe('computeConjugationPlan / computeBlankPlan for inflection points', () =
         const point: GrammarPoint = { ...tePoint, id: 'n4-020' };
         const plan = await computeBlankPlan(point, null, 0);
 
-        expect(plan!.acceptLists[0]).toEqual(expect.arrayContaining(['書かせられる', 'かかせられる', '書かされる', 'かかされる']));
+        expect(plan!.slots[0].accept).toEqual(expect.arrayContaining(['書かせられる', 'かかせられる', '書かされる', 'かかされる']));
     });
 
     it('picks deterministically for a turn, and cycles across reviews', async () => {
@@ -1221,10 +1425,10 @@ describe('computeConjugationPlan / computeBlankPlan for inflection points', () =
         const plan = await computeBlankPlan(tePoint, null, 0);
         const target = plan!.conjugation!.target;
 
-        const right = gradeGrammarAnswers(plan!, [target], [0]);
+        const right = gradePlan(plan!, [target], [0]);
         expect(right.overall).toBe('correct');
 
-        const wrong = gradeGrammarAnswers(plan!, ['まちがい'], [0]);
+        const wrong = gradePlan(plan!, ['まちがい'], [0]);
         expect(wrong.overall).toBe('wrong');
     });
 
@@ -1264,7 +1468,7 @@ describe('computeConjugationPlan / computeBlankPlan for inflection points', () =
         });
 
         const plan = (await computeBlankPlan(negTePoint, null, 0))!;
-        const grade = (input: string) => gradeGrammarAnswers(plan, [input], [0]).overall;
+        const grade = (input: string) => gradePlan(plan, [input], [0]).overall;
 
         expect(grade('たいへんじゃなくて')).toBe('correct');
         expect(grade('大変じゃなくて')).toBe('correct');
@@ -1288,9 +1492,9 @@ describe('computeConjugationPlan / computeBlankPlan for inflection points', () =
         });
 
         const plan = (await computeBlankPlan(pastNegPoint, null, 0))!;
-        const grade = (input: string) => gradeGrammarAnswers(plan, [input], [0]).overall;
+        const grade = (input: string) => gradePlan(plan, [input], [0]).overall;
 
-        expect(plan.leniency).toBe('lenient');
+        expect(plan.slots[0].leniency).toBe('lenient');
         expect(grade('ひつようじゃなかた')).toBe('minor_error');
         expect(grade('ひつよじゃなかた')).toBe('minor_error');
         expect(grade('ひつようじゃない')).toBe('wrong');
@@ -1375,7 +1579,7 @@ describe('base-conjugation paradigm points (n5-905 plain-past, n5-911 na-adjecti
         expect(plan).not.toBeNull();
         expect(plan?.conjugation?.formLabel).toBe('plain past');
         expect(plan?.blankWordIndices).toEqual([0]);
-        expect(plan?.isPatternBlank).toEqual([true]);
+        expect(plan?.slots.map(s => s.role)).toEqual(['core']);
         expect(plan?.readOnly).toBe(false);
     });
 
@@ -1388,7 +1592,7 @@ describe('base-conjugation paradigm points (n5-905 plain-past, n5-911 na-adjecti
         expect(plan?.conjugation?.formLabel).toBe('plain');
         expect(plan?.conjugation?.wordClass).toBe('na-adjective');
         expect(plan?.blankWordIndices).toEqual([0]);
-        expect(plan?.isPatternBlank).toEqual([true]);
+        expect(plan?.slots.map(s => s.role)).toEqual(['core']);
         expect(plan?.readOnly).toBe(false);
     });
 
@@ -1397,9 +1601,9 @@ describe('base-conjugation paradigm points (n5-905 plain-past, n5-911 na-adjecti
         const plan = await computeBlankPlan(plainPastPoint, null, 0);
         const item = conjugations['n5-905'].items.find(i => i.target === plan!.conjugation!.target)!;
 
-        expect(gradeGrammarAnswers(plan!, [item.target], [0]).overall).toBe('correct');
-        expect(gradeGrammarAnswers(plan!, [item.targetReading], [0]).overall).toBe('correct');
-        expect(gradeGrammarAnswers(plan!, ['ちがう'], [0]).overall).toBe('wrong');
+        expect(gradePlan(plan!, [item.target], [0]).overall).toBe('correct');
+        expect(gradePlan(plan!, [item.targetReading], [0]).overall).toBe('correct');
+        expect(gradePlan(plan!, ['ちがう'], [0]).overall).toBe('wrong');
     });
 
     it('grades both the kanji and kana form of the copula answer as correct', async () => {
@@ -1407,25 +1611,25 @@ describe('base-conjugation paradigm points (n5-905 plain-past, n5-911 na-adjecti
         const plan = await computeBlankPlan(copulaPoint, null, 0);
         const item = conjugations['n5-911'].items.find(i => i.target === plan!.conjugation!.target)!;
 
-        expect(gradeGrammarAnswers(plan!, [item.target], [0]).overall).toBe('correct');
-        expect(gradeGrammarAnswers(plan!, [item.targetReading], [0]).overall).toBe('correct');
-        expect(gradeGrammarAnswers(plan!, ['ちがう'], [0]).overall).toBe('wrong');
+        expect(gradePlan(plan!, [item.target], [0]).overall).toBe('correct');
+        expect(gradePlan(plan!, [item.targetReading], [0]).overall).toBe('correct');
+        expect(gradePlan(plan!, ['ちがう'], [0]).overall).toBe('wrong');
     });
 
     it('accepts both real alternatives (じゃありません and ではありません) for the negative polite form', async () => {
         vi.spyOn(GrammarService, 'loadConjugations').mockResolvedValue(conjugations);
         const plan = await computeBlankPlan(negativePolitePoint, null, 0);
 
-        expect(plan!.acceptLists[0]).toEqual(expect.arrayContaining([
+        expect(plan!.slots[0].accept).toEqual(expect.arrayContaining([
             '好きじゃないです', 'すきじゃないです',
             '好きじゃありません', 'すきじゃありません',
             '好きではありません', 'すきではありません',
         ]));
-        expect(gradeGrammarAnswers(plan!, ['好きじゃありません'], [0]).overall).toBe('correct');
-        expect(gradeGrammarAnswers(plan!, ['好きではありません'], [0]).overall).toBe('correct');
+        expect(gradePlan(plan!, ['好きじゃありません'], [0]).overall).toBe('correct');
+        expect(gradePlan(plan!, ['好きではありません'], [0]).overall).toBe('correct');
 
         // Only the kanji-bearing alternatives surface in the prompt/feedback -
-        // the pure-kana ones are already covered by acceptLists, and listing
+        // the pure-kana ones are already accepted by the slot, and listing
         // both spellings of each would read as four answers rather than two.
         expect(plan!.conjugation!.alternatives).toEqual(['好きじゃありません', '好きではありません']);
     });
@@ -1493,13 +1697,13 @@ describe('realization variant rotation and two-tier grading', () => {
     it('accepts a same-register sibling as correct: the particles are interchangeable', async () => {
         const plan = await computeBlankPlan(canonical, null, 0);
         const politeForms = ['どこにも', 'どこへも', 'どこも'];
-        const accepted = plan!.acceptLists[0];
+        const accepted = plan!.slots[0].accept;
         // Every polite realization is acceptable, whichever one was asked for.
         const overlap = politeForms.filter(f => accepted.includes(f));
         expect(overlap.length).toBeGreaterThanOrEqual(2);
 
         for (const form of overlap) {
-            expect(gradeGrammarAnswers(plan!, [form], [0]).overall).toBe('correct');
+            expect(gradePlan(plan!, [form], [0]).overall).toBe('correct');
         }
     });
 
@@ -1508,23 +1712,23 @@ describe('realization variant rotation and two-tier grading', () => {
         let planWithMinor = null as Awaited<ReturnType<typeof computeBlankPlan>>;
         for (let i = 0; i < 16; i++) {
             const p = await computeBlankPlan(canonical, null, i);
-            if ((p?.acceptListsMinor?.[0]?.length ?? 0) > 0) { planWithMinor = p; break; }
+            if ((p?.slots[0]?.near.length ?? 0) > 0) { planWithMinor = p; break; }
         }
         expect(planWithMinor, 'expected a turn with a differing-register sibling').not.toBeNull();
 
-        const minorForm = planWithMinor!.acceptListsMinor![0][0];
-        expect(gradeGrammarAnswers(planWithMinor!, [minorForm], [0]).overall).toBe('minor_error');
+        const minorForm = planWithMinor!.slots[0].near[0];
+        expect(gradePlan(planWithMinor!, [minorForm], [0]).overall).toBe('minor_error');
     });
 
     it('still grades an unrelated answer wrong', async () => {
         const plan = await computeBlankPlan(canonical, null, 0);
-        expect(gradeGrammarAnswers(plan!, ['まったくちがう'], [0]).overall).toBe('wrong');
+        expect(gradePlan(plan!, ['まったくちがう'], [0]).overall).toBe('wrong');
     });
 
     it('never widens a vocab blank, only the pattern blanks', async () => {
         const plan = await computeBlankPlan(canonical, null, 0);
-        plan!.isPatternBlank.forEach((isPattern, i) => {
-            if (!isPattern) expect(plan!.acceptListsMinor?.[i] ?? []).toEqual([]);
+        plan!.slots.forEach(slot => {
+            if (slot.role === 'support') expect(slot.near).toEqual([]);
         });
     });
 
@@ -1532,73 +1736,9 @@ describe('realization variant rotation and two-tier grading', () => {
         vi.spyOn(GrammarService, 'loadVariantGroups').mockResolvedValue({});
         const plan = await computeBlankPlan(canonical, null, 0);
         expect(plan?.realization).toBeUndefined();
-        // acceptListsMinor is now always present (every plan carries a minor tier, for
-        // inflected vocab blanks), so the invariant is that it offers no near-miss
-        // forms here rather than that the field is absent.
-        expect(plan?.acceptListsMinor?.every(list => list.length === 0)).toBe(true);
-    });
-});
-
-describe('summariseVocabGains', () => {
-    const entry = (strength: number) => srsEntry({ memoryStrength: strength, interval: 1 });
-    // `strength` moves the PRODUCTION entry, because that is where
-    // applyVocabReinforcement puts the credit and therefore what this must measure.
-    const word = (vocabId: string, strength: number) => vocabProgress({
-        vocabId, totalReviews: 1,
-        reading: entry(100), meaning: entry(100), production: entry(strength),
-    });
-    const words = [
-        { surface: '私', vocabId: 'a', baseForm: undefined },
-        { surface: '思っ', vocabId: 'b', baseForm: '思う' },
-    ];
-
-    it('reports nothing when the queue was not touched (same reference)', () => {
-        const queue = [word('a', 100)];
-        expect(summariseVocabGains(queue, queue, words)).toEqual({ total: 0, breakdown: [] });
-    });
-
-    it('splits the gain per word and sums it', () => {
-        const before = [word('a', 100), word('b', 100)];
-        const after = [word('a', 140), word('b', 200)];
-
-        const { total, breakdown } = summariseVocabGains(before, after, words);
-
-        expect(breakdown).toHaveLength(2);
-        expect(total).toBeCloseTo(breakdown.reduce((s, w) => s + w.delta, 0), 5);
-    });
-
-    it('orders the breakdown by biggest gain first', () => {
-        const before = [word('a', 100), word('b', 100)];
-        const after = [word('a', 120), word('b', 300)];
-
-        const { breakdown } = summariseVocabGains(before, after, words);
-
-        expect(breakdown[0].label).toBe('思う');
-        expect(breakdown[0].delta).toBeGreaterThan(breakdown[1].delta);
-    });
-
-    it('labels a word by its dictionary form, not the inflected surface in the sentence', () => {
-        // "思う +3" is a word the learner can look up; "思っ +3" is a fragment.
-        const { breakdown } = summariseVocabGains([word('b', 100)], [word('b', 200)], words);
-        expect(breakdown[0].label).toBe('思う');
-    });
-
-    it('uses the surface when the word has no separate dictionary form', () => {
-        const { breakdown } = summariseVocabGains([word('a', 100)], [word('a', 200)], words);
-        expect(breakdown[0].label).toBe('私');
-    });
-
-    it('skips words whose strength did not move', () => {
-        const before = [word('a', 100), word('b', 100)];
-        const after = [{ ...word('a', 100) }, word('b', 200)]; // 'a' is a new object but unchanged
-        const { breakdown } = summariseVocabGains(before, after, words);
-
-        expect(breakdown.map(w => w.label)).toEqual(['思う']);
-    });
-
-    it('falls back to the vocab id when the sentence has no matching word', () => {
-        const { breakdown } = summariseVocabGains([word('z', 100)], [word('z', 200)], words);
-        expect(breakdown[0].label).toBe('z');
+        // Every slot has a near tier (inflected vocab blanks fill theirs), so the
+        // invariant is that it offers no near-miss forms here.
+        expect(plan?.slots.every(slot => slot.near.length === 0)).toBe(true);
     });
 });
 
@@ -1640,14 +1780,14 @@ describe('family interchange (issue #62): slot-gated, axis-tiered', () => {
 
     it('accepts a same-slot same-register sibling as correct, a same-slot other-register sibling as minor', async () => {
         const plan = (await computeBlankPlan(point, makeProgress({ learningQueue: [] }), 0))!;
-        expect(plan.isPatternBlank[0]).toBe(true);
-        expect(plan.acceptLists[0]).toContain('だけど');
-        expect(plan.acceptListsMinor![0]).toContain('ものの');
+        expect(plan.slots[0].role).toBe('core');
+        expect(plan.slots[0].accept).toContain('だけど');
+        expect(plan.slots[0].near).toContain('ものの');
     });
 
     it('excludes a different-slot sibling (ungrammatical substitution) and a constraint sibling (changes meaning)', async () => {
         const plan = (await computeBlankPlan(point, makeProgress({ learningQueue: [] }), 0))!;
-        const all = [...plan.acceptLists[0], ...(plan.acceptListsMinor?.[0] ?? [])];
+        const all = [...plan.slots[0].accept, ...plan.slots[0].near];
         expect(all).not.toContain('でも');
         expect(all).not.toContain('それでも');
     });
@@ -1655,8 +1795,8 @@ describe('family interchange (issue #62): slot-gated, axis-tiered', () => {
     it('does nothing when the point has no slot', async () => {
         const noSlot = makeGrammarPoint({ ...point, slot: undefined });
         const plan = (await computeBlankPlan(noSlot, makeProgress({ learningQueue: [] }), 0))!;
-        expect(plan.acceptLists[0]).toEqual(['けど']);
-        expect(plan.acceptListsMinor?.[0] ?? []).toEqual([]);
+        expect(plan.slots[0].accept).toEqual(['けど']);
+        expect(plan.slots[0].near).toEqual([]);
     });
 });
 

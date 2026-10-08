@@ -16,7 +16,7 @@ interface UseQuizFocusManagementOptions {
 
 /**
  * Single owner of "what should be focused and when" for a quiz card, shared
- * between the vocab quiz (BaseQuizCard) and the grammar quiz (GrammarQuizCard):
+ * by every card shell (SingleAnswerCard, SentenceClozeCard, StudyCard):
  * focus the first input on a fresh question (or when feedback clears for a
  * retry), and focus the Continue button once feedback is showing and
  * continuing doesn't require re-typing - so the keyboard-only flow (Enter to

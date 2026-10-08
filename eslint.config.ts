@@ -74,6 +74,44 @@ const typingRules: Linter.RulesRecord = {
   'no-restricted-syntax': ['error', ...TYPE_ESCAPE_HATCHES],
 }
 
+/** The apps never import from each other: code both need goes in a package under packages/. */
+const NOT_FROM_DICTIONARY = { group: ['**/gokan-dictionary/**'], message: 'Share it through a package under packages/.' }
+
+/**
+ * Grading primitives belong to the exercise engine (services/exercise). An exercise
+ * that matched answers or looked up synonyms itself would grade differently from every
+ * other one, which is how the vocab and grammar quizzes drifted apart. Everything else
+ * builds slots and asks the engine (gradeExercise).
+ */
+const GRADING_PRIMITIVES = [
+  {
+    group: ['**/utils/answerMatching'],
+    importNames: ['matchAnswer', 'matchBest'],
+    message: 'Grading belongs to the exercise engine (services/exercise): build slots and call gradeExercise.',
+  },
+  {
+    group: ['**/utils/inflection.utils'],
+    importNames: ['isFormOfWord'],
+    message: 'Grading belongs to the exercise engine (services/exercise): build slots and call gradeExercise.',
+  },
+  {
+    group: ['**/utils/synonymContext.utils'],
+    importNames: ['synonymOutcome', 'embeddedSynonymCandidate', 'orderSynonymsForCue'],
+    message: 'Grading belongs to the exercise engine (services/exercise): build slots and call gradeExercise.',
+  },
+]
+
+/**
+ * An answer writes SRS state only through the exercise engine's effects
+ * (services/exercise/effects.ts). The vocab and grammar continue actions each used to
+ * apply their own credit rules, and they drifted (one credited synonyms, one did not).
+ */
+const SRS_WRITES = {
+  selector: "CallExpression[callee.object.name=/^(SRSService|GrammarSRSService)$/][callee.property.name=/^(applyAnswer|applyProductionReinforcement|rescheduleForRetry|deferWithoutCredit)$/]",
+  message: 'An answer writes SRS state only through applyEffects (services/exercise/effects.ts).',
+}
+const SRS_WRITE_OWNERS = [`${SRS}/src/services/exercise/effects.ts`, `${SRS}/src/**/*.test.ts`]
+
 const LOCAL_STORAGE = { name: 'localStorage', message: 'Use StorageService (services/storage.service.ts).' }
 const SESSION_STORAGE = { name: 'sessionStorage', message: 'Use usePersistedControls (hooks/usePersistedControls.ts).' }
 const FETCH = { name: 'fetch', message: 'Network calls belong in a service under services/.' }
@@ -128,14 +166,21 @@ export default defineConfig([
     languageOptions: { globals: globals.node },
   },
   {
+    files: [`${SRS}/src/**/*.{ts,tsx}`],
+    ignores: SRS_WRITE_OWNERS,
+    rules: { 'no-restricted-syntax': ['error', ...TYPE_ESCAPE_HATCHES, SRS_WRITES] },
+  },
+  {
     // Pure state: the reducers and selectors never read the clock or a random source. The
     // orchestration layer passes `now` (and any randomness) in, which is what keeps them
-    // deterministic and unit-testable.
+    // deterministic and unit-testable. (A later block replaces the whole rule, so the
+    // SRS-write restriction above is repeated.)
     files: [`${SRS}/src/context/quiz/*Reducer.ts`, `${SRS}/src/context/quiz/*Selectors.ts`],
     rules: {
       'no-restricted-syntax': [
         'error',
         ...TYPE_ESCAPE_HATCHES,
+        SRS_WRITES,
         {
           selector: "CallExpression[callee.object.name='Date'][callee.property.name='now']",
           message: 'Reducers and selectors are pure: take `now` as an argument.',
@@ -179,7 +224,15 @@ export default defineConfig([
   {
     files: [`${SRS}/**/*.{ts,tsx}`],
     rules: {
-      'no-restricted-imports': ['error', { patterns: [{ group: ['**/gokan-dictionary/**'], message: 'Share it through a package under packages/.' }] }],
+      'no-restricted-imports': ['error', { patterns: [NOT_FROM_DICTIONARY] }],
+    },
+  },
+  // A later block replaces the whole rule, so the boundary is repeated here.
+  {
+    files: [`${SRS}/src/**/*.{ts,tsx}`],
+    ignores: [`${SRS}/src/services/exercise/**`, `${SRS}/src/**/*.test.ts`],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: [NOT_FROM_DICTIONARY, ...GRADING_PRIMITIVES] }],
     },
   },
   {

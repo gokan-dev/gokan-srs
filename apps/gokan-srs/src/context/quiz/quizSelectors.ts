@@ -1,5 +1,4 @@
 import type { VocabProgress } from '../../models/vocabulary.model';
-import type { Sentence } from '@gokan/dataset-schema';
 import type { SessionState } from '../../models/state.model';
 import type { UserSettings } from '../../models/user.model';
 import { getNextVocabToStudy, isMeaningActionable, isProductionActionable, isReadingActionable } from '../../utils/srs.utils';
@@ -177,12 +176,6 @@ export function selectCurrentProgress(
     return state.progress.learningQueue.find(v => v.vocabId === state.currentVocab!.id) ?? null;
 }
 
-export function selectCurrentSentence(
-    state: Pick<QuizState, 'currentSentences' | 'currentSentenceId'>
-): Sentence | null {
-    if (!state.currentSentences || !state.currentSentenceId) return null;
-    return state.currentSentences.find(s => s.id === state.currentSentenceId) ?? null;
-}
 
 /** Every quiz task actionable right now, as task keys (`vocabId:quizType`). */
 export function collectActionableTaskKeys(

@@ -1,14 +1,12 @@
 import type { GrammarChapter } from '@gokan/dataset-schema';
 import type { GrammarProgress } from '../models/grammar.model';
 import { JLPT_LEVELS } from '@gokan/dataset-schema';
-import type { VocabProgress } from '../models/vocabulary.model';
-import type { UserSettings } from '../models/user.model';
 import type { AnswerResult } from './srs.service';
 import { SRSService } from './srs.service';
 import { CONSTANTS } from '../commons/constants';
 import { GrammarService } from './grammar.service';
 import { isGrammarFullyMastered, grammarNextReviewAt } from './grammarScheduling';
-import { newSRSEntry, isProductionActivated } from './scheduling';
+import { newSRSEntry } from './scheduling';
 import { collectJlptCandidates, countJlptCandidates } from './jlptWalk';
 
 /**
@@ -75,7 +73,7 @@ export class GrammarSRSService {
         growthLevel: number = 1.0,
         frequencyModifier: number = 1.0,
         // Scales the grammar point's memory-strength gain by how well the
-        // sentence's *vocab* blanks went (see gradeGrammarAnswers): a demonstrated
+        // sentence's *vocab* blanks went (see gradeExercise): a demonstrated
         // grammar core always keeps its result, but earns proportionally less when
         // the surrounding vocab was missed. 1.0 = full gain.
         strengthDeltaModifier: number = 1.0,
@@ -147,94 +145,23 @@ export class GrammarSRSService {
     }
 
     /**
-     * Applies POSITIVE-ONLY vocab credit to the user's learning queue for the
-     * non-pattern (vocab reinforcement) blanks the user answered correctly in a
-     * grammar sentence. Only ever upward: `credits` is pre-filtered to
-     * correct/minor_error results, and a word not in the learning queue is skipped
-     * entirely. A wrong vocab blank never reaches here, so grammar practice can
-     * never penalise vocab.
-     *
-     * **Credit goes to the PRODUCTION entry, not reading.** Filling a blank is
-     * English sentence in, Japanese out, which is production's definition exactly.
-     * Reading means the opposite question (given the written form, produce its
-     * sound) and a blank never shows the written form to read - it is a gap the
-     * learner writes into. This used to credit reading, which is the one direction
-     * of the three that the exercise structurally cannot test.
-     *
-     * Credited at `reinforcementStrengthRatio` rather than in full: the direction is
-     * right but the conditions are much easier than a production card's, since the
-     * English sentence, the surrounding Japanese and the bracketing particles narrow
-     * the candidates, and kanji is accepted where that card wants the reading.
-     *
-     * Deliberately NOT split across all three entries. Each entry drives its own
-     * schedule, so crediting three would push three due dates out on one scaffolded
-     * answer and thin out review pressure in two directions this never exercised.
-     *
-     * A word whose production entry has not been activated yet is **seeded first**
-     * (`SRSService.seedProductionEntry`, strength from meaning at its usual ratio)
-     * and then credited on top, so it joins the production rotation at its designed
-     * baseline rather than at whatever one grammar blank happens to compute.
-     *
-     * No-op when production quizzes are disabled: the exercise trains a direction
-     * the user has switched off, and crediting reading instead would just restore
-     * the mismatch this exists to fix.
-     *
-     * Latency is neutralised (expectedLatency) rather than threaded through from
-     * the card, since the single card-level timing can't be attributed per blank
-     * and a stray fast/slow submit shouldn't skew an individual word's difficulty.
+     * No credit, no penalty, and the point is asked again: the grammar twin of
+     * SRSService.rescheduleForRetry, for a card where no answer could decide the
+     * result (every deciding blank was a confusable near-synonym). The due date
+     * moves to now plus the unchanged interval, so once the retry is answered the
+     * point is not due again at once.
      */
-    static applyVocabReinforcement(
-        learningQueue: VocabProgress[],
-        credits: { vocabId: string; result: AnswerResult }[],
-        now: Date,
-        settings: UserSettings,
-        // The production quiz type's calibration level: this credits production's
-        // entry, so it grows the way a production answer would. It does not RECORD
-        // a production review, though: a scaffolded blank is not one.
-        productionGrowthLevel: number = 1.0
-    ): VocabProgress[] {
-        if (credits.length === 0) return learningQueue;
-
-        const meaningEnabled = settings.enableMeaningQuiz !== false;
-        const productionEnabled = settings.enableProductionQuiz !== false;
-        if (!productionEnabled) return learningQueue;
-
-        const frequencyModifier = CONSTANTS.srs.frequencyMultipliers[settings.learningFrequency];
-        const neutralLatency = CONSTANTS.srs.quizProperties.production.expectedLatency;
-
-        let changed = false;
-        const next = learningQueue.map(vp => {
-            const credit = credits.find(c => c.vocabId === vp.vocabId);
-            if (!credit || (credit.result !== 'correct' && credit.result !== 'minor_error')) return vp;
-
-            // Bring production online at its designed baseline before crediting, so a
-            // word met first through grammar does not enter the rotation at whatever
-            // strength one scaffolded blank produces.
-            const seeded: VocabProgress = isProductionActivated(vp.production)
-                ? vp
-                : { ...vp, production: SRSService.seedProductionEntry(vp.production, vp.meaning, now) };
-
-            // correctAnswer is unused because forcedResult (credit.result) is supplied.
-            const { updated } = SRSService.applyAnswer(
-                seeded, 'production', 'base', '', '',
-                neutralLatency, now, credit.result, productionGrowthLevel, frequencyModifier, meaningEnabled,
-                productionEnabled, CONSTANTS.srs.production.reinforcementStrengthRatio
-            );
-            changed = true;
-            // Mark the log this credit wrote, so the calibration's replay of the
-            // review logs does not count it as a production review.
-            const history = updated.production?.history ?? [];
-            if (!updated.production || history.length === 0) return updated;
-            return {
-                ...updated,
-                production: {
-                    ...updated.production,
-                    history: [...history.slice(0, -1), { ...history[history.length - 1], source: 'reinforcement' as const }],
-                },
-            };
-        });
-
-        return changed ? next : learningQueue;
+    static rescheduleForRetry(progress: GrammarProgress, now: Date): GrammarProgress {
+        const intervalDays = Math.max(progress.entry.interval, CONSTANTS.srs.formula.minInterval);
+        const entry = { ...progress.entry, lastReviewedAt: now, dueDate: new Date(now.getTime() + intervalDays * 24 * 60 * 60 * 1000) };
+        return {
+            ...progress,
+            entry,
+            nextReviewAt: progress.stage === 'graduated' ? progress.nextReviewAt : grammarNextReviewAt({ entry }),
+            needsRetry: true,
+            lastReviewedAt: now,
+            totalReviews: progress.totalReviews + 1,
+        };
     }
 
     /**

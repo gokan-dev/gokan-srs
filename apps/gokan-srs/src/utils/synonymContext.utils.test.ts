@@ -4,8 +4,19 @@ import {
     sharedMeaningInCue, sharedMeaningUsed, synonymOutcome,
 } from './synonymContext.utils';
 import type { ProductionCloze } from './productionCloze.utils';
-import { SRSService } from '../services/srs.service';
+import { gradeSlot } from '../services/exercise/grading';
+import { wordSlot } from '../services/exercise/slots';
+import type { SynonymCandidate } from '../services/exercise/types';
 import { headwordOf } from '@gokan/dataset-schema';
+
+/** The candidate a production card for 玄関 would identify `input` as, if any. */
+function identified(input: string, candidate: SynonymCandidate): string | undefined {
+    const genkan = wordSlot(
+        { reading: { primary: 'げんかん', alternatives: [] }, writtenForm: { kanji: '玄関', alternatives: [], containedKanji: ['玄', '関'] } },
+        { otherForm: 'correct', role: 'core', synonyms: [candidate] },
+    );
+    return gradeSlot(genkan, input, 0, {}).synonym?.vocabId;
+}
 
 const cloze = (en: string): ProductionCloze => ({
     sentence: { id: 's', original: '', en: [{ id: 'e', text: en }], vocabIds: [] },
@@ -113,35 +124,37 @@ describe('embeddedSynonymCandidate (grading without fetching the other word)', (
     const toujou = { id: '1444800', relation: 'confusable' as const, shared: ['entrance'], overlap: 0.17, w: ['登場'], r: ['とうじょう'], pos: ['vs'] };
 
     it('builds a candidate the production grader matches by reading or written form', () => {
-        const candidate = embeddedSynonymCandidate(toujou)!;
+        const candidate = embeddedSynonymCandidate(toujou);
         expect(candidate.vocab.writtenForm.kanji).toBe('登場');
         expect(candidate.vocab.reading.primary).toBe('とうじょう');
-        expect(SRSService.evaluateProductionSynonyms('とうじょう', [candidate])?.candidate.vocabId).toBe('1444800');
-        expect(SRSService.evaluateProductionSynonyms('登場', [candidate])).not.toBeNull();
-        expect(SRSService.evaluateProductionSynonyms('げんかん', [candidate])).toBeNull();
+        expect(identified('とうじょう', candidate)).toBe('1444800');
+        expect(identified('登場', candidate)).toBe('1444800');
+        expect(identified('ねこ', candidate)).toBeUndefined();
     });
 
     it('carries the shared glosses and tier through, so context grading is unchanged', () => {
-        const candidate = embeddedSynonymCandidate(toujou)!;
+        const candidate = embeddedSynonymCandidate(toujou);
         expect(synonymOutcome(candidate, { sentence: "Let's take off our shoes at the entrance." })).toBe('correct');
         expect(synonymOutcome(candidate, { glosses: ['front door'] })).toBe('confusable');
     });
 
     it('keeps alternatives and the inflecting POS, so a conjugated synonym still matches', () => {
-        const candidate = embeddedSynonymCandidate({ id: 'x', relation: 'interchangeable', w: ['並べる', '列べる'], r: ['ならべる'], pos: ['v1'] })!;
-        expect(SRSService.evaluateProductionSynonyms('列べる', [candidate])).not.toBeNull();
-        expect(SRSService.evaluateProductionSynonyms('並べた', [candidate])).not.toBeNull();
-    });
-
-    it('returns null for an entry without forms, which the caller fetches instead', () => {
-        expect(embeddedSynonymCandidate({ id: 'x', relation: 'confusable', shared: ['a'] })).toBeNull();
+        const candidate = embeddedSynonymCandidate({ id: 'x', relation: 'interchangeable', w: ['並べる', '列べる'], r: ['ならべる'], pos: ['v1'] });
+        expect(identified('列べる', candidate)).toBe('x');
+        expect(identified('並べた', candidate)).toBe('x');
     });
 
     it('marks a word learned in kana, so the feedback names it by its kana', () => {
-        const kana = embeddedSynonymCandidate({ id: 'x', relation: 'confusable', w: ['此処'], r: ['ここ'], u: true })!;
+        const kana = embeddedSynonymCandidate({ id: 'x', relation: 'confusable', w: ['此処'], r: ['ここ'], u: true });
         expect(headwordOf(kana.vocab)).toBe('ここ');
         // Typing its rare kanji spelling still identifies it.
-        expect(SRSService.evaluateProductionSynonyms('此処', [kana])).not.toBeNull();
-        expect(headwordOf(embeddedSynonymCandidate(toujou)!.vocab)).toBe('登場');
+        expect(identified('此処', kana)).toBe('x');
+        expect(headwordOf(embeddedSynonymCandidate(toujou).vocab)).toBe('登場');
+    });
+
+    it('names a kana-only word by its reading', () => {
+        const kitto = embeddedSynonymCandidate({ id: 'k', relation: 'interchangeable', w: [], r: ['きっと'] });
+        expect(kitto.vocab.writtenForm.kanji).toBe('きっと');
+        expect(identified('きっと', kitto)).toBe('k');
     });
 });

@@ -164,7 +164,7 @@ export const App: React.FC = () => {
                             <VocabQuizScreen onVocabClick={(id) => void navigate(`/vocab/${id}`)} />
                         } />
                         <Route path="/grammar" element={
-                            <GrammarScreen />
+                            <GrammarScreen onVocabClick={(id) => void navigate(`/vocab/${id}`)} />
                         } />
                         <Route path="/stats" element={
                             <StatsScreen

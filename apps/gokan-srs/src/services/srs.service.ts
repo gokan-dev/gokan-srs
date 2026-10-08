@@ -1,6 +1,6 @@
 // src/services/srs.service.ts
 import { JLPT_LEVELS } from '@gokan/dataset-schema';
-import type { SynonymRelation, Vocabulary } from '@gokan/dataset-schema';
+import type { Vocabulary } from '@gokan/dataset-schema';
 import type { ReviewLog, SRSEntry, VocabProgress } from '../models/vocabulary.model';
 import { CONSTANTS } from '../commons/constants';
 import { VocabularyService } from './vocabulary.service';
@@ -8,39 +8,10 @@ import type { KanjiKnowledge, UserSettings } from '../models/user.model';
 import { introQuizType, isVocabFullyMastered, vocabNextReviewAt, newSRSEntry, isProductionActivated } from './scheduling';
 import type { QuizType } from '../utils/srs.utils';
 import { collectJlptCandidates, countJlptCandidates } from './jlptWalk';
-import { isFormOfWord, toInflectableWord } from '../utils/inflection.utils';
-import { matchAnswer, matchBest, type AnswerResult, type Leniency } from '../utils/answerMatching';
+import type { AnswerResult } from '../utils/answerMatching';
 import { orderIncludesUsuallyKana, usuallyKanaPacer, type UsuallyKanaPacer } from '../utils/usuallyKana.utils';
 
 export type { AnswerResult } from '../utils/answerMatching';
-
-/**
- * One member of the current production word's near-synonym cluster (issue #71
- * Part B, gokan-dataset's index/synonyms.json), resolved to its own accept-list
- * shape at card-load time - see useQuizOrchestration's loading effect - so
- * grading a collision against it stays synchronous.
- */
-/**
- * What production grading reads off a vocab. `senses` carries the part-of-speech
- * tags the inflection generator needs; without it a word simply has no
- * inflections and only its dictionary forms are accepted.
- */
-export type ProductionVocab = Pick<Vocabulary, 'reading' | 'writtenForm' | 'mergedVocabs' | 'usuallyKana'> & Partial<Pick<Vocabulary, 'senses'>>;
-
-export interface ProductionSynonymCandidate {
-    vocabId: string;
-    relation: SynonymRelation;
-    vocab: ProductionVocab;
-    /** See VocabSynonym.shared / curated. */
-    shared?: string[];
-    curated?: boolean;
-}
-
-export interface ProductionSynonymMatch {
-    candidate: ProductionSynonymCandidate;
-    /** The candidate's OWN matched form (mirrors evaluateProductionAnswer's matchedAnswer). */
-    matchedAnswer: string;
-}
 
 const F = CONSTANTS.srs.formula;
 
@@ -56,150 +27,16 @@ export interface LearnableScope {
 export class SRSService {
 
     /* =======================
-       ANSWER EVALUATION
+       ANSWER APPLICATION
        ======================= */
 
     /**
-     * Checks user input against ALL acceptable readings, through the shared
-     * matcher (utils/answerMatching.ts). Returns the best result found.
-     */
-    static evaluateAnswer(
-        userInput: string,
-        readings: { primary: string; alternatives: string[] },
-        leniency: Leniency = 'standard'
-    ): { result: AnswerResult; matchedAnswer: string } {
-        return matchBest(userInput, [readings.primary, ...readings.alternatives], leniency);
-    }
-
-    /**
-     * Checks user input against ALL acceptable meanings (glosses). Builds the
-     * accept-list (each gloss split on its separators); the comparison itself is
-     * the shared matcher's, like every other quiz.
-     */
-    static evaluateMeaning(
-        userInput: string,
-        meanings: string[]
-    ): { result: AnswerResult; matchedAnswer: string } {
-        const parts = meanings.flatMap(meaning => {
-            // Parentheses go first so commas inside them ("go (to, from)") don't
-            // split the gloss.
-            let clean = meaning;
-            let prev;
-            do {
-                prev = clean;
-                clean = clean.replace(/\s*\([^()]*\)\s*/g, ' ');
-            } while (clean !== prev);
-
-            // Split on ; and , but not a comma inside a number (10,000).
-            return clean.split(/;\s*|,(?!\d)\s*/).map(p => p.trim()).filter(p => p.length > 0);
-        });
-
-        const best = matchBest(userInput, parts);
-        // Nothing accepted to reveal beyond the first gloss when nothing matched.
-        return best.result === 'wrong' || best.result === 'pass'
-            ? { result: best.result, matchedAnswer: meanings[0] || '' }
-            : best;
-    }
-
-    /**
-     * Checks a production answer (English prompt, Japanese reading answer)
-     * against the FULL accept-list the way `computeBlankPlan` (`grammarSelectors.ts`)
-     * already builds its own: the reading primary and alternatives, plus
-     * `writtenForm.kanji` and its alternatives, plus any `mergedVocabs` readings
-     * (issue #71 Part A). Previously this graded against `evaluateAnswer` on the
-     * reading alone, so a correct kanji answer (必ず for かならず) graded `wrong`.
-     *
-     * ONE accept-list, ONE comparison rule. Production does not orchestrate its
-     * own matching: it assembles the forms it will accept and hands them to
-     * `evaluateAnswer`, exactly as the reading quiz and the grammar blanks do,
-     * so a given typo is graded identically whichever quiz asked the question.
-     *
-     * Written forms briefly had a bespoke path here, matched EXACTLY and nothing
-     * else, to keep them off the Levenshtein comparison: a distance-1 difference
-     * between two kanji strings is usually a different word. The protection was
-     * right, the placement was not. Exact-only cannot express "right word, tail
-     * missing", so it graded 六 for 六つ as `wrong` at -0.40 (reported from
-     * production). Moving the distinction into the shared matcher
-     * (`matchAnswer`, utils/answerMatching.ts), as a kanji-skeleton rule, protects every quiz at once instead of this one call site, and the
-     * special case here became dead weight.
-     *
-     * Shared by both production quiz cards (gloss-prompt and the sentence-cloze
-     * card from issue #72) - both set `quizType: 'production'`, so this is the
-     * single grading path either one goes through.
-     */
-    static evaluateProductionAnswer(
-        userInput: string,
-        vocab: ProductionVocab,
-        // The cloze card's blanked surface and its reading (食べたら / たべたら),
-        // accepted on the normal typo-tolerant path. They cover a sentence form
-        // the inflection tables do not produce.
-        extraForms: string[] = []
-    ): { result: AnswerResult; matchedAnswer: string } {
-        const evaluation = this.evaluateAnswer(userInput, {
-            primary: vocab.reading.primary,
-            alternatives: [
-                ...vocab.reading.alternatives,
-                ...(vocab.mergedVocabs?.map(m => m.originalPrimaryReading) ?? []),
-                vocab.writtenForm.kanji,
-                ...vocab.writtenForm.alternatives,
-                ...extraForms,
-            ],
-        });
-        if (evaluation.result === 'correct' || evaluation.result === 'pass') return evaluation;
-
-        // Production tests whether the learner can produce the WORD, not its
-        // conjugation (issue #95). Any form of it, in kanji or kana, is a correct
-        // answer: 食べた, たべたら and 食べる all answer a cue for 食べる.
-        if (isFormOfWord(userInput, toInflectableWord(vocab))) {
-            return { result: 'correct', matchedAnswer: userInput.trim() };
-        }
-        return evaluation;
-    }
-
-    /**
-     * Checks a WRONG production answer (per evaluateProductionAnswer above) against
-     * the target word's precomputed near-synonym cluster (issue #71 Part B). Reuses
-     * evaluateProductionAnswer per candidate - the identical accept-list logic used
-     * to grade the target itself - so a "collision" here means the input is a
-     * genuine written/reading form of that OTHER word, never a loose partial match.
-     *
-     * Only ever meaningful once the target's own evaluateProductionAnswer has
-     * already graded 'wrong'; candidates are precomputed at card-load time (see
-     * useQuizOrchestration's loading effect, same pattern as computeBlankPlan's
-     * accept-lists), so this itself does no I/O and grading stays synchronous.
-     *
-     * An EXACT match wins over a typo match, whatever the candidate order: with
-     * dozens of candidates per word, the input can be one candidate's exact form
-     * and another's typo at once. つむ is 積む exactly, but it used to match 止む
-     * (やむ) as a typo first and grade as that word instead (reported from
-     * production). Otherwise the first typo match is returned.
-     */
-    static evaluateProductionSynonyms(
-        userInput: string,
-        candidates: ProductionSynonymCandidate[]
-    ): ProductionSynonymMatch | null {
-        let typoMatch: ProductionSynonymMatch | null = null;
-        for (const candidate of candidates) {
-            const evaluation = this.evaluateProductionAnswer(userInput, candidate.vocab);
-            if (evaluation.result === 'wrong') continue;
-            const match = { candidate, matchedAnswer: evaluation.matchedAnswer };
-            if (evaluation.result === 'correct') return match;
-            typoMatch ??= match;
-        }
-
-        return typoMatch;
-    }
-
-    /**
-     * Applies a `confusable` synonym collision (issue #71 Part B): the answer is a
-     * genuine OTHER word from the target's near-synonym cluster - overlapping
-     * glosses, but distinct usage - not an acceptable substitute, but not the
-     * unrelated-word kind of wrong either. Crediting the confusion would reward
-     * exactly the coasting this exists to prevent (see the issue's 必ず/常に
-     * example); penalising it at -0.40 like an unrelated word would punish the
-     * learner for a mistake the gloss-only cue itself invites - so this applies
-     * neither: memoryStrength/interval/difficulty are untouched, and
-     * needsRetry.production re-asks until the TARGET itself is produced.
+     * An answer that gets no credit and no penalty, and asks the quiz again until
+     * the word itself is produced: the learner typed one of its near-synonyms
+     * instead (issue #71 Part B). Crediting it would reward exactly the coasting
+     * the synonym check exists to prevent (必ず/常に); penalising it at -0.40 like
+     * an unrelated word would punish a mistake the cue itself invites. So
+     * memoryStrength/interval/difficulty are untouched, and needsRetry re-asks.
      *
      * The due date DOES move: to now plus the entry's own unchanged interval, as a
      * review that changed nothing would. It used to stay where it was, i.e. in the
@@ -209,46 +46,52 @@ export class SRSService {
      * scheduling, so the schedule has to be settled here, by the answer that
      * started the retry, exactly as a wrong answer's is.
      */
-    static applyConfusableSynonymAnswer(
+    static rescheduleForRetry(
         vocab: VocabProgress,
+        quizType: QuizType,
         now: Date,
         meaningQuizEnabled: boolean = true,
         productionQuizEnabled: boolean = true
     ): VocabProgress {
-        const productionEntry = vocab.production ?? newSRSEntry(vocab.reading.difficulty);
-        const intervalDays = Math.max(productionEntry.interval, F.minInterval);
-        const production: SRSEntry = {
-            ...productionEntry,
+        const current = quizType === 'reading' ? vocab.reading
+            : quizType === 'meaning' ? vocab.meaning
+                : (vocab.production ?? newSRSEntry(vocab.reading.difficulty));
+        const intervalDays = Math.max(current.interval, F.minInterval);
+        const entry: SRSEntry = {
+            ...current,
             lastReviewedAt: now,
             dueDate: new Date(now.getTime() + intervalDays * 24 * 60 * 60 * 1000),
+        };
+        const entries = {
+            reading: quizType === 'reading' ? entry : vocab.reading,
+            meaning: quizType === 'meaning' ? entry : vocab.meaning,
+            production: quizType === 'production' ? entry : vocab.production,
         };
         const settingsSlice = { enableMeaningQuiz: meaningQuizEnabled, enableProductionQuiz: productionQuizEnabled };
 
         return {
             ...vocab,
-            production,
+            ...entries,
             nextReviewAt: vocab.stage === 'graduated'
                 ? vocab.nextReviewAt
-                : vocabNextReviewAt({ reading: vocab.reading, meaning: vocab.meaning, production, usuallyKana: vocab.usuallyKana }, settingsSlice),
-            needsRetry: { ...vocab.needsRetry, production: true },
+                : vocabNextReviewAt({ ...entries, usuallyKana: vocab.usuallyKana }, settingsSlice),
+            needsRetry: { ...vocab.needsRetry, [quizType]: true },
             lastReviewedAt: now,
             totalReviews: vocab.totalReviews + 1,
         };
     }
 
-    /* =======================
-       ANSWER APPLICATION
-       ======================= */
-
+    /**
+     * Applies one graded answer to the quiz type's entry. The result comes from the
+     * exercise engine (services/exercise): nothing here compares answers.
+     */
     static applyAnswer(
         vocab: VocabProgress,
         quizType: QuizType,
-        quizMode: 'base' | 'context' | undefined, // [NEW] Mode
-        userAnswer: string,
-        correctAnswer: string, // The specific reading/meaning matched
+        quizMode: 'base' | 'context' | undefined,
+        result: AnswerResult,
         latencyMs: number,
         now: Date,
-        forcedResult?: AnswerResult, // Optional override
         growthLevel: number = 1.0, // This quiz type's calibration level (services/calibration.ts)
         frequencyModifier: number = 1.0, // User preference modifier
         meaningQuizEnabled: boolean = true, // Whether meaning quizzes are active for this user
@@ -256,11 +99,9 @@ export class SRSService {
         // Scales the memory-strength gain, mirroring the parameter calculateNextState
         // already takes and GrammarSRSService.applyAnswer already forwards. Used to
         // credit an exercise that genuinely trains a direction, but under easier
-        // conditions than that direction's own quiz (see applyVocabReinforcement).
+        // conditions than that direction's own quiz (see applyProductionReinforcement).
         strengthDeltaModifier: number = 1.0
     ): { updated: VocabProgress; result: AnswerResult, interval: number } {
-        const result = forcedResult ?? matchAnswer(userAnswer, correctAnswer);
-
         // Entries keyed by quiz type rather than reading/meaning ternaries. With a
         // third type this is not a style preference: a ternary silently routes
         // anything that is not 'reading' into the meaning entry, so production
@@ -423,6 +264,58 @@ export class SRSService {
         };
     }
 
+    /**
+     * Credits one word's PRODUCTION entry for a correct/near answer the learner
+     * produced INDIRECTLY - not on that word's own scheduled card, but as a
+     * by-product of another card's cue: a grammar sentence's blank, or a
+     * near-synonym typed on a DIFFERENT word's production card (issue #71 follow-up).
+     * The direction is genuinely production (English meaning in, Japanese out), so
+     * it feeds the production entry; the credit is discounted (strengthRatio) and
+     * the log is tagged `reinforcement` so the calibration replay does not count it
+     * as a scheduled production review. Latency is neutralised, since the host
+     * card's single timing cannot be attributed to this word.
+     *
+     * A word whose production entry is not yet activated is seeded first
+     * (seedProductionEntry) so it joins the rotation at its designed baseline. The
+     * caller pre-filters to correct/minor_error results.
+     *
+     * Called only by the exercise engine's `reinforce` effect (services/exercise/
+     * effects.ts), for a grammar sentence's vocab blanks and for the synonym a
+     * learner typed alike, so the two cannot diverge.
+     */
+    static applyProductionReinforcement(
+        vocab: VocabProgress,
+        result: AnswerResult,
+        now: Date,
+        meaningQuizEnabled: boolean,
+        productionQuizEnabled: boolean,
+        growthLevel: number = 1.0,
+        frequencyModifier: number = 1.0,
+        strengthRatio: number = CONSTANTS.srs.production.reinforcementStrengthRatio
+    ): VocabProgress {
+        const neutralLatency = CONSTANTS.srs.quizProperties.production.expectedLatency;
+        const seeded: VocabProgress = isProductionActivated(vocab.production)
+            ? vocab
+            : { ...vocab, production: this.seedProductionEntry(vocab.production, vocab.meaning, now) };
+
+        const { updated } = this.applyAnswer(
+            seeded, 'production', 'base', result, neutralLatency, now, growthLevel, frequencyModifier,
+            meaningQuizEnabled, productionQuizEnabled, strengthRatio
+        );
+
+        // Tag the log this credit wrote, so the calibration's replay of the review
+        // logs does not count it as a production review.
+        const history = updated.production?.history ?? [];
+        if (!updated.production || history.length === 0) return updated;
+        return {
+            ...updated,
+            production: {
+                ...updated.production,
+                history: [...history.slice(0, -1), { ...history[history.length - 1], source: 'reinforcement' as const }],
+            },
+        };
+    }
+
     /* =======================
        CORE ALGORITHM (FORMULA)
        ======================= */
@@ -445,7 +338,7 @@ export class SRSService {
         // [NEW] Scales the memory-strength delta (the resultFactor * L * D gain).
         // Default 1.0 leaves vocab behaviour untouched; the Grammar activity uses
         // it to modulate a successful grammar answer's gain by how many of the
-        // sentence's vocab blanks were also right (see gradeGrammarAnswers).
+        // sentence's vocab blanks were also right (see gradeExercise).
         strengthDeltaModifier: number = 1.0
     ): { newEntry: SRSEntry; interval: number } {
 

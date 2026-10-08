@@ -96,23 +96,46 @@ Both apps: a word is named through `headwordOf`, `secondaryForm` and `headwordWi
 (`searchHeadword` / `searchSecondaryForm` for search rows) from `@gokan/dataset-schema`, never by
 reading `writtenForm.kanji` for display: a word learned in kana (`usuallyKana`) is shown in kana.
 
-gokan-srs, quiz and study flow. **Every quiz shares the same machinery; a new quiz type or card
-is built from these, never as a standalone flow:**
+gokan-srs, quizzes. **Every quiz is an exercise, and every exercise runs on one engine
+(`services/exercise/`, see the Exercise engine section of docs/ARCHITECTURE.md).** An activity
+(vocab, grammar) hosts exercises; what differs between exercises is data, never a separate flow.
+Four layers, each the only place its question is answered:
 
-- Grading: `utils/answerMatching.ts` and `SRSService.evaluateAnswer` /
-  `evaluateProductionAnswer` (accept-lists, kanji skeleton, typo tolerance), the inflection
-  generator `utils/inflection.utils.ts`, kana/kanji helpers `utils/kanji.utils.ts`.
+- What is asked: an `Exercise` (`kind`, `host`, `slots`, `cue`, and what its card shows), built
+  once at load by `vocabExercise` / `grammarExercise` (`builders.ts`). Accept-lists are
+  assembled only by the slot builders (`readingSlot`, `meaningSlot`, `wordSlot` in `slots.ts`).
+- Grading: `gradeExercise` / `gradeSlot` (`grading.ts`) is the only grader: typos, the kanji
+  skeleton, other forms of a word, near-synonyms judged against the cue. Its primitives
+  (`matchAnswer`, `matchBest` from `utils/answerMatching.ts`, `isFormOfWord` from
+  `utils/inflection.utils.ts`, the synonym helpers) are imported only by the engine (enforced).
+- SRS effects: `effectsOf` decides what an answer does (`review`, `retry`, `reinforce`,
+  `defer`); `applyEffects` (`effects.ts`) writes it, on Continue, against the current progress.
+- Turn and cards: `context/quiz/exerciseReducer.ts` (answers, hints, feedback, one action family
+  for both activities) and `useExerciseTurn` (submit, continue, auto-advance, the AI check).
+  Every card is a `SingleAnswerCard`, `SentenceClozeCard` or `StudyCard` (`components/quiz/`),
+  chosen in one exhaustive switch, `pages/exercise/ExerciseCard.tsx`.
+
+**Adding an exercise**: its `kind` in `ExerciseKind` with what its card shows, its builder, its
+prompt (in the activity's `pages/` folder) and its case in `ExerciseCard`. Nothing else: grading,
+feedback, hints, focus, auto-advance and SRS writes come with the engine, and the exhaustive
+switches fail to compile until every new case is handled. A new rule for answers (a tolerance,
+a credit) goes in the engine, so every exercise gets it.
+
+The rest of the study flow:
+
 - Scheduling: `SRSService.calculateNextState` is the one formula (grammar reuses it through
   `GrammarSRSService`). Due dates and mastery are derived only by `services/scheduling.ts` and
   `services/grammarScheduling.ts`; never hand-set `nextReviewAt` or `stage`.
-- Calibration: `services/calibration.ts`, per quiz type.
-- Sentence choice: `utils/sentenceRanking.ts` for every activity that picks an example.
+- Calibration: `services/calibration.ts`, per quiz type, recorded by `applyEffects` only.
+- Sentences: `utils/sentenceRanking.ts` for every activity that picks an example; a sentence with
+  blanks is a `ClozeSentence` (`utils/clozeSentence.utils.ts`); a grammar example becomes a
+  `Sentence` through `grammarExampleToSentence` (`utils/grammarSentence.utils.ts`).
 - Session flow: `useSessionLifecycle`, `components/SessionProgress.tsx` (counter, ticker, gains),
   the commit pipeline in `quizSelectors.ts` shared by the preview and the session.
-- Card UI: `components/quiz/` (`QuizCardFrame`, `QuizMasteryCorner`, `SubmitButton`,
-  `ContinueButton`, `FeedbackNote`, `ClozeBlank`, `ExpandableSenses`, `Headword`,
-  `quizStyles.ts` for result colours), `hooks/useQuizFocusManagement.ts` for keyboard flow,
-  `components/MasteryRing.tsx`.
+- Card building blocks: `components/quiz/` (`QuizCardFrame`, `QuizMasteryCorner`,
+  `SubmitButton`, `ContinueButton`, `FeedbackNote`, `ClozeBlank`, `ExpandableSenses`,
+  `Headword`, `quizStyles.ts` for result colours), `hooks/useQuizFocusManagement.ts` for
+  keyboard flow, `components/MasteryRing.tsx`.
 
 gokan-srs, everything else:
 
@@ -152,6 +175,11 @@ gokan-dictionary:
   `selectNextGrammarView`. When something is due: `scheduling.ts`. What a session contains:
   the dedup-then-cap pipeline, run identically for the hub preview and the session. Do not add
   a second place that answers the same question.
+- **Grading is pure and synchronous.** `gradeExercise` is the only grader; whatever it needs
+  (a word's forms, its near-synonyms, the cue) is resolved when the exercise is built, never
+  fetched while grading.
+- **An answer writes SRS state only through `applyEffects`** (enforced): `SRSService.applyAnswer`
+  and its siblings are never called from a hook, a card or a selector.
 - **Persistence and network go through one layer each** (enforced): `localStorage` only via
   `StorageService`, `sessionStorage` only via `hooks/usePersistedControls.ts`, `fetch` only in
   `services/`. Every dataset URL is built by `datasetUrl()` (`services/http.ts`), which adds

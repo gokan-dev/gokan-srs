@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { SRSService } from './srs.service';
-import type { LearnableScope, LearningOrderSettings, ProductionSynonymCandidate, ProductionVocab } from './srs.service';
+import { matchAnswer } from '../utils/answerMatching';
+import type { LearnableScope, LearningOrderSettings } from './srs.service';
 import { VocabularyService } from './vocabulary.service';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../models/vocabulary.model';
 import type { VocabProgress } from '../models/vocabulary.model';
@@ -33,7 +34,7 @@ describe('SRSService Formula Tests', () => {
     it('TEST CASE 1: Correct, fast recall', () => {
         // Input: { S: 10.0, D: 0.6, Result: correct, Latency: 900 }
         const vocab = createVocab(10.0, 0.6);
-        const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'kotae', 'kotae', 900, mockNow);
+        const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'correct', 900, mockNow);
 
         // Expected: { S: 14.05000, I: 4.04190 }
         closeTo(updated.reading.memoryStrength, 14.05000);
@@ -45,7 +46,7 @@ describe('SRSService Formula Tests', () => {
         // UPDATE: With expectedLatency=10000, 3000 is FAST. To test SLOW, we need > 20000.
         // Let's use 20000 (ratio 0.5).
         const vocab = createVocab(10.0, 0.2);
-        const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'kotae', 'kotae', 20000, mockNow);
+        const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'correct', 20000, mockNow);
 
         // Expected: { S: 10.95000, I: 3.15010 }
         closeTo(updated.reading.memoryStrength, 10.95000);
@@ -57,7 +58,7 @@ describe('SRSService Formula Tests', () => {
         // We simulate 'minor_error' by passing a typo: 'こたへ' vs 'こたえ'
         // Use 10000ms as neutral (ratio 1.0)
         const vocab = createVocab(8.0, 0.4);
-        const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'こたへ', 'こたえ', 10000, mockNow);
+        const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'minor_error', 10000, mockNow);
 
         // Expected in text file: { S: 8.73600, I: 1.75923 }
         closeTo(updated.reading.memoryStrength, 8.73600);
@@ -67,7 +68,7 @@ describe('SRSService Formula Tests', () => {
     it('TEST CASE 4: Wrong answer', () => {
         // Input: { S: 12.0, D: 0.5, Result: wrong, Latency: 2000 }
         const vocab = createVocab(12.0, 0.5);
-        const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'wrong', 'kotae', 2000, mockNow);
+        const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'wrong', 2000, mockNow);
 
         // Expected: { S: 8.40000, I: 0.72495 }
         // UPDATE (10s Latency):
@@ -85,7 +86,7 @@ describe('SRSService Formula Tests', () => {
         // Input: { S: 6.0, D: 0.3, Result: pass, Latency: 1500 }
         // Neutral latency for pass
         const vocab = createVocab(6.0, 0.3);
-        const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'pass', 'kotae', 10000, mockNow);
+        const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'pass', 10000, mockNow);
 
         // Expected in text file: { S: 5.24400, I: 1.50771 }
         // BUT strict math: 5.244 * 0.28768 = 1.508594
@@ -96,7 +97,7 @@ describe('SRSService Formula Tests', () => {
     it('TEST CASE 6: Floor enforcement', () => {
         // Input: { S: 0.4, D: 0.1, Result: wrong, Latency: 4000 }
         const vocab = createVocab(0.4, 0.1);
-        const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'wrong', 'kotae', 4000, mockNow);
+        const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'wrong', 4000, mockNow);
 
         // UPDATE (10s Latency):
         // 10000/4000 = 2.5 -> L clamped to 1.5.
@@ -118,7 +119,7 @@ describe('SRSService Formula Tests', () => {
         // S_new = 0.35 * (1 - 0.6) = 0.14.
         // Floor should clamp to 0.3 because result is WRONG.
         const vocab = createVocab(0.35, 0.5);
-        const { updated } = SRSService.applyAnswer(vocab, 'reading', 'base', 'wrong', 'kotae', 500, mockNow);
+        const { updated } = SRSService.applyAnswer(vocab, 'reading', 'base', 'wrong', 500, mockNow);
 
         closeTo(updated.reading.memoryStrength, 1.00000);
     });
@@ -132,7 +133,7 @@ describe('SRSService Formula Tests', () => {
         // Delta = 0.25 * 1.5 * 1 = 0.375.
         // S_new = 0.2 * 1.375 = 0.275.
         // Floor should clamp it to 1.0.
-        const { updated } = SRSService.applyAnswer(vocab, 'reading', 'base', 'kotae', 'kotae', 1500, mockNow);
+        const { updated } = SRSService.applyAnswer(vocab, 'reading', 'base', 'correct', 1500, mockNow);
 
         closeTo(updated.reading.memoryStrength, 1.00000);
     });
@@ -141,7 +142,7 @@ describe('SRSService Formula Tests', () => {
         it('should scale interval by 1.5x on medium frequency', () => {
             const vocab = createVocab(10.0, 0.6);
             // Default high freq: { S: 14.05000, I: 4.04190 }
-            const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'kotae', 'kotae', 900, mockNow, undefined, 1.0, 1.5);
+            const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'correct', 900, mockNow, 1.0, 1.5);
 
             closeTo(updated.reading.memoryStrength, 14.05000); // Strength shouldn't scale
             closeTo(interval, 4.04190 * 1.5);
@@ -149,7 +150,7 @@ describe('SRSService Formula Tests', () => {
 
         it('should scale interval by 2.0x on low frequency', () => {
             const vocab = createVocab(10.0, 0.6);
-            const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'kotae', 'kotae', 900, mockNow, undefined, 1.0, 2.0);
+            const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'correct', 900, mockNow, 1.0, 2.0);
 
             closeTo(updated.reading.memoryStrength, 14.05000);
             closeTo(interval, 4.04190 * 2.0);
@@ -170,9 +171,9 @@ describe('SRSService Formula Tests', () => {
             const initialStrength = 10.0;
             const vocab = createVocab(initialStrength, 0.3);
 
-            const { updated, interval: iResult } = SRSService.applyAnswer(vocab, 'reading', 'base', input, 'こたえ', 10000, mockNow);
+            const { updated, interval: iResult } = SRSService.applyAnswer(vocab, 'reading', 'base', matchAnswer(input, 'こたえ'), 10000, mockNow);
             // Control wrong
-            const { interval: iWrong } = SRSService.applyAnswer(vocab, 'reading', 'base', 'まったくちがう', 'こたえ', 10000, mockNow);
+            const { interval: iWrong } = SRSService.applyAnswer(vocab, 'reading', 'base', 'wrong', 10000, mockNow);
 
             if (type === 'minor') {
                 expect(iResult).toBeGreaterThan(iWrong * 2); // Minor penalty (0.7) vs Wrong (0.3)
@@ -200,7 +201,7 @@ describe('SRSService Formula Tests', () => {
     it('TEST CASE 7: Latency upper clamp', () => {
         // Input: { S: 5.0, D: 0.7, Result: correct, Latency: 200 }
         const vocab = createVocab(5.0, 0.7);
-        const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'kotae', 'kotae', 200, mockNow);
+        const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'correct', 200, mockNow);
 
         // Expected in text file: { S: 7.17500, I: 2.06341 }
         // BUT strict math: 7.175 * 0.28768 = 2.064104
@@ -212,7 +213,7 @@ describe('SRSService Formula Tests', () => {
     it('TEST CASE 8: Latency lower clamp', () => {
         // Input: { S: 5.0, D: 0.7, Result: correct, Latency: 10000 }
         const vocab = createVocab(5.0, 0.7);
-        const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'kotae', 'kotae', 10000, mockNow);
+        const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'correct', 10000, mockNow);
 
         // Expected in text file: { S: 5.72500, I: 1.64798 }
         // UPDATE (10s Latency):
@@ -224,260 +225,8 @@ describe('SRSService Formula Tests', () => {
         closeTo(updated.reading.memoryStrength, 6.45000);
         closeTo(interval, 1.85554);
     });
-    describe('evaluateAnswer (Alternatives)', () => {
-        const readings = {
-            primary: 'main',
-            alternatives: ['alt', 'other']
-        };
-
-        it('should match primary correctly', () => {
-            const { result, matchedAnswer } = SRSService.evaluateAnswer('main', readings);
-            expect(result).toBe('correct');
-            expect(matchedAnswer).toBe('main');
-        });
-
-        it('should match alternative correctly', () => {
-            const { result, matchedAnswer } = SRSService.evaluateAnswer('alt', readings);
-            expect(result).toBe('correct');
-            expect(matchedAnswer).toBe('alt');
-        });
-
-        it('should prioritize correct over minor error', () => {
-            // If primary is 'main' and alternative is 'man' (typo of main),
-            // typing 'man' should be CORRECT (alt) not MINOR (primary typo).
-            // Actually 'man' vs 'main' is distance 1 deletion.
-
-            const ambig = {
-                primary: 'main',
-                alternatives: ['man']
-            };
-            // 'man' == 'man' (correct alt).
-            // 'man' vs 'main' (dist 1).
-            // Should return correct.
-            const { result, matchedAnswer } = SRSService.evaluateAnswer('man', ambig);
-            expect(result).toBe('correct');
-            expect(matchedAnswer).toBe('man');
-        });
-
-        it('should find best match for minor error', () => {
-            // 'min' vs 'main' (dist 1).
-            // 'min' vs 'alt' (dist large).
-            // Should be minor error for 'main'.
-            const { result, matchedAnswer } = SRSService.evaluateAnswer('mein', readings);
-            // mein vs main (dist 1 subst 'a'->'e'). 
-            expect(result).toBe('minor_error');
-            expect(matchedAnswer).toBe('main');
-        });
-    });
-
-    describe('evaluateProductionAnswer: any form of the word is correct (issue #95)', () => {
-        const taberu: ProductionVocab = {
-            reading: { primary: 'たべる', alternatives: [] },
-            writtenForm: { kanji: '食べる', alternatives: [], containedKanji: ['食'] },
-            senses: [{ pos: ['v1', 'vt'], glosses: ['to eat'], misc: { rawTags: [] }, related: { compounds: [] } }],
-        };
-        const kaiwa: ProductionVocab = {
-            reading: { primary: 'かいわ', alternatives: [] },
-            writtenForm: { kanji: '会話', alternatives: [], containedKanji: ['会', '話'] },
-            senses: [{ pos: ['n', 'vs'], glosses: ['conversation'], misc: { rawTags: [] }, related: { compounds: [] } }],
-        };
-
-        it.each(['食べたら', 'たべたら', '食べた', '食べる', 'たべて'])('grades %s correct for 食べる', input => {
-            expect(SRSService.evaluateProductionAnswer(input, taberu).result).toBe('correct');
-        });
-
-        it('accepts the cloze blank surface and reading passed as extra forms', () => {
-            expect(SRSService.evaluateProductionAnswer('食べていた', taberu, ['食べていた', 'たべていた']).result).toBe('correct');
-        });
-
-        it('still grades a different word wrong', () => {
-            expect(SRSService.evaluateProductionAnswer('会社', kaiwa).result).toBe('wrong');
-        });
-
-        it('keeps a reading typo of the dictionary form a minor error', () => {
-            expect(SRSService.evaluateProductionAnswer('たべるう', taberu).result).toBe('minor_error');
-        });
-
-        it('matches a synonym candidate by one of its conjugated forms', () => {
-            const match = SRSService.evaluateProductionSynonyms('食べた', [{ vocabId: 'x', relation: 'interchangeable', vocab: taberu }]);
-            expect(match?.candidate.vocabId).toBe('x');
-        });
-    });
-
-    describe('evaluateProductionAnswer (issue #71 Part A)', () => {
-        const vocab = {
-            reading: { primary: 'かならず', alternatives: [] as string[] },
-            writtenForm: { kanji: '必ず', alternatives: ['必らず'], containedKanji: ['必'] },
-        };
-
-        it('grades the primary reading correct', () => {
-            const { result, matchedAnswer } = SRSService.evaluateProductionAnswer('かならず', vocab);
-            expect(result).toBe('correct');
-            expect(matchedAnswer).toBe('かならず');
-        });
-
-        it('grades the kanji written form correct', () => {
-            const { result, matchedAnswer } = SRSService.evaluateProductionAnswer('必ず', vocab);
-            expect(result).toBe('correct');
-            expect(matchedAnswer).toBe('必ず');
-        });
-
-        it('grades a written-form alternative correct', () => {
-            const { result, matchedAnswer } = SRSService.evaluateProductionAnswer('必らず', vocab);
-            expect(result).toBe('correct');
-            expect(matchedAnswer).toBe('必らず');
-        });
-
-        it('matches written forms exactly, never through the Levenshtein path', () => {
-            // '必ず' with one character swapped is a different word entirely, not a typo -
-            // must not fall back to fuzzy matching and grade minor_error.
-            const { result } = SRSService.evaluateProductionAnswer('必ぜ', vocab);
-            expect(result).not.toBe('minor_error');
-            expect(result).toBe('wrong');
-        });
-
-        it('still grades a genuine reading typo minor_error via the fuzzy fallback', () => {
-            // Single substitution (ら -> る), Levenshtein distance 1.
-            const { result, matchedAnswer } = SRSService.evaluateProductionAnswer('かなるず', vocab);
-            expect(result).toBe('minor_error');
-            expect(matchedAnswer).toBe('かならず');
-        });
-
-        it('grades an unrelated answer wrong', () => {
-            const { result } = SRSService.evaluateProductionAnswer('ねこ', vocab);
-            expect(result).toBe('wrong');
-        });
-
-        it('accepts a mergedVocabs original reading', () => {
-            const merged = {
-                ...vocab,
-                mergedVocabs: [{ id: 'x', isBase: false, originalPrimaryReading: 'かならず2', originalGlosses: [] }],
-            };
-            const { result, matchedAnswer } = SRSService.evaluateProductionAnswer('かならず2', merged);
-            expect(result).toBe('correct');
-            expect(matchedAnswer).toBe('かならず2');
-        });
-
-        it('still recognizes a literal "pass" via the reading fallback', () => {
-            const { result } = SRSService.evaluateProductionAnswer('pass', vocab);
-            expect(result).toBe('pass');
-        });
-
-        describe('dropped okurigana tail (reported from production)', () => {
-            // 六つ: the real case. Answering 六 is the word minus its trailing kana.
-            const mutsu = {
-                reading: { primary: 'むっつ', alternatives: ['むつ'] },
-                writtenForm: { kanji: '六つ', alternatives: ['６つ'], containedKanji: ['六'] },
-            };
-
-            it('grades the kanji stem alone minor_error, not wrong', () => {
-                const { result, matchedAnswer } = SRSService.evaluateProductionAnswer('六', mutsu);
-                expect(result).toBe('minor_error');
-                expect(matchedAnswer).toBe('六つ');
-            });
-
-            it('still grades the full written form correct', () => {
-                expect(SRSService.evaluateProductionAnswer('六つ', mutsu).result).toBe('correct');
-            });
-
-            it('does not extend the tolerance to a word with different kanji', () => {
-                // 六月 shares the 六 prefix but adds a KANJI, so it is another word.
-                expect(SRSService.evaluateProductionAnswer('六月', mutsu).result).toBe('wrong');
-            });
-
-            it('prefers a fully correct reading over a partial written match', () => {
-                expect(SRSService.evaluateProductionAnswer('むっつ', mutsu).result).toBe('correct');
-            });
-        });
-    });
-
-    describe('Production synonym grading (issue #71 Part B)', () => {
-        // The issue's own motivating example: 必ず (target) vs its near-synonym 常に.
-        const interchangeableCandidate: ProductionSynonymCandidate = {
-            vocabId: 'interchangeable-1',
-            relation: 'interchangeable',
-            vocab: {
-                reading: { primary: 'きっと', alternatives: [] },
-                writtenForm: { kanji: 'きっと', alternatives: [], containedKanji: [] },
-            },
-        };
-
-        const confusableCandidate: ProductionSynonymCandidate = {
-            vocabId: 'confusable-1',
-            relation: 'confusable',
-            vocab: {
-                reading: { primary: 'つねに', alternatives: [] },
-                writtenForm: { kanji: '常に', alternatives: [], containedKanji: ['常'] },
-            },
-        };
-
-        describe('evaluateProductionSynonyms', () => {
-            // The reported case: つむ is 積む exactly but was within one KANA of 止む
-            // (やむ). An exact match must win whatever the candidate order.
-            it('prefers an exact match over a typo match listed earlier', () => {
-                const yamu: ProductionSynonymCandidate = {
-                    vocabId: 'yamu', relation: 'interchangeable',
-                    vocab: { reading: { primary: 'やむ', alternatives: [] }, writtenForm: { kanji: '止む', alternatives: [], containedKanji: ['止'] } },
-                };
-                const tsumu: ProductionSynonymCandidate = {
-                    vocabId: 'tsumu', relation: 'confusable',
-                    vocab: { reading: { primary: 'つむ', alternatives: [] }, writtenForm: { kanji: '積む', alternatives: [], containedKanji: ['積'] } },
-                };
-                const kitto: ProductionSynonymCandidate = {
-                    vocabId: 'kitto', relation: 'interchangeable',
-                    vocab: { reading: { primary: 'きっと', alternatives: [] }, writtenForm: { kanji: 'きっと', alternatives: [], containedKanji: [] } },
-                };
-                expect(SRSService.evaluateProductionSynonyms('つむ', [yamu, tsumu])?.candidate.vocabId).toBe('tsumu');
-                // A typo match still counts when nothing matches exactly.
-                expect(SRSService.evaluateProductionSynonyms('きっとお', [yamu, kitto])?.candidate.vocabId).toBe('kitto');
-            });
-
-            it('returns null with no candidates', () => {
-                expect(SRSService.evaluateProductionSynonyms('つねに', [])).toBeNull();
-            });
-
-            it('matches an interchangeable candidate by its written form', () => {
-                const match = SRSService.evaluateProductionSynonyms('きっと', [interchangeableCandidate, confusableCandidate]);
-                expect(match?.candidate.relation).toBe('interchangeable');
-                expect(match?.candidate.vocabId).toBe('interchangeable-1');
-                expect(match?.matchedAnswer).toBe('きっと');
-            });
-
-            it('matches a confusable candidate by its written form', () => {
-                const match = SRSService.evaluateProductionSynonyms('常に', [interchangeableCandidate, confusableCandidate]);
-                expect(match?.candidate.relation).toBe('confusable');
-                expect(match?.candidate.vocabId).toBe('confusable-1');
-            });
-
-            it('matches a confusable candidate via a genuine reading typo (fuzzy, like any reading)', () => {
-                // 'つねい' vs 'つねに' - single substitution, Levenshtein distance 1.
-                const match = SRSService.evaluateProductionSynonyms('つねい', [confusableCandidate]);
-                expect(match?.candidate.relation).toBe('confusable');
-                expect(match?.matchedAnswer).toBe('つねに');
-            });
-
-            it('returns null for an answer matching neither the target nor any candidate', () => {
-                expect(SRSService.evaluateProductionSynonyms('ねこ', [interchangeableCandidate, confusableCandidate])).toBeNull();
-            });
-
-            it('never matches a candidate written form through the Levenshtein path', () => {
-                // '常い' is one character off from '常に' - a different word, not a typo,
-                // mirroring evaluateProductionAnswer's own written-form exactness rule.
-                expect(SRSService.evaluateProductionSynonyms('常い', [confusableCandidate])).toBeNull();
-            });
-
-            it('returns the first matching candidate in list order', () => {
-                const secondInterchangeable: ProductionSynonymCandidate = {
-                    vocabId: 'interchangeable-2',
-                    relation: 'confusable',
-                    vocab: { reading: { primary: 'きっと', alternatives: [] }, writtenForm: { kanji: '屹度', alternatives: [], containedKanji: [] } },
-                };
-                const match = SRSService.evaluateProductionSynonyms('きっと', [interchangeableCandidate, secondInterchangeable]);
-                expect(match?.candidate.vocabId).toBe('interchangeable-1');
-            });
-        });
-
-        describe('applyConfusableSynonymAnswer', () => {
+    describe('Production synonym answers (issue #71 Part B)', () => {
+        describe('rescheduleForRetry', () => {
             const mockConfusableNow = new Date('2025-06-01T00:00:00Z');
 
             const baseVocab: VocabProgress = {
@@ -494,7 +243,7 @@ describe('SRSService Formula Tests', () => {
             };
 
             it('leaves memoryStrength/interval/difficulty untouched - no penalty, no credit', () => {
-                const updated = SRSService.applyConfusableSynonymAnswer(baseVocab, mockConfusableNow);
+                const updated = SRSService.rescheduleForRetry(baseVocab, 'production', mockConfusableNow);
 
                 expect(updated.production?.memoryStrength).toBe(12);
                 expect(updated.production?.interval).toBe(3);
@@ -502,7 +251,7 @@ describe('SRSService Formula Tests', () => {
             });
 
             it('reschedules at the unchanged interval from now, so the past due date does not survive', () => {
-                const updated = SRSService.applyConfusableSynonymAnswer(baseVocab, mockConfusableNow);
+                const updated = SRSService.rescheduleForRetry(baseVocab, 'production', mockConfusableNow);
 
                 expect(updated.production?.dueDate).toEqual(new Date('2025-06-04T00:00:00Z'));
                 expect(updated.nextReviewAt).toEqual(updated.production?.dueDate);
@@ -516,10 +265,10 @@ describe('SRSService Formula Tests', () => {
                     reading: { ...baseVocab.reading, dueDate: later },
                     meaning: { ...baseVocab.meaning, dueDate: later },
                 };
-                const afterCollision = SRSService.applyConfusableSynonymAnswer(due, mockConfusableNow);
+                const afterCollision = SRSService.rescheduleForRetry(due, 'production', mockConfusableNow);
                 const retryAt = new Date(mockConfusableNow.getTime() + 60_000);
                 const { updated: afterRetry } = SRSService.applyAnswer(
-                    afterCollision, 'production', 'base', 'かならず', 'かならず', 3000, retryAt
+                    afterCollision, 'production', 'base', 'correct', 3000, retryAt
                 );
 
                 expect(afterRetry.needsRetry?.production).toBe(false);
@@ -528,7 +277,7 @@ describe('SRSService Formula Tests', () => {
 
             it('never reschedules sooner than the minimum interval', () => {
                 const fresh: VocabProgress = { ...baseVocab, production: { ...baseVocab.production!, interval: 0 } };
-                const updated = SRSService.applyConfusableSynonymAnswer(fresh, mockConfusableNow);
+                const updated = SRSService.rescheduleForRetry(fresh, 'production', mockConfusableNow);
 
                 const days = (updated.production!.dueDate!.getTime() - mockConfusableNow.getTime()) / 86_400_000;
                 expect(days).toBeCloseTo(CONSTANTS.srs.formula.minInterval);
@@ -536,14 +285,14 @@ describe('SRSService Formula Tests', () => {
 
             it('sets needsRetry.production without touching another quiz type\'s retry flag', () => {
                 const withOtherRetry: VocabProgress = { ...baseVocab, needsRetry: { reading: true } };
-                const updated = SRSService.applyConfusableSynonymAnswer(withOtherRetry, mockConfusableNow);
+                const updated = SRSService.rescheduleForRetry(withOtherRetry, 'production', mockConfusableNow);
 
                 expect(updated.needsRetry?.production).toBe(true);
                 expect(updated.needsRetry?.reading).toBe(true);
             });
 
             it('records the interaction without a scheduling change', () => {
-                const updated = SRSService.applyConfusableSynonymAnswer(baseVocab, mockConfusableNow);
+                const updated = SRSService.rescheduleForRetry(baseVocab, 'production', mockConfusableNow);
 
                 expect(updated.lastReviewedAt).toEqual(mockConfusableNow);
                 expect(updated.production?.lastReviewedAt).toEqual(mockConfusableNow);
@@ -552,7 +301,7 @@ describe('SRSService Formula Tests', () => {
 
             it('seeds a fresh production entry rather than throwing if somehow unactivated', () => {
                 const noProduction: VocabProgress = { ...baseVocab, production: undefined };
-                const updated = SRSService.applyConfusableSynonymAnswer(noProduction, mockConfusableNow);
+                const updated = SRSService.rescheduleForRetry(noProduction, 'production', mockConfusableNow);
 
                 expect(updated.production).toBeDefined();
                 expect(updated.needsRetry?.production).toBe(true);
@@ -563,7 +312,7 @@ describe('SRSService Formula Tests', () => {
     describe('Retry Flag Behavior (per quiz type)', () => {
         it('should set needsRetry.reading on first wrong reading answer', () => {
             const vocab = createVocab(5.0, 0.3);
-            const { updated } = SRSService.applyAnswer(vocab, 'reading', 'base', 'wrong', 'kotae', 10000, mockNow);
+            const { updated } = SRSService.applyAnswer(vocab, 'reading', 'base', 'wrong', 10000, mockNow);
 
             expect(updated.needsRetry?.reading).toBe(true);
             expect(updated.needsRetry?.meaning).toBeFalsy();
@@ -575,7 +324,7 @@ describe('SRSService Formula Tests', () => {
             const vocab = createVocab(initialStrength, 0.3, initialInterval);
             vocab.needsRetry = { reading: true }; // Simulate retry state
 
-            const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'kotae', 'kotae', 10000, mockNow);
+            const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'correct', 10000, mockNow);
 
             // Should clear flag
             expect(updated.needsRetry?.reading).toBe(false);
@@ -591,7 +340,7 @@ describe('SRSService Formula Tests', () => {
             vocab.needsRetry = { reading: true };
             vocab.reading.lastReviewedAt = new Date('2020-01-01');
 
-            const { updated } = SRSService.applyAnswer(vocab, 'reading', 'base', 'kotae', 'kotae', 10000, mockNow);
+            const { updated } = SRSService.applyAnswer(vocab, 'reading', 'base', 'correct', 10000, mockNow);
 
             expect(updated.reading.lastReviewedAt).toEqual(mockNow);
             expect(updated.meaning.lastReviewedAt).toBe(vocab.meaning.lastReviewedAt); // other type untouched
@@ -602,7 +351,7 @@ describe('SRSService Formula Tests', () => {
             const vocab = createVocab(initialStrength, 0.3);
             vocab.needsRetry = { reading: true }; // Simulate retry state
 
-            const { updated } = SRSService.applyAnswer(vocab, 'reading', 'base', 'wrong', 'kotae', 10000, mockNow);
+            const { updated } = SRSService.applyAnswer(vocab, 'reading', 'base', 'wrong', 10000, mockNow);
 
             // Should REMAIN TRUE (keep in loop until correct)
             expect(updated.needsRetry?.reading).toBe(true);
@@ -613,7 +362,7 @@ describe('SRSService Formula Tests', () => {
 
         it('should not set needsRetry on minor_error', () => {
             const vocab = createVocab(5.0, 0.3);
-            const { updated } = SRSService.applyAnswer(vocab, 'reading', 'base', 'こたへ', 'こたえ', 10000, mockNow, 'minor_error');
+            const { updated } = SRSService.applyAnswer(vocab, 'reading', 'base', 'minor_error', 10000, mockNow);
 
             expect(updated.needsRetry?.reading).toBeFalsy();
         });
@@ -622,7 +371,7 @@ describe('SRSService Formula Tests', () => {
             const vocab = createVocab(5.0, 0.3);
             vocab.needsRetry = { reading: true };
 
-            const { updated } = SRSService.applyAnswer(vocab, 'reading', 'base', 'こたへ', 'こたえ', 10000, mockNow, 'minor_error');
+            const { updated } = SRSService.applyAnswer(vocab, 'reading', 'base', 'minor_error', 10000, mockNow);
 
             expect(updated.needsRetry?.reading).toBe(false);
             // And preserve state
@@ -633,13 +382,13 @@ describe('SRSService Formula Tests', () => {
             const vocab = createVocab(5.0, 0.3);
             vocab.needsRetry = { reading: true }; // a pending reading retry must not block meaning
 
-            const { updated } = SRSService.applyAnswer(vocab, 'meaning', 'base', 'wrong', 'answer', 10000, mockNow, 'wrong');
+            const { updated } = SRSService.applyAnswer(vocab, 'meaning', 'base', 'wrong', 10000, mockNow);
 
             expect(updated.needsRetry?.reading).toBe(true); // untouched
             expect(updated.needsRetry?.meaning).toBe(true); // newly set
 
             // A correct meaning retry clears only the meaning flag
-            const { updated: afterRetry } = SRSService.applyAnswer(updated, 'meaning', 'base', 'answer', 'answer', 10000, mockNow, 'correct');
+            const { updated: afterRetry } = SRSService.applyAnswer(updated, 'meaning', 'base', 'correct', 10000, mockNow);
             expect(afterRetry.needsRetry?.reading).toBe(true);
             expect(afterRetry.needsRetry?.meaning).toBe(false);
         });
@@ -652,7 +401,7 @@ describe('SRSService Formula Tests', () => {
             expect(vocab.meaning.memoryStrength).toBeLessThan(CONSTANTS.srs.formula.mastery.maxMemoryStrength);
 
             const { updated } = SRSService.applyAnswer(
-                vocab, 'reading', 'base', 'kotae', 'kotae', 1000, mockNow, 'correct',
+                vocab, 'reading', 'base', 'correct', 1000, mockNow,
                 1.0, 1.0, /* meaningQuizEnabled */ false
             );
 
@@ -667,7 +416,7 @@ describe('SRSService Formula Tests', () => {
             vocab.meaning.dueDate = new Date(mockNow.getTime() + 60 * 60 * 1000);
 
             const { updated } = SRSService.applyAnswer(
-                vocab, 'reading', 'base', 'kotae', 'kotae', 1000, mockNow, 'correct',
+                vocab, 'reading', 'base', 'correct', 1000, mockNow,
                 1.0, 1.0, /* meaningQuizEnabled */ true
             );
 
@@ -690,7 +439,7 @@ describe('SRSService Formula Tests', () => {
             const vocab = createVocab(1.0, 0.3); // Initial state
             // Apply correct answer
             // Neutral latency (10000)
-            const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'kotae', 'kotae', 10000, mockNow);
+            const { updated, interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'correct', 10000, mockNow);
 
             // D = 0.6 + 0.8*0.3 = 0.84.
             // Delta = 0.25 * 1.0 * 0.84 = 0.21.
@@ -713,7 +462,7 @@ describe('SRSService Formula Tests', () => {
             // NEW            
             const vocab = createVocab(1.0, 0.3);
             // Neutral latency
-            const { interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'wrong', 'kotae', 10000, mockNow);
+            const { interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'wrong', 10000, mockNow);
 
             expect(interval).toBe(0.5);
         });
@@ -723,7 +472,7 @@ describe('SRSService Formula Tests', () => {
             // S_new = 1.25. raw Interval = 0.36.
             // Should clamp to 1.0.
             const vocab = createVocab(1.0, 0.3);
-            const { interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'kotae', 'kotae', 10000, mockNow);
+            const { interval } = SRSService.applyAnswer(vocab, 'reading', 'base', 'correct', 10000, mockNow);
 
             expect(interval).toBe(1.0);
         });
@@ -743,7 +492,7 @@ describe('SRSService Formula Tests', () => {
             const initialReading = { ...vocab.reading };
 
             // Update MEANING
-            const { updated } = SRSService.applyAnswer(vocab, 'meaning', 'base', 'meaning', 'meaning', 1000, mockNow);
+            const { updated } = SRSService.applyAnswer(vocab, 'meaning', 'base', 'correct', 1000, mockNow);
 
             // Meaning should change
             expect(updated.meaning.memoryStrength).toBeGreaterThan(1.0);
@@ -762,7 +511,7 @@ describe('SRSService Formula Tests', () => {
             const vocab = createDualVocab(5.0, 5.0);
             vocab.meaning.dueDate = new Date(mockNow.getTime() - 1000); // already due
 
-            const { updated } = SRSService.applyAnswer(vocab, 'reading', 'base', 'kotae', 'kotae', 1000, mockNow, 'correct');
+            const { updated } = SRSService.applyAnswer(vocab, 'reading', 'base', 'correct', 1000, mockNow);
 
             expect(updated.meaning.dueDate).toEqual(vocab.meaning.dueDate);
         });
@@ -778,7 +527,7 @@ describe('SRSService Formula Tests', () => {
             // But Reading is still due Jan 2.
             // So top-level nextReviewAt should remain Jan 2 (Reading).
 
-            const { updated } = SRSService.applyAnswer(vocab, 'meaning', 'base', 'correct', 'correct', 1000, mockNow);
+            const { updated } = SRSService.applyAnswer(vocab, 'meaning', 'base', 'correct', 1000, mockNow);
 
             // Check top level
             expect(updated.nextReviewAt).toEqual(vocab.reading.dueDate);
@@ -789,7 +538,7 @@ describe('SRSService Formula Tests', () => {
             const vocab = createDualVocab(MAX + 10, 1.0); // Reading Mastered, Meaning Weak
 
             // Update Meaning (still weak)
-            const { updated: u1 } = SRSService.applyAnswer(vocab, 'meaning', 'base', 'correct', 'correct', 1000, mockNow);
+            const { updated: u1 } = SRSService.applyAnswer(vocab, 'meaning', 'base', 'correct', 1000, mockNow);
             expect(u1.stage).toBe('learning');
 
             // Now Master Meaning
@@ -797,90 +546,12 @@ describe('SRSService Formula Tests', () => {
             masteredVocab.meaning.memoryStrength = MAX + 10;
 
             // Trigger update (on meaning)
-            const { updated: u2 } = SRSService.applyAnswer(masteredVocab, 'meaning', 'base', 'correct', 'correct', 1000, mockNow);
+            const { updated: u2 } = SRSService.applyAnswer(masteredVocab, 'meaning', 'base', 'correct', 1000, mockNow);
             expect(u2.stage).toBe('graduated');
             expect(u2.nextReviewAt).toBeNull();
         });
     });
 
-    describe('evaluateMeaning', () => {
-        const meanings = ['to eat', 'to consume'];
-
-        it('should match exact meaning', () => {
-            const { result, matchedAnswer } = SRSService.evaluateMeaning('to eat', meanings);
-            expect(result).toBe('correct');
-            expect(matchedAnswer).toBe('to eat');
-        });
-
-        it('should match case-insensitive and ignore punctuation', () => {
-            const { result } = SRSService.evaluateMeaning('To Eat!', meanings);
-            expect(result).toBe('correct');
-        });
-
-        it('should match synonyms', () => {
-            const { result, matchedAnswer } = SRSService.evaluateMeaning('to consume', meanings);
-            expect(result).toBe('correct');
-            expect(matchedAnswer).toBe('to consume');
-        });
-
-        it('should allow minor typos', () => {
-            // "to consume" (7 chars) -> allowed 2.
-            // "to consmue" (dist 2 swap) -> minor.
-            const { result, matchedAnswer } = SRSService.evaluateMeaning('to consmue', meanings);
-            expect(result).toBe('minor_error');
-            expect(matchedAnswer).toBe('to consume');
-        });
-
-        it('should reject totally wrong answers', () => {
-            const { result } = SRSService.evaluateMeaning('drink', meanings);
-            expect(result).toBe('wrong');
-        });
-
-        it('should handle multi-part synonyms in one string', () => {
-            // Some dicts have "eat; consume" as one string
-            const multi = ['eat; consume'];
-            const { result: r1 } = SRSService.evaluateMeaning('eat', multi);
-            expect(r1).toBe('correct');
-
-            const { result: r2 } = SRSService.evaluateMeaning('consume', multi);
-            expect(r2).toBe('correct');
-        });
-
-        it('should ignore parenthetical information', () => {
-            // "going through (for example, night)"
-            // User types "going through", should be correct
-            const meaningsWithInfo = ['going through (for example, night)'];
-            const { result, matchedAnswer } = SRSService.evaluateMeaning('going through', meaningsWithInfo);
-            expect(result).toBe('correct');
-            expect(matchedAnswer).toBe('going through');
-        });
-
-        it('should ignore nested parenthetical information', () => {
-            const nested = ['dog (Canis (lupus) familiaris)'];
-            const { result, matchedAnswer } = SRSService.evaluateMeaning('dog', nested);
-            expect(result).toBe('correct');
-            expect(matchedAnswer).toBe('dog');
-        });
-
-        it('should not split numbers with commas', () => {
-            const numWithComma = ['10,000'];
-            const { result, matchedAnswer } = SRSService.evaluateMeaning('10,000', numWithComma);
-            expect(result).toBe('correct');
-            expect(matchedAnswer).toBe('10,000');
-        });
-
-        it('should return minor error for partial matches if length diff <= 5', () => {
-            const { result: r1 } = SRSService.evaluateMeaning('pain', ['painful']);
-            expect(r1).toBe('minor_error');
-
-            const { result: r2 } = SRSService.evaluateMeaning('painful', ['pain']);
-            expect(r2).toBe('minor_error');
-
-            // Diff > 5 should be wrong
-            const { result: r3 } = SRSService.evaluateMeaning('able', ['uncomfortable']);
-            expect(r3).toBe('wrong');
-        });
-    });
     describe('applyVocabIntroChoice', () => {
         it('should initialize due dates for Learn choice', () => {
             const vocab = SRSService.createVocabProgress({ id: 'test-vocab' });
@@ -1221,7 +892,7 @@ describe('Production quiz (English meaning -> Japanese reading)', () => {
     describe('lazy activation through applyAnswer', () => {
         it('activates production when the word is answered in another direction', () => {
             const vocab = vocabWith();
-            const { updated } = SRSService.applyAnswer(vocab, 'reading', 'base', 'a', 'a', 1000, mockNow, 'correct');
+            const { updated } = SRSService.applyAnswer(vocab, 'reading', 'base', 'correct', 1000, mockNow);
 
             expect(updated.production?.dueDate).not.toBeNull();
         });
@@ -1233,7 +904,7 @@ describe('Production quiz (English meaning -> Japanese reading)', () => {
                 reading: { ...DEFAULT_VOCABULARY_PROGRESS.reading, memoryStrength: MAX + 10 },
                 meaning: { ...DEFAULT_VOCABULARY_PROGRESS.meaning, memoryStrength: MAX + 10 },
             });
-            const { updated } = SRSService.applyAnswer(vocab, 'meaning', 'base', 'a', 'a', 1000, mockNow, 'correct');
+            const { updated } = SRSService.applyAnswer(vocab, 'meaning', 'base', 'correct', 1000, mockNow);
 
             expect(updated.stage).toBe('graduated');
             expect(updated.production?.dueDate).toBeNull();
@@ -1242,7 +913,7 @@ describe('Production quiz (English meaning -> Japanese reading)', () => {
         it('does not activate production when the quiz type is disabled', () => {
             const vocab = vocabWith();
             const { updated } = SRSService.applyAnswer(
-                vocab, 'reading', 'base', 'a', 'a', 1000, mockNow, 'correct',
+                vocab, 'reading', 'base', 'correct', 1000, mockNow,
                 1.0, 1.0, true, /* productionQuizEnabled */ false
             );
 
@@ -1255,7 +926,7 @@ describe('Production quiz (English meaning -> Japanese reading)', () => {
             const vocab = vocabWith({
                 production: { ...DEFAULT_VOCABULARY_PROGRESS.production!, memoryStrength: 40, dueDate: mockNow },
             });
-            const { updated } = SRSService.applyAnswer(vocab, 'production', 'base', 'a', 'a', 1000, mockNow, 'correct');
+            const { updated } = SRSService.applyAnswer(vocab, 'production', 'base', 'correct', 1000, mockNow);
 
             expect(updated.production!.memoryStrength).toBeGreaterThan(40);
             expect(updated.reading.memoryStrength).toBe(vocab.reading.memoryStrength);
@@ -1266,7 +937,7 @@ describe('Production quiz (English meaning -> Japanese reading)', () => {
             const vocab = vocabWith({
                 production: { ...DEFAULT_VOCABULARY_PROGRESS.production!, memoryStrength: 40, dueDate: mockNow },
             });
-            const { updated } = SRSService.applyAnswer(vocab, 'production', 'base', 'x', 'a', 1000, mockNow, 'wrong');
+            const { updated } = SRSService.applyAnswer(vocab, 'production', 'base', 'wrong', 1000, mockNow);
 
             expect(updated.needsRetry?.production).toBe(true);
             expect(updated.needsRetry?.reading).toBeFalsy();
@@ -1279,11 +950,52 @@ describe('Production quiz (English meaning -> Japanese reading)', () => {
                 needsRetry: { production: true },
                 production: { ...DEFAULT_VOCABULARY_PROGRESS.production!, memoryStrength: 40, dueDate },
             });
-            const { updated } = SRSService.applyAnswer(vocab, 'production', 'base', 'a', 'a', 1000, mockNow, 'correct');
+            const { updated } = SRSService.applyAnswer(vocab, 'production', 'base', 'correct', 1000, mockNow);
 
             expect(updated.needsRetry?.production).toBe(false);
             expect(updated.production!.memoryStrength).toBe(40);
             expect(updated.production!.dueDate).toEqual(dueDate);
+        });
+    });
+
+    describe('applyProductionReinforcement (indirect production credit)', () => {
+        it('seeds an inactive production entry, credits it, and tags the log as reinforcement', () => {
+            const vocab = vocabWith(); // production inert (dueDate null), meaning strength 100
+            const updated = SRSService.applyProductionReinforcement(vocab, 'correct', mockNow, true, true);
+
+            // Seeded from meaning (100 * seedStrengthRatio) then credited on top.
+            const seededBaseline = 100 * CONSTANTS.srs.production.seedStrengthRatio;
+            expect(updated.production!.memoryStrength).toBeGreaterThan(seededBaseline);
+            expect(updated.production!.dueDate).not.toBeNull();
+            expect(updated.production!.history.at(-1)?.source).toBe('reinforcement');
+        });
+
+        it('credits an already-active production entry without re-seeding', () => {
+            const vocab = vocabWith({
+                production: { ...DEFAULT_VOCABULARY_PROGRESS.production!, memoryStrength: 200, dueDate: mockNow },
+            });
+            const updated = SRSService.applyProductionReinforcement(vocab, 'correct', mockNow, true, true);
+
+            expect(updated.production!.memoryStrength).toBeGreaterThan(200);
+            expect(updated.production!.history.at(-1)?.source).toBe('reinforcement');
+        });
+
+        it('leaves reading and meaning untouched', () => {
+            const vocab = vocabWith({ production: { ...DEFAULT_VOCABULARY_PROGRESS.production!, memoryStrength: 200, dueDate: mockNow } });
+            const updated = SRSService.applyProductionReinforcement(vocab, 'minor_error', mockNow, true, true);
+
+            expect(updated.reading.memoryStrength).toBe(vocab.reading.memoryStrength);
+            expect(updated.meaning.memoryStrength).toBe(vocab.meaning.memoryStrength);
+        });
+
+        it('credits less than a full production answer would (the reinforcement discount)', () => {
+            const base = vocabWith({ production: { ...DEFAULT_VOCABULARY_PROGRESS.production!, memoryStrength: 200, dueDate: mockNow } });
+            const neutral = CONSTANTS.srs.quizProperties.production.expectedLatency;
+            const reinforced = SRSService.applyProductionReinforcement(base, 'correct', mockNow, true, true);
+            const full = SRSService.applyAnswer(base, 'production', 'base', 'correct', neutral, mockNow).updated;
+
+            expect(reinforced.production!.memoryStrength).toBeGreaterThan(200);
+            expect(reinforced.production!.memoryStrength).toBeLessThan(full.production!.memoryStrength);
         });
     });
 

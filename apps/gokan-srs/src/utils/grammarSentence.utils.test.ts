@@ -23,14 +23,14 @@ function makeExample(overrides: Partial<GrammarExample> = {}): GrammarExample {
 describe('grammarExampleToSentence', () => {
     it('carries the Japanese text and English translation over unchanged', () => {
         const example = makeExample();
-        const sentence = grammarExampleToSentence(example, 0);
+        const sentence = grammarExampleToSentence(example, 'grammar-example-0');
         expect(sentence.original).toBe(example.jp);
         expect(sentence.en).toEqual([{ id: 'grammar-example-0-en', text: example.en }]);
     });
 
     it('derives each matched word\'s start offset from cumulative surface length, not a hand-tracked index', () => {
         const example = makeExample();
-        const sentence = grammarExampleToSentence(example, 0);
+        const sentence = grammarExampleToSentence(example, 'g');
 
         expect(sentence.matches?.['v-kare']).toEqual([{ start: 0, length: 1, reading: 'かれ' }]);
         expect(sentence.matches?.['v-shigoto']).toEqual([{ start: 2, length: 2, reading: 'しごと' }]);
@@ -40,7 +40,7 @@ describe('grammarExampleToSentence', () => {
 
     it('omits particle/unresolved words (vocabId null) from matches and vocabIds', () => {
         const example = makeExample();
-        const sentence = grammarExampleToSentence(example, 0);
+        const sentence = grammarExampleToSentence(example, 'g');
 
         expect(sentence.matches?.['は']).toBeUndefined();
         expect(sentence.vocabIds).toEqual(['v-kare', 'v-shigoto', 'v-kayou']);
@@ -54,7 +54,7 @@ describe('grammarExampleToSentence', () => {
                 { surface: '早い', vocabId: 'v-hayai', reading: 'はやい' },
             ],
         });
-        const sentence = grammarExampleToSentence(example, 0);
+        const sentence = grammarExampleToSentence(example, 'g');
 
         expect(sentence.matches?.['v-hayai']).toEqual([
             { start: 0, length: 2, reading: 'はやい' },
@@ -62,9 +62,28 @@ describe('grammarExampleToSentence', () => {
         ]);
     });
 
-    it('produces a stable, index-scoped id so multiple examples on the same page never collide', () => {
-        const sentence = grammarExampleToSentence(makeExample(), 3);
+    it('takes the id it is given, so multiple examples on the same page never collide', () => {
+        const sentence = grammarExampleToSentence(makeExample(), 'grammar-example-3');
         expect(sentence.id).toBe('grammar-example-3');
+    });
+
+    it('keeps a conjugated word\'s reading only when it is the surface\'s own, never its lemma\'s', () => {
+        const example = makeExample({
+            jp: '野菜を食べたら',
+            words: [
+                { surface: '野菜', vocabId: 'v-yasai', reading: 'やさい' },
+                { surface: 'を', vocabId: null },
+                { surface: '食べ', vocabId: 'v-taberu', reading: 'たべる', baseForm: '食べる' },
+                { surface: 'たら', vocabId: null },
+            ],
+        });
+        expect(grammarExampleToSentence(example, 'g').matches).toEqual({
+            'v-yasai': [{ start: 0, length: 2, reading: 'やさい' }],
+            // たべる is the lemma's: it would read 食べ as たべる.
+            'v-taberu': [{ start: 3, length: 2 }],
+        });
+        // 通っている carries its own reading, かよっている.
+        expect(grammarExampleToSentence(makeExample(), 'g').matches?.['v-kayou']).toEqual([{ start: 15, length: 5, reading: 'かよっている' }]);
     });
 });
 

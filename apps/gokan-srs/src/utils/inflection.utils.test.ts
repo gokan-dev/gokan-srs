@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateInflections, isFormOfWord, kanaOfSurface, readingMatchesWord, toInflectableWord, wordClassesOf } from './inflection.utils';
+import { generateInflections, inferredWord, isFormOfWord, kanaOfSurface, readingMatchesWord, sameFormUpToRegister, toInflectableWord, wordClassesOf } from './inflection.utils';
 import type { InflectableWord } from './inflection.utils';
 import type { Sense } from '@gokan/dataset-schema';
 
@@ -199,5 +199,97 @@ describe('readingMatchesWord', () => {
 
     it('never excludes a match that carries no reading', () => {
         expect(readingMatchesWord('', SUSABU)).toBe(true);
+    });
+});
+
+describe('inferredWord: how a token with no dictionary entry conjugates', () => {
+    /** True when `form` is a form of the word read off `surface` (dictionary form `base`). */
+    const formOf = (base: string, surface: string, form: string) => {
+        const w = inferredWord(base, surface);
+        return w !== null && isFormOfWord(form, w);
+    };
+
+    it('names the irregular verbs, and ある whose negative is ない', () => {
+        expect(inferredWord('ある', 'あり')?.classes).toEqual(['godan-aru']);
+        expect(formOf('ある', 'あり', 'ありません')).toBe(true);
+        expect(formOf('ある', 'あり', 'ない')).toBe(true);
+        expect(formOf('ある', 'あり', 'あらない')).toBe(false);
+        expect(formOf('する', 'し', 'した')).toBe(true);
+        expect(formOf('くる', 'き', 'こない')).toBe(true);
+        expect(formOf('来る', '来', '来なかった')).toBe(true);
+        expect(formOf('行く', '行っ', '行きます')).toBe(true);
+        expect(formOf('なさる', 'なさい', 'なさいます')).toBe(true);
+    });
+
+    it('tells ichidan from godan by the stem the occurrence shows', () => {
+        // The bare stem is ichidan; り, ら or っ after it is godan.
+        expect(inferredWord('いける', 'いけ')?.classes).toEqual(['ichidan']);
+        expect(inferredWord('いる', 'い')?.classes).toEqual(['ichidan']);
+        expect(inferredWord('なる', 'なり')?.classes).toEqual(['godan']);
+        expect(inferredWord('なる', 'なっ')?.classes).toEqual(['godan']);
+        expect(formOf('なる', 'なり', 'なった')).toBe(true);
+        expect(formOf('いける', 'いけ', 'いけません')).toBe(true);
+        // れ and ろ fit both, as does a verb seen in its dictionary form.
+        expect(inferredWord('いる', 'いれ')?.classes).toEqual(['ichidan', 'godan']);
+        expect(inferredWord('なる', 'なる')?.classes).toEqual(['ichidan', 'godan']);
+        expect(formOf('もつ', 'もっ', 'もちます')).toBe(true);
+    });
+
+    it('reads a conjugated い word as an adjective (the ない of なければ included), never a bare noun ending in い', () => {
+        expect(formOf('ない', 'なけれ', 'なかった')).toBe(true);
+        expect(formOf('たい', 'たく', 'たかった')).toBe(true);
+        expect(inferredWord('くらい', 'くらい')).toBeNull();
+    });
+
+    it('conjugates the copula, which has no stem', () => {
+        expect(formOf('だ', 'で', 'である')).toBe(true);
+        expect(formOf('だ', 'で', 'じゃない')).toBe(true);
+        expect(formOf('だ', 'な', 'である')).toBe(true); // the attributive な (静かなものだ) is the copula too
+        expect(formOf('だ', 'で', 'ある')).toBe(false);
+    });
+
+    it('leaves alone what the generator does not conjugate', () => {
+        for (const [base, surface] of [['ます', 'ませ'], ['た', 'た'], ['ぬ', 'ぬ'], ['べし', 'べき'], ['こと', 'こと']]) {
+            expect(inferredWord(base, surface)).toBeNull();
+        }
+    });
+});
+
+describe('sameFormUpToRegister: one tense and polarity, plain or polite', () => {
+    const same = (a: string, b: string, w: InflectableWord) => sameFormUpToRegister(a, b, w);
+
+    it('pairs a verb\'s plain and polite forms, tense and polarity kept', () => {
+        expect(same('ある', 'あります', ARU)).toBe(true);
+        expect(same('なかった', 'ありませんでした', ARU)).toBe(true);
+        expect(same('ない', 'ありません', ARU)).toBe(true);
+        expect(same('食べる', 'たべます', TABERU)).toBe(true);
+        expect(same('食べている', '食べています', TABERU)).toBe(true);
+        expect(same('書いた', '書きました', KAKU)).toBe(true);
+        expect(same('書こう', '書きましょう', KAKU)).toBe(true);
+        expect(same('行った', 'いきました', IKU)).toBe(true);
+        expect(same('来る', 'きます', KURU)).toBe(true);
+        expect(same('しない', 'しません', SURU)).toBe(true);
+        expect(same('勉強した', '勉強しました', BENKYOU)).toBe(true);
+        // A derived verb (the potential) has its own plain and polite forms.
+        expect(same('書ける', '書けます', KAKU)).toBe(true);
+    });
+
+    it('pairs adjectives and the copula the same way', () => {
+        expect(same('早い', '早いです', HAYAI)).toBe(true);
+        expect(same('早くない', '早くありません', HAYAI)).toBe(true);
+        expect(same('よかった', 'よかったです', II)).toBe(true);
+        expect(same('大変だ', '大変です', TAIHEN)).toBe(true);
+        expect(same('大変ではない', '大変じゃありません', TAIHEN)).toBe(true);
+        expect(same('だ', 'です', inferredWord('だ', 'で')!)).toBe(true);
+    });
+
+    it('keeps tense, polarity and every other form apart', () => {
+        expect(same('ある', 'ありました', ARU)).toBe(false);
+        expect(same('ある', 'ありません', ARU)).toBe(false);
+        expect(same('食べる', '食べて', TABERU)).toBe(false);
+        expect(same('食べる', '食べている', TABERU)).toBe(false);
+        expect(same('書く', '書けます', KAKU)).toBe(false);
+        expect(same('早い', '早かったです', HAYAI)).toBe(false);
+        expect(same('ある', 'いる', ARU)).toBe(false);
     });
 });

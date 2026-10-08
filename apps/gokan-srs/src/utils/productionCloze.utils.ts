@@ -29,12 +29,6 @@ export function blankSurfaceOf(cloze: ProductionCloze): string {
     return cloze.sentence.original.slice(cloze.blankStart, cloze.blankStart + cloze.blankLength);
 }
 
-/** The blank's surface and reading, the extra forms production grading accepts for a cloze card. */
-export function clozeAcceptedForms(cloze: ProductionCloze | null): string[] {
-    if (!cloze) return [];
-    return [blankSurfaceOf(cloze), ...(cloze.blankReading ? [cloze.blankReading] : [])];
-}
-
 /**
  * Picks the sentence (and blank span within it) to drive this turn's production
  * cloze card, restricted to sentences carrying a usable `matches[vocabId]` entry
@@ -59,7 +53,7 @@ export function clozeAcceptedForms(cloze: ProductionCloze | null): string[] {
  * card. (Omitting `vocab` skips the guard - used only by selection-logic tests.)
  *
  * Returns null when no sentence has a usable match - the caller reads that as
- * "fall back to the gloss-prompt card" (VocabProductionQuizCard). Coverage is
+ * "fall back to the gloss-prompt card" (the `production` exercise). Coverage is
  * inherently partial: not every vocab has sentences, and not every sentence a
  * word appears in was tokenized with a resolved match for it.
  */
@@ -88,35 +82,6 @@ export function pickProductionClozeSentence(
     };
 }
 
-/**
- * Splits a cloze's sentence into the literal text before/after the blanked span.
- * `before + blank + after` always reproduces `sentence.original` exactly - the
- * same invariant gokan-dictionary's `segmentSentence` relies on for the same
- * `matches` data (see that app's `sentenceSegments.ts`).
- */
-export function splitSentenceAtBlank(cloze: ProductionCloze): { before: string; blank: string; after: string } {
-    const { sentence, blankStart, blankLength } = cloze;
-    return {
-        before: sentence.original.slice(0, blankStart),
-        blank: sentence.original.slice(blankStart, blankStart + blankLength),
-        after: sentence.original.slice(blankStart + blankLength),
-    };
-}
-
-/**
- * Splits a cloze into the two `Sentence` fragments on either side of the blank,
- * so the cloze card can render its surrounding context through the shared
- * `InteractiveSentence` component (clickable, gloss-on-hover words) instead of
- * flat text - the same treatment every other sentence in the app gets.
- *
- * Each fragment carries only the vocab matches that fall ENTIRELY on its side,
- * with `after`'s offsets rebased to its own slice. The blanked target span is
- * carried into neither fragment, so the target word is never rendered (it stays
- * the input) - even when the word occurs elsewhere in the sentence, only the
- * blanked occurrence is dropped. A match that straddles the blank boundary is
- * dropped defensively (matches should never overlap the target span, but a bad
- * datum must not render half a word next to the blank).
- */
 /**
  * Best-effort emphasis for the production cloze card's English cue: which word in
  * the English translation corresponds to the blanked Japanese word. The bare cue
@@ -169,41 +134,4 @@ export function emphasizeGloss(englishText: string, glosses: string[]): GlossEmp
     }
 
     return { inline: null, labelGlosses: cleaned.slice(0, 3) };
-}
-
-export function splitClozeContext(cloze: ProductionCloze): { before: Sentence; after: Sentence } {
-    const { sentence, blankStart, blankLength } = cloze;
-    const blankEnd = blankStart + blankLength;
-
-    type Match = { start: number; length: number; reading?: string };
-    const beforeMatches: Record<string, Match[]> = {};
-    const afterMatches: Record<string, Match[]> = {};
-
-    for (const [vocabId, arr] of Object.entries(sentence.matches ?? {})) {
-        for (const m of arr) {
-            if (m.start + m.length <= blankStart) {
-                (beforeMatches[vocabId] ??= []).push({ ...m });
-            } else if (m.start >= blankEnd) {
-                (afterMatches[vocabId] ??= []).push({ start: m.start - blankEnd, length: m.length, reading: m.reading });
-            }
-            // else: overlaps the blank -> dropped
-        }
-    }
-
-    return {
-        before: {
-            ...sentence,
-            id: `${sentence.id}:before`,
-            original: sentence.original.slice(0, blankStart),
-            vocabIds: Object.keys(beforeMatches),
-            matches: beforeMatches,
-        },
-        after: {
-            ...sentence,
-            id: `${sentence.id}:after`,
-            original: sentence.original.slice(blankEnd),
-            vocabIds: Object.keys(afterMatches),
-            matches: afterMatches,
-        },
-    };
 }
