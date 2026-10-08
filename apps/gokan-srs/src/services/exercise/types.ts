@@ -71,6 +71,19 @@ export interface SlotWord {
     synonyms: SynonymCandidate[];
 }
 
+/**
+ * A conjugated word inside a slot's text (ある in があります), with the text around
+ * it: the same text with the word in any other of its forms is the right
+ * construction in another conjugation (がありません, があった), a near miss.
+ */
+export interface SlotInflection {
+    /** The slot's text before the word, in each spelling (written, kana). `''` when the word starts it. */
+    lead: string[];
+    word: InflectableWord;
+    /** The slot's text after the word's inflection, in each spelling. `''` when the word ends it. */
+    tail: string[];
+}
+
 /** One answer the learner types. Built once when the exercise is built, so grading stays pure and synchronous. */
 export interface AnswerSlot {
     /** Forms graded `correct` (a typo of one is a `minor_error`). */
@@ -84,6 +97,8 @@ export interface AnswerSlot {
     /** The first hint level. Empty when there is none. */
     gloss: string;
     word?: SlotWord;
+    /** The conjugated words of a grammar marker, each a near miss in any other conjugation. */
+    inflections?: SlotInflection[];
 }
 
 /** A slot answered with one of its word's near-synonyms instead of the word. */

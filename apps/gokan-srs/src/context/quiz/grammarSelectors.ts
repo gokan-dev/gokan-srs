@@ -9,7 +9,10 @@ import { hashString, pickStable } from '../../utils/deterministicPick';
 import { surfaceReading } from '../../utils/grammarSentence.utils';
 import { indexLearnerVocab, pickMostProductive, scoreGrammarExample, wordRole } from '../../utils/sentenceRanking';
 import { computeSessionState } from './sessionState';
-import { synonymsOf, wordSlot } from '../../services/exercise/slots';
+import { markerInflections, synonymsOf, wordSlot } from '../../services/exercise/slots';
+import type { MarkerToken } from '../../services/exercise/slots';
+import { inferredWord, toInflectableWord } from '../../utils/inflection.utils';
+import type { InflectableWord } from '../../utils/inflection.utils';
 import type { AnswerSlot } from '../../services/exercise/types';
 import { computeSessionStats, computeSessionPreview } from './sessionStats';
 import type { QuizState } from './quizReducer';
@@ -127,27 +130,35 @@ function withNear(slot: AnswerSlot, extra: string[]): AnswerSlot {
 }
 
 /**
- * Right word, wrong conjugation on a marker: the marker in its dictionary form, a
- * near miss. Kuromoji tags the dictionary form on the marker's conjugated head
- * token, which often has no vocab id (あり -> ある) and so no word to deinflect.
- * What comes before the head stays (a span reading があります wants がある, reported:
- * the bare ある alone matched nothing typed with its particle), and what comes
- * after it, the inflection (ます), goes. The bare dictionary form stays a near
- * miss too, as it was before the particle was taken into account.
+ * A marker's tokens for its slot's conjugation rule (markerInflections), each
+ * conjugated token, and a verb ending the marker in its dictionary form (ことがある),
+ * carrying how its word inflects: from its dictionary entry when it has one, read
+ * off the token itself otherwise (inferredWord), since most marker tokens link to
+ * no entry (あり for ある, し for する).
  */
-function markerDictionaryForms(words: GrammarExampleWord[]): string[] {
-    const head = words.findIndex(w => w.baseForm && w.baseForm !== w.surface);
-    const base = words[head]?.baseForm;
-    if (!base) return [];
-    const before = words.slice(0, head);
-    const forms = [base, before.map(w => w.surface).join('') + base];
-    // Typed in kana: only when every token before the head can be read.
-    if (!/[一-鿿]/.test(base) && before.every(w => surfaceReading(w) || !/[一-鿿]/.test(w.surface))) {
-        forms.push(before.map(w => surfaceReading(w) ?? w.surface).join('') + base);
-    }
-    return Array.from(new Set(forms));
+async function markerTokens(words: GrammarExampleWord[]): Promise<MarkerToken[]> {
+    return Promise.all(words.map(async (w, i) => {
+        const kana = surfaceReading(w) ?? (/[一-鿿]/.test(w.surface) ? null : w.surface);
+        const conjugated = !!w.baseForm && w.baseForm !== w.surface;
+        // Unconjugated, only the marker's last token can be a verb in its dictionary form.
+        const finalVerb = i === words.length - 1 && /[うくぐすつぬぶむる]$/.test(w.surface);
+        if (!conjugated && !finalVerb) return { surface: w.surface, kana, word: null };
+        return { surface: w.surface, kana, word: await inflectingWordOf(w) };
+    }));
 }
 
+/** How a marker token's word inflects, or null when it does not (a noun). */
+async function inflectingWordOf(w: GrammarExampleWord): Promise<InflectableWord | null> {
+    if (w.vocabId) {
+        try {
+            const word = toInflectableWord(await VocabularyService.loadVocab(w.vocabId));
+            return word.classes.length > 0 ? word : null;
+        } catch (e) {
+            console.error(`[grammarSelectors] Failed to load vocab ${w.vocabId} for a marker token, reading its conjugation off the token instead`, e);
+        }
+    }
+    return inferredWord(w.baseForm ?? w.surface, w.surface);
+}
 /**
  * One answer slot per blank span, built by the exercise engine's slot builders so
  * a grammar blank accepts and grades a word exactly as a production card would,
@@ -160,7 +171,8 @@ function markerDictionaryForms(words: GrammarExampleWord[]): string[] {
  * vocab blanks only scale the reward, since there is one SRS entry per point and
  * it must mean grammar-point recall. With no pattern located (the fallback passes),
  * every blank decides. A marker practises the point, not the word, so its slot
- * credits no vocab.
+ * credits no vocab, and the right construction in another conjugation is a near
+ * miss on it (がありません for があります: see markerInflections).
  *
  * Vocab files are fetched here, once at load time (VocabularyService.loadVocab is
  * cached), so grading stays synchronous. A failed fetch falls back to the surface
@@ -179,7 +191,8 @@ async function buildBlankSlots(
         const isPattern = !!isPatternSpan[spanIndex];
         const role = !decidedByPattern || isPattern ? 'core' : 'support';
         const words = span.map(i => example.words[i]);
-        const markerNear = isPattern ? markerDictionaryForms(words) : [];
+        const inflections = isPattern ? markerInflections(await markerTokens(words)) : [];
+        const withInflections = (slot: AnswerSlot): AnswerSlot => (inflections.length > 0 ? { ...slot, inflections } : slot);
 
         // A merged span is graded on the concatenation of its words. Only the
         // surface and the reading are meaningful for a multi-token marker: a
@@ -190,9 +203,8 @@ async function buildBlankSlots(
             const reading = words.every(w => w.reading || !/[一-鿿]/.test(w.surface))
                 ? words.map(w => w.reading ?? w.surface).join('')
                 : null;
-            slots.push(withNear(
+            slots.push(withInflections(
                 { accept: Array.from(new Set([surface, ...(reading ? [reading] : [])])), near: [], leniency: 'standard', role, reveal: surface, gloss: '' },
-                markerNear,
             ));
             continue;
         }
@@ -228,7 +240,7 @@ async function buildBlankSlots(
                 if (!isPattern) slot = { ...plain, word: { vocabId: word.vocabId, label: word.surface, headword: word.baseForm ?? word.surface, lemma: null, otherForm: 'minor_error', synonyms: [] } };
             }
         }
-        slots.push(withNear(slot, markerNear));
+        slots.push(withInflections(slot));
     }
 
     return slots;

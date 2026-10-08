@@ -1,13 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { gradeExercise, gradeSlot, supportCoefficient, SUPPORT_COEFFICIENT_FLOOR, worstOf } from './grading';
-import { meaningSlot, readingSlot, wordSlot } from './slots';
+import { markerInflections, meaningSlot, readingSlot, wordSlot } from './slots';
 import { vocabExercise } from './builders';
 import type { AnswerSlot, GradedExercise, SynonymCandidate, WordForms } from './types';
 import type { ProductionCue } from '../../utils/synonymContext.utils';
 import type { AnswerResult } from '../../utils/answerMatching';
 import type { ProductionCloze } from '../../utils/productionCloze.utils';
 import type { Vocabulary } from '@gokan/dataset-schema';
-import { vocabulary } from '../../test/fixtures';
+import { inferredWord } from '../../utils/inflection.utils';
+import { answerSlot, vocabulary } from '../../test/fixtures';
 
 const grade = (slot: AnswerSlot, input: string, cue: ProductionCue = {}) => gradeSlot(slot, input, 0, cue);
 
@@ -193,6 +194,59 @@ describe('parity: a production card and a grammar blank grade the same answer th
             // Each shows its own reveal; the grade and the word recognized are the same.
             expect({ result: onBlank.result, synonym: onBlank.synonym }).toEqual({ result: onCard.result, synonym: onCard.synonym });
         });
+    });
+});
+
+describe('a grammar marker: the right construction in another conjugation', () => {
+    const aru = inferredWord('ある', 'あり')!;
+    // n5-064's blank, があります: が, then ある inflected by ます.
+    const [inflection] = markerInflections([
+        { surface: 'が', kana: 'が', word: null },
+        { surface: 'あり', kana: 'あり', word: aru },
+        { surface: 'ます', kana: 'ます', word: null },
+    ]);
+    const slot = answerSlot({ accept: ['があります'], inflections: [inflection] });
+
+    it('finds the word, the text before it and how far its inflection reaches', () => {
+        expect(inflection).toEqual({ lead: ['が'], word: aru, tail: [''] });
+    });
+
+    it.each(['がある', 'がありません', 'があった', 'がない'])('grades %s a near miss, showing the expected form', input => {
+        expect(grade(slot, input)).toEqual({ result: 'minor_error', shown: 'があります' });
+    });
+
+    it('keeps the rest of the construction: another particle, a missing one or another verb is wrong', () => {
+        expect(grade(slot, 'ある').result).toBe('wrong');
+        expect(grade(slot, 'をある').result).toBe('wrong');
+        expect(grade(slot, 'がいる').result).toBe('wrong');
+        expect(grade(slot, 'があります').result).toBe('correct');
+    });
+
+    it('keeps the fixed text after a word whose inflection stops short of the end (なければならない)', () => {
+        const [nai, naru] = markerInflections([
+            { surface: 'なけれ', kana: 'なけれ', word: inferredWord('ない', 'なけれ') },
+            { surface: 'ば', kana: 'ば', word: null },
+            { surface: 'なら', kana: 'なら', word: inferredWord('なる', 'なら') },
+            { surface: 'ない', kana: 'ない', word: null },
+        ]);
+        expect(nai).toMatchObject({ lead: [''], tail: ['ならない'] });
+        expect(naru).toMatchObject({ lead: ['なければ'], tail: [''] });
+        const nakereba = answerSlot({ accept: ['なければならない'], inflections: [nai, naru] });
+        expect(grade(nakereba, 'なければなりません').result).toBe('minor_error');
+        expect(grade(nakereba, 'なければいけない').result).toBe('wrong');
+    });
+
+    it('accepts the text around the word in kana as well as written', () => {
+        const [inf] = markerInflections([
+            { surface: '事', kana: 'こと', word: null },
+            { surface: 'に', kana: 'に', word: null },
+            { surface: 'し', kana: 'し', word: inferredWord('する', 'し') },
+            { surface: 'て', kana: 'て', word: null },
+            { surface: 'いる', kana: 'いる', word: null },
+        ]);
+        const slot2 = answerSlot({ accept: ['事にしている'], inflections: [inf] });
+        expect(grade(slot2, '事にする').result).toBe('minor_error');
+        expect(grade(slot2, 'ことにした').result).toBe('minor_error');
     });
 });
 

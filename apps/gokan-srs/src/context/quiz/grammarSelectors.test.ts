@@ -1000,9 +1000,9 @@ describe('conjugated blanks: kana accepted, other forms of a vocab word are mino
         expect(grade('ねこ')).toBe('wrong');
     });
 
-    it('grades the dictionary form a minor error when the marker span starts with its particle (がある for があります, reported)', async () => {
+    it('grades the marker in any other conjugation a minor error, its particle kept (がある, がありません for があります, reported)', async () => {
         // n5-064's own shape: が, あり and ます are one pattern span, so the blank wants
-        // があります, and its dictionary form keeps the particle in front of ある.
+        // があります; ある links to no vocab entry, so its conjugation is read off あり.
         const point = makeGrammarPoint({
             examples: [{
                 jp: '教室に机があります。',
@@ -1025,8 +1025,72 @@ describe('conjugated blanks: kana accepted, other forms of a vocab word are mino
 
         const grade = (input: string) => gradePlan(plan, [input], []).slots[0].result;
         expect(grade('があります')).toBe('correct');
-        expect(grade('がある')).toBe('minor_error');
+        for (const other of ['がある', 'がありません', 'があった', 'がありました', 'がない']) expect(grade(other)).toBe('minor_error');
+        // The particle is part of the construction.
+        expect(grade('ある')).toBe('wrong');
+        expect(grade('がいる')).toBe('wrong');
         expect(grade('ねこ')).toBe('wrong');
+    });
+
+    it('grades a verb ending the marker in its dictionary form in any other conjugation a minor error (ことがある)', async () => {
+        const point = makeGrammarPoint({
+            examples: [{
+                jp: '日本に行ったことがある。',
+                romaji: 'nihon ni itta koto ga aru',
+                en: 'I have been to Japan.',
+                patternWordIndices: [3, 4, 5],
+                words: [
+                    { surface: '日本', vocabId: 'v-nihon', reading: 'にほん' },
+                    { surface: 'に', vocabId: null },
+                    { surface: '行った', vocabId: 'v-iku', reading: 'いった', baseForm: '行く' },
+                    { surface: 'こと', vocabId: null },
+                    { surface: 'が', vocabId: null },
+                    { surface: 'ある', vocabId: null },
+                    { surface: '。', vocabId: null },
+                ],
+            }],
+        });
+        const plan = (await computeBlankPlan(point, makeProgress({ learningQueue: [] }), 0))!;
+        expect(plan.blankWordSpans).toEqual([[3, 4, 5]]);
+
+        const grade = (input: string) => gradePlan(plan, [input], []).slots[0].result;
+        expect(grade('ことがある')).toBe('correct');
+        expect(grade('ことがあります')).toBe('minor_error');
+        expect(grade('ことがあった')).toBe('minor_error');
+        expect(grade('ことがする')).toBe('wrong');
+    });
+
+    it('conjugates a marker verb from its vocab entry when it has one, in kanji or in kana (に行きます)', async () => {
+        const iku = makeVocab({
+            id: 'v-iku',
+            writtenForm: { kanji: '行く', alternatives: [], containedKanji: ['行'] },
+            reading: { primary: 'いく', alternatives: [] },
+            senses: [{ pos: ['v5k-s', 'vi'], glosses: ['to go'], misc: { rawTags: [] }, related: { compounds: [] } }],
+        });
+        vi.spyOn(VocabularyService, 'loadVocab').mockResolvedValue(iku);
+        const point = makeGrammarPoint({
+            examples: [{
+                jp: '学校に行きます。',
+                romaji: 'gakkou ni ikimasu',
+                en: 'I go to school.',
+                patternWordIndices: [1, 2, 3],
+                words: [
+                    { surface: '学校', vocabId: 'v-gakkou', reading: 'がっこう' },
+                    { surface: 'に', vocabId: null },
+                    { surface: '行き', vocabId: 'v-iku', reading: 'いき', baseForm: '行く' },
+                    { surface: 'ます', vocabId: null },
+                    { surface: '。', vocabId: null },
+                ],
+            }],
+        });
+        const plan = (await computeBlankPlan(point, makeProgress({ learningQueue: [] }), 0))!;
+        expect(plan.blankWordSpans).toEqual([[1, 2, 3]]);
+
+        const grade = (input: string) => gradePlan(plan, [input], []).slots[0].result;
+        expect(grade('に行きます')).toBe('correct');
+        expect(grade('に行った')).toBe('minor_error');
+        expect(grade('にいかない')).toBe('minor_error');
+        expect(grade('に来た')).toBe('wrong');
     });
 });
 

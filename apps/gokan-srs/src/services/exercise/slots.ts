@@ -6,10 +6,10 @@
 // accept the same answers, up to their OtherFormGrade.
 import { headwordOf, headwordWithReading } from '@gokan/dataset-schema';
 import type { Vocabulary } from '@gokan/dataset-schema';
-import { kanaOfSurface, toInflectableWord } from '../../utils/inflection.utils';
+import { isFormOfWord, kanaOfSurface, toInflectableWord } from '../../utils/inflection.utils';
 import type { InflectableWord } from '../../utils/inflection.utils';
 import { embeddedSynonymCandidate } from '../../utils/synonymContext.utils';
-import type { AnswerSlot, OtherFormGrade, SlotRole, SynonymCandidate, WordForms } from './types';
+import type { AnswerSlot, OtherFormGrade, SlotInflection, SlotRole, SynonymCandidate, WordForms } from './types';
 
 function unique(forms: (string | undefined)[]): string[] {
     return Array.from(new Set(forms.filter((f): f is string => !!f)));
@@ -129,4 +129,38 @@ export function meaningSlot(glosses: string[]): AnswerSlot {
         reveal: glosses[0] ?? '',
         gloss: '',
     };
+}
+
+/** One token of a grammar marker: its kana when known, and how its word inflects when it is one that does. */
+export interface MarkerToken {
+    surface: string;
+    kana: string | null;
+    word: InflectableWord | null;
+}
+
+/** A run of tokens as written, and in kana when every token's kana is known. */
+function spellings(tokens: MarkerToken[]): string[] {
+    if (tokens.length === 0) return [''];
+    const kana = tokens.every(t => t.kana !== null) ? tokens.map(t => t.kana).join('') : undefined;
+    return unique([tokens.map(t => t.surface).join(''), kana]);
+}
+
+/**
+ * The conjugated words of a grammar marker (があります, なければならない), each with
+ * the text around it, so the right construction in another conjugation is a near
+ * miss (がありません, なければなりません). A word's inflection reaches as far as the
+ * tokens after it still spell one of its forms (あり + ます is あります); what
+ * follows is fixed text.
+ */
+export function markerInflections(tokens: MarkerToken[]): SlotInflection[] {
+    return tokens.flatMap((token, head) => {
+        const { word } = token;
+        if (!word) return [];
+        let end = -1;
+        for (let j = head; j < tokens.length; j++) {
+            if (spellings(tokens.slice(head, j + 1)).some(s => isFormOfWord(s, word))) end = j;
+        }
+        if (end === -1) return [];
+        return [{ lead: spellings(tokens.slice(0, head)), word, tail: spellings(tokens.slice(end + 1)) }];
+    });
 }

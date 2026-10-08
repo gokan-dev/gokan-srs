@@ -12,7 +12,9 @@ import { toHiragana } from './romaji';
 export type WordClass =
     | 'godan' | 'godan-iku' | 'godan-aru' | 'godan-aru-honorific'
     | 'ichidan' | 'kuru' | 'suru' | 'suru-s' | 'suru-noun'
-    | 'i-adj' | 'ii' | 'na-adj';
+    | 'i-adj' | 'ii' | 'na-adj'
+    // The copula (だ, である): only ever inferred from a sentence, never a vocab tag.
+    | 'copula';
 
 /** The minimal shape the generator needs, small enough to carry on a quiz plan. */
 export interface InflectableWord {
@@ -157,6 +159,14 @@ const NA_ADJ_SUFFIXES = [
     'さ', 'そう', 'すぎる', 'になる', 'になった', 'にする',
 ];
 
+/** The copula's forms. It has no stem: its word is the empty string. */
+const COPULA_SUFFIXES = [
+    'だ', 'な', 'で', 'です', 'だった', 'でした', 'だろう', 'でしょう', 'なら', 'だったら', 'であれば',
+    'である', 'であった', 'であろう', 'であって', 'であり',
+    'じゃない', 'ではない', 'じゃなかった', 'ではなかった', 'じゃなくて', 'ではなくて',
+    'じゃないです', 'じゃなかったです', 'じゃありません', 'ではありません', 'じゃありませんでした', 'ではありませんでした',
+];
+
 /** Pairs `written stem + suffix` with `kana stem + suffix` for every suffix. */
 function attach(wStem: string, kStem: string, suffixes: string[]): InflectedForm[] {
     return suffixes.map(s => ({ written: wStem + s, kana: kStem + s }));
@@ -231,6 +241,8 @@ function formsFor(w: string, k: string, cls: WordClass): InflectedForm[] {
         }
         case 'na-adj':
             return attach(w, k, NA_ADJ_SUFFIXES);
+        case 'copula':
+            return attach(w, k, COPULA_SUFFIXES);
     }
 }
 
@@ -310,7 +322,57 @@ function writtenStem(w: string, cls: WordClass): string | null {
         case 'suru': case 'suru-s': return w.endsWith('する') ? w.slice(0, -2) : null;
         case 'suru-noun': case 'na-adj': return w;
         case 'i-adj': case 'ii': return w.endsWith('い') ? w.slice(0, -1) : null;
+        case 'copula': return null;
     }
+}
+
+const HONORIFIC_ARU = ['なさる', 'くださる', '下さる', 'いらっしゃる', 'おっしゃる', 'ござる'];
+const U_ROW = 'うくぐすつぬぶむる';
+
+/**
+ * How a word inflects, read off one occurrence of it, for a token the dataset links
+ * to no dictionary entry: most grammar markers (あり for ある, し for する, なけれ for
+ * ない), so there are no part-of-speech tags to read. `surface` is the occurrence,
+ * `dictionaryForm` its dictionary form (the same string when it is not conjugated).
+ *
+ * The verbs that conjugate irregularly are named; the rest is told apart by shape.
+ * A る verb is ichidan when the occurrence is its bare stem (食べ, い) and godan when
+ * the stem continues in り, ら or っ (帰り, 帰ら, 帰っ); れ and ろ fit both (食べれば,
+ * 帰れば), as does the dictionary form itself, so both are offered: these words only
+ * ever grade a near miss, where the lenient reading is the safe one. Null for what
+ * the generator does not conjugate (ます, た, ぬ, a noun).
+ */
+export function inferredWord(dictionaryForm: string, surface: string): InflectableWord | null {
+    const classes = inferredClasses(dictionaryForm, surface);
+    if (classes.length === 0) return null;
+    const written = classes.includes('copula') ? '' : dictionaryForm;
+    // With no reading at hand, a kanji word conjugates in kanji only; 来る's forms
+    // need its kana to move between こ, き and く.
+    const reading = written.replace(/来る$/, 'くる');
+    return { written: [written], readings: [reading], classes };
+}
+
+function inferredClasses(base: string, surface: string): WordClass[] {
+    if (base === 'だ' || base === 'です') return ['copula'];
+    // The polite auxiliary ends like a godan す verb but is no verb of its own: its
+    // forms come with the verb before it (あり + ます).
+    if (base.length < 2 || base === 'ます') return [];
+    if (base.endsWith('する') || base === '為る') return ['suru'];
+    if (base === 'くる' || base.endsWith('来る')) return ['kuru'];
+    if (base === 'いく' || base === '行く') return ['godan-iku'];
+    if (base === 'ある' || base === '有る' || base === '在る') return ['godan-aru'];
+    if (HONORIFIC_ARU.includes(base)) return ['godan-aru-honorific'];
+    if (base === 'いい') return ['ii'];
+    // Only a conjugated い word is known to be an adjective: a bare noun such as
+    // くらい ends in い too.
+    if (base.endsWith('い')) return surface !== base ? ['i-adj'] : [];
+    const ending = base.slice(-1);
+    if (!U_ROW.includes(ending)) return [];
+    if (ending !== 'る') return ['godan'];
+    const stem = base.slice(0, -1);
+    if (surface === stem) return ['ichidan'];
+    const next = surface.startsWith(stem) ? surface.charAt(stem.length) : '';
+    return next !== '' && 'りらっ'.includes(next) ? ['godan'] : ['ichidan', 'godan'];
 }
 
 const normalize = (s: string) => s.trim().replace(/\s+/g, '');

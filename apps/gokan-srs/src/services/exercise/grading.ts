@@ -11,7 +11,7 @@ import { isFormOfWord } from '../../utils/inflection.utils';
 import { orderSynonymsForCue, sharedMeaningUsed, synonymOutcome } from '../../utils/synonymContext.utils';
 import type { ProductionCue } from '../../utils/synonymContext.utils';
 import { wordSlot } from './slots';
-import type { AnswerSlot, ExerciseGrade, GradedExercise, SlotGrade, SynonymAnswer, SynonymCandidate } from './types';
+import type { AnswerSlot, ExerciseGrade, GradedExercise, SlotGrade, SlotInflection, SynonymAnswer, SynonymCandidate } from './types';
 
 /** How good a result is, best last. `pass` sits between: the learner skipped rather than mis-recalled. */
 const STANDING: Record<AnswerResult, number> = { wrong: 0, pass: 1, minor_error: 2, correct: 3 };
@@ -55,12 +55,22 @@ function findSynonym(input: string, candidates: SynonymCandidate[], cue: Product
     return typo;
 }
 
+/** True when the answer is the slot's text with this word in another of its forms. */
+function isReconjugation(input: string, { lead, word, tail }: SlotInflection): boolean {
+    const answer = input.trim();
+    return lead.some(l => tail.some(t =>
+        answer.length > l.length + t.length
+        && answer.startsWith(l) && answer.endsWith(t)
+        && isFormOfWord(answer.slice(l.length, answer.length - t.length), word)));
+}
+
 /**
  * Grades one answer against its slot:
  * 1. a revealed hint is a near miss (reading the answer still leaves an impression);
  * 2. an empty answer is an explicit "I do not know this one": `pass`, not a wrong guess;
  * 3. the accepted forms, typo-tolerant (`matchBest`);
- * 4. the near forms, a near miss at best;
+ * 4. the near forms, a near miss at best, and the slot's text with one of its
+ *    conjugated words in another form (がある for があります);
  * 5. another form of the slot's word, graded by its OtherFormGrade;
  * 6. only for a genuine miss, the word's near-synonyms, judged against the cue.
  * Each step can only improve the grade.
@@ -80,6 +90,10 @@ export function gradeSlot(slot: AnswerSlot, input: string, hintLevel: number, cu
     if (best.result === 'wrong' && slot.near.length > 0) {
         const near = matchBest(input, slot.near, slot.leniency).result;
         if (near === 'correct' || near === 'minor_error') best = { result: 'minor_error', shown: slot.reveal };
+    }
+
+    if (best.result === 'wrong' && slot.inflections?.some(inflection => isReconjugation(input, inflection))) {
+        best = { result: 'minor_error', shown: slot.reveal };
     }
 
     const word = slot.word;
