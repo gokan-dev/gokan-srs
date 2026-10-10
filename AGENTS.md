@@ -95,6 +95,7 @@ block of 60+ tokens in production code (120+ in tests).
 Both apps: a word is named through `headwordOf`, `secondaryForm` and `headwordWithReading`
 (`searchHeadword` / `searchSecondaryForm` for search rows) from `@gokan/dataset-schema`, never by
 reading `writtenForm.kanji` for display: a word learned in kana (`usuallyKana`) is shown in kana.
+A word's textbook lessons are named through `textbookLessonsLabel`.
 
 gokan-srs, quizzes. **Every quiz is an exercise, and every exercise runs on one engine
 (`services/exercise/`, see the Exercise engine section of docs/ARCHITECTURE.md).** An activity
