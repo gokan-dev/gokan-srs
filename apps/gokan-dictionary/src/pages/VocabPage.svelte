@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { headwordOf, secondaryForm } from '@gokan/dataset-schema';
+  import { headwordOf, secondaryForm, textbookLessonsLabel } from '@gokan/dataset-schema';
   import type { Sentence, Vocabulary } from '@gokan/dataset-schema';
   import type { VocabSummary } from '../lib/types';
   import { kanjiPath, vocabIndexPath, vocabJlptPath, vocabPath } from '../lib/urls';
@@ -61,6 +61,7 @@
     <p class="entry-meta">
       {#if vocab.jlptLevel}<a class="badge" href={vocabJlptPath(vocab.jlptLevel)}>JLPT N{vocab.jlptLevel}</a>{/if}
       {#if vocab.isCommon}<span class="badge badge--plain">common word</span>{/if}
+      {#if vocab.textbooks?.length}<span class="badge badge--plain">{textbookLessonsLabel(vocab.textbooks)}</span>{/if}
       {#if vocab.writtenForm.alternatives.length > 0}
         <span class="muted">Also written <span class="jp">{vocab.writtenForm.alternatives.join('、')}</span></span>
       {/if}

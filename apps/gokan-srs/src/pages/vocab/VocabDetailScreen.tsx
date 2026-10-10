@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { TagsLookup, headwordOf } from "@gokan/dataset-schema";
+import { TagsLookup, headwordOf, textbookLessonsLabel } from "@gokan/dataset-schema";
 import type { Tags, Vocabulary } from "@gokan/dataset-schema";
 import { Card } from "../../components/ui/Card";
 import { MasteryRing } from "../../components/MasteryRing";
@@ -141,6 +141,11 @@ export default function VocabDetailScreen() {
                 <DetailField label="KKLC Step">
                     {vocab.usuallyKana ? 'Learned in kana' : `Step ${vocab.progression.kklcStep}`}
                 </DetailField>
+                {vocab.textbooks && vocab.textbooks.length > 0 && (
+                    <DetailField label="Textbook">
+                        {textbookLessonsLabel(vocab.textbooks)}
+                    </DetailField>
+                )}
                 {vocab.usageHints?.examplePattern && (
                     <div className="col-span-2 pt-2 border-t border-divider">
                         <div className="text-xs text-tertiary uppercase tracking-wider font-gothic mb-1">

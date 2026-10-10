@@ -13,3 +13,4 @@ export * from './grammar';
 export * from './media';
 export * from './tags';
 export * from './headword';
+export * from './textbook';
