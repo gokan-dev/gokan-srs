@@ -70,11 +70,14 @@ const MERGED_VOCAB_VERSION = 8;
  *           shared spelling is only a rare one for them (あれ under 彼, メートル under
  *           米) are no longer merged at all; they keep their own ids, so nothing
  *           stored is stranded by that half.
+ * 14 -> 15: a suffix now loses the base only to a COMMON standalone word, so 氏 is し
+ *           again (not うじ "clan"), and 殿 and 反 move back too. Their rc.17 bases are
+ *           in `index/merged-map.json` and the remap runs once more.
  *
  * The vocab remap is gated on this version too: BUMP THIS whenever the dataset's
  * `index/merged-map.json` gains an entry for an id that used to be a base.
  */
-export const CURRENT_FORMAT_VERSION = 14;
+export const CURRENT_FORMAT_VERSION = 15;
 
 /**
  * Migration service to handle data format upgrades
