@@ -73,11 +73,15 @@ const MERGED_VOCAB_VERSION = 8;
  * 14 -> 15: a suffix now loses the base only to a COMMON standalone word, so 氏 is し
  *           again (not うじ "clan"), and 殿 and 反 move back too. Their rc.17 bases are
  *           in `index/merged-map.json` and the remap runs once more.
+ * 15 -> 16: merge bases are JPDB's again (production's rule), overridden only where
+ *           the JLPT lists and anime both name another reading (9 words: 内 うち, 否
+ *           いや, 丈 だけ, 御 お, 等 など...). Every other base moved by 14 and 15 moves
+ *           back (縁 えん, 開く ひらく, 側 がわ, 様 さま), so the remap runs once more.
  *
  * The vocab remap is gated on this version too: BUMP THIS whenever the dataset's
  * `index/merged-map.json` gains an entry for an id that used to be a base.
  */
-export const CURRENT_FORMAT_VERSION = 15;
+export const CURRENT_FORMAT_VERSION = 16;
 
 /**
  * Migration service to handle data format upgrades
