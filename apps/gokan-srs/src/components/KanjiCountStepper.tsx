@@ -67,13 +67,13 @@ export function KanjiCountStepper({ step, onStepChange }: KanjiCountStepperProps
         "hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-surface";
 
     return (
-        <section className="mt-8 space-y-3">
+        <section className="space-y-3">
             <div className="flex items-baseline justify-between gap-4">
                 <label htmlFor="kanji-count" className="type-label">
-                    Known Kanji Count
+                    Known kanji count
                 </label>
-                <span className="text-xs text-tertiary font-gothic tabular-nums">
-                    of {max}
+                <span className="type-meta tabular-nums">
+                    of {max.toLocaleString('en-US')}
                 </span>
             </div>
 
@@ -123,7 +123,7 @@ export function KanjiCountStepper({ step, onStepChange }: KanjiCountStepperProps
 
             {canStep && (
                 <div className="flex items-center gap-2">
-                    <label htmlFor="kanji-count-step" className="text-xs text-tertiary font-gothic">
+                    <label htmlFor="kanji-count-step" className="type-meta">
                         Adjust by
                     </label>
                     <input
@@ -137,7 +137,7 @@ export function KanjiCountStepper({ step, onStepChange }: KanjiCountStepperProps
                         onBlur={() => setStepDraft(null)}
                         className="w-16 h-8 border rounded-md px-2 text-sm text-center border-divider bg-surface text-primary font-gothic tabular-nums"
                     />
-                    <span className="text-xs text-tertiary font-serif">
+                    <span className="type-meta">
                         kanji per click, remembered for next time
                     </span>
                 </div>

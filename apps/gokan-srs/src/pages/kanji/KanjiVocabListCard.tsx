@@ -44,7 +44,7 @@ export function KanjiVocabListCard({ character, vocabIds }: Props) {
     if (vocabIds.length === 0) return null;
 
     return (
-        <DetailSection title={`Words with ${character}`} count={vocabIds.length}>
+        <DetailSection title={<>Words with <span className="font-mincho">{character}</span></>} count={vocabIds.length}>
             <div className="flex flex-wrap gap-1.5 mb-3" role="group" aria-label="Status">
                 {FILTERS.map(f => (
                     <FilterToggle key={f} active={filter === f} onClick={() => setFilter(f)}>

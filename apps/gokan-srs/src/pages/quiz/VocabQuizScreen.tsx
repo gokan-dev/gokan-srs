@@ -80,7 +80,7 @@ export function VocabQuizScreen({ onVocabClick }: VocabQuizScreenProps) {
             }));
 
             return (
-                <div className="flex flex-col flex-1 items-center">
+                <div className="flex flex-col flex-1 items-center w-full">
                     <SessionProgress stats={sessionStats} history={history} gains={state.sessionGains} waitingNoun="vocab" />
 
                     <div className="flex-1 flex items-center justify-center py-6 w-full">

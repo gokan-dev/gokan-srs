@@ -108,7 +108,7 @@ export function GrammarScreen({ onVocabClick }: GrammarScreenProps) {
             }));
 
             return (
-                <div className="flex flex-col flex-1 items-center">
+                <div className="flex flex-col flex-1 items-center w-full">
                     <SessionProgress stats={grammarSessionStats} history={history} gains={state.grammarSessionGains} waitingNoun="grammar points" />
 
                     <div className="flex-1 flex items-center justify-center py-6 w-full">

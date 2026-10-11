@@ -80,7 +80,7 @@ export const App: React.FC = () => {
 
             {/* Screen content */}
             {/* A session card is top-aligned on a phone, so it stays above the keyboard. */}
-            <main className={`flex-1 flex flex-col items-center ${focusMode ? 'p-4 md:p-0 justify-start md:justify-center' : 'justify-start'}`}>
+            <main className={`flex-1 flex flex-col items-center ${focusMode ? 'p-4 md:px-6 md:pt-6 justify-start md:justify-center' : 'justify-start'}`}>
                 <Suspense fallback={<Loader title="Loading..." />}>
                     <Routes>
                         <Route path="/" element={

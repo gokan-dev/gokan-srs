@@ -32,7 +32,7 @@ export function AppHeader({ focusMode }: { focusMode: boolean }) {
 
     return (
         <header className="w-full border-b border-divider bg-background">
-            <div className="max-w-5xl mx-auto px-4 md:px-6 h-14 md:h-16 flex items-center gap-6">
+            <div className="max-w-5xl mx-auto px-4 md:px-6 h-14 md:h-16 flex items-center gap-3 md:gap-6">
                 <Link to="/" className="shrink-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
                     <Logo compact />
                 </Link>
@@ -68,7 +68,7 @@ export function AppHeader({ focusMode }: { focusMode: boolean }) {
                         </NavLink>
                     )}
                     {focusMode && (
-                        <Button variant="ghost" size="sm" onClick={() => void navigate('/')}>
+                        <Button variant="ghost" size="sm" className="whitespace-nowrap" onClick={() => void navigate('/')}>
                             End session
                         </Button>
                     )}
