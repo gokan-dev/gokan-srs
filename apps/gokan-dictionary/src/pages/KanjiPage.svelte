@@ -32,7 +32,7 @@
         {#each vocabList as word (word.id)}
           <li class="vocab-list-item">
             <a class="jp" href={vocabPath(word.id)}>{word.word}</a>
-            <span class="muted jp">{word.secondary}</span>
+            <span class="muted jp">{word.reading ?? ""}</span>
             {#if word.gloss}<span class="gloss">{word.gloss}</span>{/if}
           </li>
         {/each}

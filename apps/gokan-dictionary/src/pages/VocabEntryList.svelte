@@ -21,7 +21,7 @@
     <li>
       <a class="entry-row" href={vocabPath(word.id)}>
         <span class="entry-row-word jp">{word.word}</span>
-        <span class="entry-row-reading jp">{word.secondary}</span>
+        <span class="entry-row-reading jp">{word.reading ?? ""}</span>
         {#if !compact}<span class="entry-row-gloss">{word.gloss ?? ''}</span>{/if}
       </a>
     </li>
