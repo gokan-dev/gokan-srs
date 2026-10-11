@@ -10,7 +10,10 @@ import {
     grammarConjugationsIndexPath,
     homePath,
     assetPath,
-    searchIndexPath,
+    searchIndexPaths,
+    searchPath,
+    vocabJlptPath,
+    grammarFamiliesIndexPath,
     absoluteUrl,
 } from './urls';
 import { BASE_PATH, SITE_ORIGIN } from './site';
@@ -30,7 +33,19 @@ describe('path builders', () => {
         expect(grammarFamilyPath('causality')).toBe(`${BASE_PATH}/grammar/family/causality/`);
         expect(grammarConjugationsIndexPath()).toBe(`${BASE_PATH}/grammar/conjugations/`);
         expect(homePath()).toBe(`${BASE_PATH}/`);
-        expect(searchIndexPath()).toBe(`${BASE_PATH}/data/search.json`);
+        expect(grammarFamiliesIndexPath()).toBe(`${BASE_PATH}/grammar/families/`);
+        expect(searchIndexPaths()).toEqual({ core: `${BASE_PATH}/data/search-core.json`, full: `${BASE_PATH}/data/search-full.json` });
+    });
+
+    it('numbers JLPT list pages from the second one', () => {
+        expect(vocabJlptPath(1)).toBe(`${BASE_PATH}/vocab/jlpt-n1/`);
+        expect(vocabJlptPath(1, 1)).toBe(`${BASE_PATH}/vocab/jlpt-n1/`);
+        expect(vocabJlptPath(1, 3)).toBe(`${BASE_PATH}/vocab/jlpt-n1/3/`);
+    });
+
+    it('puts a search query in the results page URL, encoded', () => {
+        expect(searchPath()).toBe(`${BASE_PATH}/search/`);
+        expect(searchPath('食べ る&')).toBe(`${BASE_PATH}/search/?q=%E9%A3%9F%E3%81%B9%20%E3%82%8B%26`);
     });
 
     it('defaults to the subfolder deployment', () => {

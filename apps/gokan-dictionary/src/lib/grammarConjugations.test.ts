@@ -1,64 +1,48 @@
 import { describe, it, expect } from 'vitest';
-import { groupConjugationsByForm } from './grammarConjugations';
-import type { GrammarConjugationIndex, GrammarPoint } from '@gokan/dataset-schema';
+import type { ConjugationDrillItem, GrammarConjugationIndex, GrammarPoint } from '@gokan/dataset-schema';
+import { conjugationTables } from './grammarConjugations';
+import { grammarPoint } from '../test/fixtures';
 
-function makePoint(overrides: Partial<GrammarPoint> = {}): GrammarPoint {
-    return {
-        id: 'n1-178',
-        title: '～が Verb られる',
-        jlptLevel: 1,
-        shortExplanation: 's',
-        longExplanation: 'l',
-        formation: 'f',
-        examples: [],
-        kind: 'inflection',
-        ...overrides,
-    };
+const VERB: ConjugationDrillItem = { vocabId: '1', lemma: '書く', lemmaReading: 'かく', target: '書いた', targetReading: 'かいた', wordClass: 'godan' };
+const ADJ: ConjugationDrillItem = { vocabId: '2', lemma: '高い', lemmaReading: 'たかい', target: '高かった', targetReading: 'たかかった', wordClass: 'i-adjective' };
+const NA: ConjugationDrillItem = { vocabId: '3', lemma: '静か', lemmaReading: 'しずか', target: '静かだった', targetReading: 'しずかだった', wordClass: 'na-adjective' };
+
+function points(...list: GrammarPoint[]): Map<string, GrammarPoint> {
+    return new Map(list.map(point => [point.id, point]));
 }
 
-const ITEM = { vocabId: '1', lemma: '言う', lemmaReading: 'いう', target: '言える', targetReading: 'いえる', wordClass: 'godan' as const };
-
-describe('groupConjugationsByForm', () => {
-    it('groups points under their form, sorted alphabetically by label', () => {
+describe('conjugationTables', () => {
+    it('groups forms by word type, verbs first, with a pattern and an example', () => {
         const conjugations: GrammarConjugationIndex = {
-            'n1-178': { form: 'potential', formLabel: 'potential (can do)', items: [ITEM, ITEM] },
-            'n5-200': { form: 'te', formLabel: 'te-form', items: [ITEM] },
+            'n5-909': { form: 'i-adj-past', formLabel: 'past (かった)', items: [ADJ] },
+            'n5-905': { form: 'plain-past', formLabel: 'plain past (た)', items: [VERB, { ...VERB, wordClass: 'ichidan' }] },
+            'n5-912': { form: 'na-adj-past', formLabel: 'plain past (だった)', items: [NA] },
         };
-        const pointsById = new Map<string, GrammarPoint>([
-            ['n1-178', makePoint({ id: 'n1-178', jlptLevel: 1 })],
-            ['n5-200', makePoint({ id: 'n5-200', title: 'te-form', jlptLevel: 5 })],
+        const tables = conjugationTables(conjugations, points(
+            grammarPoint({ id: 'n5-909', title: 'Past: い-Adjective かった' }),
+            grammarPoint({ id: 'n5-905', title: 'Plain past: Verb た' }),
+            grammarPoint({ id: 'n5-912', title: 'Plain past: な-Adjective だった' }),
+        ));
+        expect(tables.map(t => t.wordType)).toEqual(['verb', 'i-adjective', 'na-adjective']);
+        expect(tables[0].rows).toEqual([
+            { id: 'n5-905', formLabel: 'plain past (た)', pattern: 'Verb た', jlptLevel: 5, example: { lemma: '書く', target: '書いた' } },
         ]);
-
-        const groups = groupConjugationsByForm(conjugations, pointsById);
-
-        expect(groups.map(g => g.form)).toEqual(['potential', 'te']);
-        expect(groups[0].points).toEqual([{ id: 'n1-178', title: '～が Verb られる', jlptLevel: 1, itemCount: 2 }]);
     });
 
-    it('collects more than one point under the same form, easiest first', () => {
+    it('orders rows easiest level first, then by point id', () => {
         const conjugations: GrammarConjugationIndex = {
-            'n1-a': { form: 'i-adj-adverbial', formLabel: 'i-adjective adverbial form', items: [ITEM] },
-            'n5-b': { form: 'i-adj-adverbial', formLabel: 'i-adjective adverbial form', items: [ITEM, ITEM] },
+            'n4-021': { form: 'causative', formLabel: 'causative', items: [VERB] },
+            'n5-906': { form: 'plain-negative', formLabel: 'plain negative', items: [VERB] },
+            'n5-905': { form: 'plain-past', formLabel: 'plain past', items: [VERB] },
         };
-        const pointsById = new Map<string, GrammarPoint>([
-            ['n1-a', makePoint({ id: 'n1-a', jlptLevel: 1 })],
-            ['n5-b', makePoint({ id: 'n5-b', jlptLevel: 5 })],
-        ]);
-
-        const groups = groupConjugationsByForm(conjugations, pointsById);
-
-        expect(groups).toHaveLength(1);
-        expect(groups[0].points.map(p => p.id)).toEqual(['n5-b', 'n1-a']);
+        const tables = conjugationTables(conjugations, points(
+            grammarPoint({ id: 'n4-021', jlptLevel: 4 }), grammarPoint({ id: 'n5-906' }), grammarPoint({ id: 'n5-905' }),
+        ));
+        expect(tables[0].rows.map(r => r.id)).toEqual(['n5-905', 'n5-906', 'n4-021']);
     });
 
-    it('drops a point id with no matching GrammarPoint', () => {
-        const conjugations: GrammarConjugationIndex = {
-            'stale-id': { form: 'te', formLabel: 'te-form', items: [ITEM] },
-        };
-        expect(groupConjugationsByForm(conjugations, new Map())).toEqual([]);
-    });
-
-    it('returns [] for an empty index', () => {
-        expect(groupConjugationsByForm({}, new Map())).toEqual([]);
+    it('drops a stale point id and leaves out empty word types', () => {
+        const conjugations: GrammarConjugationIndex = { gone: { form: 'te', formLabel: 'te-form', items: [VERB] } };
+        expect(conjugationTables(conjugations, points())).toEqual([]);
     });
 });
