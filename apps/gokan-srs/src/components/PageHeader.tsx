@@ -37,7 +37,7 @@ export function PageHeader({ title, subtitle, parentPath, actions, className = '
                 <button
                     type="button"
                     onClick={handleBack}
-                    className="inline-flex items-center gap-1 type-support text-accent mb-2 cursor-pointer"
+                    className="inline-flex items-center gap-1 font-sans text-sm text-accent hover:text-accent-hover mb-2 cursor-pointer"
                 >
                     <ArrowLeft size={14} aria-hidden="true" />
                     Back

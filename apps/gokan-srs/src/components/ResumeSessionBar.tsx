@@ -39,10 +39,10 @@ export function ResumeSessionBar() {
     if (!target) return null;
 
     return (
-        <div className="w-full px-4 pb-2 md:px-8 md:pb-4">
+        <div className="w-full max-w-5xl mx-auto px-4 md:px-6 pt-3">
             <Link
                 to={sessionActivityPath(target.activity)}
-                className="flex w-full items-center gap-2 min-h-11 px-3 rounded border border-accent/30 bg-accent/5 text-accent font-gothic text-sm hover:bg-accent/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent transition-colors md:max-w-5xl md:mx-auto"
+                className="flex w-full items-center gap-2 min-h-11 px-3 rounded-md border border-accent/30 bg-accent/5 text-accent font-gothic text-sm hover:bg-accent/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent transition-colors"
             >
                 <ArrowLeft className="w-4 h-4 shrink-0" aria-hidden="true" />
                 <span className="min-w-0 flex-1 truncate">

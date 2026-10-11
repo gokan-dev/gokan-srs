@@ -17,9 +17,6 @@ export const SETTINGS: NavDestination = { label: 'Settings', to: '/settings', se
 /** The desktop header's text links, in order (Settings sits apart, on the right). */
 export const HEADER_DESTINATIONS = [STUDY, VOCABULARY, GRAMMAR, LISTENING, STATS, KANJI];
 
-/** The mobile tab bar's first four tabs; the fifth is More. */
-export const TAB_DESTINATIONS = [STUDY, VOCABULARY, GRAMMAR, STATS];
-
 /** What the mobile More sheet lists, besides the external Dictionary link. */
 export const MORE_DESTINATIONS = [LISTENING, KANJI, SETTINGS, { label: 'About', to: '/about', sections: ['/about'] }];
 

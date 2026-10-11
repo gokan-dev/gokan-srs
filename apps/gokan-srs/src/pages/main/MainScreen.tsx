@@ -11,6 +11,8 @@ import type { HubChapterStatus } from '../../context/quiz/grammarSelectors';
 import { buildWordKnowledge, rankLibrary } from '../../utils/mediaCoverage.utils';
 import { MediaService } from '../../services/media.service';
 import { MediaCover } from '../listening/listeningShared';
+import { Page } from '../../components/Page';
+import { PageHeader } from '../../components/PageHeader';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import { useNow } from '../../hooks/useNow';
 import { formatMinutes, minutesUntil } from '../../utils/time.utils';
@@ -51,9 +53,8 @@ export const MainScreen: React.FC = () => {
     }, [media, state.progress, state.settings]);
 
     return (
-        <div className="w-full max-w-3xl mx-auto py-8">
-            <h1 className="text-2xl font-serif text-primary mb-1">Study</h1>
-            <p className="text-sm text-secondary mb-8">Choose an activity to begin.</p>
+        <Page width="narrow">
+            <PageHeader title="Study" className="mb-8" />
 
             {state.progress && <DailyActivityCard progress={state.progress} />}
 
@@ -100,7 +101,7 @@ export const MainScreen: React.FC = () => {
                     )}
                 />
             </div>
-        </div>
+        </Page>
     );
 };
 

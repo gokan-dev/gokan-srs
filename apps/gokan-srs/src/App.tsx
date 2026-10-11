@@ -1,14 +1,15 @@
 import React, { Suspense, lazy } from 'react';
 import './App.css';
 import { OnboardingFlow } from './pages/setup/OnboardingFlow';
-import { Logo } from './components/Logo';
-import { UserRound, Cloud, CloudOff, RefreshCw, BarChart2, Library } from 'lucide-react';
 import { useQuiz } from "./context/useQuiz";
 import { KanjiFormProvider } from "./context/KanjiForm/KanjiFormProvider";
 import { useGoogleDrive } from "./context/useGoogleDrive";
 import { Loader } from "./components/Loader";
-import { Routes, Route, useNavigate, useLocation, Navigate, Link } from 'react-router-dom';
-import { SearchBar } from './components/SearchBar';
+import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { AppHeader } from './components/nav/AppHeader';
+import { BottomTabBar } from './components/nav/BottomTabBar';
+import { AppFooter } from './components/nav/AppFooter';
+import { isSessionPath } from './utils/navigation.utils';
 import { ResumeSessionBar } from './components/ResumeSessionBar';
 import { StorageFullBanner } from './components/StorageFullBanner';
 
@@ -30,34 +31,6 @@ const GrammarDetailScreen = lazy(() => import('./pages/grammar/GrammarDetailScre
 const GrammarFamilyScreen = lazy(() => import('./pages/grammar/GrammarFamilyScreen'));
 const ListeningLibraryScreen = lazy(() => import('./pages/listening/ListeningLibraryScreen').then(module => ({ default: module.ListeningLibraryScreen })));
 const ListeningTitleScreen = lazy(() => import('./pages/listening/ListeningTitleScreen').then(module => ({ default: module.ListeningTitleScreen })));
-
-function SyncStatusIndicator() {
-    const { isUploading, isDownloading, isAuthenticated, syncPaused, login } = useGoogleDrive();
-
-    if (!isAuthenticated) return null;
-
-    if (syncPaused) {
-        return (
-            <button
-                onClick={() => login()}
-                title="Sync paused: your Google session expired. Click to reconnect."
-                className="text-secondary hover:text-primary transition-colors cursor-pointer"
-            >
-                <CloudOff size={18} />
-            </button>
-        );
-    }
-
-    if (isUploading || isDownloading) {
-        return <RefreshCw size={18} className="animate-spin text-tertiary" />;
-    }
-
-    return (
-        <div className="text-feedback-correct" title="Synced with Google Drive">
-            <Cloud size={18} />
-        </div>
-    );
-}
 
 export const App: React.FC = () => {
     const { state, actions, isSetupComplete } = useQuiz();
@@ -94,68 +67,20 @@ export const App: React.FC = () => {
         </KanjiFormProvider>
     }
 
-    // The Main hub ('/') is the landing page - the About link belongs there, mirroring
-    // where it lived when the quiz screen itself was '/'. The quiz session ('/quiz')
-    // keeps the vertically-centered layout its single-card content is designed for;
-    // every other page (including the hub's activity cards) is top-aligned instead.
-    const isMainScreen = location.pathname === '/';
-    const isQuizScreen = location.pathname === '/quiz' || location.pathname === '/grammar';
+    // The study sessions are shown in focus mode: no navigation, no footer.
+    const focusMode = isSessionPath(location.pathname);
 
     return (
         <div className="min-h-screen flex flex-col relative bg-background transition-colors duration-200">
-            {/*
-              * Top bar. One row from `md` up; on a phone the search bar wraps onto
-              * a second full-width row of its own, because sharing row one with the
-              * logo and five icons left it too narrow to read what you had typed.
-              * `order` (rather than two separate markup blocks) keeps a single
-              * header in the DOM, so nothing remounts when the viewport crosses the
-              * breakpoint and the field does not lose focus mid-search.
-              */}
-            <header className={'flex flex-wrap items-center gap-x-2 gap-y-3 p-4 md:flex-nowrap md:gap-x-4 md:p-8'}>
-                <Link to="/" className="order-1 cursor-pointer shrink-0">
-                    <Logo />
-                </Link>
-
-                <div className={'order-2 grow md:order-3'}></div>
-
-                <div className="order-3 flex gap-4 items-center md:order-4">
-                    <SyncStatusIndicator />
-                    <button
-                        onClick={() => void navigate("/grammar/browse")}
-                        title="Browse grammar points"
-                        aria-label="Browse grammar points"
-                        className={`cursor-pointer transition-colors ${location.pathname === '/grammar/browse' ? 'text-primary' : 'text-secondary hover:text-primary'}`}
-                    >
-                        <Library size={18} />
-                    </button>
-                    <button onClick={() => void navigate("/stats")} title="Statistics" className="cursor-pointer text-secondary hover:text-primary transition-colors">
-                        <BarChart2 size={18} />
-                    </button>
-                    <button onClick={() => void navigate("/kanji")} title="Kanji" aria-label="Kanji" className="cursor-pointer text-secondary hover:text-primary transition-colors flex items-center justify-center">
-                        <span className="font-mincho font-bold text-lg leading-none">漢</span>
-                    </button>
-                    {/*
-                      * A person icon, not a cog: the cog now belongs to the
-                      * per-activity settings on the quiz screens, so keeping one
-                      * here would read as "the same thing, globally". This page
-                      * leads with the Google account and holds what is genuinely
-                      * account-wide.
-                      */}
-                    <button onClick={() => void navigate("/settings")} title="Profile and global settings" aria-label="Profile and global settings" className="cursor-pointer text-secondary hover:text-primary transition-colors">
-                        <UserRound size={18} />
-                    </button>
-                </div>
-
-                {/* Last in the DOM, but `order` puts it between the logo and the spacer from `md` up. */}
-                <SearchBar className="order-4 w-full md:order-2 md:w-64 lg:w-96" />
-            </header>
+            <AppHeader focusMode={focusMode} />
 
             {/* Its own row beneath the header, only while a session is paused on a consult page. */}
             <StorageFullBanner />
             <ResumeSessionBar />
 
             {/* Screen content */}
-            <div className={`flex-1 flex flex-col items-center p-4 md:p-0 ${isQuizScreen ? 'justify-center' : 'justify-start'}`}>
+            {/* A session card is top-aligned on a phone, so it stays above the keyboard. */}
+            <main className={`flex-1 flex flex-col items-center ${focusMode ? 'p-4 md:p-0 justify-start md:justify-center' : 'justify-start'}`}>
                 <Suspense fallback={<Loader title="Loading..." />}>
                     <Routes>
                         <Route path="/" element={
@@ -223,34 +148,10 @@ export const App: React.FC = () => {
                         <Route path="*" element={<Navigate to="/" replace />} />
                     </Routes>
                 </Suspense>
-            </div>
+            </main>
 
-            {/* Footer links - only shown on the Main hub landing page */}
-            {isMainScreen && (
-                <footer className="p-4 flex items-center justify-center gap-4">
-                    <Link
-                        to="/about"
-                        className="text-xs text-secondary hover:text-primary transition-colors"
-                    >
-                        About Gokan SRS
-                    </Link>
-                    {/*
-                      A plain <a>, not a <Link>: the dictionary is a separate statically
-                      generated app served from the /dictionary prefix of this same origin, so
-                      it is a real page load rather than a route this SPA knows about. Same tab
-                      deliberately - it is part of the same site, and the dictionary's own
-                      footer links back here.
-
-                      Note this 404s under `bun run dev`, where only the SRS app is served.
-                    */}
-                    <a
-                        href="/dictionary/"
-                        className="text-xs text-secondary hover:text-primary transition-colors"
-                    >
-                        Dictionary
-                    </a>
-                </footer>
-            )}
+            {!focusMode && <AppFooter />}
+            {!focusMode && <BottomTabBar />}
         </div>
     );
 };

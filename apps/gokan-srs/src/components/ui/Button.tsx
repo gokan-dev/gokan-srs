@@ -4,6 +4,8 @@ type ButtonVariant = "primary" | "secondary" | "ghost" | "danger-outline" | "dan
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
     variant?: ButtonVariant;
+    /** `sm` is the compact in-row action (a list row's "Learn"); `md` everything else. */
+    size?: "md" | "sm";
 }
 
 /**
@@ -18,7 +20,7 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 const VARIANT_STYLES: Record<ButtonVariant, string> = {
     primary: "bg-accent text-surface border-transparent hover:bg-accent-hover",
     secondary: "bg-surface text-primary border border-divider hover:bg-surface-hover",
-    ghost: "bg-transparent text-secondary border-transparent hover:text-primary px-2 h-auto",
+    ghost: "bg-transparent text-secondary border-transparent hover:text-primary",
     "danger-outline": "bg-transparent text-error border border-error hover:bg-error/10",
     danger: "bg-error text-surface border-transparent hover:brightness-110",
 };
@@ -26,6 +28,7 @@ const VARIANT_STYLES: Record<ButtonVariant, string> = {
 export function Button({
     children,
     variant = "primary",
+    size = "md",
     className = "",
     ...props
 }: ButtonProps) {
@@ -33,7 +36,7 @@ export function Button({
         <button
             {...props}
             className={`
-                h-11 px-4 rounded-md font-sans font-medium text-base transition-colors duration-200
+                ${size === "sm" ? "h-8 px-3 text-sm" : "h-11 px-4 text-base"} rounded-md font-sans font-medium transition-colors duration-200
                 flex items-center justify-center cursor-pointer disabled:cursor-not-allowed disabled:opacity-50
                 ${VARIANT_STYLES[variant]}
                 ${className}

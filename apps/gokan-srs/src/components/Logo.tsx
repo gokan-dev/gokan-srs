@@ -1,7 +1,7 @@
 import React from "react";
 import { useResponsive } from "../context/Responsive/useResponsive";
 
-export const LogoMark: React.FC<{ size?: number }> = ({ size = 48 }) => (
+const LogoMark: React.FC<{ size?: number }> = ({ size = 48 }) => (
     <svg
         width={size}
         height={size}
@@ -30,15 +30,21 @@ export const LogoMark: React.FC<{ size?: number }> = ({ size = 48 }) => (
     </svg>
 );
 
-export const Logo: React.FC<{ className?: string }> = ({ className = '' }) => {
-    const { isMobile } = useResponsive()
+/**
+ * The mark and the name. `compact` is the app header's version (a smaller mark,
+ * and just "Gokan" on a phone, where the header also holds search); onboarding
+ * shows the full size.
+ */
+export const Logo: React.FC<{ className?: string; compact?: boolean }> = ({ className = '', compact = false }) => {
+    const { isMobile } = useResponsive();
+    const markSize = compact ? (isMobile ? 28 : 32) : (isMobile ? 32 : 48);
 
     return (
         <div className={`flex items-center gap-3 ${className}`}>
-            <LogoMark size={isMobile ? 24 : 48} />
-            <span className="md:text-2xl font-serif text-primary">
-                Gokan SRS
+            <LogoMark size={markSize} />
+            <span className={`font-serif text-primary ${compact ? 'text-lg' : 'text-xl md:text-2xl'}`}>
+                {compact && isMobile ? 'Gokan' : 'Gokan SRS'}
             </span>
         </div>
-    )
+    );
 };

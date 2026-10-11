@@ -12,20 +12,26 @@ interface ListRowProps {
  * The one clickable row. Always a `<Link>`, never a `div` with `onClick`, so
  * a row is a real link: middle-click, open-in-new-tab and screen readers all
  * work without extra handling.
+ *
+ * The link is stretched over the whole row (`after:inset-0`) rather than
+ * wrapping it, so the trailing slot can hold its own button (a "Learn") without
+ * nesting an interactive element inside an `<a>`. The trailing slot sits above
+ * the stretched link; text in it still opens the row.
  */
 export function ListRow({ to, children, trailing, className = '' }: ListRowProps) {
     return (
-        <Link
-            to={to}
+        <div
             className={`
-                flex items-center gap-3 rounded-md px-3 py-2 min-w-0
+                relative flex items-center gap-3 rounded-md px-3 py-2 min-w-0
                 hover:bg-surface-hover transition-colors
-                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent
+                has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-accent
                 ${className}
             `}
         >
-            <div className="flex-1 min-w-0">{children}</div>
-            {trailing && <div className="shrink-0">{trailing}</div>}
-        </Link>
+            <Link to={to} className="flex-1 min-w-0 focus-visible:outline-none after:absolute after:inset-0 after:content-['']">
+                {children}
+            </Link>
+            {trailing && <div className="shrink-0 relative pointer-events-none [&_button]:pointer-events-auto">{trailing}</div>}
+        </div>
     );
 }
