@@ -32,7 +32,7 @@ const STYLED_SOURCE = /^apps\/(gokan-srs|gokan-dictionary)\/src\/.*\.(tsx?|svelt
 const PALETTE = 'slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose';
 const TOKENS = 'primary|secondary|tertiary|accent|error|surface|background|divider|feedback-correct|feedback-incorrect';
 /** Removed in the v2 design system: these must fail as unknown tokens, not resolve to nothing silently. */
-const REMOVED_TOKENS = 'muted|subtle|label-neutral|meaning-muted|quiz-cloze-soft|quiz-cloze|quiz-conjugation-soft|quiz-conjugation|quiz-lexical-soft|quiz-lexical';
+const REMOVED_TOKENS = 'error-accent|muted|subtle|label-neutral|meaning-muted|quiz-cloze-soft|quiz-cloze|quiz-conjugation-soft|quiz-conjugation|quiz-lexical-soft|quiz-lexical';
 const UTILITY = 'text|bg|border|ring|from|to|via|fill|stroke|outline|divide|placeholder|shadow|accent|caret|decoration';
 const PALETTE_CLASS = new RegExp(`\\b(?:${UTILITY})-(?:${PALETTE})-\\d{2,3}\\b`);
 const TOKEN_SHADE_CLASS = new RegExp(`\\b(?:${UTILITY})-(?:${TOKENS})-\\d{2,3}\\b`);
@@ -137,7 +137,7 @@ function check(files: string[]): Violation[] {
             eachLine(text, l => TOKEN_SHADE_CLASS.test(l), line =>
                 add({ file, line, rule: 'design-tokens', message: 'Theme tokens have no numeric shades; this class resolves to nothing. Use the token, with /opacity if needed.' }));
             eachLine(text, l => REMOVED_TOKEN_CLASS.test(l), line =>
-                add({ file, line, rule: 'design-tokens', message: 'Removed token (muted/subtle/label-neutral/meaning-muted/quiz-*). Use primary, secondary or tertiary.' }));
+                add({ file, line, rule: 'design-tokens', message: 'Removed token (muted/subtle/label-neutral/meaning-muted/quiz-*/error-accent). Use primary, secondary, tertiary or feedback-incorrect.' }));
             eachLine(text, l => RAW_COLOUR.test(l) && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
                 add({ file, line, rule: 'design-tokens', message: 'Raw colour value. Define it once in the token file and use the token.' }));
         }

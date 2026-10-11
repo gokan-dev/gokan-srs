@@ -1,5 +1,5 @@
 import { OptionGrid } from "../../components/OptionGrid";
-import type { UserSettings } from "../../models/user.model";
+import type { AnswerColors, UserSettings } from "../../models/user.model";
 import { useGoogleDrive } from "../../context/useGoogleDrive";
 import { Cloud, Loader2, LogIn, RefreshCw, Moon, Sun, Monitor, KeyRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -10,6 +10,7 @@ import { GrammarQuizSettings } from "./sections/GrammarQuizSettings";
 import { Button } from "../../components/ui/Button";
 import { SelectableOption } from "../../components/ui/SelectableOption";
 import { SettingToggle } from "../../components/ui/SettingToggle";
+import { Disclosure } from "../../components/ui/Disclosure";
 import { useTheme } from "../../context/useTheme";
 import { useState } from "react";
 import { Page } from "../../components/Page";
@@ -21,6 +22,24 @@ const THEMES: { value: Theme; label: string; icon: LucideIcon }[] = [
     { value: 'system', label: 'System', icon: Monitor },
 ];
 
+const ANSWER_COLORS: { value: AnswerColors; label: string }[] = [
+    { value: 'default', label: 'Green and red' },
+    { value: 'colorblind', label: 'Blue and orange (colour-blind friendly)' },
+];
+
+/**
+ * The correct and incorrect colours of one pair. The pair's class rescopes the
+ * two answer tokens, so each swatch shows its own pair whatever is chosen.
+ */
+function AnswerColorSwatch({ value }: { value: AnswerColors }) {
+    return (
+        <span className={`answer-colors-${value} inline-flex gap-1 shrink-0`} aria-hidden="true">
+            <span className="w-4 h-4 rounded-full bg-feedback-correct" />
+            <span className="w-4 h-4 rounded-full bg-feedback-incorrect" />
+        </span>
+    );
+}
+
 /** A settings section: a heading, an optional one-line description, the controls. */
 function SettingsSection({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
     return (
@@ -29,6 +48,22 @@ function SettingsSection({ title, description, children }: { title: string; desc
             {description && <p className="type-support mt-1">{description}</p>}
             <div className="mt-4">{children}</div>
         </section>
+    );
+}
+
+/** One activity's settings in "Activity settings": a subsection heading, collapsed. */
+function ActivityDisclosure({ title, description, children }: { title: string; description: string; children: ReactNode }) {
+    return (
+        <Disclosure
+            title={
+                <span className="block min-w-0">
+                    <span className="block type-subsection">{title}</span>
+                    <span className="block type-support font-normal">{description}</span>
+                </span>
+            }
+        >
+            <div className="pb-4">{children}</div>
+        </Disclosure>
     );
 }
 
@@ -137,6 +172,7 @@ export function SettingsScreen({
             </SettingsSection>
 
             <SettingsSection title="Appearance">
+                <h3 className="type-label mb-2">Theme</h3>
                 <div className="grid grid-cols-3 gap-3">
                     {THEMES.map(({ value, label, icon: Icon }) => (
                         <SelectableOption
@@ -150,6 +186,21 @@ export function SettingsScreen({
                         </SelectableOption>
                     ))}
                 </div>
+
+                <h3 className="type-label mt-6 mb-2">Answer colours</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {ANSWER_COLORS.map(({ value, label }) => (
+                        <SelectableOption
+                            key={value}
+                            selected={settings.answerColors === value}
+                            onSelect={() => onUpdateSettings({ ...settings, answerColors: value })}
+                            className="flex items-center gap-3 p-4 pr-8 text-primary"
+                        >
+                            <AnswerColorSwatch value={value} />
+                            <span className="font-sans text-sm">{label}</span>
+                        </SelectableOption>
+                    ))}
+                </div>
             </SettingsSection>
 
             {/*
@@ -159,9 +210,8 @@ export function SettingsScreen({
               * vocabulary-only, and now lives behind the cog on that activity's
               * card on the Main hub (see QuizSettingsMenu / pages/settings/sections).
               */}
-            <SettingsSection title="Study" description="How often reviews come back, and how each quiz works.">
+            <SettingsSection title="Review pacing" description="How often reviews come back, for vocabulary and grammar alike.">
                 <OptionGrid
-                    title="Review pacing"
                     columns={3}
                     value={settings.learningFrequency}
                     onChange={(value) =>
@@ -188,12 +238,6 @@ export function SettingsScreen({
                         },
                     ]}
                 />
-
-                <h3 className="type-subsection mt-8 mb-3">Vocabulary quiz</h3>
-                <VocabQuizSettings settings={settings} onUpdateSettings={onUpdateSettings} />
-
-                <h3 className="type-subsection mt-8 mb-3">Grammar quiz</h3>
-                <GrammarQuizSettings />
             </SettingsSection>
 
             <SettingsSection
@@ -257,6 +301,22 @@ export function SettingsScreen({
                             }
                         />
                     )}
+                </div>
+            </SettingsSection>
+
+            {/*
+              * Settings of one activity, below the global ones and collapsed, so
+              * they read as that activity's options rather than as more of the
+              * page. The same controls open from the cog on the activity's card.
+              */}
+            <SettingsSection title="Activity settings" description="Options for one activity at a time.">
+                <div className="border-y border-divider divide-y divide-divider">
+                    <ActivityDisclosure title="Vocabulary quiz" description="Also available from the cog on the Vocabulary card on Study.">
+                        <VocabQuizSettings settings={settings} onUpdateSettings={onUpdateSettings} />
+                    </ActivityDisclosure>
+                    <ActivityDisclosure title="Grammar quiz" description="Also available from the cog on the Grammar card on Study.">
+                        <GrammarQuizSettings />
+                    </ActivityDisclosure>
                 </div>
             </SettingsSection>
 

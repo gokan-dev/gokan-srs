@@ -24,8 +24,9 @@ interface YourProgressProps {
 
 /**
  * "Your progress" on a word's or a grammar point's page: one row per direction
- * with its ring and when it is next reviewed, when it was added and how often
- * reviewed, the learning curve, and the review log behind a disclosure.
+ * with its ring, its value and when it is next reviewed, when it was added and
+ * how often reviewed, the learning curve, and the review log behind a
+ * disclosure. The only place a detail page shows rings: the header does not.
  */
 export function YourProgress({ directions, introductionAt, totalReviews, series, history }: YourProgressProps) {
     return (
@@ -33,7 +34,7 @@ export function YourProgress({ directions, introductionAt, totalReviews, series,
             <ul className="space-y-3">
                 {directions.map(direction => (
                     <li key={direction.key} className="flex items-center gap-3 min-w-0">
-                        <MasteryRing memoryStrength={direction.strength} size={32} showText={false} variant={direction.variant} label={direction.label} />
+                        <MasteryRing memoryStrength={direction.strength} size={40} variant={direction.variant} label={direction.label} />
                         <div className="min-w-0">
                             <div className="type-label">{direction.label}</div>
                             <div className="type-support">{direction.status}</div>

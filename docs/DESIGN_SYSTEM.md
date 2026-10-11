@@ -38,16 +38,23 @@ variables, so dark mode follows automatically).
 | Meta | `tertiary` | counts, dates, captions | body copy |
 | Action, selection, focus, your progress | `accent` | links and action text, primary buttons, selected controls, focus rings, progress and mastery fills, the current item | plain text, metadata chips, decorative icons |
 | Answer correct | `feedback-correct` | answer results only: quiz feedback, session ticker, review history, answer charts | anything else |
-| Answer wrong, error, warning, destructive | `error` / `feedback-incorrect` | wrong answers, errors, warnings, destructive actions | decoration |
+| Answer wrong | `feedback-incorrect` | answer results only, as for `feedback-correct` | errors, warnings, destructive actions |
+| Error, warning, destructive | `error` | errors, warnings, destructive actions | answer results, decoration |
 | Metadata | neutral (`divider` border + `secondary` text) | JLPT level, part of speech, register, status chips | |
 
 Rules that follow from the table:
 
 - Text in `text-accent` is always a link or an action. A plain-text or chip usage of
   accent is a bug: fix the colour, not the rule.
-- Correct and incorrect answers use the feedback pair everywhere answers are counted
-  (hub week chart, daily activity, review history), always with a second cue (position,
-  label, tooltip), never colour alone.
+- Correct and incorrect answers use the feedback pair everywhere an answer result is
+  shown (quiz feedback and blanks, the session ticker and counter, the hub week chart,
+  daily activity, review history, `StackedBarChart` series), always with a second cue
+  (position, label, tooltip), never colour alone. A wrong answer is never `error`: the
+  pair has to follow the answer-colour setting, and `error` does not.
+- **Answer colours** (Settings, Appearance; `UserSettings.answerColors`): "Green and
+  red" (default) or "Blue and orange" for red-green colour blindness. Like dark mode, a
+  class on the root element (`answer-colors-colorblind`, set by `useAnswerColors`)
+  overrides only `--feedback-correct` and `--feedback-incorrect`, in `index.css`.
 - Mastery and review forecasts use the accent in steps (reading 100%, meaning 60%,
   production 35%), never a second hue.
 - No categorical hues: quiz kind (construction / inflection / lexical) is neutral text,
@@ -71,13 +78,25 @@ Rules that follow from the table:
 | `--error` / `--feedback-incorrect` | `#8A3A2E` | `#E0796D` |
 | `--feedback-correct` | `#2F6B4F` | `#6FBF95` |
 
+With `answer-colors-colorblind` (Okabe-Ito hues; each at least 4.5:1 on `--surface` and
+`--background` in its theme):
+
+| Token | Light | Dark |
+| --- | --- | --- |
+| `--feedback-correct` | `#0072B2` (blue) | `#56B4E9` (sky blue) |
+| `--feedback-incorrect` | `#AD4F00` (vermillion, darkened for contrast) | `#E69F00` (orange) |
+
+The blue is saturated where the accent is a muted slate, so a correct result never reads
+as a link or as progress.
+
 `--secondary` and `--tertiary` are deliberately NOT the old accent blue: that collision
 (`--secondary` used to equal `--accent`) is why plain text used to read as a link
 everywhere. `--mastery-reading/meaning/production` derive from `--accent` via
 `color-mix`, so the mastery ladder always follows the accent hue.
 
-Removed: `--muted`, `--subtle`, `--label-neutral`, `--meaning-muted`, and the six
-`--quiz-*` tokens. A removed token used in a class (`text-muted`, `bg-quiz-cloze`...)
+Removed: `--muted`, `--subtle`, `--label-neutral`, `--meaning-muted`, the six
+`--quiz-*` tokens, and `--error-accent` (a wrong answer's note uses
+`feedback-incorrect/45`). A removed token used in a class (`text-muted`, `bg-quiz-cloze`...)
 fails `bun run check` (`check-conventions.ts`, rule `design-tokens`) rather than quietly
 resolving to nothing. Map an old usage to `primary` (glosses, body copy that was
 `meaning-muted`) or `tertiary` (everything else that was `muted`/`subtle`/`label-neutral`).

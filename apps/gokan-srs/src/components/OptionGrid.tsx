@@ -2,7 +2,8 @@ import type { ReactNode } from "react";
 import { SelectableOption } from "./ui/SelectableOption";
 
 export const OptionGrid = <T extends string>(props: {
-    title: string;
+    /** A label above the options; left out when the section heading already names them. */
+    title?: string;
     options: { value: T; label: string; description: ReactNode }[];
     value: T;
     onChange?: (v: T) => void;
@@ -15,9 +16,11 @@ export const OptionGrid = <T extends string>(props: {
 
     return (
         <div className={dense ? "space-y-2" : "space-y-3"}>
-            <h3 className="type-label">
-                {props.title}
-            </h3>
+            {props.title && (
+                <h3 className="type-label">
+                    {props.title}
+                </h3>
+            )}
             <div className={dense ? "grid grid-cols-1 gap-2" : `grid grid-cols-1 gap-3 ${props.columns === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
                 {props.options.map((opt) => {
                     const selected = opt.value === props.value;

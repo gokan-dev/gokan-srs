@@ -2,7 +2,6 @@ import { useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import { headwordOf, textbookLessonsLabel } from "@gokan/dataset-schema";
 import type { Vocabulary } from "@gokan/dataset-schema";
-import { MasteryRing } from "../../components/MasteryRing";
 import { useResponsive } from "../../context/Responsive/useResponsive";
 import { useQuiz } from "../../context/useQuiz";
 import { VocabularyService } from "../../services/vocabulary.service";
@@ -17,7 +16,7 @@ import { Page } from "../../components/Page";
 import { DetailErrorScreen } from "../../components/detail/DetailErrorScreen";
 import { DetailField, DetailSection } from "../../components/detail/DetailSection";
 import { DetailHeader } from "../../components/detail/DetailHeader";
-import { LabelledRing, LearnStatus } from "../../components/detail/LearnStatus";
+import { LearnStatus } from "../../components/detail/LearnStatus";
 import { YourProgress, type ProgressDirection } from "../../components/detail/YourProgress";
 import { Disclosure } from "../../components/ui/Disclosure";
 import { useAsyncData } from "../../hooks/useAsyncData";
@@ -66,13 +65,6 @@ export default function VocabDetailScreen() {
                     inStudy
                     status={vocabLearningStatus(progress, settings)}
                     nextReview={nextReviewOf(progress, settings, now)}
-                    rings={directions
-                        .filter(d => d.key !== 'production' || productionActivated)
-                        .map(d => (
-                            <LabelledRing key={d.key} label={d.label}>
-                                <MasteryRing memoryStrength={d.strength} size={44} variant={d.variant} label={d.label} />
-                            </LabelledRing>
-                        ))}
                 />
             ) : (
                 <LearnStatus inStudy={false} learnLabel="Learn this word" onLearn={() => actions.saveVocabIntroChoice(vocab, 'learn')} />

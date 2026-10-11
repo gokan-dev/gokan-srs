@@ -144,7 +144,7 @@ export function SingleAnswerCard({
                         initial={{ x: 0 }}
                         animate={{ x: [-5, 5, -5, 5, 0] }}
                         transition={{ duration: 0.4 }}
-                        className="absolute inset-0 pointer-events-none border-4 border-error/20 rounded-md z-50"
+                        className="absolute inset-0 pointer-events-none border-4 border-feedback-incorrect/20 rounded-md z-50"
                     />
                 )}
             </AnimatePresence>
@@ -177,7 +177,7 @@ export function SingleAnswerCard({
                                 font-gothic bg-surface text-primary placeholder:text-input-placeholder caret-accent
                                 focus:outline-none focus:border-accent focus:ring-4 focus:ring-accent/10
                                 ${isMobile ? 'px-3 py-2 text-lg placeholder:text-sm' : 'px-4 py-3 text-xl'}
-                                ${feedback && !correct ? 'border-error' : 'border-divider'}
+                                ${feedback && !correct ? 'border-feedback-incorrect' : 'border-divider'}
                             `}
                             placeholder={inputPlaceholder}
                             autoFocus
@@ -207,7 +207,7 @@ export function SingleAnswerCard({
 
                     {/* Incorrect / Minor Answer Feedback */}
                     {feedback && !correct && (
-                        <FeedbackNote accentClass={grade?.overall === 'minor_error' ? 'border-l-secondary' : 'border-l-error-accent'}>
+                        <FeedbackNote accentClass={grade?.overall === 'minor_error' ? 'border-l-secondary' : 'border-l-feedback-incorrect/45'}>
                             <p className="type-label mb-2">
                                 Correct answer
                             </p>

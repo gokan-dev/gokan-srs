@@ -1,6 +1,5 @@
 import { Link, useParams } from 'react-router-dom';
 import type { GrammarChapter, GrammarExample, GrammarPoint } from "@gokan/dataset-schema";
-import { MasteryRing } from "../../components/MasteryRing";
 import { JlptChip } from "../../components/JlptChip";
 import { Chip } from "../../components/ui/Chip";
 import { Disclosure } from "../../components/ui/Disclosure";
@@ -17,7 +16,7 @@ import { useNow } from "../../hooks/useNow";
 import { DetailErrorScreen } from "../../components/detail/DetailErrorScreen";
 import { DetailField, DetailSection } from "../../components/detail/DetailSection";
 import { DetailHeader } from "../../components/detail/DetailHeader";
-import { LabelledRing, LearnStatus } from "../../components/detail/LearnStatus";
+import { LearnStatus } from "../../components/detail/LearnStatus";
 import { YourProgress } from "../../components/detail/YourProgress";
 import { GrammarExampleList } from "./GrammarExampleList";
 import { directionStatus, grammarLearningStatus } from "../../utils/learningStatus.utils";
@@ -83,11 +82,6 @@ export default function GrammarDetailScreen() {
                     inStudy
                     status={grammarLearningStatus(progress)}
                     nextReview={entryStatus}
-                    rings={
-                        <LabelledRing label="Mastery">
-                            <MasteryRing memoryStrength={progress.entry.memoryStrength} size={44} label="Mastery" />
-                        </LabelledRing>
-                    }
                 />
             ) : (
                 <LearnStatus inStudy={false} learnLabel="Learn this grammar point" onLearn={() => grammarActions.saveGrammarIntroChoice(point, 'learn')} />

@@ -70,7 +70,7 @@ const SessionCounter: React.FC<{
     <span className="tabular-nums">
         {done} <span className="text-tertiary font-normal">/ {total}</span>
         {retriesPending > 0 && (
-            <span className="text-error font-normal" title="Answers to redo before this session is complete">
+            <span className="text-feedback-incorrect font-normal" title="Answers to redo before this session is complete">
                 {' '}+{retriesPending}
             </span>
         )}
@@ -119,7 +119,7 @@ const GainsSummary: React.FC<{ gains: SessionGains; hasAnswered: boolean }> = ({
 
     return (
         <span className="text-xs tabular-nums" title={title}>
-            <span className={net < 0 ? 'text-error' : 'text-feedback-correct'}>
+            <span className={net < 0 ? 'text-feedback-incorrect' : 'text-feedback-correct'}>
                 {net > 0 ? '+' : ''}{net}
             </span>
             <span className="text-tertiary"> pts</span>
@@ -261,7 +261,7 @@ const HistoryTicker: React.FC<{ history: SessionHistoryEntry[] }> = ({ history }
                         {/* Result Icon/Indicator */}
                         {item.result === 'correct' && <CheckCircle className="w-3 h-3 text-feedback-correct" />}
                         {item.result === 'minor_error' && <AlertCircle className="w-3 h-3 text-secondary" />}
-                        {(item.result === 'wrong' || item.result === 'pass') && <XCircle className="w-3 h-3 text-error" />}
+                        {(item.result === 'wrong' || item.result === 'pass') && <XCircle className="w-3 h-3 text-feedback-incorrect" />}
 
                         {/* Knowledge points, the same unit the total above sums. Was
                             printed as a percentage that was twice its point value. */}

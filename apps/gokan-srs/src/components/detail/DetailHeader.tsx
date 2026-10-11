@@ -9,27 +9,28 @@ interface DetailHeaderProps {
     children?: ReactNode;
     /** Neutral chips (JLPT, register). */
     chips?: ReactNode;
-    /** The learner's relation to the subject: "Learn this word", or its status and rings. */
+    /** The learner's relation to the subject: "Learn this word", or its status and next review. */
     actions?: ReactNode;
 }
 
 /**
  * The identity block of a vocab, kanji or grammar page, not inside a card: the
  * subject as the title (never a generic "Vocabulary Details"), what names it,
- * its chips, and on the right (below it on a phone) the main action, so that
- * action is on the first screen.
+ * its chips, and the main action, so that action is on the first screen. From
+ * `lg` it sits on the body's 8/4 grid, so the action starts on the side
+ * column's left edge; below it, the action follows the readings.
  */
 export function DetailHeader({ parentPath, title, children, chips, actions }: DetailHeaderProps) {
     return (
         <header className="w-full mb-10">
             <BackLink parentPath={parentPath} />
-            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
-                <div className="min-w-0">
+            <div className="flex flex-col gap-6 lg:grid lg:grid-cols-12 lg:gap-10 lg:items-start">
+                <div className="min-w-0 lg:col-span-8">
                     <h1 className="break-words">{title}</h1>
                     {children && <div className="mt-2 space-y-1">{children}</div>}
                     {chips && <div className="flex flex-wrap items-center gap-2 mt-3">{chips}</div>}
                 </div>
-                {actions && <div className="md:shrink-0 md:max-w-xs">{actions}</div>}
+                {actions && <div className="min-w-0 lg:col-span-4">{actions}</div>}
             </div>
         </header>
     );

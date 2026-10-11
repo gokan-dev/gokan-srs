@@ -48,7 +48,7 @@ export default function KanjiDetailScreen() {
                 title={<span className="jp-display">{kanji.character}</span>}
                 chips={kanji.steps.jlpt ? <JlptChip level={kanji.steps.jlpt} /> : undefined}
                 actions={
-                    <div className="flex flex-col items-start md:items-end gap-2">
+                    <div className="flex flex-col items-start gap-2">
                         <span className="inline-flex items-center gap-1.5 type-support">
                             <span className={`inline-block w-2.5 h-2.5 rounded-full border ${isKnown ? 'bg-accent border-accent' : 'border-divider'}`} aria-hidden="true" />
                             {isKnown ? 'Known' : 'Not known yet'}

@@ -45,7 +45,7 @@ export function VocabQuizScreen({ onVocabClick }: VocabQuizScreenProps) {
         case "learn-kanji":
             if (!state.nextKanjiToLearn) return <LoadingScreen />;
             return (
-                <div className="flex flex-col flex-1 items-center justify-center p-4">
+                <div className="flex flex-col flex-1 items-center justify-center w-full">
                     <LearnKanjiCard
                         nextKanji={state.nextKanjiToLearn}
                         onUnlock={() => actions.learnNextKanji()}
