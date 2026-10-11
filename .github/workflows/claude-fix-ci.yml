@@ -23,12 +23,17 @@ jobs:
     # THIS repo (not a fork): on a public repo, gating out forks stops an
     # untrusted contributor's failing fork PR from driving the agent with secrets
     # in scope. And skip runs the bot itself started, so a bot push that re-fails
-    # CI can't loop forever.
+    # CI can't loop forever. The actor check alone no longer covers that:
+    # claude-implement-issue.yml pushes with a personal access token, so its runs
+    # have a human actor while its commits are still authored as claude[bot].
+    # Checking the commit author too keeps this agent from starting on a branch the
+    # implement agent is still pushing to.
     if: >
       github.event.workflow_run.conclusion == 'failure' &&
       github.event.workflow_run.event == 'pull_request' &&
       github.event.workflow_run.head_repository.full_name == github.repository &&
-      github.event.workflow_run.actor.login != 'claude[bot]'
+      github.event.workflow_run.actor.login != 'claude[bot]' &&
+      github.event.workflow_run.head_commit.author.name != 'claude[bot]'
     runs-on: ubuntu-latest
     permissions:
       contents: write
