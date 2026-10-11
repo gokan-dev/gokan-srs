@@ -16,7 +16,7 @@
   <div class="page-intro">
     <h1>Conjugation reference</h1>
     <p>
-      {formCount} forms of verbs and adjectives, from the て-form to the causative-passive. Each
+      {formCount} forms of verbs and adjectives, from the <span lang="ja">て</span>-form to the causative-passive. Each
       pattern links to its point, with a full table of examples.
     </p>
   </div>

@@ -25,7 +25,7 @@
 -->
 <header class="site-header">
   <div class="container container--wide site-header-inner">
-    <a class="site-title" href={homePath()}><span lang="ja">語感</span> Dictionary</a>
+    <a class="site-title" href={homePath()}><span lang="ja">語感</span> <span class="site-title-word">Dictionary</span></a>
     <nav class="site-nav" aria-label="Main">
       {#each LINKS as link (link.section)}
         <a href={link.href} aria-current={link.section === section ? 'page' : undefined}>{link.label}</a>

@@ -9,6 +9,7 @@
 // Rules earn a place here by being used on more than one page. If something is only shared
 // because two pages happened to copy it, fix the duplication rather than promoting it.
 
+@use 'sass:meta';
 @use 'tokens' as *;
 
 // The one web font: the serif's titles, Latin only (Japanese uses system fonts marked lang="ja").
@@ -35,10 +36,12 @@
   --accent-contrast: #FFFFFF;
   --error: #8A3A2E;
 
-  --font-serif: #{$font-serif-stack};
-  --font-sans: #{$font-sans-stack};
-  --font-mincho: #{$font-mincho-stack};
-  --font-gothic: #{$font-gothic-stack};
+  // meta.inspect keeps the quotes: unquoted, Source Serif 4 is an invalid family name and
+  // drops the whole stack.
+  --font-serif: #{meta.inspect($font-serif-stack)};
+  --font-sans: #{meta.inspect($font-sans-stack)};
+  --font-mincho: #{meta.inspect($font-mincho-stack)};
+  --font-gothic: #{meta.inspect($font-gothic-stack)};
 }
 
 @media (prefers-color-scheme: dark) {
@@ -132,12 +135,9 @@ p {
   position: absolute;
   width: 1px;
   height: 1px;
-  padding: 0;
-  margin: -1px;
   overflow: hidden;
-  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
   white-space: nowrap;
-  border: 0;
 }
 
 // The first focusable element on every page; shown only when focused.
@@ -252,7 +252,7 @@ main {
   flex-wrap: wrap;
 
   @include narrow {
-    gap: 0 $space-2;
+    gap: 0 $space-1;
   }
 }
 
@@ -269,15 +269,29 @@ main {
   }
 }
 
+// On a phone the logo is 語感 alone, so logo and nav share the first row; the word stays for
+// screen readers.
+.site-title-word {
+  @include narrow {
+    position: absolute;
+    clip-path: inset(50%);
+  }
+}
+
 .site-nav {
   display: flex;
   flex-wrap: wrap;
+
+  // Logo and nav share the first row even at 320px.
+  @include narrow {
+    font-size: $text-sm;
+  }
 
   a {
     display: inline-flex;
     align-items: center;
     min-height: $target;
-    padding: 0 $space-1;
+    padding: 0 0.375rem;
     color: var(--secondary);
 
     &:hover,
@@ -325,7 +339,6 @@ main {
   background-color: var(--surface);
   border: 1px solid var(--divider);
   border-radius: $radius-pill;
-  transition: border-color $motion;
 
   &:focus {
     border-color: var(--accent);
@@ -401,7 +414,8 @@ main {
     box-shadow: inset 3px 0 0 var(--accent);
   }
 
-  > :nth-child(2) {
+  // The reading and the gloss line; the chip keeps its own look.
+  > :not(:first-child):not(.chip) {
     @include truncate;
     color: var(--secondary);
     font-size: $text-sm;
@@ -413,9 +427,6 @@ main {
 
   > :last-child:not(.chip) {
     grid-column: 1 / -1;
-    @include truncate;
-    color: var(--secondary);
-    font-size: $text-sm;
   }
 
   &--all {
@@ -449,8 +460,6 @@ main {
 }
 
 a.chip {
-  transition: border-color $motion;
-
   &:hover,
   &:focus-visible {
     color: var(--secondary);
@@ -547,10 +556,6 @@ a.chip {
     min-height: $target;
     color: var(--accent);
     cursor: pointer;
-
-    &:hover {
-      color: var(--accent-hover);
-    }
   }
 
   &[open] > summary {
@@ -638,8 +643,7 @@ a.chip {
   gap: $space-1;
   margin: $space-3 0;
 
-  a,
-  span {
+  a {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -763,7 +767,6 @@ a.chip {
   border: 1px solid var(--divider);
   border-radius: $radius;
   cursor: pointer;
-  transition: border-color $motion;
 
   &:hover {
     border-color: var(--accent);
