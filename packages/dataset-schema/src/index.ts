@@ -14,3 +14,5 @@ export * from './media';
 export * from './tags';
 export * from './headword';
 export * from './textbook';
+export * from './romaji';
+export * from './interactiveSentence';

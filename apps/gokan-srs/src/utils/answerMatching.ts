@@ -7,7 +7,7 @@
 // comparison itself is never re-implemented elsewhere, so a given typo is graded
 // identically whichever quiz asked the question.
 import { hasKanji, kanjiSkeleton } from './kanji.utils';
-import { kanaToRomaji } from './romaji';
+import { kanaToRomaji } from '@gokan/dataset-schema';
 
 export type AnswerResult = 'correct' | 'minor_error' | 'wrong' | 'pass';
 
