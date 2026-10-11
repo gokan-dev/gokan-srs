@@ -4,6 +4,7 @@ import { CALIBRATED_QUIZ_TYPES } from "../../../models/user.model";
 import { recentWinRate, withCalibrationDefaults } from "../../../services/calibration";
 import { percentOf, winRatesByQuizType } from "../../../utils/winRate.utils";
 import { Disclosure } from "../../../components/ui/Disclosure";
+import { CONSTANTS } from "../../../commons/constants";
 
 const LABELS: Record<CalibratedQuizType, string> = {
     reading: "Reading",
@@ -17,7 +18,7 @@ interface QuizTypeWinRatesProps {
 }
 
 /**
- * Win rate per quiz type, next to what the calibration does with it: the recent
+ * Recall rate per quiz type, next to what the calibration does with it: the recent
  * window of real reviews each type calibrates on, and the resulting growth level
  * (x1.00 = the base rate; above 1, strength grows faster because this type's
  * reviews keep succeeding; below 1, slower).
@@ -41,12 +42,12 @@ export function QuizTypeWinRates({ progress }: QuizTypeWinRatesProps) {
 
     return (
         <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full font-sans text-sm tabular-nums">
                 <thead>
                     <tr className="text-left text-secondary border-b border-divider">
                         <th className="py-2 pr-4 font-medium">Quiz</th>
-                        <th className="py-2 pr-4 font-medium">All reviews</th>
-                        <th className="py-2 font-medium">Recent</th>
+                        <th className="py-2 pr-4 font-medium">All answers</th>
+                        <th className="py-2 font-medium">Last {CONSTANTS.srs.adaptive.historySize}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -55,11 +56,11 @@ export function QuizTypeWinRates({ progress }: QuizTypeWinRatesProps) {
                             <td className="py-2 pr-4 text-primary">{LABELS[row.type]}</td>
                             <td className="py-2 pr-4 text-primary">
                                 {row.allTime === null ? "-" : `${row.allTime}%`}
-                                <span className="text-tertiary text-xs ml-1">({row.allTimeCount})</span>
+                                <span className="type-meta ml-1.5">{row.allTimeCount.toLocaleString('en-US')}</span>
                             </td>
                             <td className="py-2 text-primary">
                                 {row.recent === null ? "-" : `${row.recent}%`}
-                                <span className="text-tertiary text-xs ml-1">({row.recentCount})</span>
+                                <span className="type-meta ml-1.5">{row.recentCount}</span>
                             </td>
                         </tr>
                     ))}
@@ -67,12 +68,12 @@ export function QuizTypeWinRates({ progress }: QuizTypeWinRatesProps) {
             </table>
 
             <Disclosure title="How scheduling adapts" className="mt-3">
-                <p className="text-xs text-tertiary mb-2">
+                <p className="type-support mb-2">
                     Reviews are scheduled for about 75% recall. Each quiz type calibrates on its own recent reviews
                     (retries and first reviews excluded): above 80%, its strength grows faster so intervals lengthen;
                     below 70%, slower.
                 </p>
-                <ul className="text-xs text-tertiary space-y-1">
+                <ul className="type-support space-y-1">
                     {rows.map(row => (
                         <li key={row.type}>{LABELS[row.type]}: ×{row.level.toFixed(2)} growth</li>
                     ))}

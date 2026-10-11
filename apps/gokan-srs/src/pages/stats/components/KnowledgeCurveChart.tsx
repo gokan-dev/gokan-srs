@@ -2,11 +2,13 @@ import { useMemo, useState } from "react";
 import type { MouseEvent } from "react";
 import type { UserProgress, UserSettings } from "../../../models/user.model";
 import {
+    KNOWLEDGE_POINTS_PER_ENTRY,
     buildKnowledgeCurve,
     type KnowledgeCurvePoint,
     type KnowledgeCurveRange,
 } from "../../../utils/knowledge.utils";
 import { formatShortDate } from "../../../utils/time.utils";
+import { FilterToggle } from "../../../components/ui/FilterToggle";
 
 interface KnowledgeCurveChartProps {
     progress: UserProgress;
@@ -24,7 +26,7 @@ const RANGES: { label: string; value: KnowledgeCurveRange }[] = [
 const PLOT = { top: 4, bottom: 96 };
 
 function formatPoints(value: number): string {
-    return Math.round(value).toLocaleString();
+    return Math.round(value).toLocaleString('en-US');
 }
 
 /**
@@ -93,31 +95,21 @@ export function KnowledgeCurveChart({ progress, settings }: KnowledgeCurveChartP
             {/* Headline + range filter */}
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
                 <div className="flex flex-col">
-                    <span className="type-meta">
-                        Knowledge held
+                    <span className="font-sans text-2xl text-primary tabular-nums">
+                        {curve.gained >= 0 ? '+' : '−'}{formatPoints(Math.abs(curve.gained))} points
+                        <span className="type-support ml-2">{range === 'all' ? 'since you started' : `in ${RANGES.find(r => r.value === range)?.label ?? `${range} days`}`}</span>
                     </span>
-                    <span className="text-3xl text-primary leading-tight">
-                        {formatPoints(curve.currentTotal)}
-                    </span>
-                    <span className="text-sm text-secondary">
-                        {curve.gained >= 0 ? '+' : '−'}{formatPoints(Math.abs(curve.gained))} this period
-                        <span className="text-tertiary"> · {formatPoints(curve.averagePerDay)}/day avg</span>
+                    <span className="type-meta mt-1">
+                        {formatPoints(curve.currentTotal)} held now · {formatPoints(curve.averagePerDay)} a day on average.
+                        A point is one step of mastery: a direction you have fully mastered is worth {KNOWLEDGE_POINTS_PER_ENTRY}.
                     </span>
                 </div>
 
-                <div className="flex gap-1 self-start sm:self-end" role="group" aria-label="Time range">
+                <div className="flex gap-1.5 self-start sm:self-end shrink-0" role="group" aria-label="Time range">
                     {RANGES.map(r => (
-                        <button
-                            key={String(r.value)}
-                            onClick={() => setRange(r.value)}
-                            aria-pressed={range === r.value}
-                            className={`px-2.5 py-1 text-xs rounded-md border transition-colors duration-150 ${range === r.value
-                                ? 'border-accent text-accent bg-surface-hover/40'
-                                : 'border-divider text-tertiary hover:text-secondary'
-                                }`}
-                        >
+                        <FilterToggle key={String(r.value)} active={range === r.value} onClick={() => setRange(r.value)}>
                             {r.label}
-                        </button>
+                        </FilterToggle>
                     ))}
                 </div>
             </div>

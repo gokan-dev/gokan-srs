@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+import { Link } from "react-router-dom";
 import { useQuiz } from "../../context/useQuiz";
 import { StatsOverview } from "./components/StatsOverview";
 import { QuizTypeWinRates } from "./components/QuizTypeWinRates";
@@ -6,75 +8,75 @@ import { DailyProgressionChart } from "./components/DailyProgressionChart";
 import { KnowledgeCurveChart } from "./components/KnowledgeCurveChart";
 import { JlptCoverageChart } from "./components/JlptCoverageChart";
 import { GrammarJlptCoverageChart } from "./components/GrammarJlptCoverageChart";
-import { GrammarChapterCoverageChart } from "./components/GrammarChapterCoverageChart";
 import { Page } from "../../components/Page";
 import { PageHeader } from "../../components/PageHeader";
-import { Link } from "react-router-dom";
 
+/** One chart: a card is an object, so each chart gets one, with its title inside. */
+function ChartCard({ title, children, className = '' }: { title: string; children: ReactNode; className?: string }) {
+    return (
+        <div className={`w-full min-w-0 rounded-md border border-divider bg-surface p-5 md:p-6 ${className}`}>
+            <h3 className="type-subsection mb-4">{title}</h3>
+            {children}
+        </div>
+    );
+}
+
+/** A Stats section: a heading and its charts, two columns from `lg`. */
+function StatsSection({ title, children }: { title: string; children: ReactNode }) {
+    return (
+        <section>
+            <h2 className="type-section mb-4">{title}</h2>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">{children}</div>
+        </section>
+    );
+}
+
+/** A report of how study is going. The lists are their own pages (Vocabulary, Grammar). */
 export function StatsScreen() {
     const { state } = useQuiz();
-
-    // Guard if accessible without progress (though route is protected usually)
     if (!state.progress) return null;
-
-    const card = "w-full min-w-0 p-6 bg-surface rounded-lg shadow-sm border border-divider";
+    const settings = state.settings ?? undefined;
 
     return (
-        <Page width="wide" className="flex flex-col gap-6">
-            <PageHeader title="Stats" parentPath="/" />
+        <Page width="wide">
+            <PageHeader title="Stats" className="mb-8" />
 
-            <StatsOverview progress={state.progress} />
+            <div className="space-y-10">
+                <StatsOverview progress={state.progress} settings={settings} />
 
-            {/* Two columns on desktop; one column on a phone. Cards in a row stretch
-                to the taller one, so each row pairs charts of the same shape: the two
-                bar charts share a height, and a bar chart next to the table or the
-                curve would sit in a half-empty card. */}
-            <div className="w-full grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <section className={card}>
-                    <h2 className="text-lg mb-4 text-primary font-serif">Review Forecast</h2>
-                    <ReviewForecast progress={state.progress} settings={state.settings ?? undefined} />
-                </section>
+                <StatsSection title="Reviews">
+                    <ChartCard title="Review forecast">
+                        <ReviewForecast progress={state.progress} settings={settings} />
+                    </ChartCard>
+                    <ChartCard title="Daily activity">
+                        <DailyProgressionChart progress={state.progress} />
+                    </ChartCard>
+                </StatsSection>
 
-                <section className={card}>
-                    <h2 className="text-lg mb-4 text-primary font-serif">Daily Progression</h2>
-                    <DailyProgressionChart progress={state.progress} />
-                </section>
+                <StatsSection title="Accuracy">
+                    <ChartCard title="Recall rate by quiz" className="lg:col-span-2">
+                        <QuizTypeWinRates progress={state.progress} />
+                    </ChartCard>
+                </StatsSection>
 
-                <section className={card}>
-                    <h2 className="text-lg mb-4 text-primary font-serif">Win Rate by Quiz</h2>
-                    <QuizTypeWinRates progress={state.progress} />
-                </section>
+                <StatsSection title="Knowledge">
+                    <ChartCard title="Knowledge growth" className="lg:col-span-2">
+                        <KnowledgeCurveChart progress={state.progress} settings={settings} />
+                    </ChartCard>
+                </StatsSection>
 
-                <section className={card}>
-                    <h2 className="text-lg mb-4 text-primary font-serif">Knowledge Curve</h2>
-                    <KnowledgeCurveChart progress={state.progress} settings={state.settings ?? undefined} />
-                </section>
-
-                <section className={card}>
-                    <h2 className="text-lg mb-4 text-primary font-serif">JLPT Coverage</h2>
-                    <JlptCoverageChart progress={state.progress} settings={state.settings ?? undefined} />
-                </section>
-
-                <section className={card}>
-                    <h2 className="text-lg mb-4 text-primary font-serif">Grammar JLPT Coverage</h2>
-                    <GrammarJlptCoverageChart progress={state.progress} />
-                </section>
-
-                {/* One row per chapter (151): it needs the full width. */}
-                <section className={`${card} lg:col-span-2`}>
-                    <h2 className="text-lg mb-4 text-primary font-serif">Grammar Chapter Coverage</h2>
-                    <GrammarChapterCoverageChart progress={state.progress} />
-                </section>
+                <StatsSection title="Coverage">
+                    <ChartCard title="JLPT vocabulary">
+                        <JlptCoverageChart progress={state.progress} settings={settings} />
+                    </ChartCard>
+                    <ChartCard title="JLPT grammar">
+                        <GrammarJlptCoverageChart progress={state.progress} />
+                        <Link to="/grammar/chapters" className="inline-block mt-4 font-sans text-sm text-accent hover:underline">
+                            See the curriculum
+                        </Link>
+                    </ChartCard>
+                </StatsSection>
             </div>
-
-
-            <section className="w-full">
-                <h2 className="text-lg mb-4 text-primary font-serif">Vocabulary</h2>
-                <Link to="/vocab" className="text-accent font-gothic text-sm hover:underline">
-                    See the Vocabulary list
-                </Link>
-            </section>
-
         </Page>
     );
 }
