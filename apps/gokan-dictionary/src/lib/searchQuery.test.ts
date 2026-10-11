@@ -95,7 +95,8 @@ describe('search', () => {
 
     it('matches the query as a whole word before a substring', () => {
         expect(ids('eat')).toEqual(['taberu', 'kuu', 'eating', 'great']);
-        expect(search(INDEX, 'eat').words.map(hit => hit.tier)).toEqual([TIER.sense, TIER.sense, TIER.glossWord, TIER.substring]);
+        expect(search(INDEX, 'eat').words.map(hit => hit.tier)).toEqual([TIER.sense, TIER.sense, TIER.substring, TIER.substring]);
+        expect(search(INDEX, 'place').words).toEqual([{ row: WORDS[6], tier: TIER.glossWord }]);
     });
 
     it('treats a compound containing a kanji query like a prefix match', () => {
