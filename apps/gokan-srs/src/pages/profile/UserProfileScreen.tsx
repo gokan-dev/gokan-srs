@@ -1,5 +1,6 @@
 import { KanjiKnowledgeEditor } from "../../components/KanjiKnowledgeEditor";
 import { useQuiz } from "../../context/useQuiz";
+import { useKanjiForm } from "../../context/KanjiForm/useKanjiForm";
 import { CONSTANTS } from "../../commons/constants";
 import { DEFAULT_SETTINGS } from "../../models/user.model";
 import { Page } from "../../components/Page";
@@ -7,6 +8,7 @@ import { PageHeader } from "../../components/PageHeader";
 
 export function UserProfileScreen() {
     const { state, actions } = useQuiz();
+    const { state: form } = useKanjiForm();
 
     const countStep = state.settings?.kanjiCountStep ?? CONSTANTS.setup.defaultKanjiCountStep;
 
@@ -17,21 +19,18 @@ export function UserProfileScreen() {
     };
 
     return (
-        <Page width="wide" className="flex flex-col gap-2">
-            <PageHeader title="Kanji" parentPath="/" className="mb-6" />
+        <Page width="wide">
+            <PageHeader
+                title="Kanji"
+                subtitle={`${form.knownKanji.size.toLocaleString('en-US')} of ${form.allKanji.length.toLocaleString('en-US')} known · KKLC order`}
+                className="mb-6"
+            />
 
-            <section className="w-full mt-8">
-                <h2 className="type-section mb-4">
-                    Kanji
-                </h2>
-
-                <KanjiKnowledgeEditor
-                    onKanjiKnowledgeChange={actions.updateKanjiKnowledge}
-                    countStep={countStep}
-                    onCountStepChange={handleCountStepChange}
-                    gridHeight="36rem"
-                />
-            </section>
+            <KanjiKnowledgeEditor
+                onKanjiKnowledgeChange={actions.updateKanjiKnowledge}
+                countStep={countStep}
+                onCountStepChange={handleCountStepChange}
+            />
         </Page>
     );
 }

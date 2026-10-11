@@ -17,6 +17,10 @@ import {
     speechSpeedLabel,
 } from "../../utils/mediaCoverage.utils";
 import { JitenCredit, MediaCover, VocabularyOnlyNote } from "./listeningShared";
+import { FilterToggle } from "../../components/ui/FilterToggle";
+import { Pagination } from "../../components/ui/Pagination";
+
+const PAGE_SIZE = 20;
 
 /**
  * Route /listening: the anime in the library, ranked by how much of each one's
@@ -30,6 +34,7 @@ export function ListeningLibraryScreen() {
     const [libraryWords, setLibraryWords] = useState<MediaLibraryWords | null>(null);
     const [failed, setFailed] = useState(false);
     const [query, setQuery] = useState('');
+    const [page, setPage] = useState(1);
 
     useEffect(() => {
         Promise.all([MediaService.loadIndex(), MediaService.loadLibraryWords()])
@@ -70,107 +75,94 @@ export function ListeningLibraryScreen() {
         });
     }, [index, libraryWords, knowledge, watched, selectedGenres, query]);
 
+    const totalPages = Math.ceil(rows.length / PAGE_SIZE) || 1;
+    const shownPage = Math.min(page, totalPages);
+    const displayed = rows.slice((shownPage - 1) * PAGE_SIZE, shownPage * PAGE_SIZE);
+
     return (
         <Page width="narrow">
-            <PageHeader title="Listening" parentPath="/" className="mb-4" />
+            <PageHeader
+                title="Listening"
+                subtitle="Anime for listening practice, ordered by how much of their vocabulary you already know."
+                className="mb-2"
+            />
+            <VocabularyOnlyNote className="mb-6" />
 
-            <p className="font-serif text-sm text-secondary mb-1">
-                Anime for listening practice, ordered by how much of their vocabulary you already know.
-            </p>
-            <VocabularyOnlyNote className="mb-5" />
-
-            {failed && <p className="font-gothic text-sm text-secondary">Could not load the listening library.</p>}
-            {!failed && !index && <p className="font-gothic text-sm text-secondary">Loading library...</p>}
+            {failed && <p className="type-support">Could not load the listening library.</p>}
+            {!failed && !index && <p className="type-support">Loading the library...</p>}
 
             {index && (
-                <div className="mb-5">
+                <div className="mb-6 space-y-3">
                     <input
                         type="search"
                         value={query}
-                        onChange={e => setQuery(e.target.value)}
+                        onChange={e => { setQuery(e.target.value); setPage(1); }}
                         placeholder="Search a title"
-                        className="w-full bg-surface border border-divider rounded px-3 py-2 text-base md:text-sm font-gothic text-primary placeholder:text-input-placeholder outline-none focus:border-accent mb-3"
+                        aria-label="Search a title"
+                        className="w-full bg-surface border border-divider rounded-md px-3 py-2 text-base md:text-sm font-sans text-primary placeholder:text-input-placeholder outline-none focus:border-accent"
                     />
-                    <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="font-gothic text-xs text-secondary mr-1">I like</span>
-                        {genres.map(genre => {
-                            const on = selectedGenres.includes(genre);
-                            return (
-                                <button
-                                    key={genre}
-                                    type="button"
-                                    onClick={() => toggleGenre(genre)}
-                                    aria-pressed={on}
-                                    className={`rounded-full border px-2.5 py-0.5 font-gothic text-xs transition-colors cursor-pointer ${
-                                        on ? 'border-accent bg-accent/10 text-accent' : 'border-divider text-secondary hover:border-accent hover:text-accent'
-                                    }`}
-                                >
-                                    {genre}
-                                </button>
-                            );
-                        })}
+                    <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Genres">
+                        <span className="type-label mr-1">Genres</span>
+                        {genres.map(genre => (
+                            <FilterToggle key={genre} active={selectedGenres.includes(genre)} onClick={() => { toggleGenre(genre); setPage(1); }}>
+                                {genre}
+                            </FilterToggle>
+                        ))}
                         {selectedGenres.length > 0 && (
-                            <button type="button" onClick={clearGenres} className="font-gothic text-xs text-accent hover:underline ml-1 cursor-pointer">
+                            <button type="button" onClick={clearGenres} className="font-sans text-sm text-accent hover:underline ml-1 cursor-pointer">
                                 Show all
                             </button>
                         )}
                     </div>
-                    <p className="font-gothic text-xs text-tertiary mt-2">
+                    <p className="type-meta">
                         {rows.length} of {index.length} titles
                         {selectedGenres.length > 0 && ' matching your genres'}
                     </p>
                 </div>
             )}
 
-            <div className="flex flex-col gap-3">
-                {rows.map(({ entry, coverage, nextEpisode, watchedCount }) => {
+            <div className="flex flex-col divide-y divide-divider border-y border-divider">
+                {displayed.map(({ entry, coverage, nextEpisode, watchedCount }) => {
                     const speed = speechSpeedLabel(entry.speechSpeed);
-                    const subtitle = entry.title.english ?? entry.title.romaji;
+                    const toLearn = coverage.unique.total - coverage.unique.mastered - coverage.unique.learning;
                     return (
                         <Link
                             key={entry.id}
                             to={`/listening/${entry.id}`}
-                            className="flex gap-4 rounded-lg border border-divider bg-surface p-4 hover:border-accent transition-colors duration-200"
+                            className="flex gap-4 px-2 py-4 rounded-md hover:bg-surface-hover transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                         >
-                            <MediaCover entry={entry} className="w-16 sm:w-20 self-start" />
+                            <MediaCover entry={entry} className="w-14 sm:w-16 self-start" />
                             <div className="min-w-0 flex-1">
                                 <div className="flex items-start justify-between gap-4">
                                     <div className="min-w-0">
                                         <h2 className="font-mincho text-lg text-primary truncate">{entry.title.original}</h2>
-                                        {subtitle && <p className="font-serif text-sm text-secondary truncate">{subtitle}</p>}
-                                        <p className="font-gothic text-xs text-tertiary mt-1">
+                                        {entry.title.english && <p className="type-support truncate">{entry.title.english}</p>}
+                                        <p className="type-meta mt-1">
                                             {[
                                                 entry.releaseYear,
                                                 `${entry.episodeCount} episode${entry.episodeCount > 1 ? 's' : ''}`,
                                                 speed && `${speed} speech`,
+                                                ...entry.genres.slice(0, 3),
                                             ].filter(Boolean).join(' · ')}
                                         </p>
-                                        {entry.genres.length > 0 && (
-                                            <p className="font-gothic text-xs text-tertiary truncate">{entry.genres.join(' · ')}</p>
-                                        )}
                                     </div>
                                     <div className="text-right shrink-0">
-                                        <p className="font-serif text-2xl text-primary tabular-nums leading-none">
+                                        <p className="font-sans text-2xl text-primary tabular-nums leading-none">
                                             {formatPercent(knownRatio(coverage.occurrences))}
                                         </p>
-                                        <p className="font-gothic text-xs text-tertiary mt-1">of the vocabulary heard</p>
+                                        <p className="type-meta mt-1">known</p>
+                                        <p className="type-meta tabular-nums">{toLearn.toLocaleString('en-US')} words to learn</p>
                                     </div>
                                 </div>
 
                                 <div className="mt-3">
                                     <ChapterProgressBar counts={coverage.occurrences} compact />
-                                    <p className="font-gothic text-xs text-tertiary mt-1.5 tabular-nums">
-                                        {coverage.unique.mastered + coverage.unique.learning} of {coverage.unique.total} distinct words known
-                                        {coverage.unique.mastered > 0 && ` (${coverage.unique.mastered} mastered)`}
-                                    </p>
                                 </div>
 
-                                {(watchedCount > 0 || entry.episodeCount > 1) && (
-                                    <p className="font-gothic text-xs text-secondary mt-3">
-                                        {watchedCount > 0 && <span>{watchedCount} of {entry.episodeCount} watched · </span>}
-                                        {nextEpisode !== null
-                                            ? <span>Next: Episode {nextEpisode}</span>
-                                            : <span>Every episode watched</span>}
+                                {watchedCount > 0 && (
+                                    <p className="type-support mt-2">
+                                        {watchedCount} of {entry.episodeCount} watched
+                                        {nextEpisode !== null ? ` · Next: Episode ${nextEpisode}` : ' · Every episode watched'}
                                     </p>
                                 )}
                             </div>
@@ -179,8 +171,10 @@ export function ListeningLibraryScreen() {
                 })}
             </div>
 
+            <Pagination page={shownPage} totalPages={totalPages} onPageChange={setPage} />
+
             {index && rows.length === 0 && (
-                <p className="font-gothic text-sm text-secondary">No title matches. Try other genres or clear the search.</p>
+                <p className="type-support">No title matches. Try other genres or clear the search.</p>
             )}
 
             {index && <JitenCredit className="mt-8" />}

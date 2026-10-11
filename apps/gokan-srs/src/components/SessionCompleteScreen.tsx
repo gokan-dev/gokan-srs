@@ -1,6 +1,6 @@
 import React from "react";
-import { Link } from "react-router-dom";
-import { CenteredCard } from "./CenteredCard";
+import { BackToStudyLink, CenteredCard } from "./CenteredCard";
+import { Button } from "./ui/Button";
 
 interface SessionCompleteScreenProps {
     /** Tasks this session committed to and cleared. */
@@ -22,29 +22,19 @@ export const SessionCompleteScreen: React.FC<SessionCompleteScreenProps> = ({
     onStartAnother,
 }) => (
     <CenteredCard>
-        <h2 className="text-xl mb-4 text-primary font-serif">
-            Session complete
-        </h2>
+        <h2 className="type-section mb-3">Session complete</h2>
 
-        <p className="text-sm mb-2 text-secondary font-serif">
+        <p className="type-support mb-2">
             You cleared <strong>{completed}</strong> card{completed === 1 ? '' : 's'}.
         </p>
 
-        <p className="text-sm mb-6 text-secondary font-serif">
+        <p className="type-support mb-6">
             <strong>{waiting}</strong> more word{waiting === 1 ? '' : 's'} {waiting === 1 ? 'is' : 'are'} still due. Take a break, or start another session now.
         </p>
 
         <div className="flex flex-col gap-3">
-            <button
-                onClick={onStartAnother}
-                className="py-2 px-6 rounded transition-colors bg-accent text-surface font-serif hover:bg-accent-hover"
-            >
-                Start another session
-            </button>
-
-            <Link to="/" className="text-xs text-center text-secondary hover:text-primary transition-colors">
-                Back to activities
-            </Link>
+            <Button onClick={onStartAnother} className="w-full">Start another session</Button>
+            <BackToStudyLink />
         </div>
     </CenteredCard>
 );

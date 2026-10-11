@@ -5,6 +5,10 @@ import type { KanjiKnowledge, KanjiLearningMethod } from "../models/user.model";
 import { useKanjiForm } from "../context/KanjiForm/useKanjiForm";
 import { useEffect, useEffectEvent } from "react";
 
+const METHODS: { value: KanjiLearningMethod; label: string; description: string }[] = [
+    { value: 'kklc', label: 'KKLC', description: 'Traditional school-based order' },
+];
+
 interface KanjiKnowledgeEditorProps {
     onKanjiKnowledgeChange?: (knowledge: KanjiKnowledge) => void;
     /**
@@ -14,15 +18,12 @@ interface KanjiKnowledgeEditorProps {
      */
     countStep?: number;
     onCountStepChange?: (step: number) => void;
-    /** Starting height of the kanji grid's scroll pane, which the user can then resize. */
-    gridHeight?: string;
 }
 
 export function KanjiKnowledgeEditor({
     onKanjiKnowledgeChange,
     countStep,
     onCountStepChange,
-    gridHeight,
 }: KanjiKnowledgeEditorProps) {
     const { state } = useKanjiForm();
 
@@ -39,24 +40,19 @@ export function KanjiKnowledgeEditor({
 
     return (
         <>
-            <OptionGrid<KanjiLearningMethod>
-                title="Kanji learning method"
-                value={state.kanjiMethod}
-                options={[
-                    {
-                        value: 'kklc',
-                        label: 'KKLC',
-                        description: 'Traditional school-based order',
-                    },
-                ]}
-            />
-
-            <KanjiCountStepper step={countStep} onStepChange={onCountStepChange} />
+            {/* Hidden while KKLC is the only method: a choice of one is not a choice. */}
+            {METHODS.length > 1 && (
+                <OptionGrid<KanjiLearningMethod>
+                    title="Kanji learning method"
+                    value={state.kanjiMethod}
+                    options={METHODS}
+                />
+            )}
 
             <KanjiKnowledgeGrid
                 allKanji={state.allKanji}
                 method={state.kanjiMethod}
-                initialHeight={gridHeight}
+                toolbar={<KanjiCountStepper step={countStep} onStepChange={onCountStepChange} />}
             />
         </>
     );

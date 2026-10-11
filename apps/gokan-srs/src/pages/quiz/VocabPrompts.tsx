@@ -35,12 +35,12 @@ export function ReadingPrompt({ vocab, answered, memoryStrength, onOpenWord }: V
     return (
         <>
             {isMobile ? (
-                <div className="mb-4">
-                    <div className="mb-2">
+                <div className="mb-4 text-center">
+                    <div className="mb-2 flex justify-center">
                         <Headword vocab={vocab} size="md" onClick={openWord} />
                     </div>
                     {(vocab.senses.length > 0 || vocab.jlptLevel) && (
-                        <div className="flex flex-wrap gap-1 items-center">
+                        <div className="flex flex-wrap justify-center gap-1 items-center">
                             {vocab.jlptLevel && <JlptChip level={vocab.jlptLevel} />}
                             {posTags.slice(0, 3).map(rawTag => (
                                 <TagChip key={rawTag} size="sm">{TagsLookup[rawTag as Tags]}</TagChip>

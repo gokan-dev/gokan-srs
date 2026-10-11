@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Search, X } from "lucide-react";
 import { useKanjiForm } from "../context/KanjiForm/useKanjiForm";
 import type { KanjiLearningMethod } from "../models/user.model";
@@ -34,20 +34,20 @@ const ORDER_LABELS: Record<KanjiLearningMethod, string> = {
 interface KanjiKnowledgeGridProps {
     allKanji: string[];
     method: KanjiLearningMethod;
-    /**
-     * Starting height of the scroll pane (any CSS length). The pane is
-     * user-resizable from there; the profile page - where browsing the list is
-     * half of why you are on the page - opens taller than the setup wizard,
-     * which only needs enough of it to confirm the count landed where expected.
-     */
-    initialHeight?: string;
+    /** Controls shown with the search in the sticky toolbar (the count stepper). */
+    toolbar?: ReactNode;
 }
 
-export function KanjiKnowledgeGrid({ allKanji, method, initialHeight = '22rem' }: KanjiKnowledgeGridProps) {
+/**
+ * Every kanji in learning order, in the page flow (no inner scroll pane), with a
+ * toolbar that stays at the top while the grid scrolls by. Click a tile to mark
+ * it known or not known.
+ */
+export function KanjiKnowledgeGrid({ allKanji, method, toolbar }: KanjiKnowledgeGridProps) {
     const { state, toggleKanji } = useKanjiForm();
     const { isMobile } = useResponsive();
     const [query, setQuery] = useState('');
-    const scrollRef = useRef<HTMLDivElement>(null);
+    const gridRef = useRef<HTMLDivElement>(null);
 
     const rowSize = isMobile ? MOBILE_ROW_SIZE : ROW_SIZE;
     const gutterWidth = isMobile ? MOBILE_GUTTER_WIDTH : GUTTER_WIDTH;
@@ -63,20 +63,11 @@ export function KanjiKnowledgeGrid({ allKanji, method, initialHeight = '22rem' }
         return chunks;
     }, [allKanji, rowSize]);
 
-    // Centre one position in the pane, and in the pane only: scrollIntoView would
-    // also scroll the page itself, yanking the whole profile view while the user
-    // is still typing in the search box or holding down a stepper button.
+    // Centre one position on screen: the grid is in the page flow, so the page scrolls.
     const scrollToPosition = useCallback((position: number) => {
-        const container = scrollRef.current;
-        if (!container) return;
-
-        const target = container.querySelector<HTMLElement>(`[data-kanji-pos="${position}"]`);
-        if (!target) return;
-
-        container.scrollTo({
-            top: Math.max(0, target.offsetTop - container.clientHeight / 2 + target.offsetHeight / 2),
-            behavior: 'smooth',
-        });
+        gridRef.current
+            ?.querySelector<HTMLElement>(`[data-kanji-pos="${position}"]`)
+            ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
     }, []);
 
     useEffect(() => {
@@ -101,17 +92,10 @@ export function KanjiKnowledgeGrid({ allKanji, method, initialHeight = '22rem' }
     const matchIsKnown = match ? state.knownKanji.has(match.kanji) : false;
 
     return (
-        <div className="w-full mt-8">
-            <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-                <div className="type-label">
-                    Known kanji ({ORDER_LABELS[method]})
-                </div>
-                <div className="text-xs text-tertiary font-gothic tabular-nums">
-                    {knownCount} known of {allKanji.length}
-                </div>
-            </div>
-
-            <div className="relative mb-3">
+        <div className="w-full">
+            <div className="sticky top-0 z-10 bg-background py-3 space-y-3 border-b border-divider">
+            {toolbar}
+            <div className="relative">
                 <Search
                     className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-tertiary pointer-events-none"
                     aria-hidden="true"
@@ -150,7 +134,7 @@ export function KanjiKnowledgeGrid({ allKanji, method, initialHeight = '22rem' }
                                 onClick={() => toggleKanji(match.kanji)}
                                 className="text-xs px-2 py-1 rounded-md border border-divider bg-surface text-secondary hover:bg-surface-hover hover:text-primary cursor-pointer"
                             >
-                                {matchIsKnown ? 'Mark as unknown' : 'Mark as known'}
+                                {matchIsKnown ? 'Mark as not known' : 'Mark as known'}
                             </button>
                         </>
                     ) : (
@@ -158,23 +142,20 @@ export function KanjiKnowledgeGrid({ allKanji, method, initialHeight = '22rem' }
                     )}
                 </div>
             )}
+            </div>
 
-            {/*
-                `resize: vertical` gives the pane a native drag handle, like a
-                textarea - how tall the list should be depends on the screen and
-                on what the user is doing, so it is theirs to set. That needs a
-                real height rather than a max-height, and the fade is top-only:
-                a bottom fade would wash out the handle sitting in that corner.
-            */}
-            <div
-                ref={scrollRef}
-                className="relative w-full overflow-y-auto resize-y py-3 scrollbar-subtle"
-                style={{
-                    height: initialHeight,
-                    minHeight: '10rem',
-                    maskImage: 'linear-gradient(to bottom, transparent, black 24px)',
-                }}
-            >
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-4 mb-3">
+                <p className="type-support flex-1 min-w-48">Click a kanji to mark it known or not known.</p>
+                <span className="inline-flex items-center gap-1.5 type-meta">
+                    <span className="w-4 h-4 rounded-sm border border-divider bg-surface" aria-hidden="true" /> Known
+                </span>
+                <span className="inline-flex items-center gap-1.5 type-meta">
+                    <span className="w-4 h-4 rounded-sm border border-dashed border-divider" aria-hidden="true" /> Not known
+                </span>
+                <span className="type-meta tabular-nums">{knownCount.toLocaleString('en-US')} of {allKanji.length.toLocaleString('en-US')} known · {ORDER_LABELS[method]}</span>
+            </div>
+
+            <div ref={gridRef} className="w-full">
                 <div className="flex flex-col gap-1.5">
                     {rows.map((row, rowIndex) => (
                         <div
@@ -192,7 +173,7 @@ export function KanjiKnowledgeGrid({ allKanji, method, initialHeight = '22rem' }
                                 Position gutter: makes "the kanji around 1240" findable by eye,
                                 without going through the search box.
                             */}
-                            <div className="text-xs text-tertiary/70 font-gothic tabular-nums text-right pr-1 select-none">
+                            <div className="type-meta tabular-nums text-right pr-1 select-none">
                                 {rowIndex * rowSize + 1}
                             </div>
 
@@ -210,11 +191,11 @@ export function KanjiKnowledgeGrid({ allKanji, method, initialHeight = '22rem' }
                                         title={`#${position + 1} ${kanji} - ${isKnown ? 'known' : 'not known yet'}`}
                                         aria-pressed={isKnown}
                                         className={`
-                                            w-full aspect-square max-h-16 rounded-md font-mincho text-2xl leading-none transition-colors cursor-pointer
+                                            w-full aspect-square max-h-16 rounded-md border font-mincho text-2xl leading-none transition-colors cursor-pointer
                                             flex items-center justify-center
                                             ${isKnown
-                                                ? "text-primary bg-feedback-background ring-1 ring-accent/25 hover:bg-surface-hover"
-                                                : "text-tertiary/70 bg-transparent hover:bg-surface-hover hover:text-secondary"
+                                                ? "text-primary bg-surface border-divider hover:border-accent"
+                                                : "text-tertiary bg-transparent border-dashed border-divider hover:border-accent hover:text-secondary"
                                             }
                                             ${isMatch ? "ring-2 ring-accent" : ""}
                                         `.trim().replace(/\s+/g, ' ')}
@@ -226,10 +207,6 @@ export function KanjiKnowledgeGrid({ allKanji, method, initialHeight = '22rem' }
                         </div>
                     ))}
                 </div>
-            </div>
-
-            <div className="mt-3 text-xs text-secondary font-serif">
-                Known kanji are softly highlighted. Click any one to mark it known or unknown.
             </div>
         </div>
     );

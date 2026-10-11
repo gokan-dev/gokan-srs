@@ -1,8 +1,7 @@
 
 import React from "react";
-import { Sparkles } from "lucide-react";
-import { Link } from "react-router-dom";
-import { CenteredCard } from "./CenteredCard";
+import { BackToStudyLink, CenteredCard } from "./CenteredCard";
+import { Button } from "./ui/Button";
 import { useNow } from "../hooks/useNow";
 import { formatMinutes, minutesUntil } from "../utils/time.utils";
 
@@ -19,30 +18,17 @@ export const WaitingScreen: React.FC<WaitingScreenProps> = ({
 
     return (
         <CenteredCard>
-            <h2 className="text-xl mb-4 text-primary font-serif flex items-center justify-center gap-2">
-                You’re done for now <Sparkles size={20} className="text-accent" />
-            </h2>
+            <h2 className="type-section mb-3">You’re done for now</h2>
 
-            <p className="text-sm mb-6 text-secondary font-serif">
+            <p className="type-support mb-6">
                 Your next review will be available in{' '}
                 <strong>{formatMinutes(minutes)}</strong>.
             </p>
 
             <div className="flex flex-col gap-3">
-                <button
-                    onClick={onLearnMore}
-                    className="py-2 px-6 rounded transition-colors bg-accent text-surface font-serif hover:bg-accent-hover"
-                >
-                    Learn more words
-                </button>
-
-                <p className="text-xs text-center text-secondary">
-                    Recommended daily limit reached
-                </p>
-
-                <Link to="/" className="text-xs text-center text-secondary hover:text-primary transition-colors">
-                    Back to activities
-                </Link>
+                <Button onClick={onLearnMore} className="w-full">Learn more words</Button>
+                <p className="type-meta">Recommended daily limit reached</p>
+                <BackToStudyLink />
             </div>
         </CenteredCard>
     );

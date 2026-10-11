@@ -44,7 +44,7 @@ function toBarMarks(marks: JlptCoverageMark[]): ProgressBarMark[] {
 /**
  * The labelled key for the JLPT ticks, shown under the whole-series bar: each
  * level and the coverage the learner would reach knowing every word up to it.
- * The per-episode bars carry the same tick positions without repeating this.
+ * Only the whole-series bar carries the ticks: on every episode they were noise.
  */
 function JlptThresholdLegend({ marks }: { marks: JlptCoverageMark[] }) {
     if (marks.length === 0) return null;
@@ -183,14 +183,12 @@ export function ListeningTitleScreen() {
                             {title.links.myanimelist && <ExternalTextLink href={title.links.myanimelist}>MyAnimeList</ExternalTextLink>}
                             <ExternalTextLink href={title.source.url}>Jiten</ExternalTextLink>
                         </div>
-                        <button
-                            type="button"
-                            onClick={() => setAllWatched(!allWatched)}
-                            className="inline-flex items-center gap-1 rounded border border-divider px-2 py-1 font-gothic text-xs text-secondary hover:border-accent hover:text-accent transition-colors cursor-pointer"
-                        >
-                            <Check size={12} aria-hidden="true" />
-                            {allWatched ? 'Unmark all' : 'Mark all watched'}
-                        </button>
+                        <WatchToggle
+                            watched={allWatched}
+                            onToggle={() => setAllWatched(!allWatched)}
+                            label={allWatched ? 'All watched' : 'Mark all watched'}
+                            title={allWatched ? 'Mark every episode as not watched' : 'Mark every episode as watched'}
+                        />
                     </div>
                 </div>
             </section>
@@ -224,7 +222,6 @@ export function ListeningTitleScreen() {
                         isOpen={expanded === episode.number}
                         onToggleOpen={() => toggle(episode.number)}
                         onToggleWatched={(isWatched, coverage) => actions.setEpisodesWatched(title.id, [{ number: episode.number, coverage }], isWatched)}
-                        jlptLevelOf={jlptLevelOf}
                         listProps={listProps}
                     />
                 ))}
@@ -249,14 +246,12 @@ interface EpisodeRowProps {
     isOpen: boolean;
     onToggleOpen: () => void;
     onToggleWatched: (watched: boolean, coverage: number) => void;
-    jlptLevelOf: Map<string, number> | null;
     listProps: WordListProps;
 }
 
-function EpisodeRow({ episode, mark, isOpen, onToggleOpen, onToggleWatched, jlptLevelOf, listProps }: EpisodeRowProps) {
+function EpisodeRow({ episode, mark, isOpen, onToggleOpen, onToggleWatched, listProps }: EpisodeRowProps) {
     const coverage = computeCoverage(episode.words, listProps.knowledge);
     const ratio = knownRatio(coverage.occurrences);
-    const marks = jlptLevelOf ? computeJlptCoverageMarks(episode.words, jlptLevelOf) : [];
     const isWatched = mark?.watched === true;
     const speed = speechSpeedLabel(episode.speechSpeed);
 
@@ -278,7 +273,7 @@ function EpisodeRow({ episode, mark, isOpen, onToggleOpen, onToggleWatched, jlpt
                             <span className="font-gothic text-sm text-primary tabular-nums">{formatPercent(ratio)}</span>
                         </div>
                         <div className="mt-1.5">
-                            <ChapterProgressBar counts={coverage.occurrences} compact marks={toBarMarks(marks)} />
+                            <ChapterProgressBar counts={coverage.occurrences} compact />
                         </div>
                         <p className="font-gothic text-xs text-tertiary mt-1 tabular-nums">
                             {coverage.unique.mastered + coverage.unique.learning} of {coverage.unique.total} words known
@@ -287,20 +282,12 @@ function EpisodeRow({ episode, mark, isOpen, onToggleOpen, onToggleWatched, jlpt
                         </p>
                     </div>
                 </button>
-                <button
-                    type="button"
-                    onClick={() => onToggleWatched(!isWatched, ratio)}
-                    aria-pressed={isWatched}
+                <WatchToggle
+                    watched={isWatched}
+                    onToggle={() => onToggleWatched(!isWatched, ratio)}
+                    label={isWatched ? 'Watched' : 'Mark watched'}
                     title={isWatched ? 'Mark as not watched' : 'Mark as watched'}
-                    className={`shrink-0 inline-flex items-center gap-1 rounded border px-2 py-1 font-gothic text-xs transition-colors cursor-pointer ${
-                        isWatched
-                            ? 'border-accent text-accent'
-                            : 'border-divider text-secondary hover:border-accent hover:text-accent'
-                    }`}
-                >
-                    <Check size={12} aria-hidden="true" className={isWatched ? '' : 'opacity-40'} />
-                    {isWatched ? 'Watched' : 'Watch'}
-                </button>
+                />
             </div>
 
             {isOpen && <WordsToLearn words={episode.words} countHint="Times used in this episode" {...listProps} />}
@@ -399,5 +386,28 @@ function WordsToLearn({ words, countHint, knowledge, sort, onSortChange, orderCo
                 </button>
             )}
         </div>
+    );
+}
+
+/**
+ * The watched mark, in the selected-option language: off, a secondary "Mark
+ * watched" with no icon; on, "Watched" with a check in the selected style.
+ */
+function WatchToggle({ watched, onToggle, label, title }: { watched: boolean; onToggle: () => void; label: string; title: string }) {
+    return (
+        <button
+            type="button"
+            onClick={onToggle}
+            aria-pressed={watched}
+            title={title}
+            className={`shrink-0 inline-flex items-center gap-1.5 h-8 rounded-md border px-3 font-sans text-sm transition-colors cursor-pointer ${
+                watched
+                    ? 'border-accent bg-accent/10 text-primary'
+                    : 'border-divider bg-surface text-primary hover:bg-surface-hover'
+            }`}
+        >
+            {watched && <Check size={14} className="text-accent" aria-hidden="true" />}
+            {label}
+        </button>
     );
 }
