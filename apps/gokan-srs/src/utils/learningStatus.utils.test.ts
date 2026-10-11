@@ -1,8 +1,38 @@
 import { describe, expect, it } from 'vitest';
-import { STATUS_LABEL } from './learningStatus.utils';
+import { STATUS_LABEL, grammarLearningStatus, vocabLearningStatus } from './learningStatus.utils';
+import { grammarProgress, srsEntry, vocabProgress } from '../test/fixtures';
+import { CONSTANTS } from '../commons/constants';
+
+const MAX = CONSTANTS.srs.formula.mastery.maxMemoryStrength;
 
 describe('STATUS_LABEL', () => {
     it('names every learning status', () => {
         expect(STATUS_LABEL).toEqual({ new: 'New', learning: 'Learning', mastered: 'Mastered' });
+    });
+});
+
+describe('vocabLearningStatus', () => {
+    it('is New for a word not in the queue', () => {
+        expect(vocabLearningStatus(undefined, undefined)).toBe('new');
+    });
+
+    it('is Learning until every relevant direction is mastered, then Mastered', () => {
+        const settings = { enableMeaningQuiz: true, enableProductionQuiz: false };
+        expect(vocabLearningStatus(vocabProgress({ reading: srsEntry({ memoryStrength: MAX }) }), settings)).toBe('learning');
+        const mastered = vocabProgress({ reading: srsEntry({ memoryStrength: MAX }), meaning: srsEntry({ memoryStrength: MAX }) });
+        expect(vocabLearningStatus(mastered, settings)).toBe('mastered');
+    });
+});
+
+describe('grammarLearningStatus', () => {
+    it('is New until the point is introduced', () => {
+        expect(grammarLearningStatus(undefined)).toBe('new');
+        expect(grammarLearningStatus(grammarProgress({ introductionAt: null }))).toBe('new');
+    });
+
+    it('is Learning, then Mastered at full strength', () => {
+        const introductionAt = new Date('2026-01-01');
+        expect(grammarLearningStatus(grammarProgress({ introductionAt }))).toBe('learning');
+        expect(grammarLearningStatus(grammarProgress({ introductionAt, entry: srsEntry({ memoryStrength: MAX }) }))).toBe('mastered');
     });
 });

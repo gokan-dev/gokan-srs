@@ -3,7 +3,6 @@ import { Link, useSearchParams } from "react-router-dom";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import type { GrammarBrowseIndex, GrammarBrowseRow, GrammarTeachingOrder } from "@gokan/dataset-schema";
 import { GrammarService } from "../../services/grammar.service";
-import { isGrammarFullyMastered } from "../../services/grammarScheduling";
 import { useQuiz } from "../../context/useQuiz";
 import { JlptChip } from "../../components/JlptChip";
 import { ChapterProgressBar } from "../../components/ChapterProgressBar";
@@ -11,7 +10,7 @@ import { computeGrammarChapterProgress } from "../../context/quiz/grammarSelecto
 import { Page } from "../../components/Page";
 import { PageHeader } from "../../components/PageHeader";
 import { StatusDot } from "../../components/StatusDot";
-import type { LearningStatus } from "../../utils/learningStatus.utils";
+import { grammarLearningStatus, type LearningStatus } from "../../utils/learningStatus.utils";
 
 /**
  * Route /grammar/chapters (issue #58): every chapter of the authored teaching
@@ -58,11 +57,8 @@ export function GrammarChapterBrowseScreen() {
 
     const grammarQueue = state.progress?.grammarQueue ?? [];
 
-    const pointStatus = (id: string): LearningStatus => {
-        const g = grammarQueue.find(item => item.grammarId === id);
-        if (!g || !g.introductionAt) return 'new';
-        return isGrammarFullyMastered(g) ? 'mastered' : 'learning';
-    };
+    const pointStatus = (id: string): LearningStatus =>
+        grammarLearningStatus(grammarQueue.find(item => item.grammarId === id));
 
     // Deep-link target: expand it once loaded and scroll it into view. Only
     // ever applied once per mount (`scrolledToTarget`), so re-navigating with
