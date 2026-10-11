@@ -30,7 +30,7 @@ export function DetailCard({ title, count, children }: DetailCardProps) {
 export function DetailField({ label, children, large = false }: { label: string; children: ReactNode; large?: boolean }) {
     return (
         <div>
-            <div className="text-xs text-tertiary uppercase tracking-wider font-gothic mb-1">{label}</div>
+            <div className="type-meta mb-1">{label}</div>
             <div className={`${large ? 'text-xl' : 'text-base'} text-primary font-gothic`}>{children}</div>
         </div>
     );

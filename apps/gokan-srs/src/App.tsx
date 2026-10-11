@@ -48,7 +48,7 @@ function SyncStatusIndicator() {
     }
 
     if (isUploading || isDownloading) {
-        return <RefreshCw size={18} className="animate-spin text-muted" />;
+        return <RefreshCw size={18} className="animate-spin text-tertiary" />;
     }
 
     return (

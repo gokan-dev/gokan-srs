@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { DetailCard, DetailField } from "./DetailCard";
 import { SRSHistoryGraph, type SRSHistorySeries } from "../SRSHistoryGraph";
+import { formatDate } from "../../utils/time.utils";
 
 interface SrsStatsCardProps {
     totalReviews: number;
@@ -20,7 +21,7 @@ export function SrsStatsCard({ totalReviews, interval, introductionAt, nextRevie
                 <DetailField label="Reviews" large>{totalReviews}</DetailField>
                 <DetailField label="Interval" large>{interval.toFixed(1)}d</DetailField>
                 <div className="col-span-2 pt-2 border-t border-divider grid grid-cols-2 gap-4">
-                    <DetailField label="Introduced">{introductionAt.toLocaleDateString()}</DetailField>
+                    <DetailField label="Introduced">{formatDate(introductionAt)}</DetailField>
                     <DetailField label="Next Review">{nextReview}</DetailField>
                 </div>
                 <div className="col-span-2">

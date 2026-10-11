@@ -86,7 +86,7 @@ export const MasteryRing: React.FC<MasteryRingProps> = ({ memoryStrength, size =
             {shouldShowText && (
                 <div className="absolute inset-0 flex items-center justify-center">
                     <span
-                        className="font-bold leading-none text-subtle select-none"
+                        className="font-bold leading-none text-tertiary select-none"
                         style={{ fontSize: fontSize }}
                     >
                         {displayPercentage}

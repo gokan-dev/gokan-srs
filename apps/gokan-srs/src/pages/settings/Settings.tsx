@@ -3,6 +3,7 @@ import type { UserSettings } from "../../models/user.model";
 import { useGoogleDrive } from "../../context/useGoogleDrive";
 import { Cloud, Loader2, LogIn, RefreshCw, Moon, Sun, Monitor, Sparkles, KeyRound } from "lucide-react";
 import { Button } from "../../components/ui/Button";
+import { SelectableOption } from "../../components/ui/SelectableOption";
 import { SettingToggle } from "../../components/ui/SettingToggle";
 import { useTheme } from "../../context/useTheme";
 import { useState } from "react";
@@ -111,7 +112,7 @@ export function SettingsScreen({
               * thing worth doing on this page rather than the last.
               */}
             <section className="w-full mb-16 animate-slide-up">
-                <h2 className="mb-4 uppercase tracking-wide text-xs font-gothic text-secondary">
+                <h2 className="type-section mb-4">
                     Account (Google Drive sync)
                 </h2>
 
@@ -122,35 +123,35 @@ export function SettingsScreen({
 
             {/* Appearance */}
             <section className="w-full mb-16 animate-slide-up" style={{ animationDelay: "100ms" }}>
-                <h2 className="mb-4 uppercase tracking-wide text-xs font-gothic text-secondary">
+                <h2 className="type-section mb-4">
                     Appearance
                 </h2>
 
                 <div className="grid grid-cols-3 gap-3">
-                    <Button
-                        variant={theme === "light" ? "primary" : "secondary"}
-                        onClick={() => setTheme("light")}
-                        className="flex flex-col h-20 gap-2"
+                    <SelectableOption
+                        selected={theme === "light"}
+                        onSelect={() => setTheme("light")}
+                        className="flex flex-col items-center justify-center h-20 gap-2 text-primary"
                     >
                         <Sun size={20} />
                         <span className="text-xs">Light</span>
-                    </Button>
-                    <Button
-                        variant={theme === "dark" ? "primary" : "secondary"}
-                        onClick={() => setTheme("dark")}
-                        className="flex flex-col h-20 gap-2"
+                    </SelectableOption>
+                    <SelectableOption
+                        selected={theme === "dark"}
+                        onSelect={() => setTheme("dark")}
+                        className="flex flex-col items-center justify-center h-20 gap-2 text-primary"
                     >
                         <Moon size={20} />
                         <span className="text-xs">Dark</span>
-                    </Button>
-                    <Button
-                        variant={theme === "system" ? "primary" : "secondary"}
-                        onClick={() => setTheme("system")}
-                        className="flex flex-col h-20 gap-2"
+                    </SelectableOption>
+                    <SelectableOption
+                        selected={theme === "system"}
+                        onSelect={() => setTheme("system")}
+                        className="flex flex-col items-center justify-center h-20 gap-2 text-primary"
                     >
                         <Monitor size={20} />
                         <span className="text-xs">System</span>
-                    </Button>
+                    </SelectableOption>
                 </div>
             </section>
 
@@ -162,7 +163,7 @@ export function SettingsScreen({
               * card on the Main hub (see QuizSettingsMenu / pages/settings/sections).
               */}
             <section className="w-full mb-16 animate-slide-up" style={{ animationDelay: "200ms" }}>
-                <h2 className="mb-4 uppercase tracking-wide text-xs font-gothic text-secondary">
+                <h2 className="type-section mb-4">
                     Review pacing
                 </h2>
 
@@ -199,7 +200,7 @@ export function SettingsScreen({
             <section className="w-full mb-16 animate-slide-up" style={{ animationDelay: "300ms" }}>
                 <div className="flex items-center gap-2 mb-4">
                     <Sparkles size={16} className="text-secondary" />
-                    <h2 className="uppercase tracking-wide text-xs font-gothic text-secondary m-0">
+                    <h2 className="type-section m-0">
                         AI Context Validation
                     </h2>
                 </div>
@@ -271,7 +272,7 @@ export function SettingsScreen({
 
             {/* Danger zone */}
             <section className="w-full">
-                <h2 className="mb-4 uppercase tracking-wide text-xs font-gothic text-error-accent">
+                <h2 className="type-section mb-4 text-error">
                     Danger zone
                 </h2>
 
@@ -286,8 +287,9 @@ export function SettingsScreen({
                     {!isConfirmingGrammarReset ? (
                         <div>
                             <Button
+                                variant="danger-outline"
                                 onClick={() => { setIsConfirmingGrammarReset(true); setGrammarResetState('idle'); }}
-                                className="w-full justify-center bg-transparent border border-secondary text-secondary hover:border-error hover:text-error transition-colors"
+                                className="w-full justify-center"
                             >
                                 Reset grammar progress only
                             </Button>
@@ -314,13 +316,15 @@ export function SettingsScreen({
                             </p>
                             <div className="flex gap-3">
                                 <Button
+                                    variant="secondary"
                                     onClick={() => setIsConfirmingGrammarReset(false)}
                                     disabled={grammarResetState === 'working'}
-                                    className="flex-1 justify-center bg-transparent border border-secondary text-secondary hover:text-primary hover:border-primary transition-colors"
+                                    className="flex-1 justify-center"
                                 >
                                     Cancel
                                 </Button>
                                 <Button
+                                    variant="danger"
                                     onClick={() => void (async () => {
                                         setGrammarResetState('working');
                                         try {
@@ -332,7 +336,7 @@ export function SettingsScreen({
                                         setIsConfirmingGrammarReset(false);
                                     })()}
                                     disabled={grammarResetState === 'working'}
-                                    className="flex-1 justify-center bg-error text-white border-transparent hover:brightness-110"
+                                    className="flex-1 justify-center"
                                 >
                                     {grammarResetState === 'working' ? 'Clearing...' : 'Clear grammar'}
                                 </Button>
@@ -342,8 +346,9 @@ export function SettingsScreen({
 
                     {!isConfirmingReset ? (
                         <Button
+                            variant="danger-outline"
                             onClick={() => setIsConfirmingReset(true)}
-                            className="w-full justify-center bg-transparent border border-error text-error hover:bg-error hover:text-white transition-colors"
+                            className="w-full justify-center"
                         >
                             Reset all progress
                         </Button>
@@ -354,14 +359,16 @@ export function SettingsScreen({
                             </p>
                             <div className="flex gap-3">
                                 <Button
+                                    variant="secondary"
                                     onClick={() => setIsConfirmingReset(false)}
-                                    className="flex-1 justify-center bg-transparent border border-secondary text-secondary hover:text-primary hover:border-primary transition-colors"
+                                    className="flex-1 justify-center"
                                 >
                                     Cancel
                                 </Button>
                                 <Button
+                                    variant="danger"
                                     onClick={onReset}
-                                    className="flex-1 justify-center bg-error text-white border-transparent hover:brightness-110"
+                                    className="flex-1 justify-center"
                                 >
                                     Confirm Reset
                                 </Button>

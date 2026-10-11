@@ -73,12 +73,12 @@ export function GrammarDifferentiator({ point, knownIds }: Props) {
 
     return (
         <div className="rounded-lg border border-divider bg-feedback-background px-4 py-3">
-            <p className="uppercase tracking-wide text-label-neutral text-xs mb-2 font-gothic">
+            <p className="type-label mb-2">
                 {heading}
             </p>
 
             {lede && (
-                <p className="text-meaning-muted font-serif text-sm leading-relaxed mb-3">
+                <p className="text-primary font-serif text-sm leading-relaxed mb-3">
                     {lede}
                 </p>
             )}
@@ -101,7 +101,7 @@ export function GrammarDifferentiator({ point, knownIds }: Props) {
                                 </span>
                                 <span className={isThis
                                     ? "font-mincho text-primary font-semibold"
-                                    : "font-mincho text-meaning-muted"}>
+                                    : "font-mincho text-primary"}>
                                     {p.title}
                                 </span>
                                 {isThis && (
@@ -117,7 +117,7 @@ export function GrammarDifferentiator({ point, knownIds }: Props) {
             )}
 
             {axis === 'variant' && (
-                <p className="font-mincho text-meaning-muted text-sm leading-relaxed">
+                <p className="font-mincho text-primary text-sm leading-relaxed">
                     {[point, ...siblings].map(p => p.title).join('　/　')}
                 </p>
             )}

@@ -27,7 +27,7 @@ export function GrammarChapterLessonCard({ chapterTitle, focusPointIds, knownIds
     return (
         <Card size="lg">
             <CardSection>
-                <p className="uppercase tracking-wide text-label-neutral text-xs mb-1 font-gothic text-center">
+                <p className="type-label mb-1 text-center">
                     Chapter review
                 </p>
                 <h2 className="text-primary font-mincho text-xl text-center leading-snug">

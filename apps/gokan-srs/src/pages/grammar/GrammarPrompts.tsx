@@ -102,7 +102,7 @@ export function ConjugationPrompt({ prompt }: { prompt: GrammarConjugationPrompt
 
             <div className="text-center mt-4">
                 <ArrowDown className="inline-block w-5 h-5 text-tertiary" aria-hidden="true" />
-                <p className="uppercase tracking-wide text-label-neutral text-xs font-gothic mt-1">
+                <p className="type-label mt-1">
                     {prompt.formLabel}
                 </p>
             </div>
@@ -149,7 +149,7 @@ function AnswerWithReading({ written, reading, size }: { written: string; readin
         <p className={`${main} font-mincho text-primary leading-loose`}>
             <ruby>
                 {written}
-                <rt className={`${rt} font-gothic text-tertiary select-none tracking-wide`}>{reading}</rt>
+                <rt className={`${rt} font-gothic text-tertiary select-none`}>{reading}</rt>
             </ruby>
         </p>
     );

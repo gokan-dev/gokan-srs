@@ -79,7 +79,7 @@ export function SRSHistoryGraph({ series, introDate }: SRSHistoryGraphProps) {
     return (
         <div className="w-full flex flex-col pt-4 border-t border-divider mt-6">
             <div className="flex justify-between items-center mb-4">
-                <span className="text-xs text-tertiary uppercase tracking-wider font-gothic mb-1">Learning Curve</span>
+                <span className="type-meta mb-1">Learning Curve</span>
                 <div className="flex gap-4 text-xs font-gothic">
                     {series.map(s => (
                         <span key={s.key} className="flex items-center gap-1 text-secondary">

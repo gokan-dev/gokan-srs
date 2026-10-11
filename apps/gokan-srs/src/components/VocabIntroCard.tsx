@@ -48,7 +48,7 @@ export default function VocabIntroCard({ vocab, onLearn, onSkip }: IntroVocabCar
 
             {/* Meanings */}
             <CardSection>
-                <div className="text-center font-serif text-base text-meaning-muted leading-relaxed">
+                <div className="text-center font-serif text-base text-primary leading-relaxed">
                     {vocab.senses.map((sense, i) => (
                         <span key={i}>
                             {sense.appliesToReadings && sense.appliesToReadings.length > 0 && (

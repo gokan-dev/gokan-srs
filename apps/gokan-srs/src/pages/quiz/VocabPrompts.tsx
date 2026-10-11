@@ -69,7 +69,7 @@ export function ReadingPrompt({ vocab, answered, memoryStrength, onOpenWord }: V
                             )}
 
                             {compounds.length > 0 && (
-                                <div className="text-sm text-meaning-muted font-serif">
+                                <div className="text-sm text-primary font-serif">
                                     {compounds.slice(0, 4).join(' ・ ')}
                                 </div>
                             )}
@@ -224,7 +224,7 @@ export function ProductionPrompt({ vocab, answered, memoryStrength, onOpenWord }
                 </div>
 
                 {promptLines.length > 1 && (
-                    <div className="mt-3 space-y-1 text-sm text-meaning-muted font-serif">
+                    <div className="mt-3 space-y-1 text-sm text-primary font-serif">
                         {promptLines.slice(1).map((line, index) => (
                             <p key={index}>{line}</p>
                         ))}

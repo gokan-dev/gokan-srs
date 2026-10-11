@@ -69,7 +69,7 @@ export function KanjiCountStepper({ step, onStepChange }: KanjiCountStepperProps
     return (
         <section className="mt-8 space-y-3">
             <div className="flex items-baseline justify-between gap-4">
-                <label htmlFor="kanji-count" className="text-sm uppercase tracking-wide font-gothic text-secondary">
+                <label htmlFor="kanji-count" className="type-label">
                     Known Kanji Count
                 </label>
                 <span className="text-xs text-tertiary font-gothic tabular-nums">

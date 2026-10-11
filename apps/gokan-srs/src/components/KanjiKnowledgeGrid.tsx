@@ -103,7 +103,7 @@ export function KanjiKnowledgeGrid({ allKanji, method, initialHeight = '22rem' }
     return (
         <div className="w-full mt-8">
             <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-                <div className="text-xs uppercase tracking-wide text-secondary font-gothic text-[0.6875rem]">
+                <div className="type-label">
                     Known kanji ({ORDER_LABELS[method]})
                 </div>
                 <div className="text-xs text-tertiary font-gothic tabular-nums">
@@ -192,7 +192,7 @@ export function KanjiKnowledgeGrid({ allKanji, method, initialHeight = '22rem' }
                                 Position gutter: makes "the kanji around 1240" findable by eye,
                                 without going through the search box.
                             */}
-                            <div className="text-[0.625rem] text-tertiary/70 font-gothic tabular-nums text-right pr-1 select-none">
+                            <div className="text-xs text-tertiary/70 font-gothic tabular-nums text-right pr-1 select-none">
                                 {rowIndex * rowSize + 1}
                             </div>
 

@@ -36,7 +36,7 @@ const KindIndicator: React.FC<{ kind: SingleAnswerKind }> = ({ kind }) => {
     return (
         <div className="flex items-center justify-center gap-1.5 mb-3 text-secondary">
             <Icon size={13} strokeWidth={2} />
-            <span className="text-[11px] font-gothic font-medium uppercase tracking-wider">
+            <span className="text-xs font-gothic font-medium">
                 {label}
             </span>
         </div>
@@ -208,7 +208,7 @@ export function SingleAnswerCard({
                     {/* Incorrect / Minor Answer Feedback */}
                     {feedback && !correct && (
                         <FeedbackNote accentClass={grade?.overall === 'minor_error' ? 'border-l-secondary' : 'border-l-error-accent'}>
-                            <p className="uppercase tracking-wide text-label-neutral text-xs mb-2 font-gothic">
+                            <p className="type-label mb-2">
                                 Correct answer
                             </p>
 

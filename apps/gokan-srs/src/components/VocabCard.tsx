@@ -3,6 +3,7 @@ import type { Vocabulary } from "@gokan/dataset-schema";
 import type { VocabProgress } from "../models/vocabulary.model";
 import { MasteryRing } from "./MasteryRing";
 import { ProgressCard } from "./ProgressCard";
+import { StatusDot } from "./StatusDot";
 import { isProductionActivated, isReadingRelevant } from "../services/scheduling";
 
 /** A studied word in the Stats list, with one ring per direction it is trained in. */
@@ -14,7 +15,10 @@ export function VocabCard({ vocab, progress, onClick }: { vocab: Vocabulary; pro
             onClick={onClick}
             title={
                 <>
-                    <div className="text-lg text-primary font-serif">{headwordOf(vocab)}</div>
+                    <div className="flex items-center gap-2">
+                        <div className="text-lg text-primary font-serif">{headwordOf(vocab)}</div>
+                        <StatusDot status={progress.stage === 'graduated' ? 'mastered' : 'learning'} label={null} />
+                    </div>
                     <div className="text-sm text-secondary">
                         {/* A word shown in kana already shows its reading; name its kanji spelling. */}
                         {vocab.usuallyKana

@@ -36,7 +36,7 @@ export const Logo: React.FC<{ className?: string }> = ({ className = '' }) => {
     return (
         <div className={`flex items-center gap-3 ${className}`}>
             <LogoMark size={isMobile ? 24 : 48} />
-            <span className="md:text-2xl tracking-wide font-serif text-primary">
+            <span className="md:text-2xl font-serif text-primary">
                 Gokan SRS
             </span>
         </div>

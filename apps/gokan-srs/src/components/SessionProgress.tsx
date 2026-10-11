@@ -80,7 +80,7 @@ const SessionCounter: React.FC<{
 const WaitingNote: React.FC<{ waiting: number; moreNew: boolean; noun: string }> = ({ waiting, moreNew, noun }) => {
     if (waiting === 0) return null;
     const label = `${waiting}${moreNew ? '+' : ''} ${noun} waiting after this session`;
-    return <span className="text-tertiary text-xs italic">{label}</span>;
+    return <span className="type-meta">{label}</span>;
 };
 
 /**
@@ -162,7 +162,6 @@ export const SessionProgress: React.FC<SessionProgressProps> = ({ stats, history
                     <div className="flex flex-col gap-2">
                         <div className="flex justify-between items-end mb-1">
                             <div className="flex items-center gap-3">
-                                <span className="text-tertiary text-sm font-medium">Session Progress</span>
                                 <GainsSummary gains={gains} hasAnswered={hasAnswered} />
                             </div>
                             <div className="text-tertiary text-sm font-medium">
@@ -189,8 +188,7 @@ export const SessionProgress: React.FC<SessionProgressProps> = ({ stats, history
             {/* Mobile View */}
             {isMobile && (
                 <>
-                    <div className="flex items-center justify-between px-1">
-                        <div className="text-xs font-medium text-tertiary uppercase tracking-wider">Session Progress</div>
+                    <div className="flex items-center justify-end px-1">
                         <div className="text-sm font-bold text-primary">
                             <SessionCounter done={done} total={total} retriesPending={retriesPending} />
                         </div>
@@ -306,10 +304,6 @@ const HistoryTicker: React.FC<{ history: SessionHistoryEntry[] }> = ({ history }
                     </motion.div>
                 ))}
             </AnimatePresence>
-
-            {history.length === 0 && (
-                <span className="text-tertiary text-sm italic">Session started...</span>
-            )}
 
             {hovered && (() => {
                 const item = recentItems.find(i => i.key === hovered.key);

@@ -6,6 +6,7 @@ import {
     type KnowledgeCurvePoint,
     type KnowledgeCurveRange,
 } from "../../../utils/knowledge.utils";
+import { formatShortDate } from "../../../utils/time.utils";
 
 interface KnowledgeCurveChartProps {
     progress: UserProgress;
@@ -24,10 +25,6 @@ const PLOT = { top: 4, bottom: 96 };
 
 function formatPoints(value: number): string {
     return Math.round(value).toLocaleString();
-}
-
-function formatDay(date: Date): string {
-    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
 /**
@@ -73,8 +70,8 @@ export function KnowledgeCurveChart({ progress, settings }: KnowledgeCurveChartP
             const last = slice[slice.length - 1];
             rows.push({
                 label: slice.length === 1
-                    ? formatDay(slice[0].date)
-                    : `${formatDay(slice[0].date)} – ${formatDay(last.date)}`,
+                    ? formatShortDate(slice[0].date)
+                    : `${formatShortDate(slice[0].date)} – ${formatShortDate(last.date)}`,
                 total: last.points,
                 gained: slice.reduce((sum, p) => sum + p.gain, 0),
             });
@@ -96,7 +93,7 @@ export function KnowledgeCurveChart({ progress, settings }: KnowledgeCurveChartP
             {/* Headline + range filter */}
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
                 <div className="flex flex-col">
-                    <span className="text-xs text-tertiary uppercase tracking-wider font-gothic">
+                    <span className="type-meta">
                         Knowledge held
                     </span>
                     <span className="text-3xl text-primary leading-tight">
@@ -131,7 +128,7 @@ export function KnowledgeCurveChart({ progress, settings }: KnowledgeCurveChartP
                     (PLOT.top/bottom as a fraction of the 160px track) so each label
                     lines up with its gridline rather than the container edge. */}
                 <div
-                    className="flex flex-col justify-between h-40 text-[10px] text-tertiary tabular-nums text-right shrink-0 w-10"
+                    className="flex flex-col justify-between h-40 text-xs text-tertiary tabular-nums text-right shrink-0 w-10"
                     style={{
                         paddingTop: `${(PLOT.top / 100) * 160}px`,
                         paddingBottom: `${((100 - PLOT.bottom) / 100) * 160}px`,
@@ -209,7 +206,7 @@ export function KnowledgeCurveChart({ progress, settings }: KnowledgeCurveChartP
                             without hovering. Hidden while a hover tooltip is showing. */}
                         {!active && points.length > 1 && (
                             <div
-                                className="absolute text-[10px] text-secondary tabular-nums pointer-events-none -translate-y-1/2 pr-1"
+                                className="absolute text-xs text-secondary tabular-nums pointer-events-none -translate-y-1/2 pr-1"
                                 style={{ right: 0, top: `${yAt(points[points.length - 1].points)}%` }}
                             >
                                 {formatPoints(curve.currentTotal)}
@@ -218,12 +215,12 @@ export function KnowledgeCurveChart({ progress, settings }: KnowledgeCurveChartP
 
                         {active && (
                             <div
-                                className="absolute -top-2 z-20 pointer-events-none bg-surface border border-divider shadow-md rounded px-2 py-1 text-[11px] w-max -translate-x-1/2"
+                                className="absolute -top-2 z-20 pointer-events-none bg-surface border border-divider shadow-md rounded px-2 py-1 text-xs w-max -translate-x-1/2"
                                 style={{
                                     left: `${Math.min(Math.max(xAt(hoverIndex!), 12), 88)}%`,
                                 }}
                             >
-                                <div className="text-tertiary">{formatDay(active.date)}</div>
+                                <div className="text-tertiary">{formatShortDate(active.date)}</div>
                                 <div className="text-primary tabular-nums">
                                     {formatPoints(active.points)} held
                                 </div>
@@ -235,9 +232,9 @@ export function KnowledgeCurveChart({ progress, settings }: KnowledgeCurveChartP
                     </div>
 
                     {/* X axis band */}
-                    <div className="flex justify-between text-[10px] text-tertiary mt-2">
-                        <span>{formatDay(points[0].date)}</span>
-                        <span>{formatDay(points[points.length - 1].date)}</span>
+                    <div className="flex justify-between text-xs text-tertiary mt-2">
+                        <span>{formatShortDate(points[0].date)}</span>
+                        <span>{formatShortDate(points[points.length - 1].date)}</span>
                     </div>
                 </div>
             </div>

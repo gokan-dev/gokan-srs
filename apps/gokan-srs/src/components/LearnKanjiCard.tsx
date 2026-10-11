@@ -13,7 +13,7 @@ export function LearnKanjiCard({ nextKanji, onUnlock }: LearnKanjiCardProps) {
         <Card size="lg" className="animate-fade-in-up">
             <CardSection>
                 <div className="text-center space-y-4">
-                    <h2 className="text-sm font-gothic tracking-widest text-secondary uppercase">
+                    <h2 className="type-label">
                         New Kanji Unlocked
                     </h2>
 

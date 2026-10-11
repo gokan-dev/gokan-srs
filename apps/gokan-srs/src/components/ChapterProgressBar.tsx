@@ -61,7 +61,7 @@ export function ChapterProgressBar({ counts, compact, marks }: ChapterProgressBa
                 ))}
             </div>
             {!compact && (
-                <span className="shrink-0 text-[11px] font-gothic text-tertiary tabular-nums">
+                <span className="shrink-0 text-xs font-gothic text-tertiary tabular-nums">
                     {mastered}/{total}
                     {learning > 0 && <span> · {learning} learning</span>}
                     {untouched > 0 && <span> · {untouched} new</span>}

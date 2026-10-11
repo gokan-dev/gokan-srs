@@ -21,7 +21,7 @@ export function ProgressCard({ title, rings, summary, progress, onClick }: Progr
     return (
         <div
             onClick={onClick}
-            className={`h-full transition-transform hover:scale-[1.02] active:scale-[0.98] ${onClick ? 'cursor-pointer' : ''}`}
+            className={onClick ? 'h-full cursor-pointer' : 'h-full'}
         >
             <Card className="h-full flex flex-col justify-between">
                 <CardContent className="space-y-3">
@@ -32,7 +32,7 @@ export function ProgressCard({ title, rings, summary, progress, onClick }: Progr
 
                     <div className="text-sm text-secondary line-clamp-2">{summary}</div>
 
-                    <div className="flex justify-between text-xs text-muted">
+                    <div className="flex justify-between text-xs text-tertiary">
                         <span>{progress.stage === "graduated" ? "Mastered" : `Reviews: ${progress.totalReviews}`}</span>
                         <span>{formatTimeUntil(progress.nextReviewAt, now)}</span>
                     </div>

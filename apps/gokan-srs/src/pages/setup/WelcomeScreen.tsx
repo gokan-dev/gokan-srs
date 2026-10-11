@@ -124,7 +124,7 @@ export function WelcomeScreen({ onSelectBeginner, onSelectLearner }: WelcomeScre
 
                 {/* Path Selection */}
                 <div className="space-y-4 pt-4">
-                    <h2 className="text-sm uppercase tracking-widest font-gothic text-tertiary text-center mb-6">
+                    <h2 className="type-meta text-center mb-6">
                         Where are you in your journey?
                     </h2>
 

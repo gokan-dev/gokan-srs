@@ -60,7 +60,7 @@ function StatCard({ title, value, subtitle }: { title: string, value: string | n
     const valueSizeClass = stringValue.length > 5 ? "text-2xl" : "text-3xl";
 
     return (
-        <div className="p-4 bg-surface rounded-xl shadow-sm border border-divider flex flex-col items-center justify-center h-28 transform transition-transform hover:scale-105 duration-200 text-center">
+        <div className="p-4 bg-surface rounded-md border border-divider flex flex-col items-center justify-center h-28 text-center">
             <span className="text-sm text-secondary font-medium mb-1 truncate w-full">{title}</span>
             <span className={`${valueSizeClass} font-bold text-primary truncate w-full`}>{value}</span>
             {subtitle && <span className="text-xs text-tertiary mt-1 truncate w-full">{subtitle}</span>}

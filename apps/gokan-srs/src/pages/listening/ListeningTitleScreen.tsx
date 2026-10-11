@@ -49,8 +49,8 @@ function JlptThresholdLegend({ marks }: { marks: JlptCoverageMark[] }) {
     if (marks.length === 0) return null;
     return (
         <div className="mt-2">
-            <p className="font-gothic text-[11px] text-tertiary">Coverage if you learned every word up to each JLPT level</p>
-            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 font-gothic text-[11px] text-secondary tabular-nums">
+            <p className="font-gothic text-xs text-tertiary">Coverage if you learned every word up to each JLPT level</p>
+            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 font-gothic text-xs text-secondary tabular-nums">
                 {marks.map(mark => (
                     <span key={mark.level}><span className="text-tertiary">N{mark.level}</span> {formatPercent(mark.ratio)}</span>
                 ))}
@@ -280,7 +280,7 @@ function EpisodeRow({ episode, mark, isOpen, onToggleOpen, onToggleWatched, jlpt
                         <div className="mt-1.5">
                             <ChapterProgressBar counts={coverage.occurrences} compact marks={toBarMarks(marks)} />
                         </div>
-                        <p className="font-gothic text-[11px] text-tertiary mt-1 tabular-nums">
+                        <p className="font-gothic text-xs text-tertiary mt-1 tabular-nums">
                             {coverage.unique.mastered + coverage.unique.learning} of {coverage.unique.total} words known
                             {speed && ` · ${speed} speech`}
                             {isWatched && mark?.coverageAtWatch !== undefined && ` · ${formatPercent(mark.coverageAtWatch)} when watched`}
@@ -370,11 +370,11 @@ function WordsToLearn({ words, countHint, knowledge, sort, onSortChange, orderCo
                                 )}
                             </Link>
                             {newKanji && (
-                                <span className="shrink-0 font-gothic text-[10px] text-tertiary border border-divider rounded px-1" title="Uses a kanji you have not learned yet">
+                                <span className="shrink-0 font-gothic text-xs text-tertiary border border-divider rounded px-1" title="Uses a kanji you have not learned yet">
                                     new kanji
                                 </span>
                             )}
-                            <span className="font-gothic text-[11px] text-tertiary tabular-nums shrink-0" title={countHint}>
+                            <span className="font-gothic text-xs text-tertiary tabular-nums shrink-0" title={countHint}>
                                 ×{count}
                             </span>
                             <button

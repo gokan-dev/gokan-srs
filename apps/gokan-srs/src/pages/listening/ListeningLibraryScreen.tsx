@@ -153,7 +153,7 @@ export function ListeningLibraryScreen() {
                                         <p className="font-serif text-2xl text-primary tabular-nums leading-none">
                                             {formatPercent(knownRatio(coverage.occurrences))}
                                         </p>
-                                        <p className="font-gothic text-[11px] text-tertiary mt-1">of the vocabulary heard</p>
+                                        <p className="font-gothic text-xs text-tertiary mt-1">of the vocabulary heard</p>
                                     </div>
                                 </div>
 

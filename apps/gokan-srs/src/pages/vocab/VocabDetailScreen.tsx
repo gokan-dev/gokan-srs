@@ -18,6 +18,7 @@ import { THEME } from "../../commons/theme";
 import { isEntryMastered, isProductionActivated, isReadingRelevant } from "../../services/scheduling";
 import { KanjiSpellingNote } from "../../components/KanjiSpellingNote";
 import { PageHeader } from "../../components/PageHeader";
+import { formatDate } from "../../utils/time.utils";
 import { DetailErrorScreen } from "../../components/detail/DetailErrorScreen";
 import { DetailField } from "../../components/detail/DetailCard";
 import { SrsStatsCard } from "../../components/detail/SrsStatsCard";
@@ -101,14 +102,14 @@ export default function VocabDetailScreen() {
                         {readingRelevant && (
                             <div className="flex flex-col items-center gap-2">
                                 <MasteryRing memoryStrength={progress.reading.memoryStrength} size={60} variant="reading" />
-                                <span className="text-xs text-tertiary uppercase tracking-wider font-gothic font-semibold">
+                                <span className="type-meta font-semibold">
                                     Reading
                                 </span>
                             </div>
                         )}
                         <div className="flex flex-col items-center gap-2">
                             <MasteryRing memoryStrength={progress.meaning.memoryStrength} size={60} variant="meaning" />
-                            <span className="text-xs text-tertiary uppercase tracking-wider font-gothic font-semibold">
+                            <span className="type-meta font-semibold">
                                 Meaning
                             </span>
                         </div>
@@ -119,7 +120,7 @@ export default function VocabDetailScreen() {
                         {productionActivated && (
                             <div className="flex flex-col items-center gap-2">
                                 <MasteryRing memoryStrength={progress.production!.memoryStrength} size={60} variant="production" />
-                                <span className="text-xs text-tertiary uppercase tracking-wider font-gothic font-semibold">
+                                <span className="type-meta font-semibold">
                                     Production
                                 </span>
                             </div>
@@ -148,7 +149,7 @@ export default function VocabDetailScreen() {
                 )}
                 {vocab.usageHints?.examplePattern && (
                     <div className="col-span-2 pt-2 border-t border-divider">
-                        <div className="text-xs text-tertiary uppercase tracking-wider font-gothic mb-1">
+                        <div className="type-meta mb-1">
                             Usage Pattern
                         </div>
                         <div className="text-base text-primary font-mincho">
@@ -204,9 +205,9 @@ export default function VocabDetailScreen() {
                         <div className="flex items-center gap-2 mb-1">
                             <span className="font-gothic font-bold text-primary">{mv.originalPrimaryReading}</span>
                             <span className="text-xs text-tertiary font-mono">ID: {mv.id}</span>
-                            {mv.isBase && <span className="text-[10px] bg-accent/15 text-accent px-1.5 py-0.5 rounded font-gothic">BASE</span>}
+                            {mv.isBase && <span className="text-xs bg-accent/15 text-accent px-1.5 py-0.5 rounded font-gothic">BASE</span>}
                         </div>
-                        <div className="text-sm text-meaning-muted font-serif">
+                        <div className="text-sm text-primary font-serif">
                             {mv.originalGlosses.join(', ')}
                         </div>
                     </div>
@@ -223,9 +224,9 @@ export default function VocabDetailScreen() {
             nextReview={
                 <div className="space-y-1">
                     {readingRelevant && (
-                        <NextReviewLine label="Reading" value={progress.reading.dueDate?.toLocaleDateString() ?? 'Ready'} />
+                        <NextReviewLine label="Reading" value={progress.reading.dueDate ? formatDate(progress.reading.dueDate) : 'Ready'} />
                     )}
-                    <NextReviewLine label="Meaning" value={progress.meaning.dueDate?.toLocaleDateString() ?? 'Ready'} />
+                    <NextReviewLine label="Meaning" value={progress.meaning.dueDate ? formatDate(progress.meaning.dueDate) : 'Ready'} />
                     {/* "Not started" rather than a hidden row or a bare "Ready":
                         production activates lazily, so a word that has not reached
                         it yet needs to say so, or its absence reads as the feature
@@ -233,7 +234,7 @@ export default function VocabDetailScreen() {
                     <NextReviewLine
                         label="Production"
                         value={progress.production?.dueDate
-                            ? progress.production.dueDate.toLocaleDateString()
+                            ? formatDate(progress.production.dueDate)
                             : productionActivated && progress.production && isEntryMastered(progress.production)
                                 ? 'Mastered'
                                 : 'Not started'}
@@ -278,7 +279,7 @@ export default function VocabDetailScreen() {
                             ))}
                         </div>
                         {/* Glosses */}
-                        <p className="text-lg text-meaning-muted font-serif leading-relaxed">
+                        <p className="text-lg text-primary font-serif leading-relaxed">
                             {sense.appliesToReadings && sense.appliesToReadings.length > 0 && (
                                 <span className="text-sm text-tertiary mr-2 font-gothic">[{sense.appliesToReadings.join(', ')}]</span>
                             )}
@@ -288,7 +289,7 @@ export default function VocabDetailScreen() {
                         {/* Related Compounds (Specific to Sense) */}
                         {sense.related?.compounds && sense.related.compounds.length > 0 && (
                             <div className="mt-4 pt-3 border-t border-divider/50">
-                                <div className="text-xs text-tertiary uppercase tracking-wider font-gothic mb-2">
+                                <div className="type-meta mb-2">
                                     Related
                                 </div>
                                 <div className="flex flex-wrap gap-2">

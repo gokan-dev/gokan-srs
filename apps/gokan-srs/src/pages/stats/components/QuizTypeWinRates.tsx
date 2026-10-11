@@ -3,6 +3,7 @@ import type { CalibratedQuizType, UserProgress } from "../../../models/user.mode
 import { CALIBRATED_QUIZ_TYPES } from "../../../models/user.model";
 import { recentWinRate, withCalibrationDefaults } from "../../../services/calibration";
 import { percentOf, winRatesByQuizType } from "../../../utils/winRate.utils";
+import { Disclosure } from "../../../components/ui/Disclosure";
 
 const LABELS: Record<CalibratedQuizType, string> = {
     reading: "Reading",
@@ -45,8 +46,7 @@ export function QuizTypeWinRates({ progress }: QuizTypeWinRatesProps) {
                     <tr className="text-left text-secondary border-b border-divider">
                         <th className="py-2 pr-4 font-medium">Quiz</th>
                         <th className="py-2 pr-4 font-medium">All reviews</th>
-                        <th className="py-2 pr-4 font-medium">Recent</th>
-                        <th className="py-2 font-medium">Growth</th>
+                        <th className="py-2 font-medium">Recent</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -57,20 +57,27 @@ export function QuizTypeWinRates({ progress }: QuizTypeWinRatesProps) {
                                 {row.allTime === null ? "-" : `${row.allTime}%`}
                                 <span className="text-tertiary text-xs ml-1">({row.allTimeCount})</span>
                             </td>
-                            <td className="py-2 pr-4 text-primary">
+                            <td className="py-2 text-primary">
                                 {row.recent === null ? "-" : `${row.recent}%`}
                                 <span className="text-tertiary text-xs ml-1">({row.recentCount})</span>
                             </td>
-                            <td className="py-2 text-primary">×{row.level.toFixed(2)}</td>
                         </tr>
                     ))}
                 </tbody>
             </table>
-            <p className="text-xs text-tertiary mt-3">
-                Reviews are scheduled for about 75% recall. Each quiz type calibrates on its own recent reviews
-                (retries and first reviews excluded): above 80%, its strength grows faster so intervals lengthen;
-                below 70%, slower.
-            </p>
+
+            <Disclosure title="How scheduling adapts" className="mt-3">
+                <p className="text-xs text-tertiary mb-2">
+                    Reviews are scheduled for about 75% recall. Each quiz type calibrates on its own recent reviews
+                    (retries and first reviews excluded): above 80%, its strength grows faster so intervals lengthen;
+                    below 70%, slower.
+                </p>
+                <ul className="text-xs text-tertiary space-y-1">
+                    {rows.map(row => (
+                        <li key={row.type}>{LABELS[row.type]}: ×{row.level.toFixed(2)} growth</li>
+                    ))}
+                </ul>
+            </Disclosure>
         </div>
     );
 }

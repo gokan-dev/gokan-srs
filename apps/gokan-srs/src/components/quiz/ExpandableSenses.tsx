@@ -20,7 +20,7 @@ export function ExpandableSenses({ senses, maxDefs, heading, footer }: Expandabl
         <motion.div
             initial={{ opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-center text-sm space-y-2 text-meaning-muted font-serif"
+            className="text-center text-sm space-y-2 text-primary font-serif"
         >
             {heading}
             {displayedSenses.map((sense, index) => (

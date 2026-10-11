@@ -18,6 +18,7 @@ import { useIntroducedGrammarIds } from "../../hooks/useIntroducedGrammarIds";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { DetailErrorScreen } from "../../components/detail/DetailErrorScreen";
 import { SrsStatsCard } from "../../components/detail/SrsStatsCard";
+import { formatDate } from "../../utils/time.utils";
 import { GrammarExampleList } from "./GrammarExampleList";
 import { DetailCard } from "../../components/detail/DetailCard";
 
@@ -143,7 +144,7 @@ export default function GrammarDetailScreen() {
             <div className="mt-4 pt-4 border-t border-divider">
                 {progress ? (
                     <div className="flex items-center justify-between gap-3">
-                        <span className="text-xs text-tertiary font-gothic uppercase tracking-wider">
+                        <span className="type-meta">
                             {progress.stage === 'graduated' ? 'Graduated' : 'In your queue'}
                         </span>
                         <Button variant="secondary" onClick={() => void navigate('/grammar')}>
@@ -166,7 +167,7 @@ export default function GrammarDetailScreen() {
         <Card size={isMobile ? "sm" : "md"}>
             <h2 className="text-lg font-gothic font-semibold text-primary mb-4">Explanation</h2>
             <div className="space-y-4">
-                <p className="text-base text-meaning-muted font-serif leading-relaxed">
+                <p className="text-base text-primary font-serif leading-relaxed">
                     {point.shortExplanation}
                 </p>
                 <p className="text-sm text-secondary font-serif leading-relaxed">
@@ -183,7 +184,7 @@ export default function GrammarDetailScreen() {
      */
     const formationCard = (
         <Card size={isMobile ? "sm" : "md"}>
-            <h2 className="text-xs text-tertiary uppercase tracking-wider font-gothic mb-2">Formation</h2>
+            <h2 className="type-meta mb-2">Formation</h2>
             <p className="text-primary font-gothic text-base leading-relaxed break-words whitespace-pre-line">
                 {point.formation}
             </p>
@@ -259,7 +260,7 @@ export default function GrammarDetailScreen() {
             totalReviews={progress.totalReviews}
             interval={progress.entry.interval}
             introductionAt={progress.introductionAt}
-            nextReview={progress.entry.dueDate?.toLocaleDateString() ?? 'Ready'}
+            nextReview={progress.entry.dueDate ? formatDate(progress.entry.dueDate) : 'Ready'}
             series={[{ key: 'grammar', label: 'Grammar', entry: progress.entry, color: THEME.mastery.loop1 }]}
         />
     ) : null;

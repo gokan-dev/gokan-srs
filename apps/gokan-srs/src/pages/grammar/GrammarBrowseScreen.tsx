@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import type { GrammarAxis, GrammarBrowseIndex, GrammarBrowseRow, GrammarPoint } from "@gokan/dataset-schema";
 import { GrammarService } from "../../services/grammar.service";
 import { JlptChip } from "../../components/JlptChip";
+import { FilterToggle } from "../../components/ui/FilterToggle";
 import { useAsyncData } from "../../hooks/useAsyncData";
 
 type Kind = NonNullable<GrammarPoint['kind']>;
@@ -19,17 +20,17 @@ const KIND_STYLE: Record<Kind, { label: string; quiz: string; text: string; bg: 
     'construction': {
         label: 'Construction',
         quiz: 'Sentence cloze',
-        text: 'text-quiz-cloze', bg: 'bg-quiz-cloze-soft', border: 'border-quiz-cloze',
+        text: 'text-tertiary', bg: '', border: 'border-divider',
     },
     'inflection': {
         label: 'Inflection',
         quiz: 'Conjugation drill',
-        text: 'text-quiz-conjugation', bg: 'bg-quiz-conjugation-soft', border: 'border-quiz-conjugation',
+        text: 'text-tertiary', bg: '', border: 'border-divider',
     },
     'lexical': {
         label: 'Lexical',
         quiz: 'Sentence cloze',
-        text: 'text-quiz-lexical', bg: 'bg-quiz-lexical-soft', border: 'border-quiz-lexical',
+        text: 'text-tertiary', bg: '', border: 'border-divider',
     },
 };
 
@@ -66,23 +67,9 @@ interface PersistedBrowseState {
 
 function Chip({ children, className = '' }: { children: React.ReactNode; className?: string }) {
     return (
-        <span className={`text-[11px] font-gothic rounded px-1.5 py-0.5 border whitespace-nowrap ${className}`}>
+        <span className={`text-xs font-gothic rounded px-1.5 py-0.5 border whitespace-nowrap ${className}`}>
             {children}
         </span>
-    );
-}
-
-function Toggle({ active, onClick, children, accent }: { active: boolean; onClick: () => void; children: React.ReactNode; accent?: string }) {
-    return (
-        <button
-            type="button"
-            onClick={onClick}
-            className={`text-xs font-gothic rounded px-2 py-1 border transition-colors ${active
-                ? `${accent ?? 'bg-accent border-accent text-surface'}`
-                : 'border-divider text-secondary hover:bg-surface-hover'}`}
-        >
-            {children}
-        </button>
     );
 }
 
@@ -102,7 +89,7 @@ function PointCard({ row }: { row: GrammarBrowseRow }) {
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
                     <JlptChip level={row.jlptLevel} />
-                    <span className="text-[11px] font-gothic text-tertiary">{row.id}</span>
+                    <span className="text-xs font-gothic text-tertiary">{row.id}</span>
                 </div>
             </div>
 
@@ -123,7 +110,7 @@ function PointCard({ row }: { row: GrammarBrowseRow }) {
                 )}
             </div>
 
-            <p className="font-serif text-sm text-meaning-muted leading-snug mb-2">{row.shortExplanation}</p>
+            <p className="font-serif text-sm text-primary leading-snug mb-2">{row.shortExplanation}</p>
 
             <p className="font-gothic text-xs text-tertiary truncate mb-1" title={row.formation}>{row.formation}</p>
 
@@ -131,7 +118,7 @@ function PointCard({ row }: { row: GrammarBrowseRow }) {
                 <p className="font-serif text-xs text-secondary italic leading-snug mb-1">{row.usageNote}</p>
             )}
 
-            <div className="flex flex-wrap gap-x-3 text-[11px] font-gothic text-tertiary">
+            <div className="flex flex-wrap gap-x-3 text-xs font-gothic text-tertiary">
                 {row.orderIndex !== null && <span>#{row.orderIndex + 1} in order</span>}
                 {row.chapterTitle && <span className="truncate">{row.chapterTitle}</span>}
                 <span>
@@ -331,25 +318,25 @@ export function GrammarBrowseScreen() {
                 {presentKinds.map(kind => (
                     <div key={kind} className={`flex-1 min-w-[132px] rounded-lg border p-2 ${KIND_STYLE[kind].bg} ${KIND_STYLE[kind].border}`}>
                         <p className={`font-serif text-xl ${KIND_STYLE[kind].text}`}>{stats.byKind[kind] ?? 0}</p>
-                        <p className="font-gothic text-[11px] text-secondary">{KIND_STYLE[kind].label}</p>
-                        <p className="font-gothic text-[11px] text-tertiary">{KIND_STYLE[kind].quiz}</p>
+                        <p className="font-gothic text-xs text-secondary">{KIND_STYLE[kind].label}</p>
+                        <p className="font-gothic text-xs text-tertiary">{KIND_STYLE[kind].quiz}</p>
                     </div>
                 ))}
                 <div className="flex-1 min-w-[132px] rounded-lg border border-divider p-2">
                     <p className="font-serif text-xl text-primary">{stats.families}</p>
-                    <p className="font-gothic text-[11px] text-secondary">Families</p>
-                    <p className="font-gothic text-[11px] text-tertiary">{stats.unfamilied} unfamilied</p>
+                    <p className="font-gothic text-xs text-secondary">Families</p>
+                    <p className="font-gothic text-xs text-tertiary">{stats.unfamilied} unfamilied</p>
                 </div>
                 <div className="flex-1 min-w-[132px] rounded-lg border border-divider p-2">
                     <p className="font-serif text-xl text-primary">{stats.variantGroups}</p>
-                    <p className="font-gothic text-[11px] text-secondary">Variant groups</p>
-                    <p className="font-gothic text-[11px] text-tertiary">{stats.variants} not introduced</p>
+                    <p className="font-gothic text-xs text-secondary">Variant groups</p>
+                    <p className="font-gothic text-xs text-tertiary">{stats.variants} not introduced</p>
                 </div>
                 <div className="flex-1 min-w-[132px] rounded-lg border border-divider p-2">
                     <p className="font-serif text-xl text-primary">
                         {(stats.byAxis.register ?? 0)}/{(stats.byAxis.constraint ?? 0)}/{(stats.byAxis.variant ?? 0)}
                     </p>
-                    <p className="font-gothic text-[11px] text-secondary">Register / constraint / variant</p>
+                    <p className="font-gothic text-xs text-secondary">Register / constraint / variant</p>
                 </div>
             </div>
 
@@ -365,43 +352,42 @@ export function GrammarBrowseScreen() {
 
                 <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-2">
                     <div className="flex flex-wrap items-center gap-1">
-                        <span className="font-gothic text-[11px] text-label-neutral uppercase tracking-wide mr-1">Level</span>
+                        <span className="type-label mr-1">Level</span>
                         {LEVELS.map(level => (
-                            <Toggle key={level} active={levels.has(level)} onClick={() => toggle(levels, level, setLevels)}>
+                            <FilterToggle key={level} active={levels.has(level)} onClick={() => toggle(levels, level, setLevels)}>
                                 N{level}
-                            </Toggle>
+                            </FilterToggle>
                         ))}
                     </div>
 
                     <div className="flex flex-wrap items-center gap-1">
-                        <span className="font-gothic text-[11px] text-label-neutral uppercase tracking-wide mr-1">Quiz</span>
+                        <span className="type-label mr-1">Quiz</span>
                         {presentKinds.map(kind => (
-                            <Toggle
+                            <FilterToggle
                                 key={kind}
                                 active={kinds.has(kind)}
                                 onClick={() => toggle(kinds, kind, setKinds)}
-                                accent={`${KIND_STYLE[kind].bg} ${KIND_STYLE[kind].border} ${KIND_STYLE[kind].text}`}
                             >
                                 {KIND_STYLE[kind].label}
-                            </Toggle>
+                            </FilterToggle>
                         ))}
                     </div>
 
                     <div className="flex flex-wrap items-center gap-1">
-                        <span className="font-gothic text-[11px] text-label-neutral uppercase tracking-wide mr-1">Family</span>
+                        <span className="type-label mr-1">Family</span>
                         {(Object.keys(AXIS_LABEL) as GrammarAxis[]).map(axis => (
-                            <Toggle key={axis} active={axes.has(axis)} onClick={() => toggle(axes, axis, setAxes)}>
+                            <FilterToggle key={axis} active={axes.has(axis)} onClick={() => toggle(axes, axis, setAxes)}>
                                 {AXIS_LABEL[axis].label}
-                            </Toggle>
+                            </FilterToggle>
                         ))}
-                        <Toggle active={onlyVariants} onClick={() => setOnlyVariants(v => !v)}>Realization variants</Toggle>
-                        <Toggle active={onlyFamilied} onClick={() => setOnlyFamilied(v => !v)}>In a family</Toggle>
+                        <FilterToggle active={onlyVariants} onClick={() => setOnlyVariants(v => !v)}>Realization variants</FilterToggle>
+                        <FilterToggle active={onlyFamilied} onClick={() => setOnlyFamilied(v => !v)}>In a family</FilterToggle>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-1">
-                        <span className="font-gothic text-[11px] text-label-neutral uppercase tracking-wide mr-1">Group</span>
-                        <Toggle active={group === 'level'} onClick={() => setGroup('level')}>JLPT level</Toggle>
-                        <Toggle active={group === 'family'} onClick={() => setGroup('family')}>Family</Toggle>
+                        <span className="type-label mr-1">Group</span>
+                        <FilterToggle active={group === 'level'} onClick={() => setGroup('level')}>JLPT level</FilterToggle>
+                        <FilterToggle active={group === 'family'} onClick={() => setGroup('family')}>Family</FilterToggle>
                     </div>
                 </div>
 

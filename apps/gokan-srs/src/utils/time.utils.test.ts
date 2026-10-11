@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatMinutes, formatTimeUntil, minutesUntil } from './time.utils';
+import { formatDate, formatDateTime, formatMinutes, formatShortDate, formatTimeUntil, formatWeekday, minutesUntil } from './time.utils';
 
 const now = new Date('2026-06-10T12:00:00Z').getTime();
 const inMs = (ms: number) => new Date(now + ms);
@@ -30,6 +30,30 @@ describe('formatTimeUntil', () => {
 
     it('shows the date itself a week or more out', () => {
         const date = inMs(10 * 86_400_000);
-        expect(formatTimeUntil(date, now)).toBe(date.toLocaleDateString());
+        expect(formatTimeUntil(date, now)).toBe(formatDate(date));
+    });
+});
+
+describe('formatDate', () => {
+    it('always formats in en-US, regardless of the host locale', () => {
+        expect(formatDate(new Date('2026-04-19T12:00:00Z'))).toBe('Apr 19, 2026');
+    });
+});
+
+describe('formatShortDate', () => {
+    it('omits the year', () => {
+        expect(formatShortDate(new Date('2026-10-11T12:00:00Z'))).toBe('Oct 11');
+    });
+});
+
+describe('formatDateTime', () => {
+    it('combines the date and the time', () => {
+        expect(formatDateTime(new Date('2026-04-19T10:59:00Z'))).toBe('Apr 19, 2026, 10:59 AM');
+    });
+});
+
+describe('formatWeekday', () => {
+    it('gives the three-letter weekday', () => {
+        expect(formatWeekday(new Date('2026-04-20T00:00:00Z'))).toBe('Mon');
     });
 });

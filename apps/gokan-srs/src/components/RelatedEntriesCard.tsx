@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import { Card } from "./ui/Card";
+import { ListRow } from "./ui/ListRow";
 import { useResponsive } from "../context/Responsive/useResponsive";
 
 /**
@@ -66,31 +67,25 @@ export function RelatedEntriesCard({
     collapseLabel = "Show fewer",
 }: Props) {
     const { isMobile } = useResponsive();
-    const navigate = useNavigate();
 
     const primaryClass = primarySize === "xl" ? "text-xl" : "text-lg";
 
     const renderEntries = (entries: RelatedEntry[]) => (
-        <div className="space-y-3 mt-2">
+        <div className="space-y-1 mt-2">
             {entries.map((entry) => (
-                <div
-                    key={entry.key}
-                    onClick={() => void navigate(entry.to)}
-                    className="border-l-2 border-divider pl-3 cursor-pointer hover:border-accent transition-colors group"
-                >
+                <ListRow key={entry.key} to={entry.to} trailing={entry.meta} className="px-0">
                     <div className={`flex items-center gap-2 ${entry.description ? "mb-1" : ""}`}>
-                        <span className={`font-mincho ${primaryClass} text-primary group-hover:text-accent transition-colors`}>
+                        <span className={`font-mincho ${primaryClass} text-primary`}>
                             {entry.primary}
                         </span>
                         {entry.secondary}
-                        {entry.meta && <span className="ml-auto">{entry.meta}</span>}
                     </div>
                     {entry.description && (
-                        <div className="text-sm text-meaning-muted font-serif line-clamp-2">
+                        <div className="text-sm text-primary font-serif line-clamp-2">
                             {entry.description}
                         </div>
                     )}
-                </div>
+                </ListRow>
             ))}
         </div>
     );
@@ -120,7 +115,7 @@ export function RelatedEntriesCard({
                         className={i > 0 ? "pt-4 border-t border-divider/50" : ""}
                     >
                         {section.label && (
-                            <div className="text-xs text-tertiary uppercase tracking-wider font-gothic mb-2">
+                            <div className="type-meta mb-2">
                                 {section.label}
                             </div>
                         )}

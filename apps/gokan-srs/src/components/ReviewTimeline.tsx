@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import type { SRSEntry, ReviewLog } from '../models/vocabulary.model';
 import { Card } from './ui/Card';
+import { formatDateTime } from '../utils/time.utils';
 
 interface ReviewTimelineProps {
     readingEntry: SRSEntry;
@@ -51,7 +52,7 @@ export function ReviewTimeline({ readingEntry, meaningEntry, productionEntry }: 
                                 </span>
                             </div>
                             <span className="text-xs text-tertiary font-gothic">
-                                {new Date(event.date).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                                {formatDateTime(new Date(event.date))}
                             </span>
                         </div>
                         <div className="mt-1 flex items-center gap-2 text-sm font-gothic">

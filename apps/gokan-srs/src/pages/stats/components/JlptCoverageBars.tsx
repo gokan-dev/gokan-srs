@@ -62,7 +62,7 @@ export function JlptCoverageBars({ rows, itemLabel, headline, keyColumnLabel = "
             {/* Headline + legend */}
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
                 <div className="flex flex-col">
-                    <span className="text-xs text-tertiary uppercase tracking-wider font-gothic">
+                    <span className="type-meta">
                         {headline ?? `JLPT ${itemLabel} covered`}
                     </span>
                     <span className="text-3xl text-primary leading-tight tabular-nums">
@@ -132,7 +132,7 @@ export function JlptCoverageBars({ rows, itemLabel, headline, keyColumnLabel = "
                                 </div>
 
                                 {isHovered && (
-                                    <div className="absolute left-2 -top-1 z-20 pointer-events-none -translate-y-full bg-surface border border-divider shadow-md rounded px-2 py-1 text-[11px] w-max max-w-64">
+                                    <div className="absolute left-2 -top-1 z-20 pointer-events-none -translate-y-full bg-surface border border-divider shadow-md rounded px-2 py-1 text-xs w-max max-w-64">
                                         <div className="text-tertiary truncate">{row.label}</div>
                                         <div className="text-primary tabular-nums">
                                             {row.mastered.toLocaleString()} mastered

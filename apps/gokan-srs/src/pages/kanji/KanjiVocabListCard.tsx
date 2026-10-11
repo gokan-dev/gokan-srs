@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { Card } from "../../components/ui/Card";
+import { ListRow } from "../../components/ui/ListRow";
 import { headwordOf, secondaryForm } from "@gokan/dataset-schema";
 import type { Vocabulary } from "@gokan/dataset-schema";
 import { VocabularyService } from "../../services/vocabulary.service";
-import { useNavigate } from "react-router-dom";
 import { useResponsive } from "../../context/Responsive/useResponsive";
 import { useAsyncData } from "../../hooks/useAsyncData";
 
@@ -15,7 +15,6 @@ const INITIAL_COUNT = 5;
 
 export function KanjiVocabListCard({ vocabIds }: Props) {
     const { isMobile } = useResponsive();
-    const navigate = useNavigate();
 
     // Expansion belongs to one list: keyed by it, so another kanji's list starts collapsed.
     const listKey = vocabIds.join(',');
@@ -38,24 +37,20 @@ export function KanjiVocabListCard({ vocabIds }: Props) {
             </h2>
             <div className="space-y-3">
                 {vocabs.map(v => (
-                    <div
-                        key={v.id}
-                        onClick={() => void navigate(`/vocab/${v.id}`)}
-                        className="border-l-2 border-divider pl-3 cursor-pointer hover:border-accent transition-colors group"
-                    >
+                    <ListRow key={v.id} to={`/vocab/${v.id}`} className="px-0">
                         <div className="flex items-center gap-2 mb-1">
                             {/* A word learned in kana lists as ここ with 此処 beside it, as in the dictionary. */}
-                            <span className="font-mincho text-xl text-primary group-hover:text-accent transition-colors">
+                            <span className="font-mincho text-xl text-primary">
                                 {headwordOf(v)}
                             </span>
                             <span className={`${v.usuallyKana ? 'font-mincho' : 'font-gothic font-bold'} text-secondary`}>
                                 {secondaryForm(v)}
                             </span>
                         </div>
-                        <div className="text-sm text-meaning-muted font-serif line-clamp-2">
+                        <div className="text-sm text-primary font-serif line-clamp-2">
                             {v.senses && v.senses[0] ? v.senses[0].glosses.join(', ') : 'No definition available'}
                         </div>
-                    </div>
+                    </ListRow>
                 ))}
             </div>
 

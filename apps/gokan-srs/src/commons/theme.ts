@@ -6,7 +6,8 @@
  */
 export const THEME = {
     colors: {
-        secondary: 'var(--secondary)',
+        correct: 'var(--feedback-correct)',
+        accent: 'var(--accent)',
         error: 'var(--error)',
     },
     mastery: {

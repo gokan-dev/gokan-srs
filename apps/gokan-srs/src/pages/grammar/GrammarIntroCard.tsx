@@ -40,7 +40,7 @@ export function GrammarIntroCard({ grammarPoint, onLearn, onSkip }: GrammarIntro
 
                 {chapter && (
                     <div className="text-center mb-3">
-                        <p className="uppercase tracking-wide text-label-neutral text-xs font-gothic">
+                        <p className="type-label">
                             {chapter.title}
                             {chapter.points.length > 1 && (
                                 <span className="text-tertiary normal-case tracking-normal">
@@ -74,7 +74,7 @@ export function GrammarIntroCard({ grammarPoint, onLearn, onSkip }: GrammarIntro
             {chapter && isChapterOpener && (
                 <CardSection>
                     <div className="rounded-lg border border-accent/20 bg-accent/5 px-4 py-3">
-                        <p className="uppercase tracking-wide text-label-neutral text-xs mb-1 font-gothic">
+                        <p className="type-label mb-1">
                             New chapter
                         </p>
                         <p className="text-primary font-serif text-sm leading-relaxed">
@@ -85,14 +85,14 @@ export function GrammarIntroCard({ grammarPoint, onLearn, onSkip }: GrammarIntro
             )}
 
             <CardSection>
-                <div className="text-center font-serif text-base text-meaning-muted leading-relaxed">
+                <div className="text-center font-serif text-base text-primary leading-relaxed">
                     {grammarPoint.shortExplanation}
                 </div>
             </CardSection>
 
             <CardSection>
                 <div className="rounded-lg border border-divider bg-feedback-background px-4 py-3 text-center">
-                    <p className="uppercase tracking-wide text-label-neutral text-xs mb-1 font-gothic">
+                    <p className="type-label mb-1">
                         Formation
                     </p>
                     <p className="text-primary font-gothic text-sm">
