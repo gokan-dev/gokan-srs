@@ -16,3 +16,17 @@
 .meta-sep {
   margin: 0 0.5em;
 }
+
+// Headword and reading only, flowing in columns: the long tail of a kanji's words.
+.entry-list--brief {
+  columns: 12rem auto;
+  column-gap: $space-3;
+
+  li {
+    break-inside: avoid;
+  }
+
+  a {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+}

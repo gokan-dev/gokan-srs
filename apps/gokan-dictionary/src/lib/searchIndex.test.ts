@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-    CORE_FREQUENT_WORDS, isCommonRow, readingOfRow, searchGrammarRow, searchKanjiRow, searchWordRow, splitSearchIndex, wordClassOfRow,
+    CORE_FREQUENT_WORDS, fromColumns, searchGrammarRow, searchKanjiRow, searchWordRow, splitSearchIndex, toColumns, wordClassOfRow,
 } from './searchIndex';
+import { isCommonRow, readingOfRow } from './searchRow';
 import type { SearchWordRow } from './types';
 import { grammarPoint, kanji, vocabulary } from '../test/fixtures';
 
@@ -47,9 +48,15 @@ describe('splitSearchIndex', () => {
         const words = Array.from({ length: CORE_FREQUENT_WORDS + 3 }, (_, i) => row(`w${i}`, 0));
         words[CORE_FREQUENT_WORDS + 1] = row('jlpt', 2);
         const { core, full } = splitSearchIndex(words, [], []);
-        expect(core.w).toHaveLength(CORE_FREQUENT_WORDS + 1);
-        expect(core.w[CORE_FREQUENT_WORDS][0]).toBe('jlpt');
-        expect(full.w.map(r => r[0])).toEqual([`w${CORE_FREQUENT_WORDS}`, `w${CORE_FREQUENT_WORDS + 2}`]);
+        expect(core.w[0]).toHaveLength(CORE_FREQUENT_WORDS + 1);
+        expect(core.w[0][CORE_FREQUENT_WORDS]).toBe('jlpt');
+        expect(full.w[0]).toEqual([`w${CORE_FREQUENT_WORDS}`, `w${CORE_FREQUENT_WORDS + 2}`]);
         expect(full.k).toBeUndefined();
+    });
+
+    it('stores words column by column, and reads them back', () => {
+        const words = [row('a', 5), row('b', 0)];
+        expect(toColumns(words)).toEqual([['a', 'b'], ['a', 'b'], ['a', 'b'], ['', ''], [5, 0], [0, 0]]);
+        expect(fromColumns(toColumns(words))).toEqual(words);
     });
 });

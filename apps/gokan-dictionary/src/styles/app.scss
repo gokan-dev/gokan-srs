@@ -35,7 +35,10 @@
   --accent-contrast: #FFFFFF;
   --error: #8A3A2E;
 
-  color-scheme: light;
+  --font-serif: #{$font-serif-stack};
+  --font-sans: #{$font-sans-stack};
+  --font-mincho: #{$font-mincho-stack};
+  --font-gothic: #{$font-gothic-stack};
 }
 
 @media (prefers-color-scheme: dark) {
@@ -51,8 +54,6 @@
     --accent-hover: #8AB4D4;
     --accent-contrast: #12110F;
     --error: #E0796D;
-
-    color-scheme: dark;
   }
 }
 
@@ -82,7 +83,6 @@ body {
 a {
   color: var(--accent);
   text-decoration: none;
-  transition: color $motion;
 
   &:hover {
     color: var(--accent-hover);
@@ -96,8 +96,7 @@ a {
 }
 
 h1,
-h2,
-h3 {
+h2 {
   font-family: $font-serif;
   font-weight: 600;
   line-height: 1.25;
@@ -114,11 +113,6 @@ h1 {
 
 h2 {
   font-size: $text-xl;
-}
-
-h3 {
-  font-size: $text-base;
-  font-family: $font-sans;
 }
 
 p {
@@ -177,7 +171,6 @@ main {
 }
 
 .container {
-  width: 100%;
   max-width: $measure-text;
   margin: 0 auto;
   padding: 0 $space-2;
@@ -379,11 +372,6 @@ main {
   &:empty {
     display: none;
   }
-
-  a {
-    display: inline-block;
-    margin-right: $space-1;
-  }
 }
 
 .search-group-label {
@@ -493,22 +481,10 @@ a.chip {
   font-size: $text-lg;
 }
 
-// -- Word lists: headword | reading | gloss ---------------------------------
-// Rows are kept small (no classes, the gloss a bare span): a kanji page lists up to 660 words.
+// -- List rows: words and grammar points --------------------------------------
 
-/// Narrow columns (a phone, the word page's aside): headword and reading on one line, the gloss
-/// under them.
-@mixin stacked {
-  a {
-    grid-template-columns: auto minmax(0, 1fr);
-
-    > :last-child {
-      grid-column: 1 / -1;
-    }
-  }
-}
-
-.entry-list {
+.entry-list,
+.grammar-list {
   @include bare-list;
 
   li + li {
@@ -516,10 +492,6 @@ a.chip {
   }
 
   a {
-    display: grid;
-    grid-template-columns: minmax(6rem, 10rem) minmax(6rem, 10rem) minmax(0, 1fr);
-    align-items: baseline;
-    gap: 0 $space-2;
     min-height: $target;
     padding: $space-1 $space-half;
     color: var(--primary);
@@ -530,31 +502,38 @@ a.chip {
       color: var(--primary);
       text-decoration: none;
     }
+  }
+}
 
-    > :first-child {
-      font-family: $font-mincho;
-      font-size: $text-lg;
-      overflow-wrap: anywhere;
-    }
+// -- Word lists: headword | reading | gloss ---------------------------------
+// Rows are kept small: lang="ja" on the link, the headword a bare text cell (an anonymous grid
+// item), the reading a span, the gloss a span marked lang="en". A kanji page lists up to 660.
 
-    > :nth-child(2) {
+.entry-list {
+  a {
+    display: grid;
+    grid-template-columns: minmax(6rem, 10rem) minmax(6rem, 10rem) minmax(0, 1fr);
+    align-items: baseline;
+    gap: 0 $space-2;
+    font-family: $font-mincho;
+    font-size: $text-lg;
+    overflow-wrap: anywhere;
+
+    > span {
+      font-family: $font-gothic;
+      font-size: $text-base;
       color: var(--secondary);
-      overflow-wrap: anywhere;
     }
 
-    > :last-child {
+    > [lang="en"] {
       grid-column: 3;
-      color: var(--secondary);
+      font-family: $font-sans;
       font-size: $text-sm;
     }
   }
 
   @include narrow {
-    @include stacked;
-  }
-
-  &--stacked {
-    @include stacked;
+    @include stacked-entries;
   }
 }
 
@@ -582,27 +561,11 @@ a.chip {
 // -- Grammar rows (grammar index, families, chapters, family page) -----------
 
 .grammar-list {
-  @include bare-list;
-
-  li + li {
-    border-top: 1px solid var(--divider);
-  }
-
   a {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
     gap: 0 $space-1;
-    min-height: $target;
-    padding: $space-1 $space-half;
-    color: var(--primary);
-
-    &:hover,
-    &:focus-visible {
-      background-color: var(--surface-hover);
-      color: var(--primary);
-      text-decoration: none;
-    }
 
     > :first-child {
       font-family: $font-mincho;
@@ -755,14 +718,13 @@ a.chip {
   // underline is --secondary (above 3:1 on the background); hover and focus turn it accent.
   a {
     color: inherit;
-    text-decoration: underline dotted var(--secondary);
-    text-underline-offset: 0.35em;
-    text-decoration-thickness: 1px;
+    border-bottom: 1px dotted var(--secondary);
 
     &:hover,
     &:focus-visible {
       color: var(--accent);
-      text-decoration-color: var(--accent);
+      border-color: var(--accent);
+      text-decoration: none;
     }
   }
 

@@ -101,7 +101,7 @@ describe('noindex', () => {
 
 describe('stripHydrationMarkers', () => {
     it('drops Svelte block markers and keeps the markup', () => {
-        expect(stripHydrationMarkers('<ul><!--[--><li>a</li><!--[!--><li>b</li><!--]--><!----></ul>')).toBe('<ul><li>a</li><li>b</li></ul>');
+        expect(stripHydrationMarkers('<ul><!--[--><li>a</li><!--[!--><li>b</li><!--[0--><i>c</i><!--[-1--><!--]--><!----></ul>')).toBe('<ul><li>a</li><li>b</li><i>c</i></ul>');
     });
 
     it('is applied to the rendered body', () => {

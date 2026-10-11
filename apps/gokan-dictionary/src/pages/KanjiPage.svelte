@@ -30,7 +30,7 @@
   <section class="section">
     <h2>Words with <span lang="ja">{kanji.character}</span></h2>
     {#if words.length > 0}
-      <VocabEntryList entries={words} visible={WORDS_VISIBLE} />
+      <VocabEntryList entries={words} visible={WORDS_VISIBLE} briefRest />
     {:else}
       <p class="support">No word in this dictionary uses this kanji yet.</p>
     {/if}

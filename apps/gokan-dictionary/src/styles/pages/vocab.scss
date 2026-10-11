@@ -106,3 +106,8 @@
     color: var(--primary);
   }
 }
+
+// The aside's word lists ("Made of", "Used in") are a narrow column.
+.entry-list--stacked {
+  @include stacked-entries;
+}
