@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import type { GrammarChapter, GrammarExample, GrammarPoint } from "@gokan/dataset-schema";
 import { Card } from "../../components/ui/Card";
 import { MasteryRing } from "../../components/MasteryRing";
@@ -13,6 +13,7 @@ import { THEME } from "../../commons/theme";
 import { GrammarRelatedPointsCard } from "./GrammarRelatedPointsCard";
 import { GrammarVariantsCard } from "./GrammarVariantsCard";
 import { GrammarDifferentiator } from "../../components/GrammarDifferentiator";
+import { Page } from "../../components/Page";
 import { PageHeader } from "../../components/PageHeader";
 import { useIntroducedGrammarIds } from "../../hooks/useIntroducedGrammarIds";
 import { useAsyncData } from "../../hooks/useAsyncData";
@@ -44,7 +45,6 @@ const FORMALITY_LABELS: Record<NonNullable<GrammarPoint['formalityLevel']>, stri
  */
 export default function GrammarDetailScreen() {
     const { grammarId } = useParams<{ grammarId: string }>();
-    const navigate = useNavigate();
     const { isMobile } = useResponsive();
     const { state, grammarActions } = useQuiz();
     const pointLoad = useAsyncData(grammarId ?? null, () => GrammarService.loadGrammarPoint(grammarId ?? ''));
@@ -143,20 +143,15 @@ export default function GrammarDetailScreen() {
 
             <div className="mt-4 pt-4 border-t border-divider">
                 {progress ? (
-                    <div className="flex items-center justify-between gap-3">
-                        <span className="type-meta">
-                            {progress.stage === 'graduated' ? 'Graduated' : 'In your queue'}
-                        </span>
-                        <Button variant="secondary" onClick={() => void navigate('/grammar')}>
-                            Go to grammar
-                        </Button>
-                    </div>
+                    <span className="type-meta">
+                        {progress.stage === 'graduated' ? 'Mastered' : 'Learning'}
+                    </span>
                 ) : (
                     <Button
                         className="w-full"
                         onClick={() => grammarActions.saveGrammarIntroChoice(point, 'learn')}
                     >
-                        Add to Grammar Queue
+                        Learn this grammar point
                     </Button>
                 )}
             </div>
@@ -266,12 +261,12 @@ export default function GrammarDetailScreen() {
     ) : null;
 
     return (
-        <div className="min-h-screen flex flex-col md:max-w-5xl md:mx-auto w-full animate-fade-in">
+        <Page width="wide">
             <PageHeader
                 title="Grammar Point Details"
-                onBack={() => void navigate(-1)}
-                className="p-4 md:p-8"
-                right={
+                parentPath="/grammar/browse"
+                className="mb-6"
+                actions={
                     <Link
                         to="/grammar/browse"
                         className="text-accent font-gothic text-sm hover:underline whitespace-nowrap"
@@ -282,8 +277,7 @@ export default function GrammarDetailScreen() {
                 }
             />
 
-            {/* Content */}
-            <main className="flex-1 p-4 md:p-8 pt-0">
+            <main>
                 {isMobile ? (
                     <div className="flex flex-col space-y-6">
                         {headerCard}
@@ -322,6 +316,6 @@ export default function GrammarDetailScreen() {
                     </div>
                 )}
             </main>
-        </div>
+        </Page>
     );
 }

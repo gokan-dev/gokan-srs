@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { ArrowLeft, ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import type { GrammarBrowseIndex, GrammarBrowseRow, GrammarTeachingOrder } from "@gokan/dataset-schema";
 import { GrammarService } from "../../services/grammar.service";
 import { isGrammarFullyMastered } from "../../services/grammarScheduling";
@@ -8,14 +8,10 @@ import { useQuiz } from "../../context/useQuiz";
 import { JlptChip } from "../../components/JlptChip";
 import { ChapterProgressBar } from "../../components/ChapterProgressBar";
 import { computeGrammarChapterProgress } from "../../context/quiz/grammarSelectors";
-
-type PointStatus = 'mastered' | 'learning' | 'untouched';
-
-const STATUS_DOT: Record<PointStatus, string> = {
-    mastered: 'bg-accent',
-    learning: 'bg-accent opacity-35',
-    untouched: 'bg-surface-hover border border-divider',
-};
+import { Page } from "../../components/Page";
+import { PageHeader } from "../../components/PageHeader";
+import { StatusDot } from "../../components/StatusDot";
+import type { LearningStatus } from "../../utils/learningStatus.utils";
 
 /**
  * Route /grammar/chapters (issue #58): every chapter of the authored teaching
@@ -62,9 +58,9 @@ export function GrammarChapterBrowseScreen() {
 
     const grammarQueue = state.progress?.grammarQueue ?? [];
 
-    const pointStatus = (id: string): PointStatus => {
+    const pointStatus = (id: string): LearningStatus => {
         const g = grammarQueue.find(item => item.grammarId === id);
-        if (!g || !g.introductionAt) return 'untouched';
+        if (!g || !g.introductionAt) return 'new';
         return isGrammarFullyMastered(g) ? 'mastered' : 'learning';
     };
 
@@ -125,15 +121,13 @@ export function GrammarChapterBrowseScreen() {
     }
 
     return (
-        <div className="w-full max-w-4xl mx-auto px-4 py-6">
-            <Link to="/grammar" className="text-accent font-gothic text-sm hover:underline">
-                <ArrowLeft className="inline-block w-4 h-4 mr-1 align-text-bottom" aria-hidden="true" />Back
-            </Link>
-
-            <h1 className="font-serif text-2xl text-primary mt-3 mb-1">Grammar curriculum</h1>
-            <p className="font-gothic text-sm text-secondary mb-4">
-                {order.chapters.length} chapters, {order.order.length} points, in teaching order
-            </p>
+        <Page width="wide">
+            <PageHeader
+                title="Grammar curriculum"
+                subtitle={`${order.chapters.length} chapters, ${order.order.length} points, in teaching order`}
+                parentPath="/"
+                className="mb-4"
+            />
 
             <input
                 type="text"
@@ -193,11 +187,7 @@ export function GrammarChapterBrowseScreen() {
                                                 to={`/grammar/${id}`}
                                                 className="flex items-center gap-2 min-w-0 rounded px-2 py-1.5 hover:bg-surface-hover transition-colors"
                                             >
-                                                <span
-                                                    className={`w-2 h-2 rounded-full shrink-0 ${STATUS_DOT[status]}`}
-                                                    aria-hidden="true"
-                                                    title={status}
-                                                />
+                                                <StatusDot status={status} label={null} />
                                                 <span className="font-mincho text-sm text-primary truncate">
                                                     {row?.title ?? id}
                                                 </span>
@@ -211,6 +201,6 @@ export function GrammarChapterBrowseScreen() {
                     );
                 })}
             </div>
-        </div>
+        </Page>
     );
 }

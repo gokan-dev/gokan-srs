@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react";
 import { usePersistControls, usePersistedControlsSnapshot } from "../../hooks/usePersistedControls";
 import { Link } from "react-router-dom";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import type { GrammarAxis, GrammarBrowseIndex, GrammarBrowseRow, GrammarPoint } from "@gokan/dataset-schema";
 import { GrammarService } from "../../services/grammar.service";
 import { JlptChip } from "../../components/JlptChip";
 import { FilterToggle } from "../../components/ui/FilterToggle";
+import { Page } from "../../components/Page";
+import { PageHeader } from "../../components/PageHeader";
 import { useAsyncData } from "../../hooks/useAsyncData";
 
 type Kind = NonNullable<GrammarPoint['kind']>;
@@ -298,15 +300,13 @@ export function GrammarBrowseScreen() {
     const presentKinds = (Object.keys(KIND_STYLE) as Kind[]).filter(kind => (stats.byKind[kind] ?? 0) > 0);
 
     return (
-        <div className="w-full max-w-6xl mx-auto px-4 py-6">
-            <Link to="/grammar" className="text-accent font-gothic text-sm hover:underline">
-                <ArrowLeft className="inline-block w-4 h-4 mr-1 align-text-bottom" aria-hidden="true" />Back
-            </Link>
-
-            <h1 className="font-serif text-2xl text-primary mt-3 mb-1">Grammar dataset</h1>
-            <p className="font-gothic text-sm text-secondary mb-4">
-                {stats.points} points, {stats.introduced} introduced, {stats.chapters} chapters
-            </p>
+        <Page width="wide">
+            <PageHeader
+                title="Grammar dataset"
+                subtitle={`${stats.points} points, ${stats.introduced} introduced, ${stats.chapters} chapters`}
+                parentPath="/"
+                className="mb-4"
+            />
 
             {/* Coverage at a glance: what exists, what is taught, what is not. */}
             {/*
@@ -429,6 +429,6 @@ export function GrammarBrowseScreen() {
                     </div>
                 </section>
             ))}
-        </div>
+        </Page>
     );
 }

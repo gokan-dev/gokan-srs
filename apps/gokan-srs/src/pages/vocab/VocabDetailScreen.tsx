@@ -17,6 +17,7 @@ import { JlptChip } from "../../components/JlptChip";
 import { THEME } from "../../commons/theme";
 import { isEntryMastered, isProductionActivated, isReadingRelevant } from "../../services/scheduling";
 import { KanjiSpellingNote } from "../../components/KanjiSpellingNote";
+import { Page } from "../../components/Page";
 import { PageHeader } from "../../components/PageHeader";
 import { formatDate } from "../../utils/time.utils";
 import { DetailErrorScreen } from "../../components/detail/DetailErrorScreen";
@@ -306,12 +307,10 @@ export default function VocabDetailScreen() {
     const sentencesCard = <VocabSentencesCard vocabId={vocab.id} />;
 
     return (
-        <div className="min-h-screen flex flex-col md:max-w-5xl md:mx-auto w-full animate-fade-in">
-            {/* Header */}
-            <PageHeader title="Vocabulary Details" onBack={() => void navigate(-1)} className="p-4 md:p-8" />
+        <Page width="wide">
+            <PageHeader title="Vocabulary Details" parentPath="/stats" className="mb-6" />
 
-            {/* Content */}
-            <main className="flex-1 p-4 md:p-8 pt-0">
+            <main>
                 {isMobile ? (
                     <div className="flex flex-col space-y-6">
                         {kanjiCard}
@@ -345,7 +344,7 @@ export default function VocabDetailScreen() {
                     </div>
                 )}
             </main>
-        </div>
+        </Page>
     );
 }
 

@@ -2,9 +2,10 @@ import { KanjiKnowledgeEditor } from "../../components/KanjiKnowledgeEditor";
 import { useQuiz } from "../../context/useQuiz";
 import { CONSTANTS } from "../../commons/constants";
 import { DEFAULT_SETTINGS } from "../../models/user.model";
+import { Page } from "../../components/Page";
 import { PageHeader } from "../../components/PageHeader";
 
-export function UserProfileScreen({ onBack }: { onBack: () => void; onVocabClick?: (vocabId: string) => void }) {
+export function UserProfileScreen() {
     const { state, actions } = useQuiz();
 
     const countStep = state.settings?.kanjiCountStep ?? CONSTANTS.setup.defaultKanjiCountStep;
@@ -16,12 +17,11 @@ export function UserProfileScreen({ onBack }: { onBack: () => void; onVocabClick
     };
 
     return (
-        <div className="w-full max-w-2xl md:max-w-3xl flex flex-col gap-2 animate-fade-in">
-            {/* ... header ... */}
-            <PageHeader title="Your learning" onBack={onBack} className="mb-6 h-12" />
+        <Page width="wide" className="flex flex-col gap-2">
+            <PageHeader title="Kanji" parentPath="/" className="mb-6" />
 
             <section className="w-full mt-8">
-                <h2 className="text-lg mb-4 text-primary font-serif">
+                <h2 className="type-section mb-4">
                     Kanji
                 </h2>
 
@@ -31,10 +31,7 @@ export function UserProfileScreen({ onBack }: { onBack: () => void; onVocabClick
                     onCountStepChange={handleCountStepChange}
                     gridHeight="36rem"
                 />
-
             </section>
-
-
-        </div>
+        </Page>
     );
 }

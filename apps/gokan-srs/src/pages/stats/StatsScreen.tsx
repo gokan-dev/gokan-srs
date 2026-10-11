@@ -9,15 +9,15 @@ import { GrammarJlptCoverageChart } from "./components/GrammarJlptCoverageChart"
 import { GrammarChapterCoverageChart } from "./components/GrammarChapterCoverageChart";
 import { SmartVocabList } from "./components/SmartVocabList";
 import { SmartGrammarList } from "./components/SmartGrammarList";
+import { Page } from "../../components/Page";
 import { PageHeader } from "../../components/PageHeader";
 
 interface StatsScreenProps {
-    onBack: () => void;
     onVocabClick?: (vocabId: string) => void;
     onGrammarClick?: (grammarId: string) => void;
 }
 
-export function StatsScreen({ onBack, onVocabClick, onGrammarClick }: StatsScreenProps) {
+export function StatsScreen({ onVocabClick, onGrammarClick }: StatsScreenProps) {
     const { state } = useQuiz();
 
     // Guard if accessible without progress (though route is protected usually)
@@ -26,8 +26,8 @@ export function StatsScreen({ onBack, onVocabClick, onGrammarClick }: StatsScree
     const card = "w-full min-w-0 p-6 bg-surface rounded-lg shadow-sm border border-divider";
 
     return (
-        <div className="w-full max-w-6xl flex flex-col gap-6 animate-fade-in pb-12">
-            <PageHeader title="Statistics" onBack={onBack} className="h-12" />
+        <Page width="wide" className="flex flex-col gap-6">
+            <PageHeader title="Stats" parentPath="/" />
 
             <StatsOverview progress={state.progress} />
 
@@ -90,6 +90,6 @@ export function StatsScreen({ onBack, onVocabClick, onGrammarClick }: StatsScree
                     onGrammarClick={onGrammarClick}
                 />
             </section>
-        </div>
+        </Page>
     );
 }

@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import type { Kanji } from "@gokan/dataset-schema";
 import { Card } from "../../components/ui/Card";
 import { JlptChip } from "../../components/JlptChip";
@@ -7,6 +7,7 @@ import { useQuiz } from "../../context/useQuiz";
 import { VocabularyService } from "../../services/vocabulary.service";
 import { LoadingScreen } from "../../components/LoadingScreen";
 import { KanjiVocabListCard } from "./KanjiVocabListCard";
+import { Page } from "../../components/Page";
 import { PageHeader } from "../../components/PageHeader";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { DetailErrorScreen } from "../../components/detail/DetailErrorScreen";
@@ -14,7 +15,6 @@ import { DetailField } from "../../components/detail/DetailCard";
 
 export default function KanjiDetailScreen() {
     const { character } = useParams<{ character: string }>();
-    const navigate = useNavigate();
     const { isMobile } = useResponsive();
     const { state } = useQuiz();
     const kanjiLoad = useAsyncData(character ?? null, () => VocabularyService.loadKanji(character ?? ''));
@@ -68,16 +68,14 @@ export default function KanjiDetailScreen() {
     const vocabListCard = <KanjiVocabListCard vocabIds={vocabIds} />;
 
     return (
-        <div className="min-h-screen flex flex-col md:max-w-3xl md:mx-auto w-full animate-fade-in">
-            {/* Header */}
-            <PageHeader title="Kanji Details" onBack={() => void navigate(-1)} className="p-4 md:p-8" />
+        <Page width="wide">
+            <PageHeader title="Kanji Details" parentPath="/kanji" className="mb-6" />
 
-            {/* Content */}
-            <main className="flex-1 p-4 md:p-8 pt-0 flex flex-col space-y-6">
+            <main className="flex flex-col space-y-6">
                 {kanjiCard}
                 {metadataCard}
                 {vocabListCard}
             </main>
-        </div>
+        </Page>
     );
 }

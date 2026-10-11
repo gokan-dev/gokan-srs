@@ -7,6 +7,7 @@ import { SelectableOption } from "../../components/ui/SelectableOption";
 import { SettingToggle } from "../../components/ui/SettingToggle";
 import { useTheme } from "../../context/useTheme";
 import { useState } from "react";
+import { Page } from "../../components/Page";
 import { PageHeader } from "../../components/PageHeader";
 
 function SyncControls() {
@@ -85,7 +86,6 @@ interface SettingsScreenProps {
     onUpdateSettings: (settings: UserSettings) => void;
     onReset: () => void;
     onResetGrammar: () => Promise<void>;
-    onBack: () => void;
 }
 
 export function SettingsScreen({
@@ -93,7 +93,6 @@ export function SettingsScreen({
     onUpdateSettings,
     onReset,
     onResetGrammar,
-    onBack,
 }: SettingsScreenProps) {
     const { theme, setTheme } = useTheme();
     const [isConfirmingReset, setIsConfirmingReset] = useState(false);
@@ -101,10 +100,8 @@ export function SettingsScreen({
     const [grammarResetState, setGrammarResetState] = useState<'idle' | 'working' | 'done' | 'failed'>('idle');
 
     return (
-        <div className="min-h-screen flex flex-col items-center bg-background transition-colors duration-200 max-w-2xl md:max-w-3xl">
-
-            {/* Header */}
-            <PageHeader title="Settings" onBack={onBack} className="max-w-2xl md:w-3xl mb-12 animate-fade-in" />
+        <Page width="narrow" className="flex flex-col items-center">
+            <PageHeader title="Settings" parentPath="/" className="w-full mb-12 animate-fade-in" />
 
             {/*
               * Account first: signing in is what makes every other setting (and
@@ -377,6 +374,6 @@ export function SettingsScreen({
                     )}
                 </div>
             </section>
-        </div>
+        </Page>
     );
 }

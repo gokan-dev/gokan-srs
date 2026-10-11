@@ -130,8 +130,8 @@ export const App: React.FC = () => {
                     <button onClick={() => void navigate("/stats")} title="Statistics" className="cursor-pointer text-secondary hover:text-primary transition-colors">
                         <BarChart2 size={18} />
                     </button>
-                    <button onClick={() => void navigate("/profile")} title="Kanji Configuration" className="cursor-pointer text-secondary hover:text-primary transition-colors flex items-center justify-center">
-                        <span className="font-mincho font-bold text-[18px] leading-none">漢</span>
+                    <button onClick={() => void navigate("/kanji")} title="Kanji" aria-label="Kanji" className="cursor-pointer text-secondary hover:text-primary transition-colors flex items-center justify-center">
+                        <span className="font-mincho font-bold text-lg leading-none">漢</span>
                     </button>
                     {/*
                       * A person icon, not a cog: the cog now belongs to the
@@ -168,13 +168,12 @@ export const App: React.FC = () => {
                         } />
                         <Route path="/stats" element={
                             <StatsScreen
-                                onBack={() => void navigate('/')}
                                 onVocabClick={(id) => void navigate(`/vocab/${id}`)}
                                 onGrammarClick={(id) => void navigate(`/grammar/${id}`)}
                             />
                         } />
                         <Route path="/about" element={
-                            <AboutScreen onBack={() => void navigate('/')} />
+                            <AboutScreen />
                         } />
                         <Route path="/settings" element={
                             <SettingsScreen
@@ -182,19 +181,16 @@ export const App: React.FC = () => {
                                 onUpdateSettings={actions.saveSettings}
                                 onReset={actions.reset}
                                 onResetGrammar={actions.resetGrammarProgress}
-                                onBack={() => void navigate('/')}
                             />
                         } />
-                        <Route path="/profile" element={
+                        <Route path="/profile" element={<Navigate to="/kanji" replace />} />
+                        <Route path="/kanji" element={
                             <KanjiFormProvider initialState={{
                                 kanjiCount: state.progress!.kanjiKnowledge.step,
                                 kanjiMethod: state.progress!.kanjiKnowledge.method,
                                 knownKanji: state.progress!.kanjiKnowledge.kanjiSet
                             }}>
-                                <UserProfileScreen
-                                    onBack={() => void navigate('/')}
-                                    onVocabClick={(id) => void navigate(`/vocab/${id}`)}
-                                />
+                                <UserProfileScreen />
                             </KanjiFormProvider>
                         } />
                         <Route path="/vocab/:vocabId" element={

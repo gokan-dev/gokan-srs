@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import type { MediaIndexEntry, MediaLibraryWords } from "@gokan/dataset-schema";
 import { MediaService } from "../../services/media.service";
 import { useQuiz } from "../../context/useQuiz";
+import { Page } from "../../components/Page";
 import { PageHeader } from "../../components/PageHeader";
 import { ChapterProgressBar } from "../../components/ChapterProgressBar";
 import {
@@ -25,7 +26,6 @@ import { JitenCredit, MediaCover, VocabularyOnlyNote } from "./listeningShared";
  */
 export function ListeningLibraryScreen() {
     const { state, actions } = useQuiz();
-    const navigate = useNavigate();
     const [index, setIndex] = useState<MediaIndexEntry[] | null>(null);
     const [libraryWords, setLibraryWords] = useState<MediaLibraryWords | null>(null);
     const [failed, setFailed] = useState(false);
@@ -71,8 +71,8 @@ export function ListeningLibraryScreen() {
     }, [index, libraryWords, knowledge, watched, selectedGenres, query]);
 
     return (
-        <div className="w-full max-w-3xl mx-auto px-4 py-6">
-            <PageHeader title="Listening" onBack={() => void navigate('/')} className="mb-4" />
+        <Page width="narrow">
+            <PageHeader title="Listening" parentPath="/" className="mb-4" />
 
             <p className="font-serif text-sm text-secondary mb-1">
                 Anime for listening practice, ordered by how much of their vocabulary you already know.
@@ -184,6 +184,6 @@ export function ListeningLibraryScreen() {
             )}
 
             {index && <JitenCredit className="mt-8" />}
-        </div>
+        </Page>
     );
 }
