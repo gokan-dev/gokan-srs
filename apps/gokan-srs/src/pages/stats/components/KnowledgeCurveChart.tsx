@@ -9,6 +9,7 @@ import {
 } from "../../../utils/knowledge.utils";
 import { formatShortDate } from "../../../utils/time.utils";
 import { FilterToggle } from "../../../components/ui/FilterToggle";
+import { THEME } from "../../../commons/theme";
 
 interface KnowledgeCurveChartProps {
     progress: UserProgress;
@@ -155,14 +156,14 @@ export function KnowledgeCurveChart({ progress, settings }: KnowledgeCurveChartP
                             ))}
 
                             {areaPath && (
-                                <path d={areaPath} fill="var(--accent)" opacity="0.08" />
+                                <path d={areaPath} fill={THEME.colors.accent} opacity="0.08" />
                             )}
 
                             {linePath && (
                                 <path
                                     d={linePath}
                                     fill="none"
-                                    stroke="var(--accent)"
+                                    stroke={THEME.colors.accent}
                                     strokeWidth="2"
                                     strokeLinecap="round"
                                     strokeLinejoin="round"
@@ -174,7 +175,7 @@ export function KnowledgeCurveChart({ progress, settings }: KnowledgeCurveChartP
                                 <line
                                     x1={xAt(hoverIndex!)} y1={PLOT.top}
                                     x2={xAt(hoverIndex!)} y2={PLOT.bottom}
-                                    stroke="var(--accent)"
+                                    stroke={THEME.colors.accent}
                                     strokeWidth="1"
                                     opacity="0.4"
                                     vectorEffect="non-scaling-stroke"

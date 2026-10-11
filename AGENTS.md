@@ -149,8 +149,9 @@ gokan-srs, everything else:
   status, or Learn), `utils/learningStatus.utils.ts` (New / Learning / Mastered for a word or a
   grammar point), `components/ui/Pagination.tsx`, `pages/stats/components/CoverageChart.tsx` and
   `utils/coverage.utils.ts`, `utils/activity.utils.ts`, `utils/winRate.utils.ts`.
-- Detail pages: `components/detail/` (`DetailCard`, `DetailField`, `DetailErrorScreen`,
-  `SrsStatsCard`), `components/RelatedEntriesCard.tsx`, `components/SRSHistoryGraph.tsx`,
+- Detail pages: `components/detail/` (`DetailHeader` the subject and its main action,
+  `LearnStatus`, `DetailSection`, `YourProgress` shared by vocab and grammar,
+  `DetailErrorScreen`), `components/RelatedEntriesCard.tsx`, `components/SRSHistoryGraph.tsx`,
   `components/InteractiveSentence.tsx`,
   `pages/grammar/GrammarExampleList.tsx`.
 - Settings controls: `components/ui/SettingToggle.tsx`, `SettingSlider.tsx`, `components/OptionGrid.tsx`,

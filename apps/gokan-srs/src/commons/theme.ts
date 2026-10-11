@@ -6,6 +6,7 @@
  */
 export const THEME = {
     colors: {
+        accent: 'var(--accent)',
         correct: 'var(--feedback-correct)',
         incorrect: 'var(--feedback-incorrect)',
     },
