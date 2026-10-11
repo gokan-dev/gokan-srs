@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { headwordOf, secondaryForm } from "@gokan/dataset-schema";
+import { headwordOf, looksLikeRomaji, romajiToHiragana, secondaryForm, toHiragana } from "@gokan/dataset-schema";
 import { useQuiz } from "../../context/useQuiz";
 import { VocabularyService } from "../../services/vocabulary.service";
 import { useAsyncData } from "../../hooks/useAsyncData";
@@ -18,7 +18,6 @@ import { isProductionActivated, isReadingRelevant, isVocabFullyMastered, vocabNe
 import { ArrowDownUp } from "lucide-react";
 import { formatTimeUntil } from "../../utils/time.utils";
 import { matchesVocabStatus, vocabSortKey, VOCAB_SORT_LABEL, VOCAB_STATUS_LABEL, type VocabSort, type VocabStatusFilter } from "../../utils/vocabStatus.utils";
-import { looksLikeRomaji, romajiToHiragana, toHiragana } from "../../utils/romaji";
 
 const STATE_KEY = 'gokan_vocab_list_state';
 const PAGE_SIZE = 50;
