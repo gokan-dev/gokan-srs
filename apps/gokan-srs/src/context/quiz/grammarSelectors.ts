@@ -870,8 +870,8 @@ export function computeGrammarChapterProgress(
  * chapter was genuinely in progress or a next one was waiting.
  */
 export type HubChapterStatus =
-    | { status: 'current'; chapterNumber: number; chapterTitle: string; counts: GrammarChapterProgressCounts }
-    | { status: 'next'; chapterNumber: number; chapterTitle: string; counts: GrammarChapterProgressCounts }
+    | { status: 'current'; chapterId: string; chapterNumber: number; chapterTitle: string; counts: GrammarChapterProgressCounts }
+    | { status: 'next'; chapterId: string; chapterNumber: number; chapterTitle: string; counts: GrammarChapterProgressCounts }
     | { status: 'complete'; totalChapters: number; counts: GrammarChapterProgressCounts };
 
 /**
@@ -919,6 +919,7 @@ export function describeHubChapter(
 
     return {
         status: counts.mastered + counts.learning > 0 ? 'current' : 'next',
+        chapterId: currentChapter.id,
         chapterNumber: chapters.indexOf(currentChapter) + 1,
         chapterTitle: currentChapter.title,
         counts,

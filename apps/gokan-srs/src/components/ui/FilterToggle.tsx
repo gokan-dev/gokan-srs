@@ -19,7 +19,7 @@ export function FilterToggle({ active, onClick, children, className = '' }: Filt
             onClick={onClick}
             aria-pressed={active}
             className={`
-                text-xs font-gothic rounded-md px-2 py-1 border transition-colors
+                text-sm font-sans rounded-md px-2.5 py-1 border transition-colors cursor-pointer
                 ${active ? 'border-accent text-accent bg-accent/10' : 'border-divider text-secondary hover:bg-surface-hover'}
                 ${className}
             `}

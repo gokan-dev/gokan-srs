@@ -93,9 +93,7 @@ export const App: React.FC = () => {
                             <GrammarScreen onVocabClick={(id) => void navigate(`/vocab/${id}`)} />
                         } />
                         <Route path="/stats" element={
-                            <StatsScreen
-                                onGrammarClick={(id) => void navigate(`/grammar/${id}`)}
-                            />
+                            <StatsScreen />
                         } />
                         <Route path="/about" element={
                             <AboutScreen />

@@ -26,7 +26,9 @@ export function StatusDot({ status, label, className = '' }: StatusDotProps) {
     return (
         <span className={`inline-flex items-center gap-1.5 ${className}`}>
             <span className={`inline-block w-2.5 h-2.5 rounded-full border ${DOT_STYLE[status]}`} aria-hidden="true" />
-            {shownLabel !== null && <span className="type-support">{shownLabel}</span>}
+            {shownLabel !== null
+                ? <span className="type-support">{shownLabel}</span>
+                : <span className="sr-only">{STATUS_LABEL[status]}</span>}
         </span>
     );
 }

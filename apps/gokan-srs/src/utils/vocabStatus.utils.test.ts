@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isVocabStruggling, matchesVocabStatus } from './vocabStatus.utils';
+import { isVocabStruggling, matchesVocabStatus, vocabSortKey } from './vocabStatus.utils';
 import { reviewLog, srsEntry, vocabProgress } from '../test/fixtures';
 
 const now = new Date('2026-06-10T12:00:00Z');
@@ -61,5 +61,29 @@ describe('matchesVocabStatus', () => {
         });
         expect(matchesVocabStatus(struggling, 'struggling', undefined, now)).toBe(true);
         expect(matchesVocabStatus(vocabProgress(), 'struggling', undefined, now)).toBe(false);
+    });
+});
+
+describe('vocabSortKey', () => {
+    const context = { settings: undefined, frequencyRank: new Map([['common', 3]]) };
+    const sorted = (words: ReturnType<typeof vocabProgress>[], sort: Parameters<typeof vocabSortKey>[1]) =>
+        [...words].sort((a, b) => vocabSortKey(a, sort, context) - vocabSortKey(b, sort, context)).map(w => w.vocabId);
+
+    it('puts the most recently added first', () => {
+        const old = vocabProgress({ vocabId: 'old', introductionAt: new Date('2026-01-01') });
+        const recent = vocabProgress({ vocabId: 'recent', introductionAt: new Date('2026-05-01') });
+        expect(sorted([old, recent], 'recent')).toEqual(['recent', 'old']);
+    });
+
+    it('puts the most mistakes first', () => {
+        const fine = vocabProgress({ vocabId: 'fine' });
+        const hard = vocabProgress({ vocabId: 'hard', meaning: srsEntry({ history: [reviewLog({ result: 'wrong' })] }) });
+        expect(sorted([fine, hard], 'mistakes')).toEqual(['hard', 'fine']);
+    });
+
+    it('puts words without a frequency rank last', () => {
+        const unranked = vocabProgress({ vocabId: 'unranked' });
+        const common = vocabProgress({ vocabId: 'common' });
+        expect(sorted([unranked, common], 'frequency')).toEqual(['common', 'unranked']);
     });
 });

@@ -1,6 +1,7 @@
 import type { VocabProgress } from "../models/vocabulary.model";
 import type { UserSettings } from "../models/user.model";
-import { isVocabDue, isVocabFullyMastered } from "../services/scheduling";
+import { isVocabDue, isVocabFullyMastered, vocabNextReviewAt } from "../services/scheduling";
+import { countWrongReviews } from "./winRate.utils";
 
 export type VocabStatusFilter = 'due' | 'learning' | 'mastered' | 'struggling' | 'all';
 
@@ -37,5 +38,42 @@ export function matchesVocabStatus(
         case 'mastered': return isVocabFullyMastered(vocab, settings);
         case 'learning': return !isVocabFullyMastered(vocab, settings);
         case 'struggling': return isVocabStruggling(vocab);
+    }
+}
+
+export type VocabSort = 'next_review' | 'recent' | 'frequency' | 'mistakes' | 'reading' | 'meaning' | 'production';
+
+export const VOCAB_SORT_LABEL: Record<VocabSort, string> = {
+    next_review: 'Next review',
+    recent: 'Recently added',
+    frequency: 'Frequency',
+    mistakes: 'Most mistakes',
+    reading: 'Reading mastery',
+    meaning: 'Meaning mastery',
+    production: 'Production mastery',
+};
+
+/**
+ * The key each sort orders by, ascending, so that each sort's natural order comes
+ * first: the soonest review, the most recently added, the most frequent word, the
+ * most mistakes, the strongest direction. Words with no due date (mastered) and
+ * words without a frequency rank sort last.
+ */
+export function vocabSortKey(
+    vocab: VocabProgress,
+    sort: VocabSort,
+    context: {
+        settings: Pick<UserSettings, 'enableMeaningQuiz' | 'enableProductionQuiz'> | undefined;
+        frequencyRank: ReadonlyMap<string, number>;
+    },
+): number {
+    switch (sort) {
+        case 'next_review': return vocabNextReviewAt(vocab, context.settings)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+        case 'recent': return -(vocab.introductionAt?.getTime() ?? 0);
+        case 'frequency': return context.frequencyRank.get(vocab.vocabId) ?? Number.MAX_SAFE_INTEGER;
+        case 'mistakes': return -countWrongReviews(vocab);
+        case 'reading': return -vocab.reading.memoryStrength;
+        case 'meaning': return -vocab.meaning.memoryStrength;
+        case 'production': return -(vocab.production?.memoryStrength ?? 0);
     }
 }

@@ -4,43 +4,32 @@ import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import type { GrammarAxis, GrammarBrowseIndex, GrammarBrowseRow, GrammarPoint } from "@gokan/dataset-schema";
 import { GrammarService } from "../../services/grammar.service";
-import { JlptChip } from "../../components/JlptChip";
+import { useQuiz } from "../../context/useQuiz";
 import { FilterToggle } from "../../components/ui/FilterToggle";
+import { ListRow } from "../../components/ui/ListRow";
+import { StatusDot } from "../../components/StatusDot";
 import { Page } from "../../components/Page";
-import { PageHeader } from "../../components/PageHeader";
 import { useAsyncData } from "../../hooks/useAsyncData";
+import { grammarLearningStatus, STATUS_LABEL } from "../../utils/learningStatus.utils";
+import { GRAMMAR_SORT_LABEL, matchesGrammarStatus, sortGrammarRows, type GrammarSort, type GrammarStatusFilter } from "../../utils/grammarBrowse.utils";
+import type { GrammarProgress } from "../../models/grammar.model";
+import { GrammarHomeHeader } from "./GrammarHomeHeader";
 
 type Kind = NonNullable<GrammarPoint['kind']>;
 type GroupMode = 'level' | 'family';
 
-/**
- * Which exercise a point is drilled by, colour-coded. This is the primary
- * colour axis on the page because it is the one thing that decides whether a
- * point is teachable at all.
- */
-const KIND_STYLE: Record<Kind, { label: string; quiz: string; text: string; bg: string; border: string }> = {
-    'construction': {
-        label: 'Construction',
-        quiz: 'Sentence cloze',
-        text: 'text-tertiary', bg: '', border: 'border-divider',
-    },
-    'inflection': {
-        label: 'Inflection',
-        quiz: 'Conjugation drill',
-        text: 'text-tertiary', bg: '', border: 'border-divider',
-    },
-    'lexical': {
-        label: 'Lexical',
-        quiz: 'Sentence cloze',
-        text: 'text-tertiary', bg: '', border: 'border-divider',
-    },
+/** Which exercise a point is drilled by: dataset detail, shown as neutral text. */
+const KIND_LABEL: Record<Kind, { label: string; quiz: string }> = {
+    'construction': { label: 'Construction', quiz: 'Sentence cloze' },
+    'inflection': { label: 'Inflection', quiz: 'Conjugation drill' },
+    'lexical': { label: 'Lexical', quiz: 'Sentence cloze' },
 };
 
 /** What differentiates a family's members, which decides how they are taught. */
-const AXIS_LABEL: Record<GrammarAxis, { label: string; hint: string }> = {
-    'register': { label: 'Register ladder', hint: 'Same meaning, different formality. Taught together, across JLPT levels.' },
-    'constraint': { label: 'Constraint', hint: 'Adds a semantic restriction that can be got wrong. Stays level-gated.' },
-    'variant': { label: 'Interchangeable', hint: 'No differentiator exists. A recognition set, not separate items.' },
+const AXIS_LABEL: Record<GrammarAxis, string> = {
+    'register': 'Register ladder',
+    'constraint': 'Constraint',
+    'variant': 'Interchangeable',
 };
 
 const FORMALITY_LABEL: Record<string, string> = {
@@ -49,8 +38,9 @@ const FORMALITY_LABEL: Record<string, string> = {
 };
 
 const LEVELS = [5, 4, 3, 2, 1];
+const STATUSES: GrammarStatusFilter[] = ['all', 'new', 'learning', 'mastered'];
+const SORTS = Object.keys(GRAMMAR_SORT_LABEL) as GrammarSort[];
 
-// Mirrors SmartVocabList/SmartGrammarList's own keys, under one of its own.
 const BROWSE_STATE_KEY = 'gokan_grammar_browse_state';
 
 /**
@@ -60,127 +50,111 @@ const BROWSE_STATE_KEY = 'gokan_grammar_browse_state';
 interface PersistedBrowseState {
     query: string;
     levels: number[];
+    status: GrammarStatusFilter;
+    sort: GrammarSort;
     kinds: Kind[];
     axes: GrammarAxis[];
     onlyVariants: boolean;
     onlyFamilied: boolean;
     group: GroupMode;
+    datasetDetails: boolean;
 }
 
-function Chip({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+/** The dataset's view of a point, one neutral line under the row (Dataset details only). */
+function datasetLine(row: GrammarBrowseRow): string {
+    return [
+        row.id,
+        KIND_LABEL[row.kind]?.quiz,
+        row.derives,
+        row.formalityLevel ? FORMALITY_LABEL[row.formalityLevel] ?? row.formalityLevel : null,
+        row.axis ? AXIS_LABEL[row.axis] : null,
+        row.variantOf ? `${row.variantRelation ?? 'variant'} of ${row.variantOf}` : null,
+        row.orderIndex !== null ? `#${row.orderIndex + 1} in order` : (row.variantOf ? null : 'not introduced'),
+        row.chapterTitle,
+        `${row.anchoredExampleCount}/${row.exampleCount} anchored examples`,
+        row.conjugationItems !== undefined ? `${row.conjugationItems} drill items` : null,
+    ].filter(Boolean).join(' · ');
+}
+
+function PointRow({ row, progress, datasetDetails }: { row: GrammarBrowseRow; progress: GrammarProgress | undefined; datasetDetails: boolean }) {
     return (
-        <span className={`text-xs font-gothic rounded px-1.5 py-0.5 border whitespace-nowrap ${className}`}>
-            {children}
-        </span>
+        <ListRow to={`/grammar/${row.id}`} trailing={<StatusDot status={grammarLearningStatus(progress)} />}>
+            <div className="flex items-baseline gap-2 min-w-0">
+                <span className="jp-headword truncate">{row.title}</span>
+                {row.romaji && <span className="type-meta truncate">{row.romaji}</span>}
+            </div>
+            <p className="type-support line-clamp-2">{row.shortExplanation}</p>
+            {datasetDetails && <p className="type-meta mt-1">{datasetLine(row)}</p>}
+        </ListRow>
     );
 }
 
-function PointCard({ row }: { row: GrammarBrowseRow }) {
-    const style = KIND_STYLE[row.kind] ?? KIND_STYLE.construction;
-    const isVariant = !!row.variantOf;
-
+function StatTile({ value, label, detail }: { value: React.ReactNode; label: string; detail?: string }) {
     return (
-        <Link
-            to={`/grammar/${row.id}`}
-            className={`block min-w-0 rounded-lg border bg-surface p-3 transition-colors hover:bg-surface-hover ${isVariant ? 'border-dashed border-divider' : 'border-divider'}`}
-        >
-            <div className="flex items-start justify-between gap-2 mb-1">
-                <div className="min-w-0">
-                    <p className="font-mincho text-primary text-lg leading-snug truncate">{row.title}</p>
-                    {row.romaji && <p className="font-gothic text-tertiary text-xs truncate">{row.romaji}</p>}
-                </div>
-                <div className="flex flex-col items-end gap-1 shrink-0">
-                    <JlptChip level={row.jlptLevel} />
-                    <span className="text-xs font-gothic text-tertiary">{row.id}</span>
-                </div>
-            </div>
-
-            <div className="flex flex-wrap gap-1 mb-2">
-                <Chip className={`${style.bg} ${style.text} ${style.border}`}>{style.quiz}</Chip>
-                {row.derives && <Chip className={`${style.bg} ${style.text} ${style.border}`}>{row.derives}</Chip>}
-                {row.formalityLevel && (
-                    <Chip className="border-divider text-secondary">{FORMALITY_LABEL[row.formalityLevel] ?? row.formalityLevel}</Chip>
-                )}
-                {row.axis && <Chip className="border-divider text-secondary">{AXIS_LABEL[row.axis].label}</Chip>}
-                {isVariant && (
-                    <Chip className="border-divider text-tertiary">
-                        {row.variantRelation} of {row.variantOf}
-                    </Chip>
-                )}
-                {row.orderIndex === null && !isVariant && (
-                    <Chip className="border-error text-error">Not introduced</Chip>
-                )}
-            </div>
-
-            <p className="font-serif text-sm text-primary leading-snug mb-2">{row.shortExplanation}</p>
-
-            <p className="font-gothic text-xs text-tertiary truncate mb-1" title={row.formation}>{row.formation}</p>
-
-            {row.usageNote && (
-                <p className="font-serif text-xs text-secondary italic leading-snug mb-1">{row.usageNote}</p>
-            )}
-
-            <div className="flex flex-wrap gap-x-3 text-xs font-gothic text-tertiary">
-                {row.orderIndex !== null && <span>#{row.orderIndex + 1} in order</span>}
-                {row.chapterTitle && <span className="truncate">{row.chapterTitle}</span>}
-                <span>
-                    {row.anchoredExampleCount}/{row.exampleCount} anchored
-                </span>
-                {row.conjugationItems !== undefined && <span>{row.conjugationItems} drill items</span>}
-            </div>
-        </Link>
+        <div className="flex-1 min-w-[132px] rounded-md border border-divider p-3">
+            <p className="font-sans text-xl text-primary tabular-nums">{value}</p>
+            <p className="type-support">{label}</p>
+            {detail && <p className="type-meta">{detail}</p>}
+        </div>
     );
 }
 
 /**
- * A read-only view of the whole grammar dataset: every point as a card, grouped
- * by JLPT level in introduction order or by near-synonym family, with search and
- * filters.
+ * Route /grammar/browse, the Grammar home's All points tab: every point grouped by
+ * JLPT level in teaching order (or by near-synonym family), each with the
+ * learner's status, with search, level and status filters and a sort.
  *
- * Its purpose is inspection rather than study. The numbers that used to be
- * reported in prose (how many points are construction vs inflection, which
- * families are register ladders, what is excluded from the order and why) are
- * visible here instead.
+ * The Dataset details switch (off by default, persisted) restores the
+ * inspection view this page used to be: the dataset's numbers per row, the
+ * coverage tiles, the dataset filters, and the points outside the teaching
+ * order (realization variants, taught through their canonical point).
  */
 export function GrammarBrowseScreen() {
+    const { state } = useQuiz();
     const indexLoad = useAsyncData('grammar-browse-index', () => GrammarService.loadBrowseIndex());
     const index: GrammarBrowseIndex | null = indexLoad.data ?? null;
     const failed = indexLoad.status === 'error' || (indexLoad.status === 'ready' && !indexLoad.data);
-    // Families that have at least one authored contrast lesson, so the
-    // family-grouped view can link out to the page comparing them - the browse
-    // screen's family grouping is the closest thing this app has to a family
-    // index, so it is where a "which families have lessons" entry point fits.
+    // Families with at least one authored contrast lesson, so the family grouping
+    // can link out to the page comparing them.
     const familiesWithLessons = useAsyncData('families-with-lessons', async () => new Set(
         Object.entries(await GrammarService.loadContrasts())
             .filter(([, entry]) => entry.lessons.length > 0)
             .map(([familyId]) => familyId)
     )).data ?? new Set<string>();
 
+    const progressById = useMemo(
+        () => new Map((state.progress?.grammarQueue ?? []).map(g => [g.grammarId, g])),
+        [state.progress],
+    );
+
     const persisted = usePersistedControlsSnapshot<PersistedBrowseState>(BROWSE_STATE_KEY);
 
     const [query, setQuery] = useState(persisted.query ?? '');
     const [levels, setLevels] = useState<Set<number>>(() => new Set(persisted.levels ?? []));
+    const [status, setStatus] = useState<GrammarStatusFilter>(persisted.status ?? 'all');
+    const [sort, setSort] = useState<GrammarSort>(persisted.sort ?? 'teaching');
     const [kinds, setKinds] = useState<Set<Kind>>(() => new Set(persisted.kinds ?? []));
     const [axes, setAxes] = useState<Set<GrammarAxis>>(() => new Set(persisted.axes ?? []));
     const [onlyVariants, setOnlyVariants] = useState(persisted.onlyVariants ?? false);
     const [onlyFamilied, setOnlyFamilied] = useState(persisted.onlyFamilied ?? false);
-    // Family, not level: the page's reason to exist is comparing near-synonyms, and the level
-    // ordering is already what every other grammar surface (the browse index, the SRS queue)
-    // presents. Grouping by family is the view you cannot get anywhere else.
-    const [group, setGroup] = useState<GroupMode>(persisted.group ?? 'family');
+    const [group, setGroup] = useState<GroupMode>(persisted.group ?? 'level');
+    const [datasetDetails, setDatasetDetails] = useState(persisted.datasetDetails ?? false);
 
     usePersistControls<PersistedBrowseState>(
         BROWSE_STATE_KEY,
         {
             query,
             levels: [...levels],
+            status,
+            sort,
             kinds: [...kinds],
             axes: [...axes],
             onlyVariants,
             onlyFamilied,
             group,
+            datasetDetails,
         },
-        [query, levels, kinds, axes, onlyVariants, onlyFamilied, group],
+        [query, levels, status, sort, kinds, axes, onlyVariants, onlyFamilied, group, datasetDetails],
     );
 
     const toggle = <T,>(set: Set<T>, value: T, apply: (next: Set<T>) => void) => {
@@ -192,12 +166,17 @@ export function GrammarBrowseScreen() {
     const filtered = useMemo(() => {
         if (!index) return [];
         const q = query.trim().toLowerCase();
-        return index.points.filter(row => {
+        const rows = index.points.filter(row => {
+            // Points outside the teaching order are not studied on their own.
+            if (!datasetDetails && row.orderIndex === null) return false;
             if (levels.size > 0 && !levels.has(row.jlptLevel)) return false;
-            if (kinds.size > 0 && !kinds.has(row.kind)) return false;
-            if (axes.size > 0 && (!row.axis || !axes.has(row.axis))) return false;
-            if (onlyVariants && !row.variantOf) return false;
-            if (onlyFamilied && !row.familyId) return false;
+            if (!matchesGrammarStatus(progressById.get(row.id), status)) return false;
+            if (datasetDetails) {
+                if (kinds.size > 0 && !kinds.has(row.kind)) return false;
+                if (axes.size > 0 && (!row.axis || !axes.has(row.axis))) return false;
+                if (onlyVariants && !row.variantOf) return false;
+                if (onlyFamilied && !row.familyId) return false;
+            }
             if (!q) return true;
             return (
                 row.title.toLowerCase().includes(q)
@@ -209,22 +188,14 @@ export function GrammarBrowseScreen() {
                 || row.formation.toLowerCase().includes(q)
             );
         });
-    }, [index, query, levels, kinds, axes, onlyVariants, onlyFamilied]);
+        return sortGrammarRows(rows, sort, progressById);
+    }, [index, query, levels, status, sort, kinds, axes, onlyVariants, onlyFamilied, datasetDetails, progressById]);
 
-    /**
-     * Groups are always ordered so the heading order means something: by level
-     * the rows keep their introduction order, and by family the biggest families
-     * come first because they are the ones worth inspecting.
-     */
+    /** By level in level order; by family, the biggest families first. Rows keep the chosen sort inside a group. */
     const groups = useMemo(() => {
         if (group === 'level') {
             return LEVELS
-                .map(level => ({
-                    key: `N${level}`,
-                    title: `N${level}`,
-                    subtitle: 'introduction order',
-                    rows: filtered.filter(r => r.jlptLevel === level),
-                }))
+                .map(level => ({ key: `N${level}`, title: `N${level}`, subtitle: '', rows: filtered.filter(r => r.jlptLevel === level) }))
                 .filter(g => g.rows.length > 0);
         }
 
@@ -238,121 +209,65 @@ export function GrammarBrowseScreen() {
         }
 
         const familyGroups = [...byFamily.entries()]
-            .map(([id, rows]) => {
-                const variants = rows.filter(r => r.variantOf).length;
-                const axisMix = [...new Set(rows.map(r => r.axis).filter(Boolean))] as GrammarAxis[];
-                const spread = new Set(rows.map(r => r.jlptLevel)).size;
-                return {
-                    key: id,
-                    title: rows[0].familyName ?? id,
-                    subtitle: [
-                        `${rows.length} member${rows.length > 1 ? 's' : ''}`,
-                        spread > 1 ? `spans ${spread} levels` : null,
-                        // The boundary that decides how the family is taught.
-                        variants > 0 ? `${variants} realization variant${variants > 1 ? 's' : ''}` : 'lexical alternatives',
-                        ...axisMix.map(a => AXIS_LABEL[a].label.toLowerCase()),
-                    ].filter(Boolean).join(' · '),
-                    rows,
-                };
-            })
+            .map(([id, rows]) => ({
+                key: id,
+                title: rows[0].familyName ?? id,
+                subtitle: `${rows.length} point${rows.length > 1 ? 's' : ''}`,
+                rows,
+            }))
             .sort((a, b) => b.rows.length - a.rows.length || a.title.localeCompare(b.title));
 
         if (unfamilied.length > 0) {
-            familyGroups.push({
-                key: '__none__',
-                title: 'No family',
-                subtitle: `${unfamilied.length} points with no near-synonym cluster`,
-                rows: unfamilied,
-            });
+            familyGroups.push({ key: '__none__', title: 'No family', subtitle: `${unfamilied.length} points`, rows: unfamilied });
         }
         return familyGroups;
     }, [filtered, group]);
 
-    if (failed) {
+    if (failed || !index) {
         return (
-            <div className="w-full max-w-6xl mx-auto px-4 py-8">
-                <p className="text-secondary font-gothic">Could not load the grammar index.</p>
-            </div>
-        );
-    }
-    if (!index) {
-        return (
-            <div className="w-full max-w-6xl mx-auto px-4 py-8">
-                <p className="text-secondary font-gothic">Loading grammar dataset...</p>
-            </div>
+            <Page width="wide">
+                <GrammarHomeHeader stats={null} />
+                <p className="type-support">{failed ? 'Could not load the grammar points.' : 'Loading grammar points...'}</p>
+            </Page>
         );
     }
 
     const { stats } = index;
-
-    /*
-     * Only the kinds that actually have points. `lexical` currently reads 0 -
-     * gokan-dev/gokan-dataset#15 closed without populating it, on the measured
-     * finding that the 20 genuinely lexical points work correctly as
-     * constructions. A tile reading 0 is noise, and the filter toggle was worse
-     * than noise: selecting it filtered every row out, which reads as a bug
-     * rather than as an empty category.
-     *
-     * Derived rather than deleted, so the day a kind IS populated its tile and
-     * filter come back on their own - and so this never has to be revisited for
-     * whatever the next kind turns out to be.
-     */
-    const presentKinds = (Object.keys(KIND_STYLE) as Kind[]).filter(kind => (stats.byKind[kind] ?? 0) > 0);
+    // Only the kinds that have points: a filter that empties the list reads as a bug.
+    const presentKinds = (Object.keys(KIND_LABEL) as Kind[]).filter(kind => (stats.byKind[kind] ?? 0) > 0);
+    const hasFilters = levels.size > 0 || status !== 'all' || query !== ''
+        || (datasetDetails && (kinds.size > 0 || axes.size > 0 || onlyVariants || onlyFamilied));
 
     return (
         <Page width="wide">
-            <PageHeader
-                title="Grammar dataset"
-                subtitle={`${stats.points} points, ${stats.introduced} introduced, ${stats.chapters} chapters`}
-                parentPath="/"
-                className="mb-4"
-            />
+            <GrammarHomeHeader stats={stats} />
 
-            {/* Coverage at a glance: what exists, what is taught, what is not. */}
-            {/*
-              * flex-wrap rather than a fixed column count: the number of tiles
-              * depends on how many kinds are populated, and a fixed grid left a
-              * trailing empty cell whenever that was not exactly six.
-              */}
-            <div className="flex flex-wrap gap-2 mb-6">
-                {presentKinds.map(kind => (
-                    <div key={kind} className={`flex-1 min-w-[132px] rounded-lg border p-2 ${KIND_STYLE[kind].bg} ${KIND_STYLE[kind].border}`}>
-                        <p className={`font-serif text-xl ${KIND_STYLE[kind].text}`}>{stats.byKind[kind] ?? 0}</p>
-                        <p className="font-gothic text-xs text-secondary">{KIND_STYLE[kind].label}</p>
-                        <p className="font-gothic text-xs text-tertiary">{KIND_STYLE[kind].quiz}</p>
-                    </div>
-                ))}
-                <div className="flex-1 min-w-[132px] rounded-lg border border-divider p-2">
-                    <p className="font-serif text-xl text-primary">{stats.families}</p>
-                    <p className="font-gothic text-xs text-secondary">Families</p>
-                    <p className="font-gothic text-xs text-tertiary">{stats.unfamilied} unfamilied</p>
+            {datasetDetails && (
+                <div className="flex flex-wrap gap-2 mb-8">
+                    {presentKinds.map(kind => (
+                        <StatTile key={kind} value={stats.byKind[kind] ?? 0} label={KIND_LABEL[kind].label} detail={KIND_LABEL[kind].quiz} />
+                    ))}
+                    <StatTile value={stats.families} label="Families" detail={`${stats.unfamilied} not in a family`} />
+                    <StatTile value={stats.variantGroups} label="Variant groups" detail={`${stats.variants} not introduced`} />
+                    <StatTile
+                        value={`${stats.byAxis.register ?? 0}/${stats.byAxis.constraint ?? 0}/${stats.byAxis.variant ?? 0}`}
+                        label="Register / constraint / variant"
+                    />
                 </div>
-                <div className="flex-1 min-w-[132px] rounded-lg border border-divider p-2">
-                    <p className="font-serif text-xl text-primary">{stats.variantGroups}</p>
-                    <p className="font-gothic text-xs text-secondary">Variant groups</p>
-                    <p className="font-gothic text-xs text-tertiary">{stats.variants} not introduced</p>
-                </div>
-                <div className="flex-1 min-w-[132px] rounded-lg border border-divider p-2">
-                    <p className="font-serif text-xl text-primary">
-                        {(stats.byAxis.register ?? 0)}/{(stats.byAxis.constraint ?? 0)}/{(stats.byAxis.variant ?? 0)}
-                    </p>
-                    <p className="font-gothic text-xs text-secondary">Register / constraint / variant</p>
-                </div>
-            </div>
+            )}
 
-            {/* Controls */}
-            <div className="rounded-lg border border-divider bg-feedback-background p-3 mb-6 space-y-3">
+            <div className="space-y-3 mb-8">
                 <input
                     type="text"
                     value={query}
                     onChange={e => setQuery(e.target.value)}
-                    placeholder="Search title, romaji, id, explanation, usage note, family, formation"
-                    className="w-full bg-surface border border-divider rounded px-3 py-2 text-sm font-gothic text-primary placeholder:text-input-placeholder outline-none focus:border-accent"
+                    placeholder="Search title, romaji, explanation or formation"
+                    aria-label="Search grammar points"
+                    className="w-full bg-surface border border-divider rounded-md px-3 py-2 text-base md:text-sm font-sans text-primary placeholder:text-input-placeholder outline-none focus:border-accent"
                 />
 
-                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-2">
-                    <div className="flex flex-wrap items-center gap-1">
-                        <span className="type-label mr-1">Level</span>
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+                    <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Level">
                         {LEVELS.map(level => (
                             <FilterToggle key={level} active={levels.has(level)} onClick={() => toggle(levels, level, setLevels)}>
                                 N{level}
@@ -360,75 +275,92 @@ export function GrammarBrowseScreen() {
                         ))}
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-1">
-                        <span className="type-label mr-1">Quiz</span>
-                        {presentKinds.map(kind => (
-                            <FilterToggle
-                                key={kind}
-                                active={kinds.has(kind)}
-                                onClick={() => toggle(kinds, kind, setKinds)}
-                            >
-                                {KIND_STYLE[kind].label}
+                    <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Status">
+                        {STATUSES.map(s => (
+                            <FilterToggle key={s} active={status === s} onClick={() => setStatus(s)}>
+                                {s === 'all' ? 'All' : STATUS_LABEL[s]}
                             </FilterToggle>
                         ))}
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-1">
-                        <span className="type-label mr-1">Family</span>
+                    <div className="flex flex-wrap items-center gap-2 md:ml-auto">
+                        <select
+                            value={sort}
+                            onChange={e => setSort(SORTS.find(option => option === e.target.value) ?? 'teaching')}
+                            aria-label="Sort"
+                            className="h-8 px-2 border border-divider rounded-md text-sm bg-surface text-primary focus:outline-none focus:border-accent"
+                        >
+                            {SORTS.map(option => <option key={option} value={option}>{GRAMMAR_SORT_LABEL[option]}</option>)}
+                        </select>
+                        <div className="flex items-center gap-1.5" role="group" aria-label="Group by">
+                            <FilterToggle active={group === 'level'} onClick={() => setGroup('level')}>Level</FilterToggle>
+                            <FilterToggle active={group === 'family'} onClick={() => setGroup('family')}>Family</FilterToggle>
+                        </div>
+                        <FilterToggle active={datasetDetails} onClick={() => setDatasetDetails(d => !d)}>Dataset details</FilterToggle>
+                    </div>
+                </div>
+
+                {datasetDetails && (
+                    <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Dataset filters">
+                        {presentKinds.map(kind => (
+                            <FilterToggle key={kind} active={kinds.has(kind)} onClick={() => toggle(kinds, kind, setKinds)}>
+                                {KIND_LABEL[kind].label}
+                            </FilterToggle>
+                        ))}
                         {(Object.keys(AXIS_LABEL) as GrammarAxis[]).map(axis => (
                             <FilterToggle key={axis} active={axes.has(axis)} onClick={() => toggle(axes, axis, setAxes)}>
-                                {AXIS_LABEL[axis].label}
+                                {AXIS_LABEL[axis]}
                             </FilterToggle>
                         ))}
                         <FilterToggle active={onlyVariants} onClick={() => setOnlyVariants(v => !v)}>Realization variants</FilterToggle>
                         <FilterToggle active={onlyFamilied} onClick={() => setOnlyFamilied(v => !v)}>In a family</FilterToggle>
                     </div>
+                )}
 
-                    <div className="flex flex-wrap items-center gap-1">
-                        <span className="type-label mr-1">Group</span>
-                        <FilterToggle active={group === 'level'} onClick={() => setGroup('level')}>JLPT level</FilterToggle>
-                        <FilterToggle active={group === 'family'} onClick={() => setGroup('family')}>Family</FilterToggle>
-                    </div>
-                </div>
-
-                <p className="font-gothic text-xs text-tertiary">
-                    {filtered.length} of {stats.points} points
-                    {(levels.size || kinds.size || axes.size || onlyVariants || onlyFamilied || query) ? (
+                <p className="type-meta">
+                    {filtered.length.toLocaleString('en-US')} points
+                    {hasFilters && (
                         <button
                             type="button"
-                            onClick={() => { setQuery(''); setLevels(new Set()); setKinds(new Set()); setAxes(new Set()); setOnlyVariants(false); setOnlyFamilied(false); }}
-                            className="ml-2 text-accent hover:underline"
+                            onClick={() => {
+                                setQuery(''); setLevels(new Set()); setStatus('all');
+                                setKinds(new Set()); setAxes(new Set()); setOnlyVariants(false); setOnlyFamilied(false);
+                            }}
+                            className="ml-3 text-accent hover:underline cursor-pointer"
                         >
                             Clear filters
                         </button>
-                    ) : null}
+                    )}
                 </p>
             </div>
 
             {groups.length === 0 && (
-                <p className="font-gothic text-sm text-secondary">Nothing matches those filters.</p>
+                <p className="type-support">Nothing matches those filters.</p>
             )}
 
-            {groups.map(g => (
-                <section key={g.key} className="mb-8">
-                    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-divider pb-1 mb-3">
-                        <h2 className="font-serif text-lg text-primary">{g.title}</h2>
-                        <span className="font-gothic text-xs text-tertiary">{g.subtitle}</span>
-                        {group === 'family' && familiesWithLessons.has(g.key) && (
-                            <Link
-                                to={`/grammar/family/${g.key}`}
-                                className="inline-flex items-center gap-1 text-xs font-gothic text-accent hover:underline"
-                            >
-                                Compare when to use each <ArrowRight size={12} />
-                            </Link>
-                        )}
-                        <span className="font-gothic text-xs text-tertiary ml-auto">{g.rows.length}</span>
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        {g.rows.map(row => <PointCard key={row.id} row={row} />)}
-                    </div>
-                </section>
-            ))}
+            <div className="space-y-10">
+                {groups.map(g => (
+                    <section key={g.key}>
+                        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 mb-3">
+                            <h2 className="type-section">{g.title}</h2>
+                            {g.subtitle && <span className="type-meta">{g.subtitle}</span>}
+                            {group === 'family' && familiesWithLessons.has(g.key) && (
+                                <Link
+                                    to={`/grammar/family/${g.key}`}
+                                    className="inline-flex items-center gap-1 font-sans text-sm text-accent hover:underline"
+                                >
+                                    Compare when to use each <ArrowRight size={14} aria-hidden="true" />
+                                </Link>
+                            )}
+                        </div>
+                        <div className="flex flex-col">
+                            {g.rows.map(row => (
+                                <PointRow key={row.id} row={row} progress={progressById.get(row.id)} datasetDetails={datasetDetails} />
+                            ))}
+                        </div>
+                    </section>
+                ))}
+            </div>
         </Page>
     );
 }

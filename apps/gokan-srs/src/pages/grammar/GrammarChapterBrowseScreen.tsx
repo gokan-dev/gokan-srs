@@ -1,42 +1,40 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import { ChevronDown } from "lucide-react";
 import type { GrammarBrowseIndex, GrammarBrowseRow, GrammarTeachingOrder } from "@gokan/dataset-schema";
 import { GrammarService } from "../../services/grammar.service";
 import { useQuiz } from "../../context/useQuiz";
-import { JlptChip } from "../../components/JlptChip";
 import { ChapterProgressBar } from "../../components/ChapterProgressBar";
 import { computeGrammarChapterProgress } from "../../context/quiz/grammarSelectors";
 import { Page } from "../../components/Page";
-import { PageHeader } from "../../components/PageHeader";
 import { StatusDot } from "../../components/StatusDot";
-import { grammarLearningStatus, type LearningStatus } from "../../utils/learningStatus.utils";
+import { ListRow } from "../../components/ui/ListRow";
+import { grammarLearningStatus } from "../../utils/learningStatus.utils";
+import { groupChaptersByLevel } from "../../utils/chapterProgress.utils";
+import { GrammarHomeHeader } from "./GrammarHomeHeader";
 
 /**
- * Route /grammar/chapters (issue #58): every chapter of the authored teaching
- * order, in order, each expandable to its member points. This is the
- * curriculum a learner might reasonably want to see in full - 151 chapters is
- * too many to browse any other way, and the existing `/grammar/browse` page
- * groups by JLPT level or family, neither of which is "the order I will
- * actually meet these in".
+ * Route /grammar/chapters, the Grammar home's Curriculum tab (issue #58): every
+ * chapter of the authored teaching order under level headings, each expandable
+ * to its points.
  *
- * A chapter's own three-way progress bar reuses `computeGrammarChapterProgress`
- * / `ChapterProgressBar`, the same pair the Main hub's grammar card and the
- * Stats chapter-coverage chart use - one definition of "how much of this
- * chapter is done" everywhere it is shown.
+ * It opens on the learner's current chapter (the same one the hub's grammar
+ * card names), expanded and scrolled into view; `?chapter=<id>` (from a grammar
+ * point's locator, or a direct link) overrides it.
  *
- * `?chapter=<id>` (from `GrammarDetailScreen`'s locator, or a direct link)
- * auto-expands and scrolls to that one chapter on load.
+ * A chapter's progress bar reuses `computeGrammarChapterProgress` /
+ * `ChapterProgressBar`, the same pair the hub's grammar card uses: one
+ * definition of "how much of this chapter is done" everywhere it is shown.
  */
 export function GrammarChapterBrowseScreen() {
-    const { state } = useQuiz();
+    const { state, grammarHubChapter } = useQuiz();
     const [searchParams] = useSearchParams();
     const [order, setOrder] = useState<GrammarTeachingOrder | null>(null);
     const [browseIndex, setBrowseIndex] = useState<GrammarBrowseIndex | null>(null);
     const [failed, setFailed] = useState(false);
     const [query, setQuery] = useState('');
     const [expanded, setExpanded] = useState<Set<string>>(new Set());
-    const chapterRefs = useRef(new Map<string, HTMLDivElement>());
+    const chapterRefs = useRef(new Map<string, HTMLElement>());
     const scrolledToTarget = useRef(false);
 
     useEffect(() => {
@@ -57,24 +55,17 @@ export function GrammarChapterBrowseScreen() {
 
     const grammarQueue = state.progress?.grammarQueue ?? [];
 
-    const pointStatus = (id: string): LearningStatus =>
-        grammarLearningStatus(grammarQueue.find(item => item.grammarId === id));
+    const currentChapterId = grammarHubChapter && grammarHubChapter.status !== 'complete' ? grammarHubChapter.chapterId : null;
+    const targetChapterId = searchParams.get('chapter') ?? currentChapterId;
 
-    // Deep-link target: expand it once loaded and scroll it into view. Only
-    // ever applied once per mount (`scrolledToTarget`), so re-navigating with
-    // the same param while already on the page (e.g. clicking the same link
-    // twice) never fights the user's own manual expand/collapse afterward.
-    const targetChapterId = searchParams.get('chapter');
+    // Expand the target once loaded and scroll it into view. Applied once per
+    // mount (`scrolledToTarget`), so it never fights the learner's own expand and
+    // collapse afterwards. The ref sits on the chapter's outer element, which is
+    // always rendered, so scrolling works before the expand re-render lands.
     useEffect(() => {
         if (!order || !targetChapterId || scrolledToTarget.current) return;
         if (!order.chapters.some(c => c.id === targetChapterId)) return;
         scrolledToTarget.current = true;
-        // Both the expand and the scroll happen inside the animation-frame
-        // callback rather than synchronously in the effect body (the lint
-        // rule against that exists because it can cascade renders). Scrolling
-        // works immediately even before the expand re-render lands, since the
-        // ref sits on the chapter's outer container, which is always rendered
-        // - only the point list inside it is conditional on `isOpen`.
         requestAnimationFrame(() => {
             setExpanded(prev => new Set(prev).add(targetChapterId));
             chapterRefs.current.get(targetChapterId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -89,113 +80,122 @@ export function GrammarChapterBrowseScreen() {
         });
     };
 
-    const filteredChapters = useMemo(() => {
+    const levelGroups = useMemo(() => {
         if (!order) return [];
         const q = query.trim().toLowerCase();
-        if (!q) return order.chapters;
-        return order.chapters.filter(chapter =>
-            chapter.title.toLowerCase().includes(q)
-            || chapter.summary.toLowerCase().includes(q)
-            || chapter.id.toLowerCase().includes(q)
-        );
+        return groupChaptersByLevel(order.chapters)
+            .map(group => ({
+                ...group,
+                chapters: q
+                    ? group.chapters.filter(({ chapter }) =>
+                        chapter.title.toLowerCase().includes(q) || chapter.summary.toLowerCase().includes(q))
+                    : group.chapters,
+            }))
+            .filter(group => group.chapters.length > 0);
     }, [order, query]);
 
     if (failed) {
         return (
-            <div className="w-full max-w-4xl mx-auto px-4 py-8">
-                <p className="text-secondary font-gothic">Could not load the grammar curriculum.</p>
-            </div>
+            <Page width="wide">
+                <GrammarHomeHeader stats={null} />
+                <p className="type-support">Could not load the grammar curriculum.</p>
+            </Page>
         );
     }
 
     if (!order || !browseIndex) {
         return (
-            <div className="w-full max-w-4xl mx-auto px-4 py-8">
-                <p className="text-secondary font-gothic">Loading curriculum...</p>
-            </div>
+            <Page width="wide">
+                <GrammarHomeHeader stats={null} />
+                <p className="type-support">Loading the curriculum...</p>
+            </Page>
         );
     }
 
     return (
         <Page width="wide">
-            <PageHeader
-                title="Grammar curriculum"
-                subtitle={`${order.chapters.length} chapters, ${order.order.length} points, in teaching order`}
-                parentPath="/"
-                className="mb-4"
-            />
+            <GrammarHomeHeader stats={browseIndex.stats} />
 
             <input
                 type="text"
                 value={query}
                 onChange={e => setQuery(e.target.value)}
                 placeholder="Search chapter title or summary"
-                className="w-full bg-surface border border-divider rounded px-3 py-2 text-sm font-gothic text-primary placeholder:text-input-placeholder outline-none focus:border-accent mb-6"
+                aria-label="Search chapters"
+                className="w-full bg-surface border border-divider rounded-md px-3 py-2 text-base md:text-sm font-sans text-primary placeholder:text-input-placeholder outline-none focus:border-accent mb-8"
             />
 
-            {filteredChapters.length === 0 && (
-                <p className="font-gothic text-sm text-secondary">No chapters match that search.</p>
+            {levelGroups.length === 0 && (
+                <p className="type-support">No chapters match that search.</p>
             )}
 
-            <div className="flex flex-col gap-2">
-                {filteredChapters.map(chapter => {
-                    const index = order.chapters.indexOf(chapter);
-                    const isOpen = expanded.has(chapter.id);
-                    const counts = computeGrammarChapterProgress(chapter, grammarQueue);
+            <div className="space-y-10">
+                {levelGroups.map((group, groupIndex) => (
+                    <section key={`${group.level}-${groupIndex}`}>
+                        <h2 className="type-section mb-4">N{group.level}</h2>
+                        <div className="flex flex-col divide-y divide-divider border-y border-divider">
+                            {group.chapters.map(({ chapter, number }) => {
+                                const isOpen = expanded.has(chapter.id);
+                                const isCurrent = chapter.id === currentChapterId;
+                                const counts = computeGrammarChapterProgress(chapter, grammarQueue);
 
-                    return (
-                        <div
-                            key={chapter.id}
-                            ref={el => { if (el) chapterRefs.current.set(chapter.id, el); }}
-                            className={`rounded-lg border bg-surface transition-colors ${chapter.id === targetChapterId ? 'border-accent' : 'border-divider'}`}
-                        >
-                            <button
-                                type="button"
-                                onClick={() => toggleExpanded(chapter.id)}
-                                className="w-full text-left p-3 flex items-start gap-3"
-                            >
-                                {isOpen
-                                    ? <ChevronDown size={16} className="mt-1 shrink-0 text-tertiary" />
-                                    : <ChevronRight size={16} className="mt-1 shrink-0 text-tertiary" />}
-                                <div className="min-w-0 flex-1">
-                                    <div className="flex items-baseline gap-2 flex-wrap">
-                                        <span className="font-gothic text-xs text-tertiary">Chapter {index + 1}</span>
-                                        <JlptChip level={chapter.jlptLevel} />
-                                        <h2 className="font-serif text-base text-primary truncate">{chapter.title}</h2>
-                                    </div>
-                                    <p className="font-serif text-sm text-secondary leading-snug mt-0.5">
-                                        {chapter.summary}
-                                    </p>
-                                    <div className="mt-2 max-w-sm">
-                                        <ChapterProgressBar counts={counts} />
-                                    </div>
-                                </div>
-                            </button>
+                                return (
+                                    <div
+                                        key={chapter.id}
+                                        ref={el => { if (el) chapterRefs.current.set(chapter.id, el); }}
+                                        className="scroll-mt-4"
+                                    >
+                                        <button
+                                            type="button"
+                                            onClick={() => toggleExpanded(chapter.id)}
+                                            aria-expanded={isOpen}
+                                            className="w-full text-left py-4 px-2 flex items-start gap-3 rounded-md hover:bg-surface-hover transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                                        >
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="type-meta">Chapter {number}</span>
+                                                    {isCurrent && (
+                                                        <span className="rounded-md border border-accent text-accent font-sans text-xs px-1.5 py-0.5">
+                                                            Current
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <h3 className="type-subsection mt-0.5">{chapter.title}</h3>
+                                                <p className="type-support line-clamp-2 mt-0.5">{chapter.summary}</p>
+                                                <div className="mt-2 max-w-md">
+                                                    <ChapterProgressBar counts={counts} />
+                                                </div>
+                                            </div>
+                                            <ChevronDown
+                                                size={16}
+                                                aria-hidden="true"
+                                                className={`mt-1 shrink-0 text-tertiary transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+                                            />
+                                        </button>
 
-                            {isOpen && (
-                                <div className="border-t border-divider p-3 grid gap-1.5 sm:grid-cols-2">
-                                    {chapter.points.map(id => {
-                                        const row = rowById.get(id);
-                                        const status = pointStatus(id);
-                                        return (
-                                            <Link
-                                                key={id}
-                                                to={`/grammar/${id}`}
-                                                className="flex items-center gap-2 min-w-0 rounded px-2 py-1.5 hover:bg-surface-hover transition-colors"
-                                            >
-                                                <StatusDot status={status} label={null} />
-                                                <span className="font-mincho text-sm text-primary truncate">
-                                                    {row?.title ?? id}
-                                                </span>
-                                                {row && <JlptChip level={row.jlptLevel} />}
-                                            </Link>
-                                        );
-                                    })}
-                                </div>
-                            )}
+                                        {isOpen && (
+                                            <div className="pb-3 grid gap-1 sm:grid-cols-2">
+                                                {chapter.points.map(id => (
+                                                    <ListRow key={id} to={`/grammar/${id}`} className="py-1.5">
+                                                        <span className="flex items-center gap-2 min-w-0">
+                                                            <StatusDot
+                                                                status={grammarLearningStatus(grammarQueue.find(item => item.grammarId === id))}
+                                                                label={null}
+                                                            />
+                                                            <span className="font-mincho text-base text-primary truncate">
+                                                                {rowById.get(id)?.title ?? id}
+                                                            </span>
+                                                        </span>
+                                                    </ListRow>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
-                    );
-                })}
+                    </section>
+                ))}
             </div>
         </Page>
     );

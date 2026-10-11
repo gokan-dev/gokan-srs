@@ -142,12 +142,16 @@ gokan-srs, everything else:
 
 - Data loading in components: `hooks/useAsyncData.ts`. Time: `hooks/useNow.ts`,
   `utils/time.utils.ts`. Debounce: `hooks/useDebouncedValue.ts`.
-- Lists and stats: `components/SmartList.tsx` (+ `utils/smartList.utils.ts`),
-  `components/ui/Pagination.tsx`, `pages/stats/components/CoverageChart.tsx` and
+- Page frame: `components/Page.tsx` (the two widths), `components/PageHeader.tsx` (title,
+  Back, actions), `components/ui/TabNav.tsx` (route tabs), `components/nav/` (header, tab bar,
+  footer), destinations in `utils/navigation.utils.ts`.
+- Lists and stats: `components/ui/ListRow.tsx` rows, `components/WordStudyStatus.tsx` (a word's
+  status, or Learn), `utils/learningStatus.utils.ts` (New / Learning / Mastered for a word or a
+  grammar point), `components/ui/Pagination.tsx`, `pages/stats/components/CoverageChart.tsx` and
   `utils/coverage.utils.ts`, `utils/activity.utils.ts`, `utils/winRate.utils.ts`.
 - Detail pages: `components/detail/` (`DetailCard`, `DetailField`, `DetailErrorScreen`,
   `SrsStatsCard`), `components/RelatedEntriesCard.tsx`, `components/SRSHistoryGraph.tsx`,
-  `components/ProgressCard.tsx`, `components/InteractiveSentence.tsx`,
+  `components/InteractiveSentence.tsx`,
   `pages/grammar/GrammarExampleList.tsx`.
 - Settings controls: `components/ui/SettingToggle.tsx`, `SettingSlider.tsx`, `components/OptionGrid.tsx`,
   `components/LearningOrderPicker.tsx`, `components/QuizSettingsMenu.tsx`.
