@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { conjugate, deinflect, wordClassOf, type FormLabel, type WordClass } from './conjugation';
+import { conjugate, deinflect, FORM_LABELS, wordClassOf, type FormLabel, type WordClass } from './conjugation';
 
 function formsOf(word: string, wordClass: WordClass): Partial<Record<FormLabel, string>> {
     return Object.fromEntries(conjugate(word, wordClass).map(({ label, form }) => [label, form]));
@@ -50,6 +50,10 @@ describe('conjugate', () => {
         expect(formsOf('かっこいい', 'i-adj-ii')).toMatchObject({ past: 'かっこよかった' });
         expect(formsOf('良い', 'i-adj-ii')).toMatchObject({ past: '良かった' });
         expect(formsOf('高い', 'i-adj').potential).toBeUndefined();
+    });
+
+    it('has a display label for every form it builds', () => {
+        for (const { label } of conjugate('食べる', 'ichidan')) expect(FORM_LABELS[label]).toBeTruthy();
     });
 
     it('returns nothing for a word that does not fit its class', () => {
