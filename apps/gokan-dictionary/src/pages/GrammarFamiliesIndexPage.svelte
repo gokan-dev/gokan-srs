@@ -16,8 +16,9 @@
   <div class="page-intro">
     <h1>Grammar families</h1>
     <p>
-      {families.length} groups of near-synonyms (でも, しかし and けれども; から and ので), each
-      with a page that compares its members.
+      {families.length} groups of near-synonyms (<span lang="ja">でも</span>, <span lang="ja">しかし</span> and
+      <span lang="ja">けれども</span>; <span lang="ja">から</span> and <span lang="ja">ので</span>), each with a page that
+      compares its members.
     </p>
   </div>
 

@@ -48,7 +48,9 @@
   display: block;
   line-height: 2;
 
+  // A title never breaks across lines.
   a {
+    display: inline-block;
     margin-right: 1em;
     font-family: $font-mincho;
     color: var(--primary);
