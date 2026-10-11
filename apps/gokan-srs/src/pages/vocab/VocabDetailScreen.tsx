@@ -10,7 +10,7 @@ import { VocabSentencesCard } from "./VocabSentencesCard";
 import { VocabRelationshipsCard } from "./VocabRelationshipsCard";
 import { JlptChip } from "../../components/JlptChip";
 import { THEME } from "../../commons/theme";
-import { isProductionActivated, isReadingRelevant, isVocabFullyMastered, vocabNextReviewAt } from "../../services/scheduling";
+import { isProductionActivated, isReadingRelevant, vocabNextReviewAt } from "../../services/scheduling";
 import { KanjiSpellingNote } from "../../components/KanjiSpellingNote";
 import { Page } from "../../components/Page";
 import { DetailErrorScreen } from "../../components/detail/DetailErrorScreen";
@@ -21,10 +21,8 @@ import { YourProgress, type ProgressDirection } from "../../components/detail/Yo
 import { Disclosure } from "../../components/ui/Disclosure";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { useNow } from "../../hooks/useNow";
-import { directionStatus, vocabLearningStatus } from "../../utils/learningStatus.utils";
-import { nextReviewPhrase } from "../../utils/time.utils";
+import { directionStatus, statusReviewPhrase, vocabLearningStatus } from "../../utils/learningStatus.utils";
 import { organizeSenses, type ShownSense } from "../../utils/senses.utils";
-import type { VocabProgress } from "../../models/vocabulary.model";
 
 const INITIAL_SENSES = 5;
 
@@ -55,6 +53,7 @@ export default function VocabDetailScreen() {
         { key: 'production', label: 'Production', strength: progress.production?.memoryStrength ?? 0, variant: 'production' as const, status: directionStatus(progress.production, productionActivated, now) },
     ] : [];
 
+    const status = vocabLearningStatus(progress, settings);
     const header = (
         <DetailHeader
             parentPath="/vocab"
@@ -63,8 +62,8 @@ export default function VocabDetailScreen() {
             actions={progress ? (
                 <LearnStatus
                     inStudy
-                    status={vocabLearningStatus(progress, settings)}
-                    nextReview={nextReviewOf(progress, settings, now)}
+                    status={status}
+                    nextReview={statusReviewPhrase(status, vocabNextReviewAt(progress, settings), now)}
                 />
             ) : (
                 <LearnStatus inStudy={false} learnLabel="Learn this word" onLearn={() => actions.saveVocabIntroChoice(vocab, 'learn')} />
@@ -163,12 +162,6 @@ export default function VocabDetailScreen() {
 }
 
 /** The earliest review among the word's activated directions, or "Mastered". */
-function nextReviewOf(progress: VocabProgress, settings: Parameters<typeof vocabNextReviewAt>[1], now: number): string {
-    if (isVocabFullyMastered(progress, settings)) return 'Mastered';
-    const due = vocabNextReviewAt(progress, settings);
-    return due ? nextReviewPhrase(due, now) : 'Not scheduled yet';
-}
-
 function MeaningsSection({ vocab }: { vocab: Vocabulary }) {
     // Expansion belongs to one word: keyed by it, so another word starts collapsed.
     const [expandedFor, setExpandedFor] = useState<string | null>(null);

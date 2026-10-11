@@ -19,7 +19,8 @@ import { DetailHeader } from "../../components/detail/DetailHeader";
 import { LearnStatus } from "../../components/detail/LearnStatus";
 import { YourProgress } from "../../components/detail/YourProgress";
 import { GrammarExampleList } from "./GrammarExampleList";
-import { directionStatus, grammarLearningStatus } from "../../utils/learningStatus.utils";
+import { directionStatus, grammarLearningStatus, statusReviewPhrase } from "../../utils/learningStatus.utils";
+import { grammarNextReviewAt } from "../../services/grammarScheduling";
 
 const KIND_LABELS: Record<NonNullable<GrammarPoint['kind']>, string> = {
     'construction': 'Construction',
@@ -81,7 +82,7 @@ export default function GrammarDetailScreen() {
                 <LearnStatus
                     inStudy
                     status={grammarLearningStatus(progress)}
-                    nextReview={entryStatus}
+                    nextReview={statusReviewPhrase(grammarLearningStatus(progress), grammarNextReviewAt(progress), now)}
                 />
             ) : (
                 <LearnStatus inStudy={false} learnLabel="Learn this grammar point" onLearn={() => grammarActions.saveGrammarIntroChoice(point, 'learn')} />

@@ -4,12 +4,14 @@ import { Button } from "../ui/Button";
 
 type LearnStatusProps =
     | { inStudy: false; learnLabel: string; onLearn: () => void }
-    | { inStudy: true; status: LearningStatus; nextReview: string };
+    | { inStudy: true; status: LearningStatus; nextReview: string | null };
 
 /**
  * A detail header's action area. Not in the learner's study yet: the page's one
- * primary button ("Learn this word"). In it: the status and when it is next
- * reviewed. The rings are in "Your progress" only, never repeated here.
+ * primary button ("Learn this word"). In it: the status and, on the same line,
+ * when it is next reviewed ("Learning · Due now"). `nextReview` is null when
+ * nothing follows (a mastered item with nothing scheduled), so the status word
+ * never appears twice. The rings are in "Your progress" only, never repeated here.
  */
 export function LearnStatus(props: LearnStatusProps) {
     if (!props.inStudy) {
@@ -21,9 +23,14 @@ export function LearnStatus(props: LearnStatusProps) {
         );
     }
     return (
-        <div className="flex flex-col items-start gap-1">
+        <p className="flex flex-wrap items-center gap-x-1.5 type-support">
             <StatusDot status={props.status} />
-            <span className="type-support">{props.nextReview}</span>
-        </div>
+            {props.nextReview !== null && (
+                <>
+                    <span aria-hidden="true">·</span>
+                    <span>{props.nextReview}</span>
+                </>
+            )}
+        </p>
     );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { STATUS_LABEL, directionStatus, grammarLearningStatus, vocabLearningStatus } from './learningStatus.utils';
+import { STATUS_LABEL, directionStatus, grammarLearningStatus, statusReviewPhrase, vocabLearningStatus } from './learningStatus.utils';
 import { grammarProgress, srsEntry, vocabProgress } from '../test/fixtures';
 import { CONSTANTS } from '../commons/constants';
 
@@ -52,5 +52,20 @@ describe('directionStatus', () => {
     it('says when the direction is next reviewed', () => {
         expect(directionStatus(srsEntry({ dueDate: new Date(now - 1) }), true, now)).toBe('Due now');
         expect(directionStatus(srsEntry({ dueDate: new Date(now + 2 * 86_400_000) }), true, now)).toBe('Next review in 2 days');
+    });
+});
+
+describe('statusReviewPhrase', () => {
+    const now = Date.UTC(2026, 3, 19, 12);
+
+    it('says when a learning item is next reviewed', () => {
+        expect(statusReviewPhrase('learning', new Date(now - 1), now)).toBe('Due now');
+        expect(statusReviewPhrase('learning', new Date(now + 3 * 86_400_000), now)).toBe('Next review in 3 days');
+        expect(statusReviewPhrase('learning', null, now)).toBe('Not scheduled yet');
+    });
+
+    it('never repeats the status of a mastered item', () => {
+        expect(statusReviewPhrase('mastered', null, now)).toBeNull();
+        expect(statusReviewPhrase('mastered', new Date(now + 3 * 86_400_000), now)).toBe('Next review in 3 days');
     });
 });

@@ -29,6 +29,17 @@ export function grammarLearningStatus(progress: Pick<GrammarProgress, 'entry' | 
 }
 
 /**
+ * What follows the status in a detail header ("Learning · Due now"), or null
+ * when nothing should: a mastered item with nothing scheduled shows only its
+ * status, never "Mastered" a second time. `due` comes from scheduling
+ * (`vocabNextReviewAt`, `grammarNextReviewAt`).
+ */
+export function statusReviewPhrase(status: LearningStatus, due: Date | null, now: number): string | null {
+    if (due) return nextReviewPhrase(due, now);
+    return status === 'mastered' ? null : 'Not scheduled yet';
+}
+
+/**
  * One direction's line in "Your progress": "Not started" until the direction is
  * activated (production starts lazily), "Mastered" once it is, otherwise when it
  * is next reviewed ("Due now", "Next review in 3 days").
