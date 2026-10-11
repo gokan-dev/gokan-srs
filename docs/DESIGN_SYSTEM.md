@@ -54,7 +54,10 @@ Rules that follow from the table:
 - **Answer colours** (Settings, Appearance; `UserSettings.answerColors`): "Green and
   red" (default) or "Blue and orange" for red-green colour blindness. Like dark mode, a
   class on the root element (`answer-colors-colorblind`, set by `useAnswerColors`)
-  overrides only `--feedback-correct` and `--feedback-incorrect`, in `index.css`.
+  points only `--feedback-correct` and `--feedback-incorrect` at the other pair
+  (`--answer-colorblind-*` instead of `--answer-default-*`, each defined per theme in
+  `index.css`). The same class on any element previews its pair there (the Settings
+  swatches use `answer-colors-default` / `answer-colors-colorblind`).
 - Mastery and review forecasts use the accent in steps (reading 100%, meaning 60%,
   production 35%), never a second hue.
 - No categorical hues: quiz kind (construction / inflection / lexical) is neutral text,
@@ -166,8 +169,21 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
   `actions` slot aligned right.
 - **`DetailHeader`**: the identity block of vocab, kanji and grammar pages, not inside a
   card: Back link, the subject as the title (`jp-display` for a word/kanji, mincho
-  `text-3xl md:text-4xl` for a grammar point), readings/romaji, neutral chips, an actions
-  area on the right.
+  `text-3xl md:text-4xl` for a grammar point), readings/romaji, neutral chips, and the
+  actions area. From `lg` the header uses the body's grid (12 columns, 8/4, `gap-10`), so
+  the actions start on the side column's left edge, left-aligned and top-aligned with the
+  headword; below `lg` they follow the readings. The actions hold only the status
+  (`StatusDot` plus the next review) or, before the item is studied, the one primary
+  "Learn this ..." button. No mastery rings: those, with their values, are only in "Your
+  progress".
+- **Session cards**: every card of a study session (each exercise, both intro cards, the
+  chapter review, the kanji unlock) is drawn in `QuizCardFrame`, which owns one width
+  (`w-full max-w-2xl`, on the animated wrapper too) and one padding, so a card's size
+  never depends on what it contains.
+- **Settings**: Account, Appearance (theme, answer colours), Review pacing, AI answer
+  checking, Activity settings, Danger zone. Activity settings holds one collapsed
+  `Disclosure` per activity (a `type-subsection` heading and a one-line description), so
+  they read as subordinate to the global settings.
 - **Desktop/tablet nav** (`md`+): logo, text links Study / Vocabulary / Grammar /
   Listening / Stats / Kanji, then search and Settings. Active link: ink text, 2px accent
   underline; inactive: secondary text, ink on hover.
