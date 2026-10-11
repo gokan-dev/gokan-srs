@@ -1,45 +1,67 @@
-// Pure builder behind the conjugation reference index (issue #58): grouping the 40
-// `kind: 'inflection'` points by their conjugation form. Kept out of prerender.ts and the
-// .svelte component for the same unit-testability reason as the other grammar*.ts helpers.
+// Pure builder behind the conjugation reference (/grammar/conjugations/): the inflection points
+// as one table per word type, a row per form with its pattern and one example. Kept out of
+// prerender.ts and the page component for the same unit-testability reason as the other
+// grammar*.ts helpers.
 
-import type { GrammarConjugationIndex, GrammarPoint } from '@gokan/dataset-schema';
+import type { ConjugationDrillItem, GrammarConjugationIndex, GrammarPoint } from '@gokan/dataset-schema';
 
-export interface ConjugationGroupPoint {
+export type ConjugationWordType = 'verb' | 'i-adjective' | 'na-adjective';
+
+export const WORD_TYPE_LABEL: Record<ConjugationWordType, string> = {
+    verb: 'Verbs',
+    'i-adjective': 'い-adjectives',
+    'na-adjective': 'な-adjectives',
+};
+
+export interface ConjugationRow {
+    /** The point teaching the form, linked from its row. */
     id: string;
-    title: string;
+    formLabel: string;
+    /** The point's title without a leading "Plain past:" label: "Verb た". */
+    pattern: string;
     jlptLevel: number;
-    itemCount: number;
+    example: Pick<ConjugationDrillItem, 'lemma' | 'target'> | null;
 }
 
-export interface ConjugationGroup {
-    form: string;
-    formLabel: string;
-    points: ConjugationGroupPoint[];
+export interface ConjugationTable {
+    wordType: ConjugationWordType;
+    rows: ConjugationRow[];
+}
+
+const WORD_TYPES: ConjugationWordType[] = ['verb', 'i-adjective', 'na-adjective'];
+
+function wordTypeOf(items: ConjugationDrillItem[]): ConjugationWordType {
+    if (items.length > 0 && items.every(item => item.wordClass === 'i-adjective')) return 'i-adjective';
+    if (items.length > 0 && items.every(item => item.wordClass === 'na-adjective')) return 'na-adjective';
+    return 'verb';
 }
 
 /**
- * One group per distinct `form` value (usually one point per form, but a form can be taught by
- * more than one point - e.g. split by word class). A point id with no matching `GrammarPoint`
- * is dropped rather than rendered with a blank title.
+ * One table per word type that has a form, verbs first; rows easiest level first, then by
+ * point id (the dataset numbers a level's paradigm in teaching order). A point id with no
+ * matching `GrammarPoint` is dropped rather than rendered with a blank title.
  */
-export function groupConjugationsByForm(
-    conjugations: GrammarConjugationIndex,
-    pointsById: Map<string, GrammarPoint>,
-): ConjugationGroup[] {
-    const byForm = new Map<string, ConjugationGroup>();
-
+export function conjugationTables(conjugations: GrammarConjugationIndex, pointsById: Map<string, GrammarPoint>): ConjugationTable[] {
+    const byType = new Map<ConjugationWordType, ConjugationRow[]>();
     for (const [pointId, entry] of Object.entries(conjugations)) {
         const point = pointsById.get(pointId);
         if (!point) continue;
-
-        const group = byForm.get(entry.form) ?? { form: entry.form, formLabel: entry.formLabel, points: [] };
-        group.points.push({ id: point.id, title: point.title, jlptLevel: point.jlptLevel, itemCount: entry.items.length });
-        byForm.set(entry.form, group);
+        const wordType = wordTypeOf(entry.items);
+        const rows = byType.get(wordType) ?? [];
+        const first = entry.items[0];
+        rows.push({
+            id: point.id,
+            formLabel: entry.formLabel,
+            pattern: point.title.replace(/^[^:：]+[:：]\s*/, ''),
+            jlptLevel: point.jlptLevel,
+            example: first ? { lemma: first.lemma, target: first.target } : null,
+        });
+        byType.set(wordType, rows);
     }
-
-    for (const group of byForm.values()) {
-        group.points.sort((a, b) => b.jlptLevel - a.jlptLevel || a.id.localeCompare(b.id));
-    }
-
-    return [...byForm.values()].sort((a, b) => a.formLabel.localeCompare(b.formLabel));
+    return WORD_TYPES
+        .filter(wordType => byType.has(wordType))
+        .map(wordType => ({
+            wordType,
+            rows: (byType.get(wordType) ?? []).sort((a, b) => b.jlptLevel - a.jlptLevel || a.id.localeCompare(b.id)),
+        }));
 }

@@ -22,8 +22,10 @@ export interface DocumentShellOptions {
     pageStylesheetHref?: string;
     /** Absolute href to the built search script, linked from every page (the header owns the box). */
     scriptHref?: string;
-    /** A second module script, used only by the grammar index for its interactive browser. */
+    /** A second module script, used only by the grammar index for its filter. */
     extraScriptHref?: string;
+    /** Keep the page out of search engines (the /search/ results page). */
+    noindex?: boolean;
     /** Optional schema.org JSON-LD object, serialized verbatim into a <script type="application/ld+json">. */
     structuredData?: object;
 }
@@ -35,6 +37,29 @@ export function escapeHtml(value: string): string {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
+}
+
+/**
+ * Svelte's server renderer brackets blocks with comment markers (<!--[-->, <!--]-->) that only
+ * hydration reads. These pages are never hydrated, so the markers are dropped: on a list of 600
+ * words they are a tenth of the page.
+ */
+export function stripHydrationMarkers(html: string): string {
+    return html.replace(/<!--[[\]!]*-->/g, '');
+}
+
+/**
+ * Opening tags of elements that carry the `jp` class but not lang="ja". Japanese text must be
+ * marked as Japanese, or screen readers read it with an English voice and some devices draw it
+ * with Chinese glyph shapes; prerender fails on any page this finds anything in.
+ */
+export function japaneseWithoutLang(html: string): string[] {
+    const found: string[] = [];
+    for (const tag of html.matchAll(/<[a-z][a-z0-9]*\b[^>]*>/g)) {
+        const classes = /\sclass="([^"]*)"/.exec(tag[0])?.[1].split(/\s+/) ?? [];
+        if (classes.includes('jp') && !/\slang="ja"/.test(tag[0])) found.push(tag[0]);
+    }
+    return found;
 }
 
 export function renderDocument(options: DocumentShellOptions): string {
@@ -49,7 +74,7 @@ export function renderDocument(options: DocumentShellOptions): string {
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>${title}</title>
 <meta name="description" content="${description}" />
-<link rel="canonical" href="${canonical}" />
+${options.noindex ? '<meta name="robots" content="noindex" />\n' : ''}<link rel="canonical" href="${canonical}" />
 <link rel="icon" type="image/svg+xml" href="${faviconPath()}" />
 <meta property="og:type" content="website" />
 <meta property="og:title" content="${title}" />
@@ -59,7 +84,7 @@ export function renderDocument(options: DocumentShellOptions): string {
 <link rel="stylesheet" href="${options.stylesheetHref}" />
 ${options.pageStylesheetHref ? `<link rel="stylesheet" href="${options.pageStylesheetHref}" />\n` : ''}${options.scriptHref ? `<script type="module" src="${options.scriptHref}"></script>\n` : ''}${options.extraScriptHref ? `<script type="module" src="${options.extraScriptHref}"></script>\n` : ''}${options.structuredData ? `<script type="application/ld+json">${JSON.stringify(options.structuredData)}</script>\n` : ''}</head>
 <body>
-${options.bodyHtml}
+${stripHydrationMarkers(options.bodyHtml)}
 </body>
 </html>
 `;

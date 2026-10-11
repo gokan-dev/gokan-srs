@@ -66,8 +66,8 @@ describe('buildChapterIndexRows', () => {
         const rows = buildChapterIndexRows(order, pointsById);
 
         expect(rows).toEqual([
-            { id: 'n5-c01', title: 'C1', summary: 's1', jlptLevel: 5, chapterNumber: 1, points: [{ id: 'n5-a', title: 'A', jlptLevel: 5 }, { id: 'n5-b', title: 'B', jlptLevel: 5 }] },
-            { id: 'n5-c02', title: 'C2', summary: 's2', jlptLevel: 5, chapterNumber: 2, points: [{ id: 'n5-c', title: 'C', jlptLevel: 5 }] },
+            { id: 'n5-c01', title: 'C1', summary: 's1', jlptLevel: 5, chapterNumber: 1, points: [{ id: 'n5-a', title: 'A', jlptLevel: 5, shortExplanation: 's' }, { id: 'n5-b', title: 'B', jlptLevel: 5, shortExplanation: 's' }] },
+            { id: 'n5-c02', title: 'C2', summary: 's2', jlptLevel: 5, chapterNumber: 2, points: [{ id: 'n5-c', title: 'C', jlptLevel: 5, shortExplanation: 's' }] },
         ]);
     });
 
@@ -77,6 +77,6 @@ describe('buildChapterIndexRows', () => {
 
         const rows = buildChapterIndexRows(order, pointsById);
 
-        expect(rows[0].points).toEqual([{ id: 'n5-a', title: 'A', jlptLevel: 5 }]);
+        expect(rows[0].points).toEqual([{ id: 'n5-a', title: 'A', jlptLevel: 5, shortExplanation: 's' }]);
     });
 });

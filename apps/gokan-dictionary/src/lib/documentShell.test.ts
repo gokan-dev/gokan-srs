@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { escapeHtml, renderDocument } from './documentShell';
+import { escapeHtml, japaneseWithoutLang, renderDocument, stripHydrationMarkers } from './documentShell';
 import { vocabPath, absoluteUrl } from './urls';
 
 describe('escapeHtml', () => {
@@ -77,7 +77,7 @@ describe('extraScriptHref', () => {
 
     it('links a second module script alongside the first', () => {
         // The grammar index is the only page with two scripts: the shared search box plus its
-        // own interactive browser. A regression here silently ships a static-only page.
+        // own filter. A regression here silently ships a page whose filter never appears.
         const html = renderDocument({ ...base, scriptHref: '/a.js', extraScriptHref: '/b.js' });
         expect(html).toContain('<script type="module" src="/a.js"></script>');
         expect(html).toContain('<script type="module" src="/b.js"></script>');
@@ -87,5 +87,36 @@ describe('extraScriptHref', () => {
         const html = renderDocument({ ...base, scriptHref: '/a.js' });
         expect(html).toContain('src="/a.js"');
         expect(html.match(/<script type="module"/g)).toHaveLength(1);
+    });
+});
+
+describe('noindex', () => {
+    const base = { title: 'Search', description: 'd', canonicalPath: '/dictionary/search/', bodyHtml: '', stylesheetHref: '/s.css' };
+
+    it('keeps a page out of search engines when asked', () => {
+        expect(renderDocument({ ...base, noindex: true })).toContain('<meta name="robots" content="noindex" />');
+        expect(renderDocument(base)).not.toContain('noindex');
+    });
+});
+
+describe('stripHydrationMarkers', () => {
+    it('drops Svelte block markers and keeps the markup', () => {
+        expect(stripHydrationMarkers('<ul><!--[--><li>a</li><!--[!--><li>b</li><!--]--><!----></ul>')).toBe('<ul><li>a</li><li>b</li></ul>');
+    });
+
+    it('is applied to the rendered body', () => {
+        const html = renderDocument({ title: 't', description: 'd', canonicalPath: '/', bodyHtml: '<p><!--[-->x<!--]--></p>', stylesheetHref: '/s.css' });
+        expect(html).toContain('<p>x</p>');
+    });
+});
+
+describe('japaneseWithoutLang', () => {
+    it('finds elements with the jp class that are not marked as Japanese', () => {
+        const html = '<span class="jp" lang="ja">語</span><a class="title jp" href="/">語</a><p class="jpx">x</p>';
+        expect(japaneseWithoutLang(html)).toEqual(['<a class="title jp" href="/">']);
+    });
+
+    it('finds nothing in a page where every jp element has lang="ja"', () => {
+        expect(japaneseWithoutLang('<h1 class="jp" lang="ja">食べる</h1>')).toEqual([]);
     });
 });
