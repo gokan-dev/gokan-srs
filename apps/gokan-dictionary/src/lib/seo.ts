@@ -160,7 +160,7 @@ export function grammarConjugationsIndexMeta(formCount: number, pointCount: numb
 export function kanjiIndexMeta(kanjiCount: number): PageMeta {
     return {
         title: `Kanji List by JLPT Level - ${SITE_NAME}`,
-        description: `All ${kanjiCount.toLocaleString()} kanji, grouped by JLPT level, each with its readings, KKLC step, and the vocabulary that uses it.`,
+        description: `All ${kanjiCount.toLocaleString()} kanji, grouped by JLPT level, each with its KKLC step and the vocabulary that uses it.`,
     };
 }
 
@@ -171,10 +171,27 @@ export function vocabIndexMeta(vocabCount: number): PageMeta {
     };
 }
 
-export function vocabJlptMeta(level: number, wordCount: number): PageMeta {
+/** A JLPT list page; pages after the first say which page they are, so their titles stay distinct. */
+export function vocabJlptMeta(level: number, wordCount: number, page = 1): PageMeta {
+    const pageLabel = page > 1 ? `, page ${page}` : '';
     return {
-        title: `JLPT N${level} Vocabulary List (${wordCount.toLocaleString()} words) - ${SITE_NAME}`,
-        description: `The complete JLPT N${level} vocabulary list: ${wordCount.toLocaleString()} words ordered by frequency, each with its reading, English meaning, and example sentences.`,
+        title: `JLPT N${level} Vocabulary List (${wordCount.toLocaleString('en')} words)${pageLabel} - ${SITE_NAME}`,
+        description: `The complete JLPT N${level} vocabulary list${pageLabel}: ${wordCount.toLocaleString('en')} words ordered by frequency, each with its reading, English meaning, and example sentences.`,
+    };
+}
+
+export function grammarFamiliesIndexMeta(familyCount: number): PageMeta {
+    return {
+        title: `Japanese Grammar Families: Near-Synonyms Compared - ${SITE_NAME}`,
+        description: `${familyCount} groups of Japanese grammar near-synonyms, such as でも, しかし and けれども, each compared on its own page.`,
+    };
+}
+
+/** The search results page: kept out of search engines (noindex), but it still needs a title. */
+export function searchMeta(): PageMeta {
+    return {
+        title: `Search - ${SITE_NAME}`,
+        description: 'Search the Japanese dictionary in kanji, kana, romaji or English.',
     };
 }
 

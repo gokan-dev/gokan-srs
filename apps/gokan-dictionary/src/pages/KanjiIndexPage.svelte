@@ -11,30 +11,33 @@
   let { groups }: Props = $props();
 
   const total = $derived(groups.reduce((sum, group) => sum + group.kanji.length, 0));
+  const idOf = (level: number | null) => (level === null ? 'outside-jlpt' : `n${level}`);
+  const labelOf = (level: number | null) => (level === null ? 'Outside JLPT' : `JLPT N${level}`);
 </script>
 
-<PageLayout trail={[{ label: 'Kanji' }]}>
-
-  <div class="hero">
-    <h1>Kanji Index</h1>
-    <p>All {total.toLocaleString()} kanji in the dictionary, grouped by JLPT level.</p>
+<PageLayout trail={[{ label: 'Kanji' }]} section="kanji" wide>
+  <div class="page-intro">
+    <h1>Kanji</h1>
+    <p>All {total.toLocaleString('en')} kanji in the dictionary, grouped by JLPT level.</p>
   </div>
 
+  <nav class="level-nav" aria-label="Levels">
+    {#each groups as group (group.level)}
+      <a href={`#${idOf(group.level)}`}>{group.level === null ? 'Outside JLPT' : `N${group.level}`}</a>
+    {/each}
+  </nav>
+
   <!--
-    This page is why kanji pages are reachable at all. Before it existed they were linked only
-    from the vocab pages that happen to contain them, which left the rarer ones effectively
-    orphaned (sitemap-listed, linked from nowhere) - the same problem the grammar index solves
-    for grammar points. 2,300 links on one page is well within what a crawler handles.
+    This page is why kanji pages are reachable at all: before it they were linked only from the
+    words that contain them, which left the rarer ones orphaned. Each tile's accessible name
+    is "学, JLPT N5": the level is visually hidden, the character read in Japanese.
   -->
   {#each groups as group (group.level)}
-    <section class="card">
-      <h2>
-        {group.level === null ? 'Outside the JLPT lists' : `JLPT N${group.level}`}
-        <span class="muted">({group.kanji.length})</span>
-      </h2>
+    <section class="section" id={idOf(group.level)}>
+      <h2>{labelOf(group.level)} <span class="meta">{group.kanji.length}</span></h2>
       <ul class="glyph-grid">
         {#each group.kanji as kanji (kanji.character)}
-          <li><a class="glyph-tile jp" href={kanjiPath(kanji.character)} title={`Kanji ${kanji.character}`}>{kanji.character}</a></li>
+          <li><a href={kanjiPath(kanji.character)}><span lang="ja">{kanji.character}</span><span class="visually-hidden">, {labelOf(group.level)}</span></a></li>
         {/each}
       </ul>
     </section>

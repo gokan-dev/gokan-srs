@@ -4,17 +4,15 @@
 
 .kanji-glyph {
   font-family: $font-mincho;
-  line-height: 1;
-
-  &--lg {
-    font-size: 4rem;
-  }
+  font-size: 4.5rem;
+  font-weight: 400;
+  line-height: 1.1;
 }
 
-.stat-row {
-  display: flex;
-  gap: $space-4;
-  color: var(--secondary);
-  font-size: $text-base;
-  flex-wrap: wrap;
+.entry-head .meta {
+  margin: $space-1 0 0;
+}
+
+.meta-sep {
+  margin: 0 0.5em;
 }

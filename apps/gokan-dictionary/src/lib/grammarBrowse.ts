@@ -41,3 +41,12 @@ export function groupByLevel<T extends { jlptLevel: number }>(items: T[]): Level
         .map(level => ({ level, items: items.filter(item => item.jlptLevel === level) }))
         .filter(group => group.items.length > 0);
 }
+
+/** A point's register, as its chip says it. */
+export const FORMALITY_LABELS: Record<NonNullable<GrammarPoint['formalityLevel']>, string> = {
+    casual: 'Casual',
+    neutral: 'Neutral',
+    polite: 'Polite',
+    formal: 'Formal',
+    'very-formal-literary': 'Very formal, literary',
+};

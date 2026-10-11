@@ -1,155 +1,43 @@
-// Grammar index page (GrammarIndexPage.svelte + the GrammarBrowser mounted over it) only.
-//
-// Both the server-rendered fallback list and the interactive browser render .point-card, so the
-// card styles are shared between them here rather than duplicated per view.
+// Grammar index page (GrammarIndexPage.svelte) only: the filter over its static rows.
 
 @use '../tokens' as *;
 
-.browser-controls {
-  margin-bottom: $space-3;
+.grammar-filter {
   display: flex;
-  flex-direction: column;
-  gap: $space-2;
-}
-
-.browser-search {
-  border-radius: $radius-lg;
-  font-size: 1rem;
-  padding: 0.625rem 0.875rem;
-}
-
-.filter-row {
-  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: $space-2;
-  flex-wrap: wrap;
+  gap: $space-1 $space-2;
+  margin-bottom: $space-3;
 }
 
-.filter-label {
-  color: var(--secondary);
-  font-size: $text-sm;
-  min-width: 4.5rem;
-}
-
-.toggle-group {
-  display: flex;
-  gap: 0.375rem;
-  flex-wrap: wrap;
-}
-
-.toggle {
+.grammar-filter-input {
+  flex: 1 1 16rem;
+  min-width: 0;
+  min-height: $target;
+  padding: 0 $space-2;
   font: inherit;
-  font-size: $text-sm;
-  padding: 0.25rem 0.625rem;
+  color: var(--primary);
+  background-color: var(--surface);
   border: 1px solid var(--divider);
-  border-radius: $radius-pill;
-  background: var(--surface);
-  color: var(--secondary);
-  cursor: pointer;
+  border-radius: $radius;
 
-  &:hover {
-    background: var(--surface-hover);
+  &:focus {
+    border-color: var(--accent);
   }
+}
 
-  &.is-on {
-    background: var(--accent);
+.grammar-filter-levels {
+  display: flex;
+  gap: $space-half;
+
+  .button[aria-pressed="true"] {
+    background-color: var(--accent);
     border-color: var(--accent);
     color: var(--accent-contrast);
   }
 }
 
-.browser-count {
-  color: var(--secondary);
-  font-size: $text-base;
+.grammar-filter .meta {
+  flex-basis: 100%;
   margin: 0;
-}
-
-.link-button {
-  font: inherit;
-  font-size: $text-base;
-  background: none;
-  border: none;
-  padding: 0;
-  margin-left: $space-1;
-  color: var(--accent);
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-// Cards rather than list rows: a grammar point needs its pattern and a line of explanation to be
-// distinguishable from its near-synonyms, which a one-line row cannot carry.
-.point-grid {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
-  gap: $space-2;
-}
-
-.point-card {
-  @include surface($space-2);
-  @include interactive-surface;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  height: 100%;
-  color: var(--primary);
-}
-
-.point-card-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: $space-1;
-}
-
-.point-card-title {
-  font-family: $font-mincho;
-  font-size: $text-lg;
-  line-height: 1.4;
-}
-
-.point-card-romaji,
-.point-card-formation {
-  color: var(--secondary);
-  font-size: $text-xs;
-}
-
-.point-card-explanation {
-  font-family: $font-serif;
-  font-size: $text-base;
-  line-height: 1.45;
-}
-
-.point-card-note {
-  color: var(--secondary);
-  font-size: $text-xs;
-  font-style: italic;
-}
-
-.point-card-chips {
-  display: flex;
-  gap: 0.25rem;
-  flex-wrap: wrap;
-  margin-top: 0.125rem;
-}
-
-// A family group's link to its own comparison page (issue #58). Reset the same way
-// `.card > h2 .muted` resets its aside span - the heading's uppercase/letter-spacing styling
-// reads as shouting on a normal inline link.
-.family-group-link {
-  text-transform: none;
-  letter-spacing: normal;
-  font-weight: 400;
-  font-size: $text-sm;
-  margin-left: $space-1;
-}
-
-.chip-sm {
-  font-size: 0.6875rem;
-  padding: 0.0625rem 0.375rem;
-  border: 1px solid var(--divider);
-  border-radius: $radius-sm;
-  color: var(--secondary);
 }

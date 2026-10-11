@@ -4,45 +4,53 @@
 // Anything used by exactly one page belongs in styles/pages/<page>.scss instead, so a change
 // there does not alter the bytes of pages that never render it. That split is not only tidiness:
 // the stylesheet's content hash is embedded in every page's <link>, so a rule added here changes
-// all ~38k pages and re-uploads the whole site (see CLAUDE.md's Deployment section).
+// all ~39k pages and re-uploads the whole site (see AGENTS.md and ARCHITECTURE.md, Deployment).
 //
 // Rules earn a place here by being used on more than one page. If something is only shared
 // because two pages happened to copy it, fix the duplication rather than promoting it.
 
 @use 'tokens' as *;
 
-:root {
-  --background: #f6f4ef;
-  --surface: #ffffff;
-  --surface-hover: #efebe2;
-  --primary: #1f2328;
-  --secondary: #5f6368;
-  --divider: #d8d6d0;
-  --accent: #2e3a59;
-  --accent-hover: #22293f;
-  --accent-contrast: #ffffff;
+// The one web font: the serif's titles, Latin only (Japanese uses system fonts marked lang="ja").
+@font-face {
+  font-family: "Source Serif 4";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("../fonts/source-serif-4-600-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+20AC, U+2122, U+2212;
+}
 
-  // Mirrored from the Sass type tokens so components can reference them where a runtime value
-  // reads better; the Sass variables remain the source used inside this stylesheet.
-  --font-serif: #{$font-serif};
-  --font-sans: #{$font-sans};
-  --font-mincho: #{$font-mincho};
-  --font-gothic: #{$font-gothic};
+// The same values as gokan-srs's index.css: one visual language across the two apps.
+:root {
+  --background: #F5F0E8;
+  --surface: #FFFFFF;
+  --surface-hover: #F3EEE6;
+  --primary: #1a1a2e;
+  --secondary: #5C5A55;
+  --tertiary: #736B5E;
+  --divider: #E8E0D0;
+  --accent: #3D5A80;
+  --accent-hover: #2A405D;
+  --accent-contrast: #FFFFFF;
+  --error: #8A3A2E;
 
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #14130f;
-    --surface: #1c1b18;
-    --surface-hover: #2c2a26;
-    --primary: #e8e4dc;
-    --secondary: #a6a196;
-    --divider: #34322c;
-    --accent: #7c8db5;
-    --accent-hover: #97a6c7;
-    --accent-contrast: #14130f;
+    --background: #12110F;
+    --surface: #1C1B18;
+    --surface-hover: #24221E;
+    --primary: #E8E4DC;
+    --secondary: #A8A29A;
+    --tertiary: #918B83;
+    --divider: #2C2A26;
+    --accent: #6B8FA8;
+    --accent-hover: #8AB4D4;
+    --accent-contrast: #12110F;
+    --error: #E0796D;
 
     color-scheme: dark;
   }
@@ -61,18 +69,30 @@ body {
   background-color: var(--background);
   color: var(--primary);
   font-family: $font-sans;
-  line-height: 1.5;
-  transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+  font-size: $text-base;
+  line-height: 1.6;
+}
+
+// Japanese text is always marked lang="ja" (checked at prerender), which is also what sets it in
+// a Japanese face: without the attribute some devices draw it with Chinese glyph shapes.
+[lang="ja"] {
+  font-family: $font-gothic;
 }
 
 a {
   color: var(--accent);
   text-decoration: none;
+  transition: color $motion;
 
-  &:hover,
-  &:focus-visible {
+  &:hover {
+    color: var(--accent-hover);
     text-decoration: underline;
   }
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 h1,
@@ -80,98 +100,38 @@ h2,
 h3 {
   font-family: $font-serif;
   font-weight: 600;
+  line-height: 1.25;
   margin: 0 0 $space-2;
 }
 
-main {
-  padding: $space-4 0 $space-6;
-}
+h1 {
+  font-size: $text-2xl;
 
-// -- Layout -----------------------------------------------------------------
-
-.container {
-  max-width: $measure-text;
-  margin: 0 auto;
-  padding: 0 $space-2;
-
-  &--wide {
-    max-width: $measure-wide;
+  @include not-narrow {
+    font-size: $text-3xl;
   }
 }
 
-.jp {
-  font-family: $font-gothic;
+h2 {
+  font-size: $text-xl;
 }
 
-.muted {
-  color: var(--secondary);
-}
-
-.hero {
-  padding: $space-4 0;
-
-  p {
-    color: var(--secondary);
-    max-width: 34rem;
-  }
-}
-
-.breadcrumb {
+h3 {
   font-size: $text-base;
-  color: var(--secondary);
-  margin-bottom: $space-2;
-
-  // The separator's spacing lives here: Svelte trims whitespace at the edges of an element.
-  .breadcrumb-sep {
-    margin: 0 0.4em;
-  }
-
-  a {
-    color: var(--secondary);
-  }
+  font-family: $font-sans;
 }
 
-.card {
-  @include surface;
-  margin-bottom: $space-3;
-
-  > h2 {
-    font-size: 1rem;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    color: var(--secondary);
-
-    // A group's subtitle sits inside the heading and should read as an aside, not a heading.
-    .muted {
-      text-transform: none;
-      letter-spacing: normal;
-      font-weight: 400;
-      margin-left: $space-1;
-      font-size: $text-sm;
-    }
-  }
+p {
+  margin: 0 0 $space-2;
 }
 
-.badge {
-  display: inline-block;
-  border: 1px solid var(--accent);
-  color: var(--accent);
-  border-radius: $radius-pill;
-  padding: 0.125rem 0.625rem;
-  font-size: $text-xs;
-  font-weight: 600;
-  margin-right: $space-1;
-
-  &--plain {
-    border-color: var(--divider);
-    color: var(--secondary);
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    scroll-behavior: auto !important;
   }
-}
-
-a.badge:hover {
-  background-color: var(--accent);
-  color: var(--accent-contrast);
-  text-decoration: none;
 }
 
 .visually-hidden {
@@ -186,41 +146,149 @@ a.badge:hover {
   border: 0;
 }
 
+// The first focusable element on every page; shown only when focused.
+.skip-link {
+  position: absolute;
+  left: $space-2;
+  top: -$space-6;
+  z-index: 100;
+  padding: $space-1 $space-2;
+  background-color: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: $radius;
+
+  &:focus {
+    top: $space-1;
+  }
+}
+
+// -- Layout -----------------------------------------------------------------
+
+main {
+  padding: $space-4 0 $space-6;
+
+  @include narrow {
+    padding-top: $space-3;
+  }
+
+  &:focus {
+    outline: none;
+  }
+}
+
+.container {
+  width: 100%;
+  max-width: $measure-text;
+  margin: 0 auto;
+  padding: 0 $space-2;
+
+  &--wide {
+    max-width: $measure-wide;
+  }
+}
+
+.breadcrumb {
+  font-size: $text-sm;
+  color: var(--tertiary);
+  margin-bottom: $space-2;
+  overflow-wrap: anywhere;
+
+  // The separator's spacing lives here: Svelte trims whitespace at the edges of an element.
+  .breadcrumb-sep {
+    margin: 0 0.4em;
+  }
+
+  a {
+    color: var(--secondary);
+  }
+}
+
+// A page section: a heading plus spacing, not a box (DESIGN_SYSTEM.md, principle 5).
+.section {
+  margin-top: $space-5;
+
+  &:first-child {
+    margin-top: 0;
+  }
+}
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: $space-2;
+  flex-wrap: wrap;
+  margin-bottom: $space-2;
+
+  h2 {
+    margin: 0;
+  }
+}
+
+.page-intro {
+  margin-bottom: $space-4;
+
+  p {
+    color: var(--secondary);
+    max-width: 36rem;
+  }
+}
+
+.meta {
+  color: var(--tertiary);
+  font-size: $text-sm;
+}
+
+.support {
+  color: var(--secondary);
+}
+
 // -- Header and footer ------------------------------------------------------
 
 .site-header {
   border-bottom: 1px solid var(--divider);
-  padding: $space-2 0;
+  padding: $space-1 0;
 }
 
+// One row on wide screens: logo, nav, search on the right. On phones the search field moves to
+// a second row of its own.
 .site-header-inner {
   display: flex;
   align-items: center;
-  gap: $space-2;
+  gap: $space-1 $space-3;
   flex-wrap: wrap;
+
+  @include narrow {
+    gap: 0 $space-2;
+  }
 }
 
 .site-title {
   font-family: $font-serif;
-  font-size: 1.25rem;
+  font-size: $text-xl;
   font-weight: 600;
   color: var(--primary);
+  white-space: nowrap;
 
   &:hover {
+    color: var(--primary);
     text-decoration: none;
   }
 }
 
 .site-nav {
   display: flex;
-  gap: $space-2;
-  font-size: $text-md;
-  color: var(--secondary);
+  flex-wrap: wrap;
 
   a {
+    display: inline-flex;
+    align-items: center;
+    min-height: $target;
+    padding: 0 $space-1;
     color: var(--secondary);
 
-    &:hover {
+    &:hover,
+    &[aria-current="page"] {
       color: var(--accent);
     }
   }
@@ -228,273 +296,514 @@ a.badge:hover {
 
 .site-footer {
   border-top: 1px solid var(--divider);
-  margin-top: $space-6;
   padding: $space-3 0;
   color: var(--secondary);
-  font-size: $text-base;
+  font-size: $text-sm;
 }
 
-// -- Site-wide search (header) ----------------------------------------------
+// -- Search -----------------------------------------------------------------
 
-.site-search {
+.search {
   position: relative;
-  flex: 1 1 18rem;
+  flex: 1 1 16rem;
   min-width: 0;
-  max-width: 28rem;
+  margin-left: auto;
+  max-width: 24rem;
+
+  @include narrow {
+    flex-basis: 100%;
+    max-width: none;
+    margin: 0 0 $space-1;
+  }
+
+  &--hero {
+    max-width: none;
+    margin: 0;
+  }
 }
 
 .search-input {
   width: 100%;
-  font-size: $text-md;
-  padding: 0.5rem 0.875rem;
+  min-height: $target;
+  padding: 0 $space-2;
+  font: inherit;
+  font-size: $text-base;
+  color: var(--primary);
+  background-color: var(--surface);
   border: 1px solid var(--divider);
   border-radius: $radius-pill;
-  background-color: var(--surface);
-  color: var(--primary);
-  font-family: $font-gothic;
+  transition: border-color $motion;
 
-  &:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 1px;
+  &:focus {
+    border-color: var(--accent);
+  }
+
+  .search--hero & {
+    min-height: 3.5rem;
+    padding: 0 $space-3;
+    font-size: $text-lg;
   }
 }
 
 // Overlays the page rather than pushing it down, so searching from halfway through a long page
-// does not shift the content being read.
+// does not shift the content being read. The one surface with a shadow. On phones it takes the
+// screen below the field (search.ts sets --panel-top).
 .search-panel {
   position: absolute;
-  top: calc(100% + 0.375rem);
+  top: calc(100% + $space-1);
   left: 0;
   right: 0;
   z-index: 50;
-  background-color: var(--surface);
-  border: 1px solid var(--divider);
-  border-radius: $radius-lg;
-  box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
   max-height: 70vh;
   overflow-y: auto;
+  background-color: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: $radius;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 14%);
+
+  @include narrow {
+    position: fixed;
+    top: var(--panel-top, 7rem);
+    bottom: 0;
+    max-height: none;
+    border-radius: 0;
+  }
 }
 
-.search-status {
-  color: var(--secondary);
-  font-size: $text-base;
+.search-message {
   margin: 0;
-  padding: 0.75rem 0.875rem;
+  padding: $space-2;
+  color: var(--secondary);
+  font-size: $text-sm;
 
   &:empty {
     display: none;
   }
-}
 
-.search-results {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-
-  li + li {
-    border-top: 1px solid var(--divider);
+  a {
+    display: inline-block;
+    margin-right: $space-1;
   }
 }
 
-.search-result {
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
-  padding: 0.625rem 0.875rem;
+.search-group-label {
+  margin: 0;
+  padding: $space-1 $space-2 0;
+  color: var(--tertiary);
+  font-size: $text-xs;
+  font-weight: 600;
+}
+
+.search-option {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: baseline;
+  gap: 0 $space-1;
+  padding: $space-1 $space-2;
   color: var(--primary);
 
   &:hover,
-  &:focus-visible,
-  &.is-active {
+  &[aria-selected="true"] {
     background-color: var(--surface-hover);
+    color: var(--primary);
     text-decoration: none;
   }
-}
 
-.search-result-head {
-  display: flex;
-  align-items: baseline;
-  gap: $space-1;
-}
+  &[aria-selected="true"] {
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
 
-.search-result-kanji {
-  font-family: $font-mincho;
-  font-size: $text-xl;
-}
+  > :nth-child(2) {
+    @include truncate;
+    color: var(--secondary);
+    font-size: $text-sm;
+  }
 
-.search-result-reading {
-  color: var(--secondary);
-  font-size: $text-base;
-}
+  > .chip {
+    grid-column: 3;
+  }
 
-.search-result-gloss {
-  color: var(--secondary);
-  font-size: $text-sm;
-  @include truncate;
-}
+  > :last-child:not(.chip) {
+    grid-column: 1 / -1;
+    @include truncate;
+    color: var(--secondary);
+    font-size: $text-sm;
+  }
 
-// -- Entry lists (home, JLPT browse, vocab page aside) ----------------------
-
-.entry-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-
-  li + li {
+  &--all {
+    display: block;
+    color: var(--accent);
     border-top: 1px solid var(--divider);
   }
-
-  &--compact .entry-row {
-    grid-template-columns: 1fr auto;
-  }
 }
 
-.entry-row {
-  display: grid;
-  grid-template-columns: minmax(4rem, auto) minmax(4rem, auto) 1fr;
-  align-items: baseline;
-  gap: $space-1 $space-2;
-  padding: 0.5rem 0.25rem;
-  color: var(--primary);
+// -- Chips (neutral metadata) ------------------------------------------------
+
+.chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: $space-1;
+  margin: 0;
+}
+
+.chip {
+  display: inline-block;
+  padding: 0.125rem $space-1;
+  font-family: $font-sans;
+  font-size: $text-xs;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--secondary);
+  white-space: nowrap;
+  border: 1px solid var(--divider);
+  border-radius: $radius;
+}
+
+a.chip {
+  transition: border-color $motion;
 
   &:hover,
   &:focus-visible {
-    background-color: var(--surface-hover);
+    color: var(--secondary);
+    border-color: var(--accent);
     text-decoration: none;
   }
 }
 
-.entry-row-word {
-  font-family: $font-mincho;
+// -- Entry header (word, kanji and grammar pages) ----------------------------
+
+.entry-head {
+  padding-bottom: $space-3;
+  border-bottom: 1px solid var(--divider);
+  margin-bottom: $space-4;
+
+  h1 {
+    margin: 0;
+  }
+
+  .chips {
+    margin-top: $space-2;
+  }
+}
+
+.entry-sub {
+  margin: $space-1 0 0;
+  color: var(--secondary);
   font-size: $text-lg;
 }
 
-.entry-row-reading,
-.entry-row-gloss {
-  color: var(--secondary);
-  font-size: $text-base;
-  @include truncate;
+// -- Word lists: headword | reading | gloss ---------------------------------
+// Rows are kept small (no classes, the gloss a bare span): a kanji page lists up to 660 words.
+
+/// Narrow columns (a phone, the word page's aside): headword and reading on one line, the gloss
+/// under them.
+@mixin stacked {
+  a {
+    grid-template-columns: auto minmax(0, 1fr);
+
+    > :last-child {
+      grid-column: 1 / -1;
+    }
+  }
 }
 
-// -- Browse tiles (home, vocabulary hub) ------------------------------------
+.entry-list {
+  @include bare-list;
 
-.browse-grid {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 $space-3;
+  li + li {
+    border-top: 1px solid var(--divider);
+  }
+
+  a {
+    display: grid;
+    grid-template-columns: minmax(6rem, 10rem) minmax(6rem, 10rem) minmax(0, 1fr);
+    align-items: baseline;
+    gap: 0 $space-2;
+    min-height: $target;
+    padding: $space-1 $space-half;
+    color: var(--primary);
+
+    &:hover,
+    &:focus-visible {
+      background-color: var(--surface-hover);
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    > :first-child {
+      font-family: $font-mincho;
+      font-size: $text-lg;
+      overflow-wrap: anywhere;
+    }
+
+    > :nth-child(2) {
+      color: var(--secondary);
+      overflow-wrap: anywhere;
+    }
+
+    > :last-child {
+      grid-column: 3;
+      color: var(--secondary);
+      font-size: $text-sm;
+    }
+  }
+
+  @include narrow {
+    @include stacked;
+  }
+
+  &--stacked {
+    @include stacked;
+  }
+}
+
+// A collapsed remainder ("All 401 words", "More examples (8)"): every link stays in the HTML.
+.disclosure {
+  margin-top: $space-2;
+
+  > summary {
+    display: inline-flex;
+    align-items: center;
+    min-height: $target;
+    color: var(--accent);
+    cursor: pointer;
+
+    &:hover {
+      color: var(--accent-hover);
+    }
+  }
+
+  &[open] > summary {
+    margin-bottom: $space-1;
+  }
+}
+
+// -- Grammar rows (grammar index, families, chapters, family page) -----------
+
+.grammar-list {
+  @include bare-list;
+
+  li + li {
+    border-top: 1px solid var(--divider);
+  }
+
+  a {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 $space-1;
+    min-height: $target;
+    padding: $space-1 $space-half;
+    color: var(--primary);
+
+    &:hover,
+    &:focus-visible {
+      background-color: var(--surface-hover);
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    > :first-child {
+      font-family: $font-mincho;
+      font-size: $text-lg;
+    }
+
+    > small {
+      color: var(--tertiary);
+      font-size: $text-sm;
+    }
+
+    > :last-child:not(:first-child):not(small) {
+      flex-basis: 100%;
+      color: var(--secondary);
+      font-size: $text-sm;
+    }
+  }
+}
+
+// -- Tiles (home, vocabulary index) --------------------------------------------
+
+.tiles {
+  @include bare-list;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
   gap: $space-2;
+  grid-template-columns: 1fr;
+
+  @include not-narrow {
+    grid-template-columns: repeat(var(--tiles, 3), minmax(0, 1fr));
+  }
 }
 
-.browse-tile {
-  @include surface($space-2);
+.tile {
+  @include surface;
   @include interactive-surface;
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: $space-half;
   height: 100%;
+  min-height: $target;
   color: var(--primary);
+
+  &:hover {
+    color: var(--primary);
+  }
 }
 
-.browse-tile-title {
+.tile-title {
   font-family: $font-serif;
   font-size: $text-xl;
   font-weight: 600;
 }
 
-.browse-tile-count {
-  color: var(--accent);
-  font-size: $text-base;
-  font-weight: 600;
+.tile-meta {
+  color: var(--tertiary);
+  font-size: $text-sm;
 }
 
-.browse-tile-blurb {
+.tile-blurb {
   color: var(--secondary);
-  font-size: $text-base;
+  font-size: $text-sm;
+}
+
+// -- Pager and tabs ------------------------------------------------------------
+
+.pager,
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $space-1;
+  margin: $space-3 0;
+
+  a,
+  span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: $target;
+    min-height: $target;
+    padding: 0 $space-1;
+    border-radius: $radius;
+  }
+}
+
+.pager a[aria-current="page"] {
+  background-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.tabs {
+  margin: 0 0 $space-4;
+  border-bottom: 1px solid var(--divider);
+  gap: 0 $space-2;
+
+  a {
+    padding: 0;
+    border-radius: 0;
+    color: var(--secondary);
+    border-bottom: 2px solid transparent;
+
+    &:hover,
+    &[aria-current="page"] {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    &[aria-current="page"] {
+      border-bottom-color: var(--accent);
+    }
+  }
 }
 
 .level-nav {
   display: flex;
   align-items: center;
-  gap: $space-2;
   flex-wrap: wrap;
-  margin: 0;
+  gap: 0 $space-1;
+
+  a {
+    display: inline-flex;
+    align-items: center;
+    min-height: $target;
+    padding: 0 $space-1;
+  }
 }
 
-// -- Example sentences (vocab entry, grammar point) -------------------------
+// -- Example sentences (word and grammar pages) --------------------------------
 
 .sentence-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
+  @include bare-list;
+
+  > li + li {
+    margin-top: $space-3;
+  }
 }
 
-.sentence + .sentence {
-  margin-top: $space-2;
-  padding-top: $space-2;
-  border-top: 1px solid var(--divider);
-}
-
-.sentence-original {
+.sentence-jp {
   font-family: $font-mincho;
   font-size: $text-xl;
-  line-height: 1.9;
-  margin: 0 0 0.25rem;
+  line-height: 2.1;
+  margin: 0;
+
+  rt {
+    font-family: $font-gothic;
+    font-size: 0.5em;
+    color: var(--secondary);
+  }
+
+  // Quiet links: a sentence with eight blue words in it stops reading as a sentence. The dotted
+  // underline is --secondary (above 3:1 on the background); hover and focus turn it accent.
+  a {
+    color: inherit;
+    text-decoration: underline dotted var(--secondary);
+    text-underline-offset: 0.35em;
+    text-decoration-thickness: 1px;
+
+    &:hover,
+    &:focus-visible {
+      color: var(--accent);
+      text-decoration-color: var(--accent);
+    }
+  }
+
+  // The word the page is about, and a grammar point's pattern: the current item, in accent.
+  strong {
+    color: var(--accent);
+    font-weight: 600;
+  }
 }
 
 .sentence-en {
+  margin: 0;
   color: var(--secondary);
-  font-size: $text-md;
+}
+
+.sentence-romaji {
   margin: 0;
+  color: var(--tertiary);
+  font-size: $text-sm;
 }
 
-// A dashed underline rather than normal link styling: a sentence with eight solid blue words in
-// it stops reading as a sentence. The cue stays quiet until hovered.
-.sentence-word {
-  color: inherit;
-  border-bottom: 1px dashed var(--divider);
-
-  &:hover,
-  &:focus-visible {
-    color: var(--accent);
-    border-bottom-color: var(--accent);
-    text-decoration: none;
-  }
+// Set on <html> by the furigana toggle (search.ts), remembered across pages.
+.furigana-hidden rt {
+  display: none;
 }
 
-.sentence-target {
+.button {
+  display: inline-flex;
+  align-items: center;
+  min-height: $target;
+  padding: 0 $space-2;
+  font: inherit;
+  font-size: $text-sm;
   color: var(--accent);
-  font-weight: 600;
-  border-bottom: 2px solid color-mix(in srgb, var(--accent) 30%, transparent);
-}
+  background: none;
+  border: 1px solid var(--divider);
+  border-radius: $radius;
+  cursor: pointer;
+  transition: border-color $motion;
 
-// -- Related-word lists (kanji page, grammar point) -------------------------
-
-.vocab-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.vocab-list-item {
-  display: flex;
-  align-items: baseline;
-  gap: $space-2;
-  padding: 0.375rem 0;
-
-  + .vocab-list-item {
-    border-top: 1px solid var(--divider);
-  }
-
-  .jp {
-    font-family: $font-mincho;
-    font-size: $text-lg;
-  }
-
-  .gloss {
-    color: var(--secondary);
-    font-size: $text-base;
-    @include truncate;
+  &:hover {
+    border-color: var(--accent);
   }
 }
