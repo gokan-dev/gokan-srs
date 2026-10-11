@@ -18,11 +18,14 @@ jobs:
     # Only react to the one label we care about.
     if: github.event.label.name == 'ready-for-dev'
     runs-on: ubuntu-latest
+    # A large issue runs for hours. Set explicitly rather than relying on GitHub's
+    # 360-minute default, so the ceiling is visible next to --max-turns below.
+    timeout-minutes: 300
     permissions:
       contents: write       # create branch + push commits
       pull-requests: write  # open the PR
       issues: write         # comment status back on the issue
-      id-token: write       # OIDC exchange for the Claude GitHub App installation token
+      id-token: write       # OIDC exchange for the Claude GitHub App token (fallback, see github_token)
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -46,11 +49,18 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           #
-          # GitHub-side auth is intentionally NOT set here: with the Claude GitHub App
-          # installed, the action authenticates git/API ops with the app's installation
-          # token. Unlike the default GITHUB_TOKEN, an app token's pushes/PRs DO trigger
-          # downstream workflows: so the PR this opens gets CI, and a red build reaches
-          # claude-fix-ci.yml. (Verify this on your first end-to-end run.)
+          # GitHub-side auth: a fine-grained personal access token scoped to this repo
+          # (contents, pull requests, issues: read and write; no workflows permission).
+          # Without it the action falls back to the Claude GitHub App's installation
+          # token, which expires one hour after the run starts: issue #115's first run
+          # went 64 minutes, so every push, the PR, the tag and the final comment after
+          # the hour failed with 401 Bad credentials. Like the app token (and unlike the
+          # default GITHUB_TOKEN), a PAT's pushes, PRs and tags DO trigger downstream
+          # workflows, so the PR still gets CI and the tag still deploys to staging.
+          # Commits stay authored as claude[bot] (the action's bot_name default); the
+          # issue comments, labels and PR appear under the token owner's account.
+          # An unset secret is an empty string, which selects the app-token fallback.
+          github_token: ${{ secrets.AGENT_GITHUB_TOKEN }}
           prompt: |
             Issue #${{ github.event.issue.number }} was just labeled `ready-for-dev`.
             You are working autonomously, no human is present. Read AGENTS.md fully first: it holds
@@ -116,10 +126,14 @@ jobs:
 
             Hard rules: never push to or merge `main`; never force-push commits you didn't
             create; never touch `.github/workflows/`, secrets, or deployment config; never
-            close the issue directly (let the merged PR's `Closes #N` do it).
+            close the issue directly (let the merged PR's `Closes #N` do it); never write
+            the string `@claude` in a comment, PR body or commit message (your comments are
+            posted as a repo owner, and that string starts the other agent workflows).
           # Posts an immediate tracking comment on the issue with a live-updating
           # checklist as the agent works, replaced with the final summary on
           # completion - restores the visibility the default @claude-mention
           # trigger has, which a custom `prompt` input suppresses by default.
           track_progress: true
-          claude_args: "--model claude-opus-5-5 --max-turns 500 --allowedTools Bash,Edit,Write,Read,Glob,Grep"
+          # 500 turns ended issue #115's first run a third of the way through. The
+          # job timeout above is the real ceiling; a cut-off run resumes on its branch.
+          claude_args: "--model claude-opus-5-5 --max-turns 1500 --allowedTools Bash,Edit,Write,Read,Glob,Grep"
