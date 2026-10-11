@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { escapeHtml, japaneseWithoutLang, renderDocument, stripHydrationMarkers } from './documentShell';
+import { escapeHtml, japaneseWithoutLang, langOf, renderDocument, stripHydrationMarkers } from './documentShell';
 import { vocabPath, absoluteUrl } from './urls';
 
 describe('escapeHtml', () => {
@@ -113,10 +113,33 @@ describe('stripHydrationMarkers', () => {
 describe('japaneseWithoutLang', () => {
     it('finds elements with the jp class that are not marked as Japanese', () => {
         const html = '<span class="jp" lang="ja">語</span><a class="title jp" href="/">語</a><p class="jpx">x</p>';
-        expect(japaneseWithoutLang(html)).toEqual(['<a class="title jp" href="/">']);
+        expect(japaneseWithoutLang(html)).toContain('<a class="title jp" href="/">');
     });
 
-    it('finds nothing in a page where every jp element has lang="ja"', () => {
-        expect(japaneseWithoutLang('<h1 class="jp" lang="ja">食べる</h1>')).toEqual([]);
+    it('finds Japanese text outside any lang="ja" element', () => {
+        expect(japaneseWithoutLang('<body><p><a href="/">食べる</a></p></body>')).toEqual(['食べる']);
+    });
+
+    it('accepts Japanese inside a lang="ja" ancestor, through nested and void elements', () => {
+        const html = '<body><p lang="ja"><a href="/"><ruby>食<rt>た</rt></ruby>べる</a><br>私</p></body>';
+        expect(japaneseWithoutLang(html)).toEqual([]);
+    });
+
+    it('lets an English sentence quote a word, and a lang="en" child switch back', () => {
+        expect(japaneseWithoutLang('<body><p>Use から for a reason.</p><p lang="ja">はい<span lang="en">yes</span></p></body>')).toEqual([]);
+        expect(japaneseWithoutLang('<body><p lang="ja"><span lang="en">はい</span></p></body>')).toEqual(['はい']);
+    });
+
+    it('ignores the head and script contents', () => {
+        const html = '<html><head><title>食べる</title></head><body><script type="application/ld+json">{"name":"食べる"}</script><p lang="ja">食べる</p></body></html>';
+        expect(japaneseWithoutLang(html)).toEqual([]);
+    });
+});
+
+describe('langOf', () => {
+    it('marks Japanese-only text as Japanese, leaving English and mixed text alone', () => {
+        expect(langOf('から / ので')).toBe('ja');
+        expect(langOf('Giving a reason')).toBeUndefined();
+        expect(langOf('Topic, identity and の')).toBeUndefined();
     });
 });

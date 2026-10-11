@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { langOf } from '../lib/documentShell';
   import type { GrammarConjugationIndex, GrammarExample, GrammarPoint } from '@gokan/dataset-schema';
   import type { GrammarSummary } from '../lib/types';
   import type { ChapterLocator } from '../lib/grammarChapters';
@@ -42,7 +43,7 @@
       {#if point.formalityLevel}<Chip label={FORMALITY_LABELS[point.formalityLevel]} />{/if}
       {#if chapterLocator}
         <span class="meta">
-          <a href={grammarChapterPath(chapterLocator.chapterId)}>Chapter {chapterLocator.chapterNumber}: {chapterLocator.chapterTitle}</a>,
+          <a href={grammarChapterPath(chapterLocator.chapterId)}>Chapter {chapterLocator.chapterNumber}: <span lang={langOf(chapterLocator.chapterTitle)}>{chapterLocator.chapterTitle}</span></a>,
           {chapterLocator.positionInChapter} of {chapterLocator.totalInChapter}
         </span>
       {/if}
