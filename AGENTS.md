@@ -259,8 +259,9 @@ gokan-dictionary:
   `app.scss` only when two or more page types use it; `_tokens.scss` emits no CSS; Svelte
   components have no `<style>` blocks. The build must stay byte-reproducible (no timestamps or
   build ids in output), or every deploy re-uploads all pages.
-- Dictionary pages: every element holding Japanese text carries `lang="ja"` (prerender fails on a
-  `jp`-class element without it), and each page type stays within its size budget
+- Dictionary pages: every element holding Japanese text carries `lang="ja"` (prerender fails on
+  Japanese-only text outside one, and on a `jp`-class element without it; `langOf` for dataset
+  text that may be either language), and each page type stays within its size budget
   (`lib/budgets.ts`, docs/DESIGN_SYSTEM.md section 8; the build fails otherwise).
 
 ## Testing rules

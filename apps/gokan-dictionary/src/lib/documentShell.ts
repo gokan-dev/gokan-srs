@@ -48,16 +48,50 @@ export function stripHydrationMarkers(html: string): string {
     return html.replace(/<!--[[\]!\d-]*-->/g, '');
 }
 
+const VOID_ELEMENTS: ReadonlySet<string> = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
+const JAPANESE_TEXT = /[\u3040-\u30ff\u3400-\u9fff々]/;
+
+const isJapaneseOnly = (text: string) => JAPANESE_TEXT.test(text) && !/[A-Za-z]/.test(text);
+
 /**
- * Opening tags of elements that carry the `jp` class but not lang="ja". Japanese text must be
- * marked as Japanese, or screen readers read it with an English voice and some devices draw it
- * with Chinese glyph shapes; prerender fails on any page this finds anything in.
+ * "ja" for dataset text in Japanese only (a lesson titled "から / ので", a chapter summary listing
+ * words), undefined for English or mixed text: for a `lang` attribute on text that can be either.
+ */
+export function langOf(text: string): 'ja' | undefined {
+    return isJapaneseOnly(text) ? 'ja' : undefined;
+}
+
+/**
+ * Japanese in a page's body that is not marked as Japanese: an element with the `jp` class but
+ * no lang="ja", or a text run in Japanese only (no Latin letters, so not an English sentence
+ * quoting a word) whose nearest lang is not "ja". Unmarked, screen readers read it with an
+ * English voice and some devices draw it with Chinese glyph shapes; prerender fails on any page
+ * this finds anything in. Script contents are skipped (JSON-LD names the word).
  */
 export function japaneseWithoutLang(html: string): string[] {
+    const bodyStart = html.indexOf('<body');
+    const body = bodyStart >= 0 ? html.slice(bodyStart) : html;
     const found: string[] = [];
-    for (const tag of html.matchAll(/<[a-z][a-z0-9]*\b[^>]*>/g)) {
-        const classes = /\sclass="([^"]*)"/.exec(tag[0])?.[1].split(/\s+/) ?? [];
-        if (classes.includes('jp') && !/\slang="ja"/.test(tag[0])) found.push(tag[0]);
+    const stack: { tag: string; lang: string | null }[] = [];
+    const langHere = () => [...stack].reverse().find(entry => entry.lang !== null)?.lang ?? 'en';
+
+    for (const token of body.matchAll(/<script\b[\s\S]*?<\/script>|<(\/?)([a-zA-Z][a-zA-Z0-9]*)([^>]*)>|([^<]+)/g)) {
+        const [whole, closing, rawTag, attributes, text] = token;
+        if (text !== undefined) {
+            if (isJapaneseOnly(text) && langHere() !== 'ja') found.push(text.trim());
+            continue;
+        }
+        if (rawTag === undefined) continue;
+        const tag = rawTag.toLowerCase();
+        if (closing) {
+            const index = stack.map(entry => entry.tag).lastIndexOf(tag);
+            if (index >= 0) stack.length = index;
+            continue;
+        }
+        const classes = /\sclass="([^"]*)"/.exec(attributes)?.[1].split(/\s+/) ?? [];
+        const lang = /\slang="([^"]*)"/.exec(attributes)?.[1] ?? null;
+        if (classes.includes('jp') && lang !== 'ja') found.push(whole);
+        if (!VOID_ELEMENTS.has(tag) && !whole.endsWith('/>')) stack.push({ tag, lang });
     }
     return found;
 }

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { langOf } from '../lib/documentShell';
   import type { ChapterIndexRow } from '../lib/grammarChapters';
   import type { LevelGroup } from '../lib/grammarBrowse';
   import { grammarChapterPath, grammarIndexPath } from '../lib/urls';
@@ -33,8 +34,8 @@
           <li>
             <a href={grammarChapterPath(chapter.id)}>
               <span class="meta">Chapter {chapter.chapterNumber} · {chapter.points.length} point{chapter.points.length === 1 ? '' : 's'}</span>
-              <span class="chapter-list-title">{chapter.title}</span>
-              <span class="support">{chapter.summary}</span>
+              <span class="chapter-list-title" lang={langOf(chapter.title)}>{chapter.title}</span>
+              <span class="support" lang={langOf(chapter.summary)}>{chapter.summary}</span>
             </a>
           </li>
         {/each}

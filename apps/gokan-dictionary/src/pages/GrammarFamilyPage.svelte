@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { langOf } from '../lib/documentShell';
   import type { FamilyPageData } from '../lib/grammarFamilies';
   import { grammarFamiliesIndexPath, grammarIndexPath } from '../lib/urls';
   import PageLayout from './PageLayout.svelte';
@@ -39,7 +40,7 @@
 
   {#each family.lessons as lesson (lesson.title)}
     <section class="section">
-      <h2>{lesson.title}</h2>
+      <h2 lang={langOf(lesson.title)}>{lesson.title}</h2>
       {#each lesson.cases as case_, caseIndex (caseIndex)}
         <div class="family-case">
           <p class="family-case-situation">{case_.situation}</p>

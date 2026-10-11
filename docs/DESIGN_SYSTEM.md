@@ -265,8 +265,8 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
 - **Type**: Source Serif 4, weight 600, Latin subset only, self-hosted as the site's one
   web font, for page and section titles (sentence case, never uppercase letter-spaced).
   Body text is the system sans stack, Inter first when installed. Japanese uses system
-  fonts and is always marked `lang="ja"` (prerender fails on an element with the `jp`
-  class lacking it): that attribute is also what sets it in the Japanese face, and what
+  fonts and is always marked `lang="ja"` (prerender fails on Japanese-only text outside a
+  `lang="ja"` element, and on a `jp`-class element without it): that attribute is also what sets it in the Japanese face, and what
   stops some devices drawing it with Chinese glyph shapes. Headwords and sentences are
   mincho, readings gothic. Nothing below 12px.
 - **Shape**: 6px radius for cards, chips, tiles, inputs and buttons; the search field is
