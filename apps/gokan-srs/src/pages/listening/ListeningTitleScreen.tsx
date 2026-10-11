@@ -146,7 +146,7 @@ export function ListeningTitleScreen() {
                 className="mb-4"
             />
 
-            <section className="rounded-lg border border-divider bg-surface p-4 mb-6 flex gap-4">
+            <section className="rounded-md border border-divider bg-surface p-4 mb-6 flex gap-4">
                 <MediaCover entry={title} hiRes className="w-24 sm:w-32 self-start" />
                 <div className="min-w-0 flex-1">
                     {subtitle && <p className="font-serif text-sm text-secondary">{subtitle}</p>}
@@ -193,7 +193,7 @@ export function ListeningTitleScreen() {
                 </div>
             </section>
 
-            <div className="rounded-lg border border-divider bg-surface mb-6">
+            <div className="rounded-md border border-divider bg-surface mb-6">
                 <button
                     type="button"
                     onClick={() => toggle('series')}
@@ -256,7 +256,7 @@ function EpisodeRow({ episode, mark, isOpen, onToggleOpen, onToggleWatched, list
     const speed = speechSpeedLabel(episode.speechSpeed);
 
     return (
-        <div className="rounded-lg border border-divider bg-surface">
+        <div className="rounded-md border border-divider bg-surface">
             <div className="flex items-center gap-2 p-3">
                 <button
                     type="button"
@@ -299,7 +299,7 @@ function EpisodeRow({ episode, mark, isOpen, onToggleOpen, onToggleWatched, list
  * The words of an episode or series the learner doesn't know yet, in the order
  * they picked (their own learning order by default). A word whose kanji they
  * don't know yet is marked, since their queue would not introduce it now. A
- * word added here joins the learning list exactly as "Add to Learning List" on
+ * word added here joins the learning list exactly as "Learn this word" on
  * its own page does, then drops off this list.
  */
 function WordsToLearn({ words, countHint, knowledge, sort, onSortChange, orderContext, learner, onLearn }: WordListProps & {

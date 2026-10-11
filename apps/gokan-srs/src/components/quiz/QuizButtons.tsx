@@ -1,7 +1,7 @@
 import type { Ref } from "react";
 import { useResponsive } from "../../context/Responsive/useResponsive";
 
-const BASE = 'w-full font-medium rounded-lg font-serif flex items-center justify-center gap-2';
+const BASE = 'w-full font-medium rounded-md font-serif flex items-center justify-center gap-2';
 
 /** Height and top margin: vocab cards space the button off the input; cloze cards sit it under the feedback note. */
 function sizing(isMobile: boolean, flush: boolean): string {

@@ -144,7 +144,7 @@ export function SingleAnswerCard({
                         initial={{ x: 0 }}
                         animate={{ x: [-5, 5, -5, 5, 0] }}
                         transition={{ duration: 0.4 }}
-                        className="absolute inset-0 pointer-events-none border-4 border-error/20 rounded-xl z-50"
+                        className="absolute inset-0 pointer-events-none border-4 border-error/20 rounded-md z-50"
                     />
                 )}
             </AnimatePresence>
@@ -173,7 +173,7 @@ export function SingleAnswerCard({
                             onChange={(e) => api.setAnswer(0, e.target.value)}
                             onFocus={() => setIsInputFocused(true)}
                             onBlur={() => setIsInputFocused(false)}
-                            className={`w-full border rounded-lg text-center transition-all duration-200
+                            className={`w-full border rounded-md text-center transition-all duration-200
                                 font-gothic bg-surface text-primary placeholder:text-input-placeholder caret-accent
                                 focus:outline-none focus:border-accent focus:ring-4 focus:ring-accent/10
                                 ${isMobile ? 'px-3 py-2 text-lg placeholder:text-sm' : 'px-4 py-3 text-xl'}

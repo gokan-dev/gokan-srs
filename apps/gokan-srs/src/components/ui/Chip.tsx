@@ -6,9 +6,9 @@ import type { ReactNode } from "react";
  * chip never competes with the thing on the page that is actually clickable.
  */
 export function Chip({ children, size = 'md', className = '' }: { children: ReactNode; size?: 'sm' | 'md'; className?: string }) {
-    const sizing = size === 'sm' ? 'px-1.5 py-0.5 text-xs whitespace-nowrap' : 'px-2 py-0.5 text-xs';
+    const sizing = size === 'sm' ? 'px-1.5 py-0.5 text-xs' : 'px-2 py-0.5 text-xs';
     return (
-        <span className={`${sizing} rounded-md border border-divider text-secondary font-gothic font-medium ${className}`}>
+        <span className={`${sizing} inline-block max-w-full rounded-md border border-divider text-secondary font-sans font-medium ${className}`}>
             {children}
         </span>
     );

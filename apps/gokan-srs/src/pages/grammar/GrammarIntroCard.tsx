@@ -73,7 +73,7 @@ export function GrammarIntroCard({ grammarPoint, onLearn, onSkip }: GrammarIntro
                 together, which a per-point explanation cannot do. */}
             {chapter && isChapterOpener && (
                 <CardSection>
-                    <div className="rounded-lg border border-accent/20 bg-accent/5 px-4 py-3">
+                    <div className="rounded-md border border-accent/20 bg-accent/5 px-4 py-3">
                         <p className="type-label mb-1">
                             New chapter
                         </p>
@@ -91,7 +91,7 @@ export function GrammarIntroCard({ grammarPoint, onLearn, onSkip }: GrammarIntro
             </CardSection>
 
             <CardSection>
-                <div className="rounded-lg border border-divider bg-feedback-background px-4 py-3 text-center">
+                <div className="rounded-md border border-divider bg-feedback-background px-4 py-3 text-center">
                     <p className="type-label mb-1">
                         Formation
                     </p>

@@ -98,25 +98,25 @@ export function WelcomeScreen({ onSelectBeginner, onSelectLearner }: WelcomeScre
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 text-sm text-center max-w-xl mx-auto">
-                        <div className="space-y-1 p-3 rounded-lg bg-surface border border-divider">
+                        <div className="space-y-1 p-3 rounded-md bg-surface border border-divider">
                             <div className="mx-auto w-8 h-8 rounded-full bg-background border border-divider flex items-center justify-center text-primary">
                                 <BookOpen size={14} />
                             </div>
-                            <h3 className="font-bold text-primary text-xs">Kanji-aware</h3>
+                            <h3 className="font-semibold text-primary text-xs">Kanji-aware</h3>
                             <p className="text-tertiary text-xs">Only shows words your kanji knowledge can support.</p>
                         </div>
-                        <div className="space-y-1 p-3 rounded-lg bg-surface border border-divider">
+                        <div className="space-y-1 p-3 rounded-md bg-surface border border-divider">
                             <div className="mx-auto w-8 h-8 rounded-full bg-background border border-divider flex items-center justify-center text-primary">
                                 <GraduationCap size={14} />
                             </div>
-                            <h3 className="font-bold text-primary text-xs">SRS-based</h3>
+                            <h3 className="font-semibold text-primary text-xs">SRS-based</h3>
                             <p className="text-tertiary text-xs">Spaced reviews for reading and meaning, paced to your rhythm.</p>
                         </div>
-                        <div className="space-y-1 p-3 rounded-lg bg-surface border border-divider">
+                        <div className="space-y-1 p-3 rounded-md bg-surface border border-divider">
                             <div className="mx-auto w-8 h-8 rounded-full bg-background border border-divider flex items-center justify-center text-primary">
                                 <Cloud size={14} />
                             </div>
-                            <h3 className="font-bold text-primary text-xs">Synced</h3>
+                            <h3 className="font-semibold text-primary text-xs">Synced</h3>
                             <p className="text-tertiary text-xs">Progress synced across devices via Google Drive.</p>
                         </div>
                     </div>
@@ -131,10 +131,10 @@ export function WelcomeScreen({ onSelectBeginner, onSelectLearner }: WelcomeScre
                     <div className="grid gap-4">
                         <button
                             onClick={onSelectBeginner}
-                            className="group flex items-center justify-between p-6 bg-surface border border-divider hover:border-accent/40 rounded-xl transition-all shadow-sm hover:shadow-md text-left"
+                            className="group flex items-center justify-between p-6 bg-surface border border-divider hover:border-accent/40 rounded-md transition-colors text-left"
                         >
                             <div className="pr-4">
-                                <h3 className="font-bold text-lg text-primary font-gothic flex items-center gap-2 mb-1">
+                                <h3 className="font-semibold text-lg text-primary font-gothic flex items-center gap-2 mb-1">
                                     Just starting out
                                 </h3>
                                 <p className="text-sm text-secondary font-serif">
@@ -146,10 +146,10 @@ export function WelcomeScreen({ onSelectBeginner, onSelectLearner }: WelcomeScre
 
                         <button
                             onClick={onSelectLearner}
-                            className="group flex items-center justify-between p-6 bg-surface border border-divider hover:border-accent/40 rounded-xl transition-all shadow-sm hover:shadow-md text-left"
+                            className="group flex items-center justify-between p-6 bg-surface border border-divider hover:border-accent/40 rounded-md transition-colors text-left"
                         >
                             <div className="pr-4">
-                                <h3 className="font-bold text-lg text-primary font-gothic flex items-center gap-2 mb-1">
+                                <h3 className="font-semibold text-lg text-primary font-gothic flex items-center gap-2 mb-1">
                                     I already know some kanji
                                 </h3>
                                 <p className="text-sm text-secondary font-serif">

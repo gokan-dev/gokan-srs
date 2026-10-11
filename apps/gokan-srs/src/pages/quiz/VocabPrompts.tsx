@@ -110,7 +110,7 @@ export function MeaningPrompt({ vocab, answered, memoryStrength, onOpenWord, sen
                 <h2 className="text-xl md:text-2xl font-serif text-secondary text-center leading-relaxed max-w-2xl mx-auto">
                     {sentence ? (
                         <>
-                            What is the original meaning of <span className="text-primary font-bold mx-1">{headwordOf(vocab)}</span> in this sentence?
+                            What is the original meaning of <span className="text-primary font-semibold mx-1">{headwordOf(vocab)}</span> in this sentence?
                         </>
                     ) : (
                         <>What is the meaning of this word?</>
@@ -168,10 +168,10 @@ export function MeaningPrompt({ vocab, answered, memoryStrength, onOpenWord, sen
                 <ExpandableSenses
                     senses={vocab.senses}
                     maxDefs={5}
-                    heading={<p className="font-bold text-primary mb-1">Meanings:</p>}
+                    heading={<p className="font-semibold text-primary mb-1">Meanings:</p>}
                     footer={sentence?.en[0] && (
                         <div className="mt-4 pt-4 border-t border-divider">
-                            <p className="font-bold text-primary mb-1">Translation:</p>
+                            <p className="font-semibold text-primary mb-1">Translation:</p>
                             <p className="italic text-secondary">{sentence.en[0].text}</p>
                         </div>
                     )}
@@ -305,7 +305,7 @@ export function ProductionClozeHeader({ vocab, sentence, memoryStrength }: { voc
                 {cueEmphasis.inline ? (
                     <>
                         {cueEmphasis.inline.before}
-                        <span className="text-accent font-bold">{cueEmphasis.inline.match}</span>
+                        <span className="text-accent font-semibold">{cueEmphasis.inline.match}</span>
                         {cueEmphasis.inline.after}
                     </>
                 ) : (

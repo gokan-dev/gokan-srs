@@ -48,7 +48,7 @@ export const App: React.FC = () => {
         return (
             <div className="h-screen w-full flex flex-col items-center justify-center bg-background p-8 text-center text-error">
                 <div className="text-4xl mb-4">⚠️</div>
-                <h1 className="text-2xl font-bold mb-2">System Error</h1>
+                <h1 className="text-2xl font-semibold mb-2">System Error</h1>
                 <p className="max-w-md mb-6">{state.fatalError}</p>
                 <button
                     onClick={() => window.location.reload()}

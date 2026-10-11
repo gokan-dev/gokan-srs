@@ -178,7 +178,7 @@ function GlossCard({ id, vocab, left, top }: { id: string; vocab: Vocabulary | n
                 top: placed?.top ?? top,
                 visibility: placed ? 'visible' : 'hidden',
             }}
-            className="fixed z-50 pointer-events-none max-w-xs rounded-lg border border-divider bg-surface shadow-lg px-3 py-2"
+            className="fixed z-50 pointer-events-none max-w-xs rounded-md border border-divider bg-surface shadow-lg px-3 py-2"
         >
             {!vocab ? (
                 <div className="text-xs text-tertiary font-gothic">Loading...</div>
