@@ -7,17 +7,16 @@ import { KnowledgeCurveChart } from "./components/KnowledgeCurveChart";
 import { JlptCoverageChart } from "./components/JlptCoverageChart";
 import { GrammarJlptCoverageChart } from "./components/GrammarJlptCoverageChart";
 import { GrammarChapterCoverageChart } from "./components/GrammarChapterCoverageChart";
-import { SmartVocabList } from "./components/SmartVocabList";
 import { SmartGrammarList } from "./components/SmartGrammarList";
 import { Page } from "../../components/Page";
 import { PageHeader } from "../../components/PageHeader";
+import { Link } from "react-router-dom";
 
 interface StatsScreenProps {
-    onVocabClick?: (vocabId: string) => void;
     onGrammarClick?: (grammarId: string) => void;
 }
 
-export function StatsScreen({ onVocabClick, onGrammarClick }: StatsScreenProps) {
+export function StatsScreen({ onGrammarClick }: StatsScreenProps) {
     const { state } = useQuiz();
 
     // Guard if accessible without progress (though route is protected usually)
@@ -76,11 +75,9 @@ export function StatsScreen({ onVocabClick, onGrammarClick }: StatsScreenProps) 
 
             <section className="w-full">
                 <h2 className="text-lg mb-4 text-primary font-serif">Vocabulary</h2>
-                <SmartVocabList
-                    progress={state.progress.learningQueue}
-                    settings={state.settings ?? undefined}
-                    onVocabClick={onVocabClick}
-                />
+                <Link to="/vocab" className="text-accent font-gothic text-sm hover:underline">
+                    See the Vocabulary list
+                </Link>
             </section>
 
             <section className="w-full">

@@ -24,6 +24,7 @@ const UserProfileScreen = lazy(() => import('./pages/profile/UserProfileScreen')
 const StatsScreen = lazy(() => import('./pages/stats/StatsScreen').then(module => ({ default: module.StatsScreen }))); // START_ADD (conceptually)
 const AboutScreen = lazy(() => import('./pages/about/AboutScreen').then(module => ({ default: module.AboutScreen })));
 const VocabDetailScreen = lazy(() => import('./pages/vocab/VocabDetailScreen'));
+const VocabularyListScreen = lazy(() => import('./pages/vocab/VocabularyListScreen').then(module => ({ default: module.VocabularyListScreen })));
 const KanjiDetailScreen = lazy(() => import('./pages/kanji/KanjiDetailScreen'));
 const GrammarDetailScreen = lazy(() => import('./pages/grammar/GrammarDetailScreen'));
 const GrammarFamilyScreen = lazy(() => import('./pages/grammar/GrammarFamilyScreen'));
@@ -168,7 +169,6 @@ export const App: React.FC = () => {
                         } />
                         <Route path="/stats" element={
                             <StatsScreen
-                                onVocabClick={(id) => void navigate(`/vocab/${id}`)}
                                 onGrammarClick={(id) => void navigate(`/grammar/${id}`)}
                             />
                         } />
@@ -192,6 +192,9 @@ export const App: React.FC = () => {
                             }}>
                                 <UserProfileScreen />
                             </KanjiFormProvider>
+                        } />
+                        <Route path="/vocab" element={
+                            <VocabularyListScreen />
                         } />
                         <Route path="/vocab/:vocabId" element={
                             <VocabDetailScreen />

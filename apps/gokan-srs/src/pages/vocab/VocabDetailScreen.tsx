@@ -308,7 +308,7 @@ export default function VocabDetailScreen() {
 
     return (
         <Page width="wide">
-            <PageHeader title="Vocabulary Details" parentPath="/stats" className="mb-6" />
+            <PageHeader title="Vocabulary Details" parentPath="/vocab" className="mb-6" />
 
             <main>
                 {isMobile ? (

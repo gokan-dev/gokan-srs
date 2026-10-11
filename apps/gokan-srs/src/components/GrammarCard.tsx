@@ -4,7 +4,7 @@ import { MasteryRing } from "./MasteryRing";
 import { JlptChip } from "./JlptChip";
 import { ProgressCard } from "./ProgressCard";
 
-/** Grammar's equivalent of VocabCard, for SmartGrammarList's grid. */
+/** A studied grammar point in the Stats list, for SmartGrammarList's grid. */
 export function GrammarCard({ point, progress, onClick }: { point: GrammarPoint; progress: GrammarProgress; onClick?: () => void }) {
     return (
         <ProgressCard

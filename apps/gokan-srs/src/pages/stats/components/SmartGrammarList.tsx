@@ -31,7 +31,7 @@ const SORT_OPTIONS: SortOption<GrammarSortField, GrammarProgress, GrammarPoint>[
     { value: 'jlpt_level', label: 'JLPT Level', sortKey: (_g, point) => point?.jlptLevel ?? 99 },
 ];
 
-/** Grammar's equivalent of SmartVocabList, through the same SmartList. */
+/** Grammar's list of studied points, through the shared SmartList. */
 export function SmartGrammarList({ progress, onGrammarClick }: SmartGrammarListProps) {
     return (
         <SmartList
