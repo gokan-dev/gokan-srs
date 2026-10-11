@@ -40,12 +40,12 @@ export function escapeHtml(value: string): string {
 }
 
 /**
- * Svelte's server renderer brackets blocks with comment markers (<!--[-->, <!--]-->) that only
- * hydration reads. These pages are never hydrated, so the markers are dropped: on a list of 600
- * words they are a tenth of the page.
+ * Svelte's server renderer brackets blocks with comment markers (<!--[-->, <!--[0-->, <!--]-->)
+ * that only hydration reads. These pages are never hydrated, so the markers are dropped: on a
+ * list of 600 words they are a tenth of the page.
  */
 export function stripHydrationMarkers(html: string): string {
-    return html.replace(/<!--[[\]!]*-->/g, '');
+    return html.replace(/<!--[[\]!\d-]*-->/g, '');
 }
 
 /**
@@ -72,6 +72,7 @@ export function renderDocument(options: DocumentShellOptions): string {
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="light dark" />
 <title>${title}</title>
 <meta name="description" content="${description}" />
 ${options.noindex ? '<meta name="robots" content="noindex" />\n' : ''}<link rel="canonical" href="${canonical}" />

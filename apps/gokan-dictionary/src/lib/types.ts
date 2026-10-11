@@ -48,13 +48,20 @@ export type SearchKanjiRow = [character: string, jlpt: number, frequency: number
 export type SearchGrammarRow = [id: string, title: string, romaji: string, explanation: string, jlpt: number];
 
 /**
+ * The words of an index file, one array per field (id, headword, secondary form, gloss, JLPT
+ * level, flags), position i of each describing word i. Column by column compresses far better
+ * than row by row: the core file is 292 KB gzipped this way, 379 KB as one array per word.
+ */
+export type SearchWordColumns = [ids: string[], headwords: string[], secondary: string[], glosses: string[], jlpt: number[], flags: number[]];
+
+/**
  * A search index file. `search-core.json` carries every JLPT word, the most frequent words, every
  * kanji and every grammar point; `search-full.json` only the remaining words. Read after the core,
  * the full file's rows rank after it, which is their place anyway: each is rarer than every
  * non-JLPT core word, and JLPT words rank first whatever their frequency.
  */
 export interface SearchIndexFile {
-    w: SearchWordRow[];
+    w: SearchWordColumns;
     k?: SearchKanjiRow[];
     g?: SearchGrammarRow[];
 }

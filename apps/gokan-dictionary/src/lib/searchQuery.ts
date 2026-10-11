@@ -8,7 +8,8 @@
 
 import { looksLikeRomaji, romajiToHiragana, toHiragana } from '@gokan/dataset-schema';
 import { deinflect, type WordClass } from './conjugation';
-import { isCommonRow, readingOfRow, wordClassOfRow } from './searchIndex';
+import { fromColumns, wordClassOfRow } from './searchIndex';
+import { isCommonRow, readingOfRow } from './searchRow';
 import type { SearchGrammarRow, SearchIndexFile, SearchKanjiRow, SearchWordRow } from './types';
 
 /** Match tiers, best first. Within a tier: JLPT words, then common words, then frequency. */
@@ -25,8 +26,13 @@ export const TIER = {
     sense: 5,
     /** The query as a whole word in the gloss. */
     glossWord: 6,
+    /**
+     * The reading starts with the romaji's kana. After the English tiers: a Latin query that
+     * converts is more often an English word ("house", read ほうせ) than the start of a reading.
+     */
+    romajiPrefix: 7,
     /** The query anywhere in headword, reading or gloss. */
-    substring: 7,
+    substring: 8,
 } as const;
 
 interface PreparedWord {
@@ -98,7 +104,7 @@ export function prepareIndex(files: SearchIndexFile[]): PreparedIndex {
     const kanji = new Map<string, SearchKanjiRow>();
     const grammar: PreparedGrammar[] = [];
     for (const file of files) {
-        for (const row of file.w) {
+        for (const row of fromColumns(file.w)) {
             const gloss = row[3].toLowerCase();
             words.push({
                 row,
@@ -166,11 +172,11 @@ export function search(index: PreparedIndex, raw: string): SearchResults {
         else if (deinflected.size > 0 && (fromConjugated(word.headword, word.wordClass) || fromConjugated(word.reading, word.wordClass))) tier = TIER.deinflected;
         else if (
             (japanese && (word.headword.startsWith(query) || word.reading.startsWith(queryKana)))
-            || (kana && word.reading.startsWith(kana))
             || (kanjiOnly && word.headword.includes(query))
         ) tier = TIER.prefix;
         else if (english && word.senses.includes(sense)) tier = TIER.sense;
         else if (wholeWord?.test(word.gloss)) tier = TIER.glossWord;
+        else if (kana && word.reading.startsWith(kana)) tier = TIER.romajiPrefix;
         else if (
             (japanese && (word.headword.includes(query) || word.reading.includes(queryKana)))
             || (english && word.gloss.includes(query))

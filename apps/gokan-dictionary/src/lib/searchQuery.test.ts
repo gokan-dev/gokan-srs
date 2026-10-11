@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeQuery, prepareIndex, search, TIER } from './searchQuery';
-import { searchGrammarRow, searchKanjiRow, searchWordRow } from './searchIndex';
+import { searchGrammarRow, searchKanjiRow, searchWordRow, toColumns } from './searchIndex';
 import type { SearchWordRow } from './types';
 import { grammarPoint, kanji, vocabulary } from '../test/fixtures';
 
@@ -33,11 +33,11 @@ const WORDS: SearchWordRow[] = [
 ];
 
 const INDEX = prepareIndex([
-    { w: WORDS.slice(0, 6), k: [searchKanjiRow(kanji({ character: '生' })), searchKanjiRow(kanji({ character: '食' }))], g: [
+    { w: toColumns(WORDS.slice(0, 6)), k: [searchKanjiRow(kanji({ character: '生' })), searchKanjiRow(kanji({ character: '食' }))], g: [
         searchGrammarRow(grammarPoint({ id: 'g-kara', title: 'から', romaji: 'kara' })),
         searchGrammarRow(grammarPoint({ id: 'g-tekara', title: '～てから', romaji: '~te kara', shortExplanation: 'After doing something.' })),
     ] },
-    { w: WORDS.slice(6) },
+    { w: toColumns(WORDS.slice(6)) },
 ]);
 
 const ids = (query: string) => search(INDEX, query).words.map(hit => hit.row[0]);
@@ -67,6 +67,12 @@ describe('search', () => {
 
     it('does not read English as romaji', () => {
         expect(search(INDEX, 'eat').kana).toBeNull();
+    });
+
+    it('ranks an English sense above a reading the query only starts as romaji', () => {
+        // "tabe" reads as たべ, the start of たべる; "here" reads as へれ but is the English sense of ここ.
+        expect(search(INDEX, 'tabe').words[0]).toEqual({ row: WORDS[1], tier: TIER.romajiPrefix });
+        expect(search(INDEX, 'here').words.map(hit => hit.tier)).toEqual([TIER.sense]);
     });
 
     it('finds the dictionary form of a conjugated query, naming the form typed', () => {

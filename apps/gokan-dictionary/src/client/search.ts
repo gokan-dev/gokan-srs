@@ -3,14 +3,15 @@
 // furigana toggle. Linked from every page; everything else on the site is static HTML.
 //
 // Nothing is downloaded before the search field is first focused. Then the core index loads
-// (common words, kanji, grammar); after the first query has run on it the full index follows in
-// the background, and the current query re-runs when it arrives. Most lookups of common words
-// never need the full file.
+// (common words, kanji, grammar) together with the query engine (lib/searchQuery.ts, with the
+// romaji table and the conjugation rules: a separate chunk, so a page that is only read pays
+// for neither); after the first query has run the full index follows in the background, and the
+// current query re-runs when it arrives. Most lookups of common words never need the full file.
 
-import { prepareIndex, search, type SearchResults, type WordHit } from '../lib/searchQuery';
+import type { PreparedIndex, SearchResults, WordHit } from '../lib/searchQuery';
 import type { SearchGrammarRow, SearchIndexFile, SearchKanjiRow } from '../lib/types';
 import { grammarPath, kanjiPath, searchIndexPaths, searchPath, vocabJlptPath, vocabPath } from '../lib/urls';
-import { readingOfRow } from '../lib/searchIndex';
+import { readingOfRow } from '../lib/searchRow';
 
 const PANEL_LIMITS = { words: 8, kanji: 3, grammar: 3 };
 const RESULTS_PAGE_SIZE = 50;
@@ -23,7 +24,8 @@ let core: SearchIndexFile | null = null;
 let full: SearchIndexFile | null = null;
 let corePromise: Promise<void> | null = null;
 let fullRequested = false;
-let index: ReturnType<typeof prepareIndex> | null = null;
+let engine: typeof import('../lib/searchQuery') | null = null;
+let index: PreparedIndex | null = null;
 /** Re-run the current query when more of the index arrives. */
 const onIndexChange: (() => void)[] = [];
 
@@ -34,14 +36,15 @@ async function fetchIndex(url: string): Promise<SearchIndexFile> {
 }
 
 function rebuild(): void {
-    if (!core) return;
-    index = prepareIndex(full ? [core, full] : [core]);
+    if (!core || !engine) return;
+    index = engine.prepareIndex(full ? [core, full] : [core]);
     onIndexChange.forEach(callback => callback());
 }
 
 function loadCore(): Promise<void> {
-    corePromise ??= fetchIndex(searchIndexPaths().core).then(file => {
+    corePromise ??= Promise.all([fetchIndex(searchIndexPaths().core), import('../lib/searchQuery')]).then(([file, module]) => {
         core = file;
+        engine = module;
         rebuild();
     });
     return corePromise;
@@ -62,8 +65,8 @@ function loadFullLater(): void {
 }
 
 function run(query: string): SearchResults | null {
-    if (!index) return null;
-    const results = search(index, query);
+    if (!index || !engine) return null;
+    const results = engine.search(index, query);
     if (results.query) loadFullLater();
     return results;
 }
@@ -82,21 +85,22 @@ const chip = (level: number) => el('span', { class: 'chip' }, `N${level}`);
 
 /** A word's gloss line; a conjugated query says what it was read as ("from 食べた"). */
 function glossLine(hit: WordHit): HTMLElement {
-    return hit.via ? el('span', {}, 'from ', ja(hit.via), ` · ${hit.row[3]}`) : el('span', {}, hit.row[3]);
+    return el('span', { lang: 'en' }, ...(hit.via ? ['from ', ja(hit.via), ' · '] : []), hit.row[3]);
 }
 
-function wordCells(hit: WordHit): Node[] {
+/** The reading beside a headword, only when it differs from it. */
+function readingOf(hit: WordHit): string[] {
     const reading = readingOfRow(hit.row);
-    return [ja(hit.row[1]), ...(reading !== hit.row[1] ? [ja(reading)] : [])];
+    return reading !== hit.row[1] ? [reading] : [];
 }
 
 /** "No results for 'xyz'.", the kana a romaji query was read as, and where to go instead. */
 function noResults(results: SearchResults): HTMLElement {
-    const levels = [5, 4, 3, 2, 1].map(level => el('a', { href: vocabJlptPath(level) }, `N${level}`));
+    const levels = [5, 4, 3, 2, 1].flatMap(level => [' ', el('a', { href: vocabJlptPath(level) }, `N${level}`)]);
     return el('span', {},
         `No results for “${results.query}”. `,
         ...(results.kana ? ['Searched as ', ja(results.kana), '. '] : []),
-        'Try kana, kanji or English, or browse the JLPT lists: ', ...levels);
+        'Try kana, kanji or English, or browse the JLPT lists:', ...levels);
 }
 
 function total(results: SearchResults): number {
@@ -167,7 +171,7 @@ function initCombobox(form: HTMLFormElement): void {
 
         optionCount = 0;
         const words = results.words.slice(0, PANEL_LIMITS.words).map(hit =>
-            option(vocabPath(hit.row[0]), [...wordCells(hit), ...(hit.row[4] ? [chip(hit.row[4])] : []), glossLine(hit)]));
+            option(vocabPath(hit.row[0]), [ja(hit.row[1]), ...readingOf(hit).map(ja), ...(hit.row[4] ? [chip(hit.row[4])] : []), glossLine(hit)]));
         const kanji = results.kanji.slice(0, PANEL_LIMITS.kanji).map((row: SearchKanjiRow) =>
             option(kanjiPath(row[0]), [ja(row[0]), el('span', {}, 'Kanji'), ...(row[1] ? [chip(row[1])] : [])]));
         const grammar = results.grammar.slice(0, PANEL_LIMITS.grammar).map((row: SearchGrammarRow) =>
@@ -271,7 +275,7 @@ function initResultsPage(root: HTMLElement): void {
             ...Array.from({ length: pageCount }, (_, i) =>
                 el('a', { href: `${searchPath(query)}&p=${i + 1}`, ...(i + 1 === page ? { 'aria-current': 'page' } : {}) }, String(i + 1))));
         const wordList = el('ul', { class: 'entry-list' }, ...shown.map(hit =>
-            el('li', {}, el('a', { href: vocabPath(hit.row[0]) }, ...wordCells(hit), glossLine(hit)))));
+            el('li', {}, el('a', { href: vocabPath(hit.row[0]), lang: 'ja' }, hit.row[1], ...readingOf(hit).map(reading => el('span', {}, reading)), glossLine(hit)))));
 
         root.replaceChildren(
             ...(results.words.length > 0
@@ -279,7 +283,7 @@ function initResultsPage(root: HTMLElement): void {
                 : []),
             ...(results.kanji.length > 0
                 ? [section('Kanji', el('ul', { class: 'entry-list' }, ...results.kanji.map(row =>
-                    el('li', {}, el('a', { href: kanjiPath(row[0]) }, ja(row[0]), el('span', {}, row[1] ? `JLPT N${row[1]}` : 'Outside JLPT'))))))]
+                    el('li', {}, el('a', { href: kanjiPath(row[0]), lang: 'ja' }, row[0], el('span', { lang: 'en' }, row[1] ? `JLPT N${row[1]}` : 'Outside JLPT'))))))]
                 : []),
             ...(results.grammar.length > 0
                 ? [section('Grammar', el('ul', { class: 'grammar-list' }, ...results.grammar.map(row =>
