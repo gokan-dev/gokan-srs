@@ -1,6 +1,10 @@
 import { useState } from "react";
-import { JlptChip } from "../../components/JlptChip";
 import type { GrammarPoint } from "@gokan/dataset-schema";
+import { GrammarDifferentiator } from "../../components/GrammarDifferentiator";
+import { StatusDot } from "../../components/StatusDot";
+import { useQuiz } from "../../context/useQuiz";
+import { useIntroducedGrammarIds } from "../../hooks/useIntroducedGrammarIds";
+import { grammarLearningStatus } from "../../utils/learningStatus.utils";
 import { GrammarService } from "../../services/grammar.service";
 import { RelatedEntriesCard, type RelatedEntry } from "../../components/RelatedEntriesCard";
 import { useAsyncData } from "../../hooks/useAsyncData";
@@ -12,13 +16,15 @@ interface Props {
 const INITIAL_COUNT = 5;
 
 /**
- * The point's named near-synonym family (same core idea at a different
- * formality/nuance), rendered through the shared RelatedEntriesCard so it
- * matches the vocab detail page's Relationships list. A separate card,
- * GrammarVariantsCard, handles realization variants (the SAME point written
- * differently), which is a distinct relationship.
+ * "Similar grammar": the point's near-synonym family (same core idea at a
+ * different formality or nuance). What separates them (GrammarDifferentiator,
+ * inline) comes first, then the points themselves with the learner's status.
+ * Realization variants (the SAME point written differently) are a different
+ * relationship, in GrammarVariantsCard.
  */
 export function GrammarRelatedPointsCard({ point }: Props) {
+    const { state } = useQuiz();
+    const knownIds = useIntroducedGrammarIds();
     // Expansion belongs to one point: keyed by it, so another point's card starts collapsed.
     const [expandedFor, setExpandedFor] = useState<string | null>(null);
     const isExpanded = expandedFor === point.id;
@@ -45,20 +51,21 @@ export function GrammarRelatedPointsCard({ point }: Props) {
         key: p.id,
         to: `/grammar/${p.id}`,
         primary: p.title,
-        secondary: <JlptChip level={p.jlptLevel} />,
+        description: p.shortExplanation,
+        trailing: <StatusDot status={grammarLearningStatus(state.progress?.grammarQueue.find(g => g.grammarId === p.id))} />,
     }));
 
     return (
         <RelatedEntriesCard
-            title={point.family?.name || "Related Points"}
-            count={relatedIds.length}
+            title="Similar grammar"
+            intro={<GrammarDifferentiator point={point} knownIds={knownIds} inline />}
             headerLink={hasContrasts && familyId ? { to: `/grammar/family/${familyId}`, label: "Compare when to use each" } : undefined}
             sections={[{ entries }]}
             isExpandable={isExpandable}
             isExpanded={isExpanded}
             onToggleExpand={() => setIsExpanded(!isExpanded)}
-            expandLabel="Show all related points"
-            collapseLabel="Show fewer related points"
+            expandLabel={`Show all ${relatedIds.length}`}
+            collapseLabel="Show fewer"
         />
     );
 }

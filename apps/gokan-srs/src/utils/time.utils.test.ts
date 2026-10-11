@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDate, formatDateTime, formatMinutes, formatShortDate, formatTimeUntil, formatWeekday, minutesUntil } from './time.utils';
+import { formatDate, formatDateTime, formatDurationUntil, formatMinutes, formatShortDate, formatTimeUntil, formatWeekday, minutesUntil, nextReviewPhrase } from './time.utils';
 
 const now = new Date('2026-06-10T12:00:00Z').getTime();
 const inMs = (ms: number) => new Date(now + ms);
@@ -55,5 +55,32 @@ describe('formatDateTime', () => {
 describe('formatWeekday', () => {
     it('gives the three-letter weekday', () => {
         expect(formatWeekday(new Date('2026-04-20T00:00:00Z'))).toBe('Mon');
+    });
+});
+
+describe('formatDurationUntil', () => {
+    const now = Date.UTC(2026, 3, 19, 12, 0);
+    const later = (minutes: number) => new Date(now + minutes * 60_000);
+
+    it('counts minutes, then hours and minutes, then days', () => {
+        expect(formatDurationUntil(later(12), now)).toBe('12 min');
+        expect(formatDurationUntil(later(135), now)).toBe('2 h 15 min');
+        expect(formatDurationUntil(later(180), now)).toBe('3 h');
+        expect(formatDurationUntil(later(24 * 60), now)).toBe('1 day');
+        expect(formatDurationUntil(later(3 * 24 * 60 + 30), now)).toBe('3 days');
+    });
+});
+
+describe('nextReviewPhrase', () => {
+    const now = Date.UTC(2026, 3, 19, 12, 0);
+
+    it('says Due now for a past or present date', () => {
+        expect(nextReviewPhrase(new Date(now - 1000), now)).toBe('Due now');
+        expect(nextReviewPhrase(new Date(now), now)).toBe('Due now');
+    });
+
+    it('says how long until a near review, and the date of a far one', () => {
+        expect(nextReviewPhrase(new Date(now + 3 * 24 * 3_600_000), now)).toBe('Next review in 3 days');
+        expect(nextReviewPhrase(new Date(Date.UTC(2026, 9, 1, 12)), now)).toBe('Next review on Oct 1, 2026');
     });
 });

@@ -55,3 +55,26 @@ export function formatTimeUntil(date: Date | null, now: number): string {
 
     return formatDate(date);
 }
+
+/** "12 min", "2 h 15 min", "3 h", "1 day", "3 days": how long until `date`, for a sentence. */
+export function formatDurationUntil(date: Date, now: number): string {
+    const minutes = minutesUntil(date, now);
+    if (minutes < 60) return `${minutes} min`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) {
+        const rest = minutes % 60;
+        return rest > 0 ? `${hours} h ${rest} min` : `${hours} h`;
+    }
+    const days = Math.round(hours / 24);
+    return `${days} day${days > 1 ? 's' : ''}`;
+}
+
+/**
+ * When something is next reviewed, as one phrase: "Due now", "Next review in 3 days",
+ * and past two months the date itself, "Next review on Apr 19, 2026".
+ */
+export function nextReviewPhrase(date: Date, now: number): string {
+    if (date.getTime() <= now) return 'Due now';
+    if (date.getTime() - now > 60 * 24 * 60 * MINUTE_MS) return `Next review on ${formatDate(date)}`;
+    return `Next review in ${formatDurationUntil(date, now)}`;
+}

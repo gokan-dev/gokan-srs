@@ -17,9 +17,8 @@ function toEntry(v: Vocabulary): RelatedEntry {
         to: `/vocab/${v.id}`,
         primary: headwordOf(v),
         // A word shown in kana names its kanji spelling where the reading would go.
-        secondary: <span className={`${v.usuallyKana ? 'font-mincho' : 'font-gothic font-bold'} text-secondary`}>{secondaryForm(v)}</span>,
-        meta: <span className="text-xs text-tertiary font-mono">ID: {v.id}</span>,
-        description: v.senses && v.senses[0] ? v.senses[0].glosses.join(", ") : "No definition available",
+        secondary: <span className={`${v.usuallyKana ? 'font-mincho' : 'font-gothic'} text-sm text-secondary truncate`}>{secondaryForm(v)}</span>,
+        description: v.senses[0]?.glosses.join(", "),
     };
 }
 
@@ -51,22 +50,21 @@ export function VocabRelationshipsCard({ vocab }: Props) {
 
     const sections: RelatedSection[] = [];
     if (componentIds.length > 0) {
-        sections.push({ label: `Consists of (${componentIds.length})`, entries: components.map(toEntry) });
+        sections.push({ label: 'Built from', count: componentIds.length, entries: components.map(toEntry) });
     }
     if (parentIds.length > 0) {
-        sections.push({ label: `Used in Derived Words (${parentIds.length})`, entries: parents.map(toEntry) });
+        sections.push({ label: 'Used in', count: parentIds.length, entries: parents.map(toEntry) });
     }
 
     return (
         <RelatedEntriesCard
-            title="Relationships"
+            title="Related words"
             sections={sections}
-            primarySize="xl"
             isExpandable={isExpandable}
             isExpanded={isExpanded}
             onToggleExpand={() => setIsExpanded(!isExpanded)}
-            expandLabel="Show all relationships"
-            collapseLabel="Show fewer relationships"
+            expandLabel="Show all related words"
+            collapseLabel="Show fewer"
         />
     );
 }

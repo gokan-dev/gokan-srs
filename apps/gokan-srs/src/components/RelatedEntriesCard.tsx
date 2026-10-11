@@ -1,44 +1,43 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
-import { Card } from "./ui/Card";
 import { ListRow } from "./ui/ListRow";
-import { useResponsive } from "../context/Responsive/useResponsive";
+import { DetailSection } from "./detail/DetailSection";
 
 /**
- * One clickable row: a Japanese primary label, an optional inline secondary
- * (a reading, a JLPT chip, a relation chip - whatever the caller supplies), an
- * optional right-aligned meta (an id), and an optional description below.
+ * One related entry: a Japanese label, an optional inline secondary (a reading,
+ * a relation), an optional trailing status, and an optional one-line gloss.
  */
 export interface RelatedEntry {
     key: string;
     to: string;
-    /** Japanese text (a word's kanji form, a grammar point's title). */
+    /** Japanese text (a word's headword, a grammar point's title). */
     primary: string;
-    /** Inline, right after the primary - a reading string, a <JlptChip/>, etc. */
+    /** Inline, right after the primary: a reading, a relation. */
     secondary?: ReactNode;
-    /** Right-aligned on the primary row (e.g. an id). */
-    meta?: ReactNode;
-    /** A gloss/definition line beneath the primary row, clamped to two lines. */
+    /** Right-aligned: the entry's status. */
+    trailing?: ReactNode;
+    /** A gloss or definition line beneath, one line. */
     description?: string;
 }
 
 export interface RelatedSection {
-    /** Small uppercase label above the rows (e.g. "Consists of (3)"). Omit for a single unlabelled list. */
+    /** A label above the rows ("Built from"). Omit for a single unlabelled list. */
     label?: string;
+    count?: number;
     entries: RelatedEntry[];
 }
 
 interface Props {
     title: string;
-    /** Shown as "(N)" next to the title. Omit when per-section labels carry the counts instead. */
+    /** Shown next to the title. Omit when per-section labels carry the counts instead. */
     count?: number;
-    /** An action link under the heading (e.g. grammar's "Compare when to use each"). */
+    /** An action link under the heading (grammar's "Compare when to use each"). */
     headerLink?: { to: string; label: string };
+    /** Prose above the rows (grammar's differentiator). */
+    intro?: ReactNode;
     sections: RelatedSection[];
-    /** Primary text size - vocab kanji reads larger than a grammar title. */
-    primarySize?: "lg" | "xl";
-    /** Expand/collapse is controlled by the caller so it can lazy-load only the displayed rows. Omit for a fixed short list. */
+    /** Expand/collapse is controlled by the caller so it can lazy-load only the displayed rows. */
     isExpandable?: boolean;
     isExpanded?: boolean;
     onToggleExpand?: () => void;
@@ -47,93 +46,68 @@ interface Props {
 }
 
 /**
- * The single presentational base behind every "related entries" list in the
- * app, so a vocab word's relationships and a grammar point's related/variant
- * links share one card chrome, row layout, hover treatment, and expand control.
- * Callers resolve their own data and map it to RelatedEntry rows; everything
- * visual lives here. Used by VocabRelationshipsCard, GrammarRelatedPointsCard,
- * and GrammarVariantsCard.
+ * The one "related entries" section, so a word's relationships and a grammar
+ * point's similar points and other forms share one row layout and expand
+ * control. Callers resolve their own data and map it to rows.
  */
 export function RelatedEntriesCard({
     title,
     count,
     headerLink,
+    intro,
     sections,
-    primarySize = "lg",
     isExpandable = false,
     isExpanded = false,
     onToggleExpand,
     expandLabel = "Show all",
     collapseLabel = "Show fewer",
 }: Props) {
-    const { isMobile } = useResponsive();
-
-    const primaryClass = primarySize === "xl" ? "text-xl" : "text-lg";
-
-    const renderEntries = (entries: RelatedEntry[]) => (
-        <div className="space-y-1 mt-2">
-            {entries.map((entry) => (
-                <ListRow key={entry.key} to={entry.to} trailing={entry.meta} className="px-0">
-                    <div className={`flex items-center gap-2 ${entry.description ? "mb-1" : ""}`}>
-                        <span className={`font-mincho ${primaryClass} text-primary`}>
-                            {entry.primary}
-                        </span>
-                        {entry.secondary}
-                    </div>
-                    {entry.description && (
-                        <div className="text-sm text-primary font-serif line-clamp-2">
-                            {entry.description}
-                        </div>
-                    )}
-                </ListRow>
-            ))}
-        </div>
-    );
-
     return (
-        <Card size={isMobile ? "sm" : "md"}>
-            <h2 className="text-lg font-gothic font-semibold text-primary mb-4">
-                {title}
-                {count !== undefined && (
-                    <span className="text-sm font-normal text-tertiary ml-2">({count})</span>
-                )}
-            </h2>
+        <DetailSection title={title} count={count}>
+            {intro && <div className="mb-4">{intro}</div>}
 
             {headerLink && (
                 <Link
                     to={headerLink.to}
-                    className="inline-flex items-center gap-1 mb-4 text-sm font-gothic text-accent hover:underline"
+                    className="inline-flex items-center gap-1 mb-3 font-sans text-sm text-accent hover:underline"
                 >
-                    {headerLink.label} <ArrowRight size={14} />
+                    {headerLink.label} <ArrowRight size={14} aria-hidden="true" />
                 </Link>
             )}
 
-            <div className="space-y-6">
+            <div className="space-y-5">
                 {sections.map((section, i) => (
-                    <div
-                        key={section.label ?? i}
-                        className={i > 0 ? "pt-4 border-t border-divider/50" : ""}
-                    >
+                    <div key={section.label ?? i}>
                         {section.label && (
-                            <div className="type-meta mb-2">
+                            <h3 className="type-label mb-1">
                                 {section.label}
-                            </div>
+                                {section.count !== undefined && <span className="type-meta ml-2 tabular-nums">{section.count}</span>}
+                            </h3>
                         )}
-                        {renderEntries(section.entries)}
+                        <div className="flex flex-col -mx-3">
+                            {section.entries.map(entry => (
+                                <ListRow key={entry.key} to={entry.to} trailing={entry.trailing}>
+                                    <div className="flex items-baseline gap-2 min-w-0">
+                                        <span className="font-mincho text-lg text-primary shrink-0">{entry.primary}</span>
+                                        {entry.secondary}
+                                    </div>
+                                    {entry.description && <div className="type-support truncate">{entry.description}</div>}
+                                </ListRow>
+                            ))}
+                        </div>
                     </div>
                 ))}
             </div>
 
             {isExpandable && onToggleExpand && (
-                <div className="mt-6 text-center">
-                    <button
-                        onClick={onToggleExpand}
-                        className="text-sm font-gothic text-accent hover:text-accent/80 transition-colors py-2 px-4 rounded-md border border-accent/20 hover:bg-accent/5 w-full md:w-auto"
-                    >
-                        {isExpanded ? collapseLabel : expandLabel}
-                    </button>
-                </div>
+                <button
+                    type="button"
+                    onClick={onToggleExpand}
+                    className="mt-3 font-sans text-sm text-accent hover:underline cursor-pointer"
+                >
+                    {isExpanded ? collapseLabel : expandLabel}
+                </button>
             )}
-        </Card>
+        </DetailSection>
     );
 }

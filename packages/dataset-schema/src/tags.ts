@@ -270,3 +270,99 @@ export const TagsLookup: Record<Tags, string> = {
     "pn": "pronoun",
     "gikun": "gikun (meaning as reading) or jukujikun (special kanji reading)"
 }
+/**
+ * Short labels for the common tags ("Noun", "Godan verb (-ku)", "Intransitive"), for
+ * a sense's part-of-speech line. `TagsLookup`'s JMdict descriptions are precise but
+ * long; a tag missing here falls back to them through `shortTagLabel`.
+ */
+const TagsShortLookup: Partial<Record<Tags, string>> = {
+    "n": "Noun",
+    "n-adv": "Adverbial noun",
+    "n-t": "Temporal noun",
+    "n-pref": "Noun, prefix",
+    "n-suf": "Noun, suffix",
+    "n-pr": "Proper noun",
+    "pn": "Pronoun",
+    "adj-i": "I-adjective",
+    "adj-ix": "I-adjective (yoi/ii)",
+    "adj-na": "Na-adjective",
+    "adj-no": "No-adjective",
+    "adj-pn": "Pre-noun adjectival",
+    "adj-t": "Taru adjective",
+    "adj-f": "Prenominal",
+    "adv": "Adverb",
+    "adv-to": "Adverb (-to)",
+    "aux": "Auxiliary",
+    "aux-v": "Auxiliary verb",
+    "aux-adj": "Auxiliary adjective",
+    "conj": "Conjunction",
+    "cop": "Copula",
+    "ctr": "Counter",
+    "exp": "Expression",
+    "int": "Interjection",
+    "num": "Number",
+    "pref": "Prefix",
+    "suf": "Suffix",
+    "prt": "Particle",
+    "unc": "Unclassified",
+    "v1": "Ichidan verb",
+    "v1-s": "Ichidan verb (kureru)",
+    "v5aru": "Godan verb (-aru)",
+    "v5b": "Godan verb (-bu)",
+    "v5g": "Godan verb (-gu)",
+    "v5k": "Godan verb (-ku)",
+    "v5k-s": "Godan verb (iku)",
+    "v5m": "Godan verb (-mu)",
+    "v5n": "Godan verb (-nu)",
+    "v5r": "Godan verb (-ru)",
+    "v5r-i": "Godan verb (-ru, irregular)",
+    "v5s": "Godan verb (-su)",
+    "v5t": "Godan verb (-tsu)",
+    "v5u": "Godan verb (-u)",
+    "v5u-s": "Godan verb (-u, special)",
+    "vk": "Kuru verb",
+    "vs": "Suru verb",
+    "vs-i": "Suru verb",
+    "vs-s": "Suru verb (special)",
+    "vz": "Ichidan verb (-zuru)",
+    "vi": "Intransitive",
+    "vt": "Transitive",
+    "arch": "Archaic",
+    "obs": "Obsolete",
+    "rare": "Rare",
+    "dated": "Dated",
+    "col": "Colloquial",
+    "fam": "Familiar",
+    "form": "Formal",
+    "hon": "Honorific",
+    "hum": "Humble",
+    "pol": "Polite",
+    "sl": "Slang",
+    "abbr": "Abbreviation",
+    "on-mim": "Onomatopoeia",
+    "id": "Idiom",
+    "yoji": "Four-character idiom",
+    "uk": "Usually kana",
+    "male": "Male speech",
+    "fem": "Female speech",
+    "chn": "Children's language",
+    "derog": "Derogatory",
+    "joc": "Humorous",
+    "poet": "Poetic",
+    "vulg": "Vulgar",
+};
+
+/** A tag's short label, or its full JMdict description when it has none. */
+export function shortTagLabel(tag: Tags): string {
+    return TagsShortLookup[tag] ?? TagsLookup[tag];
+}
+
+/** Tags marking a sense as one a learner rarely meets: listed last, behind a disclosure. */
+export const RARE_SENSE_TAGS: readonly Tags[] = ['arch', 'obs', 'rare', 'dated'];
+
+const TAG_SET: ReadonlySet<string> = new Set(TagsKey);
+
+/** Whether a raw tag string from a compiled sense is a known tag. */
+export function isTag(tag: string): tag is Tags {
+    return TAG_SET.has(tag);
+}

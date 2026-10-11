@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { STATUS_LABEL, grammarLearningStatus, vocabLearningStatus } from './learningStatus.utils';
+import { STATUS_LABEL, directionStatus, grammarLearningStatus, vocabLearningStatus } from './learningStatus.utils';
 import { grammarProgress, srsEntry, vocabProgress } from '../test/fixtures';
 import { CONSTANTS } from '../commons/constants';
 
@@ -34,5 +34,23 @@ describe('grammarLearningStatus', () => {
         const introductionAt = new Date('2026-01-01');
         expect(grammarLearningStatus(grammarProgress({ introductionAt }))).toBe('learning');
         expect(grammarLearningStatus(grammarProgress({ introductionAt, entry: srsEntry({ memoryStrength: MAX }) }))).toBe('mastered');
+    });
+});
+
+describe('directionStatus', () => {
+    const now = Date.UTC(2026, 3, 19, 12);
+
+    it('is Not started for a direction not activated yet', () => {
+        expect(directionStatus(undefined, false, now)).toBe('Not started');
+        expect(directionStatus(srsEntry({ dueDate: new Date(now) }), false, now)).toBe('Not started');
+    });
+
+    it('is Mastered at full strength, whatever the stored due date', () => {
+        expect(directionStatus(srsEntry({ memoryStrength: MAX, dueDate: new Date(now) }), true, now)).toBe('Mastered');
+    });
+
+    it('says when the direction is next reviewed', () => {
+        expect(directionStatus(srsEntry({ dueDate: new Date(now - 1) }), true, now)).toBe('Due now');
+        expect(directionStatus(srsEntry({ dueDate: new Date(now + 2 * 86_400_000) }), true, now)).toBe('Next review in 2 days');
     });
 });

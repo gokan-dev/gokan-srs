@@ -2,7 +2,6 @@ import { headwordOf } from "@gokan/dataset-schema";
 import type { Vocabulary } from "@gokan/dataset-schema";
 import { CardSection } from "./ui/CardSection";
 import { KanjiSpellingNote } from "./KanjiSpellingNote";
-import { Combine } from "lucide-react";
 import { formatReadingList } from "../pages/quiz/quizFormatting";
 import { JlptChip } from "./JlptChip";
 import { IntroCardShell } from "./IntroCardShell";
@@ -20,14 +19,8 @@ export default function VocabIntroCard({ vocab, onLearn, onSkip }: IntroVocabCar
             {/* Kanji */}
             <CardSection>
                 <div className="text-center">
-                    <div
-                        className="text-primary font-mincho leading-none text-kanji flex items-center justify-center gap-3"
-                        title={vocab.mergedVocabs && vocab.mergedVocabs.length > 1 ? "Merged Entry (combines multiple JMDict words)" : undefined}
-                    >
+                    <div className="text-primary font-mincho leading-none text-kanji flex items-center justify-center">
                         {headwordOf(vocab)}
-                        {vocab.mergedVocabs && vocab.mergedVocabs.length > 1 && (
-                            <Combine size={40} className="text-divider" />
-                        )}
                     </div>
 
                     {/* A word shown in kana already shows its reading: name its kanji spelling instead. */}
