@@ -11,7 +11,7 @@ interface DailyProgressionChartProps {
 
 const SEGMENTS: StackedBarChartSegment[] = [
     { key: 'correct', label: 'Correct', color: THEME.colors.correct },
-    { key: 'incorrect', label: 'Incorrect', color: THEME.colors.error },
+    { key: 'incorrect', label: 'Incorrect', color: THEME.colors.incorrect },
 ];
 
 export function DailyProgressionChart({ progress }: DailyProgressionChartProps) {
@@ -20,10 +20,8 @@ export function DailyProgressionChart({ progress }: DailyProgressionChartProps) 
         const dailyActivity = buildDailyActivity(progress, daysToShow);
 
         return dailyActivity.map((bucket, idx) => {
-            const i = daysToShow - 1 - idx;
-            const label = i === 0 ? 'Today' : (i === 1 ? 'Yesterday' : formatWeekday(bucket.date));
-            const isWeekend = bucket.date.getDay() === 0 || bucket.date.getDay() === 6;
-            return { label, values: { correct: bucket.correct, incorrect: bucket.incorrect }, muted: isWeekend };
+            const label = idx === daysToShow - 1 ? 'Today' : formatWeekday(bucket.date);
+            return { label, values: { correct: bucket.correct, incorrect: bucket.incorrect } };
         });
     }, [progress]);
 

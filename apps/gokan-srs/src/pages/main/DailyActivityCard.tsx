@@ -9,7 +9,7 @@ const DAYS_SHOWN = 7;
 
 const SEGMENTS: StackedBarChartSegment[] = [
     { key: 'correct', label: 'Correct', color: THEME.colors.correct },
-    { key: 'incorrect', label: 'Incorrect', color: THEME.colors.error },
+    { key: 'incorrect', label: 'Incorrect', color: THEME.colors.incorrect },
 ];
 
 /**
@@ -30,23 +30,14 @@ export const DailyActivityCard: React.FC<{ progress: UserProgress }> = ({ progre
     }));
 
     return (
-        <div className="mb-8 border border-divider rounded-md bg-surface p-4">
-            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-4">
-                <div className="flex flex-col">
-                    <span className="type-meta">Today</span>
-                    <span className="text-2xl text-primary leading-tight tabular-nums">{todayReviewed}</span>
-                    <span className="text-sm text-secondary tabular-nums">
-                        {todayReviewed === 0 ? 'No reviews yet' : (
-                            <>
-                                {today.correct} correct
-                                {today.incorrect > 0 && <span className="text-error"> · {today.incorrect} incorrect</span>}
-                            </>
-                        )}
-                    </span>
-                </div>
-            </div>
-
-            <StackedBarChart segments={SEGMENTS} bars={bars} height={64} showLegend />
-        </div>
+        <section className="mt-10">
+            <h2 className="type-section">This week</h2>
+            <p className="type-support mt-1 mb-4">
+                {todayReviewed === 0
+                    ? 'No reviews today yet'
+                    : `Today: ${todayReviewed.toLocaleString('en-US')} review${todayReviewed === 1 ? '' : 's'}, ${today.correct.toLocaleString('en-US')} correct`}
+            </p>
+            <StackedBarChart segments={SEGMENTS} bars={bars} height={48} showLegend />
+        </section>
     );
 };

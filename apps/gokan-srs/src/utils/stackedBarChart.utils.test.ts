@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { segmentHeightPercent, stackedBarDomOrder } from './stackedBarChart.utils';
+import { axisTicks, segmentHeightPercent, showsLabelWhenNarrow, stackedBarDomOrder } from './stackedBarChart.utils';
 
 describe('stackedBarDomOrder', () => {
     it('reverses bottom-to-top order to DOM order, so flex-col + justify-end anchors the first segment to the baseline', () => {
@@ -27,5 +27,29 @@ describe('segmentHeightPercent', () => {
 
     it('clamps to 100 when a value exceeds the max', () => {
         expect(segmentHeightPercent(15, 10)).toBe(100);
+    });
+});
+
+describe('axisTicks', () => {
+    it('labels the max, a whole midline and 0', () => {
+        expect(axisTicks(40)).toEqual([40, 20, 0]);
+        expect(axisTicks(3)).toEqual([3, 2, 0]);
+    });
+
+    it('never repeats a label on a tiny scale', () => {
+        expect(axisTicks(0)).toEqual([1, 0]);
+        expect(axisTicks(1)).toEqual([1, 0]);
+    });
+});
+
+describe('showsLabelWhenNarrow', () => {
+    it('shows every label of a short chart', () => {
+        expect([0, 1, 2, 3, 4, 5, 6].every(i => showsLabelWhenNarrow(i, 7))).toBe(true);
+    });
+
+    it('shows every other label of a long chart, always including the last', () => {
+        expect(showsLabelWhenNarrow(13, 14)).toBe(true);
+        expect(showsLabelWhenNarrow(12, 14)).toBe(false);
+        expect(showsLabelWhenNarrow(11, 14)).toBe(true);
     });
 });
