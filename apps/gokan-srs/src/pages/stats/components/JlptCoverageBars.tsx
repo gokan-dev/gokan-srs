@@ -82,7 +82,7 @@ export function JlptCoverageBars({ rows, itemLabel, headline, keyColumnLabel = "
                     </span>
                     <span className="flex items-center gap-1.5">
                         <span className="w-3 h-3 rounded-sm bg-accent opacity-35" aria-hidden="true" />
-                        In progress
+                        Learning
                     </span>
                 </div>
             </div>
@@ -138,10 +138,10 @@ export function JlptCoverageBars({ rows, itemLabel, headline, keyColumnLabel = "
                                             {row.mastered.toLocaleString()} mastered
                                         </div>
                                         <div className="text-secondary tabular-nums">
-                                            {row.learning.toLocaleString()} in progress
+                                            {row.learning.toLocaleString()} learning
                                         </div>
                                         <div className="text-tertiary tabular-nums">
-                                            {(row.total - rowStarted).toLocaleString()} untouched
+                                            {(row.total - rowStarted).toLocaleString()} new
                                         </div>
                                     </div>
                                 )}
@@ -166,7 +166,7 @@ export function JlptCoverageBars({ rows, itemLabel, headline, keyColumnLabel = "
                         <tr className="text-tertiary">
                             <th className="font-normal py-1 pr-3">{keyColumnLabel}</th>
                             <th className="font-normal py-1 pr-3 text-right">Mastered</th>
-                            <th className="font-normal py-1 pr-3 text-right">In progress</th>
+                            <th className="font-normal py-1 pr-3 text-right">Learning</th>
                             <th className="font-normal py-1 text-right">Total</th>
                         </tr>
                     </thead>
