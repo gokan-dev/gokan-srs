@@ -1,5 +1,5 @@
 import { OptionGrid } from "../../components/OptionGrid";
-import type { AnswerColors, UserSettings } from "../../models/user.model";
+import type { UserSettings } from "../../models/user.model";
 import { useGoogleDrive } from "../../context/useGoogleDrive";
 import { Cloud, Loader2, LogIn, RefreshCw, Moon, Sun, Monitor, KeyRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -21,24 +21,6 @@ const THEMES: { value: Theme; label: string; icon: LucideIcon }[] = [
     { value: 'dark', label: 'Dark', icon: Moon },
     { value: 'system', label: 'System', icon: Monitor },
 ];
-
-const ANSWER_COLORS: { value: AnswerColors; label: string }[] = [
-    { value: 'default', label: 'Green and red' },
-    { value: 'colorblind', label: 'Blue and orange (colour-blind friendly)' },
-];
-
-/**
- * The correct and incorrect colours of one pair. The pair's class rescopes the
- * two answer tokens, so each swatch shows its own pair whatever is chosen.
- */
-function AnswerColorSwatch({ value }: { value: AnswerColors }) {
-    return (
-        <span className={`answer-colors-${value} inline-flex gap-1 shrink-0`} aria-hidden="true">
-            <span className="w-4 h-4 rounded-full bg-feedback-correct" />
-            <span className="w-4 h-4 rounded-full bg-feedback-incorrect" />
-        </span>
-    );
-}
 
 /** A settings section: a heading, an optional one-line description, the controls. */
 function SettingsSection({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
@@ -182,21 +164,6 @@ export function SettingsScreen({
                             className="flex flex-col items-center justify-center h-20 gap-2 text-primary"
                         >
                             <Icon size={20} aria-hidden="true" />
-                            <span className="font-sans text-sm">{label}</span>
-                        </SelectableOption>
-                    ))}
-                </div>
-
-                <h3 className="type-label mt-6 mb-2">Answer colours</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {ANSWER_COLORS.map(({ value, label }) => (
-                        <SelectableOption
-                            key={value}
-                            selected={settings.answerColors === value}
-                            onSelect={() => onUpdateSettings({ ...settings, answerColors: value })}
-                            className="flex items-center gap-3 p-4 pr-8 text-primary"
-                        >
-                            <AnswerColorSwatch value={value} />
                             <span className="font-sans text-sm">{label}</span>
                         </SelectableOption>
                     ))}

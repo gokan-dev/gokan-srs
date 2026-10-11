@@ -37,8 +37,8 @@ variables, so dark mode follows automatically).
 | Supporting | `secondary` (neutral grey) | descriptions, readings beside a headword, field labels | links, anything clickable |
 | Meta | `tertiary` | counts, dates, captions | body copy |
 | Action, selection, focus, your progress | `accent` | links and action text, primary buttons, selected controls, focus rings, progress and mastery fills, the current item | plain text, metadata chips, decorative icons |
-| Answer correct | `feedback-correct` | answer results only: quiz feedback, session ticker, review history, answer charts | anything else |
-| Answer wrong | `feedback-incorrect` | answer results only, as for `feedback-correct` | errors, warnings, destructive actions |
+| Answer correct | `feedback-correct` (blue) | answer results only: quiz feedback, session ticker, review history, answer charts | anything else |
+| Answer wrong | `feedback-incorrect` (orange) | answer results only, as for `feedback-correct` | errors, warnings, destructive actions |
 | Error, warning, destructive | `error` | errors, warnings, destructive actions | answer results, decoration |
 | Metadata | neutral (`divider` border + `secondary` text) | JLPT level, part of speech, register, status chips | |
 
@@ -50,14 +50,11 @@ Rules that follow from the table:
   shown (quiz feedback and blanks, the session ticker and counter, the hub week chart,
   daily activity, review history, `StackedBarChart` series), always with a second cue
   (position, label, tooltip), never colour alone. A wrong answer is never `error`: the
-  pair has to follow the answer-colour setting, and `error` does not.
-- **Answer colours** (Settings, Appearance; `UserSettings.answerColors`): "Green and
-  red" (default) or "Blue and orange" for red-green colour blindness. Like dark mode, a
-  class on the root element (`answer-colors-colorblind`, set by `useAnswerColors`)
-  points only `--feedback-correct` and `--feedback-incorrect` at the other pair
-  (`--answer-colorblind-*` instead of `--answer-default-*`, each defined per theme in
-  `index.css`). The same class on any element previews its pair there (the Settings
-  swatches use `answer-colors-default` / `answer-colors-colorblind`).
+  answer pair and the error colour are separate languages.
+- **Answer results are blue (correct) and orange (wrong) for everyone**, chosen to be
+  safe for red-green colour blindness. There is no setting: one pair keeps the colour
+  language stable across learners. The hues are Okabe-Ito, contrast-adjusted where
+  needed (values below).
 - Mastery and review forecasts use the accent in steps (reading 100%, meaning 60%,
   production 35%), never a second hue.
 - No categorical hues: quiz kind (construction / inflection / lexical) is neutral text,
@@ -78,19 +75,14 @@ Rules that follow from the table:
 | `--divider` | `#E8E0D0` | `#2C2A26` |
 | `--accent` | `#3D5A80` | `#6B8FA8` |
 | `--accent-hover` | `#2A405D` | `#8AB4D4` |
-| `--error` / `--feedback-incorrect` | `#8A3A2E` | `#E0796D` |
-| `--feedback-correct` | `#2F6B4F` | `#6FBF95` |
+| `--error` | `#8A3A2E` | `#E0796D` |
+| `--feedback-correct` | `#0072B2` (Okabe-Ito blue) | `#56B4E9` (Okabe-Ito sky blue) |
+| `--feedback-incorrect` | `#AD4F00` (Okabe-Ito vermillion, darkened for contrast) | `#E69F00` (Okabe-Ito orange) |
 
-With `answer-colors-colorblind` (Okabe-Ito hues; each at least 4.5:1 on `--surface` and
-`--background` in its theme):
-
-| Token | Light | Dark |
-| --- | --- | --- |
-| `--feedback-correct` | `#0072B2` (blue) | `#56B4E9` (sky blue) |
-| `--feedback-incorrect` | `#AD4F00` (vermillion, darkened for contrast) | `#E69F00` (orange) |
-
-The blue is saturated where the accent is a muted slate, so a correct result never reads
-as a link or as progress.
+Each answer colour is at least 4.5:1 on `--surface` and `--background` in its theme
+(light 5.19 / 4.57 and 5.39 / 4.75, dark 7.46 / 8.18 and 7.65 / 8.38). The blue is
+saturated where the accent is a muted slate, so a correct result never reads as a link
+or as progress.
 
 `--secondary` and `--tertiary` are deliberately NOT the old accent blue: that collision
 (`--secondary` used to equal `--accent`) is why plain text used to read as a link
@@ -172,15 +164,17 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
   `text-3xl md:text-4xl` for a grammar point), readings/romaji, neutral chips, and the
   actions area. From `lg` the header uses the body's grid (12 columns, 8/4, `gap-10`), so
   the actions start on the side column's left edge, left-aligned and top-aligned with the
-  headword; below `lg` they follow the readings. The actions hold only the status
-  (`StatusDot` plus the next review) or, before the item is studied, the one primary
-  "Learn this ..." button. No mastery rings: those, with their values, are only in "Your
+  headword; below `lg` they follow the readings. The actions hold only the status or,
+  before the item is studied, the one primary "Learn this ..." button. The status is one
+  line, the next review after the `StatusDot` label ("● Learning · Due now"), and never
+  repeats the status word: a mastered item with nothing scheduled shows only
+  "● Mastered" (`statusReviewPhrase`). The kanji header keeps Known / Not known. No mastery rings: those, with their values, are only in "Your
   progress".
 - **Session cards**: every card of a study session (each exercise, both intro cards, the
   chapter review, the kanji unlock) is drawn in `QuizCardFrame`, which owns one width
   (`w-full max-w-2xl`, on the animated wrapper too) and one padding, so a card's size
   never depends on what it contains.
-- **Settings**: Account, Appearance (theme, answer colours), Review pacing, AI answer
+- **Settings**: Account, Appearance (theme), Review pacing, AI answer
   checking, Activity settings, Danger zone. Activity settings holds one collapsed
   `Disclosure` per activity (a `type-subsection` heading and a one-line description), so
   they read as subordinate to the global settings.

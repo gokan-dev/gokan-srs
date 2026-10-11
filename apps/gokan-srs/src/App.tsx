@@ -12,7 +12,6 @@ import { AppFooter } from './components/nav/AppFooter';
 import { isSessionPath } from './utils/navigation.utils';
 import { ResumeSessionBar } from './components/ResumeSessionBar';
 import { StorageFullBanner } from './components/StorageFullBanner';
-import { useAnswerColors } from './hooks/useAnswerColors';
 
 // Lazy Load Pages
 // Note: Adapting named exports to default exports for lazy loading where necessary
@@ -38,7 +37,6 @@ export const App: React.FC = () => {
     const { isInitialLoadComplete, isDownloading } = useGoogleDrive();
     const navigate = useNavigate();
     const location = useLocation();
-    useAnswerColors(state.settings?.answerColors);
 
     // Show sync loader if initial sync is in progress or manual download is happening
     if (!isInitialLoadComplete || isDownloading) {

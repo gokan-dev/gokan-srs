@@ -176,15 +176,7 @@ export interface UserSettings {
      * see, e.g. ["Comedy", "Slice of Life"]. Empty or absent shows every title.
      */
     listeningGenres?: string[];
-    /**
-     * The pair answer results are drawn in (quiz feedback, the session ticker,
-     * every answer chart): green and red, or blue and orange for red-green
-     * colour blindness. Applied as a class on the root element (`useAnswerColors`).
-     */
-    answerColors: AnswerColors;
 }
-
-export type AnswerColors = 'default' | 'colorblind';
 
 export const DEFAULT_SETTINGS: UserSettings = {
     preferredLearningOrder: 'frequency',
@@ -202,7 +194,6 @@ export const DEFAULT_SETTINGS: UserSettings = {
     // that preset, then to 50 (meaningContextThresholdOf).
     ignoreKnownKanjiRequirement: false,
     kanjiCountStep: 10,
-    answerColors: 'default',
 };
 
 /** Every quiz type at level 1 with an empty window: where calibration starts. */

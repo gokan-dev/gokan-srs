@@ -49,13 +49,15 @@
   --accent-hover: #2A405D;
   --error: #8A3A2E;
   /*
-    The two answer-colour pairs (Settings, Appearance). --feedback-correct and
-    --feedback-incorrect resolve to one of them, below.
+    Answer results, the same for everyone: blue and orange, safe for red-green
+    colour blindness, always shown with a second cue (an icon, a label).
+    Okabe-Ito hues: light uses its blue and its vermillion darkened to reach
+    4.5:1 on the surface and the background; dark uses sky blue and orange as
+    published. The blue stays apart from the muted accent by saturation and
+    lightness. Errors and destructive actions keep --error.
   */
-  --answer-default-correct: #2F6B4F;
-  --answer-default-incorrect: #8A3A2E;
-  --answer-colorblind-correct: #0072B2;
-  --answer-colorblind-incorrect: #AD4F00;
+  --feedback-correct: #0072B2;
+  --feedback-incorrect: #AD4F00;
   --input-placeholder: #9AA0A6;
 
   /*
@@ -80,32 +82,9 @@
   --accent: #6B8FA8;
   --accent-hover: #8AB4D4;
   --error: #E0796D;
-  --answer-default-correct: #6FBF95;
-  --answer-default-incorrect: #E0796D;
-  --answer-colorblind-correct: #56B4E9;
-  --answer-colorblind-incorrect: #E69F00;
+  --feedback-correct: #56B4E9;
+  --feedback-incorrect: #E69F00;
   --input-placeholder: #6e7681;
-}
-
-/*
-  Answer colours: green and red by default; blue and orange from the
-  Okabe-Ito set for red-green colour blindness, chosen in Settings and set as
-  a class on the root element (useAnswerColors). Only the two answer-result
-  tokens follow it; errors keep --error. The colour-blind pair: light uses
-  Okabe-Ito blue and its vermillion darkened to reach 4.5:1 on the surface and
-  the background; dark uses sky blue and orange as published. The blue stays
-  apart from the muted accent by saturation and lightness. The classes also
-  scope a preview (the swatches in Settings) to one pair.
-*/
-:root,
-.answer-colors-default {
-  --feedback-correct: var(--answer-default-correct);
-  --feedback-incorrect: var(--answer-default-incorrect);
-}
-
-.answer-colors-colorblind {
-  --feedback-correct: var(--answer-colorblind-correct);
-  --feedback-incorrect: var(--answer-colorblind-incorrect);
 }
 
 /* Global Styles based on Theme */
