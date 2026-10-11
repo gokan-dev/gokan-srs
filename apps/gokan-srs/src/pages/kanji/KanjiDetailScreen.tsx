@@ -1,83 +1,68 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import type { Kanji } from "@gokan/dataset-schema";
-import { Card } from "../../components/ui/Card";
 import { JlptChip } from "../../components/JlptChip";
-import { useResponsive } from "../../context/Responsive/useResponsive";
 import { useQuiz } from "../../context/useQuiz";
 import { VocabularyService } from "../../services/vocabulary.service";
 import { LoadingScreen } from "../../components/LoadingScreen";
 import { KanjiVocabListCard } from "./KanjiVocabListCard";
-import { PageHeader } from "../../components/PageHeader";
+import { Page } from "../../components/Page";
+import { Button } from "../../components/ui/Button";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { DetailErrorScreen } from "../../components/detail/DetailErrorScreen";
-import { DetailField } from "../../components/detail/DetailCard";
+import { DetailHeader } from "../../components/detail/DetailHeader";
 
 export default function KanjiDetailScreen() {
     const { character } = useParams<{ character: string }>();
-    const navigate = useNavigate();
-    const { isMobile } = useResponsive();
-    const { state } = useQuiz();
+    const { state, actions } = useQuiz();
     const kanjiLoad = useAsyncData(character ?? null, () => VocabularyService.loadKanji(character ?? ''));
     const vocabIdsLoad = useAsyncData(character ?? null, async () => (await VocabularyService.loadKanjiVocabIndex())[character ?? ''] ?? []);
     const kanji: Kanji | null = kanjiLoad.data ?? null;
     const vocabIds = vocabIdsLoad.data ?? [];
     const error = kanjiLoad.status === 'error'
-        ? "Could not load kanji details."
-        : kanjiLoad.status === 'ready' && !kanjiLoad.data ? "This kanji isn't in the app's known kanji set." : null;
+        ? "Could not load this kanji."
+        : kanjiLoad.status === 'ready' && !kanjiLoad.data ? "This kanji isn't in the app's kanji set." : null;
 
-    const isKnown = state.progress?.kanjiKnowledge.kanjiSet.has(character ?? '') ?? false;
+    const knowledge = state.progress?.kanjiKnowledge;
+    const isKnown = knowledge?.kanjiSet.has(character ?? '') ?? false;
 
     if (error) return <DetailErrorScreen message={error} />;
+    if (!kanji) return <LoadingScreen />;
 
-    if (!kanji) {
-        return <LoadingScreen />;
-    }
+    // The same update the Kanji page's grid makes.
+    const toggleKnown = () => {
+        if (!knowledge) return;
+        const kanjiSet = new Set(knowledge.kanjiSet);
+        if (isKnown) kanjiSet.delete(kanji.character); else kanjiSet.add(kanji.character);
+        actions.updateKanjiKnowledge({ ...knowledge, kanjiSet });
+    };
 
-    const kanjiCard = (
-        <Card size={isMobile ? "sm" : "md"}>
-            <div className="flex flex-col items-center text-center gap-4">
-                <span className="text-7xl md:text-8xl font-mincho text-primary leading-none">
-                    {kanji.character}
-                </span>
-                <div className="flex items-center gap-2 flex-wrap justify-center">
-                    {kanji.steps.jlpt && <JlptChip level={kanji.steps.jlpt} />}
-                    {isKnown && (
-                        <span className="px-2 py-0.5 text-xs rounded bg-accent/10 text-accent font-gothic font-medium dark:bg-accent/15">
-                            Known
-                        </span>
-                    )}
-                </div>
-            </div>
-        </Card>
-    );
-
-    const metadataCard = (
-        <Card size={isMobile ? "sm" : "md"}>
-            <h2 className="text-lg font-gothic font-semibold text-primary mb-4">Information</h2>
-            <div className="grid grid-cols-2 gap-4">
-                <DetailField label="KKLC Step">
-                    {kanji.steps.kklc ? `Step ${kanji.steps.kklc}` : '-'}
-                </DetailField>
-                <DetailField label="Frequency">
-                    {kanji.frequency ? `#${kanji.frequency.toLocaleString()}` : '-'}
-                </DetailField>
-            </div>
-        </Card>
-    );
-
-    const vocabListCard = <KanjiVocabListCard vocabIds={vocabIds} />;
+    const facts = [
+        kanji.steps.kklc ? `KKLC step ${kanji.steps.kklc}` : null,
+        kanji.frequency ? `Frequency #${kanji.frequency.toLocaleString('en-US')}` : null,
+    ].filter(Boolean).join(' · ');
 
     return (
-        <div className="min-h-screen flex flex-col md:max-w-3xl md:mx-auto w-full animate-fade-in">
-            {/* Header */}
-            <PageHeader title="Kanji Details" onBack={() => void navigate(-1)} className="p-4 md:p-8" />
+        <Page width="wide">
+            <DetailHeader
+                parentPath="/kanji"
+                title={<span className="jp-display">{kanji.character}</span>}
+                chips={kanji.steps.jlpt ? <JlptChip level={kanji.steps.jlpt} /> : undefined}
+                actions={
+                    <div className="flex flex-col items-start gap-2">
+                        <span className="inline-flex items-center gap-1.5 type-support">
+                            <span className={`inline-block w-2.5 h-2.5 rounded-full border ${isKnown ? 'bg-accent border-accent' : 'border-divider'}`} aria-hidden="true" />
+                            {isKnown ? 'Known' : 'Not known yet'}
+                        </span>
+                        <Button variant="secondary" onClick={toggleKnown}>
+                            {isKnown ? 'Mark as not known' : 'Mark as known'}
+                        </Button>
+                    </div>
+                }
+            >
+                {facts && <p className="type-meta">{facts}</p>}
+            </DetailHeader>
 
-            {/* Content */}
-            <main className="flex-1 p-4 md:p-8 pt-0 flex flex-col space-y-6">
-                {kanjiCard}
-                {metadataCard}
-                {vocabListCard}
-            </main>
-        </div>
+            <KanjiVocabListCard character={kanji.character} vocabIds={vocabIds} />
+        </Page>
     );
 }

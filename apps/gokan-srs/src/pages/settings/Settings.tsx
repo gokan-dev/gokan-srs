@@ -1,12 +1,53 @@
 import { OptionGrid } from "../../components/OptionGrid";
 import type { UserSettings } from "../../models/user.model";
 import { useGoogleDrive } from "../../context/useGoogleDrive";
-import { Cloud, Loader2, LogIn, RefreshCw, Moon, Sun, Monitor, Sparkles, KeyRound } from "lucide-react";
+import { Cloud, Loader2, LogIn, RefreshCw, Moon, Sun, Monitor, KeyRound } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import type { ReactNode } from "react";
+import type { Theme } from "../../models/theme.model";
+import { VocabQuizSettings } from "./sections/VocabQuizSettings";
+import { GrammarQuizSettings } from "./sections/GrammarQuizSettings";
 import { Button } from "../../components/ui/Button";
+import { SelectableOption } from "../../components/ui/SelectableOption";
 import { SettingToggle } from "../../components/ui/SettingToggle";
+import { Disclosure } from "../../components/ui/Disclosure";
 import { useTheme } from "../../context/useTheme";
 import { useState } from "react";
+import { Page } from "../../components/Page";
 import { PageHeader } from "../../components/PageHeader";
+
+const THEMES: { value: Theme; label: string; icon: LucideIcon }[] = [
+    { value: 'light', label: 'Light', icon: Sun },
+    { value: 'dark', label: 'Dark', icon: Moon },
+    { value: 'system', label: 'System', icon: Monitor },
+];
+
+/** A settings section: a heading, an optional one-line description, the controls. */
+function SettingsSection({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
+    return (
+        <section>
+            <h2 className="type-section">{title}</h2>
+            {description && <p className="type-support mt-1">{description}</p>}
+            <div className="mt-4">{children}</div>
+        </section>
+    );
+}
+
+/** One activity's settings in "Activity settings": a subsection heading, collapsed. */
+function ActivityDisclosure({ title, description, children }: { title: string; description: string; children: ReactNode }) {
+    return (
+        <Disclosure
+            title={
+                <span className="block min-w-0">
+                    <span className="block type-subsection">{title}</span>
+                    <span className="block type-support font-normal">{description}</span>
+                </span>
+            }
+        >
+            <div className="pb-4">{children}</div>
+        </Disclosure>
+    );
+}
 
 function SyncControls() {
     const { login, logout, downloadProgress, isDownloading, isAuthenticated, user } = useGoogleDrive();
@@ -26,7 +67,7 @@ function SyncControls() {
 
     return (
         <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between p-4 rounded-lg bg-feedback-correct/10 border border-feedback-correct/20">
+            <div className="flex items-center justify-between gap-3 p-4 rounded-md bg-surface border border-divider">
                 <div className="flex items-center gap-3">
                     {user?.picture && (
                         <img
@@ -37,13 +78,13 @@ function SyncControls() {
                     )}
                     <div className="flex flex-col">
                         <div className="flex items-center gap-2">
-                            <Cloud size={16} className="text-feedback-correct" />
-                            <span className="text-sm font-medium text-feedback-correct">
+                            <Cloud size={16} className="text-secondary" aria-hidden="true" />
+                            <span className="font-sans text-sm font-medium text-primary">
                                 {user?.name || 'Connected to Google Drive'}
                             </span>
                         </div>
                         {user?.email && (
-                            <span className="text-xs text-feedback-correct/70">
+                            <span className="type-meta">
                                 {user.email}
                             </span>
                         )}
@@ -51,14 +92,14 @@ function SyncControls() {
                 </div>
                 <button
                     onClick={() => logout()}
-                    className="text-xs text-error hover:opacity-80 font-medium cursor-pointer"
+                    className="font-sans text-sm text-error hover:underline cursor-pointer shrink-0"
                 >
                     Disconnect
                 </button>
             </div>
 
             <Button
-                variant="primary"
+                variant="secondary"
                 onClick={() => void downloadProgress()}
                 disabled={isDownloading}
                 className="w-full justify-center"
@@ -71,7 +112,7 @@ function SyncControls() {
                 ) : (
                     <>
                         <RefreshCw size={18} className="mr-2" />
-                        Sync Now
+                        Sync now
                     </>
                 )}
             </Button>
@@ -84,7 +125,6 @@ interface SettingsScreenProps {
     onUpdateSettings: (settings: UserSettings) => void;
     onReset: () => void;
     onResetGrammar: () => Promise<void>;
-    onBack: () => void;
 }
 
 export function SettingsScreen({
@@ -92,7 +132,6 @@ export function SettingsScreen({
     onUpdateSettings,
     onReset,
     onResetGrammar,
-    onBack,
 }: SettingsScreenProps) {
     const { theme, setTheme } = useTheme();
     const [isConfirmingReset, setIsConfirmingReset] = useState(false);
@@ -100,59 +139,36 @@ export function SettingsScreen({
     const [grammarResetState, setGrammarResetState] = useState<'idle' | 'working' | 'done' | 'failed'>('idle');
 
     return (
-        <div className="min-h-screen flex flex-col items-center bg-background transition-colors duration-200 max-w-2xl md:max-w-3xl">
+        <Page width="narrow">
+            <PageHeader title="Settings" className="mb-10" />
 
-            {/* Header */}
-            <PageHeader title="Settings" onBack={onBack} className="max-w-2xl md:w-3xl mb-12 animate-fade-in" />
+            <div className="space-y-10">
 
             {/*
               * Account first: signing in is what makes every other setting (and
               * all progress) follow the user across devices, so it is the first
               * thing worth doing on this page rather than the last.
               */}
-            <section className="w-full mb-16 animate-slide-up">
-                <h2 className="mb-4 uppercase tracking-wide text-xs font-gothic text-secondary">
-                    Account (Google Drive sync)
-                </h2>
+            <SettingsSection title="Account" description="Sign in to keep your progress in your Google Drive and on every device.">
+                <SyncControls />
+            </SettingsSection>
 
-                <div className="flex flex-col gap-4">
-                    <SyncControls />
-                </div>
-            </section>
-
-            {/* Appearance */}
-            <section className="w-full mb-16 animate-slide-up" style={{ animationDelay: "100ms" }}>
-                <h2 className="mb-4 uppercase tracking-wide text-xs font-gothic text-secondary">
-                    Appearance
-                </h2>
-
+            <SettingsSection title="Appearance">
+                <h3 className="type-label mb-2">Theme</h3>
                 <div className="grid grid-cols-3 gap-3">
-                    <Button
-                        variant={theme === "light" ? "primary" : "secondary"}
-                        onClick={() => setTheme("light")}
-                        className="flex flex-col h-20 gap-2"
-                    >
-                        <Sun size={20} />
-                        <span className="text-xs">Light</span>
-                    </Button>
-                    <Button
-                        variant={theme === "dark" ? "primary" : "secondary"}
-                        onClick={() => setTheme("dark")}
-                        className="flex flex-col h-20 gap-2"
-                    >
-                        <Moon size={20} />
-                        <span className="text-xs">Dark</span>
-                    </Button>
-                    <Button
-                        variant={theme === "system" ? "primary" : "secondary"}
-                        onClick={() => setTheme("system")}
-                        className="flex flex-col h-20 gap-2"
-                    >
-                        <Monitor size={20} />
-                        <span className="text-xs">System</span>
-                    </Button>
+                    {THEMES.map(({ value, label, icon: Icon }) => (
+                        <SelectableOption
+                            key={value}
+                            selected={theme === value}
+                            onSelect={() => setTheme(value)}
+                            className="flex flex-col items-center justify-center h-20 gap-2 text-primary"
+                        >
+                            <Icon size={20} aria-hidden="true" />
+                            <span className="font-sans text-sm">{label}</span>
+                        </SelectableOption>
+                    ))}
                 </div>
-            </section>
+            </SettingsSection>
 
             {/*
               * Review pacing is the one learning preference that is genuinely
@@ -161,13 +177,9 @@ export function SettingsScreen({
               * vocabulary-only, and now lives behind the cog on that activity's
               * card on the Main hub (see QuizSettingsMenu / pages/settings/sections).
               */}
-            <section className="w-full mb-16 animate-slide-up" style={{ animationDelay: "200ms" }}>
-                <h2 className="mb-4 uppercase tracking-wide text-xs font-gothic text-secondary">
-                    Review pacing
-                </h2>
-
+            <SettingsSection title="Review pacing" description="How often reviews come back, for vocabulary and grammar alike.">
                 <OptionGrid
-                    title="Learning frequency"
+                    columns={3}
                     value={settings.learningFrequency}
                     onChange={(value) =>
                         onUpdateSettings({
@@ -183,7 +195,7 @@ export function SettingsScreen({
                         },
                         {
                             value: 'medium',
-                            label: 'Medium (Default)',
+                            label: 'Medium (default)',
                             description: 'Balanced SRS intervals',
                         },
                         {
@@ -193,24 +205,15 @@ export function SettingsScreen({
                         },
                     ]}
                 />
-            </section>
+            </SettingsSection>
 
-            {/* AI Features */}
-            <section className="w-full mb-16 animate-slide-up" style={{ animationDelay: "300ms" }}>
-                <div className="flex items-center gap-2 mb-4">
-                    <Sparkles size={16} className="text-secondary" />
-                    <h2 className="uppercase tracking-wide text-xs font-gothic text-secondary m-0">
-                        AI Context Validation
-                    </h2>
-                </div>
-
-                <p className="text-sm text-secondary mb-6 font-gothic">
-                    Enhance your study sessions by allowing Gemini to validate meaning answers that aren't strictly in the dictionary, using the context of the example sentences.
-                </p>
-
+            <SettingsSection
+                title="AI answer checking"
+                description="Let Gemini accept meaning answers the dictionary does not list, judged against the example sentence."
+            >
                 <div className="space-y-4">
                     <SettingToggle
-                        label="Enable Context-Aware Validation"
+                        label="Check answers in context"
                         description="Use AI during meaning quizzes that have a sentence context. Required for sentence quizzes."
                         checked={settings.enableGeminiContext === true}
                         disabled={settings.enableMeaningQuiz === false}
@@ -223,8 +226,8 @@ export function SettingsScreen({
                     />
 
                     {settings.enableGeminiContext && (
-                        <div className="p-4 bg-surface dark:bg-surface/5 rounded-lg border border-divider animate-fade-in-up">
-                            <label className="flex items-center gap-2 mb-2 font-medium text-primary text-sm font-gothic">
+                        <div className="p-4 bg-surface rounded-md border border-divider">
+                            <label className="flex items-center gap-2 mb-2 type-label">
                                 <KeyRound size={16} className="text-tertiary" />
                                 Gemini API Key
                             </label>
@@ -242,7 +245,7 @@ export function SettingsScreen({
                                 className="w-full px-3 py-2 bg-background border border-divider rounded-md text-sm font-mono text-primary focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30"
                             />
 
-                            <div className="mt-3 text-xs text-tertiary flex items-start gap-1">
+                            <div className="mt-3 type-meta flex items-start gap-1">
                                 <span>Note:</span>
                                 <span>
                                     Your key is stored locally in your browser and is never sent to our servers. Get a free key from <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">Google AI Studio</a>.
@@ -253,8 +256,7 @@ export function SettingsScreen({
 
                     {settings.enableGeminiContext && (
                         <SettingToggle
-                            className="animate-fade-in-up"
-                            label="AI Validation on All Answers"
+                            label="Check every answer"
                             description="When enabled, AI validates every answer in sentence quizzes. When disabled, AI only validates answers initially marked wrong or imprecise."
                             checked={settings.alwaysUseAiForMeaningContext !== false}
                             disabled={settings.enableMeaningQuiz === false}
@@ -267,14 +269,25 @@ export function SettingsScreen({
                         />
                     )}
                 </div>
-            </section>
+            </SettingsSection>
 
-            {/* Danger zone */}
-            <section className="w-full">
-                <h2 className="mb-4 uppercase tracking-wide text-xs font-gothic text-error-accent">
-                    Danger zone
-                </h2>
+            {/*
+              * Settings of one activity, below the global ones and collapsed, so
+              * they read as that activity's options rather than as more of the
+              * page. The same controls open from the cog on the activity's card.
+              */}
+            <SettingsSection title="Activity settings" description="Options for one activity at a time.">
+                <div className="border-y border-divider divide-y divide-divider">
+                    <ActivityDisclosure title="Vocabulary quiz" description="Also available from the cog on the Vocabulary card on Study.">
+                        <VocabQuizSettings settings={settings} onUpdateSettings={onUpdateSettings} />
+                    </ActivityDisclosure>
+                    <ActivityDisclosure title="Grammar quiz" description="Also available from the cog on the Grammar card on Study.">
+                        <GrammarQuizSettings />
+                    </ActivityDisclosure>
+                </div>
+            </SettingsSection>
 
+            <SettingsSection title="Danger zone" description="These cannot be undone.">
                 <div className="flex flex-col gap-4">
                     {/*
                       * Grammar-only reset, above the all-or-nothing one. The
@@ -286,41 +299,44 @@ export function SettingsScreen({
                     {!isConfirmingGrammarReset ? (
                         <div>
                             <Button
+                                variant="danger-outline"
                                 onClick={() => { setIsConfirmingGrammarReset(true); setGrammarResetState('idle'); }}
-                                className="w-full justify-center bg-transparent border border-secondary text-secondary hover:border-error hover:text-error transition-colors"
+                                className="w-full justify-center"
                             >
                                 Reset grammar progress only
                             </Button>
                             {grammarResetState === 'done' && (
-                                <p className="text-xs text-center mt-2 font-gothic text-feedback-correct">
-                                    Grammar progress cleared. Vocabulary and kanji are untouched.
+                                <p className="type-support text-center mt-2">
+                                    Grammar progress cleared. Vocabulary and kanji are kept.
                                 </p>
                             )}
                             {grammarResetState === 'failed' && (
-                                <p className="text-xs text-center mt-2 font-gothic text-feedback-incorrect">
+                                <p className="font-sans text-sm text-center mt-2 text-error">
                                     Cleared locally, but the sync failed - reconnect and retry, or your
                                     cloud copy will restore it on the next load.
                                 </p>
                             )}
                         </div>
                     ) : (
-                        <div className="p-4 rounded-lg bg-error/5 border border-error/20 animate-fade-in-up">
-                            <p className="text-sm text-center mb-1 font-medium text-error">
+                        <div className="p-4 rounded-md bg-error/5 border border-error/20">
+                            <p className="font-sans text-sm text-center mb-1 font-medium text-error">
                                 Clear every grammar point you have learned?
                             </p>
-                            <p className="text-xs text-center mb-4 font-gothic text-secondary">
+                            <p className="type-support text-center mb-4">
                                 Vocabulary, kanji and settings are kept. This also overwrites your
                                 cloud copy, so it cannot be undone from another device.
                             </p>
                             <div className="flex gap-3">
                                 <Button
+                                    variant="secondary"
                                     onClick={() => setIsConfirmingGrammarReset(false)}
                                     disabled={grammarResetState === 'working'}
-                                    className="flex-1 justify-center bg-transparent border border-secondary text-secondary hover:text-primary hover:border-primary transition-colors"
+                                    className="flex-1 justify-center"
                                 >
                                     Cancel
                                 </Button>
                                 <Button
+                                    variant="danger"
                                     onClick={() => void (async () => {
                                         setGrammarResetState('working');
                                         try {
@@ -332,7 +348,7 @@ export function SettingsScreen({
                                         setIsConfirmingGrammarReset(false);
                                     })()}
                                     disabled={grammarResetState === 'working'}
-                                    className="flex-1 justify-center bg-error text-white border-transparent hover:brightness-110"
+                                    className="flex-1 justify-center"
                                 >
                                     {grammarResetState === 'working' ? 'Clearing...' : 'Clear grammar'}
                                 </Button>
@@ -342,34 +358,38 @@ export function SettingsScreen({
 
                     {!isConfirmingReset ? (
                         <Button
+                            variant="danger-outline"
                             onClick={() => setIsConfirmingReset(true)}
-                            className="w-full justify-center bg-transparent border border-error text-error hover:bg-error hover:text-white transition-colors"
+                            className="w-full justify-center"
                         >
                             Reset all progress
                         </Button>
                     ) : (
-                        <div className="p-4 rounded-lg bg-error/5 border border-error/20 animate-fade-in-up">
-                            <p className="text-sm text-center mb-4 font-medium text-error">
+                        <div className="p-4 rounded-md bg-error/5 border border-error/20">
+                            <p className="font-sans text-sm text-center mb-4 font-medium text-error">
                                 Are you sure? This cannot be undone.
                             </p>
                             <div className="flex gap-3">
                                 <Button
+                                    variant="secondary"
                                     onClick={() => setIsConfirmingReset(false)}
-                                    className="flex-1 justify-center bg-transparent border border-secondary text-secondary hover:text-primary hover:border-primary transition-colors"
+                                    className="flex-1 justify-center"
                                 >
                                     Cancel
                                 </Button>
                                 <Button
+                                    variant="danger"
                                     onClick={onReset}
-                                    className="flex-1 justify-center bg-error text-white border-transparent hover:brightness-110"
+                                    className="flex-1 justify-center"
                                 >
-                                    Confirm Reset
+                                    Reset everything
                                 </Button>
                             </div>
                         </div>
                     )}
                 </div>
-            </section>
-        </div>
+            </SettingsSection>
+            </div>
+        </Page>
     );
 }

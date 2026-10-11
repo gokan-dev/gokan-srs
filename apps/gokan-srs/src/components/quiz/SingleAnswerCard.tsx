@@ -36,7 +36,7 @@ const KindIndicator: React.FC<{ kind: SingleAnswerKind }> = ({ kind }) => {
     return (
         <div className="flex items-center justify-center gap-1.5 mb-3 text-secondary">
             <Icon size={13} strokeWidth={2} />
-            <span className="text-[11px] font-gothic font-medium uppercase tracking-wider">
+            <span className="text-xs font-gothic font-medium">
                 {label}
             </span>
         </div>
@@ -144,7 +144,7 @@ export function SingleAnswerCard({
                         initial={{ x: 0 }}
                         animate={{ x: [-5, 5, -5, 5, 0] }}
                         transition={{ duration: 0.4 }}
-                        className="absolute inset-0 pointer-events-none border-4 border-error/20 rounded-xl z-50"
+                        className="absolute inset-0 pointer-events-none border-4 border-feedback-incorrect/20 rounded-md z-50"
                     />
                 )}
             </AnimatePresence>
@@ -173,11 +173,11 @@ export function SingleAnswerCard({
                             onChange={(e) => api.setAnswer(0, e.target.value)}
                             onFocus={() => setIsInputFocused(true)}
                             onBlur={() => setIsInputFocused(false)}
-                            className={`w-full border rounded-lg text-center transition-all duration-200
+                            className={`w-full border rounded-md text-center transition-all duration-200
                                 font-gothic bg-surface text-primary placeholder:text-input-placeholder caret-accent
                                 focus:outline-none focus:border-accent focus:ring-4 focus:ring-accent/10
                                 ${isMobile ? 'px-3 py-2 text-lg placeholder:text-sm' : 'px-4 py-3 text-xl'}
-                                ${feedback && !correct ? 'border-error' : 'border-divider'}
+                                ${feedback && !correct ? 'border-feedback-incorrect' : 'border-divider'}
                             `}
                             placeholder={inputPlaceholder}
                             autoFocus
@@ -207,8 +207,8 @@ export function SingleAnswerCard({
 
                     {/* Incorrect / Minor Answer Feedback */}
                     {feedback && !correct && (
-                        <FeedbackNote accentClass={grade?.overall === 'minor_error' ? 'border-l-secondary' : 'border-l-error-accent'}>
-                            <p className="uppercase tracking-wide text-label-neutral text-xs mb-2 font-gothic">
+                        <FeedbackNote accentClass={grade?.overall === 'minor_error' ? 'border-l-secondary' : 'border-l-feedback-incorrect/45'}>
+                            <p className="type-label mb-2">
                                 Correct answer
                             </p>
 

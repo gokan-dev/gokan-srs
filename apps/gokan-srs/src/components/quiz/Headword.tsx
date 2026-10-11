@@ -1,9 +1,8 @@
-import { Combine } from "lucide-react";
 import { headwordOf } from "@gokan/dataset-schema";
 import type { Vocabulary } from "@gokan/dataset-schema";
 
 interface HeadwordProps {
-    vocab: Pick<Vocabulary, 'writtenForm' | 'reading' | 'mergedVocabs' | 'usuallyKana'>;
+    vocab: Pick<Vocabulary, 'writtenForm' | 'reading' | 'usuallyKana'>;
     size: 'md' | 'lg';
     /** Clicking opens the word's page; only offered once the card is answered. */
     onClick?: () => void;
@@ -12,19 +11,16 @@ interface HeadwordProps {
 }
 
 /**
- * A word's written form on a quiz card, marked when it is a merged entry (several
- * JMdict homographs sharing one written form). A word learned in kana is shown in
- * kana (headwordOf), and needs no furigana.
+ * A word's written form on a quiz card. A word learned in kana is shown in kana
+ * (headwordOf), and needs no furigana.
  */
 export function Headword({ vocab, size, onClick, showReading = false }: HeadwordProps) {
-    const merged = !!vocab.mergedVocabs && vocab.mergedVocabs.length > 1;
     const large = size === 'lg';
     const headword = headwordOf(vocab);
     return (
         <div
             className={`relative inline-flex items-start leading-none text-primary font-mincho ${large ? 'text-kanji' : 'text-5xl'} ${onClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
             onClick={onClick}
-            title={merged ? "Merged Entry (combines multiple JMDict words)" : undefined}
         >
             {showReading && headword !== vocab.reading.primary ? (
                 <ruby className="ruby-text">
@@ -33,11 +29,6 @@ export function Headword({ vocab, size, onClick, showReading = false }: Headword
                 </ruby>
             ) : (
                 <span>{headword}</span>
-            )}
-            {merged && (
-                <span className={`absolute top-0 ${large ? '-right-8' : '-right-6'}`}>
-                    <Combine size={large ? 24 : 18} className={`text-divider ${large ? 'opacity-30' : 'opacity-40'}`} />
-                </span>
             )}
         </div>
     );

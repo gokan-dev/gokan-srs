@@ -1981,6 +1981,7 @@ describe('describeHubChapter', () => {
         expect(result.status).toBe('current');
         if (result.status !== 'current') throw new Error('expected current');
         expect(result.chapterNumber).toBe(1);
+        expect(result.chapterId).toBe('c01');
         expect(result.chapterTitle).toBe('Basic particles');
         expect(result.counts).toEqual({ mastered: 0, learning: 1, total: 2 });
     });

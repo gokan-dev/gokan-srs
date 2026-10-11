@@ -83,10 +83,10 @@ export function QuizSettingsMenu({ title, children }: QuizSettingsMenuProps) {
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -8 }}
                                 transition={{ duration: 0.15, ease: "easeInOut" }}
-                                className="relative w-full max-w-md rounded-2xl bg-background border border-divider shadow-xl my-auto"
+                                className="relative w-full max-w-md rounded-md bg-background border border-divider shadow-lg my-auto"
                             >
                                 <div className="flex items-center justify-between px-5 py-4 border-b border-divider">
-                                    <h2 className="text-sm font-serif text-primary">{title}</h2>
+                                    <h2 className="type-subsection">{title}</h2>
                                     <button
                                         type="button"
                                         onClick={() => setIsOpen(false)}
@@ -105,9 +105,9 @@ export function QuizSettingsMenu({ title, children }: QuizSettingsMenuProps) {
                                     <Link
                                         to="/settings"
                                         onClick={() => setIsOpen(false)}
-                                        className="text-xs font-gothic text-accent hover:underline"
+                                        className="font-sans text-sm text-accent hover:underline"
                                     >
-                                        Appearance, pacing, AI and sync settings
+                                        All settings
                                     </Link>
                                 </div>
                             </motion.div>

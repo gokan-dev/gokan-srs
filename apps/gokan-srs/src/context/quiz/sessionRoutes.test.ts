@@ -24,6 +24,15 @@ describe('sessionRouteRole', () => {
         expect(sessionRouteRole('/grammar/family', 'grammar')).toBe('leave');
     });
 
+    it('ends the session on the Vocabulary list and the Kanji page, but not on a word or kanji', () => {
+        for (const activity of ['vocab', 'grammar'] as const) {
+            expect(sessionRouteRole('/vocab', activity)).toBe('leave');
+            expect(sessionRouteRole('/kanji', activity)).toBe('leave');
+            expect(sessionRouteRole('/vocab/1263400', activity)).toBe('consult');
+            expect(sessionRouteRole('/kanji/%E5%AD%A6', activity)).toBe('consult');
+        }
+    });
+
     it('ends the session everywhere else', () => {
         for (const path of ['/', '/stats', '/settings', '/profile', '/about', '/vocab', '/kanji']) {
             expect(sessionRouteRole(path, 'vocab')).toBe('leave');

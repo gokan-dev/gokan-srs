@@ -1,13 +1,13 @@
-import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { useParams, Link } from "react-router-dom";
 import type { GrammarContrastIndex, GrammarPoint } from "@gokan/dataset-schema";
 import { Card } from "../../components/ui/Card";
 import { JlptChip } from "../../components/JlptChip";
-import { Button } from "../../components/ui/Button";
 import { LoadingScreen } from "../../components/LoadingScreen";
 import { GrammarService } from "../../services/grammar.service";
 import { useIntroducedGrammarIds } from "../../hooks/useIntroducedGrammarIds";
 import { useAsyncData } from "../../hooks/useAsyncData";
+import { Page } from "../../components/Page";
+import { PageHeader } from "../../components/PageHeader";
 
 type FamilyEntry = GrammarContrastIndex[string];
 
@@ -20,7 +20,6 @@ type FamilyEntry = GrammarContrastIndex[string];
  */
 export default function GrammarFamilyScreen() {
     const { familyId } = useParams<{ familyId: string }>();
-    const navigate = useNavigate();
 
     const family = useAsyncData(familyId ?? null, async (): Promise<{ entry: FamilyEntry | null; members: Map<string, GrammarPoint> }> => {
         const entry = (await GrammarService.loadContrasts())[familyId ?? ''] ?? null;
@@ -46,26 +45,17 @@ export default function GrammarFamilyScreen() {
     // and it is worth saying - see `interchangeable` in the model.
     if (!entry || (entry.lessons.length === 0 && (entry.interchangeable?.length ?? 0) === 0)) {
         return (
-            <div className="min-h-screen flex items-center justify-center p-4 text-center">
-                <div>
-                    <h2 className="text-xl font-bold text-primary mb-2">No contrast lessons yet</h2>
-                    <p className="text-secondary mb-4">This family does not have situational lessons authored yet.</p>
-                    <Button onClick={() => void navigate(-1)}>Go back</Button>
-                </div>
-            </div>
+            <Page width="narrow">
+                <PageHeader title="No contrast lessons yet" parentPath="/grammar/browse" />
+                <p className="type-body mt-4">This family does not have situational lessons authored yet.</p>
+            </Page>
         );
     }
 
     return (
-        <div className="w-full max-w-3xl mx-auto px-4 py-6">
-            <button
-                onClick={() => void navigate(-1)}
-                className="flex items-center gap-1 text-sm text-secondary hover:text-primary transition-colors mb-4"
-            >
-                <ArrowLeft size={16} /> Back
-            </button>
+        <Page width="narrow">
+            <PageHeader title={entry.name} parentPath="/grammar/browse" className="mb-6" />
 
-            <h1 className="text-2xl font-serif font-semibold text-primary mb-1">{entry.name}</h1>
             <p className="text-secondary font-serif text-sm mb-6">
                 {entry.lessons.length > 0
                     ? "These express the same core idea. What separates them is when to reach for each one."
@@ -106,7 +96,7 @@ export default function GrammarFamilyScreen() {
                     </Card>
                 )}
             </div>
-        </div>
+        </Page>
     );
 }
 

@@ -1,6 +1,5 @@
-import { Link } from "react-router-dom";
 import type { ReactNode } from "react";
-import { CenteredCard } from "./CenteredCard";
+import { BackToStudyLink, CenteredCard } from "./CenteredCard";
 
 interface ActivityStatusCardProps {
     title: string;
@@ -10,7 +9,7 @@ interface ActivityStatusCardProps {
 
 /**
  * Between-work status card for an activity's waiting / exhausted states: a
- * centered title + message + "Back to activities" link. Currently used by the
+ * centered title, message and "Back to Study" link. Currently used by the
  * Grammar screen (whose waiting/exhausted copy is generic); vocab keeps its own
  * WaitingScreen/ExhaustedScreen since their copy is word-specific and
  * WaitingScreen carries a "Learn more" action this card has no place for.
@@ -18,11 +17,9 @@ interface ActivityStatusCardProps {
 export function ActivityStatusCard({ title, children }: ActivityStatusCardProps) {
     return (
         <CenteredCard>
-            <h2 className="text-xl mb-4 text-primary font-serif">{title}</h2>
-            <p className="text-sm mb-6 text-secondary font-serif">{children}</p>
-            <Link to="/" className="text-xs text-secondary hover:text-primary transition-colors">
-                Back to activities
-            </Link>
+            <h2 className="type-section mb-3">{title}</h2>
+            <p className="type-support mb-6">{children}</p>
+            <BackToStudyLink />
         </CenteredCard>
     );
 }

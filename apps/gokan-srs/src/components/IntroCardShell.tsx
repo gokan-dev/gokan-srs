@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
-import { Card } from "./ui/Card";
+import { QuizCardFrame } from "./quiz/QuizCardFrame";
 import { CardDivider } from "./ui/CardSection";
 import { Button } from "./ui/Button";
 import { useResponsive } from "../context/Responsive/useResponsive";
@@ -22,7 +22,7 @@ interface IntroCardShellProps {
 
 /**
  * Shared frame for both activities' intro cards (VocabIntroCard, GrammarIntroCard):
- * the Card wrapper, the divider, and the Learn/Skip form - including the
+ * the session card frame (QuizCardFrame), the divider, and the Learn/Skip form - including the
  * submit-is-Learn behavior and the focus-the-last-child-on-mount effect that
  * lands keyboard focus on the primary button. Each card supplies only its own
  * content sections as children (and any activity-specific chrome like a
@@ -46,7 +46,7 @@ export function IntroCardShell({
     }, []);
 
     return (
-        <Card size="lg">
+        <QuizCardFrame>
             {children}
 
             <CardDivider />
@@ -72,6 +72,6 @@ export function IntroCardShell({
                     {isMobile ? learnLabelMobile : learnLabel}
                 </Button>
             </form>
-        </Card>
+        </QuizCardFrame>
     );
 }

@@ -9,7 +9,7 @@
  */
 export function GrammarQuizSettings() {
     return (
-        <p className="text-sm text-secondary font-gothic">
+        <p className="type-support">
             The grammar quiz has no settings of its own yet. Everything that shapes
             a grammar session right now (review pacing, appearance, cloud sync) is
             shared with the other activities and lives in the global settings.

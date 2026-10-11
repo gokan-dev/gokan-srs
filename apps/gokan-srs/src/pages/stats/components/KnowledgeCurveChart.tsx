@@ -2,10 +2,14 @@ import { useMemo, useState } from "react";
 import type { MouseEvent } from "react";
 import type { UserProgress, UserSettings } from "../../../models/user.model";
 import {
+    KNOWLEDGE_POINTS_PER_ENTRY,
     buildKnowledgeCurve,
     type KnowledgeCurvePoint,
     type KnowledgeCurveRange,
 } from "../../../utils/knowledge.utils";
+import { formatShortDate } from "../../../utils/time.utils";
+import { FilterToggle } from "../../../components/ui/FilterToggle";
+import { THEME } from "../../../commons/theme";
 
 interface KnowledgeCurveChartProps {
     progress: UserProgress;
@@ -23,11 +27,7 @@ const RANGES: { label: string; value: KnowledgeCurveRange }[] = [
 const PLOT = { top: 4, bottom: 96 };
 
 function formatPoints(value: number): string {
-    return Math.round(value).toLocaleString();
-}
-
-function formatDay(date: Date): string {
-    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    return Math.round(value).toLocaleString('en-US');
 }
 
 /**
@@ -73,8 +73,8 @@ export function KnowledgeCurveChart({ progress, settings }: KnowledgeCurveChartP
             const last = slice[slice.length - 1];
             rows.push({
                 label: slice.length === 1
-                    ? formatDay(slice[0].date)
-                    : `${formatDay(slice[0].date)} – ${formatDay(last.date)}`,
+                    ? formatShortDate(slice[0].date)
+                    : `${formatShortDate(slice[0].date)} – ${formatShortDate(last.date)}`,
                 total: last.points,
                 gained: slice.reduce((sum, p) => sum + p.gain, 0),
             });
@@ -96,31 +96,21 @@ export function KnowledgeCurveChart({ progress, settings }: KnowledgeCurveChartP
             {/* Headline + range filter */}
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
                 <div className="flex flex-col">
-                    <span className="text-xs text-tertiary uppercase tracking-wider font-gothic">
-                        Knowledge held
+                    <span className="font-sans text-2xl text-primary tabular-nums">
+                        {curve.gained >= 0 ? '+' : '−'}{formatPoints(Math.abs(curve.gained))} points
+                        <span className="type-support ml-2">{range === 'all' ? 'since you started' : `in ${RANGES.find(r => r.value === range)?.label ?? `${range} days`}`}</span>
                     </span>
-                    <span className="text-3xl text-primary leading-tight">
-                        {formatPoints(curve.currentTotal)}
-                    </span>
-                    <span className="text-sm text-secondary">
-                        {curve.gained >= 0 ? '+' : '−'}{formatPoints(Math.abs(curve.gained))} this period
-                        <span className="text-tertiary"> · {formatPoints(curve.averagePerDay)}/day avg</span>
+                    <span className="type-meta mt-1">
+                        {formatPoints(curve.currentTotal)} held now · {formatPoints(curve.averagePerDay)} a day on average.
+                        A point is one step of mastery: a direction you have fully mastered is worth {KNOWLEDGE_POINTS_PER_ENTRY}.
                     </span>
                 </div>
 
-                <div className="flex gap-1 self-start sm:self-end" role="group" aria-label="Time range">
+                <div className="flex gap-1.5 self-start sm:self-end shrink-0" role="group" aria-label="Time range">
                     {RANGES.map(r => (
-                        <button
-                            key={String(r.value)}
-                            onClick={() => setRange(r.value)}
-                            aria-pressed={range === r.value}
-                            className={`px-2.5 py-1 text-xs rounded-md border transition-colors duration-150 ${range === r.value
-                                ? 'border-accent text-accent bg-surface-hover/40'
-                                : 'border-divider text-tertiary hover:text-secondary'
-                                }`}
-                        >
+                        <FilterToggle key={String(r.value)} active={range === r.value} onClick={() => setRange(r.value)}>
                             {r.label}
-                        </button>
+                        </FilterToggle>
                     ))}
                 </div>
             </div>
@@ -131,7 +121,7 @@ export function KnowledgeCurveChart({ progress, settings }: KnowledgeCurveChartP
                     (PLOT.top/bottom as a fraction of the 160px track) so each label
                     lines up with its gridline rather than the container edge. */}
                 <div
-                    className="flex flex-col justify-between h-40 text-[10px] text-tertiary tabular-nums text-right shrink-0 w-10"
+                    className="flex flex-col justify-between h-40 text-xs text-tertiary tabular-nums text-right shrink-0 w-10"
                     style={{
                         paddingTop: `${(PLOT.top / 100) * 160}px`,
                         paddingBottom: `${((100 - PLOT.bottom) / 100) * 160}px`,
@@ -166,14 +156,14 @@ export function KnowledgeCurveChart({ progress, settings }: KnowledgeCurveChartP
                             ))}
 
                             {areaPath && (
-                                <path d={areaPath} fill="var(--accent)" opacity="0.08" />
+                                <path d={areaPath} fill={THEME.colors.accent} opacity="0.08" />
                             )}
 
                             {linePath && (
                                 <path
                                     d={linePath}
                                     fill="none"
-                                    stroke="var(--accent)"
+                                    stroke={THEME.colors.accent}
                                     strokeWidth="2"
                                     strokeLinecap="round"
                                     strokeLinejoin="round"
@@ -185,7 +175,7 @@ export function KnowledgeCurveChart({ progress, settings }: KnowledgeCurveChartP
                                 <line
                                     x1={xAt(hoverIndex!)} y1={PLOT.top}
                                     x2={xAt(hoverIndex!)} y2={PLOT.bottom}
-                                    stroke="var(--accent)"
+                                    stroke={THEME.colors.accent}
                                     strokeWidth="1"
                                     opacity="0.4"
                                     vectorEffect="non-scaling-stroke"
@@ -209,7 +199,7 @@ export function KnowledgeCurveChart({ progress, settings }: KnowledgeCurveChartP
                             without hovering. Hidden while a hover tooltip is showing. */}
                         {!active && points.length > 1 && (
                             <div
-                                className="absolute text-[10px] text-secondary tabular-nums pointer-events-none -translate-y-1/2 pr-1"
+                                className="absolute text-xs text-secondary tabular-nums pointer-events-none -translate-y-1/2 pr-1"
                                 style={{ right: 0, top: `${yAt(points[points.length - 1].points)}%` }}
                             >
                                 {formatPoints(curve.currentTotal)}
@@ -218,12 +208,12 @@ export function KnowledgeCurveChart({ progress, settings }: KnowledgeCurveChartP
 
                         {active && (
                             <div
-                                className="absolute -top-2 z-20 pointer-events-none bg-surface border border-divider shadow-md rounded px-2 py-1 text-[11px] w-max -translate-x-1/2"
+                                className="absolute -top-2 z-20 pointer-events-none bg-surface border border-divider shadow-md rounded px-2 py-1 text-xs w-max -translate-x-1/2"
                                 style={{
                                     left: `${Math.min(Math.max(xAt(hoverIndex!), 12), 88)}%`,
                                 }}
                             >
-                                <div className="text-tertiary">{formatDay(active.date)}</div>
+                                <div className="text-tertiary">{formatShortDate(active.date)}</div>
                                 <div className="text-primary tabular-nums">
                                     {formatPoints(active.points)} held
                                 </div>
@@ -235,9 +225,9 @@ export function KnowledgeCurveChart({ progress, settings }: KnowledgeCurveChartP
                     </div>
 
                     {/* X axis band */}
-                    <div className="flex justify-between text-[10px] text-tertiary mt-2">
-                        <span>{formatDay(points[0].date)}</span>
-                        <span>{formatDay(points[points.length - 1].date)}</span>
+                    <div className="flex justify-between text-xs text-tertiary mt-2">
+                        <span>{formatShortDate(points[0].date)}</span>
+                        <span>{formatShortDate(points[points.length - 1].date)}</span>
                     </div>
                 </div>
             </div>

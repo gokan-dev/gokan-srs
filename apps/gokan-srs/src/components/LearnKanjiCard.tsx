@@ -1,4 +1,4 @@
-import { Card } from "./ui/Card";
+import { QuizCardFrame } from "./quiz/QuizCardFrame";
 import { CardSection } from "./ui/CardSection";
 import { Button } from "./ui/Button";
 import { LockOpen } from "lucide-react";
@@ -10,10 +10,10 @@ interface LearnKanjiCardProps {
 
 export function LearnKanjiCard({ nextKanji, onUnlock }: LearnKanjiCardProps) {
     return (
-        <Card size="lg" className="animate-fade-in-up">
+        <QuizCardFrame>
             <CardSection>
                 <div className="text-center space-y-4">
-                    <h2 className="text-sm font-gothic tracking-widest text-secondary uppercase">
+                    <h2 className="type-label">
                         New Kanji Unlocked
                     </h2>
 
@@ -34,7 +34,7 @@ export function LearnKanjiCard({ nextKanji, onUnlock }: LearnKanjiCardProps) {
                 </div>
             </CardSection>
 
-            <div className="px-6 pb-6 pt-2">
+            <div className="pt-2">
                 <Button
                     variant="primary"
                     className="w-full flex justify-center items-center gap-2 py-4 text-base"
@@ -44,6 +44,6 @@ export function LearnKanjiCard({ nextKanji, onUnlock }: LearnKanjiCardProps) {
                     Unlock and Learn Vocab
                 </Button>
             </div>
-        </Card>
+        </QuizCardFrame>
     );
 }

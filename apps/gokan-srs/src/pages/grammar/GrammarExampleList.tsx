@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { GrammarExample } from "@gokan/dataset-schema";
 import { InteractiveSentence } from "../../components/InteractiveSentence";
@@ -5,27 +6,41 @@ import { grammarExampleToSentence, patternHighlightRanges } from "../../utils/gr
 
 /**
  * Example sentences on a grammar point's page: each word links to its vocab page, the
- * point's pattern is highlighted, with romaji and translation beneath. Used for the
- * curated examples and the corpus-mined ones alike.
+ * point's pattern is highlighted in accent (the current item), with romaji and
+ * translation beneath. Used for the curated examples and the corpus-mined ones alike;
+ * `initialCount` shows the first few, then "Show all".
  */
-export function GrammarExampleList({ examples }: { examples: GrammarExample[] }) {
+export function GrammarExampleList({ examples, initialCount }: { examples: GrammarExample[]; initialCount?: number }) {
     const navigate = useNavigate();
+    const [showAll, setShowAll] = useState(false);
+    const shown = showAll || initialCount === undefined ? examples : examples.slice(0, initialCount);
+
     return (
         <div>
-            {examples.map((example, i) => (
-                <div key={i} className={`pb-4 ${i < examples.length - 1 ? 'border-b border-divider mb-4' : ''}`}>
-                    <div className="text-xl leading-relaxed text-primary mb-1">
+            {shown.map((example, i) => (
+                <div key={i} className="py-3 border-b border-divider last:border-b-0">
+                    <div className="text-xl text-primary">
                         <InteractiveSentence
                             sentence={grammarExampleToSentence(example, `grammar-example-${i}`)}
                             onVocabClick={(vid) => void navigate(`/vocab/${vid}`)}
                             showFurigana={true}
                             highlightRanges={patternHighlightRanges(example)}
+                            keyboardLinks
                         />
                     </div>
-                    <div className="text-sm text-tertiary font-gothic mb-1">{example.romaji}</div>
-                    <div className="text-sm text-secondary font-serif">{example.en}</div>
+                    <p className="type-meta mt-1">{example.romaji}</p>
+                    <p className="type-support">{example.en}</p>
                 </div>
             ))}
+            {!showAll && initialCount !== undefined && examples.length > initialCount && (
+                <button
+                    type="button"
+                    onClick={() => setShowAll(true)}
+                    className="mt-3 font-sans text-sm text-accent hover:underline cursor-pointer"
+                >
+                    Show all {examples.length} sentences
+                </button>
+            )}
         </div>
     );
 }

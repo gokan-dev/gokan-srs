@@ -62,16 +62,16 @@ export function JlptCoverageBars({ rows, itemLabel, headline, keyColumnLabel = "
             {/* Headline + legend */}
             <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
                 <div className="flex flex-col">
-                    <span className="text-xs text-tertiary uppercase tracking-wider font-gothic">
+                    <span className="type-meta">
                         {headline ?? `JLPT ${itemLabel} covered`}
                     </span>
                     <span className="text-3xl text-primary leading-tight tabular-nums">
-                        {started.toLocaleString()}
-                        <span className="text-lg text-tertiary"> / {totals.total.toLocaleString()}</span>
+                        {started.toLocaleString('en-US')}
+                        <span className="text-lg text-tertiary"> / {totals.total.toLocaleString('en-US')}</span>
                     </span>
                     <span className="text-sm text-secondary tabular-nums">
                         {startedPct}% started
-                        <span className="text-tertiary"> · {totals.mastered.toLocaleString()} mastered</span>
+                        <span className="text-tertiary"> · {totals.mastered.toLocaleString('en-US')} mastered</span>
                     </span>
                 </div>
 
@@ -82,7 +82,7 @@ export function JlptCoverageBars({ rows, itemLabel, headline, keyColumnLabel = "
                     </span>
                     <span className="flex items-center gap-1.5">
                         <span className="w-3 h-3 rounded-sm bg-accent opacity-35" aria-hidden="true" />
-                        In progress
+                        Learning
                     </span>
                 </div>
             </div>
@@ -132,16 +132,16 @@ export function JlptCoverageBars({ rows, itemLabel, headline, keyColumnLabel = "
                                 </div>
 
                                 {isHovered && (
-                                    <div className="absolute left-2 -top-1 z-20 pointer-events-none -translate-y-full bg-surface border border-divider shadow-md rounded px-2 py-1 text-[11px] w-max max-w-64">
+                                    <div className="absolute left-2 -top-1 z-20 pointer-events-none -translate-y-full bg-surface border border-divider shadow-md rounded px-2 py-1 text-xs w-max max-w-64">
                                         <div className="text-tertiary truncate">{row.label}</div>
                                         <div className="text-primary tabular-nums">
-                                            {row.mastered.toLocaleString()} mastered
+                                            {row.mastered.toLocaleString('en-US')} mastered
                                         </div>
                                         <div className="text-secondary tabular-nums">
-                                            {row.learning.toLocaleString()} in progress
+                                            {row.learning.toLocaleString('en-US')} learning
                                         </div>
                                         <div className="text-tertiary tabular-nums">
-                                            {(row.total - rowStarted).toLocaleString()} untouched
+                                            {(row.total - rowStarted).toLocaleString('en-US')} new
                                         </div>
                                     </div>
                                 )}
@@ -149,8 +149,8 @@ export function JlptCoverageBars({ rows, itemLabel, headline, keyColumnLabel = "
 
                             {/* Direct label - the value is readable without hovering */}
                             <span className="w-24 shrink-0 text-right text-xs text-secondary tabular-nums">
-                                {rowStarted.toLocaleString()}
-                                <span className="text-tertiary"> / {row.total.toLocaleString()}</span>
+                                {rowStarted.toLocaleString('en-US')}
+                                <span className="text-tertiary"> / {row.total.toLocaleString('en-US')}</span>
                             </span>
                         </div>
                     );
@@ -166,7 +166,7 @@ export function JlptCoverageBars({ rows, itemLabel, headline, keyColumnLabel = "
                         <tr className="text-tertiary">
                             <th className="font-normal py-1 pr-3">{keyColumnLabel}</th>
                             <th className="font-normal py-1 pr-3 text-right">Mastered</th>
-                            <th className="font-normal py-1 pr-3 text-right">In progress</th>
+                            <th className="font-normal py-1 pr-3 text-right">Learning</th>
                             <th className="font-normal py-1 text-right">Total</th>
                         </tr>
                     </thead>
@@ -174,9 +174,9 @@ export function JlptCoverageBars({ rows, itemLabel, headline, keyColumnLabel = "
                         {rows.map(row => (
                             <tr key={row.key} className="border-t border-divider">
                                 <td className="py-1 pr-3">{row.label}</td>
-                                <td className="py-1 pr-3 text-right">{row.mastered.toLocaleString()}</td>
-                                <td className="py-1 pr-3 text-right">{row.learning.toLocaleString()}</td>
-                                <td className="py-1 text-right">{row.total.toLocaleString()}</td>
+                                <td className="py-1 pr-3 text-right">{row.mastered.toLocaleString('en-US')}</td>
+                                <td className="py-1 pr-3 text-right">{row.learning.toLocaleString('en-US')}</td>
+                                <td className="py-1 text-right">{row.total.toLocaleString('en-US')}</td>
                             </tr>
                         ))}
                     </tbody>

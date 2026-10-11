@@ -142,16 +142,27 @@ gokan-srs, everything else:
 
 - Data loading in components: `hooks/useAsyncData.ts`. Time: `hooks/useNow.ts`,
   `utils/time.utils.ts`. Debounce: `hooks/useDebouncedValue.ts`.
-- Lists and stats: `components/SmartList.tsx` (+ `utils/smartList.utils.ts`),
-  `components/ui/Pagination.tsx`, `pages/stats/components/CoverageChart.tsx` and
+- Page frame: `components/Page.tsx` (the two widths), `components/PageHeader.tsx` (title,
+  Back, actions), `components/ui/TabNav.tsx` (route tabs), `components/nav/` (header, tab bar,
+  footer), destinations in `utils/navigation.utils.ts`.
+- Lists and stats: `components/ui/ListRow.tsx` rows, `components/WordStudyStatus.tsx` (a word's
+  status, or Learn), `utils/learningStatus.utils.ts` (New / Learning / Mastered for a word or a
+  grammar point), `components/ui/Pagination.tsx`, `pages/stats/components/CoverageChart.tsx` and
   `utils/coverage.utils.ts`, `utils/activity.utils.ts`, `utils/winRate.utils.ts`.
-- Detail pages: `components/detail/` (`DetailCard`, `DetailField`, `DetailErrorScreen`,
-  `SrsStatsCard`), `components/RelatedEntriesCard.tsx`, `components/SRSHistoryGraph.tsx`,
-  `components/ProgressCard.tsx`, `components/InteractiveSentence.tsx`,
+- Detail pages: `components/detail/` (`DetailHeader` the subject and its main action,
+  `LearnStatus`, `DetailSection`, `YourProgress` shared by vocab and grammar,
+  `DetailErrorScreen`), `components/RelatedEntriesCard.tsx`, `components/SRSHistoryGraph.tsx`,
+  `components/InteractiveSentence.tsx`,
   `pages/grammar/GrammarExampleList.tsx`.
 - Settings controls: `components/ui/SettingToggle.tsx`, `SettingSlider.tsx`, `components/OptionGrid.tsx`,
   `components/LearningOrderPicker.tsx`, `components/QuizSettingsMenu.tsx`.
-- Small UI: `components/TagChip.tsx`, `components/CardSkeleton.tsx`,
+- Small UI: `components/ui/Chip.tsx` (neutral metadata chip; `JlptChip`/`TagChip` wrap
+  it), `components/StatusDot.tsx` (the New/Learning/Mastered language),
+  `components/ui/SelectableOption.tsx` (one choice at a time: option grids, the theme
+  picker, onboarding), `components/ui/FilterToggle.tsx` (any number active at once: list
+  filters, genre pills), `components/ui/ListRow.tsx` (a clickable row, always a `Link`),
+  `components/ui/Disclosure.tsx` (collapsed-by-default section),
+  `components/ui/StackedBarChart.tsx` (the one bar chart), `components/CardSkeleton.tsx`,
   `components/KanjiSpellingNote.tsx` (the kanji spelling of a word learned in kana).
 - Words learned in kana in the learning orders: `utils/usuallyKana.utils.ts`
   (`orderIncludesUsuallyKana`, the per-session pacer); scheduling asks `isReadingRelevant`.
@@ -206,13 +217,28 @@ gokan-dictionary:
   token classes (`text-error`, `bg-divider`, `text-feedback-correct`, `/opacity` for tints) or,
   for inline styles and SVG, `THEME` in `commons/theme.ts` (CSS variables). No default Tailwind
   palette classes (`text-gray-500`), no numeric shades on tokens (`text-secondary-400` resolves
-  to nothing), no hex or `rgb()` in components. Enforced.
-- Primary accent for focus and progress; the error colour only for errors and warnings.
-  Ordinal data (mastery stages, quiz directions) uses one hue in steps, never several hues.
-- Japanese text uses `font-mincho` or `font-gothic`; `font-serif` has no CJK glyphs.
-- Motion is minimal: 150-200ms, ease-in-out, no bounce.
+  to nothing), no hex or `rgb()` in components, no removed token (`muted`, `subtle`,
+  `label-neutral`, `meaning-muted`, `quiz-*`: see docs/DESIGN_SYSTEM.md section 2 for where
+  each one moved). Enforced.
+- **Text in `text-accent` is always a link or an action; metadata is neutral.** A JLPT chip,
+  a part-of-speech tag, a register label and the like are never accent-coloured (`Chip`,
+  `JlptChip`, `TagChip` are neutral by construction); the error colour is only for errors and
+  warnings. Ordinal data (mastery stages, quiz directions) uses the accent in steps, never
+  several hues.
+- Japanese text uses `font-mincho` or `font-gothic`; `font-serif` has no CJK glyphs. UI sans
+  text (English copy, numbers) uses `font-sans` (Inter), not `font-gothic`.
+- **No font size below 12px** (`text-[Npx]` with N < 12, `text-[Nrem]` with N < 0.75); `em`
+  stays allowed, since it is relative (furigana). Enforced. No uppercase letter-spaced labels
+  (`tracking-wide`/`wider`/`widest`): use `type-label`. Enforced.
+- Motion is minimal: 150-200ms, ease-in-out, no bounce. No `hover:scale-*` or
+  `active:scale-*`. Enforced.
+- `rounded-md` for every card, panel, input, button and chip, including the quiz card frame;
+  `rounded-full` only for pills, avatars, rings, toggles and the progress bar.
 - Mobile: inputs are `text-base` on phones (smaller makes iOS zoom), page roots are `w-full`,
   flex/grid children that truncate need `min-w-0`. Check layouts at 320px and 375px.
+- `toLocaleDateString`/`toLocaleTimeString`/`dateStyle`/`timeStyle` only in
+  `utils/time.utils.ts` (`formatDate`, `formatShortDate`, `formatDateTime`, `formatWeekday`,
+  plus the relative helpers). Enforced.
 - Dictionary styles: SCSS, one stylesheet per page type in `styles/pages/`; a rule goes in
   `app.scss` only when two or more page types use it; `_tokens.scss` emits no CSS; Svelte
   components have no `<style>` blocks. The build must stay byte-reproducible (no timestamps or

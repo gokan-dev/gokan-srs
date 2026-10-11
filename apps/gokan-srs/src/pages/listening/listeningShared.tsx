@@ -9,7 +9,7 @@ import type { MediaIndexEntry } from "@gokan/dataset-schema";
  */
 export function VocabularyOnlyNote({ className = '' }: { className?: string }) {
     return (
-        <p className={`font-gothic text-xs text-tertiary ${className}`}>
+        <p className={`type-meta ${className}`}>
             Figures count kanji vocabulary only. Particles, kana-only words and loanwords are not included yet.
         </p>
     );
@@ -21,7 +21,7 @@ export function VocabularyOnlyNote({ className = '' }: { className?: string }) {
  */
 export function JitenCredit({ url = 'https://jiten.moe', className = '' }: { url?: string; className?: string }) {
     return (
-        <p className={`font-gothic text-xs text-tertiary ${className}`}>
+        <p className={`type-meta ${className}`}>
             Episode vocabulary from{' '}
             <a href={url} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">Jiten</a>
             , licensed{' '}
@@ -49,7 +49,7 @@ export function MediaCover({ entry, hiRes = false, className = '' }: {
 
     return (
         <div
-            className={`aspect-[2/3] shrink-0 overflow-hidden rounded border border-divider bg-surface-hover ${className}`}
+            className={`aspect-[2/3] shrink-0 overflow-hidden rounded-sm border border-divider bg-surface-hover ${className}`}
             style={entry.cover?.color ? { backgroundColor: entry.cover.color } : undefined}
         >
             {src && !failed && (

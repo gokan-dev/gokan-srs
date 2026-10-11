@@ -19,6 +19,11 @@ interface Props {
     point: GrammarPoint;
     /** Ids the learner has already been introduced to, so siblings can be marked as known. */
     knownIds: Set<string>;
+    /**
+     * As prose in a page section rather than a boxed note, without the usage note
+     * (the grammar page already shows it under "When to use").
+     */
+    inline?: boolean;
 }
 
 /**
@@ -36,7 +41,7 @@ interface Props {
  * "stop looking for a difference, there isn't one". Renders nothing for the ~half
  * of points that have no family.
  */
-export function GrammarDifferentiator({ point, knownIds }: Props) {
+export function GrammarDifferentiator({ point, knownIds, inline = false }: Props) {
     const family = point.family;
     const siblingIds = family?.relatedPoints ?? [];
 
@@ -67,23 +72,29 @@ export function GrammarDifferentiator({ point, knownIds }: Props) {
         ? 'These are stylistic variants with no real difference in meaning or register. Learn to recognise them; you only ever need to produce one.'
         : axis === 'register'
             ? 'Every form below means the same thing. What changes is who you can say it to, and that is the whole lesson here.'
-            : point.usageNote
+            : point.usageNote && !inline
                 ? 'This one carries a restriction its siblings do not:'
                 : null;
 
+    const showsUsageNote = !inline && !!point.usageNote;
+    // Inline, a constraint family with no lede has nothing to say beyond the list.
+    if (inline && !lede && axis !== 'register' && axis !== 'variant') return null;
+
     return (
-        <div className="rounded-lg border border-divider bg-feedback-background px-4 py-3">
-            <p className="uppercase tracking-wide text-label-neutral text-xs mb-2 font-gothic">
-                {heading}
-            </p>
+        <div className={inline ? '' : 'rounded-md border border-divider bg-feedback-background px-4 py-3'}>
+            {!inline && (
+                <p className="type-label mb-2">
+                    {heading}
+                </p>
+            )}
 
             {lede && (
-                <p className="text-meaning-muted font-serif text-sm leading-relaxed mb-3">
+                <p className="text-primary font-serif text-sm leading-relaxed mb-3">
                     {lede}
                 </p>
             )}
 
-            {axis === 'constraint' && point.usageNote && (
+            {axis === 'constraint' && showsUsageNote && (
                 <p className="text-primary font-serif text-sm leading-relaxed mb-3">
                     {point.usageNote}
                 </p>
@@ -96,19 +107,19 @@ export function GrammarDifferentiator({ point, knownIds }: Props) {
                         const isKnown = !isThis && knownIds.has(p.id);
                         return (
                             <li key={p.id} className="flex items-baseline gap-2 text-sm">
-                                <span className="text-tertiary font-gothic text-xs w-16 shrink-0">
+                                <span className="type-meta w-16 shrink-0">
                                     {FORMALITY_LABEL[p.formalityLevel!]}
                                 </span>
                                 <span className={isThis
                                     ? "font-mincho text-primary font-semibold"
-                                    : "font-mincho text-meaning-muted"}>
+                                    : "font-mincho text-primary"}>
                                     {p.title}
                                 </span>
                                 {isThis && (
-                                    <span className="text-accent font-gothic text-xs">this one</span>
+                                    <span className="font-sans text-xs text-accent">this one</span>
                                 )}
                                 {isKnown && (
-                                    <span className="text-tertiary font-gothic text-xs">already learned</span>
+                                    <span className="type-meta">already learned</span>
                                 )}
                             </li>
                         );
@@ -117,14 +128,14 @@ export function GrammarDifferentiator({ point, knownIds }: Props) {
             )}
 
             {axis === 'variant' && (
-                <p className="font-mincho text-meaning-muted text-sm leading-relaxed">
+                <p className="font-mincho text-primary text-sm leading-relaxed">
                     {[point, ...siblings].map(p => p.title).join('　/　')}
                 </p>
             )}
 
             {/* No axis classified yet: the usage note is still the best thing to
                 show, and is what the quiz card already uses. */}
-            {!axis && point.usageNote && (
+            {!axis && showsUsageNote && (
                 <p className="text-primary font-serif text-sm leading-relaxed">
                     {point.usageNote}
                 </p>

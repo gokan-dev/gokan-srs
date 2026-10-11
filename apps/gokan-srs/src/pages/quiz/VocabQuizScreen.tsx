@@ -45,7 +45,7 @@ export function VocabQuizScreen({ onVocabClick }: VocabQuizScreenProps) {
         case "learn-kanji":
             if (!state.nextKanjiToLearn) return <LoadingScreen />;
             return (
-                <div className="flex flex-col flex-1 items-center justify-center p-4">
+                <div className="flex flex-col flex-1 items-center justify-center w-full">
                     <LearnKanjiCard
                         nextKanji={state.nextKanjiToLearn}
                         onUnlock={() => actions.learnNextKanji()}
@@ -80,7 +80,7 @@ export function VocabQuizScreen({ onVocabClick }: VocabQuizScreenProps) {
             }));
 
             return (
-                <div className="flex flex-col flex-1 items-center">
+                <div className="flex flex-col flex-1 items-center w-full">
                     <SessionProgress stats={sessionStats} history={history} gains={state.sessionGains} waitingNoun="vocab" />
 
                     <div className="flex-1 flex items-center justify-center py-6 w-full">

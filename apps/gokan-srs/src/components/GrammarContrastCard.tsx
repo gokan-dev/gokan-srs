@@ -51,8 +51,8 @@ export function GrammarContrastCard({ pointId, knownIds, showFamilyLink = true }
     const familyId = ready[0]?.familyId ?? interchangeable!.familyId;
 
     return (
-        <div className="rounded-lg border border-accent/30 bg-accent/5 px-4 py-3">
-            <p className="uppercase tracking-wide text-label-neutral text-xs mb-2 font-gothic">
+        <div className="rounded-md border border-accent/30 bg-accent/5 px-4 py-3">
+            <p className="type-label mb-2">
                 {ready.length > 0 ? "Which one, and when" : "Interchangeable"}
             </p>
 

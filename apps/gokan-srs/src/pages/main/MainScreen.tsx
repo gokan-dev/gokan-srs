@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { BookOpenText, Headphones, Puzzle } from 'lucide-react';
+import { BookOpenText, Puzzle } from 'lucide-react';
 import { useQuiz } from '../../context/useQuiz';
 import { DailyActivityCard } from './DailyActivityCard';
 import { QuizSettingsMenu } from '../../components/QuizSettingsMenu';
@@ -8,18 +8,21 @@ import { VocabQuizSettings } from '../settings/sections/VocabQuizSettings';
 import { GrammarQuizSettings } from '../settings/sections/GrammarQuizSettings';
 import { ChapterProgressBar } from '../../components/ChapterProgressBar';
 import type { HubChapterStatus } from '../../context/quiz/grammarSelectors';
-import { buildWordKnowledge, rankLibrary } from '../../utils/mediaCoverage.utils';
+import { buildWordKnowledge, formatPercent, knownRatio, rankLibrary } from '../../utils/mediaCoverage.utils';
 import { MediaService } from '../../services/media.service';
 import { MediaCover } from '../listening/listeningShared';
+import { Page } from '../../components/Page';
+import { PageHeader } from '../../components/PageHeader';
+import { Button } from '../../components/ui/Button';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import { useNow } from '../../hooks/useNow';
-import { formatMinutes, minutesUntil } from '../../utils/time.utils';
+import { formatDurationUntil } from '../../utils/time.utils';
+import { hubPrimaryActivity, hubSummary, type ActivityWork } from '../../utils/hub.utils';
 
 /**
- * The activity hub - the app's landing page after setup. Activities (the main
- * actions a user can take) are presented as cards here; supporting pages
- * (Settings, Stats, Kanji) live in the global header toolbar instead, since
- * they aren't activities themselves. See issue #16.
+ * The Study hub, the landing page after setup: what is due, the two study
+ * activities with one primary button between them (the first with work,
+ * `hubPrimaryActivity`), Listening, and the week's reviews.
  */
 export const MainScreen: React.FC = () => {
     const {
@@ -32,37 +35,42 @@ export const MainScreen: React.FC = () => {
         grammarHubChapter,
     } = useQuiz();
     const navigate = useNavigate();
-    // The Listening card's covers: the four best fits for this learner under
-    // their genre filter, i.e. the top of the library page's own ranking
-    // (rankLibrary), from the same cached files. Loaded after the hub has
-    // rendered and purely decorative: if either file fails, the card simply
-    // shows without covers.
+    // The Listening row: the best fits for this learner under their genre filter,
+    // the top of the library page's own ranking (rankLibrary), from the same cached
+    // files. Loaded after the hub renders; if either file fails, the row shows
+    // without a best match.
     const media = useAsyncData('listening-library', async () => {
         const [index, words] = await Promise.all([MediaService.loadIndex(), MediaService.loadLibraryWords()]);
         return { index, words };
     }).data;
     const now = useNow();
-    const bestFits = useMemo(() => {
+    const ranked = useMemo(() => {
         if (!media || !state.progress) return [];
         const knowledge = buildWordKnowledge(state.progress.learningQueue, state.settings ?? undefined);
-        return rankLibrary(media.index, media.words, knowledge, state.settings?.listeningGenres ?? [], '')
-            .slice(0, 4)
-            .map(row => row.entry);
+        return rankLibrary(media.index, media.words, knowledge, state.settings?.listeningGenres ?? [], '').slice(0, 3);
     }, [media, state.progress, state.settings]);
 
-    return (
-        <div className="w-full max-w-3xl mx-auto py-8">
-            <h1 className="text-2xl font-serif text-primary mb-1">Study</h1>
-            <p className="text-sm text-secondary mb-8">Choose an activity to begin.</p>
+    const primary = hubPrimaryActivity(nextSessionPreview, nextGrammarSessionPreview);
+    const reviewsDue = nextSessionPreview.review + nextSessionPreview.retries
+        + nextGrammarSessionPreview.review + nextGrammarSessionPreview.retries;
 
-            {state.progress && <DailyActivityCard progress={state.progress} />}
+    return (
+        <Page width="narrow">
+            <PageHeader
+                title="Study"
+                subtitle={hubSummary(reviewsDue, [nextReviewAt, grammarNextReviewAt], now)}
+                className="mb-8"
+            />
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <QuizActivityCard
-                    preview={nextSessionPreview}
+                <ActivityCard
+                    icon={<BookOpenText size={18} aria-hidden="true" />}
+                    title="Vocabulary"
+                    work={nextSessionPreview}
                     nextReviewAt={nextReviewAt}
                     now={now}
-                    onClick={() => void navigate('/quiz')}
+                    primary={primary === 'vocab'}
+                    onStart={() => void navigate('/quiz')}
                     settings={
                         <QuizSettingsMenu title="Vocabulary quiz settings">
                             <VocabQuizSettings
@@ -72,217 +80,125 @@ export const MainScreen: React.FC = () => {
                             />
                         </QuizSettingsMenu>
                     }
+                    details={(nextSessionPreview.remaining ?? 0) > 0 && (
+                        <p className="type-meta">+{nextSessionPreview.remaining} more after this session</p>
+                    )}
                 />
-                <GrammarActivityCard
-                    preview={nextGrammarSessionPreview}
+                <ActivityCard
+                    icon={<Puzzle size={18} aria-hidden="true" />}
+                    title="Grammar"
+                    work={nextGrammarSessionPreview}
                     nextReviewAt={grammarNextReviewAt}
                     now={now}
-                    hubChapter={grammarHubChapter}
-                    onClick={() => void navigate('/grammar')}
+                    primary={primary === 'grammar'}
+                    onStart={() => void navigate('/grammar')}
                     settings={
                         <QuizSettingsMenu title="Grammar quiz settings">
                             <GrammarQuizSettings />
                         </QuizSettingsMenu>
                     }
-                />
-                <ActivityCard
-                    className="sm:col-span-2"
-                    icon={<Headphones size={22} className="text-accent" />}
-                    title="Listening"
-                    description={renderListeningDescription(watchedEpisodeCount(state.progress?.watchedEpisodes))}
-                    onClick={() => void navigate('/listening')}
-                    aside={bestFits.length > 0 && (
-                        <div className="flex gap-2 shrink-0" aria-hidden="true">
-                            {bestFits.map(entry => (
-                                <MediaCover key={entry.id} entry={entry} className="w-14 sm:w-16" />
-                            ))}
-                        </div>
-                    )}
+                    details={grammarHubChapter && <GrammarChapterLine hubChapter={grammarHubChapter} />}
                 />
             </div>
-        </div>
+
+            <section className="mt-4 rounded-md border border-divider bg-surface p-5 flex items-center gap-4">
+                <div className="flex-1 min-w-0">
+                    <h2 className="type-subsection">Listening</h2>
+                    {ranked[0] ? (
+                        <p className="type-support mt-1">
+                            Best match: <span className="font-mincho text-primary">{ranked[0].entry.title.original}</span>
+                            {' · '}{formatPercent(knownRatio(ranked[0].coverage.occurrences))} of its vocabulary known
+                        </p>
+                    ) : (
+                        <p className="type-support mt-1">Find anime you can follow with the words you know.</p>
+                    )}
+                    <Link to="/listening" className="inline-block mt-2 font-sans text-sm text-accent hover:underline">
+                        Browse library
+                    </Link>
+                </div>
+                {ranked.length > 0 && (
+                    <div className="flex gap-2 shrink-0" aria-hidden="true">
+                        {ranked.map(row => <MediaCover key={row.entry.id} entry={row.entry} className="w-10" />)}
+                    </div>
+                )}
+            </section>
+
+            {state.progress && <DailyActivityCard progress={state.progress} />}
+        </Page>
     );
 };
 
-function watchedEpisodeCount(watched: Record<string, { watched: boolean }> | undefined): number {
-    return watched ? Object.values(watched).filter(entry => entry.watched).length : 0;
-}
-
-function renderListeningDescription(watchedCount: number): string {
-    const lead = 'Find anime you can follow with the words you know, and track each episode.';
-    return watchedCount > 0 ? `${lead} ${watchedCount} episode${watchedCount > 1 ? 's' : ''} watched so far.` : lead;
-}
-
-const ActivityCard: React.FC<{
-    icon: React.ReactNode;
-    title: string;
-    description: React.ReactNode;
-    onClick: () => void;
-    /** The activity's own settings cog, pinned to the card's top right corner. Omitted for an activity with no settings. */
-    settings?: React.ReactNode;
-    /**
-     * An optional secondary link, e.g. "View all chapters", pinned to the card's
-     * bottom right corner INSIDE its border. It used to sit below the card, which
-     * made that card's grid cell taller than its neighbour's card and left the two
-     * borders misaligned. A sibling of the button for the same reason `settings` is.
-     */
-    footer?: React.ReactNode;
-    /** Optional content beside the text from `sm` up (below it on a phone), e.g. the Listening card's covers. */
-    aside?: React.ReactNode;
-    className?: string;
-}> = ({ icon, title, description, onClick, settings, footer, aside, className = '' }) => (
-    <div className={`relative h-full ${className}`}>
-        <button
-            onClick={onClick}
-            className={`w-full h-full text-left border border-divider rounded p-6 bg-surface hover:border-accent transition-colors duration-200 flex flex-col sm:flex-row sm:items-center gap-4 cursor-pointer ${footer ? 'pb-12' : ''}`}
-        >
-            <div className="flex flex-col gap-3 min-w-0 flex-1 self-stretch">
-                {icon}
-                <div>
-                    <h2 className="font-serif text-lg text-primary mb-1">{title}</h2>
-                    <p className="text-sm text-secondary">{description}</p>
-                </div>
-            </div>
-            {aside}
-        </button>
-
-        {/*
-          * A sibling of the card button rather than a child of it: a button
-          * nested in a button is invalid HTML, and a nested cog's click would
-          * bubble up and start the session instead of opening the settings.
-          */}
-        {settings && (
-            <div className="absolute top-5 right-4">
-                {settings}
-            </div>
-        )}
-
-        {footer && <div className="absolute bottom-4 right-6">{footer}</div>}
-    </div>
-);
-
-/** Minutes-until-next-review, rounded up, matching WaitingScreen's phrasing. */
-function formatNextReview(nextReviewAt: Date, now: number): string {
-    return `Next review in ${formatMinutes(minutesUntil(nextReviewAt, now))}.`;
-}
-
-interface SessionPreview {
-    review: number;
-    new: number;
-    retries: number;
-    /** Cards due beyond what the next session can hold. Vocab only: grammar sessions are uncapped, so its preview omits this. */
+interface SessionPreview extends ActivityWork {
+    /** Cards due beyond what the next session can hold. Vocab only: grammar sessions are uncapped. */
     remaining?: number;
 }
 
-/** Shared by every activity card that previews an upcoming SRS session (vocab, grammar): "{review} review · {new} new", appending retries in the error color, falling back to a caught-up message with an ETA when known. */
-function renderSessionPreviewDescription(preview: SessionPreview, nextReviewAt: Date | null, now: number): React.ReactNode {
-    const { review, new: newCount, retries } = preview;
-    const remaining = preview.remaining ?? 0;
-    const caughtUp = review === 0 && newCount === 0 && retries === 0;
-
-    if (caughtUp) {
-        return nextReviewAt ? formatNextReview(nextReviewAt, now) : "You're all caught up.";
-    }
-
-    const parts: React.ReactNode[] = [`${review} review`, `${newCount} new`];
-    if (retries > 0) {
-        parts.push(<span key="retries" className="text-error">{retries} retries</span>);
-    }
-    const counts = parts.reduce<React.ReactNode[]>((acc, part, i) => {
-        if (i > 0) acc.push(<span key={`sep-${i}`} className="text-tertiary"> · </span>);
-        acc.push(part);
-        return acc;
-    }, []);
-
-    // Only the vocab card can overflow: its session is capped, grammar's is not.
-    // Saying so up front is the difference between "this session is the work" and
-    // "this session is a slice of it", which changes whether the user stops after it.
-    if (remaining > 0) {
-        return (
-            <>
-                {counts}
-                <span className="block text-tertiary">
-                    {remaining} more after this session
-                </span>
-            </>
-        );
-    }
-
-    return counts;
-}
-
-const QuizActivityCard: React.FC<{
-    preview: SessionPreview;
+/**
+ * One study activity: its name and settings, the reviews due as the big figure,
+ * what else is waiting, and an explicit button pinned to the bottom. Caught up,
+ * the button reads "Open": the session's waiting screen offers to learn more.
+ */
+function ActivityCard({ icon, title, work, nextReviewAt, now, primary, onStart, settings, details }: {
+    icon: React.ReactNode;
+    title: string;
+    work: SessionPreview;
     nextReviewAt: Date | null;
     now: number;
-    onClick: () => void;
+    primary: boolean;
+    onStart: () => void;
     settings: React.ReactNode;
-}> = ({ preview, nextReviewAt, now, onClick, settings }) => (
-    <ActivityCard
-        icon={<BookOpenText size={22} className="text-accent" />}
-        title="Vocabulary quiz session"
-        description={renderSessionPreviewDescription(preview, nextReviewAt, now)}
-        onClick={onClick}
-        settings={settings}
-    />
-);
+    details?: React.ReactNode;
+}) {
+    const due = work.review + work.retries;
+    const caughtUp = due === 0 && work.new === 0;
 
-/** The hub's chapter line: "Current chapter: Chapter {n}: {title}", "Next chapter: ...", or "All {count} chapters introduced". */
-function renderHubChapterLine(hubChapter: HubChapterStatus): string {
-    switch (hubChapter.status) {
-        case 'current':
-            return `Current chapter: Chapter ${hubChapter.chapterNumber}: ${hubChapter.chapterTitle}`;
-        case 'next':
-            return `Next chapter: Chapter ${hubChapter.chapterNumber}: ${hubChapter.chapterTitle}`;
-        case 'complete':
-            return `All ${hubChapter.totalChapters} chapters introduced`;
-    }
+    return (
+        <section className="rounded-md border border-divider bg-surface p-5 flex flex-col">
+            <div className="flex items-center gap-2">
+                <span className="text-secondary">{icon}</span>
+                <h2 className="type-subsection flex-1">{title}</h2>
+                {settings}
+            </div>
+
+            <div className="mt-4 flex-1 space-y-1">
+                {caughtUp ? (
+                    <>
+                        <p className="font-sans text-xl text-primary">All caught up</p>
+                        {nextReviewAt && <p className="type-meta">Next review in {formatDurationUntil(nextReviewAt, now)}</p>}
+                    </>
+                ) : (
+                    <>
+                        <p className="flex items-baseline gap-2">
+                            <span className="font-sans text-4xl text-primary tabular-nums">{due.toLocaleString('en-US')}</span>
+                            <span className="type-support">review{due === 1 ? '' : 's'} due</span>
+                        </p>
+                        {work.new > 0 && <p className="type-support">{work.new} new</p>}
+                        {work.retries > 0 && <p className="type-support">{work.retries} to retry</p>}
+                    </>
+                )}
+                {details}
+            </div>
+
+            <Button variant={primary ? 'primary' : 'secondary'} onClick={onStart} className="mt-5 w-full">
+                {caughtUp ? 'Open' : 'Start review'}
+            </Button>
+        </section>
+    );
 }
 
-const GrammarActivityCard: React.FC<{
-    preview: SessionPreview;
-    nextReviewAt: Date | null;
-    /**
-     * The hub's grammar chapter status (current/next/complete) plus its
-     * progress bar counts - null before it's loaded or when the teaching
-     * order failed to load (see describeHubChapter). Shown unconditionally,
-     * regardless of preview.new/review/retries (issue #87) - preview.new only
-     * counts points queued-but-never-reviewed, which reads 0 for the ordinary
-     * state between chapters once every introduced point has been reviewed at
-     * least once, so gating on it hid the chapter line and bar exactly when a
-     * learner was between chapters rather than mid-session.
-     */
-    hubChapter: HubChapterStatus | null;
-    now: number;
-    onClick: () => void;
-    settings: React.ReactNode;
-}> = ({ preview, nextReviewAt, now, hubChapter, onClick, settings }) => (
-    <ActivityCard
-        icon={<Puzzle size={22} className="text-accent" />}
-        title="Grammar quiz session"
-        description={
-            <>
-                {renderSessionPreviewDescription(preview, nextReviewAt, now)}
-                {hubChapter && (
-                    <span className="block text-tertiary mt-1">{renderHubChapterLine(hubChapter)}</span>
-                )}
-                {hubChapter && hubChapter.counts.total > 0 && (
-                    <span className="block mt-1">
-                        <ChapterProgressBar counts={hubChapter.counts} compact />
-                    </span>
-                )}
-            </>
-        }
-        onClick={onClick}
-        settings={settings}
-        footer={
-            <Link
-                to="/grammar/chapters"
-                onClick={e => e.stopPropagation()}
-                className="text-xs text-accent font-gothic hover:underline"
-            >
-                View all chapters &rarr;
+/** "Chapter 14 · Plain verb forms: past and negative", its progress bar and a link to the curriculum. */
+function GrammarChapterLine({ hubChapter }: { hubChapter: HubChapterStatus }) {
+    return (
+        <div className="pt-2 space-y-1.5">
+            <p className="type-meta">
+                {hubChapter.status === 'complete'
+                    ? `All ${hubChapter.totalChapters} chapters introduced`
+                    : `Chapter ${hubChapter.chapterNumber} · ${hubChapter.chapterTitle}`}
+            </p>
+            {hubChapter.counts.total > 0 && <ChapterProgressBar counts={hubChapter.counts} compact />}
+            <Link to="/grammar/chapters" className="inline-block font-sans text-sm text-accent hover:underline">
+                View curriculum
             </Link>
-        }
-    />
-);
+        </div>
+    );
+}

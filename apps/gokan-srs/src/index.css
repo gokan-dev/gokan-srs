@@ -16,7 +16,6 @@
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
   --color-error: var(--error);
-  --color-error-accent: var(--error-accent);
   /*
     Answer-result colours. `text-feedback-correct` and `text-feedback-incorrect`
     were already in use by the grammar cards but had never been DEFINED, so both
@@ -25,27 +24,11 @@
   --color-feedback-correct: var(--feedback-correct);
   --color-feedback-incorrect: var(--feedback-incorrect);
   --color-input-placeholder: var(--input-placeholder);
-  --color-meaning-muted: var(--meaning-muted);
-  --color-label-neutral: var(--label-neutral);
-  --color-muted: var(--muted);
-  --color-subtle: var(--subtle);
-
-  /*
-    Quiz-type coding, used by the grammar browse page. Named by MEANING rather
-    than by colour, so the palette can change without renaming: a construction
-    is drilled by the sentence cloze, an inflection by the conjugation drill, and
-    a lexical point is a single dictionary word. Blue / amber / violet today.
-  */
-  --color-quiz-cloze: var(--quiz-cloze);
-  --color-quiz-cloze-soft: var(--quiz-cloze-soft);
-  --color-quiz-conjugation: var(--quiz-conjugation);
-  --color-quiz-conjugation-soft: var(--quiz-conjugation-soft);
-  --color-quiz-lexical: var(--quiz-lexical);
-  --color-quiz-lexical-soft: var(--quiz-lexical-soft);
 
   --font-serif: "Source Serif 4", Georgia, serif;
   --font-mincho: "Noto Serif JP", "Hiragino Mincho ProN", "Yu Mincho", "MS PMincho", serif;
-  --font-gothic: "Sawarabi Gothic", "Noto Sans JP", "Hiragino Sans", "Meiryo", "Yu Gothic", sans-serif;
+  --font-sans: "Inter", "Noto Sans JP", system-ui, sans-serif;
+  --font-gothic: "Noto Sans JP", "Hiragino Sans", "Meiryo", "Yu Gothic", sans-serif;
 }
 
 /*
@@ -57,28 +40,25 @@
   --background: #F5F0E8;
   --feedback-background: #F0EEE8;
   --surface: #FFFFFF;
-  --surface-hover: #E8E0D0;
+  --surface-hover: #F3EEE6;
   --primary: #1a1a2e;
-  --secondary: #3D5A80;
-  --tertiary: #7D7466;
+  --secondary: #5C5A55;
+  --tertiary: #736B5E;
   --divider: #E8E0D0;
   --accent: #3D5A80;
   --accent-hover: #2A405D;
   --error: #8A3A2E;
-  --error-accent: rgba(138, 58, 46, 0.45);
-  --feedback-correct: #2F6B4F;
-  --feedback-incorrect: #8A3A2E;
+  /*
+    Answer results, the same for everyone: blue and orange, safe for red-green
+    colour blindness, always shown with a second cue (an icon, a label).
+    Okabe-Ito hues: light uses its blue and its vermillion darkened to reach
+    4.5:1 on the surface and the background; dark uses sky blue and orange as
+    published. The blue stays apart from the muted accent by saturation and
+    lightness. Errors and destructive actions keep --error.
+  */
+  --feedback-correct: #0072B2;
+  --feedback-incorrect: #AD4F00;
   --input-placeholder: #9AA0A6;
-  --meaning-muted: rgba(26, 26, 46, 0.6);
-  --label-neutral: #8B8E93;
-  --muted: #9ca3af;
-  --subtle: #6b7280;
-  --quiz-cloze: #2F6FA8;
-  --quiz-cloze-soft: rgba(47, 111, 168, 0.10);
-  --quiz-conjugation: #A2661C;
-  --quiz-conjugation-soft: rgba(162, 102, 28, 0.12);
-  --quiz-lexical: #6B4E9A;
-  --quiz-lexical-soft: rgba(107, 78, 154, 0.10);
 
   /*
     Mastery directions: one hue in three steps (the design system reserves a
@@ -94,36 +74,105 @@
   --background: #12110F;
   --feedback-background: #1C1B18;
   --surface: #1C1B18;
-  --surface-hover: #2C2A26;
+  --surface-hover: #24221E;
   --primary: #E8E4DC;
-  --secondary: #6B8FA8;
+  --secondary: #A8A29A;
   --tertiary: #918B83;
   --divider: #2C2A26;
   --accent: #6B8FA8;
   --accent-hover: #8AB4D4;
-  --error: #f85149;
-  --error-accent: rgba(248, 81, 73, 0.45);
-  --feedback-correct: #6FBF95;
-  --feedback-incorrect: #f85149;
+  --error: #E0796D;
+  --feedback-correct: #56B4E9;
+  --feedback-incorrect: #E69F00;
   --input-placeholder: #6e7681;
-  --meaning-muted: rgba(232, 228, 220, 0.6);
-  --label-neutral: #8b949e;
-  --muted: #6e7681;
-  --subtle: #484f58;
-  --quiz-cloze: #7FB3DB;
-  --quiz-cloze-soft: rgba(127, 179, 219, 0.14);
-  --quiz-conjugation: #E0A94F;
-  --quiz-conjugation-soft: rgba(224, 169, 79, 0.16);
-  --quiz-lexical: #B79BE0;
-  --quiz-lexical-soft: rgba(183, 155, 224, 0.14);
 }
 
 /* Global Styles based on Theme */
 body {
   background-color: var(--background);
   color: var(--primary);
-  font-family: var(--font-gothic);
+  font-family: var(--font-sans);
   transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+}
+
+/*
+  Type roles: one utility per hierarchy role, used instead of ad hoc
+  size/colour combinations, so a heading level or body-copy role has exactly
+  one look everywhere it appears.
+*/
+@utility type-page-title {
+  font-family: var(--font-serif);
+  color: var(--primary);
+  font-size: 1.5rem;
+  line-height: 2rem;
+
+  @media (width >= 48rem) {
+    font-size: 1.875rem;
+    line-height: 2.25rem;
+  }
+}
+
+@utility type-section {
+  font-family: var(--font-serif);
+  color: var(--primary);
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+}
+
+@utility type-subsection {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  color: var(--primary);
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+
+@utility type-body {
+  font-family: var(--font-sans);
+  color: var(--primary);
+  font-size: 1rem;
+  line-height: 1.625rem;
+}
+
+@utility type-support {
+  font-family: var(--font-sans);
+  color: var(--secondary);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+@utility type-meta {
+  font-family: var(--font-sans);
+  color: var(--tertiary);
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+@utility type-label {
+  font-family: var(--font-sans);
+  font-weight: 500;
+  color: var(--secondary);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  text-transform: none;
+}
+
+@utility jp-display {
+  font-family: var(--font-mincho);
+  color: var(--primary);
+  font-size: 3.75rem;
+  line-height: 1;
+
+  @media (width >= 48rem) {
+    font-size: 4.5rem;
+  }
+}
+
+@utility jp-headword {
+  font-family: var(--font-mincho);
+  color: var(--primary);
+  font-size: 1.25rem;
+  line-height: 1.75rem;
 }
 
 /* Custom Utility Classes */

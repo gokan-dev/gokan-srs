@@ -1,4 +1,5 @@
 import type { GrammarChapterProgressCounts } from "../context/quiz/grammarSelectors";
+import { chapterProgressLabel } from "../utils/chapterProgress.utils";
 
 /** A reference tick overlaid on the bar at a fixed position, independent of the fill. */
 export interface ProgressBarMark {
@@ -19,9 +20,9 @@ interface ChapterProgressBarProps {
 const clampPercent = (ratio: number) => Math.min(100, Math.max(0, ratio * 100));
 
 /**
- * A slim three-way bar (mastered / in-progress / untouched) for ONE chapter's
+ * A slim three-way bar (mastered / learning / new) for ONE chapter's
  * points - the same visual language as JlptCoverageBars' per-level rows
- * (solid accent = mastered, 35% accent = in progress), but sized for a single
+ * (solid accent = mastered, 35% accent = learning), but sized for a single
  * chapter rather than a whole coverage report. Used on the Main hub's grammar
  * card and the chapter browser's per-chapter rows (issue #58).
  *
@@ -34,12 +35,11 @@ export function ChapterProgressBar({ counts, compact, marks }: ChapterProgressBa
     const { mastered, learning, total } = counts;
     const masteredPct = total > 0 ? (mastered / total) * 100 : 0;
     const learningPct = total > 0 ? (learning / total) * 100 : 0;
-    const untouched = total - mastered - learning;
 
     return (
         <div className="flex items-center gap-2">
             <div className="relative flex-1 min-w-0">
-                <div className="flex h-1.5 rounded-sm overflow-hidden bg-surface-hover/50">
+                <div className="flex h-1.5 rounded-full overflow-hidden bg-divider">
                     {masteredPct > 0 && (
                         <div className="h-full bg-accent" style={{ width: `${masteredPct}%` }} />
                     )}
@@ -61,11 +61,7 @@ export function ChapterProgressBar({ counts, compact, marks }: ChapterProgressBa
                 ))}
             </div>
             {!compact && (
-                <span className="shrink-0 text-[11px] font-gothic text-tertiary tabular-nums">
-                    {mastered}/{total}
-                    {learning > 0 && <span> · {learning} learning</span>}
-                    {untouched > 0 && <span> · {untouched} new</span>}
-                </span>
+                <span className="shrink-0 type-meta tabular-nums">{chapterProgressLabel(counts)}</span>
             )}
         </div>
     );

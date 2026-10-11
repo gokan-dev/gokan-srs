@@ -25,9 +25,9 @@ const vocab = (overrides: Partial<VocabProgress> = {}): VocabProgress => ({
 const total = (b: { reading: number; meaning: number; production: number }) => b.reading + b.meaning + b.production;
 
 describe('buildReviewForecast', () => {
-    it('produces Now, Later and one bucket per following day', () => {
+    it('produces Now, Later today and one bucket per following day', () => {
         const buckets = buildReviewForecast([], undefined, NOW);
-        expect(buckets.map(b => b.label).slice(0, 3)).toEqual(['Now', 'Later', 'Tomorrow']);
+        expect(buckets.map(b => b.label).slice(0, 3)).toEqual(['Now', 'Later today', 'Tmrw']);
         expect(buckets).toHaveLength(8);
     });
 

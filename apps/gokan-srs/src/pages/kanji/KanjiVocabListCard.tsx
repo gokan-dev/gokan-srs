@@ -1,30 +1,42 @@
 import { useState } from "react";
-import { Card } from "../../components/ui/Card";
+import { ListRow } from "../../components/ui/ListRow";
+import { FilterToggle } from "../../components/ui/FilterToggle";
+import { JlptChip } from "../../components/JlptChip";
+import { WordStudyStatus } from "../../components/WordStudyStatus";
+import { DetailSection } from "../../components/detail/DetailSection";
 import { headwordOf, secondaryForm } from "@gokan/dataset-schema";
 import type { Vocabulary } from "@gokan/dataset-schema";
 import { VocabularyService } from "../../services/vocabulary.service";
-import { useNavigate } from "react-router-dom";
-import { useResponsive } from "../../context/Responsive/useResponsive";
 import { useAsyncData } from "../../hooks/useAsyncData";
+import { useQuiz } from "../../context/useQuiz";
+import { STATUS_LABEL, vocabLearningStatus, type LearningStatus } from "../../utils/learningStatus.utils";
 
 interface Props {
+    character: string;
+    /** The kanji's words, in frequency order. */
     vocabIds: string[];
 }
 
-const INITIAL_COUNT = 5;
+const INITIAL_COUNT = 10;
+const FILTERS: (LearningStatus | 'all')[] = ['all', 'new', 'learning', 'mastered'];
 
-export function KanjiVocabListCard({ vocabIds }: Props) {
-    const { isMobile } = useResponsive();
-    const navigate = useNavigate();
-
-    // Expansion belongs to one list: keyed by it, so another kanji's list starts collapsed.
-    const listKey = vocabIds.join(',');
+/**
+ * "Words with 学": the kanji's words with the learner's status, filterable by it.
+ * A word not studied yet can be added from its row (WordStudyStatus).
+ */
+export function KanjiVocabListCard({ character, vocabIds }: Props) {
+    const { state } = useQuiz();
+    const settings = state.settings ?? undefined;
+    const [filter, setFilter] = useState<LearningStatus | 'all'>('all');
+    // Expansion belongs to one kanji: keyed by it, so another kanji's list starts collapsed.
     const [expandedFor, setExpandedFor] = useState<string | null>(null);
-    const isExpanded = expandedFor === listKey;
-    const setIsExpanded = (expanded: boolean) => setExpandedFor(expanded ? listKey : null);
+    const isExpanded = expandedFor === character;
 
-    const isExpandable = vocabIds.length > INITIAL_COUNT;
-    const displayedIds = isExpanded ? vocabIds : vocabIds.slice(0, INITIAL_COUNT);
+    const progressById = new Map((state.progress?.learningQueue ?? []).map(p => [p.vocabId, p]));
+    const filtered = filter === 'all'
+        ? vocabIds
+        : vocabIds.filter(id => vocabLearningStatus(progressById.get(id), settings) === filter);
+    const displayedIds = isExpanded ? filtered : filtered.slice(0, INITIAL_COUNT);
 
     // Only the displayed ids are fetched, so expanding loads the rest.
     const vocabs: Vocabulary[] = useAsyncData(displayedIds.join(','), () => VocabularyService.loadVocabs(displayedIds), { keepPrevious: true }).data ?? [];
@@ -32,43 +44,48 @@ export function KanjiVocabListCard({ vocabIds }: Props) {
     if (vocabIds.length === 0) return null;
 
     return (
-        <Card size={isMobile ? "sm" : "md"}>
-            <h2 className="text-lg font-gothic font-semibold text-primary mb-4">
-                Vocabulary using this kanji ({vocabIds.length})
-            </h2>
-            <div className="space-y-3">
-                {vocabs.map(v => (
-                    <div
-                        key={v.id}
-                        onClick={() => void navigate(`/vocab/${v.id}`)}
-                        className="border-l-2 border-divider pl-3 cursor-pointer hover:border-accent transition-colors group"
-                    >
-                        <div className="flex items-center gap-2 mb-1">
-                            {/* A word learned in kana lists as ここ with 此処 beside it, as in the dictionary. */}
-                            <span className="font-mincho text-xl text-primary group-hover:text-accent transition-colors">
-                                {headwordOf(v)}
-                            </span>
-                            <span className={`${v.usuallyKana ? 'font-mincho' : 'font-gothic font-bold'} text-secondary`}>
-                                {secondaryForm(v)}
-                            </span>
-                        </div>
-                        <div className="text-sm text-meaning-muted font-serif line-clamp-2">
-                            {v.senses && v.senses[0] ? v.senses[0].glosses.join(', ') : 'No definition available'}
-                        </div>
-                    </div>
+        <DetailSection title={<>Words with <span className="font-mincho">{character}</span></>} count={vocabIds.length}>
+            <div className="flex flex-wrap gap-1.5 mb-3" role="group" aria-label="Status">
+                {FILTERS.map(f => (
+                    <FilterToggle key={f} active={filter === f} onClick={() => setFilter(f)}>
+                        {f === 'all' ? 'All' : STATUS_LABEL[f]}
+                    </FilterToggle>
                 ))}
             </div>
 
-            {isExpandable && (
-                <div className="mt-6 text-center">
-                    <button
-                        onClick={() => setIsExpanded(!isExpanded)}
-                        className="text-sm font-gothic text-accent hover:text-accent/80 transition-colors py-2 px-4 rounded-md border border-accent/20 hover:bg-accent/5 w-full md:w-auto"
+            <div className="flex flex-col divide-y divide-divider -mx-3">
+                {vocabs.filter(v => displayedIds.includes(v.id)).map(v => (
+                    <ListRow
+                        key={v.id}
+                        to={`/vocab/${v.id}`}
+                        trailing={
+                            <div className="flex items-center gap-3">
+                                {v.jlptLevel && <span className="hidden sm:inline-flex"><JlptChip level={v.jlptLevel} /></span>}
+                                <WordStudyStatus vocabId={v.id} />
+                            </div>
+                        }
                     >
-                        {isExpanded ? "Show fewer words" : `Show all ${vocabIds.length} words`}
-                    </button>
-                </div>
+                        <div className="flex items-baseline gap-2 min-w-0">
+                            {/* A word learned in kana lists as ここ with 此処 beside it, as in the dictionary. */}
+                            <span className="jp-headword shrink-0">{headwordOf(v)}</span>
+                            <span className={`${v.usuallyKana ? 'font-mincho' : 'font-gothic'} text-sm text-secondary truncate`}>{secondaryForm(v)}</span>
+                        </div>
+                        <div className="type-support truncate">{v.senses[0]?.glosses.join(', ')}</div>
+                    </ListRow>
+                ))}
+            </div>
+
+            {filtered.length === 0 && <p className="type-support">No words with this status.</p>}
+
+            {filtered.length > INITIAL_COUNT && (
+                <button
+                    type="button"
+                    onClick={() => setExpandedFor(isExpanded ? null : character)}
+                    className="mt-3 font-sans text-sm text-accent hover:underline cursor-pointer"
+                >
+                    {isExpanded ? 'Show fewer words' : `Show all ${filtered.length} words`}
+                </button>
             )}
-        </Card>
+        </DetailSection>
     );
 }

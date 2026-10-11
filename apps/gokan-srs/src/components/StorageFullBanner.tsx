@@ -14,10 +14,10 @@ export function StorageFullBanner() {
     if (!saveFailed) return null;
 
     return (
-        <div className="w-full px-4 pb-2 md:px-8 md:pb-4">
+        <div className="w-full max-w-5xl mx-auto px-4 md:px-6 pt-3">
             <div
                 role="alert"
-                className="flex w-full items-start gap-2 px-3 py-2 rounded border border-error/40 bg-error/5 text-sm font-gothic text-primary md:max-w-5xl md:mx-auto"
+                className="flex w-full items-start gap-2 px-3 py-2 rounded-md border border-error/40 bg-error/5 text-sm font-sans text-primary"
             >
                 <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-error" aria-hidden="true" />
                 <p className="min-w-0">

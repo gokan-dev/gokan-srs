@@ -1,4 +1,6 @@
-import { JlptChip } from "../../components/JlptChip";
+import { StatusDot } from "../../components/StatusDot";
+import { useQuiz } from "../../context/useQuiz";
+import { grammarLearningStatus } from "../../utils/learningStatus.utils";
 import type { GrammarPoint, GrammarVariantGroupIndex } from "@gokan/dataset-schema";
 import { GrammarService } from "../../services/grammar.service";
 import { RelatedEntriesCard, type RelatedEntry } from "../../components/RelatedEntriesCard";
@@ -37,6 +39,7 @@ interface VariantRow {
  * matches the vocab detail page's related-entry lists.
  */
 export function GrammarVariantsCard({ point }: Props) {
+    const { state } = useQuiz();
     // A variant points at its canonical; a canonical heads its own group.
     const canonicalId = point.variantOf ?? point.id;
 
@@ -61,20 +64,14 @@ export function GrammarVariantsCard({ point }: Props) {
         key: p.id,
         to: `/grammar/${p.id}`,
         primary: p.title,
-        secondary: (
-            <>
-                <span className="px-2 py-0.5 text-xs rounded border border-secondary/30 text-secondary font-gothic font-medium whitespace-nowrap">
-                    {RELATION_LABELS[relation] ?? relation}
-                </span>
-                <JlptChip level={p.jlptLevel} />
-            </>
-        ),
+        secondary: <span className="type-meta whitespace-nowrap">{RELATION_LABELS[relation] ?? relation}</span>,
+        // A realization is studied on its canonical's card: the canonical carries the status.
+        trailing: p.variantOf ? undefined : <StatusDot status={grammarLearningStatus(state.progress?.grammarQueue.find(g => g.grammarId === p.id))} />,
     }));
 
     return (
         <RelatedEntriesCard
             title="Other forms"
-            count={entries.length}
             sections={[{ entries }]}
         />
     );

@@ -1,368 +1,252 @@
-import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { TagsLookup, headwordOf, textbookLessonsLabel } from "@gokan/dataset-schema";
-import type { Tags, Vocabulary } from "@gokan/dataset-schema";
-import { Card } from "../../components/ui/Card";
-import { MasteryRing } from "../../components/MasteryRing";
+import { useState, type ReactNode } from "react";
+import { Link, useParams } from "react-router-dom";
+import { headwordOf, textbookLessonsLabel } from "@gokan/dataset-schema";
+import type { Vocabulary } from "@gokan/dataset-schema";
 import { useResponsive } from "../../context/Responsive/useResponsive";
 import { useQuiz } from "../../context/useQuiz";
 import { VocabularyService } from "../../services/vocabulary.service";
-import { Button } from "../../components/ui/Button";
 import { LoadingScreen } from "../../components/LoadingScreen";
-import { Combine } from "lucide-react";
 import { VocabSentencesCard } from "./VocabSentencesCard";
-import { ReviewTimeline } from "../../components/ReviewTimeline";
 import { VocabRelationshipsCard } from "./VocabRelationshipsCard";
 import { JlptChip } from "../../components/JlptChip";
 import { THEME } from "../../commons/theme";
-import { isEntryMastered, isProductionActivated, isReadingRelevant } from "../../services/scheduling";
+import { isProductionActivated, isReadingRelevant, vocabNextReviewAt } from "../../services/scheduling";
 import { KanjiSpellingNote } from "../../components/KanjiSpellingNote";
-import { PageHeader } from "../../components/PageHeader";
+import { Page } from "../../components/Page";
 import { DetailErrorScreen } from "../../components/detail/DetailErrorScreen";
-import { DetailField } from "../../components/detail/DetailCard";
-import { SrsStatsCard } from "../../components/detail/SrsStatsCard";
+import { DetailField, DetailSection } from "../../components/detail/DetailSection";
+import { DetailHeader } from "../../components/detail/DetailHeader";
+import { LearnStatus } from "../../components/detail/LearnStatus";
+import { YourProgress, type ProgressDirection } from "../../components/detail/YourProgress";
+import { Disclosure } from "../../components/ui/Disclosure";
+import { useAsyncData } from "../../hooks/useAsyncData";
+import { useNow } from "../../hooks/useNow";
+import { directionStatus, statusReviewPhrase, vocabLearningStatus } from "../../utils/learningStatus.utils";
+import { organizeSenses, type ShownSense } from "../../utils/senses.utils";
+
+const INITIAL_SENSES = 5;
 
 export default function VocabDetailScreen() {
     const { vocabId } = useParams<{ vocabId: string }>();
-    const navigate = useNavigate();
-    const { isMobile } = useResponsive();
+    const { isMobile, isTablet } = useResponsive();
     const { state, actions } = useQuiz();
-    const [vocab, setVocab] = useState<Vocabulary | null>(null);
-    const [error, setError] = useState<string | null>(null);
-
-    useEffect(() => {
-        if (!vocabId) return;
-
-        VocabularyService.loadVocab(vocabId)
-            .then(setVocab)
-            .catch(err => {
-                console.error("Failed to load vocab", err);
-                setError("Could not load vocabulary details.");
-            });
-    }, [vocabId]);
+    const now = useNow();
+    const load = useAsyncData(vocabId ?? null, () => VocabularyService.loadVocab(vocabId ?? ''));
+    const vocab: Vocabulary | null = load.data ?? null;
 
     const progress = state.progress?.learningQueue.find(p => p.vocabId === vocabId);
-    // Activation, not a pending due date: a mastered production entry has no
-    // dueDate, and gating on one hid the ring and history of every word whose
-    // production was finished (or skipped as already known).
-    const productionActivated = isProductionActivated(progress?.production);
+    const settings = state.settings ?? undefined;
+
+    if (load.status === 'error') return <DetailErrorScreen message="Could not load this word." />;
+    if (!vocab) return <LoadingScreen />;
+
     // A word learned in kana has no reading direction: no ring, due date or curve for it.
     const readingRelevant = !progress || isReadingRelevant(progress);
+    // Activation, not a pending due date: a mastered production entry has no dueDate.
+    const productionActivated = isProductionActivated(progress?.production);
 
-    if (error) return <DetailErrorScreen message={error} />;
+    const directions: ProgressDirection[] = progress ? [
+        ...(readingRelevant ? [{ key: 'reading', label: 'Reading', strength: progress.reading.memoryStrength, variant: 'reading' as const, status: directionStatus(progress.reading, true, now) }] : []),
+        { key: 'meaning', label: 'Meaning', strength: progress.meaning.memoryStrength, variant: 'meaning' as const, status: directionStatus(progress.meaning, true, now) },
+        // "Not started" rather than a hidden row: production activates lazily, and an
+        // absent row reads as the feature being broken.
+        { key: 'production', label: 'Production', strength: progress.production?.memoryStrength ?? 0, variant: 'production' as const, status: directionStatus(progress.production, productionActivated, now) },
+    ] : [];
 
-    if (!vocab) {
-        return <LoadingScreen />;
-    }
-
-    const kanjiCard = (
-        <Card size={isMobile ? "sm" : "md"}>
-            <div className={`flex ${isMobile ? 'flex-col gap-4' : 'flex-col items-center text-center gap-6'}`}>
-                <div className="flex-1 flex flex-col items-center">
-                    <div
-                        className="relative inline-flex items-start text-7xl md:text-8xl font-mincho text-primary mb-2"
-                        title={vocab.mergedVocabs && vocab.mergedVocabs.length > 1 ? "Merged Entry (combines multiple JMDict words)" : undefined}
-                    >
-                        <span>{headwordOf(vocab)}</span>
-                        {vocab.mergedVocabs && vocab.mergedVocabs.length > 1 && (
-                            <span className="absolute -right-10 top-0">
-                                <Combine size={24} className="text-divider opacity-40" />
-                            </span>
-                        )}
-                    </div>
-                    {/* A word shown in kana names its kanji spellings in a note instead. */}
-                    {!vocab.usuallyKana && vocab.writtenForm.alternatives && vocab.writtenForm.alternatives.length > 0 && (
-                        <div className="text-2xl md:text-3xl font-mincho text-tertiary mb-4 text-center">
-                            {vocab.writtenForm.alternatives.join(' ・ ')}
-                        </div>
-                    )}
-                    <div className="space-y-2">
-                        {vocab.usuallyKana ? (
-                            <KanjiSpellingNote vocab={vocab} className="text-center" />
-                        ) : (
-                            <div className="text-3xl font-gothic text-secondary/90 opacity-90">
-                                {vocab.reading.primary}
-                            </div>
-                        )}
-                        {vocab.reading.alternatives.length > 0 && (
-                            <div className="text-sm text-tertiary font-gothic">
-                                Also: {vocab.reading.alternatives.join(', ')}
-                            </div>
-                        )}
-                        {vocab.jlptLevel && (
-                            <div className="flex justify-center">
-                                <JlptChip level={vocab.jlptLevel} />
-                            </div>
-                        )}
-                    </div>
-                </div>
-                {progress && (
-                    <div className="flex justify-center gap-8 border-t border-divider pt-6 w-full">
-                        {readingRelevant && (
-                            <div className="flex flex-col items-center gap-2">
-                                <MasteryRing memoryStrength={progress.reading.memoryStrength} size={60} variant="reading" />
-                                <span className="text-xs text-tertiary uppercase tracking-wider font-gothic font-semibold">
-                                    Reading
-                                </span>
-                            </div>
-                        )}
-                        <div className="flex flex-col items-center gap-2">
-                            <MasteryRing memoryStrength={progress.meaning.memoryStrength} size={60} variant="meaning" />
-                            <span className="text-xs text-tertiary uppercase tracking-wider font-gothic font-semibold">
-                                Meaning
-                            </span>
-                        </div>
-                        {/* Only once the production entry has actually been activated for
-                            this word (see SRSService.seedProductionEntry). An empty third
-                            ring on every word that has not reached it yet would read as
-                            lost progress rather than a direction not started. */}
-                        {productionActivated && (
-                            <div className="flex flex-col items-center gap-2">
-                                <MasteryRing memoryStrength={progress.production!.memoryStrength} size={60} variant="production" />
-                                <span className="text-xs text-tertiary uppercase tracking-wider font-gothic font-semibold">
-                                    Production
-                                </span>
-                            </div>
-                        )}
-                    </div>
-                )}
-            </div>
-        </Card>
+    const status = vocabLearningStatus(progress, settings);
+    const header = (
+        <DetailHeader
+            parentPath="/vocab"
+            title={<span className="jp-display">{headwordOf(vocab)}</span>}
+            chips={vocab.jlptLevel ? <JlptChip level={vocab.jlptLevel} /> : undefined}
+            actions={progress ? (
+                <LearnStatus
+                    inStudy
+                    status={status}
+                    nextReview={statusReviewPhrase(status, vocabNextReviewAt(progress, settings), now)}
+                />
+            ) : (
+                <LearnStatus inStudy={false} learnLabel="Learn this word" onLearn={() => actions.saveVocabIntroChoice(vocab, 'learn')} />
+            )}
+        >
+            {/* A word shown in kana names its kanji spellings in a note instead. */}
+            {!vocab.usuallyKana && vocab.writtenForm.alternatives && vocab.writtenForm.alternatives.length > 0 && (
+                <p className="font-mincho text-2xl text-secondary">{vocab.writtenForm.alternatives.join('・')}</p>
+            )}
+            {vocab.usuallyKana
+                ? <KanjiSpellingNote vocab={vocab} />
+                : <p className="font-gothic text-2xl text-secondary">{vocab.reading.primary}</p>}
+            {vocab.reading.alternatives.length > 0 && (
+                <p className="type-meta">Also: <span className="font-gothic">{vocab.reading.alternatives.join('、')}</span></p>
+            )}
+        </DetailHeader>
     );
 
-    const metadataCard = (
-        <Card size={isMobile ? "sm" : "md"}>
-            <h2 className="text-lg font-gothic font-semibold text-primary mb-4">Information</h2>
-            <div className="grid grid-cols-2 gap-4">
-                {/* A word learned in kana is met at its kana spelling's rank, and is not part of the kanji order. */}
-                <DetailField label="Frequency">
-                    #{(vocab.usuallyKana ? vocab.frequency.kanaRank ?? vocab.frequency.kanjiRank : vocab.frequency.kanjiRank).toLocaleString()}
-                </DetailField>
-                <DetailField label="KKLC Step">
-                    {vocab.usuallyKana ? 'Learned in kana' : `Step ${vocab.progression.kklcStep}`}
-                </DetailField>
-                {vocab.textbooks && vocab.textbooks.length > 0 && (
-                    <DetailField label="Textbook">
-                        {textbookLessonsLabel(vocab.textbooks)}
-                    </DetailField>
-                )}
-                {vocab.usageHints?.examplePattern && (
-                    <div className="col-span-2 pt-2 border-t border-divider">
-                        <div className="text-xs text-tertiary uppercase tracking-wider font-gothic mb-1">
-                            Usage Pattern
-                        </div>
-                        <div className="text-base text-primary font-mincho">
-                            {vocab.usageHints.examplePattern}
-                        </div>
-                    </div>
-                )}
-                {!progress && (
-                    <div className="col-span-2 pt-4 border-t border-divider mt-2">
-                        <Button
-                            className="w-full"
-                            onClick={() => {
-                                actions.saveVocabIntroChoice(vocab, 'learn');
-                            }}
+    const meanings = <MeaningsSection vocab={vocab} />;
+    const kanji = vocab.writtenForm.containedKanji.length > 0 ? (
+        <DetailSection title="Kanji">
+            <div className="flex flex-wrap gap-3">
+                {vocab.writtenForm.containedKanji.map(char => {
+                    const known = state.progress?.kanjiKnowledge.kanjiSet.has(char) ?? false;
+                    return (
+                        <Link
+                            key={char}
+                            to={`/kanji/${char}`}
+                            className="flex flex-col items-center gap-1 group focus-visible:outline-none"
                         >
-                            Add to Learning List
-                        </Button>
-                    </div>
-                )}
+                            <span className="w-12 h-12 flex items-center justify-center rounded-md border border-divider bg-surface font-mincho text-2xl text-primary group-hover:border-accent group-focus-visible:ring-2 group-focus-visible:ring-accent transition-colors">
+                                {char}
+                            </span>
+                            <span className="type-meta">{known ? 'Known' : 'Not known'}</span>
+                        </Link>
+                    );
+                })}
             </div>
-        </Card>
-    );
-
-    const kanjiBreakdownCard = vocab.writtenForm.containedKanji.length > 0 ? (
-        <Card size={isMobile ? "sm" : "md"}>
-            <h2 className="text-lg font-gothic font-semibold text-primary mb-4">Kanji</h2>
-            <div className="flex flex-wrap gap-2">
-                {vocab.writtenForm.containedKanji.map(char => (
-                    <span
-                        key={char}
-                        onClick={() => void navigate(`/kanji/${char}`)}
-                        className="px-3 py-1.5 text-lg rounded bg-accent/10 text-accent font-mincho font-medium dark:bg-accent/15 cursor-pointer hover:bg-accent/20 transition-colors"
-                    >
-                        {char}
-                    </span>
-                ))}
-            </div>
-        </Card>
+        </DetailSection>
     ) : null;
-
-    const mergedCard = vocab.mergedVocabs && vocab.mergedVocabs.length > 1 ? (
-        <Card size={isMobile ? "sm" : "md"}>
-            <h2 className="text-lg font-gothic font-semibold text-primary mb-4 flex items-center gap-2">
-                <Combine size={18} />
-                Original Entries
-            </h2>
-            <p className="text-sm text-secondary mb-4 font-serif">
-                This is a merged entry combining multiple JMDict words that share the exact same kanji.
-            </p>
-            <div className="space-y-4">
-                {vocab.mergedVocabs.map((mv, idx) => (
-                    <div key={idx} className="border-l-2 border-divider pl-3">
-                        <div className="flex items-center gap-2 mb-1">
-                            <span className="font-gothic font-bold text-primary">{mv.originalPrimaryReading}</span>
-                            <span className="text-xs text-tertiary font-mono">ID: {mv.id}</span>
-                            {mv.isBase && <span className="text-[10px] bg-accent/15 text-accent px-1.5 py-0.5 rounded font-gothic">BASE</span>}
-                        </div>
-                        <div className="text-sm text-meaning-muted font-serif">
-                            {mv.originalGlosses.join(', ')}
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </Card>
-    ) : null;
-
-    const statsCard = progress && progress.introductionAt ? (
-        <SrsStatsCard
-            totalReviews={progress.totalReviews}
-            interval={readingRelevant ? progress.reading.interval : progress.meaning.interval}
+    const sentences = <VocabSentencesCard vocabId={vocab.id} />;
+    const related = <VocabRelationshipsCard vocab={vocab} />;
+    const yourProgress = progress?.introductionAt ? (
+        <YourProgress
+            directions={directions}
             introductionAt={progress.introductionAt}
-            nextReview={
-                <div className="space-y-1">
-                    {readingRelevant && (
-                        <NextReviewLine label="Reading" value={progress.reading.dueDate?.toLocaleDateString() ?? 'Ready'} />
-                    )}
-                    <NextReviewLine label="Meaning" value={progress.meaning.dueDate?.toLocaleDateString() ?? 'Ready'} />
-                    {/* "Not started" rather than a hidden row or a bare "Ready":
-                        production activates lazily, so a word that has not reached
-                        it yet needs to say so, or its absence reads as the feature
-                        being broken. */}
-                    <NextReviewLine
-                        label="Production"
-                        value={progress.production?.dueDate
-                            ? progress.production.dueDate.toLocaleDateString()
-                            : productionActivated && progress.production && isEntryMastered(progress.production)
-                                ? 'Mastered'
-                                : 'Not started'}
-                    />
-                </div>
-            }
+            totalReviews={progress.totalReviews}
             series={[
-                ...(readingRelevant
-                    ? [{ key: 'reading', label: 'Reading', entry: progress.reading, color: THEME.mastery.reading.loop1 }]
-                    : []),
+                ...(readingRelevant ? [{ key: 'reading', label: 'Reading', entry: progress.reading, color: THEME.mastery.reading.loop1 }] : []),
                 { key: 'meaning', label: 'Meaning', entry: progress.meaning, color: THEME.mastery.meaning.loop1 },
-                // Only once activated: an un-started entry would draw a flat
-                // zero line that reads as lost progress.
+                // Only once activated: an un-started entry would draw a flat zero line.
                 ...(productionActivated && progress.production
                     ? [{ key: 'production', label: 'Production', entry: progress.production, color: THEME.mastery.production.loop1 }]
                     : []),
             ]}
+            history={[
+                { label: 'Reading', history: progress.reading.history },
+                { label: 'Meaning', history: progress.meaning.history },
+                { label: 'Production', history: progress.production?.history ?? [] },
+            ]}
         />
     ) : null;
+    const dictionaryDetails = <DictionaryDetails vocab={vocab} />;
 
-    const timelineCard = progress && progress.introductionAt ? (
-        <ReviewTimeline readingEntry={progress.reading} meaningEntry={progress.meaning} productionEntry={progress.production} />
-    ) : null;
+    // Two columns from `lg`; below it, one column in reading order.
+    const twoColumns = !isMobile && !isTablet;
 
-    const relationshipsCard = <VocabRelationshipsCard vocab={vocab} />;
+    return (
+        <Page width="wide">
+            {header}
+            {twoColumns ? (
+                <div className="grid grid-cols-12 gap-10 items-start">
+                    <div className="col-span-8 space-y-10 min-w-0">
+                        {meanings}
+                        {sentences}
+                        {related}
+                    </div>
+                    <div className="col-span-4 space-y-10 min-w-0">
+                        {kanji}
+                        {yourProgress}
+                        {dictionaryDetails}
+                    </div>
+                </div>
+            ) : (
+                <div className="space-y-10">
+                    {meanings}
+                    {kanji}
+                    {sentences}
+                    {related}
+                    {yourProgress}
+                    {dictionaryDetails}
+                </div>
+            )}
+        </Page>
+    );
+}
 
-    const meaningsCard = (
-        <Card size={isMobile ? "sm" : "md"}>
-            <h2 className="text-lg font-gothic font-semibold text-primary mb-4">Meanings</h2>
-            <div className="space-y-6">
-                {vocab.senses.map((sense, index) => (
-                    <div key={index} className="pb-6 last:pb-0 border-b last:border-b-0 border-divider">
-                        {/* POS Tags */}
-                        <div className="flex flex-wrap gap-2 mb-3">
-                            {Array.from(new Set([...sense.pos, ...sense.misc.rawTags])).map(tag => (
-                                <span
-                                    key={tag}
-                                    className="px-2 py-1 text-xs rounded bg-accent/10 text-accent font-gothic font-medium dark:bg-accent/15"
-                                >
-                                    {TagsLookup[tag as Tags]}
-                                </span>
-                            ))}
-                        </div>
-                        {/* Glosses */}
-                        <p className="text-lg text-meaning-muted font-serif leading-relaxed">
-                            {sense.appliesToReadings && sense.appliesToReadings.length > 0 && (
-                                <span className="text-sm text-tertiary mr-2 font-gothic">[{sense.appliesToReadings.join(', ')}]</span>
-                            )}
-                            {sense.glosses.join(', ')}
-                        </p>
+/** The earliest review among the word's activated directions, or "Mastered". */
+function MeaningsSection({ vocab }: { vocab: Vocabulary }) {
+    // Expansion belongs to one word: keyed by it, so another word starts collapsed.
+    const [expandedFor, setExpandedFor] = useState<string | null>(null);
+    const { common, rare } = organizeSenses(vocab.senses);
+    const showAll = expandedFor === vocab.id;
+    const shown = showAll ? common : common.slice(0, INITIAL_SENSES);
 
-                        {/* Related Compounds (Specific to Sense) */}
-                        {sense.related?.compounds && sense.related.compounds.length > 0 && (
-                            <div className="mt-4 pt-3 border-t border-divider/50">
-                                <div className="text-xs text-tertiary uppercase tracking-wider font-gothic mb-2">
-                                    Related
-                                </div>
-                                <div className="flex flex-wrap gap-2">
-                                    {compoundList(sense.related.compounds)}
-                                </div>
-                            </div>
+    return (
+        <DetailSection title="Meanings">
+            <SenseList senses={shown} start={1} />
+            {common.length > INITIAL_SENSES && (
+                <button
+                    type="button"
+                    onClick={() => setExpandedFor(showAll ? null : vocab.id)}
+                    className="mt-3 font-sans text-sm text-accent hover:underline cursor-pointer"
+                >
+                    {showAll ? 'Show fewer meanings' : `Show all ${common.length} meanings`}
+                </button>
+            )}
+            {rare.length > 0 && (
+                <Disclosure title={`Rare and archaic meanings (${rare.length})`} className="mt-4">
+                    <SenseList senses={rare} start={common.length + 1} />
+                </Disclosure>
+            )}
+            {vocab.usageHints?.examplePattern && (
+                <p className="type-support mt-4">
+                    Usage: <span className="font-mincho text-base text-primary">{vocab.usageHints.examplePattern}</span>
+                </p>
+            )}
+        </DetailSection>
+    );
+}
+
+function SenseList({ senses, start }: { senses: ShownSense[]; start: number }) {
+    return (
+        <ol start={start} className="space-y-3 list-decimal pl-6 marker:text-tertiary marker:font-sans marker:text-sm">
+            {senses.map(({ sense, posLabel }, i) => (
+                <li key={i} className="pl-1">
+                    {posLabel && <div className="type-meta mb-0.5">{posLabel}</div>}
+                    <p className="type-body">
+                        {sense.appliesToReadings && sense.appliesToReadings.length > 0 && (
+                            <span className="font-gothic text-secondary mr-1">({sense.appliesToReadings.join('、')})</span>
                         )}
-                    </div>
-                ))}
-            </div>
-        </Card>
-    );
-
-    const sentencesCard = <VocabSentencesCard vocabId={vocab.id} />;
-
-    return (
-        <div className="min-h-screen flex flex-col md:max-w-5xl md:mx-auto w-full animate-fade-in">
-            {/* Header */}
-            <PageHeader title="Vocabulary Details" onBack={() => void navigate(-1)} className="p-4 md:p-8" />
-
-            {/* Content */}
-            <main className="flex-1 p-4 md:p-8 pt-0">
-                {isMobile ? (
-                    <div className="flex flex-col space-y-6">
-                        {kanjiCard}
-                        {kanjiBreakdownCard}
-                        {meaningsCard}
-                        {metadataCard}
-                        {sentencesCard}
-                        {mergedCard}
-                        {statsCard}
-                        {timelineCard}
-                        {relationshipsCard}
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
-                        {/* Left Column */}
-                        <div className="md:col-span-5 space-y-6">
-                            {kanjiCard}
-                            {kanjiBreakdownCard}
-                            {metadataCard}
-                            {mergedCard}
-                            {statsCard}
-                            {timelineCard}
-                            {relationshipsCard}
-                        </div>
-
-                        {/* Right Column */}
-                        <div className="md:col-span-7 space-y-6">
-                            {meaningsCard}
-                            {sentencesCard}
-                        </div>
-                    </div>
-                )}
-            </main>
-        </div>
+                        {sense.glosses.join(', ')}
+                    </p>
+                    {/* Strings, not entries: plain text, nothing that looks like a link. */}
+                    {sense.related.compounds.length > 0 && (
+                        <p className="type-support mt-0.5">
+                            See also: <span className="font-mincho text-primary">{sense.related.compounds.join('、')}</span>
+                        </p>
+                    )}
+                </li>
+            ))}
+        </ol>
     );
 }
 
-function compoundList(compounds: string[]) {
-    return compounds.map((compound, i) => (
-        <span key={i} className="text-lg font-mincho text-primary/80">
-            {compound}
-            {i < compounds.length - 1 && <span className="text-divider mx-2">|</span>}
-        </span>
-    ));
-}
+function DictionaryDetails({ vocab }: { vocab: Vocabulary }) {
+    const merged = vocab.mergedVocabs && vocab.mergedVocabs.length > 1 ? vocab.mergedVocabs : null;
+    const fields: { label: string; value: ReactNode }[] = [
+        // A word learned in kana is met at its kana spelling's rank, and is not part of the kanji order.
+        { label: 'Frequency rank', value: `#${(vocab.usuallyKana ? vocab.frequency.kanaRank ?? vocab.frequency.kanjiRank : vocab.frequency.kanjiRank).toLocaleString('en-US')}` },
+        { label: 'KKLC step', value: vocab.usuallyKana ? 'Learned in kana' : vocab.progression.kklcStep },
+        ...(vocab.textbooks && vocab.textbooks.length > 0 ? [{ label: 'Textbook lessons', value: textbookLessonsLabel(vocab.textbooks) }] : []),
+    ];
 
-/** One direction's next review date in the stats card. */
-function NextReviewLine({ label, value }: { label: string; value: string }) {
     return (
-        <div className="flex items-center gap-2">
-            <span className="text-sm text-secondary font-gothic w-16">{label}:</span>
-            <span className="text-base text-primary font-gothic">{value}</span>
-        </div>
+        <Disclosure title="Dictionary details">
+            <dl className="space-y-3">
+                {fields.map(field => <DetailField key={field.label} label={field.label}>{field.value}</DetailField>)}
+            </dl>
+            {merged && (
+                <div className="mt-4">
+                    <p className="type-label">Combines {merged.length} dictionary entries</p>
+                    <ul className="mt-2 space-y-2">
+                        {merged.map(entry => (
+                            <li key={entry.id}>
+                                <span className="font-gothic text-primary">{entry.originalPrimaryReading}</span>
+                                <span className="type-meta ml-2">JMdict {entry.id}</span>
+                                <p className="type-support">{entry.originalGlosses.join(', ')}</p>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+        </Disclosure>
     );
 }

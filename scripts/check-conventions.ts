@@ -30,11 +30,23 @@ const COLOUR_TOKEN_FILES = new Set(['apps/gokan-srs/src/index.css', 'apps/gokan-
 const STYLED_SOURCE = /^apps\/(gokan-srs|gokan-dictionary)\/src\/.*\.(tsx?|svelte|s?css)$/;
 
 const PALETTE = 'slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose';
-const TOKENS = 'primary|secondary|tertiary|accent|error|surface|background|divider|muted|subtle|feedback-correct|feedback-incorrect';
+const TOKENS = 'primary|secondary|tertiary|accent|error|surface|background|divider|feedback-correct|feedback-incorrect';
+/** Removed in the v2 design system: these must fail as unknown tokens, not resolve to nothing silently. */
+const REMOVED_TOKENS = 'error-accent|muted|subtle|label-neutral|meaning-muted|quiz-cloze-soft|quiz-cloze|quiz-conjugation-soft|quiz-conjugation|quiz-lexical-soft|quiz-lexical';
 const UTILITY = 'text|bg|border|ring|from|to|via|fill|stroke|outline|divide|placeholder|shadow|accent|caret|decoration';
 const PALETTE_CLASS = new RegExp(`\\b(?:${UTILITY})-(?:${PALETTE})-\\d{2,3}\\b`);
 const TOKEN_SHADE_CLASS = new RegExp(`\\b(?:${UTILITY})-(?:${TOKENS})-\\d{2,3}\\b`);
+const REMOVED_TOKEN_CLASS = new RegExp(`\\b(?:${UTILITY})-(?:${REMOVED_TOKENS})\\b`);
 const RAW_COLOUR = /#[0-9a-fA-F]{3,8}\b(?![-\w])|\b(?:rgba?|hsla?)\(/;
+
+/** The 12px floor: an arbitrary Tailwind size below it, outside the `em` units furigana uses. */
+const SUB_FLOOR_PX = /\btext-\[(\d+(?:\.\d+)?)px\]/;
+const SUB_FLOOR_REM = /\btext-\[(\d+(?:\.\d+)?)rem\]/;
+const SCALE_TRANSFORM = /\b(?:hover|active):scale-/;
+const TRACKING_WIDE = /\btracking-wide(?:r|st)?\b/;
+const LOCALE_DATE_TIME = /\.toLocaleDateString\(|\.toLocaleTimeString\(|\bdateStyle\s*:|\btimeStyle\s*:/;
+const TIME_UTILS_FILE = 'apps/gokan-srs/src/utils/time.utils.ts';
+const GOKAN_SRS_SOURCE = /^apps\/gokan-srs\/src\/.*\.tsx?$/;
 
 /** Pure-logic directories: every module has a colocated test. */
 const TESTED_DIRS = ['apps/gokan-srs/src/utils', 'apps/gokan-dictionary/src/lib', 'packages/deploy/src'];
@@ -124,6 +136,8 @@ function check(files: string[]): Violation[] {
                 add({ file, line, rule: 'design-tokens', message: 'Default Tailwind palette colour. Use a theme token (text-error, bg-divider...).' }));
             eachLine(text, l => TOKEN_SHADE_CLASS.test(l), line =>
                 add({ file, line, rule: 'design-tokens', message: 'Theme tokens have no numeric shades; this class resolves to nothing. Use the token, with /opacity if needed.' }));
+            eachLine(text, l => REMOVED_TOKEN_CLASS.test(l), line =>
+                add({ file, line, rule: 'design-tokens', message: 'Removed token (muted/subtle/label-neutral/meaning-muted/quiz-*/error-accent). Use primary, secondary, tertiary or feedback-incorrect.' }));
             eachLine(text, l => RAW_COLOUR.test(l) && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
                 add({ file, line, rule: 'design-tokens', message: 'Raw colour value. Define it once in the token file and use the token.' }));
         }
@@ -131,6 +145,26 @@ function check(files: string[]): Violation[] {
         if (/\.(tsx?|svelte)$/.test(file)) {
             eachLine(text, l => /(\/\/|\/\*)\s*eslint-disable/.test(l) && !/eslint-disable\S*(\s+[\w@/-]+,?)*\s+--\s+\S/.test(l), line =>
                 add({ file, line, rule: 'justified-disable', message: 'eslint-disable needs a reason: "// eslint-disable-next-line rule -- why".' }));
+        }
+
+        if (GOKAN_SRS_SOURCE.test(file)) {
+            eachLine(text, l => {
+                const m = SUB_FLOOR_PX.exec(l);
+                return !!m && Number(m[1]) < 12;
+            }, line => add({ file, line, rule: 'font-size-floor', message: 'Font size below 12px. Nothing below 12px except em (relative, used for furigana).' }));
+            eachLine(text, l => {
+                const m = SUB_FLOOR_REM.exec(l);
+                return !!m && Number(m[1]) < 0.75;
+            }, line => add({ file, line, rule: 'font-size-floor', message: 'Font size below 12px (0.75rem). Nothing below 12px except em (relative, used for furigana).' }));
+            eachLine(text, l => SCALE_TRANSFORM.test(l), line =>
+                add({ file, line, rule: 'no-scale-transform', message: 'No hover:scale-* or active:scale-*. Motion is 150-200ms ease-in-out, no bounce.' }));
+            eachLine(text, l => TRACKING_WIDE.test(l), line =>
+                add({ file, line, rule: 'no-tracking-wide', message: 'No tracking-wide/wider/widest. Use type-label instead of an uppercase tracked label.' }));
+        }
+
+        if (GOKAN_SRS_SOURCE.test(file) && file !== TIME_UTILS_FILE) {
+            eachLine(text, l => LOCALE_DATE_TIME.test(l) && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
+                add({ file, line, rule: 'date-formatting', message: 'toLocaleDateString/toLocaleTimeString/dateStyle/timeStyle belong only in utils/time.utils.ts; use its formatters.' }));
         }
 
         if (DATASET_URL_SOURCE.test(file) && file !== DATASET_URL_HELPER && !/\.test\.tsx?$/.test(file)) {

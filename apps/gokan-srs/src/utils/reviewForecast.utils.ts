@@ -7,6 +7,7 @@ import {
     isProductionQuizEnabled,
     isReadingRelevant,
 } from "../services/scheduling";
+import { formatWeekday } from "./time.utils";
 
 export interface ReviewForecastBucket {
     label: string;
@@ -33,7 +34,7 @@ export function buildReviewForecast(
 ): ReviewForecastBucket[] {
     const buckets: ReviewForecastBucket[] = [
         { label: 'Now', date: now, reading: 0, meaning: 0, production: 0 },
-        { label: 'Later', date: now, reading: 0, meaning: 0, production: 0 },
+        { label: 'Later today', date: now, reading: 0, meaning: 0, production: 0 },
     ];
 
     const today = new Date(now);
@@ -42,7 +43,7 @@ export function buildReviewForecast(
     for (let i = 1; i < daysToShow; i++) {
         const d = new Date(today);
         d.setDate(today.getDate() + i);
-        const label = i === 1 ? 'Tomorrow' : d.toLocaleDateString('en-US', { weekday: 'short' });
+        const label = i === 1 ? 'Tmrw' : formatWeekday(d);
         buckets.push({ label, date: d, reading: 0, meaning: 0, production: 0 });
     }
 

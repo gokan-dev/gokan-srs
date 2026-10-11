@@ -35,7 +35,7 @@ export function VocabQuizSettings({ settings, onUpdateSettings, dense = false }:
             {settings.preferredLearningOrder !== 'kklc' && (
                 <SettingToggle
                     dense={dense}
-                    label="Ignore known kanji requirement"
+                    label="Ignore the known kanji requirement"
                     description="Introduce vocabulary even if you haven't learned all of its kanji yet, applying the trade-off to the order selected above."
                     checked={settings.ignoreKnownKanjiRequirement === true}
                     onChange={(checked) => update({ ignoreKnownKanjiRequirement: checked })}
@@ -45,7 +45,7 @@ export function VocabQuizSettings({ settings, onUpdateSettings, dense = false }:
             {settings.preferredLearningOrder === 'kanji_coverage' && (
                 <SettingSlider
                     dense={dense}
-                    label="Target vocab per Kanji"
+                    label="Target vocab per kanji"
                     description="How many words to learn for each kanji before prioritizing new kanji (1-5)."
                     min={1}
                     max={5}
@@ -58,7 +58,7 @@ export function VocabQuizSettings({ settings, onUpdateSettings, dense = false }:
 
             <SettingToggle
                 dense={dense}
-                label="Enable Meaning Quizzes"
+                label="Meaning quizzes"
                 description="Test English meaning after reading (recommended)"
                 checked={settings.enableMeaningQuiz !== false}
                 onChange={(checked) => update({ enableMeaningQuiz: checked })}
@@ -66,7 +66,7 @@ export function VocabQuizSettings({ settings, onUpdateSettings, dense = false }:
 
             <SettingToggle
                 dense={dense}
-                label="Enable Production Quizzes"
+                label="Production quizzes"
                 description="Recall the Japanese reading from its English meaning. Words join this gradually, as each comes up for review."
                 checked={settings.enableProductionQuiz !== false}
                 onChange={(checked) => update({ enableProductionQuiz: checked })}

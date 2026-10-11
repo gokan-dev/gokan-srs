@@ -7,7 +7,7 @@
  * shares their `history` arrays between fixtures, so a test pushing a review log would
  * leak it into every other fixture built in the same file.
  */
-import type { GrammarExample, GrammarPoint, Vocabulary } from '@gokan/dataset-schema';
+import type { GrammarBrowseRow, GrammarExample, GrammarPoint, Vocabulary } from '@gokan/dataset-schema';
 import { DEFAULT_GRAMMAR_PROGRESS, type GrammarProgress } from '../models/grammar.model';
 import { DEFAULT_SETTINGS, type UserSettings } from '../models/user.model';
 import { DEFAULT_SRS_ENTRY, DEFAULT_VOCABULARY_PROGRESS, type ReviewLog, type SRSEntry, type VocabProgress } from '../models/vocabulary.model';
@@ -97,3 +97,18 @@ export function grammarPoint(overrides: Partial<GrammarPoint> = {}): GrammarPoin
     };
 }
 
+
+export function grammarBrowseRow(overrides: Partial<GrammarBrowseRow> = {}): GrammarBrowseRow {
+    return {
+        id: 'n5-001',
+        title: 'A が いちばん～',
+        jlptLevel: 5,
+        kind: 'construction',
+        formation: 'Noun + が + いちばん',
+        shortExplanation: 'superlative',
+        orderIndex: 0,
+        exampleCount: 1,
+        anchoredExampleCount: 1,
+        ...overrides,
+    };
+}

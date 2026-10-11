@@ -1,5 +1,5 @@
 import type { Sentence } from "@gokan/dataset-schema";
-import { WordGlossTooltip } from "./WordGlossTooltip";
+import { WordGlossTooltip, type WordLinkProps } from "./WordGlossTooltip";
 import { segmentInteractiveSentence, type HighlightRange } from "../utils/interactiveSentence.utils";
 
 interface InteractiveSentenceProps {
@@ -25,6 +25,12 @@ interface InteractiveSentenceProps {
      * click/gloss behaviour stays intact.
      */
     highlightRanges?: HighlightRange[];
+    /**
+     * Makes each clickable word a link reachable with Tab and opened with Enter.
+     * For reading pages (a word's or grammar point's examples); off on quiz cards,
+     * where Tab moves between the answer and Submit.
+     */
+    keyboardLinks?: boolean;
 }
 
 export function InteractiveSentence({
@@ -35,7 +41,8 @@ export function InteractiveSentence({
     showFurigana = false,
     allowTargetClickable = false,
     showGlossOnHover = true,
-    highlightRanges
+    highlightRanges,
+    keyboardLinks = false,
 }: InteractiveSentenceProps) {
     const segments = segmentInteractiveSentence(sentence, { targetVocabId, highlightRanges });
 
@@ -51,7 +58,7 @@ export function InteractiveSentence({
                 if (segment.type === 'text') {
                     if (!emphasized) return <span key={i}>{segment.content}</span>;
                     return (
-                        <span key={i} className="text-accent font-bold border-b-2 border-accent/30 mx-0.5 px-0.5">
+                        <span key={i} className="text-accent font-semibold border-b-2 border-accent/30 mx-0.5 px-0.5">
                             {segment.content}
                         </span>
                     );
@@ -80,8 +87,10 @@ export function InteractiveSentence({
                 // would only restate it.
                 const glossed = showGlossOnHover && !segment.isTarget;
 
-                const targetClass = `text-accent font-bold border-b-2 border-accent/30 mx-0.5 px-0.5 ${isClickable ? 'cursor-pointer hover:border-accent transition-colors' : ''}`;
-                const clickableClass = "cursor-pointer text-primary border-b border-dashed border-tertiary/50 hover:text-accent hover:border-accent transition-colors mx-0.5";
+                const targetClass = `text-accent font-semibold border-b-2 border-accent/30 mx-0.5 px-0.5 ${isClickable ? 'cursor-pointer hover:border-accent transition-colors' : ''}`;
+                // No permanent underline: a sentence full of underlines reads as noise. A word
+                // shows it is a link on hover and on keyboard focus.
+                const clickableClass = "cursor-pointer text-primary border-b border-transparent hover:text-accent hover:border-accent focus-visible:outline-none focus-visible:text-accent focus-visible:border-accent transition-colors mx-0.5";
                 const matchClassName = emphasized ? targetClass : isClickable ? clickableClass : "";
 
                 if (!isClickable && !glossed && !emphasized) return <span key={i}>{renderContent()}</span>;
@@ -93,9 +102,21 @@ export function InteractiveSentence({
                     }
                     : undefined;
 
+                const linkProps: WordLinkProps | undefined = isClickable && keyboardLinks
+                    ? {
+                        role: 'link',
+                        tabIndex: 0,
+                        onKeyDown: e => {
+                            if (e.key !== 'Enter') return;
+                            e.preventDefault();
+                            onVocabClick?.(segment.vocabId!);
+                        },
+                    }
+                    : undefined;
+
                 if (!glossed) {
                     return (
-                        <span key={i} onClick={handleClick} className={matchClassName} title={isClickable ? "Click to view details" : undefined}>
+                        <span key={i} onClick={handleClick} className={matchClassName} title={isClickable ? "Click to view details" : undefined} {...linkProps}>
                             {renderContent()}
                         </span>
                     );
@@ -108,6 +129,7 @@ export function InteractiveSentence({
                         className={matchClassName}
                         onClick={handleClick}
                         fallbackTitle={isClickable ? "Click to view details" : undefined}
+                        linkProps={linkProps}
                     >
                         {renderContent()}
                     </WordGlossTooltip>

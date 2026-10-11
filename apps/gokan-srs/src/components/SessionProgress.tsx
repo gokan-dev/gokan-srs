@@ -70,7 +70,7 @@ const SessionCounter: React.FC<{
     <span className="tabular-nums">
         {done} <span className="text-tertiary font-normal">/ {total}</span>
         {retriesPending > 0 && (
-            <span className="text-error font-normal" title="Answers to redo before this session is complete">
+            <span className="text-feedback-incorrect font-normal" title="Answers to redo before this session is complete">
                 {' '}+{retriesPending}
             </span>
         )}
@@ -79,8 +79,8 @@ const SessionCounter: React.FC<{
 
 const WaitingNote: React.FC<{ waiting: number; moreNew: boolean; noun: string }> = ({ waiting, moreNew, noun }) => {
     if (waiting === 0) return null;
-    const label = `${waiting}${moreNew ? '+' : ''} ${noun} waiting after this session`;
-    return <span className="text-tertiary text-xs italic">{label}</span>;
+    const label = `+${waiting}${moreNew ? '+' : ''} ${noun} waiting after this session`;
+    return <span className="type-meta">{label}</span>;
 };
 
 /**
@@ -119,7 +119,7 @@ const GainsSummary: React.FC<{ gains: SessionGains; hasAnswered: boolean }> = ({
 
     return (
         <span className="text-xs tabular-nums" title={title}>
-            <span className={net < 0 ? 'text-error' : 'text-feedback-correct'}>
+            <span className={net < 0 ? 'text-feedback-incorrect' : 'text-feedback-correct'}>
                 {net > 0 ? '+' : ''}{net}
             </span>
             <span className="text-tertiary"> pts</span>
@@ -156,57 +156,37 @@ export const SessionProgress: React.FC<SessionProgressProps> = ({ stats, history
 
     return (
         <div className="w-full max-w-4xl mx-auto mb-6">
-            {/* Desktop View */}
-            {!isMobile && (
-                <div className="flex flex-col gap-4">
-                    <div className="flex flex-col gap-2">
-                        <div className="flex justify-between items-end mb-1">
-                            <div className="flex items-center gap-3">
-                                <span className="text-tertiary text-sm font-medium">Session Progress</span>
-                                <GainsSummary gains={gains} hasAnswered={hasAnswered} />
-                            </div>
-                            <div className="text-tertiary text-sm font-medium">
-                                <SessionCounter done={done} total={total} retriesPending={retriesPending} />
-                            </div>
-                        </div>
+            <div className="flex items-center gap-3">
+                <div
+                    className="flex-1 h-1.5 bg-divider rounded-full overflow-hidden"
+                    role="progressbar"
+                    aria-label="Session progress"
+                    aria-valuemin={0}
+                    aria-valuemax={barTotal}
+                    aria-valuenow={done}
+                >
+                    <div
+                        className="h-full bg-accent transition-all duration-200 ease-in-out"
+                        style={{ width: `${progressPercent}%` }}
+                    />
+                </div>
+                <span className="font-sans text-sm text-primary shrink-0">
+                    <SessionCounter done={done} total={total} retriesPending={retriesPending} />
+                </span>
+            </div>
 
-                        <div className="h-2 bg-divider rounded-full overflow-hidden flex">
-                            {/* Progress Segment */}
-                            <div
-                                className="h-full bg-accent transition-all duration-500 ease-out"
-                                style={{ width: `${progressPercent}%` }}
-                            />
-                        </div>
-
-                        <WaitingNote waiting={waiting} moreNew={moreNew} noun={waitingNoun} />
-                    </div>
-
-                    {/* Moved History Ticker Below */}
-                    <HistoryTicker history={history} />
+            {(waiting > 0 || hasAnswered) && (
+                <div className="mt-1 flex items-center justify-between gap-2">
+                    <WaitingNote waiting={waiting} moreNew={moreNew} noun={waitingNoun} />
+                    <span className="ml-auto"><GainsSummary gains={gains} hasAnswered={hasAnswered} /></span>
                 </div>
             )}
 
-            {/* Mobile View */}
-            {isMobile && (
-                <>
-                    <div className="flex items-center justify-between px-1">
-                        <div className="text-xs font-medium text-tertiary uppercase tracking-wider">Session Progress</div>
-                        <div className="text-sm font-bold text-primary">
-                            <SessionCounter done={done} total={total} retriesPending={retriesPending} />
-                        </div>
-                    </div>
-                    {/* Mobile Thin Line */}
-                    <div className="h-1 w-full bg-divider mt-2 rounded-full overflow-hidden">
-                        <div
-                            className="h-full bg-accent transition-all duration-500 ease-out"
-                            style={{ width: `${progressPercent}%` }}
-                        />
-                    </div>
-                    <div className="px-1 mt-1 flex items-center justify-between gap-2">
-                        <WaitingNote waiting={waiting} moreNew={moreNew} noun={waitingNoun} />
-                        <GainsSummary gains={gains} hasAnswered={hasAnswered} />
-                    </div>
-                </>
+            {/* Nothing before the first answer: an empty ticker says nothing. */}
+            {!isMobile && hasAnswered && (
+                <div className="mt-3">
+                    <HistoryTicker history={history} />
+                </div>
             )}
         </div>
     );
@@ -281,7 +261,7 @@ const HistoryTicker: React.FC<{ history: SessionHistoryEntry[] }> = ({ history }
                         {/* Result Icon/Indicator */}
                         {item.result === 'correct' && <CheckCircle className="w-3 h-3 text-feedback-correct" />}
                         {item.result === 'minor_error' && <AlertCircle className="w-3 h-3 text-secondary" />}
-                        {(item.result === 'wrong' || item.result === 'pass') && <XCircle className="w-3 h-3 text-error" />}
+                        {(item.result === 'wrong' || item.result === 'pass') && <XCircle className="w-3 h-3 text-feedback-incorrect" />}
 
                         {/* Knowledge points, the same unit the total above sums. Was
                             printed as a percentage that was twice its point value. */}
@@ -306,10 +286,6 @@ const HistoryTicker: React.FC<{ history: SessionHistoryEntry[] }> = ({ history }
                     </motion.div>
                 ))}
             </AnimatePresence>
-
-            {history.length === 0 && (
-                <span className="text-tertiary text-sm italic">Session started...</span>
-            )}
 
             {hovered && (() => {
                 const item = recentItems.find(i => i.key === hovered.key);

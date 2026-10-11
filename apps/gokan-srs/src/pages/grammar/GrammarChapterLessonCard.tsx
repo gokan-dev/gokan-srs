@@ -1,4 +1,4 @@
-import { Card } from "../../components/ui/Card";
+import { QuizCardFrame } from "../../components/quiz/QuizCardFrame";
 import { CardSection, CardDivider } from "../../components/ui/CardSection";
 import { Button } from "../../components/ui/Button";
 import { GrammarContrastCard } from "../../components/GrammarContrastCard";
@@ -25,9 +25,9 @@ interface Props {
  */
 export function GrammarChapterLessonCard({ chapterTitle, focusPointIds, knownIds, onContinue }: Props) {
     return (
-        <Card size="lg">
+        <QuizCardFrame>
             <CardSection>
-                <p className="uppercase tracking-wide text-label-neutral text-xs mb-1 font-gothic text-center">
+                <p className="type-label mb-1 text-center">
                     Chapter review
                 </p>
                 <h2 className="text-primary font-mincho text-xl text-center leading-snug">
@@ -46,6 +46,6 @@ export function GrammarChapterLessonCard({ chapterTitle, focusPointIds, knownIds
             <Button variant="primary" className="w-full" onClick={onContinue}>
                 Continue
             </Button>
-        </Card>
+        </QuizCardFrame>
     );
 }

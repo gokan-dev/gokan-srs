@@ -40,18 +40,15 @@ export function SettingSlider({
 }: SettingSliderProps) {
     return (
         <div
-            className={`bg-surface dark:bg-surface/5 rounded-lg border border-divider ${dense ? 'p-3' : 'p-4'} ${disabled ? 'opacity-50 pointer-events-none' : ''} ${className}`}
+            className={`bg-surface rounded-md border border-divider ${dense ? 'p-3' : 'p-4'} ${disabled ? 'opacity-50 pointer-events-none' : ''} ${className}`}
         >
             <div className={`flex items-center justify-between gap-4 ${dense ? 'mb-3' : 'mb-4'}`}>
                 <div className="flex flex-col gap-1">
-                    <span className={`font-medium text-primary ${dense ? 'text-sm' : ''}`}>{label}</span>
-                    {description && (
-                        <span className={`text-secondary ${dense ? 'text-xs' : 'text-xs sm:text-sm'}`}>{description}</span>
-                    )}
+                    <span className={`font-sans font-medium text-primary ${dense ? 'text-sm' : 'text-base'}`}>
+                        {label}: <span className="tabular-nums">{valueText}</span>
+                    </span>
+                    {description && <span className="type-support">{description}</span>}
                 </div>
-                <span className={`flex-shrink-0 font-medium text-accent ${dense ? 'text-xs' : 'text-sm'}`}>
-                    {valueText}
-                </span>
             </div>
             <input
                 type="range"
@@ -62,7 +59,7 @@ export function SettingSlider({
                 disabled={disabled}
                 onChange={(e) => onChange(Number(e.target.value))}
                 aria-valuetext={ariaValueText}
-                className="w-full h-2 bg-divider rounded-lg appearance-none cursor-pointer accent-accent"
+                className="w-full h-2 bg-divider rounded-full appearance-none cursor-pointer accent-accent"
             />
         </div>
     );

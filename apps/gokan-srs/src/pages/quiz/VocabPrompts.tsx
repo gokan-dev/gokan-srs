@@ -35,12 +35,12 @@ export function ReadingPrompt({ vocab, answered, memoryStrength, onOpenWord }: V
     return (
         <>
             {isMobile ? (
-                <div className="mb-4">
-                    <div className="mb-2">
+                <div className="mb-4 text-center">
+                    <div className="mb-2 flex justify-center">
                         <Headword vocab={vocab} size="md" onClick={openWord} />
                     </div>
                     {(vocab.senses.length > 0 || vocab.jlptLevel) && (
-                        <div className="flex flex-wrap gap-1 items-center">
+                        <div className="flex flex-wrap justify-center gap-1 items-center">
                             {vocab.jlptLevel && <JlptChip level={vocab.jlptLevel} />}
                             {posTags.slice(0, 3).map(rawTag => (
                                 <TagChip key={rawTag} size="sm">{TagsLookup[rawTag as Tags]}</TagChip>
@@ -69,7 +69,7 @@ export function ReadingPrompt({ vocab, answered, memoryStrength, onOpenWord }: V
                             )}
 
                             {compounds.length > 0 && (
-                                <div className="text-sm text-meaning-muted font-serif">
+                                <div className="text-sm text-primary font-serif">
                                     {compounds.slice(0, 4).join(' ・ ')}
                                 </div>
                             )}
@@ -110,7 +110,7 @@ export function MeaningPrompt({ vocab, answered, memoryStrength, onOpenWord, sen
                 <h2 className="text-xl md:text-2xl font-serif text-secondary text-center leading-relaxed max-w-2xl mx-auto">
                     {sentence ? (
                         <>
-                            What is the original meaning of <span className="text-primary font-bold mx-1">{headwordOf(vocab)}</span> in this sentence?
+                            What is the original meaning of <span className="text-primary font-semibold mx-1">{headwordOf(vocab)}</span> in this sentence?
                         </>
                     ) : (
                         <>What is the meaning of this word?</>
@@ -168,10 +168,10 @@ export function MeaningPrompt({ vocab, answered, memoryStrength, onOpenWord, sen
                 <ExpandableSenses
                     senses={vocab.senses}
                     maxDefs={5}
-                    heading={<p className="font-bold text-primary mb-1">Meanings:</p>}
+                    heading={<p className="font-semibold text-primary mb-1">Meanings:</p>}
                     footer={sentence?.en[0] && (
                         <div className="mt-4 pt-4 border-t border-divider">
-                            <p className="font-bold text-primary mb-1">Translation:</p>
+                            <p className="font-semibold text-primary mb-1">Translation:</p>
                             <p className="italic text-secondary">{sentence.en[0].text}</p>
                         </div>
                     )}
@@ -224,7 +224,7 @@ export function ProductionPrompt({ vocab, answered, memoryStrength, onOpenWord }
                 </div>
 
                 {promptLines.length > 1 && (
-                    <div className="mt-3 space-y-1 text-sm text-meaning-muted font-serif">
+                    <div className="mt-3 space-y-1 text-sm text-primary font-serif">
                         {promptLines.slice(1).map((line, index) => (
                             <p key={index}>{line}</p>
                         ))}
@@ -305,7 +305,7 @@ export function ProductionClozeHeader({ vocab, sentence, memoryStrength }: { voc
                 {cueEmphasis.inline ? (
                     <>
                         {cueEmphasis.inline.before}
-                        <span className="text-accent font-bold">{cueEmphasis.inline.match}</span>
+                        <span className="text-accent font-semibold">{cueEmphasis.inline.match}</span>
                         {cueEmphasis.inline.after}
                     </>
                 ) : (

@@ -9,7 +9,7 @@ interface CardProps extends PropsWithChildren {
 
 const SIZE_STYLES = {
     sm: "p-4 max-w-md",
-    md: "p-8 max-w-xl",
+    md: "p-5 md:p-6 max-w-xl",
     lg: "p-12 max-w-2xl",
 };
 
@@ -23,11 +23,11 @@ export function Card({
         <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25, ease: "easeOut" }}
+            transition={{ duration: 0.18, ease: "easeInOut" }}
             className={`
-                w-full mx-auto rounded-2xl bg-surface border border-divider
+                w-full mx-auto rounded-md bg-surface border border-divider
                 ${className}
-                ${SIZE_STYLES[size]} 
+                ${SIZE_STYLES[size]}
                 ${interactive ? "hover:bg-surface-hover cursor-pointer" : ""}
             `}
         >

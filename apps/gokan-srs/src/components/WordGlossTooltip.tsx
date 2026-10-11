@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { headwordOf } from "@gokan/dataset-schema";
 import type { Vocabulary } from "@gokan/dataset-schema";
@@ -33,6 +33,15 @@ interface WordGlossTooltipProps {
     onClick?: (event: MouseEvent) => void;
     /** Native title to fall back on when the gloss cannot be shown (touch devices). */
     fallbackTitle?: string;
+    /** Makes the word a keyboard-reachable link (see InteractiveSentence's `keyboardLinks`). */
+    linkProps?: WordLinkProps;
+}
+
+/** What makes a clickable word a keyboard-reachable link. */
+export interface WordLinkProps {
+    role: 'link';
+    tabIndex: 0;
+    onKeyDown: (event: KeyboardEvent<HTMLSpanElement>) => void;
 }
 
 /**
@@ -63,6 +72,7 @@ export function WordGlossTooltip({
     className = "",
     onClick,
     fallbackTitle,
+    linkProps,
 }: WordGlossTooltipProps) {
     const [vocab, setVocab] = useState<Vocabulary | null>(null);
     const [open, setOpen] = useState(false);
@@ -119,6 +129,7 @@ export function WordGlossTooltip({
                 onBlur={hide}
                 aria-describedby={open ? tooltipId : undefined}
                 title={fallbackTitle}
+                {...linkProps}
             >
                 {children}
             </span>
@@ -167,7 +178,7 @@ function GlossCard({ id, vocab, left, top }: { id: string; vocab: Vocabulary | n
                 top: placed?.top ?? top,
                 visibility: placed ? 'visible' : 'hidden',
             }}
-            className="fixed z-50 pointer-events-none max-w-xs rounded-lg border border-divider bg-surface shadow-lg px-3 py-2"
+            className="fixed z-50 pointer-events-none max-w-xs rounded-md border border-divider bg-surface shadow-lg px-3 py-2"
         >
             {!vocab ? (
                 <div className="text-xs text-tertiary font-gothic">Loading...</div>

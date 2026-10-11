@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { Check, ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
 import { headwordOf } from "@gokan/dataset-schema";
 import type { MediaEpisode, MediaTitle, MediaWordCount, Vocabulary } from "@gokan/dataset-schema";
@@ -8,6 +8,7 @@ import type { WatchedEpisode } from "../../models/media.model";
 import { MediaService } from "../../services/media.service";
 import { VocabularyService } from "../../services/vocabulary.service";
 import { useQuiz } from "../../context/useQuiz";
+import { Page } from "../../components/Page";
 import { PageHeader } from "../../components/PageHeader";
 import { ChapterProgressBar } from "../../components/ChapterProgressBar";
 import type { ProgressBarMark } from "../../components/ChapterProgressBar";
@@ -43,14 +44,14 @@ function toBarMarks(marks: JlptCoverageMark[]): ProgressBarMark[] {
 /**
  * The labelled key for the JLPT ticks, shown under the whole-series bar: each
  * level and the coverage the learner would reach knowing every word up to it.
- * The per-episode bars carry the same tick positions without repeating this.
+ * Only the whole-series bar carries the ticks: on every episode they were noise.
  */
 function JlptThresholdLegend({ marks }: { marks: JlptCoverageMark[] }) {
     if (marks.length === 0) return null;
     return (
         <div className="mt-2">
-            <p className="font-gothic text-[11px] text-tertiary">Coverage if you learned every word up to each JLPT level</p>
-            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 font-gothic text-[11px] text-secondary tabular-nums">
+            <p className="font-gothic text-xs text-tertiary">Coverage if you learned every word up to each JLPT level</p>
+            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 font-gothic text-xs text-secondary tabular-nums">
                 {marks.map(mark => (
                     <span key={mark.level}><span className="text-tertiary">N{mark.level}</span> {formatPercent(mark.ratio)}</span>
                 ))}
@@ -67,7 +68,6 @@ function JlptThresholdLegend({ marks }: { marks: JlptCoverageMark[] }) {
  */
 export function ListeningTitleScreen() {
     const { mediaId = '' } = useParams<{ mediaId: string }>();
-    const navigate = useNavigate();
     const { state, actions } = useQuiz();
     const [title, setTitle] = useState<MediaTitle | null>(null);
     const [failed, setFailed] = useState(false);
@@ -100,18 +100,18 @@ export function ListeningTitleScreen() {
 
     if (failed) {
         return (
-            <div className="w-full max-w-3xl mx-auto px-4 py-6">
-                <PageHeader title="Listening" onBack={() => void navigate('/listening')} className="mb-4" />
+            <Page width="narrow">
+                <PageHeader title="Listening" parentPath="/listening" className="mb-4" />
                 <p className="font-gothic text-sm text-secondary">Could not load this title.</p>
-            </div>
+            </Page>
         );
     }
 
     if (!title) {
         return (
-            <div className="w-full max-w-3xl mx-auto px-4 py-6">
+            <Page width="narrow">
                 <p className="font-gothic text-sm text-secondary">Loading...</p>
-            </div>
+            </Page>
         );
     }
 
@@ -139,14 +139,14 @@ export function ListeningTitleScreen() {
     );
 
     return (
-        <div className="w-full max-w-3xl mx-auto px-4 py-6">
+        <Page width="narrow">
             <PageHeader
                 title={<span className="font-mincho">{title.title.original}</span>}
-                onBack={() => void navigate('/listening')}
+                parentPath="/listening"
                 className="mb-4"
             />
 
-            <section className="rounded-lg border border-divider bg-surface p-4 mb-6 flex gap-4">
+            <section className="rounded-md border border-divider bg-surface p-4 mb-6 flex gap-4">
                 <MediaCover entry={title} hiRes className="w-24 sm:w-32 self-start" />
                 <div className="min-w-0 flex-1">
                     {subtitle && <p className="font-serif text-sm text-secondary">{subtitle}</p>}
@@ -183,19 +183,17 @@ export function ListeningTitleScreen() {
                             {title.links.myanimelist && <ExternalTextLink href={title.links.myanimelist}>MyAnimeList</ExternalTextLink>}
                             <ExternalTextLink href={title.source.url}>Jiten</ExternalTextLink>
                         </div>
-                        <button
-                            type="button"
-                            onClick={() => setAllWatched(!allWatched)}
-                            className="inline-flex items-center gap-1 rounded border border-divider px-2 py-1 font-gothic text-xs text-secondary hover:border-accent hover:text-accent transition-colors cursor-pointer"
-                        >
-                            <Check size={12} aria-hidden="true" />
-                            {allWatched ? 'Unmark all' : 'Mark all watched'}
-                        </button>
+                        <WatchToggle
+                            watched={allWatched}
+                            onToggle={() => setAllWatched(!allWatched)}
+                            label={allWatched ? 'All watched' : 'Mark all watched'}
+                            title={allWatched ? 'Mark every episode as not watched' : 'Mark every episode as watched'}
+                        />
                     </div>
                 </div>
             </section>
 
-            <div className="rounded-lg border border-divider bg-surface mb-6">
+            <div className="rounded-md border border-divider bg-surface mb-6">
                 <button
                     type="button"
                     onClick={() => toggle('series')}
@@ -224,14 +222,13 @@ export function ListeningTitleScreen() {
                         isOpen={expanded === episode.number}
                         onToggleOpen={() => toggle(episode.number)}
                         onToggleWatched={(isWatched, coverage) => actions.setEpisodesWatched(title.id, [{ number: episode.number, coverage }], isWatched)}
-                        jlptLevelOf={jlptLevelOf}
                         listProps={listProps}
                     />
                 ))}
             </div>
 
             <JitenCredit url={title.source.url} className="mt-8" />
-        </div>
+        </Page>
     );
 }
 
@@ -249,19 +246,17 @@ interface EpisodeRowProps {
     isOpen: boolean;
     onToggleOpen: () => void;
     onToggleWatched: (watched: boolean, coverage: number) => void;
-    jlptLevelOf: Map<string, number> | null;
     listProps: WordListProps;
 }
 
-function EpisodeRow({ episode, mark, isOpen, onToggleOpen, onToggleWatched, jlptLevelOf, listProps }: EpisodeRowProps) {
+function EpisodeRow({ episode, mark, isOpen, onToggleOpen, onToggleWatched, listProps }: EpisodeRowProps) {
     const coverage = computeCoverage(episode.words, listProps.knowledge);
     const ratio = knownRatio(coverage.occurrences);
-    const marks = jlptLevelOf ? computeJlptCoverageMarks(episode.words, jlptLevelOf) : [];
     const isWatched = mark?.watched === true;
     const speed = speechSpeedLabel(episode.speechSpeed);
 
     return (
-        <div className="rounded-lg border border-divider bg-surface">
+        <div className="rounded-md border border-divider bg-surface">
             <div className="flex items-center gap-2 p-3">
                 <button
                     type="button"
@@ -278,29 +273,21 @@ function EpisodeRow({ episode, mark, isOpen, onToggleOpen, onToggleWatched, jlpt
                             <span className="font-gothic text-sm text-primary tabular-nums">{formatPercent(ratio)}</span>
                         </div>
                         <div className="mt-1.5">
-                            <ChapterProgressBar counts={coverage.occurrences} compact marks={toBarMarks(marks)} />
+                            <ChapterProgressBar counts={coverage.occurrences} compact />
                         </div>
-                        <p className="font-gothic text-[11px] text-tertiary mt-1 tabular-nums">
+                        <p className="font-gothic text-xs text-tertiary mt-1 tabular-nums">
                             {coverage.unique.mastered + coverage.unique.learning} of {coverage.unique.total} words known
                             {speed && ` · ${speed} speech`}
                             {isWatched && mark?.coverageAtWatch !== undefined && ` · ${formatPercent(mark.coverageAtWatch)} when watched`}
                         </p>
                     </div>
                 </button>
-                <button
-                    type="button"
-                    onClick={() => onToggleWatched(!isWatched, ratio)}
-                    aria-pressed={isWatched}
+                <WatchToggle
+                    watched={isWatched}
+                    onToggle={() => onToggleWatched(!isWatched, ratio)}
+                    label={isWatched ? 'Watched' : 'Mark watched'}
                     title={isWatched ? 'Mark as not watched' : 'Mark as watched'}
-                    className={`shrink-0 inline-flex items-center gap-1 rounded border px-2 py-1 font-gothic text-xs transition-colors cursor-pointer ${
-                        isWatched
-                            ? 'border-accent text-accent'
-                            : 'border-divider text-secondary hover:border-accent hover:text-accent'
-                    }`}
-                >
-                    <Check size={12} aria-hidden="true" className={isWatched ? '' : 'opacity-40'} />
-                    {isWatched ? 'Watched' : 'Watch'}
-                </button>
+                />
             </div>
 
             {isOpen && <WordsToLearn words={episode.words} countHint="Times used in this episode" {...listProps} />}
@@ -312,7 +299,7 @@ function EpisodeRow({ episode, mark, isOpen, onToggleOpen, onToggleWatched, jlpt
  * The words of an episode or series the learner doesn't know yet, in the order
  * they picked (their own learning order by default). A word whose kanji they
  * don't know yet is marked, since their queue would not introduce it now. A
- * word added here joins the learning list exactly as "Add to Learning List" on
+ * word added here joins the learning list exactly as "Learn this word" on
  * its own page does, then drops off this list.
  */
 function WordsToLearn({ words, countHint, knowledge, sort, onSortChange, orderContext, learner, onLearn }: WordListProps & {
@@ -370,11 +357,11 @@ function WordsToLearn({ words, countHint, knowledge, sort, onSortChange, orderCo
                                 )}
                             </Link>
                             {newKanji && (
-                                <span className="shrink-0 font-gothic text-[10px] text-tertiary border border-divider rounded px-1" title="Uses a kanji you have not learned yet">
+                                <span className="shrink-0 font-gothic text-xs text-tertiary border border-divider rounded px-1" title="Uses a kanji you have not learned yet">
                                     new kanji
                                 </span>
                             )}
-                            <span className="font-gothic text-[11px] text-tertiary tabular-nums shrink-0" title={countHint}>
+                            <span className="font-gothic text-xs text-tertiary tabular-nums shrink-0" title={countHint}>
                                 ×{count}
                             </span>
                             <button
@@ -399,5 +386,28 @@ function WordsToLearn({ words, countHint, knowledge, sort, onSortChange, orderCo
                 </button>
             )}
         </div>
+    );
+}
+
+/**
+ * The watched mark, in the selected-option language: off, a secondary "Mark
+ * watched" with no icon; on, "Watched" with a check in the selected style.
+ */
+function WatchToggle({ watched, onToggle, label, title }: { watched: boolean; onToggle: () => void; label: string; title: string }) {
+    return (
+        <button
+            type="button"
+            onClick={onToggle}
+            aria-pressed={watched}
+            title={title}
+            className={`shrink-0 inline-flex items-center gap-1.5 h-8 rounded-md border px-3 font-sans text-sm transition-colors cursor-pointer ${
+                watched
+                    ? 'border-accent bg-accent/10 text-primary'
+                    : 'border-divider bg-surface text-primary hover:bg-surface-hover'
+            }`}
+        >
+            {watched && <Check size={14} className="text-accent" aria-hidden="true" />}
+            {label}
+        </button>
     );
 }

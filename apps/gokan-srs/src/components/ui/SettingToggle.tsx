@@ -28,13 +28,11 @@ export function SettingToggle({
 }: SettingToggleProps) {
     return (
         <div
-            className={`flex items-center justify-between bg-surface dark:bg-surface/5 rounded-lg border border-divider ${dense ? 'p-3' : 'p-4'} ${disabled ? 'opacity-50 pointer-events-none' : ''} ${className}`}
+            className={`flex items-center justify-between bg-surface rounded-md border border-divider ${dense ? 'p-3' : 'p-4'} ${disabled ? 'opacity-50 pointer-events-none' : ''} ${className}`}
         >
             <div className="flex flex-col gap-1 pr-4">
-                <span className={`font-medium text-primary ${dense ? 'text-sm' : ''}`}>{label}</span>
-                {description && (
-                    <span className={`text-secondary ${dense ? 'text-xs' : 'text-xs sm:text-sm'}`}>{description}</span>
-                )}
+                <span className={`font-sans font-medium text-primary ${dense ? 'text-sm' : 'text-base'}`}>{label}</span>
+                {description && <span className="type-support">{description}</span>}
             </div>
             <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
                 <input

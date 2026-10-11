@@ -1,10 +1,8 @@
-import { useState } from "react";
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import type { GrammarChapter, GrammarExample, GrammarPoint } from "@gokan/dataset-schema";
-import { Card } from "../../components/ui/Card";
-import { MasteryRing } from "../../components/MasteryRing";
 import { JlptChip } from "../../components/JlptChip";
-import { Button } from "../../components/ui/Button";
+import { Chip } from "../../components/ui/Chip";
+import { Disclosure } from "../../components/ui/Disclosure";
 import { LoadingScreen } from "../../components/LoadingScreen";
 import { useResponsive } from "../../context/Responsive/useResponsive";
 import { useQuiz } from "../../context/useQuiz";
@@ -12,18 +10,19 @@ import { GrammarService } from "../../services/grammar.service";
 import { THEME } from "../../commons/theme";
 import { GrammarRelatedPointsCard } from "./GrammarRelatedPointsCard";
 import { GrammarVariantsCard } from "./GrammarVariantsCard";
-import { GrammarDifferentiator } from "../../components/GrammarDifferentiator";
-import { PageHeader } from "../../components/PageHeader";
-import { useIntroducedGrammarIds } from "../../hooks/useIntroducedGrammarIds";
+import { Page } from "../../components/Page";
 import { useAsyncData } from "../../hooks/useAsyncData";
+import { useNow } from "../../hooks/useNow";
 import { DetailErrorScreen } from "../../components/detail/DetailErrorScreen";
-import { SrsStatsCard } from "../../components/detail/SrsStatsCard";
+import { DetailField, DetailSection } from "../../components/detail/DetailSection";
+import { DetailHeader } from "../../components/detail/DetailHeader";
+import { LearnStatus } from "../../components/detail/LearnStatus";
+import { YourProgress } from "../../components/detail/YourProgress";
 import { GrammarExampleList } from "./GrammarExampleList";
-import { DetailCard } from "../../components/detail/DetailCard";
+import { directionStatus, grammarLearningStatus, statusReviewPhrase } from "../../utils/learningStatus.utils";
+import { grammarNextReviewAt } from "../../services/grammarScheduling";
 
-const MINED_INITIAL_COUNT = 5;
-
-const KIND_LABELS: Record<string, string> = {
+const KIND_LABELS: Record<NonNullable<GrammarPoint['kind']>, string> = {
     'construction': 'Construction',
     'inflection': 'Inflection',
     'lexical': 'Lexical',
@@ -38,289 +37,149 @@ const FORMALITY_LABELS: Record<NonNullable<GrammarPoint['formalityLevel']>, stri
 };
 
 /**
- * Route /grammar/:grammarId - a single grammar point's details outside of a
- * live review, mirroring VocabDetailScreen's layout and section conventions.
+ * Route /grammar/:grammarId: a grammar point outside a review. The same frame
+ * as a word's page: the point itself as the header with the main action, the
+ * teaching (formation, explanation, when to use, examples) in the main column,
+ * the learner's progress and the related points beside it.
  */
 export default function GrammarDetailScreen() {
     const { grammarId } = useParams<{ grammarId: string }>();
-    const navigate = useNavigate();
-    const { isMobile } = useResponsive();
+    const { isMobile, isTablet } = useResponsive();
     const { state, grammarActions } = useQuiz();
+    const now = useNow();
     const pointLoad = useAsyncData(grammarId ?? null, () => GrammarService.loadGrammarPoint(grammarId ?? ''));
     const point: GrammarPoint | null = pointLoad.data ?? null;
-    const error = pointLoad.status === 'error' ? "Could not load grammar point details." : null;
-    // The point's chapter + its 1-based position among all chapters (issue
-    // #58's detail-page locator). null while loading, or when the order file
-    // isn't available - same "just don't show it" failure direction
-    // GrammarSRSService.getCurrentChapter uses.
+    // The point's chapter and its 1-based number (issue #58's locator). null while
+    // loading, or when the point is not in the teaching order: then it is not shown.
     const chapterLocation: { chapter: GrammarChapter; chapterNumber: number } | null = useAsyncData(grammarId ?? null, async () => {
         const order = await GrammarService.loadTeachingOrder();
         const chapter = order?.chapters.find(c => c.points.includes(grammarId ?? ''));
         return order && chapter ? { chapter, chapterNumber: order.chapters.indexOf(chapter) + 1 } : null;
     }).data ?? null;
-    // Corpus-mined examples (issue #73's follow-up): a read-only browsing view
-    // of the same pool computeBlankPlan draws review sentences from, so the
-    // mined data is inspectable without grinding a point to its 2nd review.
-    // null while loading or when the point has no mined pool at all - both
-    // read as "render nothing", same as GrammarRelatedPointsCard's failure
-    // direction.
+    // The corpus-mined pool computeBlankPlan draws review sentences from (issue #73),
+    // browsable here as full sentences. null while loading or when there is none.
     const minedExamples: GrammarExample[] | null = useAsyncData(grammarId ?? null, () => GrammarService.loadMinedExamples(grammarId ?? '')).data ?? null;
-    // Both belong to one point: keyed by it, so another point's page starts collapsed.
-    const [minedOpenFor, setMinedOpenFor] = useState<string | null>(null);
-    const [minedExpandedFor, setMinedExpandedFor] = useState<string | null>(null);
-    const isMinedSectionOpen = minedOpenFor === grammarId;
-    const isMinedExpanded = minedExpandedFor === grammarId;
-    const setIsMinedSectionOpen = (open: boolean) => setMinedOpenFor(open ? grammarId ?? null : null);
-    const setIsMinedExpanded = (expanded: boolean) => setMinedExpandedFor(expanded ? grammarId ?? null : null);
 
     const progress = state.progress?.grammarQueue.find(g => g.grammarId === grammarId);
 
-    const knownIds = useIntroducedGrammarIds();
+    if (pointLoad.status === 'error') return <DetailErrorScreen message="Could not load this grammar point." />;
+    if (!point) return <LoadingScreen />;
 
-    if (error) return <DetailErrorScreen message={error} />;
+    const studied = !!progress?.introductionAt;
+    const entryStatus = progress ? directionStatus(progress.entry, studied, now) : '';
 
-    if (!point) {
-        return <LoadingScreen />;
-    }
-
-    /**
-     * Identity block. Previously a centred single column with the mastery ring
-     * alone on its own row, which left a band of empty space above the title and
-     * pushed everything else down. The ring now sits inline with the chips, and
-     * the whole card reads as one left-aligned unit.
-     */
-    const headerCard = (
-        <Card size={isMobile ? "sm" : "md"}>
-            <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-2">
-                        <JlptChip level={point.jlptLevel} />
-                        {point.formalityLevel && (
-                            <span className="px-2 py-0.5 text-xs rounded border border-secondary/30 text-secondary font-gothic font-medium whitespace-nowrap">
-                                {FORMALITY_LABELS[point.formalityLevel]}
-                            </span>
-                        )}
-                        {point.kind && (
-                            <span className="px-2 py-0.5 text-xs rounded border border-divider text-tertiary font-gothic whitespace-nowrap">
-                                {KIND_LABELS[point.kind] ?? point.kind}
-                            </span>
-                        )}
-                    </div>
-                    <h2 className="text-primary font-mincho text-2xl md:text-3xl leading-snug break-words">
-                        {point.title}
-                    </h2>
-                    {point.romaji && (
-                        <p className="text-tertiary font-gothic text-sm mt-1">{point.romaji}</p>
-                    )}
-                    {/*
-                      * Chapter locator (issue #58): where this point sits in the
-                      * curriculum, linking to the chapter browser with this
-                      * chapter pre-expanded. Silently absent when the teaching
-                      * order can't be loaded or this point isn't in it (e.g. an
-                      * excluded/untestable point) - same failure direction as
-                      * every other chapter-derived display in the app.
-                      */}
-                    {chapterLocation && (
-                        <p className="text-xs font-gothic text-tertiary mt-1">
-                            <Link
-                                to={`/grammar/chapters?chapter=${chapterLocation.chapter.id}`}
-                                className="hover:text-accent hover:underline"
-                            >
-                                Chapter {chapterLocation.chapterNumber} &middot; {chapterLocation.chapter.points.indexOf(point.id) + 1} of {chapterLocation.chapter.points.length}
-                            </Link>
-                        </p>
-                    )}
-                </div>
-                <MasteryRing memoryStrength={progress?.entry.memoryStrength ?? 0} size={48} />
-            </div>
-
-            {point.usageNote && (
-                <p className="text-sm text-secondary font-serif leading-relaxed mt-4 pt-4 border-t border-divider">
-                    {point.usageNote}
+    const header = (
+        <DetailHeader
+            parentPath="/grammar/browse"
+            title={<span className="font-mincho text-3xl md:text-4xl text-primary leading-snug">{point.title}</span>}
+            chips={
+                <>
+                    <JlptChip level={point.jlptLevel} />
+                    {point.formalityLevel && <Chip>{FORMALITY_LABELS[point.formalityLevel]}</Chip>}
+                </>
+            }
+            actions={progress && studied ? (
+                <LearnStatus
+                    inStudy
+                    status={grammarLearningStatus(progress)}
+                    nextReview={statusReviewPhrase(grammarLearningStatus(progress), grammarNextReviewAt(progress), now)}
+                />
+            ) : (
+                <LearnStatus inStudy={false} learnLabel="Learn this grammar point" onLearn={() => grammarActions.saveGrammarIntroChoice(point, 'learn')} />
+            )}
+        >
+            {point.romaji && <p className="type-meta">{point.romaji}</p>}
+            {chapterLocation && (
+                <p>
+                    <Link
+                        to={`/grammar/chapters?chapter=${chapterLocation.chapter.id}`}
+                        className="font-sans text-sm text-accent hover:underline"
+                    >
+                        Chapter {chapterLocation.chapterNumber}, point {chapterLocation.chapter.points.indexOf(point.id) + 1} of {chapterLocation.chapter.points.length}
+                    </Link>
                 </p>
             )}
-
-            <div className="mt-4 pt-4 border-t border-divider">
-                {progress ? (
-                    <div className="flex items-center justify-between gap-3">
-                        <span className="text-xs text-tertiary font-gothic uppercase tracking-wider">
-                            {progress.stage === 'graduated' ? 'Graduated' : 'In your queue'}
-                        </span>
-                        <Button variant="secondary" onClick={() => void navigate('/grammar')}>
-                            Go to grammar
-                        </Button>
-                    </div>
-                ) : (
-                    <Button
-                        className="w-full"
-                        onClick={() => grammarActions.saveGrammarIntroChoice(point, 'learn')}
-                    >
-                        Add to Grammar Queue
-                    </Button>
-                )}
-            </div>
-        </Card>
+        </DetailHeader>
     );
 
-    const explanationCard = (
-        <Card size={isMobile ? "sm" : "md"}>
-            <h2 className="text-lg font-gothic font-semibold text-primary mb-4">Explanation</h2>
-            <div className="space-y-4">
-                <p className="text-base text-meaning-muted font-serif leading-relaxed">
-                    {point.shortExplanation}
-                </p>
-                <p className="text-sm text-secondary font-serif leading-relaxed">
-                    {point.longExplanation}
-                </p>
-            </div>
-        </Card>
-    );
-
-    /**
-     * Formation is a single short line, so a full card with a heading and a
-     * boxed row inside it was mostly padding. Rendered as a labelled row
-     * instead, and folded into the left column next to the identity block.
-     */
-    const formationCard = (
-        <Card size={isMobile ? "sm" : "md"}>
-            <h2 className="text-xs text-tertiary uppercase tracking-wider font-gothic mb-2">Formation</h2>
-            <p className="text-primary font-gothic text-base leading-relaxed break-words whitespace-pre-line">
+    const formation = (
+        <DetailSection title="Formation">
+            <p className="rounded-md bg-surface border border-divider px-4 py-3 font-gothic text-lg text-primary leading-relaxed break-words whitespace-pre-line">
                 {point.formation}
             </p>
-        </Card>
+        </DetailSection>
     );
 
-    // Inflection points (kind: 'inflection') are drilled through a generated
-    // conjugation exercise rather than authored example sentences, so
-    // point.examples is always empty for them - render nothing rather than an
-    // empty "Example Sentences (0)" card.
-    const examplesCard = point.examples.length === 0 ? null : (
-        <DetailCard title="Example Sentences" count={point.examples.length}>
-            <GrammarExampleList examples={point.examples} />
-        </DetailCard>
+    const explanation = (
+        <DetailSection title="Explanation">
+            <p className="font-sans text-lg text-primary leading-relaxed">{point.shortExplanation}</p>
+            <p className="type-body mt-3">{point.longExplanation}</p>
+        </DetailSection>
     );
 
-    // Read-only browsing of the corpus-mined pool (issue #73 follow-up): full
-    // sentences, no blanks - this is a study/reference view, not the quiz's
-    // recall test. Collapsed by default since a point can carry up to 60 of
-    // these, then capped to MINED_INITIAL_COUNT with a "Show all N" toggle
-    // once opened, mirroring GrammarRelatedPointsCard's cap/expand shape.
-    const displayedMinedExamples = isMinedExpanded ? (minedExamples ?? []) : (minedExamples ?? []).slice(0, MINED_INITIAL_COUNT);
-    const moreExamplesCard = minedExamples && minedExamples.length > 0 ? (
-        <Card size={isMobile ? "sm" : "md"}>
-            <button
-                type="button"
-                onClick={() => setIsMinedSectionOpen(!isMinedSectionOpen)}
-                className="w-full flex items-center justify-between gap-2 text-left"
-            >
-                <h2 className="text-lg font-gothic font-semibold text-primary">
-                    More examples from the corpus <span className="text-sm font-normal text-tertiary ml-2">({minedExamples.length})</span>
-                </h2>
-                <span className="text-accent font-gothic text-sm shrink-0">
-                    {isMinedSectionOpen ? 'Hide' : 'Show'}
-                </span>
-            </button>
-            {isMinedSectionOpen && (
-                <div className="mt-4">
-                    <GrammarExampleList examples={displayedMinedExamples} />
-                    {!isMinedExpanded && minedExamples.length > MINED_INITIAL_COUNT && (
-                        <button
-                            type="button"
-                            onClick={() => setIsMinedExpanded(true)}
-                            className="text-accent font-gothic text-sm hover:underline"
-                        >
-                            Show all {minedExamples.length}
-                        </button>
-                    )}
-                </div>
-            )}
-        </Card>
+    const whenToUse = point.usageNote ? (
+        <DetailSection title="When to use">
+            <p className="type-body">{point.usageNote}</p>
+        </DetailSection>
     ) : null;
 
-    const variantsCard = <GrammarVariantsCard point={point} />;
-    // Placed directly above the related-points list it explains (issue #58's
-    // "unify the overlapping concepts" note): GrammarDifferentiator answers
-    // "what actually separates these", GrammarRelatedPointsCard is the
-    // navigable list of who "these" are. They stay separate components -
-    // one renders axis-driven prose, the other a linkable RelatedEntriesCard
-    // list - but showing them together here (previously this card only ever
-    // appeared once, on the point's own intro card) closes the gap the issue
-    // flagged: a learner revisiting the point later had no way to see why its
-    // siblings differ at all.
-    const differentiatorCard = point.family && point.family.relatedPoints.length > 0 ? (
-        <Card size={isMobile ? "sm" : "md"}>
-            <GrammarDifferentiator point={point} knownIds={knownIds} />
-        </Card>
-    ) : null;
-    const relatedPointsCard = <GrammarRelatedPointsCard point={point} />;
+    // Inflection points are drilled through generated conjugations, so they have no
+    // authored examples: nothing rather than an empty section.
+    const examples = point.examples.length === 0 ? null : (
+        <DetailSection title="Example sentences" count={point.examples.length}>
+            <GrammarExampleList examples={point.examples} initialCount={6} />
+        </DetailSection>
+    );
 
-    const statsCard = progress && progress.introductionAt ? (
-        <SrsStatsCard
-            totalReviews={progress.totalReviews}
-            interval={progress.entry.interval}
+    const moreExamples = minedExamples && minedExamples.length > 0 ? (
+        <Disclosure title={`More examples from the corpus (${minedExamples.length})`}>
+            <GrammarExampleList examples={minedExamples} initialCount={5} />
+        </Disclosure>
+    ) : null;
+
+    const yourProgress = progress?.introductionAt ? (
+        <YourProgress
+            directions={[{ key: 'grammar', label: 'Mastery', strength: progress.entry.memoryStrength, variant: 'default', status: entryStatus }]}
             introductionAt={progress.introductionAt}
-            nextReview={progress.entry.dueDate?.toLocaleDateString() ?? 'Ready'}
-            series={[{ key: 'grammar', label: 'Grammar', entry: progress.entry, color: THEME.mastery.loop1 }]}
+            totalReviews={progress.totalReviews}
+            series={[{ key: 'grammar', label: 'Mastery', entry: progress.entry, color: THEME.mastery.loop1 }]}
+            history={[{ history: progress.entry.history }]}
         />
     ) : null;
 
-    return (
-        <div className="min-h-screen flex flex-col md:max-w-5xl md:mx-auto w-full animate-fade-in">
-            <PageHeader
-                title="Grammar Point Details"
-                onBack={() => void navigate(-1)}
-                className="p-4 md:p-8"
-                right={
-                    <Link
-                        to="/grammar/browse"
-                        className="text-accent font-gothic text-sm hover:underline whitespace-nowrap"
-                    >
-                        <span className="hidden sm:inline">Browse dataset</span>
-                        <span className="sm:hidden">Browse</span>
-                    </Link>
-                }
-            />
+    const datasetDetails = (
+        <Disclosure title="Dataset details">
+            <dl className="space-y-3">
+                <DetailField label="Kind">{point.kind ? KIND_LABELS[point.kind] : 'Construction'}</DetailField>
+                <DetailField label="Id">{point.id}</DetailField>
+            </dl>
+        </Disclosure>
+    );
 
-            {/* Content */}
-            <main className="flex-1 p-4 md:p-8 pt-0">
-                {isMobile ? (
-                    <div className="flex flex-col space-y-6">
-                        {headerCard}
-                        {formationCard}
-                        {explanationCard}
-                        {examplesCard}
-                        {moreExamplesCard}
-                        {statsCard}
-                        {variantsCard}
-                        {differentiatorCard}
-                        {relatedPointsCard}
-                    </div>
-                ) : (
-                    /*
-                     * Two columns, mirroring VocabDetailScreen. The single column
-                     * left every card as wide as the page, so short ones
-                     * (Formation, the identity block) were mostly empty space.
-                     * The narrow column takes the short, glanceable cards; the
-                     * wide one takes the prose and the examples, which are the
-                     * only things that actually need the width.
-                     */
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
-                        <div className="md:col-span-5 space-y-6">
-                            {headerCard}
-                            {formationCard}
-                            {statsCard}
-                            {variantsCard}
-                            {differentiatorCard}
-                            {relatedPointsCard}
-                        </div>
-                        <div className="md:col-span-7 space-y-6">
-                            {explanationCard}
-                            {examplesCard}
-                            {moreExamplesCard}
-                        </div>
-                    </div>
-                )}
-            </main>
-        </div>
+    const main = <>{formation}{explanation}{whenToUse}{examples}{moreExamples}</>;
+    const side = (
+        <>
+            {yourProgress}
+            <GrammarRelatedPointsCard point={point} />
+            <GrammarVariantsCard point={point} />
+            {datasetDetails}
+        </>
+    );
+
+    return (
+        <Page width="wide">
+            {header}
+            {!isMobile && !isTablet ? (
+                <div className="grid grid-cols-12 gap-10 items-start">
+                    <div className="col-span-8 space-y-10 min-w-0">{main}</div>
+                    <div className="col-span-4 space-y-10 min-w-0">{side}</div>
+                </div>
+            ) : (
+                <div className="space-y-10">
+                    {main}
+                    {side}
+                </div>
+            )}
+        </Page>
     );
 }
