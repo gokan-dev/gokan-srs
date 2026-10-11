@@ -247,7 +247,68 @@ call outside that file fails `bun run check` (enforced, `date-formatting`): with
 the same screen mixed "14 juil.", "19/04/2026" and English weekday labels depending on
 the browser's locale.
 
-## 8. Enforcement (`scripts/check-conventions.ts`)
+## 8. Dictionary (`apps/gokan-dictionary`)
+
+The dictionary speaks the same visual language as the app, in SCSS instead of Tailwind
+(rules: AGENTS.md, Design rules; layout of the stylesheets: ARCHITECTURE.md).
+
+- **Tokens**: the same values as the table in section 2, written once in
+  `src/styles/app.scss` (`:root`, and a `prefers-color-scheme: dark` block: the dictionary
+  follows the system theme and has no toggle). Geometry and type stacks are Sass variables
+  in `_tokens.scss`, which emits no CSS; the font stacks reach the CSS once, as
+  `--font-serif`/`--font-sans`/`--font-mincho`/`--font-gothic`.
+- **Colour language**: as section 2. Accent is a link, an action, focus or the current
+  item (the word a page is about inside its sentences, a grammar point's pattern, the
+  current tab or page). Chips (JLPT level, register, "Common word") are neutral; a chip
+  that links (the word page's JLPT chip to its list) shows an accent border on hover and
+  focus only.
+- **Type**: Source Serif 4, weight 600, Latin subset only, self-hosted as the site's one
+  web font, for page and section titles (sentence case, never uppercase letter-spaced).
+  Body text is the system sans stack, Inter first when installed. Japanese uses system
+  fonts and is always marked `lang="ja"` (prerender fails on an element with the `jp`
+  class lacking it): that attribute is also what sets it in the Japanese face, and what
+  stops some devices drawing it with Chinese glyph shapes. Headwords and sentences are
+  mincho, readings gothic. Nothing below 12px.
+- **Shape**: 6px radius for cards, chips, tiles, inputs and buttons; the search field is
+  the one pill. No shadow except the search panel. Spacing on the 8px scale. Page
+  sections are a heading plus spacing, not boxes; a box is an object (a tile, a kanji).
+- **Frame**: "Skip to content" is the first focusable element of every page. The header's
+  inner container is the wide measure (960px) on every page, so it lines up with the entry
+  pages. Wide screens: one row (logo, nav, search on the right). Phones (below 40rem): at
+  most two rows, the logo shortened to 語感 beside the nav, then the search field; the home
+  page's hero is its search field, so the header leaves its own out. Nav links, pager
+  links, toggles, tiles and disclosure summaries are at least 44px tall.
+- **Lists**: a word list is three aligned columns, headword | reading | gloss (stacked
+  on a phone and in the word page's aside); the reading shows only when it differs from
+  the headword, and a word learned in kana is never listed by its kanji spelling. A long
+  list shows its head and puts the rest in a `<details>` ("All 401 words"): collapsed, but
+  every link stays in the HTML.
+- **Furigana toggle**: "Hide furigana" / "Show furigana", in the section header of every
+  page with sentences. It sets `furigana-hidden` on `<html>` and remembers the choice in
+  `localStorage` (read in a try/catch, shown by default). It lives in the search script
+  every page already loads, and stays hidden without JavaScript.
+- **Motion**: transitions are 150ms ease-in-out and none under `prefers-reduced-motion`.
+- **Budgets**, checked after every build by `scripts/check-build.ts`, which fails the
+  build when one is exceeded (`src/lib/budgets.ts`):
+
+  | Item | Budget |
+  | --- | --- |
+  | Word page HTML, 90th percentile | 20 KB |
+  | Kanji page HTML, the heaviest | 80 KB |
+  | `/grammar/` HTML | 150 KB |
+  | Each JLPT list page | 150 KB |
+  | Shared stylesheet (`app.scss`) | 10 KB |
+  | Search script (every page) | 10 KB |
+  | Query engine (loaded on first focus) | 10 KB |
+  | `search-core.json`, gzipped | 300 KB |
+  | Web fonts | one woff2, 40 KB |
+  | Svelte client runtime | none |
+
+  A budget is a decision about what a page costs a reader on a phone: raise one here,
+  deliberately, never to make a build pass. The shared stylesheet is the tightest: a rule
+  used by one page type belongs in that page's stylesheet anyway.
+
+## 9. Enforcement (`scripts/check-conventions.ts`)
 
 - `design-tokens`: no default Tailwind palette colour, no numeric shade on a theme
   token, no raw colour value, no removed token (`muted`/`subtle`/`label-neutral`/
