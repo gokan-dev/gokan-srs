@@ -6,7 +6,7 @@ import { isGrammarDue, grammarNextReviewAt, isGrammarFullyMastered } from '../..
 import { VocabularyService } from '../../services/vocabulary.service';
 import { GrammarService } from '../../services/grammar.service';
 import { hashString, pickStable } from '../../utils/deterministicPick';
-import { surfaceReading } from '../../utils/grammarSentence.utils';
+import { surfaceReading } from '@gokan/dataset-schema';
 import { indexLearnerVocab, pickMostProductive, scoreGrammarExample, wordRole } from '../../utils/sentenceRanking';
 import { computeSessionState } from './sessionState';
 import { markerInflections, synonymsOf, wordSlot } from '../../services/exercise/slots';

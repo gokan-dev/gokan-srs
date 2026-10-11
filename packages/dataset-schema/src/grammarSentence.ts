@@ -1,4 +1,6 @@
-import type { GrammarExample, GrammarExampleWord, HighlightRange, Sentence } from '@gokan/dataset-schema';
+import type { GrammarExample, GrammarExampleWord } from './grammar';
+import type { HighlightRange } from './interactiveSentence';
+import type { Sentence } from './sentence';
 
 /**
  * A word's reading as it sits in the sentence, or undefined when the stored one may

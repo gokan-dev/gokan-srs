@@ -130,7 +130,7 @@ The rest of the study flow:
 - Calibration: `services/calibration.ts`, per quiz type, recorded by `applyEffects` only.
 - Sentences: `utils/sentenceRanking.ts` for every activity that picks an example; a sentence with
   blanks is a `ClozeSentence` (`utils/clozeSentence.utils.ts`); a grammar example becomes a
-  `Sentence` through `grammarExampleToSentence` (`utils/grammarSentence.utils.ts`).
+  `Sentence` through `grammarExampleToSentence` (`@gokan/dataset-schema`).
 - Session flow: `useSessionLifecycle`, `components/SessionProgress.tsx` (counter, ticker, gains),
   the commit pipeline in `quizSelectors.ts` shared by the preview and the session.
 - Card building blocks: `components/quiz/` (`QuizCardFrame`, `QuizMasteryCorner`,

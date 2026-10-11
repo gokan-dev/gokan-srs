@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { GrammarExample } from "@gokan/dataset-schema";
 import { InteractiveSentence } from "../../components/InteractiveSentence";
-import { grammarExampleToSentence, patternHighlightRanges } from "../../utils/grammarSentence.utils";
+import { grammarExampleToSentence, patternHighlightRanges } from "@gokan/dataset-schema";
 
 /**
  * Example sentences on a grammar point's page: each word links to its vocab page, the
