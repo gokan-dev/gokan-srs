@@ -124,6 +124,11 @@ const ARU: Paradigm = {
 const I_ADJ: Paradigm = { plain: 'い', neg: 'く', masu: '', te: 'くて', ta: 'かった', ba: 'ければ' };
 const II: Paradigm = { plain: 'いい', neg: 'よく', masu: '', te: 'よくて', ta: 'よかった', ba: 'よければ' };
 
+/** Every class, in a fixed order: the search index stores a word's class as its position here. */
+export const WORD_CLASSES: readonly WordClass[] = [
+    'ichidan', 'godan', 'godan-iku', 'godan-tou', 'godan-aru', 'suru', 'kuru', 'i-adj', 'i-adj-ii',
+];
+
 /** Every paradigm of a class, keyed so `deinflect` can try them all. */
 const PARADIGMS: Record<WordClass, Paradigm[]> = {
     ichidan: [ICHIDAN],
@@ -236,7 +241,7 @@ interface Rule {
     wordClass: WordClass;
 }
 
-const RULES: Rule[] = (Object.keys(PARADIGMS) as WordClass[]).flatMap(wordClass =>
+const RULES: Rule[] = WORD_CLASSES.flatMap(wordClass =>
     PARADIGMS[wordClass].flatMap(paradigm =>
         endings(paradigm, isAdjective(wordClass))
             .filter(([label]) => label !== 'plain')
