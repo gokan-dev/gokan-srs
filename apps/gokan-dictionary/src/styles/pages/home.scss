@@ -3,16 +3,19 @@
 @use '../tokens' as *;
 
 .home-hero {
-  padding: $space-4 0 $space-3;
+  padding: $space-3 0 $space-2;
+
+  h1 {
+    margin-bottom: $space-1;
+  }
 }
 
 .home-lede {
-  font-family: $font-serif;
-  font-size: $text-xl;
-  line-height: 1.6;
-  max-width: 38rem;
+  color: var(--secondary);
+  font-size: $text-lg;
+  margin-bottom: $space-3;
 }
 
-.home-stats {
-  font-size: $text-base;
+.home-counts {
+  margin-top: $space-4;
 }

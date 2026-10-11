@@ -46,3 +46,12 @@ export function buildVariantSiblings(
         })
         .filter((sibling): sibling is VariantSibling => sibling !== null);
 }
+
+/** A realization variant's relation to its canonical; an unknown relation shows as is. */
+export const RELATION_LABELS: Partial<Record<string, string>> = {
+    canonical: 'Base form',
+    contraction: 'Contraction',
+    politeness: 'Politeness',
+    particle: 'Particle',
+    'particle+politeness': 'Particle and politeness',
+};

@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import type { GrammarConjugationIndex, GrammarContrastIndex, GrammarExample, GrammarJlptIndex, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex, JlptIndex, Kanji, KanjiVocabIndex, SearchIndex, Sentence, Vocabulary } from '@gokan/dataset-schema';
+import type { FrequencyIndex, GrammarConjugationIndex, GrammarContrastIndex, GrammarExample, GrammarJlptIndex, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex, JlptIndex, Kanji, KanjiVocabIndex, Sentence, Vocabulary } from '@gokan/dataset-schema';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -86,9 +86,10 @@ export function loadVocabJlptIndex(compiledDir: string): JlptIndex {
     return JSON.parse(raw) as JlptIndex;
 }
 
-export function loadSearchIndex(compiledDir: string): SearchIndex {
-    const raw = fs.readFileSync(path.join(compiledDir, 'index', 'search.json'), 'utf-8');
-    return JSON.parse(raw) as SearchIndex;
+/** Every vocab, most frequent first: the order of the dictionary's search index. */
+export function loadFrequencyIndex(compiledDir: string): FrequencyIndex {
+    const raw = fs.readFileSync(path.join(compiledDir, 'index', 'frequency.json'), 'utf-8');
+    return JSON.parse(raw) as FrequencyIndex;
 }
 
 // -- Grammar -----------------------------------------------------------------

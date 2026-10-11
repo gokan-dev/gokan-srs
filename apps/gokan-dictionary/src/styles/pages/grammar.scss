@@ -2,49 +2,66 @@
 
 @use '../tokens' as *;
 
-.readings {
-  font-family: $font-gothic;
-  color: var(--secondary);
-  font-size: $text-xl;
-  margin: $space-1 0 $space-2;
+.grammar-body {
+  max-width: $measure-text;
 }
 
-// The formation template, e.g. "Noun + が + いちばん + Adjective/Verb". Boxed and loosely led so
-// the "+" separators read as a pattern rather than as prose.
+// The formation template, e.g. "Noun + が + いちばん + Adjective/Verb": the first thing a reader
+// needs, as a highlighted panel, loosely led so the "+" separators read as a pattern.
 .formation {
-  margin: 0;
-  padding: 0.6rem 0.8rem;
-  background: var(--surface-hover);
-  border-radius: $radius-sm;
-  line-height: 1.8;
+  @include surface;
+  border-left: 3px solid var(--accent);
+  margin-bottom: $space-3;
+
+  p {
+    margin: 0;
+    font-size: $text-lg;
+    line-height: 1.8;
+    white-space: pre-line;
+  }
 }
 
-// Conjugation reference table (issue #58, kind: 'inflection' points only).
+.formation-label {
+  margin: 0 0 $space-half;
+  font-family: $font-sans;
+  font-size: $text-sm;
+  font-weight: 500;
+  color: var(--secondary);
+}
+
+.lead {
+  font-size: $text-lg;
+}
+
+// Conjugation reference table (kind: 'inflection' points only).
 .conjugation-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: $text-base;
 
   th {
     text-align: left;
     color: var(--secondary);
-    font-weight: 400;
+    font-weight: 500;
     font-size: $text-sm;
-    padding: 0.375rem 0.5rem;
-    border-bottom: 1px solid var(--divider);
   }
 
+  th,
   td {
-    padding: 0.375rem 0.5rem;
+    padding: $space-1 $space-1 $space-1 0;
     border-bottom: 1px solid var(--divider);
+    vertical-align: top;
+  }
 
-    .jp {
-      font-size: $text-lg;
-    }
+  td > :first-child {
+    font-size: $text-lg;
+  }
+
+  small {
+    color: var(--secondary);
+    font-size: $text-sm;
   }
 }
 
 .family-link {
   margin: $space-2 0 0;
-  font-size: $text-base;
 }

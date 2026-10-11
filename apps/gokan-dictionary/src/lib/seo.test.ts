@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { vocabMeta, kanjiMeta, homeMeta, grammarChaptersIndexMeta, grammarChapterMeta, grammarFamilyMeta, grammarConjugationsIndexMeta } from './seo';
+import { vocabMeta, kanjiMeta, homeMeta, grammarChaptersIndexMeta, grammarChapterMeta, grammarFamilyMeta, grammarConjugationsIndexMeta, grammarFamiliesIndexMeta, searchMeta, vocabJlptMeta } from './seo';
 import type { GrammarChapter, Kanji } from '@gokan/dataset-schema';
 import { vocabulary } from '../test/fixtures';
 
@@ -125,5 +125,20 @@ describe('grammarConjugationsIndexMeta', () => {
         const { description } = grammarConjugationsIndexMeta(38, 40);
         expect(description).toContain('38 conjugation forms');
         expect(description).toContain('40 inflection patterns');
+    });
+});
+
+describe('vocabJlptMeta', () => {
+    it('names the page after the first, so every list page has its own title', () => {
+        expect(vocabJlptMeta(1, 2817).title).toContain('JLPT N1 Vocabulary List (2,817 words) - ');
+        expect(vocabJlptMeta(1, 2817, 3).title).toContain('(2,817 words), page 3 - ');
+        expect(vocabJlptMeta(1, 2817, 3).title).not.toBe(vocabJlptMeta(1, 2817, 2).title);
+    });
+});
+
+describe('grammarFamiliesIndexMeta and searchMeta', () => {
+    it('describe their pages', () => {
+        expect(grammarFamiliesIndexMeta(123).description).toContain('123 groups');
+        expect(searchMeta().title).toContain('Search');
     });
 });

@@ -1,64 +1,46 @@
 <script lang="ts">
-  import type { BrowseGroup } from '../lib/grammarBrowse';
-  import { grammarChaptersIndexPath, grammarConjugationsIndexPath, grammarFamilyPath } from '../lib/urls';
+  import type { LevelGroup } from '../lib/grammarBrowse';
+  import type { GrammarSummary } from '../lib/types';
   import PageLayout from './PageLayout.svelte';
-  import GrammarPointCard from './GrammarPointCard.svelte';
+  import GrammarList from './GrammarList.svelte';
+  import GrammarTabs from './GrammarTabs.svelte';
 
   interface Props {
-    /** Pre-grouped by family for the static render; the browser regroups client-side. */
-    groups: BrowseGroup[];
+    /** Every point, grouped N5 first, in teaching order within a level. */
+    groups: LevelGroup<GrammarSummary>[];
     total: number;
   }
 
   let { groups, total }: Props = $props();
 </script>
 
-<PageLayout trail={[{ label: 'Grammar' }]} wide>
-
-  <div class="hero">
-    <h1>Japanese Grammar Points</h1>
-    <p>
-      {total.toLocaleString()} grammar points from JLPT N5 to N1, grouped into families of
-      near-synonyms so you can compare the ones that actually get confused.
-    </p>
-    <p class="level-nav">
-      <a href={grammarChaptersIndexPath()}>Browse in teaching order (curriculum)</a>
-      <a href={grammarConjugationsIndexPath()}>Conjugation reference</a>
-    </p>
+<PageLayout trail={[{ label: 'Grammar' }]} section="grammar">
+  <div class="page-intro">
+    <h1>Japanese grammar</h1>
+    <p>{total.toLocaleString('en')} grammar points from JLPT N5 to N1, in the order they are taught.</p>
   </div>
+
+  <GrammarTabs current="level" />
 
   <!--
-    Mount target for the interactive browser (client/grammarBrowser.ts). It replaces the
-    static list below once its data loads; if the script never runs, the static list is the
-    page, which is what crawlers and no-JS readers get.
+    The filter (client/grammarFilter.ts) works over these static rows: no data download. Hidden
+    until the script shows it, so a reader without JavaScript never sees controls that do nothing.
   -->
-  <div data-grammar-browser></div>
-
-  <div data-grammar-static>
-    <!--
-      Grouped by family rather than dumped as one flat list. A flat list of 755 points was
-      unusable for finding anything: the reader's actual question is "which of these
-      near-identical forms do I want", and grouping puts でも/しかし/けれども side by side
-      instead of scattering them across five level headings.
-
-      Every point is still linked from here, so each grammar page stays at crawl depth 2.
-    -->
-    {#each groups as group (group.key)}
-      <section class="card">
-        <h2>
-          {group.title} <span class="muted">{group.subtitle}</span>
-          {#if group.key !== '__unfamilied'}
-            <a class="family-group-link" href={grammarFamilyPath(group.key)}>Compare when to use each &rarr;</a>
-          {/if}
-        </h2>
-        <ul class="point-grid">
-          {#each group.rows as point (point.id)}
-            <li>
-              <GrammarPointCard {point} />
-            </li>
-          {/each}
-        </ul>
-      </section>
-    {/each}
+  <div class="grammar-filter" data-grammar-filter hidden>
+    <label class="visually-hidden" for="grammar-filter-input">Filter grammar points</label>
+    <input id="grammar-filter-input" class="grammar-filter-input" type="search" placeholder="Filter by pattern, romaji or meaning" autocomplete="off" />
+    <div class="grammar-filter-levels" role="group" aria-label="Levels">
+      {#each groups as group (group.level)}
+        <button type="button" class="button" aria-pressed="true" data-level={group.level}>N{group.level}</button>
+      {/each}
+    </div>
+    <p class="meta" role="status" data-grammar-filter-count></p>
   </div>
+
+  {#each groups as group (group.level)}
+    <section class="section" id={`n${group.level}`} data-level-section={group.level}>
+      <h2>JLPT N{group.level} <span class="meta">{group.items.length}</span></h2>
+      <GrammarList points={group.items} />
+    </section>
+  {/each}
 </PageLayout>

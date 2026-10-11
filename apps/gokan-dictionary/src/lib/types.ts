@@ -2,6 +2,9 @@
 // script resolves summaries once per referenced id and passes them down as props, so a page
 // linking to another entry never embeds that entry's full dataset object.
 
+/** The site section a page belongs to, marked current in the header nav. */
+export type Section = 'vocab' | 'kanji' | 'grammar';
+
 export interface VocabSummary {
     id: string;
     /** The headword (headwordOf): the kanji spelling, or the kana for a word learned in kana. */
