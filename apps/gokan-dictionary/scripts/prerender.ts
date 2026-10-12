@@ -9,18 +9,18 @@
 // document, and normally you'd get to that fragment via a framework's routing/build
 // integration. Here that wiring is done by hand: scripts/svelte-ssr-loader.ts registers a Bun
 // runtime plugin that compiles .svelte files with svelte/compiler's `generate: 'server'` mode
-// directly (verified against Svelte 5.56's actual compiler/server-runtime API before writing
-// this), completely independent of the Vite build. Vite's own `vite build` (run first, see
-// package.json) has one job: produce the two browser-facing assets this script links into
-// every generated page - the global stylesheet and the search script (vite.config.ts lists
-// them as explicit rollup inputs) - resolved here via the client build's manifest.json rather
-// than hardcoded filenames, since Vite content-hashes them.
+// directly, completely independent of the Vite build. Vite's own `vite build` (run first, see
+// package.json) has one job: produce the browser-facing assets this script links into the
+// generated pages (the stylesheets and the two plain TypeScript scripts, vite.config.ts lists
+// them as explicit inputs), resolved here via the client build's manifest.json rather than
+// hardcoded filenames, since Vite content-hashes them. No page ever loads a Svelte runtime.
 import './svelte-ssr-loader';
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { render } from 'svelte/server';
+import type { Component } from 'svelte';
 
 import {
     resolveCompiledDir,
@@ -29,7 +29,7 @@ import {
     loadKanjiList,
     loadKanjiVocabIndex,
     loadSentences,
-    loadSearchIndex,
+    loadFrequencyIndex,
     listGrammarIds,
     loadGrammarPoint,
     loadVocabJlptIndex,
@@ -45,50 +45,58 @@ import {
     kanjiMeta,
     grammarMeta,
     grammarIndexMeta,
+    grammarFamiliesIndexMeta,
     kanjiIndexMeta,
     vocabIndexMeta,
     vocabJlptMeta,
     homeMeta,
+    searchMeta,
     grammarChaptersIndexMeta,
     grammarChapterMeta,
     grammarFamilyMeta,
     grammarConjugationsIndexMeta,
+    type PageMeta,
 } from '../src/lib/seo';
 import {
     vocabPath,
     kanjiPath,
     grammarPath,
     grammarIndexPath,
+    grammarFamiliesIndexPath,
     kanjiIndexPath,
     vocabIndexPath,
     vocabJlptPath,
     homePath,
+    searchPath,
     assetPath,
     grammarChaptersIndexPath,
     grammarChapterPath,
     grammarFamilyPath,
     grammarConjugationsIndexPath,
 } from '../src/lib/urls';
-import { renderDocument } from '../src/lib/documentShell';
+import { japaneseWithoutLang, renderDocument } from '../src/lib/documentShell';
 import { buildSitemapXml, buildRobotsTxt, shouldEmitRobotsTxt } from '../src/lib/sitemap';
-import type { GrammarSummary, VocabSummary } from '../src/lib/types';
-import { toBrowseRow, groupRows } from '../src/lib/grammarBrowse';
+import type { SearchWordRow, VocabSummary } from '../src/lib/types';
+import { grammarSummaryOf, groupByLevel, inTeachingOrder } from '../src/lib/grammarBrowse';
 import { buildChapterLocatorIndex, buildChapterIndexRows } from '../src/lib/grammarChapters';
 import { buildFamilyPages } from '../src/lib/grammarFamilies';
 import { buildVariantSiblings } from '../src/lib/grammarVariants';
-import { groupConjugationsByForm } from '../src/lib/grammarConjugations';
-import { headwordOf } from '@gokan/dataset-schema';
-import type { GrammarPoint, Vocabulary } from '@gokan/dataset-schema';
+import { conjugationTables } from '../src/lib/grammarConjugations';
+import { orderSentences } from '../src/lib/sentenceOrder';
+import { searchGrammarRow, searchKanjiRow, searchWordRow, splitSearchIndex } from '../src/lib/searchIndex';
+import { paginate, JLPT_PAGE_SIZE } from '../src/lib/pagination';
+import { headwordOf, JLPT_LEVELS } from '@gokan/dataset-schema';
+import type { GrammarPoint, Kanji, Vocabulary } from '@gokan/dataset-schema';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = path.join(__dirname, '..');
 const DIST_DIR = path.join(APP_ROOT, 'dist');
 
-const MAX_KANJI_VOCAB_LIST = 50;
-const MAX_SENTENCES = 3;
 // Pools go up to 60 sentences across 477 points (see gokan-dataset's Corpus-mined sentences
-// note) - capped here to bound page size, same reasoning as MAX_KANJI_VOCAB_LIST above.
+// note): capped here to bound page size.
 const MAX_MINED_EXAMPLES = 25;
+/** Common N5 words on the home page. */
+const FEATURED_WORDS = 12;
 
 interface ViteManifestEntry {
     file: string;
@@ -101,12 +109,6 @@ function readClientManifest(): Record<string, ViteManifestEntry> {
     }
     const manifest: unknown = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
     return manifest as Record<string, ViteManifestEntry>;
-}
-
-function writePage(distRelSegments: string[], html: string): void {
-    const dir = path.join(DIST_DIR, ...distRelSegments);
-    fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, 'index.html'), html);
 }
 
 /** Resolves related-vocab ids to summaries, tracking (without spamming) any that don't resolve. */
@@ -123,31 +125,69 @@ function resolveSummaries(ids: string[], summaryById: Map<string, VocabSummary>,
     return resolved;
 }
 
+function bodyOf<Props extends Record<string, unknown>>(component: Component<Props>, props: Props): string {
+    return render(component, { props }).body;
+}
+
 async function main(): Promise<void> {
     const startedAt = Date.now();
 
     const compiledDir = resolveCompiledDir();
     const manifest = readClientManifest();
+    const asset = (entry: string) => assetPath(manifest[entry].file);
     // assetPath, not a bare '/' + file: in subfolder mode every href on the page has to carry
     // BASE_PATH, and a stylesheet 404 is the one breakage that still renders a plausible-looking
     // (unstyled) page rather than failing loudly.
-    const stylesheetHref = assetPath(manifest['src/styles/app.scss'].file);
+    const stylesheetHref = asset('src/styles/app.scss');
     // One stylesheet per page type, so a rule change on one page does not alter the bytes of
-    // every other page (which would re-upload the whole site - see CLAUDE.md's Deployment
-    // section). Pages built purely from shared rules pass nothing.
+    // every other page (which would re-upload the whole site). Pages built purely from shared
+    // rules pass nothing.
     const pageStyles = {
-        home: assetPath(manifest['src/styles/pages/home.scss'].file),
-        vocab: assetPath(manifest['src/styles/pages/vocab.scss'].file),
-        kanji: assetPath(manifest['src/styles/pages/kanji.scss'].file),
-        kanjiIndex: assetPath(manifest['src/styles/pages/kanji-index.scss'].file),
-        grammar: assetPath(manifest['src/styles/pages/grammar.scss'].file),
-        grammarIndex: assetPath(manifest['src/styles/pages/grammar-index.scss'].file),
-        grammarChapters: assetPath(manifest['src/styles/pages/grammar-chapters.scss'].file),
-        grammarFamily: assetPath(manifest['src/styles/pages/grammar-family.scss'].file),
-        grammarConjugations: assetPath(manifest['src/styles/pages/grammar-conjugations.scss'].file),
+        home: asset('src/styles/pages/home.scss'),
+        vocab: asset('src/styles/pages/vocab.scss'),
+        kanji: asset('src/styles/pages/kanji.scss'),
+        kanjiIndex: asset('src/styles/pages/kanji-index.scss'),
+        grammar: asset('src/styles/pages/grammar.scss'),
+        grammarIndex: asset('src/styles/pages/grammar-index.scss'),
+        grammarChapters: asset('src/styles/pages/grammar-chapters.scss'),
+        grammarFamily: asset('src/styles/pages/grammar-family.scss'),
+        grammarConjugations: asset('src/styles/pages/grammar-conjugations.scss'),
     };
-    const searchScriptHref = assetPath(manifest['src/client/search.ts'].file);
-    const grammarBrowserScriptHref = assetPath(manifest['src/client/grammarBrowser.ts'].file);
+    const searchScriptHref = asset('src/client/search.ts');
+    const grammarFilterScriptHref = asset('src/client/grammarFilter.ts');
+
+    const sitemapPaths: string[] = [];
+    const missingLang: string[] = [];
+
+    /**
+     * Wraps a rendered body in the document shell and writes it to dist/<segments>/index.html,
+     * listing `canonicalPath` in the sitemap unless the page is noindex. Every page links the
+     * search script: the header's search field and the furigana toggle live there.
+     */
+    function writePage(
+        segments: string[],
+        canonicalPath: string,
+        body: string,
+        meta: PageMeta,
+        options: { pageStylesheetHref?: string; extraScriptHref?: string; structuredData?: object; noindex?: boolean } = {},
+    ): void {
+        const html = renderDocument({
+            title: meta.title,
+            description: meta.description,
+            canonicalPath,
+            bodyHtml: body,
+            stylesheetHref,
+            scriptHref: searchScriptHref,
+            ...options,
+        });
+        const unmarked = japaneseWithoutLang(html);
+        if (unmarked.length > 0) missingLang.push(`${canonicalPath}: ${unmarked[0]}`);
+
+        const dir = path.join(DIST_DIR, ...segments);
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(path.join(dir, 'index.html'), html);
+        if (!options.noindex) sitemapPaths.push(canonicalPath);
+    }
 
     // Dynamic imports so scripts/svelte-ssr-loader.ts (imported above for its side effect) has
     // already registered before these .svelte files are compiled - see that file's comment.
@@ -156,6 +196,7 @@ async function main(): Promise<void> {
     const { default: KanjiPage } = await import('../src/pages/KanjiPage.svelte');
     const { default: GrammarPage } = await import('../src/pages/GrammarPage.svelte');
     const { default: GrammarIndexPage } = await import('../src/pages/GrammarIndexPage.svelte');
+    const { default: GrammarFamiliesIndexPage } = await import('../src/pages/GrammarFamiliesIndexPage.svelte');
     const { default: GrammarChaptersIndexPage } = await import('../src/pages/GrammarChaptersIndexPage.svelte');
     const { default: GrammarChapterPage } = await import('../src/pages/GrammarChapterPage.svelte');
     const { default: GrammarFamilyPage } = await import('../src/pages/GrammarFamilyPage.svelte');
@@ -163,28 +204,29 @@ async function main(): Promise<void> {
     const { default: KanjiIndexPage } = await import('../src/pages/KanjiIndexPage.svelte');
     const { default: VocabIndexPage } = await import('../src/pages/VocabIndexPage.svelte');
     const { default: VocabJlptPage } = await import('../src/pages/VocabJlptPage.svelte');
+    const { default: SearchPage } = await import('../src/pages/SearchPage.svelte');
 
     console.log('[prerender] loading dataset indexes...');
     const vocabIds = listVocabIds(compiledDir);
     const kanjiList = loadKanjiList(compiledDir);
     const kanjiVocabIndex = loadKanjiVocabIndex(compiledDir);
-    const searchIndex = loadSearchIndex(compiledDir);
     const vocabJlptIndex = loadVocabJlptIndex(compiledDir);
+    const frequencyIndex = loadFrequencyIndex(compiledDir);
 
     // Built as a separate pass (rather than caching full Vocabulary objects while writing
-    // pages below) so memory stays bounded to ~36k small {id, kanji, reading, gloss} records
-    // instead of ~36k full parsed vocab files at once.
+    // pages below) so memory stays bounded to ~36k small summaries and search rows instead of
+    // ~36k full parsed vocab files at once.
     console.log(`[prerender] indexing ${vocabIds.length} vocab summaries...`);
     const summaryById = new Map<string, VocabSummary>();
+    const searchRowById = new Map<string, SearchWordRow>();
     for (const id of vocabIds) {
-        summaryById.set(id, vocabSummaryFrom(loadVocab(compiledDir, id)));
+        const vocab = loadVocab(compiledDir, id);
+        summaryById.set(id, vocabSummaryFrom(vocab));
+        searchRowById.set(id, searchWordRow(vocab));
     }
-
-    const grammarIds = listGrammarIds(compiledDir);
 
     let sentenceCount = 0;
     const missingRelatedIds = new Set<string>();
-    const sitemapPaths: string[] = [homePath()];
 
     console.log(`[prerender] writing ${vocabIds.length} vocab pages...`);
     for (const id of vocabIds) {
@@ -193,18 +235,11 @@ async function main(): Promise<void> {
         const parents = resolveSummaries(vocab.parents ?? [], summaryById, missingRelatedIds);
         const allSentences = loadSentences(compiledDir, id) ?? [];
         sentenceCount += allSentences.length;
-        const sentences = allSentences.slice(0, MAX_SENTENCES);
+        const sentences = orderSentences(allSentences, id, headwordOf(vocab));
 
-        const { body } = render(VocabPage, { props: { vocab, components, parents, sentences } });
         const meta = vocabMeta(vocab);
-        const html = renderDocument({
-            title: meta.title,
-            description: meta.description,
-            canonicalPath: vocabPath(id),
-            bodyHtml: body,
-            stylesheetHref,
+        writePage(['vocab', id], vocabPath(id), bodyOf(VocabPage, { vocab, components, parents, sentences }), meta, {
             pageStylesheetHref: pageStyles.vocab,
-            scriptHref: searchScriptHref,
             structuredData: {
                 '@context': 'https://schema.org',
                 '@type': 'DefinedTerm',
@@ -212,8 +247,6 @@ async function main(): Promise<void> {
                 description: meta.description,
             },
         });
-        writePage(['vocab', id], html);
-        sitemapPaths.push(vocabPath(id));
     }
 
     if (missingRelatedIds.size > 0) {
@@ -222,85 +255,54 @@ async function main(): Promise<void> {
 
     console.log(`[prerender] writing ${kanjiList.length} kanji pages...`);
     for (const kanji of kanjiList) {
-        const vocabIdsForKanji = kanjiVocabIndex[kanji.character] ?? [];
-        const vocabList = vocabIdsForKanji
-            .slice(0, MAX_KANJI_VOCAB_LIST)
-            .map(id => summaryById.get(id))
-            .filter((summary): summary is VocabSummary => Boolean(summary));
-
-        const { body } = render(KanjiPage, {
-            props: { kanji, vocabList, vocabTotalCount: vocabIdsForKanji.length },
-        });
-        const meta = kanjiMeta(kanji, vocabIdsForKanji.length);
-        const html = renderDocument({
-            title: meta.title,
-            description: meta.description,
-            canonicalPath: kanjiPath(kanji.character),
-            bodyHtml: body,
-            stylesheetHref,
-            pageStylesheetHref: pageStyles.kanji,
-            scriptHref: searchScriptHref,
-        });
+        // Every word, most frequent first (the index's order); the page collapses all but the first.
+        const words = resolveSummaries(kanjiVocabIndex[kanji.character] ?? [], summaryById, missingRelatedIds);
         // Written under the raw character, NOT percent-encoded, unlike kanjiPath()'s URL
         // string: static hosts decode the request URL's percent-escapes before resolving a
         // file on disk, so the on-disk name must be the literal UTF-8 character to match what
         // a browser actually requests when it navigates to kanjiPath()'s href.
-        writePage(['kanji', kanji.character], html);
-        sitemapPaths.push(kanjiPath(kanji.character));
+        writePage(['kanji', kanji.character], kanjiPath(kanji.character), bodyOf(KanjiPage, { kanji, words }), kanjiMeta(kanji, words.length), {
+            pageStylesheetHref: pageStyles.kanji,
+        });
     }
 
-
     // -- Grammar --------------------------------------------------------------
-    // Loaded in full up front (755 points, small files) rather than streamed like vocab: the
+    // Loaded in full up front (766 points, small files) rather than streamed like vocab: the
     // family/related-points list on each page needs OTHER points' titles, so a second lookup
     // pass would just re-read the same files.
+    const grammarIds = listGrammarIds(compiledDir);
     console.log(`[prerender] writing ${grammarIds.length} grammar pages...`);
     const grammarPoints = new Map<string, GrammarPoint>();
     for (const id of grammarIds) {
         grammarPoints.set(id, loadGrammarPoint(compiledDir, id));
     }
 
-    const grammarSummaryOf = (point: GrammarPoint): GrammarSummary => ({
-        id: point.id,
-        title: point.title,
-        jlptLevel: point.jlptLevel,
-    });
-
-    // The four pieces of the grammar system this app didn't surface before issue #58: the
-    // authored teaching order (chapters), the family "when to use each" lessons, the
-    // realization-variant groups, and the inflection points' conjugation drill tables. Loaded
-    // once, up front, alongside the point files already loaded above.
+    // The authored teaching order (chapters), the family "when to use each" lessons, the
+    // realization-variant groups, and the inflection points' conjugation drill tables.
     const teachingOrder = loadGrammarTeachingOrder(compiledDir);
     const contrasts = loadGrammarContrasts(compiledDir);
     const variantGroups = loadGrammarVariantGroups(compiledDir);
     const conjugationIndex = loadGrammarConjugations(compiledDir);
     const chapterLocatorIndex = buildChapterLocatorIndex(teachingOrder);
 
-    for (const id of grammarIds) {
-        const point = grammarPoints.get(id)!;
+    for (const [id, point] of grammarPoints) {
         const related = (point.family?.relatedPoints ?? [])
             .map(relatedId => grammarPoints.get(relatedId))
             .filter((other): other is GrammarPoint => Boolean(other))
             .map(grammarSummaryOf);
-        const chapterLocator = chapterLocatorIndex.get(id) ?? null;
-        const variants = buildVariantSiblings(point, variantGroups, grammarPoints);
-        const conjugation = conjugationIndex[id] ?? null;
         const minedExamplesPool = loadGrammarMinedExamples(compiledDir, id) ?? [];
-        const minedExamples = minedExamplesPool.slice(0, MAX_MINED_EXAMPLES);
-        const minedExamplesTotalCount = minedExamplesPool.length;
 
-        const { body } = render(GrammarPage, {
-            props: { point, related, chapterLocator, variants, conjugation, minedExamples, minedExamplesTotalCount },
+        const body = bodyOf(GrammarPage, {
+            point,
+            related,
+            chapterLocator: chapterLocatorIndex.get(id) ?? null,
+            variants: buildVariantSiblings(point, variantGroups, grammarPoints),
+            conjugation: conjugationIndex[id] ?? null,
+            minedExamples: minedExamplesPool.slice(0, MAX_MINED_EXAMPLES),
+            minedExamplesTotalCount: minedExamplesPool.length,
         });
-        const meta = grammarMeta(point);
-        const html = renderDocument({
-            title: meta.title,
-            description: meta.description,
-            canonicalPath: grammarPath(id),
-            bodyHtml: body,
-            stylesheetHref,
+        writePage(['grammar', id], grammarPath(id), body, grammarMeta(point), {
             pageStylesheetHref: pageStyles.grammar,
-            scriptHref: searchScriptHref,
             structuredData: {
                 '@context': 'https://schema.org',
                 '@type': 'DefinedTerm',
@@ -309,222 +311,156 @@ async function main(): Promise<void> {
                 inDefinedTermSet: 'Japanese grammar',
             },
         });
-        writePage(['grammar', id], html);
-        sitemapPaths.push(grammarPath(id));
     }
 
-    console.log('[prerender] writing grammar index page...');
-    const browseRows = grammarIds.map(id => toBrowseRow(grammarPoints.get(id)!));
-    const grammarStaticGroups = groupRows(browseRows, 'family');
+    console.log('[prerender] writing grammar index pages...');
+    // Every point grouped by level, in the order the curriculum teaches it: each grammar page
+    // sits at crawl depth 2. The filter (client/grammarFilter.ts) works over these rows.
+    const pointsInOrder = inTeachingOrder([...grammarPoints.values()], teachingOrder.order);
+    writePage(
+        ['grammar'],
+        grammarIndexPath(),
+        bodyOf(GrammarIndexPage, { groups: groupByLevel(pointsInOrder.map(grammarSummaryOf)), total: grammarPoints.size }),
+        grammarIndexMeta(grammarPoints.size),
+        { pageStylesheetHref: pageStyles.grammarIndex, extraScriptHref: grammarFilterScriptHref },
+    );
 
-    const { body: grammarIndexBody } = render(GrammarIndexPage, {
-        props: { groups: grammarStaticGroups, total: browseRows.length },
-    });
-    const grammarIndexMetaValue = grammarIndexMeta(grammarIds.length);
-    writePage(['grammar'], renderDocument({
-        title: grammarIndexMetaValue.title,
-        description: grammarIndexMetaValue.description,
-        canonicalPath: grammarIndexPath(),
-        bodyHtml: grammarIndexBody,
-        stylesheetHref,
-        pageStylesheetHref: pageStyles.grammarIndex,
-        scriptHref: searchScriptHref,
-        // The only page carrying a second script: the interactive browser mounts over the
-        // static list this page also renders.
-        extraScriptHref: grammarBrowserScriptHref,
-    }));
-    sitemapPaths.push(grammarIndexPath());
+    // One page per near-synonym family, comparing its members: a strong "X vs Y grammar" search
+    // target no single point's own page can be. The families index lists them all.
+    const familyPages = buildFamilyPages([...grammarPoints.values()], contrasts);
+    writePage(
+        ['grammar', 'families'],
+        grammarFamiliesIndexPath(),
+        bodyOf(GrammarFamiliesIndexPage, { families: familyPages }),
+        grammarFamiliesIndexMeta(familyPages.length),
+        { pageStylesheetHref: pageStyles.grammarFamily },
+    );
+    for (const family of familyPages) {
+        writePage(['grammar', 'family', family.id], grammarFamilyPath(family.id), bodyOf(GrammarFamilyPage, { family }), grammarFamilyMeta(family.name, family.members.length), {
+            pageStylesheetHref: pageStyles.grammarFamily,
+        });
+    }
 
-    // -- Grammar curriculum (chapters), issue #58 ------------------------------
-    // The authored teaching order as its own browsable curriculum, distinct from the grammar
-    // index's level/family grouping: this answers "what order will I actually meet these in",
-    // a strong "JLPT grammar curriculum/order" search target in its own right.
-    console.log(`[prerender] writing ${teachingOrder.chapters.length} grammar chapter pages...`);
+    // The authored teaching order as its own browsable curriculum: "what order will I meet these in".
     const chapterRows = buildChapterIndexRows(teachingOrder, grammarPoints);
-
-    const { body: chaptersIndexBody } = render(GrammarChaptersIndexPage, { props: { chapters: chapterRows } });
-    const chaptersIndexMetaValue = grammarChaptersIndexMeta(chapterRows.length, teachingOrder.order.length);
-    writePage(['grammar', 'chapters'], renderDocument({
-        title: chaptersIndexMetaValue.title,
-        description: chaptersIndexMetaValue.description,
-        canonicalPath: grammarChaptersIndexPath(),
-        bodyHtml: chaptersIndexBody,
-        stylesheetHref,
-        pageStylesheetHref: pageStyles.grammarChapters,
-        scriptHref: searchScriptHref,
-    }));
-    sitemapPaths.push(grammarChaptersIndexPath());
-
+    console.log(`[prerender] writing ${chapterRows.length} grammar chapter pages...`);
+    writePage(
+        ['grammar', 'chapters'],
+        grammarChaptersIndexPath(),
+        bodyOf(GrammarChaptersIndexPage, { groups: groupByLevel(chapterRows), chapterCount: chapterRows.length }),
+        grammarChaptersIndexMeta(chapterRows.length, teachingOrder.order.length),
+        { pageStylesheetHref: pageStyles.grammarChapters },
+    );
     chapterRows.forEach((chapter, index) => {
         const previous = chapterRows[index - 1] ?? null;
         const next = chapterRows[index + 1] ?? null;
-        const { body } = render(GrammarChapterPage, {
-            props: {
-                chapter,
-                totalChapters: chapterRows.length,
-                previous: previous ? { id: previous.id, title: previous.title } : null,
-                next: next ? { id: next.id, title: next.title } : null,
-            },
+        const body = bodyOf(GrammarChapterPage, {
+            chapter,
+            totalChapters: chapterRows.length,
+            previous: previous ? { id: previous.id, title: previous.title } : null,
+            next: next ? { id: next.id, title: next.title } : null,
         });
-        const meta = grammarChapterMeta(teachingOrder.chapters[index]);
-        writePage(['grammar', 'chapters', chapter.id], renderDocument({
-            title: meta.title,
-            description: meta.description,
-            canonicalPath: grammarChapterPath(chapter.id),
-            bodyHtml: body,
-            stylesheetHref,
+        writePage(['grammar', 'chapters', chapter.id], grammarChapterPath(chapter.id), body, grammarChapterMeta(teachingOrder.chapters[index]), {
             pageStylesheetHref: pageStyles.grammarChapters,
-            scriptHref: searchScriptHref,
-        }));
-        sitemapPaths.push(grammarChapterPath(chapter.id));
+        });
     });
 
-    // -- Grammar families (contrast lessons + variant comparison), issue #58 ---
-    // One page per near-synonym family, comparing its members side by side - the family
-    // "when to use each" lessons the SRS's own GrammarFamilyScreen surfaces, made public and
-    // crawlable. A strong "X vs Y grammar" search target that no single point's own page can be
-    // (でも vs しかし vs けれど is a question about three pages, not one).
-    console.log('[prerender] writing grammar family pages...');
-    const familyPages = buildFamilyPages([...grammarPoints.values()], contrasts);
-
-    for (const family of familyPages) {
-        const { body } = render(GrammarFamilyPage, { props: { family } });
-        const meta = grammarFamilyMeta(family.name, family.members.length);
-        writePage(['grammar', 'family', family.id], renderDocument({
-            title: meta.title,
-            description: meta.description,
-            canonicalPath: grammarFamilyPath(family.id),
-            bodyHtml: body,
-            stylesheetHref,
-            pageStylesheetHref: pageStyles.grammarFamily,
-            scriptHref: searchScriptHref,
-        }));
-        sitemapPaths.push(grammarFamilyPath(family.id));
-    }
-
-    // -- Grammar conjugation reference, issue #58 ------------------------------
-    // The 40 inflection points' own pages already carry their conjugation table (added above);
-    // this index groups them by form so "Japanese potential form conjugation" has a single
-    // strong landing page rather than requiring the reader to already know which point to look
-    // for.
-    console.log('[prerender] writing grammar conjugation reference page...');
-    const conjugationGroups = groupConjugationsByForm(conjugationIndex, grammarPoints);
-
-    const { body: conjugationsIndexBody } = render(GrammarConjugationsIndexPage, {
-        props: { groups: conjugationGroups, pointCount: Object.keys(conjugationIndex).length },
-    });
-    const conjugationsIndexMetaValue = grammarConjugationsIndexMeta(conjugationGroups.length, Object.keys(conjugationIndex).length);
-    writePage(['grammar', 'conjugations'], renderDocument({
-        title: conjugationsIndexMetaValue.title,
-        description: conjugationsIndexMetaValue.description,
-        canonicalPath: grammarConjugationsIndexPath(),
-        bodyHtml: conjugationsIndexBody,
-        stylesheetHref,
-        pageStylesheetHref: pageStyles.grammarConjugations,
-        scriptHref: searchScriptHref,
-    }));
-    sitemapPaths.push(grammarConjugationsIndexPath());
+    // The inflection points as one reference table per word type, so "Japanese potential form"
+    // has a landing page without the reader knowing which point to look for.
+    const tables = conjugationTables(conjugationIndex, grammarPoints);
+    const formCount = Object.keys(conjugationIndex).length;
+    writePage(
+        ['grammar', 'conjugations'],
+        grammarConjugationsIndexPath(),
+        bodyOf(GrammarConjugationsIndexPage, { tables, formCount }),
+        grammarConjugationsIndexMeta(new Set(Object.values(conjugationIndex).map(entry => entry.form)).size, formCount),
+        { pageStylesheetHref: pageStyles.grammarConjugations },
+    );
 
     // -- Browse indexes -------------------------------------------------------
-    // These exist so every page type has a depth-1 or depth-2 path from the site root. Kanji
-    // pages in particular were previously linked only from whichever vocab pages happened to
-    // contain them, leaving the rarer characters effectively orphaned.
-    const JLPT_LEVELS = [5, 4, 3, 2, 1];
-
+    // These exist so every page type has a depth-1 or depth-2 path from the site root.
     console.log('[prerender] writing kanji index...');
-    const kanjiGroups: { level: number | null; kanji: typeof kanjiList }[] = [
-        ...JLPT_LEVELS.map(level => ({
-            level,
-            kanji: kanjiList.filter(kanji => kanji.steps.jlpt === level),
-        })),
+    const kanjiGroups: { level: number | null; kanji: Kanji[] }[] = [
+        ...JLPT_LEVELS.map(level => ({ level, kanji: kanjiList.filter(kanji => kanji.steps.jlpt === level) })),
         { level: null, kanji: kanjiList.filter(kanji => kanji.steps.jlpt === undefined) },
     ].filter(group => group.kanji.length > 0);
-
-    const { body: kanjiIndexBody } = render(KanjiIndexPage, { props: { groups: kanjiGroups } });
-    const kanjiIndexMetaValue = kanjiIndexMeta(kanjiList.length);
-    writePage(['kanji'], renderDocument({
-        title: kanjiIndexMetaValue.title,
-        description: kanjiIndexMetaValue.description,
-        canonicalPath: kanjiIndexPath(),
-        bodyHtml: kanjiIndexBody,
-        stylesheetHref,
+    writePage(['kanji'], kanjiIndexPath(), bodyOf(KanjiIndexPage, { groups: kanjiGroups }), kanjiIndexMeta(kanjiList.length), {
         pageStylesheetHref: pageStyles.kanjiIndex,
-        scriptHref: searchScriptHref,
-    }));
-    sitemapPaths.push(kanjiIndexPath());
+    });
 
     console.log('[prerender] writing vocabulary browse pages...');
     const jlptLevelWords = JLPT_LEVELS.map(level => ({
         level,
-        // The index carries only {id, containedKanji}; the display fields come from the summary
-        // map built above. An id with no summary is dropped rather than rendered blank.
+        // The index carries only {id, containedKanji}, frequency-ordered; the display fields come
+        // from the summary map built above. An id with no summary is dropped rather than rendered blank.
         words: (vocabJlptIndex[level] ?? [])
             .map(entry => summaryById.get(entry.id))
             .filter((summary): summary is VocabSummary => Boolean(summary)),
     })).filter(group => group.words.length > 0);
-
     const availableLevels = jlptLevelWords.map(group => group.level);
 
+    let jlptPageCount = 0;
     for (const { level, words } of jlptLevelWords) {
-        const { body } = render(VocabJlptPage, { props: { level, words, allLevels: availableLevels } });
-        const meta = vocabJlptMeta(level, words.length);
-        writePage(['vocab', `jlpt-n${level}`], renderDocument({
-            title: meta.title,
-            description: meta.description,
-            canonicalPath: vocabJlptPath(level),
-            bodyHtml: body,
-            stylesheetHref,
-            scriptHref: searchScriptHref,
-        }));
-        sitemapPaths.push(vocabJlptPath(level));
+        // Split so no list page is too heavy for a phone (N1 is ~2,800 words).
+        const pages = paginate(words, JLPT_PAGE_SIZE);
+        pages.forEach((pageWords, index) => {
+            const page = index + 1;
+            const body = bodyOf(VocabJlptPage, {
+                level,
+                words: pageWords,
+                total: words.length,
+                page,
+                pageCount: pages.length,
+                firstRank: index * JLPT_PAGE_SIZE + 1,
+                allLevels: availableLevels,
+            });
+            const segments = ['vocab', `jlpt-n${level}`, ...(page > 1 ? [String(page)] : [])];
+            writePage(segments, vocabJlptPath(level, page), body, vocabJlptMeta(level, words.length, page));
+            jlptPageCount += 1;
+        });
     }
 
-    const { body: vocabIndexBody } = render(VocabIndexPage, {
-        props: {
-            levels: jlptLevelWords.map(({ level, words }) => ({ level, count: words.length })),
-            totalCount: vocabIds.length,
-        },
-    });
-    const vocabIndexMetaValue = vocabIndexMeta(vocabIds.length);
-    writePage(['vocab'], renderDocument({
-        title: vocabIndexMetaValue.title,
-        description: vocabIndexMetaValue.description,
-        canonicalPath: vocabIndexPath(),
-        bodyHtml: vocabIndexBody,
-        stylesheetHref,
-        scriptHref: searchScriptHref,
-    }));
-    sitemapPaths.push(vocabIndexPath());
+    writePage(
+        ['vocab'],
+        vocabIndexPath(),
+        bodyOf(VocabIndexPage, { levels: jlptLevelWords.map(({ level, words }) => ({ level, count: words.length })), totalCount: vocabIds.length }),
+        vocabIndexMeta(vocabIds.length),
+    );
+
+    writePage(['search'], searchPath(), bodyOf(SearchPage, {}), searchMeta(), { noindex: true });
 
     console.log('[prerender] writing home page...');
-    const { body: homeBody } = render(HomePage, {
-        props: {
-            vocabCount: vocabIds.length,
-            kanjiCount: kanjiList.length,
-            grammarCount: grammarIds.length,
-            sentenceCount,
-            // The most frequent N5 words: the index is frequency-ordered, so the head of the
-            // easiest level is the closest thing the dataset has to "words a visitor will know".
-            featured: (jlptLevelWords.find(group => group.level === 5)?.words ?? []).slice(0, 12),
-        },
+    const homeBody = bodyOf(HomePage, {
+        vocabCount: vocabIds.length,
+        kanjiCount: kanjiList.length,
+        grammarCount: grammarPoints.size,
+        sentenceCount,
+        // The most frequent N5 words: the index is frequency-ordered, so the head of the
+        // easiest level is the closest thing the dataset has to "words a visitor will know".
+        featured: (jlptLevelWords.find(group => group.level === 5)?.words ?? []).slice(0, FEATURED_WORDS),
     });
-    const homeMetaValue = homeMeta();
-    const homeHtml = renderDocument({
-        title: homeMetaValue.title,
-        description: homeMetaValue.description,
-        canonicalPath: homePath(),
-        bodyHtml: homeBody,
-        stylesheetHref,
-        pageStylesheetHref: pageStyles.home,
-        scriptHref: searchScriptHref,
-    });
-    fs.writeFileSync(path.join(DIST_DIR, 'index.html'), homeHtml);
+    // The home page is dist/index.html itself: writePage writes there from an empty segment list.
+    writePage([], homePath(), homeBody, homeMeta(), { pageStylesheetHref: pageStyles.home });
+
+    if (missingLang.length > 0) {
+        throw new Error(`[prerender] ${missingLang.length} page(s) have Japanese text not marked lang="ja", e.g.\n${missingLang.slice(0, 5).join('\n')}`);
+    }
 
     console.log('[prerender] writing search index, sitemap.xml, and robots.txt...');
+    // Frequency order is the ranking's last tie-break: a row's position is its rank.
+    const wordRows = frequencyIndex
+        .map(entry => searchRowById.get(entry.id))
+        .filter((row): row is SearchWordRow => Boolean(row));
+    const { core, full } = splitSearchIndex(
+        wordRows,
+        kanjiList.map(searchKanjiRow),
+        pointsInOrder.map(searchGrammarRow),
+    );
     fs.mkdirSync(path.join(DIST_DIR, 'data'), { recursive: true });
-    fs.writeFileSync(path.join(DIST_DIR, 'data', 'search.json'), JSON.stringify(searchIndex));
-    fs.writeFileSync(path.join(DIST_DIR, 'data', 'grammar-browse.json'), JSON.stringify(browseRows));
-    fs.writeFileSync(path.join(DIST_DIR, 'sitemap.xml'), buildSitemapXml(sitemapPaths));
+    fs.writeFileSync(path.join(DIST_DIR, 'data', 'search-core.json'), JSON.stringify(core));
+    fs.writeFileSync(path.join(DIST_DIR, 'data', 'search-full.json'), JSON.stringify(full));
+    // The home page first, as before: it is written last only because it counts the sentences.
+    fs.writeFileSync(path.join(DIST_DIR, 'sitemap.xml'), buildSitemapXml([homePath(), ...sitemapPaths.filter(p => p !== homePath())]));
     if (shouldEmitRobotsTxt()) {
         fs.writeFileSync(path.join(DIST_DIR, 'robots.txt'), buildRobotsTxt());
     } else {
@@ -536,9 +472,9 @@ async function main(): Promise<void> {
     const elapsedSeconds = ((Date.now() - startedAt) / 1000).toFixed(1);
     console.log(
         `[prerender] done: ${vocabIds.length} vocab pages, ${kanjiList.length} kanji pages, ` +
-        `${grammarIds.length} grammar pages, ${chapterRows.length} grammar chapter pages, ` +
-        `${familyPages.length} grammar family pages, 1 grammar conjugation reference page, ` +
-        `${jlptLevelWords.length + 3} index pages, 1 home page in ${elapsedSeconds}s.`,
+        `${grammarPoints.size} grammar pages, ${chapterRows.length} grammar chapter pages, ` +
+        `${familyPages.length} grammar family pages, ${jlptPageCount} JLPT list pages, ` +
+        `${sitemapPaths.length} sitemap URLs in ${elapsedSeconds}s.`,
     );
 }
 

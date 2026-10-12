@@ -4,6 +4,7 @@
 
 import type { GrammarPoint, GrammarTeachingOrder } from '@gokan/dataset-schema';
 import type { GrammarSummary } from './types';
+import { grammarSummaryOf } from './grammarBrowse';
 
 /** Where one grammar point sits in the curriculum. */
 export interface ChapterLocator {
@@ -66,6 +67,6 @@ export function buildChapterIndexRows(order: GrammarTeachingOrder, pointsById: M
         points: chapter.points
             .map(id => pointsById.get(id))
             .filter((point): point is GrammarPoint => Boolean(point))
-            .map(point => ({ id: point.id, title: point.title, jlptLevel: point.jlptLevel })),
+            .map(grammarSummaryOf),
     }));
 }

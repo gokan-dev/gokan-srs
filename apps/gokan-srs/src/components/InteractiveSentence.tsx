@@ -1,6 +1,6 @@
 import type { Sentence } from "@gokan/dataset-schema";
 import { WordGlossTooltip, type WordLinkProps } from "./WordGlossTooltip";
-import { segmentInteractiveSentence, type HighlightRange } from "../utils/interactiveSentence.utils";
+import { segmentInteractiveSentence, type HighlightRange } from "@gokan/dataset-schema";
 
 interface InteractiveSentenceProps {
     sentence: Sentence;

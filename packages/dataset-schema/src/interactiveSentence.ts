@@ -1,4 +1,4 @@
-import type { Sentence } from "@gokan/dataset-schema";
+import type { Sentence } from "./sentence";
 
 /** A character-offset range into `Sentence.original` to render with the target styling. */
 export interface HighlightRange {
@@ -25,7 +25,8 @@ export interface SegmentInteractiveSentenceOptions {
 }
 
 /**
- * Pure segmentation for `InteractiveSentence`: splits `sentence.original` into
+ * Pure segmentation for gokan-srs's `InteractiveSentence` and the dictionary's
+ * example sentences: splits `sentence.original` into
  * ordered text/match runs and flags which ones are the studied target word
  * or fall inside a `highlightRanges` entry (e.g. a grammar pattern's
  * markers). Split out of the component because the app has no

@@ -56,8 +56,8 @@ describe('buildFamilyPages', () => {
 
         expect(pages[0].lessons).toHaveLength(1);
         expect(pages[0].lessons[0].cases).toEqual([{
-            focus: { id: 'n4-110', title: 'ので', jlptLevel: 4 },
-            vs: [{ id: 'n5-073', title: 'から', jlptLevel: 5 }],
+            focus: { id: 'n4-110', title: 'ので', jlptLevel: 4, shortExplanation: 's' },
+            vs: [{ id: 'n5-073', title: 'から', jlptLevel: 5, shortExplanation: 's' }],
             situation: 'apologising',
             guidance: 'use ので',
         }]);

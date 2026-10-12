@@ -1,40 +1,48 @@
 <script lang="ts">
-  import type { ConjugationGroup } from '../lib/grammarConjugations';
+  import { WORD_TYPE_LABEL, type ConjugationTable } from '../lib/grammarConjugations';
   import { grammarIndexPath, grammarPath } from '../lib/urls';
   import PageLayout from './PageLayout.svelte';
+  import GrammarTabs from './GrammarTabs.svelte';
 
   interface Props {
-    groups: ConjugationGroup[];
-    pointCount: number;
+    tables: ConjugationTable[];
+    formCount: number;
   }
 
-  let { groups, pointCount }: Props = $props();
+  let { tables, formCount }: Props = $props();
 </script>
 
-<PageLayout trail={[{ label: 'Grammar', href: grammarIndexPath() }, { label: 'Conjugations' }]}>
-
-  <div class="hero">
-    <h1>Japanese Conjugation Reference</h1>
+<PageLayout trail={[{ label: 'Grammar', href: grammarIndexPath() }, { label: 'Conjugations' }]} section="grammar" wide>
+  <div class="page-intro">
+    <h1>Conjugation reference</h1>
     <p>
-      {groups.length} conjugation forms across {pointCount} inflection pattern{pointCount === 1 ? '' : 's'} - the
-      て-form, potential, causative, and more - each linking to a full table of example verbs
-      and adjectives.
+      {formCount} forms of verbs and adjectives, from the <span lang="ja">て</span>-form to the causative-passive. Each
+      pattern links to its point, with a full table of examples.
     </p>
   </div>
 
-  <ul class="conjugation-form-list">
-    {#each groups as group (group.formLabel)}
-      <li class="card">
-        <h2>{group.formLabel}</h2>
-        <ul class="vocab-list">
-          {#each group.points as point (point.id)}
-            <li class="vocab-list-item">
-              <a class="jp" href={grammarPath(point.id)}>{point.title}</a>
-              <span class="muted">{point.itemCount} example{point.itemCount === 1 ? '' : 's'}</span>
-            </li>
-          {/each}
-        </ul>
-      </li>
-    {/each}
-  </ul>
+  <GrammarTabs current="conjugations" />
+
+  {#each tables as table (table.wordType)}
+    <section class="section">
+      <h2>{WORD_TYPE_LABEL[table.wordType]}</h2>
+      <div class="table-scroll">
+        <table class="conjugation-reference">
+          <thead>
+            <tr><th scope="col">Form</th><th scope="col">Pattern</th><th scope="col">Example</th><th scope="col">Level</th></tr>
+          </thead>
+          <tbody>
+            {#each table.rows as row (row.id)}
+              <tr>
+                <th scope="row">{row.formLabel}</th>
+                <td><a href={grammarPath(row.id)} lang="ja">{row.pattern}</a></td>
+                <td lang="ja">{#if row.example}{row.example.lemma} → {row.example.target}{/if}</td>
+                <td>N{row.jlptLevel}</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {/each}
 </PageLayout>

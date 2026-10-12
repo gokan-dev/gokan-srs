@@ -1,5 +1,5 @@
 import type { FrequencyIndex, JlptIndex, KKLCIndex, KKLCKanjiIndex, Kanji, KanjiVocabIndex, SearchIndex, Sentence, Vocabulary } from '@gokan/dataset-schema';
-import { romajiToHiragana, looksLikeRomaji } from '../utils/romaji';
+import { romajiToHiragana, looksLikeRomaji } from '@gokan/dataset-schema';
 import { datasetUrl, fetchJson, readJson } from './http';
 
 /**

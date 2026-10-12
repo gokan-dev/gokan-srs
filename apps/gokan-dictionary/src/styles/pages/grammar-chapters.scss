@@ -1,68 +1,54 @@
-// GrammarChaptersIndexPage.svelte + GrammarChapterPage.svelte only (issue #58) - the two share a
-// stylesheet because they are the same content at two zoom levels (a chapter's own row vs. its
-// full page), not because two unrelated page types happened to want the same rules.
+// GrammarChaptersIndexPage.svelte + GrammarChapterPage.svelte only: the two share a stylesheet
+// because they are the same content at two zoom levels (a chapter's own row vs. its full page).
 
 @use '../tokens' as *;
 
 .chapter-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: $space-2;
+  @include bare-list;
+
+  > li + li {
+    border-top: 1px solid var(--divider);
+  }
+
+  a {
+    display: flex;
+    flex-direction: column;
+    padding: $space-1 $space-half;
+    color: var(--primary);
+
+    &:hover,
+    &:focus-visible {
+      background-color: var(--surface-hover);
+      color: var(--primary);
+      text-decoration: none;
+    }
+  }
+
+  .support {
+    font-size: $text-sm;
+  }
 }
 
-.chapter-row-link {
-  @include surface($space-2);
-  @include interactive-surface;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  color: var(--primary);
-}
-
-.chapter-row-head {
-  display: flex;
-  align-items: baseline;
-  gap: $space-1;
-}
-
-.chapter-row-number {
-  color: var(--secondary);
-  font-size: $text-sm;
-  font-family: $font-gothic;
-}
-
-.chapter-row-title {
-  font-family: $font-serif;
-  font-size: $text-xl;
-  font-weight: 600;
-}
-
-.chapter-row-summary {
-  color: var(--secondary);
-  font-size: $text-base;
-}
-
-.chapter-row-count {
-  font-size: $text-sm;
+.chapter-list-title {
+  font-weight: 500;
 }
 
 .chapter-pager {
   display: flex;
   justify-content: space-between;
   gap: $space-2;
-  margin-top: $space-4;
+  margin-top: $space-5;
   padding-top: $space-3;
   border-top: 1px solid var(--divider);
+
+  a {
+    display: flex;
+    flex-direction: column;
+    min-height: $target;
+  }
 }
 
-.chapter-pager-link {
-  color: var(--secondary);
-
-  &--next {
-    margin-left: auto;
-    text-align: right;
-  }
+.chapter-pager-next {
+  margin-left: auto;
+  text-align: right;
 }

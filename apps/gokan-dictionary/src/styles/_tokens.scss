@@ -1,8 +1,8 @@
 // Design tokens, shared by app.scss and every per-page stylesheet.
 //
 // This partial emits NO CSS. It holds only Sass variables and mixins, so a page stylesheet can
-// `@use` it without duplicating rules into its own bundle: six page entries importing a partial
-// that emitted output would ship six copies of it.
+// `@use` it without duplicating rules into its own bundle: page entries importing a partial that
+// emitted output would each ship a copy of it.
 //
 // Two kinds of token live here, and the split is deliberate:
 //
@@ -12,63 +12,82 @@
 //
 //   - CSS custom properties (--accent, --surface, ...) for values that must change at RUNTIME.
 //     The dark theme swaps them under a prefers-color-scheme query, which build-time variables
-//     cannot express. They are declared once, in app.scss's :root, which every page loads.
+//     cannot express. They are declared once, in app.scss's :root, with the same values as
+//     gokan-srs's index.css (docs/DESIGN_SYSTEM.md, Dictionary).
 //
 // So: colours are custom properties, geometry and type stacks are Sass variables, and nothing
 // is defined twice.
 
-// -- Spacing scale ----------------------------------------------------------
+// -- Spacing scale (8px grid) -------------------------------------------------
+$space-half: 0.25rem;
 $space-1: 0.5rem;
 $space-2: 1rem;
 $space-3: 1.5rem;
 $space-4: 2rem;
+$space-5: 2.5rem;
 $space-6: 3rem;
 
 // -- Breakpoints ------------------------------------------------------------
+/// Phones end here: below it the header takes two rows and the search panel the whole screen.
+$bp-narrow: 40rem;
 /// Point at which the vocab entry page splits into two columns.
 $bp-wide: 56rem;
 
-// -- Radii ------------------------------------------------------------------
-$radius-sm: 0.25rem;
-$radius-md: 0.375rem;
-$radius-lg: 0.5rem;
+// -- Shape --------------------------------------------------------------------
+/// Every card, chip, tile, input and button (DESIGN_SYSTEM.md: rounded-md).
+$radius: 0.375rem;
+/// Only the search field is a pill.
 $radius-pill: 999px;
+/// The smallest comfortable touch target.
+$target: 2.75rem;
 
 // -- Measure ----------------------------------------------------------------
 /// Reading measure for text-heavy pages.
 $measure-text: 42rem;
-/// Wider container for pages that are a layout rather than a column of prose.
+/// Entry pages and the header, on every page, so the header lines up with the content.
 $measure-wide: 60rem;
 
 // -- Type -------------------------------------------------------------------
-$font-serif: "Source Serif 4", Georgia, serif;
-$font-sans: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
-$font-mincho: "Noto Serif JP", "Hiragino Mincho ProN", "Yu Mincho", serif;
-$font-gothic: "Noto Sans JP", "Hiragino Sans", "Yu Gothic", sans-serif;
+// The stacks are written once, as custom properties in app.scss's :root, and used through these
+// variables: a stack repeated in every rule that sets a face was a tenth of the stylesheet.
+$font-serif-stack: "Source Serif 4", Georgia, serif;
+$font-sans-stack: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+$font-mincho-stack: "Noto Serif JP", "Hiragino Mincho ProN", "Yu Mincho", "MS PMincho", serif;
+$font-gothic-stack: "Noto Sans JP", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+$font-serif: var(--font-serif);
+$font-sans: var(--font-sans);
+$font-mincho: var(--font-mincho);
+$font-gothic: var(--font-gothic);
 
+/// The floor: nothing below 12px.
 $text-xs: 0.75rem;
-$text-sm: 0.8125rem;
-$text-base: 0.875rem;
-$text-md: 0.9375rem;
-$text-lg: 1.0625rem;
-$text-xl: 1.125rem;
+$text-sm: 0.875rem;
+$text-base: 1rem;
+$text-lg: 1.125rem;
+$text-xl: 1.25rem;
+$text-2xl: 1.5rem;
+$text-3xl: 1.875rem;
+
+$motion: 150ms ease-in-out;
 
 // -- Mixins -----------------------------------------------------------------
 
-/// Card-like surface. Used by .card and by the tile/point-card variants, which would otherwise
-/// each restate the same border, radius and background.
-@mixin surface($padding: $space-3) {
+/// A box that is an object (a tile, an entry in a grid of objects), not a page section.
+@mixin surface($padding: $space-2) {
   background-color: var(--surface);
   border: 1px solid var(--divider);
-  border-radius: $radius-lg;
+  border-radius: $radius;
   padding: $padding;
 }
 
-/// The hover treatment every clickable card shares.
+/// The hover and focus treatment every clickable box shares.
 @mixin interactive-surface {
+  transition: border-color $motion, background-color $motion;
+
   &:hover,
   &:focus-visible {
     border-color: var(--accent);
+    background-color: var(--surface-hover);
     text-decoration: none;
   }
 }
@@ -80,8 +99,39 @@ $text-xl: 1.125rem;
   white-space: nowrap;
 }
 
+/// A list with no bullets or indent.
+@mixin bare-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+/// An .entry-list in narrow columns (a phone, the word page's aside): headword and reading on
+/// one line, the gloss under them.
+@mixin stacked-entries {
+  a {
+    grid-template-columns: auto minmax(0, 1fr);
+
+    > [lang="en"] {
+      grid-column: 1 / -1;
+    }
+  }
+}
+
 @mixin wide {
   @media (min-width: $bp-wide) {
+    @content;
+  }
+}
+
+@mixin narrow {
+  @media (max-width: #{$bp-narrow - 0.01rem}) {
+    @content;
+  }
+}
+
+@mixin not-narrow {
+  @media (min-width: $bp-narrow) {
     @content;
   }
 }

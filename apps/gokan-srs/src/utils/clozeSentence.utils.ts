@@ -1,5 +1,5 @@
+import { grammarExampleToSentence, surfaceReading } from '@gokan/dataset-schema';
 import type { GrammarExample, Sentence } from '@gokan/dataset-schema';
-import { grammarExampleToSentence, surfaceReading } from './grammarSentence.utils';
 import type { ProductionCloze } from './productionCloze.utils';
 
 /** One blank in a cloze sentence: a character range of `sentence.original`. */

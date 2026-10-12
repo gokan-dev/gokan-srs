@@ -7,7 +7,7 @@ import {
     loadKanjiList,
     loadKanjiVocabIndex,
     loadSentences,
-    loadSearchIndex,
+    loadFrequencyIndex,
     loadGrammarMinedExamples,
 } from './dataset.server';
 
@@ -57,10 +57,9 @@ describe('loadSentences', () => {
     });
 });
 
-describe('loadSearchIndex', () => {
-    it('loads the compact search index', () => {
-        const index = loadSearchIndex(FIXTURES_DIR);
-        expect(index).toEqual([{ id: '1589350', w: '思う', r: 'おもう', m: 'to think, to consider' }]);
+describe('loadFrequencyIndex', () => {
+    it('loads the frequency-ordered vocab ids', () => {
+        expect(loadFrequencyIndex(FIXTURES_DIR)).toEqual([{ id: '1589350', containedKanji: ['思'] }]);
     });
 });
 

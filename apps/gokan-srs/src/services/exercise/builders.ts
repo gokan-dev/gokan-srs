@@ -3,10 +3,9 @@
 // One builder per host. A builder decides what an exercise asks (its slots), what
 // decides a near-synonym (its cue) and what its card shows; grading, feedback and
 // SRS effects then come from the shared engine, never from the builder.
-import { headwordOf } from '@gokan/dataset-schema';
+import { grammarExampleToSentence, headwordOf } from '@gokan/dataset-schema';
 import type { GrammarPoint, Sentence, Vocabulary } from '@gokan/dataset-schema';
 import { grammarClozeSentence, productionClozeSentence } from '../../utils/clozeSentence.utils';
-import { grammarExampleToSentence } from '../../utils/grammarSentence.utils';
 import { blankSurfaceOf } from '../../utils/productionCloze.utils';
 import type { ProductionCloze } from '../../utils/productionCloze.utils';
 import type { QuizMode, QuizType } from '../../utils/srs.utils';

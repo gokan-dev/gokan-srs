@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "sideEffects": false,
   "description": "Types (and JMdict tag labels, headword choice) for the compiled gokan-dataset files both apps read.",
   "exports": {
     ".": "./src/index.ts"

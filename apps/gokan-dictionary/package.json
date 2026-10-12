@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build && bun scripts/prerender.ts",
+    "dev": "bun run build && vite preview",
+    "build": "vite build && bun scripts/prerender.ts && bun scripts/check-build.ts",
     "prerender": "bun scripts/prerender.ts",
     "preview": "vite preview",
     "typecheck": "svelte-check --tsconfig ./tsconfig.json",

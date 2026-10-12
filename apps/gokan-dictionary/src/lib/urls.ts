@@ -16,9 +16,12 @@ export function vocabIndexPath(): string {
     return `${BASE_PATH}/vocab/`;
 }
 
-/** Browse page for one JLPT level's vocabulary, e.g. "/dictionary/vocab/jlpt-n5/". */
-export function vocabJlptPath(level: number): string {
-    return `${BASE_PATH}/vocab/jlpt-n${level}/`;
+/**
+ * One page of a JLPT level's vocabulary list: "/dictionary/vocab/jlpt-n1/" for the first page,
+ * "/dictionary/vocab/jlpt-n1/2/" for the next ones.
+ */
+export function vocabJlptPath(level: number, page = 1): string {
+    return `${BASE_PATH}/vocab/jlpt-n${level}/${page > 1 ? `${page}/` : ''}`;
 }
 
 export function kanjiIndexPath(): string {
@@ -55,6 +58,11 @@ export function grammarFamilyPath(id: string): string {
     return `${BASE_PATH}/grammar/family/${id}/`;
 }
 
+/** Every near-synonym family with its members, linking to each family's page. */
+export function grammarFamiliesIndexPath(): string {
+    return `${BASE_PATH}/grammar/families/`;
+}
+
 /** The conjugation reference index: every inflection form, grouped, linking to each point's own table. */
 export function grammarConjugationsIndexPath(): string {
     return `${BASE_PATH}/grammar/conjugations/`;
@@ -77,14 +85,18 @@ export function faviconPath(): string {
     return `${BASE_PATH}/favicon.svg`;
 }
 
-/** Href the grammar browser fetches its prebuilt row data from. */
-export function grammarBrowseDataPath(): string {
-    return `${BASE_PATH}/data/grammar-browse.json`;
+/** The full search results page; `query` goes in its `q` parameter. Not indexed, not in the sitemap. */
+export function searchPath(query?: string): string {
+    return `${BASE_PATH}/search/${query ? `?q=${encodeURIComponent(query)}` : ''}`;
 }
 
-/** Href the client search script fetches its prebuilt index from. */
-export function searchIndexPath(): string {
-    return `${BASE_PATH}/data/search.json`;
+/**
+ * Hrefs the client search fetches its prebuilt index from: the core file first, the full one in
+ * the background (see SearchIndexFile). Fixed paths, like the pages: the deploy is content
+ * addressed, so a changed index is uploaded and served fresh without a hash in its name.
+ */
+export function searchIndexPaths(): { core: string; full: string } {
+    return { core: `${BASE_PATH}/data/search-core.json`, full: `${BASE_PATH}/data/search-full.json` };
 }
 
 export function absoluteUrl(pathname: string): string {

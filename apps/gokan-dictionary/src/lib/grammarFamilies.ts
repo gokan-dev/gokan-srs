@@ -6,6 +6,7 @@
 
 import type { GrammarContrastIndex, GrammarPoint } from '@gokan/dataset-schema';
 import type { GrammarSummary } from './types';
+import { grammarSummaryOf } from './grammarBrowse';
 
 export interface FamilyLessonCase {
     focus: GrammarSummary;
@@ -31,16 +32,12 @@ export interface FamilyPageData {
     interchangeable: GrammarSummary[];
 }
 
-function toSummary(point: GrammarPoint): GrammarSummary {
-    return { id: point.id, title: point.title, jlptLevel: point.jlptLevel };
-}
-
 /** Resolves a list of point ids to summaries via `pointsById`, dropping any that don't resolve. */
 function resolveSummaries(ids: string[], pointsById: Map<string, GrammarPoint>): GrammarSummary[] {
     return ids
         .map(id => pointsById.get(id))
         .filter((point): point is GrammarPoint => Boolean(point))
-        .map(toSummary);
+        .map(grammarSummaryOf);
 }
 
 /**
@@ -76,7 +73,7 @@ export function buildFamilyPages(points: GrammarPoint[], contrasts: GrammarContr
                     const focus = pointsById.get(case_.focus);
                     if (!focus) return null;
                     return {
-                        focus: toSummary(focus),
+                        focus: grammarSummaryOf(focus),
                         vs: resolveSummaries(case_.vs, pointsById),
                         situation: case_.situation,
                         guidance: case_.guidance,
@@ -90,7 +87,7 @@ export function buildFamilyPages(points: GrammarPoint[], contrasts: GrammarContr
             name: members[0].family!.name,
             members: [...members]
                 .sort((a, b) => b.jlptLevel - a.jlptLevel || a.id.localeCompare(b.id))
-                .map(toSummary),
+                .map(grammarSummaryOf),
             lessons,
             interchangeable: resolveSummaries(contrastEntry?.interchangeable ?? [], pointsById),
         });

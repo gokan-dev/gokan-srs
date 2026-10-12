@@ -1,12 +1,37 @@
-// GrammarConjugationsIndexPage.svelte only (issue #58).
+// GrammarConjugationsIndexPage.svelte only.
 
 @use '../tokens' as *;
 
-.conjugation-form-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: $space-2;
+// The table scrolls inside its own box on a phone rather than widening the page.
+.table-scroll {
+  overflow-x: auto;
+}
+
+.conjugation-reference {
+  width: 100%;
+  border-collapse: collapse;
+
+  th,
+  td {
+    padding: $space-1 $space-2 $space-1 0;
+    border-bottom: 1px solid var(--divider);
+    text-align: left;
+    vertical-align: baseline;
+  }
+
+  thead th {
+    color: var(--secondary);
+    font-size: $text-sm;
+    font-weight: 500;
+  }
+
+  tbody th {
+    font-weight: 500;
+  }
+
+  td:last-child {
+    color: var(--tertiary);
+    font-size: $text-sm;
+    white-space: nowrap;
+  }
 }

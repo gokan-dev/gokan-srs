@@ -95,7 +95,10 @@ block of 60+ tokens in production code (120+ in tests).
 Both apps: a word is named through `headwordOf`, `secondaryForm` and `headwordWithReading`
 (`searchHeadword` / `searchSecondaryForm` for search rows) from `@gokan/dataset-schema`, never by
 reading `writtenForm.kanji` for display: a word learned in kana (`usuallyKana`) is shown in kana.
-A word's textbook lessons are named through `textbookLessonsLabel`.
+A word's textbook lessons are named through `textbookLessonsLabel`. Also shared by both apps,
+from the same package: romaji (`romajiToHiragana`, `toHiragana`, `kanaToRomaji`,
+`looksLikeRomaji`), a sentence's linked and highlighted runs (`segmentInteractiveSentence`) and a
+grammar example as a `Sentence` (`grammarExampleToSentence`, `patternHighlightRanges`).
 
 gokan-srs, quizzes. **Every quiz is an exercise, and every exercise runs on one engine
 (`services/exercise/`, see the Exercise engine section of docs/ARCHITECTURE.md).** An activity
@@ -130,7 +133,7 @@ The rest of the study flow:
 - Calibration: `services/calibration.ts`, per quiz type, recorded by `applyEffects` only.
 - Sentences: `utils/sentenceRanking.ts` for every activity that picks an example; a sentence with
   blanks is a `ClozeSentence` (`utils/clozeSentence.utils.ts`); a grammar example becomes a
-  `Sentence` through `grammarExampleToSentence` (`utils/grammarSentence.utils.ts`).
+  `Sentence` through `grammarExampleToSentence` (`@gokan/dataset-schema`).
 - Session flow: `useSessionLifecycle`, `components/SessionProgress.tsx` (counter, ticker, gains),
   the commit pipeline in `quizSelectors.ts` shared by the preview and the session.
 - Card building blocks: `components/quiz/` (`QuizCardFrame`, `QuizMasteryCorner`,
@@ -172,11 +175,24 @@ gokan-srs, everything else:
 
 gokan-dictionary:
 
-- Page frame and breadcrumb: `pages/PageLayout.svelte` (every page).
-- `pages/VocabEntryList.svelte`, `pages/GrammarPointCard.svelte`,
-  `pages/ExampleSentenceList.svelte`, `lib/sentenceSegments.ts`.
+- Page frame and breadcrumb: `pages/PageLayout.svelte` (every page: skip link, header with
+  `SearchBox.svelte`, footer). Grammar browse pages share `pages/GrammarTabs.svelte`.
+- Lists: `pages/VocabEntryList.svelte` (every word list: headword | reading | gloss, the rest
+  in a disclosure), `pages/GrammarList.svelte` (every list of grammar points),
+  `pages/Chip.svelte` (neutral metadata), `pages/Pager.svelte`.
+- Sentences: `pages/SentenceText.svelte` renders runs from `lib/furigana.ts`
+  (`sentenceRuns`, `rubyParts`); `pages/GrammarExamples.svelte` for grammar examples;
+  `pages/FuriganaToggle.svelte`; the order a word's sentences show in, `lib/sentenceOrder.ts`.
+- Word pages: `lib/senses.ts` (meanings, summary gloss), `lib/conjugation.ts` (the one rule
+  table, used by `conjugate` for the Forms table and by `deinflect` for search).
+- Search: the index built at prerender by `lib/searchIndex.ts` (format in `lib/types.ts`,
+  row flags in `lib/searchRow.ts`), matched and ranked only by `lib/searchQuery.ts`, the
+  same module behind the header panel, `/search/` and the build-time acceptance check.
+- Size budgets: `lib/budgets.ts`, checked by `scripts/check-build.ts` after every build.
 - Every URL from `lib/urls.ts` (it applies the base path); SEO from `lib/seo.ts`.
-- Test fixtures: `src/test/fixtures.ts`.
+- Client scripts are plain TypeScript (`client/search.ts`, `client/grammarFilter.ts`): no
+  Svelte runtime on any page (the build checks it).
+- Test fixtures: `src/test/fixtures.ts` (`vocabulary`, `grammarPoint`, `kanji`, `sentence`).
 
 ## Functional rules (gokan-srs)
 
@@ -243,6 +259,10 @@ gokan-dictionary:
   `app.scss` only when two or more page types use it; `_tokens.scss` emits no CSS; Svelte
   components have no `<style>` blocks. The build must stay byte-reproducible (no timestamps or
   build ids in output), or every deploy re-uploads all pages.
+- Dictionary pages: every element holding Japanese text carries `lang="ja"` (prerender fails on
+  Japanese-only text outside one, and on a `jp`-class element without it; `langOf` for dataset
+  text that may be either language), and each page type stays within its size budget
+  (`lib/budgets.ts`, docs/DESIGN_SYSTEM.md section 8; the build fails otherwise).
 
 ## Testing rules
 

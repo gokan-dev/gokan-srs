@@ -1,6 +1,6 @@
 import type { Vocabulary } from '@gokan/dataset-schema';
 import { hasKanji, isKanaOnly, kanjiSkeleton } from './kanji.utils';
-import { toHiragana } from './romaji';
+import { toHiragana } from '@gokan/dataset-schema';
 
 /**
  * How a word inflects, from its JMdict part-of-speech tags.

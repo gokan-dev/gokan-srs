@@ -1,42 +1,36 @@
 <script lang="ts">
   import { grammarIndexPath, homePath, kanjiIndexPath, vocabIndexPath } from '../lib/urls';
+  import type { Section } from '../lib/types';
+  import SearchBox from './SearchBox.svelte';
+
+  interface Props {
+    section?: Section;
+    /** The search field, on every page but the home page (whose hero is one). */
+    search: boolean;
+  }
+
+  let { section, search }: Props = $props();
+
+  const LINKS: { section: Section; label: string; href: string }[] = [
+    { section: 'vocab', label: 'Vocabulary', href: vocabIndexPath() },
+    { section: 'kanji', label: 'Kanji', href: kanjiIndexPath() },
+    { section: 'grammar', label: 'Grammar', href: grammarIndexPath() },
+  ];
 </script>
 
+<!--
+  The search field lives in the shared header rather than only on the home page: looking a word
+  up is the purpose of this site, so it should never cost a trip back home. The container is
+  the wide measure on every page, so the header lines up with the entry pages.
+-->
 <header class="site-header">
-  <div class="container site-header-inner">
-    <a class="site-title" href={homePath()}><span class="jp">語感</span> Dictionary</a>
-
-    <!--
-      The search box lives in the shared header rather than only on the home page, mirroring
-      gokan-srs's own always-available SearchBar: looking a word up is the entire purpose of
-      this site, so it should never cost a trip back to the home page. It is the only reason
-      every page links the search script; the ~3MB index is still fetched lazily on first
-      focus, so pages that are never searched from pay nothing for it.
-    -->
-    <div class="site-search" data-search>
-      <label class="visually-hidden" for="site-search-input">Search vocabulary</label>
-      <input
-        id="site-search-input"
-        class="search-input"
-        type="search"
-        placeholder="Search kanji, reading, or meaning..."
-        autocomplete="off"
-        role="combobox"
-        aria-expanded="false"
-        aria-controls="site-search-results"
-        aria-autocomplete="list"
-        data-search-input
-      />
-      <div class="search-panel" data-search-panel hidden>
-        <p class="search-status" aria-live="polite" data-search-status></p>
-        <ul class="search-results" id="site-search-results" role="listbox" data-search-results></ul>
-      </div>
-    </div>
-
-    <nav class="site-nav">
-      <a href={vocabIndexPath()}>Vocabulary</a>
-      <a href={kanjiIndexPath()}>Kanji</a>
-      <a href={grammarIndexPath()}>Grammar</a>
+  <div class="container container--wide site-header-inner">
+    <a class="site-title" href={homePath()}><span lang="ja">語感</span> <span class="site-title-word">Dictionary</span></a>
+    <nav class="site-nav" aria-label="Main">
+      {#each LINKS as link (link.section)}
+        <a href={link.href} aria-current={link.section === section ? 'page' : undefined}>{link.label}</a>
+      {/each}
     </nav>
+    {#if search}<SearchBox />{/if}
   </div>
 </header>
