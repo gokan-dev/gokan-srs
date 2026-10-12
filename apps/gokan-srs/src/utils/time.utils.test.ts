@@ -46,15 +46,17 @@ describe('formatShortDate', () => {
     });
 });
 
+// These two format in the viewer's timezone, so their inputs are local dates: a UTC instant
+// shows a different hour (or, near midnight, a different day) on a machine outside UTC.
 describe('formatDateTime', () => {
     it('combines the date and the time', () => {
-        expect(formatDateTime(new Date('2026-04-19T10:59:00Z'))).toBe('Apr 19, 2026, 10:59 AM');
+        expect(formatDateTime(new Date(2026, 3, 19, 10, 59))).toBe('Apr 19, 2026, 10:59 AM');
     });
 });
 
 describe('formatWeekday', () => {
     it('gives the three-letter weekday', () => {
-        expect(formatWeekday(new Date('2026-04-20T00:00:00Z'))).toBe('Mon');
+        expect(formatWeekday(new Date(2026, 3, 20))).toBe('Mon');
     });
 });
 
