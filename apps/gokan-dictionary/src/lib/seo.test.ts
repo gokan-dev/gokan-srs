@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { vocabMeta, kanjiMeta, homeMeta, grammarChaptersIndexMeta, grammarChapterMeta, grammarFamilyMeta, grammarConjugationsIndexMeta } from './seo';
+import { vocabMeta, kanjiMeta, grammarMeta, homeMeta, grammarChaptersIndexMeta, grammarChapterMeta, grammarFamilyMeta, grammarConjugationsIndexMeta, searchablePattern, quotedGlosses, sentenceCase } from './seo';
 import type { GrammarChapter, Kanji } from '@gokan/dataset-schema';
-import { vocabulary } from '../test/fixtures';
+import { grammarPoint, vocabulary } from '../test/fixtures';
 
 function makeKanji(overrides: Partial<Kanji> = {}): Kanji {
     return {
@@ -18,6 +18,21 @@ describe('vocabMeta', () => {
         expect(title).toContain('思う');
         expect(title).toContain('おもう');
         expect(description).toContain('to think');
+    });
+
+    it('puts the English meaning in the title, as learners search it', () => {
+        const { title } = vocabMeta(vocabulary());
+        expect(title).toMatch(/^思う \(おもう\) meaning: to think, to consider/);
+    });
+
+    it('truncates a long meaning in the title but not in the description', () => {
+        const long = 'to be thoroughly and completely exhausted after a long day';
+        const vocab = vocabulary({
+            senses: [{ pos: ['v1'], misc: { rawTags: [] }, glosses: [long], related: { compounds: [] } }],
+        });
+        expect(vocabMeta(vocab).title).not.toContain(long);
+        expect(vocabMeta(vocab).title).toContain('…');
+        expect(vocabMeta(vocab).description).toContain(long);
     });
 
     it('appends the JLPT level when present', () => {
@@ -65,8 +80,86 @@ describe('kanjiMeta', () => {
     });
 
     it('handles zero associated vocab without a dangling count', () => {
-        const { description } = kanjiMeta(makeKanji(), 0);
+        const { title, description } = kanjiMeta(makeKanji(), 0);
         expect(description).not.toContain('0 vocabulary');
+        expect(title).not.toContain('words using');
+    });
+
+    it('pairs the character with the word "kanji", as it is searched', () => {
+        expect(kanjiMeta(makeKanji(), 3).title).toMatch(/^思 kanji/);
+    });
+});
+
+describe('grammarMeta', () => {
+    it('titles a construction by its searchable pattern, romaji and quoted meaning', () => {
+        const { title } = grammarMeta(grammarPoint());
+        expect(title).toMatch(/^を問わず \(wo towazu\) meaning: regardless of, irrespective of \| JLPT N2 grammar/);
+    });
+
+    it('falls back to "meaning and usage" when the explanation quotes no equivalent', () => {
+        const { title } = grammarMeta(grammarPoint({ shortExplanation: 'Indicates a contrast.' }));
+        expect(title).toContain('を問わず (wo towazu) meaning and usage');
+    });
+
+    it('omits the romaji when the point has none', () => {
+        expect(grammarMeta(grammarPoint({ romaji: undefined })).title).toMatch(/^を問わず meaning/);
+    });
+
+    it('titles a conjugation by the form it derives', () => {
+        const point = grammarPoint({ title: 'Verb させる', romaji: 'Verb-saseru', jlptLevel: 4, kind: 'inflection', derives: 'causative (させる)' });
+        expect(grammarMeta(point).title).toMatch(/^Causative \(させる\) conjugation and usage \| JLPT N4 grammar/);
+    });
+
+    it('keeps an i-adjective conjugation in lowercase', () => {
+        const point = grammarPoint({ title: 'い-Adjective て', kind: 'inflection', derives: 'i-adjective て-form (くて)' });
+        expect(grammarMeta(point).title).toMatch(/^i-adjective て-form/);
+    });
+
+    it('keeps the explanation in the description', () => {
+        expect(grammarMeta(grammarPoint()).description).toContain("'regardless of'");
+    });
+});
+
+describe('searchablePattern', () => {
+    it.each([
+        ['～を問わず', 'を問わず'],
+        ['Noun を余儀なくされる', 'を余儀なくされる'],
+        ['Noun から Noun に 至る まで', 'からに至るまで'],
+        ['Noun1 も Noun1 なら、Noun2 も Noun2 だ', 'もなら、もだ'],
+        ['い-Adjective て', 'て'],
+        ['Verb-te kureru', 'te kureru'],
+        ['〜ga Verb rareru', 'ga rareru'],
+        ['A は B より～', 'A は B より'],
+    ])('%s -> %s', (pattern, expected) => {
+        expect(searchablePattern(pattern)).toBe(expected);
+    });
+
+    it('returns an empty string for a pattern made only of placeholders', () => {
+        expect(searchablePattern('Verb')).toBe('');
+    });
+});
+
+describe('sentenceCase', () => {
+    it.each([
+        ['causative (させる)', 'Causative (させる)'],
+        ['て-form', 'て-form'],
+        ['na-adjective adverbial (に)', 'na-adjective adverbial (に)'],
+    ])('%s -> %s', (text, expected) => {
+        expect(sentenceCase(text)).toBe(expected);
+    });
+});
+
+describe('quotedGlosses', () => {
+    it('joins at most two quoted equivalents', () => {
+        expect(quotedGlosses("'not always', 'not necessarily', 'hardly'")).toBe('not always, not necessarily');
+    });
+
+    it('does not end a quote at an apostrophe inside a word', () => {
+        expect(quotedGlosses("Emphasis; 'isn't it?', 'right?'.")).toBe("isn't it?, right?");
+    });
+
+    it('returns undefined when nothing is quoted', () => {
+        expect(quotedGlosses('Expresses a desire.')).toBeUndefined();
     });
 });
 

@@ -13,23 +13,36 @@ export interface PageMeta {
 
 const JLPT_LABEL = (level: number) => `N${level}`;
 
+// Titles lead with the words a learner types ("思う meaning", "を問わず meaning", "て-form
+// conjugation") and put the English meaning on the result line itself: Search Console showed
+// the old Japanese-only titles surfacing almost solely for Japanese-language queries, where
+// the big Japanese dictionaries win. Everything past ~60 chars may be cut, so the site name
+// goes last.
+const TITLE_MEANING_LENGTH = 40;
+
 export function vocabMeta(vocab: Vocabulary): PageMeta {
-    const gloss = vocab.senses[0]?.glosses[0];
-    const jlpt = vocab.jlptLevel ? ` (JLPT ${JLPT_LABEL(vocab.jlptLevel)})` : '';
+    const meaning = vocab.senses[0]?.glosses.slice(0, 2).join(', ');
+    const jlpt = vocab.jlptLevel ? ` | JLPT ${JLPT_LABEL(vocab.jlptLevel)}` : '';
     // "思う (おもう)", or "ここ (此処)" for a word learned in kana: both spellings stay searchable.
     const label = `${headwordOf(vocab)} (${secondaryForm(vocab)})`;
 
-    const title = `${label}${jlpt} - ${SITE_NAME}`;
-    const description = gloss
-        ? `${label}: ${gloss}. Japanese dictionary entry with readings, meanings, and usage examples.`
-        : `${label} - Japanese dictionary entry with readings and meanings.`;
+    const title = meaning
+        ? `${label} meaning: ${truncate(meaning, TITLE_MEANING_LENGTH)}${jlpt} - ${SITE_NAME}`
+        : `${label} meaning${jlpt} - ${SITE_NAME}`;
+    const description = meaning
+        ? `${label} means "${meaning}" in English. Readings, every meaning, JLPT level, and example sentences with each word linked.`
+        : `${label}: Japanese dictionary entry with readings, meanings, and example sentences.`;
 
     return { title, description };
 }
 
 export function kanjiMeta(kanji: Kanji, vocabCount: number): PageMeta {
     const jlpt = kanji.steps.jlpt ? ` (JLPT ${JLPT_LABEL(kanji.steps.jlpt)})` : '';
-    const title = `${kanji.character}${jlpt} - Kanji - ${SITE_NAME}`;
+    // The dataset has no kanji meanings or readings yet, so the title promises only what the
+    // page shows: the level and the words written with it.
+    const title = vocabCount > 0
+        ? `${kanji.character} kanji${jlpt}: words using ${kanji.character} - ${SITE_NAME}`
+        : `${kanji.character} kanji${jlpt} - ${SITE_NAME}`;
     const description = vocabCount > 0
         ? `The kanji ${kanji.character}: KKLC step, JLPT level, and ${vocabCount} vocabulary word${vocabCount === 1 ? '' : 's'} that use it.`
         : `The kanji ${kanji.character}: KKLC step and JLPT level.`;
@@ -38,8 +51,20 @@ export function kanjiMeta(kanji: Kanji, vocabCount: number): PageMeta {
 }
 
 export function grammarMeta(point: GrammarPoint): PageMeta {
-    const romaji = point.romaji ? ` (${point.romaji})` : '';
-    const title = `${point.title}${romaji} - JLPT ${JLPT_LABEL(point.jlptLevel)} Grammar - ${SITE_NAME}`;
+    const level = `JLPT ${JLPT_LABEL(point.jlptLevel)} grammar`;
+    let title: string;
+    if (point.kind === 'inflection' && point.derives) {
+        // A conjugation is searched by its name ("causative form", "te-form"), not its pattern.
+        title = `${sentenceCase(point.derives)} conjugation and usage | ${level} - ${SITE_NAME}`;
+    } else {
+        const pattern = searchablePattern(point.title) || point.title;
+        const romaji = point.romaji ? searchablePattern(point.romaji) : '';
+        const gloss = quotedGlosses(point.shortExplanation);
+        const label = romaji ? `${pattern} (${romaji})` : pattern;
+        title = gloss
+            ? `${label} meaning: ${truncate(gloss, TITLE_MEANING_LENGTH)} | ${level} - ${SITE_NAME}`
+            : `${label} meaning and usage | ${level} - ${SITE_NAME}`;
+    }
 
     // The short explanation is already a one-line summary written for a learner, so it makes a
     // better meta description than anything synthesised from the other fields. Trimmed to keep
@@ -53,6 +78,47 @@ export function grammarMeta(point: GrammarPoint): PageMeta {
 function truncate(value: string, maxLength: number): string {
     if (value.length <= maxLength) return value;
     return `${value.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
+/**
+ * Entry titles are sentence case: "causative (させる)" -> "Causative (させる)". "i-adjective" and
+ * "na-adjective" stay lowercase, as learners write them ("I-adjective" reads as a typo), and a
+ * title starting with Japanese has no case to change.
+ */
+export function sentenceCase(text: string): string {
+    if (/^(?:i|na)-/.test(text)) return text;
+    return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+// Slot placeholders the dataset writes into patterns ("Noun を余儀なくされる", "い-Adjective く",
+// "Verb-te kureru"). Nobody types them into a search box.
+const PATTERN_PLACEHOLDER = /(?:[いな]-)?\b(?:i-Adjective|na-Adjective|Adjective|Noun|Verb)\d?/g;
+
+/**
+ * A grammar pattern as a learner searches it: "～を問わず" -> "を問わず", "Noun から Noun に至る"
+ * -> "からに至る", "Verb-te kureru" -> "te kureru". Japanese is written without spaces, so the
+ * gaps a removed placeholder leaves between Japanese characters close up; romaji keeps its own.
+ */
+export function searchablePattern(pattern: string): string {
+    return pattern
+        .replace(PATTERN_PLACEHOLDER, ' ')
+        .replace(/[～〜~+]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .replace(/(?<=[\p{sc=Han}\p{sc=Hiragana}\p{sc=Katakana}ー、。]) (?=[\p{sc=Han}\p{sc=Hiragana}\p{sc=Katakana}ー、。])/gu, '')
+        .replace(/^[\s\-:、,]+|[\s\-:、,]+$/g, '');
+}
+
+/**
+ * The quoted English equivalents in a short explanation ("Means 'regardless of' or
+ * 'irrespective of'." -> "regardless of, irrespective of"), at most two. The lookarounds keep
+ * an apostrophe inside a word ("isn't") from closing a quote.
+ */
+export function quotedGlosses(explanation: string): string | undefined {
+    const glosses = [...explanation.matchAll(/(?<![A-Za-z])'(.+?)'(?![A-Za-z])/g)]
+        .map(match => match[1].trim())
+        .filter(gloss => gloss.length > 0)
+        .slice(0, 2);
+    return glosses.length > 0 ? glosses.join(', ') : undefined;
 }
 
 export function grammarIndexMeta(pointCount: number): PageMeta {
