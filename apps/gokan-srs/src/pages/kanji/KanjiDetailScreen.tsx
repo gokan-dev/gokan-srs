@@ -1,7 +1,9 @@
 import { useParams } from "react-router-dom";
 import type { Kanji } from "@gokan/dataset-schema";
-import { kanjiBookPositions, kanjiGradeLabel, kanjiOrder, kunReadingParts } from "@gokan/dataset-schema";
+import { kanjiBookPositions, kanjiGradeLabel, kanjiOrder, kunReadingLabel } from "@gokan/dataset-schema";
 import { JlptChip } from "../../components/JlptChip";
+import { Chip } from "../../components/ui/Chip";
+import { KanjiTile } from "../../components/KanjiTile";
 import { useQuiz } from "../../context/useQuiz";
 import { VocabularyService } from "../../services/vocabulary.service";
 import { LoadingScreen } from "../../components/LoadingScreen";
@@ -13,6 +15,7 @@ import { useAsyncData } from "../../hooks/useAsyncData";
 import { DetailErrorScreen } from "../../components/detail/DetailErrorScreen";
 import { DetailHeader } from "../../components/detail/DetailHeader";
 import { DetailField, DetailSection } from "../../components/detail/DetailSection";
+import { DetailBody } from "../../components/detail/DetailBody";
 import type { KanjiLearningMethod } from "../../models/user.model";
 
 export default function KanjiDetailScreen() {
@@ -21,6 +24,11 @@ export default function KanjiDetailScreen() {
     const kanjiLoad = useAsyncData(character ?? null, () => VocabularyService.loadKanji(character ?? ''));
     const vocabIdsLoad = useAsyncData(character ?? null, async () => (await VocabularyService.loadKanjiVocabIndex())[character ?? ''] ?? []);
     const kanji: Kanji | null = kanjiLoad.data ?? null;
+    // The components that are kanji of the dataset, so their tile links to their page.
+    const linkedLoad = useAsyncData(kanji?.character ?? null, async () => {
+        const found = await Promise.all((kanji?.components ?? []).map(component => VocabularyService.loadKanji(component)));
+        return new Set(found.flatMap(entry => entry && entry.character !== kanji?.character ? [entry.character] : []));
+    });
     const vocabIds = vocabIdsLoad.data ?? [];
     const error = kanjiLoad.status === 'error'
         ? "Could not load this kanji."
@@ -40,80 +48,86 @@ export default function KanjiDetailScreen() {
         actions.updateKanjiKnowledge({ ...knowledge, kanjiSet });
     };
 
-    const facts = [
-        methodPosition(kanji, knowledge?.method),
-        `${kanji.strokeCount} stroke${kanji.strokeCount === 1 ? '' : 's'}`,
-        kanji.radical ? `Radical ${kanji.radical.character}` : null,
-        kanji.grade !== undefined ? kanjiGradeLabel(kanji.grade) : null,
-    ].filter(Boolean).join(' · ');
+    const position = methodPosition(kanji, knowledge?.method);
+    const header = (
+        <DetailHeader
+            parentPath="/kanji"
+            title={<span className="jp-display">{kanji.character}</span>}
+            chips={(kanji.steps.jlpt || position) ? (
+                <>
+                    {kanji.steps.jlpt ? <JlptChip level={kanji.steps.jlpt} /> : null}
+                    {position && <Chip>{position}</Chip>}
+                </>
+            ) : undefined}
+            actions={
+                <div className="flex flex-col items-start gap-2">
+                    <span className="inline-flex items-center gap-1.5 type-support">
+                        <span className={`inline-block w-2.5 h-2.5 rounded-full border ${isKnown ? 'bg-accent border-accent' : 'border-divider'}`} aria-hidden="true" />
+                        {isKnown ? 'Known' : 'Not known yet'}
+                    </span>
+                    <Button variant="secondary" onClick={toggleKnown}>
+                        {isKnown ? 'Mark as not known' : 'Mark as known'}
+                    </Button>
+                </div>
+            }
+        >
+            <KanjiReadings kanji={kanji} />
+        </DetailHeader>
+    );
+
+    const meanings = kanji.meanings.length > 0 ? (
+        <DetailSection title="Meanings">
+            <p className="type-body">{kanji.meanings.join(', ')}</p>
+        </DetailSection>
+    ) : null;
+    const components = (
+        <DetailSection title="Components">
+            {kanji.components.length > 0 && (
+                <ul className="flex flex-wrap gap-3 mb-3">
+                    {kanji.components.map(component => (
+                        <li key={component}>
+                            <KanjiTile glyph={component} to={linkedLoad.data?.has(component) ? `/kanji/${component}` : undefined} />
+                        </li>
+                    ))}
+                </ul>
+            )}
+            <p className="type-meta">
+                {kanji.strokeCount} stroke{kanji.strokeCount === 1 ? '' : 's'}
+                {kanji.radical && <> · Radical <span className="font-gothic">{kanji.radical.character}</span></>}
+            </p>
+        </DetailSection>
+    );
+    const words = <KanjiVocabListCard character={kanji.character} vocabIds={vocabIds} />;
+    const details = <KanjiDetails kanji={kanji} />;
 
     return (
         <Page width="wide">
-            <DetailHeader
-                parentPath="/kanji"
-                title={<span className="jp-display">{kanji.character}</span>}
-                chips={kanji.steps.jlpt ? <JlptChip level={kanji.steps.jlpt} /> : undefined}
-                actions={
-                    <div className="flex flex-col items-start gap-2">
-                        <span className="inline-flex items-center gap-1.5 type-support">
-                            <span className={`inline-block w-2.5 h-2.5 rounded-full border ${isKnown ? 'bg-accent border-accent' : 'border-divider'}`} aria-hidden="true" />
-                            {isKnown ? 'Known' : 'Not known yet'}
-                        </span>
-                        <Button variant="secondary" onClick={toggleKnown}>
-                            {isKnown ? 'Mark as not known' : 'Mark as known'}
-                        </Button>
-                    </div>
-                }
-            >
-                {kanji.meanings.length > 0 && <p className="text-xl text-primary">{kanji.meanings.join(', ')}</p>}
-                <KanjiReadings kanji={kanji} />
-                {facts && <p className="type-meta">{facts}</p>}
-            </DetailHeader>
-
-            {kanji.components.length > 0 && (
-                <DetailSection title="Components">
-                    <ul className="flex flex-wrap gap-3">
-                        {kanji.components.map(component => (
-                            <li
-                                key={component}
-                                className="w-12 h-12 flex items-center justify-center rounded-md border border-divider bg-surface font-mincho text-2xl text-primary"
-                            >
-                                {component}
-                            </li>
-                        ))}
-                    </ul>
-                </DetailSection>
-            )}
-
-            <KanjiVocabListCard character={kanji.character} vocabIds={vocabIds} />
-
-            <KanjiDetails kanji={kanji} />
+            {header}
+            <DetailBody
+                main={<>{meanings}{words}</>}
+                side={<>{components}{details}</>}
+                stacked={<>{meanings}{components}{words}{details}</>}
+            />
         </Page>
     );
 }
 
-/** On and kun readings, the okurigana of a kun reading set apart: まな(ぶ). */
+/** On and kun readings, each labelled, the okurigana in parentheses: まな(ぶ). */
 function KanjiReadings({ kanji }: { kanji: Kanji }) {
-    const { on, kun } = kanji.readings;
-    if (on.length === 0 && kun.length === 0) return null;
+    const rows = [
+        { label: 'On', readings: kanji.readings.on },
+        { label: 'Kun', readings: kanji.readings.kun.map(kunReadingLabel) },
+    ].filter(row => row.readings.length > 0);
+    if (rows.length === 0) return null;
     return (
-        <div className="space-y-1">
-            {on.length > 0 && <p className="font-gothic text-xl text-secondary">{on.join('、')}</p>}
-            {kun.length > 0 && (
-                <p className="font-gothic text-xl text-secondary">
-                    {kun.map((reading, i) => {
-                        const { stem, okurigana } = kunReadingParts(reading);
-                        return (
-                            <span key={reading}>
-                                {i > 0 && '、'}
-                                {stem}
-                                {okurigana && <span className="text-tertiary">{okurigana}</span>}
-                            </span>
-                        );
-                    })}
-                </p>
-            )}
-        </div>
+        <dl className="space-y-1">
+            {rows.map(row => (
+                <div key={row.label} className="flex items-baseline gap-3">
+                    <dt className="type-label w-8 shrink-0">{row.label}</dt>
+                    <dd className="min-w-0 font-gothic text-2xl text-secondary">{row.readings.join('、')}</dd>
+                </div>
+            ))}
+        </dl>
     );
 }
 
@@ -126,20 +140,20 @@ function methodPosition(kanji: Kanji, method: KanjiLearningMethod | undefined): 
 }
 
 function KanjiDetails({ kanji }: { kanji: Kanji }) {
-    const positions = kanjiBookPositions(kanji);
     return (
         <Disclosure title="Dictionary details">
             <dl className="space-y-3">
-                {kanji.readings.nanori.length > 0 && (
-                    <DetailField label="Name readings"><span className="font-gothic">{kanji.readings.nanori.join('、')}</span></DetailField>
+                {kanji.grade !== undefined && <DetailField label="School grade">{kanjiGradeLabel(kanji.grade)}</DetailField>}
+                {kanji.radical && (
+                    <DetailField label="Radical"><span className="font-gothic">{kanji.radical.character}</span> (Kangxi {kanji.radical.number})</DetailField>
                 )}
                 {kanji.newspaperFrequency !== undefined && (
                     <DetailField label="Newspaper frequency">#{kanji.newspaperFrequency.toLocaleString('en-US')} of 2,500</DetailField>
                 )}
-                {kanji.radical && (
-                    <DetailField label="Radical">{kanji.radical.character} (Kangxi {kanji.radical.number})</DetailField>
+                {kanji.readings.nanori.length > 0 && (
+                    <DetailField label="Readings in names"><span className="font-gothic">{kanji.readings.nanori.join('、')}</span></DetailField>
                 )}
-                {positions.map(({ book, name, position }) => (
+                {kanjiBookPositions(kanji).map(({ book, name, position }) => (
                     <DetailField key={book} label={name}>#{position.toLocaleString('en-US')}</DetailField>
                 ))}
             </dl>

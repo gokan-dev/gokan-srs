@@ -35,21 +35,19 @@
     align-items: baseline;
   }
 
+  // A field label, then the readings beside the headword: both secondary (DESIGN_SYSTEM.md, Colour).
   dt {
     min-width: 2.5rem;
-    color: var(--tertiary);
+    color: var(--secondary);
     font-size: $text-sm;
+    font-weight: 500;
   }
 
   dd {
     margin: 0;
+    color: var(--secondary);
     font-size: $text-lg;
   }
-}
-
-// A kun reading's okurigana, the kana written after the kanji: まな(ぶ) for 学ぶ.
-.okurigana {
-  color: var(--tertiary);
 }
 
 // Each course that teaches the kanji, with its number there.

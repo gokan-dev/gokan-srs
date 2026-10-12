@@ -32,7 +32,8 @@ before changing it, and update it when behaviour changes. Visual rules are in
 - Before every commit: `bun run check`. It runs lint (both apps, one config), typecheck (both
   apps and the scripts), tests (both apps), the conventions check and the duplicate check.
   Faster partial runs while iterating: `bun run lint`, `bun run typecheck`, `bun run test`,
-  `bun run check:conventions`, `bun run check:duplicates`.
+  `bun run check:conventions`, `bun run check:duplicates`. After a UI change, also build both
+  apps and run `bun run check:layout` (CI runs it on every change to `apps/` or `packages/`).
 - A bug fix comes with a test that fails without the fix.
 - `git log` is the record of what changed. Add an entry to
   [docs/MODIFICATION_LOG.md](docs/MODIFICATION_LOG.md) only for reasoning a diff cannot show:
@@ -95,7 +96,9 @@ block of 60+ tokens in production code (120+ in tests).
 Both apps: a word is named through `headwordOf`, `secondaryForm` and `headwordWithReading`
 (`searchHeadword` / `searchSecondaryForm` for search rows) from `@gokan/dataset-schema`, never by
 reading `writtenForm.kanji` for display: a word learned in kana (`usuallyKana`) is shown in kana.
-A word's textbook lessons are named through `textbookLessonsLabel`. Also shared by both apps,
+A word's textbook lessons are named through `textbookLessonsLabel`. A kanji's kun reading is
+shown through `kunReadingLabel` (まな(ぶ), enforced); its learning orders through `KANJI_ORDERS`,
+`kanjiOrder`, `KANJI_BOOKS` and `kanjiBookPositions`, its grade through `kanjiGradeLabel`. Also shared by both apps,
 from the same package: romaji (`romajiToHiragana`, `toHiragana`, `kanaToRomaji`,
 `looksLikeRomaji`), a sentence's linked and highlighted runs (`segmentInteractiveSentence`) and a
 grammar example as a `Sentence` (`grammarExampleToSentence`, `patternHighlightRanges`).
@@ -153,8 +156,10 @@ gokan-srs, everything else:
   grammar point), `components/ui/Pagination.tsx`, `pages/stats/components/CoverageChart.tsx` and
   `utils/coverage.utils.ts`, `utils/activity.utils.ts`, `utils/winRate.utils.ts`.
 - Detail pages: `components/detail/` (`DetailHeader` the subject and its main action,
-  `LearnStatus`, `DetailSection`, `YourProgress` shared by vocab and grammar,
-  `DetailErrorScreen`), `components/RelatedEntriesCard.tsx`, `components/SRSHistoryGraph.tsx`,
+  `DetailBody` the 8/4 body under it, `LearnStatus`, `DetailSection`, `YourProgress` shared
+  by vocab and grammar, `DetailErrorScreen`), `components/RelatedEntriesCard.tsx`,
+  `components/SRSHistoryGraph.tsx`, `components/KanjiTile.tsx` (a glyph: boxed only when it
+  links),
   `components/InteractiveSentence.tsx`,
   `pages/grammar/GrammarExampleList.tsx`.
 - Settings controls: `components/ui/SettingToggle.tsx`, `SettingSlider.tsx`, `components/OptionGrid.tsx`,
@@ -251,7 +256,15 @@ gokan-dictionary:
 - `rounded-md` for every card, panel, input, button and chip, including the quiz card frame;
   `rounded-full` only for pills, avatars, rings, toggles and the progress bar.
 - Mobile: inputs are `text-base` on phones (smaller makes iOS zoom), page roots are `w-full`,
-  flex/grid children that truncate need `min-w-0`. Check layouts at 320px and 375px.
+  flex/grid children that truncate need `min-w-0`. `bun run check:layout` measures both
+  production builds in Chrome at 320px and 375px (sideways scroll, the 12px floor, 16px
+  inputs, the dictionary's 44px tap targets) and CI runs it (`ci-layout.yml`); a new page type
+  or main route goes in its lists.
+- **UI work follows docs/DESIGN_SYSTEM.md, from the first line.** Before writing a screen,
+  read the sections for what it touches and reuse its components (a detail page is
+  `DetailHeader` + `DetailBody`, a glyph is a `KanjiTile`, a choice is an `OptionGrid`). Then
+  look at it at 320px, 375px and desktop, light and dark, before committing: the checks catch
+  what can be measured, not whether a colour or a box means the right thing.
 - `toLocaleDateString`/`toLocaleTimeString`/`dateStyle`/`timeStyle` only in
   `utils/time.utils.ts` (`formatDate`, `formatShortDate`, `formatDateTime`, `formatWeekday`,
   plus the relative helpers). Enforced.

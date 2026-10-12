@@ -288,7 +288,7 @@ export function GrammarBrowseScreen() {
                             value={sort}
                             onChange={e => setSort(SORTS.find(option => option === e.target.value) ?? 'teaching')}
                             aria-label="Sort"
-                            className="h-8 px-2 border border-divider rounded-md text-sm bg-surface text-primary focus:outline-none focus:border-accent"
+                            className="h-8 px-2 border border-divider rounded-md text-base md:text-sm bg-surface text-primary focus:outline-none focus:border-accent"
                         >
                             {SORTS.map(option => <option key={option} value={option}>{GRAMMAR_SORT_LABEL[option]}</option>)}
                         </select>

@@ -130,10 +130,11 @@ export function kanjiGradeLabel(grade: number): string {
 }
 
 /**
- * A kun reading split for display: 'まな.ぶ' is the stem まな and the okurigana ぶ (学ぶ). A prefix or
- * suffix dash stays on the stem.
+ * A kun reading as both apps show it: the okurigana in parentheses, まな.ぶ as まな(ぶ) (学ぶ), a
+ * prefix or suffix dash kept. Parentheses, not a colour: the colours already mean something else
+ * (DESIGN_SYSTEM.md, Colour), and the cue must survive copy-paste and a screen reader.
  */
-export function kunReadingParts(reading: string): { stem: string; okurigana: string } {
+export function kunReadingLabel(reading: string): string {
     const dot = reading.indexOf('.');
-    return dot === -1 ? { stem: reading, okurigana: '' } : { stem: reading.slice(0, dot), okurigana: reading.slice(dot + 1) };
+    return dot === -1 ? reading : `${reading.slice(0, dot)}(${reading.slice(dot + 1)})`;
 }

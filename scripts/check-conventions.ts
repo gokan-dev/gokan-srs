@@ -73,6 +73,28 @@ const UI_SOURCE = /^apps\/(gokan-srs|gokan-dictionary)\/src\/.*\.(tsx|svelte)$/;
 const RENDERED_KANJI_SPELLING = /\{[^{}]*\bwrittenForm\.kanji\b[^{}]*\}/;
 const KANJI_SPELLING_NOTE = 'apps/gokan-srs/src/components/KanjiSpellingNote.tsx';
 
+/**
+ * A kun reading is shown through kunReadingLabel (@gokan/dataset-schema): まな.ぶ as まな(ぶ), the
+ * okurigana in parentheses in both apps, never by a colour, which already means something else.
+ */
+const KUN_READINGS = /\breadings\.kun\b/;
+const KUN_READING_LABEL = /\bkunReadingLabel\b/;
+
+/**
+ * A glyph drawn as a tile is a KanjiTile: a box only when it links somewhere, so a glyph with no
+ * page never looks clickable (DESIGN_SYSTEM.md, principle 7). The known-kanji grid's toggles are
+ * the one other boxed glyph, and they are buttons.
+ */
+const BOXED_GLYPH = /\bfont-mincho\b(?=.*\btext-2xl\b)(?=.*\bborder\b)|\bborder\b(?=.*\bfont-mincho\b)(?=.*\btext-2xl\b)/;
+const BOXED_GLYPH_FILES = new Set(['apps/gokan-srs/src/components/KanjiTile.tsx', 'apps/gokan-srs/src/components/KanjiKnowledgeGrid.tsx']);
+
+/**
+ * Detail pages (vocab, kanji, grammar) share one frame: DetailHeader, then DetailBody, the 8/4
+ * grid from `lg` and one column below it. The grid itself lives only in those two components.
+ */
+const DETAIL_SCREEN = /^apps\/gokan-srs\/src\/pages\/.*DetailScreen\.tsx$/;
+const DETAIL_GRID_FILES = new Set(['apps/gokan-srs/src/components/detail/DetailHeader.tsx', 'apps/gokan-srs/src/components/detail/DetailBody.tsx']);
+
 const SCHEMA_DIR = 'packages/dataset-schema/src';
 const APP_SOURCE = /^apps\/(gokan-srs|gokan-dictionary)\/(src|scripts)\/.*\.(tsx?|svelte)$/;
 
@@ -175,6 +197,24 @@ function check(files: string[]): Violation[] {
         if (UI_SOURCE.test(file) && file !== KANJI_SPELLING_NOTE) {
             eachLine(text, l => RENDERED_KANJI_SPELLING.test(l), line =>
                 add({ file, line, rule: 'headword', message: 'Renders writtenForm.kanji. Name the word with headwordOf/secondaryForm (@gokan/dataset-schema): a word learned in kana is shown in kana.' }));
+        }
+
+        if (UI_SOURCE.test(file)) {
+            eachLine(text, l => KUN_READINGS.test(l) && !KUN_READING_LABEL.test(l), line =>
+                add({ file, line, rule: 'kun-reading', message: 'Show a kun reading through kunReadingLabel (@gokan/dataset-schema): まな(ぶ), the okurigana in parentheses, never a colour.' }));
+        }
+
+        if (GOKAN_SRS_SOURCE.test(file) && !BOXED_GLYPH_FILES.has(file)) {
+            eachLine(text, l => BOXED_GLYPH.test(l), line =>
+                add({ file, line, rule: 'glyph-tile', message: 'A glyph in a box is a KanjiTile (components/KanjiTile.tsx): boxed only when it links, plain when it has no page.' }));
+        }
+
+        if (GOKAN_SRS_SOURCE.test(file) && !DETAIL_GRID_FILES.has(file) && !file.endsWith('.test.tsx')) {
+            eachLine(text, l => /\bgrid-cols-12\b/.test(l), line =>
+                add({ file, line, rule: 'detail-layout', message: 'The 12-column detail grid lives in DetailHeader and DetailBody (components/detail/); use them.' }));
+        }
+        if (DETAIL_SCREEN.test(file) && !(text.includes('<DetailHeader') && text.includes('<DetailBody'))) {
+            add({ file, rule: 'detail-layout', message: 'A detail page is DetailHeader then DetailBody (components/detail/), like the vocab, kanji and grammar pages.' });
         }
 
         if (redeclaration && APP_SOURCE.test(file)) {

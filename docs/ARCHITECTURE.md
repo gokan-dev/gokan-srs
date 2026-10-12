@@ -907,8 +907,8 @@ Its scroll pane carries the `.scrollbar-subtle` utility (`index.css`), which sty
 ### Kanji Detail Screen (`pages/kanji/KanjiDetailScreen.tsx`)
 
 Route: `/kanji/:character`. Mirrors `VocabDetailScreen`'s card-based layout at a smaller scale:
-- Kanji glyph, JLPT chip (`steps.jlpt`, if set), meanings, on and kun readings (okurigana set apart), the kanji's number in the learner's own method ("RTK #346"), stroke count, radical, school grade, and a "Known" badge if the character is in the user's `kanjiKnowledge.kanjiSet`. Loaded from `kanji/{character}.json` (about 1 KB), not the whole `kanji.json`
-- Components (KRADFILE's visual parts), and a "Dictionary details" disclosure: name readings, newspaper frequency, radical number, and the kanji's number in every book that teaches it
+- Header (`DetailHeader`): the glyph, its readings labelled On and Kun (`kunReadingLabel`: まな(ぶ)), neutral chips for the JLPT level and the kanji's number in the learner's own method ("RTK #346"), and the Known / Not known status with its button. Loaded from `kanji/{character}.json` (about 1 KB), not the whole `kanji.json`
+- Body (`DetailBody`, the vocab page's 8/4 grid): main column Meanings, then `KanjiVocabListCard`; side column Components (each a `KanjiTile`, linked when the component is itself a kanji of the dataset, found by `loadKanji` per component; plain otherwise) with the stroke count and radical, then a "Dictionary details" disclosure (school grade, radical number, newspaper frequency, name readings, and the kanji's number in every book that teaches it). Below `lg`: Meanings, Components, words, details
 - `KanjiVocabListCard` (`pages/kanji/KanjiVocabListCard.tsx`): capped/expandable list (mirrors `VocabRelationshipsCard`'s pattern) of vocabulary containing this kanji, sourced from the `kanji-vocab.json` reverse index, each row navigating to `/vocab/:id`
 
 `VocabDetailScreen`'s kanji-breakdown card (see Core Data Models → Vocabulary) provides the reverse link: each kanji in a word's `containedKanji` is a clickable chip navigating to `/kanji/:character`, so users can move vocab → kanji → vocab.

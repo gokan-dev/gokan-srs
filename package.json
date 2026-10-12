@@ -9,6 +9,7 @@
   ],
   "scripts": {
     "dev": "bun --cwd apps/gokan-srs dev",
+    "check:layout": "bun scripts/check-layout.ts",
     "build": "bun --cwd apps/gokan-srs build",
     "dictionary:dev": "bun --cwd apps/gokan-dictionary dev",
     "dictionary:build": "bun --cwd apps/gokan-dictionary build",

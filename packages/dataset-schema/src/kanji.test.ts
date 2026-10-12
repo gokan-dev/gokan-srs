@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { KANJI_ORDERS, isKanjiOrderId, kanjiBookPositions, kanjiGradeLabel, kanjiOrder, kunReadingParts } from './kanji';
+import { KANJI_ORDERS, isKanjiOrderId, kanjiBookPositions, kanjiGradeLabel, kanjiOrder, kunReadingLabel } from './kanji';
 
 describe('KANJI_ORDERS', () => {
     it('lists every order once, KKLC and RTK first', () => {
@@ -35,10 +35,10 @@ describe('kanjiGradeLabel', () => {
     });
 });
 
-describe('kunReadingParts', () => {
-    it('splits the okurigana off at the dot', () => {
-        expect(kunReadingParts('まな.ぶ')).toEqual({ stem: 'まな', okurigana: 'ぶ' });
-        expect(kunReadingParts('うみ')).toEqual({ stem: 'うみ', okurigana: '' });
-        expect(kunReadingParts('-がく')).toEqual({ stem: '-がく', okurigana: '' });
+describe('kunReadingLabel', () => {
+    it('puts the okurigana in parentheses, keeping an affix dash', () => {
+        expect(kunReadingLabel('まな.ぶ')).toBe('まな(ぶ)');
+        expect(kunReadingLabel('うみ')).toBe('うみ');
+        expect(kunReadingLabel('-がく')).toBe('-がく');
     });
 });

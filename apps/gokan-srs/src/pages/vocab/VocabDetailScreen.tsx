@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
+import { KanjiTile } from "../../components/KanjiTile";
 import { headwordOf, textbookLessonsLabel } from "@gokan/dataset-schema";
 import type { Vocabulary } from "@gokan/dataset-schema";
-import { useResponsive } from "../../context/Responsive/useResponsive";
+import { DetailBody } from "../../components/detail/DetailBody";
 import { useQuiz } from "../../context/useQuiz";
 import { VocabularyService } from "../../services/vocabulary.service";
 import { LoadingScreen } from "../../components/LoadingScreen";
@@ -28,7 +29,6 @@ const INITIAL_SENSES = 5;
 
 export default function VocabDetailScreen() {
     const { vocabId } = useParams<{ vocabId: string }>();
-    const { isMobile, isTablet } = useResponsive();
     const { state, actions } = useQuiz();
     const now = useNow();
     const load = useAsyncData(vocabId ?? null, () => VocabularyService.loadVocab(vocabId ?? ''));
@@ -86,21 +86,14 @@ export default function VocabDetailScreen() {
     const kanji = vocab.writtenForm.containedKanji.length > 0 ? (
         <DetailSection title="Kanji">
             <div className="flex flex-wrap gap-3">
-                {vocab.writtenForm.containedKanji.map(char => {
-                    const known = state.progress?.kanjiKnowledge.kanjiSet.has(char) ?? false;
-                    return (
-                        <Link
-                            key={char}
-                            to={`/kanji/${char}`}
-                            className="flex flex-col items-center gap-1 group focus-visible:outline-none"
-                        >
-                            <span className="w-12 h-12 flex items-center justify-center rounded-md border border-divider bg-surface font-mincho text-2xl text-primary group-hover:border-accent group-focus-visible:ring-2 group-focus-visible:ring-accent transition-colors">
-                                {char}
-                            </span>
-                            <span className="type-meta">{known ? 'Known' : 'Not known'}</span>
-                        </Link>
-                    );
-                })}
+                {vocab.writtenForm.containedKanji.map(char => (
+                    <KanjiTile
+                        key={char}
+                        glyph={char}
+                        to={`/kanji/${char}`}
+                        caption={state.progress?.kanjiKnowledge.kanjiSet.has(char) ? 'Known' : 'Not known'}
+                    />
+                ))}
             </div>
         </DetailSection>
     ) : null;
@@ -128,35 +121,14 @@ export default function VocabDetailScreen() {
     ) : null;
     const dictionaryDetails = <DictionaryDetails vocab={vocab} />;
 
-    // Two columns from `lg`; below it, one column in reading order.
-    const twoColumns = !isMobile && !isTablet;
-
     return (
         <Page width="wide">
             {header}
-            {twoColumns ? (
-                <div className="grid grid-cols-12 gap-10 items-start">
-                    <div className="col-span-8 space-y-10 min-w-0">
-                        {meanings}
-                        {sentences}
-                        {related}
-                    </div>
-                    <div className="col-span-4 space-y-10 min-w-0">
-                        {kanji}
-                        {yourProgress}
-                        {dictionaryDetails}
-                    </div>
-                </div>
-            ) : (
-                <div className="space-y-10">
-                    {meanings}
-                    {kanji}
-                    {sentences}
-                    {related}
-                    {yourProgress}
-                    {dictionaryDetails}
-                </div>
-            )}
+            <DetailBody
+                main={<>{meanings}{sentences}{related}</>}
+                side={<>{kanji}{yourProgress}{dictionaryDetails}</>}
+                stacked={<>{meanings}{kanji}{sentences}{related}{yourProgress}{dictionaryDetails}</>}
+            />
         </Page>
     );
 }
