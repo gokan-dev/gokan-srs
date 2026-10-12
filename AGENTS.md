@@ -34,6 +34,16 @@ before changing it, and update it when behaviour changes. Visual rules are in
   Faster partial runs while iterating: `bun run lint`, `bun run typecheck`, `bun run test`,
   `bun run check:conventions`, `bun run check:duplicates`.
 - A bug fix comes with a test that fails without the fix.
+- A convention lives in `bun run check`, not only in prose. When review (human or agent) finds a
+  rule this file states that the gate did not catch, the same change adds the check that would
+  have caught it (a `check-conventions.ts` rule, an ESLint rule, a test, or a layout assertion)
+  and is seen to fail on the pre-fix state. Prose is one review away from regressing; the gate is
+  not. A rule that genuinely cannot be mechanised says so, and names what a reviewer must look at.
+- Review your own diff before you hand it off. Before opening a PR or tagging a release
+  candidate, read the whole diff against this file and, for any UI change, docs/DESIGN_SYSTEM.md:
+  run `/code-review` (or an equivalent pass over the diff) and, for UI, build both apps and look
+  at the result at 320px, 375px and 1280px, light and dark. Unreviewed work is not handed off
+  faster: it moves the same review onto the next reader plus a round trip.
 - `git log` is the record of what changed. Add an entry to
   [docs/MODIFICATION_LOG.md](docs/MODIFICATION_LOG.md) only for reasoning a diff cannot show:
   an investigation's result, why the obvious approach was rejected, or an interaction a later
