@@ -68,7 +68,10 @@ jobs:
                the open PR for it (`gh pr list --head <branch>`). If an open PR exists, review
                there. If NONE exists (a branch tagged straight to staging without a PR), open a
                DRAFT PR against `main` for that branch, titled for the staging review, so the
-               findings have a home; review on it.
+               findings have a home; review on it. As soon as you have the PR, post a short
+               comment that a staging review of this commit is in progress, so the run is visible
+               while you work (this reviewer fires on a staging deploy, not a PR event, so it has
+               no automatic progress checklist: this comment is what makes it followable).
 
             2. Check the rendered result, not the diff:
                - If `bun run check:layout` exists, run it (it measures the production builds at
