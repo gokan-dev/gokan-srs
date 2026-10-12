@@ -5,6 +5,15 @@ export type KKLCIndex = Record<number, string[]>;
 export type KKLCKanjiIndex = Record<number, string[]>;
 
 /**
+ * `index/kanji-orders/{order}.json`: one learning order's kanji in teaching order. The first N are
+ * what a learner N kanji into the method knows.
+ */
+export type KanjiOrderList = string[];
+
+/** `index/kanji-components.json`: visual component -> its stroke count and the kanji drawn with it. */
+export type KanjiComponentIndex = Record<string, { strokeCount: number; kanji: string[] }>;
+
+/**
  * One vocab in a learning-order index: its id and the kanji a learner must know to
  * be shown it. A word learned in kana (`usuallyKana`) needs none, so its list is
  * empty; its vocab file still lists its kanji spelling's kanji.

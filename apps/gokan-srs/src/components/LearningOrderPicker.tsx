@@ -23,7 +23,7 @@ export function LearningOrderPicker({ value, onChange, dense }: LearningOrderPic
                 },
                 // Words usually written in kana (この, ここ) come only in the frequency and JLPT orders.
                 { value: 'frequency', label: 'Frequency', description: 'Most common words first, including words written in kana' },
-                { value: 'kklc', label: 'By kanji', description: 'Follow kanji progression, kanji words only' },
+                { value: 'kklc', label: 'By kanji', description: 'Follow your kanji method, kanji words only' },
                 { value: 'jlpt', label: 'JLPT level', description: 'N5 first, up to N1, including words written in kana' },
             ]}
         />

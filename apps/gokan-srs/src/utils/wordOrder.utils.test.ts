@@ -19,7 +19,7 @@ function learner(overrides: Partial<LearnerOrder> = {}): LearnerOrder {
     return {
         order: 'frequency',
         knownKanji: new Set(['日', '月', '本', '火']),
-        kklcStep: 100,
+        kanjiStep: 100,
         ignoreKnownKanji: false,
         uncoveredKanji: new Set(),
         ...overrides,
@@ -76,8 +76,8 @@ describe('sortWords', () => {
 
 describe('isLearnableNow', () => {
     it('is gated by step under the KKLC order', () => {
-        expect(isLearnableNow('a', context, learner({ order: 'kklc', kklcStep: 2 }))).toBe(false);
-        expect(isLearnableNow('b', context, learner({ order: 'kklc', kklcStep: 2 }))).toBe(true);
+        expect(isLearnableNow('a', context, learner({ order: 'kklc', kanjiStep: 2 }))).toBe(false);
+        expect(isLearnableNow('b', context, learner({ order: 'kklc', kanjiStep: 2 }))).toBe(true);
     });
 
     it('needs every kanji known otherwise, and an unindexed word is not learnable', () => {
@@ -91,7 +91,7 @@ describe('isLearnableNow', () => {
         expect(isLearnableNow('kono', withKana, learner({ order: 'frequency' }))).toBe(true);
         expect(isLearnableNow('kono', withKana, learner({ order: 'jlpt' }))).toBe(true);
         expect(isLearnableNow('kono', withKana, learner({ order: 'kanji_coverage' }))).toBe(false);
-        expect(isLearnableNow('kono', withKana, learner({ order: 'kklc', kklcStep: 9999 }))).toBe(false);
+        expect(isLearnableNow('kono', withKana, learner({ order: 'kklc', kanjiStep: 9999 }))).toBe(false);
     });
 });
 

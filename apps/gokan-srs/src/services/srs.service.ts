@@ -453,9 +453,8 @@ export class SRSService {
 
         switch (settings.preferredLearningOrder) {
             case 'kklc': {
-                if (progress.kanjiKnowledge.method !== 'kklc') return 0;
-
-                const index = await VocabularyService.loadKKLCIndex();
+                // "By kanji" follows the learner's own kanji method: KKLC, RTK, JLPT...
+                const index = await VocabularyService.loadKanjiStepIndex(progress.kanjiKnowledge.method);
                 if (!index) return 0;
 
                 for (let step = 1; step <= progress.kanjiKnowledge.step; step++) {
@@ -559,12 +558,7 @@ export class SRSService {
 
         switch (settings.preferredLearningOrder) {
             case "kklc":
-                if (kanjiKnowledge.method !== "kklc") {
-                    throw new Error(
-                        "Cannot use KKLC vocabulary without KKLC kanji knowledge"
-                    );
-                }
-                return this.findCandidatesKKLC(activeIds, kanjiKnowledge.step, maxToFind);
+                return this.findCandidatesByKanjiStep(activeIds, kanjiKnowledge, maxToFind);
 
             case "kanji_coverage":
                 return this.findCandidatesKanjiCoverage(activeIds, kanjiKnowledge, maxToFind, settings.kanjiCoverageTarget || 1, ignoreKnownKanji);
@@ -614,17 +608,18 @@ export class SRSService {
        INTERNAL FILLERS
        ======================= */
 
-    private static async findCandidatesKKLC(
+    /** The words the learner's kanji method has unlocked so far, earliest step first. */
+    private static async findCandidatesByKanjiStep(
         activeIds: Set<string>,
-        kklcKanjiStep: number,
+        kanjiKnowledge: Pick<KanjiKnowledge, 'method' | 'step'>,
         maxToFind: number
     ): Promise<string[]> {
-        const index = await VocabularyService.loadKKLCIndex();
+        const index = await VocabularyService.loadKanjiStepIndex(kanjiKnowledge.method);
         if (!index) return [];
 
         const candidates: string[] = [];
 
-        for (let step = 1; step <= kklcKanjiStep; step++) {
+        for (let step = 1; step <= kanjiKnowledge.step; step++) {
             const ids = index[step] ?? [];
 
             for (const id of ids) {

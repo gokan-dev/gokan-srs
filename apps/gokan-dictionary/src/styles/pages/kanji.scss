@@ -17,6 +17,71 @@
   margin: 0 0.5em;
 }
 
+.entry-gloss {
+  @include entry-gloss;
+}
+
+.kanji-tiles {
+  @include glyph-tiles;
+}
+
+// On and kun readings, each labelled, under the meanings.
+.kanji-readings {
+  margin: $space-2 0 0;
+
+  div {
+    display: flex;
+    gap: $space-2;
+    align-items: baseline;
+  }
+
+  dt {
+    min-width: 2.5rem;
+    color: var(--tertiary);
+    font-size: $text-sm;
+  }
+
+  dd {
+    margin: 0;
+    font-size: $text-lg;
+  }
+}
+
+// A kun reading's okurigana, the kana written after the kanji: まな(ぶ) for 学ぶ.
+.okurigana {
+  color: var(--tertiary);
+}
+
+// Each course that teaches the kanji, with its number there.
+.kanji-courses {
+  margin: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: $space-1 $space-3;
+
+  @include wide {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  div {
+    display: flex;
+    justify-content: space-between;
+    gap: $space-2;
+    padding: $space-1 0;
+    border-bottom: 1px solid var(--divider);
+  }
+
+  dt {
+    min-width: 0;
+    color: var(--secondary);
+  }
+
+  dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
 // Headword and reading only, flowing in columns: the long tail of a kanji's words.
 .entry-list--brief {
   columns: 12rem auto;

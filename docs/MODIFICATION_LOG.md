@@ -5,6 +5,14 @@
 >
 > It is not auto-loaded into agent context; read it on demand when you need the history behind a decision.
 
+- **[2026-10-12]**:
+  - **Kanji data and every learning order** (gokan-dataset `feat/kanji-sources`: KANJIDIC2, KRADFILE, RADKFILE from jmdict-simplified 3.6.2). A learner who follows RTK, or any method but KKLC, had no way in: the kanji set, the known-kanji editor and the "By kanji" order were all KKLC. Worth not undoing:
+    - **KKLC positions are unchanged, checked end to end.** The 2,300 KKLC kanji keep their positions and come first in `kanji.json`; a full `build:data` regenerated every vocab, sentence and index file byte for byte. A word's `kklcStep` is derived from these positions, so moving one would silently reorder every KKLC learner's queue.
+    - **The app's derived step index reproduces the dataset's for KKLC exactly**: `kanjiStepIndex` over `index/frequency.json` and the KKLC list gives every one of the 34,187 words of `index/kklc.json` the same step. That is the evidence the rule is right for RTK and the other methods. KKLC itself still reads `index/kklc.json`, so its order cannot drift even if the two rules ever do.
+    - **`Kanji.frequency` is not kanji frequency.** It is JPDB's rank of the kanji as a word on its own: 学 5839, 海 722, 𠮟 187734. The frequency order (and the tie-break within a JLPT level) uses KANJIDIC2's newspaper rank instead; switching it back would put 海 before 学.
+    - **The 57 CJK compatibility ideographs KANJIDIC2 lists are excluded.** U+FA45 looks like 海 and NFC turns it into 海, so as a key or a page URL it collides with it. They are all name-only variants; so is grade 10 (德 for 徳), kept only where an order teaches it.
+    - **The shared kanji tile and gloss styles are Sass mixins, not app.scss rules.** In app.scss they put the stylesheet every page loads at 10.4 KB against its 10 KB budget; as mixins (`glyph-tiles`, `entry-gloss`) each page sheet that uses them carries them.
+
 - **[2026-10-11]**:
   - **Dictionary overhaul (#118): what the budgets forced, and why.** The issue set byte budgets and a shape for the search index; the measurements did not let both hold as written. Worth not undoing:
     - **The core index is columnar, with the 6,500 most frequent words, not 8,000.** As one array per word (the issue's format) the core with 8,000 frequent words measured 379 KB gzipped against a 300 KB budget; the gloss column alone is 150 KB and ids do not compress (random JMdict ids, ~3 bytes each). Storing words column by column brought 8,000 to 321 KB; 6,500 measures 288 KB. Trimming the 60-character glosses to 40 saved only 23 KB, and dropping the kanji frequency 6 KB, so the cut is in coverage of the core, not in what a row says. Every JLPT word is in the core regardless; the remaining words arrive with the full file after the first query.

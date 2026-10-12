@@ -36,9 +36,21 @@ export function grammarPoint(overrides: Partial<GrammarPoint> = {}): GrammarPoin
     };
 }
 
-/** 学, an N5 kanji. */
+/** 学, an N5 kanji, as KANJIDIC2 and KRADFILE describe it. */
 export function kanji(overrides: Partial<Kanji> = {}): Kanji {
-    return { character: '学', steps: { kklc: 99, jlpt: 5 }, frequency: 63, ...overrides };
+    return {
+        character: '学',
+        steps: { kklc: 99, rtk: 346, jlpt: 5 },
+        frequency: 63,
+        newspaperFrequency: 63,
+        meanings: ['study', 'learning', 'science'],
+        readings: { on: ['ガク'], kun: ['まな.ぶ'], nanori: ['たか'] },
+        strokeCount: 8,
+        grade: 1,
+        radical: { number: 39, character: '子' },
+        components: ['子', '⺌', '冖'],
+        ...overrides,
+    };
 }
 
 /** A sentence containing 思う (and 私), with one translation. */

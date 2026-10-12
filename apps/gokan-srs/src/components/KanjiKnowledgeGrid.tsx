@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Search, X } from "lucide-react";
+import { kanjiOrder } from "@gokan/dataset-schema";
 import { useKanjiForm } from "../context/KanjiForm/useKanjiForm";
 import type { KanjiLearningMethod } from "../models/user.model";
 import { findKanjiMatch } from "../utils/kanjiSearch.utils";
@@ -18,18 +19,6 @@ const MOBILE_ROW_SIZE = 5;
 /** Width of the position gutter, mirrored as an empty spacer on the right. */
 const GUTTER_WIDTH = '2.5rem';
 const MOBILE_GUTTER_WIDTH = '1.75rem';
-
-/**
- * The grid is labelled by the order it is laid out in, not by a hardcoded
- * "KKLC" - more orders (RTK, JLPT) are expected, and only this label plus the
- * loaded list changes when one arrives.
- */
-const ORDER_LABELS: Record<KanjiLearningMethod, string> = {
-    kklc: 'KKLC order',
-    rtk: 'RTK order',
-    jlpt: 'JLPT order',
-    custom: 'custom order',
-};
 
 interface KanjiKnowledgeGridProps {
     allKanji: string[];
@@ -152,7 +141,7 @@ export function KanjiKnowledgeGrid({ allKanji, method, toolbar }: KanjiKnowledge
                 <span className="inline-flex items-center gap-1.5 type-meta">
                     <span className="w-4 h-4 rounded-sm border border-dashed border-divider" aria-hidden="true" /> Not known
                 </span>
-                <span className="type-meta tabular-nums">{knownCount.toLocaleString('en-US')} of {allKanji.length.toLocaleString('en-US')} known · {ORDER_LABELS[method]}</span>
+                <span className="type-meta tabular-nums">{knownCount.toLocaleString('en-US')} of {allKanji.length.toLocaleString('en-US')} known · {kanjiOrder(method).label} order</span>
             </div>
 
             <div ref={gridRef} className="w-full">

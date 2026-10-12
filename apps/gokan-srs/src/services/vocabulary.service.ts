@@ -1,6 +1,19 @@
-import type { FrequencyIndex, JlptIndex, KKLCIndex, KKLCKanjiIndex, Kanji, KanjiVocabIndex, SearchIndex, Sentence, Vocabulary } from '@gokan/dataset-schema';
+import type {
+    FrequencyIndex, JlptIndex, KKLCIndex, Kanji, KanjiOrderId, KanjiOrderList, KanjiVocabIndex, SearchIndex, Sentence, Vocabulary,
+} from '@gokan/dataset-schema';
 import { romajiToHiragana, looksLikeRomaji } from '@gokan/dataset-schema';
+import { kanjiStepIndex, type KanjiStepIndex } from '../utils/kanjiOrder.utils';
 import { datasetUrl, fetchJson, readJson } from './http';
+
+/**
+ * Whether the server says this dataset file does not exist, as opposed to a transient failure.
+ * A dev server returns 404; production CloudFront's distribution-wide SPA fallback rewrites a
+ * missing key to index.html at 200 (text/html). A 5xx, 403 or 429 is not absence.
+ */
+function isMissingFile(response: Response): boolean {
+    const contentType = response.headers.get('content-type') || '';
+    return response.status === 404 || (response.ok && contentType.includes('text/html'));
+}
 
 /**
  * A vocab's compiled file genuinely does not exist (it was dropped from the
@@ -9,7 +22,7 @@ import { datasetUrl, fetchJson, readJson } from './http';
  *
  * Absence looks different per environment: a dev server returns 404, while
  * production CloudFront's distribution-wide SPA fallback rewrites a missing file
- * to index.html at 200 (text/html). Both are detected here. A thrown fetch
+ * to index.html at 200 (text/html). isMissingFile detects both. A thrown fetch
  * (offline / DNS) is NOT turned into this error, so a blip never deletes real
  * progress - it propagates and stays a genuine (fatal) failure.
  */
@@ -24,21 +37,41 @@ export class VocabNotFoundError extends Error {
 
 export class VocabularyService {
     private static kklcIndex: KKLCIndex | null = null;
-    private static kklcKanjiIndex: KKLCKanjiIndex | null = null;
     private static frequencyIndex: FrequencyIndex | null = null;
     private static usuallyKanaIds: ReadonlySet<string> | null = null;
     private static searchIndex: SearchIndex | null = null;
     private static vocabCache = new Map<string, Vocabulary>();
-    private static kanjiIndex: Kanji[] | null = null;
-    private static kanjiByChar = new Map<string, Kanji>();
+    private static kanjiCache = new Map<string, Kanji | null>();
     private static kanjiVocabIndex: KanjiVocabIndex | null = null;
     private static jlptIndex: JlptIndex | null = null;
+    private static kanjiOrders = new Map<KanjiOrderId, KanjiOrderList>();
+    private static kanjiStepIndexes = new Map<KanjiOrderId, KanjiStepIndex>();
 
-    static async loadKKLCKanjiIndex(): Promise<KKLCKanjiIndex | null> {
-        if (this.kklcKanjiIndex) return this.kklcKanjiIndex;
+    /** One kanji learning order's kanji, in teaching order. */
+    static async loadKanjiOrder(order: KanjiOrderId): Promise<KanjiOrderList> {
+        const cached = this.kanjiOrders.get(order);
+        if (cached) return cached;
 
-        this.kklcKanjiIndex = await fetchJson<KKLCKanjiIndex>(datasetUrl('index/kklc-kanji.json'));
-        return this.kklcKanjiIndex;
+        const list = await fetchJson<KanjiOrderList>(datasetUrl(`index/kanji-orders/${order}.json`));
+        this.kanjiOrders.set(order, list);
+        return list;
+    }
+
+    /**
+     * The words each step of a kanji order unlocks. KKLC reads the dataset's own index/kklc.json,
+     * so a KKLC learner's word order is exactly what it has always been; every other order derives
+     * it from the frequency index by the same rule (kanjiStepIndex).
+     */
+    static async loadKanjiStepIndex(order: KanjiOrderId): Promise<KanjiStepIndex | null> {
+        if (order === 'kklc') return this.loadKKLCIndex();
+        const cached = this.kanjiStepIndexes.get(order);
+        if (cached) return cached;
+
+        const [frequency, list] = await Promise.all([this.loadFrequencyIndex(), this.loadKanjiOrder(order)]);
+        if (!frequency) return null;
+        const index = kanjiStepIndex(frequency, list);
+        this.kanjiStepIndexes.set(order, index);
+        return index;
     }
 
     static async loadKKLCIndex(): Promise<KKLCIndex | null> {
@@ -87,9 +120,7 @@ export class VocabularyService {
         // a 5xx, 403, 429, an offline fetch rejection (never reaches here), or a
         // 200 whose body is unparseable - is treated as a normal (recoverable,
         // fatal) error below, so a legitimate word is never retired by a blip.
-        const contentType = response.headers.get('content-type') || '';
-        const notFound = response.status === 404 || (response.ok && contentType.includes('text/html'));
-        if (notFound) {
+        if (isMissingFile(response)) {
             throw new VocabNotFoundError(id);
         }
         if (!response.ok) {
@@ -142,17 +173,23 @@ export class VocabularyService {
         ).slice(0, 50);
     }
 
-    static async loadKanjiIndex(): Promise<Kanji[]> {
-        if (this.kanjiIndex) return this.kanjiIndex;
-
-        this.kanjiIndex = await fetchJson<Kanji[]>(datasetUrl('kanji.json'));
-        for (const k of this.kanjiIndex) this.kanjiByChar.set(k.character, k);
-        return this.kanjiIndex;
-    }
-
+    /** One kanji from its own file (about 1 KB, where kanji.json is every kanji); null when the dataset has no such kanji. */
     static async loadKanji(character: string): Promise<Kanji | null> {
-        await this.loadKanjiIndex();
-        return this.kanjiByChar.get(character) ?? null;
+        const cached = this.kanjiCache.get(character);
+        if (cached !== undefined) return cached;
+
+        const path = datasetUrl(`kanji/${encodeURIComponent(character)}.json`);
+        const response = await fetch(path);
+        if (isMissingFile(response)) {
+            this.kanjiCache.set(character, null);
+            return null;
+        }
+        if (!response.ok) {
+            throw new Error(`Failed to fetch ${path}: ${response.status} ${response.statusText}`);
+        }
+        const kanji = await readJson<Kanji>(response);
+        this.kanjiCache.set(character, kanji);
+        return kanji;
     }
 
     static async loadKanjiVocabIndex(): Promise<KanjiVocabIndex> {

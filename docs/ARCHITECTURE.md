@@ -141,12 +141,13 @@ by both apps. App model files under `src/models/` hold app state only (progress,
 
 ### Kanji (`@gokan/dataset-schema`)
 
-**`Kanji`** - A single kanji character and its known step/frequency numbers across different systems
+**`Kanji`** - One of the dataset's 3,128 kanji (KKLC's 2,300, every kanji another learning order teaches, the JLPT list, the jōyō and the jinmeiyō), from `kanji.json` or its own `kanji/{character}.json`
 - `character`: The kanji glyph itself
-- `steps.kklc`: KKLC step number (this app's primary kanji-learning order)
-- `steps.jlpt`: optional JLPT level (1=N1 hardest ... 5=N5 easiest), from the Bluskyo/JLPT_Vocabulary kanji list (`data/raw/jlpt-kanji.json`; vocab levels come from Waller's word lists instead). Only ever set for kanji already in the KKLC-derived kanji set (build-kanji.ts's outer loop iterates KKLC chapters, not the JLPT file) - doesn't expand kanji coverage.
-- `steps.frequency`: optional JPDB kanji frequency rank (currently unused, reserved)
-- `frequency`: JPDB kanji frequency rank
+- `steps`: its position in each learning order that teaches it (1 = taught first): `kklc`, `rtk` (Remembering the Kanji, 6th edition), `rtkLegacy`, `kanjiInContext`, `kanjiKana`, `henshall`, `essentialKanji`, `kanjiFlashcards`, `tuttleCards`, `maniette` (KANJIDIC2's book numbers), plus `jlpt`, a level (1=N1 hardest ... 5=N5 easiest) from the Bluskyo/JLPT_Vocabulary kanji list. KKLC positions never move, so every word's `kklcStep` is unchanged. `KANJI_BOOKS` names each book; `kanjiBookPositions` lists a kanji's.
+- `meanings`, `readings` (`on`, `kun` in KANJIDIC2 notation, split for display by `kunReadingParts`, `nanori`), `strokeCount`, `grade` (`kanjiGradeLabel`), `radical` (Kangxi number and character), `components` (KRADFILE, real forms: 海 is 氵 母 毋 𠂉), `newspaperFrequency` (KANJIDIC2's rank, how often a reader meets the kanji)
+- `frequency`: JPDB rank of the kanji as a word on its own (学 5839, 海 722), not how common the character is; the frequency order uses `newspaperFrequency`
+
+**Kanji orders** (`KANJI_ORDERS`, `KanjiOrderId` in `@gokan/dataset-schema`): the orders a learner can follow, one `index/kanji-orders/{id}.json` each (the kanji in teaching order): every book above but Essential Kanji (its numbering skips positions), plus `jlpt` (N5 first, most frequent first within a level) and `frequency`. `KanjiKnowledge.method` is one of them; `step` is how many kanji into it the learner is, and their known set starts as its first `step` kanji.
 
 **`VocabProgress`** - User's learning progress for a vocabulary item
 - `vocabId`: Reference to Vocabulary.id
@@ -313,7 +314,7 @@ Which forms a quiz accepts is decided by the exercise engine's slot builders (se
 **`refillQueue(currentQueue, kanjiKnowledge, settings, maxToAdd, ignoredIds)`**
 - Adds new vocabulary to learning queue
 - Respects kanji knowledge constraints
-- Uses either KKLC or frequency ordering
+- Uses the learner's order: by kanji (their kanji method), frequency, kanji coverage or JLPT
 - Returns updated queue
 
 **`findCandidatesJLPT(activeIds, kanjiKnowledge, maxToFind, ignoreKnownKanji?)`** (private)
@@ -321,6 +322,8 @@ Which forms a quiz accepts is decided by the exercise engine's slot builders (se
 - **Kanji-filtered by default**, same as every other order - only skipped when `settings.ignoreKnownKanjiRequirement` is on. The mode's defining feature is following the official level lists exactly (a user studying for a specific sitting covers that level's vocabulary as published); enforcing known kanji by default keeps that combined with the app's kanji-aware learning goal instead of overriding it, while the opt-in toggle preserves the old unconditional behavior for anyone who wants a level's list exactly regardless of kanji already studied.
 - The JLPT lists cover only ~6.4k of ~36k words, so once drained it **falls back to `findCandidatesFrequency`** (respecting the same `ignoreKnownKanjiRequirement` flag) rather than stranding the user on the "exhausted" screen. `countLearnableVocabulary` mirrors this, delegating to the frequency count only when the JLPT pool hits zero - the two pools overlap heavily and must never be summed.
 - `kklc` is unaffected by `ignoreKnownKanjiRequirement` either way, since it's gated by step, not by kanji set.
+
+**`preferredLearningOrder: 'kklc'` ("By kanji") follows the learner's own kanji method**, not only KKLC: `findCandidatesByKanjiStep` and `countLearnableVocabulary` walk steps 1..`kanjiKnowledge.step` of `VocabularyService.loadKanjiStepIndex(method)`. For KKLC that is the dataset's `index/kklc.json`, exactly as before; for any other method it is derived in the app by `kanjiStepIndex` (`utils/kanjiOrder.utils.ts`) with the dataset's own rule: a word comes in at the position of its last kanji, and a word with a kanji the method does not teach, with no kanji, or learned in kana never does. When the method has unlocked no new word, the next kanji offered (`SET_NEXT_KANJI`) is the method's next one (`nextKanjiStep`). The setting keeps its stored value `'kklc'`.
 
 **`applyVocabIntroChoice(progress, choice)`**
 - Handles "Learn" or "Skip" on intro card
@@ -493,7 +496,7 @@ Handles loading vocabulary data from compiled JSON files.
 **Data Location**: `data/compiled/`
 - Indexes: `index/kklc.json`, `index/kklc-kanji.json`, `index/frequency.json`, `index/kanji-vocab.json` (kanji character → vocab IDs containing it, frequency-sorted), `index/jlpt.json` (JLPT level → `{id, containedKanji}[]`, frequency-sorted within each level; ~6.4k of the ~36k vocab carry a level). Near-synonyms for production grading are **not** an index file - they are embedded on each `vocab/{id}.json` as `synonyms` (see Production quiz synonym-aware grading)
 - Vocabulary: `vocab/{id}.json` (one file per vocab item)
-- Kanji: `kanji.json` (flat array of all `Kanji` objects)
+- Kanji: `kanji/{character}.json` (one kanji, what `loadKanji` reads), `kanji.json` (flat array of all `Kanji` objects, read by the dictionary build), `index/kanji-orders/{order}.json` (`loadKanjiOrder`: one learning order's kanji in teaching order), `index/kanji-components.json` (component → stroke count and kanji, for search by component; not read by the app yet)
 
 ### Grammar Service (`grammar.service.ts`) and Grammar SRS (`grammarSrs.service.ts`)
 
@@ -897,14 +900,15 @@ Hosts `KanjiKnowledgeEditor` (shared with the setup wizard), built around the tw
 
 The rows span the full pane width, matching the search box above them, so the tiles (and therefore the kanji) are as large as the page allows; they stay square via `aspect-square`. The scroll pane itself is user-resizable (`resize: vertical`, a native drag handle) from a starting height the host page picks via `gridHeight`/`initialHeight`: 36rem on the profile page against 22rem in the wizard. That requires a real `height` rather than a `max-height`, and the fade mask is top-only, since a bottom fade washed out the drag handle in that corner.
 
-The grid's header label comes from an order → label map keyed on `KanjiKnowledgeMethod` rather than a hardcoded "KKLC", since further orders (RTK, JLPT) are expected: only that map and the loaded list change when one arrives.
+The editor's method picker lists `KANJI_ORDERS`: the four most followed (KKLC, RTK, JLPT, frequency) and the other books behind "More methods". Picking one loads its `index/kanji-orders/{id}.json` (`KanjiFormProvider`, the previous list kept up while it loads); the count carries over, clamped to the new list's length, and the toggles reset. The editor reports a change only once the list has loaded, so a learner is never saved with one method and another method's kanji. The grid's label is the order's own (`kanjiOrder(method).label`).
 
 Its scroll pane carries the `.scrollbar-subtle` utility (`index.css`), which styles both `scrollbar-width`/`scrollbar-color` and the `::-webkit-scrollbar` pseudo-elements. Chrome/Edge otherwise draw a wide opaque track that reads as a bright band down the side of a dark pane, where Firefox's thin scrollbar already looked right.
 
 ### Kanji Detail Screen (`pages/kanji/KanjiDetailScreen.tsx`)
 
 Route: `/kanji/:character`. Mirrors `VocabDetailScreen`'s card-based layout at a smaller scale:
-- Kanji glyph, JLPT chip (`steps.jlpt`, if set), KKLC step, frequency rank, and a "Known" badge if the character is in the user's `kanjiKnowledge.kanjiSet`
+- Kanji glyph, JLPT chip (`steps.jlpt`, if set), meanings, on and kun readings (okurigana set apart), the kanji's number in the learner's own method ("RTK #346"), stroke count, radical, school grade, and a "Known" badge if the character is in the user's `kanjiKnowledge.kanjiSet`. Loaded from `kanji/{character}.json` (about 1 KB), not the whole `kanji.json`
+- Components (KRADFILE's visual parts), and a "Dictionary details" disclosure: name readings, newspaper frequency, radical number, and the kanji's number in every book that teaches it
 - `KanjiVocabListCard` (`pages/kanji/KanjiVocabListCard.tsx`): capped/expandable list (mirrors `VocabRelationshipsCard`'s pattern) of vocabulary containing this kanji, sourced from the `kanji-vocab.json` reverse index, each row navigating to `/vocab/:id`
 
 `VocabDetailScreen`'s kanji-breakdown card (see Core Data Models → Vocabulary) provides the reverse link: each kanji in a word's `containedKanji` is a clickable chip navigating to `/kanji/:character`, so users can move vocab → kanji → vocab.

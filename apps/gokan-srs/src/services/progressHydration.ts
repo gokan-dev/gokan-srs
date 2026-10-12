@@ -1,3 +1,4 @@
+import { isKanjiOrderId } from "@gokan/dataset-schema";
 import type { KanjiKnowledge, UserProgress, UserSettings } from "../models/user.model";
 import type { WatchedEpisode } from "../models/media.model";
 import type { NeedsRetryFlags, ReviewLog, SRSEntry, VocabProgress } from "../models/vocabulary.model";
@@ -153,8 +154,10 @@ export function hydrateGrammarProgress(item: Stored<GrammarProgress>): GrammarPr
 }
 
 export function hydrateKanjiKnowledge(stored: Stored<KanjiKnowledge> | undefined): KanjiKnowledge {
+    const method: unknown = stored?.method;
     return {
-        method: stored?.method ?? 'kklc',
+        // A method this build does not list (written by a newer one, or never valid) falls back to KKLC.
+        method: isKanjiOrderId(method) ? method : 'kklc',
         step: stored?.step ?? 0,
         kanjiSet: new Set(stored?.kanjiSet ?? []),
     };

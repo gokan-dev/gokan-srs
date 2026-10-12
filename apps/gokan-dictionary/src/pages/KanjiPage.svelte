@@ -1,7 +1,8 @@
 <script lang="ts">
+  import { kanjiBookPositions, kanjiGradeLabel, kunReadingParts } from '@gokan/dataset-schema';
   import type { Kanji } from '@gokan/dataset-schema';
   import type { VocabSummary } from '../lib/types';
-  import { kanjiIndexPath } from '../lib/urls';
+  import { kanjiIndexPath, kanjiPath } from '../lib/urls';
   import PageLayout from './PageLayout.svelte';
   import Chip from './Chip.svelte';
   import VocabEntryList from './VocabEntryList.svelte';
@@ -10,22 +11,57 @@
     kanji: Kanji;
     /** Every word containing the kanji, most frequent first. */
     words: VocabSummary[];
+    /** Every kanji with a page, so a component that is one (子 in 学) links to it. */
+    kanjiWithPages: ReadonlySet<string>;
   }
 
-  let { kanji, words }: Props = $props();
+  let { kanji, words, kanjiWithPages }: Props = $props();
 
   const WORDS_VISIBLE = 30;
   const level = $derived(kanji.steps.jlpt);
+  const kun = $derived(kanji.readings.kun.map(kunReadingParts));
+  const courses = $derived(kanjiBookPositions(kanji));
 </script>
 
 <PageLayout trail={[{ label: 'Kanji', href: kanjiIndexPath() }, { label: kanji.character, jp: true }]} section="kanji" wide>
   <header class="entry-head">
     <h1 class="kanji-glyph" lang="ja">{kanji.character}</h1>
+    {#if kanji.meanings.length > 0}<p class="entry-gloss">{kanji.meanings.join(', ')}</p>{/if}
+
+    {#if kanji.readings.on.length > 0 || kun.length > 0}
+      <dl class="kanji-readings">
+        {#if kanji.readings.on.length > 0}
+          <div><dt>On</dt><dd lang="ja">{kanji.readings.on.join('、')}</dd></div>
+        {/if}
+        {#if kun.length > 0}
+          <!-- The okurigana is set apart: まな(ぶ) is read まなぶ, written 学ぶ. -->
+          <div><dt>Kun</dt><dd lang="ja">{#each kun as { stem, okurigana }, index (index)}{index > 0 ? '、' : ''}{stem}{#if okurigana}<span class="okurigana">{okurigana}</span>{/if}{/each}</dd></div>
+        {/if}
+      </dl>
+    {/if}
+
     {#if level}<p class="chips"><Chip label={`JLPT N${level}`} href={`${kanjiIndexPath()}#n${level}`} /></p>{/if}
     <p class="meta">
-      {level ? `JLPT N${level}` : 'Outside the JLPT lists'}{#if kanji.steps.kklc}<span class="meta-sep" aria-hidden="true">·</span><abbr title="Kodansha Kanji Learner's Course">KKLC</abbr> #{kanji.steps.kklc}{/if}{#if kanji.frequency}<span class="meta-sep" aria-hidden="true">·</span>Frequency #{kanji.frequency.toLocaleString('en')}{/if}
+      {level ? `JLPT N${level}` : 'Outside the JLPT lists'}{#if kanji.grade !== undefined}<span class="meta-sep" aria-hidden="true">·</span>{kanjiGradeLabel(kanji.grade)}{/if}<span class="meta-sep" aria-hidden="true">·</span>{kanji.strokeCount} stroke{kanji.strokeCount === 1 ? '' : 's'}{#if kanji.radical}<span class="meta-sep" aria-hidden="true">·</span>Radical <span lang="ja">{kanji.radical.character}</span>{/if}
     </p>
   </header>
+
+  {#if kanji.components.length > 0}
+    <section class="section">
+      <h2>Components</h2>
+      <ul class="kanji-tiles">
+        {#each kanji.components as component (component)}
+          <li>
+            {#if kanjiWithPages.has(component) && component !== kanji.character}
+              <a href={kanjiPath(component)} lang="ja">{component}</a>
+            {:else}
+              <span lang="ja">{component}</span>
+            {/if}
+          </li>
+        {/each}
+      </ul>
+    </section>
+  {/if}
 
   <section class="section">
     <h2>Words with <span lang="ja">{kanji.character}</span></h2>
@@ -35,4 +71,22 @@
       <p class="support">No word in this dictionary uses this kanji yet.</p>
     {/if}
   </section>
+
+  {#if courses.length > 0}
+    <section class="section">
+      <h2>In kanji courses</h2>
+      <dl class="kanji-courses">
+        {#each courses as { book, name, position } (book)}
+          <div><dt>{name}</dt><dd>#{position.toLocaleString('en')}</dd></div>
+        {/each}
+      </dl>
+    </section>
+  {/if}
+
+  {#if kanji.readings.nanori.length > 0}
+    <details class="disclosure">
+      <summary>Readings in names ({kanji.readings.nanori.length})</summary>
+      <p lang="ja">{kanji.readings.nanori.join('、')}</p>
+    </details>
+  {/if}
 </PageLayout>
