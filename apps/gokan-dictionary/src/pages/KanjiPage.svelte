@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { kanjiBookPositions, kanjiGradeLabel, kunReadingParts } from '@gokan/dataset-schema';
+  import { kanjiBookPositions, kanjiGradeLabel, kunReadingLabel } from '@gokan/dataset-schema';
   import type { Kanji } from '@gokan/dataset-schema';
   import type { VocabSummary } from '../lib/types';
   import { kanjiIndexPath, kanjiPath } from '../lib/urls';
@@ -19,7 +19,7 @@
 
   const WORDS_VISIBLE = 30;
   const level = $derived(kanji.steps.jlpt);
-  const kun = $derived(kanji.readings.kun.map(kunReadingParts));
+  const kun = $derived(kanji.readings.kun.map(kunReadingLabel));
   const courses = $derived(kanjiBookPositions(kanji));
 </script>
 
@@ -34,15 +34,16 @@
           <div><dt>On</dt><dd lang="ja">{kanji.readings.on.join('、')}</dd></div>
         {/if}
         {#if kun.length > 0}
-          <!-- The okurigana is set apart: まな(ぶ) is read まなぶ, written 学ぶ. -->
-          <div><dt>Kun</dt><dd lang="ja">{#each kun as { stem, okurigana }, index (index)}{index > 0 ? '、' : ''}{stem}{#if okurigana}<span class="okurigana">{okurigana}</span>{/if}{/each}</dd></div>
+          <!-- The okurigana in parentheses: まな(ぶ) is read まなぶ, written 学ぶ. -->
+          <div><dt>Kun</dt><dd lang="ja">{kun.join('、')}</dd></div>
         {/if}
       </dl>
     {/if}
 
     {#if level}<p class="chips"><Chip label={`JLPT N${level}`} href={`${kanjiIndexPath()}#n${level}`} /></p>{/if}
+    <!-- The level is the chip's; the line names it only when there is no chip. -->
     <p class="meta">
-      {level ? `JLPT N${level}` : 'Outside the JLPT lists'}{#if kanji.grade !== undefined}<span class="meta-sep" aria-hidden="true">·</span>{kanjiGradeLabel(kanji.grade)}{/if}<span class="meta-sep" aria-hidden="true">·</span>{kanji.strokeCount} stroke{kanji.strokeCount === 1 ? '' : 's'}{#if kanji.radical}<span class="meta-sep" aria-hidden="true">·</span>Radical <span lang="ja">{kanji.radical.character}</span>{/if}
+      {#if !level}Outside the JLPT lists<span class="meta-sep" aria-hidden="true">·</span>{/if}{#if kanji.grade !== undefined}{kanjiGradeLabel(kanji.grade)}<span class="meta-sep" aria-hidden="true">·</span>{/if}{kanji.strokeCount} stroke{kanji.strokeCount === 1 ? '' : 's'}{#if kanji.radical}<span class="meta-sep" aria-hidden="true">·</span>Radical <span lang="ja">{kanji.radical.character}</span>{/if}
     </p>
   </header>
 

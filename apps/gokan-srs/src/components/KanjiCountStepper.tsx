@@ -135,7 +135,7 @@ export function KanjiCountStepper({ step, onStepChange }: KanjiCountStepperProps
                         value={stepDraft ?? String(stepValue)}
                         onChange={e => commitStep(e.target.value)}
                         onBlur={() => setStepDraft(null)}
-                        className="w-16 h-8 border rounded-md px-2 text-sm text-center border-divider bg-surface text-primary font-gothic tabular-nums"
+                        className="w-16 h-8 border rounded-md px-2 text-base md:text-sm text-center border-divider bg-surface text-primary font-gothic tabular-nums"
                     />
                     <span className="type-meta">
                         kanji per click, remembered for next time

@@ -126,7 +126,8 @@ $motion: 150ms ease-in-out;
   margin: $space-2 0 0;
 }
 
-/// One glyph per tile (a word's kanji, a kanji's components); a tile with a page is a link.
+/// One glyph per tile (a word's kanji, a kanji's components). Only a glyph with a page is a box and a
+/// link; one with none (氵) is drawn plain at the same size, so nothing unclickable looks clickable.
 @mixin glyph-tiles {
   @include bare-list;
   display: flex;
@@ -135,7 +136,6 @@ $motion: 150ms ease-in-out;
 
   a,
   span {
-    @include surface(0);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -147,6 +147,7 @@ $motion: 150ms ease-in-out;
   }
 
   a {
+    @include surface(0);
     @include interactive-surface;
   }
 }

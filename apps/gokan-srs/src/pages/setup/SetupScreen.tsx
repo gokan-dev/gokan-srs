@@ -38,8 +38,10 @@ export function SetupScreen({ onComplete }: { onComplete: (values: SetupValues) 
     }
 
     return (
-        <div className="min-h-screen flex items-center justify-center p-8 bg-background transition-colors duration-200">
-            <div className="w-full max-w-2xl md:max-w-3xl mx-auto p-8 space-y-12">
+        // The page gutter is Page's (px-4 on a phone, md:px-6), not 64px a side: doubled p-8 left the
+        // method cards and the kanji grid 190px wide at 320px.
+        <div className="min-h-screen flex items-center justify-center px-4 py-6 md:p-8 bg-background transition-colors duration-200">
+            <div className="w-full max-w-2xl md:max-w-3xl mx-auto md:p-8 space-y-12">
                 <SetupHeader />
 
                 <KanjiKnowledgeEditor />

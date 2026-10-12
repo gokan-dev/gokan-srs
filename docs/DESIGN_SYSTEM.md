@@ -170,6 +170,19 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
   repeats the status word: a mastered item with nothing scheduled shows only
   "● Mastered" (`statusReviewPhrase`). The kanji header keeps Known / Not known. No mastery rings: those, with their values, are only in "Your
   progress".
+- **`DetailBody`**: the body under every `DetailHeader`. From `lg` the same 12-column grid,
+  `main` (8: the subject's content, meanings first) and `side` (4: the learner's data,
+  related items, the details `Disclosure`); below `lg`, one column in reading order
+  (`stacked` when it interleaves the two). The 12-column grid exists only in these two
+  components (enforced, `detail-layout`).
+- **Kanji page**: the header is the glyph, its readings labelled On and Kun, and neutral
+  chips (JLPT, and the kanji's number in the learner's own method, "RTK #346"). Main:
+  Meanings, then the words using it. Side: Components (with "8 strokes · Radical 子") and
+  Dictionary details (school grade, newspaper rank, name readings, every book's number).
+- **Readings**: on in katakana, kun in hiragana with the okurigana in parentheses, まな(ぶ),
+  through `kunReadingLabel` in both apps (enforced, `kun-reading`). Parentheses, not a
+  colour: every colour already means something (section 2). A reading beside its headword is
+  `secondary`, its On/Kun label a field label.
 - **Session cards**: every card of a study session (each exercise, both intro cards, the
   chapter review, the kanji unlock) is drawn in `QuizCardFrame`, which owns one width
   (`w-full max-w-2xl`, on the animated wrapper too) and one padding, so a card's size
@@ -221,6 +234,15 @@ Defined once, in `components/` or `components/ui/`, never copied:
   that shows its values on hover, focus and tap; x labels are never truncated.
 - **`TabNav`**: route tabs (active: ink text, 2px accent underline). Used by the Grammar
   home.
+- **`KanjiTile`** (`KanjiTile.tsx`): one glyph, a word's kanji or a kanji's components. A
+  box (surface, divider border, accent on hover and focus) only when it links to the glyph's
+  page; a glyph with no page (氵) is drawn plain at the same size, so nothing unclickable
+  looks clickable (principle 7). Optional caption ("Known"). Every boxed glyph is one
+  (enforced, `glyph-tile`); the known-kanji grid's toggles are the one other, and they are
+  buttons. The dictionary's equivalent is the `glyph-tiles` mixin.
+- **Option grids with a long tail** (the kanji method picker): the few options most
+  learners pick in an `OptionGrid`, the rest in a collapsed "More ..." `Disclosure`, opened
+  when the current choice is among them.
 
 ## 7. Glossary
 
@@ -272,6 +294,15 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
 - **Shape**: 6px radius for cards, chips, tiles, inputs and buttons; the search field is
   the one pill. No shadow except the search panel. Spacing on the 8px scale. Page
   sections are a heading plus spacing, not boxes; a box is an object (a tile, a kanji).
+  A glyph tile is a box only when it is a link (the `glyph-tiles` mixin: a kanji
+  component with a page is boxed, 氵 is plain), as in the app.
+- **Kanji page**: the glyph, its meanings (`entry-gloss`), its readings labelled On and Kun
+  (the okurigana in parentheses, `kunReadingLabel`), the JLPT chip, then one meta line that
+  names the level only when there is no chip. Sections: Components, Words, In kanji courses
+  (each book's number), then the name readings behind a `<details>`.
+- **Shared between page sheets**: a rule two page types use goes in `app.scss`, unless that
+  breaks its budget; then it is a mixin in `_tokens.scss` (`glyph-tiles`, `entry-gloss`,
+  `stacked-entries`) included by each page sheet, so the source stays one copy.
 - **Frame**: "Skip to content" is the first focusable element of every page. The header's
   inner container is the wide measure (960px) on every page, so it lines up with the entry
   pages. Wide screens: one row (logo, nav, search on the right). Phones (below 40rem): at
@@ -319,6 +350,24 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
 - `no-tracking-wide`: no `tracking-wide`, `tracking-wider` or `tracking-widest`.
 - `date-formatting`: `toLocaleDateString`/`toLocaleTimeString`/`dateStyle`/`timeStyle`
   only in `utils/time.utils.ts`.
+- `kun-reading`: a kun reading is rendered through `kunReadingLabel`, in both apps.
+- `glyph-tile`: a boxed mincho glyph (`font-mincho text-2xl` with a border) only in
+  `KanjiTile` (and the known-kanji grid's toggle buttons).
+- `detail-layout`: `grid-cols-12` only in `DetailHeader` and `DetailBody`, and every
+  `*DetailScreen` uses both.
+
+**Layout, in a browser** (`scripts/check-layout.ts`, `bun run check:layout`, run by CI in
+`.github/workflows/ci-layout.yml` on both production builds): at 320 and 375px, on the
+app's onboarding and main routes and the dictionary's page types, no page scrolls
+sideways, no text is below 12px (furigana in `rt` and SVG chart labels excepted), every
+input is at least 16px (smaller makes iOS zoom), and the dictionary's nav links, pager
+links, toggles, tiles and disclosure summaries are at least 44px tall. A new page type or
+main route is added to its lists.
 
 A red check here is never fixed by relaxing the rule; fix the code, or change this
 document and the check together, deliberately, and say so in the PR.
+
+**Before shipping UI**: read the sections of this document for what you touch, reuse the
+components of section 6, and look at the result at 320px, 375px and desktop width, light
+and dark. The checks catch what can be measured; whether a colour means the right thing,
+or a box is an object, is still read by eye.

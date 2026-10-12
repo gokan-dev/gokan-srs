@@ -153,7 +153,7 @@ export function VocabularyListScreen() {
                             value={jlptLevel ?? ''}
                             onChange={e => changeView(() => setJlptLevel(e.target.value ? Number(e.target.value) : null))}
                             aria-label="JLPT level"
-                            className="h-8 px-2 border border-divider rounded-md text-sm bg-surface text-primary focus:outline-none focus:border-accent"
+                            className="h-8 px-2 border border-divider rounded-md text-base md:text-sm bg-surface text-primary focus:outline-none focus:border-accent"
                         >
                             <option value="">Any level</option>
                             {LEVELS.map(level => <option key={level} value={level}>N{level}</option>)}
@@ -163,7 +163,7 @@ export function VocabularyListScreen() {
                             value={sort}
                             onChange={e => changeView(() => setSort(SORTS.find(option => option === e.target.value) ?? 'next_review'))}
                             aria-label="Sort"
-                            className="h-8 px-2 border border-divider rounded-md text-sm bg-surface text-primary focus:outline-none focus:border-accent"
+                            className="h-8 px-2 border border-divider rounded-md text-base md:text-sm bg-surface text-primary focus:outline-none focus:border-accent"
                         >
                             {SORTS.map(option => <option key={option} value={option}>{VOCAB_SORT_LABEL[option]}</option>)}
                         </select>
