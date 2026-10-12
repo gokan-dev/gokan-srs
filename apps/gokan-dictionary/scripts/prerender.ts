@@ -254,6 +254,7 @@ async function main(): Promise<void> {
     }
 
     console.log(`[prerender] writing ${kanjiList.length} kanji pages...`);
+    const kanjiWithPages: ReadonlySet<string> = new Set(kanjiList.map(kanji => kanji.character));
     for (const kanji of kanjiList) {
         // Every word, most frequent first (the index's order); the page collapses all but the first.
         const words = resolveSummaries(kanjiVocabIndex[kanji.character] ?? [], summaryById, missingRelatedIds);
@@ -261,7 +262,7 @@ async function main(): Promise<void> {
         // string: static hosts decode the request URL's percent-escapes before resolving a
         // file on disk, so the on-disk name must be the literal UTF-8 character to match what
         // a browser actually requests when it navigates to kanjiPath()'s href.
-        writePage(['kanji', kanji.character], kanjiPath(kanji.character), bodyOf(KanjiPage, { kanji, words }), kanjiMeta(kanji, words.length), {
+        writePage(['kanji', kanji.character], kanjiPath(kanji.character), bodyOf(KanjiPage, { kanji, words, kanjiWithPages }), kanjiMeta(kanji, words.length), {
             pageStylesheetHref: pageStyles.kanji,
         });
     }

@@ -699,7 +699,24 @@ describe('SRSService Formula Tests', () => {
         });
     });
 
-    describe('Learning Order: Kanji Coverage', () => {
+    describe('Learning Order: by kanji, any method', () => {
+    const settings: LearningOrderSettings = { preferredLearningOrder: 'kklc' };
+
+    it("follows the learner's own method: an RTK learner gets the words RTK has unlocked so far", async () => {
+        vi.spyOn(VocabularyService, 'loadFrequencyIndex').mockResolvedValue([
+            { id: 'umi', containedKanji: ['海'] },
+            { id: 'gakusei', containedKanji: ['学', '生'] },
+            { id: 'nichi', containedKanji: ['日'] },
+        ]);
+        vi.spyOn(VocabularyService, 'loadKanjiOrder').mockResolvedValue(['日', '学', '生', '海']);
+        const rtk: KanjiKnowledge = { method: 'rtk', step: 3, kanjiSet: new Set(['日', '学', '生']) };
+
+        expect(await SRSService.getNextCandidates([], rtk, settings, 10)).toEqual(['nichi', 'gakusei']);
+        expect(await SRSService.countLearnableVocabulary({ kanjiKnowledge: rtk, learningQueue: [{ vocabId: 'nichi' }] }, settings)).toBe(1);
+    });
+});
+
+describe('Learning Order: Kanji Coverage', () => {
         const mockIndex = [
             { id: 'w1', containedKanji: ['A'] },  // Rank 0
             { id: 'w2', containedKanji: ['B'] },  // Rank 1

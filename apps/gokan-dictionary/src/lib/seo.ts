@@ -38,14 +38,19 @@ export function vocabMeta(vocab: Vocabulary): PageMeta {
 
 export function kanjiMeta(kanji: Kanji, vocabCount: number): PageMeta {
     const jlpt = kanji.steps.jlpt ? ` (JLPT ${JLPT_LABEL(kanji.steps.jlpt)})` : '';
-    // The dataset has no kanji meanings or readings yet, so the title promises only what the
-    // page shows: the level and the words written with it.
-    const title = vocabCount > 0
-        ? `${kanji.character} kanji${jlpt}: words using ${kanji.character} - ${SITE_NAME}`
+    // Searched as "学 kanji meaning": the character, the word "kanji", then what it means.
+    const meaning = kanji.meanings.slice(0, 3).join(', ');
+    const title = meaning
+        ? `${kanji.character} kanji meaning: ${truncate(meaning, TITLE_MEANING_LENGTH)}${jlpt} - ${SITE_NAME}`
         : `${kanji.character} kanji${jlpt} - ${SITE_NAME}`;
-    const description = vocabCount > 0
-        ? `The kanji ${kanji.character}: KKLC step, JLPT level, and ${vocabCount} vocabulary word${vocabCount === 1 ? '' : 's'} that use it.`
-        : `The kanji ${kanji.character}: KKLC step and JLPT level.`;
+
+    // Readings as typed into a search box: まな.ぶ is まなぶ, a suffix reading's dash dropped.
+    const readings = [...new Set([...kanji.readings.on, ...kanji.readings.kun.map(reading => reading.replace(/[.-]/g, ''))])].slice(0, 4);
+    const opening = meaning ? `The kanji ${kanji.character} means "${meaning}"` : `The kanji ${kanji.character}`;
+    const read = readings.length > 0 ? `, read ${readings.join(', ')}` : '';
+    const strokes = `${kanji.strokeCount} stroke${kanji.strokeCount === 1 ? '' : 's'}`;
+    const words = vocabCount > 0 ? `, and the ${vocabCount} word${vocabCount === 1 ? ' that uses' : 's that use'} it` : '';
+    const description = `${opening}${read}. Its ${strokes}, components and readings${words}.`;
 
     return { title, description };
 }

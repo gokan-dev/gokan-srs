@@ -1,4 +1,5 @@
-import type { FrequencyIndex, JlptIndex, KKLCIndex, MediaWordCount } from '@gokan/dataset-schema';
+import type { FrequencyIndex, JlptIndex, MediaWordCount } from '@gokan/dataset-schema';
+import type { KanjiStepIndex } from './kanjiOrder.utils';
 import type { LearningOrder } from '../models/user.model';
 import { numericEntries } from './records';
 import { orderIncludesUsuallyKana } from './usuallyKana.utils';
@@ -6,7 +7,7 @@ import { orderIncludesUsuallyKana } from './usuallyKana.utils';
 /**
  * Ordering for the listening library's "words to learn" lists, per episode and
  * for a whole series. Pure: the indexes are loaded by the caller (they are the
- * same frequency, JLPT and KKLC indexes the quiz's own refill uses).
+ * same frequency, JLPT and kanji step indexes the quiz's own refill uses).
  */
 
 export type WordSort = 'yours' | 'occurrences' | 'frequency' | 'jlpt' | 'kklc';
@@ -16,7 +17,7 @@ export const WORD_SORTS: { value: WordSort; label: string }[] = [
     { value: 'occurrences', label: 'Most used here' },
     { value: 'frequency', label: 'General frequency' },
     { value: 'jlpt', label: 'JLPT level' },
-    { value: 'kklc', label: 'Kanji order (KKLC)' },
+    { value: 'kklc', label: 'Your kanji method' },
 ];
 
 /** Per-word facts from the vocab indexes, keyed by vocab id. */
@@ -26,12 +27,13 @@ export interface WordOrderContext {
     kanjiOf: Map<string, string[]>;
     /** 5 = N5 (easiest) .. 1 = N1. Absent for the majority of words, which have no JLPT level. */
     jlptLevel: Map<string, number>;
-    kklcStep: Map<string, number>;
+    /** The step of the learner's kanji method that unlocks the word (KanjiStepIndex). */
+    kanjiStep: Map<string, number>;
     /** Words learned in kana (VocabIndexEntry.usuallyKana): no kanji needed, absent from the kanji-driven orders. */
     usuallyKana: Set<string>;
 }
 
-export function buildWordOrderContext(frequency: FrequencyIndex, jlpt: JlptIndex, kklc: KKLCIndex): WordOrderContext {
+export function buildWordOrderContext(frequency: FrequencyIndex, jlpt: JlptIndex, kanjiSteps: KanjiStepIndex): WordOrderContext {
     const frequencyRank = new Map<string, number>();
     const kanjiOf = new Map<string, string[]>();
     const usuallyKana = new Set<string>();
@@ -44,19 +46,19 @@ export function buildWordOrderContext(frequency: FrequencyIndex, jlpt: JlptIndex
     for (const [level, entries] of numericEntries(jlpt)) {
         for (const entry of entries) jlptLevel.set(entry.id, level);
     }
-    const kklcStep = new Map<string, number>();
-    for (const [step, ids] of numericEntries(kklc)) {
-        for (const id of ids) if (!kklcStep.has(id)) kklcStep.set(id, step);
+    const kanjiStep = new Map<string, number>();
+    for (const [step, ids] of numericEntries(kanjiSteps)) {
+        for (const id of ids) if (!kanjiStep.has(id)) kanjiStep.set(id, step);
     }
-    return { frequencyRank, kanjiOf, jlptLevel, kklcStep, usuallyKana };
+    return { frequencyRank, kanjiOf, jlptLevel, kanjiStep, usuallyKana };
 }
 
 /** What the learner's own vocab order depends on: their settings and kanji. */
 export interface LearnerOrder {
     order: LearningOrder;
     knownKanji: Set<string>;
-    /** KKLC step reached, for the kklc order. */
-    kklcStep: number;
+    /** How many kanji into their method the learner is, for the kklc (by kanji) order. */
+    kanjiStep: number;
     ignoreKnownKanji: boolean;
     /**
      * Known kanji still below the kanji-coverage target in the learner's
@@ -88,13 +90,14 @@ export function computeUncoveredKanji(
 
 /**
  * Whether the learner's own queue could introduce this word right now: under
- * the kklc order, its step is reached; under every other order, all its kanji
- * are known (unless they turned that requirement off). A word learned in kana
- * needs no kanji, but the kanji-driven orders never introduce it.
+ * the kklc (by kanji) order, its step of the learner's kanji method is reached;
+ * under every other order, all its kanji are known (unless they turned that
+ * requirement off). A word learned in kana needs no kanji, but the
+ * kanji-driven orders never introduce it.
  */
 export function isLearnableNow(vocabId: string, context: WordOrderContext, learner: LearnerOrder): boolean {
     if (context.usuallyKana.has(vocabId)) return orderIncludesUsuallyKana(learner.order);
-    if (learner.order === 'kklc') return (context.kklcStep.get(vocabId) ?? Infinity) <= learner.kklcStep;
+    if (learner.order === 'kklc') return (context.kanjiStep.get(vocabId) ?? Infinity) <= learner.kanjiStep;
     if (learner.ignoreKnownKanji) return true;
     const kanji = context.kanjiOf.get(vocabId);
     return kanji !== undefined && kanji.every(k => learner.knownKanji.has(k));
@@ -114,7 +117,7 @@ function keyOf(sort: Exclude<WordSort, 'yours' | 'occurrences'>, vocabId: string
             return [level === undefined ? Infinity : 5 - level, rank];
         }
         case 'kklc':
-            return [context.kklcStep.get(vocabId) ?? Infinity, rank];
+            return [context.kanjiStep.get(vocabId) ?? Infinity, rank];
     }
 }
 

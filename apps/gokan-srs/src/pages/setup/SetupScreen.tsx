@@ -16,8 +16,9 @@ export function SetupScreen({ onComplete }: { onComplete: (values: SetupValues) 
 
     const handleSubmit = () => {
         if (
+            !state.loading &&
             state.kanjiCount >= CONSTANTS.setup.minimumKanjiCount &&
-            state.kanjiCount <= CONSTANTS.setup.maximumKanjiCount
+            state.kanjiCount <= state.allKanji.length
         ) {
             const values: SetupValues = {
                 kanjiKnowledge: {
@@ -31,7 +32,8 @@ export function SetupScreen({ onComplete }: { onComplete: (values: SetupValues) 
         }
     };
 
-    if (state.loading) {
+    // Only the first list blocks the page; switching method keeps it up while the next one loads.
+    if (state.loading && state.allKanji.length === 0) {
         return (<Loader title="Loading..." />)
     }
 
@@ -48,7 +50,7 @@ export function SetupScreen({ onComplete }: { onComplete: (values: SetupValues) 
                     <Button
                         variant="primary"
                         onClick={handleSubmit}
-                        disabled={!state.knownKanji}
+                        disabled={state.loading}
                         className="w-full py-4 text-lg font-serif h-14"
                     >
                         Start learning

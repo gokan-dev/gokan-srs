@@ -14,6 +14,7 @@ import { DEFAULT_SETTINGS } from '../../models/user.model';
 import type { SetupValues } from '../../models/state.model';
 import { clearStaleNeedsRetry, syncUsuallyKana } from '../../utils/srs.utils';
 import { usuallyKanaBudget } from '../../utils/usuallyKana.utils';
+import { nextKanjiStep } from '../../utils/kanjiOrder.utils';
 import { pickProductionClozeSentence } from '../../utils/productionCloze.utils';
 import type { ProductionCloze } from '../../utils/productionCloze.utils';
 import { indexLearnerVocab, pickSentenceForVocab } from '../../utils/sentenceRanking';
@@ -324,18 +325,14 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                 newCandidates = loaded;
             }
 
-            // If no candidates found, and we're not exhausted/blocked, prepare next kanji step.
-            if (newCandidates.length === 0 && canAddNew && state.progress!.kanjiKnowledge.method === 'kklc') {
+            // If no candidates found, and we're not exhausted/blocked, prepare the next kanji of the learner's method.
+            if (newCandidates.length === 0 && canAddNew) {
                 try {
-                    const kanjiIndex = await VocabularyService.loadKKLCKanjiIndex();
-                    if (kanjiIndex) {
-                        const nextStep = state.progress!.kanjiKnowledge.step + 1;
-                        if (kanjiIndex[nextStep]) {
-                            dispatch({ type: 'SET_NEXT_KANJI', payload: { step: nextStep, kanjis: kanjiIndex[nextStep] } });
-                        }
-                    }
+                    const { method, step } = state.progress!.kanjiKnowledge;
+                    const next = nextKanjiStep(await VocabularyService.loadKanjiOrder(method), step);
+                    if (next) dispatch({ type: 'SET_NEXT_KANJI', payload: next });
                 } catch (e) {
-                    console.error('[useQuizOrchestration] Failed to load kanji index for next step', e);
+                    console.error('[useQuizOrchestration] Failed to load the kanji order for the next step', e);
                 }
             } else if (newCandidates.length > 0 && state.nextKanjiToLearn) {
                 dispatch({ type: 'SET_NEXT_KANJI', payload: null });
