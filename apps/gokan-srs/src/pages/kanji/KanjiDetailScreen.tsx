@@ -4,6 +4,7 @@ import { kanjiBookPositions, kanjiGradeLabel, kanjiOrder, kunReadingLabel } from
 import { JlptChip } from "../../components/JlptChip";
 import { Chip } from "../../components/ui/Chip";
 import { KanjiTile } from "../../components/KanjiTile";
+import { StatusDot } from "../../components/StatusDot";
 import { useQuiz } from "../../context/useQuiz";
 import { VocabularyService } from "../../services/vocabulary.service";
 import { LoadingScreen } from "../../components/LoadingScreen";
@@ -61,10 +62,7 @@ export default function KanjiDetailScreen() {
             ) : undefined}
             actions={
                 <div className="flex flex-col items-start gap-2">
-                    <span className="inline-flex items-center gap-1.5 type-support">
-                        <span className={`inline-block w-2.5 h-2.5 rounded-full border ${isKnown ? 'bg-accent border-accent' : 'border-divider'}`} aria-hidden="true" />
-                        {isKnown ? 'Known' : 'Not known yet'}
-                    </span>
+                    <StatusDot status={isKnown ? 'mastered' : 'new'} label={isKnown ? 'Known' : 'Not known yet'} />
                     <Button variant="secondary" onClick={toggleKnown}>
                         {isKnown ? 'Mark as not known' : 'Mark as known'}
                     </Button>

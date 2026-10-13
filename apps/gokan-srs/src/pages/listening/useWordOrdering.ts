@@ -3,6 +3,7 @@ import { VocabularyService } from "../../services/vocabulary.service";
 import { useQuiz } from "../../context/useQuiz";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import type { KanjiLearningMethod } from "../../models/user.model";
+import { CONSTANTS } from "../../commons/constants";
 import { buildWordOrderContext, computeUncoveredKanji } from "../../utils/wordOrder.utils";
 import type { LearnerOrder, WordOrderContext } from "../../utils/wordOrder.utils";
 
@@ -32,7 +33,7 @@ async function loadContext(method: KanjiLearningMethod): Promise<WordOrderContex
  */
 export function useWordOrdering(): { context: WordOrderContext | null; learner: LearnerOrder | null } {
     const { state } = useQuiz();
-    const method = state.progress?.kanjiKnowledge.method ?? 'kklc';
+    const method = state.progress?.kanjiKnowledge.method ?? CONSTANTS.setup.defaultKanjiLearningMethod;
     const contextLoad = useAsyncData(method, () => loadContext(method));
     const context = contextLoad.data ?? cachedContexts.get(method) ?? null;
 

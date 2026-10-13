@@ -904,12 +904,14 @@ The editor's method picker lists `KANJI_ORDERS`: the four most followed (KKLC, R
 
 **The known set is one durable union; orders only fill it** (`context/KanjiForm/kanjiFormReducer.ts`, pure and tested directly). A learner who knows KKLC's first 500 and some RTK or JLPT kanji on top can say so:
 
-- Switching order keeps the set as it is. The count of the new order starts at how many of its first kanji are already known, and is pinned there as soon as the user marks a kanji.
-- Raising the count adds that order's kanji up to the new count; lowering it takes back only the stretch of this order it steps over. Kanji from other orders outside that stretch stay.
+- Switching order keeps the set as it is and starts the count input at 0. The grid's legend ("N of 3,000 in RTK order known") still shows how far the set already reaches into the new order.
+- Raising the count adds that order's kanji up to the new count, and remembers which of them were not known yet (`raised`, editor state only). Lowering takes back only those. Kanji known before a raise (the stored set, another order, the kanji page, "Learn next kanji", a hand mark) stay: removing them is what hand marks and Reset are for. So +N then -N restores the set exactly. A switch and a Reset clear `raised`, so lowering in one order never reaches kanji another order's raises added.
+- After a reload `raised` is empty: the count shows the stored `step`, and lowering it moves the input but removes nothing that was stored.
+- During setup, before anything is marked, the set simply follows the count in the chosen order (the default count is not a stored set, so lowering it takes kanji away and picking an order keeps the count).
 - A kanji marked one by one in the grid (`marked`) wins over every count, in every order, until a Reset. Opening the page starts from the stored `kanjiSet`, not from the first N of the stored order, so kanji marked on a kanji's detail page or by "Learn next kanji" are kept.
-- **Reset** (behind an inline confirm) is the escape hatch: only the current order's first N, no marks. "Known: N kanji" under the stepper is the size of the whole set, independent of any order.
+- **Reset** (behind an inline confirm) is the escape hatch: only the current order's first N, no marks ("Keep only the first N of RTK?"; at 0, right after a switch, "Clear all N known kanji?" empties the set). "Known: N kanji" under the stepper is the size of the whole set, independent of any order.
 
-`method` and `step` stay the primary order and how far its count reaches: they still sequence new vocab and name positions ("RTK #346"). Nothing about storage changed: `kanjiSet` was always the resolved set.
+`method` stays the primary order, and `step` is saved as its **known prefix** (how many of its first kanji are known: `knownPrefix`), not the count input. `step` drives the "By kanji" learning order (`SRSService` walks steps 1..`step` of the method's index), so saving the input's 0 after a switch would stop new words; the prefix keeps sequencing on what is known whatever the input shows. Positions are still named in the primary order ("RTK #346"). Nothing about storage changed: `kanjiSet` was always the resolved set.
 
 Its scroll pane carries the `.scrollbar-subtle` utility (`index.css`), which styles both `scrollbar-width`/`scrollbar-color` and the `::-webkit-scrollbar` pseudo-elements. Chrome/Edge otherwise draw a wide opaque track that reads as a bright band down the side of a dark pane, where Firefox's thin scrollbar already looked right.
 

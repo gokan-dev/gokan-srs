@@ -23,7 +23,7 @@ export function SetupScreen({ onComplete }: { onComplete: (values: SetupValues) 
             const values: SetupValues = {
                 kanjiKnowledge: {
                     method: state.kanjiMethod,
-                    step: state.kanjiCount,
+                    step: state.knownPrefix,
                     kanjiSet: new Set(state.knownKanji),
                 },
                 settings: { ...DEFAULT_SETTINGS, preferredLearningOrder: learningOrder },

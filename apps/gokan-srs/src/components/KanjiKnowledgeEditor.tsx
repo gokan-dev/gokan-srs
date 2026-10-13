@@ -31,17 +31,18 @@ export function KanjiKnowledgeEditor({
     const { state, setKanjiMethod } = useKanjiForm();
 
     // Reports every change to the knowledge being edited, once the method's list has loaded (the
-    // count is measured in that list). The callback is read fresh each time without re-running
+    // known prefix is measured in that list). `step` is the known prefix, not the count input:
+    // it sequences new words, and the input is 0 after a switch. The callback is read fresh each time without re-running
     // the effect.
     const reportChange = useEffectEvent((knowledge: KanjiKnowledge) => onKanjiKnowledgeChange?.(knowledge));
     useEffect(() => {
         if (state.loading || state.allKanji.length === 0) return;
         reportChange({
-            step: state.kanjiCount,
+            step: state.knownPrefix,
             method: state.kanjiMethod,
             kanjiSet: state.knownKanji,
         });
-    }, [state.kanjiMethod, state.kanjiCount, state.knownKanji, state.loading, state.allKanji.length]);
+    }, [state.kanjiMethod, state.knownPrefix, state.knownKanji, state.loading, state.allKanji.length]);
 
     const mainMethods = METHODS.slice(0, MAIN_METHOD_COUNT);
     const moreMethods = METHODS.slice(MAIN_METHOD_COUNT);

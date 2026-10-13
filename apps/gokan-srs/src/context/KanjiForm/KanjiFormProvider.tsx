@@ -5,7 +5,7 @@ import type { KanjiLearningMethod } from "../../models/user.model";
 import {VocabularyService} from "../../services/vocabulary.service";
 import {CONSTANTS} from "../../commons/constants";
 import { useAsyncData } from "../../hooks/useAsyncData";
-import { countOf, initialKanjiForm, kanjiFormReducer, knownKanjiOf } from "./kanjiFormReducer";
+import { countOf, initialKanjiForm, kanjiFormReducer, knownKanjiOf, knownPrefix } from "./kanjiFormReducer";
 
 const NO_KANJI: string[] = [];
 
@@ -32,7 +32,8 @@ export function KanjiFormProvider({
     const list = loading || !allKanji.length ? null : allKanji;
 
     const knownKanji = useMemo(() => knownKanjiOf(form, list), [form, list]);
-    const count = countOf(form, allKanji, knownKanji);
+    const count = countOf(form, allKanji);
+    const prefix = useMemo(() => knownPrefix(allKanji, knownKanji), [allKanji, knownKanji]);
 
     const setKanjiCount = useCallback((next: number) => dispatch({ type: 'SET_COUNT', count: next, list }), [list]);
     const toggleKanji = useCallback((kanji: string) => dispatch({ type: 'TOGGLE', kanji, list }), [list]);
@@ -41,13 +42,13 @@ export function KanjiFormProvider({
 
     const value = useMemo(
         () => ({
-            state: { allKanji, kanjiCount: count, knownKanji, kanjiMethod, loading },
+            state: { allKanji, kanjiCount: count, knownPrefix: prefix, knownKanji, kanjiMethod, loading },
             setKanjiCount,
             toggleKanji,
             setKanjiMethod,
             resetKanji,
         }),
-        [allKanji, count, knownKanji, kanjiMethod, loading, setKanjiCount, toggleKanji, setKanjiMethod, resetKanji]
+        [allKanji, count, prefix, knownKanji, kanjiMethod, loading, setKanjiCount, toggleKanji, setKanjiMethod, resetKanji]
     );
 
     return (

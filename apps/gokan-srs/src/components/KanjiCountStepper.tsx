@@ -20,8 +20,9 @@ interface KanjiCountStepperProps {
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
 /**
- * Known-kanji count control. The count walks the current order: raising it adds that order's
- * kanji to the known set, lowering it takes back the ones past it; kanji from other orders stay.
+ * Known-kanji count control. The count walks the current order and starts at 0 after a switch:
+ * raising it adds that order's kanji to the known set, lowering it takes back only what this
+ * visit's raises added. Kanji known before (stored, from another order, marked) stay.
  * On the profile page (both props supplied) it is the
  * raw number plus -/+ buttons moving it by the user's own increment: advancing
  * the count by a fixed amount is the main thing people come there to do (they
@@ -66,6 +67,10 @@ export function KanjiCountStepper({ step, onStepChange }: KanjiCountStepperProps
         setCountDraft(null);
         setKanjiCount(clamp(state.kanjiCount + delta, min, max));
     };
+
+    // Reset, Cancel and the confirm sit beside the 44px -/+ buttons: as tall on a phone, compact from md.
+    const resetButtonClass = "md:h-8 md:px-3 md:text-sm";
+    const knownCount = state.knownKanji.size.toLocaleString('en-US');
 
     const stepButtonClass =
         "h-11 min-w-16 px-3 rounded-md border border-divider bg-surface text-primary font-gothic " +
@@ -150,21 +155,23 @@ export function KanjiCountStepper({ step, onStepChange }: KanjiCountStepperProps
             )}
 
             {/* The known set is a union across orders, so its size is its own number, not the count. */}
-            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 min-h-8">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 min-h-11 md:min-h-8">
                 <p className="type-meta tabular-nums" aria-live="polite">
-                    Known: <span className="text-primary">{state.knownKanji.size.toLocaleString('en-US')}</span> kanji
+                    Known: <span className="text-primary">{knownCount}</span> kanji
                 </p>
                 {confirmingReset ? (
                     <div className="flex flex-wrap items-center gap-2">
                         <span className="type-meta">
-                            Keep only the first {state.kanjiCount.toLocaleString('en-US')} of {orderLabel}?
+                            {state.kanjiCount === 0
+                                ? `Clear all ${knownCount} known kanji?`
+                                : `Keep only the first ${state.kanjiCount.toLocaleString('en-US')} of ${orderLabel}?`}
                         </span>
-                        <Button variant="ghost" size="sm" onClick={() => setConfirmingReset(false)}>
+                        <Button variant="ghost" className={resetButtonClass} onClick={() => setConfirmingReset(false)}>
                             Cancel
                         </Button>
                         <Button
                             variant="secondary"
-                            size="sm"
+                            className={resetButtonClass}
                             onClick={() => { resetKanji(); setConfirmingReset(false); }}
                         >
                             Reset
@@ -173,7 +180,7 @@ export function KanjiCountStepper({ step, onStepChange }: KanjiCountStepperProps
                 ) : (
                     <Button
                         variant="ghost"
-                        size="sm"
+                        className={resetButtonClass}
                         onClick={() => setConfirmingReset(true)}
                         disabled={state.loading}
                     >
