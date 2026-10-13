@@ -13,7 +13,7 @@ on:
       - 'apps/**'
       - 'packages/**'
       - 'scripts/check-lighthouse.ts'
-      - 'scripts/lib/builtSite.ts'
+      - 'scripts/lib/**'
       - 'package.json'
       - 'bun.lock'
       - '.github/workflows/ci-lighthouse.yml'
@@ -22,7 +22,7 @@ on:
       - 'apps/**'
       - 'packages/**'
       - 'scripts/check-lighthouse.ts'
-      - 'scripts/lib/builtSite.ts'
+      - 'scripts/lib/**'
       - 'package.json'
       - 'bun.lock'
       - '.github/workflows/ci-lighthouse.yml'
@@ -48,7 +48,7 @@ jobs:
         with:
           bun-version: latest
 
-      # Lighthouse runs through npx, so the job needs Node on PATH.
+      # Lighthouse is a pinned devDependency run under Node, so the job needs Node on PATH.
       - name: Setup Node
         uses: actions/setup-node@v4
         with:

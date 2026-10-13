@@ -368,14 +368,16 @@ main route is added to its lists.
 
 **Lighthouse, SEO at 100** (`scripts/check-lighthouse.ts`, `bun run check:lighthouse`, run by
 CI in `.github/workflows/ci-lighthouse.yml` on both production builds): one representative page
-per dictionary type, plus the SRS landing, on mobile and desktop. SEO must be 100 on every one,
-failing the job below it, because a crawlable dictionary is the point. The dictionary also holds
-accessibility and best practices at a floor taken from the first baseline and only ever raised
-(0.96 and 1.00 today; the open accessibility audit is links told apart by colour alone); the SRS
-landing is held to SEO alone, since it is a single-page app. Performance is recorded, not gated,
-since a local build has none of production's CDN compression or caching. A new dictionary page
-type is added to the shared `dictionaryPages()` list (`scripts/lib/builtSite.ts`), which
-`check-layout` measures too.
+per dictionary type and the SRS welcome page, plus the SRS hub and anime list reached with
+onboarding seeded, on mobile and desktop. SEO must be 100 on every dictionary page and the SRS
+welcome, failing the job below it, because a crawlable dictionary is the point. The dictionary
+also holds accessibility and best practices at a floor taken from the first baseline and only ever
+raised (0.96 and 1.00 today; the open accessibility audit, links told apart by colour alone, is
+#128). The hub and anime list are recorded, not gated: they are image-heavy (AniList cover art)
+and measured to track that cost (#129). Performance is recorded everywhere, not gated, since a
+local build has none of production's CDN compression or caching. A new dictionary page type is
+added to the shared `dictionaryPages()` list (`scripts/lib/builtSite.ts`), which `check-layout`
+measures too.
 
 A red check here is never fixed by relaxing the rule; fix the code, or change this
 document and the check together, deliberately, and say so in the PR.

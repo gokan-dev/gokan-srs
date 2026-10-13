@@ -11,7 +11,8 @@
       ],
       "ignoreDependencies": [
         "svelte-eslint-parser",
-        "jscpd"
+        "jscpd",
+        "lighthouse"
       ]
     },
     "apps/gokan-srs": {

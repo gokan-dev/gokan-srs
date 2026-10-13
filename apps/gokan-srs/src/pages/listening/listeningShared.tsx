@@ -56,6 +56,8 @@ export function MediaCover({ entry, hiRes = false, className = '' }: {
                 <img
                     src={src}
                     alt={`${entry.title.original} cover`}
+                    width={230}
+                    height={345}
                     loading="lazy"
                     decoding="async"
                     referrerPolicy="no-referrer"

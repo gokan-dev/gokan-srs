@@ -1,34 +1,37 @@
 /**
  * Lighthouse over both production builds, served locally the way CloudFront serves them
  * (scripts/lib/builtSite.ts): the SRS at `/`, the dictionary under `/dictionary/`. One
- * representative page per dictionary type, plus the SRS landing, on mobile and desktop.
+ * representative page per dictionary type and the SRS welcome page (cold, as a crawler first meets
+ * them), plus the SRS hub and anime list reached with onboarding seeded into localStorage, on
+ * mobile and desktop.
  *
- * The gate the dictionary exists for: SEO at 100 on every page (crawlable, titled, described),
+ * The gate the dictionary exists for: SEO at 100 on every dictionary page and the SRS welcome,
  * failing the job below it. The dictionary also holds accessibility and best practices at a floor
- * taken from the first baseline and only ever raised (DICTIONARY_FLOORS below); the SRS landing is
- * held to SEO alone, since it is a single-page app whose accessibility is tracked where that app
- * is. Performance is recorded, never floored: a local build has none of production's CDN
- * compression or caching, so its number is a trend, not a verdict. Each category is the median of
- * several runs, so one noisy run cannot fail the job.
+ * taken from the first baseline and only ever raised (DICTIONARY_FLOORS). The hub and anime list
+ * are recorded, not gated: they are image-heavy (cover art from AniList's CDN) and measured to
+ * track that cost. Performance is recorded everywhere, never floored, since a local build has none
+ * of production's CDN compression or caching. Each category is the median of LH_RUNS runs (one by
+ * default); raise LH_RUNS to smooth performance's run-to-run noise.
  *
  * Usage: build both apps (`bun run build`, `bun run dictionary:build`), then
- * `bun run check:lighthouse`. Needs Chrome (Lighthouse finds it; CHROME_PATH overrides) and runs
- * Lighthouse through `npx`, so Node must be on PATH. LH_RUNS, LH_FORM_FACTORS and LH_ONLY (a label
- * substring) tune a local run.
- * Run by CI (.github/workflows/ci-lighthouse.yml), which keeps the reports as an artifact.
+ * `bun run check:lighthouse`. Needs Chrome (found like scripts/lib/chrome.ts) and runs Lighthouse
+ * through `npx`, so Node must be on PATH. LH_RUNS, LH_FORM_FACTORS and LH_ONLY (a label substring)
+ * tune a local run. Run by CI (.github/workflows/ci-lighthouse.yml), which keeps the reports.
  */
 import { spawn } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildMissing, dictionaryPages, serveBoth } from './lib/builtSite';
+import { launchChrome, type Chrome } from './lib/chrome';
 
-const LIGHTHOUSE_VERSION = '12';
+/** The pinned Lighthouse CLI (a devDependency), run under Node so its audit weights never shift under a PR. */
+const LIGHTHOUSE_CLI = join('node_modules', 'lighthouse', 'cli', 'index.js');
 const CATEGORIES = ['performance', 'accessibility', 'best-practices', 'seo'] as const;
 type Category = (typeof CATEGORIES)[number];
 const FORM_FACTORS = ['mobile', 'desktop'] as const;
 type FormFactor = (typeof FORM_FACTORS)[number];
 
-const RUNS = Number(process.env.LH_RUNS ?? '3');
+const RUNS = Number(process.env.LH_RUNS ?? '1');
 const ACTIVE_FORM_FACTORS: readonly FormFactor[] = (process.env.LH_FORM_FACTORS?.split(',') ?? FORM_FACTORS)
     .map(value => value.trim())
     .filter((value): value is FormFactor => (FORM_FACTORS as readonly string[]).includes(value));
@@ -39,11 +42,15 @@ const SEO_FLOOR = 1;
 /**
  * Floors per page, read off the first green baseline and only ever raised. A category absent here
  * is recorded but not gated (performance, everywhere; accessibility and best practices on the SRS
- * landing). The dictionary's accessibility sits at 0.96 today, one audit ("links rely on colour",
- * docs/MODIFICATION_LOG.md); raise it once that is fixed.
+ * pages). The dictionary's accessibility is one floor because every dictionary page type measures
+ * the same 0.96 today, one audit ("links distinguishable by colour alone", gokan-dev/gokan-srs#128);
+ * if a page type ever earns a higher score, give it its own floor by label so it cannot slip back.
+ * Raise this to 1.00 when #128 is fixed.
  */
 const DICTIONARY_FLOORS: Partial<Record<Category, number>> = { seo: SEO_FLOOR, accessibility: 0.96, 'best-practices': 1 };
 const SRS_FLOORS: Partial<Record<Category, number>> = { seo: SEO_FLOOR };
+/** The onboarded SRS pages (hub, anime list) are recorded, not gated: see the header. */
+const RECORDED_ONLY: Partial<Record<Category, number>> = {};
 
 const REPORT_DIR = join(process.cwd(), 'lighthouse-report');
 
@@ -96,17 +103,18 @@ function median(values: number[]): number {
  * event loop and starve Lighthouse of the page it is trying to load. `npx` runs Lighthouse on
  * Node, so Bun's loop stays free to serve.
  */
-function runLighthouse(url: string, formFactor: FormFactor, outPath: string): Promise<Record<string, unknown>> {
+function runLighthouse(url: string, formFactor: FormFactor, outPath: string, port?: number): Promise<Record<string, unknown>> {
     const args = [
-        '--yes', `lighthouse@${LIGHTHOUSE_VERSION}`, url,
+        LIGHTHOUSE_CLI, url,
         `--only-categories=${CATEGORIES.join(',')}`,
         '--output=json', `--output-path=${outPath}`,
-        '--chrome-flags="--headless=new --no-sandbox --disable-gpu --hide-scrollbars"',
+        // With a port Lighthouse drives an already-seeded Chrome, keeping its localStorage; otherwise it launches its own.
+        ...(port ? [`--port=${port}`, '--disable-storage-reset'] : ['--chrome-flags=--headless=new --no-sandbox --disable-gpu --hide-scrollbars']),
         '--quiet', '--max-wait-for-load=60000',
         ...(formFactor === 'desktop' ? ['--preset=desktop'] : []),
     ];
     return new Promise(resolve => {
-        const child = spawn('npx', args, { stdio: ['ignore', 'ignore', 'inherit'], shell: true });
+        const child = spawn('node', args, { stdio: ['ignore', 'ignore', 'inherit'] });
         child.on('error', error => fail(`Could not run Lighthouse (${error.message}). Is Node on PATH?`));
         child.on('close', code => {
             if (code !== 0) fail(`Lighthouse exited ${code ?? 'with a signal'} on ${formFactor} ${url}.`);
@@ -117,15 +125,33 @@ function runLighthouse(url: string, formFactor: FormFactor, outPath: string): Pr
 
 const slug = (label: string) => label.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase();
 
-interface Target { url: string; label: string; floors: Partial<Record<Category, number>> }
-interface Result { target: Target; formFactor: FormFactor; scores: Record<Category, number | null>; lastReport: Record<string, unknown> }
+interface Target { url: string; label: string; floors: Partial<Record<Category, number>>; mode: 'cold' | 'onboarded' }
+interface Result { target: Target; formFactor: FormFactor; scores: Record<Category, number | null>; reports: Record<string, unknown>[] }
+
+/**
+ * The onboarded SRS pages live behind the setup gate (`isSetupComplete` is `!!progress`), so the
+ * hub and anime list only render once localStorage carries a progress object. Seeding an empty one
+ * is enough; Lighthouse then audits the same origin with `--disable-storage-reset` and sees it.
+ */
+async function seedOnboarding(chrome: Chrome, origin: string): Promise<void> {
+    const tab = await chrome.openTab(1280, 900, false);
+    try {
+        await tab.goto(`${origin}/`, 'I already know some kanji');
+        await tab.evaluate<void>(`localStorage.setItem('GOKAN_SRS_PROGRESS', '{}')`);
+        await tab.goto(`${origin}/`, 'Study'); // the hub; also proves the seed took
+    } finally {
+        await tab.close();
+    }
+}
 
 async function main(): Promise<void> {
     const { server, port } = await serveBoth();
     const origin = `http://127.0.0.1:${port}`;
     const allTargets: Target[] = [
-        { url: `${origin}/`, label: 'srs home', floors: SRS_FLOORS },
-        ...dictionaryPages().map(page => ({ url: `${origin}/dictionary${page.path}`, label: `dictionary ${page.path}`, floors: DICTIONARY_FLOORS })),
+        { url: `${origin}/`, label: 'srs welcome', floors: SRS_FLOORS, mode: 'cold' },
+        ...dictionaryPages().map(page => ({ url: `${origin}/dictionary${page.path}`, label: `dictionary ${page.path}`, floors: DICTIONARY_FLOORS, mode: 'cold' as const })),
+        { url: `${origin}/`, label: 'srs hub', floors: RECORDED_ONLY, mode: 'onboarded' },
+        { url: `${origin}/listening`, label: 'srs anime list', floors: RECORDED_ONLY, mode: 'onboarded' },
     ];
     const targets = ONLY ? allTargets.filter(target => target.label.includes(ONLY)) : allTargets;
     if (targets.length === 0) fail(`LH_ONLY="${ONLY}" matched no target.`);
@@ -134,20 +160,31 @@ async function main(): Promise<void> {
     mkdirSync(REPORT_DIR, { recursive: true });
 
     const results: Result[] = [];
+    let chrome: Chrome | null = null;
     try {
+        if (targets.some(target => target.mode === 'onboarded')) {
+            chrome = await launchChrome().catch((error: unknown): never => fail(error instanceof Error ? error.message : String(error)));
+            await seedOnboarding(chrome, origin);
+        }
         for (const formFactor of ACTIVE_FORM_FACTORS) {
             for (const target of targets) {
+                let onboardedPort: number | undefined;
+                if (target.mode === 'onboarded') {
+                    if (!chrome) fail('onboarded target reached without a seeded browser');
+                    onboardedPort = chrome.debugPort;
+                }
                 const outPath = join(REPORT_DIR, `${slug(target.label)}.${formFactor}.json`);
                 const runs: Record<string, unknown>[] = [];
-                for (let run = 0; run < RUNS; run++) runs.push(await runLighthouse(target.url, formFactor, outPath));
+                for (let run = 0; run < RUNS; run++) runs.push(await runLighthouse(target.url, formFactor, outPath, onboardedPort));
                 const scores = Object.fromEntries(CATEGORIES.map(category => {
                     const values = runs.map(report => categoryScore(report, category)).filter((v): v is number => v !== null);
                     return [category, values.length ? median(values) : null];
                 })) as Record<Category, number | null>;
-                results.push({ target, formFactor, scores, lastReport: runs[runs.length - 1] });
+                results.push({ target, formFactor, scores, reports: runs });
             }
         }
     } finally {
+        if (chrome) await chrome.kill();
         server.close();
     }
 
@@ -169,12 +206,14 @@ function report(results: Result[]): void {
         }
     }
 
-    for (const { target, formFactor, scores, lastReport } of results) {
+    for (const { target, formFactor, scores, reports } of results) {
         for (const category of CATEGORIES) {
             const floor = target.floors[category];
             const score = scores[category];
             if (floor === undefined || score === null || score >= floor) continue;
-            const named = failedAudits(lastReport, category);
+            // Name audits from the run that actually dragged the median down, not whichever ran last.
+            const worst = reports.reduce((low, report) => ((categoryScore(report, category) ?? 1) < (categoryScore(low, category) ?? 1) ? report : low));
+            const named = failedAudits(worst, category);
             const detail = named.length ? ` (failed: ${named.join('; ')})` : '';
             failures.push(`${formFactor} ${target.label}: ${category} ${asPercent(score).trim()} < ${Math.round(floor * 100)}${detail}`);
         }

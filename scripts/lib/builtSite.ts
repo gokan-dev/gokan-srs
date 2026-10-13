@@ -7,7 +7,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { extname, join } from 'node:path';
+import { extname, join, resolve, sep } from 'node:path';
 
 const ROOT = process.cwd();
 const SRS_DIST = join(ROOT, 'apps/gokan-srs/dist');
@@ -27,18 +27,24 @@ const MIME: Record<string, string> = {
 };
 
 const isFile = (path: string) => existsSync(path) && statSync(path).isFile();
+/** A resolved path is inside `base`, so an encoded `..` in a request cannot escape the build. */
+const within = (base: string, target: string) => {
+    const [root, path] = [resolve(base), resolve(target)];
+    return path === root || path.startsWith(root + sep);
+};
 
 /** The SRS answers every route with its index, as CloudFront's SPA fallback does. */
 export function srsFile(pathname: string): string {
     const direct = join(SRS_DIST, pathname);
-    return isFile(direct) ? direct : join(SRS_DIST, 'index.html');
+    return within(SRS_DIST, direct) && isFile(direct) ? direct : join(SRS_DIST, 'index.html');
 }
 
 /** The dictionary lives under `/dictionary/`; a directory serves its index.html, anything else 404s. */
 export function dictionaryFile(pathname: string): string | null {
     if (!pathname.startsWith('/dictionary')) return null;
     const inside = pathname.slice('/dictionary'.length) || '/';
-    return join(DICTIONARY_DIST, inside.endsWith('/') ? `${inside}index.html` : inside);
+    const file = join(DICTIONARY_DIST, inside.endsWith('/') ? `${inside}index.html` : inside);
+    return within(DICTIONARY_DIST, file) ? file : null;
 }
 
 /**
