@@ -9,6 +9,7 @@ import type { Vocabulary } from '@gokan/dataset-schema';
 import { isFormOfWord, kanaOfSurface, toInflectableWord } from '../../utils/inflection.utils';
 import type { InflectableWord } from '../../utils/inflection.utils';
 import { embeddedSynonymCandidate } from '../../utils/synonymContext.utils';
+import { demonstrativeParadigm } from './demonstratives';
 import type { AnswerSlot, OtherFormGrade, SlotInflection, SlotRole, SynonymCandidate, WordForms } from './types';
 
 function unique(forms: (string | undefined)[]): string[] {
@@ -110,8 +111,9 @@ export function readingSlot(vocab: Pick<Vocabulary, 'reading'>): AnswerSlot {
  * The meaning quiz's slot: every gloss, split on its separators. Parentheses go
  * first so commas inside them ("go (to, from)") don't split the gloss, and a comma
  * inside a number (10,000) is not a separator. A miss reveals the first whole gloss.
+ * `reading` names the word, so a demonstrative's slot carries its series.
  */
-export function meaningSlot(glosses: string[]): AnswerSlot {
+export function meaningSlot(glosses: string[], reading?: string): AnswerSlot {
     const parts = glosses.flatMap(gloss => {
         let clean = gloss;
         let prev;
@@ -121,6 +123,7 @@ export function meaningSlot(glosses: string[]): AnswerSlot {
         } while (clean !== prev);
         return clean.split(/;\s*|,(?!\d)\s*/).map(p => p.trim()).filter(p => p.length > 0);
     });
+    const paradigm = reading === undefined ? undefined : demonstrativeParadigm(reading, parts);
     return {
         accept: parts,
         near: [],
@@ -128,6 +131,7 @@ export function meaningSlot(glosses: string[]): AnswerSlot {
         role: 'core',
         reveal: glosses[0] ?? '',
         gloss: '',
+        ...(paradigm ? { paradigm } : {}),
     };
 }
 

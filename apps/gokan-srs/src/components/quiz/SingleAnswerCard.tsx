@@ -12,6 +12,7 @@ import { LookUpWords } from "../LookUpWords";
 import { QuizCardFrame } from "./QuizCardFrame";
 import { FeedbackNote } from "./FeedbackNote";
 import { ContinueButton, SubmitButton } from "./QuizButtons";
+import { missStyleOf } from "./quizStyles";
 
 /** The exercises asked with one typed answer. */
 export type SingleAnswerKind = 'reading' | 'meaning' | 'production' | 'conjugation';
@@ -82,6 +83,8 @@ export function SingleAnswerCard({
     const correct = grade?.overall === 'correct';
     const synonym = slotGrade?.synonym;
     const revealed = (turn?.hintLevels[0] ?? 0) >= 2;
+    // A neutral miss (a confusable synonym, a sibling demonstrative) is not penalised, so it does not look like one.
+    const miss = grade && !correct ? missStyleOf(grade) : null;
 
     // The feedback whose correct answer has been revealed. Keyed by the feedback object,
     // so a new answer (or a new card) starts hidden without resetting state in an effect.
@@ -139,7 +142,7 @@ export function SingleAnswerCard({
         <QuizCardFrame onSubmit={handleSubmit}>
             {/* Shake Animation for Wrong Answer */}
             <AnimatePresence>
-                {feedback && !correct && (
+                {miss?.overlay && (
                     <motion.div
                         initial={{ x: 0 }}
                         animate={{ x: [-5, 5, -5, 5, 0] }}
@@ -177,7 +180,7 @@ export function SingleAnswerCard({
                                 font-gothic bg-surface text-primary placeholder:text-input-placeholder caret-accent
                                 focus:outline-none focus:border-accent focus:ring-4 focus:ring-accent/10
                                 ${isMobile ? 'px-3 py-2 text-lg placeholder:text-sm' : 'px-4 py-3 text-xl'}
-                                ${feedback && !correct ? 'border-feedback-incorrect' : 'border-divider'}
+                                ${miss?.inputBorderClass ?? 'border-divider'}
                             `}
                             placeholder={inputPlaceholder}
                             autoFocus
@@ -200,23 +203,24 @@ export function SingleAnswerCard({
                         names the word that was actually being tested. */}
                     {feedback && correct && synonym && (
                         <FeedbackNote accentClass="border-l-accent">
-                            <p className="text-secondary text-sm font-gothic">{grade.message}</p>
+                            <p className="text-secondary text-sm font-sans">{grade.message}</p>
                             {lookUp}
                         </FeedbackNote>
                     )}
 
                     {/* Incorrect / Minor Answer Feedback */}
-                    {feedback && !correct && (
-                        <FeedbackNote accentClass={grade?.overall === 'minor_error' ? 'border-l-secondary' : 'border-l-feedback-incorrect/45'}>
+                    {miss && (
+                        <FeedbackNote accentClass={miss.accentClass}>
                             <p className="type-label mb-2">
                                 Correct answer
                             </p>
 
                             {/* A near-synonym collision names the word being tested even on a
                                 confusable answer graded wrong, so the message shows whenever a
-                                synonym was typed, not just on minor_error. */}
-                            {(grade?.overall === 'minor_error' || synonym) && (
-                                <p className="text-secondary text-sm mb-2 font-gothic">
+                                synonym was typed, not just on minor_error. A sibling
+                                demonstrative's meaning likewise shows its note on the series. */}
+                            {(grade?.overall === 'minor_error' || synonym || slotGrade?.sibling) && (
+                                <p className="text-secondary text-sm mb-2 font-sans">
                                     {grade?.message}
                                 </p>
                             )}
@@ -247,7 +251,7 @@ export function SingleAnswerCard({
                                     <path d="M6 10L9 13L14 7" className="stroke-accent" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                                 </svg>
                                 <p className="text-center text-sm font-medium text-accent font-gothic">
-                                    {grade.message}
+                                    {grade?.message}
                                 </p>
                             </div>
                         </motion.div>

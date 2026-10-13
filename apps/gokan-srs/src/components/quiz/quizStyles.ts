@@ -1,4 +1,25 @@
 import type { AnswerResult } from '../../utils/answerMatching';
+import { isNeutral } from '../../services/exercise/grading';
+import type { ExerciseGrade } from '../../services/exercise/types';
+
+/** The colours of a card answered short of correct: its note's left accent, its input border, and whether the miss overlay shows. */
+export interface MissStyle {
+    accentClass: string;
+    inputBorderClass: string;
+    overlay: boolean;
+}
+
+/**
+ * How a miss looks on the single-answer card. A neutral miss (isNeutral: a confusable
+ * synonym, a sibling demonstrative's meaning) costs nothing, so it takes the near-miss
+ * look, muted and without the overlay, rather than the look of a wrong answer.
+ */
+export function missStyleOf(grade: ExerciseGrade): MissStyle {
+    if (grade.slots.length > 0 && grade.slots.every(isNeutral)) {
+        return { accentClass: resultAccentClass('minor_error'), inputBorderClass: 'border-secondary', overlay: false };
+    }
+    return { accentClass: resultAccentClass(grade.overall), inputBorderClass: 'border-feedback-incorrect', overlay: true };
+}
 
 /** The left accent of a feedback note: the incorrect colour for wrong, muted for a near miss or a skip, accent for correct. */
 export function resultAccentClass(result: AnswerResult | undefined): string {

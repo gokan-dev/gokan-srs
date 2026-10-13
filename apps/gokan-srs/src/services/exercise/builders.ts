@@ -46,7 +46,7 @@ export function vocabExercise(vocab: Vocabulary, item: { quizType: QuizType; qui
         case 'meaning':
             return {
                 kind: 'meaning', host, label, sentence, contextRequested: item.quizMode === 'context',
-                slots: [meaningSlot(vocab.senses.flatMap(s => s.glosses))], cue: {},
+                slots: [meaningSlot(vocab.senses.flatMap(s => s.glosses), vocab.reading.primary)], cue: {},
             };
         case 'production': {
             const slot = wordSlot(vocab, {

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { applyEffects, effectsOf } from './effects';
 import type { Effect } from './effects';
 import { gradeExercise, SUPPORT_COEFFICIENT_FLOOR } from './grading';
-import { wordSlot } from './slots';
+import { meaningSlot, wordSlot } from './slots';
 import type { AnswerSlot, Exercise, HostItem, SynonymCandidate, WordForms } from './types';
 import { SRSService } from '../srs.service';
 import type { AnswerResult } from '../../utils/answerMatching';
@@ -99,6 +99,23 @@ describe('effectsOf', () => {
             const effects = answer(card([decider]), ['小さい']);
             expect(effects).toEqual([{ kind: 'retry', item: point, label: 'A が いちばん', result: 'wrong' }]);
         });
+    });
+
+    it('retries a demonstrative answered with a sibling\'s meaning: neither credit nor penalty (issue #123)', () => {
+        const item: HostItem = { kind: 'vocab', vocabId: 'sore', quizType: 'meaning', quizMode: 'base' };
+        const card: Answered = { kind: 'meaning', host: item, label: 'それ', slots: [meaningSlot(['that', 'it'], 'それ')], cue: {} };
+        expect(answer(card, ['this'])).toEqual([{ kind: 'retry', item, label: 'それ', result: 'wrong' }]);
+
+        // A graduated word keeps its stage, its strength and its next review.
+        const sore = word('sore', { stage: 'graduated', nextReviewAt: new Date('2026-07-01T00:00:00Z') });
+        const { progress: next, record } = applyEffects(userProgress({ learningQueue: [sore] }), answer(card, ['this']), { now, settings });
+        const [after] = next.learningQueue;
+        expect(after.stage).toBe('graduated');
+        expect(after.nextReviewAt).toEqual(sore.nextReviewAt);
+        expect(after.meaning.memoryStrength).toBe(sore.meaning.memoryStrength);
+        expect(after.meaning.interval).toBe(sore.meaning.interval);
+        expect(next.calibration!.meaning.history).toHaveLength(0);
+        expect(record).toMatchObject({ delta: 0 });
     });
 
     it('only defers the study card: nothing was asked', () => {
