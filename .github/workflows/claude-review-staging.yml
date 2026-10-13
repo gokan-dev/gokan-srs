@@ -43,15 +43,46 @@ jobs:
           submodules: true
           fetch-depth: 0
 
+      # Where the review goes. GitHub's own commit-to-PR mapping first, so it does not matter how
+      # many branches contain the commit. With no open PR, the one branch other than `main` that
+      # holds it (its tip first) gets a draft PR. A commit that only `main` holds, or that
+      # several branches hold, has no single home: skip rather than guess.
+      - name: Find the PR for the deployed commit
+        id: target
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          pr="$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/pulls" \
+            --jq "[.[] | select(.state == \"open\" and .head.repo.full_name == \"$GITHUB_REPOSITORY\")] | (map(select(.head.sha == \"$SHA\")) + .)[0].number // empty")"
+          if [ -n "$pr" ]; then
+            echo "pr=$pr" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          branches() {
+            git branch -r "$1" "$SHA" --format='%(refname:lstrip=3)' | grep -vx -e main -e HEAD || true
+          }
+          branch="$(branches --points-at)"
+          [ -n "$branch" ] || branch="$(branches --contains)"
+          if [ "$(printf '%s' "$branch" | grep -c .)" -eq 1 ]; then
+            echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          else
+            echo "No single branch other than main holds $SHA (${branch:-none}): nothing to review on."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Setup Bun
+        if: steps.target.outputs.skip != 'true'
         uses: oven-sh/setup-bun@v1
         with:
           bun-version: latest
 
       - name: Install dependencies
+        if: steps.target.outputs.skip != 'true'
         run: bun install
 
       - name: Run Claude
+        if: steps.target.outputs.skip != 'true'
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -63,15 +94,12 @@ jobs:
             visual compliance a code diff cannot show. Read AGENTS.md and docs/DESIGN_SYSTEM.md
             first.
 
-            1. Find the home for this review. Identify the branch that contains
-               `${{ github.event.workflow_run.head_sha }}` (`git branch -r --contains <sha>`) and
-               the open PR for it (`gh pr list --head <branch>`). If an open PR exists, review
-               there. If NONE exists (a branch tagged straight to staging without a PR), open a
-               DRAFT PR against `main` for that branch, titled for the staging review, so the
-               findings have a home; review on it. As soon as you have the PR, post a short
-               comment that a staging review of this commit is in progress, so the run is visible
-               while you work (this reviewer fires on a staging deploy, not a PR event, so it has
-               no automatic progress checklist: this comment is what makes it followable).
+            1. The home for this review: ${{ steps.target.outputs.pr && format('PR #{0}.', steps.target.outputs.pr) || format('branch `{0}`, which has no open PR (it was tagged straight to staging). Open a DRAFT PR against `main` for it, titled for the staging review, so the findings have a home, and review on it.', steps.target.outputs.branch) }}
+               As soon as you have the PR, post a short comment that a staging review of this
+               commit is in progress, so the run is visible while you work (this reviewer fires on
+               a staging deploy, not a PR event, so it has no automatic progress checklist: this
+               comment is what makes it followable). Keep that comment's id: `gh pr comment`
+               prints its URL, which ends in `#issuecomment-<id>`.
 
             2. Check the rendered result, not the diff:
                - If `bun run check:layout` exists, run it (it measures the production builds at
@@ -82,15 +110,19 @@ jobs:
                  docs/DESIGN_SYSTEM.md: overflow, cramped or doubled spacing, contrast, visual
                  hierarchy, `font-mincho`/`font-gothic` for Japanese, accent only for links.
 
-            3. Report by EDITING the in-progress comment from step 1 in place (`gh pr comment
-               <pr> --edit-last`), so the run leaves one comment that updates rather than two,
-               matching Layer A's single `track_progress` comment. HIGH-CONFIDENCE, actionable
-               rendered bugs: fix on the branch, keep `bun run check` green, commit + push, and
-               list what changed. SUBJECTIVE calls: advisory note for the human. If the rendered
-               result is clean, say so in one line.
+            3. Report by EDITING the in-progress comment from step 1 in place, by its id: write
+               the report to a file, then `gh api -X PATCH
+               repos/${{ github.repository }}/issues/comments/<id> -F body=@<file>`. The run then
+               leaves one comment that updates rather than two, matching Layer A's single
+               `track_progress` comment. Never use `--edit-last`: it edits the newest comment
+               posted under this token's account, which can be one a person left during your run.
+               HIGH-CONFIDENCE, actionable rendered bugs: fix on the branch, keep `bun run check`
+               green, commit + push, and list what changed. SUBJECTIVE calls: advisory note for
+               the human. If the rendered result is clean, say so in one line.
 
             Hard rules: never push to or merge `main`; never force-push commits you did not create;
             never touch `.github/workflows/`, secrets or deployment config; never write the string
             `@claude`; and never push a new `*-rc*` tag (it would redeploy staging and re-trigger
-            this review). Your fix pushes are authored as claude[bot].
+            this review). Your fix pushes are authored as claude[bot], so the PR reviewer
+            (claude-review.yml) reviews them like any other push.
           claude_args: "--model claude-opus-5-5 --max-turns 300 --allowedTools Bash,Edit,Write,Read,Glob,Grep"
