@@ -1,0 +1,83 @@
+# Lighthouse over both production builds, served locally the way CloudFront serves them
+# (scripts/check-lighthouse.ts). The gate the dictionary exists for: SEO at 100 on every page
+# type, on mobile and desktop. Accessibility and best practices are held at a floor; performance
+# is recorded, not gated (a local build has none of production's CDN compression or caching).
+# A local build is deterministic, so this runs per PR, like ci-layout.yml: SEO, accessibility and
+# best practices are the same markup here as on the CDN. The runner image ships Google Chrome.
+
+name: "CI: Lighthouse"
+
+on:
+  push:
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - 'scripts/check-lighthouse.ts'
+      - 'scripts/lib/builtSite.ts'
+      - 'package.json'
+      - 'bun.lock'
+      - '.github/workflows/ci-lighthouse.yml'
+  pull_request:
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - 'scripts/check-lighthouse.ts'
+      - 'scripts/lib/builtSite.ts'
+      - 'package.json'
+      - 'bun.lock'
+      - '.github/workflows/ci-lighthouse.yml'
+  workflow_dispatch:
+
+jobs:
+  lighthouse:
+    name: Lighthouse, SEO at 100
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Both apps build from the compiled dataset.
+          submodules: true
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      # Lighthouse runs through npx, so the job needs Node on PATH.
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build the SRS app
+        run: bun run --cwd apps/gokan-srs build
+
+      - name: Build the dictionary
+        run: bun run --cwd apps/gokan-dictionary build
+
+      - name: Lighthouse
+        run: bun run check:lighthouse
+
+      - name: Keep the reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-report
+          path: lighthouse-report/
+          if-no-files-found: ignore

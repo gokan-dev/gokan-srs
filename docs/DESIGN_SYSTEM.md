@@ -337,7 +337,9 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
 
   A budget is a decision about what a page costs a reader on a phone: raise one here,
   deliberately, never to make a build pass. The shared stylesheet is the tightest: a rule
-  used by one page type belongs in that page's stylesheet anyway.
+  used by one page type belongs in that page's stylesheet anyway. Page weight is one half of
+  being found; the other, SEO at 100 on every page type, is held by the Lighthouse check
+  (`scripts/check-lighthouse.ts`, in section 9).
 
 ## 9. Enforcement (`scripts/check-conventions.ts`)
 
@@ -363,6 +365,17 @@ sideways, no text is below 12px (furigana in `rt` and SVG chart labels excepted)
 input is at least 16px (smaller makes iOS zoom), and the dictionary's nav links, pager
 links, toggles, tiles and disclosure summaries are at least 44px tall. A new page type or
 main route is added to its lists.
+
+**Lighthouse, SEO at 100** (`scripts/check-lighthouse.ts`, `bun run check:lighthouse`, run by
+CI in `.github/workflows/ci-lighthouse.yml` on both production builds): one representative page
+per dictionary type, plus the SRS landing, on mobile and desktop. SEO must be 100 on every one,
+failing the job below it, because a crawlable dictionary is the point. The dictionary also holds
+accessibility and best practices at a floor taken from the first baseline and only ever raised
+(0.96 and 1.00 today; the open accessibility audit is links told apart by colour alone); the SRS
+landing is held to SEO alone, since it is a single-page app. Performance is recorded, not gated,
+since a local build has none of production's CDN compression or caching. A new dictionary page
+type is added to the shared `dictionaryPages()` list (`scripts/lib/builtSite.ts`), which
+`check-layout` measures too.
 
 A red check here is never fixed by relaxing the rule; fix the code, or change this
 document and the check together, deliberately, and say so in the PR.

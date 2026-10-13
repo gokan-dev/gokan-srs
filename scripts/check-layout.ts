@@ -16,16 +16,12 @@
  * do not work under Bun on Windows, and this needs nothing installed.
  */
 import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
-import { createServer, type Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { extname, join } from 'node:path';
+import { join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { buildMissing, dictionaryFile, dictionaryPages, serve, srsFile, srsRoutes } from './lib/builtSite';
 
-const ROOT = process.cwd();
-const SRS_DIST = join(ROOT, 'apps/gokan-srs/dist');
-const DICTIONARY_DIST = join(ROOT, 'apps/gokan-dictionary/dist');
 const VIEWPORTS = [{ width: 320, height: 720 }, { width: 375, height: 812 }];
 
 const CHROME_CANDIDATES = [
@@ -44,43 +40,15 @@ function fail(message: string): never {
     process.exit(1);
 }
 
-for (const [dist, app] of [[SRS_DIST, 'gokan-srs'], [DICTIONARY_DIST, 'gokan-dictionary']]) {
-    if (!existsSync(join(dist, 'index.html'))) fail(`No build of ${app} in ${dist}. Build it first: bun run --cwd apps/${app} build`);
-}
+const missing = buildMissing();
+if (missing) fail(missing);
 const chromePath = CHROME_CANDIDATES.find(candidate => candidate && existsSync(candidate));
 if (!chromePath) fail('No Chrome or Chromium found. Install one, or set CHROME_PATH.');
 
 // -- Static servers for the two builds -----------------------------------------------------------
 
-const MIME: Record<string, string> = {
-    '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
-    '.svg': 'image/svg+xml', '.png': 'image/png', '.webp': 'image/webp', '.ico': 'image/x-icon', '.woff2': 'font/woff2',
-    '.xml': 'application/xml', '.txt': 'text/plain', '.webmanifest': 'application/manifest+json',
-};
-
-/**
- * A static server for one build. `resolve` maps a decoded request path to a file under `dist`, or
- * null for a 404; the SRS answers every route with its index, as CloudFront's fallback does.
- */
-function serve(dist: string, resolve: (pathname: string) => string | null): Promise<{ server: Server; port: number }> {
-    const server = createServer((request, response) => {
-        const pathname = resolve(decodeURIComponent(new URL(request.url ?? '/', 'http://localhost').pathname));
-        const file = pathname === null ? null : join(dist, pathname);
-        if (!file || !existsSync(file) || !statSync(file).isFile()) {
-            response.writeHead(404).end('not found');
-            return;
-        }
-        response.writeHead(200, { 'content-type': MIME[extname(file)] ?? 'application/octet-stream' }).end(readFileSync(file));
-    });
-    return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve({ server, port: (server.address() as AddressInfo).port })));
-}
-const isFile = (dist: string, pathname: string) => existsSync(join(dist, pathname)) && statSync(join(dist, pathname)).isFile();
-const srs = await serve(SRS_DIST, pathname => (isFile(SRS_DIST, pathname) ? pathname : 'index.html'));
-const dictionary = await serve(DICTIONARY_DIST, pathname => {
-    if (!pathname.startsWith('/dictionary')) return null;
-    const inside = pathname.slice('/dictionary'.length) || '/';
-    return inside.endsWith('/') ? `${inside}index.html` : inside;
-});
+const srs = await serve(srsFile);
+const dictionary = await serve(dictionaryFile);
 
 // -- A minimal DevTools protocol client -----------------------------------------------------------
 
@@ -209,34 +177,8 @@ async function measure(tab: Tab, page: string, width: number, tapTargets = ''): 
     for (const problem of await tab.evaluate<string[]>(MEASURE(width, tapTargets))) failures.push(`${width}px ${page}: ${problem}`);
 }
 
-const firstEntry = (dir: string, filter: (name: string) => boolean) => readdirSync(dir).filter(filter).sort()[0];
-const vocabId = firstEntry(join(SRS_DIST, 'data/compiled/vocab'), name => name.endsWith('.json')).replace(/\.json$/, '');
-const grammarPoint = firstEntry(join(DICTIONARY_DIST, 'grammar'), name => /^n\d-/.test(name));
-const dictionaryVocab = firstEntry(join(DICTIONARY_DIST, 'vocab'), name => /^\d+$/.test(name));
-
-const DICTIONARY_PAGES: { path: string; ready: string }[] = [
-    { path: '/', ready: 'Dictionary' },
-    { path: `/vocab/${dictionaryVocab}/`, ready: 'Meanings' },
-    { path: '/vocab/jlpt-n5/', ready: 'N5' },
-    { path: '/kanji/', ready: 'Kanji' },
-    { path: `/kanji/${encodeURIComponent('学')}/`, ready: 'In kanji courses' },
-    { path: `/kanji/${encodeURIComponent('一')}/`, ready: 'Words with' },
-    { path: '/grammar/', ready: 'Grammar' },
-    { path: `/grammar/${grammarPoint}/`, ready: 'Grammar' },
-];
-
-/** The app after onboarding, at its main routes (each waits for a word the page always shows). */
-const SRS_ROUTES: { path: string; ready: string }[] = [
-    { path: '/', ready: 'Study' },
-    { path: '/vocab', ready: 'Vocabulary' },
-    { path: `/vocab/${vocabId}`, ready: 'Meanings' },
-    { path: '/kanji', ready: 'Kanji learning method' },
-    { path: `/kanji/${encodeURIComponent('学')}`, ready: 'Components' },
-    { path: '/grammar/browse', ready: 'Grammar' },
-    { path: '/listening', ready: 'Listening' },
-    { path: '/stats', ready: 'Stats' },
-    { path: '/settings', ready: 'Settings' },
-];
+const DICTIONARY_PAGES = dictionaryPages();
+const SRS_ROUTES = srsRoutes();
 
 try {
     for (const { width, height } of VIEWPORTS) {

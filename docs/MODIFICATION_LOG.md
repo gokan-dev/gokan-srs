@@ -5,6 +5,15 @@
 >
 > It is not auto-loaded into agent context; read it on demand when you need the history behind a decision.
 
+- **[2026-10-13]**:
+  - **Lighthouse gate, SEO at 100** (#124, `scripts/check-lighthouse.ts`, `.github/workflows/ci-lighthouse.yml`). Both production builds served on one origin the way CloudFront serves them, one representative page per dictionary type plus the SRS landing, on mobile and desktop. Worth not undoing:
+    - **SEO was already 100 on every page type, both form factors, the day the check landed.** So the gate protects a property the site has, rather than fixing a regression; it was seen failing (SEO 92, "Document does not have a meta description") on a build with one page's meta description deleted before it was trusted.
+    - **Only SEO is gated at 100; accessibility and best practices are floored at the first baseline.** The dictionary sits at accessibility 0.96 and best practices 1.00; the floors are those numbers, raised only deliberately. The one accessibility audit the dictionary fails is "links rely on colour to be distinguishable" (body links are `text-accent` with no second cue): a real finding, but a design-system change to make across every link, not part of wiring the benchmark. Raise the floor to 1.00 once it is fixed.
+    - **The SRS landing is held to SEO alone.** It is a single-page app; its accessibility (contrast and heading order on the welcome screen, ~0.89 on desktop) is an app concern tracked where that app is, and flooring it here would drag the dictionary's floor down to the SPA's number.
+    - **Performance is recorded, never gated.** A local build has none of production's CDN compression or caching, so the number is a trend, not a verdict; gating it would fail PRs on noise unrelated to the diff.
+    - **The runner (`check-lighthouse.ts`) is async because the static server runs in its own process.** A blocking `spawnSync` of Lighthouse froze Bun's event loop, so the in-process server could not answer the page request Lighthouse was waiting on: every run hung to its load timeout. `spawn` + `await` keeps the loop free to serve. `check-layout.ts` avoided this only by never blocking.
+    - **The serving and the representative-page list are shared with `check-layout.ts`** (`scripts/lib/builtSite.ts`): a new dictionary page type is added once, and both browser checks measure it.
+
 - **[2026-10-12]**:
   - **Kanji data and every learning order** (gokan-dataset `feat/kanji-sources`: KANJIDIC2, KRADFILE, RADKFILE from jmdict-simplified 3.6.2). A learner who follows RTK, or any method but KKLC, had no way in: the kanji set, the known-kanji editor and the "By kanji" order were all KKLC. Worth not undoing:
     - **KKLC positions are unchanged, checked end to end.** The 2,300 KKLC kanji keep their positions and come first in `kanji.json`; a full `build:data` regenerated every vocab, sentence and index file byte for byte. A word's `kklcStep` is derived from these positions, so moving one would silently reorder every KKLC learner's queue.
