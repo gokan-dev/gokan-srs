@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { missStyleOf } from './quizStyles';
+import { missStyleOf, NOTE_MESSAGE_CLASS } from './quizStyles';
 import { vocabExercise } from '../../services/exercise/builders';
 import { gradeExercise } from '../../services/exercise/grading';
 import type { ExerciseGrade, SlotGrade } from '../../services/exercise/types';
@@ -29,5 +29,11 @@ describe('missStyleOf: a neutral miss looks neutral (PR #125)', () => {
 
     it('keeps the miss look on a plain wrong answer', () => {
         expect(missStyleOf(gradeExercise(meaningOf('それ', ['that', 'it']), ['cat'], [0]))).toEqual(MISS);
+    });
+});
+
+describe('NOTE_MESSAGE_CLASS (v1.23.0-rc.2 staging review)', () => {
+    it('wraps a note only at spaces, so a Japanese word in it never splits across lines', () => {
+        expect(NOTE_MESSAGE_CLASS.split(' ')).toContain('break-keep');
     });
 });

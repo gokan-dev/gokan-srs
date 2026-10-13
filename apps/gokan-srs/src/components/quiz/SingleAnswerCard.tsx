@@ -12,7 +12,7 @@ import { LookUpWords } from "../LookUpWords";
 import { QuizCardFrame } from "./QuizCardFrame";
 import { FeedbackNote } from "./FeedbackNote";
 import { ContinueButton, SubmitButton } from "./QuizButtons";
-import { missStyleOf } from "./quizStyles";
+import { missStyleOf, NOTE_MESSAGE_CLASS } from "./quizStyles";
 
 /** The exercises asked with one typed answer. */
 export type SingleAnswerKind = 'reading' | 'meaning' | 'production' | 'conjugation';
@@ -203,7 +203,7 @@ export function SingleAnswerCard({
                         names the word that was actually being tested. */}
                     {feedback && correct && synonym && (
                         <FeedbackNote accentClass="border-l-accent">
-                            <p className="text-secondary text-sm font-sans">{grade.message}</p>
+                            <p className={NOTE_MESSAGE_CLASS}>{grade.message}</p>
                             {lookUp}
                         </FeedbackNote>
                     )}
@@ -220,7 +220,7 @@ export function SingleAnswerCard({
                                 synonym was typed, not just on minor_error. A sibling
                                 demonstrative's meaning likewise shows its note on the series. */}
                             {(grade?.overall === 'minor_error' || synonym || slotGrade?.sibling) && (
-                                <p className="text-secondary text-sm mb-2 font-sans">
+                                <p className={`${NOTE_MESSAGE_CLASS} mb-2`}>
                                     {grade?.message}
                                 </p>
                             )}

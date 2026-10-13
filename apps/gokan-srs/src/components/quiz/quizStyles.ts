@@ -21,6 +21,13 @@ export function missStyleOf(grade: ExerciseGrade): MissStyle {
     return { accentClass: resultAccentClass(grade.overall), inputBorderClass: 'border-feedback-incorrect', overlay: true };
 }
 
+/**
+ * The English message of a single-answer card's note. It names Japanese words inline
+ * (これ, 小さい (ちいさい)), and CJK text may break between any two characters, so it wraps
+ * only at spaces (keep-all): これ never splits into こ and れ across two lines.
+ */
+export const NOTE_MESSAGE_CLASS = 'text-secondary text-sm font-sans break-keep';
+
 /** The left accent of a feedback note: the incorrect colour for wrong, muted for a near miss or a skip, accent for correct. */
 export function resultAccentClass(result: AnswerResult | undefined): string {
     if (result === 'wrong') return 'border-l-feedback-incorrect/45';
