@@ -87,9 +87,10 @@ function reconjugationGrade(input: string, { lead, word, form, tail, registerFre
  *    the card asks for no register (がある for があります), a near miss otherwise;
  * 5. another form of the slot's word, graded by its OtherFormGrade;
  * 6. only for a genuine miss, the word's near-synonyms, judged against the cue;
- * 7. only for a genuine miss on a demonstrative's meaning, a sibling's meaning
- *    (それ answered "this"): still a miss, but a neutral one.
- * Each step can only improve the grade.
+ * 7. on a demonstrative's meaning answered short of correct, a sibling's meaning
+ *    (それ answered "this"): still a miss, but a neutral one, and it outranks a
+ *    typo of the word's own meaning.
+ * Each step can only improve the grade, except 7, which makes it neutral.
  */
 export function gradeSlot(slot: AnswerSlot, input: string, hintLevel: number, cue: ProductionCue): SlotGrade {
     if (hintLevel >= 2) return { result: 'minor_error', shown: slot.reveal };
@@ -116,9 +117,11 @@ export function gradeSlot(slot: AnswerSlot, input: string, hintLevel: number, cu
         else if (grades.includes('minor_error')) best = { result: 'minor_error', shown: slot.reveal };
     }
 
-    if (best.result === 'wrong' && slot.paradigm) {
+    // Not only a genuine miss: a sibling's exact meaning is the confusion, not a typo
+    // ("here" on あそこ is ここ, not a misspelt "there").
+    if (best.result !== 'correct' && slot.paradigm) {
         const sibling = siblingAnswer(input, slot.paradigm);
-        if (sibling) return { ...best, sibling };
+        if (sibling) return { result: 'wrong', shown: slot.reveal, sibling };
     }
 
     const word = slot.word;

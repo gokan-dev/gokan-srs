@@ -117,6 +117,13 @@ describe('a demonstrative answered with a sibling\'s meaning (issue #123)', () =
         expect(gradeExercise(sore, ['it'], [0]).slots[0]).toEqual({ result: 'correct', shown: 'it' });
     });
 
+    it('takes a sibling\'s exact meaning over a typo of the word\'s own ("here" on あそこ is ここ, not "there" misspelt)', () => {
+        const asoko = demonstrative('asoko', 'あそこ', '彼処', ['there', 'over there', 'that place']);
+        const graded = gradeExercise(asoko, ['here'], [0]);
+        expect(graded.slots[0]).toMatchObject({ result: 'wrong', shown: 'there', sibling: { answer: 'here', words: ['ここ'] } });
+        expect(graded.message).toContain('"here" is ここ.');
+    });
+
     it('needs an exact sibling meaning: a typo or an unrelated answer is a plain miss', () => {
         expect(gradeExercise(sore, ['thiss'], [0]).slots[0].sibling).toBeUndefined();
         expect(gradeExercise(sore, ['cat'], [0]).slots[0]).toEqual({ result: 'wrong', shown: 'that' });
