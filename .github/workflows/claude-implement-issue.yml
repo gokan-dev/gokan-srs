@@ -18,6 +18,12 @@ jobs:
     # Only react to the one label we care about.
     if: github.event.label.name == 'ready-for-dev'
     runs-on: ubuntu-latest
+    # One agent per branch at a time (AGENTS.md): every agent job that can push queues here. The
+    # PR reviewer queues behind this run when the PR opens, so it reviews the finished branch.
+    concurrency:
+      group: agent-branch-agent/issue-${{ github.event.issue.number }}
+      cancel-in-progress: false
+      queue: max
     # A large issue runs for hours. Set explicitly rather than relying on GitHub's
     # 360-minute default, so the ceiling is visible next to --max-turns below.
     timeout-minutes: 300

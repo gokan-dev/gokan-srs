@@ -1,0 +1,150 @@
+# Reviews the RENDERED site after a staging deploy succeeds: the things a diff cannot show.
+# Both of the ways a change reaches staging (the pipeline self-tagging an rc, and a human/local
+# agent tagging a branch directly) end in a `*-rc*` tag push that runs "Deploy: staging", so
+# hooking this to that deploy nets BOTH paths with no extra discipline on either.
+#
+# It resolves the deployed commit to its open PR and, if there is none (the local-tag-direct
+# path often skips the PR), opens a DRAFT PR so the review always has a home. Then it looks at
+# the real pages at phone and desktop widths, light and dark, against docs/DESIGN_SYSTEM.md.
+#
+# Preventive vs detective: this fires AFTER the deploy, so it is the net for rendered-only issues
+# and the local path, NOT the merge gate. The gate is the PR reviewer (claude-review.yml) plus a
+# green required `bun run check`; keep branch protection on that, not on this.
+name: "Agent: review staging"
+
+on:
+  workflow_run:
+    workflows: ["Deploy: staging"]   # must match deploy-staging.yml's `name:` exactly
+    types: [completed]
+
+concurrency:
+  group: claude-review-staging-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: true
+
+jobs:
+  # Where the review goes, and so which branch's lock it takes. GitHub's own commit-to-PR mapping
+  # first, so it does not matter how many branches contain the commit. With no open PR, the one
+  # branch other than `main` that holds it (its tip first) gets a draft PR. A commit that only
+  # `main` holds, or that several branches hold, has no single home: no branch, no review.
+  target:
+    # Only a successful deploy, and only for a commit from THIS repo (forks cannot push tags to
+    # the base repo, so staging deploys are always same-repo, but gate it anyway).
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      pr: ${{ steps.find.outputs.pr }}
+      branch: ${{ steps.find.outputs.branch }}
+    steps:
+      - name: Checkout deployed commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Find the PR for the deployed commit
+        id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          pr="$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/pulls" \
+            --jq "[.[] | select(.state == \"open\" and .head.repo.full_name == \"$GITHUB_REPOSITORY\")] | (map(select(.head.sha == \"$SHA\")) + .)[0] // empty | \"\(.number) \(.head.ref)\"")"
+          if [ -n "$pr" ]; then
+            # "<number> <branch>": a branch name has no spaces.
+            echo "pr=${pr%% *}" >> "$GITHUB_OUTPUT"
+            echo "branch=${pr#* }" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          branches() {
+            git branch -r "$1" "$SHA" --format='%(refname:lstrip=3)' | grep -vx -e main -e HEAD || true
+          }
+          branch="$(branches --points-at)"
+          [ -n "$branch" ] || branch="$(branches --contains)"
+          if [ "$(printf '%s' "$branch" | grep -c .)" -eq 1 ]; then
+            echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          else
+            echo "No single branch other than main holds $SHA (${branch:-none}): nothing to review on."
+          fi
+
+  review:
+    needs: target
+    if: needs.target.outputs.branch != ''
+    runs-on: ubuntu-latest
+    # One agent per branch at a time (AGENTS.md): every agent job that can push queues here.
+    concurrency:
+      group: agent-branch-${{ needs.target.outputs.branch }}
+      cancel-in-progress: false
+      queue: max
+    timeout-minutes: 90
+    permissions:
+      contents: write       # push high-confidence fixes to the PR branch
+      pull-requests: write  # open the draft PR if needed, post the review
+      issues: write         # the in-progress and findings comments go through the Issues API
+      id-token: write
+    steps:
+      - name: Checkout deployed commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          submodules: true
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run Claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.AGENT_GITHUB_TOKEN }}
+          prompt: |
+            A staging deploy just succeeded for commit `${{ github.event.workflow_run.head_sha }}`
+            (ref `${{ github.event.workflow_run.head_branch }}`). Staging is live at
+            https://staging.gokan-srs.com. You are doing a RENDERED review: the responsive and
+            visual compliance a code diff cannot show. Read AGENTS.md and docs/DESIGN_SYSTEM.md
+            first.
+
+            1. The home for this review: ${{ needs.target.outputs.pr && format('PR #{0}.', needs.target.outputs.pr) || format('branch `{0}`, which has no open PR (it was tagged straight to staging). Open a DRAFT PR against `main` for it, titled for the staging review, so the findings have a home, and review on it.', needs.target.outputs.branch) }}
+               As soon as you have the PR, post a short comment that a staging review of this
+               commit is in progress, so the run is visible while you work (this reviewer fires on
+               a staging deploy, not a PR event, so it has no automatic progress checklist: this
+               comment is what makes it followable). Its first line must be exactly
+               `<!-- gokan-agent-status -->` (invisible on GitHub; it tells
+               claude-address-feedback.yml the comment is not feedback). Keep that comment's id:
+               `gh pr comment` prints its URL, which ends in `#issuecomment-<id>`.
+
+            2. Check the rendered result, not the diff:
+               - If `bun run check:layout` exists, run it (it measures the production builds at
+                 320/375px: sideways scroll, the 12px floor, 16px inputs, 44px tap targets).
+               - Build both apps and drive a headless browser (install Chromium via
+                 `bunx playwright install --with-deps chromium` if needed) over the pages this
+                 change touches at 320px, 375px and 1280px, in light and dark. Judge against
+                 docs/DESIGN_SYSTEM.md: overflow, cramped or doubled spacing, contrast, visual
+                 hierarchy, `font-mincho`/`font-gothic` for Japanese, accent only for links.
+
+            3. Report by EDITING the in-progress comment from step 1 in place, by its id: write
+               the report to a file, then `gh api -X PATCH
+               repos/${{ github.repository }}/issues/comments/<id> -F body=@<file>`. The run then
+               leaves one comment that updates rather than two, matching Layer A's single
+               `track_progress` comment. Never use `--edit-last`: it edits the newest comment
+               posted under this token's account, which can be one a person left during your run.
+               HIGH-CONFIDENCE, actionable rendered bugs: fix on the branch, keep `bun run check`
+               green, commit + push, and list what changed. SUBJECTIVE calls: advisory note for
+               the human. If the rendered result is clean, say so in one line.
+
+            Hard rules: never push to or merge `main`; never force-push commits you did not create;
+            never touch `.github/workflows/`, secrets or deployment config; never write the string
+            `@claude`; and never push a new `*-rc*` tag (it would redeploy staging and re-trigger
+            this review). Your fix pushes are authored as claude[bot], so the PR reviewer
+            (claude-review.yml) reviews them like any other push.
+          claude_args: "--model claude-opus-5-5 --max-turns 300 --allowedTools Bash,Edit,Write,Read,Glob,Grep"

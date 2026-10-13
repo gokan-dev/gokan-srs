@@ -1,0 +1,142 @@
+# Reviews a PR's DIFF against the project rules the automated gate cannot express, pre-merge.
+# CI ("CI: checks") already runs `bun run check` (conventions, lint, typecheck, tests,
+# duplicates, unused): this workflow does NOT repeat any of that. It reads the diff the way a
+# human reviewer would and judges what no check catches: design-system adherence, responsive
+# intent, visual hierarchy, UI-copy tone, naming through the shared helpers, an architecture
+# layer crossed, duplication under the jscpd token threshold.
+#
+# Hybrid auto-fix (see AGENTS.md "Review your own diff"):
+#   - mechanizable but uncaught -> the reviewer adds the missing check in this run (the ratchet),
+#   - high-confidence and actionable -> the reviewer fixes it on the branch and pushes,
+#   - subjective / low-confidence -> an advisory review comment; the human decides.
+# The reviewer fixes in its OWN run rather than handing off: an agent may never write the literal
+# "@claude" (it fires the other agent workflows), so there is no label- or mention-based handoff
+# to loop through.
+name: "Agent: review PR"
+
+on:
+  pull_request:
+    # `synchronize` re-reviews every push; `ready_for_review` picks up a draft (the staging
+    # reviewer opens drafts) the moment it is marked ready.
+    types: [opened, synchronize, reopened, ready_for_review]
+
+# No workflow-level group that cancels in progress: the reviewer's own fix push starts a run, and
+# cancelling would kill the review that pushed it before it posts. A run for a push made while
+# another review held the branch waits its turn, then stands down if the branch has moved on
+# (the first step below), since the run for the newer push reviews the same branch.
+
+jobs:
+  review:
+    # Same-repo branches only: a fork PR must not drive the agent with secrets in scope. Drafts
+    # are skipped (the author is still iterating, and the staging reviewer's own drafts are
+    # reviewed once they are marked ready, via the `ready_for_review` type above).
+    if: >
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    # One agent per branch at a time (AGENTS.md): every agent job that can push queues here.
+    concurrency:
+      group: agent-branch-${{ github.event.pull_request.head.ref }}
+      cancel-in-progress: false
+      queue: max
+    # The Claude GitHub App token this job runs on lasts one hour from the Run Claude step: keep
+    # this at or under 60.
+    timeout-minutes: 60
+    env:
+      # The git author of this reviewer's fix commits, and the only author the loop guard skips.
+      # The other agents commit as claude[bot]; their pushes must still be reviewed.
+      REVIEWER_BOT_NAME: "claude-reviewer[bot]"
+    permissions:
+      contents: write       # push high-confidence fixes to the PR branch
+      pull-requests: write  # post the review
+      issues: write         # track_progress's tracking comment
+      id-token: write       # OIDC exchange for the Claude GitHub App token
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          submodules: true
+          fetch-depth: 0
+
+      # Two reasons to stand down. The branch moved on while this run waited for the lock: the run
+      # for the newer push reviews it. Or HEAD is this reviewer's own fix (the loop guard), told
+      # by its git author, which only this reviewer uses (`bot_name` below). Not by the sender:
+      # this reviewer, claude-fix-ci.yml and claude-address-feedback.yml all push through the
+      # same app, as claude[bot]. And not by claude[bot] as author: every other agent commits as
+      # claude[bot], so that skipped every PR an agent wrote (#119 would never have been reviewed).
+      - name: Skip a moved branch or the reviewer's own fix push
+        id: head
+        env:
+          EVENT_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          head="$(git rev-parse HEAD)"
+          author="$(git log -1 --pretty='%an')"
+          echo "head=$head author=$author"
+          if [ "$head" != "$EVENT_SHA" ] || [ "$author" = "$REVIEWER_BOT_NAME" ]; then
+            echo "review=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "review=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Bun
+        if: steps.head.outputs.review == 'true'
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        if: steps.head.outputs.review == 'true'
+        run: bun install
+
+      - name: Run Claude
+        if: steps.head.outputs.review == 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # No github_token: the Claude GitHub App token, not AGENT_GITHUB_TOKEN. With the PAT
+          # this review posts as a repo member, and on a PR labelled `agent-feedback` every
+          # member comment starts claude-address-feedback.yml, whose claude[bot] push this
+          # reviewer then reviews: a loop. claude[bot]'s comments start nothing, and its pushes
+          # still trigger CI (whose claude[bot] actor keeps claude-fix-ci.yml off a red fix).
+          bot_name: ${{ env.REVIEWER_BOT_NAME }}
+          prompt: |
+            Review PR #${{ github.event.pull_request.number }} on branch
+            `${{ github.event.pull_request.head.ref }}`. You are reviewing, not implementing a
+            feature. Read AGENTS.md fully first, then the docs/DESIGN_SYSTEM.md and
+            docs/ARCHITECTURE.md sections for the area this PR touches.
+
+            CI already runs `bun run check` (conventions, lint, typecheck, tests, duplicates,
+            unused code) on this PR. Do NOT re-run or re-report any of that. Review ONLY what the
+            gate cannot express, reading the diff (`git diff origin/main...HEAD`) as a careful
+            human reviewer would:
+              - docs/DESIGN_SYSTEM.md adherence: tokens over raw colours, type scale, spacing,
+                `rounded-md` vs `rounded-full`, accent only for links/actions, ordinal hues.
+              - Responsive intent: layouts that will break at 320/375px, missing `min-w-0`,
+                inputs that would be under 16px on phones, tap targets.
+              - UI copy: neutral, direct, no cheerleading, no em dashes.
+              - Naming a word/kanji/lesson through the shared helpers, not by reading raw fields.
+              - Architecture layers (the Exercise engine, `applyEffects`, pure reducers/selectors,
+                the one persistence/network layer): a boundary crossed that `check` did not catch.
+              - Duplication a human sees that fell under the jscpd token threshold.
+
+            For each finding, do ONE of:
+              1. MECHANIZABLE BUT UNCAUGHT: if a `check-conventions.ts` rule, an ESLint rule or a
+                 small test could have caught it and is quick to add, ADD it in this run (per the
+                 AGENTS.md ratchet rule) and make `bun run check:conventions` still pass. Note it.
+              2. HIGH-CONFIDENCE AND ACTIONABLE: make the fix on the branch (small, safe, obviously
+                 correct), keep `bun run check` green, and commit + push it. List what you changed.
+              3. SUBJECTIVE OR LOW-CONFIDENCE: do NOT change code. Leave an advisory point for the
+                 human to judge.
+
+            Post ONE PR review summarising findings in three groups: Fixed (pushed), Advisory
+            (your call), and Add-a-check (ratchet). If the diff is clean against the rules the gate
+            cannot express, approve with a one-line note. Be concrete: cite file:line and the rule.
+
+            Hard rules: never push to or merge `main`; never force-push commits you did not create;
+            never touch `.github/workflows/`, secrets or deployment config; never write the string
+            `@claude` anywhere (it fires the other agent workflows); never change git's
+            `user.name`: your fix commits are authored as ${{ env.REVIEWER_BOT_NAME }}, which is how
+            this review skips your own push instead of reviewing it again.
+          track_progress: true
+          claude_args: "--model claude-opus-5-5 --max-turns 200 --allowedTools Bash,Edit,Write,Read,Glob,Grep"

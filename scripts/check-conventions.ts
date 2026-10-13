@@ -73,6 +73,12 @@ const UI_SOURCE = /^apps\/(gokan-srs|gokan-dictionary)\/src\/.*\.(tsx|svelte)$/;
 const RENDERED_KANJI_SPELLING = /\{[^{}]*\bwrittenForm\.kanji\b[^{}]*\}/;
 const KANJI_SPELLING_NOTE = 'apps/gokan-srs/src/components/KanjiSpellingNote.tsx';
 
+// An agent workflow that can push queues on its branch's lock, so two agents never run on one
+// branch at once; one without the lock is a workflow running the agent with write access.
+const WORKFLOW = /^\.github\/workflows\/.*\.ya?ml$/;
+const AGENT_ACTION = 'anthropics/claude-code-action';
+const AGENT_BRANCH_LOCK = /^\s+group: agent-branch-\S*\$\{\{.+\}\}\s*\n\s+cancel-in-progress: false\s*\n\s+queue: max\s*$/m;
+
 const SCHEMA_DIR = 'packages/dataset-schema/src';
 const APP_SOURCE = /^apps\/(gokan-srs|gokan-dictionary)\/(src|scripts)\/.*\.(tsx?|svelte)$/;
 
@@ -175,6 +181,10 @@ function check(files: string[]): Violation[] {
         if (UI_SOURCE.test(file) && file !== KANJI_SPELLING_NOTE) {
             eachLine(text, l => RENDERED_KANJI_SPELLING.test(l), line =>
                 add({ file, line, rule: 'headword', message: 'Renders writtenForm.kanji. Name the word with headwordOf/secondaryForm (@gokan/dataset-schema): a word learned in kana is shown in kana.' }));
+        }
+
+        if (WORKFLOW.test(file) && text.includes(AGENT_ACTION) && /^\s+contents: write\b/m.test(text) && !AGENT_BRANCH_LOCK.test(text)) {
+            add({ file, rule: 'agent-branch-lock', message: 'An agent job that can push queues on its branch lock: job-level concurrency with `group: agent-branch-${{ <branch> }}`, `cancel-in-progress: false`, `queue: max`. Two agents never run on one branch at once.' });
         }
 
         if (redeclaration && APP_SOURCE.test(file)) {

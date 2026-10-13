@@ -25,11 +25,16 @@ concurrency:
   # make that bot comment cancel the very run that posted it (the new run then
   # skips via the `if` below, so nothing completes). Giving bot-authored comment
   # events a unique group keeps them from ever cancelling a live human-triggered run.
-  group: claude-feedback-${{ github.event.pull_request.number || github.event.issue.number }}${{ github.event.comment.user.type == 'Bot' && format('-bot-{0}', github.run_id) || '' }}
+  # The staging reviewer's status comment (marked `gokan-agent-status`) is posted as a member and
+  # is not feedback either: it gets its own group too, so it never cancels a human-triggered run
+  # waiting for the branch lock.
+  group: claude-feedback-${{ github.event.pull_request.number || github.event.issue.number }}${{ (github.event.comment.user.type == 'Bot' || contains(github.event.comment.body, '<!-- gokan-agent-status -->')) && format('-bot-{0}', github.run_id) || '' }}
   cancel-in-progress: true
 
 jobs:
-  respond:
+  # The PR's branch, for the branch lock on `respond`: an issue_comment event does not carry it.
+  # The gate is on this job, and `respond` runs only when this one does.
+  branch:
     # Gate each event type on TWO independent things:
     #   1. Trusted author. On a public repo anyone can comment/review, so we require
     #      author_association to be a repo owner/member/collaborator - this both keeps
@@ -42,7 +47,9 @@ jobs:
     #      it once, every later trusted comment/review triggers the agent); "@claude" is
     #      a one-off invocation on a PR that isn't labeled.
     #   - reviews: not an approval (changes requested / commented) + trusted author + opt-in
-    #   - comments: on a PR (not a plain issue) + trusted author + opt-in
+    #   - comments: on a PR (not a plain issue) + trusted author + opt-in, and not the
+    #     staging reviewer's status comment (posted with a member's token, so only its
+    #     `gokan-agent-status` marker tells it apart)
     if: >
       (github.event_name == 'pull_request_review' &&
         github.event.review.state != 'approved' &&
@@ -51,11 +58,34 @@ jobs:
       (github.event_name == 'issue_comment' &&
         github.event.issue.pull_request != null &&
         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
+        !contains(github.event.comment.body, '<!-- gokan-agent-status -->') &&
         (contains(github.event.comment.body, '@claude') || contains(github.event.issue.labels.*.name, 'agent-feedback'))) ||
       (github.event_name == 'pull_request_review_comment' &&
         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
         (contains(github.event.comment.body, '@claude') || contains(github.event.pull_request.labels.*.name, 'agent-feedback')))
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      name: ${{ steps.pr.outputs.branch }}
+    steps:
+      - name: Find the PR's branch
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number || github.event.issue.number }}
+        run: |
+          branch="$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json headRefName --jq .headRefName)"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+  respond:
+    needs: branch
+    runs-on: ubuntu-latest
+    # One agent per branch at a time (AGENTS.md): every agent job that can push queues here.
+    concurrency:
+      group: agent-branch-${{ needs.branch.outputs.name }}
+      cancel-in-progress: false
+      queue: max
     permissions:
       contents: write
       pull-requests: write
