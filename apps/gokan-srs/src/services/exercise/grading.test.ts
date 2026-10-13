@@ -112,6 +112,12 @@ describe('a demonstrative answered with a sibling\'s meaning (issue #123)', () =
         expect(graded.message).toContain('"that" is それ or あれ.');
     });
 
+    it('knows the plural meanings: その answered "these" is この, "those" is あの', () => {
+        const sono = demonstrative('sono', 'その', '其の', ['that', 'the']);
+        expect(gradeExercise(sono, ['these'], [0]).message).toBe('その means "that (near you)". "these" is この. こ = near me, そ = near you, あ = over there, ど = which.');
+        expect(gradeExercise(sono, ['those'], [0]).slots[0].sibling?.words).toEqual(['あの']);
+    });
+
     it('leaves the word\'s own meanings correct', () => {
         expect(gradeExercise(sore, ['that'], [0]).slots[0]).toEqual({ result: 'correct', shown: 'that' });
         expect(gradeExercise(sore, ['it'], [0]).slots[0]).toEqual({ result: 'correct', shown: 'it' });
@@ -385,7 +391,7 @@ describe('near-synonyms (issue #71 Part B)', () => {
 });
 
 describe('gradeExercise', () => {
-    const exercise = (slots: AnswerSlot[], cue: ProductionCue = {}): GradedExercise => ({ kind: 'grammar-cloze', slots, cue });
+    const exercise = (slots: AnswerSlot[], cue: ProductionCue = {}): GradedExercise => ({ kind: 'grammar-cloze', label: 'test point', slots, cue });
     const core = production(kanarazu);
     const support = { ...production(taberu), role: 'support' as const };
 
@@ -416,7 +422,7 @@ describe('gradeExercise', () => {
     describe('a near-synonym answer', () => {
         const chiisai = candidate('chiisai', 'interchangeable', '小さい', 'ちいさい', { shared: ['small'] });
         const withSynonym = production({ ...kanarazu, reading: { primary: 'せまい', alternatives: [] }, writtenForm: { kanji: '狭い', alternatives: [], containedKanji: ['狭'] } }, [chiisai]);
-        const card = (cue: ProductionCue): GradedExercise => ({ kind: 'production-cloze', slots: [withSynonym], cue });
+        const card = (cue: ProductionCue): GradedExercise => ({ kind: 'production-cloze', label: '狭い', slots: [withSynonym], cue });
 
         it('names both words, and pauses instead of auto-advancing', () => {
             const inCue = gradeExercise(card({ sentence: 'Japan is a small country.' }), ['小さい'], [0]);

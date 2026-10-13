@@ -160,9 +160,9 @@ function siblingAnswer(input: string, paradigm: DemonstrativeParadigm): SiblingA
     return words.length > 0 ? { answer: input.trim(), words } : undefined;
 }
 
-/** Names the word asked, the word the answer means, and the series. */
-function siblingNote({ answer, words }: SiblingAnswer, paradigm: DemonstrativeParadigm): string {
-    return `${paradigm.word} means "${paradigm.meaning}". "${answer}" is ${words.join(' or ')}. ${DEMONSTRATIVE_SERIES_NOTE}`;
+/** Names the word asked (`tested`, the exercise's label), the word the answer means, and the series. */
+function siblingNote({ answer, words }: SiblingAnswer, paradigm: DemonstrativeParadigm, tested: string): string {
+    return `${tested} means "${paradigm.meaning}". "${answer}" is ${words.join(' or ')}. ${DEMONSTRATIVE_SERIES_NOTE}`;
 }
 
 /** A slot answered with another word's meaning or form: neutral, it counts neither for nor against the result. */
@@ -183,7 +183,7 @@ function feedbackMessage(exercise: GradedExercise, slots: SlotGrade[], overall: 
     const notes = slots.flatMap((grade, i) => {
         const { word, paradigm } = exercise.slots[i];
         if (grade.synonym && word) return [{ correct: grade.synonym.outcome === 'correct', note: synonymNote(grade.synonym, word.label) }];
-        if (grade.sibling && paradigm) return [{ correct: false, note: siblingNote(grade.sibling, paradigm) }];
+        if (grade.sibling && paradigm) return [{ correct: false, note: siblingNote(grade.sibling, paradigm, exercise.label) }];
         return [];
     });
 

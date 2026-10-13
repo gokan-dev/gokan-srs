@@ -22,9 +22,9 @@ const SERIES: Member[][] = [
         { word: 'どれ', meaning: 'which one', answers: ['which', 'which one'] },
     ],
     [
-        { word: 'この', meaning: 'this (near me)', answers: ['this'] },
+        { word: 'この', meaning: 'this (near me)', answers: ['this', 'these'] },
         { word: 'その', meaning: 'that (near you)', answers: ['that'] },
-        { word: 'あの', meaning: 'that (over there)', answers: ['that over there', 'that'] },
+        { word: 'あの', meaning: 'that (over there)', answers: ['that over there', 'that', 'those'] },
         { word: 'どの', meaning: 'which', answers: ['which'] },
     ],
     [
@@ -56,9 +56,12 @@ const SERIES: Member[][] = [
 /** What every note ends with: the series in one line. */
 export const DEMONSTRATIVE_SERIES_NOTE = 'こ = near me, そ = near you, あ = over there, ど = which.';
 
-/** A demonstrative's place in its series, carried by its meaning slot. */
+/**
+ * A demonstrative's place in its series, carried by its meaning slot. The word itself
+ * is named by the exercise's label, like every tested word; only its siblings are
+ * named from the table.
+ */
 export interface DemonstrativeParadigm {
-    word: string;
     meaning: string;
     /** The other three members, each with the answers that name it. */
     siblings: { word: string; answers: string[] }[];
@@ -76,7 +79,6 @@ export function demonstrativeParadigm(reading: string, meanings: string[]): Demo
         const member = series.find(m => m.word === reading);
         if (!member || !member.answers.some(a => own.has(a))) continue;
         return {
-            word: member.word,
             meaning: member.meaning,
             siblings: series.filter(m => m !== member).map(({ word, answers }) => ({ word, answers })),
         };

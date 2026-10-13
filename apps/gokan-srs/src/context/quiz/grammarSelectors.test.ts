@@ -32,7 +32,7 @@ const gradePlan = (plan: GrammarBlankPlan, answers: string[], hintLevels: number
     gradeExercise(grammarExercise({ id: 'test-point', title: 'test point', examples: [] }, plan), answers, hintLevels);
 /** Grades answers against hand-built slots. */
 const gradeSlots = (slots: AnswerSlot[], answers: string[], hintLevels: number[] = []) =>
-    gradeExercise({ kind: 'grammar-cloze', slots, cue: {} }, answers, hintLevels);
+    gradeExercise({ kind: 'grammar-cloze', label: 'test point', slots, cue: {} }, answers, hintLevels);
 
 const now = new Date('2026-06-10T00:00:00Z');
 const past = new Date('2026-06-01T00:00:00Z');

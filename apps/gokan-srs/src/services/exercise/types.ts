@@ -166,7 +166,7 @@ export type Exercise = ExerciseBase & (
 );
 
 /** The exercise as the grader reads it. */
-export type GradedExercise = Pick<Exercise, 'kind' | 'slots' | 'cue'>;
+export type GradedExercise = Pick<Exercise, 'kind' | 'label' | 'slots' | 'cue'>;
 
 /** The exercise as its effects read it: what was asked, of which item. */
 export type AnsweredExercise = Pick<Exercise, 'kind' | 'host' | 'label' | 'slots'>;
