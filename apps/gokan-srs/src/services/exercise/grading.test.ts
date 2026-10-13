@@ -91,6 +91,45 @@ describe('the meaning slot', () => {
     });
 });
 
+describe('a descriptive gloss matched by its content words (issue #122)', () => {
+    const counter = meaningSlot(['counter for (small) things or pieces']);
+
+    it('accepts the gloss\'s words in another order', () => {
+        expect(grade(counter, 'counter for pieces or things')).toEqual({ result: 'correct', shown: 'counter for things or pieces' });
+        expect(grade(counter, 'pieces or things counter').result).toBe('correct');
+    });
+
+    it('accepts one of the alternatives "or" joins', () => {
+        expect(grade(counter, 'counter for things').result).toBe('correct');
+        expect(grade(counter, 'counter for pieces').result).toBe('correct');
+    });
+
+    it('grades a thin partial or a typo a near miss', () => {
+        expect(grade(counter, 'counter').result).toBe('minor_error');
+        expect(grade(counter, 'things or pieces').result).toBe('minor_error');
+        expect(grade(counter, 'counter for peices').result).toBe('minor_error');
+        expect(grade(meaningSlot(['large amount of money']), 'money amount').result).toBe('minor_error');
+    });
+
+    it('rejects a content word the gloss does not have', () => {
+        expect(grade(counter, 'counter for people')).toEqual({ result: 'wrong', shown: 'counter for (small) things or pieces' });
+        expect(grade(counter, 'counter for small animals').result).toBe('wrong');
+    });
+
+    it('leaves a single-word gloss strict', () => {
+        expect(grade(meaningSlot(['that']), 'this').result).toBe('wrong');
+    });
+
+    it('keeps comma-separated glosses as separate answers', () => {
+        expect(grade(meaningSlot(['thing, piece']), 'piece').result).toBe('correct');
+        expect(grade(meaningSlot(['thing, piece']), 'piece thing').result).toBe('wrong');
+    });
+
+    it('never applies to a Japanese answer', () => {
+        expect(grade(readingSlot(vocabulary()), 'ほんに').result).toBe('wrong');
+    });
+});
+
 describe('a demonstrative answered with a sibling\'s meaning (issue #123)', () => {
     const demonstrative = (id: string, reading: string, kanji: string, glosses: string[]) => vocabExercise(
         vocabulary({ id, reading: { primary: reading, alternatives: [] }, writtenForm: { kanji, alternatives: [], containedKanji: [] }, usuallyKana: true, senses: [{ pos: ['pn'], misc: { rawTags: [] }, glosses, related: { compounds: [] } }] }),

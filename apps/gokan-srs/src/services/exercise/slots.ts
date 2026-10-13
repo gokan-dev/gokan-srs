@@ -127,7 +127,7 @@ export function meaningSlot(glosses: string[], reading?: string): AnswerSlot {
     return {
         accept: parts,
         near: [],
-        leniency: 'standard',
+        leniency: 'gloss',
         role: 'core',
         reveal: glosses[0] ?? '',
         gloss: '',
