@@ -153,7 +153,9 @@ const GLOSS_STOPWORDS = new Set(['for', 'of', 'a', 'an', 'the', 'to', 'and', 'or
  * people"), and a typo of a word costs the answer its full credit.
  *
  * Undefined when the gloss has fewer than two content words: "that" stays strict,
- * so "this" can never pass as a reordering or a subset of it.
+ * so "this" can never pass as a reordering or a subset of it. Undefined too when
+ * "or" joins every content word: "victory or defeat", "more or less", "this or
+ * that" name one meaning through the pair, so either half alone is not it.
  */
 function matchGlossWords(answer: string, gloss: string, tolerance: Tolerance): AnswerResult | undefined {
     const tokens = gloss.split(' ');
@@ -163,17 +165,19 @@ function matchGlossWords(answer: string, gloss: string, tolerance: Tolerance): A
     if (typed.length === 0) return undefined;
 
     // Each "or" puts its neighbours in one group of alternatives; a chain
-    // ("a or b or c") is one group.
+    // ("a or b or c") is one group. "or not" is no alternative: "believe it or
+    // not" needs its "not".
     const groupOf = new Map<string, number>();
     tokens.forEach((t, i) => {
         if (t !== 'or') return;
         const before = tokens[i - 1];
         const after = tokens[i + 1];
-        if (!before || !after || GLOSS_STOPWORDS.has(before) || GLOSS_STOPWORDS.has(after)) return;
+        if (!before || !after || after === 'not' || GLOSS_STOPWORDS.has(before) || GLOSS_STOPWORDS.has(after)) return;
         const group = groupOf.get(before) ?? i;
         groupOf.set(before, group);
         groupOf.set(after, group);
     });
+    if (content.every(c => groupOf.has(c))) return undefined;
 
     const covered = new Set<string>();
     let typo = false;

@@ -144,6 +144,13 @@ describe('matchAnswer on a descriptive gloss (gloss leniency)', () => {
         expect(matchAnswer('this', 'that', 'gloss')).toBe('wrong');
         expect(matchAnswer('ten counter', 'counter for ten', 'gloss')).toBe('correct');
     });
+
+    it('never takes one half of a pair "or" makes the whole meaning of', () => {
+        expect(matchAnswer('defeat', 'victory or defeat', 'gloss')).toBe('wrong');
+        expect(matchAnswer('less', 'more or less', 'gloss')).toBe('wrong');
+        expect(matchAnswer('this', 'this or that', 'gloss')).toBe('wrong');
+        expect(matchAnswer('believe it', 'believe it or not', 'gloss')).toBe('minor_error');
+    });
 });
 
 describe('matchBest', () => {
