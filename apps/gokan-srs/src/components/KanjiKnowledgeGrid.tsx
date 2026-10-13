@@ -77,7 +77,8 @@ export function KanjiKnowledgeGrid({ allKanji, method, toolbar }: KanjiKnowledge
         scrollToPosition(Math.max(0, state.kanjiCount - 1));
     }, [state.kanjiCount, scrollToPosition]);
 
-    const knownCount = state.knownKanji.size;
+    // The known set reaches across orders; the legend counts only this list's share of it.
+    const knownInList = useMemo(() => allKanji.filter(kanji => state.knownKanji.has(kanji)).length, [allKanji, state.knownKanji]);
     const matchIsKnown = match ? state.knownKanji.has(match.kanji) : false;
 
     return (
@@ -134,14 +135,14 @@ export function KanjiKnowledgeGrid({ allKanji, method, toolbar }: KanjiKnowledge
             </div>
 
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-4 mb-3">
-                <p className="type-support flex-1 min-w-48">Click a kanji to mark it known or not known.</p>
+                <p className="type-support flex-1 min-w-48">Click a kanji to mark it known or not known. Your marks stay when you change order.</p>
                 <span className="inline-flex items-center gap-1.5 type-meta">
                     <span className="w-4 h-4 rounded-sm border border-divider bg-surface" aria-hidden="true" /> Known
                 </span>
                 <span className="inline-flex items-center gap-1.5 type-meta">
                     <span className="w-4 h-4 rounded-sm border border-dashed border-divider" aria-hidden="true" /> Not known
                 </span>
-                <span className="type-meta tabular-nums">{knownCount.toLocaleString('en-US')} of {allKanji.length.toLocaleString('en-US')} known · {kanjiOrder(method).label} order</span>
+                <span className="type-meta tabular-nums">{knownInList.toLocaleString('en-US')} of {allKanji.length.toLocaleString('en-US')} in {kanjiOrder(method).label} order known</span>
             </div>
 
             <div ref={gridRef} className="w-full">

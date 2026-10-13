@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { Minus, Plus } from "lucide-react";
+import { kanjiOrder } from "@gokan/dataset-schema";
 import { useKanjiForm } from "../context/KanjiForm/useKanjiForm";
 import { CONSTANTS } from "../commons/constants";
+import { Button } from "./ui/Button";
 
 interface KanjiCountStepperProps {
     /** Increment applied by the -/+ buttons (UserSettings.kanjiCountStep). */
@@ -18,7 +20,9 @@ interface KanjiCountStepperProps {
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
 /**
- * Known-kanji count control. On the profile page (both props supplied) it is the
+ * Known-kanji count control. The count walks the current order: raising it adds that order's
+ * kanji to the known set, lowering it takes back the ones past it; kanji from other orders stay.
+ * On the profile page (both props supplied) it is the
  * raw number plus -/+ buttons moving it by the user's own increment: advancing
  * the count by a fixed amount is the main thing people come there to do (they
  * studied another N kanji elsewhere), so it should not require selecting the
@@ -26,7 +30,9 @@ const clamp = (value: number, min: number, max: number) => Math.min(Math.max(val
  * number field.
  */
 export function KanjiCountStepper({ step, onStepChange }: KanjiCountStepperProps) {
-    const { state, setKanjiCount } = useKanjiForm();
+    const { state, setKanjiCount, resetKanji } = useKanjiForm();
+    const [confirmingReset, setConfirmingReset] = useState(false);
+    const orderLabel = kanjiOrder(state.kanjiMethod).label;
 
     const min = CONSTANTS.setup.minimumKanjiCount;
     // The loaded list is the real ceiling; fall back to the constant before it loads.
@@ -70,7 +76,7 @@ export function KanjiCountStepper({ step, onStepChange }: KanjiCountStepperProps
         <section className="space-y-3">
             <div className="flex items-baseline justify-between gap-4">
                 <label htmlFor="kanji-count" className="type-label">
-                    Known kanji count
+                    Count in {orderLabel} order
                 </label>
                 <span className="type-meta tabular-nums">
                     of {max.toLocaleString('en-US')}
@@ -82,7 +88,7 @@ export function KanjiCountStepper({ step, onStepChange }: KanjiCountStepperProps
                     <button
                         type="button"
                         onClick={() => adjust(-stepValue)}
-                        disabled={state.kanjiCount <= min}
+                        disabled={state.loading || state.kanjiCount <= min}
                         className={stepButtonClass}
                         aria-label={`Remove ${stepValue} kanji`}
                     >
@@ -111,7 +117,7 @@ export function KanjiCountStepper({ step, onStepChange }: KanjiCountStepperProps
                     <button
                         type="button"
                         onClick={() => adjust(stepValue)}
-                        disabled={state.kanjiCount >= max}
+                        disabled={state.loading || state.kanjiCount >= max}
                         className={stepButtonClass}
                         aria-label={`Add ${stepValue} kanji`}
                     >
@@ -142,6 +148,39 @@ export function KanjiCountStepper({ step, onStepChange }: KanjiCountStepperProps
                     </span>
                 </div>
             )}
+
+            {/* The known set is a union across orders, so its size is its own number, not the count. */}
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 min-h-8">
+                <p className="type-meta tabular-nums" aria-live="polite">
+                    Known: <span className="text-primary">{state.knownKanji.size.toLocaleString('en-US')}</span> kanji
+                </p>
+                {confirmingReset ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                        <span className="type-meta">
+                            Keep only the first {state.kanjiCount.toLocaleString('en-US')} of {orderLabel}?
+                        </span>
+                        <Button variant="ghost" size="sm" onClick={() => setConfirmingReset(false)}>
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => { resetKanji(); setConfirmingReset(false); }}
+                        >
+                            Reset
+                        </Button>
+                    </div>
+                ) : (
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setConfirmingReset(true)}
+                        disabled={state.loading}
+                    >
+                        Reset
+                    </Button>
+                )}
+            </div>
         </section>
     );
 }
