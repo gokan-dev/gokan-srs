@@ -900,7 +900,16 @@ Hosts `KanjiKnowledgeEditor` (shared with the setup wizard), built around the tw
 
 The rows span the full pane width, matching the search box above them, so the tiles (and therefore the kanji) are as large as the page allows; they stay square via `aspect-square`. The scroll pane itself is user-resizable (`resize: vertical`, a native drag handle) from a starting height the host page picks via `gridHeight`/`initialHeight`: 36rem on the profile page against 22rem in the wizard. That requires a real `height` rather than a `max-height`, and the fade mask is top-only, since a bottom fade washed out the drag handle in that corner.
 
-The editor's method picker lists `KANJI_ORDERS`: the four most followed (KKLC, RTK, JLPT, frequency) and the other books behind "More methods". Picking one loads its `index/kanji-orders/{id}.json` (`KanjiFormProvider`, the previous list kept up while it loads); the count carries over, clamped to the new list's length, and the toggles reset. The editor reports a change only once the list has loaded, so a learner is never saved with one method and another method's kanji. The grid's label is the order's own (`kanjiOrder(method).label`).
+The editor's method picker lists `KANJI_ORDERS`: the four most followed (KKLC, RTK, JLPT, frequency) and the other books behind "More methods". Picking one loads its `index/kanji-orders/{id}.json` (`KanjiFormProvider`, the previous list kept up while it loads). The editor reports a change only once the list has loaded, so a learner is never saved with one method's count measured in another method's list. The grid's label is the order's own (`kanjiOrder(method).label`).
+
+**The known set is one durable union; orders only fill it** (`context/KanjiForm/kanjiFormReducer.ts`, pure and tested directly). A learner who knows KKLC's first 500 and some RTK or JLPT kanji on top can say so:
+
+- Switching order keeps the set as it is. The count of the new order starts at how many of its first kanji are already known, and is pinned there as soon as the user marks a kanji.
+- Raising the count adds that order's kanji up to the new count; lowering it takes back only the stretch of this order it steps over. Kanji from other orders outside that stretch stay.
+- A kanji marked one by one in the grid (`marked`) wins over every count, in every order, until a Reset. Opening the page starts from the stored `kanjiSet`, not from the first N of the stored order, so kanji marked on a kanji's detail page or by "Learn next kanji" are kept.
+- **Reset** (behind an inline confirm) is the escape hatch: only the current order's first N, no marks. "Known: N kanji" under the stepper is the size of the whole set, independent of any order.
+
+`method` and `step` stay the primary order and how far its count reaches: they still sequence new vocab and name positions ("RTK #346"). Nothing about storage changed: `kanjiSet` was always the resolved set.
 
 Its scroll pane carries the `.scrollbar-subtle` utility (`index.css`), which styles both `scrollbar-width`/`scrollbar-color` and the `::-webkit-scrollbar` pseudo-elements. Chrome/Edge otherwise draw a wide opaque track that reads as a bright band down the side of a dark pane, where Firefox's thin scrollbar already looked right.
 

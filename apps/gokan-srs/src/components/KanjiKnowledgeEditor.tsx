@@ -31,7 +31,7 @@ export function KanjiKnowledgeEditor({
     const { state, setKanjiMethod } = useKanjiForm();
 
     // Reports every change to the knowledge being edited, once the method's list has loaded (the
-    // set is that list's first N kanji). The callback is read fresh each time without re-running
+    // count is measured in that list). The callback is read fresh each time without re-running
     // the effect.
     const reportChange = useEffectEvent((knowledge: KanjiKnowledge) => onKanjiKnowledgeChange?.(knowledge));
     useEffect(() => {
