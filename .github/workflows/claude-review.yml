@@ -20,10 +20,10 @@ on:
     # reviewer opens drafts) the moment it is marked ready.
     types: [opened, synchronize, reopened, ready_for_review]
 
-concurrency:
-  # One review per PR; a newer push supersedes an in-flight one.
-  group: claude-review-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+# No workflow-level group that cancels in progress: the reviewer's own fix push starts a run, and
+# cancelling would kill the review that pushed it before it posts. A run for a push made while
+# another review held the branch waits its turn, then stands down if the branch has moved on
+# (the first step below), since the run for the newer push reviews the same branch.
 
 jobs:
   review:
@@ -34,6 +34,11 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    # One agent per branch at a time (AGENTS.md): every agent job that can push queues here.
+    concurrency:
+      group: agent-branch-${{ github.event.pull_request.head.ref }}
+      cancel-in-progress: false
+      queue: max
     # The Claude GitHub App token this job runs on lasts one hour from the Run Claude step: keep
     # this at or under 60.
     timeout-minutes: 60
@@ -54,34 +59,38 @@ jobs:
           submodules: true
           fetch-depth: 0
 
-      # Loop guard. The reviewer's own fix push re-fires `synchronize`; skip it by its git author,
-      # which only this reviewer uses (`bot_name` below). Not by the sender: this reviewer,
-      # claude-fix-ci.yml and claude-address-feedback.yml all push through the same app, as
-      # claude[bot]. And not by claude[bot] as author: every other agent commits as claude[bot],
-      # so that skipped every PR an agent wrote (#119 would never have been reviewed).
-      - name: Skip the reviewer's own fix push
+      # Two reasons to stand down. The branch moved on while this run waited for the lock: the run
+      # for the newer push reviews it. Or HEAD is this reviewer's own fix (the loop guard), told
+      # by its git author, which only this reviewer uses (`bot_name` below). Not by the sender:
+      # this reviewer, claude-fix-ci.yml and claude-address-feedback.yml all push through the
+      # same app, as claude[bot]. And not by claude[bot] as author: every other agent commits as
+      # claude[bot], so that skipped every PR an agent wrote (#119 would never have been reviewed).
+      - name: Skip a moved branch or the reviewer's own fix push
         id: head
+        env:
+          EVENT_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
+          head="$(git rev-parse HEAD)"
           author="$(git log -1 --pretty='%an')"
-          echo "author=$author"
-          if [ "$author" = "$REVIEWER_BOT_NAME" ]; then
-            echo "own_fix=true" >> "$GITHUB_OUTPUT"
+          echo "head=$head author=$author"
+          if [ "$head" != "$EVENT_SHA" ] || [ "$author" = "$REVIEWER_BOT_NAME" ]; then
+            echo "review=false" >> "$GITHUB_OUTPUT"
           else
-            echo "own_fix=false" >> "$GITHUB_OUTPUT"
+            echo "review=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Setup Bun
-        if: steps.head.outputs.own_fix == 'false'
+        if: steps.head.outputs.review == 'true'
         uses: oven-sh/setup-bun@v1
         with:
           bun-version: latest
 
       - name: Install dependencies
-        if: steps.head.outputs.own_fix == 'false'
+        if: steps.head.outputs.review == 'true'
         run: bun install
 
       - name: Run Claude
-        if: steps.head.outputs.own_fix == 'false'
+        if: steps.head.outputs.review == 'true'
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

@@ -35,6 +35,11 @@ jobs:
       github.event.workflow_run.actor.login != 'claude[bot]' &&
       github.event.workflow_run.head_commit.author.name != 'claude[bot]'
     runs-on: ubuntu-latest
+    # One agent per branch at a time (AGENTS.md): every agent job that can push queues here.
+    concurrency:
+      group: agent-branch-${{ github.event.workflow_run.head_branch }}
+      cancel-in-progress: false
+      queue: max
     permissions:
       contents: write
       pull-requests: write
@@ -47,15 +52,32 @@ jobs:
           submodules: true
           fetch-depth: 0
 
+      # The branch lock can make this run wait behind another agent, whose push gets its own CI
+      # run. If the branch moved past the commit that failed, that newer run decides: a failure
+      # there starts a fresh fix.
+      - name: Skip if the branch moved past the failed commit
+        id: head
+        env:
+          FAILED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          if [ "$(git rev-parse HEAD)" = "$FAILED_SHA" ]; then
+            echo "fix=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "fix=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Setup Bun
+        if: steps.head.outputs.fix == 'true'
         uses: oven-sh/setup-bun@v1
         with:
           bun-version: latest
 
       - name: Install dependencies
+        if: steps.head.outputs.fix == 'true'
         run: bun install
 
       - name: Run Claude
+        if: steps.head.outputs.fix == 'true'
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

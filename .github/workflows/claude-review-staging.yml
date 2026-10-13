@@ -22,13 +22,64 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  review:
+  # Where the review goes, and so which branch's lock it takes. GitHub's own commit-to-PR mapping
+  # first, so it does not matter how many branches contain the commit. With no open PR, the one
+  # branch other than `main` that holds it (its tip first) gets a draft PR. A commit that only
+  # `main` holds, or that several branches hold, has no single home: no branch, no review.
+  target:
     # Only a successful deploy, and only for a commit from THIS repo (forks cannot push tags to
     # the base repo, so staging deploys are always same-repo, but gate it anyway).
     if: >
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      pr: ${{ steps.find.outputs.pr }}
+      branch: ${{ steps.find.outputs.branch }}
+    steps:
+      - name: Checkout deployed commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Find the PR for the deployed commit
+        id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          pr="$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/pulls" \
+            --jq "[.[] | select(.state == \"open\" and .head.repo.full_name == \"$GITHUB_REPOSITORY\")] | (map(select(.head.sha == \"$SHA\")) + .)[0] // empty | \"\(.number) \(.head.ref)\"")"
+          if [ -n "$pr" ]; then
+            # "<number> <branch>": a branch name has no spaces.
+            echo "pr=${pr%% *}" >> "$GITHUB_OUTPUT"
+            echo "branch=${pr#* }" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          branches() {
+            git branch -r "$1" "$SHA" --format='%(refname:lstrip=3)' | grep -vx -e main -e HEAD || true
+          }
+          branch="$(branches --points-at)"
+          [ -n "$branch" ] || branch="$(branches --contains)"
+          if [ "$(printf '%s' "$branch" | grep -c .)" -eq 1 ]; then
+            echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          else
+            echo "No single branch other than main holds $SHA (${branch:-none}): nothing to review on."
+          fi
+
+  review:
+    needs: target
+    if: needs.target.outputs.branch != ''
+    runs-on: ubuntu-latest
+    # One agent per branch at a time (AGENTS.md): every agent job that can push queues here.
+    concurrency:
+      group: agent-branch-${{ needs.target.outputs.branch }}
+      cancel-in-progress: false
+      queue: max
     timeout-minutes: 90
     permissions:
       contents: write       # push high-confidence fixes to the PR branch
@@ -43,46 +94,15 @@ jobs:
           submodules: true
           fetch-depth: 0
 
-      # Where the review goes. GitHub's own commit-to-PR mapping first, so it does not matter how
-      # many branches contain the commit. With no open PR, the one branch other than `main` that
-      # holds it (its tip first) gets a draft PR. A commit that only `main` holds, or that
-      # several branches hold, has no single home: skip rather than guess.
-      - name: Find the PR for the deployed commit
-        id: target
-        env:
-          GH_TOKEN: ${{ github.token }}
-          SHA: ${{ github.event.workflow_run.head_sha }}
-        run: |
-          pr="$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/pulls" \
-            --jq "[.[] | select(.state == \"open\" and .head.repo.full_name == \"$GITHUB_REPOSITORY\")] | (map(select(.head.sha == \"$SHA\")) + .)[0].number // empty")"
-          if [ -n "$pr" ]; then
-            echo "pr=$pr" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          branches() {
-            git branch -r "$1" "$SHA" --format='%(refname:lstrip=3)' | grep -vx -e main -e HEAD || true
-          }
-          branch="$(branches --points-at)"
-          [ -n "$branch" ] || branch="$(branches --contains)"
-          if [ "$(printf '%s' "$branch" | grep -c .)" -eq 1 ]; then
-            echo "branch=$branch" >> "$GITHUB_OUTPUT"
-          else
-            echo "No single branch other than main holds $SHA (${branch:-none}): nothing to review on."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Setup Bun
-        if: steps.target.outputs.skip != 'true'
         uses: oven-sh/setup-bun@v1
         with:
           bun-version: latest
 
       - name: Install dependencies
-        if: steps.target.outputs.skip != 'true'
         run: bun install
 
       - name: Run Claude
-        if: steps.target.outputs.skip != 'true'
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -94,12 +114,14 @@ jobs:
             visual compliance a code diff cannot show. Read AGENTS.md and docs/DESIGN_SYSTEM.md
             first.
 
-            1. The home for this review: ${{ steps.target.outputs.pr && format('PR #{0}.', steps.target.outputs.pr) || format('branch `{0}`, which has no open PR (it was tagged straight to staging). Open a DRAFT PR against `main` for it, titled for the staging review, so the findings have a home, and review on it.', steps.target.outputs.branch) }}
+            1. The home for this review: ${{ needs.target.outputs.pr && format('PR #{0}.', needs.target.outputs.pr) || format('branch `{0}`, which has no open PR (it was tagged straight to staging). Open a DRAFT PR against `main` for it, titled for the staging review, so the findings have a home, and review on it.', needs.target.outputs.branch) }}
                As soon as you have the PR, post a short comment that a staging review of this
                commit is in progress, so the run is visible while you work (this reviewer fires on
                a staging deploy, not a PR event, so it has no automatic progress checklist: this
-               comment is what makes it followable). Keep that comment's id: `gh pr comment`
-               prints its URL, which ends in `#issuecomment-<id>`.
+               comment is what makes it followable). Its first line must be exactly
+               `<!-- gokan-agent-status -->` (invisible on GitHub; it tells
+               claude-address-feedback.yml the comment is not feedback). Keep that comment's id:
+               `gh pr comment` prints its URL, which ends in `#issuecomment-<id>`.
 
             2. Check the rendered result, not the diff:
                - If `bun run check:layout` exists, run it (it measures the production builds at

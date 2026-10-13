@@ -44,6 +44,11 @@ before changing it, and update it when behaviour changes. Visual rules are in
   run `/code-review` (or an equivalent pass over the diff) and, for UI, build both apps and look
   at the result at 320px, 375px and 1280px, light and dark. Unreviewed work is not handed off
   faster: it moves the same review onto the next reader plus a round trip.
+- **Two agents never work on one branch at once.** Every agent job in `.github/workflows/` that
+  can push queues on its branch's lock: job-level `concurrency` with
+  `group: agent-branch-<branch>`, `cancel-in-progress: false`, `queue: max` (a later run waits,
+  none is dropped). A run that waited checks the branch has not moved on before acting.
+  Enforced.
 - `git log` is the record of what changed. Add an entry to
   [docs/MODIFICATION_LOG.md](docs/MODIFICATION_LOG.md) only for reasoning a diff cannot show:
   an investigation's result, why the obvious approach was rejected, or an interaction a later
