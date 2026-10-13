@@ -10,8 +10,10 @@ import type { AnswerResult } from '../../utils/answerMatching';
 import { isFormOfWord, sameFormUpToRegister } from '../../utils/inflection.utils';
 import { orderSynonymsForCue, sharedMeaningUsed, synonymOutcome } from '../../utils/synonymContext.utils';
 import type { ProductionCue } from '../../utils/synonymContext.utils';
+import { DEMONSTRATIVE_SERIES_NOTE } from './demonstratives';
+import type { DemonstrativeParadigm } from './demonstratives';
 import { wordSlot } from './slots';
-import type { AnswerSlot, ExerciseGrade, GradedExercise, SlotGrade, SlotInflection, SynonymAnswer, SynonymCandidate } from './types';
+import type { AnswerSlot, ExerciseGrade, GradedExercise, SiblingAnswer, SlotGrade, SlotInflection, SynonymAnswer, SynonymCandidate } from './types';
 
 /** How good a result is, best last. `pass` sits between: the learner skipped rather than mis-recalled. */
 const STANDING: Record<AnswerResult, number> = { wrong: 0, pass: 1, minor_error: 2, correct: 3 };
@@ -84,7 +86,9 @@ function reconjugationGrade(input: string, { lead, word, form, tail, registerFre
  *    conjugated words in another form: correct when only politeness changed and
  *    the card asks for no register (がある for があります), a near miss otherwise;
  * 5. another form of the slot's word, graded by its OtherFormGrade;
- * 6. only for a genuine miss, the word's near-synonyms, judged against the cue.
+ * 6. only for a genuine miss, the word's near-synonyms, judged against the cue;
+ * 7. only for a genuine miss on a demonstrative's meaning, a sibling's meaning
+ *    (それ answered "this"): still a miss, but a neutral one.
  * Each step can only improve the grade.
  */
 export function gradeSlot(slot: AnswerSlot, input: string, hintLevel: number, cue: ProductionCue): SlotGrade {
@@ -110,6 +114,11 @@ export function gradeSlot(slot: AnswerSlot, input: string, hintLevel: number, cu
         const grades = slot.inflections.map(inflection => reconjugationGrade(input, inflection));
         if (grades.includes('correct')) best = { result: 'correct', shown: input.trim() };
         else if (grades.includes('minor_error')) best = { result: 'minor_error', shown: slot.reveal };
+    }
+
+    if (best.result === 'wrong' && slot.paradigm) {
+        const sibling = siblingAnswer(input, slot.paradigm);
+        if (sibling) return { ...best, sibling };
     }
 
     const word = slot.word;
@@ -139,6 +148,25 @@ export function gradeSlot(slot: AnswerSlot, input: string, hintLevel: number, cu
     return { result: outcome === 'confusable' ? 'wrong' : outcome, shown: best.shown, synonym };
 }
 
+/**
+ * The siblings whose meaning the answer is, when it is one. Only an exact match: a
+ * typo of "this" is too close to "that" to tell which word was meant.
+ */
+function siblingAnswer(input: string, paradigm: DemonstrativeParadigm): SiblingAnswer | undefined {
+    const words = paradigm.siblings.filter(s => matchBest(input, s.answers).result === 'correct').map(s => s.word);
+    return words.length > 0 ? { answer: input.trim(), words } : undefined;
+}
+
+/** Names the word asked, the word the answer means, and the series. */
+function siblingNote({ answer, words }: SiblingAnswer, paradigm: DemonstrativeParadigm): string {
+    return `${paradigm.word} means "${paradigm.meaning}". "${answer}" is ${words.join(' or ')}. ${DEMONSTRATIVE_SERIES_NOTE}`;
+}
+
+/** A slot answered with another word's meaning or form: neutral, it counts neither for nor against the result. */
+export function isNeutral(grade: SlotGrade): boolean {
+    return grade.synonym?.outcome === 'confusable' || grade.sibling !== undefined;
+}
+
 /** Names the word the learner typed and the one being tested. */
 function synonymNote(synonym: SynonymAnswer, tested: string): string {
     switch (synonym.outcome) {
@@ -150,14 +178,16 @@ function synonymNote(synonym: SynonymAnswer, tested: string): string {
 
 function feedbackMessage(exercise: GradedExercise, slots: SlotGrade[], overall: AnswerResult): string {
     const notes = slots.flatMap((grade, i) => {
-        const word = exercise.slots[i].word;
-        return grade.synonym && word ? [{ synonym: grade.synonym, note: synonymNote(grade.synonym, word.label) }] : [];
+        const { word, paradigm } = exercise.slots[i];
+        if (grade.synonym && word) return [{ correct: grade.synonym.outcome === 'correct', note: synonymNote(grade.synonym, word.label) }];
+        if (grade.sibling && paradigm) return [{ correct: false, note: siblingNote(grade.sibling, paradigm) }];
+        return [];
     });
 
     // On a single-answer card the note is the whole message.
     if (slots.length === 1 && notes.length === 1) {
-        const [{ synonym, note }] = notes;
-        return synonym.outcome === 'correct' ? `Correct: ${note}` : note;
+        const [{ correct, note }] = notes;
+        return correct ? `Correct: ${note}` : note;
     }
 
     const allCorrect = slots.every(s => s.result === 'correct');
@@ -178,14 +208,15 @@ export function coreSlots(exercise: Pick<GradedExercise, 'slots'>): number[] {
 }
 
 /**
- * Grades every slot, then the exercise. A confusable synonym is neutral: it counts
- * neither for nor against the result or the reward. The core slots left decide the
- * result (all of them if every one was neutral, so a lone confusable answer still
- * reads as a miss); the support slots left scale a successful result's reward.
+ * Grades every slot, then the exercise. A confusable synonym or a sibling
+ * demonstrative is neutral (isNeutral): it counts neither for nor against the
+ * result or the reward. The core slots left decide the result (all of them if every
+ * one was neutral, so a lone neutral answer still reads as a miss); the support
+ * slots left scale a successful result's reward.
  */
 export function gradeExercise(exercise: GradedExercise, answers: string[], hintLevels: number[]): ExerciseGrade {
     const slots = exercise.slots.map((slot, i) => gradeSlot(slot, answers[i] ?? '', hintLevels[i] ?? 0, exercise.cue));
-    const counted = (i: number) => slots[i].synonym?.outcome !== 'confusable';
+    const counted = (i: number) => !isNeutral(slots[i]);
 
     const core = coreSlots(exercise);
     const deciding = core.filter(counted);

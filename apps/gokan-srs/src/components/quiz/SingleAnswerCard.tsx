@@ -214,8 +214,9 @@ export function SingleAnswerCard({
 
                             {/* A near-synonym collision names the word being tested even on a
                                 confusable answer graded wrong, so the message shows whenever a
-                                synonym was typed, not just on minor_error. */}
-                            {(grade?.overall === 'minor_error' || synonym) && (
+                                synonym was typed, not just on minor_error. A sibling
+                                demonstrative's meaning likewise shows its note on the series. */}
+                            {(grade?.overall === 'minor_error' || synonym || slotGrade?.sibling) && (
                                 <p className="text-secondary text-sm mb-2 font-gothic">
                                     {grade?.message}
                                 </p>

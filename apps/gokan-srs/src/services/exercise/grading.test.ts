@@ -91,6 +91,51 @@ describe('the meaning slot', () => {
     });
 });
 
+describe('a demonstrative answered with a sibling\'s meaning (issue #123)', () => {
+    const demonstrative = (id: string, reading: string, kanji: string, glosses: string[]) => vocabExercise(
+        vocabulary({ id, reading: { primary: reading, alternatives: [] }, writtenForm: { kanji, alternatives: [], containedKanji: [] }, usuallyKana: true, senses: [{ pos: ['pn'], misc: { rawTags: [] }, glosses, related: { compounds: [] } }] }),
+        { quizType: 'meaning', quizMode: 'base' }, { sentence: null, cloze: null },
+    );
+    const sore = demonstrative('sore', 'それ', '其れ', ['that', 'it']);
+    const kore = demonstrative('kore', 'これ', '此れ', ['this', 'this one']);
+
+    it('is a neutral miss, with a note naming the right word and the series', () => {
+        const graded = gradeExercise(sore, ['this'], [0]);
+        expect(graded.slots[0]).toMatchObject({ result: 'wrong', sibling: { answer: 'this', words: ['これ'] } });
+        expect(graded.overall).toBe('wrong');
+        expect(graded.message).toBe('それ means "that (near you)". "this" is これ. こ = near me, そ = near you, あ = over there, ど = which.');
+    });
+
+    it('names every sibling the answer means', () => {
+        const graded = gradeExercise(kore, ['that'], [0]);
+        expect(graded.slots[0].sibling?.words).toEqual(['それ', 'あれ']);
+        expect(graded.message).toContain('"that" is それ or あれ.');
+    });
+
+    it('leaves the word\'s own meanings correct', () => {
+        expect(gradeExercise(sore, ['that'], [0]).slots[0]).toEqual({ result: 'correct', shown: 'that' });
+        expect(gradeExercise(sore, ['it'], [0]).slots[0]).toEqual({ result: 'correct', shown: 'it' });
+    });
+
+    it('needs an exact sibling meaning: a typo or an unrelated answer is a plain miss', () => {
+        expect(gradeExercise(sore, ['thiss'], [0]).slots[0].sibling).toBeUndefined();
+        expect(gradeExercise(sore, ['cat'], [0]).slots[0]).toEqual({ result: 'wrong', shown: 'that' });
+    });
+
+    it('is no false neutral on another word, nor on a homophone of a demonstrative', () => {
+        const nihon = vocabExercise(vocabulary(), { quizType: 'meaning', quizMode: 'base' }, { sentence: null, cloze: null });
+        expect(gradeExercise(nihon, ['this'], [0]).slots[0]).toEqual({ result: 'wrong', shown: 'Japan' });
+        // ああ is also the interjection 嗚呼, which is not in the series.
+        const aa = demonstrative('aa', 'ああ', '嗚呼', ['ah!', 'oh!', 'alas!']);
+        expect(gradeExercise(aa, ['like this'], [0]).slots[0].sibling).toBeUndefined();
+    });
+
+    it('runs only on a meaning slot: a production slot asking for それ has no series', () => {
+        const slot = production({ reading: { primary: 'それ', alternatives: [] }, writtenForm: { kanji: '其れ', alternatives: [], containedKanji: [] } });
+        expect(grade(slot, 'これ').sibling).toBeUndefined();
+    });
+});
+
 describe('a production slot: any form of the word is correct (issue #95)', () => {
     it.each(['食べたら', 'たべたら', '食べた', '食べる', 'たべて'])('grades %s correct for 食べる', input => {
         expect(grade(production(taberu), input).result).toBe('correct');

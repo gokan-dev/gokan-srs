@@ -5,6 +5,7 @@
 // grade, in the shared submit flow, so grading itself stays synchronous.
 import type { Vocabulary } from '@gokan/dataset-schema';
 import { LLMService } from '../llm.service';
+import { isNeutral } from './grading';
 import type { Exercise, ExerciseGrade } from './types';
 
 export interface AiMeaningCheck {
@@ -29,6 +30,8 @@ export async function refineMeaningWithAi(
 ): Promise<ExerciseGrade> {
     if (!check || exercise.kind !== 'meaning' || !exercise.contextRequested || !exercise.sentence || answer.trim().length === 0) return grade;
     if (!check.always && grade.overall !== 'wrong' && grade.overall !== 'minor_error') return grade;
+    // A neutral answer is another word's meaning by construction (それ answered "this"): no context makes it this word's.
+    if (grade.slots.some(isNeutral)) return grade;
 
     try {
         onStart();

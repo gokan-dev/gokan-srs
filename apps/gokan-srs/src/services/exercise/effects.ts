@@ -15,7 +15,7 @@ import { GrammarSRSService } from '../grammarSrs.service';
 import {
     frequencyModifierOf, growthLevelOf, isCalibratedGrammarReview, isCalibratedVocabReview, recordCalibratedAnswer, withCalibrationDefaults,
 } from '../calibration';
-import { coreSlots } from './grading';
+import { coreSlots, isNeutral } from './grading';
 import type { AnsweredExercise, ExerciseGrade, HostItem } from './types';
 
 export type Effect =
@@ -41,8 +41,8 @@ export interface AnswerContext {
  *   one is neutral;
  * - if that slot's word is the asked item itself, the item is retried rather than
  *   reviewed: the learner has not produced it yet;
- * - if no deciding slot is left (every one was a confusable synonym), the item is
- *   retried too: nothing decided a result;
+ * - if no deciding slot is left (every one was neutral: a confusable synonym, a
+ *   sibling demonstrative's meaning), the item is retried too: nothing decided a result;
  * - any other word answered right without its hint revealed earns indirect
  *   credit, once per word.
  */
@@ -70,7 +70,7 @@ export function effectsOf(exercise: AnsweredExercise, grade: ExerciseGrade, { la
         if (slotGrade.result === 'correct' || slotGrade.result === 'minor_error') credit(word.vocabId, word.headword, slotGrade.result);
     });
 
-    const undecided = coreSlots(exercise).every(i => grade.slots[i].synonym?.outcome === 'confusable');
+    const undecided = coreSlots(exercise).every(i => isNeutral(grade.slots[i]));
     const asked: Effect = producedAnotherWord || undecided
         ? { kind: 'retry', item, label, result: grade.overall }
         : { kind: 'review', item, label, result: grade.overall, strengthModifier: grade.strengthModifier, latencyMs, blankCount: exercise.slots.length };
