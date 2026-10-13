@@ -100,6 +100,10 @@ jobs:
           # reviewer then reviews: a loop. claude[bot]'s comments start nothing, and its pushes
           # still trigger CI (whose claude[bot] actor keeps claude-fix-ci.yml off a red fix).
           bot_name: ${{ env.REVIEWER_BOT_NAME }}
+          # The push to review is often an agent's: claude-address-feedback.yml pushes through the
+          # app, so the event's actor is claude[bot], and the action refuses a run a bot started
+          # unless it is listed. The skip step above, not this, keeps the reviewer off its own push.
+          allowed_bots: claude
           prompt: |
             Review PR #${{ github.event.pull_request.number }} on branch
             `${{ github.event.pull_request.head.ref }}`. You are reviewing, not implementing a

@@ -107,6 +107,10 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.AGENT_GITHUB_TOKEN }}
+          # The deploy is often an agent's: claude-address-feedback.yml tags the rc through the
+          # app, so the run's actor is claude[bot], and the action refuses a run a bot started
+          # unless it is listed. No loop: this review never pushes an rc tag.
+          allowed_bots: claude
           prompt: |
             A staging deploy just succeeded for commit `${{ github.event.workflow_run.head_sha }}`
             (ref `${{ github.event.workflow_run.head_branch }}`). Staging is live at
