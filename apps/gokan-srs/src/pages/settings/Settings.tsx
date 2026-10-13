@@ -242,7 +242,7 @@ export function SettingsScreen({
                                     })
                                 }
                                 placeholder="AIzaSy..."
-                                className="w-full px-3 py-2 bg-background border border-divider rounded-md text-sm font-mono text-primary focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30"
+                                className="w-full px-3 py-2 bg-background border border-divider rounded-md text-base md:text-sm font-mono text-primary focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/30"
                             />
 
                             <div className="mt-3 type-meta flex items-start gap-1">

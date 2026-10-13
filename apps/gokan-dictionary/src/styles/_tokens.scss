@@ -118,6 +118,40 @@ $motion: 150ms ease-in-out;
   }
 }
 
+/// The definition directly under a word or a kanji: the answer to the page's question. A mixin, not
+/// an app.scss rule, so the stylesheet every page loads stays within its budget.
+@mixin entry-gloss {
+  font-size: $text-xl;
+  line-height: 1.5;
+  margin: $space-2 0 0;
+}
+
+/// One glyph per tile (a word's kanji, a kanji's components). Only a glyph with a page is a box and a
+/// link; one with none (氵) is drawn plain at the same size, so nothing unclickable looks clickable.
+@mixin glyph-tiles {
+  @include bare-list;
+  display: flex;
+  flex-wrap: wrap;
+  gap: $space-1;
+
+  a,
+  span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 3rem;
+    min-height: 3rem;
+    font-family: $font-mincho;
+    font-size: $text-2xl;
+    color: var(--primary);
+  }
+
+  a {
+    @include surface(0);
+    @include interactive-surface;
+  }
+}
+
 @mixin wide {
   @media (min-width: $bp-wide) {
     @content;

@@ -1,3 +1,4 @@
+import type { KanjiOrderId } from "@gokan/dataset-schema";
 import type { VocabProgress } from "./vocabulary.model";
 import type { GrammarProgress } from "./grammar.model";
 import type { WatchedEpisode } from "./media.model";
@@ -113,11 +114,12 @@ export interface AdaptiveStats {
     history: boolean[];
 }
 
-export type KanjiLearningMethod = 'kklc' | 'rtk' | 'jlpt' | 'custom';
+/** The kanji method the learner follows: every learning order the dataset lists (KKLC, RTK, JLPT...). */
+export type KanjiLearningMethod = KanjiOrderId;
 
 export interface KanjiKnowledge {
     method: KanjiLearningMethod;
-    step: number;          // e.g. KKLC step reached
+    step: number;          // how many kanji into the method: its first `step` kanji
     kanjiSet: Set<string>; // actual kanji characters
 }
 

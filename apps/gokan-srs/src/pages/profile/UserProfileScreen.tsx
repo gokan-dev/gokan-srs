@@ -1,3 +1,4 @@
+import { kanjiOrder } from "@gokan/dataset-schema";
 import { KanjiKnowledgeEditor } from "../../components/KanjiKnowledgeEditor";
 import { useQuiz } from "../../context/useQuiz";
 import { useKanjiForm } from "../../context/KanjiForm/useKanjiForm";
@@ -22,7 +23,7 @@ export function UserProfileScreen() {
         <Page width="wide">
             <PageHeader
                 title="Kanji"
-                subtitle={`${form.knownKanji.size.toLocaleString('en-US')} of ${form.allKanji.length.toLocaleString('en-US')} known · KKLC order`}
+                subtitle={`${form.knownKanji.size.toLocaleString('en-US')} kanji known · ${kanjiOrder(form.kanjiMethod).label} order`}
                 className="mb-6"
             />
 

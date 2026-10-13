@@ -1,13 +1,16 @@
+import { KANJI_ORDERS } from "@gokan/dataset-schema";
 import { OptionGrid } from "./OptionGrid";
 import { KanjiCountStepper } from "./KanjiCountStepper";
 import { KanjiKnowledgeGrid } from "./KanjiKnowledgeGrid";
+import { Disclosure } from "./ui/Disclosure";
 import type { KanjiKnowledge, KanjiLearningMethod } from "../models/user.model";
 import { useKanjiForm } from "../context/KanjiForm/useKanjiForm";
 import { useEffect, useEffectEvent } from "react";
 
-const METHODS: { value: KanjiLearningMethod; label: string; description: string }[] = [
-    { value: 'kklc', label: 'KKLC', description: 'Traditional school-based order' },
-];
+const METHODS = KANJI_ORDERS.map(order => ({ value: order.id, label: order.label, description: order.description }));
+
+/** The methods most learners follow; the other books wait behind "More methods". */
+const MAIN_METHOD_COUNT = 4;
 
 interface KanjiKnowledgeEditorProps {
     onKanjiKnowledgeChange?: (knowledge: KanjiKnowledge) => void;
@@ -25,29 +28,43 @@ export function KanjiKnowledgeEditor({
     countStep,
     onCountStepChange,
 }: KanjiKnowledgeEditorProps) {
-    const { state } = useKanjiForm();
+    const { state, setKanjiMethod } = useKanjiForm();
 
-    // Reports every change to the knowledge being edited (and the initial value, on
-    // mount). The callback is read fresh each time without re-running the effect.
+    // Reports every change to the knowledge being edited, once the method's list has loaded (the
+    // known prefix is measured in that list). `step` is the known prefix, not the count input:
+    // it sequences new words, and the input is 0 after a switch. The callback is read fresh each time without re-running
+    // the effect.
     const reportChange = useEffectEvent((knowledge: KanjiKnowledge) => onKanjiKnowledgeChange?.(knowledge));
     useEffect(() => {
+        if (state.loading || state.allKanji.length === 0) return;
         reportChange({
-            step: state.kanjiCount,
+            step: state.knownPrefix,
             method: state.kanjiMethod,
             kanjiSet: state.knownKanji,
         });
-    }, [state.kanjiMethod, state.kanjiCount, state.knownKanji]);
+    }, [state.kanjiMethod, state.knownPrefix, state.knownKanji, state.loading, state.allKanji.length]);
+
+    const mainMethods = METHODS.slice(0, MAIN_METHOD_COUNT);
+    const moreMethods = METHODS.slice(MAIN_METHOD_COUNT);
+    const choosesMore = moreMethods.some(method => method.value === state.kanjiMethod);
 
     return (
         <>
-            {/* Hidden while KKLC is the only method: a choice of one is not a choice. */}
-            {METHODS.length > 1 && (
+            <section className="space-y-2">
                 <OptionGrid<KanjiLearningMethod>
                     title="Kanji learning method"
                     value={state.kanjiMethod}
-                    options={METHODS}
+                    options={mainMethods}
+                    onChange={setKanjiMethod}
                 />
-            )}
+                <Disclosure title="More methods" defaultOpen={choosesMore}>
+                    <OptionGrid<KanjiLearningMethod>
+                        value={state.kanjiMethod}
+                        options={moreMethods}
+                        onChange={setKanjiMethod}
+                    />
+                </Disclosure>
+            </section>
 
             <KanjiKnowledgeGrid
                 allKanji={state.allKanji}

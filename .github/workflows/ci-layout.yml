@@ -1,0 +1,65 @@
+# The layout rules a static check cannot see (scripts/check-layout.ts): both apps built for
+# production, then measured in headless Chrome at 320 and 375px. No page scrolls sideways, no
+# text is below 12px, every input is 16px (iOS zoom), the dictionary's tap targets are 44px.
+# The runner image ships Google Chrome.
+
+name: "CI: layout"
+
+on:
+  push:
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - 'scripts/check-layout.ts'
+      - 'package.json'
+      - 'bun.lock'
+      - '.github/workflows/ci-layout.yml'
+  pull_request:
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - 'scripts/check-layout.ts'
+      - 'package.json'
+      - 'bun.lock'
+      - '.github/workflows/ci-layout.yml'
+  workflow_dispatch:
+
+jobs:
+  layout:
+    name: Layout at phone widths
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Both apps build from the compiled dataset.
+          submodules: true
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build the SRS app
+        run: bun run --cwd apps/gokan-srs build
+
+      - name: Build the dictionary
+        run: bun run --cwd apps/gokan-dictionary build
+
+      - name: Check layout
+        run: bun run check:layout

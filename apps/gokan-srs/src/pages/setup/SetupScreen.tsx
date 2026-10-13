@@ -16,13 +16,14 @@ export function SetupScreen({ onComplete }: { onComplete: (values: SetupValues) 
 
     const handleSubmit = () => {
         if (
+            !state.loading &&
             state.kanjiCount >= CONSTANTS.setup.minimumKanjiCount &&
-            state.kanjiCount <= CONSTANTS.setup.maximumKanjiCount
+            state.kanjiCount <= state.allKanji.length
         ) {
             const values: SetupValues = {
                 kanjiKnowledge: {
                     method: state.kanjiMethod,
-                    step: state.kanjiCount,
+                    step: state.knownPrefix,
                     kanjiSet: new Set(state.knownKanji),
                 },
                 settings: { ...DEFAULT_SETTINGS, preferredLearningOrder: learningOrder },
@@ -31,13 +32,16 @@ export function SetupScreen({ onComplete }: { onComplete: (values: SetupValues) 
         }
     };
 
-    if (state.loading) {
+    // Only the first list blocks the page; switching method keeps it up while the next one loads.
+    if (state.loading && state.allKanji.length === 0) {
         return (<Loader title="Loading..." />)
     }
 
     return (
-        <div className="min-h-screen flex items-center justify-center p-8 bg-background transition-colors duration-200">
-            <div className="w-full max-w-2xl md:max-w-3xl mx-auto p-8 space-y-12">
+        // The page gutter is Page's (px-4 on a phone, md:px-6), not 64px a side: doubled p-8 left the
+        // method cards and the kanji grid 190px wide at 320px.
+        <div className="min-h-screen flex items-center justify-center px-4 py-6 md:p-8 bg-background transition-colors duration-200">
+            <div className="w-full max-w-2xl md:max-w-3xl mx-auto md:p-8 space-y-12">
                 <SetupHeader />
 
                 <KanjiKnowledgeEditor />
@@ -48,7 +52,7 @@ export function SetupScreen({ onComplete }: { onComplete: (values: SetupValues) 
                     <Button
                         variant="primary"
                         onClick={handleSubmit}
-                        disabled={!state.knownKanji}
+                        disabled={state.loading}
                         className="w-full py-4 text-lg font-serif h-14"
                     >
                         Start learning

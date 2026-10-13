@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Search, X } from "lucide-react";
+import { kanjiOrder } from "@gokan/dataset-schema";
 import { useKanjiForm } from "../context/KanjiForm/useKanjiForm";
 import type { KanjiLearningMethod } from "../models/user.model";
 import { findKanjiMatch } from "../utils/kanjiSearch.utils";
@@ -18,18 +19,6 @@ const MOBILE_ROW_SIZE = 5;
 /** Width of the position gutter, mirrored as an empty spacer on the right. */
 const GUTTER_WIDTH = '2.5rem';
 const MOBILE_GUTTER_WIDTH = '1.75rem';
-
-/**
- * The grid is labelled by the order it is laid out in, not by a hardcoded
- * "KKLC" - more orders (RTK, JLPT) are expected, and only this label plus the
- * loaded list changes when one arrives.
- */
-const ORDER_LABELS: Record<KanjiLearningMethod, string> = {
-    kklc: 'KKLC order',
-    rtk: 'RTK order',
-    jlpt: 'JLPT order',
-    custom: 'custom order',
-};
 
 interface KanjiKnowledgeGridProps {
     allKanji: string[];
@@ -88,7 +77,8 @@ export function KanjiKnowledgeGrid({ allKanji, method, toolbar }: KanjiKnowledge
         scrollToPosition(Math.max(0, state.kanjiCount - 1));
     }, [state.kanjiCount, scrollToPosition]);
 
-    const knownCount = state.knownKanji.size;
+    // The known set reaches across orders; the legend counts only this list's share of it.
+    const knownInList = useMemo(() => allKanji.filter(kanji => state.knownKanji.has(kanji)).length, [allKanji, state.knownKanji]);
     const matchIsKnown = match ? state.knownKanji.has(match.kanji) : false;
 
     return (
@@ -106,7 +96,7 @@ export function KanjiKnowledgeGrid({ allKanji, method, toolbar }: KanjiKnowledge
                     onChange={e => setQuery(e.target.value)}
                     placeholder="Find a kanji or a position (語 or 1240)"
                     aria-label="Find a kanji or a position"
-                    className="w-full h-10 pl-9 pr-9 border rounded-md border-divider bg-surface text-primary font-gothic text-sm placeholder:text-input-placeholder"
+                    className="w-full h-10 pl-9 pr-9 border rounded-md border-divider bg-surface text-primary font-gothic text-base md:text-sm placeholder:text-input-placeholder"
                 />
                 {hasQuery && (
                     <button
@@ -145,14 +135,14 @@ export function KanjiKnowledgeGrid({ allKanji, method, toolbar }: KanjiKnowledge
             </div>
 
             <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-4 mb-3">
-                <p className="type-support flex-1 min-w-48">Click a kanji to mark it known or not known.</p>
+                <p className="type-support flex-1 min-w-48">Click a kanji to mark it known or not known. Your marks stay when you change order.</p>
                 <span className="inline-flex items-center gap-1.5 type-meta">
                     <span className="w-4 h-4 rounded-sm border border-divider bg-surface" aria-hidden="true" /> Known
                 </span>
                 <span className="inline-flex items-center gap-1.5 type-meta">
                     <span className="w-4 h-4 rounded-sm border border-dashed border-divider" aria-hidden="true" /> Not known
                 </span>
-                <span className="type-meta tabular-nums">{knownCount.toLocaleString('en-US')} of {allKanji.length.toLocaleString('en-US')} known · {ORDER_LABELS[method]}</span>
+                <span className="type-meta tabular-nums">{knownInList.toLocaleString('en-US')} of {allKanji.length.toLocaleString('en-US')} in {kanjiOrder(method).label} order known</span>
             </div>
 
             <div ref={gridRef} className="w-full">

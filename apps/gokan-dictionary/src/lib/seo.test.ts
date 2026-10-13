@@ -3,17 +3,8 @@ import {
     vocabMeta, kanjiMeta, grammarMeta, homeMeta, grammarChaptersIndexMeta, grammarChapterMeta, grammarFamilyMeta, grammarConjugationsIndexMeta,
     grammarFamiliesIndexMeta, searchMeta, vocabJlptMeta, searchablePattern, quotedGlosses, sentenceCase,
 } from './seo';
-import type { GrammarChapter, Kanji } from '@gokan/dataset-schema';
-import { grammarPoint, vocabulary } from '../test/fixtures';
-
-function makeKanji(overrides: Partial<Kanji> = {}): Kanji {
-    return {
-        character: '思',
-        steps: { kklc: 1 },
-        frequency: 500,
-        ...overrides,
-    };
-}
+import type { GrammarChapter } from '@gokan/dataset-schema';
+import { grammarPoint, kanji, vocabulary } from '../test/fixtures';
 
 describe('vocabMeta', () => {
     it('includes the written form, reading, and first gloss', () => {
@@ -65,31 +56,23 @@ describe('vocabMeta', () => {
 });
 
 describe('kanjiMeta', () => {
-    it('includes the character and vocab count', () => {
-        const { title, description } = kanjiMeta(makeKanji(), 42);
-        expect(title).toContain('思');
-        expect(description).toContain('42');
+    it('titles the kanji by its meaning, as it is searched', () => {
+        expect(kanjiMeta(kanji(), 3).title).toMatch(/^学 kanji meaning: study, learning, science \(JLPT N5\) - /);
     });
 
-    it('appends the JLPT level when present', () => {
-        const { title } = kanjiMeta(makeKanji({ steps: { kklc: 1, jlpt: 3 } }), 0);
-        expect(title).toContain('JLPT N3');
+    it('describes the meaning, the readings as typed and the words that use it', () => {
+        expect(kanjiMeta(kanji(), 42).description)
+            .toBe('The kanji 学 means "study, learning, science", read ガク, まなぶ. Its 8 strokes, components and readings, and the 42 words that use it.');
     });
 
-    it('uses singular wording for exactly one vocab word', () => {
-        const { description } = kanjiMeta(makeKanji(), 1);
-        expect(description).toContain('1 vocabulary word ');
-        expect(description).not.toContain('1 vocabulary words');
+    it('uses singular wording for exactly one word, and none for zero', () => {
+        expect(kanjiMeta(kanji(), 1).description).toContain(', and the 1 word that uses it.');
+        expect(kanjiMeta(kanji(), 0).description).not.toContain(' word');
     });
 
-    it('handles zero associated vocab without a dangling count', () => {
-        const { title, description } = kanjiMeta(makeKanji(), 0);
-        expect(description).not.toContain('0 vocabulary');
-        expect(title).not.toContain('words using');
-    });
-
-    it('pairs the character with the word "kanji", as it is searched', () => {
-        expect(kanjiMeta(makeKanji(), 3).title).toMatch(/^思 kanji/);
+    it('falls back to the character alone for a kanji with no meaning', () => {
+        const zero = kanji({ character: '〇', meanings: [], readings: { on: [], kun: [], nanori: [] }, strokeCount: 1, steps: {} });
+        expect(kanjiMeta(zero, 0)).toEqual({ title: '〇 kanji - Gokan Dictionary', description: 'The kanji 〇. Its 1 stroke, components and readings.' });
     });
 });
 

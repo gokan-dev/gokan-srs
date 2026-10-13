@@ -4,7 +4,7 @@ import { JlptChip } from "../../components/JlptChip";
 import { Chip } from "../../components/ui/Chip";
 import { Disclosure } from "../../components/ui/Disclosure";
 import { LoadingScreen } from "../../components/LoadingScreen";
-import { useResponsive } from "../../context/Responsive/useResponsive";
+import { DetailBody } from "../../components/detail/DetailBody";
 import { useQuiz } from "../../context/useQuiz";
 import { GrammarService } from "../../services/grammar.service";
 import { THEME } from "../../commons/theme";
@@ -44,7 +44,6 @@ const FORMALITY_LABELS: Record<NonNullable<GrammarPoint['formalityLevel']>, stri
  */
 export default function GrammarDetailScreen() {
     const { grammarId } = useParams<{ grammarId: string }>();
-    const { isMobile, isTablet } = useResponsive();
     const { state, grammarActions } = useQuiz();
     const now = useNow();
     const pointLoad = useAsyncData(grammarId ?? null, () => GrammarService.loadGrammarPoint(grammarId ?? ''));
@@ -169,17 +168,7 @@ export default function GrammarDetailScreen() {
     return (
         <Page width="wide">
             {header}
-            {!isMobile && !isTablet ? (
-                <div className="grid grid-cols-12 gap-10 items-start">
-                    <div className="col-span-8 space-y-10 min-w-0">{main}</div>
-                    <div className="col-span-4 space-y-10 min-w-0">{side}</div>
-                </div>
-            ) : (
-                <div className="space-y-10">
-                    {main}
-                    {side}
-                </div>
-            )}
+            <DetailBody main={main} side={side} />
         </Page>
     );
 }

@@ -13,11 +13,8 @@
   line-height: 1.15;
 }
 
-// The definition, directly under the word: the answer to the page's question.
 .entry-gloss {
-  font-size: $text-xl;
-  line-height: 1.5;
-  margin: $space-2 0 0;
+  @include entry-gloss;
 }
 
 .entry-layout {
@@ -88,23 +85,7 @@
 }
 
 .kanji-tiles {
-  @include bare-list;
-  display: flex;
-  flex-wrap: wrap;
-  gap: $space-1;
-
-  a {
-    @include surface(0);
-    @include interactive-surface;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 3rem;
-    min-height: 3rem;
-    font-family: $font-mincho;
-    font-size: $text-2xl;
-    color: var(--primary);
-  }
+  @include glyph-tiles;
 }
 
 // The aside's word lists ("Made of", "Used in") are a narrow column.
