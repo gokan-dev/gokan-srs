@@ -12,6 +12,7 @@ import type { ProductionCloze } from '../../utils/productionCloze.utils';
 import type { QuizMode, QuizType } from '../../utils/srs.utils';
 import type { ProductionCue, SynonymOutcome } from '../../utils/synonymContext.utils';
 import type { GrammarBlankPlan, GrammarConjugationPrompt } from '../../context/quiz/grammarReducer';
+import type { DemonstrativeParadigm } from './demonstratives';
 
 type GrammarRealization = NonNullable<GrammarBlankPlan['realization']>;
 
@@ -104,6 +105,8 @@ export interface AnswerSlot {
     word?: SlotWord;
     /** The conjugated words of a grammar marker, each a near miss in any other conjugation. */
     inflections?: SlotInflection[];
+    /** On a demonstrative's meaning slot, its series: a sibling's meaning is a neutral miss. */
+    paradigm?: DemonstrativeParadigm;
 }
 
 /** A slot answered with one of its word's near-synonyms instead of the word. */
@@ -119,11 +122,20 @@ export interface SynonymAnswer {
     meaning: string | null;
 }
 
+/** A demonstrative's meaning slot answered with a sibling's meaning (それ answered "this"). Neutral: no credit, no penalty. */
+export interface SiblingAnswer {
+    /** The answer as typed, for the note. */
+    answer: string;
+    /** The siblings it names ("that" is both それ and あれ). */
+    words: string[];
+}
+
 export interface SlotGrade {
     result: AnswerResult;
     /** The accepted form shown next to the answer: the one it matched, or `reveal`. */
     shown: string;
     synonym?: SynonymAnswer;
+    sibling?: SiblingAnswer;
 }
 
 interface ExerciseBase {
