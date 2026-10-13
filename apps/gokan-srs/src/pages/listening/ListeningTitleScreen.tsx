@@ -334,7 +334,7 @@ function WordsToLearn({ words, countHint, knowledge, sort, onSortChange, orderCo
                     <select
                         value={sort}
                         onChange={e => onSortChange(e.target.value as WordSort)}
-                        className="bg-surface border border-divider rounded px-2 py-1 text-base md:text-xs text-primary outline-none focus:border-accent cursor-pointer"
+                        className="bg-surface border border-divider rounded-md px-2 py-1 text-base md:text-xs text-primary outline-none focus:border-accent cursor-pointer"
                     >
                         {WORD_SORTS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
                     </select>
