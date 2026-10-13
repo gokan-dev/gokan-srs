@@ -15,7 +15,7 @@
  *
  * Usage: build both apps (`bun run build`, `bun run dictionary:build`), then
  * `bun run check:lighthouse`. Needs Chrome (found like scripts/lib/chrome.ts) and runs Lighthouse
- * through `npx`, so Node must be on PATH. LH_RUNS, LH_FORM_FACTORS and LH_ONLY (a label substring)
+ * (the pinned devDependency) under `node`, so Node must be on PATH. LH_RUNS, LH_FORM_FACTORS and LH_ONLY (a label substring)
  * tune a local run. Run by CI (.github/workflows/ci-lighthouse.yml), which keeps the reports.
  */
 import { spawn } from 'node:child_process';
@@ -100,8 +100,8 @@ function median(values: number[]): number {
 
 /**
  * Async on purpose: the static server runs in this process, so a blocking spawn would freeze the
- * event loop and starve Lighthouse of the page it is trying to load. `npx` runs Lighthouse on
- * Node, so Bun's loop stays free to serve.
+ * event loop and starve Lighthouse of the page it is trying to load. Lighthouse runs in a
+ * child `node` process, so Bun's loop stays free to serve.
  */
 function runLighthouse(url: string, formFactor: FormFactor, outPath: string, port?: number): Promise<Record<string, unknown>> {
     const args = [
