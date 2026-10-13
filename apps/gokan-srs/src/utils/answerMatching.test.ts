@@ -121,6 +121,38 @@ describe('matchAnswer on English answers', () => {
     });
 });
 
+describe('matchAnswer on a descriptive gloss (gloss leniency)', () => {
+    const gloss = 'counter for (small) things or pieces';
+
+    it('matches content words in any order, one "or" alternative being enough', () => {
+        expect(matchAnswer('counter for pieces or things', gloss, 'gloss')).toBe('correct');
+        expect(matchAnswer('counter for things', gloss, 'gloss')).toBe('correct');
+        expect(matchAnswer('a counter of pieces', gloss, 'gloss')).toBe('correct');
+    });
+
+    it('is a near miss when a required word is missing or a word is mistyped', () => {
+        expect(matchAnswer('counter', gloss, 'gloss')).toBe('minor_error');
+        expect(matchAnswer('pieces counterr', gloss, 'gloss')).toBe('minor_error');
+    });
+
+    it('rejects a word the gloss does not have', () => {
+        expect(matchAnswer('counter for people', gloss, 'gloss')).toBe('wrong');
+    });
+
+    it('only ever applies under gloss leniency, and only to a gloss of two content words or more', () => {
+        expect(matchAnswer('counter for pieces or things', gloss)).toBe('wrong');
+        expect(matchAnswer('this', 'that', 'gloss')).toBe('wrong');
+        expect(matchAnswer('ten counter', 'counter for ten', 'gloss')).toBe('correct');
+    });
+
+    it('never takes one half of a pair "or" makes the whole meaning of', () => {
+        expect(matchAnswer('defeat', 'victory or defeat', 'gloss')).toBe('wrong');
+        expect(matchAnswer('less', 'more or less', 'gloss')).toBe('wrong');
+        expect(matchAnswer('this', 'this or that', 'gloss')).toBe('wrong');
+        expect(matchAnswer('believe it', 'believe it or not', 'gloss')).toBe('minor_error');
+    });
+});
+
 describe('matchBest', () => {
     it('prefers a correct form over a typo of an earlier one', () => {
         expect(matchBest('man', ['main', 'man'])).toEqual({ result: 'correct', matchedAnswer: 'man' });

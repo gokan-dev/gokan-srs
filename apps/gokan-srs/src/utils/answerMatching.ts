@@ -16,8 +16,10 @@ export type AnswerResult = 'correct' | 'minor_error' | 'wrong' | 'pass';
  * `lenient` is for exercises where the answer is long and the thing being tested
  * is not its spelling: the conjugation drill, whose answers (必要じゃなかった)
  * are whole conjugated forms where a missed っ is plainly a slip of the keyboard.
+ * `gloss` is the meaning quiz's: standard typos, and a descriptive gloss matched
+ * by its content words in any order (`matchGlossWords`).
  */
-export type Leniency = 'standard' | 'lenient';
+export type Leniency = 'standard' | 'lenient' | 'gloss';
 
 interface Tolerance {
     /**
@@ -35,21 +37,28 @@ interface Tolerance {
     kanaDropFromLength: number;
     /** Letters of difference tolerated in an English answer, by the expected answer's length. */
     latinTypos: (length: number) => number;
+    /** Whether a descriptive English answer may reorder or drop its content words (`matchGlossWords`). */
+    glossWords: boolean;
 }
 
+const STANDARD: Tolerance = {
+    kanaTypos: () => 1,
+    kanaDropFromLength: 6,
+    latinTypos: length => (length >= 6 ? 2 : length >= 3 ? 1 : 0),
+    glossWords: false,
+};
+
 const TOLERANCE: Record<Leniency, Tolerance> = {
-    standard: {
-        kanaTypos: () => 1,
-        kanaDropFromLength: 6,
-        latinTypos: length => (length >= 6 ? 2 : length >= 3 ? 1 : 0),
-    },
+    standard: STANDARD,
     lenient: {
+        ...STANDARD,
         kanaTypos: length => (length >= 8 ? 2 : 1),
         kanaDropFromLength: 4,
-        // No English answer is graded leniently today; kept equal to standard so
-        // the level stays meaningful for every script rather than kana alone.
-        latinTypos: length => (length >= 6 ? 2 : length >= 3 ? 1 : 0),
+        // No English answer is graded leniently today: latinTypos stays standard
+        // so the level stays meaningful for every script rather than kana alone.
     },
+    // Only English meanings are matched this way, never a Japanese answer.
+    gloss: { ...STANDARD, glossWords: true },
 };
 
 const KANA = /[぀-ヿ]/;
@@ -106,11 +115,14 @@ export function matchAnswer(input: string, expected: string, leniency: Leniency 
     }
 
     if (isLatin) {
+        const words = tolerance.glossWords ? matchGlossWords(u, e, tolerance) : undefined;
+        if (words === 'correct') return words;
         // A partial English answer ('pain' for 'painful', or the reverse).
         if (u.length >= 3 && (e.includes(u) || u.includes(e)) && Math.abs(u.length - e.length) <= 5) {
             return 'minor_error';
         }
-        return levenshtein(u, e) <= tolerance.latinTypos(e.length) ? 'minor_error' : 'wrong';
+        if (levenshtein(u, e) <= tolerance.latinTypos(e.length)) return 'minor_error';
+        return words ?? 'wrong';
     }
 
     // Kana: the distance is counted in ROMAJI, i.e. in the keystrokes a learner
@@ -126,6 +138,64 @@ export function matchAnswer(input: string, expected: string, leniency: Leniency 
     if (u.length < e.length && e.length < tolerance.kanaDropFromLength) return 'wrong';
 
     return 'minor_error';
+}
+
+/** Words a descriptive gloss is matched without: they carry its grammar, not its meaning. */
+const GLOSS_STOPWORDS = new Set(['for', 'of', 'a', 'an', 'the', 'to', 'and', 'or']);
+
+/**
+ * A descriptive gloss compared by its content words, in any order: "counter for
+ * pieces or things" is "counter for (small) things or pieces". Both sides are
+ * already `normalizeLatin`ed. Words joined by "or" are alternatives, so naming one
+ * of them is enough ("counter for things"); every other content word is required,
+ * and an answer missing one is a near miss ("counter" alone). An answer word the
+ * gloss does not have is a different meaning, whatever else matches ("counter for
+ * people"), and a typo of a word costs the answer its full credit.
+ *
+ * Undefined when the gloss has fewer than two content words: "that" stays strict,
+ * so "this" can never pass as a reordering or a subset of it. Undefined too when
+ * "or" joins every content word: "victory or defeat", "more or less", "this or
+ * that" name one meaning through the pair, so either half alone is not it.
+ */
+function matchGlossWords(answer: string, gloss: string, tolerance: Tolerance): AnswerResult | undefined {
+    const tokens = gloss.split(' ');
+    const content = tokens.filter(t => !GLOSS_STOPWORDS.has(t));
+    if (new Set(content).size < 2) return undefined;
+    const typed = answer.split(' ').filter(t => !GLOSS_STOPWORDS.has(t));
+    if (typed.length === 0) return undefined;
+
+    // Each "or" puts its neighbours in one group of alternatives; a chain
+    // ("a or b or c") is one group. "or not" is no alternative: "believe it or
+    // not" needs its "not".
+    const groupOf = new Map<string, number>();
+    tokens.forEach((t, i) => {
+        if (t !== 'or') return;
+        const before = tokens[i - 1];
+        const after = tokens[i + 1];
+        if (!before || !after || after === 'not' || GLOSS_STOPWORDS.has(before) || GLOSS_STOPWORDS.has(after)) return;
+        const group = groupOf.get(before) ?? i;
+        groupOf.set(before, group);
+        groupOf.set(after, group);
+    });
+    if (content.every(c => groupOf.has(c))) return undefined;
+
+    const covered = new Set<string>();
+    let typo = false;
+    for (const word of typed) {
+        if (content.includes(word)) {
+            covered.add(word);
+            continue;
+        }
+        const close = content.find(c => levenshtein(word, c) <= tolerance.latinTypos(c.length));
+        if (!close) return 'wrong';
+        covered.add(close);
+        typo = true;
+    }
+
+    const groups = new Set(groupOf.values());
+    const complete = content.every(c => groupOf.has(c) || covered.has(c))
+        && [...groups].every(g => [...covered].some(c => groupOf.get(c) === g));
+    return complete && !typo ? 'correct' : 'minor_error';
 }
 
 /**
