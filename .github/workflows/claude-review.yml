@@ -10,8 +10,8 @@
 #   - high-confidence and actionable -> the reviewer fixes it on the branch and pushes,
 #   - subjective / low-confidence -> an advisory review comment; the human decides.
 # The reviewer fixes in its OWN run rather than handing off: an agent may never write the literal
-# "@claude" (its comments post as the token owner, which would fire the other agent workflows),
-# so there is no label- or mention-based handoff to loop through.
+# "@claude" (it fires the other agent workflows), so there is no label- or mention-based handoff
+# to loop through.
 name: "Agent: review PR"
 
 on:
@@ -34,12 +34,18 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    # The Claude GitHub App token this job runs on lasts one hour from the Run Claude step: keep
+    # this at or under 60.
     timeout-minutes: 60
+    env:
+      # The git author of this reviewer's fix commits, and the only author the loop guard skips.
+      # The other agents commit as claude[bot]; their pushes must still be reviewed.
+      REVIEWER_BOT_NAME: "claude-reviewer[bot]"
     permissions:
       contents: write       # push high-confidence fixes to the PR branch
       pull-requests: write  # post the review
       issues: write         # track_progress's tracking comment
-      id-token: write       # OIDC fallback for the Claude GitHub App token
+      id-token: write       # OIDC exchange for the Claude GitHub App token
     steps:
       - name: Checkout PR branch
         uses: actions/checkout@v4
@@ -48,39 +54,43 @@ jobs:
           submodules: true
           fetch-depth: 0
 
-      # Loop guard. The reviewer's own fix-push re-fires `synchronize`, and because pushes use a
-      # PAT (AGENT_GITHUB_TOKEN) the event SENDER is the token owner, not claude[bot], so a sender
-      # check would not catch it. The commit AUTHOR does stay claude[bot] (the action's default),
-      # so skip the run when HEAD was authored by the bot: the reviewer never re-reviews itself.
-      - name: Skip if HEAD is a bot fix
+      # Loop guard. The reviewer's own fix push re-fires `synchronize`; skip it by its git author,
+      # which only this reviewer uses (`bot_name` below). Not by the sender: this reviewer,
+      # claude-fix-ci.yml and claude-address-feedback.yml all push through the same app, as
+      # claude[bot]. And not by claude[bot] as author: every other agent commits as claude[bot],
+      # so that skipped every PR an agent wrote (#119 would never have been reviewed).
+      - name: Skip the reviewer's own fix push
         id: head
         run: |
-          author="$(git log -1 --pretty='%an <%ae>')"
+          author="$(git log -1 --pretty='%an')"
           echo "author=$author"
-          if printf '%s' "$author" | grep -qi 'claude\[bot\]'; then
-            echo "is_bot=true" >> "$GITHUB_OUTPUT"
+          if [ "$author" = "$REVIEWER_BOT_NAME" ]; then
+            echo "own_fix=true" >> "$GITHUB_OUTPUT"
           else
-            echo "is_bot=false" >> "$GITHUB_OUTPUT"
+            echo "own_fix=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Setup Bun
-        if: steps.head.outputs.is_bot == 'false'
+        if: steps.head.outputs.own_fix == 'false'
         uses: oven-sh/setup-bun@v1
         with:
           bun-version: latest
 
       - name: Install dependencies
-        if: steps.head.outputs.is_bot == 'false'
+        if: steps.head.outputs.own_fix == 'false'
         run: bun install
 
       - name: Run Claude
-        if: steps.head.outputs.is_bot == 'false'
+        if: steps.head.outputs.own_fix == 'false'
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          # Same PAT as claude-implement-issue.yml: long reviews outlive the 1-hour app token,
-          # and a PAT's pushes trigger CI on the fix. Unset secret -> app-token fallback.
-          github_token: ${{ secrets.AGENT_GITHUB_TOKEN }}
+          # No github_token: the Claude GitHub App token, not AGENT_GITHUB_TOKEN. With the PAT
+          # this review posts as a repo member, and on a PR labelled `agent-feedback` every
+          # member comment starts claude-address-feedback.yml, whose claude[bot] push this
+          # reviewer then reviews: a loop. claude[bot]'s comments start nothing, and its pushes
+          # still trigger CI (whose claude[bot] actor keeps claude-fix-ci.yml off a red fix).
+          bot_name: ${{ env.REVIEWER_BOT_NAME }}
           prompt: |
             Review PR #${{ github.event.pull_request.number }} on branch
             `${{ github.event.pull_request.head.ref }}`. You are reviewing, not implementing a
@@ -116,7 +126,8 @@ jobs:
 
             Hard rules: never push to or merge `main`; never force-push commits you did not create;
             never touch `.github/workflows/`, secrets or deployment config; never write the string
-            `@claude` anywhere (it fires the other agent workflows). If you push a fix, it is
-            authored as claude[bot] so this review does not re-trigger on your own push.
+            `@claude` anywhere (it fires the other agent workflows); never change git's
+            `user.name`: your fix commits are authored as ${{ env.REVIEWER_BOT_NAME }}, which is how
+            this review skips your own push instead of reviewing it again.
           track_progress: true
           claude_args: "--model claude-opus-5-5 --max-turns 200 --allowedTools Bash,Edit,Write,Read,Glob,Grep"
