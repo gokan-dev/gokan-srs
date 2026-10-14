@@ -19,8 +19,20 @@ import {
 import { JitenCredit, MediaCover, VocabularyOnlyNote } from "./listeningShared";
 import { FilterToggle } from "../../components/ui/FilterToggle";
 import { Pagination } from "../../components/ui/Pagination";
+import { CardSkeleton } from "../../components/CardSkeleton";
 
 const PAGE_SIZE = 20;
+/** Enough rows to fill a desktop screen while the library loads, so nothing below moves up into view. */
+const SKELETON_ROWS = 6;
+/**
+ * The genre pills before the index names them, at the widths the library's 13 genres measure
+ * (most common first), so the row wraps onto as many lines as the real pills will at any width.
+ * A library with other genres only costs a small shift.
+ */
+const GENRE_PLACEHOLDER_WIDTHS = [
+    'w-[78px]', 'w-[100px]', 'w-[84px]', 'w-[74px]', 'w-[62px]', 'w-[90px]', 'w-[65px]',
+    'w-[64px]', 'w-[60px]', 'w-[107px]', 'w-[76px]', 'w-[65px]', 'w-[65px]',
+];
 
 /**
  * Route /listening: the anime in the library, ranked by how much of each one's
@@ -78,6 +90,7 @@ export function ListeningLibraryScreen() {
     const totalPages = Math.ceil(rows.length / PAGE_SIZE) || 1;
     const shownPage = Math.min(page, totalPages);
     const displayed = rows.slice((shownPage - 1) * PAGE_SIZE, shownPage * PAGE_SIZE);
+    const loaded = index !== null && libraryWords !== null;
 
     return (
         <Page width="narrow">
@@ -89,9 +102,10 @@ export function ListeningLibraryScreen() {
             <VocabularyOnlyNote className="mb-6" />
 
             {failed && <p className="type-support">Could not load the listening library.</p>}
-            {!failed && !index && <p className="type-support">Loading the library...</p>}
 
-            {index && (
+            {/* The filters and the list take their final place from the first frame, so the
+                titles do not jump down when the library arrives. */}
+            {!failed && (
                 <div className="mb-6 space-y-3">
                     <input
                         type="search"
@@ -103,6 +117,9 @@ export function ListeningLibraryScreen() {
                     />
                     <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Genres">
                         <span className="type-label mr-1">Genres</span>
+                        {!loaded && GENRE_PLACEHOLDER_WIDTHS.map((width, i) => (
+                            <span key={i} aria-hidden="true" className={`${width} h-[30px] rounded-md border border-divider animate-pulse`} />
+                        ))}
                         {genres.map(genre => (
                             <FilterToggle key={genre} active={selectedGenres.includes(genre)} onClick={() => { toggleGenre(genre); setPage(1); }}>
                                 {genre}
@@ -114,14 +131,24 @@ export function ListeningLibraryScreen() {
                             </button>
                         )}
                     </div>
-                    <p className="type-meta">
-                        {rows.length} of {index.length} titles
-                        {selectedGenres.length > 0 && ' matching your genres'}
-                    </p>
+                    {index && libraryWords ? (
+                        <p className="type-meta">
+                            {rows.length} of {index.length} titles
+                            {selectedGenres.length > 0 && ' matching your genres'}
+                        </p>
+                    ) : (
+                        <p className="type-meta">Loading the library...</p>
+                    )}
                 </div>
             )}
 
-            <div className="flex flex-col divide-y divide-divider border-y border-divider">
+            {!failed && !loaded && (
+                <div className="flex flex-col gap-3">
+                    {Array.from({ length: SKELETON_ROWS }, (_, i) => <CardSkeleton key={i} />)}
+                </div>
+            )}
+
+            {loaded && <div className="flex flex-col divide-y divide-divider border-y border-divider">
                 {displayed.map(({ entry, coverage, nextEpisode, watchedCount }) => {
                     const speed = speechSpeedLabel(entry.speechSpeed);
                     const toLearn = coverage.unique.total - coverage.unique.mastered - coverage.unique.learning;
@@ -169,15 +196,15 @@ export function ListeningLibraryScreen() {
                         </Link>
                     );
                 })}
-            </div>
+            </div>}
 
             <Pagination page={shownPage} totalPages={totalPages} onPageChange={setPage} />
 
-            {index && rows.length === 0 && (
+            {loaded && rows.length === 0 && (
                 <p className="type-support">No title matches. Try other genres or clear the search.</p>
             )}
 
-            {index && <JitenCredit className="mt-8" />}
+            {loaded && <JitenCredit className="mt-8" />}
         </Page>
     );
 }
