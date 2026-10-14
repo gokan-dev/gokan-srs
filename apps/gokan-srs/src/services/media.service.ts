@@ -1,5 +1,5 @@
 import type { MediaIndexEntry, MediaLibraryWords, MediaTitle } from '@gokan/dataset-schema';
-import { datasetUrl, fetchJson } from './http';
+import { datasetUrl, fetchJson, RequestCache, sharedRequest } from './http';
 
 /**
  * Loads the listening library compiled by the gokan-dataset submodule's
@@ -8,28 +8,20 @@ import { datasetUrl, fetchJson } from './http';
  * cache pattern as GrammarService.
  */
 export class MediaService {
-    private static index: MediaIndexEntry[] | null = null;
-    private static titleCache = new Map<string, MediaTitle>();
-    private static libraryWords: MediaLibraryWords | null = null;
+    private static index = sharedRequest(() => fetchJson<MediaIndexEntry[]>(datasetUrl('media/index.json')));
+    private static titles = new RequestCache(id => fetchJson<MediaTitle>(datasetUrl(`media/${encodeURIComponent(id)}.json`)));
+    private static libraryWords = sharedRequest(() => fetchJson<MediaLibraryWords>(datasetUrl('media/library.json')));
 
-    static async loadIndex(): Promise<MediaIndexEntry[]> {
-        if (this.index) return this.index;
-        this.index = await fetchJson<MediaIndexEntry[]>(datasetUrl('media/index.json'));
-        return this.index;
+    static loadIndex(): Promise<MediaIndexEntry[]> {
+        return this.index.get();
     }
 
-    static async loadTitle(id: string): Promise<MediaTitle> {
-        const cached = this.titleCache.get(id);
-        if (cached) return cached;
-        const title = await fetchJson<MediaTitle>(datasetUrl(`media/${encodeURIComponent(id)}.json`));
-        this.titleCache.set(id, title);
-        return title;
+    static loadTitle(id: string): Promise<MediaTitle> {
+        return this.titles.get(id);
     }
 
     /** Every title's whole-series word list, for ranking the library by coverage without loading each title file. */
-    static async loadLibraryWords(): Promise<MediaLibraryWords> {
-        if (this.libraryWords) return this.libraryWords;
-        this.libraryWords = await fetchJson<MediaLibraryWords>(datasetUrl('media/library.json'));
-        return this.libraryWords;
+    static loadLibraryWords(): Promise<MediaLibraryWords> {
+        return this.libraryWords.get();
     }
 }

@@ -53,3 +53,17 @@ describe('VocabularyService.loadVocab not-found detection', () => {
         await expect(VocabularyService.loadVocab('offline')).rejects.not.toBeInstanceOf(VocabNotFoundError);
     });
 });
+
+describe('VocabularyService.loadFrequencyIndex', () => {
+    it('downloads the index once when two callers ask at the same moment', async () => {
+        // The hub's startup asked for it twice at once (usually-kana ids, more learnable words)
+        // and each call started its own 3 MB download.
+        const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(res({ body: '[]' })));
+
+        const [a, b] = await Promise.all([VocabularyService.loadFrequencyIndex(), VocabularyService.loadUsuallyKanaIds()]);
+
+        expect(a).toEqual([]);
+        expect(b.size).toBe(0);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+});

@@ -3,7 +3,7 @@ import type {
 } from '@gokan/dataset-schema';
 import { romajiToHiragana, looksLikeRomaji } from '@gokan/dataset-schema';
 import { kanjiStepIndex, type KanjiStepIndex } from '../utils/kanjiOrder.utils';
-import { datasetUrl, fetchJson, readJson } from './http';
+import { datasetUrl, fetchJson, readJson, RequestCache, sharedRequest } from './http';
 
 /**
  * Whether the server says this dataset file does not exist, as opposed to a transient failure.
@@ -35,26 +35,54 @@ export class VocabNotFoundError extends Error {
     }
 }
 
+async function fetchVocab(id: string): Promise<Vocabulary> {
+    const path = datasetUrl(`vocab/${id}.json`);
+    const response = await fetch(path);
+
+    // Retire ONLY on a definitive "the server does not have this file", never
+    // on a transient failure - retirement is a permanent tombstone, so it must
+    // not fire during a deploy or a CloudFront/S3 hiccup. The two definitive
+    // signals are a real 404 (dev server, or a true origin 404) and the prod
+    // SPA fallback (CloudFront's distribution-wide custom_error_response
+    // rewrites a missing key to index.html at 200/text/html). Everything else -
+    // a 5xx, 403, 429, an offline fetch rejection (never reaches here), or a
+    // 200 whose body is unparseable - is treated as a normal (recoverable,
+    // fatal) error below, so a legitimate word is never retired by a blip.
+    if (isMissingFile(response)) {
+        throw new VocabNotFoundError(id);
+    }
+    if (!response.ok) {
+        throw new Error(`Failed to fetch ${path}: ${response.status} ${response.statusText}`);
+    }
+    return readJson<Vocabulary>(response);
+}
+
+/** A kanji's own file, or null (cached like a kanji) when the dataset has no such kanji. */
+async function fetchKanji(character: string): Promise<Kanji | null> {
+    const path = datasetUrl(`kanji/${encodeURIComponent(character)}.json`);
+    const response = await fetch(path);
+    if (isMissingFile(response)) return null;
+    if (!response.ok) {
+        throw new Error(`Failed to fetch ${path}: ${response.status} ${response.statusText}`);
+    }
+    return readJson<Kanji>(response);
+}
+
 export class VocabularyService {
-    private static kklcIndex: KKLCIndex | null = null;
-    private static frequencyIndex: FrequencyIndex | null = null;
+    private static kklcIndex = sharedRequest(() => fetchJson<KKLCIndex>(datasetUrl('index/kklc.json')));
+    private static frequencyIndex = sharedRequest(() => fetchJson<FrequencyIndex>(datasetUrl('index/frequency.json')));
     private static usuallyKanaIds: ReadonlySet<string> | null = null;
-    private static searchIndex: SearchIndex | null = null;
-    private static vocabCache = new Map<string, Vocabulary>();
-    private static kanjiCache = new Map<string, Kanji | null>();
-    private static kanjiVocabIndex: KanjiVocabIndex | null = null;
-    private static jlptIndex: JlptIndex | null = null;
-    private static kanjiOrders = new Map<KanjiOrderId, KanjiOrderList>();
+    private static searchIndex = sharedRequest(() => fetchJson<SearchIndex>(datasetUrl('index/search.json')));
+    private static vocabs = new RequestCache(fetchVocab);
+    private static kanji = new RequestCache(fetchKanji);
+    private static kanjiVocabIndex = sharedRequest(() => fetchJson<KanjiVocabIndex>(datasetUrl('index/kanji-vocab.json')));
+    private static jlptIndex = sharedRequest(() => fetchJson<JlptIndex>(datasetUrl('index/jlpt.json')));
+    private static kanjiOrders = new RequestCache(order => fetchJson<KanjiOrderList>(datasetUrl(`index/kanji-orders/${order}.json`)));
     private static kanjiStepIndexes = new Map<KanjiOrderId, KanjiStepIndex>();
 
     /** One kanji learning order's kanji, in teaching order. */
-    static async loadKanjiOrder(order: KanjiOrderId): Promise<KanjiOrderList> {
-        const cached = this.kanjiOrders.get(order);
-        if (cached) return cached;
-
-        const list = await fetchJson<KanjiOrderList>(datasetUrl(`index/kanji-orders/${order}.json`));
-        this.kanjiOrders.set(order, list);
-        return list;
+    static loadKanjiOrder(order: KanjiOrderId): Promise<KanjiOrderList> {
+        return this.kanjiOrders.get(order);
     }
 
     /**
@@ -74,18 +102,12 @@ export class VocabularyService {
         return index;
     }
 
-    static async loadKKLCIndex(): Promise<KKLCIndex | null> {
-        if (this.kklcIndex) return this.kklcIndex;
-
-        this.kklcIndex = await fetchJson<KKLCIndex>(datasetUrl('index/kklc.json'));
-        return this.kklcIndex;
+    static loadKKLCIndex(): Promise<KKLCIndex | null> {
+        return this.kklcIndex.get();
     }
 
-    static async loadFrequencyIndex(): Promise<FrequencyIndex | null> {
-        if (this.frequencyIndex) return this.frequencyIndex;
-
-        this.frequencyIndex = await fetchJson<FrequencyIndex>(datasetUrl('index/frequency.json'));
-        return this.frequencyIndex;
+    static loadFrequencyIndex(): Promise<FrequencyIndex | null> {
+        return this.frequencyIndex.get();
     }
 
     /** Ids of the words learned in kana (VocabIndexEntry.usuallyKana), read off the frequency index. */
@@ -96,39 +118,12 @@ export class VocabularyService {
         return this.usuallyKanaIds;
     }
 
-    static async loadJlptIndex(): Promise<JlptIndex | null> {
-        if (this.jlptIndex) return this.jlptIndex;
-
-        this.jlptIndex = await fetchJson<JlptIndex>(datasetUrl('index/jlpt.json'));
-        return this.jlptIndex;
+    static loadJlptIndex(): Promise<JlptIndex | null> {
+        return this.jlptIndex.get();
     }
 
-    static async loadVocab(id: string): Promise<Vocabulary> {
-        if (this.vocabCache.has(id)) {
-            return this.vocabCache.get(id)!;
-        }
-
-        const path = datasetUrl(`vocab/${id}.json`);
-        const response = await fetch(path);
-
-        // Retire ONLY on a definitive "the server does not have this file", never
-        // on a transient failure - retirement is a permanent tombstone, so it must
-        // not fire during a deploy or a CloudFront/S3 hiccup. The two definitive
-        // signals are a real 404 (dev server, or a true origin 404) and the prod
-        // SPA fallback (CloudFront's distribution-wide custom_error_response
-        // rewrites a missing key to index.html at 200/text/html). Everything else -
-        // a 5xx, 403, 429, an offline fetch rejection (never reaches here), or a
-        // 200 whose body is unparseable - is treated as a normal (recoverable,
-        // fatal) error below, so a legitimate word is never retired by a blip.
-        if (isMissingFile(response)) {
-            throw new VocabNotFoundError(id);
-        }
-        if (!response.ok) {
-            throw new Error(`Failed to fetch ${path}: ${response.status} ${response.statusText}`);
-        }
-        const vocab = await readJson<Vocabulary>(response);
-        this.vocabCache.set(id, vocab);
-        return vocab;
+    static loadVocab(id: string): Promise<Vocabulary> {
+        return this.vocabs.get(id);
     }
 
     /**
@@ -142,11 +137,8 @@ export class VocabularyService {
     }
 
     static async loadSearchIndex(): Promise<SearchIndex | null> {
-        if (this.searchIndex) return this.searchIndex;
-
         try {
-            this.searchIndex = await fetchJson<SearchIndex>(datasetUrl('index/search.json'));
-            return this.searchIndex;
+            return await this.searchIndex.get();
         } catch (e) {
             console.error("Failed to load search index", e);
             return null;
@@ -174,29 +166,12 @@ export class VocabularyService {
     }
 
     /** One kanji from its own file (about 1 KB, where kanji.json is every kanji); null when the dataset has no such kanji. */
-    static async loadKanji(character: string): Promise<Kanji | null> {
-        const cached = this.kanjiCache.get(character);
-        if (cached !== undefined) return cached;
-
-        const path = datasetUrl(`kanji/${encodeURIComponent(character)}.json`);
-        const response = await fetch(path);
-        if (isMissingFile(response)) {
-            this.kanjiCache.set(character, null);
-            return null;
-        }
-        if (!response.ok) {
-            throw new Error(`Failed to fetch ${path}: ${response.status} ${response.statusText}`);
-        }
-        const kanji = await readJson<Kanji>(response);
-        this.kanjiCache.set(character, kanji);
-        return kanji;
+    static loadKanji(character: string): Promise<Kanji | null> {
+        return this.kanji.get(character);
     }
 
-    static async loadKanjiVocabIndex(): Promise<KanjiVocabIndex> {
-        if (this.kanjiVocabIndex) return this.kanjiVocabIndex;
-
-        this.kanjiVocabIndex = await fetchJson<KanjiVocabIndex>(datasetUrl('index/kanji-vocab.json'));
-        return this.kanjiVocabIndex;
+    static loadKanjiVocabIndex(): Promise<KanjiVocabIndex> {
+        return this.kanjiVocabIndex.get();
     }
 
     /** The word's example sentences (the file is a plain Sentence array), or null when it has none. */

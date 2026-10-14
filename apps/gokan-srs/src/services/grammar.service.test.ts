@@ -89,3 +89,35 @@ describe('GrammarService.loadMinedExamples', () => {
         expect(fetchMock).toHaveBeenCalledTimes(2);
     });
 });
+
+describe('GrammarService index loaders', () => {
+    const okJson = (body: unknown) => Promise.resolve(new Response(JSON.stringify(body)));
+
+    it('download each index once when callers ask at the same moment', async () => {
+        const fetchMock = vi.fn((url: string) => okJson(url.includes('teaching-order')
+            ? { order: ['a'], chapters: [{ id: 'c', title: 'C', points: ['a'] }] }
+            : {}));
+        vi.stubGlobal('fetch', fetchMock);
+
+        await Promise.all([
+            GrammarService.loadTeachingOrder(), GrammarService.loadTeachingOrder(),
+            GrammarService.loadKinds(), GrammarService.loadKinds(),
+            GrammarService.loadConjugations(), GrammarService.loadConjugations(), GrammarService.loadConjugations(),
+        ]);
+
+        expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+
+    it('keep their failure results, and retry after a failure', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
+
+        expect(await GrammarService.loadTeachingOrder()).toBeNull();
+        expect(await GrammarService.loadKinds()).toEqual({});
+        expect(await GrammarService.loadConjugations()).toEqual({});
+
+        const conjugations = { 'n5-te': [] };
+        vi.stubGlobal('fetch', vi.fn(() => okJson(conjugations)));
+        expect(await GrammarService.loadConjugations()).toEqual(conjugations);
+    });
+});

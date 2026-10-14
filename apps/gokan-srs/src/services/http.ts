@@ -35,3 +35,40 @@ export async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> 
     }
     return readJson<T>(response);
 }
+
+/**
+ * Loads keyed by a string (a file's id), each started at most once. It holds the request, not
+ * only its result: callers that ask at the same moment share one download, where caching the
+ * parsed value after `await` let each of them start its own (the frequency index was fetched
+ * twice per page load). A load that fails is dropped, so a later call retries; what a failure
+ * means to the caller (null, {}, a throw) stays the loader's decision.
+ */
+export class RequestCache<T> {
+    private readonly requests = new Map<string, Promise<T>>();
+    private readonly load: (key: string) => Promise<T>;
+
+    constructor(load: (key: string) => Promise<T>) {
+        this.load = load;
+    }
+
+    get(key: string): Promise<T> {
+        const cached = this.requests.get(key);
+        if (cached) return cached;
+        const request = this.load(key);
+        this.requests.set(key, request);
+        request.catch(() => {
+            if (this.requests.get(key) === request) this.requests.delete(key);
+        });
+        return request;
+    }
+
+    clear(): void {
+        this.requests.clear();
+    }
+}
+
+/** A RequestCache for one file: `sharedRequest(() => fetchJson(...)).get()`. */
+export function sharedRequest<T>(load: () => Promise<T>): { get: () => Promise<T>; clear: () => void } {
+    const cache = new RequestCache<T>(load);
+    return { get: () => cache.get(''), clear: () => cache.clear() };
+}
