@@ -281,7 +281,9 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   `--font-serif`/`--font-sans`/`--font-mincho`/`--font-gothic`.
 - **Colour language**: as section 2. Accent is a link, an action, focus or the current
   item (the word a page is about inside its sentences, a grammar point's pattern, the
-  current tab or page). Chips (JLPT level, register, "Common word") are neutral; a chip
+  current tab or page). A link in running text (a paragraph) is also underlined, so it
+  never rests on colour alone; rows, tiles, tabs and chips are links by their shape, and a
+  sentence's words carry a dotted underline. Chips (JLPT level, register, "Common word") are neutral; a chip
   that links (the word page's JLPT chip to its list) shows an accent border on hover and
   focus only.
 - **Type**: Source Serif 4, weight 600, Latin subset only, self-hosted as the site's one
@@ -372,8 +374,7 @@ per dictionary type and the SRS welcome page, plus the SRS hub and anime list re
 onboarding seeded, on mobile and desktop. SEO must be 100 on every dictionary page and the SRS
 welcome, failing the job below it, because a crawlable dictionary is the point. The dictionary
 also holds accessibility and best practices at a floor taken from the first baseline and only ever
-raised (0.96 and 1.00 today; the open accessibility audit, links told apart by colour alone, is
-#128). The hub and anime list are recorded, not gated: they are image-heavy (AniList cover art)
+raised (both 1.00 today). The hub and anime list are recorded, not gated: they are image-heavy (AniList cover art)
 and measured to track that cost (#129). Performance is recorded everywhere, not gated, since a
 local build has none of production's CDN compression or caching. A new dictionary page type is
 added to the shared `dictionaryPages()` list (`scripts/lib/builtSite.ts`), which `check-layout`

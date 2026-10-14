@@ -42,12 +42,10 @@ const SEO_FLOOR = 1;
 /**
  * Floors per page, read off the first green baseline and only ever raised. A category absent here
  * is recorded but not gated (performance, everywhere; accessibility and best practices on the SRS
- * pages). The dictionary's accessibility is one floor because every dictionary page type measures
- * the same 0.96 today, one audit ("links distinguishable by colour alone", gokan-dev/gokan-srs#128);
- * if a page type ever earns a higher score, give it its own floor by label so it cannot slip back.
- * Raise this to 1.00 when #128 is fixed.
+ * pages). The dictionary holds accessibility at 1.00 on every page type since links in running
+ * text gained an underline (gokan-dev/gokan-srs#128, "links distinguishable by colour alone").
  */
-const DICTIONARY_FLOORS: Partial<Record<Category, number>> = { seo: SEO_FLOOR, accessibility: 0.96, 'best-practices': 1 };
+const DICTIONARY_FLOORS: Partial<Record<Category, number>> = { seo: SEO_FLOOR, accessibility: 1, 'best-practices': 1 };
 const SRS_FLOORS: Partial<Record<Category, number>> = { seo: SEO_FLOOR };
 /** The onboarded SRS pages (hub, anime list) are recorded, not gated: see the header. */
 const RECORDED_ONLY: Partial<Record<Category, number>> = {};
