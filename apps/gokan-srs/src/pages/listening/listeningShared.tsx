@@ -35,25 +35,43 @@ export function JitenCredit({ url = 'https://jiten.moe', className = '' }: { url
 }
 
 /**
+ * Where a cover is placed: its width classes and the `sizes` that says the
+ * same widths to the browser, side by side so one cannot change without the
+ * other (a mismatch fetches the wrong file and fails nothing). Literal strings,
+ * so Tailwind sees the classes; `sm` is Tailwind's 640px breakpoint. Not
+ * `sizes="auto"`: browsers without it fall back to 100vw and fetch the 460px
+ * file on phones.
+ */
+const COVER_SIZES = {
+    hub: { width: 'w-10', sizes: '40px' },
+    library: { width: 'w-14 sm:w-16', sizes: '(min-width: 640px) 64px, 56px' },
+    title: { width: 'w-24 sm:w-32', sizes: '(min-width: 640px) 128px, 96px' },
+} as const satisfies Record<string, { width: string; sizes: string }>;
+
+export type MediaCoverSize = keyof typeof COVER_SIZES;
+
+/**
  * A title's cover art, loaded from AniList's CDN. The box keeps the poster's
  * 2:3 shape and AniList's dominant colour while the image loads, and stays as
  * that plain colour if the image fails or the title has no cover, so a missing
  * image never collapses or reflows the layout around it.
  *
- * `sizes` is the box's rendered width (matching its width classes), so the
- * browser picks the smallest of AniList's files that fills it.
+ * `size` names the placement, which sets both the box's width and the
+ * `sizes` the browser uses to pick the smallest of AniList's files that fills
+ * it. `className` is for layout only (`self-start`), never a width.
  */
-export function MediaCover({ entry, sizes, className = '' }: {
+export function MediaCover({ entry, size, className = '' }: {
     entry: Pick<MediaIndexEntry, 'cover' | 'title'>;
-    sizes: string;
+    size: MediaCoverSize;
     className?: string;
 }) {
     const [failed, setFailed] = useState(false);
     const { cover } = entry;
+    const { width, sizes } = COVER_SIZES[size];
 
     return (
         <div
-            className={`aspect-[2/3] shrink-0 overflow-hidden rounded-sm border border-divider bg-surface-hover ${className}`}
+            className={`aspect-[2/3] shrink-0 overflow-hidden rounded-sm border border-divider bg-surface-hover ${width} ${className}`}
             style={cover?.color ? { backgroundColor: cover.color } : undefined}
         >
             {cover && !failed && (
