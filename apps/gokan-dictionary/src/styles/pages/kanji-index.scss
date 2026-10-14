@@ -1,5 +1,6 @@
 // Kanji index page (KanjiIndexPage.svelte) only: the glyph grid.
 
+@use 'sass:math';
 @use '../tokens' as *;
 
 .glyph-grid {
@@ -43,12 +44,12 @@ $level-heading: 3.5rem;
 
 .kanji-level {
   --cols: 4;
-  --row: #{$tile-step + 4.25rem / 4};
+  --row: #{$tile-step + math.div(4.25rem, 4)};
 
   @for $cols from 5 through 18 {
     @media (min-width: #{$tile-step * $cols - $space-1 + 2 * $space-2 + 1rem}) {
       --cols: #{$cols};
-      --row: #{$tile-step + 4.25rem / $cols};
+      --row: #{$tile-step + math.div(4.25rem, $cols)};
     }
   }
 }

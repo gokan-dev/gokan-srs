@@ -164,6 +164,9 @@ gokan-srs, everything else:
 
 - Data loading in components: `hooks/useAsyncData.ts`. Time: `hooks/useNow.ts`,
   `utils/time.utils.ts`. Debounce: `hooks/useDebouncedValue.ts`.
+- A dataset file's loader caches the request, not its parsed result: `RequestCache` (keyed)
+  or `sharedRequest` (one file) from `services/http.ts`, so callers asking at once share one
+  download.
 - Page frame: `components/Page.tsx` (the two widths), `components/PageHeader.tsx` (title,
   Back, actions), `components/ui/TabNav.tsx` (route tabs), `components/nav/` (header, tab bar,
   footer), destinations in `utils/navigation.utils.ts`.
