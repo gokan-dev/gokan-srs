@@ -40,9 +40,11 @@ export interface MediaIndexEntry {
     /**
      * Cover art on AniList's CDN (URLs only, the dataset never holds the images).
      * The artwork belongs to its studio; it is shown loaded from AniList and
-     * credited, never bundled. `url` ~230px for cards, `urlHiRes` ~460px.
+     * credited, never bundled. AniList's three fixed widths: `urlSmall` 100px,
+     * `url` 230px, `urlHiRes` 460px (`urlHiRes` repeats `url` when AniList has
+     * no larger art, `urlSmall` repeats it when it has no smaller).
      */
-    cover?: { url: string; urlHiRes: string; color?: string; source: 'AniList' };
+    cover?: { urlSmall: string; url: string; urlHiRes: string; color?: string; source: 'AniList' };
     source: { name: 'Jiten'; url: string; license: 'CC BY-SA 4.0' };
 }
 

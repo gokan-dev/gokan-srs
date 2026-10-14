@@ -131,7 +131,7 @@ export function ListeningLibraryScreen() {
                             to={`/listening/${entry.id}`}
                             className="flex gap-4 px-2 py-4 rounded-md hover:bg-surface-hover transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                         >
-                            <MediaCover entry={entry} className="w-14 sm:w-16 self-start" />
+                            <MediaCover entry={entry} size="library" className="self-start" />
                             <div className="min-w-0 flex-1">
                                 <div className="flex items-start justify-between gap-4">
                                     <div className="min-w-0">
