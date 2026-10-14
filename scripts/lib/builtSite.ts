@@ -1,13 +1,15 @@
 /**
- * Serving the two production builds the way CloudFront does, and the one representative page per
- * type that the browser checks measure. Shared by scripts/check-layout.ts (each app on its own
- * port, driven through onboarding) and scripts/check-lighthouse.ts (both on one origin, the SRS at
- * `/` and the dictionary under `/dictionary/`, so Lighthouse sees the real URLs).
+ * Serving the two production builds the way CloudFront does (routes, SPA fallback, brotli), and the
+ * one representative page per type that the browser checks measure. Shared by
+ * scripts/check-layout.ts (each app on its own port, driven through onboarding) and
+ * scripts/check-lighthouse.ts (both on one origin, the SRS at `/` and the dictionary under
+ * `/dictionary/`, so Lighthouse sees the real URLs).
  */
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { extname, join, resolve, sep } from 'node:path';
+import { brotliCompressSync, constants } from 'node:zlib';
 
 const ROOT = process.cwd();
 const SRS_DIST = join(ROOT, 'apps/gokan-srs/dist');
@@ -25,6 +27,34 @@ const MIME: Record<string, string> = {
     '.svg': 'image/svg+xml', '.png': 'image/png', '.webp': 'image/webp', '.ico': 'image/x-icon', '.woff2': 'font/woff2',
     '.xml': 'application/xml', '.txt': 'text/plain', '.webmanifest': 'application/manifest+json',
 };
+
+/**
+ * What CloudFront compresses: text types, from 1,000 bytes to 10 MB, for a browser that accepts
+ * it. Served uncompressed, the SRS hub weighed 9 MB here against about 1.5 MB in production, and
+ * Lighthouse timed that gap instead of the page (#134).
+ */
+const COMPRESSED_TYPES = new Set(['.html', '.js', '.css', '.json', '.svg', '.xml', '.txt', '.webmanifest']);
+const COMPRESSED_SIZES = { min: 1_000, max: 10_000_000 };
+/**
+ * CloudFront compresses on the fly, well below brotli's best. Quality 3 lands within about 8% of
+ * what it serves, on either side (measured 2026-10-14: `frequency.json` 380 KB here, 405 KB from
+ * CloudFront; `library.json` 492 and 463 KB; the main bundle 133 and 123 KB), so the checks
+ * neither flatter production nor penalise it. Quality 11 would give 267 KB for `frequency.json`.
+ */
+const BROTLI_QUALITY = 3;
+const brotliCache = new Map<string, Buffer>();
+
+function encodedBody(file: string, acceptEncoding: string): { body: Buffer; brotli: boolean } {
+    const body = readFileSync(file);
+    const compressible = COMPRESSED_TYPES.has(extname(file)) && body.length >= COMPRESSED_SIZES.min && body.length <= COMPRESSED_SIZES.max;
+    if (!compressible || !/\bbr\b/.test(acceptEncoding)) return { body, brotli: false };
+    let compressed = brotliCache.get(file);
+    if (!compressed) {
+        compressed = brotliCompressSync(body, { params: { [constants.BROTLI_PARAM_QUALITY]: BROTLI_QUALITY } });
+        brotliCache.set(file, compressed);
+    }
+    return { body: compressed, brotli: true };
+}
 
 const isFile = (path: string) => existsSync(path) && statSync(path).isFile();
 /** A resolved path is inside `base`, so an encoded `..` in a request cannot escape the build. */
@@ -58,7 +88,12 @@ export function serve(resolve: (pathname: string) => string | null, port = 0): P
             response.writeHead(404).end('not found');
             return;
         }
-        response.writeHead(200, { 'content-type': MIME[extname(file)] ?? 'application/octet-stream' }).end(readFileSync(file));
+        const { body, brotli } = encodedBody(file, String(request.headers['accept-encoding'] ?? ''));
+        response.writeHead(200, {
+            'content-type': MIME[extname(file)] ?? 'application/octet-stream',
+            vary: 'accept-encoding',
+            ...(brotli ? { 'content-encoding': 'br' } : {}),
+        }).end(body);
     });
     return new Promise(done => server.listen(port, '127.0.0.1', () => done({ server, port: (server.address() as AddressInfo).port })));
 }

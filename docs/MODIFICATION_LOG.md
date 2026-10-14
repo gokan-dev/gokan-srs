@@ -5,6 +5,9 @@
 >
 > It is not auto-loaded into agent context; read it on demand when you need the history behind a decision.
 
+- **[2026-10-14]**:
+  - **Lighthouse measures compressed files, the SRS pages on three runs** (#134, `scripts/lib/builtSite.ts`, `scripts/check-lighthouse.ts`). The entry below said performance could not be a verdict because a local build lacks the CDN's compression; that gap was most of the SRS pages' score. CI served `index/frequency.json` at 3,071 KB where gokan-srs.com sends 405 KB of brotli, and the hub's 40-second mobile LCP was mostly Lighthouse's slow-4G simulation timing those uncompressed bytes. The local server now compresses as CloudFront does, at the brotli quality that lands within about 8% of CloudFront's sizes on either side (quality 3; quality 11 would flatter CI by a third). Single runs were too noisy to read a change from (the welcome page scored 64, then 83, on the same code), so the SRS pages take the median of three; the dictionary's static pages stay at one.
+
 - **[2026-10-13]**:
   - **Lighthouse gate, SEO at 100** (#124, `scripts/check-lighthouse.ts`, `.github/workflows/ci-lighthouse.yml`). Both production builds served on one origin the way CloudFront serves them: one representative page per dictionary type and the SRS welcome page (cold), plus the SRS hub and anime list reached with onboarding seeded, on mobile and desktop. Worth not undoing:
     - **SEO was already 100 on every page type, both form factors, the day the check landed.** So the gate protects a property the site has, rather than fixing a regression; it was seen failing (SEO 92, "Document does not have a meta description") on a build with one page's meta description deleted before it was trusted.

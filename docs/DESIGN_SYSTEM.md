@@ -376,9 +376,10 @@ onboarding seeded, on mobile and desktop. SEO must be 100 on every dictionary pa
 welcome, failing the job below it, because a crawlable dictionary is the point. The dictionary
 also holds accessibility and best practices at a floor taken from the first baseline and only
 ever raised (both 1.00 today). The hub and anime list are recorded, not gated: they are
-image-heavy (AniList cover art) and measured to track that cost (#129). Performance is recorded
-everywhere, not gated, since a local build has none of production's CDN compression or caching.
-A new dictionary page type is added to the shared `dictionaryPages()` list
+image-heavy (AniList cover art) and measured to track that cost (#129). The local server
+brotli-compresses text files as CloudFront does, so the bytes Lighthouse times are the bytes a
+visitor downloads. Performance is recorded everywhere, not gated, since it still moves between
+runs: the SRS pages take the median of three runs, the dictionary pages one. A new dictionary page type is added to the shared `dictionaryPages()` list
 (`scripts/lib/builtSite.ts`), which `check-layout` measures too.
 
 A red check here is never fixed by relaxing the rule; fix the code, or change this

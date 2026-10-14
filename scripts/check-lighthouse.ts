@@ -9,17 +9,19 @@
  * failing the job below it. The dictionary also holds accessibility and best practices at a floor
  * taken from the first baseline and only ever raised (DICTIONARY_FLOORS). The hub and anime list
  * are recorded, not gated: they are image-heavy (cover art from AniList's CDN) and measured to
- * track that cost. Performance is recorded everywhere, never floored, since a local build has none
- * of production's CDN compression or caching. Each category is the median of LH_RUNS runs (one by
- * default); raise LH_RUNS to smooth performance's run-to-run noise.
+ * track that cost. Files are brotli-compressed as CloudFront serves them (scripts/lib/builtSite.ts).
+ * Performance is recorded everywhere, never floored: it still moves between runs. Each category is
+ * the median of a page's runs (SRS_RUNS, DICTIONARY_RUNS), and the report kept is the run with the
+ * median performance.
  *
  * Usage: build both apps (`bun run build`, `bun run dictionary:build`), then
  * `bun run check:lighthouse`. Needs Chrome (found like scripts/lib/chrome.ts) and runs Lighthouse
- * (the pinned devDependency) under `node`, so Node must be on PATH. LH_RUNS, LH_FORM_FACTORS and LH_ONLY (a label substring)
- * tune a local run. Run by CI (.github/workflows/ci-lighthouse.yml), which keeps the reports.
+ * (the pinned devDependency) under `node`, so Node must be on PATH. LH_RUNS (runs for every page),
+ * LH_FORM_FACTORS and LH_ONLY (a label substring) tune a local run. Run by CI
+ * (.github/workflows/ci-lighthouse.yml), which keeps the reports.
  */
 import { spawn } from 'node:child_process';
-import { mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildMissing, dictionaryPages, serveBoth } from './lib/builtSite';
 import { launchChrome, type Chrome } from './lib/chrome';
@@ -31,7 +33,14 @@ type Category = (typeof CATEGORIES)[number];
 const FORM_FACTORS = ['mobile', 'desktop'] as const;
 type FormFactor = (typeof FORM_FACTORS)[number];
 
-const RUNS = Number(process.env.LH_RUNS ?? '1');
+/**
+ * Runs per page. The SRS pages' performance moved by up to 20 points between single runs of the
+ * same code (the welcome page scored 64, then 83), so they take the median of three; the
+ * dictionary's static pages hold within a point or two and take one (#134).
+ */
+const SRS_RUNS = 3;
+const DICTIONARY_RUNS = 1;
+const RUNS_OVERRIDE = process.env.LH_RUNS === undefined ? null : Number(process.env.LH_RUNS);
 const ACTIVE_FORM_FACTORS: readonly FormFactor[] = (process.env.LH_FORM_FACTORS?.split(',') ?? FORM_FACTORS)
     .map(value => value.trim())
     .filter((value): value is FormFactor => (FORM_FACTORS as readonly string[]).includes(value));
@@ -59,7 +68,7 @@ function fail(message: string): never {
 
 const missing = buildMissing();
 if (missing) fail(missing);
-if (!Number.isInteger(RUNS) || RUNS < 1) fail(`LH_RUNS must be a positive integer, got "${process.env.LH_RUNS}".`);
+if (RUNS_OVERRIDE !== null && (!Number.isInteger(RUNS_OVERRIDE) || RUNS_OVERRIDE < 1)) fail(`LH_RUNS must be a positive integer, got "${process.env.LH_RUNS}".`);
 if (ACTIVE_FORM_FACTORS.length === 0) fail(`LH_FORM_FACTORS named no known form factor (${FORM_FACTORS.join(', ')}).`);
 
 // -- Reading a Lighthouse report without trusting its shape --------------------------------------
@@ -123,7 +132,22 @@ function runLighthouse(url: string, formFactor: FormFactor, outPath: string, por
 
 const slug = (label: string) => label.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase();
 
-interface Target { url: string; label: string; floors: Partial<Record<Category, number>>; mode: 'cold' | 'onboarded' }
+/**
+ * One report per page and form factor, under its plain name (`<base>.json`): the run whose
+ * performance is the median, so the report a reader opens shows the figure the table printed.
+ * The other runs' files are removed.
+ */
+function keepMedianReport(base: string, runs: Record<string, unknown>[], medianPerformance: number | null): void {
+    const distance = (report: Record<string, unknown>) => Math.abs((categoryScore(report, 'performance') ?? 0) - (medianPerformance ?? 0));
+    const kept = runs.reduce((best, report, index) => (distance(report) < distance(runs[best]) ? index : best), 0);
+    for (let index = 0; index < runs.length; index++) {
+        const path = `${base}.run${index + 1}.json`;
+        if (index === kept) renameSync(path, `${base}.json`);
+        else rmSync(path, { force: true });
+    }
+}
+
+interface Target { url: string; label: string; floors: Partial<Record<Category, number>>; mode: 'cold' | 'onboarded'; runs: number }
 interface Result { target: Target; formFactor: FormFactor; scores: Record<Category, number | null>; reports: Record<string, unknown>[] }
 
 /**
@@ -145,11 +169,13 @@ async function seedOnboarding(chrome: Chrome, origin: string): Promise<void> {
 async function main(): Promise<void> {
     const { server, port } = await serveBoth();
     const origin = `http://127.0.0.1:${port}`;
+    const srsRuns = RUNS_OVERRIDE ?? SRS_RUNS;
+    const dictionaryRuns = RUNS_OVERRIDE ?? DICTIONARY_RUNS;
     const allTargets: Target[] = [
-        { url: `${origin}/`, label: 'srs welcome', floors: SRS_FLOORS, mode: 'cold' },
-        ...dictionaryPages().map(page => ({ url: `${origin}/dictionary${page.path}`, label: `dictionary ${page.path}`, floors: DICTIONARY_FLOORS, mode: 'cold' as const })),
-        { url: `${origin}/`, label: 'srs hub', floors: RECORDED_ONLY, mode: 'onboarded' },
-        { url: `${origin}/listening`, label: 'srs anime list', floors: RECORDED_ONLY, mode: 'onboarded' },
+        { url: `${origin}/`, label: 'srs welcome', floors: SRS_FLOORS, mode: 'cold', runs: srsRuns },
+        ...dictionaryPages().map(page => ({ url: `${origin}/dictionary${page.path}`, label: `dictionary ${page.path}`, floors: DICTIONARY_FLOORS, mode: 'cold' as const, runs: dictionaryRuns })),
+        { url: `${origin}/`, label: 'srs hub', floors: RECORDED_ONLY, mode: 'onboarded', runs: srsRuns },
+        { url: `${origin}/listening`, label: 'srs anime list', floors: RECORDED_ONLY, mode: 'onboarded', runs: srsRuns },
     ];
     const targets = ONLY ? allTargets.filter(target => target.label.includes(ONLY)) : allTargets;
     if (targets.length === 0) fail(`LH_ONLY="${ONLY}" matched no target.`);
@@ -171,13 +197,14 @@ async function main(): Promise<void> {
                     if (!chrome) fail('onboarded target reached without a seeded browser');
                     onboardedPort = chrome.debugPort;
                 }
-                const outPath = join(REPORT_DIR, `${slug(target.label)}.${formFactor}.json`);
+                const base = join(REPORT_DIR, `${slug(target.label)}.${formFactor}`);
                 const runs: Record<string, unknown>[] = [];
-                for (let run = 0; run < RUNS; run++) runs.push(await runLighthouse(target.url, formFactor, outPath, onboardedPort));
+                for (let run = 0; run < target.runs; run++) runs.push(await runLighthouse(target.url, formFactor, `${base}.run${run + 1}.json`, onboardedPort));
                 const scores = Object.fromEntries(CATEGORIES.map(category => {
                     const values = runs.map(report => categoryScore(report, category)).filter((v): v is number => v !== null);
                     return [category, values.length ? median(values) : null];
                 })) as Record<Category, number | null>;
+                keepMedianReport(base, runs, scores.performance);
                 results.push({ target, formFactor, scores, reports: runs });
             }
         }
@@ -196,11 +223,11 @@ const asPercent = (score: number | null) => (score === null ? '  -' : `${Math.ro
 function report(results: Result[]): void {
     const failures: string[] = [];
     for (const formFactor of ACTIVE_FORM_FACTORS) {
-        console.log(`\n[check-lighthouse] ${formFactor}, median of ${RUNS} run(s)   perf  a11y   bp  seo`);
-        for (const { target, formFactor: ff, scores } of results) {
+        console.log(`\n[check-lighthouse] ${formFactor}, median of each page's runs  perf  a11y   bp  seo  runs`);
+        for (const { target, formFactor: ff, scores, reports } of results) {
             if (ff !== formFactor) continue;
             const row = CATEGORIES.map(category => asPercent(scores[category])).join('  ');
-            console.log(`  ${target.label.padEnd(34)} ${row}`);
+            console.log(`  ${target.label.padEnd(34)} ${row}  ${String(reports.length).padStart(4)}`);
         }
     }
 

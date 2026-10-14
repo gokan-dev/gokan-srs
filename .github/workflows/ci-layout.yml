@@ -7,6 +7,7 @@ name: "CI: layout"
 
 on:
   push:
+    branches: ['**']   # not rc tags: their commit was checked on its branch (see ci.yml)
     paths:
       - 'apps/**'
       - 'packages/**'

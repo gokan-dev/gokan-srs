@@ -2,6 +2,7 @@ name: "CI: gokan-dictionary"
 
 on:
   push:
+    branches: ['**']   # not rc tags: their commit was checked on its branch (see ci.yml)
     paths:
       - 'apps/gokan-dictionary/**'
       - 'package.json'
