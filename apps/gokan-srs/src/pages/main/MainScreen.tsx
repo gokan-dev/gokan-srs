@@ -118,7 +118,7 @@ export const MainScreen: React.FC = () => {
                 </div>
                 {ranked.length > 0 && (
                     <div className="flex gap-2 shrink-0" aria-hidden="true">
-                        {ranked.map(row => <MediaCover key={row.entry.id} entry={row.entry} className="w-10" />)}
+                        {ranked.map(row => <MediaCover key={row.entry.id} entry={row.entry} sizes="40px" className="w-10" />)}
                     </div>
                 )}
             </section>

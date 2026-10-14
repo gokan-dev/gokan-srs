@@ -147,7 +147,7 @@ export function ListeningTitleScreen() {
             />
 
             <section className="rounded-md border border-divider bg-surface p-4 mb-6 flex gap-4">
-                <MediaCover entry={title} hiRes className="w-24 sm:w-32 self-start" />
+                <MediaCover entry={title} sizes="(min-width: 640px) 128px, 96px" className="w-24 sm:w-32 self-start" />
                 <div className="min-w-0 flex-1">
                     {subtitle && <p className="font-serif text-sm text-secondary">{subtitle}</p>}
                     <p className="font-gothic text-xs text-tertiary mt-1">

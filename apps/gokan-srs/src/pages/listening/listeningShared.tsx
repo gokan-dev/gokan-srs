@@ -1,6 +1,7 @@
 /** Small pieces shared by the listening library's pages and the Main hub's Listening card. */
 import { useState } from "react";
 import type { MediaIndexEntry } from "@gokan/dataset-schema";
+import { coverSrcSet } from "../../utils/coverImage.utils";
 
 /**
  * Coverage counts Gokan vocabulary only, which leaves out particles, kana-only
@@ -38,23 +39,28 @@ export function JitenCredit({ url = 'https://jiten.moe', className = '' }: { url
  * 2:3 shape and AniList's dominant colour while the image loads, and stays as
  * that plain colour if the image fails or the title has no cover, so a missing
  * image never collapses or reflows the layout around it.
+ *
+ * `sizes` is the box's rendered width (matching its width classes), so the
+ * browser picks the smallest of AniList's files that fills it.
  */
-export function MediaCover({ entry, hiRes = false, className = '' }: {
+export function MediaCover({ entry, sizes, className = '' }: {
     entry: Pick<MediaIndexEntry, 'cover' | 'title'>;
-    hiRes?: boolean;
+    sizes: string;
     className?: string;
 }) {
     const [failed, setFailed] = useState(false);
-    const src = entry.cover ? (hiRes ? entry.cover.urlHiRes : entry.cover.url) : null;
+    const { cover } = entry;
 
     return (
         <div
             className={`aspect-[2/3] shrink-0 overflow-hidden rounded-sm border border-divider bg-surface-hover ${className}`}
-            style={entry.cover?.color ? { backgroundColor: entry.cover.color } : undefined}
+            style={cover?.color ? { backgroundColor: cover.color } : undefined}
         >
-            {src && !failed && (
+            {cover && !failed && (
                 <img
-                    src={src}
+                    src={cover.url}
+                    srcSet={coverSrcSet(cover)}
+                    sizes={sizes}
                     alt={`${entry.title.original} cover`}
                     width={230}
                     height={345}
