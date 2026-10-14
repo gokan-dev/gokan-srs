@@ -54,8 +54,10 @@ export interface QuizActions {
 
 /**
  * All side effects and business-logic actions for the quiz state machine:
-$1 */
-/**
+ * vocab/sentence loading, auto-advance timing, daily reset, persistence,
+ * migration triggering, and Drive sync wiring. QuizProvider stays a thin
+ * assembler that just wires this hook's output into React context.
+ *
  * `pageRendered` turns true once the first page has rendered (PageRenderedSignal): the study
  * flow's background loads wait for it, so a page's own requests are not queued behind the
  * frequency index.
