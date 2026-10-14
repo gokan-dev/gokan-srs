@@ -12,6 +12,7 @@ import { AppFooter } from './components/nav/AppFooter';
 import { isSessionPath } from './utils/navigation.utils';
 import { ResumeSessionBar } from './components/ResumeSessionBar';
 import { StorageFullBanner } from './components/StorageFullBanner';
+import { PageRenderedSignal } from './components/PageRenderedSignal';
 
 // Lazy Load Pages
 // Note: Adapting named exports to default exports for lazy loading where necessary
@@ -145,6 +146,7 @@ export const App: React.FC = () => {
                         } />
                         <Route path="*" element={<Navigate to="/" replace />} />
                     </Routes>
+                    <PageRenderedSignal />
                 </Suspense>
             </main>
 

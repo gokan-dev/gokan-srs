@@ -1,4 +1,4 @@
-import React, { useReducer } from 'react';
+import React, { useCallback, useReducer, useState } from 'react';
 import type { ReactNode } from 'react';
 import { DEFAULT_SETTINGS } from '../../models/user.model';
 import type { VocabProgress } from '../../models/vocabulary.model';
@@ -46,6 +46,8 @@ export interface QuizContextValue {
     /** The end-of-chapter review step, when a chapter has just completed and has anchored contrast lessons - null otherwise. */
     pendingGrammarChapterLesson: PendingGrammarChapterLesson | null;
     grammarActions: GrammarActions;
+    /** Called by PageRenderedSignal once the first page has rendered; starts the study flow's background loads. */
+    markPageRendered: () => void;
 }
 
 export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -55,7 +57,10 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         settings: StorageService.loadSettings() ?? DEFAULT_SETTINGS,
     });
 
-    const { actions, exercise, nextView, currentProgress, sessionStats, nextSessionPreview } = useQuizOrchestration(state, dispatch);
+    const [pageRendered, setPageRendered] = useState(false);
+    const markPageRendered = useCallback(() => setPageRendered(true), []);
+
+    const { actions, exercise, nextView, currentProgress, sessionStats, nextSessionPreview } = useQuizOrchestration(state, dispatch, pageRendered);
     const {
         grammarActions,
         grammarExercise,
@@ -65,7 +70,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         grammarSessionStats,
         grammarHubChapter,
         pendingGrammarChapterLesson,
-    } = useGrammarOrchestration(state, dispatch);
+    } = useGrammarOrchestration(state, dispatch, pageRendered);
 
     return (
         <QuizContext.Provider
@@ -89,6 +94,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 grammarHubChapter,
                 pendingGrammarChapterLesson,
                 grammarActions,
+                markPageRendered,
             }}
         >
             {children}

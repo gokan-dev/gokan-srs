@@ -47,9 +47,9 @@ export interface PendingGrammarChapterLesson {
  * effects in useQuizOrchestration already key off `state.progress` generically
  * (any dispatch that changes it gets saved/synced), and grammarQueue lives on
  * that same UserProgress object, so dispatching through the shared reducer
- * gets this for free.
+ * gets this for free. Its background loads wait for `pageRendered`, as useQuizOrchestration's do.
  */
-export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<QuizAction>) {
+export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<QuizAction>, pageRendered: boolean) {
     const location = useLocation();
 
     const loadingKeyRef = useRef<string | null>(null);
@@ -57,9 +57,9 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
     const [hasMoreLearnableGrammar, setHasMoreLearnableGrammar] = useState(false);
 
     useEffect(() => {
-        if (!state.progress) return;
+        if (!pageRendered || !state.progress) return;
         void GrammarSRSService.hasMoreLearnableGrammar(state.progress.grammarQueue).then(setHasMoreLearnableGrammar);
-    }, [state.progress]);
+    }, [pageRendered, state.progress]);
 
     // The hub's chapter status (current/next/complete) plus its progress bar
     // counts (issue #87) - shown on the Main hub's grammar card unconditionally,
@@ -75,7 +75,7 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
     const [hubChapterStatus, setHubChapterStatus] = useState<HubChapterStatus | null>(null);
 
     useEffect(() => {
-        if (!state.progress) return;
+        if (!pageRendered || !state.progress) return;
         let cancelled = false;
         void (async () => {
             const teachingOrder = await GrammarService.loadTeachingOrder();
@@ -89,7 +89,7 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
             setHubChapterStatus(describeHubChapter(teachingOrder.chapters, currentChapter, state.progress!.grammarQueue));
         })();
         return () => { cancelled = true; };
-    }, [state.progress]);
+    }, [pageRendered, state.progress]);
 
     // End-of-chapter review step: once every teachable point in a chapter has
     // been introduced, its anchored contrast lessons (lesson.taughtInChapterId)
@@ -99,7 +99,7 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
     const [pendingChapterLesson, setPendingChapterLesson] = useState<PendingGrammarChapterLesson | null>(null);
 
     useEffect(() => {
-        if (!state.progress) return;
+        if (!pageRendered || !state.progress) return;
         let cancelled = false;
 
         void (async () => {
@@ -138,7 +138,7 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
 
         return () => { cancelled = true; };
         // eslint-disable-next-line react-hooks/exhaustive-deps -- recomputed only when the queue or completed chapters change; the rest of progress is irrelevant here
-    }, [state.progress?.grammarQueue, state.progress?.completedChapters]);
+    }, [pageRendered, state.progress?.grammarQueue, state.progress?.completedChapters]);
 
     // The selectors are pure: each memo hands them exactly the state it depends on, and the
     // current time as of that state change (the orchestration layer owns the clock).

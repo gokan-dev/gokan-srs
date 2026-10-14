@@ -55,7 +55,12 @@ export interface QuizActions {
 /**
  * All side effects and business-logic actions for the quiz state machine:
 $1 */
-export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAction>) {
+/**
+ * `pageRendered` turns true once the first page has rendered (PageRenderedSignal): the study
+ * flow's background loads wait for it, so a page's own requests are not queued behind the
+ * frequency index.
+ */
+export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAction>, pageRendered: boolean) {
     const {
         logout,
         uploadProgress,
@@ -132,9 +137,9 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
     const [hasMoreLearnable, setHasMoreLearnable] = useState(false);
 
     useEffect(() => {
-        if (!state.progress || !state.settings) return;
+        if (!pageRendered || !state.progress || !state.settings) return;
         void SRSService.hasMoreLearnableVocabulary(state.progress, state.settings).then(setHasMoreLearnable);
-    }, [state.progress, state.settings]);
+    }, [pageRendered, state.progress, state.settings]);
 
     // The dataset decides which words are learned in kana; progress keeps a copy for
     // scheduling (VocabProgress.usuallyKana). Synced on load and whenever the queue
@@ -142,9 +147,9 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
     // only when something actually differs.
     const [usuallyKanaIds, setUsuallyKanaIds] = useState<ReadonlySet<string> | null>(null);
     useEffect(() => {
-        if (!state.progress || usuallyKanaIds) return;
+        if (!pageRendered || !state.progress || usuallyKanaIds) return;
         void VocabularyService.loadUsuallyKanaIds().then(setUsuallyKanaIds);
-    }, [state.progress, usuallyKanaIds]);
+    }, [pageRendered, state.progress, usuallyKanaIds]);
     useEffect(() => {
         if (!state.progress || !usuallyKanaIds) return;
         const now = new Date();
