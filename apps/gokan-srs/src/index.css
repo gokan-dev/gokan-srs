@@ -96,6 +96,19 @@ body {
 }
 
 /*
+  A link in running text (inside a paragraph) is underlined, so it is never told apart from
+  the text around it by colour alone, as in the dictionary (#128). Rows, cards, tabs and
+  buttons are links by their shape and do not sit in a <p>. In the base layer, so a utility
+  on the link itself still wins.
+*/
+@layer base {
+  p a {
+    text-decoration-line: underline;
+    text-underline-offset: 0.15em;
+  }
+}
+
+/*
   Type roles: one utility per hierarchy role, used instead of ad hoc
   size/colour combinations, so a heading level or body-copy role has exactly
   one look everywhere it appears.

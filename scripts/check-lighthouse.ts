@@ -7,9 +7,10 @@
  *
  * The gate the dictionary exists for: SEO at 100 on every dictionary page and the SRS welcome,
  * failing the job below it. The dictionary also holds accessibility and best practices at a floor
- * taken from the first baseline and only ever raised (DICTIONARY_FLOORS). The hub and anime list
- * are recorded, not gated: they are image-heavy (cover art from AniList's CDN) and measured to
- * track that cost. Files are brotli-compressed as CloudFront serves them (scripts/lib/builtSite.ts).
+ * taken from the first baseline and only ever raised (DICTIONARY_FLOORS). Every SRS page holds
+ * accessibility at 1.00 (SRS_FLOORS, SRS_ONBOARDED_FLOORS); the hub and anime list are otherwise
+ * recorded: they are image-heavy (cover art from AniList's CDN) and measured to track that cost.
+ * Files are brotli-compressed as CloudFront serves them (scripts/lib/builtSite.ts).
  * Performance is recorded everywhere, never floored: it still moves between runs. Each category is
  * the median of a page's runs (SRS_RUNS, DICTIONARY_RUNS), and the report kept is the run with the
  * median performance.
@@ -50,14 +51,15 @@ const ONLY = process.env.LH_ONLY?.trim();
 const SEO_FLOOR = 1;
 /**
  * Floors per page, read off the first green baseline and only ever raised. A category absent here
- * is recorded but not gated (performance, everywhere; accessibility and best practices on the SRS
- * pages). The dictionary holds accessibility at 1.00 on every page type since links in running
- * text gained an underline (gokan-dev/gokan-srs#128, "links distinguishable by colour alone").
+ * is recorded but not gated (performance, everywhere; best practices on the SRS pages). The
+ * dictionary holds accessibility at 1.00 on every page type since links in running text gained an
+ * underline (gokan-dev/gokan-srs#128, "links distinguishable by colour alone"); the SRS pages since
+ * the app's did too, and the welcome page's headings and watermark were fixed (#134).
  */
 const DICTIONARY_FLOORS: Partial<Record<Category, number>> = { seo: SEO_FLOOR, accessibility: 1, 'best-practices': 1 };
-const SRS_FLOORS: Partial<Record<Category, number>> = { seo: SEO_FLOOR };
-/** The onboarded SRS pages (hub, anime list) are recorded, not gated: see the header. */
-const RECORDED_ONLY: Partial<Record<Category, number>> = {};
+const SRS_FLOORS: Partial<Record<Category, number>> = { seo: SEO_FLOOR, accessibility: 1 };
+/** The onboarded SRS pages (hub, anime list): accessibility only, see the header. */
+const SRS_ONBOARDED_FLOORS: Partial<Record<Category, number>> = { accessibility: 1 };
 
 const REPORT_DIR = join(process.cwd(), 'lighthouse-report');
 
@@ -174,8 +176,8 @@ async function main(): Promise<void> {
     const allTargets: Target[] = [
         { url: `${origin}/`, label: 'srs welcome', floors: SRS_FLOORS, mode: 'cold', runs: srsRuns },
         ...dictionaryPages().map(page => ({ url: `${origin}/dictionary${page.path}`, label: `dictionary ${page.path}`, floors: DICTIONARY_FLOORS, mode: 'cold' as const, runs: dictionaryRuns })),
-        { url: `${origin}/`, label: 'srs hub', floors: RECORDED_ONLY, mode: 'onboarded', runs: srsRuns },
-        { url: `${origin}/listening`, label: 'srs anime list', floors: RECORDED_ONLY, mode: 'onboarded', runs: srsRuns },
+        { url: `${origin}/`, label: 'srs hub', floors: SRS_ONBOARDED_FLOORS, mode: 'onboarded', runs: srsRuns },
+        { url: `${origin}/listening`, label: 'srs anime list', floors: SRS_ONBOARDED_FLOORS, mode: 'onboarded', runs: srsRuns },
     ];
     const targets = ONLY ? allTargets.filter(target => target.label.includes(ONLY)) : allTargets;
     if (targets.length === 0) fail(`LH_ONLY="${ONLY}" matched no target.`);
