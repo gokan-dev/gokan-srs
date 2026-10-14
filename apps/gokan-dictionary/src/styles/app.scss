@@ -730,6 +730,8 @@ a.chip {
   // underline is --secondary (above 3:1 on the background); hover and focus turn it accent.
   a {
     color: inherit;
+    // Load-bearing: .sentence-jp is a <p>, so the running-text underline (`p a`) would otherwise
+    // land on every word of a sentence. check-layout fails if it does.
     text-decoration: none;
     border-bottom: 1px dotted var(--secondary);
 

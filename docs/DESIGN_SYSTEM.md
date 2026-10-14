@@ -283,9 +283,9 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   item (the word a page is about inside its sentences, a grammar point's pattern, the
   current tab or page). A link in running text (a paragraph) is also underlined, so it
   never rests on colour alone; rows, tiles, tabs and chips are links by their shape, and a
-  sentence's words carry a dotted underline. Chips (JLPT level, register, "Common word") are neutral; a chip
-  that links (the word page's JLPT chip to its list) shows an accent border on hover and
-  focus only.
+  sentence's words carry a dotted underline. Chips (JLPT level, register, "Common word")
+  are neutral; a chip that links (the word page's JLPT chip to its list) shows an accent
+  border on hover and focus only.
 - **Type**: Source Serif 4, weight 600, Latin subset only, self-hosted as the site's one
   web font, for page and section titles (sentence case, never uppercase letter-spaced).
   Body text is the system sans stack, Inter first when installed. Japanese uses system
@@ -364,8 +364,9 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
 `.github/workflows/ci-layout.yml` on both production builds): at 320 and 375px, on the
 app's onboarding and main routes and the dictionary's page types, no page scrolls
 sideways, no text is below 12px (furigana in `rt` and SVG chart labels excepted), every
-input is at least 16px (smaller makes iOS zoom), and the dictionary's nav links, pager
-links, toggles, tiles and disclosure summaries are at least 44px tall. A new page type or
+input is at least 16px (smaller makes iOS zoom), the dictionary's nav links, pager links,
+toggles, tiles and disclosure summaries are at least 44px tall, and a word in a dictionary
+sentence carries only its dotted border, never the running-text underline. A new page type or
 main route is added to its lists.
 
 **Lighthouse, SEO at 100** (`scripts/check-lighthouse.ts`, `bun run check:lighthouse`, run by
@@ -373,12 +374,12 @@ CI in `.github/workflows/ci-lighthouse.yml` on both production builds): one repr
 per dictionary type and the SRS welcome page, plus the SRS hub and anime list reached with
 onboarding seeded, on mobile and desktop. SEO must be 100 on every dictionary page and the SRS
 welcome, failing the job below it, because a crawlable dictionary is the point. The dictionary
-also holds accessibility and best practices at a floor taken from the first baseline and only ever
-raised (both 1.00 today). The hub and anime list are recorded, not gated: they are image-heavy (AniList cover art)
-and measured to track that cost (#129). Performance is recorded everywhere, not gated, since a
-local build has none of production's CDN compression or caching. A new dictionary page type is
-added to the shared `dictionaryPages()` list (`scripts/lib/builtSite.ts`), which `check-layout`
-measures too.
+also holds accessibility and best practices at a floor taken from the first baseline and only
+ever raised (both 1.00 today). The hub and anime list are recorded, not gated: they are
+image-heavy (AniList cover art) and measured to track that cost (#129). Performance is recorded
+everywhere, not gated, since a local build has none of production's CDN compression or caching.
+A new dictionary page type is added to the shared `dictionaryPages()` list
+(`scripts/lib/builtSite.ts`), which `check-layout` measures too.
 
 A red check here is never fixed by relaxing the rule; fix the code, or change this
 document and the check together, deliberately, and say so in the PR.
