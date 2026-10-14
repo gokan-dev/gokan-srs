@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "bun --cwd apps/gokan-srs dev",
     "check:layout": "bun scripts/check-layout.ts",
+    "check:lighthouse": "bun scripts/check-lighthouse.ts",
     "build": "bun --cwd apps/gokan-srs build",
     "dictionary:dev": "bun --cwd apps/gokan-dictionary dev",
     "dictionary:build": "bun --cwd apps/gokan-dictionary build",
@@ -35,6 +36,7 @@
     "jiti": "^2.7.0",
     "jscpd": "^4.3.0",
     "knip": "^5.88.1",
+    "lighthouse": "12.8.2",
     "svelte-eslint-parser": "^1.8.1",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4"

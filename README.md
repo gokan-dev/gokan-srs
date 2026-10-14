@@ -6,6 +6,8 @@
 
 [Use the app](https://gokan-srs.com) &nbsp;&middot;&nbsp; [Browse the dictionary](https://gokan-srs.com/dictionary/) &nbsp;&middot;&nbsp; [Open dataset](https://github.com/gokan-dev/gokan-dataset)
 
+[![Checks](https://github.com/gokan-dev/gokan-srs/actions/workflows/ci.yml/badge.svg)](https://github.com/gokan-dev/gokan-srs/actions/workflows/ci.yml)
+[![Lighthouse](https://github.com/gokan-dev/gokan-srs/actions/workflows/ci-lighthouse.yml/badge.svg)](https://github.com/gokan-dev/gokan-srs/actions/workflows/ci-lighthouse.yml)
 [![Deploy](https://github.com/gokan-dev/gokan-srs/actions/workflows/deploy.yml/badge.svg)](https://github.com/gokan-dev/gokan-srs/actions/workflows/deploy.yml)
 [![Dataset: CC BY-SA 4.0](https://img.shields.io/badge/dataset-CC%20BY--SA%204.0-blue)](https://github.com/gokan-dev/gokan-dataset)
 

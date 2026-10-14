@@ -33,7 +33,8 @@ before changing it, and update it when behaviour changes. Visual rules are in
   apps and the scripts), tests (both apps), the conventions check and the duplicate check.
   Faster partial runs while iterating: `bun run lint`, `bun run typecheck`, `bun run test`,
   `bun run check:conventions`, `bun run check:duplicates`. After a UI change, also build both
-  apps and run `bun run check:layout` (CI runs it on every change to `apps/` or `packages/`).
+  apps and run `bun run check:layout` and `bun run check:lighthouse` (SEO held at 100 on every
+  dictionary page; CI runs both on every change to `apps/` or `packages/`).
 - A bug fix comes with a test that fails without the fix.
 - A convention lives in `bun run check`, not only in prose. When review (human or agent) finds a
   rule this file states that the gate did not catch, the same change adds the check that would
