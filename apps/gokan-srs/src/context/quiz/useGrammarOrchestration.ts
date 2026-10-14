@@ -71,8 +71,9 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
     // the teaching order itself fails to load, which `describeHubChapter`
     // cannot distinguish from "curriculum complete" on its own - loadTeachingOrder
     // is checked here first specifically so that distinction is made once, at
-    // the one place with the information to make it.
-    const [hubChapterStatus, setHubChapterStatus] = useState<HubChapterStatus | null>(null);
+    // the one place with the information to make it. Undefined until the first load settles,
+    // so the hub can hold the line's place meanwhile.
+    const [hubChapterStatus, setHubChapterStatus] = useState<HubChapterStatus | null | undefined>(undefined);
 
     useEffect(() => {
         if (!pageRendered || !state.progress) return;

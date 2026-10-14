@@ -41,8 +41,8 @@ export interface QuizContextValue {
     nextGrammarSessionPreview: NextGrammarSessionPreview;
     /** Progress counter for the active grammar study session (done/total, retries, waiting) - mirrors sessionStats. */
     grammarSessionStats: GrammarSessionStats;
-    /** The hub's grammar chapter status (current/next/complete) plus that chapter's (or the whole curriculum's) three-way progress tally - null before it's loaded or when the teaching order failed to load. Always shown, independent of nextGrammarSessionPreview.new - see grammarSelectors.ts's describeHubChapter. */
-    grammarHubChapter: HubChapterStatus | null;
+    /** The hub's grammar chapter status (current/next/complete) plus that chapter's (or the whole curriculum's) three-way progress tally - undefined until it has loaded, null when the teaching order failed to load. Always shown, independent of nextGrammarSessionPreview.new - see grammarSelectors.ts's describeHubChapter. */
+    grammarHubChapter: HubChapterStatus | null | undefined;
     /** The end-of-chapter review step, when a chapter has just completed and has anchored contrast lessons - null otherwise. */
     pendingGrammarChapterLesson: PendingGrammarChapterLesson | null;
     grammarActions: GrammarActions;
