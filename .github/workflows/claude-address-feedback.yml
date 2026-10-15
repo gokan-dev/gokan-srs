@@ -106,12 +106,31 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      # Feedback on a dataset change is pushed to gokan-dataset first (AGENTS.md), but this job's
+      # tokens reach gokan-srs only: the checkout leaves the submodule on GITHUB_TOKEN, and the
+      # Claude app token is scoped to this repo (PR #136: 403 "denied to github-actions[bot]",
+      # and the rebuilt dataset was lost with the runner). So the submodule alone pushes with
+      # AGENT_GITHUB_TOKEN, as claude-implement-issue.yml's does. Not the whole action: with the
+      # PAT its progress comment would be a member's, which cancels this very run (concurrency
+      # group above) and, on an `agent-feedback` PR, starts another.
+      - name: Let the dataset submodule push
+        env:
+          AGENT_GITHUB_TOKEN: ${{ secrets.AGENT_GITHUB_TOKEN }}
+        run: |
+          if [ -z "$AGENT_GITHUB_TOKEN" ]; then
+            echo "AGENT_GITHUB_TOKEN is not set: dataset pushes will fail."
+            exit 0
+          fi
+          auth="$(printf 'x-access-token:%s' "$AGENT_GITHUB_TOKEN" | base64 -w0)"
+          git -C apps/gokan-srs/dataset config --local http.https://github.com/.extraheader "AUTHORIZATION: basic $auth"
+
       - name: Run Claude
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          # GitHub-side auth via the installed Claude GitHub App (see claude-implement-issue.yml).
+          # GitHub-side auth via the installed Claude GitHub App (see claude-implement-issue.yml);
+          # the dataset submodule pushes with AGENT_GITHUB_TOKEN (the step above).
           # The action resolves the PR context from the triggering event automatically;
           # the prompt tells it how to act on that feedback.
           prompt: |
@@ -123,6 +142,15 @@ jobs:
             Push any code changes to the same branch and post a brief comment
             summarising how you addressed the feedback. Do not resolve threads you
             did not actually address.
+
+            Never end the session while a command you started is still running: a
+            dataset rebuild takes minutes, so run it in the foreground with a long
+            timeout, or start it in the background and poll it until it exits. When the
+            session ends, the runner and everything not pushed are gone. Commit each
+            change as it is done. A dataset change is committed and pushed in the
+            submodule first (its branch on gokan-dataset, named like this one), and only
+            then is the new pointer committed here: never point at a dataset commit that
+            is not on the remote.
 
             Before tagging, sync with `main` so the branch is deployable against the
             current state of the repo: `git fetch origin main && git merge origin/main`
