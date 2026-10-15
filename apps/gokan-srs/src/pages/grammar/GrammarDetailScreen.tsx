@@ -89,14 +89,14 @@ export default function GrammarDetailScreen() {
         >
             {point.romaji && <p className="type-meta">{point.romaji}</p>}
             {chapterLocation && (
-                <p>
+                <div>
                     <Link
                         to={`/grammar/chapters?chapter=${chapterLocation.chapter.id}`}
                         className="font-sans text-sm text-accent hover:underline"
                     >
                         Chapter {chapterLocation.chapterNumber}, point {chapterLocation.chapter.points.indexOf(point.id) + 1} of {chapterLocation.chapter.points.length}
                     </Link>
-                </p>
+                </div>
             )}
         </DetailHeader>
     );
