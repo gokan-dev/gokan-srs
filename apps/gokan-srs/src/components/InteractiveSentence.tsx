@@ -89,8 +89,10 @@ export function InteractiveSentence({
 
                 const targetClass = `text-accent font-semibold border-b-2 border-accent/30 mx-0.5 px-0.5 ${isClickable ? 'cursor-pointer hover:border-accent transition-colors' : ''}`;
                 // No permanent underline: a sentence full of underlines reads as noise. A word
-                // shows it is a link on hover and on keyboard focus.
-                const clickableClass = "cursor-pointer text-primary border-b border-transparent hover:text-accent hover:border-accent focus-visible:outline-none focus-visible:text-accent focus-visible:border-accent transition-colors mx-0.5";
+                // shows it is a link on hover and on keyboard focus. No side margin either: Japanese
+                // has no spaces between words, and with most words linked (kana ones too) a margin
+                // read as a space at nearly every word boundary (実在 する もの と).
+                const clickableClass = "cursor-pointer text-primary border-b border-transparent hover:text-accent hover:border-accent focus-visible:outline-none focus-visible:text-accent focus-visible:border-accent transition-colors";
                 const matchClassName = emphasized ? targetClass : isClickable ? clickableClass : "";
 
                 if (!isClickable && !glossed && !emphasized) return <span key={i}>{renderContent()}</span>;
