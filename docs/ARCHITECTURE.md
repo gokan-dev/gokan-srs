@@ -178,6 +178,10 @@ by both apps. App model files under `src/models/` hold app state only (progress,
 - `original`: Japanese sentence text
 - `en`: Array of English translations (id + text)
 - `indices`: Reading hints/furigana string (optional)
+- `matches`: each word's spans in `original`, linked and highlighted. The dataset build finds a
+  word by its written forms, and a word written in kana under a kanji headword (それ for 其れ,
+  して for 為る) through Tatoeba's annotation of that kana, never by guessing from the kana
+  alone; see `docs/SCHEMA.md` in the dataset.
 
 **`SentenceSet`**
 - `vocabId`: Reference to Vocabulary.id
