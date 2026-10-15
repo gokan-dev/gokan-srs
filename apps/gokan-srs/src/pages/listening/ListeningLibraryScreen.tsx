@@ -16,14 +16,24 @@ import {
     rankLibrary,
     speechSpeedLabel,
 } from "../../utils/mediaCoverage.utils";
-import { JitenCredit, MediaCover, VocabularyOnlyNote } from "./listeningShared";
+import { JitenCredit, MediaCover, MediaCoverPlaceholder, VocabularyOnlyNote } from "./listeningShared";
 import { FilterToggle } from "../../components/ui/FilterToggle";
 import { Pagination } from "../../components/ui/Pagination";
-import { CardSkeleton } from "../../components/CardSkeleton";
 
 const PAGE_SIZE = 20;
 /** Enough rows to fill a desktop screen while the library loads, so nothing below moves up into view. */
 const SKELETON_ROWS = 6;
+/**
+ * The list and a row's frame, shared by the loaded rows and their skeletons so the list keeps
+ * its shape when the library arrives and the two cannot drift.
+ */
+const LIST_FRAME = 'flex flex-col divide-y divide-divider border-y border-divider';
+const ROW_FRAME = 'flex gap-4 px-2 py-4 rounded-md';
+/**
+ * A typical meta line ("2013 · 12 episodes · Moderate speech · Comedy · Slice of Life"), one bar
+ * per word at its measured width, so the skeleton's line wraps where the real one does on a phone.
+ */
+const META_WORD_WIDTHS = ['w-[33px]', 'w-[12px]', 'w-[57px]', 'w-[54px]', 'w-[48px]', 'w-[54px]', 'w-[27px]', 'w-[12px]', 'w-[21px]'];
 /**
  * The genre pills before the index names them, at the widths the library's 13 genres measure
  * (most common first), so the row wraps onto as many lines as the real pills will at any width.
@@ -143,12 +153,12 @@ export function ListeningLibraryScreen() {
             )}
 
             {!failed && !loaded && (
-                <div className="flex flex-col gap-3">
-                    {Array.from({ length: SKELETON_ROWS }, (_, i) => <CardSkeleton key={i} />)}
+                <div className={LIST_FRAME} aria-hidden="true">
+                    {Array.from({ length: SKELETON_ROWS }, (_, i) => <LibraryRowSkeleton key={i} />)}
                 </div>
             )}
 
-            {loaded && <div className="flex flex-col divide-y divide-divider border-y border-divider">
+            {loaded && <div className={LIST_FRAME}>
                 {displayed.map(({ entry, coverage, nextEpisode, watchedCount }) => {
                     const speed = speechSpeedLabel(entry.speechSpeed);
                     const toLearn = coverage.unique.total - coverage.unique.mastered - coverage.unique.learning;
@@ -156,7 +166,7 @@ export function ListeningLibraryScreen() {
                         <Link
                             key={entry.id}
                             to={`/listening/${entry.id}`}
-                            className="flex gap-4 px-2 py-4 rounded-md hover:bg-surface-hover transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                            className={`${ROW_FRAME} hover:bg-surface-hover transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
                         >
                             <MediaCover entry={entry} size="library" className="self-start" />
                             <div className="min-w-0 flex-1">
@@ -206,5 +216,39 @@ export function ListeningLibraryScreen() {
 
             {loaded && <JitenCredit className="mt-8" />}
         </Page>
+    );
+}
+
+/** A grey bar standing in for a line of text, inside an element with that line's type so the row keeps its height. */
+function TextBar({ width }: { width: string }) {
+    return <span className={`inline-block h-[0.75em] ${width} max-w-full rounded-sm bg-divider align-middle animate-pulse`} />;
+}
+
+/** A library row before the library loads: the loaded row's frame, with bars where its text goes. */
+function LibraryRowSkeleton() {
+    return (
+        <div className={ROW_FRAME}>
+            <MediaCoverPlaceholder size="library" className="self-start" />
+            <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                        <p className="font-mincho text-lg"><TextBar width="w-40" /></p>
+                        <p className="type-support"><TextBar width="w-32" /></p>
+                        <p className="type-meta mt-1">
+                            {META_WORD_WIDTHS.map((width, i) => <span key={i}>{i > 0 && ' '}<TextBar width={width} /></span>)}
+                        </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                        <p className="font-sans text-2xl leading-none"><TextBar width="w-10" /></p>
+                        <p className="type-meta mt-1"><TextBar width="w-10" /></p>
+                        <p className="type-meta"><TextBar width="w-[118px]" /></p>
+                    </div>
+                </div>
+
+                <div className="mt-3">
+                    <div className="h-1.5 rounded-full bg-divider animate-pulse" />
+                </div>
+            </div>
+        </div>
     );
 }
