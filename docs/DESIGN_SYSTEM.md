@@ -373,8 +373,8 @@ app's onboarding and main routes and the dictionary's page types, no page scroll
 sideways, no text is below 12px (furigana in `rt` and SVG chart labels excepted), every
 input is at least 16px (smaller makes iOS zoom), the dictionary's nav links, pager links,
 toggles, tiles and disclosure summaries are at least 44px tall, and a word in a dictionary
-sentence carries only its dotted border, never the running-text underline, and a linked word in
-an app sentence has no side margin (Japanese has no spaces between words). A new page type or
+sentence carries only its dotted border, never the running-text underline, and no word in an
+app sentence (linked or studied) has a side margin (Japanese has no spaces between words). A new page type or
 main route is added to its lists.
 
 **Lighthouse, SEO at 100** (`scripts/check-lighthouse.ts`, `bun run check:lighthouse`, run by

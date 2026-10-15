@@ -47,7 +47,7 @@ export function InteractiveSentence({
     const segments = segmentInteractiveSentence(sentence, { targetVocabId, highlightRanges });
 
     return (
-        <span className={`font-mincho leading-loose md:leading-relaxed break-words ${className}`}>
+        <span data-sentence className={`font-mincho leading-loose md:leading-relaxed break-words ${className}`}>
             {segments.map((segment, i) => {
                 // The target class (accent, bold, underline) applies whether the
                 // segment is the studied vocab word (isTarget) or falls inside a
@@ -58,7 +58,7 @@ export function InteractiveSentence({
                 if (segment.type === 'text') {
                     if (!emphasized) return <span key={i}>{segment.content}</span>;
                     return (
-                        <span key={i} className="text-accent font-semibold border-b-2 border-accent/30 mx-0.5 px-0.5">
+                        <span key={i} className="text-accent font-semibold border-b-2 border-accent/30 px-0.5">
                             {segment.content}
                         </span>
                     );
@@ -87,11 +87,12 @@ export function InteractiveSentence({
                 // would only restate it.
                 const glossed = showGlossOnHover && !segment.isTarget;
 
-                const targetClass = `text-accent font-semibold border-b-2 border-accent/30 mx-0.5 px-0.5 ${isClickable ? 'cursor-pointer hover:border-accent transition-colors' : ''}`;
+                const targetClass = `text-accent font-semibold border-b-2 border-accent/30 px-0.5 ${isClickable ? 'cursor-pointer hover:border-accent transition-colors' : ''}`;
                 // No permanent underline: a sentence full of underlines reads as noise. A word
-                // shows it is a link on hover and on keyboard focus. No side margin either: Japanese
-                // has no spaces between words, and with most words linked (kana ones too) a margin
-                // read as a space at nearly every word boundary (実在 する もの と).
+                // shows it is a link on hover and on keyboard focus. No word has a side margin,
+                // the studied one included (its padding frames it): Japanese has no spaces between
+                // words, and with most words linked (kana ones too) a margin read as a space at
+                // nearly every word boundary (実在 する もの と).
                 const clickableClass = "cursor-pointer text-primary border-b border-transparent hover:text-accent hover:border-accent focus-visible:outline-none focus-visible:text-accent focus-visible:border-accent transition-colors";
                 const matchClassName = emphasized ? targetClass : isClickable ? clickableClass : "";
 
