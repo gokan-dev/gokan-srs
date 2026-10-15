@@ -1,5 +1,6 @@
 // Kanji index page (KanjiIndexPage.svelte) only: the glyph grid.
 
+@use 'sass:math';
 @use '../tokens' as *;
 
 .glyph-grid {
@@ -27,5 +28,35 @@
 
   [lang="ja"] {
     font-family: $font-mincho;
+  }
+}
+
+// Levels after the first are laid out only when scrolled near (#134): 3,128 tiles cost 1.4 s of
+// style and layout on a slowed phone CPU. Their content stays in the page for find-in-page and
+// screen readers, and `auto` keeps a level's real height once it has been laid out.
+//
+// Until then a level holds the height its tiles will take, from its tile count (--tiles) and the
+// columns the grid has at this width. It must never be short: tiles past a short placeholder are
+// clipped, and read as obscured. So each column count starts 1rem late (a desktop scrollbar
+// narrows the grid) and a row is counted at the widest a tile gets with that many columns.
+$tile-step: $target + $space-1;
+$level-heading: 3.5rem;
+
+.kanji-level {
+  --cols: 4;
+  --row: #{$tile-step + math.div(4.25rem, 4)};
+
+  @for $cols from 5 through 18 {
+    @media (min-width: #{$tile-step * $cols - $space-1 + 2 * $space-2 + 1rem}) {
+      --cols: #{$cols};
+      --row: #{$tile-step + math.div(4.25rem, $cols)};
+    }
+  }
+}
+
+@supports (width: round(up, 1px, 1px)) {
+  .kanji-level + .kanji-level {
+    content-visibility: auto;
+    contain-intrinsic-size: auto calc(#{$level-heading} + round(up, var(--tiles) / var(--cols), 1) * var(--row));
   }
 }

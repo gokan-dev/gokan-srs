@@ -24,11 +24,11 @@ export function JitenCredit({ url = 'https://jiten.moe', className = '' }: { url
     return (
         <p className={`type-meta ${className}`}>
             Episode vocabulary from{' '}
-            <a href={url} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">Jiten</a>
+            <a href={url} target="_blank" rel="noopener noreferrer" className="text-accent">Jiten</a>
             , licensed{' '}
-            <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">CC BY-SA 4.0</a>.
+            <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer" className="text-accent">CC BY-SA 4.0</a>.
             {' '}Cover images from{' '}
-            <a href="https://anilist.co" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">AniList</a>
+            <a href="https://anilist.co" target="_blank" rel="noopener noreferrer" className="text-accent">AniList</a>
             , artwork © its respective studio.
         </p>
     );
@@ -49,6 +49,8 @@ const COVER_SIZES = {
 } as const satisfies Record<string, { width: string; sizes: string }>;
 
 export type MediaCoverSize = keyof typeof COVER_SIZES;
+
+const COVER_BOX = 'aspect-[2/3] shrink-0 overflow-hidden rounded-sm border border-divider bg-surface-hover';
 
 /**
  * A title's cover art, loaded from AniList's CDN. The box keeps the poster's
@@ -71,7 +73,7 @@ export function MediaCover({ entry, size, className = '' }: {
 
     return (
         <div
-            className={`aspect-[2/3] shrink-0 overflow-hidden rounded-sm border border-divider bg-surface-hover ${width} ${className}`}
+            className={`${COVER_BOX} ${width} ${className}`}
             style={cover?.color ? { backgroundColor: cover.color } : undefined}
         >
             {cover && !failed && (
@@ -91,4 +93,9 @@ export function MediaCover({ entry, size, className = '' }: {
             )}
         </div>
     );
+}
+
+/** A cover's box before the library says which title goes in it, so the placement keeps its size while it loads. */
+export function MediaCoverPlaceholder({ size, className = '' }: { size: MediaCoverSize; className?: string }) {
+    return <div aria-hidden="true" className={`${COVER_BOX} ${COVER_SIZES[size].width} animate-pulse ${className}`} />;
 }

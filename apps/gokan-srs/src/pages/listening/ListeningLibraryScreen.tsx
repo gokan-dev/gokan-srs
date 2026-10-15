@@ -16,11 +16,33 @@ import {
     rankLibrary,
     speechSpeedLabel,
 } from "../../utils/mediaCoverage.utils";
-import { JitenCredit, MediaCover, VocabularyOnlyNote } from "./listeningShared";
+import { JitenCredit, MediaCover, MediaCoverPlaceholder, VocabularyOnlyNote } from "./listeningShared";
 import { FilterToggle } from "../../components/ui/FilterToggle";
 import { Pagination } from "../../components/ui/Pagination";
 
 const PAGE_SIZE = 20;
+/** Enough rows to fill a desktop screen while the library loads, so nothing below moves up into view. */
+const SKELETON_ROWS = 6;
+/**
+ * The list and a row's frame, shared by the loaded rows and their skeletons so the list keeps
+ * its shape when the library arrives and the two cannot drift.
+ */
+const LIST_FRAME = 'flex flex-col divide-y divide-divider border-y border-divider';
+const ROW_FRAME = 'flex gap-4 px-2 py-4 rounded-md';
+/**
+ * A typical meta line ("2013 · 12 episodes · Moderate speech · Comedy · Slice of Life"), one bar
+ * per word at its measured width, so the skeleton's line wraps where the real one does on a phone.
+ */
+const META_WORD_WIDTHS = ['w-[33px]', 'w-[12px]', 'w-[57px]', 'w-[54px]', 'w-[48px]', 'w-[54px]', 'w-[27px]', 'w-[12px]', 'w-[21px]'];
+/**
+ * The genre pills before the index names them, at the widths the library's 13 genres measure
+ * (most common first), so the row wraps onto as many lines as the real pills will at any width.
+ * A library with other genres only costs a small shift.
+ */
+const GENRE_PLACEHOLDER_WIDTHS = [
+    'w-[78px]', 'w-[100px]', 'w-[84px]', 'w-[74px]', 'w-[62px]', 'w-[90px]', 'w-[65px]',
+    'w-[64px]', 'w-[60px]', 'w-[107px]', 'w-[76px]', 'w-[65px]', 'w-[65px]',
+];
 
 /**
  * Route /listening: the anime in the library, ranked by how much of each one's
@@ -78,6 +100,7 @@ export function ListeningLibraryScreen() {
     const totalPages = Math.ceil(rows.length / PAGE_SIZE) || 1;
     const shownPage = Math.min(page, totalPages);
     const displayed = rows.slice((shownPage - 1) * PAGE_SIZE, shownPage * PAGE_SIZE);
+    const loaded = index !== null && libraryWords !== null;
 
     return (
         <Page width="narrow">
@@ -89,9 +112,10 @@ export function ListeningLibraryScreen() {
             <VocabularyOnlyNote className="mb-6" />
 
             {failed && <p className="type-support">Could not load the listening library.</p>}
-            {!failed && !index && <p className="type-support">Loading the library...</p>}
 
-            {index && (
+            {/* The filters and the list take their final place from the first frame, so the
+                titles do not jump down when the library arrives. */}
+            {!failed && (
                 <div className="mb-6 space-y-3">
                     <input
                         type="search"
@@ -103,6 +127,9 @@ export function ListeningLibraryScreen() {
                     />
                     <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Genres">
                         <span className="type-label mr-1">Genres</span>
+                        {!loaded && GENRE_PLACEHOLDER_WIDTHS.map((width, i) => (
+                            <span key={i} aria-hidden="true" className={`${width} h-[30px] rounded-md border border-divider animate-pulse`} />
+                        ))}
                         {genres.map(genre => (
                             <FilterToggle key={genre} active={selectedGenres.includes(genre)} onClick={() => { toggleGenre(genre); setPage(1); }}>
                                 {genre}
@@ -114,14 +141,24 @@ export function ListeningLibraryScreen() {
                             </button>
                         )}
                     </div>
-                    <p className="type-meta">
-                        {rows.length} of {index.length} titles
-                        {selectedGenres.length > 0 && ' matching your genres'}
-                    </p>
+                    {index && libraryWords ? (
+                        <p className="type-meta">
+                            {rows.length} of {index.length} titles
+                            {selectedGenres.length > 0 && ' matching your genres'}
+                        </p>
+                    ) : (
+                        <p className="type-meta">Loading the library...</p>
+                    )}
                 </div>
             )}
 
-            <div className="flex flex-col divide-y divide-divider border-y border-divider">
+            {!failed && !loaded && (
+                <div className={LIST_FRAME} aria-hidden="true">
+                    {Array.from({ length: SKELETON_ROWS }, (_, i) => <LibraryRowSkeleton key={i} />)}
+                </div>
+            )}
+
+            {loaded && <div className={LIST_FRAME}>
                 {displayed.map(({ entry, coverage, nextEpisode, watchedCount }) => {
                     const speed = speechSpeedLabel(entry.speechSpeed);
                     const toLearn = coverage.unique.total - coverage.unique.mastered - coverage.unique.learning;
@@ -129,7 +166,7 @@ export function ListeningLibraryScreen() {
                         <Link
                             key={entry.id}
                             to={`/listening/${entry.id}`}
-                            className="flex gap-4 px-2 py-4 rounded-md hover:bg-surface-hover transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                            className={`${ROW_FRAME} hover:bg-surface-hover transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent`}
                         >
                             <MediaCover entry={entry} size="library" className="self-start" />
                             <div className="min-w-0 flex-1">
@@ -169,15 +206,49 @@ export function ListeningLibraryScreen() {
                         </Link>
                     );
                 })}
-            </div>
+            </div>}
 
             <Pagination page={shownPage} totalPages={totalPages} onPageChange={setPage} />
 
-            {index && rows.length === 0 && (
+            {loaded && rows.length === 0 && (
                 <p className="type-support">No title matches. Try other genres or clear the search.</p>
             )}
 
-            {index && <JitenCredit className="mt-8" />}
+            {loaded && <JitenCredit className="mt-8" />}
         </Page>
+    );
+}
+
+/** A grey bar standing in for a line of text, inside an element with that line's type so the row keeps its height. */
+function TextBar({ width }: { width: string }) {
+    return <span className={`inline-block h-[0.75em] ${width} max-w-full rounded-sm bg-divider align-middle animate-pulse`} />;
+}
+
+/** A library row before the library loads: the loaded row's frame, with bars where its text goes. */
+function LibraryRowSkeleton() {
+    return (
+        <div className={ROW_FRAME}>
+            <MediaCoverPlaceholder size="library" className="self-start" />
+            <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                        <p className="font-mincho text-lg"><TextBar width="w-40" /></p>
+                        <p className="type-support"><TextBar width="w-32" /></p>
+                        <p className="type-meta mt-1">
+                            {META_WORD_WIDTHS.map((width, i) => <span key={i}>{i > 0 && ' '}<TextBar width={width} /></span>)}
+                        </p>
+                    </div>
+                    <div className="text-right shrink-0">
+                        <p className="font-sans text-2xl leading-none"><TextBar width="w-10" /></p>
+                        <p className="type-meta mt-1"><TextBar width="w-10" /></p>
+                        <p className="type-meta"><TextBar width="w-[118px]" /></p>
+                    </div>
+                </div>
+
+                <div className="mt-3">
+                    <div className="h-1.5 rounded-full bg-divider animate-pulse" />
+                </div>
+            </div>
+        </div>
     );
 }

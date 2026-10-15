@@ -77,10 +77,12 @@ interface WelcomeScreenProps {
 export function WelcomeScreen({ onSelectBeginner, onSelectLearner }: WelcomeScreenProps) {
     return (
         <div className="min-h-screen flex flex-col items-center justify-center p-4 md:p-8 bg-background relative overflow-hidden transition-colors duration-200">
-            {/* Subtle floating background elements (optional flair) */}
-            <div className="absolute bottom-0 right-0 opacity-[0.04] pointer-events-none select-none text-[30vw] font-mincho text-primary leading-none translate-x-1/4 translate-y-1/4">
-                語感
-            </div>
+            {/* The 語感 watermark. Decoration, drawn by a pseudo-element so it is not text in the
+                DOM: at 4% opacity, contrast checkers would otherwise read it as unreadable copy. */}
+            <div
+                aria-hidden="true"
+                className="absolute bottom-0 right-0 opacity-[0.04] pointer-events-none select-none text-[30vw] font-mincho text-primary leading-none translate-x-1/4 translate-y-1/4 before:content-['語感']"
+            />
 
             <main className="w-full max-w-2xl mx-auto space-y-12 animate-fade-in z-10">
                 {/* Header & Philosophy */}
@@ -102,21 +104,21 @@ export function WelcomeScreen({ onSelectBeginner, onSelectLearner }: WelcomeScre
                             <div className="mx-auto w-8 h-8 rounded-full bg-background border border-divider flex items-center justify-center text-primary">
                                 <BookOpen size={14} />
                             </div>
-                            <h3 className="font-semibold text-primary text-xs">Kanji-aware</h3>
+                            <h2 className="font-semibold text-primary text-xs">Kanji-aware</h2>
                             <p className="text-tertiary text-xs">Only shows words your kanji knowledge can support.</p>
                         </div>
                         <div className="space-y-1 p-3 rounded-md bg-surface border border-divider">
                             <div className="mx-auto w-8 h-8 rounded-full bg-background border border-divider flex items-center justify-center text-primary">
                                 <GraduationCap size={14} />
                             </div>
-                            <h3 className="font-semibold text-primary text-xs">SRS-based</h3>
+                            <h2 className="font-semibold text-primary text-xs">SRS-based</h2>
                             <p className="text-tertiary text-xs">Spaced reviews for reading and meaning, paced to your rhythm.</p>
                         </div>
                         <div className="space-y-1 p-3 rounded-md bg-surface border border-divider">
                             <div className="mx-auto w-8 h-8 rounded-full bg-background border border-divider flex items-center justify-center text-primary">
                                 <Cloud size={14} />
                             </div>
-                            <h3 className="font-semibold text-primary text-xs">Synced</h3>
+                            <h2 className="font-semibold text-primary text-xs">Synced</h2>
                             <p className="text-tertiary text-xs">Progress synced across devices via Google Drive.</p>
                         </div>
                     </div>

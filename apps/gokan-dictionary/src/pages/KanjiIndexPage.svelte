@@ -33,7 +33,7 @@
     is "学, JLPT N5": the level is visually hidden, the character read in Japanese.
   -->
   {#each groups as group (group.level)}
-    <section class="section" id={idOf(group.level)}>
+    <section class="section kanji-level" id={idOf(group.level)} style={`--tiles: ${group.kanji.length}`}>
       <h2>{labelOf(group.level)} <span class="meta">{group.kanji.length}</span></h2>
       <ul class="glyph-grid">
         {#each group.kanji as kanji (kanji.character)}

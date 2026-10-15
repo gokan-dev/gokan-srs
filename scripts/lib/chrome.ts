@@ -53,9 +53,37 @@ export async function launchChrome(): Promise<Chrome> {
         '--headless=new', `--remote-debugging-port=${debugPort}`, `--user-data-dir=${profile}`, '--no-first-run',
         '--no-default-browser-check', '--disable-extensions', '--hide-scrollbars', '--no-sandbox', 'about:blank',
     ], { stdio: 'ignore' });
+    const startup: { error: Error | null } = { error: null };
+    chrome.once('error', error => { startup.error = error; });
 
+    async function cleanUp(): Promise<void> {
+        // Chrome holds its profile until it has exited (on Windows, a moment after the kill).
+        if (chrome.exitCode === null && chrome.signalCode === null) {
+            const exited = new Promise(resolve => chrome.once('exit', resolve));
+            chrome.kill();
+            await Promise.race([exited, sleep(5000)]);
+        }
+        try {
+            rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+        } catch {
+            console.warn(`[chrome] could not remove the temporary profile ${profile}`);
+        }
+    }
+
+    // A cold CI runner can take well over 20 s to bring Chrome up: the old 20 s wait failed the
+    // v1.25.0-rc.2 Lighthouse run with Chrome still starting, on a commit that passed twice (#134).
+    // A Chrome that exits will never answer, so that fails at once instead of after the wait.
+    const deadline = Date.now() + 60_000;
     let socketUrl: string | null = null;
-    for (let attempt = 0; attempt < 80 && !socketUrl; attempt++) {
+    while (!socketUrl) {
+        const failure = startup.error ? `could not start (${startup.error.message})`
+            : chrome.exitCode !== null || chrome.signalCode !== null ? `exited (${chrome.exitCode ?? chrome.signalCode}) before opening its debugging port`
+            : Date.now() > deadline ? 'did not open its debugging port within 60 s'
+            : null;
+        if (failure) {
+            await cleanUp();
+            throw new Error(`Chrome ${failure} (${chromePath}).`);
+        }
         try {
             const version = await (await fetch(`http://127.0.0.1:${debugPort}/json/version`)).json() as { webSocketDebuggerUrl: string };
             socketUrl = version.webSocketDebuggerUrl;
@@ -63,7 +91,6 @@ export async function launchChrome(): Promise<Chrome> {
             await sleep(250);
         }
     }
-    if (!socketUrl) throw new Error(`Chrome did not open its debugging port (${chromePath}).`);
 
     const socket = new WebSocket(socketUrl);
     await new Promise(resolve => socket.addEventListener('open', resolve, { once: true }));
@@ -126,15 +153,7 @@ export async function launchChrome(): Promise<Chrome> {
 
     async function kill(): Promise<void> {
         socket.close();
-        // Chrome holds its profile until it has exited (on Windows, a moment after the kill).
-        const exited = new Promise(resolve => chrome.once('exit', resolve));
-        chrome.kill();
-        await Promise.race([exited, sleep(5000)]);
-        try {
-            rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
-        } catch {
-            console.warn(`[chrome] could not remove the temporary profile ${profile}`);
-        }
+        await cleanUp();
     }
 
     return { debugPort, openTab, kill };

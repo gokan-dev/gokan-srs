@@ -6,6 +6,10 @@ name: "CI: checks"
 
 on:
   push:
+    # Branches only. A tag push ignores path filters, so every rc tag re-ran CI on a commit its
+    # branch had already passed: twice the runs, and a second chance for a flaky runner to show a
+    # red check on the PR (Lighthouse on v1.25.0-rc.2). Deploy: staging builds the tag itself.
+    branches: ['**']
   pull_request:
   workflow_dispatch:
 

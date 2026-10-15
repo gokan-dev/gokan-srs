@@ -101,6 +101,22 @@ const BOXED_GLYPH_FILES = new Set(['apps/gokan-srs/src/components/KanjiTile.tsx'
 const DETAIL_SCREEN = /^apps\/gokan-srs\/src\/pages\/.*DetailScreen\.tsx$/;
 const DETAIL_GRID_FILES = new Set(['apps/gokan-srs/src/components/detail/DetailHeader.tsx', 'apps/gokan-srs/src/components/detail/DetailBody.tsx']);
 
+/**
+ * `p a` underlines a link in running text (index.css). A link alone in a paragraph is not running
+ * text, and would be underlined for good: its wrapper is a `<div>` (DESIGN_SYSTEM.md section 2).
+ */
+const PARAGRAPH_THEN_LINK = /<p\b[^>]*>\s*<(Link|NavLink|a)\b/g;
+
+function linksAloneInParagraphs(text: string): number[] {
+    const lines: number[] = [];
+    for (const m of text.matchAll(PARAGRAPH_THEN_LINK)) {
+        const closing = `</${m[1]}>`;
+        const end = text.indexOf(closing, m.index);
+        if (end >= 0 && /^\s*<\/p>/.test(text.slice(end + closing.length))) lines.push(text.slice(0, m.index).split('\n').length);
+    }
+    return lines;
+}
+
 const SCHEMA_DIR = 'packages/dataset-schema/src';
 const APP_SOURCE = /^apps\/(gokan-srs|gokan-dictionary)\/(src|scripts)\/.*\.(tsx?|svelte)$/;
 
@@ -217,6 +233,12 @@ function check(files: string[]): Violation[] {
         if (GOKAN_SRS_SOURCE.test(file) && !BOXED_GLYPH_FILES.has(file)) {
             eachLine(text, l => BOXED_GLYPH.test(l), line =>
                 add({ file, line, rule: 'glyph-tile', message: 'A glyph in a box is a KanjiTile (components/KanjiTile.tsx): boxed only when it links, plain when it has no page.' }));
+        }
+
+        if (GOKAN_SRS_SOURCE.test(file) && file.endsWith('.tsx')) {
+            for (const line of linksAloneInParagraphs(text)) {
+                add({ file, line, rule: 'link-alone-in-paragraph', message: 'A link alone in a <p> is not running text, but `p a` underlines it for good. Wrap it in a <div>.' });
+            }
         }
 
         if (GOKAN_SRS_SOURCE.test(file) && !DETAIL_GRID_FILES.has(file) && !file.endsWith('.test.tsx')) {

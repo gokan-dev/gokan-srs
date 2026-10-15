@@ -10,7 +10,7 @@ import { ChapterProgressBar } from '../../components/ChapterProgressBar';
 import type { HubChapterStatus } from '../../context/quiz/grammarSelectors';
 import { buildWordKnowledge, formatPercent, knownRatio, rankLibrary } from '../../utils/mediaCoverage.utils';
 import { MediaService } from '../../services/media.service';
-import { MediaCover } from '../listening/listeningShared';
+import { MediaCover, MediaCoverPlaceholder } from '../listening/listeningShared';
 import { Page } from '../../components/Page';
 import { PageHeader } from '../../components/PageHeader';
 import { Button } from '../../components/ui/Button';
@@ -37,12 +37,14 @@ export const MainScreen: React.FC = () => {
     const navigate = useNavigate();
     // The Listening row: the best fits for this learner under their genre filter,
     // the top of the library page's own ranking (rankLibrary), from the same cached
-    // files. Loaded after the hub renders; if either file fails, the row shows
-    // without a best match.
-    const media = useAsyncData('listening-library', async () => {
+    // files. Loaded after the hub renders, the covers' places held meanwhile; if
+    // either file fails, the row shows without a best match.
+    const library = useAsyncData('listening-library', async () => {
         const [index, words] = await Promise.all([MediaService.loadIndex(), MediaService.loadLibraryWords()]);
         return { index, words };
-    }).data;
+    });
+    const media = library.data;
+    const libraryLoading = library.status === 'idle' || library.status === 'loading';
     const now = useNow();
     const ranked = useMemo(() => {
         if (!media || !state.progress) return [];
@@ -97,7 +99,7 @@ export const MainScreen: React.FC = () => {
                             <GrammarQuizSettings />
                         </QuizSettingsMenu>
                     }
-                    details={grammarHubChapter && <GrammarChapterLine hubChapter={grammarHubChapter} />}
+                    details={grammarHubChapter !== null && <GrammarChapterLine hubChapter={grammarHubChapter} />}
                 />
             </div>
 
@@ -116,9 +118,13 @@ export const MainScreen: React.FC = () => {
                         Browse library
                     </Link>
                 </div>
-                {ranked.length > 0 && (
+                {ranked.length > 0 ? (
                     <div className="flex gap-2 shrink-0" aria-hidden="true">
                         {ranked.map(row => <MediaCover key={row.entry.id} entry={row.entry} size="hub" />)}
+                    </div>
+                ) : libraryLoading && (
+                    <div className="flex gap-2 shrink-0" aria-hidden="true">
+                        {[0, 1, 2].map(i => <MediaCoverPlaceholder key={i} size="hub" />)}
                     </div>
                 )}
             </section>
@@ -186,8 +192,23 @@ function ActivityCard({ icon, title, work, nextReviewAt, now, primary, onStart, 
     );
 }
 
-/** "Chapter 14 · Plain verb forms: past and negative", its progress bar and a link to the curriculum. */
-function GrammarChapterLine({ hubChapter }: { hubChapter: HubChapterStatus }) {
+/**
+ * "Chapter 14 · Plain verb forms: past and negative", its progress bar and a link to the curriculum.
+ * Until the chapter has loaded (undefined), placeholders hold the line's place, so the cards
+ * below do not move when it arrives.
+ */
+function GrammarChapterLine({ hubChapter }: { hubChapter: HubChapterStatus | undefined }) {
+    if (!hubChapter) {
+        return (
+            <div className="pt-2 space-y-1.5">
+                <p className="type-meta" aria-hidden="true">
+                    <span className="inline-block w-40 max-w-full h-[1em] align-middle rounded-md bg-divider animate-pulse" />
+                </p>
+                <div className="h-1.5 rounded-full bg-divider" aria-hidden="true" />
+                <CurriculumLink />
+            </div>
+        );
+    }
     return (
         <div className="pt-2 space-y-1.5">
             <p className="type-meta">
@@ -196,9 +217,15 @@ function GrammarChapterLine({ hubChapter }: { hubChapter: HubChapterStatus }) {
                     : `Chapter ${hubChapter.chapterNumber} · ${hubChapter.chapterTitle}`}
             </p>
             {hubChapter.counts.total > 0 && <ChapterProgressBar counts={hubChapter.counts} compact />}
-            <Link to="/grammar/chapters" className="inline-block font-sans text-sm text-accent hover:underline">
-                View curriculum
-            </Link>
+            <CurriculumLink />
         </div>
+    );
+}
+
+function CurriculumLink() {
+    return (
+        <Link to="/grammar/chapters" className="inline-block font-sans text-sm text-accent hover:underline">
+            View curriculum
+        </Link>
     );
 }

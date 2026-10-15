@@ -1,5 +1,13 @@
 import { defineConfig } from 'vite'
 import { fileURLToPath } from 'node:url'
+import { deprecations, type Deprecations } from 'sass'
+
+// Every deprecation Sass currently warns about. `Deprecations` has no index signature, so
+// `Object.values` would type it as `any[]`; the keys are narrowed instead.
+const activeDeprecations = Object.keys(deprecations)
+  .filter((id): id is keyof Deprecations => id in deprecations)
+  .map(id => deprecations[id])
+  .filter(deprecation => deprecation.status === 'active')
 
 // This app has no client-side router, SPA shell or client-side Svelte: the pages are static HTML
 // written by scripts/prerender.ts (a standalone Bun script that compiles the page components
@@ -14,6 +22,13 @@ export default defineConfig({
   // Relative asset URLs inside the CSS (the web font) and between scripts, so the build works
   // under any BASE_PATH (/dictionary on the shared host, '' on a subdomain).
   base: './',
+  css: {
+    preprocessorOptions: {
+      // A deprecation fails the build instead of warning: a warning scrolls past in CI (slash
+      // division did, #134) and becomes an error at Sass's next major release.
+      scss: { fatalDeprecations: activeDeprecations },
+    },
+  },
   build: {
     outDir: 'dist',
     manifest: true,

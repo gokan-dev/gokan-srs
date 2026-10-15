@@ -7,19 +7,27 @@
  *
  * The gate the dictionary exists for: SEO at 100 on every dictionary page and the SRS welcome,
  * failing the job below it. The dictionary also holds accessibility and best practices at a floor
- * taken from the first baseline and only ever raised (DICTIONARY_FLOORS). The hub and anime list
- * are recorded, not gated: they are image-heavy (cover art from AniList's CDN) and measured to
- * track that cost. Performance is recorded everywhere, never floored, since a local build has none
- * of production's CDN compression or caching. Each category is the median of LH_RUNS runs (one by
- * default); raise LH_RUNS to smooth performance's run-to-run noise.
+ * taken from the first baseline and only ever raised (DICTIONARY_FLOORS). Every SRS page holds
+ * accessibility at 1.00 (SRS_FLOORS, SRS_ONBOARDED_FLOORS); the hub and anime list are otherwise
+ * recorded: they are image-heavy (cover art from AniList's CDN) and measured to track that cost.
+ * Files are brotli-compressed as CloudFront serves them (scripts/lib/builtSite.ts).
+ * Performance is recorded everywhere, never floored: it still moves between runs.
+ *
+ * Every SRS run is also read for its network list (`network-requests`): no dataset file is
+ * downloaded twice in one page load (the loaders share one in-flight request, `RequestCache` in
+ * services/http.ts), and the anime list asks for its own files before the study flow's background
+ * loads (`PageRenderedSignal`, inside the routes' Suspense boundary). Both fail the job on any run. Each category is
+ * the median of a page's runs (SRS_RUNS, DICTIONARY_RUNS), and the report kept is the run with the
+ * median performance.
  *
  * Usage: build both apps (`bun run build`, `bun run dictionary:build`), then
  * `bun run check:lighthouse`. Needs Chrome (found like scripts/lib/chrome.ts) and runs Lighthouse
- * (the pinned devDependency) under `node`, so Node must be on PATH. LH_RUNS, LH_FORM_FACTORS and LH_ONLY (a label substring)
- * tune a local run. Run by CI (.github/workflows/ci-lighthouse.yml), which keeps the reports.
+ * (the pinned devDependency) under `node`, so Node must be on PATH. LH_RUNS (runs for every page),
+ * LH_FORM_FACTORS and LH_ONLY (a label substring) tune a local run. Run by CI
+ * (.github/workflows/ci-lighthouse.yml), which keeps the reports.
  */
 import { spawn } from 'node:child_process';
-import { mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildMissing, dictionaryPages, serveBoth } from './lib/builtSite';
 import { launchChrome, type Chrome } from './lib/chrome';
@@ -31,7 +39,14 @@ type Category = (typeof CATEGORIES)[number];
 const FORM_FACTORS = ['mobile', 'desktop'] as const;
 type FormFactor = (typeof FORM_FACTORS)[number];
 
-const RUNS = Number(process.env.LH_RUNS ?? '1');
+/**
+ * Runs per page. The SRS pages' performance moved by up to 20 points between single runs of the
+ * same code (the welcome page scored 64, then 83), so they take the median of three; the
+ * dictionary's static pages hold within a point or two and take one (#134).
+ */
+const SRS_RUNS = 3;
+const DICTIONARY_RUNS = 1;
+const RUNS_OVERRIDE = process.env.LH_RUNS === undefined ? null : Number(process.env.LH_RUNS);
 const ACTIVE_FORM_FACTORS: readonly FormFactor[] = (process.env.LH_FORM_FACTORS?.split(',') ?? FORM_FACTORS)
     .map(value => value.trim())
     .filter((value): value is FormFactor => (FORM_FACTORS as readonly string[]).includes(value));
@@ -41,14 +56,15 @@ const ONLY = process.env.LH_ONLY?.trim();
 const SEO_FLOOR = 1;
 /**
  * Floors per page, read off the first green baseline and only ever raised. A category absent here
- * is recorded but not gated (performance, everywhere; accessibility and best practices on the SRS
- * pages). The dictionary holds accessibility at 1.00 on every page type since links in running
- * text gained an underline (gokan-dev/gokan-srs#128, "links distinguishable by colour alone").
+ * is recorded but not gated (performance, everywhere; best practices on the SRS pages). The
+ * dictionary holds accessibility at 1.00 on every page type since links in running text gained an
+ * underline (gokan-dev/gokan-srs#128, "links distinguishable by colour alone"); the SRS pages since
+ * the app's did too, and the welcome page's headings and watermark were fixed (#134).
  */
 const DICTIONARY_FLOORS: Partial<Record<Category, number>> = { seo: SEO_FLOOR, accessibility: 1, 'best-practices': 1 };
-const SRS_FLOORS: Partial<Record<Category, number>> = { seo: SEO_FLOOR };
-/** The onboarded SRS pages (hub, anime list) are recorded, not gated: see the header. */
-const RECORDED_ONLY: Partial<Record<Category, number>> = {};
+const SRS_FLOORS: Partial<Record<Category, number>> = { seo: SEO_FLOOR, accessibility: 1 };
+/** The onboarded SRS pages (hub, anime list): accessibility only, see the header. */
+const SRS_ONBOARDED_FLOORS: Partial<Record<Category, number>> = { accessibility: 1 };
 
 const REPORT_DIR = join(process.cwd(), 'lighthouse-report');
 
@@ -59,7 +75,7 @@ function fail(message: string): never {
 
 const missing = buildMissing();
 if (missing) fail(missing);
-if (!Number.isInteger(RUNS) || RUNS < 1) fail(`LH_RUNS must be a positive integer, got "${process.env.LH_RUNS}".`);
+if (RUNS_OVERRIDE !== null && (!Number.isInteger(RUNS_OVERRIDE) || RUNS_OVERRIDE < 1)) fail(`LH_RUNS must be a positive integer, got "${process.env.LH_RUNS}".`);
 if (ACTIVE_FORM_FACTORS.length === 0) fail(`LH_FORM_FACTORS named no known form factor (${FORM_FACTORS.join(', ')}).`);
 
 // -- Reading a Lighthouse report without trusting its shape --------------------------------------
@@ -86,6 +102,21 @@ function failedAudits(report: Record<string, unknown>, category: Category): stri
         }
     }
     return names;
+}
+
+/** A request's path and when the page issued it (ms), from the `network-requests` audit. */
+interface NetworkRequest { path: string; startTime: number }
+
+function networkRequests(report: Record<string, unknown>): NetworkRequest[] {
+    const items = asRecord(asRecord(asRecord(report.audits)['network-requests']).details).items;
+    const requests: NetworkRequest[] = [];
+    for (const itemValue of Array.isArray(items) ? items : []) {
+        const item = asRecord(itemValue);
+        if (typeof item.url !== 'string' || typeof item.rendererStartTime !== 'number') continue;
+        // The path alone: the `?v=` dataset version is the same file.
+        requests.push({ path: new URL(item.url).pathname, startTime: item.rendererStartTime });
+    }
+    return requests;
 }
 
 function median(values: number[]): number {
@@ -123,7 +154,33 @@ function runLighthouse(url: string, formFactor: FormFactor, outPath: string, por
 
 const slug = (label: string) => label.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase();
 
-interface Target { url: string; label: string; floors: Partial<Record<Category, number>>; mode: 'cold' | 'onboarded' }
+/**
+ * One report per page and form factor, under its plain name (`<base>.json`): the run whose
+ * performance is the median, so the report a reader opens shows the figure the table printed.
+ * The other runs' files are removed.
+ */
+function keepMedianReport(base: string, runs: Record<string, unknown>[], medianPerformance: number | null): void {
+    const distance = (report: Record<string, unknown>) => Math.abs((categoryScore(report, 'performance') ?? 0) - (medianPerformance ?? 0));
+    const kept = runs.reduce((best, report, index) => (distance(report) < distance(runs[best]) ? index : best), 0);
+    for (let index = 0; index < runs.length; index++) {
+        const path = `${base}.run${index + 1}.json`;
+        if (index === kept) renameSync(path, `${base}.json`);
+        else rmSync(path, { force: true });
+    }
+}
+
+/** Dataset files sit under this path (`datasetUrl()` in apps/gokan-srs/src/services/http.ts). */
+const DATASET_PREFIX = '/data/compiled/';
+
+/** Files a page needs (`first`) issued before a file only the study flow's background loads need (`then`). */
+interface LoadOrder { first: string[]; then: string }
+
+interface Target {
+    url: string; label: string; floors: Partial<Record<Category, number>>; mode: 'cold' | 'onboarded'; runs: number;
+    /** SRS pages: each dataset file is requested at most once per page load. */
+    singleDownloads?: true;
+    loadOrder?: LoadOrder;
+}
 interface Result { target: Target; formFactor: FormFactor; scores: Record<Category, number | null>; reports: Record<string, unknown>[] }
 
 /**
@@ -145,11 +202,16 @@ async function seedOnboarding(chrome: Chrome, origin: string): Promise<void> {
 async function main(): Promise<void> {
     const { server, port } = await serveBoth();
     const origin = `http://127.0.0.1:${port}`;
+    const srsRuns = RUNS_OVERRIDE ?? SRS_RUNS;
+    const dictionaryRuns = RUNS_OVERRIDE ?? DICTIONARY_RUNS;
     const allTargets: Target[] = [
-        { url: `${origin}/`, label: 'srs welcome', floors: SRS_FLOORS, mode: 'cold' },
-        ...dictionaryPages().map(page => ({ url: `${origin}/dictionary${page.path}`, label: `dictionary ${page.path}`, floors: DICTIONARY_FLOORS, mode: 'cold' as const })),
-        { url: `${origin}/`, label: 'srs hub', floors: RECORDED_ONLY, mode: 'onboarded' },
-        { url: `${origin}/listening`, label: 'srs anime list', floors: RECORDED_ONLY, mode: 'onboarded' },
+        { url: `${origin}/`, label: 'srs welcome', floors: SRS_FLOORS, mode: 'cold', runs: srsRuns, singleDownloads: true },
+        ...dictionaryPages().map(page => ({ url: `${origin}/dictionary${page.path}`, label: `dictionary ${page.path}`, floors: DICTIONARY_FLOORS, mode: 'cold' as const, runs: dictionaryRuns })),
+        { url: `${origin}/`, label: 'srs hub', floors: SRS_ONBOARDED_FLOORS, mode: 'onboarded', runs: srsRuns, singleDownloads: true },
+        {
+            url: `${origin}/listening`, label: 'srs anime list', floors: SRS_ONBOARDED_FLOORS, mode: 'onboarded', runs: srsRuns, singleDownloads: true,
+            loadOrder: { first: ['media/index.json', 'media/library.json'], then: 'index/frequency.json' },
+        },
     ];
     const targets = ONLY ? allTargets.filter(target => target.label.includes(ONLY)) : allTargets;
     if (targets.length === 0) fail(`LH_ONLY="${ONLY}" matched no target.`);
@@ -171,13 +233,14 @@ async function main(): Promise<void> {
                     if (!chrome) fail('onboarded target reached without a seeded browser');
                     onboardedPort = chrome.debugPort;
                 }
-                const outPath = join(REPORT_DIR, `${slug(target.label)}.${formFactor}.json`);
+                const base = join(REPORT_DIR, `${slug(target.label)}.${formFactor}`);
                 const runs: Record<string, unknown>[] = [];
-                for (let run = 0; run < RUNS; run++) runs.push(await runLighthouse(target.url, formFactor, outPath, onboardedPort));
+                for (let run = 0; run < target.runs; run++) runs.push(await runLighthouse(target.url, formFactor, `${base}.run${run + 1}.json`, onboardedPort));
                 const scores = Object.fromEntries(CATEGORIES.map(category => {
                     const values = runs.map(report => categoryScore(report, category)).filter((v): v is number => v !== null);
                     return [category, values.length ? median(values) : null];
                 })) as Record<Category, number | null>;
+                keepMedianReport(base, runs, scores.performance);
                 results.push({ target, formFactor, scores, reports: runs });
             }
         }
@@ -191,16 +254,41 @@ async function main(): Promise<void> {
 
 // -- The verdict ---------------------------------------------------------------------------------
 
+/** What a run's network list breaks of its target's rules, one line per problem. */
+function networkFailures(target: Target, report: Record<string, unknown>): string[] {
+    const requests = networkRequests(report);
+    const failures: string[] = [];
+    if (target.singleDownloads) {
+        const counts = new Map<string, number>();
+        for (const { path } of requests) {
+            if (path.startsWith(DATASET_PREFIX)) counts.set(path, (counts.get(path) ?? 0) + 1);
+        }
+        for (const [path, count] of counts) {
+            if (count > 1) failures.push(`${path} requested ${count} times in one page load`);
+        }
+    }
+    if (target.loadOrder) {
+        const startOf = (file: string) => requests.find(request => request.path === `${DATASET_PREFIX}${file}`)?.startTime;
+        const then = startOf(target.loadOrder.then);
+        for (const file of target.loadOrder.first) {
+            const start = startOf(file);
+            if (start === undefined) failures.push(`${file} was never requested`);
+            else if (then !== undefined && start > then) failures.push(`${file} issued after ${target.loadOrder.then}`);
+        }
+    }
+    return failures;
+}
+
 const asPercent = (score: number | null) => (score === null ? '  -' : `${Math.round(score * 100)}`.padStart(3));
 
 function report(results: Result[]): void {
     const failures: string[] = [];
     for (const formFactor of ACTIVE_FORM_FACTORS) {
-        console.log(`\n[check-lighthouse] ${formFactor}, median of ${RUNS} run(s)   perf  a11y   bp  seo`);
-        for (const { target, formFactor: ff, scores } of results) {
+        console.log(`\n[check-lighthouse] ${formFactor}, median of each page's runs  perf  a11y   bp  seo  runs`);
+        for (const { target, formFactor: ff, scores, reports } of results) {
             if (ff !== formFactor) continue;
             const row = CATEGORIES.map(category => asPercent(scores[category])).join('  ');
-            console.log(`  ${target.label.padEnd(34)} ${row}`);
+            console.log(`  ${target.label.padEnd(34)} ${row}  ${String(reports.length).padStart(4)}`);
         }
     }
 
@@ -217,11 +305,17 @@ function report(results: Result[]): void {
         }
     }
 
+    for (const { target, formFactor, reports } of results) {
+        reports.forEach((report, run) => {
+            for (const problem of networkFailures(target, report)) failures.push(`${formFactor} ${target.label}, run ${run + 1}: ${problem}`);
+        });
+    }
+
     if (failures.length) {
         for (const failure of failures) console.error(`[check-lighthouse] ${failure}`);
-        fail(`${failures.length} audit(s) below floor. Reports in ${REPORT_DIR}. Fix the page, never the check (SEO stays at 100).`);
+        fail(`${failures.length} problem(s): audits below floor or dataset requests out of rule. Reports in ${REPORT_DIR}. Fix the page, never the check (SEO stays at 100).`);
     }
-    console.log(`\n[check-lighthouse] ${results.length} page-runs clean: SEO 100, accessibility and best practices at or above baseline. Reports in ${REPORT_DIR}.`);
+    console.log(`\n[check-lighthouse] ${results.length} page-runs clean: SEO 100, accessibility and best practices at or above baseline, each dataset file downloaded once. Reports in ${REPORT_DIR}.`);
 }
 
 await main();

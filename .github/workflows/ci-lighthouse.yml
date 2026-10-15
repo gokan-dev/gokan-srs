@@ -1,7 +1,7 @@
-# Lighthouse over both production builds, served locally the way CloudFront serves them
-# (scripts/check-lighthouse.ts). The gate the dictionary exists for: SEO at 100 on every page
-# type, on mobile and desktop. Accessibility and best practices are held at a floor; performance
-# is recorded, not gated (a local build has none of production's CDN compression or caching).
+# Lighthouse over both production builds, served locally the way CloudFront serves them, brotli
+# included (scripts/check-lighthouse.ts). The gate the dictionary exists for: SEO at 100 on every
+# page type, on mobile and desktop. Accessibility and best practices are held at a floor;
+# performance is recorded, not gated (it moves between runs; the SRS pages take a median of 3).
 # A local build is deterministic, so this runs per PR, like ci-layout.yml: SEO, accessibility and
 # best practices are the same markup here as on the CDN. The runner image ships Google Chrome.
 
@@ -9,6 +9,7 @@ name: "CI: Lighthouse"
 
 on:
   push:
+    branches: ['**']   # not rc tags: their commit was checked on its branch (see ci.yml)
     paths:
       - 'apps/**'
       - 'packages/**'

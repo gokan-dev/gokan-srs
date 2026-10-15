@@ -46,6 +46,12 @@ Rules that follow from the table:
 
 - Text in `text-accent` is always a link or an action. A plain-text or chip usage of
   accent is a bug: fix the colour, not the rule.
+- A link in running text (any `<a>` inside a `<p>`) is also underlined, so it is never
+  told apart from the words around it by colour alone (one base rule, `p a`, in
+  `index.css`, as in the dictionary, #128; a utility on the link still wins). Rows, cards,
+  tabs and buttons are links by their shape and do not sit in a paragraph; nor does a link
+  standing alone on its line (a grammar point's chapter link), which is wrapped in a `<div>`
+  and underlined on hover only (`check:conventions`, `link-alone-in-paragraph`).
 - Correct and incorrect answers use the feedback pair everywhere an answer result is
   shown (quiz feedback and blanks, the session ticker and counter, the hub week chart,
   daily activity, review history, `StackedBarChart` series), always with a second cue
@@ -98,8 +104,9 @@ resolving to nothing. Map an old usage to `primary` (glosses, body copy that was
 
 ## 3. Typography
 
-**Fonts** (loaded in `main.tsx`): Inter (400/500/600) and Noto Sans JP (400/500) from
-Google Fonts, plus Source Serif 4 and Noto Serif JP. Sawarabi Gothic is gone (it has no
+**Fonts** (one Google Fonts stylesheet, preloaded from `index.html` so it starts with the
+page and blocks neither the first paint nor the app's script; `display=swap`): Inter
+(400/500/600) and Noto Sans JP (400/500), plus Source Serif 4 and Noto Serif JP. Sawarabi Gothic is gone (it has no
 weight but 400, so every `font-semibold`/`font-bold` on it used to be synthesized by the
 browser).
 
@@ -375,10 +382,14 @@ per dictionary type and the SRS welcome page, plus the SRS hub and anime list re
 onboarding seeded, on mobile and desktop. SEO must be 100 on every dictionary page and the SRS
 welcome, failing the job below it, because a crawlable dictionary is the point. The dictionary
 also holds accessibility and best practices at a floor taken from the first baseline and only
-ever raised (both 1.00 today). The hub and anime list are recorded, not gated: they are
-image-heavy (AniList cover art) and measured to track that cost (#129). Performance is recorded
-everywhere, not gated, since a local build has none of production's CDN compression or caching.
-A new dictionary page type is added to the shared `dictionaryPages()` list
+ever raised (both 1.00 today), and every SRS page (welcome, hub, anime list) holds
+accessibility at 1.00 (#134). Every SRS run's network list is also checked: no dataset file
+is downloaded twice in one page load, and the anime list asks for its own files before the
+study flow's background loads. The hub and anime list are otherwise recorded: they are
+image-heavy (AniList cover art) and measured to track that cost (#129). The local server
+brotli-compresses text files as CloudFront does, so the bytes Lighthouse times are the bytes a
+visitor downloads. Performance is recorded everywhere, not gated, since it still moves between
+runs: the SRS pages take the median of three runs, the dictionary pages one. A new dictionary page type is added to the shared `dictionaryPages()` list
 (`scripts/lib/builtSite.ts`), which `check-layout` measures too.
 
 A red check here is never fixed by relaxing the rule; fix the code, or change this
