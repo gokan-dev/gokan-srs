@@ -11,7 +11,12 @@
  * accessibility at 1.00 (SRS_FLOORS, SRS_ONBOARDED_FLOORS); the hub and anime list are otherwise
  * recorded: they are image-heavy (cover art from AniList's CDN) and measured to track that cost.
  * Files are brotli-compressed as CloudFront serves them (scripts/lib/builtSite.ts).
- * Performance is recorded everywhere, never floored: it still moves between runs. Each category is
+ * Performance is recorded everywhere, never floored: it still moves between runs.
+ *
+ * Every SRS run is also read for its network list (`network-requests`): no dataset file is
+ * downloaded twice in one page load (the loaders share one in-flight request, `RequestCache` in
+ * services/http.ts), and the anime list asks for its own files before the study flow's background
+ * loads (`PageRenderedSignal`, inside the routes' Suspense boundary). Both fail the job on any run. Each category is
  * the median of a page's runs (SRS_RUNS, DICTIONARY_RUNS), and the report kept is the run with the
  * median performance.
  *
@@ -99,6 +104,21 @@ function failedAudits(report: Record<string, unknown>, category: Category): stri
     return names;
 }
 
+/** A request's path and when the page issued it (ms), from the `network-requests` audit. */
+interface NetworkRequest { path: string; startTime: number }
+
+function networkRequests(report: Record<string, unknown>): NetworkRequest[] {
+    const items = asRecord(asRecord(asRecord(report.audits)['network-requests']).details).items;
+    const requests: NetworkRequest[] = [];
+    for (const itemValue of Array.isArray(items) ? items : []) {
+        const item = asRecord(itemValue);
+        if (typeof item.url !== 'string' || typeof item.rendererStartTime !== 'number') continue;
+        // The path alone: the `?v=` dataset version is the same file.
+        requests.push({ path: new URL(item.url).pathname, startTime: item.rendererStartTime });
+    }
+    return requests;
+}
+
 function median(values: number[]): number {
     const sorted = [...values].sort((a, b) => a - b);
     const mid = Math.floor(sorted.length / 2);
@@ -149,7 +169,18 @@ function keepMedianReport(base: string, runs: Record<string, unknown>[], medianP
     }
 }
 
-interface Target { url: string; label: string; floors: Partial<Record<Category, number>>; mode: 'cold' | 'onboarded'; runs: number }
+/** Dataset files sit under this path (`datasetUrl()` in apps/gokan-srs/src/services/http.ts). */
+const DATASET_PREFIX = '/data/compiled/';
+
+/** Files a page needs (`first`) issued before a file only the study flow's background loads need (`then`). */
+interface LoadOrder { first: string[]; then: string }
+
+interface Target {
+    url: string; label: string; floors: Partial<Record<Category, number>>; mode: 'cold' | 'onboarded'; runs: number;
+    /** SRS pages: each dataset file is requested at most once per page load. */
+    singleDownloads?: true;
+    loadOrder?: LoadOrder;
+}
 interface Result { target: Target; formFactor: FormFactor; scores: Record<Category, number | null>; reports: Record<string, unknown>[] }
 
 /**
@@ -174,10 +205,13 @@ async function main(): Promise<void> {
     const srsRuns = RUNS_OVERRIDE ?? SRS_RUNS;
     const dictionaryRuns = RUNS_OVERRIDE ?? DICTIONARY_RUNS;
     const allTargets: Target[] = [
-        { url: `${origin}/`, label: 'srs welcome', floors: SRS_FLOORS, mode: 'cold', runs: srsRuns },
+        { url: `${origin}/`, label: 'srs welcome', floors: SRS_FLOORS, mode: 'cold', runs: srsRuns, singleDownloads: true },
         ...dictionaryPages().map(page => ({ url: `${origin}/dictionary${page.path}`, label: `dictionary ${page.path}`, floors: DICTIONARY_FLOORS, mode: 'cold' as const, runs: dictionaryRuns })),
-        { url: `${origin}/`, label: 'srs hub', floors: SRS_ONBOARDED_FLOORS, mode: 'onboarded', runs: srsRuns },
-        { url: `${origin}/listening`, label: 'srs anime list', floors: SRS_ONBOARDED_FLOORS, mode: 'onboarded', runs: srsRuns },
+        { url: `${origin}/`, label: 'srs hub', floors: SRS_ONBOARDED_FLOORS, mode: 'onboarded', runs: srsRuns, singleDownloads: true },
+        {
+            url: `${origin}/listening`, label: 'srs anime list', floors: SRS_ONBOARDED_FLOORS, mode: 'onboarded', runs: srsRuns, singleDownloads: true,
+            loadOrder: { first: ['media/index.json', 'media/library.json'], then: 'index/frequency.json' },
+        },
     ];
     const targets = ONLY ? allTargets.filter(target => target.label.includes(ONLY)) : allTargets;
     if (targets.length === 0) fail(`LH_ONLY="${ONLY}" matched no target.`);
@@ -220,6 +254,31 @@ async function main(): Promise<void> {
 
 // -- The verdict ---------------------------------------------------------------------------------
 
+/** What a run's network list breaks of its target's rules, one line per problem. */
+function networkFailures(target: Target, report: Record<string, unknown>): string[] {
+    const requests = networkRequests(report);
+    const failures: string[] = [];
+    if (target.singleDownloads) {
+        const counts = new Map<string, number>();
+        for (const { path } of requests) {
+            if (path.startsWith(DATASET_PREFIX)) counts.set(path, (counts.get(path) ?? 0) + 1);
+        }
+        for (const [path, count] of counts) {
+            if (count > 1) failures.push(`${path} requested ${count} times in one page load`);
+        }
+    }
+    if (target.loadOrder) {
+        const startOf = (file: string) => requests.find(request => request.path === `${DATASET_PREFIX}${file}`)?.startTime;
+        const then = startOf(target.loadOrder.then);
+        for (const file of target.loadOrder.first) {
+            const start = startOf(file);
+            if (start === undefined) failures.push(`${file} was never requested`);
+            else if (then !== undefined && start > then) failures.push(`${file} issued after ${target.loadOrder.then}`);
+        }
+    }
+    return failures;
+}
+
 const asPercent = (score: number | null) => (score === null ? '  -' : `${Math.round(score * 100)}`.padStart(3));
 
 function report(results: Result[]): void {
@@ -246,11 +305,17 @@ function report(results: Result[]): void {
         }
     }
 
+    for (const { target, formFactor, reports } of results) {
+        reports.forEach((report, run) => {
+            for (const problem of networkFailures(target, report)) failures.push(`${formFactor} ${target.label}, run ${run + 1}: ${problem}`);
+        });
+    }
+
     if (failures.length) {
         for (const failure of failures) console.error(`[check-lighthouse] ${failure}`);
-        fail(`${failures.length} audit(s) below floor. Reports in ${REPORT_DIR}. Fix the page, never the check (SEO stays at 100).`);
+        fail(`${failures.length} problem(s): audits below floor or dataset requests out of rule. Reports in ${REPORT_DIR}. Fix the page, never the check (SEO stays at 100).`);
     }
-    console.log(`\n[check-lighthouse] ${results.length} page-runs clean: SEO 100, accessibility and best practices at or above baseline. Reports in ${REPORT_DIR}.`);
+    console.log(`\n[check-lighthouse] ${results.length} page-runs clean: SEO 100, accessibility and best practices at or above baseline, each dataset file downloaded once. Reports in ${REPORT_DIR}.`);
 }
 
 await main();
