@@ -49,7 +49,9 @@ Rules that follow from the table:
 - A link in running text (any `<a>` inside a `<p>`) is also underlined, so it is never
   told apart from the words around it by colour alone (one base rule, `p a`, in
   `index.css`, as in the dictionary, #128; a utility on the link still wins). Rows, cards,
-  tabs and buttons are links by their shape and do not sit in a paragraph.
+  tabs and buttons are links by their shape and do not sit in a paragraph; nor does a link
+  standing alone on its line (a grammar point's chapter link), which is wrapped in a `<div>`
+  and underlined on hover only (`check:conventions`, `link-alone-in-paragraph`).
 - Correct and incorrect answers use the feedback pair everywhere an answer result is
   shown (quiz feedback and blanks, the session ticker and counter, the hub week chart,
   daily activity, review history, `StackedBarChart` series), always with a second cue
@@ -381,7 +383,9 @@ onboarding seeded, on mobile and desktop. SEO must be 100 on every dictionary pa
 welcome, failing the job below it, because a crawlable dictionary is the point. The dictionary
 also holds accessibility and best practices at a floor taken from the first baseline and only
 ever raised (both 1.00 today), and every SRS page (welcome, hub, anime list) holds
-accessibility at 1.00 (#134). The hub and anime list are otherwise recorded: they are
+accessibility at 1.00 (#134). Every SRS run's network list is also checked: no dataset file
+is downloaded twice in one page load, and the anime list asks for its own files before the
+study flow's background loads. The hub and anime list are otherwise recorded: they are
 image-heavy (AniList cover art) and measured to track that cost (#129). The local server
 brotli-compresses text files as CloudFront does, so the bytes Lighthouse times are the bytes a
 visitor downloads. Performance is recorded everywhere, not gated, since it still moves between
