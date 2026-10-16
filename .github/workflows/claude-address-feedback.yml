@@ -116,13 +116,26 @@ jobs:
       - name: Let the dataset submodule push
         env:
           AGENT_GITHUB_TOKEN: ${{ secrets.AGENT_GITHUB_TOKEN }}
+          DATASET: apps/gokan-srs/dataset
+          KEY: http.https://github.com/.extraheader
         run: |
           if [ -z "$AGENT_GITHUB_TOKEN" ]; then
-            echo "AGENT_GITHUB_TOKEN is not set: dataset pushes will fail."
+            echo "::warning::AGENT_GITHUB_TOKEN is not set: the agent cannot push dataset changes."
             exit 0
           fi
+          # The checkout's header sits in the submodule's config or, in newer checkouts, in a file
+          # that config includes. Git would send both Authorization headers, so it goes everywhere.
+          git -C "$DATASET" config --local --get-regexp '^include(if\..+)?\.path$' 2>/dev/null | while read -r _ file; do
+            git config --file "$file" --unset-all "$KEY" || true
+          done
+          git -C "$DATASET" config --local --unset-all "$KEY" || true
           auth="$(printf 'x-access-token:%s' "$AGENT_GITHUB_TOKEN" | base64 -w0)"
-          git -C apps/gokan-srs/dataset config --local http.https://github.com/.extraheader "AUTHORIZATION: basic $auth"
+          git -C "$DATASET" config --local "$KEY" "AUTHORIZATION: basic $auth"
+          # A dry run asks GitHub for push access and pushes nothing: a refusal shows in the run
+          # summary instead of as a 403 in the middle of the agent's work.
+          if ! git -C "$DATASET" push --dry-run --quiet origin HEAD:refs/heads/push-access-check; then
+            echo "::warning::gokan-dataset refused AGENT_GITHUB_TOKEN for a push: the agent cannot push dataset changes."
+          fi
 
       - name: Run Claude
         uses: anthropics/claude-code-action@v1
@@ -159,8 +172,12 @@ jobs:
             remote has moved past what's currently pointed at - merging gokan-srs's own
             `main` does NOT do this automatically: `git -C apps/gokan-srs/dataset fetch
             origin main && git -C apps/gokan-srs/dataset log HEAD..origin/main --oneline`.
-            If that shows anything relevant to this PR's changes, bump the submodule
-            pointer (`git -C apps/gokan-srs/dataset checkout origin/main && git add
+            If that shows anything relevant to this PR's changes, bring it in. When this
+            PR has its own dataset branch (the pointer holds commits that are not on the
+            dataset's `main`), merge `origin/main` into that branch inside the submodule,
+            push it, and commit the new pointer: checking out `origin/main` would drop
+            this PR's dataset commits. Otherwise bump the pointer (`git -C
+            apps/gokan-srs/dataset checkout origin/main && git add
             apps/gokan-srs/dataset`) and commit it. Re-run `bun run check`/
             `build` after any merge/bump.
 
