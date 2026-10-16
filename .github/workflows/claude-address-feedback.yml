@@ -125,7 +125,11 @@ jobs:
           fi
           # The checkout's header sits in the submodule's config or, in newer checkouts, in a file
           # that config includes. Git would send both Authorization headers, so it goes everywhere.
-          git -C "$DATASET" config --local --get-regexp '^include(if\..+)?\.path$' 2>/dev/null | while read -r _ file; do
+          # That included file can be shared with gokan-srs itself, whose GITHUB_TOKEN header then
+          # goes too: harmless while claude-code-action replaces gokan-srs's credentials, but a
+          # step after this one cannot rely on the checkout's auth. `|| true`: no include is not
+          # an error, whatever the shell's pipefail.
+          { git -C "$DATASET" config --local --get-regexp '^include(if\..+)?\.path$' 2>/dev/null || true; } | while read -r _ file; do
             git config --file "$file" --unset-all "$KEY" || true
           done
           git -C "$DATASET" config --local --unset-all "$KEY" || true
