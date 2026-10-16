@@ -145,10 +145,9 @@ export function srsRoutes(): { path: string; ready: string }[] {
  */
 export function listeningTitlesToMark(): [completed: string, watching: string] {
     const index: unknown = JSON.parse(readFileSync(join(SRS_DIST, 'data/compiled/media/index.json'), 'utf-8'));
-    const ids = (Array.isArray(index) ? index : [])
-        .map((entry: unknown) => (typeof entry === 'object' && entry !== null && 'id' in entry && 'episodeCount' in entry ? entry : null))
-        .filter(entry => entry !== null && typeof entry.id === 'string' && typeof entry.episodeCount === 'number' && entry.episodeCount > 1)
-        .map(entry => String(entry?.id));
+    const ids = (Array.isArray(index) ? index : []).flatMap((entry: unknown) =>
+        typeof entry === 'object' && entry !== null && 'id' in entry && typeof entry.id === 'string'
+            && 'episodeCount' in entry && typeof entry.episodeCount === 'number' && entry.episodeCount > 1 ? [entry.id] : []);
     if (ids.length < 2) throw new Error('The listening library has fewer than two titles of several episodes.');
     return [ids[0], ids[1]];
 }
