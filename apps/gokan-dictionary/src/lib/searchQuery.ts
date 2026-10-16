@@ -6,7 +6,7 @@
 // and hiragana compared as equal), as romaji converted to kana ("taberu"), as a conjugated form
 // (食べた, through conjugation.ts) and as English against the glosses.
 
-import { looksLikeRomaji, romajiToHiragana, toHiragana } from '@gokan/dataset-schema';
+import { looksLikeRomaji, romajiReadingPrefixes, romajiToHiragana, toHiragana } from '@gokan/dataset-schema';
 import { deinflect, type WordClass } from './conjugation';
 import { fromColumns, wordClassOfRow } from './searchIndex';
 import { isCommonRow, readingOfRow } from './searchRow';
@@ -27,7 +27,8 @@ export const TIER = {
     /** The query as a whole word in the gloss. */
     glossWord: 6,
     /**
-     * The reading starts with the romaji's kana. After the English tiers: a Latin query that
+     * The reading starts with the romaji's kana, its last syllable possibly unfinished
+     * (romajiReadingPrefixes: "taber" for たべる). After the English tiers: a Latin query that
      * converts is more often an English word ("house", read ほうせ) than the start of a reading.
      */
     romajiPrefix: 7,
@@ -144,8 +145,11 @@ export function search(index: PreparedIndex, raw: string): SearchResults {
 
     const queryKana = toHiragana(query);
     const japanese = JAPANESE.test(query);
-    const converted = looksLikeRomaji(query) ? romajiToHiragana(query.replace(/[\s'-]/g, '')) : null;
+    const romaji = looksLikeRomaji(query) ? query.replace(/[\s'-]/g, '') : null;
+    const converted = romaji === null ? null : romajiToHiragana(romaji);
     const kana = converted && KANA_ONLY.test(converted) ? converted : null;
+    // What a reading may start with when the romaji stops partway through a syllable ("taber").
+    const kanaPrefixes = romaji === null ? [] : romajiReadingPrefixes(romaji);
     const english = /[a-z]/.test(query);
     const sense = senseKey(query);
     const wholeWord = english ? new RegExp(`(^|[^a-z])${escapeRegExp(query)}($|[^a-z])`) : null;
@@ -176,7 +180,7 @@ export function search(index: PreparedIndex, raw: string): SearchResults {
         ) tier = TIER.prefix;
         else if (english && word.senses.includes(sense)) tier = TIER.sense;
         else if (wholeWord?.test(word.gloss)) tier = TIER.glossWord;
-        else if (kana && word.reading.startsWith(kana)) tier = TIER.romajiPrefix;
+        else if (kanaPrefixes.some(prefix => word.reading.startsWith(prefix))) tier = TIER.romajiPrefix;
         else if (
             (japanese && (word.headword.includes(query) || word.reading.includes(queryKana)))
             || (english && word.gloss.includes(query))

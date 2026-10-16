@@ -75,6 +75,11 @@ describe('search', () => {
         expect(search(INDEX, 'here').words.map(hit => hit.tier)).toEqual([TIER.sense]);
     });
 
+    it('keeps a word while its romaji is typed partway through a syllable', () => {
+        expect(search(INDEX, 'taber').words[0]).toEqual({ row: WORDS[1], tier: TIER.romajiPrefix });
+        expect(search(INDEX, 'taber').kana).toBeNull();
+    });
+
     it('finds the dictionary form of a conjugated query, naming the form typed', () => {
         expect(search(INDEX, '食べた').words[0]).toEqual({ row: WORDS[1], tier: TIER.deinflected, via: '食べた' });
         expect(ids('tabenakatta')[0]).toBe('taberu');
