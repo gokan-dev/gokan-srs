@@ -49,6 +49,42 @@ describe('rankVocabSearch', () => {
         expect(rankVocabSearch(index, 'する', 2).map(entry => entry.id)).toEqual(['suru', 'suru-rub']);
     });
 
+    it('keeps a word while its romaji is typed partway through a syllable', () => {
+        const words = [
+            searchIndexEntry({ id: 'tabemono', w: '食べ物', r: 'たべもの', m: 'food' }),
+            searchIndexEntry({ id: 'taberu', w: '食べる', r: 'たべる', m: 'to eat' }),
+            searchIndexEntry({ id: 'benkyou', w: '勉強', r: 'べんきょう', m: 'study' }),
+            searchIndexEntry({ id: 'nihongo', w: '日本語', r: 'にほんご', m: 'Japanese (language)' }),
+            searchIndexEntry({ id: 'chotto', w: '一寸', r: 'ちょっと', m: 'a little', u: true }),
+            searchIndexEntry({ id: 'kana', w: '仮名', r: 'かな', m: 'kana' }),
+        ];
+        const first = (query: string) => rankVocabSearch(words, query)[0]?.id;
+        expect(['tabe', 'taber', 'taberu'].map(first)).toEqual(['taberu', 'taberu', 'taberu']);
+        expect(first('benky')).toBe('benkyou');
+        expect(first('nihong')).toBe('nihongo');
+        expect(first('chot')).toBe('chotto');
+        expect(rankVocabSearch(words, 'kan').map(entry => entry.id)).toContain('kana');
+    });
+
+    it('ranks an English whole word in the gloss before a reading the romaji only starts', () => {
+        const words = [
+            searchIndexEntry({ id: 'kara', w: '空', r: 'から', m: 'empty' }),
+            searchIndexEntry({ id: 'kariru', w: '借りる', r: 'かりる', m: 'to borrow' }),
+            searchIndexEntry({ id: 'houseki', w: '宝石', r: 'ほうせき', m: 'gem; jewel' }),
+            searchIndexEntry({ id: 'cart', w: '荷車', r: 'にぐるま', m: 'cart' }),
+            searchIndexEntry({ id: 'car', w: '車', r: 'くるま', m: 'car; automobile' }),
+            searchIndexEntry({ id: 'ie', w: '家', r: 'いえ', m: 'house; residence' }),
+            searchIndexEntry({ id: 'okara', w: '雪花菜', r: 'おから', m: 'okara (soy pulp)' }),
+        ];
+        const ranked = (query: string) => rankVocabSearch(words, query).map(entry => entry.id);
+        // "car" is not romaji (no syllable starts with c alone); a gloss containing it (cart) follows.
+        expect(ranked('car')).toEqual(['car', 'cart']);
+        // "house" reads ほうせ, which 宝石 starts with.
+        expect(ranked('house')).toEqual(['ie', 'houseki']);
+        // A gloss that only contains the query (okara) stays below the romaji prefixes.
+        expect(ranked('kar')).toEqual(['kara', 'kariru', 'okara']);
+    });
+
     it('returns nothing for an empty query', () => {
         expect(rankVocabSearch(index, '  ')).toEqual([]);
     });
