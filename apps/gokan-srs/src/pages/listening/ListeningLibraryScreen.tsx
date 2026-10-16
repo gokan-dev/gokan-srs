@@ -203,7 +203,7 @@ export function ListeningLibraryScreen() {
                                     <div className="min-w-0">
                                         <h2 className="font-mincho text-lg text-primary truncate">{entry.title.original}</h2>
                                         {entry.title.english && <p className="type-support truncate">{entry.title.english}</p>}
-                                        <WatchStatusLine status={status} nextEpisode={nextEpisode} />
+                                        <WatchStatusLine status={status} watchedCount={watchedCount} episodeCount={entry.episodeCount} nextEpisode={nextEpisode} />
                                         <p className="type-meta mt-1">
                                             {[
                                                 entry.releaseYear,
@@ -225,10 +225,6 @@ export function ListeningLibraryScreen() {
                                 <div className="mt-3">
                                     <ChapterProgressBar counts={coverage.occurrences} compact />
                                 </div>
-
-                                {status === 'watching' && (
-                                    <p className="type-support mt-2">{watchedCount} of {entry.episodeCount} episodes watched</p>
-                                )}
                             </div>
                         </Link>
                     );
@@ -246,19 +242,36 @@ export function ListeningLibraryScreen() {
     );
 }
 
-/** The title's place in the learner's watching, in StatusDot's steps of the accent; nothing for a title not started. */
-function WatchStatusLine({ status, nextEpisode }: { status: WatchStatus; nextEpisode: number | null }) {
+/**
+ * The title's place in the learner's watching, in StatusDot's steps of the accent; nothing for a
+ * title not started. A Watching line carries the episode count, so the bar below reads only as
+ * words known. Each part keeps its words together, so on a phone the line wraps after a separator.
+ */
+function WatchStatusLine({ status, watchedCount, episodeCount, nextEpisode }: {
+    status: WatchStatus;
+    watchedCount: number;
+    episodeCount: number;
+    nextEpisode: number | null;
+}) {
     switch (status) {
         case 'not-started':
             return null;
-        case 'watching':
+        case 'watching': {
+            const parts = ['Watching', `${watchedCount} of ${episodeCount} episodes`];
+            if (nextEpisode !== null) parts.push(`Episode ${nextEpisode} next`);
             return (
                 <StatusDot
                     status="learning"
-                    label={nextEpisode !== null ? `Watching · Episode ${nextEpisode} next` : 'Watching'}
+                    label={parts.map((part, i) => (
+                        <span key={part}>
+                            {i > 0 && ' '}
+                            <span className="whitespace-nowrap">{part}{i < parts.length - 1 && ' ·'}</span>
+                        </span>
+                    ))}
                     className="mt-1"
                 />
             );
+        }
         case 'completed':
             return <StatusDot status="mastered" label="Completed" className="mt-1" />;
     }
