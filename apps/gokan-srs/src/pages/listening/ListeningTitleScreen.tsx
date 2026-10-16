@@ -13,7 +13,7 @@ import { PageHeader } from "../../components/PageHeader";
 import { ChapterProgressBar } from "../../components/ChapterProgressBar";
 import type { ProgressBarMark } from "../../components/ChapterProgressBar";
 import { usePersistControls, usePersistedControlsSnapshot } from "../../hooks/usePersistedControls";
-import { aggregateEpisodeWords, buildWordKnowledge, computeCoverage, computeJlptCoverageMarks, countWatchedEpisodes, episodeKey, formatPercent, jlptLevelIndex, knownRatio, speechSpeedLabel, unknownWords } from "../../utils/mediaCoverage.utils";
+import { aggregateEpisodeWords, buildWordKnowledge, computeCoverage, computeJlptCoverageMarks, episodeKey, formatPercent, jlptLevelIndex, knownRatio, speechSpeedLabel, unknownWords, watchingByTitle } from "../../utils/mediaCoverage.utils";
 import type { JlptCoverageMark, WordKnowledge } from "../../utils/mediaCoverage.utils";
 import { WORD_SORTS, isLearnableNow, sortWords } from "../../utils/wordOrder.utils";
 import type { LearnerOrder, WordOrderContext, WordSort } from "../../utils/wordOrder.utils";
@@ -116,7 +116,7 @@ export function ListeningTitleScreen() {
     }
 
     const speed = speechSpeedLabel(title.speechSpeed);
-    const watchedCount = countWatchedEpisodes(watched, title.id);
+    const watchedCount = watchingByTitle(watched).get(title.id)?.watchedCount ?? 0;
     const allWatched = watchedCount === title.episodeCount;
     const subtitle = [title.title.romaji, title.title.english].filter(Boolean).join(' · ');
     const toggle = (key: number | 'series') => setExpanded(prev => (prev === key ? null : key));

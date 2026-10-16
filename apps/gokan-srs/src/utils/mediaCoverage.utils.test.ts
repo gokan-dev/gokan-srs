@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { aggregateEpisodeWords, buildWordKnowledge, computeCoverage, computeJlptCoverageMarks, countWatchedEpisodes, episodeKey, filterLibrary, isEpisodeWatched, jlptLevelIndex, knownRatio, libraryGenres, mergeWatchedEpisodes, rankLibrary, speechSpeedLabel, titleSearchKey, unknownWords, watchingByTitle, watchingFirst, watchStatus } from './mediaCoverage.utils';
+import { aggregateEpisodeWords, buildWordKnowledge, computeCoverage, computeJlptCoverageMarks, episodeKey, filterLibrary, isEpisodeWatched, jlptLevelIndex, knownRatio, libraryGenres, matchesGenres, mediaIdOfKey, mergeWatchedEpisodes, rankLibrary, speechSpeedLabel, titleSearchKey, unknownWords, watchingByTitle, watchingFirst, watchStatus } from './mediaCoverage.utils';
 import type { WordKnowledge } from './mediaCoverage.utils';
 import type { VocabProgress } from '../models/vocabulary.model';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../models/vocabulary.model';
@@ -255,9 +255,14 @@ describe('watched episodes', () => {
         expect(isEpisodeWatched(undefined, '16685', 1)).toBe(false);
     });
 
+    it('reads the title back from an episode key, an id holding a colon included', () => {
+        expect(mediaIdOfKey(episodeKey('16685', 12))).toBe('16685');
+        expect(mediaIdOfKey(episodeKey('a:b', 3))).toBe('a:b');
+    });
+
     it('counts one title only, never a title whose id merely starts with the same digits', () => {
-        expect(countWatchedEpisodes(watched, '16685')).toBe(1);
-        expect(countWatchedEpisodes(undefined, '16685')).toBe(0);
+        expect(watchingByTitle(watched).get('16685')?.watchedCount).toBe(1);
+        expect(watchingByTitle(watched).get('166850')?.watchedCount).toBe(1);
     });
 
     it('merges per episode with the newer mark winning and local winning a tie', () => {
@@ -281,14 +286,14 @@ describe('watching first', () => {
     const mark = (watched: boolean, updatedAt: number) => ({ watched, updatedAt });
     // Best fit first, as rankLibrary gives them: a 3 episodes, b 2, c 2, d 1, e 2.
     const ranked = [
-        { entry: { id: 'a', episodeCount: 3 } },
-        { entry: { id: 'b', episodeCount: 2 } },
-        { entry: { id: 'c', episodeCount: 2 } },
-        { entry: { id: 'd', episodeCount: 1 } },
-        { entry: { id: 'e', episodeCount: 2 } },
+        { entry: { id: 'a', episodeCount: 3, genres: [] } },
+        { entry: { id: 'b', episodeCount: 2, genres: [] } },
+        { entry: { id: 'c', episodeCount: 2, genres: [] } },
+        { entry: { id: 'd', episodeCount: 1, genres: [] } },
+        { entry: { id: 'e', episodeCount: 2, genres: [] } },
     ];
-    const order = (watched: Record<string, { watched: boolean; updatedAt: number }>, rows = ranked) =>
-        watchingFirst(rows, watchingByTitle(watched)).map(row => row.entry.id);
+    const order = (watched: Record<string, { watched: boolean; updatedAt: number }>) =>
+        watchingFirst(ranked, watchingByTitle(watched), []).map(row => row.entry.id);
 
     it('reads each title\'s watched count and latest watched mark, ignoring unmarked episodes', () => {
         const byTitle = watchingByTitle({
@@ -326,16 +331,40 @@ describe('watching first', () => {
         })).toEqual(['c', 'a', 'b', 'd', 'e']);
     });
 
-    it('orders only what the filters let through', () => {
-        const comedy = [
-            { entry: { id: 'x', title: { original: 'X', reading: 'X' }, genres: ['Comedy'], tags: [], episodeCount: 2 } },
-            { entry: { id: 'y', title: { original: 'Y', reading: 'Y' }, genres: ['Romance'], tags: [], episodeCount: 2 } },
-            { entry: { id: 'z', title: { original: 'Z', reading: 'Z' }, genres: ['Comedy'], tags: [], episodeCount: 2 } },
+    describe('with a genre filter and a search', () => {
+        const library = [
+            { id: 'x', title: { original: 'ねこ', reading: 'ねこ' }, genres: ['Comedy'], tags: [], episodeCount: 2 },
+            { id: 'y', title: { original: 'ねこ日和', reading: 'ねこびより' }, genres: ['Romance'], tags: [], episodeCount: 2 },
+            { id: 'z', title: { original: 'いぬ', reading: 'いぬ' }, genres: ['Romance'], tags: [], episodeCount: 2 },
+            { id: 'w', title: { original: 'ねこ町', reading: 'ねこまち' }, genres: ['Romance'], tags: [], episodeCount: 1 },
         ];
-        const passing = filterLibrary(comedy.map(row => row.entry), ['Comedy'], '').map(entry => ({ entry }));
-        expect(watchingFirst(passing, watchingByTitle({
+        // y and z are being watched, w is completed; none of the three is a comedy.
+        const watching = watchingByTitle({
             [episodeKey('y', 1)]: mark(true, 9),
-            [episodeKey('z', 1)]: mark(true, 1),
-        })).map(row => row.entry.id)).toEqual(['z', 'x']);
+            [episodeKey('z', 1)]: mark(true, 5),
+            [episodeKey('w', 1)]: mark(true, 7),
+        });
+        // As the library page runs it: the search over every genre, then watchingFirst with the filter.
+        const shown = (query: string) =>
+            watchingFirst(filterLibrary(library, [], query).map(entry => ({ entry })), watching, ['Comedy'])
+                .map(row => row.entry.id);
+
+        it('puts a title being watched first even in a genre the filter hides', () => {
+            expect(shown('')).toEqual(['y', 'z', 'x']);
+        });
+
+        it('still hides a title being watched that does not match the search', () => {
+            expect(shown('neko')).toEqual(['y', 'x']);
+        });
+
+        it('keeps a completed title in a hidden genre hidden', () => {
+            expect(shown('')).not.toContain('w');
+            expect(shown('neko')).not.toContain('w');
+        });
+
+        it('counts only the titles in the chosen genres as matching them', () => {
+            expect(library.filter(entry => matchesGenres(entry, ['Comedy'])).map(entry => entry.id)).toEqual(['x']);
+            expect(library.every(entry => matchesGenres(entry, []))).toBe(true);
+        });
     });
 });

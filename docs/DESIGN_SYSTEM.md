@@ -222,6 +222,8 @@ Defined once, in `components/` or `components/ui/`, never copied:
 - **`StatusDot`** (`StatusDot.tsx`): the learning-state language. Mastered = solid accent
   dot, Learning = accent at 35%, New = hollow divider ring, always paired with a text
   label as a second cue.
+  It also carries a listening title's watch progress: Watching on the learning step,
+  Completed on the mastered step, always with its label.
 - **`SelectableOption`** (`ui/SelectableOption.tsx`): the one selected style for a
   single-choice option (option grids, the learning-order picker, the theme picker,
   onboarding). Selected: accent border, `bg-accent/10`, a check icon top-right, ink text.

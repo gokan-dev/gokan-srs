@@ -12,6 +12,7 @@ import {
     isEpisodeWatched,
     knownRatio,
     libraryGenres,
+    matchesGenres,
     rankLibrary,
     speechSpeedLabel,
     watchingByTitle,
@@ -60,7 +61,8 @@ const GENRE_PLACEHOLDER_WIDTHS = [
  * Route /listening: the anime in the library, the ones being watched first, then
  * ranked by how much of each one's vocabulary the learner already knows, so the
  * best fit for where they are now comes next. The genre filter is saved in their
- * settings (and so follows them across devices); the search box is not.
+ * settings (and so follows them across devices); the search box is not. A title
+ * being watched shows whatever the genre filter, but the search still applies to it.
  */
 export function ListeningLibraryScreen() {
     const { state, actions } = useQuiz();
@@ -101,7 +103,9 @@ export function ListeningLibraryScreen() {
     const rows = useMemo(() => {
         if (!index || !libraryWords) return [];
         const watching = watchingByTitle(watched);
-        return watchingFirst(rankLibrary(index, libraryWords, knowledge, selectedGenres, query), watching).map(({ entry, coverage }) => {
+        // Ranked over every genre: watchingFirst keeps the titles being watched and filters the rest.
+        const ranked = rankLibrary(index, libraryWords, knowledge, [], query);
+        return watchingFirst(ranked, watching, selectedGenres).map(({ entry, coverage }) => {
             let nextEpisode: number | null = null;
             for (let n = 1; n <= entry.episodeCount; n++) {
                 if (!isEpisodeWatched(watched, entry.id, n)) { nextEpisode = n; break; }
@@ -116,6 +120,10 @@ export function ListeningLibraryScreen() {
             };
         });
     }, [index, libraryWords, knowledge, watched, selectedGenres, query]);
+
+    // A title being watched outside the chosen genres is listed, but not counted as matching them.
+    const matchingCount = rows.filter(row => matchesGenres(row.entry, selectedGenres)).length;
+    const watchingOutsideGenres = rows.length - matchingCount;
 
     const totalPages = Math.ceil(rows.length / PAGE_SIZE) || 1;
     const shownPage = Math.min(page, totalPages);
@@ -163,8 +171,9 @@ export function ListeningLibraryScreen() {
                     </div>
                     {index && libraryWords ? (
                         <p className="type-meta">
-                            {rows.length} of {index.length} titles
+                            {matchingCount} of {index.length} titles
                             {selectedGenres.length > 0 && ' matching your genres'}
+                            {watchingOutsideGenres > 0 && `, plus ${watchingOutsideGenres} you are watching`}
                         </p>
                     ) : (
                         <p className="type-meta">Loading the library...</p>

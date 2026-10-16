@@ -166,6 +166,11 @@ export function titleSearchKey(text: string): string {
         .replace(/[^\p{L}\p{N}]/gu, '');
 }
 
+/** Whether a title has at least one of the chosen genres; every title does when none is chosen. */
+export function matchesGenres(entry: Pick<MediaIndexEntry, 'genres'>, genres: string[]): boolean {
+    return genres.length === 0 || entry.genres.some(genre => genres.includes(genre));
+}
+
 /**
  * The titles to list: those with at least one of the chosen genres (every title
  * when none is chosen) whose title forms or tags contain the search, compared
@@ -177,10 +182,9 @@ export function filterLibrary<T extends Pick<MediaIndexEntry, 'genres' | 'title'
     genres: string[],
     query: string
 ): T[] {
-    const wanted = new Set(genres);
     const needle = titleSearchKey(query);
     return index.filter(entry => {
-        if (wanted.size > 0 && !entry.genres.some(genre => wanted.has(genre))) return false;
+        if (!matchesGenres(entry, genres)) return false;
         if (!needle) return true;
         const { original, reading, romaji, english } = entry.title;
         return [original, reading, romaji, english, ...entry.tags]
@@ -210,18 +214,17 @@ export function episodeKey(mediaId: string, episodeNumber: number): string {
     return `${mediaId}:${episodeNumber}`;
 }
 
+/** The title an episodeKey belongs to: everything before the last colon, so an id may hold one. */
+export function mediaIdOfKey(key: string): string {
+    return key.slice(0, key.lastIndexOf(':'));
+}
+
 export function isEpisodeWatched(
     watched: Record<string, WatchedEpisode> | undefined,
     mediaId: string,
     episodeNumber: number
 ): boolean {
     return watched?.[episodeKey(mediaId, episodeNumber)]?.watched === true;
-}
-
-export function countWatchedEpisodes(watched: Record<string, WatchedEpisode> | undefined, mediaId: string): number {
-    if (!watched) return 0;
-    const prefix = `${mediaId}:`;
-    return Object.entries(watched).filter(([key, entry]) => key.startsWith(prefix) && entry.watched).length;
 }
 
 /** A title's place in the learner's watching: none marked, some, or every episode. */
@@ -238,7 +241,7 @@ export function watchingByTitle(watched: Record<string, WatchedEpisode> | undefi
     const byTitle = new Map<string, TitleWatching>();
     for (const [key, mark] of Object.entries(watched ?? {})) {
         if (!mark.watched) continue;
-        const mediaId = key.slice(0, key.lastIndexOf(':'));
+        const mediaId = mediaIdOfKey(key);
         const current = byTitle.get(mediaId);
         byTitle.set(mediaId, {
             watchedCount: (current?.watchedCount ?? 0) + 1,
@@ -256,20 +259,24 @@ export function watchStatus(watching: TitleWatching | undefined, episodeCount: n
 /**
  * The library page's order: the titles being watched first, the most recently
  * marked first, then every other title (completed ones included) in the order
- * given, rankLibrary's best fit. Kept apart from rankLibrary so the hub's "Best
- * match" never names the show being watched. It orders what the filters let
- * through, it never brings back a title they hide. The marks are merged per
- * episode across devices (mergeWatchedEpisodes), so the order is the same on each.
+ * given, rankLibrary's best fit. `ranked` is the search's result over every
+ * genre: a title being watched stays on top whatever the genre filter, since the
+ * filter is saved and one set weeks ago would otherwise hide the show the learner
+ * is in the middle of; every other title must match the chosen genres. Kept apart
+ * from rankLibrary so the hub's "Best match" never names the show being watched.
+ * The marks are merged per episode across devices (mergeWatchedEpisodes), so the
+ * order is the same on each.
  */
-export function watchingFirst<T extends { entry: Pick<MediaIndexEntry, 'id' | 'episodeCount'> }>(
+export function watchingFirst<T extends { entry: Pick<MediaIndexEntry, 'id' | 'episodeCount' | 'genres'> }>(
     ranked: T[],
-    watching: Map<string, TitleWatching>
+    watching: Map<string, TitleWatching>,
+    genres: string[]
 ): T[] {
     const isWatching = (row: T) => watchStatus(watching.get(row.entry.id), row.entry.episodeCount) === 'watching';
     const lastWatchedAt = (row: T) => watching.get(row.entry.id)?.lastWatchedAt ?? 0;
     return [
         ...ranked.filter(isWatching).sort((a, b) => lastWatchedAt(b) - lastWatchedAt(a)),
-        ...ranked.filter(row => !isWatching(row)),
+        ...ranked.filter(row => !isWatching(row) && matchesGenres(row.entry, genres)),
     ];
 }
 
