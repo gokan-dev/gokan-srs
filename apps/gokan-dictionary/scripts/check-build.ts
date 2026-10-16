@@ -90,9 +90,9 @@ function searchProblems(): string[] {
     expect(headwords('eat', 3).includes('食べる'), `"eat": 食べる not in the top 3 (${headwords('eat', 3).join(', ')})`);
     expect(headwords('taberu', 1)[0] === '食べる', `"taberu": 食べる not first (${headwords('taberu', 3).join(', ')})`);
     // Romaji typed partway through a syllable still finds the word (#139).
-    for (const [query, headword] of [['tabe', '食べる'], ['taber', '食べる'], ['benky', '勉強'], ['nihong', '日本語'], ['chot', 'ちょっと']]) {
-        // Top 5: "chot" also starts four JLPT words in ちょっ (直感...), which tie with ちょっと.
-        expect(headwords(query, 5).includes(headword), `"${query}": ${headword} not in the top 5 (${headwords(query, 5).join(', ')})`);
+    // "chot" gets the top 5: it also starts four JLPT words in ちょっ (直感...), which tie with ちょっと.
+    for (const [query, headword, top] of [['tabe', '食べる', 3], ['taber', '食べる', 3], ['benky', '勉強', 3], ['nihong', '日本語', 3], ['chot', 'ちょっと', 5]] as const) {
+        expect(headwords(query, top).includes(headword), `"${query}": ${headword} not in the top ${top} (${headwords(query, top).join(', ')})`);
     }
     // An English word is read as English before it is read as the start of a reading (#139).
     for (const [query, headword] of [['car', '車'], ['house', '家']]) {
