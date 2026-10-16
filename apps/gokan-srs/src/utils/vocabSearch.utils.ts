@@ -8,8 +8,8 @@ const VOCAB_SEARCH_LIMIT = 50;
  * Lower ranks first: the word as shown, then an exact spelling, a prefix and a substring of the
  * query as typed, an English whole word in the gloss, a reading the romaji starts or contains,
  * and last a gloss containing the query. The romaji tiers come after the whole-word gloss: a
- * Latin query is more often an English word ("car", read か and an r syllable) than the start
- * of a reading. An exact romaji reading (Exact) stays first.
+ * Latin query is more often an English word ("house", read ほうせ, the start of 宝石) than the
+ * start of a reading. An exact romaji reading (Exact) stays first.
  */
 const Rank = { Headword: 0, Exact: 1, Prefix: 2, Contains: 3, GlossWord: 4, RomajiPrefix: 5, RomajiContains: 6, Gloss: 7 } as const;
 type Rank = typeof Rank[keyof typeof Rank];
