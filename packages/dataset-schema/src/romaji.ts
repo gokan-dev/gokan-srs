@@ -96,6 +96,46 @@ export function romajiToHiragana(input: string): string {
     return result;
 }
 
+const ROMAJI_KEYS = Object.keys(ROMAJI_MAP);
+const HIRAGANA_ONLY = /^[ぁ-ゖー]+$/;
+
+/** The kana of every syllable `start` begins without completing it ("ky" -> きゃ きゅ きょ). */
+function syllablesStartingWith(start: string): string[] {
+    return ROMAJI_KEYS.filter(key => key.length > start.length && key.startsWith(start)).map(key => ROMAJI_MAP[key]);
+}
+
+/**
+ * The kana a reading can start with when the romaji stops partway through a syllable, so
+ * search narrows letter by letter instead of losing the word: "taber" -> たべら, たべり,
+ * たべる... on the way to "taberu". Complete syllables convert as romajiToHiragana does; an
+ * unfinished one at the end stands for every syllable it begins, and a single consonant also
+ * for っ (the first of a doubled one: "chot" on the way to "chotto"). A final "n" is ん or
+ * the start of an n syllable ("kan" on the way to "kana"); a final "nn" is one ん.
+ *
+ * Only for "the reading starts with": an exact match still needs the whole romaji converted.
+ * Empty when the query is not romaji (a letter no syllable starts with, a digit, a space).
+ */
+export function romajiReadingPrefixes(input: string): string[] {
+    const s = input.toLowerCase();
+    if (s.endsWith('nn')) return kanaOnly([romajiToHiragana(s.slice(0, -1))]);
+
+    const converted = romajiToHiragana(s);
+    const [, typedHead, typedTail] = /^(.*?)([a-z]*)$/.exec(converted) ?? ['', converted, ''];
+    // "matc" on the way to "matcha": the t of "tch" is already the っ.
+    const [head, tail] = typedTail === 'tc' ? [typedHead + 'っ', 'c'] : [typedHead, typedTail];
+    const prefixes = tail === '' ? [head] : syllablesStartingWith(tail).map(kana => head + kana);
+    if (tail.length === 1 && prefixes.length > 0) prefixes.push(head + 'っ');
+    // An "n" the converter read as ん may instead begin the unfinished syllable ("kan", "beny").
+    if (head.endsWith('ん') && s.endsWith('n' + tail)) {
+        prefixes.push(...syllablesStartingWith('n' + tail).map(kana => head.slice(0, -1) + kana));
+    }
+    return kanaOnly(prefixes);
+}
+
+function kanaOnly(candidates: string[]): string[] {
+    return [...new Set(candidates.filter(kana => HIRAGANA_ONLY.test(kana)))];
+}
+
 /**
  * Kana -> the romaji a learner types to produce it on an IME, reusing the table
  * above in reverse (first spelling wins: sha over sya, chi over ti, tsu over tu).

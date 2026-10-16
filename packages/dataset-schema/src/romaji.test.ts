@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { romajiToHiragana, looksLikeRomaji, kanaToRomaji } from './romaji';
+import { romajiToHiragana, looksLikeRomaji, kanaToRomaji, romajiReadingPrefixes } from './romaji';
 
 describe('romajiToHiragana', () => {
     it('converts basic syllables', () => {
@@ -43,6 +43,35 @@ describe('romajiToHiragana', () => {
         expect(romajiToHiragana('にち')).toBe('にち'); // already kana
         // English meaning words won't blow up (leftover letters pass through).
         expect(romajiToHiragana('think')).toContain('ん'); // 'n' -> ん; rest passes through harmlessly
+    });
+});
+
+describe('romajiReadingPrefixes', () => {
+    it('keeps a romaji made of complete syllables as converted', () => {
+        expect(romajiReadingPrefixes('tabe')).toEqual(['たべ']);
+        expect(romajiReadingPrefixes('taberu')).toEqual(['たべる']);
+    });
+
+    it('reads an unfinished syllable as every syllable it begins, and a single consonant also as っ', () => {
+        expect(romajiReadingPrefixes('taber').sort()).toEqual(['たべら', 'たべり', 'たべる', 'たべれ', 'たべろ', 'たべりゃ', 'たべりゅ', 'たべりょ', 'たべっ'].sort());
+        expect(romajiReadingPrefixes('tabet')).toEqual(expect.arrayContaining(['たべて', 'たべた', 'たべつ', 'たべち', 'たべっ']));
+        expect(romajiReadingPrefixes('benky').sort()).toEqual(['べんきゃ', 'べんきゅ', 'べんきょ'].sort());
+        expect(romajiReadingPrefixes('nihong')).toEqual(expect.arrayContaining(['にほんご', 'にほんが', 'にほんっ']));
+        expect(romajiReadingPrefixes('chot')).toEqual(expect.arrayContaining(['ちょっ', 'ちょと']));
+        expect(romajiReadingPrefixes('gakk')).toEqual(expect.arrayContaining(['がっこ', 'がっか']));
+        expect(romajiReadingPrefixes('matc')).toEqual(expect.arrayContaining(['まっちゃ', 'まっち']));
+    });
+
+    it('reads a final n as ん or the start of an n syllable, and a final nn as one ん', () => {
+        expect(romajiReadingPrefixes('kan').sort()).toEqual(['かん', 'かな', 'かに', 'かぬ', 'かね', 'かの', 'かにゃ', 'かにゅ', 'かにょ'].sort());
+        expect(romajiReadingPrefixes('kann')).toEqual(['かん']);
+        expect(romajiReadingPrefixes('beny')).toEqual(expect.arrayContaining(['べにゃ', 'べんや']));
+    });
+
+    it('is empty for a query that is not romaji', () => {
+        expect(romajiReadingPrefixes('xyz')).toEqual([]);
+        expect(romajiReadingPrefixes('to eat')).toEqual([]);
+        expect(romajiReadingPrefixes('n5')).toEqual([]);
     });
 });
 
