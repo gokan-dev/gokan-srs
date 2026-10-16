@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { aggregateEpisodeWords, buildWordKnowledge, computeCoverage, computeJlptCoverageMarks, countWatchedEpisodes, episodeKey, filterLibrary, isEpisodeWatched, jlptLevelIndex, knownRatio, libraryGenres, mergeWatchedEpisodes, rankLibrary, speechSpeedLabel, unknownWords } from './mediaCoverage.utils';
+import { aggregateEpisodeWords, buildWordKnowledge, computeCoverage, computeJlptCoverageMarks, episodeKey, filterLibrary, isEpisodeWatched, jlptLevelIndex, knownRatio, libraryGenres, matchesGenres, mediaIdOfKey, mergeWatchedEpisodes, rankLibrary, speechSpeedLabel, titleSearchKey, unknownWords, watchingByTitle, watchingFirst, watchStatus } from './mediaCoverage.utils';
 import type { WordKnowledge } from './mediaCoverage.utils';
 import type { VocabProgress } from '../models/vocabulary.model';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../models/vocabulary.model';
@@ -120,9 +120,9 @@ describe('speechSpeedLabel', () => {
 
 describe('library filtering', () => {
     const library = [
-        { title: { original: 'のんのんびより', romaji: 'Non Non Biyori' }, genres: ['Comedy', 'Slice of Life'], tags: ['Countryside'] },
-        { title: { original: 'ガールズ&パンツァー', english: 'Girls und Panzer' }, genres: ['Action', 'Comedy'], tags: [] },
-        { title: { original: '月がきれい' }, genres: ['Romance'], tags: ['School'] },
+        { title: { original: 'のんのんびより', reading: 'のんのんびより', romaji: 'Non Non Biyori' }, genres: ['Comedy', 'Slice of Life'], tags: ['Countryside'] },
+        { title: { original: 'ガールズ&パンツァー', reading: 'がーるず&ぱんつぁー', english: 'Girls und Panzer' }, genres: ['Action', 'Comedy'], tags: [] },
+        { title: { original: '月がきれい', reading: 'つきがきれい' }, genres: ['Romance'], tags: ['School'] },
     ];
 
     it('lists genres by how many titles carry them, ties alphabetical', () => {
@@ -142,11 +142,93 @@ describe('library filtering', () => {
     });
 });
 
+describe('library search', () => {
+    // Readings as kuromoji writes them at dataset build time, misreadings included (古見 as ふるみ, 干物妹 as ほしものいもうと).
+    const title = (original: string, reading: string, romaji: string, english?: string, tags: string[] = []) =>
+        ({ title: { original, reading, romaji, ...(english ? { english } : {}) }, genres: [], tags });
+    const library = [
+        title('からかい上手の高木さん', 'からかいじょうずのたかぎさん', 'Karakai Jouzu no Takagi-san', 'Teasing Master Takagi-san', ['School']),
+        title('からかい上手の高木さん３', 'からかいじょうずのたかぎさん３', 'Karakai Jouzu no Takagi-san 3'),
+        title('久保さんは僕を許さない', 'くぼさんはぼくをゆるさない', 'Kubo-san wa Mob wo Yurusanai'),
+        title('天体のメソッド', 'てんたいのめそっど', 'Sora no Method'),
+        title('ガールズ&パンツァー', 'がーるず&ぱんつぁー', 'Girls und Panzer'),
+        title('ドラえもん のび太の恐竜', 'どらえもん のびたのきょうりゅう', 'Doraemon: Nobita no Kyouryuu'),
+        title('ドラえもん のび太の恐竜2006', 'どらえもん のびたのきょうりゅう2006', 'Doraemon: Nobita no Kyouryuu (2006)'),
+        title('映画ドラえもん のび太の新恐竜', 'えいがどらえもん のびたのしんきょうりゅう', 'Doraemon: Nobita no Shin Kyoryuu'),
+        title('わんだふるぷりきゅあ！', 'わんだふるぷりきゅあ！', 'Wonderful Precure!'),
+        title('ひろがるスカイ！プリキュア', 'ひろがるすかい！ぷりきゅあ', 'Hirogaru Sky! Precure'),
+        title('映画　クレヨンしんちゃん　嵐を呼ぶモーレツ！オトナ帝国の逆襲', 'えいが　くれよんしんちゃん　あらしをよぶもーれつ！おとなていこくのぎゃくしゅう', 'Crayon Shin-chan: Arashi wo Yobu Mouretsu! Otona Teikoku no Gyakushuu'),
+        title('古見さんは、コミュ症です。', 'ふるみさんは、こみゅしょうです。', 'Komi-san wa, Komyushou desu.'),
+        title('干物妹! うまるちゃん R', 'ほしものいもうと! うまるちゃん R', 'Himouto! Umaru-chan R'),
+        title('のんのんびより', 'のんのんびより', 'Non Non Biyori', undefined, ['Countryside']),
+    ];
+    const found = (query: string) => filterLibrary(library, [], query).map(entry => entry.title.original);
+
+    it('finds a title written in kanji by its kanji, its kana in either script, or romaji', () => {
+        const takagi = ['からかい上手の高木さん', 'からかい上手の高木さん３'];
+        for (const query of ['高木', 'たかぎ', 'タカギ', 'takagi']) expect(found(query)).toEqual(takagi);
+        expect(found('くぼさん')).toEqual(['久保さんは僕を許さない']);
+        expect(found('くぼさんは')).toEqual(['久保さんは僕を許さない']);
+        expect(found('そらの')).toEqual(['天体のメソッド']);
+    });
+
+    it('finds a katakana title by hiragana, and every title of a series whatever script it is written in', () => {
+        expect(found('がーるず')).toEqual(['ガールズ&パンツァー']);
+        expect(found('めそっど')).toEqual(['天体のメソッド']);
+        expect(found('どらえもん')).toHaveLength(3);
+        const precure = ['わんだふるぷりきゅあ！', 'ひろがるスカイ！プリキュア'];
+        expect(found('ぷりきゅあ')).toEqual(precure);
+        expect(found('プリキュア')).toEqual(precure);
+        expect(found('precure')).toEqual(precure);
+    });
+
+    it('ignores spaces, hyphens, punctuation and long vowels', () => {
+        expect(found('takagisan')).toHaveLength(2);
+        expect(found('kubosan')).toEqual(['久保さんは僕を許さない']);
+        expect(found('kubo san')).toEqual(['久保さんは僕を許さない']);
+        expect(found('kubo san wa')).toEqual(['久保さんは僕を許さない']);
+        expect(found('shin chan')).toEqual(['映画　クレヨンしんちゃん　嵐を呼ぶモーレツ！オトナ帝国の逆襲']);
+        expect(found('karakai jozu')).toHaveLength(2);
+        expect(found('sora no method')).toEqual(['天体のメソッド']);
+        expect(found('garuzu')).toEqual(['ガールズ&パンツァー']);
+        expect(found('takagi-san 3')).toEqual(['からかい上手の高木さん３']);
+    });
+
+    it('finds every spelling of a long vowel, AniList itself spelling one Kyoryuu and the others Kyouryuu', () => {
+        expect(found('kyoryu')).toHaveLength(3);
+        expect(found('kyouryuu')).toHaveLength(3);
+        expect(found('きょうりゅう')).toHaveLength(3);
+    });
+
+    it('finds a title kuromoji misreads through AniList\'s romaji', () => {
+        expect(found('こみさん')).toEqual(['古見さんは、コミュ症です。']);
+        expect(found('ひもうと')).toEqual(['干物妹! うまるちゃん R']);
+        expect(found('umaru')).toEqual(['干物妹! うまるちゃん R']);
+    });
+
+    it('matches the English title and the tags as Latin text', () => {
+        expect(found('teasing master')).toEqual(['からかい上手の高木さん']);
+        expect(found('Countryside')).toEqual(['のんのんびより']);
+        expect(found('school')).toEqual(['からかい上手の高木さん']);
+    });
+
+    it('lists every title for a blank or punctuation-only search', () => {
+        expect(found('  ')).toHaveLength(library.length);
+        expect(found('!')).toHaveLength(library.length);
+    });
+
+    it('compares one key for every writing of a title', () => {
+        expect(titleSearchKey('からかい上手の高木さん３')).toBe('karakai上手no高木san3');
+        expect(titleSearchKey('Karakai Jouzu no Takagi-san')).toBe('karakaijozunotakagisan');
+        expect(titleSearchKey('キョウリュウ')).toBe('kyoryu');
+    });
+});
+
 describe('rankLibrary', () => {
     const index = [
-        { id: 'x', title: { original: 'X' }, genres: ['Comedy'], tags: [] },
-        { id: 'y', title: { original: 'Y' }, genres: ['Romance'], tags: [] },
-        { id: 'z', title: { original: 'Z' }, genres: ['Comedy'], tags: [] },
+        { id: 'x', title: { original: 'X', reading: 'X' }, genres: ['Comedy'], tags: [] },
+        { id: 'y', title: { original: 'Y', reading: 'Y' }, genres: ['Romance'], tags: [] },
+        { id: 'z', title: { original: 'Z', reading: 'Z' }, genres: ['Comedy'], tags: [] },
     ];
     const words: Record<string, [string, number][]> = { x: [['a', 1], ['c', 9]], y: [['a', 5]], z: [['a', 1], ['b', 1]] };
 
@@ -156,7 +238,7 @@ describe('rankLibrary', () => {
     });
 
     it('treats a title missing from the word file as 0% rather than failing', () => {
-        expect(rankLibrary([...index, { id: 'w', title: { original: 'W' }, genres: [], tags: [] }], words, knowledge, [], '').at(-1)!.entry.id).toBe('w');
+        expect(rankLibrary([...index, { id: 'w', title: { original: 'W', reading: 'W' }, genres: [], tags: [] }], words, knowledge, [], '').at(-1)!.entry.id).toBe('w');
     });
 });
 
@@ -173,9 +255,14 @@ describe('watched episodes', () => {
         expect(isEpisodeWatched(undefined, '16685', 1)).toBe(false);
     });
 
+    it('reads the title back from an episode key, an id holding a colon included', () => {
+        expect(mediaIdOfKey(episodeKey('16685', 12))).toBe('16685');
+        expect(mediaIdOfKey(episodeKey('a:b', 3))).toBe('a:b');
+    });
+
     it('counts one title only, never a title whose id merely starts with the same digits', () => {
-        expect(countWatchedEpisodes(watched, '16685')).toBe(1);
-        expect(countWatchedEpisodes(undefined, '16685')).toBe(0);
+        expect(watchingByTitle(watched).get('16685')?.watchedCount).toBe(1);
+        expect(watchingByTitle(watched).get('166850')?.watchedCount).toBe(1);
     });
 
     it('merges per episode with the newer mark winning and local winning a tie', () => {
@@ -192,5 +279,92 @@ describe('watched episodes', () => {
 
     it('stays undefined when neither side has any marks', () => {
         expect(mergeWatchedEpisodes(undefined, undefined)).toBeUndefined();
+    });
+});
+
+describe('watching first', () => {
+    const mark = (watched: boolean, updatedAt: number) => ({ watched, updatedAt });
+    // Best fit first, as rankLibrary gives them: a 3 episodes, b 2, c 2, d 1, e 2.
+    const ranked = [
+        { entry: { id: 'a', episodeCount: 3, genres: [] } },
+        { entry: { id: 'b', episodeCount: 2, genres: [] } },
+        { entry: { id: 'c', episodeCount: 2, genres: [] } },
+        { entry: { id: 'd', episodeCount: 1, genres: [] } },
+        { entry: { id: 'e', episodeCount: 2, genres: [] } },
+    ];
+    const order = (watched: Record<string, { watched: boolean; updatedAt: number }>) =>
+        watchingFirst(ranked, watchingByTitle(watched), []).map(row => row.entry.id);
+
+    it('reads each title\'s watched count and latest watched mark, ignoring unmarked episodes', () => {
+        const byTitle = watchingByTitle({
+            [episodeKey('a', 1)]: mark(true, 5),
+            [episodeKey('a', 2)]: mark(true, 3),
+            [episodeKey('a', 3)]: mark(false, 9),
+            [episodeKey('b', 1)]: mark(false, 4),
+        });
+        expect(byTitle.get('a')).toEqual({ watchedCount: 2, lastWatchedAt: 5 });
+        expect(byTitle.has('b')).toBe(false);
+        expect(watchingByTitle(undefined).size).toBe(0);
+    });
+
+    it('is watching from the first watched episode until every episode is, then completed', () => {
+        expect(watchStatus(undefined, 3)).toBe('not-started');
+        expect(watchStatus({ watchedCount: 1, lastWatchedAt: 1 }, 3)).toBe('watching');
+        expect(watchStatus({ watchedCount: 3, lastWatchedAt: 1 }, 3)).toBe('completed');
+    });
+
+    it('puts the titles being watched first, the most recently marked first, the rest in ranking order', () => {
+        expect(order({
+            [episodeKey('c', 1)]: mark(true, 10),
+            [episodeKey('e', 1)]: mark(true, 20),
+            [episodeKey('c', 2)]: mark(false, 30),
+        })).toEqual(['e', 'c', 'a', 'b', 'd']);
+    });
+
+    it('leaves a completed title, and one with every mark removed, in ranking order', () => {
+        expect(order({
+            [episodeKey('d', 1)]: mark(true, 50),
+            [episodeKey('e', 1)]: mark(true, 40),
+            [episodeKey('e', 2)]: mark(true, 41),
+            [episodeKey('b', 1)]: mark(false, 60),
+            [episodeKey('c', 2)]: mark(true, 1),
+        })).toEqual(['c', 'a', 'b', 'd', 'e']);
+    });
+
+    describe('with a genre filter and a search', () => {
+        const library = [
+            { id: 'x', title: { original: 'ねこ', reading: 'ねこ' }, genres: ['Comedy'], tags: [], episodeCount: 2 },
+            { id: 'y', title: { original: 'ねこ日和', reading: 'ねこびより' }, genres: ['Romance'], tags: [], episodeCount: 2 },
+            { id: 'z', title: { original: 'いぬ', reading: 'いぬ' }, genres: ['Romance'], tags: [], episodeCount: 2 },
+            { id: 'w', title: { original: 'ねこ町', reading: 'ねこまち' }, genres: ['Romance'], tags: [], episodeCount: 1 },
+        ];
+        // y and z are being watched, w is completed; none of the three is a comedy.
+        const watching = watchingByTitle({
+            [episodeKey('y', 1)]: mark(true, 9),
+            [episodeKey('z', 1)]: mark(true, 5),
+            [episodeKey('w', 1)]: mark(true, 7),
+        });
+        // As the library page runs it: the search over every genre, then watchingFirst with the filter.
+        const shown = (query: string) =>
+            watchingFirst(filterLibrary(library, [], query).map(entry => ({ entry })), watching, ['Comedy'])
+                .map(row => row.entry.id);
+
+        it('puts a title being watched first even in a genre the filter hides', () => {
+            expect(shown('')).toEqual(['y', 'z', 'x']);
+        });
+
+        it('still hides a title being watched that does not match the search', () => {
+            expect(shown('neko')).toEqual(['y', 'x']);
+        });
+
+        it('keeps a completed title in a hidden genre hidden', () => {
+            expect(shown('')).not.toContain('w');
+            expect(shown('neko')).not.toContain('w');
+        });
+
+        it('counts only the titles in the chosen genres as matching them', () => {
+            expect(library.filter(entry => matchesGenres(entry, ['Comedy'])).map(entry => entry.id)).toEqual(['x']);
+            expect(library.every(entry => matchesGenres(entry, []))).toBe(true);
+        });
     });
 });

@@ -1,5 +1,5 @@
 import type { JlptIndex, MediaEpisode, MediaIndexEntry, MediaLibraryWords, MediaWordCount } from '@gokan/dataset-schema';
-import { JLPT_LEVELS } from '@gokan/dataset-schema';
+import { JLPT_LEVELS, kanaToRomaji } from '@gokan/dataset-schema';
 import type { WatchedEpisode } from '../models/media.model';
 import type { VocabProgress } from '../models/vocabulary.model';
 import type { UserSettings } from '../models/user.model';
@@ -151,21 +151,44 @@ export function libraryGenres(index: Pick<MediaIndexEntry, 'genres'>[]): string[
 }
 
 /**
+ * The form the library search compares, the query and every title form alike, so
+ * a title is found however it is typed: NFKC and lowercase (a full-width ３), kana
+ * in romaji (hiragana, katakana and romaji meet in one alphabet; kanji stay as
+ * they are), long vowels folded, ou and doubled vowels to one (jouzu as jozu,
+ * kyouryuu as kyoryu), then only letters, digits and kanji kept (takagisan, shin chan).
+ */
+export function titleSearchKey(text: string): string {
+    // Folded before the spaces go, so a long vowel never forms across two words
+    // (imouto umaru would fold to imotomaru, and umaru would no longer match).
+    return kanaToRomaji(text.normalize('NFKC').toLowerCase())
+        .replace(/ou/g, 'o')
+        .replace(/([aeiou])\1+/g, '$1')
+        .replace(/[^\p{L}\p{N}]/gu, '');
+}
+
+/** Whether a title has at least one of the chosen genres; every title does when none is chosen. */
+export function matchesGenres(entry: Pick<MediaIndexEntry, 'genres'>, genres: string[]): boolean {
+    return genres.length === 0 || entry.genres.some(genre => genres.includes(genre));
+}
+
+/**
  * The titles to list: those with at least one of the chosen genres (every title
- * when none is chosen) whose titles or tags contain the search text, ignoring case.
+ * when none is chosen) whose title forms or tags contain the search, compared
+ * through titleSearchKey. The original title's kana reading (from the dataset)
+ * lets kana and romaji find a title written in kanji.
  */
 export function filterLibrary<T extends Pick<MediaIndexEntry, 'genres' | 'title' | 'tags'>>(
     index: T[],
     genres: string[],
     query: string
 ): T[] {
-    const wanted = new Set(genres);
-    const needle = query.trim().toLowerCase();
+    const needle = titleSearchKey(query);
     return index.filter(entry => {
-        if (wanted.size > 0 && !entry.genres.some(genre => wanted.has(genre))) return false;
+        if (!matchesGenres(entry, genres)) return false;
         if (!needle) return true;
-        return [entry.title.original, entry.title.romaji, entry.title.english, ...entry.tags]
-            .some(text => text?.toLowerCase().includes(needle));
+        const { original, reading, romaji, english } = entry.title;
+        return [original, reading, romaji, english, ...entry.tags]
+            .some(text => text !== undefined && titleSearchKey(text).includes(needle));
     });
 }
 
@@ -191,6 +214,11 @@ export function episodeKey(mediaId: string, episodeNumber: number): string {
     return `${mediaId}:${episodeNumber}`;
 }
 
+/** The title an episodeKey belongs to: everything before the last colon, so an id may hold one. */
+export function mediaIdOfKey(key: string): string {
+    return key.slice(0, key.lastIndexOf(':'));
+}
+
 export function isEpisodeWatched(
     watched: Record<string, WatchedEpisode> | undefined,
     mediaId: string,
@@ -199,10 +227,57 @@ export function isEpisodeWatched(
     return watched?.[episodeKey(mediaId, episodeNumber)]?.watched === true;
 }
 
-export function countWatchedEpisodes(watched: Record<string, WatchedEpisode> | undefined, mediaId: string): number {
-    if (!watched) return 0;
-    const prefix = `${mediaId}:`;
-    return Object.entries(watched).filter(([key, entry]) => key.startsWith(prefix) && entry.watched).length;
+/** A title's place in the learner's watching: none marked, some, or every episode. */
+export type WatchStatus = 'not-started' | 'watching' | 'completed';
+
+/** Per title, how many episodes are marked watched and when the latest of those marks was made. */
+export interface TitleWatching {
+    watchedCount: number;
+    lastWatchedAt: number;
+}
+
+/** Every title with at least one episode marked watched, read in one pass over the marks. */
+export function watchingByTitle(watched: Record<string, WatchedEpisode> | undefined): Map<string, TitleWatching> {
+    const byTitle = new Map<string, TitleWatching>();
+    for (const [key, mark] of Object.entries(watched ?? {})) {
+        if (!mark.watched) continue;
+        const mediaId = mediaIdOfKey(key);
+        const current = byTitle.get(mediaId);
+        byTitle.set(mediaId, {
+            watchedCount: (current?.watchedCount ?? 0) + 1,
+            lastWatchedAt: Math.max(current?.lastWatchedAt ?? 0, mark.updatedAt),
+        });
+    }
+    return byTitle;
+}
+
+export function watchStatus(watching: TitleWatching | undefined, episodeCount: number): WatchStatus {
+    if (!watching || watching.watchedCount === 0) return 'not-started';
+    return watching.watchedCount >= episodeCount ? 'completed' : 'watching';
+}
+
+/**
+ * The library page's order: the titles being watched first, the most recently
+ * marked first, then every other title (completed ones included) in the order
+ * given, rankLibrary's best fit. `ranked` is the search's result over every
+ * genre: a title being watched stays on top whatever the genre filter, since the
+ * filter is saved and one set weeks ago would otherwise hide the show the learner
+ * is in the middle of; every other title must match the chosen genres. Kept apart
+ * from rankLibrary so the hub's "Best match" never names the show being watched.
+ * The marks are merged per episode across devices (mergeWatchedEpisodes), so the
+ * order is the same on each.
+ */
+export function watchingFirst<T extends { entry: Pick<MediaIndexEntry, 'id' | 'episodeCount' | 'genres'> }>(
+    ranked: T[],
+    watching: Map<string, TitleWatching>,
+    genres: string[]
+): T[] {
+    const isWatching = (row: T) => watchStatus(watching.get(row.entry.id), row.entry.episodeCount) === 'watching';
+    const lastWatchedAt = (row: T) => watching.get(row.entry.id)?.lastWatchedAt ?? 0;
+    return [
+        ...ranked.filter(isWatching).sort((a, b) => lastWatchedAt(b) - lastWatchedAt(a)),
+        ...ranked.filter(row => !isWatching(row) && matchesGenres(row.entry, genres)),
+    ];
 }
 
 /**

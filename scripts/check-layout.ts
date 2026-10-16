@@ -17,7 +17,7 @@
  * Chrome is driven over the DevTools protocol with Bun's own WebSocket: Playwright's transports
  * do not work under Bun on Windows, and this needs nothing installed.
  */
-import { buildMissing, dictionaryFile, dictionaryPages, serve, srsFile, srsRoutes } from './lib/builtSite';
+import { buildMissing, dictionaryFile, dictionaryPages, listeningTitlesToMark, serve, srsFile, srsRoutes } from './lib/builtSite';
 import { launchChrome, type Tab } from './lib/chrome';
 
 const VIEWPORTS = [{ width: 320, height: 720 }, { width: 375, height: 812 }];
@@ -80,6 +80,7 @@ async function measure(tab: Tab, page: string, width: number, tapTargets = ''): 
 
 const DICTIONARY_PAGES = dictionaryPages();
 const SRS_ROUTES = srsRoutes();
+const [COMPLETED_TITLE, WATCHING_TITLE] = listeningTitlesToMark();
 
 try {
     for (const { width, height } of VIEWPORTS) {
@@ -97,6 +98,14 @@ try {
             await tab.goto(`${app}${route.path}`, route.ready);
             await measure(tab, `srs ${route.path}`, width);
         }
+        // The library's rows with a status line, the tightest rows on a phone.
+        await tab.goto(`${app}/listening/${COMPLETED_TITLE}`, 'Mark all watched');
+        await tab.click('Mark all watched');
+        await tab.goto(`${app}/listening/${WATCHING_TITLE}`, 'Mark all watched');
+        await tab.click('Mark watched');
+        await tab.goto(`${app}/listening`, 'Watching ·');
+        await tab.until(`document.body.innerText.includes('Completed')`, 'a completed title in the library');
+        await measure(tab, 'srs /listening, watching and completed titles', width);
         for (const page of DICTIONARY_PAGES) {
             await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${page.path}`, page.ready);
             await measure(tab, `dictionary ${page.path}`, width, DICTIONARY_TAP_TARGETS);

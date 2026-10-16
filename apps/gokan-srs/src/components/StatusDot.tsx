@@ -23,9 +23,11 @@ interface StatusDotProps {
  */
 export function StatusDot({ status, label, className = '' }: StatusDotProps) {
     const shownLabel = label === null ? null : label ?? STATUS_LABEL[status];
+    const dot = <span className={`inline-block w-2.5 h-2.5 rounded-full border ${DOT_STYLE[status]}`} aria-hidden="true" />;
     return (
-        <span className={`inline-flex items-center gap-1.5 ${className}`}>
-            <span className={`inline-block w-2.5 h-2.5 rounded-full border ${DOT_STYLE[status]}`} aria-hidden="true" />
+        <span className={`inline-flex items-start gap-1.5 ${className}`}>
+            {/* One label line tall, so a label that wraps keeps the dot beside its first line. */}
+            {shownLabel !== null ? <span className="flex h-5 shrink-0 items-center">{dot}</span> : dot}
             {shownLabel !== null
                 ? <span className="type-support">{shownLabel}</span>
                 : <span className="sr-only">{STATUS_LABEL[status]}</span>}

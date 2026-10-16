@@ -8,14 +8,19 @@ import { PageHeader } from "../../components/PageHeader";
 import { ChapterProgressBar } from "../../components/ChapterProgressBar";
 import {
     buildWordKnowledge,
-    countWatchedEpisodes,
     formatPercent,
     isEpisodeWatched,
     knownRatio,
     libraryGenres,
+    matchesGenres,
     rankLibrary,
     speechSpeedLabel,
+    watchingByTitle,
+    watchingFirst,
+    watchStatus,
 } from "../../utils/mediaCoverage.utils";
+import type { WatchStatus } from "../../utils/mediaCoverage.utils";
+import { StatusDot } from "../../components/StatusDot";
 import { JitenCredit, MediaCover, MediaCoverPlaceholder, VocabularyOnlyNote } from "./listeningShared";
 import { FilterToggle } from "../../components/ui/FilterToggle";
 import { Pagination } from "../../components/ui/Pagination";
@@ -29,6 +34,14 @@ const SKELETON_ROWS = 6;
  */
 const LIST_FRAME = 'flex flex-col divide-y divide-divider border-y border-divider';
 const ROW_FRAME = 'flex gap-4 px-2 py-4 rounded-md';
+/**
+ * A row's text beside the cover: on a phone the figures go under the title, so the
+ * title is not squeezed to a few characters; from sm they stand in a column on the right.
+ */
+const ROW_HEAD = 'flex flex-col sm:flex-row sm:items-start sm:justify-between sm:gap-4';
+const ROW_FIGURES = 'mt-2 sm:mt-0 flex flex-wrap items-baseline gap-x-1.5 sm:block sm:text-right sm:shrink-0';
+/** On a phone, "words to learn" takes its own line under "N% known". */
+const FIGURES_LAST = 'basis-full sm:basis-auto';
 /**
  * A typical meta line ("2013 · 12 episodes · Moderate speech · Comedy · Slice of Life"), one bar
  * per word at its measured width, so the skeleton's line wraps where the real one does on a phone.
@@ -45,10 +58,11 @@ const GENRE_PLACEHOLDER_WIDTHS = [
 ];
 
 /**
- * Route /listening: the anime in the library, ranked by how much of each one's
- * vocabulary the learner already knows, so the best fit for where they are now
- * comes first. The genre filter is saved in their settings (and so follows them
- * across devices); the search box is not.
+ * Route /listening: the anime in the library, the ones being watched first, then
+ * ranked by how much of each one's vocabulary the learner already knows, so the
+ * best fit for where they are now comes next. The genre filter is saved in their
+ * settings (and so follows them across devices); the search box is not. A title
+ * being watched shows whatever the genre filter, but the search still applies to it.
  */
 export function ListeningLibraryScreen() {
     const { state, actions } = useQuiz();
@@ -88,14 +102,28 @@ export function ListeningLibraryScreen() {
 
     const rows = useMemo(() => {
         if (!index || !libraryWords) return [];
-        return rankLibrary(index, libraryWords, knowledge, selectedGenres, query).map(({ entry, coverage }) => {
+        const watching = watchingByTitle(watched);
+        // Ranked over every genre: watchingFirst keeps the titles being watched and filters the rest.
+        const ranked = rankLibrary(index, libraryWords, knowledge, [], query);
+        return watchingFirst(ranked, watching, selectedGenres).map(({ entry, coverage }) => {
             let nextEpisode: number | null = null;
             for (let n = 1; n <= entry.episodeCount; n++) {
                 if (!isEpisodeWatched(watched, entry.id, n)) { nextEpisode = n; break; }
             }
-            return { entry, coverage, nextEpisode, watchedCount: countWatchedEpisodes(watched, entry.id) };
+            const titleWatching = watching.get(entry.id);
+            return {
+                entry,
+                coverage,
+                nextEpisode,
+                watchedCount: titleWatching?.watchedCount ?? 0,
+                status: watchStatus(titleWatching, entry.episodeCount),
+            };
         });
     }, [index, libraryWords, knowledge, watched, selectedGenres, query]);
+
+    // A title being watched outside the chosen genres is listed, but not counted as matching them.
+    const matchingCount = rows.filter(row => matchesGenres(row.entry, selectedGenres)).length;
+    const watchingOutsideGenres = rows.length - matchingCount;
 
     const totalPages = Math.ceil(rows.length / PAGE_SIZE) || 1;
     const shownPage = Math.min(page, totalPages);
@@ -106,7 +134,7 @@ export function ListeningLibraryScreen() {
         <Page width="narrow">
             <PageHeader
                 title="Listening"
-                subtitle="Anime for listening practice, ordered by how much of their vocabulary you already know."
+                subtitle="Anime for listening practice: what you are watching first, then ordered by how much of their vocabulary you already know."
                 className="mb-2"
             />
             <VocabularyOnlyNote className="mb-6" />
@@ -143,8 +171,9 @@ export function ListeningLibraryScreen() {
                     </div>
                     {index && libraryWords ? (
                         <p className="type-meta">
-                            {rows.length} of {index.length} titles
+                            {matchingCount} of {index.length} titles
                             {selectedGenres.length > 0 && ' matching your genres'}
+                            {watchingOutsideGenres > 0 && `, plus ${watchingOutsideGenres} you are watching`}
                         </p>
                     ) : (
                         <p className="type-meta">Loading the library...</p>
@@ -159,7 +188,7 @@ export function ListeningLibraryScreen() {
             )}
 
             {loaded && <div className={LIST_FRAME}>
-                {displayed.map(({ entry, coverage, nextEpisode, watchedCount }) => {
+                {displayed.map(({ entry, coverage, nextEpisode, watchedCount, status }) => {
                     const speed = speechSpeedLabel(entry.speechSpeed);
                     const toLearn = coverage.unique.total - coverage.unique.mastered - coverage.unique.learning;
                     return (
@@ -170,10 +199,11 @@ export function ListeningLibraryScreen() {
                         >
                             <MediaCover entry={entry} size="library" className="self-start" />
                             <div className="min-w-0 flex-1">
-                                <div className="flex items-start justify-between gap-4">
+                                <div className={ROW_HEAD}>
                                     <div className="min-w-0">
                                         <h2 className="font-mincho text-lg text-primary truncate">{entry.title.original}</h2>
                                         {entry.title.english && <p className="type-support truncate">{entry.title.english}</p>}
+                                        <WatchStatusLine status={status} watchedCount={watchedCount} episodeCount={entry.episodeCount} nextEpisode={nextEpisode} />
                                         <p className="type-meta mt-1">
                                             {[
                                                 entry.releaseYear,
@@ -183,25 +213,18 @@ export function ListeningLibraryScreen() {
                                             ].filter(Boolean).join(' · ')}
                                         </p>
                                     </div>
-                                    <div className="text-right shrink-0">
-                                        <p className="font-sans text-2xl text-primary tabular-nums leading-none">
+                                    <div className={ROW_FIGURES}>
+                                        <p className="font-sans text-lg sm:text-2xl text-primary tabular-nums leading-none">
                                             {formatPercent(knownRatio(coverage.occurrences))}
                                         </p>
-                                        <p className="type-meta mt-1">known</p>
-                                        <p className="type-meta tabular-nums">{toLearn.toLocaleString('en-US')} words to learn</p>
+                                        <p className="type-meta sm:mt-1">known</p>
+                                        <p className={`${FIGURES_LAST} type-meta tabular-nums`}>{toLearn.toLocaleString('en-US')} words to learn</p>
                                     </div>
                                 </div>
 
                                 <div className="mt-3">
                                     <ChapterProgressBar counts={coverage.occurrences} compact />
                                 </div>
-
-                                {watchedCount > 0 && (
-                                    <p className="type-support mt-2">
-                                        {watchedCount} of {entry.episodeCount} watched
-                                        {nextEpisode !== null ? ` · Next: Episode ${nextEpisode}` : ' · Every episode watched'}
-                                    </p>
-                                )}
                             </div>
                         </Link>
                     );
@@ -219,6 +242,41 @@ export function ListeningLibraryScreen() {
     );
 }
 
+/**
+ * The title's place in the learner's watching, in StatusDot's steps of the accent; nothing for a
+ * title not started. A Watching line carries the episode count, so the bar below reads only as
+ * words known. Each part keeps its words together, so on a phone the line wraps after a separator.
+ */
+function WatchStatusLine({ status, watchedCount, episodeCount, nextEpisode }: {
+    status: WatchStatus;
+    watchedCount: number;
+    episodeCount: number;
+    nextEpisode: number | null;
+}) {
+    switch (status) {
+        case 'not-started':
+            return null;
+        case 'watching': {
+            const parts = ['Watching', `${watchedCount} of ${episodeCount} episodes`];
+            if (nextEpisode !== null) parts.push(`Episode ${nextEpisode} next`);
+            return (
+                <StatusDot
+                    status="learning"
+                    label={parts.map((part, i) => (
+                        <span key={part}>
+                            {i > 0 && ' '}
+                            <span className="whitespace-nowrap">{part}{i < parts.length - 1 && ' ·'}</span>
+                        </span>
+                    ))}
+                    className="mt-1"
+                />
+            );
+        }
+        case 'completed':
+            return <StatusDot status="mastered" label="Completed" className="mt-1" />;
+    }
+}
+
 /** A grey bar standing in for a line of text, inside an element with that line's type so the row keeps its height. */
 function TextBar({ width }: { width: string }) {
     return <span className={`inline-block h-[0.75em] ${width} max-w-full rounded-sm bg-divider align-middle animate-pulse`} />;
@@ -230,7 +288,7 @@ function LibraryRowSkeleton() {
         <div className={ROW_FRAME}>
             <MediaCoverPlaceholder size="library" className="self-start" />
             <div className="min-w-0 flex-1">
-                <div className="flex items-start justify-between gap-4">
+                <div className={ROW_HEAD}>
                     <div className="min-w-0 flex-1">
                         <p className="font-mincho text-lg"><TextBar width="w-40" /></p>
                         <p className="type-support"><TextBar width="w-32" /></p>
@@ -238,10 +296,10 @@ function LibraryRowSkeleton() {
                             {META_WORD_WIDTHS.map((width, i) => <span key={i}>{i > 0 && ' '}<TextBar width={width} /></span>)}
                         </p>
                     </div>
-                    <div className="text-right shrink-0">
-                        <p className="font-sans text-2xl leading-none"><TextBar width="w-10" /></p>
-                        <p className="type-meta mt-1"><TextBar width="w-10" /></p>
-                        <p className="type-meta"><TextBar width="w-[118px]" /></p>
+                    <div className={ROW_FIGURES}>
+                        <p className="font-sans text-lg sm:text-2xl leading-none"><TextBar width="w-10" /></p>
+                        <p className="type-meta sm:mt-1"><TextBar width="w-10" /></p>
+                        <p className={`${FIGURES_LAST} type-meta`}><TextBar width="w-[118px]" /></p>
                     </div>
                 </div>
 
