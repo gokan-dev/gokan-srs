@@ -70,7 +70,7 @@ describe('romajiReadingPrefixes', () => {
         expect(romajiReadingPrefixes('taber').sort()).toEqual(['たべら', 'たべり', 'たべる', 'たべれ', 'たべろ', 'たべりゃ', 'たべりゅ', 'たべりょ', 'たべっ'].sort());
         expect(romajiReadingPrefixes('tabet')).toEqual(expect.arrayContaining(['たべて', 'たべた', 'たべつ', 'たべち', 'たべっ']));
         expect(romajiReadingPrefixes('benky').sort()).toEqual(['べんきゃ', 'べんきゅ', 'べんきょ'].sort());
-        expect(romajiReadingPrefixes('nihong')).toEqual(expect.arrayContaining(['にほんご', 'にほんが', 'にほんっ']));
+        expect(romajiReadingPrefixes('nihong')).toEqual(expect.arrayContaining(['にほんご', 'にほんが']));
         expect(romajiReadingPrefixes('chot')).toEqual(expect.arrayContaining(['ちょっ', 'ちょと']));
         expect(romajiReadingPrefixes('gakk')).toEqual(expect.arrayContaining(['がっこ', 'がっか']));
         expect(romajiReadingPrefixes('matc')).toEqual(expect.arrayContaining(['まっちゃ', 'まっち']));
@@ -81,7 +81,6 @@ describe('romajiReadingPrefixes', () => {
         expect(romajiReadingPrefixes('kann')).toEqual(['かん']);
         expect(romajiReadingPrefixes('kannj')).toEqual(expect.arrayContaining(['かんじゃ', 'かんじゅ', 'かんじょ', 'かんじ']));
         expect(romajiReadingPrefixes('kannj')).not.toContain('かんにゃ');
-        expect(romajiReadingPrefixes('konny')).toEqual(expect.arrayContaining(['こんにゃ', 'こんにゅ', 'こんにょ']));
         expect(romajiReadingPrefixes('beny')).toEqual(expect.arrayContaining(['べにゃ', 'べんや']));
     });
 
@@ -92,6 +91,17 @@ describe('romajiReadingPrefixes', () => {
         expect(romajiReadingPrefixes('oy').sort()).toEqual(['おや', 'おゆ', 'およ'].sort());
         expect(romajiReadingPrefixes('ow')).not.toContain('おっ');
         expect(romajiReadingPrefixes('ny')).not.toContain('んっ');
+    });
+
+    it('adds no っ after a ん, which a doubled consonant cannot follow', () => {
+        expect(romajiReadingPrefixes('kannj').sort()).toEqual(['かんじ', 'かんじゃ', 'かんじゅ', 'かんじょ'].sort());
+        expect(romajiReadingPrefixes('anp').sort()).toEqual(['あんぱ', 'あんぴ', 'あんぷ', 'あんぺ', 'あんぽ', 'あんぴゃ', 'あんぴゅ', 'あんぴょ'].sort());
+        expect(romajiReadingPrefixes('nihong')).not.toContain('にほんっ');
+    });
+
+    it('reads an unfinished nny at the end as ん plus an unfinished n syllable', () => {
+        expect(romajiReadingPrefixes('konny').sort()).toEqual(['こんにゃ', 'こんにゅ', 'こんにょ'].sort());
+        expect(romajiReadingPrefixes('senny').sort()).toEqual(['せんにゃ', 'せんにゅ', 'せんにょ'].sort());
     });
 
     it('is empty for a query that is not romaji', () => {

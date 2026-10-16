@@ -129,15 +129,19 @@ export function romajiReadingPrefixes(input: string): string[] {
     const [, typedHead, typedTail] = /^(.*?)([a-z]*)$/.exec(converted) ?? ['', converted, ''];
     // "matc" on the way to "matcha": the t of "tch" is already the っ.
     const [head, tail] = typedTail === 'tc' ? [typedHead + 'っ', 'c'] : [typedHead, typedTail];
-    const prefixes = tail === '' ? [head] : syllablesStartingWith(tail).map(kana => head + kana);
-    // Not after a っ ("kakk", "matc"), and not for y or w, which never double ("oy" on the way to "oya").
-    if (tail.length === 1 && prefixes.length > 0 && !head.endsWith('っ') && !'yw'.includes(tail)) prefixes.push(head + 'っ');
     // An "n" the converter read as ん may instead begin the unfinished syllable ("kan", "beny");
     // a final "nn" is one ん ("kann").
-    if (head.endsWith('ん') && s.endsWith('n' + tail) && !(tail === '' && s.endsWith('nn'))) {
-        prefixes.push(...syllablesStartingWith('n' + tail).map(kana => head.slice(0, -1) + kana));
-    }
-    return kanaOnly(prefixes);
+    const nSyllables = head.endsWith('ん') && s.endsWith('n' + tail) && !(tail === '' && s.endsWith('nn'))
+        ? syllablesStartingWith('n' + tail).map(kana => head.slice(0, -1) + kana)
+        : [];
+    // "konny": the converter read "nn" as ん plus an n that the unfinished syllable then left
+    // as a second ん; only the n syllables can follow (こんにゃ, never こんんや).
+    if (tail !== '' && head.endsWith('んん') && s.endsWith('nn' + tail)) return kanaOnly(nSyllables);
+    const prefixes = tail === '' ? [head] : syllablesStartingWith(tail).map(kana => head + kana);
+    // Not after a っ ("kakk", "matc") or a ん ("kannj", "anp"), and not for y or w, which never
+    // double ("oy" on the way to "oya").
+    if (tail.length === 1 && prefixes.length > 0 && !/[っん]$/.test(head) && !'yw'.includes(tail)) prefixes.push(head + 'っ');
+    return kanaOnly([...prefixes, ...nSyllables]);
 }
 
 function kanaOnly(candidates: string[]): string[] {
