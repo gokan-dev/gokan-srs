@@ -64,6 +64,14 @@ export const CONSTANTS = {
              */
             unresolvedKatakanaWeight: 0.5,
             /**
+             * Weight of one RESOLVED word the learner has not introduced, when the
+             * sentence writes it in kana at every occurrence (する, こと). It can be
+             * read, only its meaning may be unknown: the same reasoning as
+             * unresolved katakana, kept as its own value. Written with a kanji, the
+             * same word weighs 1.
+             */
+            unintroducedKanaWeight: 0.5,
+            /**
              * Sentences are grouped into bands of this many characters
              * (`Math.ceil(length / lengthBand)`) for the ranker's length key, so a
              * 14-character sentence does not automatically beat a 15-character one -
