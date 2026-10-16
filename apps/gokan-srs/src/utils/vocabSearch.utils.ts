@@ -1,5 +1,5 @@
-import type { SearchIndex, SearchIndexEntry } from '@gokan/dataset-schema';
-import { looksLikeRomaji, romajiReadingPrefixes, romajiToHiragana, searchHeadword } from '@gokan/dataset-schema';
+import type { RomajiQuery, SearchIndex, SearchIndexEntry, Vocabulary } from '@gokan/dataset-schema';
+import { containsWholeWord, readRomajiQuery, searchHeadword, toHiragana } from '@gokan/dataset-schema';
 
 /** How many hits the header search shows. */
 const VOCAB_SEARCH_LIMIT = 50;
@@ -17,8 +17,17 @@ type Rank = typeof Rank[keyof typeof Rank];
 type Hit = { entry: SearchIndexEntry; rank: Rank; length: number; position: number };
 type FormRank = { rank: Rank; length: number };
 
-/** What a romaji query was read as: its whole kana, and the kana a reading can start with partway through a syllable. */
-type RomajiQuery = { kana: string; prefixes: readonly string[] };
+/** A vocabulary search query: as typed (lowercase, trimmed), and as romaji read (readRomajiQuery). */
+export interface VocabQuery {
+    text: string;
+    romaji: RomajiQuery | null;
+}
+
+/** The query every vocabulary search reads, or null when it is empty. */
+export function readVocabQuery(query: string): VocabQuery | null {
+    const text = query.toLowerCase().trim();
+    return text ? { text, romaji: readRomajiQuery(text) } : null;
+}
 
 /** The best rank of the written form against the query as typed, with the length of the form that earned it. */
 function writtenRank(form: string, q: string): FormRank | null {
@@ -28,30 +37,22 @@ function writtenRank(form: string, q: string): FormRank | null {
     return null;
 }
 
-/** The best rank of the reading against the query as typed and as romaji read. */
+/** The best rank of the reading against the query as typed and as romaji read (in hiragana: コーヒー for "ko-hi-"). */
 function readingRank(reading: string, q: string, romaji: RomajiQuery | null): FormRank | null {
     const typed = writtenRank(reading, q);
     if (typed || !romaji) return typed;
-    if (reading === romaji.kana) return { rank: Rank.Exact, length: reading.length };
-    if (romaji.prefixes.some(prefix => reading.startsWith(prefix))) return { rank: Rank.RomajiPrefix, length: reading.length };
-    if (reading.includes(romaji.kana)) return { rank: Rank.RomajiContains, length: reading.length };
+    const kana = toHiragana(reading);
+    if (kana === romaji.kana) return { rank: Rank.Exact, length: reading.length };
+    if (romaji.prefixes.some(prefix => kana.startsWith(prefix))) return { rank: Rank.RomajiPrefix, length: reading.length };
+    if (kana.includes(romaji.kana)) return { rank: Rank.RomajiContains, length: reading.length };
     return null;
-}
-
-/** True if `word` is in `text` with no letter right before or after it. */
-function containsWholeWord(text: string, word: string): boolean {
-    const isLetter = (char: string | undefined) => char !== undefined && /[a-z]/.test(char);
-    for (let at = text.indexOf(word); at !== -1; at = text.indexOf(word, at + 1)) {
-        if (!isLetter(text[at - 1]) && !isLetter(text[at + word.length])) return true;
-    }
-    return false;
 }
 
 function rankEntry(entry: SearchIndexEntry, q: string, romaji: RomajiQuery | null): Omit<Hit, 'entry' | 'position'> | null {
     // The romaji's kana is a reading query: it is matched against the reading (and the
     // headword, which is the reading for a word learned in kana), never the written form.
     const headword = searchHeadword(entry);
-    if (headword === q || headword === romaji?.kana) return { rank: Rank.Headword, length: headword.length };
+    if (headword === q || toHiragana(headword) === romaji?.kana) return { rank: Rank.Headword, length: headword.length };
 
     const forms = [writtenRank(entry.w, q), readingRank(entry.r.toLowerCase(), q, romaji)]
         .filter((form): form is FormRank => form !== null);
@@ -72,15 +73,24 @@ function rankEntry(entry: SearchIndexEntry, q: string, romaji: RomajiQuery | nul
  * order; English gloss matches rank in index order.
  */
 export function rankVocabSearch(index: SearchIndex, query: string, limit = VOCAB_SEARCH_LIMIT): SearchIndex {
-    const q = query.toLowerCase().trim();
-    if (!q) return [];
-    const romaji = looksLikeRomaji(q) ? { kana: romajiToHiragana(q), prefixes: romajiReadingPrefixes(q) } : null;
+    const read = readVocabQuery(query);
+    if (!read) return [];
 
     const hits: Hit[] = [];
     index.forEach((entry, position) => {
-        const ranked = rankEntry(entry, q, romaji);
+        const ranked = rankEntry(entry, read.text, read.romaji);
         if (ranked) hits.push({ entry, position, ...ranked });
     });
     hits.sort((a, b) => a.rank - b.rank || a.length - b.length || a.position - b.position);
     return hits.slice(0, limit).map(hit => hit.entry);
+}
+
+/**
+ * The vocabulary list's filter (/vocab): a word the header search would find for the same
+ * query (written form, reading as typed or as romaji read, gloss), kept in the list's own order.
+ */
+export function matchesVocabQuery(word: Pick<Vocabulary, 'writtenForm' | 'reading' | 'senses'>, query: VocabQuery): boolean {
+    return writtenRank(word.writtenForm.kanji, query.text) !== null
+        || readingRank(word.reading.primary.toLowerCase(), query.text, query.romaji) !== null
+        || word.senses.some(sense => sense.glosses.some(gloss => gloss.toLowerCase().includes(query.text)));
 }

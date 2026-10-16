@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { headwordOf, looksLikeRomaji, romajiToHiragana, secondaryForm, toHiragana } from "@gokan/dataset-schema";
+import { headwordOf, secondaryForm } from "@gokan/dataset-schema";
 import { useQuiz } from "../../context/useQuiz";
 import { VocabularyService } from "../../services/vocabulary.service";
 import { useAsyncData } from "../../hooks/useAsyncData";
@@ -17,6 +17,7 @@ import { CardSkeleton } from "../../components/CardSkeleton";
 import { isProductionActivated, isReadingRelevant, isVocabFullyMastered, vocabNextReviewAt } from "../../services/scheduling";
 import { ArrowDownUp } from "lucide-react";
 import { formatTimeUntil } from "../../utils/time.utils";
+import { matchesVocabQuery, readVocabQuery } from "../../utils/vocabSearch.utils";
 import { matchesVocabStatus, vocabSortKey, VOCAB_SORT_LABEL, VOCAB_STATUS_LABEL, type VocabSort, type VocabStatusFilter } from "../../utils/vocabStatus.utils";
 
 const STATE_KEY = 'gokan_vocab_list_state';
@@ -90,9 +91,8 @@ export function VocabularyListScreen() {
 
     const shown = useMemo(() => {
         const nowDate = new Date(now);
-        const q = query.toLowerCase().trim();
-        // Romaji typed in the search also finds the kana reading.
-        const qKana = q && looksLikeRomaji(q) ? romajiToHiragana(q) : '';
+        // Read as the header search reads it: romaji typed partway ("taber") still finds the word.
+        const q = readVocabQuery(query);
         const context = { settings, frequencyRank };
         const direction = reversed ? -1 : 1;
         return progress
@@ -102,10 +102,7 @@ export function VocabularyListScreen() {
                 if (!q) return true;
                 const item = itemById.get(p.vocabId);
                 if (!item) return false;
-                return item.writtenForm.kanji.includes(q)
-                    || item.reading.primary.includes(q)
-                    || (qKana !== '' && toHiragana(item.reading.primary).includes(qKana))
-                    || item.senses.some(s => s.glosses.some(g => g.toLowerCase().includes(q)));
+                return matchesVocabQuery(item, q);
             })
             .map(p => ({ p, key: vocabSortKey(p, sort, context) }))
             .sort((a, b) => direction * (a.key - b.key))

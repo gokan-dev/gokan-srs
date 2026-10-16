@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { searchIndexEntry } from '../test/fixtures';
-import { rankVocabSearch } from './vocabSearch.utils';
+import { searchIndexEntry, vocabulary } from '../test/fixtures';
+import { matchesVocabQuery, rankVocabSearch, readVocabQuery } from './vocabSearch.utils';
 
 // In search.json's order (kanji spelling): compounds containing する come before 為る.
 const index = [
@@ -85,7 +85,43 @@ describe('rankVocabSearch', () => {
         expect(ranked('kar')).toEqual(['kara', 'kariru', 'okara']);
     });
 
+    it('reads a romaji query as an IME does: spaces dropped, \' after n, - as ー', () => {
+        const words = [
+            searchIndexEntry({ id: 'taberu', w: '食べる', r: 'たべる', m: 'to eat' }),
+            searchIndexEntry({ id: 'kani', w: '蟹', r: 'かに', m: 'crab' }),
+            searchIndexEntry({ id: 'kan-i', w: '簡易', r: 'かんい', m: 'simple; easy' }),
+            searchIndexEntry({ id: 'coffee', w: '珈琲', r: 'コーヒー', m: 'coffee', u: true }),
+        ];
+        const first = (query: string) => rankVocabSearch(words, query)[0]?.id;
+        expect(first('tabe ru')).toBe('taberu');
+        expect(first("kan'i")).toBe('kan-i');
+        expect(first('kani')).toBe('kani');
+        expect(first('ko-hi-')).toBe('coffee');
+        expect(first('ko-h')).toBe('coffee');
+    });
+
     it('returns nothing for an empty query', () => {
         expect(rankVocabSearch(index, '  ')).toEqual([]);
+    });
+});
+
+describe('matchesVocabQuery', () => {
+    const taberu = vocabulary({
+        id: 'taberu',
+        writtenForm: { kanji: '食べる', alternatives: [], containedKanji: ['食'] },
+        reading: { primary: 'たべる', alternatives: [] },
+        senses: [{ pos: ['v1'], misc: { rawTags: [] }, glosses: ['to eat'], related: { compounds: [] } }],
+    });
+    const matches = (query: string) => {
+        const read = readVocabQuery(query);
+        return read !== null && matchesVocabQuery(taberu, read);
+    };
+
+    it('keeps a word as the header search finds it: written form, reading, romaji typed partway, gloss', () => {
+        expect(['食べ', 'べる', 'tabe', 'taber', 'tabe ru', 'eat'].map(matches)).toEqual([true, true, true, true, true, true]);
+    });
+
+    it('drops a word the query does not reach', () => {
+        expect(['tabo', 'drink', '飲'].map(matches)).toEqual([false, false, false]);
     });
 });
