@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { romajiToHiragana, looksLikeRomaji, kanaToRomaji, romajiReadingPrefixes } from './romaji';
+import { romajiToHiragana, looksLikeRomaji, kanaToRomaji, romajiReadingPrefixes, normalizeRomajiQuery, readRomajiQuery } from './romaji';
 
 describe('romajiToHiragana', () => {
     it('converts basic syllables', () => {
@@ -46,6 +46,20 @@ describe('romajiToHiragana', () => {
     });
 });
 
+describe('romajiToHiragana: nn', () => {
+    it('reads nn at the end or before a consonant as one ん', () => {
+        expect(romajiToHiragana('kann')).toBe('かん');
+        expect(romajiToHiragana('konn')).toBe('こん');
+        expect(romajiToHiragana('kannji')).toBe('かんじ');
+        expect(romajiToHiragana('konnna')).toBe('こんな');
+    });
+
+    it('reads nn before a vowel or y as ん and an n syllable', () => {
+        expect(romajiToHiragana('konnichiha')).toBe('こんにちは');
+        expect(romajiToHiragana('konnyaku')).toBe('こんにゃく');
+    });
+});
+
 describe('romajiReadingPrefixes', () => {
     it('keeps a romaji made of complete syllables as converted', () => {
         expect(romajiReadingPrefixes('tabe')).toEqual(['たべ']);
@@ -65,13 +79,46 @@ describe('romajiReadingPrefixes', () => {
     it('reads a final n as ん or the start of an n syllable, and a final nn as one ん', () => {
         expect(romajiReadingPrefixes('kan').sort()).toEqual(['かん', 'かな', 'かに', 'かぬ', 'かね', 'かの', 'かにゃ', 'かにゅ', 'かにょ'].sort());
         expect(romajiReadingPrefixes('kann')).toEqual(['かん']);
+        expect(romajiReadingPrefixes('kannj')).toEqual(expect.arrayContaining(['かんじゃ', 'かんじゅ', 'かんじょ', 'かんじ']));
+        expect(romajiReadingPrefixes('kannj')).not.toContain('かんにゃ');
+        expect(romajiReadingPrefixes('konny')).toEqual(expect.arrayContaining(['こんにゃ', 'こんにゅ', 'こんにょ']));
         expect(romajiReadingPrefixes('beny')).toEqual(expect.arrayContaining(['べにゃ', 'べんや']));
+    });
+
+    it('adds no っ after a っ, or for y or w, which never double', () => {
+        for (const romaji of ['kakk', 'tt', 'matc']) {
+            expect(romajiReadingPrefixes(romaji).filter(kana => kana.includes('っっ'))).toEqual([]);
+        }
+        expect(romajiReadingPrefixes('oy').sort()).toEqual(['おや', 'おゆ', 'およ'].sort());
+        expect(romajiReadingPrefixes('ow')).not.toContain('おっ');
+        expect(romajiReadingPrefixes('ny')).not.toContain('んっ');
     });
 
     it('is empty for a query that is not romaji', () => {
         expect(romajiReadingPrefixes('xyz')).toEqual([]);
         expect(romajiReadingPrefixes('to eat')).toEqual([]);
         expect(romajiReadingPrefixes('n5')).toEqual([]);
+    });
+});
+
+describe('readRomajiQuery', () => {
+    it('drops spaces', () => {
+        expect(normalizeRomajiQuery('tabe ru')).toBe('taberu');
+        expect(readRomajiQuery('tabe ru')?.kana).toBe('たべる');
+    });
+
+    it("keeps ' as the ん separator, and only there", () => {
+        expect(readRomajiQuery("kan'i")?.kana).toBe('かんい');
+        expect(readRomajiQuery("kani")?.kana).toBe('かに');
+        expect(normalizeRomajiQuery("o'ka")).toBe('oka');
+    });
+
+    it('reads - as ー, as an IME types it', () => {
+        expect(readRomajiQuery('ko-hi-')).toEqual({ kana: 'こーひー', prefixes: ['こーひー'] });
+    });
+
+    it('is null without a Latin letter', () => {
+        expect(readRomajiQuery('食べる')).toBeNull();
     });
 });
 

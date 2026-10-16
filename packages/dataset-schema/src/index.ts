@@ -15,5 +15,6 @@ export * from './tags';
 export * from './headword';
 export * from './textbook';
 export * from './romaji';
+export * from './wholeWord';
 export * from './interactiveSentence';
 export * from './grammarSentence';
