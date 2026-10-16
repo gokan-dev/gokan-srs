@@ -59,8 +59,8 @@ const GENRE_PLACEHOLDER_WIDTHS = [
 /**
  * Route /listening: the anime in the library, the ones being watched first, then
  * ranked by how much of each one's vocabulary the learner already knows, so the
- * best fit for where they are now comes next. The genre filter is saved in their settings (and so follows them
- * across devices); the search box is not.
+ * best fit for where they are now comes next. The genre filter is saved in their
+ * settings (and so follows them across devices); the search box is not.
  */
 export function ListeningLibraryScreen() {
     const { state, actions } = useQuiz();
