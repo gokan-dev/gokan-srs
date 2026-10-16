@@ -127,7 +127,9 @@ export function srsRoutes(): { path: string; ready: string }[] {
     return [
         { path: '/', ready: 'Study' },
         { path: '/vocab', ready: 'Vocabulary' },
-        { path: `/vocab/${vocabId}`, ready: 'Meanings' },
+        // Its sentences load after the entry: waiting for them is what lets check-layout measure
+        // the linked words in a sentence, not a page that has not rendered one yet.
+        { path: `/vocab/${vocabId}`, ready: 'Example sentences' },
         { path: '/kanji', ready: 'Kanji learning method' },
         { path: `/kanji/${encodeURIComponent('学')}`, ready: 'Components' },
         { path: '/grammar/browse', ready: 'Grammar' },

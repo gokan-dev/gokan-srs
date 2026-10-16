@@ -83,8 +83,8 @@ describe('scoreGrammarExample', () => {
                 { surface: 'a', vocabId: 't1' },
                 { surface: 'b', vocabId: 't2' },
                 { surface: 'c', vocabId: 'ctx' },
-                { surface: 'd', vocabId: 'u1' },
-                { surface: 'e', vocabId: 'u2' },
+                { surface: '甲', vocabId: 'u1' },
+                { surface: '乙', vocabId: 'u2' },
             ],
         });
         const score = scoreGrammarExample(example, learner);
@@ -128,6 +128,15 @@ describe('scoreGrammarExample', () => {
             ],
         });
         expect(scoreGrammarExample(example, indexLearnerVocab([])).unknownWeight).toBe(0);
+    });
+
+    it('weighs a word not started yet at unintroducedKanaWeight when it is written in kana, 1 when written with a kanji', () => {
+        const kana = grammarExample({ jp: '本がある', words: [{ surface: '本', vocabId: 'hon' }, { surface: 'が', vocabId: null }, { surface: 'ある', vocabId: 'aru' }] });
+        const kanji = grammarExample({ jp: '本が有る', words: [{ surface: '本', vocabId: 'hon' }, { surface: 'が', vocabId: null }, { surface: '有る', vocabId: 'aru' }] });
+        const learner = indexLearnerVocab([learning('hon')]);
+        expect(scoreGrammarExample(kana, learner).unknownWeight).toBe(CONSTANTS.srs.sentenceSelection.unintroducedKanaWeight);
+        expect(scoreGrammarExample(kanji, learner).unknownWeight).toBe(1);
+        expect(compareSentenceScores(scoreGrammarExample(kana, learner), scoreGrammarExample(kanji, learner))).toBeLessThan(0);
     });
 
     it('never scores a pattern-marker word, whether resolved or unresolved', () => {
@@ -183,6 +192,50 @@ describe('scoreVocabSentence', () => {
         });
         const score = scoreVocabSentence(s, learner, new Set());
         expect(score.unknownWeight).toBe(2); // 田中 (1) + 山本 (1), 中 excluded as covered
+    });
+
+    describe('a word not started yet, by how this sentence writes it', () => {
+        // 本 (introduced) + を + 読む or 為る; する / こと are 為る / 事 written in kana.
+        const learner = indexLearnerVocab([learning('hon')]);
+        const kanaSuru = sentence('kana-suru', ['hon', 'suru'], {
+            original: '本をする',
+            matches: { hon: [{ start: 0, length: 1 }], suru: [{ start: 2, length: 2 }] },
+        });
+        const kanjiYomu = sentence('kanji-yomu', ['hon', 'yomu'], {
+            original: '本を読む',
+            matches: { hon: [{ start: 0, length: 1 }], yomu: [{ start: 2, length: 2 }] },
+        });
+
+        it('a sentence whose only unknown is する in kana beats one with an unknown kanji word', () => {
+            expect(scoreVocabSentence(kanaSuru, learner).unknownWeight).toBe(CONSTANTS.srs.sentenceSelection.unintroducedKanaWeight);
+            expect(compareSentenceScores(scoreVocabSentence(kanaSuru, learner), scoreVocabSentence(kanjiYomu, learner))).toBeLessThan(0);
+            expect(pickMostProductive([kanjiYomu, kanaSuru], s => scoreVocabSentence(s, learner), s => s.id, 'seed')?.id).toBe('kana-suru');
+        });
+
+        it('two kana words not started yet tie with one unknown kanji word', () => {
+            const twoKana = sentence('two-kana', ['hon', 'suru', 'koto'], {
+                original: '本をすること',
+                matches: { hon: [{ start: 0, length: 1 }], suru: [{ start: 2, length: 2 }], koto: [{ start: 4, length: 2 }] },
+            });
+            expect(scoreVocabSentence(twoKana, learner).unknownWeight).toBe(scoreVocabSentence(kanjiYomu, learner).unknownWeight);
+        });
+
+        it('weighs 為る written 為る as 1, and a word written with a kanji in any occurrence as 1', () => {
+            const kanjiSuru = sentence('kanji-suru', ['hon', 'suru'], {
+                original: '本を為る',
+                matches: { hon: [{ start: 0, length: 1 }], suru: [{ start: 2, length: 2 }] },
+            });
+            const mixed = sentence('mixed', ['suru'], {
+                original: 'する為る',
+                matches: { suru: [{ start: 0, length: 2 }, { start: 2, length: 2 }] },
+            });
+            expect(scoreVocabSentence(kanjiSuru, learner).unknownWeight).toBe(1);
+            expect(scoreVocabSentence(mixed, learner).unknownWeight).toBe(1);
+        });
+
+        it('counts a word with no match span as written with a kanji', () => {
+            expect(scoreVocabSentence(sentence('no-span', ['suru'], { original: 'する' }), learner).unknownWeight).toBe(1);
+        });
     });
 
     it('returns the character length of `original`', () => {

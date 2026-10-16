@@ -19,7 +19,12 @@ import { hashString } from './deterministicPick';
  * Each word in a sentence gets one role, feeding the `targets`/`progress` half of
  * a score:
  * - `unknown`: resolved to a vocab id the learner has not introduced. Counts 1
- *   toward `unknownWeight`.
+ *   toward `unknownWeight`, or `unintroducedKanaWeight` (0.5) when every one of
+ *   its occurrences in THIS sentence is written without a kanji (a match span's
+ *   text in `original`, a grammar word's `surface`): it can be read, only its
+ *   meaning may be unknown. A word with no match span counts as written with a
+ *   kanji. How the word is written here decides, not `usuallyKana`: 為る written
+ *   為る weighs 1, written する 0.5.
  * - `target`: introduced, production ring below `targetRingCeiling`. Counts
  *   toward the sentence, and its production ring value feeds the progress sum.
  * - `context`: production ring at the ceiling. Neutral: familiar enough to be
@@ -66,7 +71,7 @@ export type LearnerVocab = ReadonlyMap<string, VocabProgress>;
 export type WordRole = 'unknown' | 'target' | 'context';
 
 export interface SentenceScore {
-    /** Lower is better. Resolved-unknown and kanji-bearing unresolved words weigh 1; unresolved katakana (2+ chars) weighs `unresolvedKatakanaWeight`; everything else weighs 0. */
+    /** Lower is better. Resolved-unknown words written with a kanji and kanji-bearing unresolved words weigh 1; resolved-unknown words written in kana weigh `unintroducedKanaWeight`; unresolved katakana (2+ chars) weighs `unresolvedKatakanaWeight`; everything else weighs 0. */
     unknownWeight: number;
     /** Character count of the sentence's Japanese text (`jp` / `original`). */
     length: number;
@@ -91,27 +96,44 @@ export function wordRole(vocabId: string, learner: LearnerVocab): WordRole {
     return productionRing(vp) >= CONSTANTS.srs.sentenceSelection.targetRingCeiling ? 'context' : 'target';
 }
 
+const KANJI_RE = /[一-鿿々]/;
+const KATAKANA_ONLY_RE = /^[ァ-ヺー]+$/;
+
+/** One occurrence of a resolved word in a sentence, and how it is written there (null when the sentence does not say). */
+interface ResolvedOccurrence {
+    vocabId: string;
+    written: string | null;
+}
+
 /**
- * Scores a flat list of RESOLVED vocab ids (each counted once however often it
- * occurs, matching a repeated word in a sentence to a single role). `exclude`
- * drops ids that must not influence the ranking (a vocab card's own word, which
- * every candidate contains anyway). Shared by both `scoreGrammarExample` and
- * `scoreVocabSentence` - this is the one part of scoring that does not depend on
- * the sentence's shape.
+ * Scores the RESOLVED words of a sentence (each counted once however often it
+ * occurs, matching a repeated word in a sentence to a single role). An unknown
+ * word written in kana in every one of its occurrences weighs
+ * `unintroducedKanaWeight`; one written with a kanji anywhere, or whose spelling
+ * the sentence does not give, weighs 1. `exclude` drops ids that must not
+ * influence the ranking (a vocab card's own word, which every candidate contains
+ * anyway). Shared by both `scoreGrammarExample` and `scoreVocabSentence` - this
+ * is the one part of scoring that does not depend on the sentence's shape.
  */
 function scoreResolvedIds(
-    vocabIds: Iterable<string>,
+    occurrences: Iterable<ResolvedOccurrence>,
     learner: LearnerVocab,
     exclude: ReadonlySet<string>
 ): { targets: number; unknownWeight: number; progress: number } {
+    const writtenWithKanji = new Map<string, boolean>();
+    for (const { vocabId, written } of occurrences) {
+        const withKanji = written === null || KANJI_RE.test(written);
+        writtenWithKanji.set(vocabId, (writtenWithKanji.get(vocabId) ?? false) || withKanji);
+    }
+
     let targets = 0;
     let unknownWeight = 0;
     let progress = 0;
-    for (const id of new Set(vocabIds)) {
+    for (const [id, withKanji] of writtenWithKanji) {
         if (exclude.has(id)) continue;
         const role = wordRole(id, learner);
         if (role === 'unknown') {
-            unknownWeight += 1;
+            unknownWeight += withKanji ? 1 : CONSTANTS.srs.sentenceSelection.unintroducedKanaWeight;
         } else if (role === 'target') {
             targets++;
             progress += productionRing(learner.get(id)!);
@@ -119,9 +141,6 @@ function scoreResolvedIds(
     }
     return { targets, unknownWeight, progress };
 }
-
-const KANJI_RE = /[一-鿿々]/;
-const KATAKANA_ONLY_RE = /^[ァ-ヺー]+$/;
 
 /** Unknown weight of a single UNRESOLVED word (grammar shape), by what it still tells a reader on its own. */
 function unresolvedWordWeight(surface: string): number {
@@ -140,19 +159,19 @@ export function scoreGrammarExample(
     example: Pick<GrammarExample, 'words' | 'patternWordIndices' | 'jp'>,
     learner: LearnerVocab
 ): SentenceScore {
-    const resolvedIds: string[] = [];
+    const resolvedWords: ResolvedOccurrence[] = [];
     let unresolvedWeight = 0;
 
     example.words.forEach((word, i) => {
         if (example.patternWordIndices.includes(i)) return;
         if (word.vocabId) {
-            resolvedIds.push(word.vocabId);
+            resolvedWords.push({ vocabId: word.vocabId, written: word.surface });
         } else {
             unresolvedWeight += unresolvedWordWeight(word.surface);
         }
     });
 
-    const resolved = scoreResolvedIds(resolvedIds, learner, new Set());
+    const resolved = scoreResolvedIds(resolvedWords, learner, new Set());
     return {
         unknownWeight: resolved.unknownWeight + unresolvedWeight,
         length: example.jp.length,
@@ -209,6 +228,15 @@ function unresolvedTextWeightOf(sentence: Sentence): number {
     return weight;
 }
 
+/** Each vocab id of a sentence as written at each of its `matches` spans; an id with no span is one occurrence of unknown spelling. */
+function resolvedOccurrencesOf(sentence: Sentence): ResolvedOccurrence[] {
+    return sentence.vocabIds.flatMap((vocabId): ResolvedOccurrence[] => {
+        const spans = sentence.matches?.[vocabId] ?? [];
+        if (spans.length === 0) return [{ vocabId, written: null }];
+        return spans.map(span => ({ vocabId, written: sentence.original.slice(span.start, span.start + span.length) }));
+    });
+}
+
 /**
  * Scores a vocab `Sentence` from the vocab ids it contains plus whatever its
  * `matches` spans leave uncovered in `original`. `exclude` drops ids that must
@@ -221,7 +249,7 @@ export function scoreVocabSentence(
     learner: LearnerVocab,
     exclude: ReadonlySet<string> = new Set()
 ): SentenceScore {
-    const resolved = scoreResolvedIds(sentence.vocabIds, learner, exclude);
+    const resolved = scoreResolvedIds(resolvedOccurrencesOf(sentence), learner, exclude);
     return {
         unknownWeight: resolved.unknownWeight + unresolvedTextWeightOf(sentence),
         length: sentence.original.length,

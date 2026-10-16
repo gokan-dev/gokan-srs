@@ -1,8 +1,8 @@
 import type {
     FrequencyIndex, JlptIndex, KKLCIndex, Kanji, KanjiOrderId, KanjiOrderList, KanjiVocabIndex, SearchIndex, Sentence, Vocabulary,
 } from '@gokan/dataset-schema';
-import { romajiToHiragana, looksLikeRomaji } from '@gokan/dataset-schema';
 import { kanjiStepIndex, type KanjiStepIndex } from '../utils/kanjiOrder.utils';
+import { rankVocabSearch } from '../utils/vocabSearch.utils';
 import { datasetUrl, fetchJson, readJson, RequestCache, sharedRequest } from './http';
 
 /**
@@ -147,22 +147,7 @@ export class VocabularyService {
 
     static async searchVocab(query: string): Promise<SearchIndex> {
         const index = await this.loadSearchIndex();
-        if (!index) return [];
-
-        const q = query.toLowerCase().trim();
-        if (!q) return [];
-
-        // Also try a romaji->hiragana conversion so "nichi" matches the reading にち.
-        // Only when the query actually contains latin letters, and only if the
-        // conversion changed something (otherwise it's identical to the raw match).
-        const kanaQuery = looksLikeRomaji(q) ? romajiToHiragana(q) : null;
-
-        return index.filter(entry =>
-            entry.w.includes(q) ||
-            entry.r.toLowerCase().includes(q) ||
-            entry.m.toLowerCase().includes(q) ||
-            (kanaQuery !== null && kanaQuery !== q && entry.r.includes(kanaQuery))
-        ).slice(0, 50);
+        return index ? rankVocabSearch(index, query) : [];
     }
 
     /** One kanji from its own file (about 1 KB, where kanji.json is every kanji); null when the dataset has no such kanji. */
