@@ -34,11 +34,13 @@ const SKELETON_ROWS = 6;
 const LIST_FRAME = 'flex flex-col divide-y divide-divider border-y border-divider';
 const ROW_FRAME = 'flex gap-4 px-2 py-4 rounded-md';
 /**
- * A row's text beside the cover: on a phone the figures go under the title (on one line), so the
+ * A row's text beside the cover: on a phone the figures go under the title, so the
  * title is not squeezed to a few characters; from sm they stand in a column on the right.
  */
 const ROW_HEAD = 'flex flex-col sm:flex-row sm:items-start sm:justify-between sm:gap-4';
 const ROW_FIGURES = 'mt-2 sm:mt-0 flex flex-wrap items-baseline gap-x-1.5 sm:block sm:text-right sm:shrink-0';
+/** On a phone, "words to learn" takes its own line under "N% known". */
+const FIGURES_LAST = 'basis-full sm:basis-auto';
 /**
  * A typical meta line ("2013 · 12 episodes · Moderate speech · Comedy · Slice of Life"), one bar
  * per word at its measured width, so the skeleton's line wraps where the real one does on a phone.
@@ -207,10 +209,7 @@ export function ListeningLibraryScreen() {
                                             {formatPercent(knownRatio(coverage.occurrences))}
                                         </p>
                                         <p className="type-meta sm:mt-1">known</p>
-                                        <p className="type-meta tabular-nums">
-                                            <span className="sm:hidden" aria-hidden="true">· </span>
-                                            {toLearn.toLocaleString('en-US')} words to learn
-                                        </p>
+                                        <p className={`${FIGURES_LAST} type-meta tabular-nums`}>{toLearn.toLocaleString('en-US')} words to learn</p>
                                     </div>
                                 </div>
 
@@ -278,7 +277,7 @@ function LibraryRowSkeleton() {
                     <div className={ROW_FIGURES}>
                         <p className="font-sans text-lg sm:text-2xl leading-none"><TextBar width="w-10" /></p>
                         <p className="type-meta sm:mt-1"><TextBar width="w-10" /></p>
-                        <p className="type-meta"><TextBar width="w-[118px]" /></p>
+                        <p className={`${FIGURES_LAST} type-meta`}><TextBar width="w-[118px]" /></p>
                     </div>
                 </div>
 
