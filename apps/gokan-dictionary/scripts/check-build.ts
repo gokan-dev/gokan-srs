@@ -10,7 +10,7 @@ import { gzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
 import { describe, overBudget, percentile, type Measurement } from '../src/lib/budgets';
-import { prepareIndex, search } from '../src/lib/searchQuery';
+import { prepareIndex, search, TIER } from '../src/lib/searchQuery';
 import type { SearchIndexFile } from '../src/lib/types';
 
 const DIST_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
@@ -89,6 +89,18 @@ function searchProblems(): string[] {
 
     expect(headwords('eat', 3).includes('食べる'), `"eat": 食べる not in the top 3 (${headwords('eat', 3).join(', ')})`);
     expect(headwords('taberu', 1)[0] === '食べる', `"taberu": 食べる not first (${headwords('taberu', 3).join(', ')})`);
+    // Romaji typed partway through a syllable still finds the word (#139).
+    // "chot" gets the top 5: it also starts four JLPT words in ちょっ (直感...), which tie with ちょっと.
+    for (const [query, headword, top] of [['tabe', '食べる', 3], ['taber', '食べる', 3], ['benky', '勉強', 3], ['nihong', '日本語', 3], ['chot', 'ちょっと', 5]] as const) {
+        expect(headwords(query, top).includes(headword), `"${query}": ${headword} not in the top ${top} (${headwords(query, top).join(', ')})`);
+    }
+    // An English word is read as English before it is read as the start of a reading (#139).
+    for (const [query, headword] of [['car', '車'], ['house', '家']]) {
+        const hits = search(index, query).words;
+        const at = hits.findIndex(hit => hit.row[1] === headword);
+        const firstRomaji = hits.findIndex(hit => hit.tier === TIER.romajiPrefix);
+        expect(at !== -1 && (firstRomaji === -1 || at < firstRomaji), `"${query}": ${headword} not before the romaji prefix matches (${headwords(query, 3).join(', ')})`);
+    }
     expect(headwords('食べた', 1)[0] === '食べる', `"食べた": 食べる not first (${headwords('食べた', 3).join(', ')})`);
     const sei = headwords('生', 10);
     for (const word of ['生', '生活', '先生', '学生']) {

@@ -6,7 +6,7 @@
 // and hiragana compared as equal), as romaji converted to kana ("taberu"), as a conjugated form
 // (食べた, through conjugation.ts) and as English against the glosses.
 
-import { looksLikeRomaji, romajiToHiragana, toHiragana } from '@gokan/dataset-schema';
+import { containsWholeWord, readRomajiQuery, toHiragana } from '@gokan/dataset-schema';
 import { deinflect, type WordClass } from './conjugation';
 import { fromColumns, wordClassOfRow } from './searchIndex';
 import { isCommonRow, readingOfRow } from './searchRow';
@@ -27,7 +27,8 @@ export const TIER = {
     /** The query as a whole word in the gloss. */
     glossWord: 6,
     /**
-     * The reading starts with the romaji's kana. After the English tiers: a Latin query that
+     * The reading starts with the romaji's kana, its last syllable possibly unfinished
+     * (romajiReadingPrefixes: "taber" for たべる). After the English tiers: a Latin query that
      * converts is more often an English word ("house", read ほうせ) than the start of a reading.
      */
     romajiPrefix: 7,
@@ -132,10 +133,6 @@ function classFits(wordClass: WordClass | null, ruleClass: WordClass): boolean {
     return ruleClass === 'godan' && (wordClass === 'godan-iku' || wordClass === 'godan-tou');
 }
 
-function escapeRegExp(text: string): string {
-    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
 /** Every match for `raw`, best first, grouped as words, kanji and grammar. */
 export function search(index: PreparedIndex, raw: string): SearchResults {
     const query = normalizeQuery(raw);
@@ -144,11 +141,14 @@ export function search(index: PreparedIndex, raw: string): SearchResults {
 
     const queryKana = toHiragana(query);
     const japanese = JAPANESE.test(query);
-    const converted = looksLikeRomaji(query) ? romajiToHiragana(query.replace(/[\s'-]/g, '')) : null;
-    const kana = converted && KANA_ONLY.test(converted) ? converted : null;
+    // Read as every search reads romaji (spaces dropped, "-" as ー, "'" only after n).
+    const romaji = readRomajiQuery(query);
+    const kana = romaji && KANA_ONLY.test(romaji.kana) ? romaji.kana : null;
+    // What a reading may start with when the romaji stops partway through a syllable ("taber").
+    const kanaPrefixes = romaji?.prefixes ?? [];
     const english = /[a-z]/.test(query);
     const sense = senseKey(query);
-    const wholeWord = english ? new RegExp(`(^|[^a-z])${escapeRegExp(query)}($|[^a-z])`) : null;
+    const wholeWord = english ? (text: string) => containsWholeWord(text, query) : null;
     const kanjiOnly = KANJI_ONLY.test(query);
 
     // Candidate dictionary forms, keyed by form, from the query as typed and as romaji read.
@@ -175,8 +175,8 @@ export function search(index: PreparedIndex, raw: string): SearchResults {
             || (kanjiOnly && word.headword.includes(query))
         ) tier = TIER.prefix;
         else if (english && word.senses.includes(sense)) tier = TIER.sense;
-        else if (wholeWord?.test(word.gloss)) tier = TIER.glossWord;
-        else if (kana && word.reading.startsWith(kana)) tier = TIER.romajiPrefix;
+        else if (wholeWord?.(word.gloss)) tier = TIER.glossWord;
+        else if (kanaPrefixes.some(prefix => word.reading.startsWith(prefix))) tier = TIER.romajiPrefix;
         else if (
             (japanese && (word.headword.includes(query) || word.reading.includes(queryKana)))
             || (english && word.gloss.includes(query))
@@ -201,7 +201,7 @@ export function search(index: PreparedIndex, raw: string): SearchResults {
     return { query, kana, words, kanji, grammar: searchGrammar(index.grammar, query, kana, japanese, wholeWord) };
 }
 
-function searchGrammar(points: PreparedGrammar[], query: string, kana: string | null, japanese: boolean, wholeWord: RegExp | null): SearchGrammarRow[] {
+function searchGrammar(points: PreparedGrammar[], query: string, kana: string | null, japanese: boolean, wholeWord: ((text: string) => boolean) | null): SearchGrammarRow[] {
     const key = grammarKey(query);
     if (!key) return [];
     const kanaKey = kana ?? (japanese ? toHiragana(key) : null);
@@ -212,7 +212,7 @@ function searchGrammar(points: PreparedGrammar[], query: string, kana: string | 
         if (point.title === key || (kanaKey && point.title === kanaKey) || point.romaji === key) tier = 1;
         else if ((japanese && point.title.startsWith(key)) || (kana && point.title.startsWith(kana)) || (!japanese && point.romaji.startsWith(key))) tier = 2;
         else if ((japanese && point.title.includes(key)) || (kana && kana.length > 1 && point.title.includes(kana))) tier = 3;
-        else if (wholeWord?.test(point.explanation)) tier = 4;
+        else if (wholeWord?.(point.explanation)) tier = 4;
         if (tier) hits.push({ row: point.row, tier, position });
     });
     return hits.sort((a, b) => a.tier - b.tier || a.position - b.position).map(hit => hit.row);

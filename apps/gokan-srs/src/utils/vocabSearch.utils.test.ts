@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { searchIndexEntry } from '../test/fixtures';
-import { rankVocabSearch } from './vocabSearch.utils';
+import { searchIndexEntry, vocabulary } from '../test/fixtures';
+import { matchesVocabQuery, rankVocabSearch, readVocabQuery } from './vocabSearch.utils';
 
 // In search.json's order (kanji spelling): compounds containing する come before 為る.
 const index = [
@@ -49,7 +49,79 @@ describe('rankVocabSearch', () => {
         expect(rankVocabSearch(index, 'する', 2).map(entry => entry.id)).toEqual(['suru', 'suru-rub']);
     });
 
+    it('keeps a word while its romaji is typed partway through a syllable', () => {
+        const words = [
+            searchIndexEntry({ id: 'tabemono', w: '食べ物', r: 'たべもの', m: 'food' }),
+            searchIndexEntry({ id: 'taberu', w: '食べる', r: 'たべる', m: 'to eat' }),
+            searchIndexEntry({ id: 'benkyou', w: '勉強', r: 'べんきょう', m: 'study' }),
+            searchIndexEntry({ id: 'nihongo', w: '日本語', r: 'にほんご', m: 'Japanese (language)' }),
+            searchIndexEntry({ id: 'chotto', w: '一寸', r: 'ちょっと', m: 'a little', u: true }),
+            searchIndexEntry({ id: 'kana', w: '仮名', r: 'かな', m: 'kana' }),
+        ];
+        const first = (query: string) => rankVocabSearch(words, query)[0]?.id;
+        expect(['tabe', 'taber', 'taberu'].map(first)).toEqual(['taberu', 'taberu', 'taberu']);
+        expect(first('benky')).toBe('benkyou');
+        expect(first('nihong')).toBe('nihongo');
+        expect(first('chot')).toBe('chotto');
+        expect(rankVocabSearch(words, 'kan').map(entry => entry.id)).toContain('kana');
+    });
+
+    it('ranks an English whole word in the gloss before a reading the romaji only starts', () => {
+        const words = [
+            searchIndexEntry({ id: 'kara', w: '空', r: 'から', m: 'empty' }),
+            searchIndexEntry({ id: 'kariru', w: '借りる', r: 'かりる', m: 'to borrow' }),
+            searchIndexEntry({ id: 'houseki', w: '宝石', r: 'ほうせき', m: 'gem; jewel' }),
+            searchIndexEntry({ id: 'cart', w: '荷車', r: 'にぐるま', m: 'cart' }),
+            searchIndexEntry({ id: 'car', w: '車', r: 'くるま', m: 'car; automobile' }),
+            searchIndexEntry({ id: 'ie', w: '家', r: 'いえ', m: 'house; residence' }),
+            searchIndexEntry({ id: 'okara', w: '雪花菜', r: 'おから', m: 'okara (soy pulp)' }),
+        ];
+        const ranked = (query: string) => rankVocabSearch(words, query).map(entry => entry.id);
+        // "car" is not romaji (no syllable starts with c alone); a gloss containing it (cart) follows.
+        expect(ranked('car')).toEqual(['car', 'cart']);
+        // "house" reads ほうせ, which 宝石 starts with.
+        expect(ranked('house')).toEqual(['ie', 'houseki']);
+        // A gloss that only contains the query (okara) stays below the romaji prefixes.
+        expect(ranked('kar')).toEqual(['kara', 'kariru', 'okara']);
+    });
+
+    it('reads a romaji query as an IME does: spaces dropped, \' after n, - as ー', () => {
+        const words = [
+            searchIndexEntry({ id: 'taberu', w: '食べる', r: 'たべる', m: 'to eat' }),
+            searchIndexEntry({ id: 'kani', w: '蟹', r: 'かに', m: 'crab' }),
+            searchIndexEntry({ id: 'kan-i', w: '簡易', r: 'かんい', m: 'simple; easy' }),
+            searchIndexEntry({ id: 'coffee', w: '珈琲', r: 'コーヒー', m: 'coffee', u: true }),
+        ];
+        const first = (query: string) => rankVocabSearch(words, query)[0]?.id;
+        expect(first('tabe ru')).toBe('taberu');
+        expect(first("kan'i")).toBe('kan-i');
+        expect(first('kani')).toBe('kani');
+        expect(first('ko-hi-')).toBe('coffee');
+        expect(first('ko-h')).toBe('coffee');
+    });
+
     it('returns nothing for an empty query', () => {
         expect(rankVocabSearch(index, '  ')).toEqual([]);
+    });
+});
+
+describe('matchesVocabQuery', () => {
+    const taberu = vocabulary({
+        id: 'taberu',
+        writtenForm: { kanji: '食べる', alternatives: [], containedKanji: ['食'] },
+        reading: { primary: 'たべる', alternatives: [] },
+        senses: [{ pos: ['v1'], misc: { rawTags: [] }, glosses: ['to eat'], related: { compounds: [] } }],
+    });
+    const matches = (query: string) => {
+        const read = readVocabQuery(query);
+        return read !== null && matchesVocabQuery(taberu, read);
+    };
+
+    it('keeps a word as the header search finds it: written form, reading, romaji typed partway, gloss', () => {
+        expect(['食べ', 'べる', 'tabe', 'taber', 'tabe ru', 'eat'].map(matches)).toEqual([true, true, true, true, true, true]);
+    });
+
+    it('drops a word the query does not reach', () => {
+        expect(['tabo', 'drink', '飲'].map(matches)).toEqual([false, false, false]);
     });
 });

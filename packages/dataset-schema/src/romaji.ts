@@ -75,7 +75,14 @@ export function romajiToHiragana(input: string): string {
         // Syllabic ん.
         if (c === 'n') {
             if (next === "'") { result += 'ん'; i += 2; continue; }
-            if (next === 'n') { result += 'ん'; i += 1; continue; }
+            // "nn" is one ん at the end or before a consonant ("kannji"), as an IME reads it;
+            // before a vowel or y the second n begins a syllable ("konnichiha", "konnyaku").
+            if (next === 'n') {
+                const after = s[i + 2];
+                result += 'ん';
+                i += after !== undefined && (VOWELS.has(after) || after === 'y') ? 1 : 2;
+                continue;
+            }
             const syllable = longestSyllable(s, i, 2);
             if (syllable) { result += syllable.kana; i += syllable.length; continue; }
             // 'n' before a consonant or at the end -> ん.
@@ -94,6 +101,73 @@ export function romajiToHiragana(input: string): string {
     }
 
     return result;
+}
+
+const ROMAJI_KEYS = Object.keys(ROMAJI_MAP);
+const HIRAGANA_ONLY = /^[ぁ-ゖー]+$/;
+
+/** The kana of every syllable `start` begins without completing it ("ky" -> きゃ きゅ きょ). */
+function syllablesStartingWith(start: string): string[] {
+    return ROMAJI_KEYS.filter(key => key.length > start.length && key.startsWith(start)).map(key => ROMAJI_MAP[key]);
+}
+
+/**
+ * The kana a reading can start with when the romaji stops partway through a syllable, so
+ * search narrows letter by letter instead of losing the word: "taber" -> たべら, たべり,
+ * たべる... on the way to "taberu". Complete syllables convert as romajiToHiragana does; an
+ * unfinished one at the end stands for every syllable it begins, and a single consonant also
+ * for っ (the first of a doubled one: "chot" on the way to "chotto"). A final "n" is ん or
+ * the start of an n syllable ("kan" on the way to "kana"); a final "nn" is one ん.
+ * Expects the query as readRomajiQuery normalizes it.
+ *
+ * Only for "the reading starts with": an exact match still needs the whole romaji converted.
+ * Empty when the query is not romaji (a letter no syllable starts with, a digit, a space).
+ */
+export function romajiReadingPrefixes(input: string): string[] {
+    const s = input.toLowerCase();
+    const converted = romajiToHiragana(s);
+    const [, typedHead, typedTail] = /^(.*?)([a-z]*)$/.exec(converted) ?? ['', converted, ''];
+    // "matc" on the way to "matcha": the t of "tch" is already the っ.
+    const [head, tail] = typedTail === 'tc' ? [typedHead + 'っ', 'c'] : [typedHead, typedTail];
+    // An "n" the converter read as ん may instead begin the unfinished syllable ("kan", "beny");
+    // a final "nn" is one ん ("kann").
+    const nSyllables = head.endsWith('ん') && s.endsWith('n' + tail) && !(tail === '' && s.endsWith('nn'))
+        ? syllablesStartingWith('n' + tail).map(kana => head.slice(0, -1) + kana)
+        : [];
+    // "konny": the converter read "nn" as ん plus an n that the unfinished syllable then left
+    // as a second ん; only the n syllables can follow (こんにゃ, never こんんや).
+    if (tail !== '' && head.endsWith('んん') && s.endsWith('nn' + tail)) return kanaOnly(nSyllables);
+    const prefixes = tail === '' ? [head] : syllablesStartingWith(tail).map(kana => head + kana);
+    // Not after a っ ("kakk", "matc") or a ん ("kannj", "anp"), and not for y or w, which never
+    // double ("oy" on the way to "oya").
+    if (tail.length === 1 && prefixes.length > 0 && !/[っん]$/.test(head) && !'yw'.includes(tail)) prefixes.push(head + 'っ');
+    return kanaOnly([...prefixes, ...nSyllables]);
+}
+
+function kanaOnly(candidates: string[]): string[] {
+    return [...new Set(candidates.filter(kana => HIRAGANA_ONLY.test(kana)))];
+}
+
+/** A search query read as romaji: its whole kana, and the kana a reading can start with (romajiReadingPrefixes). */
+export interface RomajiQuery {
+    kana: string;
+    prefixes: string[];
+}
+
+/**
+ * The romaji of a search query as an IME reads it, so every search reads a query one way:
+ * spaces dropped ("tabe ru"), "-" as ー ("ko-hi-" for コーヒー), and "'" kept only where it
+ * separates ん from what follows ("kan'i" is かんい, not かに).
+ */
+export function normalizeRomajiQuery(query: string): string {
+    return query.toLowerCase().replace(/\s+/g, '').replace(/-/g, 'ー').replace(/(^|[^n])'+/g, '$1');
+}
+
+/** A search query read as romaji, or null when it has no Latin letter. */
+export function readRomajiQuery(query: string): RomajiQuery | null {
+    if (!looksLikeRomaji(query)) return null;
+    const romaji = normalizeRomajiQuery(query);
+    return { kana: romajiToHiragana(romaji), prefixes: romajiReadingPrefixes(romaji) };
 }
 
 /**

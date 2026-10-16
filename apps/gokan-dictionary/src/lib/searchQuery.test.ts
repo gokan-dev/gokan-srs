@@ -30,6 +30,8 @@ const WORDS: SearchWordRow[] = [
     row({ id: 'koohii', kanji: 'コーヒー', reading: 'コーヒー', glosses: ['coffee'], jlpt: 5, common: true }),
     row({ id: 'great', kanji: '偉大', reading: 'いだい', glosses: ['great'], common: true }),
     row({ id: 'iku', kanji: '行く', reading: 'いく', glosses: ['to go'], pos: ['v5k-s', 'vi'], jlpt: 5, common: true }),
+    row({ id: 'kani', kanji: '蟹', reading: 'かに', glosses: ['crab'] }),
+    row({ id: 'kan-i', kanji: '簡易', reading: 'かんい', glosses: ['simple', 'easy'] }),
 ];
 
 const INDEX = prepareIndex([
@@ -73,6 +75,19 @@ describe('search', () => {
         // "tabe" reads as たべ, the start of たべる; "here" reads as へれ but is the English sense of ここ.
         expect(search(INDEX, 'tabe').words[0]).toEqual({ row: WORDS[1], tier: TIER.romajiPrefix });
         expect(search(INDEX, 'here').words.map(hit => hit.tier)).toEqual([TIER.sense]);
+    });
+
+    it('keeps a word while its romaji is typed partway through a syllable', () => {
+        expect(search(INDEX, 'taber').words[0]).toEqual({ row: WORDS[1], tier: TIER.romajiPrefix });
+        expect(search(INDEX, 'taber').kana).toBeNull();
+    });
+
+    it('reads romaji as an IME does: spaces dropped, \' after n, - as ー', () => {
+        expect(ids('tabe ru')[0]).toBe('taberu');
+        expect(search(INDEX, "kan'i").kana).toBe('かんい');
+        expect(ids("kan'i")[0]).toBe('kan-i');
+        expect(ids('kani')[0]).toBe('kani');
+        expect(search(INDEX, 'ko-hi-').words[0]).toEqual({ row: WORDS[7], tier: TIER.romaji });
     });
 
     it('finds the dictionary form of a conjugated query, naming the form typed', () => {
