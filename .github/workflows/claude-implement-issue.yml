@@ -56,7 +56,9 @@ jobs:
           # anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           #
           # GitHub-side auth: a fine-grained personal access token scoped to this repo
-          # (contents, pull requests, issues: read and write; no workflows permission).
+          # (contents, pull requests, issues: read and write; no workflows permission) and to
+          # gokan-dataset (contents: read and write). Keep both: dataset changes are pushed to
+          # gokan-dataset with it, here and by claude-address-feedback.yml's submodule step.
           # Without it the action falls back to the Claude GitHub App's installation
           # token, which expires one hour after the run starts: issue #115's first run
           # went 64 minutes, so every push, the PR, the tag and the final comment after
@@ -116,10 +118,13 @@ jobs:
                NOT automatically do this, since the submodule pointer only moves when something
                commits a new pointer value: `git -C apps/gokan-srs/dataset fetch origin main &&
                git -C apps/gokan-srs/dataset log HEAD..origin/main --oneline`. If that shows
-               anything, decide whether picking it up is in scope for this issue; if yes, `git -C
-               apps/gokan-srs/dataset checkout origin/main && git add apps/gokan-srs/dataset` and
-               commit the bump. Re-run `bun run check` and `bun run build` after any merge/bump,
-               don't tag a build you haven't re-verified.
+               anything, decide whether picking it up is in scope for this issue; if yes, and
+               this PR has its own dataset branch (the pointer holds commits that are not on the
+               dataset's `main`), merge `origin/main` into that branch inside the submodule, push
+               it and commit the new pointer: checking out `origin/main` would drop this PR's
+               dataset commits. Otherwise `git -C apps/gokan-srs/dataset checkout origin/main &&
+               git add apps/gokan-srs/dataset` and commit the bump. Re-run `bun run check` and
+               `bun run build` after any merge/bump, don't tag a build you haven't re-verified.
             7. Tag the branch for a staging preview so a human can test it without doing this
                step themselves: `git fetch --tags`, then find the highest existing release tag
                repo-wide (`git tag --list 'v*.*.*-rc.*' --sort=-v:refname | head -1`), bump its

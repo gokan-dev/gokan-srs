@@ -106,12 +106,48 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      # Feedback on a dataset change is pushed to gokan-dataset first (AGENTS.md), but this job's
+      # tokens reach gokan-srs only: the checkout leaves the submodule on GITHUB_TOKEN, and the
+      # Claude app token is scoped to this repo (PR #136: 403 "denied to github-actions[bot]",
+      # and the rebuilt dataset was lost with the runner). So the submodule alone pushes with
+      # AGENT_GITHUB_TOKEN, as claude-implement-issue.yml's does. Not the whole action: with the
+      # PAT its progress comment would be a member's, which cancels this very run (concurrency
+      # group above) and, on an `agent-feedback` PR, starts another.
+      - name: Let the dataset submodule push
+        env:
+          AGENT_GITHUB_TOKEN: ${{ secrets.AGENT_GITHUB_TOKEN }}
+          DATASET: apps/gokan-srs/dataset
+          KEY: http.https://github.com/.extraheader
+        run: |
+          if [ -z "$AGENT_GITHUB_TOKEN" ]; then
+            echo "::warning::AGENT_GITHUB_TOKEN is not set: the agent cannot push dataset changes."
+            exit 0
+          fi
+          # The checkout's header sits in the submodule's config or, in newer checkouts, in a file
+          # that config includes. Git would send both Authorization headers, so it goes everywhere.
+          # That included file can be shared with gokan-srs itself, whose GITHUB_TOKEN header then
+          # goes too: harmless while claude-code-action replaces gokan-srs's credentials, but a
+          # step after this one cannot rely on the checkout's auth. `|| true`: no include is not
+          # an error, whatever the shell's pipefail.
+          { git -C "$DATASET" config --local --get-regexp '^include(if\..+)?\.path$' 2>/dev/null || true; } | while read -r _ file; do
+            git config --file "$file" --unset-all "$KEY" || true
+          done
+          git -C "$DATASET" config --local --unset-all "$KEY" || true
+          auth="$(printf 'x-access-token:%s' "$AGENT_GITHUB_TOKEN" | base64 -w0)"
+          git -C "$DATASET" config --local "$KEY" "AUTHORIZATION: basic $auth"
+          # A dry run asks GitHub for push access and pushes nothing: a refusal shows in the run
+          # summary instead of as a 403 in the middle of the agent's work.
+          if ! git -C "$DATASET" push --dry-run --quiet origin HEAD:refs/heads/push-access-check; then
+            echo "::warning::gokan-dataset refused AGENT_GITHUB_TOKEN for a push: the agent cannot push dataset changes."
+          fi
+
       - name: Run Claude
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          # GitHub-side auth via the installed Claude GitHub App (see claude-implement-issue.yml).
+          # GitHub-side auth via the installed Claude GitHub App (see claude-implement-issue.yml);
+          # the dataset submodule pushes with AGENT_GITHUB_TOKEN (the step above).
           # The action resolves the PR context from the triggering event automatically;
           # the prompt tells it how to act on that feedback.
           prompt: |
@@ -124,6 +160,15 @@ jobs:
             summarising how you addressed the feedback. Do not resolve threads you
             did not actually address.
 
+            Never end the session while a command you started is still running: a
+            dataset rebuild takes minutes, so run it in the foreground with a long
+            timeout, or start it in the background and poll it until it exits. When the
+            session ends, the runner and everything not pushed are gone. Commit each
+            change as it is done. A dataset change is committed and pushed in the
+            submodule first (its branch on gokan-dataset, named like this one), and only
+            then is the new pointer committed here: never point at a dataset commit that
+            is not on the remote.
+
             Before tagging, sync with `main` so the branch is deployable against the
             current state of the repo: `git fetch origin main && git merge origin/main`
             (resolve conflicts if any arise). If this PR touches the
@@ -131,8 +176,12 @@ jobs:
             remote has moved past what's currently pointed at - merging gokan-srs's own
             `main` does NOT do this automatically: `git -C apps/gokan-srs/dataset fetch
             origin main && git -C apps/gokan-srs/dataset log HEAD..origin/main --oneline`.
-            If that shows anything relevant to this PR's changes, bump the submodule
-            pointer (`git -C apps/gokan-srs/dataset checkout origin/main && git add
+            If that shows anything relevant to this PR's changes, bring it in. When this
+            PR has its own dataset branch (the pointer holds commits that are not on the
+            dataset's `main`), merge `origin/main` into that branch inside the submodule,
+            push it, and commit the new pointer: checking out `origin/main` would drop
+            this PR's dataset commits. Otherwise bump the pointer (`git -C
+            apps/gokan-srs/dataset checkout origin/main && git add
             apps/gokan-srs/dataset`) and commit it. Re-run `bun run check`/
             `build` after any merge/bump.
 
