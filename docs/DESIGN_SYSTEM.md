@@ -135,10 +135,25 @@ instead of ad hoc size/colour combinations:
 | `jp-headword` | mincho, `text-xl`, `primary` | a word or grammar title in a list row |
 
 **Floor**: nothing below 12px, except `em` (relative, used for furigana:
-`text-[0.6em]`, `text-[0.45em]`). Enforced (`font-size-floor`). No uppercase
+`text-[0.5em]`). Enforced (`font-size-floor`). No uppercase
 letter-spaced labels: `tracking-wide`/`wider`/`widest` are gone everywhere, including the
 logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 400, 500,
 600 only.
+
+**Furigana**, the same rules in both apps:
+
+- Each reading sits over its run of kanji only, never over okurigana or other kana: 登場し
+  carries とうじょう over 登場, 食べる carries た over 食. One function splits a reading,
+  `rubyParts` (`@gokan/dataset-schema`); when the kana in a word do not match its reading (an
+  irregular reading), the whole word carries the whole reading rather than a wrong split.
+- The reading is `0.5em` of the text under it.
+- Neighbouring readings never touch: `rt` has `padding-inline: 0.1em` (さんど とうじょう, not
+  さんどとうじょう). It only takes space where a reading is wider than its kanji.
+- `ruby-align` stays the default. A reading wider than its kanji spreads them a little;
+  `center` would keep them together but open a gap on both sides of the word, which reads as a
+  space between words.
+- In the app every ruby is the `Ruby` component (`components/Ruby.tsx`, enforced,
+  `one-ruby`); in the dictionary, `SentenceText.svelte` (styled by `.sentence-jp rt`).
 
 ## 4. Shape, surfaces, motion
 
@@ -369,6 +384,7 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   `KanjiTile` (and the known-kanji grid's toggle buttons).
 - `detail-layout`: `grid-cols-12` only in `DetailHeader` and `DetailBody`, and every
   `*DetailScreen` uses both.
+- `one-ruby`: a `<ruby>` in the app only in `components/Ruby.tsx`.
 
 **Layout, in a browser** (`scripts/check-layout.ts`, `bun run check:layout`, run by CI in
 `.github/workflows/ci-layout.yml` on both production builds): at 320 and 375px, on the
@@ -377,7 +393,8 @@ sideways, no text is below 12px (furigana in `rt` and SVG chart labels excepted)
 input is at least 16px (smaller makes iOS zoom), the dictionary's nav links, pager links,
 toggles, tiles and disclosure summaries are at least 44px tall, and a word in a dictionary
 sentence carries only its dotted border, never the running-text underline, and no word in an
-app sentence (linked or studied) has a side margin (Japanese has no spaces between words). A new page type or
+app sentence (linked or studied) has a side margin (Japanese has no spaces between words), no
+reading sits over kana and no two readings on a line touch (measured on their glyphs). A new page type or
 main route is added to its lists.
 
 **Lighthouse, SEO at 100** (`scripts/check-lighthouse.ts`, `bun run check:lighthouse`, run by
