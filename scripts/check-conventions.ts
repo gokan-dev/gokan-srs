@@ -251,7 +251,7 @@ function check(files: string[]): Violation[] {
                 add({ file, line, rule: 'glyph-tile', message: 'A glyph in a box is a KanjiTile (components/KanjiTile.tsx): boxed only when it links, plain when it has no page.' }));
         }
 
-        if (GOKAN_SRS_SOURCE.test(file) && file !== RUBY_COMPONENT) {
+        if (GOKAN_SRS_SOURCE.test(file) && file !== RUBY_COMPONENT && !file.endsWith('.test.tsx')) {
             eachLine(text, l => RUBY_ELEMENT.test(l), line =>
                 add({ file, line, rule: 'one-ruby', message: 'Furigana renders through Ruby (components/Ruby.tsx): each reading over its kanji only (rubyParts), neighbouring readings kept apart.' }));
         }
