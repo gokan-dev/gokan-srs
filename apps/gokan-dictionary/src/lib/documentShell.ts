@@ -5,6 +5,7 @@
 // isn't itself a piece of UI, and templating it directly avoids a whole extra SSR call per
 // page for something that's just string concatenation.
 
+import { analyticsScriptTag } from '@gokan/analytics';
 import { absoluteUrl, faviconPath } from './urls';
 
 export interface DocumentShellOptions {
@@ -28,6 +29,8 @@ export interface DocumentShellOptions {
     noindex?: boolean;
     /** Optional schema.org JSON-LD object, serialized verbatim into a <script type="application/ld+json">. */
     structuredData?: object;
+    /** Umami website id: production builds only, so no other build counts visits. */
+    analyticsWebsiteId?: string;
 }
 
 export function escapeHtml(value: string): string {
@@ -117,7 +120,7 @@ ${options.noindex ? '<meta name="robots" content="noindex" />\n' : ''}<link rel=
 <meta property="og:url" content="${canonical}" />
 <meta name="twitter:card" content="summary" />
 <link rel="stylesheet" href="${options.stylesheetHref}" />
-${options.pageStylesheetHref ? `<link rel="stylesheet" href="${options.pageStylesheetHref}" />\n` : ''}${options.scriptHref ? `<script type="module" src="${options.scriptHref}"></script>\n` : ''}${options.extraScriptHref ? `<script type="module" src="${options.extraScriptHref}"></script>\n` : ''}${options.structuredData ? `<script type="application/ld+json">${JSON.stringify(options.structuredData)}</script>\n` : ''}</head>
+${options.pageStylesheetHref ? `<link rel="stylesheet" href="${options.pageStylesheetHref}" />\n` : ''}${options.scriptHref ? `<script type="module" src="${options.scriptHref}"></script>\n` : ''}${options.extraScriptHref ? `<script type="module" src="${options.extraScriptHref}"></script>\n` : ''}${options.structuredData ? `<script type="application/ld+json">${JSON.stringify(options.structuredData)}</script>\n` : ''}${analyticsScriptTag(options.analyticsWebsiteId)}</head>
 <body>
 ${stripHydrationMarkers(options.bodyHtml)}
 </body>

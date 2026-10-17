@@ -36,6 +36,11 @@ on:
       aws_region:
         type: string
         required: true
+      umami_website_id:
+        description: 'Umami Cloud website id. Production only: a build without it has no analytics script, so staging never counts a visit.'
+        type: string
+        required: false
+        default: ''
       ref:
         description: 'Branch, tag or SHA to build. Defaults to the triggering ref.'
         type: string
@@ -83,6 +88,8 @@ jobs:
         run: bun install
 
       - name: Build gokan-srs
+        env:
+          VITE_UMAMI_WEBSITE_ID: ${{ inputs.umami_website_id }}
         run: bun run --cwd apps/gokan-srs build
 
       # Reads the same dataset/compiled/ tree the step above synced from, and bakes it into
@@ -91,6 +98,7 @@ jobs:
       - name: Build gokan-dictionary
         env:
           VITE_SITE_ORIGIN: ${{ inputs.site_origin }}
+          VITE_UMAMI_WEBSITE_ID: ${{ inputs.umami_website_id }}
         run: bun run --cwd apps/gokan-dictionary build
 
       - name: Configure AWS credentials

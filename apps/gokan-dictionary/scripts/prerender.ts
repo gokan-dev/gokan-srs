@@ -40,6 +40,7 @@ import {
     loadGrammarMinedExamples,
 } from '../src/lib/dataset.server';
 import { vocabSummaryFrom } from '../src/lib/vocabSummary';
+import { UMAMI_WEBSITE_ID } from '../src/lib/site';
 import {
     vocabMeta,
     kanjiMeta,
@@ -178,6 +179,7 @@ async function main(): Promise<void> {
             bodyHtml: body,
             stylesheetHref,
             scriptHref: searchScriptHref,
+            analyticsWebsiteId: UMAMI_WEBSITE_ID,
             ...options,
         });
         const unmarked = japaneseWithoutLang(html);

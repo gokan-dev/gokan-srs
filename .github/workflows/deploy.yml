@@ -66,6 +66,7 @@ jobs:
     with:
       environment_name: production
       site_origin: https://gokan-srs.com
+      umami_website_id: ${{ vars.UMAMI_WEBSITE_ID }}
       s3_bucket: ${{ vars.S3_BUCKET_NAME }}
       aws_region: ${{ vars.AWS_REGION }}
     secrets:

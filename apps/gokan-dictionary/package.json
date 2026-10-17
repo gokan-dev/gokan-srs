@@ -23,6 +23,7 @@
     "vitest": "^4.0.17"
   },
   "dependencies": {
+    "@gokan/analytics": "workspace:*",
     "@gokan/dataset-schema": "workspace:*"
   }
 }

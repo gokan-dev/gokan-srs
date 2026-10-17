@@ -1,0 +1,18 @@
+{
+  "name": "@gokan/analytics",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "sideEffects": false,
+  "description": "The Umami visitor-count script tag both apps put in their pages.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.17"
+  }
+}

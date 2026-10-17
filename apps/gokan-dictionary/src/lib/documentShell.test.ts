@@ -35,6 +35,13 @@ describe('renderDocument', () => {
         expect(html).toContain(`<meta property="og:url" content="${canonical}" />`);
     });
 
+    it('has no analytics script unless the build has a website id', () => {
+        expect(renderDocument(base)).not.toContain('umami');
+        expect(renderDocument({ ...base, analyticsWebsiteId: '0b6c2a1e-4f7d-4c39-9d2a-6e1f5b8c3a90' })).toContain(
+            'data-website-id="0b6c2a1e-4f7d-4c39-9d2a-6e1f5b8c3a90"></script></head>',
+        );
+    });
+
     it('links the stylesheet', () => {
         const html = renderDocument(base);
         expect(html).toContain('<link rel="stylesheet" href="/assets/styles-abc123.css" />');

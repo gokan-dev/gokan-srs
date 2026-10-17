@@ -37,3 +37,6 @@ export const BASE_PATH = (() => {
 })();
 
 export const SITE_NAME = 'Gokan Dictionary';
+
+/** Set only by the production deploy, so no other build counts visits (see @gokan/analytics). */
+export const UMAMI_WEBSITE_ID: string | undefined = import.meta.env.VITE_UMAMI_WEBSITE_ID;
