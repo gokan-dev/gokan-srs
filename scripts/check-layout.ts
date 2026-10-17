@@ -9,7 +9,9 @@
  *   least 44px tall;
  * - a word in a dictionary sentence (`.sentence-jp a`) has no text underline: the running-text
  *   underline on `p a` must not stack on its dotted border;
- * - About before setup shows a visible dictionary link, in a footer aligned with the header.
+ * - About before setup shows a visible dictionary link, in a footer aligned with the header;
+ * - furigana sits over kanji only, never over kana, and no two readings on a line touch (a word
+ *   page's example sentences, in each app).
  *
  * Usage: build both apps (`bun run --cwd apps/gokan-srs build`, `bun run --cwd
  * apps/gokan-dictionary build`), then `bun run check:layout`. Needs Chrome or Chromium: found at
@@ -67,6 +69,19 @@ const MEASURE = (deviceWidth: number, tapTargets: string) => `(() => {
     if (underlined.length) problems.push('sentence word underlined (only its dotted border is): ' + underlined.slice(0, 3).map(describe).join(', '));
     const spaced = [...document.querySelectorAll('[data-sentence] > *')].filter(el => visible(el) && parseFloat(getComputedStyle(el).marginLeft) + parseFloat(getComputedStyle(el).marginRight) > 0);
     if (spaced.length) problems.push('sentence word has a side margin (reads as a space in Japanese): ' + spaced.slice(0, 3).map(describe).join(', '));
+    // Furigana (docs/DESIGN_SYSTEM.md): a reading sits over kanji only, never over kana, and two
+    // readings on a line never touch. Measured on the reading's glyphs (a Range over its text), not
+    // its box, whose padding is what keeps them apart.
+    const overKana = [...document.querySelectorAll('ruby')].filter(el => visible(el) && /[\u3041-\u3096\u30a1-\u30fa\u30fc]/.test([...el.childNodes].filter(n => n.nodeName !== 'RT').map(n => n.textContent).join('')));
+    if (overKana.length) problems.push('reading over kana (furigana goes over the kanji only): ' + overKana.slice(0, 3).map(describe).join(', '));
+    const readings = [...document.querySelectorAll('rt')].filter(visible).map(el => { const range = document.createRange(); range.selectNodeContents(el); return { el, rect: range.getBoundingClientRect() }; }).filter(r => r.rect.width > 0);
+    readings.sort((a, b) => a.rect.top - b.rect.top || a.rect.left - b.rect.left);
+    const touching = [];
+    for (let i = 1; i < readings.length; i++) {
+        const prev = readings[i - 1].rect, next = readings[i].rect;
+        if (Math.abs(next.top - prev.top) < 2 && next.left - prev.right < 1) touching.push(readings[i - 1].el.textContent + ' / ' + readings[i].el.textContent + ' (' + (next.left - prev.right).toFixed(1) + 'px)');
+    }
+    if (touching.length) problems.push('neighbouring readings touch: ' + touching.slice(0, 3).join(', ') + (touching.length > 3 ? ' (+' + (touching.length - 3) + ')' : ''));
     return problems;
 })()`;
 
@@ -135,4 +150,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji and apart.`);
