@@ -79,7 +79,7 @@ Knowledge held over time, JLPT coverage per level, upcoming review load, and dai
 
 <img src="ressources/gokan-dictionary-home.png" alt="The dictionary home page" width="760">
 
-[gokan-srs.com/dictionary](https://gokan-srs.com/dictionary/) is a free Japanese dictionary built from the same data. No account, no tracking, no signup wall, and it works with JavaScript turned off.
+[gokan-srs.com/dictionary](https://gokan-srs.com/dictionary/) is a free Japanese dictionary built from the same data. No account, no cookies, no signup wall, and it works with JavaScript turned off.
 
 35,814 words, 2,300 kanji, and 755 grammar points, each with its own page.
 

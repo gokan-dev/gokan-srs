@@ -5,6 +5,7 @@ import tailwindcss from '@tailwindcss/vite'
 import checker from 'vite-plugin-checker';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { analyticsScriptTag } from '@gokan/analytics';
 
 const isCI = process.env.NODE_ENV === 'production';
 
@@ -16,6 +17,9 @@ const datasetVersion = execFileSync('git', ['rev-parse', '--short=12', 'HEAD:./d
     encoding: 'utf8',
 }).trim();
 
+// Empty outside the production deploy, which is the only build that sets the website id.
+const analyticsTag = analyticsScriptTag(process.env.VITE_UMAMI_WEBSITE_ID);
+
 export default defineConfig({
     define: {
         __DATASET_VERSION__: JSON.stringify(datasetVersion),
@@ -23,6 +27,10 @@ export default defineConfig({
     plugins: [
         react(),
         tailwindcss(),
+        {
+            name: 'gokan-analytics',
+            transformIndexHtml: (html: string) => html.replace('</head>', `${analyticsTag}</head>`),
+        },
         !isCI && checker({
             typescript: {
                 buildMode: true,

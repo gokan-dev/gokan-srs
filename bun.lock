@@ -25,6 +25,7 @@
       "name": "gokan-dictionary",
       "version": "0.0.0",
       "dependencies": {
+        "@gokan/analytics": "workspace:*",
         "@gokan/dataset-schema": "workspace:*",
       },
       "devDependencies": {
@@ -54,6 +55,7 @@
         "terser": "^5.44.1",
       },
       "devDependencies": {
+        "@gokan/analytics": "workspace:*",
         "@tailwindcss/vite": "^4.1.18",
         "@types/node": "^24.10.1",
         "@types/react": "^19.2.5",
@@ -63,6 +65,13 @@
         "typescript": "~5.9.3",
         "vite": "npm:rolldown-vite@7.2.5",
         "vite-plugin-checker": "^0.12.0",
+        "vitest": "^4.0.17",
+      },
+    },
+    "packages/analytics": {
+      "name": "@gokan/analytics",
+      "version": "0.0.0",
+      "devDependencies": {
         "vitest": "^4.0.17",
       },
     },
@@ -203,6 +212,8 @@
     "@formatjs/icu-skeleton-parser": ["@formatjs/icu-skeleton-parser@1.8.16", "", { "dependencies": { "@formatjs/ecma402-abstract": "2.3.6", "tslib": "^2.8.0" } }, "sha512-H13E9Xl+PxBd8D5/6TVUluSpxGNvFSlN/b3coUp0e0JpuWXXnQDiavIpY3NnvSp4xhEMoXyyBvVfdFX8jglOHQ=="],
 
     "@formatjs/intl-localematcher": ["@formatjs/intl-localematcher@0.6.2", "", { "dependencies": { "tslib": "^2.8.0" } }, "sha512-XOMO2Hupl0wdd172Y06h6kLpBz6Dv+J4okPLl4LPtzbr8f66WbIoy4ev98EBuZ6ZK4h5ydTN6XneT4QVpD7cdA=="],
+
+    "@gokan/analytics": ["@gokan/analytics@workspace:packages/analytics"],
 
     "@gokan/dataset-schema": ["@gokan/dataset-schema@workspace:packages/dataset-schema"],
 

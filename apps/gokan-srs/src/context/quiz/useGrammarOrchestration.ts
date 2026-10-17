@@ -5,6 +5,7 @@ import type { GrammarPoint } from '@gokan/dataset-schema';
 import { GrammarService } from '../../services/grammar.service';
 import { GrammarSRSService } from '../../services/grammarSrs.service';
 import { clearStaleGrammarNeedsRetry } from '../../services/grammarScheduling';
+import { trackEvent } from '../../services/analytics';
 import { CONSTANTS } from '../../commons/constants';
 import type { QuizState, QuizAction } from './quizReducer';
 import {
@@ -206,6 +207,7 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
                 type: 'GRAMMAR_SESSION_START',
                 payload: { grammarIds, progress: progress === state.progress ? undefined : progress },
             });
+            trackEvent({ name: 'session_started', data: { activity: 'grammar' } });
         },
         onEnd: () => dispatch({ type: 'GRAMMAR_SESSION_END' }),
         onSuspend: (now) => dispatch({ type: 'GRAMMAR_SESSION_SUSPEND', payload: { now: now.getTime() } }),

@@ -9,6 +9,7 @@ import { SRSService } from '../../services/srs.service';
 import { vocabExercise } from '../../services/exercise/builders';
 import { refineMeaningWithAi } from '../../services/exercise/aiRefine';
 import { MigrationService } from '../../services/migration.service';
+import { trackEvent } from '../../services/analytics';
 import { CONSTANTS } from '../../commons/constants';
 import { DEFAULT_SETTINGS } from '../../models/user.model';
 import type { SetupValues } from '../../models/state.model';
@@ -261,6 +262,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                 type: 'SESSION_START',
                 payload: { taskKeys, progress: progress === state.progress ? undefined : progress },
             });
+            trackEvent({ name: 'session_started', data: { activity: 'vocab' } });
         },
         onEnd: () => dispatch({ type: 'SESSION_END' }),
         onSuspend: (now) => dispatch({ type: 'SESSION_SUSPEND', payload: { now: now.getTime() } }),
