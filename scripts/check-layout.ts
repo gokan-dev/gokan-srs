@@ -8,7 +8,8 @@
  * - the dictionary's nav links, pager links, toggles, tiles and disclosure summaries are at
  *   least 44px tall;
  * - a word in a dictionary sentence (`.sentence-jp a`) has no text underline: the running-text
- *   underline on `p a` must not stack on its dotted border.
+ *   underline on `p a` must not stack on its dotted border;
+ * - About before setup shows a visible dictionary link, in a footer aligned with the header.
  *
  * Usage: build both apps (`bun run --cwd apps/gokan-srs build`, `bun run --cwd
  * apps/gokan-dictionary build`), then `bun run check:layout`. Needs Chrome or Chromium: found at
@@ -92,6 +93,10 @@ try {
         // A visitor from search lands here on a phone with no tab bar: the footer is the way on.
         const dictionaryLinkShown = await tab.evaluate<boolean>(`[...document.querySelectorAll('a[href="/dictionary/"]')].some(el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden'; })`);
         if (!dictionaryLinkShown) failures.push(`${width}px srs /about before setup: no visible link to /dictionary/`);
+        // The footer shows at phone widths here only, so its edge must match the header's.
+        const footerOffset = await tab.evaluate<number | null>(`(() => { const logo = document.querySelector('header a'); const link = document.querySelector('footer a'); return logo && link ? link.getBoundingClientRect().left - logo.getBoundingClientRect().left : null; })()`);
+        if (footerOffset === null) failures.push(`${width}px srs /about before setup: no header logo or footer link to align`);
+        else if (Math.abs(footerOffset) > 1) failures.push(`${width}px srs /about before setup: footer links start ${footerOffset}px from the header logo's edge`);
         await tab.goto(`${app}/`, 'I already know some kanji');
         await measure(tab, 'srs /welcome', width);
         await tab.click('I already know some kanji');
