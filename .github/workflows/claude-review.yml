@@ -8,7 +8,9 @@
 # Hybrid auto-fix (see AGENTS.md "Review your own diff"):
 #   - mechanizable but uncaught -> the reviewer adds the missing check in this run (the ratchet),
 #   - high-confidence and actionable -> the reviewer fixes it on the branch and pushes,
-#   - subjective / low-confidence -> an advisory review comment; the human decides.
+#   - subjective / low-confidence -> an advisory review comment. Once the staging review of the
+#     same round is in, claude-triage.yml sorts the advisory points: applied by the feedback agent,
+#     put to the maintainer as a choice, or left out of the change.
 # The reviewer fixes in its OWN run rather than handing off: an agent may never write the literal
 # "@claude" (it fires the other agent workflows), so there is no label- or mention-based handoff
 # to loop through.

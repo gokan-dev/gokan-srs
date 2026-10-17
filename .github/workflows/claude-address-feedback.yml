@@ -50,19 +50,25 @@ jobs:
     #   - comments: on a PR (not a plain issue) + trusted author + opt-in, and not the
     #     staging reviewer's status comment (posted with a member's token, so only its
     #     `gokan-agent-status` marker tells it apart)
+    # While a PR waits on the maintainer's choice (`needs-decision`, claude-triage.yml), the
+    # label opt-in does not apply: their answer goes through the triage relay, which mentions
+    # the agent itself.
     if: >
       (github.event_name == 'pull_request_review' &&
         github.event.review.state != 'approved' &&
         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.review.author_association) &&
-        (contains(github.event.review.body, '@claude') || contains(github.event.pull_request.labels.*.name, 'agent-feedback'))) ||
+        (contains(github.event.review.body, '@claude') ||
+          (contains(github.event.pull_request.labels.*.name, 'agent-feedback') && !contains(github.event.pull_request.labels.*.name, 'needs-decision')))) ||
       (github.event_name == 'issue_comment' &&
         github.event.issue.pull_request != null &&
         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
         !contains(github.event.comment.body, '<!-- gokan-agent-status -->') &&
-        (contains(github.event.comment.body, '@claude') || contains(github.event.issue.labels.*.name, 'agent-feedback'))) ||
+        (contains(github.event.comment.body, '@claude') ||
+          (contains(github.event.issue.labels.*.name, 'agent-feedback') && !contains(github.event.issue.labels.*.name, 'needs-decision')))) ||
       (github.event_name == 'pull_request_review_comment' &&
         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
-        (contains(github.event.comment.body, '@claude') || contains(github.event.pull_request.labels.*.name, 'agent-feedback')))
+        (contains(github.event.comment.body, '@claude') ||
+          (contains(github.event.pull_request.labels.*.name, 'agent-feedback') && !contains(github.event.pull_request.labels.*.name, 'needs-decision'))))
     runs-on: ubuntu-latest
     permissions:
       pull-requests: read
@@ -159,6 +165,16 @@ jobs:
             Push any code changes to the same branch and post a brief comment
             summarising how you addressed the feedback. Do not resolve threads you
             did not actually address.
+
+            When the comment that started this run is a triage brief (its first line
+            starts with `<!-- gokan-triage`) or relays a decision on one (`<!-- gokan-decision -->`),
+            that brief is the whole request: apply its Apply points and, for each Your call
+            question, the option the maintainer ticked on the brief or named in their reply,
+            with any note they added (the reply wins where the two differ). Leave every point
+            under "Not in this change" alone, and do not act on review points the brief does
+            not list: the triage already weighed them. If the decision is to stop, or leaves
+            nothing to change, push nothing, tag nothing, and say so in one line: a new rc tag
+            would start another review round.
 
             Never end the session while a command you started is still running: a
             dataset rebuild takes minutes, so run it in the foreground with a long

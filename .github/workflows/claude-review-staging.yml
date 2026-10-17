@@ -10,6 +10,8 @@
 # Preventive vs detective: this fires AFTER the deploy, so it is the net for rendered-only issues
 # and the local path, NOT the merge gate. The gate is the PR reviewer (claude-review.yml) plus a
 # green required `bun run check`; keep branch protection on that, not on this.
+#
+# This review ends a round: the `triage` job at the end hands it to claude-triage.yml.
 name: "Agent: review staging"
 
 on:
@@ -152,3 +154,29 @@ jobs:
             this review). Your fix pushes are authored as claude[bot], so the PR reviewer
             (claude-review.yml) reviews them like any other push.
           claude_args: "--model claude-opus-5-5 --max-turns 300 --allowedTools Bash,Edit,Write,Read,Glob,Grep"
+
+  # This review ends the round: hand it to claude-triage.yml, which reads both reviews and decides
+  # whether the PR is done, gets another automatic round, or waits for the maintainer. Also when
+  # the review failed, so the maintainer hears about it. A GITHUB_TOKEN may start a dispatch.
+  triage:
+    needs: [target, review]
+    if: ${{ !cancelled() && needs.target.outputs.branch != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Start triage
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ needs.target.outputs.branch }}
+          # A tag push's run carries the tag as its head branch.
+          TAG: ${{ github.event.workflow_run.head_branch }}
+          RESULT: ${{ needs.review.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          case "$TAG" in
+            v*-rc.*) ;;
+            *) echo "Staging was deployed from $TAG, not an rc tag: no round to triage."; exit 0 ;;
+          esac
+          gh workflow run claude-triage.yml --repo "$GITHUB_REPOSITORY" \
+            -f branch="$BRANCH" -f tag="$TAG" -f staging_review="$RESULT" -f staging_run="$RUN_URL"
