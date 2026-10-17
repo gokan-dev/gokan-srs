@@ -1,6 +1,7 @@
 # Reviews the RENDERED site after a staging deploy succeeds: the things a diff cannot show.
-# Both of the ways a change reaches staging (the pipeline self-tagging an rc, and a human/local
-# agent tagging a branch directly) end in a `*-rc*` tag push that runs "Deploy: staging", so
+# Both of the ways a change reaches staging (claude-review.yml's `round` job tagging an rc when a
+# round ships something, and a human/local agent tagging a branch directly) end in a `*-rc*` tag
+# push that runs "Deploy: staging", so
 # hooking this to that deploy nets BOTH paths with no extra discipline on either.
 #
 # It resolves the deployed commit to its open PR and, if there is none (the local-tag-direct
@@ -10,6 +11,9 @@
 # Preventive vs detective: this fires AFTER the deploy, so it is the net for rendered-only issues
 # and the local path, NOT the merge gate. The gate is the PR reviewer (claude-review.yml) plus a
 # green required `bun run check`; keep branch protection on that, not on this.
+#
+# The reviewer reports and never pushes: every point goes to claude-triage.yml, which the `triage`
+# job at the end hands the round to.
 name: "Agent: review staging"
 
 on:
@@ -75,14 +79,15 @@ jobs:
     needs: target
     if: needs.target.outputs.branch != ''
     runs-on: ubuntu-latest
-    # One agent per branch at a time (AGENTS.md): every agent job that can push queues here.
+    # The branch lock (AGENTS.md), though this job never pushes: it reviews only once the agent
+    # pushing to the branch has finished.
     concurrency:
       group: agent-branch-${{ needs.target.outputs.branch }}
       cancel-in-progress: false
       queue: max
     timeout-minutes: 90
     permissions:
-      contents: write       # push high-confidence fixes to the PR branch
+      contents: read
       pull-requests: write  # open the draft PR if needed, post the review
       issues: write         # the in-progress and findings comments go through the Issues API
       id-token: write
@@ -107,9 +112,9 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.AGENT_GITHUB_TOKEN }}
-          # The deploy is often an agent's: claude-address-feedback.yml tags the rc through the
-          # app, so the run's actor is claude[bot], and the action refuses a run a bot started
-          # unless it is listed. No loop: this review never pushes an rc tag.
+          # A deploy an agent started (an rc tagged through the app) has claude[bot] as its
+          # actor, and the action refuses a run a bot started unless it is listed. No loop: this
+          # review never pushes.
           allowed_bots: claude
           prompt: |
             A staging deploy just succeeded for commit `${{ github.event.workflow_run.head_sha }}`
@@ -142,13 +147,42 @@ jobs:
                leaves one comment that updates rather than two, matching Layer A's single
                `track_progress` comment. Never use `--edit-last`: it edits the newest comment
                posted under this token's account, which can be one a person left during your run.
-               HIGH-CONFIDENCE, actionable rendered bugs: fix on the branch, keep `bun run check`
-               green, commit + push, and list what changed. SUBJECTIVE calls: advisory note for
-               the human. If the rendered result is clean, say so in one line.
+               List your findings as numbered points: what you saw, at which width and theme,
+               the page, the rule it breaks, and the fix you would make (or the options, when
+               there is more than one reasonable fix). Say how sure you are when you are not. If
+               the rendered result is clean, say so in one line.
 
-            Hard rules: never push to or merge `main`; never force-push commits you did not create;
-            never touch `.github/workflows/`, secrets or deployment config; never write the string
-            `@claude`; and never push a new `*-rc*` tag (it would redeploy staging and re-trigger
-            this review). Your fix pushes are authored as claude[bot], so the PR reviewer
-            (claude-review.yml) reviews them like any other push.
-          claude_args: "--model claude-opus-5-5 --max-turns 300 --allowedTools Bash,Edit,Write,Read,Glob,Grep"
+            You change nothing: do not commit, push or tag. A triage step reads your report with
+            the PR review and decides what is applied, so a fix pushed here would start a new
+            round ahead of it.
+
+            Hard rules: never push, to any branch or tag; never touch `.github/workflows/`,
+            secrets or deployment config; never write the string `@claude`.
+          claude_args: "--model claude-opus-5-5 --max-turns 300 --allowedTools Bash,Write,Read,Glob,Grep"
+
+  # This review ends the round: hand it to claude-triage.yml, which reads both reviews and decides
+  # whether the PR is done, gets another automatic round, or waits for the maintainer. Also when
+  # the review failed, so the maintainer hears about it. A GITHUB_TOKEN may start a dispatch.
+  triage:
+    needs: [target, review]
+    if: ${{ !cancelled() && needs.target.outputs.branch != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Start triage
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ needs.target.outputs.branch }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          # A tag push's run carries the tag as its head branch.
+          TAG: ${{ github.event.workflow_run.head_branch }}
+          RESULT: ${{ needs.review.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          case "$TAG" in
+            v*-rc.*) ;;
+            *) echo "Staging was deployed from $TAG, not an rc tag: no round to triage."; exit 0 ;;
+          esac
+          gh workflow run claude-triage.yml --repo "$GITHUB_REPOSITORY" \
+            -f branch="$BRANCH" -f sha="$SHA" -f staging_review="$RESULT" -f staging_run="$RUN_URL"

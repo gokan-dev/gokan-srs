@@ -109,7 +109,7 @@ jobs:
                Then remove `ready-for-dev` and add `pr-open`.
             5. If you genuinely cannot make CI green, comment on the issue explaining the
                blocker rather than opening a broken PR.
-            6. Before tagging (next step), sync with `main` so the branch is deployable against
+            6. Before you finish, sync with `main` so the branch is deployable against
                the current state of the repo, not whatever it branched from: `git fetch origin
                main && git merge origin/main` (resolve conflicts if any arise, they're real
                integration work, not something to paper over). If this PR touches the
@@ -124,16 +124,9 @@ jobs:
                it and commit the new pointer: checking out `origin/main` would drop this PR's
                dataset commits. Otherwise `git -C apps/gokan-srs/dataset checkout origin/main &&
                git add apps/gokan-srs/dataset` and commit the bump. Re-run `bun run check` and
-               `bun run build` after any merge/bump, don't tag a build you haven't re-verified.
-            7. Tag the branch for a staging preview so a human can test it without doing this
-               step themselves: `git fetch --tags`, then find the highest existing release tag
-               repo-wide (`git tag --list 'v*.*.*-rc.*' --sort=-v:refname | head -1`), bump its
-               MINOR version by one and reset PATCH/rc to `.0-rc.1` (e.g. highest tag
-               `v1.4.0-rc.3` → next tag `v1.5.0-rc.1`, this is a NEW issue's first PR, not a
-               continuation of an existing one, so it always gets a fresh minor version rather
-               than bumping the previous rc number). `git tag -a <new-tag> -m "..." && git push
-               origin <new-tag>` on the final, re-verified HEAD. Only do this once `bun run check`
-               and the build pass, never tag a broken build.
+               `bun run build` after any merge/bump, don't push a build you haven't re-verified.
+            7. Do not tag. When the PR review of your final push is in, the review workflow tags
+               an rc for staging itself if the change reaches the deployed apps.
 
             Hard rules: never push to or merge `main`; never force-push commits you didn't
             create; never touch `.github/workflows/`, secrets, or deployment config; never

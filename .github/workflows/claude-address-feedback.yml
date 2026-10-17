@@ -50,19 +50,25 @@ jobs:
     #   - comments: on a PR (not a plain issue) + trusted author + opt-in, and not the
     #     staging reviewer's status comment (posted with a member's token, so only its
     #     `gokan-agent-status` marker tells it apart)
+    # While a PR waits on the maintainer's choice (`needs-decision`, claude-triage.yml), the
+    # label opt-in does not apply: their answer goes through the triage relay, which mentions
+    # the agent itself.
     if: >
       (github.event_name == 'pull_request_review' &&
         github.event.review.state != 'approved' &&
         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.review.author_association) &&
-        (contains(github.event.review.body, '@claude') || contains(github.event.pull_request.labels.*.name, 'agent-feedback'))) ||
+        (contains(github.event.review.body, '@claude') ||
+          (contains(github.event.pull_request.labels.*.name, 'agent-feedback') && !contains(github.event.pull_request.labels.*.name, 'needs-decision')))) ||
       (github.event_name == 'issue_comment' &&
         github.event.issue.pull_request != null &&
         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
         !contains(github.event.comment.body, '<!-- gokan-agent-status -->') &&
-        (contains(github.event.comment.body, '@claude') || contains(github.event.issue.labels.*.name, 'agent-feedback'))) ||
+        (contains(github.event.comment.body, '@claude') ||
+          (contains(github.event.issue.labels.*.name, 'agent-feedback') && !contains(github.event.issue.labels.*.name, 'needs-decision')))) ||
       (github.event_name == 'pull_request_review_comment' &&
         contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
-        (contains(github.event.comment.body, '@claude') || contains(github.event.pull_request.labels.*.name, 'agent-feedback')))
+        (contains(github.event.comment.body, '@claude') ||
+          (contains(github.event.pull_request.labels.*.name, 'agent-feedback') && !contains(github.event.pull_request.labels.*.name, 'needs-decision'))))
     runs-on: ubuntu-latest
     permissions:
       pull-requests: read
@@ -160,6 +166,16 @@ jobs:
             summarising how you addressed the feedback. Do not resolve threads you
             did not actually address.
 
+            When the comment that started this run is a triage brief (its first line
+            starts with `<!-- gokan-triage`) or relays a decision on one (`<!-- gokan-decision -->`),
+            that brief is the whole request: apply its Apply points and, for each Your call
+            question, the option the maintainer ticked on the brief or named in their reply,
+            with any note they added (the reply wins where the two differ). Leave every point
+            under "Not in this change" alone, and do not act on review points the brief does
+            not list: the triage already weighed them. If the decision is to stop, or leaves
+            nothing to change, push nothing and say so in one line: any push starts another
+            review round.
+
             Never end the session while a command you started is still running: a
             dataset rebuild takes minutes, so run it in the foreground with a long
             timeout, or start it in the background and poll it until it exits. When the
@@ -169,7 +185,7 @@ jobs:
             then is the new pointer committed here: never point at a dataset commit that
             is not on the remote.
 
-            Before tagging, sync with `main` so the branch is deployable against the
+            Before you finish, sync with `main` so the branch is deployable against the
             current state of the repo: `git fetch origin main && git merge origin/main`
             (resolve conflicts if any arise). If this PR touches the
             `apps/gokan-srs/dataset` submodule, ALSO check whether the submodule's own
@@ -185,17 +201,8 @@ jobs:
             apps/gokan-srs/dataset`) and commit it. Re-run `bun run check`/
             `build` after any merge/bump.
 
-            After that, check whether this branch was already staged: `git fetch --tags`
-            then `git tag --merged HEAD --list 'v*-rc.*' --sort=-v:refname`. If that
-            lists any tag, bump only the trailing rc number by one (e.g. `v1.2.0-rc.4` ->
-            `v1.2.0-rc.5`) and tag the new HEAD. If it lists nothing (no prior tag reaches
-            this branch - e.g. addressing feedback on a PR that predates the self-tagging
-            convention, or opened by a human rather than claude-implement-issue.yml), tag
-            it as a fresh release instead: find the highest release tag repo-wide (`git
-            tag --list 'v*.*.*-rc.*' --sort=-v:refname | head -1`), bump its MINOR version
-            by one, reset to `.0-rc.1`. Either way: `git tag -a <new-tag> -m "..." && git
-            push origin <new-tag>`, and only once `bun run check`/`build` all
-            pass on the final commit - never tag a broken build.
+            Do not tag. When the PR review of your final push is in, the review workflow
+            tags an rc for staging itself if the change reaches the deployed apps.
           # Posts an immediate tracking comment on the PR with a live-updating checklist
           # as the agent works, replaced with the final summary on completion - restores
           # the visibility the default @claude-mention trigger has, which a custom
