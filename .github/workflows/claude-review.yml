@@ -80,6 +80,7 @@ jobs:
         run: bun install
 
       - name: Run Claude
+        id: claude
         if: steps.head.outputs.review == 'true'
         uses: anthropics/claude-code-action@v1
         with:
@@ -95,8 +96,10 @@ jobs:
           prompt: |
             Review PR #${{ github.event.pull_request.number }} on branch
             `${{ github.event.pull_request.head.ref }}`. You are reviewing, not implementing a
-            feature, and you change nothing: you report. Read AGENTS.md fully first, then the
-            docs/DESIGN_SYSTEM.md and docs/ARCHITECTURE.md sections for the area this PR touches.
+            feature, and you change nothing: you report. AGENTS.md is already in your context
+            (CLAUDE.md imports it), and its rules are what you review against. Read the
+            docs/DESIGN_SYSTEM.md and docs/ARCHITECTURE.md sections for the area this PR touches,
+            and only those (AGENTS.md says how).
 
             CI already runs `bun run check` (conventions, lint, typecheck, tests, duplicates,
             unused code) on this PR. Do NOT re-run or re-report any of that. Review ONLY what the
@@ -135,6 +138,15 @@ jobs:
   # (CI, docs, tests), the pages are the ones already reviewed, so the round goes to triage now.
   # The tag is set here, not by the agents, so whether a round reaches staging is one rule
   # (packages/deploy/src/deploymentPaths.ts) rather than a judgement in each prompt.
+
+      # Where this run's tokens went (scripts/agent-usage.ts), also when the agent failed. A branch
+      # cut before the script existed has nothing to run; a report never fails the job.
+      - name: Report token usage
+        if: ${{ always() && steps.claude.outcome != 'skipped' }}
+        continue-on-error: true
+        run: |
+          if [ -f scripts/agent-usage.ts ]; then bun scripts/agent-usage.ts >> "$GITHUB_STEP_SUMMARY"; fi
+
   round:
     needs: review
     if: ${{ !cancelled() && needs.review.outputs.reviewed == 'true' }}

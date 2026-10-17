@@ -108,6 +108,7 @@ jobs:
         run: bun install
 
       - name: Run Claude
+        id: claude
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -120,8 +121,8 @@ jobs:
             A staging deploy just succeeded for commit `${{ github.event.workflow_run.head_sha }}`
             (ref `${{ github.event.workflow_run.head_branch }}`). Staging is live at
             https://staging.gokan-srs.com. You are doing a RENDERED review: the responsive and
-            visual compliance a code diff cannot show. Read AGENTS.md and docs/DESIGN_SYSTEM.md
-            first.
+            visual compliance a code diff cannot show. AGENTS.md is already in your context
+            (CLAUDE.md imports it); read docs/DESIGN_SYSTEM.md first.
 
             1. The home for this review: ${{ needs.target.outputs.pr && format('PR #{0}.', needs.target.outputs.pr) || format('branch `{0}`, which has no open PR (it was tagged straight to staging). Open a DRAFT PR against `main` for it, titled for the staging review, so the findings have a home, and review on it.', needs.target.outputs.branch) }}
                As soon as you have the PR, post a short comment that a staging review of this
@@ -163,6 +164,15 @@ jobs:
   # This review ends the round: hand it to claude-triage.yml, which reads both reviews and decides
   # whether the PR is done, gets another automatic round, or waits for the maintainer. Also when
   # the review failed, so the maintainer hears about it. A GITHUB_TOKEN may start a dispatch.
+
+      # Where this run's tokens went (scripts/agent-usage.ts), also when the agent failed. A branch
+      # cut before the script existed has nothing to run; a report never fails the job.
+      - name: Report token usage
+        if: ${{ always() && steps.claude.outcome != 'skipped' }}
+        continue-on-error: true
+        run: |
+          if [ -f scripts/agent-usage.ts ]; then bun scripts/agent-usage.ts >> "$GITHUB_STEP_SUMMARY"; fi
+
   triage:
     needs: [target, review]
     if: ${{ !cancelled() && needs.target.outputs.branch != '' }}

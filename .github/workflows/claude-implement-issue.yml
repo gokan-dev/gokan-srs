@@ -48,6 +48,7 @@ jobs:
         run: bun install
 
       - name: Run Claude
+        id: claude
         uses: anthropics/claude-code-action@v1
         with:
           # Claude-side auth. With `/install-github-app` on a Claude subscription this is an
@@ -71,9 +72,10 @@ jobs:
           github_token: ${{ secrets.AGENT_GITHUB_TOKEN }}
           prompt: |
             Issue #${{ github.event.issue.number }} was just labeled `ready-for-dev`.
-            You are working autonomously, no human is present. Read AGENTS.md fully first: it holds
-            every project rule, and they apply from the first line you write. Then read the
-            docs/ARCHITECTURE.md sections for the area the issue touches.
+            You are working autonomously, no human is present. AGENTS.md is already in your context
+            (CLAUDE.md imports it): every rule in it applies from the first line you write. Read
+            the docs/ARCHITECTURE.md sections for the area the issue touches, and only those
+            (AGENTS.md says how).
 
             The branch for this issue is ALWAYS `agent/issue-${{ github.event.issue.number }}`
             (deterministic, no slug suffix), so an interrupted run can be resumed on it.
@@ -141,3 +143,11 @@ jobs:
           # 500 turns ended issue #115's first run a third of the way through. The
           # job timeout above is the real ceiling; a cut-off run resumes on its branch.
           claude_args: "--model claude-opus-5-5 --max-turns 1500 --allowedTools Bash,Edit,Write,Read,Glob,Grep"
+
+      # Where this run's tokens went (scripts/agent-usage.ts), also when the agent failed. A branch
+      # cut before the script existed has nothing to run; a report never fails the job.
+      - name: Report token usage
+        if: ${{ always() && steps.claude.outcome != 'skipped' }}
+        continue-on-error: true
+        run: |
+          if [ -f scripts/agent-usage.ts ]; then bun scripts/agent-usage.ts >> "$GITHUB_STEP_SUMMARY"; fi

@@ -78,6 +78,10 @@ const KANJI_SPELLING_NOTE = 'apps/gokan-srs/src/components/KanjiSpellingNote.tsx
 const WORKFLOW = /^\.github\/workflows\/.*\.ya?ml$/;
 const AGENT_ACTION = 'anthropics/claude-code-action';
 const AGENT_BRANCH_LOCK = /^\s+group: agent-branch-\S*\$\{\{.+\}\}\s*\n\s+cancel-in-progress: false\s*\n\s+queue: max\s*$/m;
+// The agents get AGENTS.md through CLAUDE.md's import, which Claude Code loads from the `project`
+// settings source, so the prompts do not ask for a second copy. A `--setting-sources` without
+// `project` would drop every rule from an agent's context without a word.
+const SETTING_SOURCES = /--setting-sources[= ]+([\w,]+)/g;
 
 /**
  * A kun reading is shown through kunReadingLabel (@gokan/dataset-schema): まな.ぶ as まな(ぶ), the
@@ -219,6 +223,14 @@ function check(files: string[]): Violation[] {
         if (UI_SOURCE.test(file) && file !== KANJI_SPELLING_NOTE) {
             eachLine(text, l => RENDERED_KANJI_SPELLING.test(l), line =>
                 add({ file, line, rule: 'headword', message: 'Renders writtenForm.kanji. Name the word with headwordOf/secondaryForm (@gokan/dataset-schema): a word learned in kana is shown in kana.' }));
+        }
+
+        if (WORKFLOW.test(file) && text.includes(AGENT_ACTION)) {
+            for (const [, sources] of text.matchAll(SETTING_SOURCES)) {
+                if (!sources.split(',').includes('project')) {
+                    add({ file, rule: 'agent-rules-loaded', message: `\`--setting-sources ${sources}\` leaves out \`project\`, so the agent never loads CLAUDE.md and the AGENTS.md it imports. Keep \`project\` in the list.` });
+                }
+            }
         }
 
         if (WORKFLOW.test(file) && text.includes(AGENT_ACTION) && /^\s+contents: write\b/m.test(text) && !AGENT_BRANCH_LOCK.test(text)) {

@@ -1203,6 +1203,8 @@ Issues become merge-ready PRs through agent workflows in `.github/workflows/`, e
 
 **Only deterministic steps write `@claude`.** That string starts the feedback agent, so no agent prompt may write it; the triage and relay steps post it with `AGENT_GITHUB_TOKEN` (a member's comment, which starts workflows), and post the maintainer's notifications with `GITHUB_TOKEN` (which starts none, and so cannot loop). The rc tag is pushed with `AGENT_GITHUB_TOKEN` too, since a `GITHUB_TOKEN` tag push deploys nothing. The maintainer is the `AGENT_HUMAN` repository variable, or the PR's author when it is unset. A PR labelled `no-triage`, or still a draft, is not triaged; **Agent: triage reviews** can also be run by hand on a branch from the Actions tab.
 
+**Every agent run reports its token usage** in its job summary (`scripts/agent-usage.ts`, read from the execution file claude-code-action writes): the input, cache and output split, and the tool results that filled the context most. Numbers and paths only, since the logs are public. The agents get AGENTS.md from CLAUDE.md's import (the `project` settings source, kept by the conventions check), so no prompt asks them to read it again.
+
 ### Dataset Consumption
 
 The compiled dataset (kanji/vocab/sentences/indexes) is **not owned by this repo**. It lives in the separate [`gokan-dataset`](https://github.com/gokan-dev/gokan-dataset) repo - raw sources, the build pipeline (Kuromoji tokenization, JMDict/KKLC/JPDB/JLPT processing), and the compiled output all live there, documented for third-party consumption independent of this app in that repo's `docs/SCHEMA.md`.

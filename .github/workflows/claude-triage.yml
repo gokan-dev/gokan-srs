@@ -177,7 +177,15 @@ jobs:
           git log --format='%h %an: %s' "origin/main..$HEAD" > "$ctx/commits.txt"
           git diff "origin/main...$HEAD" > "$ctx/diff.patch"
 
+      # For the usage report after the agent; the agent itself has no shell.
+      - name: Setup Bun
+        if: steps.round.outputs.ready == 'true'
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
       - name: Run Claude
+        id: claude
         if: steps.round.outputs.ready == 'true'
         uses: anthropics/claude-code-action@v1
         with:
@@ -191,7 +199,8 @@ jobs:
             `${{ steps.round.outputs.sha }}`). You decide
             what happens next, so that the maintainer is asked only for choices that are theirs.
             You do not change code, and you post nothing: you write two files, and the workflow acts
-            on them. Read AGENTS.md first: its rules decide what is a defect.
+            on them. AGENTS.md is already in your context (CLAUDE.md imports it): its rules decide
+            what is a defect.
 
             What you have, in `.triage/context/`:
               - `pr.json`, and `issue-<n>.json` for the issue the PR closes: the scope.
@@ -252,6 +261,14 @@ jobs:
             change" if it has anything. Write as AGENTS.md says: neutral and direct, no em dash. Never
             write the string `@claude`, and never mention anyone.
           claude_args: "--model claude-opus-5-5 --max-turns 80 --allowedTools Read,Glob,Grep,Write"
+
+      # Where this run's tokens went (scripts/agent-usage.ts), also when the agent failed. A branch
+      # cut before the script existed has nothing to run; a report never fails the job.
+      - name: Report token usage
+        if: ${{ always() && steps.claude.outcome != 'skipped' }}
+        continue-on-error: true
+        run: |
+          if [ -f scripts/agent-usage.ts ]; then bun scripts/agent-usage.ts >> "$GITHUB_STEP_SUMMARY"; fi
 
       - name: Post the outcome
         if: steps.round.outputs.ready == 'true'

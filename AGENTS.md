@@ -26,6 +26,12 @@ How the system works (state machine, SRS formula, grammar curriculum, sync, depl
 before changing it, and update it when behaviour changes. Visual rules are in
 [docs/DESIGN_SYSTEM.md](docs/DESIGN_SYSTEM.md).
 
+ARCHITECTURE.md (over 80k tokens) and docs/MODIFICATION_LOG.md (over 50k) are never read whole:
+list the headings (`grep -n '^##' docs/ARCHITECTURE.md`), then read only the sections you need,
+by line range. A whole read stays in an agent's context for the rest of its run. Not mechanised (a
+hook cannot tell a needed section from the rest); every CI agent run lists what it read in its job
+summary ("Largest tool results"), which is where a whole read shows.
+
 ## Workflow
 
 - Install: `git submodule update --init --recursive`, then `bun install` at the root.
