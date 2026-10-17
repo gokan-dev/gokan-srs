@@ -169,8 +169,10 @@ const AppScreens: React.FC = () => {
                 </Suspense>
             </main>
 
-            {!focusMode && <AppFooter />}
-            {/* Its tabs all lead to onboarding before setup; About's links are in the header and footer. */}
+            {/* Before setup there is no tab bar (and so no More sheet), so the footer shows at
+                every width: on a phone it is About's only link on to the dictionary. */}
+            {!focusMode && <AppFooter alwaysVisible={!isSetupComplete} />}
+            {/* Its tabs all lead to onboarding before setup. */}
             {!focusMode && isSetupComplete && <BottomTabBar />}
         </div>
     );

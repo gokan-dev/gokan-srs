@@ -89,6 +89,9 @@ try {
         // About is the one route shown before setup (and the one a crawler indexes), in its own frame.
         await tab.goto(`${app}/about`, 'Why I Built This');
         await measure(tab, 'srs /about before setup', width);
+        // A visitor from search lands here on a phone with no tab bar: the footer is the way on.
+        const dictionaryLinkShown = await tab.evaluate<boolean>(`[...document.querySelectorAll('a[href="/dictionary/"]')].some(el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden'; })`);
+        if (!dictionaryLinkShown) failures.push(`${width}px srs /about before setup: no visible link to /dictionary/`);
         await tab.goto(`${app}/`, 'I already know some kanji');
         await measure(tab, 'srs /welcome', width);
         await tab.click('I already know some kanji');

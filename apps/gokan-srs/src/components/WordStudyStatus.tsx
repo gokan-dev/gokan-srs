@@ -10,13 +10,15 @@ import { StatusDot } from "./StatusDot";
  * Mastered for a word in the queue, a compact "Learn" button for one that is not.
  * Learn adds the word in place (the same intro choice the quiz's intro card
  * makes) and turns into "Added", so a list or the search can be used to capture
- * words without leaving it.
+ * words without leaving it. Nothing before setup.
  */
 export function WordStudyStatus({ vocabId }: { vocabId: string }) {
     const { state, actions } = useQuiz();
     const [adding, setAdding] = useState(false);
     const [added, setAdded] = useState(false);
-    const progress = state.progress?.learningQueue.find(p => p.vocabId === vocabId);
+    // Before setup (the header search on About) there is no queue to add to: Learn would do nothing.
+    if (!state.progress) return null;
+    const progress = state.progress.learningQueue.find(p => p.vocabId === vocabId);
 
     if (added && progress) return <span className="type-meta">Added</span>;
     if (progress) return <StatusDot status={vocabLearningStatus(progress, state.settings ?? undefined)} />;
