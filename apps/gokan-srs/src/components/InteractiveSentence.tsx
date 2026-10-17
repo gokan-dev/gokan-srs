@@ -1,5 +1,6 @@
 import type { Sentence } from "@gokan/dataset-schema";
 import { WordGlossTooltip, type WordLinkProps } from "./WordGlossTooltip";
+import { Ruby } from "./Ruby";
 import { segmentInteractiveSentence, type HighlightRange } from "@gokan/dataset-schema";
 
 interface InteractiveSentenceProps {
@@ -66,21 +67,9 @@ export function InteractiveSentence({
 
                 const isClickable = onVocabClick && (!segment.isTarget || allowTargetClickable);
 
-                const rawReading = showFurigana ? segment.reading : null;
-                const isKanaOnly = /^[\u3040-\u309F\u30A0-\u30FF]+$/.test(segment.content);
-                const reading = rawReading && rawReading !== segment.content && !isKanaOnly ? rawReading : null;
-
-                const renderContent = () => {
-                    if (reading) {
-                        return (
-                            <ruby>
-                                {segment.content}
-                                <rt className="text-[0.6em] select-none opacity-80" style={{ transform: "translateY(-10%)" }}>{reading}</rt>
-                            </ruby>
-                        );
-                    }
-                    return segment.content;
-                };
+                const renderContent = () => (
+                    <Ruby text={segment.content} reading={showFurigana ? segment.reading : null} rtClassName="opacity-80" />
+                );
 
                 // The word being studied is excluded from the gloss card - the
                 // surrounding card already shows its meaning, so the tooltip

@@ -7,6 +7,7 @@ import { TagChip } from "../../components/TagChip";
 import { KanjiSpellingNote } from "../../components/KanjiSpellingNote";
 import { InteractiveSentence } from "../../components/InteractiveSentence";
 import { Headword } from "../../components/quiz/Headword";
+import { Ruby } from "../../components/Ruby";
 import { ExpandableSenses } from "../../components/quiz/ExpandableSenses";
 import { QuizMasteryCorner } from "../../components/quiz/QuizMasteryCorner";
 import { emphasizeGloss } from "../../utils/productionCloze.utils";
@@ -256,14 +257,7 @@ export function ProductionPrompt({ vocab, answered, memoryStrength, onOpenWord }
                         title={`Open the page for ${headwordOf(vocab)}`}
                         className="relative inline-flex items-start text-5xl leading-none text-primary font-mincho rounded underline decoration-dashed decoration-1 underline-offset-8 hover:opacity-80 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:no-underline"
                     >
-                        {vocab.usuallyKana ? (
-                            <span>{headwordOf(vocab)}</span>
-                        ) : (
-                            <ruby className="ruby-text">
-                                {headwordOf(vocab)}
-                                <rt className="text-sm font-sans text-secondary not-italic">{vocab.reading.primary}</rt>
-                            </ruby>
-                        )}
+                        <span><Ruby text={headwordOf(vocab)} reading={vocab.reading.primary} rtClassName="text-secondary" /></span>
                     </button>
                     <KanjiSpellingNote vocab={vocab} className="mt-3" />
                 </motion.div>

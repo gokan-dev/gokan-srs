@@ -8,6 +8,7 @@ import { useQuizFocusManagement } from "../../hooks/useQuizFocusManagement";
 import { CardSection } from "../ui/CardSection";
 import { InteractiveSentence } from "../InteractiveSentence";
 import { LookUpWords } from "../LookUpWords";
+import { Ruby } from "../Ruby";
 import { QuizCardFrame } from "./QuizCardFrame";
 import { ClozeBlank } from "./ClozeBlank";
 import { FeedbackNote } from "./FeedbackNote";
@@ -129,12 +130,7 @@ function synonymWords(turn: ExerciseTurn): { vocabId: string; written: string }[
  * and a link to its word's page when it is a word.
  */
 function RevealedForm({ slot, reading, onVocabClick }: { slot: AnswerSlot; reading?: string; onVocabClick?: (vocabId: string) => void }) {
-    const form = reading && reading !== slot.reveal ? (
-        <ruby className="ruby-text">
-            {slot.reveal}
-            <rt className="text-xs font-sans text-secondary not-italic">{reading}</rt>
-        </ruby>
-    ) : slot.reveal;
+    const form = <Ruby text={slot.reveal} reading={reading} rtClassName="text-secondary" />;
 
     const vocabId = slot.word?.vocabId;
     if (!vocabId || !onVocabClick) {
