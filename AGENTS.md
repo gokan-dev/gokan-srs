@@ -122,8 +122,9 @@ A word's textbook lessons are named through `textbookLessonsLabel`. A kanji's ku
 shown through `kunReadingLabel` (まな(ぶ), enforced); its learning orders through `KANJI_ORDERS`,
 `kanjiOrder`, `KANJI_BOOKS` and `kanjiBookPositions`, its grade through `kanjiGradeLabel`. Also shared by both apps,
 from the same package: romaji (`romajiToHiragana`, `toHiragana`, `kanaToRomaji`,
-`looksLikeRomaji`), a sentence's linked and highlighted runs (`segmentInteractiveSentence`) and a
-grammar example as a `Sentence` (`grammarExampleToSentence`, `patternHighlightRanges`).
+`looksLikeRomaji`), a sentence's linked and highlighted runs (`segmentInteractiveSentence`), a
+reading split over a word's kanji runs for furigana (`rubyParts`) and a grammar example as a
+`Sentence` (`grammarExampleToSentence`, `patternHighlightRanges`).
 
 gokan-srs, quizzes. **Every quiz is an exercise, and every exercise runs on one engine
 (`services/exercise/`, see the Exercise engine section of docs/ARCHITECTURE.md).** An activity
@@ -196,7 +197,8 @@ gokan-srs, everything else:
   filters, genre pills), `components/ui/ListRow.tsx` (a clickable row, always a `Link`),
   `components/ui/Disclosure.tsx` (collapsed-by-default section),
   `components/ui/StackedBarChart.tsx` (the one bar chart), `components/CardSkeleton.tsx`,
-  `components/KanjiSpellingNote.tsx` (the kanji spelling of a word learned in kana).
+  `components/KanjiSpellingNote.tsx` (the kanji spelling of a word learned in kana),
+  `components/Ruby.tsx` (every furigana: the only `<ruby>` in the app, enforced).
 - Words learned in kana in the learning orders: `utils/usuallyKana.utils.ts`
   (`orderIncludesUsuallyKana`, the per-session pacer); scheduling asks `isReadingRelevant`.
 - Test fixtures: `src/test/fixtures.ts` (`vocabProgress`, `grammarProgress`, `userProgress`,
@@ -211,7 +213,7 @@ gokan-dictionary:
   in a disclosure), `pages/GrammarList.svelte` (every list of grammar points),
   `pages/Chip.svelte` (neutral metadata), `pages/Pager.svelte`.
 - Sentences: `pages/SentenceText.svelte` renders runs from `lib/furigana.ts`
-  (`sentenceRuns`, `rubyParts`); `pages/GrammarExamples.svelte` for grammar examples;
+  (`sentenceRuns`, over the shared `rubyParts`); `pages/GrammarExamples.svelte` for grammar examples;
   `pages/FuriganaToggle.svelte`; the order a word's sentences show in, `lib/sentenceOrder.ts`.
 - Word pages: `lib/senses.ts` (meanings, summary gloss), `lib/conjugation.ts` (the one rule
   table, used by `conjugate` for the Forms table and by `deinflect` for search).

@@ -98,6 +98,10 @@ const KUN_READING_LABEL = /\bkunReadingLabel\b/;
 const BOXED_GLYPH = /\bfont-mincho\b(?=.*\btext-2xl\b)(?=.*\bborder\b)|\bborder\b(?=.*\bfont-mincho\b)(?=.*\btext-2xl\b)/;
 const BOXED_GLYPH_FILES = new Set(['apps/gokan-srs/src/components/KanjiTile.tsx', 'apps/gokan-srs/src/components/KanjiKnowledgeGrid.tsx']);
 
+/** Furigana in the app is the Ruby component: readings over the kanji only, half size, kept apart. */
+const RUBY_ELEMENT = /<ruby\b/;
+const RUBY_COMPONENT = 'apps/gokan-srs/src/components/Ruby.tsx';
+
 /**
  * Detail pages (vocab, kanji, grammar) share one frame: DetailHeader, then DetailBody, the 8/4
  * grid from `lg` and one column below it. The grid itself lives only in those two components.
@@ -245,6 +249,11 @@ function check(files: string[]): Violation[] {
         if (GOKAN_SRS_SOURCE.test(file) && !BOXED_GLYPH_FILES.has(file)) {
             eachLine(text, l => BOXED_GLYPH.test(l), line =>
                 add({ file, line, rule: 'glyph-tile', message: 'A glyph in a box is a KanjiTile (components/KanjiTile.tsx): boxed only when it links, plain when it has no page.' }));
+        }
+
+        if (GOKAN_SRS_SOURCE.test(file) && file !== RUBY_COMPONENT && !file.endsWith('.test.tsx')) {
+            eachLine(text, l => RUBY_ELEMENT.test(l), line =>
+                add({ file, line, rule: 'one-ruby', message: 'Furigana renders through Ruby (components/Ruby.tsx): each reading over its kanji only (rubyParts), neighbouring readings kept apart.' }));
         }
 
         if (GOKAN_SRS_SOURCE.test(file) && file.endsWith('.tsx')) {
