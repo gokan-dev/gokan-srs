@@ -1,15 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- No lastmod: the deploy dates each URL by the day its page last changed (packages/deploy, datedSitemap). -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://gokan-srs.com/</loc>
-    <lastmod>2026-03-10</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>1.0</priority>
   </url>
   <url>
     <loc>https://gokan-srs.com/about</loc>
-    <lastmod>2026-03-10</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
   </url>
 </urlset>

@@ -1,5 +1,9 @@
 // Pure sitemap.xml / robots.txt builders. ~39k URLs total (vocab + kanji + grammar + home)
 // fits comfortably under the 50,000-URL single-sitemap limit, so there's no sitemap index.
+//
+// No <lastmod> here: the build must stay byte-reproducible, and a build date would be the wrong
+// date anyway. The deploy adds each URL's, the day its page's content last changed, from the
+// deploy manifest (datedSitemap in packages/deploy/src/deployManifest.ts).
 
 import { absoluteUrl, homePath } from './urls';
 import { BASE_PATH } from './site';
