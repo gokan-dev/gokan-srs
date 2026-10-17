@@ -1181,19 +1181,23 @@ bun run --cwd apps/gokan-srs build:grammar # Rebuild compiled/grammar/ from the 
 
 ### Agent pipeline
 
-Issues become merged-ready PRs through agent workflows in `.github/workflows/`, each started by a GitHub event. Every job that can push queues on its branch's lock (AGENTS.md), so they never overlap on a branch.
+Issues become merge-ready PRs through agent workflows in `.github/workflows/`, each started by a GitHub event. A **round** is one pushed commit, reviewed and triaged. Every agent job queues on its branch's lock (AGENTS.md), so they never overlap on a branch, and a review always sees the finished push.
 
-1. **Implement** (`claude-implement-issue.yml`): the `ready-for-dev` label starts it. It opens the PR on `agent/issue-<n>` and tags the next minor rc, which deploys staging.
-2. **Review**, twice per round: the PR reviewer (`claude-review.yml`) on every push, and the staging reviewer (`claude-review-staging.yml`) after every staging deploy. Each fixes what is high-confidence itself and leaves the rest as advisory points.
-3. **Triage** (`claude-triage.yml`): the staging review dispatches it when it ends. It waits for the PR review of the same push, then reads both reviews, the issue, the diff and every earlier triage and decision on the PR. Its agent has no shell and no network: it writes an outcome and a brief, and the workflow's own steps act on them.
+1. **Implement** (`claude-implement-issue.yml`): the `ready-for-dev` label starts it. It opens the PR on `agent/issue-<n>`.
+2. **PR review** (`claude-review.yml`), on every push. The reviewer **reports and never pushes**: an obvious fix pushed by a reviewer would start a new round while a decision on the same PR is still open, so every point goes through triage. Its `round` job then ends the review half of the round:
+   - If the round's changes ship something (since the branch's last rc, or since `main` for the first round), it tags the next rc. The staging deploy follows, then the **staging review** (`claude-review-staging.yml`), which also only reports, then triage.
+   - If they ship nothing (CI, docs, tests, check scripts), the deployed pages are the ones already reviewed: no rc, no staging deploy, no rendered review, straight to triage.
+
+   Which paths ship is one rule, `shipsInDeployment` in `packages/deploy/src/deploymentPaths.ts`, not a judgement in each prompt. The agents no longer tag; a person may still tag an rc by hand, and its staging review then hands the round to triage.
+3. **Triage** (`claude-triage.yml`): it reads the round's reviews, the issue, the diff and every earlier triage and decision on the PR. Its agent has no shell and no network: it writes an outcome and a brief, and the workflow's own steps act on them.
    - `done`: nothing to change. The PR gets `agent-done`, and the maintainer is mentioned.
    - `apply`: every point has one obvious resolution. The brief is posted as an `@claude` request, which starts step 4.
-   - `decide`: a point needs the maintainer's choice. The brief lists options as checkboxes (one recommended), the PR gets `needs-decision`, and the maintainer is mentioned. Ticking the brief's Send box, or replying on the PR (with any note), sends the answer: the `relay` job posts it as an `@claude` request and removes the label.
-4. **Address feedback** (`claude-address-feedback.yml`): applies the brief, and only the brief, then tags the next rc, which starts a new round at step 2. A decision to stop, or one that leaves nothing to change, pushes and tags nothing, so no round follows.
+   - `decide`: a point needs the maintainer's choice. The brief lists options as checkboxes (one recommended), the PR gets `needs-decision`, and the maintainer is mentioned. The obvious fixes wait with it, so nothing moves until the answer. Ticking the brief's Send box, or replying on the PR (with any note), sends the answer: the `relay` job posts it as an `@claude` request and removes the label.
+4. **Address feedback** (`claude-address-feedback.yml`): applies the brief, and only the brief, and pushes, which starts a new round at step 2. A decision to stop, or one that leaves nothing to change, pushes nothing, so no round follows.
 
 **Rounds end.** A review can always find one more polish point, so three things stop the loop: the triage never raises again a point an earlier triage left out ("Not in this change") or the maintainer decided; from round 2 on only real defects and points about the last round's changes count, so a round of polish is a `done` round; and after `MAX_AUTO_ROUNDS` (2) `apply` rounds without a word from the maintainer, the next `apply` becomes a `decide` that offers to stop. Any human comment, decision or `decide` brief restarts that count.
 
-**Only deterministic steps write `@claude`.** That string starts the feedback agent, so no agent prompt may write it; the triage and relay steps post it with `AGENT_GITHUB_TOKEN` (a member's comment, which starts workflows), and post the maintainer's notifications with `GITHUB_TOKEN` (which starts none, and so cannot loop). The maintainer is the `AGENT_HUMAN` repository variable, or the PR's author when it is unset. A PR labelled `no-triage`, or still a draft, is not triaged; **Agent: triage reviews** can also be run by hand on a branch from the Actions tab.
+**Only deterministic steps write `@claude`.** That string starts the feedback agent, so no agent prompt may write it; the triage and relay steps post it with `AGENT_GITHUB_TOKEN` (a member's comment, which starts workflows), and post the maintainer's notifications with `GITHUB_TOKEN` (which starts none, and so cannot loop). The rc tag is pushed with `AGENT_GITHUB_TOKEN` too, since a `GITHUB_TOKEN` tag push deploys nothing. The maintainer is the `AGENT_HUMAN` repository variable, or the PR's author when it is unset. A PR labelled `no-triage`, or still a draft, is not triaged; **Agent: triage reviews** can also be run by hand on a branch from the Actions tab.
 
 ### Dataset Consumption
 

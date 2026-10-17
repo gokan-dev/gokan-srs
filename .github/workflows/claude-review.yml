@@ -5,15 +5,12 @@
 # intent, visual hierarchy, UI-copy tone, naming through the shared helpers, an architecture
 # layer crossed, duplication under the jscpd token threshold.
 #
-# Hybrid auto-fix (see AGENTS.md "Review your own diff"):
-#   - mechanizable but uncaught -> the reviewer adds the missing check in this run (the ratchet),
-#   - high-confidence and actionable -> the reviewer fixes it on the branch and pushes,
-#   - subjective / low-confidence -> an advisory review comment. Once the staging review of the
-#     same round is in, claude-triage.yml sorts the advisory points: applied by the feedback agent,
-#     put to the maintainer as a choice, or left out of the change.
-# The reviewer fixes in its OWN run rather than handing off: an agent may never write the literal
-# "@claude" (it fires the other agent workflows), so there is no label- or mention-based handoff
-# to loop through.
+# The reviewer reports and never pushes. Every point, an obvious fix included, goes to
+# claude-triage.yml, which decides what is applied and what waits for the maintainer: a fix
+# pushed here would start a new round while a decision on the same PR is still open.
+#
+# The `round` job then ends the review half of the round: an rc tag (staging deploy, then the
+# rendered review) when the round's changes ship something, triage straight away otherwise.
 name: "Agent: review PR"
 
 on:
@@ -22,10 +19,9 @@ on:
     # reviewer opens drafts) the moment it is marked ready.
     types: [opened, synchronize, reopened, ready_for_review]
 
-# No workflow-level group that cancels in progress: the reviewer's own fix push starts a run, and
-# cancelling would kill the review that pushed it before it posts. A run for a push made while
-# another review held the branch waits its turn, then stands down if the branch has moved on
-# (the first step below), since the run for the newer push reviews the same branch.
+# No workflow-level group that cancels in progress. A run for a push made while another agent
+# held the branch waits its turn, then stands down if the branch has moved on (the first step
+# below), since the run for the newer push reviews the same branch.
 
 jobs:
   review:
@@ -36,7 +32,8 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository &&
       github.event.pull_request.draft == false
     runs-on: ubuntu-latest
-    # One agent per branch at a time (AGENTS.md): every agent job that can push queues here.
+    # The branch lock (AGENTS.md), though this job never pushes: it makes the review wait until
+    # the agent pushing to the branch has finished, so it reviews the finished branch.
     concurrency:
       group: agent-branch-${{ github.event.pull_request.head.ref }}
       cancel-in-progress: false
@@ -44,15 +41,13 @@ jobs:
     # The Claude GitHub App token this job runs on lasts one hour from the Run Claude step: keep
     # this at or under 60.
     timeout-minutes: 60
-    env:
-      # The git author of this reviewer's fix commits, and the only author the loop guard skips.
-      # The other agents commit as claude[bot]; their pushes must still be reviewed.
-      REVIEWER_BOT_NAME: "claude-reviewer[bot]"
     permissions:
-      contents: write       # push high-confidence fixes to the PR branch
+      contents: read
       pull-requests: write  # post the review
       issues: write         # track_progress's tracking comment
       id-token: write       # OIDC exchange for the Claude GitHub App token
+    outputs:
+      reviewed: ${{ steps.head.outputs.review }}
     steps:
       - name: Checkout PR branch
         uses: actions/checkout@v4
@@ -61,24 +56,17 @@ jobs:
           submodules: true
           fetch-depth: 0
 
-      # Two reasons to stand down. The branch moved on while this run waited for the lock: the run
-      # for the newer push reviews it. Or HEAD is this reviewer's own fix (the loop guard), told
-      # by its git author, which only this reviewer uses (`bot_name` below). Not by the sender:
-      # this reviewer, claude-fix-ci.yml and claude-address-feedback.yml all push through the
-      # same app, as claude[bot]. And not by claude[bot] as author: every other agent commits as
-      # claude[bot], so that skipped every PR an agent wrote (#119 would never have been reviewed).
-      - name: Skip a moved branch or the reviewer's own fix push
+      # The branch moved on while this run waited for the lock: the run for the newer push
+      # reviews it.
+      - name: Skip a moved branch
         id: head
         env:
           EVENT_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          head="$(git rev-parse HEAD)"
-          author="$(git log -1 --pretty='%an')"
-          echo "head=$head author=$author"
-          if [ "$head" != "$EVENT_SHA" ] || [ "$author" = "$REVIEWER_BOT_NAME" ]; then
-            echo "review=false" >> "$GITHUB_OUTPUT"
-          else
+          if [ "$(git rev-parse HEAD)" = "$EVENT_SHA" ]; then
             echo "review=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "review=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Setup Bun
@@ -98,19 +86,17 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # No github_token: the Claude GitHub App token, not AGENT_GITHUB_TOKEN. With the PAT
           # this review posts as a repo member, and on a PR labelled `agent-feedback` every
-          # member comment starts claude-address-feedback.yml, whose claude[bot] push this
-          # reviewer then reviews: a loop. claude[bot]'s comments start nothing, and its pushes
-          # still trigger CI (whose claude[bot] actor keeps claude-fix-ci.yml off a red fix).
-          bot_name: ${{ env.REVIEWER_BOT_NAME }}
+          # member comment starts claude-address-feedback.yml. claude[bot]'s comments start
+          # nothing.
           # The push to review is often an agent's: claude-address-feedback.yml pushes through the
           # app, so the event's actor is claude[bot], and the action refuses a run a bot started
-          # unless it is listed. The skip step above, not this, keeps the reviewer off its own push.
+          # unless it is listed.
           allowed_bots: claude
           prompt: |
             Review PR #${{ github.event.pull_request.number }} on branch
             `${{ github.event.pull_request.head.ref }}`. You are reviewing, not implementing a
-            feature. Read AGENTS.md fully first, then the docs/DESIGN_SYSTEM.md and
-            docs/ARCHITECTURE.md sections for the area this PR touches.
+            feature, and you change nothing: you report. Read AGENTS.md fully first, then the
+            docs/DESIGN_SYSTEM.md and docs/ARCHITECTURE.md sections for the area this PR touches.
 
             CI already runs `bun run check` (conventions, lint, typecheck, tests, duplicates,
             unused code) on this PR. Do NOT re-run or re-report any of that. Review ONLY what the
@@ -126,23 +112,99 @@ jobs:
                 the one persistence/network layer): a boundary crossed that `check` did not catch.
               - Duplication a human sees that fell under the jscpd token threshold.
 
-            For each finding, do ONE of:
-              1. MECHANIZABLE BUT UNCAUGHT: if a `check-conventions.ts` rule, an ESLint rule or a
-                 small test could have caught it and is quick to add, ADD it in this run (per the
-                 AGENTS.md ratchet rule) and make `bun run check:conventions` still pass. Note it.
-              2. HIGH-CONFIDENCE AND ACTIONABLE: make the fix on the branch (small, safe, obviously
-                 correct), keep `bun run check` green, and commit + push it. List what you changed.
-              3. SUBJECTIVE OR LOW-CONFIDENCE: do NOT change code. Leave an advisory point for the
-                 human to judge.
+            Post ONE PR review listing your findings as numbered points. For each, be concrete:
+            file:line, the rule it breaks or the harm it does, and the fix you would make (or the
+            options, when there is more than one reasonable fix). Say how sure you are when you
+            are not. When a `check-conventions.ts` rule, an ESLint rule or a small test could have
+            caught a finding, say so in that point and describe the check (the AGENTS.md
+            ratchet). If the diff is clean against the rules the gate cannot express, approve with
+            a one-line note.
 
-            Post ONE PR review summarising findings in three groups: Fixed (pushed), Advisory
-            (your call), and Add-a-check (ratchet). If the diff is clean against the rules the gate
-            cannot express, approve with a one-line note. Be concrete: cite file:line and the rule.
+            Do not commit, push or open a PR: a triage step reads your review with the staging
+            review and decides what is applied, so a fix pushed here would start a new round
+            ahead of it.
 
-            Hard rules: never push to or merge `main`; never force-push commits you did not create;
-            never touch `.github/workflows/`, secrets or deployment config; never write the string
-            `@claude` anywhere (it fires the other agent workflows); never change git's
-            `user.name`: your fix commits are authored as ${{ env.REVIEWER_BOT_NAME }}, which is how
-            this review skips your own push instead of reviewing it again.
+            Hard rules: never push; never touch `.github/workflows/`, secrets or deployment
+            config; never write the string `@claude` anywhere (it fires the other agent workflows).
           track_progress: true
-          claude_args: "--model claude-opus-5-5 --max-turns 200 --allowedTools Bash,Edit,Write,Read,Glob,Grep"
+          claude_args: "--model claude-opus-5-5 --max-turns 200 --allowedTools Bash,Read,Glob,Grep"
+
+  # Ends the review half of a round. When the round's changes ship something (since the branch's
+  # last rc, or since `main` for the first round), it tags the next rc: the staging deploy and the
+  # rendered review follow, and that review hands the round to triage. When they ship nothing
+  # (CI, docs, tests), the pages are the ones already reviewed, so the round goes to triage now.
+  # The tag is set here, not by the agents, so whether a round reaches staging is one rule
+  # (packages/deploy/src/deploymentPaths.ts) rather than a judgement in each prompt.
+  round:
+    needs: review
+    if: ${{ !cancelled() && needs.review.outputs.reviewed == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read        # the tag is pushed with AGENT_GITHUB_TOKEN, so that it deploys
+      actions: write        # dispatch claude-triage.yml
+      pull-requests: write  # the notice when the review failed
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      AGENT_GITHUB_TOKEN: ${{ secrets.AGENT_GITHUB_TOKEN }}
+      BRANCH: ${{ github.event.pull_request.head.ref }}
+      SHA: ${{ github.event.pull_request.head.sha }}
+      PR: ${{ github.event.pull_request.number }}
+      HUMAN: ${{ vars.AGENT_HUMAN || github.event.pull_request.user.login }}
+      REVIEW: ${{ needs.review.result }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Checkout reviewed commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          # The tag push authenticates with the PAT alone (a GITHUB_TOKEN tag push deploys nothing).
+          persist-credentials: false
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Tag an rc, or hand the round to triage
+        run: |
+          set -euo pipefail
+          if [ "$REVIEW" != success ]; then
+            {
+              echo "<!-- gokan-notice -->"
+              echo "@$HUMAN The PR review of \`${SHA:0:10}\` ended with \`$REVIEW\` ($RUN_URL), so this round stops here. Re-run that run to continue."
+            } > "$RUNNER_TEMP/notice.md"
+            gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/notice.md"
+            exit 0
+          fi
+
+          # This branch's rc tags only: one reachable from main belongs to a merged PR.
+          last="$(git tag --merged "$SHA" --no-merged origin/main --list 'v*-rc.*' --sort=-v:refname | sed -n 1p)"
+          if [ -n "$last" ] && [ "$(git rev-parse "$last^{commit}")" = "$SHA" ]; then
+            echo "$last already stages $SHA (tagged by hand): its staging review hands the round to triage."
+            exit 0
+          fi
+          base="${last:-$(git merge-base origin/main "$SHA")}"
+          ships="$(git diff --name-only "$base" "$SHA" | bun packages/deploy/scripts/ships-in-deployment.ts)"
+          echo "Changes since ${last:-main} ship in a deploy: $ships"
+
+          if [ "$ships" = false ]; then
+            gh workflow run claude-triage.yml --repo "$GITHUB_REPOSITORY" \
+              -f branch="$BRANCH" -f sha="$SHA" -f staging_review=not-needed
+            exit 0
+          fi
+
+          if [ -n "$last" ]; then
+            next="${last%-rc.*}-rc.$(( ${last##*-rc.} + 1 ))"
+          else
+            # A new PR's first rc is a new minor: v1.30.0-rc.3 is followed by v1.31.0-rc.1.
+            highest="$(git tag --list 'v*.*.*-rc.*' --sort=-v:refname | sed -n 1p)"
+            IFS=. read -r major minor _ <<<"${highest#v}"
+            next="v$major.$((minor + 1)).0-rc.1"
+          fi
+          [ -n "$AGENT_GITHUB_TOKEN" ] || { echo "::error::AGENT_GITHUB_TOKEN is not set: an rc tag pushed without it would not deploy."; exit 1; }
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            tag -a "$next" -m "Staging round for PR #$PR" "$SHA"
+          git push "https://x-access-token:$AGENT_GITHUB_TOKEN@github.com/$GITHUB_REPOSITORY.git" "refs/tags/$next"
+          echo "Tagged $next on $SHA" >> "$GITHUB_STEP_SUMMARY"

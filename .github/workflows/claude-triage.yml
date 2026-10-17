@@ -1,12 +1,13 @@
 # Decides what happens after a round's reviews, so a person is asked only when a choice is theirs.
 #
-# A round ends when the staging review (claude-review-staging.yml) finishes: it dispatches this
-# workflow with the branch and the rc tag it reviewed. The triage job waits for the PR review of
-# the same push, reads both reviews (and every earlier triage and decision on the PR), and ends in
-# exactly one outcome:
+# A round is one pushed commit, reviewed. The reviewers only report, so every point comes here.
+# claude-review.yml dispatches this workflow when the PR review is in and the round's changes ship
+# nothing (no staging deploy), and claude-review-staging.yml does when the rendered review of the
+# round's rc is in. The triage job reads the round's reviews (and every earlier triage and decision
+# on the PR) and ends in exactly one outcome:
 #   - done:   nothing left to change. Labels the PR `agent-done` and mentions the human.
 #   - apply:  every point to act on has one obvious resolution. Posts the brief as a request to
-#             claude-address-feedback.yml, which fixes, pushes and tags the next rc: a new round.
+#             claude-address-feedback.yml, which fixes and pushes: a new round.
 #   - decide: at least one point needs the human's choice. Posts the brief with the options as
 #             checkboxes, labels the PR `needs-decision` and mentions the human.
 # The relay job then hands the answer (a ticked Send box, or any reply) to the feedback agent.
@@ -25,11 +26,11 @@ on:
       branch:
         description: 'The PR branch to triage'
         required: true
-      tag:
-        description: 'The rc tag whose reviews to triage (default: the newest on the branch)'
+      sha:
+        description: 'The reviewed commit (default: the branch head)'
         required: false
       staging_review:
-        description: 'Set by the staging review: its result'
+        description: 'Set by the reviews: the staging review result, or not-needed'
         required: false
       staging_run:
         description: 'Set by the staging review: its run URL'
@@ -40,8 +41,6 @@ on:
 env:
   # A person's answer is needed after this many automatic rounds in a row.
   MAX_AUTO_ROUNDS: 2
-  # The author of the PR reviewer's own fix commits (claude-review.yml's REVIEWER_BOT_NAME).
-  REVIEWER_BOT_NAME: "claude-reviewer[bot]"
 
 jobs:
   triage:
@@ -61,7 +60,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       BRANCH: ${{ inputs.branch }}
-      TAG_INPUT: ${{ inputs.tag }}
+      SHA_INPUT: ${{ inputs.sha }}
       STAGING_REVIEW: ${{ inputs.staging_review }}
       STAGING_RUN: ${{ inputs.staging_run }}
       AGENT_HUMAN: ${{ vars.AGENT_HUMAN }}
@@ -90,60 +89,51 @@ jobs:
           [ "$(jq -r .isDraft <<<"$pr_json")" = false ] || stop "PR #$pr is a draft."
           ! jq -e '.labels | any(.name == "no-triage")' <<<"$pr_json" > /dev/null || stop "PR #$pr opted out (no-triage)."
 
-          if [ -n "$STAGING_REVIEW" ] && [ "$STAGING_REVIEW" != success ]; then
-            echo "staging_failed=true" >> "$GITHUB_OUTPUT"
-            stop "The staging review ended with: $STAGING_REVIEW."
-          fi
+          case "$STAGING_REVIEW" in
+            ''|success|not-needed) ;;
+            *) echo "staging_failed=true" >> "$GITHUB_OUTPUT"; stop "The staging review ended with: $STAGING_REVIEW." ;;
+          esac
 
           git fetch --quiet --force --tags origin "+refs/heads/$BRANCH:refs/remotes/origin/$BRANCH"
           head="$(git rev-parse "origin/$BRANCH")"
-          newest="$(git tag --merged "$head" --list 'v*-rc.*' --sort=-v:refname | sed -n 1p)"
-          tag="${TAG_INPUT:-$newest}"
-          [ -n "$tag" ] || stop "No rc tag on $BRANCH: no round has reached staging."
-          # A newer rc on the branch means a newer round is on its way to staging.
-          [ "$tag" = "$newest" ] || stop "$tag is not the newest rc on $BRANCH ($newest)."
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "sha=$(git rev-parse "$tag^{commit}")" >> "$GITHUB_OUTPUT"
+          sha="${SHA_INPUT:-$head}"
+          # A newer push means a newer round, whose review hands it on in turn.
+          [ "$sha" = "$head" ] || stop "$BRANCH moved on from ${sha:0:10} to ${head:0:10}."
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "tag=$(git tag --points-at "$sha" --list 'v*-rc.*' --sort=-v:refname | sed -n 1p)" >> "$GITHUB_OUTPUT"
 
           comments="$RUNNER_TEMP/comments.jsonl"
           gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$pr/comments" \
             --jq '.[] | {type: .user.type, body}' > "$comments"
-          ! jq -e --arg m "<!-- gokan-triage tag=$tag " 'select(.body | contains($m))' "$comments" > /dev/null \
-            || stop "$tag was already triaged."
+          ! jq -e --arg m "<!-- gokan-triage sha=$sha " 'select(.body | contains($m))' "$comments" > /dev/null \
+            || stop "${sha:0:10} was already triaged."
 
           # Automatic rounds since the human last spoke: triage `apply` comments after the latest
           # human comment, decision or non-automatic triage. Comments with any other gokan marker
           # (the staging reviewer's status) and bot comments are neither.
           auto="$(jq -s '[.[] |
-              if (.body | test("<!-- gokan-triage tag=[^>]*outcome=apply")) then "auto"
-              elif (.body | test("<!-- gokan-(triage tag=|decision)")) then "human"
+              if (.body | test("<!-- gokan-triage sha=[^>]*outcome=apply")) then "auto"
+              elif (.body | test("<!-- gokan-(triage sha=|decision)")) then "human"
               elif .type == "User" and (.body | contains("<!-- gokan-") | not) then "human"
               else empty end]
             | .[((rindex("human") // -1) + 1):] | length' "$comments")"
-          rounds="$(jq -s '[.[] | select(.body | test("<!-- gokan-triage tag="))] | length' "$comments")"
+          rounds="$(jq -s '[.[] | select(.body | test("<!-- gokan-triage sha="))] | length' "$comments")"
           echo "auto_rounds=$auto" >> "$GITHUB_OUTPUT"
           echo "round=$((rounds + 1))" >> "$GITHUB_OUTPUT"
 
-          # The PR review of the same push, on the branch head less the PR reviewer's own fix
-          # commits (it does not review those). It queued on the branch lock before the staging
-          # deploy, so it has normally finished; it is waited for, not assumed.
+          # The PR review of this commit: done when the review workflow dispatched this run, still
+          # possibly running when a hand-tagged rc's staging review did. Waited for, not assumed.
           deadline=$((SECONDS + 45 * 60))
           while :; do
-            git fetch --quiet --force origin "+refs/heads/$BRANCH:refs/remotes/origin/$BRANCH"
-            reviewed="$(git rev-parse "origin/$BRANCH")"
-            while [ "$(git log -1 --format=%an "$reviewed")" = "$REVIEWER_BOT_NAME" ]; do
-              reviewed="$(git rev-parse "$reviewed^")"
-            done
-            read -r total pending < <(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/claude-review.yml/runs?head_sha=$reviewed" \
+            read -r total pending < <(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/claude-review.yml/runs?head_sha=$sha" \
               --jq '[.workflow_runs[].status] | "\(length) \(map(select(. != "completed")) | length)"')
             if [ "$total" -gt 0 ] && [ "$pending" -eq 0 ]; then break; fi
             if [ "$SECONDS" -ge "$deadline" ]; then
-              echo "::error::The PR review of $reviewed did not finish within 45 minutes."
+              echo "::error::The PR review of $sha did not finish within 45 minutes."
               exit 1
             fi
             sleep 60
           done
-          echo "head=$(git rev-parse "origin/$BRANCH")" >> "$GITHUB_OUTPUT"
           echo "ready=true" >> "$GITHUB_OUTPUT"
 
       - name: Tell the human the staging review did not finish
@@ -165,7 +155,7 @@ jobs:
         if: steps.round.outputs.ready == 'true'
         env:
           PR: ${{ steps.round.outputs.pr }}
-          HEAD: ${{ steps.round.outputs.head }}
+          HEAD: ${{ steps.round.outputs.sha }}
         run: |
           set -euo pipefail
           ctx=.triage/context
@@ -193,12 +183,12 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
-          # The staging review dispatches this run with its GITHUB_TOKEN, so the actor is a bot.
+          # The reviews dispatch this run with their GITHUB_TOKEN, so the actor is a bot.
           allowed_bots: "github-actions,claude"
           prompt: |
             You are triaging the reviews of round ${{ steps.round.outputs.round }} of PR
-            #${{ steps.round.outputs.pr }} (branch `${{ inputs.branch }}`), staged as
-            `${{ steps.round.outputs.tag }}` (commit `${{ steps.round.outputs.sha }}`). You decide
+            #${{ steps.round.outputs.pr }} (branch `${{ inputs.branch }}`, commit
+            `${{ steps.round.outputs.sha }}`). You decide
             what happens next, so that the maintainer is asked only for choices that are theirs.
             You do not change code, and you post nothing: you write two files, and the workflow acts
             on them. Read AGENTS.md first: its rules decide what is a defect.
@@ -210,18 +200,21 @@ jobs:
             The repository is checked out at the branch head if you need to read a file.
 
             In `conversation.md`, this round's reviews are the latest PR review (claude[bot]'s
-            "Review of PR" comment and its PR review) and the latest staging review (the comment
-            starting `<!-- gokan-agent-status -->` for `${{ steps.round.outputs.tag }}`). Their
-            "Fixed (pushed)" and "Add-a-check" points are done: ignore them. Triage every advisory
-            point, every unresolved inline comment, and any failing check. Earlier rounds are
-            history: comments starting `<!-- gokan-triage` are earlier triages, and comments from
-            people (and `<!-- gokan-decision -->` relays) are the maintainer's decisions.
+            "Review of PR" comment and its PR review) and, when the round reached staging, the
+            staging review of this commit (the comment starting `<!-- gokan-agent-status -->`).
+            ${{ inputs.staging_review == 'not-needed' && 'This round changed nothing the deployed apps ship (CI, docs or tests only), so it had no staging deploy: the PR review is its only review, and an older staging review belongs to an earlier round.' || 'This round''s changes reached staging, so it has both reviews.' }}
+            The reviewers only report, so every point is yours to sort: triage each point in this
+            round's reviews, every unresolved inline comment, and any failing check. Earlier
+            rounds are history: comments starting `<!-- gokan-triage` are earlier triages, and
+            comments from people (and `<!-- gokan-decision -->` relays) are the maintainer's
+            decisions.
 
             Sort each point into exactly one group:
               - Apply: in this PR's scope, a real improvement, and one resolution a careful
                 maintainer would accept without discussion: a missing test, a stale doc or comment,
-                a rule from AGENTS.md or docs/DESIGN_SYSTEM.md broken, a naming inconsistency, a
-                check that would have caught a finding, a failing check.
+                a rule from AGENTS.md or docs/DESIGN_SYSTEM.md broken, a naming inconsistency, the
+                check a review says would have caught a finding (the AGENTS.md ratchet), a failing
+                check.
               - Your call: what the user sees or how the product behaves, where the issue does not
                 already decide it; several reasonable resolutions; a change of scope; two rules
                 pulling against each other. Give two or three concrete options and recommend one.
@@ -297,24 +290,28 @@ jobs:
           gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --remove-label needs-decision --remove-label agent-done || true
 
           body="$RUNNER_TEMP/body.md"
-          staging="[staging](https://staging.gokan-srs.com)"
+          if [ -n "$TAG" ]; then
+            subject="\`$TAG\` ([staging](https://staging.gokan-srs.com))"
+          else
+            subject="\`${SHA:0:10}\`"
+          fi
           {
-            echo "<!-- gokan-triage tag=$TAG sha=$SHA outcome=$outcome -->"
+            echo "<!-- gokan-triage sha=$SHA outcome=$outcome -->"
             case "$outcome" in
               done)
-                echo "@$HUMAN **Ready to merge.** The reviews of \`$TAG\` ($staging) leave nothing to change."
+                echo "@$HUMAN **Ready to merge.** The reviews of $subject leave nothing to change."
                 echo
                 cat "$RUNNER_TEMP/brief.md"
                 ;;
               apply)
-                echo "@claude please apply this triage of the reviews of \`$TAG\` to this branch."
+                echo "@claude please apply this triage of the reviews of $subject to this branch."
                 echo "Automatic round $((AUTO_ROUNDS + 1)) of $MAX_AUTO_ROUNDS; after that, a maintainer is asked first."
                 echo
                 cat "$RUNNER_TEMP/brief.md"
                 ;;
               decide)
                 if [ "$escalated" = true ]; then
-                  echo "@$HUMAN **Your call: keep going?** $AUTO_ROUNDS automatic rounds have run since you last weighed in, and the reviews of \`$TAG\` ($staging) still raise the points below. Nothing runs until you answer."
+                  echo "@$HUMAN **Your call: keep going?** $AUTO_ROUNDS automatic rounds have run since you last weighed in, and the reviews of $subject still raise the points below. Nothing runs until you answer."
                   echo
                   cat "$RUNNER_TEMP/brief.md"
                   echo
@@ -322,7 +319,7 @@ jobs:
                   echo "- [ ] **A**: Apply the points above (one more round)."
                   echo "- [ ] **B**: Stop here: the PR is done as it is."
                 else
-                  echo "@$HUMAN **Your call** on the reviews of \`$TAG\` ($staging). Nothing runs until you answer."
+                  echo "@$HUMAN **Your call** on the reviews of $subject. Nothing runs until you answer."
                   echo
                   cat "$RUNNER_TEMP/brief.md"
                 fi
@@ -380,7 +377,7 @@ jobs:
         !contains(github.event.comment.body, '<!-- gokan-') &&
         !contains(github.event.comment.body, '@claude')) ||
       (github.event.action == 'edited' &&
-        startsWith(github.event.comment.body, '<!-- gokan-triage tag=') &&
+        startsWith(github.event.comment.body, '<!-- gokan-triage sha=') &&
         contains(github.event.comment.body, 'outcome=decide') &&
         contains(github.event.comment.body, '- [x] **Send my choices to the agent**') &&
         contains(github.event.changes.body.from, '- [ ] **Send my choices to the agent**')))
@@ -415,7 +412,7 @@ jobs:
             how="the options ticked on it"
           else
             brief="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR/comments" \
-              --jq '.[] | select(.body | test("^<!-- gokan-triage tag=[^>]*outcome=decide")) | .html_url' | tail -1)"
+              --jq '.[] | select(.body | test("^<!-- gokan-triage sha=[^>]*outcome=decide")) | .html_url' | tail -1)"
             how="the options ticked on it and [my reply]($COMMENT_URL), which wins where they differ"
           fi
           {
