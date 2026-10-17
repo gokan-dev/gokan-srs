@@ -1,3 +1,5 @@
+import { DICTIONARY_BASE_PATH } from '@gokan/dataset-schema';
+
 /**
  * What a route tells search engines: index it under its own URL, defer to the dictionary page
  * it duplicates, or stay out of the index.
@@ -9,9 +11,6 @@
 export type RouteSeo =
     | { kind: 'canonical'; path: string }
     | { kind: 'noindex' };
-
-/** Where gokan-dictionary is served on the same origin (its BASE_PATH). */
-const DICTIONARY_BASE = '/dictionary';
 
 /** Routes whose content is the same for every visitor, indexed under their own URL. */
 const PUBLIC_PATHS = new Set(['/', '/about']);
@@ -30,6 +29,16 @@ const DICTIONARY_ROUTES: { prefix: string; page: (segment: string) => string }[]
     { prefix: '/grammar/', page: id => `/grammar/${id}/` },
 ];
 
+/** A pathname as the router reports it, without the trailing slash a visitor may have typed. */
+function normalizePath(pathname: string): string {
+    return pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
+}
+
+/** Whether a pathname is the About page: the one route shown before setup (App). */
+export function isAboutPath(pathname: string): boolean {
+    return normalizePath(pathname) === '/about';
+}
+
 /** Grammar routes that are app screens, not grammar point ids. */
 const GRAMMAR_SCREENS = new Set(['browse', 'chapters', 'family']);
 
@@ -39,7 +48,7 @@ const GRAMMAR_SCREENS = new Set(['browse', 'chapters', 'family']);
  * visitor's own state, so they are noindex.
  */
 export function routeSeo(pathname: string): RouteSeo {
-    const path = pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
+    const path = normalizePath(pathname);
     if (PUBLIC_PATHS.has(path)) return { kind: 'canonical', path };
 
     for (const { prefix, page } of DICTIONARY_ROUTES) {
@@ -54,7 +63,7 @@ export function routeSeo(pathname: string): RouteSeo {
             return { kind: 'noindex' };
         }
         // Encoded the way the dictionary's own links are (kanjiPath), so both spell one URL.
-        return { kind: 'canonical', path: `${DICTIONARY_BASE}${page(encodeURIComponent(decoded))}` };
+        return { kind: 'canonical', path: `${DICTIONARY_BASE_PATH}${page(encodeURIComponent(decoded))}` };
     }
     return { kind: 'noindex' };
 }

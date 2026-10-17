@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it, expect } from 'vitest';
+import { DICTIONARY_BASE_PATH } from '@gokan/dataset-schema';
 import {
     cacheControlFor,
     changeDates,
@@ -10,15 +11,18 @@ import {
     isSite,
     manifestFromListing,
     objectKey,
+    pageContentHash,
     parseManifest,
     planUploads,
     serializeManifest,
+    SITES,
     sitemapUrlFile,
     type PreviousDeploy,
 } from './deployManifest';
 
-const stored = (manifest: Record<string, string>, changed: Record<string, string> = {}): PreviousDeploy =>
-    ({ source: 'manifest', manifest, changed });
+/** A stored deploy; its content hashes default to its upload hashes (true of every non-page file). */
+const stored = (manifest: Record<string, string>, changed: Record<string, string> = {}, content = manifest): PreviousDeploy =>
+    ({ source: 'manifest', manifest, content, changed });
 
 describe('diffManifests', () => {
     it('uploads only the files whose content hash changed', () => {
@@ -95,14 +99,40 @@ describe('contentHash', () => {
     });
 });
 
+describe('pageContentHash', () => {
+    const page = (stylesheet: string, text: string) => new TextEncoder().encode(
+        `<link rel="stylesheet" href="/dictionary/assets/${stylesheet}.css"><script type="module" src="/assets/${stylesheet}.js"></script><p>${text}</p>`,
+    );
+
+    it('ignores which hashed assets a page links', () => {
+        expect(pageContentHash('vocab/1/index.html', page('app-AAAA', 'word')))
+            .toBe(pageContentHash('vocab/1/index.html', page('app-BBBB', 'word')));
+    });
+
+    it('changes with what the page says', () => {
+        expect(pageContentHash('vocab/1/index.html', page('app-AAAA', 'word')))
+            .not.toBe(pageContentHash('vocab/1/index.html', page('app-AAAA', 'other')));
+    });
+
+    it('is the plain content hash for any file that is not a page', () => {
+        const bytes = new TextEncoder().encode('"/assets/x.css"');
+        expect(pageContentHash('data/search.json', bytes)).toBe(contentHash(bytes));
+    });
+});
+
 describe('parseManifest', () => {
     it('reads back what a deploy stores', () => {
-        const manifest = { hashes: { 'index.html': 'a' }, changed: { 'index.html': '2026-10-12' } };
+        const manifest = { hashes: { 'index.html': 'a' }, content: { 'index.html': 'c' }, changed: { 'index.html': '2026-10-12' } };
         expect(parseManifest(JSON.parse(serializeManifest(manifest)))).toEqual(manifest);
     });
 
-    it('reads a manifest from before change dates as hashes with no dates', () => {
-        expect(parseManifest({ 'index.html': 'a' })).toEqual({ hashes: { 'index.html': 'a' }, changed: {} });
+    it('reads a manifest from before change dates as hashes with nothing to date by', () => {
+        expect(parseManifest({ 'index.html': 'a' })).toEqual({ hashes: { 'index.html': 'a' }, content: {}, changed: {} });
+    });
+
+    it('reads a manifest from before content hashes with nothing to date by', () => {
+        expect(parseManifest({ hashes: { 'index.html': 'a' }, changed: { 'index.html': '2026-10-12' } }))
+            .toEqual({ hashes: { 'index.html': 'a' }, content: {}, changed: {} });
     });
 
     it('rejects anything else', () => {
@@ -111,6 +141,7 @@ describe('parseManifest', () => {
         expect(parseManifest({ 'index.html': 1 })).toBeNull();
         expect(parseManifest({ hashes: { 'index.html': 'a' } })).toBeNull();
         expect(parseManifest({ hashes: { 'index.html': 'a' }, changed: { 'index.html': 1 } })).toBeNull();
+        expect(parseManifest({ hashes: { 'index.html': 'a' }, content: [], changed: {} })).toBeNull();
     });
 });
 
@@ -124,6 +155,15 @@ describe('changeDates', () => {
         );
         expect(changeDates(previous, { 'vocab/1/index.html': 'a', 'vocab/2/index.html': 'CHANGED', 'vocab/3/index.html': 'n' }, TODAY))
             .toEqual({ 'vocab/1/index.html': '2026-10-12', 'vocab/2/index.html': TODAY, 'vocab/3/index.html': TODAY });
+    });
+
+    it('keeps a page\'s date when only the hashed assets it links changed', () => {
+        const before = new TextEncoder().encode('<link rel="stylesheet" href="/dictionary/assets/app-AAAA.css"><p>word</p>');
+        const after = new TextEncoder().encode('<link rel="stylesheet" href="/dictionary/assets/app-BBBB.css"><p>word</p>');
+        const file = 'vocab/1/index.html';
+        const previous = stored({ [file]: contentHash(before) }, { [file]: '2026-10-12' }, { [file]: pageContentHash(file, before) });
+        expect(contentHash(after)).not.toBe(contentHash(before));
+        expect(changeDates(previous, { [file]: pageContentHash(file, after) }, TODAY)).toEqual({ [file]: '2026-10-12' });
     });
 
     it('dates everything today when nothing was dated before', () => {
@@ -250,6 +290,10 @@ describe('sites', () => {
         expect(isSite('srs')).toBe(true);
         expect(isSite('dictionary')).toBe(true);
         expect(isSite('toString')).toBe(false);
+    });
+
+    it("uploads the dictionary under the path gokan-srs links it at", () => {
+        expect(`/${SITES.dictionary.prefix}`).toBe(DICTIONARY_BASE_PATH);
     });
 
     it('builds keys with and without a prefix', () => {

@@ -54,16 +54,36 @@ export function contentHash(content: Uint8Array): string {
     return crypto.createHash('md5').update(content).digest('hex');
 }
 
+/** A quoted value naming a file under assets/: Vite's output, content-hashed in its name. */
+const HASHED_ASSET_REFERENCE = /"[^"\s]*\/assets\/[^"\s]*"/g;
+
 /**
- * Map of dist-relative path to the UTC day (YYYY-MM-DD) its content hash last changed: the
- * sitemap's `<lastmod>`. Kept in the stored manifest, never in the build, which must stay
+ * What a file says, as opposed to its bytes (`contentHash`): for a page, its HTML with every
+ * reference to a hashed asset blanked out. Every dictionary page links the hashed stylesheet
+ * and scripts, so by bytes a one-line style edit is a change to all ~40k pages; by this hash a
+ * page changes when its text or markup does. The sitemap's `<lastmod>` is dated from it
+ * (`changeDates`); uploads still compare bytes, since the new asset names must reach the bucket.
+ */
+export function pageContentHash(file: string, content: Uint8Array): string {
+    if (!file.endsWith('.html')) return contentHash(content);
+    const html = new TextDecoder().decode(content).replaceAll(HASHED_ASSET_REFERENCE, '""');
+    return contentHash(new TextEncoder().encode(html));
+}
+
+/**
+ * Map of dist-relative path to the UTC day (YYYY-MM-DD) its page content (`pageContentHash`)
+ * last changed: the sitemap's `<lastmod>`. Kept in the stored manifest, never in the build, which must stay
  * byte-reproducible.
  */
 export type ChangeDates = Record<string, string>;
 
-/** What a deploy stores beside the site: every file's hash and the day it last changed. */
+/**
+ * What a deploy stores beside the site: every file's hash (what is uploaded), its page content
+ * hash (what is dated) and the day that content last changed.
+ */
 export interface StoredManifest {
     hashes: BuildManifest;
+    content: BuildManifest;
     changed: ChangeDates;
 }
 
@@ -83,17 +103,21 @@ function stringRecord(value: unknown): Record<string, string> | null {
 
 /**
  * Narrows a manifest read back from S3; anything malformed counts as no manifest. A manifest
- * from before change dates were kept is a bare map of hashes: it reads with no dates, so its
- * files are dated by the deploy reading it.
+ * from before change dates were kept is a bare map of hashes, and one from before content
+ * hashes were kept has no `content`: either reads with nothing to date by, so its files are
+ * dated by the deploy reading it.
  */
 export function parseManifest(raw: unknown): StoredManifest | null {
     if (isRecord(raw) && 'hashes' in raw) {
         const hashes = stringRecord(raw.hashes);
         const changed = stringRecord(raw.changed);
-        return hashes && changed ? { hashes, changed } : null;
+        if (!hashes || !changed) return null;
+        if (!('content' in raw)) return { hashes, content: {}, changed: {} };
+        const content = stringRecord(raw.content);
+        return content ? { hashes, content, changed } : null;
     }
     const hashes = stringRecord(raw);
-    return hashes ? { hashes, changed: {} } : null;
+    return hashes ? { hashes, content: {}, changed: {} } : null;
 }
 
 export function serializeManifest(manifest: StoredManifest): string {
@@ -128,7 +152,7 @@ export function manifestFromListing(listing: unknown, prefix: string): BuildMani
  * (gokan-srs's root listing includes all of dictionary/), so pruning from it would delete them.
  */
 export type PreviousDeploy =
-    | { source: 'manifest'; manifest: BuildManifest; changed: ChangeDates }
+    | { source: 'manifest'; manifest: BuildManifest; content: BuildManifest; changed: ChangeDates }
     | { source: 'listing'; manifest: BuildManifest }
     | { source: 'none' };
 
@@ -161,15 +185,16 @@ export function diffManifests(previous: PreviousDeploy, next: BuildManifest): Ma
 }
 
 /**
- * The day each file of `next` last changed: carried forward from the previous deploy while its
- * hash is the same, `today` when it differs or was never dated (a first deploy, a deploy from a
- * bucket listing, a manifest from before dates were kept). Google trusts `<lastmod>` only while
- * it stays accurate, so it is the day the content changed, never the build's.
+ * The day each file last changed, from `content`, its page content hashes (`pageContentHash`):
+ * carried forward from the previous deploy while that hash is the same, `today` when it differs
+ * or was never dated (a first deploy, a deploy from a bucket listing, a manifest from before
+ * dates were kept). Google trusts `<lastmod>` only while it stays accurate, so it is the day the
+ * content changed: never the build's, and not the day an asset it links was renamed.
  */
-export function changeDates(previous: PreviousDeploy, next: BuildManifest, today: string): ChangeDates {
+export function changeDates(previous: PreviousDeploy, content: BuildManifest, today: string): ChangeDates {
     const dates: ChangeDates = {};
-    for (const [file, hash] of Object.entries(next)) {
-        const carried = previous.source === 'manifest' && previous.manifest[file] === hash
+    for (const [file, hash] of Object.entries(content)) {
+        const carried = previous.source === 'manifest' && previous.content[file] === hash
             ? previous.changed[file]
             : undefined;
         dates[file] = carried ?? today;

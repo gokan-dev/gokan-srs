@@ -86,6 +86,9 @@ try {
     for (const { width, height } of VIEWPORTS) {
         const tab = await chrome.openTab(width, height);
         const app = `http://127.0.0.1:${srs.port}`;
+        // About is the one route shown before setup (and the one a crawler indexes), in its own frame.
+        await tab.goto(`${app}/about`, 'Why I Built This');
+        await measure(tab, 'srs /about before setup', width);
         await tab.goto(`${app}/`, 'I already know some kanji');
         await measure(tab, 'srs /welcome', width);
         await tab.click('I already know some kanji');

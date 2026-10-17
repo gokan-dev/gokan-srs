@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { DICTIONARY_BASE_PATH } from '@gokan/dataset-schema';
 
 /**
  * The dictionary is a separate statically generated app served from the
@@ -9,5 +10,5 @@ import type { ReactNode } from 'react';
  * Note this 404s under `bun run dev`, where only the SRS app is served.
  */
 export function DictionaryLink({ className, onClick, children = 'Dictionary' }: { className: string; onClick?: () => void; children?: ReactNode }) {
-    return <a href="/dictionary/" className={className} onClick={onClick}>{children}</a>;
+    return <a href={`${DICTIONARY_BASE_PATH}/`} className={className} onClick={onClick}>{children}</a>;
 }

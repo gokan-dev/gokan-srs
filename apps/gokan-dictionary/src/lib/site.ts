@@ -13,6 +13,8 @@
 // this module through urls.ts), while Bun resolves the same expression at prerender time, so
 // one declaration serves both without a `typeof process` guard.
 
+import { DICTIONARY_BASE_PATH } from '@gokan/dataset-schema';
+
 function trimTrailingSlash(value: string): string {
     return value.endsWith('/') ? value.slice(0, -1) : value;
 }
@@ -31,7 +33,7 @@ export const SITE_ORIGIN = trimTrailingSlash(
  * the upload rather than baked into the directory names.
  */
 export const BASE_PATH = (() => {
-    const raw = import.meta.env.VITE_BASE_PATH ?? '/dictionary';
+    const raw = import.meta.env.VITE_BASE_PATH ?? DICTIONARY_BASE_PATH;
     if (!raw || raw === '/') return '';
     return trimTrailingSlash(raw.startsWith('/') ? raw : `/${raw}`);
 })();

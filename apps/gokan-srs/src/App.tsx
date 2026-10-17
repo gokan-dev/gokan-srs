@@ -14,6 +14,7 @@ import { ResumeSessionBar } from './components/ResumeSessionBar';
 import { StorageFullBanner } from './components/StorageFullBanner';
 import { PageRenderedSignal } from './components/PageRenderedSignal';
 import { RouteSeo } from './components/RouteSeo';
+import { isAboutPath } from './utils/seo.utils';
 
 // Lazy Load Pages
 // Note: Adapting named exports to default exports for lazy loading where necessary
@@ -70,19 +71,10 @@ const AppScreens: React.FC = () => {
         );
     }
 
-    // Setup gate
-    if (!isSetupComplete) {
-        // About is for whoever has not set up yet, a crawler included: it is the page indexed
-        // under /about, so it must not be the onboarding flow every other route shows them.
-        if (location.pathname === '/about' || location.pathname === '/about/') {
-            return (
-                <main className="min-h-screen flex flex-col items-center bg-background">
-                    <Suspense fallback={<Loader title="Loading..." />}>
-                        <AboutScreen />
-                    </Suspense>
-                </main>
-            );
-        }
+    // Setup gate. About is the one route shown before it, a crawler included: it is the page
+    // indexed under /about, so it must not be the onboarding flow every other route shows them.
+    // It gets the app's frame, so a visitor from search sees what site this is and has links on.
+    if (!isSetupComplete && !isAboutPath(location.pathname)) {
         return <KanjiFormProvider initialState={{}}>
             <OnboardingFlow onComplete={actions.setupComplete} />
         </KanjiFormProvider>
@@ -103,75 +95,83 @@ const AppScreens: React.FC = () => {
             {/* A session card is top-aligned on a phone, so it stays above the keyboard. */}
             <main className={`flex-1 flex flex-col items-center ${focusMode ? 'p-4 md:px-6 md:pt-6 justify-start md:justify-center' : 'justify-start'}`}>
                 <Suspense fallback={<Loader title="Loading..." />}>
-                    <Routes>
-                        <Route path="/" element={
-                            <MainScreen />
-                        } />
-                        <Route path="/quiz" element={
-                            <VocabQuizScreen onVocabClick={(id) => void navigate(`/vocab/${id}`)} />
-                        } />
-                        <Route path="/grammar" element={
-                            <GrammarScreen onVocabClick={(id) => void navigate(`/vocab/${id}`)} />
-                        } />
-                        <Route path="/stats" element={
-                            <StatsScreen />
-                        } />
-                        <Route path="/about" element={
-                            <AboutScreen />
-                        } />
-                        <Route path="/settings" element={
-                            <SettingsScreen
-                                settings={state.settings!}
-                                onUpdateSettings={actions.saveSettings}
-                                onReset={actions.reset}
-                                onResetGrammar={actions.resetGrammarProgress}
-                            />
-                        } />
-                        <Route path="/profile" element={<Navigate to="/kanji" replace />} />
-                        <Route path="/kanji" element={
-                            <KanjiFormProvider initialState={{
-                                kanjiCount: state.progress!.kanjiKnowledge.step,
-                                kanjiMethod: state.progress!.kanjiKnowledge.method,
-                                knownKanji: state.progress!.kanjiKnowledge.kanjiSet
-                            }}>
-                                <UserProfileScreen />
-                            </KanjiFormProvider>
-                        } />
-                        <Route path="/vocab" element={
-                            <VocabularyListScreen />
-                        } />
-                        <Route path="/vocab/:vocabId" element={
-                            <VocabDetailScreen />
-                        } />
-                        <Route path="/kanji/:character" element={
-                            <KanjiDetailScreen />
-                        } />
-                        <Route path="/grammar/browse" element={
-                            <GrammarBrowseScreen />
-                        } />
-                        <Route path="/grammar/chapters" element={
-                            <GrammarChapterBrowseScreen />
-                        } />
-                        <Route path="/grammar/family/:familyId" element={
-                            <GrammarFamilyScreen />
-                        } />
-                        <Route path="/grammar/:grammarId" element={
-                            <GrammarDetailScreen />
-                        } />
-                        <Route path="/listening" element={
-                            <ListeningLibraryScreen />
-                        } />
-                        <Route path="/listening/:mediaId" element={
-                            <ListeningTitleScreen />
-                        } />
-                        <Route path="*" element={<Navigate to="/" replace />} />
-                    </Routes>
-                    <PageRenderedSignal />
+                    {/* Before setup the only route is About: the route elements below read progress,
+                        which does not exist yet. Nor does PageRenderedSignal run: the background
+                        loads it starts are the study flow's. */}
+                    {!isSetupComplete ? <AboutScreen /> : (
+                        <>
+                            <Routes>
+                                <Route path="/" element={
+                                    <MainScreen />
+                                } />
+                                <Route path="/quiz" element={
+                                    <VocabQuizScreen onVocabClick={(id) => void navigate(`/vocab/${id}`)} />
+                                } />
+                                <Route path="/grammar" element={
+                                    <GrammarScreen onVocabClick={(id) => void navigate(`/vocab/${id}`)} />
+                                } />
+                                <Route path="/stats" element={
+                                    <StatsScreen />
+                                } />
+                                <Route path="/about" element={
+                                    <AboutScreen />
+                                } />
+                                <Route path="/settings" element={
+                                    <SettingsScreen
+                                        settings={state.settings!}
+                                        onUpdateSettings={actions.saveSettings}
+                                        onReset={actions.reset}
+                                        onResetGrammar={actions.resetGrammarProgress}
+                                    />
+                                } />
+                                <Route path="/profile" element={<Navigate to="/kanji" replace />} />
+                                <Route path="/kanji" element={
+                                    <KanjiFormProvider initialState={{
+                                        kanjiCount: state.progress!.kanjiKnowledge.step,
+                                        kanjiMethod: state.progress!.kanjiKnowledge.method,
+                                        knownKanji: state.progress!.kanjiKnowledge.kanjiSet
+                                    }}>
+                                        <UserProfileScreen />
+                                    </KanjiFormProvider>
+                                } />
+                                <Route path="/vocab" element={
+                                    <VocabularyListScreen />
+                                } />
+                                <Route path="/vocab/:vocabId" element={
+                                    <VocabDetailScreen />
+                                } />
+                                <Route path="/kanji/:character" element={
+                                    <KanjiDetailScreen />
+                                } />
+                                <Route path="/grammar/browse" element={
+                                    <GrammarBrowseScreen />
+                                } />
+                                <Route path="/grammar/chapters" element={
+                                    <GrammarChapterBrowseScreen />
+                                } />
+                                <Route path="/grammar/family/:familyId" element={
+                                    <GrammarFamilyScreen />
+                                } />
+                                <Route path="/grammar/:grammarId" element={
+                                    <GrammarDetailScreen />
+                                } />
+                                <Route path="/listening" element={
+                                    <ListeningLibraryScreen />
+                                } />
+                                <Route path="/listening/:mediaId" element={
+                                    <ListeningTitleScreen />
+                                } />
+                                <Route path="*" element={<Navigate to="/" replace />} />
+                            </Routes>
+                            <PageRenderedSignal />
+                        </>
+                    )}
                 </Suspense>
             </main>
 
             {!focusMode && <AppFooter />}
-            {!focusMode && <BottomTabBar />}
+            {/* Its tabs all lead to onboarding before setup; About's links are in the header and footer. */}
+            {!focusMode && isSetupComplete && <BottomTabBar />}
         </div>
     );
 };
