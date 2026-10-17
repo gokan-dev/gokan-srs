@@ -22,14 +22,19 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import {
+    SITEMAP_FILE,
     SITES,
+    changeDates,
     contentHash,
+    datedSitemap,
     diffManifests,
     isSite,
     manifestFromListing,
     objectKey,
+    pageContentHash,
     parseManifest,
     planUploads,
+    serializeManifest,
     type BuildManifest,
     type PreviousDeploy,
     type Site,
@@ -106,18 +111,24 @@ function listFiles(dir: string, base = dir): string[] {
     return out;
 }
 
-function buildManifest(distDir: string, files: string[]): BuildManifest {
-    const manifest: BuildManifest = {};
-    for (const file of files) manifest[file] = contentHash(fs.readFileSync(path.join(distDir, file)));
-    return manifest;
+/** Every built file's upload hash and its page content hash, from one read of each file. */
+function buildManifests(distDir: string, files: string[]): { hashes: BuildManifest; content: BuildManifest } {
+    const hashes: BuildManifest = {};
+    const content: BuildManifest = {};
+    for (const file of files) {
+        const bytes = fs.readFileSync(path.join(distDir, file));
+        hashes[file] = contentHash(bytes);
+        content[file] = pageContentHash(file, bytes);
+    }
+    return { hashes, content };
 }
 
 function readPreviousDeploy(bucket: string, prefix: string): PreviousDeploy {
     const raw = aws(['s3', 'cp', `s3://${bucket}/${objectKey(prefix, MANIFEST_KEY)}`, '-'], { allowFailure: true, capture: true });
     if (raw !== null) {
         try {
-            const manifest = parseManifest(JSON.parse(raw));
-            if (manifest) return { source: 'manifest', manifest };
+            const stored = parseManifest(JSON.parse(raw));
+            if (stored) return { source: 'manifest', manifest: stored.hashes, content: stored.content, changed: stored.changed };
         } catch {
             // Unreadable JSON: fall through to the listing, like a missing manifest.
         }
@@ -170,8 +181,24 @@ function main(): void {
 
     const files = listFiles(distDir);
     console.log(`[deploy] ${site}: hashing ${files.length} built file(s)...`);
-    const next = buildManifest(distDir, files);
+    const { hashes: next, content } = buildManifests(distDir, files);
     const previous = readPreviousDeploy(bucket, prefix);
+    // The UTC day, as the sitemap's W3C date format expects.
+    const today = new Date().toISOString().slice(0, 10);
+
+    // The built sitemap carries no dates (the build stays byte-reproducible): each URL gets the
+    // day its page last changed here, after the diff that knows it and before the upload. Written
+    // over the built file, so it is hashed, diffed and uploaded like any other: with no content
+    // change it has the same bytes as the deployed one and stays where it is.
+    const sitemapPath = path.join(distDir, SITEMAP_FILE);
+    if (fs.existsSync(sitemapPath)) {
+        const sitemap = datedSitemap(site, fs.readFileSync(sitemapPath, 'utf-8'), changeDates(previous, content, today));
+        fs.writeFileSync(sitemapPath, sitemap);
+        const bytes = fs.readFileSync(sitemapPath);
+        next[SITEMAP_FILE] = contentHash(bytes);
+        content[SITEMAP_FILE] = pageContentHash(SITEMAP_FILE, bytes);
+    }
+    const dates = changeDates(previous, content, today);
 
     const { changed, removed, unchanged } = diffManifests(previous, next);
     console.log(`[deploy] ${changed.length} changed, ${removed.length} removed, ${unchanged} unchanged.`);
@@ -209,7 +236,7 @@ function main(): void {
     // Written last, and only after every upload and delete has succeeded: if anything above
     // throws, the old manifest survives and the next deploy retries the same work.
     const manifestPath = path.join(WORK_DIR, `${site}${MANIFEST_KEY}`);
-    fs.writeFileSync(manifestPath, JSON.stringify(next));
+    fs.writeFileSync(manifestPath, serializeManifest({ hashes: next, content, changed: dates }));
     aws([
         's3', 'cp', manifestPath, `s3://${bucket}/${objectKey(prefix, MANIFEST_KEY)}`,
         '--cache-control', 'no-store',

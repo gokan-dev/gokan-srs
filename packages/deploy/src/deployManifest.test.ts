@@ -1,16 +1,28 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { describe, it, expect } from 'vitest';
+import { DICTIONARY_BASE_PATH } from '@gokan/dataset-schema';
 import {
     cacheControlFor,
+    changeDates,
     contentHash,
+    datedSitemap,
     diffManifests,
     isSite,
     manifestFromListing,
     objectKey,
+    pageContentHash,
     parseManifest,
     planUploads,
+    serializeManifest,
+    SITES,
+    sitemapUrlFile,
+    type PreviousDeploy,
 } from './deployManifest';
 
-const stored = (manifest: Record<string, string>) => ({ source: 'manifest' as const, manifest });
+/** A stored deploy; its content hashes default to its upload hashes (true of every non-page file). */
+const stored = (manifest: Record<string, string>, changed: Record<string, string> = {}, content = manifest): PreviousDeploy =>
+    ({ source: 'manifest', manifest, content, changed });
 
 describe('diffManifests', () => {
     it('uploads only the files whose content hash changed', () => {
@@ -87,15 +99,136 @@ describe('contentHash', () => {
     });
 });
 
+describe('pageContentHash', () => {
+    const page = (stylesheet: string, text: string) => new TextEncoder().encode(
+        `<link rel="stylesheet" href="/dictionary/assets/${stylesheet}.css"><script type="module" src="/assets/${stylesheet}.js"></script><p>${text}</p>`,
+    );
+
+    it('ignores which hashed assets a page links', () => {
+        expect(pageContentHash('vocab/1/index.html', page('app-AAAA', 'word')))
+            .toBe(pageContentHash('vocab/1/index.html', page('app-BBBB', 'word')));
+    });
+
+    it('changes with what the page says', () => {
+        expect(pageContentHash('vocab/1/index.html', page('app-AAAA', 'word')))
+            .not.toBe(pageContentHash('vocab/1/index.html', page('app-AAAA', 'other')));
+    });
+
+    it('is the plain content hash for any file that is not a page', () => {
+        const bytes = new TextEncoder().encode('"/assets/x.css"');
+        expect(pageContentHash('data/search.json', bytes)).toBe(contentHash(bytes));
+    });
+});
+
 describe('parseManifest', () => {
-    it('accepts a map of paths to hashes', () => {
-        expect(parseManifest({ 'index.html': 'a' })).toEqual({ 'index.html': 'a' });
+    it('reads back what a deploy stores', () => {
+        const manifest = { hashes: { 'index.html': 'a' }, content: { 'index.html': 'c' }, changed: { 'index.html': '2026-10-12' } };
+        expect(parseManifest(JSON.parse(serializeManifest(manifest)))).toEqual(manifest);
+    });
+
+    it('reads a manifest from before change dates as hashes with nothing to date by', () => {
+        expect(parseManifest({ 'index.html': 'a' })).toEqual({ hashes: { 'index.html': 'a' }, content: {}, changed: {} });
+    });
+
+    it('reads a manifest from before content hashes with nothing to date by', () => {
+        expect(parseManifest({ hashes: { 'index.html': 'a' }, changed: { 'index.html': '2026-10-12' } }))
+            .toEqual({ hashes: { 'index.html': 'a' }, content: {}, changed: {} });
     });
 
     it('rejects anything else', () => {
         expect(parseManifest(null)).toBeNull();
         expect(parseManifest(['index.html'])).toBeNull();
         expect(parseManifest({ 'index.html': 1 })).toBeNull();
+        expect(parseManifest({ hashes: { 'index.html': 'a' } })).toBeNull();
+        expect(parseManifest({ hashes: { 'index.html': 'a' }, changed: { 'index.html': 1 } })).toBeNull();
+        expect(parseManifest({ hashes: { 'index.html': 'a' }, content: [], changed: {} })).toBeNull();
+    });
+});
+
+describe('changeDates', () => {
+    const TODAY = '2026-10-17';
+
+    it('carries the date forward while the hash is unchanged and dates today when it differs', () => {
+        const previous = stored(
+            { 'vocab/1/index.html': 'a', 'vocab/2/index.html': 'b' },
+            { 'vocab/1/index.html': '2026-10-12', 'vocab/2/index.html': '2026-10-12' },
+        );
+        expect(changeDates(previous, { 'vocab/1/index.html': 'a', 'vocab/2/index.html': 'CHANGED', 'vocab/3/index.html': 'n' }, TODAY))
+            .toEqual({ 'vocab/1/index.html': '2026-10-12', 'vocab/2/index.html': TODAY, 'vocab/3/index.html': TODAY });
+    });
+
+    it('keeps a page\'s date when only the hashed assets it links changed', () => {
+        const before = new TextEncoder().encode('<link rel="stylesheet" href="/dictionary/assets/app-AAAA.css"><p>word</p>');
+        const after = new TextEncoder().encode('<link rel="stylesheet" href="/dictionary/assets/app-BBBB.css"><p>word</p>');
+        const file = 'vocab/1/index.html';
+        const previous = stored({ [file]: contentHash(before) }, { [file]: '2026-10-12' }, { [file]: pageContentHash(file, before) });
+        expect(contentHash(after)).not.toBe(contentHash(before));
+        expect(changeDates(previous, { [file]: pageContentHash(file, after) }, TODAY)).toEqual({ [file]: '2026-10-12' });
+    });
+
+    it('dates everything today when nothing was dated before', () => {
+        const next = { 'index.html': 'a' };
+        expect(changeDates(stored({ 'index.html': 'a' }), next, TODAY)).toEqual({ 'index.html': TODAY });
+        expect(changeDates({ source: 'listing', manifest: { 'index.html': 'a' } }, next, TODAY)).toEqual({ 'index.html': TODAY });
+        expect(changeDates({ source: 'none' }, next, TODAY)).toEqual({ 'index.html': TODAY });
+    });
+});
+
+describe('sitemapUrlFile', () => {
+    const files = new Set(['index.html', 'vocab/1/index.html', 'kanji/学/index.html', 'robots.txt']);
+
+    it('serves a dictionary directory URL from its index.html, decoded', () => {
+        expect(sitemapUrlFile('dictionary', 'https://gokan-srs.com/dictionary/', files)).toBe('index.html');
+        expect(sitemapUrlFile('dictionary', 'https://gokan-srs.com/dictionary/vocab/1/', files)).toBe('vocab/1/index.html');
+        expect(sitemapUrlFile('dictionary', 'https://staging.gokan-srs.com/dictionary/kanji/%E5%AD%A6/', files)).toBe('kanji/学/index.html');
+    });
+
+    it('serves an app route with no file of its own from the SPA shell', () => {
+        expect(sitemapUrlFile('srs', 'https://gokan-srs.com/', files)).toBe('index.html');
+        expect(sitemapUrlFile('srs', 'https://gokan-srs.com/about', files)).toBe('index.html');
+    });
+
+    it('fails loudly on a dictionary URL the build has no page for', () => {
+        expect(() => sitemapUrlFile('dictionary', 'https://gokan-srs.com/dictionary/vocab/9/', files)).toThrow(/no file/);
+        expect(() => sitemapUrlFile('dictionary', 'https://gokan-srs.com/about', files)).toThrow(/outside/);
+    });
+});
+
+describe('datedSitemap', () => {
+    const built = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://gokan-srs.com/dictionary/</loc></url>
+  <url><loc>https://gokan-srs.com/dictionary/vocab/1/</loc></url>
+</urlset>
+`;
+    const hashes = { 'index.html': 'h', 'vocab/1/index.html': 'v', 'sitemap.xml': 's' };
+    const deployedDates = { 'index.html': '2026-10-12', 'vocab/1/index.html': '2026-10-12', 'sitemap.xml': '2026-10-12' };
+    const previous = stored(hashes, deployedDates);
+
+    it('dates each URL by the day its page last changed', () => {
+        const next = { ...hashes, 'vocab/1/index.html': 'CHANGED' };
+        expect(datedSitemap('dictionary', built, changeDates(previous, next, '2026-10-17'))).toContain(
+            '<url><loc>https://gokan-srs.com/dictionary/</loc><lastmod>2026-10-12</lastmod></url>\n'
+            + '  <url><loc>https://gokan-srs.com/dictionary/vocab/1/</loc><lastmod>2026-10-17</lastmod></url>',
+        );
+    });
+
+    it('writes the same sitemap when no content changed', () => {
+        const before = datedSitemap('dictionary', built, deployedDates);
+        const after = datedSitemap('dictionary', built, changeDates(previous, { ...hashes }, '2026-10-17'));
+        expect(after).toBe(before);
+        expect(after).not.toContain('2026-10-17');
+    });
+
+    it("dates gokan-srs's own sitemap, which is static and carries no dates", () => {
+        const xml = fs.readFileSync(path.join(import.meta.dirname, '../../../apps/gokan-srs/public/sitemap.xml'), 'utf-8');
+        const dated = datedSitemap('srs', xml, { 'index.html': '2026-10-17' });
+        expect(dated.match(/<lastmod>2026-10-17<\/lastmod>/g)).toHaveLength(xml.match(/<loc>/g)?.length ?? -1);
+    });
+
+    it('refuses a built sitemap that already carries dates', () => {
+        expect(() => datedSitemap('srs', '<url><loc>https://gokan-srs.com/</loc><lastmod>2026-03-10</lastmod></url>', { 'index.html': 'x' }))
+            .toThrow(/lastmod/);
     });
 });
 
@@ -157,6 +290,10 @@ describe('sites', () => {
         expect(isSite('srs')).toBe(true);
         expect(isSite('dictionary')).toBe(true);
         expect(isSite('toString')).toBe(false);
+    });
+
+    it("uploads the dictionary under the path gokan-srs links it at", () => {
+        expect(`/${SITES.dictionary.prefix}`).toBe(DICTIONARY_BASE_PATH);
     });
 
     it('builds keys with and without a prefix', () => {

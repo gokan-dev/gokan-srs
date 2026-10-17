@@ -202,12 +202,12 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
   Listening / Stats / Kanji, then search and Settings. Active link: ink text, 2px accent
   underline; inactive: secondary text, ink on hover.
 - **Mobile nav** (below `md`): a top bar (logo, "Gokan", search icon) and a fixed bottom
-  tab bar (Study, Vocabulary, Grammar, Stats, More).
+  tab bar (Study, Vocabulary, Grammar, Stats, More); `/about` before setup has no tab bar.
 - **Session focus mode** (`/quiz`, `/grammar`): no nav links, no bottom tab bar, no
   search field - just the logo (links to the hub), a search icon, and an "End session"
   ghost button.
 - Footer ("About Gokan SRS", "Dictionary") on every non-session page on desktop; in the
-  mobile More sheet.
+  mobile More sheet; `/about` before setup shows it at every width (`alwaysVisible`).
 
 ## 6. Shared components
 

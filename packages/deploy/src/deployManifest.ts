@@ -22,11 +22,16 @@ export interface SiteConfig {
     dist: string;
     /** Key prefix in the bucket, without slashes; '' for the bucket root. */
     prefix: string;
+    /**
+     * The file served for a URL with no file of its own (the SPA shell), or null when every URL
+     * is its own file. Decides which file's date a sitemap URL carries (`datedSitemap`).
+     */
+    fallback: string | null;
 }
 
 export const SITES: Record<Site, SiteConfig> = {
-    srs: { dist: 'apps/gokan-srs/dist', prefix: '' },
-    dictionary: { dist: 'apps/gokan-dictionary/dist', prefix: 'dictionary' },
+    srs: { dist: 'apps/gokan-srs/dist', prefix: '', fallback: 'index.html' },
+    dictionary: { dist: 'apps/gokan-dictionary/dist', prefix: 'dictionary', fallback: null },
 };
 
 export function isSite(value: string): value is Site {
@@ -49,15 +54,74 @@ export function contentHash(content: Uint8Array): string {
     return crypto.createHash('md5').update(content).digest('hex');
 }
 
-/** Narrows a manifest read back from S3; anything malformed counts as no manifest. */
-export function parseManifest(raw: unknown): BuildManifest | null {
-    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;
-    const manifest: BuildManifest = {};
-    for (const [file, hash] of Object.entries(raw)) {
-        if (typeof hash !== 'string') return null;
-        manifest[file] = hash;
+/** A quoted value naming a file under assets/: Vite's output, content-hashed in its name. */
+const HASHED_ASSET_REFERENCE = /"[^"\s]*\/assets\/[^"\s]*"/g;
+
+/**
+ * What a file says, as opposed to its bytes (`contentHash`): for a page, its HTML with every
+ * reference to a hashed asset blanked out. Every dictionary page links the hashed stylesheet
+ * and scripts, so by bytes a one-line style edit is a change to all ~40k pages; by this hash a
+ * page changes when its text or markup does. The sitemap's `<lastmod>` is dated from it
+ * (`changeDates`); uploads still compare bytes, since the new asset names must reach the bucket.
+ */
+export function pageContentHash(file: string, content: Uint8Array): string {
+    if (!file.endsWith('.html')) return contentHash(content);
+    const html = new TextDecoder().decode(content).replaceAll(HASHED_ASSET_REFERENCE, '""');
+    return contentHash(new TextEncoder().encode(html));
+}
+
+/**
+ * Map of dist-relative path to the UTC day (YYYY-MM-DD) its page content (`pageContentHash`)
+ * last changed: the sitemap's `<lastmod>`. Kept in the stored manifest, never in the build, which must stay
+ * byte-reproducible.
+ */
+export type ChangeDates = Record<string, string>;
+
+/**
+ * What a deploy stores beside the site: every file's hash (what is uploaded), its page content
+ * hash (what is dated) and the day that content last changed.
+ */
+export interface StoredManifest {
+    hashes: BuildManifest;
+    content: BuildManifest;
+    changed: ChangeDates;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function stringRecord(value: unknown): Record<string, string> | null {
+    if (!isRecord(value)) return null;
+    const out: Record<string, string> = {};
+    for (const [key, entry] of Object.entries(value)) {
+        if (typeof entry !== 'string') return null;
+        out[key] = entry;
     }
-    return manifest;
+    return out;
+}
+
+/**
+ * Narrows a manifest read back from S3; anything malformed counts as no manifest. A manifest
+ * from before change dates were kept is a bare map of hashes, and one from before content
+ * hashes were kept has no `content`: either reads with nothing to date by, so its files are
+ * dated by the deploy reading it.
+ */
+export function parseManifest(raw: unknown): StoredManifest | null {
+    if (isRecord(raw) && 'hashes' in raw) {
+        const hashes = stringRecord(raw.hashes);
+        const changed = stringRecord(raw.changed);
+        if (!hashes || !changed) return null;
+        if (!('content' in raw)) return { hashes, content: {}, changed: {} };
+        const content = stringRecord(raw.content);
+        return content ? { hashes, content, changed } : null;
+    }
+    const hashes = stringRecord(raw);
+    return hashes ? { hashes, content: {}, changed: {} } : null;
+}
+
+export function serializeManifest(manifest: StoredManifest): string {
+    return JSON.stringify(manifest);
 }
 
 /**
@@ -88,7 +152,7 @@ export function manifestFromListing(listing: unknown, prefix: string): BuildMani
  * (gokan-srs's root listing includes all of dictionary/), so pruning from it would delete them.
  */
 export type PreviousDeploy =
-    | { source: 'manifest'; manifest: BuildManifest }
+    | { source: 'manifest'; manifest: BuildManifest; content: BuildManifest; changed: ChangeDates }
     | { source: 'listing'; manifest: BuildManifest }
     | { source: 'none' };
 
@@ -118,6 +182,61 @@ export function diffManifests(previous: PreviousDeploy, next: BuildManifest): Ma
         : [];
 
     return { changed, removed, unchanged };
+}
+
+/**
+ * The day each file last changed, from `content`, its page content hashes (`pageContentHash`):
+ * carried forward from the previous deploy while that hash is the same, `today` when it differs
+ * or was never dated (a first deploy, a deploy from a bucket listing, a manifest from before
+ * dates were kept). Google trusts `<lastmod>` only while it stays accurate, so it is the day the
+ * content changed: never the build's, and not the day an asset it links was renamed.
+ */
+export function changeDates(previous: PreviousDeploy, content: BuildManifest, today: string): ChangeDates {
+    const dates: ChangeDates = {};
+    for (const [file, hash] of Object.entries(content)) {
+        const carried = previous.source === 'manifest' && previous.content[file] === hash
+            ? previous.changed[file]
+            : undefined;
+        dates[file] = carried ?? today;
+    }
+    return dates;
+}
+
+/** Where each site's sitemap is built, dist-relative. Built with no `<lastmod>`: the deploy dates it. */
+export const SITEMAP_FILE = 'sitemap.xml';
+
+/**
+ * The dist file a sitemap URL is served from: a directory URL is its index.html, and a URL with
+ * no file of its own is the site's fallback (gokan-srs's /about is the SPA shell). A URL that
+ * resolves to nothing throws: a sitemap listing a page the build does not have is a build bug.
+ */
+export function sitemapUrlFile(site: Site, loc: string, files: ReadonlySet<string>): string {
+    const { prefix, fallback } = SITES[site];
+    const base = prefix ? `/${prefix}/` : '/';
+    const pathname = decodeURIComponent(new URL(loc).pathname);
+    if (pathname !== base.slice(0, -1) && !pathname.startsWith(base)) {
+        throw new Error(`[deploy] sitemap URL ${loc} is outside ${base}`);
+    }
+    const relative = pathname.slice(base.length);
+    const file = relative === '' || relative.endsWith('/') ? `${relative}index.html` : relative;
+    if (files.has(file)) return file;
+    if (fallback !== null && files.has(fallback)) return fallback;
+    throw new Error(`[deploy] sitemap URL ${loc} has no file in the build (${file})`);
+}
+
+/**
+ * The built sitemap with each URL's `<lastmod>`: the day the file it is served from last changed.
+ * A deploy with no content change therefore writes the same bytes, and the sitemap is not
+ * re-uploaded. A built sitemap that already carries a `<lastmod>` throws: a date written by
+ * hand or by the build is exactly the untrustworthy one this replaces.
+ */
+export function datedSitemap(site: Site, xml: string, changed: ChangeDates): string {
+    if (xml.includes('<lastmod>')) throw new Error('[deploy] the built sitemap already carries <lastmod>');
+    const files = new Set(Object.keys(changed));
+    return xml.replaceAll(/<loc>([^<]*)<\/loc>/g, (match, loc: string) => {
+        const date = changed[sitemapUrlFile(site, loc, files)];
+        return `${match}<lastmod>${date}</lastmod>`;
+    });
 }
 
 const REVALIDATE = 'public, max-age=0, must-revalidate';
