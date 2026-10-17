@@ -8,9 +8,9 @@ describe('analyticsScriptTag', () => {
         expect(analyticsScriptTag('  ')).toBe('');
     });
 
-    it('loads the Umami script deferred, with the website id', () => {
+    it('loads the Umami script deferred, with the website id, on the production host only', () => {
         expect(analyticsScriptTag(' 0b6c2a1e-4f7d-4c39-9d2a-6e1f5b8c3a90 ')).toBe(
-            '<script defer src="https://cloud.umami.is/script.js" data-website-id="0b6c2a1e-4f7d-4c39-9d2a-6e1f5b8c3a90"></script>',
+            '<script defer src="https://cloud.umami.is/script.js" data-website-id="0b6c2a1e-4f7d-4c39-9d2a-6e1f5b8c3a90" data-domains="gokan-srs.com"></script>',
         );
     });
 

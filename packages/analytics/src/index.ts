@@ -9,10 +9,16 @@
  */
 const UMAMI_SCRIPT_URL = 'https://cloud.umami.is/script.js';
 
+/**
+ * Umami ignores every other host, so a `vite preview` of a production build or a mirror of the
+ * static dictionary is never counted as the site. Both apps are served from this one host.
+ */
+const PRODUCTION_HOST = 'gokan-srs.com';
+
 /** The `<script>` tag to put in a page's `<head>`, or "" when this build has no website id. */
 export function analyticsScriptTag(websiteId: string | undefined): string {
     const id = websiteId?.trim();
     if (!id) return '';
     if (!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id)) throw new Error(`Umami website id "${id}" is not a UUID`);
-    return `<script defer src="${UMAMI_SCRIPT_URL}" data-website-id="${id}"></script>`;
+    return `<script defer src="${UMAMI_SCRIPT_URL}" data-website-id="${id}" data-domains="${PRODUCTION_HOST}"></script>`;
 }

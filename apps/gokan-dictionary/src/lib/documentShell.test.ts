@@ -38,7 +38,7 @@ describe('renderDocument', () => {
     it('has no analytics script unless the build has a website id', () => {
         expect(renderDocument(base)).not.toContain('umami');
         expect(renderDocument({ ...base, analyticsWebsiteId: '0b6c2a1e-4f7d-4c39-9d2a-6e1f5b8c3a90' })).toContain(
-            'data-website-id="0b6c2a1e-4f7d-4c39-9d2a-6e1f5b8c3a90"></script></head>',
+            'data-website-id="0b6c2a1e-4f7d-4c39-9d2a-6e1f5b8c3a90" data-domains="gokan-srs.com"></script></head>',
         );
     });
 
