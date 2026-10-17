@@ -35,14 +35,15 @@
   <meta name="title" content="Gokan SRS: Learn Japanese Vocabulary with Spaced Repetition" />
   <meta name="description" content="A free spaced repetition app for Japanese vocabulary. Learn words built from the kanji you already know, with real example sentences and JLPT grammar." />
   <meta name="author" content="Gokan SRS" />
-  <meta name="robots" content="index, follow" />
+  <!--
+    No canonical, og:url or robots tag here: this file is every route, so any of them would claim
+    every route is the homepage. Each route declares its own (components/RouteSeo.tsx).
+  -->
   <meta name="google-signin-client_id"
     content="1088130501377-pe580cj85dt179hltgba6v153m12esmh.apps.googleusercontent.com" />
-  <link rel="canonical" href="https://gokan-srs.com/" />
 
   <!-- Open Graph / Facebook -->
   <meta property="og:type" content="website" />
-  <meta property="og:url" content="https://gokan-srs.com/" />
   <meta property="og:title" content="Gokan SRS: Learn Japanese Vocabulary with Spaced Repetition" />
   <meta property="og:description" content="Free spaced repetition for Japanese vocabulary, led by the kanji you already know. Real example sentences, JLPT grammar drills, and a 38,000 word dictionary." />
   <meta property="og:image" content="https://gokan-srs.com/og-image.png" />
@@ -51,7 +52,6 @@
 
   <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:url" content="https://gokan-srs.com/" />
   <meta name="twitter:title" content="Gokan SRS: Learn Japanese Vocabulary with Spaced Repetition" />
   <meta name="twitter:description" content="Free spaced repetition for Japanese vocabulary, led by the kanji you already know. Real example sentences, JLPT grammar drills, and a 38,000 word dictionary." />
   <meta name="twitter:image" content="https://gokan-srs.com/og-image.png" />

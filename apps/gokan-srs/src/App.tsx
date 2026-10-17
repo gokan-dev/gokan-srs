@@ -13,6 +13,7 @@ import { isSessionPath } from './utils/navigation.utils';
 import { ResumeSessionBar } from './components/ResumeSessionBar';
 import { StorageFullBanner } from './components/StorageFullBanner';
 import { PageRenderedSignal } from './components/PageRenderedSignal';
+import { RouteSeo } from './components/RouteSeo';
 
 // Lazy Load Pages
 // Note: Adapting named exports to default exports for lazy loading where necessary
@@ -33,7 +34,15 @@ const GrammarFamilyScreen = lazy(() => import('./pages/grammar/GrammarFamilyScre
 const ListeningLibraryScreen = lazy(() => import('./pages/listening/ListeningLibraryScreen').then(module => ({ default: module.ListeningLibraryScreen })));
 const ListeningTitleScreen = lazy(() => import('./pages/listening/ListeningTitleScreen').then(module => ({ default: module.ListeningTitleScreen })));
 
-export const App: React.FC = () => {
+/** Every screen of the app, each route declaring what search engines should do with it. */
+export const App: React.FC = () => (
+    <>
+        <RouteSeo />
+        <AppScreens />
+    </>
+);
+
+const AppScreens: React.FC = () => {
     const { state, actions, isSetupComplete } = useQuiz();
     const { isInitialLoadComplete, isDownloading } = useGoogleDrive();
     const navigate = useNavigate();
@@ -63,6 +72,17 @@ export const App: React.FC = () => {
 
     // Setup gate
     if (!isSetupComplete) {
+        // About is for whoever has not set up yet, a crawler included: it is the page indexed
+        // under /about, so it must not be the onboarding flow every other route shows them.
+        if (location.pathname === '/about' || location.pathname === '/about/') {
+            return (
+                <main className="min-h-screen flex flex-col items-center bg-background">
+                    <Suspense fallback={<Loader title="Loading..." />}>
+                        <AboutScreen />
+                    </Suspense>
+                </main>
+            );
+        }
         return <KanjiFormProvider initialState={{}}>
             <OnboardingFlow onComplete={actions.setupComplete} />
         </KanjiFormProvider>
