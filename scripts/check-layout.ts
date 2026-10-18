@@ -10,8 +10,8 @@
  * - a word in a dictionary sentence (`.sentence-jp a`) has no text underline: the running-text
  *   underline on `p a` must not stack on its dotted border;
  * - About before setup shows a visible dictionary link, in a footer aligned with the header;
- * - furigana sits over kanji only, never over kana, a word with furigana never breaks across
- *   lines, and no two readings on a line touch (word pages' example sentences, in each app).
+ * - furigana sits over kanji only, never over kana, no ruby (a run of kanji with its reading)
+ *   breaks across lines, and no two readings on a line touch (word pages' example sentences, in each app).
  *
  * Usage: build both apps (`bun run --cwd apps/gokan-srs build`, `bun run --cwd
  * apps/gokan-dictionary build`), then `bun run check:layout`. Needs Chrome or Chromium: found at
@@ -71,8 +71,8 @@ const MEASURE = (deviceWidth: number, tapTargets: string) => `(() => {
     const spaced = [...document.querySelectorAll('[data-sentence] > *')].filter(el => visible(el) && parseFloat(getComputedStyle(el).marginLeft) + parseFloat(getComputedStyle(el).marginRight) > 0);
     if (spaced.length) problems.push('sentence word has a side margin (reads as a space in Japanese): ' + spaced.slice(0, 3).map(describe).join(', '));
     // Furigana (docs/DESIGN_SYSTEM.md): a reading sits over kanji only (what rubyParts counts as
-    // kanji), unless rubyParts fell back to the whole word, which it marks; a word with furigana
-    // never breaks across lines (the browser would cut base and reading apart, putting the wrong
+    // kanji), unless rubyParts fell back to the whole word, which it marks; a ruby (a run of kanji
+    // with its reading) never breaks across lines (the browser would cut base and reading apart, putting the wrong
     // syllables over each kanji); and two readings on a line never touch, measured on the
     // reading's glyphs (a Range over its text), not its box, whose padding keeps them apart.
     const kanjiOnly = /^[${KANJI_CHARS}]+$/;
@@ -80,7 +80,7 @@ const MEASURE = (deviceWidth: number, tapTargets: string) => `(() => {
     const overKana = rubies.filter(el => !el.hasAttribute('data-ruby-fallback') && !kanjiOnly.test([...el.childNodes].filter(n => n.nodeName !== 'RT').map(n => n.textContent).join('')));
     if (overKana.length) problems.push('reading over kana (furigana goes over the kanji only): ' + overKana.slice(0, 3).map(describe).join(', '));
     const broken = rubies.filter(el => { const tops = [...el.getClientRects()].filter(r => r.width > 0).map(r => r.top); return tops.some(top => Math.abs(top - tops[0]) >= 2); });
-    if (broken.length) problems.push('word with furigana breaks across lines: ' + broken.slice(0, 3).map(describe).join(', '));
+    if (broken.length) problems.push('ruby breaks across lines: ' + broken.slice(0, 3).map(describe).join(', '));
     const readings = [...document.querySelectorAll('rt')].filter(visible).map(el => { const range = document.createRange(); range.selectNodeContents(el); return { el, rect: range.getBoundingClientRect() }; }).filter(r => r.rect.width > 0);
     // Lines first (tops within 2px), then left to right in each: a sub-pixel difference in top
     // must not put a reading on the right before one on its left.
@@ -116,8 +116,23 @@ const DICTIONARY_PAGES = dictionaryPages();
 const SRS_ROUTES = srsRoutes();
 const [COMPLETED_TITLE, WATCHING_TITLE] = listeningTitlesToMark();
 // 登場人物: its sentences hold long readings that wrap at the end of a line at 320 and 375px, the
-// case where a ruby broken across lines puts the wrong syllables over each kanji.
+// case where a ruby broken across lines puts the wrong syllables over each kanji. A dataset
+// fixture, not discovered from the build: when a dataset bump drops the word or its sentences,
+// measureFuriganaFixture names it as the thing to update.
 const FURIGANA_VOCAB = '1638880';
+const FIXTURE_MOVED = `FURIGANA_VOCAB ${FURIGANA_VOCAB} has no example sentence with furigana: pick another word whose sentences wrap at 320px`;
+
+/** Measures the fixture word's page, after checking it still shows a reading to measure. */
+async function measureFuriganaFixture(tab: Tab, url: string, ready: string, page: string, width: number, tapTargets = ''): Promise<void> {
+    try {
+        await tab.goto(url, ready);
+        await tab.until(`[...document.querySelectorAll('ruby')].some(el => el.getBoundingClientRect().width > 0)`, 'a visible ruby', 5000);
+    } catch (error) {
+        failures.push(`${width}px ${page}: ${FIXTURE_MOVED} (${error instanceof Error ? error.message : String(error)})`);
+        return;
+    }
+    await measure(tab, page, width, tapTargets);
+}
 
 try {
     for (const { width, height } of VIEWPORTS) {
@@ -145,8 +160,7 @@ try {
             await tab.goto(`${app}${route.path}`, route.ready);
             await measure(tab, `srs ${route.path}`, width);
         }
-        await tab.goto(`${app}/vocab/${FURIGANA_VOCAB}`, 'Example sentences');
-        await measure(tab, `srs /vocab/${FURIGANA_VOCAB}`, width);
+        await measureFuriganaFixture(tab, `${app}/vocab/${FURIGANA_VOCAB}`, 'Example sentences', `srs /vocab/${FURIGANA_VOCAB}`, width);
         // The library's rows with a status line, the tightest rows on a phone.
         await tab.goto(`${app}/listening/${COMPLETED_TITLE}`, 'Mark all watched');
         await tab.click('Mark all watched');
@@ -159,8 +173,7 @@ try {
             await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${page.path}`, page.ready);
             await measure(tab, `dictionary ${page.path}`, width, DICTIONARY_TAP_TARGETS);
         }
-        await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary/vocab/${FURIGANA_VOCAB}/`, 'Meanings');
-        await measure(tab, `dictionary /vocab/${FURIGANA_VOCAB}/`, width, DICTIONARY_TAP_TARGETS);
+        await measureFuriganaFixture(tab, `http://127.0.0.1:${dictionary.port}/dictionary/vocab/${FURIGANA_VOCAB}/`, 'Meanings', `dictionary /vocab/${FURIGANA_VOCAB}/`, width, DICTIONARY_TAP_TARGETS);
         await tab.close();
     }
 } catch (error) {

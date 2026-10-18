@@ -149,8 +149,9 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
   fallback is marked (`data-ruby-fallback`), the one ruby whose base may hold kana.
 - The reading is `font-gothic` (mincho's thin strokes blur at 12px), `0.5em` of the text under
   it. In the app a caller picks only its colour (`Ruby`'s `tone`).
-- A word with furigana never breaks across lines (`white-space: nowrap` on `ruby`): the browser
-  would cut base and reading apart, so とうじょうじ would sit over 登場 and んぶつ over 人物.
+- A ruby (a run of kanji with its reading) never breaks across lines (`white-space: nowrap` on
+  `ruby`): the browser would cut base and reading apart, so とうじょうじ would sit over 登場
+  and んぶつ over 人物.
 - Neighbouring readings never touch: `rt` has `padding-inline: 0.1em` (さんど とうじょう, not
   さんどとうじょう). It only takes space where a reading is wider than its kanji.
 - `ruby-align` stays the default. A reading wider than its kanji spreads them a little;
@@ -398,9 +399,9 @@ input is at least 16px (smaller makes iOS zoom), the dictionary's nav links, pag
 toggles, tiles and disclosure summaries are at least 44px tall, and a word in a dictionary
 sentence carries only its dotted border, never the running-text underline, and no word in an
 app sentence (linked or studied) has a side margin (Japanese has no spaces between words), no
-reading sits over kana (a marked fallback excepted), no word with furigana breaks across lines
-and no two readings on a line touch (measured on their glyphs). A new page type or
-main route is added to its lists.
+reading sits over kana (a marked fallback excepted), no ruby breaks across lines and no two
+readings on a line touch (measured on their glyphs). A new page type or main route is added
+to its lists.
 
 **Lighthouse, SEO at 100** (`scripts/check-lighthouse.ts`, `bun run check:lighthouse`, run by
 CI in `.github/workflows/ci-lighthouse.yml` on both production builds): one representative page
