@@ -10,9 +10,10 @@ import type { ClozeSentence } from '../../utils/clozeSentence.utils';
 import type { InflectableWord } from '../../utils/inflection.utils';
 import type { ProductionCloze } from '../../utils/productionCloze.utils';
 import type { QuizMode, QuizType } from '../../utils/srs.utils';
-import type { ProductionCue, SynonymOutcome } from '../../utils/synonymContext.utils';
+import type { ProductionCue } from '../../utils/synonymContext.utils';
 import type { GrammarBlankPlan, GrammarConjugationPrompt } from '../../context/quiz/grammarReducer';
 import type { DemonstrativeParadigm } from './demonstratives';
+import type { SynonymOutcome, WordRelation } from './wordRelation';
 
 type GrammarRealization = NonNullable<GrammarBlankPlan['realization']>;
 
@@ -36,7 +37,7 @@ export interface SynonymCandidate {
     vocabId: string;
     relation: SynonymRelation;
     vocab: WordForms;
-    /** See VocabSynonym.shared / curated. */
+    /** The pair as the dataset states it, read by relationOf (wordRelation.ts). */
     shared?: string[];
     curated?: boolean;
 }
@@ -69,7 +70,7 @@ export interface SlotWord {
     lemma: InflectableWord | null;
     otherForm: OtherFormGrade;
     /** Its near-synonyms, tried only once the answer has missed the word itself. Empty turns the rule off. */
-    synonyms: SynonymCandidate[];
+    candidates: SynonymCandidate[];
 }
 
 /**
@@ -116,10 +117,10 @@ export interface SynonymAnswer {
     written: string;
     /** The typed word with its reading, for the feedback message. */
     label: string;
-    /** `confusable` is neutral: no credit, no penalty. */
+    /** What it earns (outcomeOf). `confusable` is neutral: no credit, no penalty. */
     outcome: SynonymOutcome;
-    /** The shared meaning the cue uses, when it uses one. */
-    meaning: string | null;
+    /** The pair read against the cue: its tier, its shared meanings, the one the cue uses. */
+    relation: WordRelation;
 }
 
 /** A demonstrative's meaning slot answered with a sibling's meaning (それ answered "this"). Neutral: no credit, no penalty. */

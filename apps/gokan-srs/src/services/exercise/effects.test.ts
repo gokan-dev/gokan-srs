@@ -25,7 +25,8 @@ function word(vocabId: string, overrides: Partial<VocabProgress> = {}): VocabPro
 const forms = (kanji: string, reading: string): WordForms => ({
     reading: { primary: reading, alternatives: [] }, writtenForm: { kanji, alternatives: [], containedKanji: [] },
 });
-const chiisai: SynonymCandidate = { vocabId: 'chiisai', relation: 'interchangeable', vocab: forms('小さい', 'ちいさい'), shared: ['small'] };
+// 狭い / 小さい are auto confusable: they share only "small".
+const chiisai: SynonymCandidate = { vocabId: 'chiisai', relation: 'confusable', vocab: forms('小さい', 'ちいさい'), shared: ['small'] };
 
 const semaiItem: HostItem = { kind: 'vocab', vocabId: 'semai', quizType: 'production', quizMode: 'base' };
 /** A production card for 狭い (せまい) whose cue decides whether 小さい answers it. */
@@ -34,7 +35,7 @@ function semaiCard(sentence: string): Exercise {
         kind: 'production',
         host: semaiItem,
         label: '狭い',
-        slots: [wordSlot(forms('狭い', 'せまい'), { vocabId: 'semai', otherForm: 'correct', role: 'core', synonyms: [chiisai] })],
+        slots: [wordSlot(forms('狭い', 'せまい'), { vocabId: 'semai', otherForm: 'correct', role: 'core', candidates: [chiisai] })],
         cue: { sentence },
     };
 }
@@ -51,21 +52,31 @@ describe('effectsOf', () => {
 
     it('retries the asked word and credits the one typed when a synonym answers the card', () => {
         expect(answer(semaiCard('Japan is a small country.'), ['小さい'])).toEqual([
-            { kind: 'retry', item: semaiItem, label: '狭い', result: 'correct' },
+            { kind: 'retry', item: semaiItem, label: '狭い', result: 'correct', neutral: false },
             { kind: 'reinforce', vocabId: 'chiisai', label: '小さい', result: 'correct' },
         ]);
     });
 
-    it('retries without crediting anyone when the synonym does not fit the card', () => {
+    it('retries without crediting anyone when the synonym does not fit the card: a neutral retry', () => {
         expect(answer(semaiCard('The street is narrow.'), ['小さい'])).toEqual([
-            { kind: 'retry', item: semaiItem, label: '狭い', result: 'wrong' },
+            { kind: 'retry', item: semaiItem, label: '狭い', result: 'wrong', neutral: true },
+        ]);
+    });
+
+    it('credits an interchangeable synonym out of context as a near miss, retrying the asked word (issue #150)', () => {
+        const card: Exercise = { ...semaiCard('The street is narrow.'), slots: [wordSlot(forms('狭い', 'せまい'), {
+            vocabId: 'semai', otherForm: 'correct', role: 'core', candidates: [{ ...chiisai, relation: 'interchangeable' }],
+        })] };
+        expect(answer(card, ['小さい'])).toEqual([
+            { kind: 'retry', item: semaiItem, label: '狭い', result: 'minor_error', neutral: false },
+            { kind: 'reinforce', vocabId: 'chiisai', label: '小さい', result: 'minor_error' },
         ]);
     });
 
     describe('on a grammar card', () => {
         const point: HostItem = { kind: 'grammar', grammarId: 'n5-001' };
         const pattern = answerSlot({ accept: ['が'] });
-        const blank = (vocabId: string, accept: string) => ({ ...answerSlot({ accept: [accept], role: 'support' }), word: { vocabId, label: accept, headword: accept, lemma: null, otherForm: 'minor_error' as const, synonyms: [] } });
+        const blank = (vocabId: string, accept: string) => ({ ...answerSlot({ accept: [accept], role: 'support' }), word: { vocabId, label: accept, headword: accept, lemma: null, otherForm: 'minor_error' as const, candidates: [] } });
         const card = (slots: AnswerSlot[]): Answered => ({ kind: 'grammar-cloze', host: point, label: 'A が いちばん', slots, cue: {} });
 
         it('reviews the point and credits the vocab blanks answered right, once per word', () => {
@@ -84,7 +95,7 @@ describe('effectsOf', () => {
         });
 
         it('credits the word typed, never the blank\'s word, for a near-synonym that fits the sentence', () => {
-            const semaiBlank = wordSlot(forms('狭い', 'せまい'), { vocabId: 'semai', otherForm: 'minor_error', role: 'support', synonyms: [chiisai] });
+            const semaiBlank = wordSlot(forms('狭い', 'せまい'), { vocabId: 'semai', otherForm: 'minor_error', role: 'support', candidates: [chiisai] });
             const effects = answer({ ...card([pattern, semaiBlank]), cue: { sentence: 'Japan is a small country.' } }, ['が', '小さい']);
 
             expect(effects.map(e => e.kind)).toEqual(['review', 'reinforce']);
@@ -95,16 +106,16 @@ describe('effectsOf', () => {
         });
 
         it('retries the point when every deciding blank was a confusable near-synonym', () => {
-            const decider = { ...wordSlot(forms('狭い', 'せまい'), { vocabId: 'semai', otherForm: 'minor_error', role: 'core', synonyms: [chiisai] }) };
+            const decider = { ...wordSlot(forms('狭い', 'せまい'), { vocabId: 'semai', otherForm: 'minor_error', role: 'core', candidates: [chiisai] }) };
             const effects = answer(card([decider]), ['小さい']);
-            expect(effects).toEqual([{ kind: 'retry', item: point, label: 'A が いちばん', result: 'wrong' }]);
+            expect(effects).toEqual([{ kind: 'retry', item: point, label: 'A が いちばん', result: 'wrong', neutral: true }]);
         });
     });
 
     it('retries a demonstrative answered with a sibling\'s meaning: neither credit nor penalty (issue #123)', () => {
         const item: HostItem = { kind: 'vocab', vocabId: 'sore', quizType: 'meaning', quizMode: 'base' };
         const card: Answered = { kind: 'meaning', host: item, label: 'それ', slots: [meaningSlot(['that', 'it'], 'それ')], cue: {} };
-        expect(answer(card, ['this'])).toEqual([{ kind: 'retry', item, label: 'それ', result: 'wrong' }]);
+        expect(answer(card, ['this'])).toEqual([{ kind: 'retry', item, label: 'それ', result: 'wrong', neutral: true }]);
 
         // A graduated word keeps its stage, its strength and its next review.
         const sore = word('sore', { stage: 'graduated', nextReviewAt: new Date('2026-07-01T00:00:00Z') });
@@ -115,7 +126,8 @@ describe('effectsOf', () => {
         expect(after.meaning.memoryStrength).toBe(sore.meaning.memoryStrength);
         expect(after.meaning.interval).toBe(sore.meaning.interval);
         expect(next.calibration!.meaning.history).toHaveLength(0);
-        expect(record).toMatchObject({ delta: 0 });
+        // The ticker shows it as neutral, as the card does, not as the miss `result` reads as.
+        expect(record).toMatchObject({ delta: 0, result: 'wrong', shown: 'neutral' });
     });
 
     it('only defers the study card: nothing was asked', () => {
@@ -128,7 +140,7 @@ describe('applyEffects', () => {
     const review = (result: AnswerResult): Effect =>
         ({ kind: 'review', item: semaiItem, label: '狭い', result, strengthModifier: 1, latencyMs: 4000, blankCount: 1 });
     const reinforce = (vocabId: string, result: 'correct' | 'minor_error' = 'correct'): Effect => ({ kind: 'reinforce', vocabId, label: vocabId, result });
-    const retry: Effect = { kind: 'retry', item: semaiItem, label: '狭い', result: 'correct' };
+    const retry: Effect = { kind: 'retry', item: semaiItem, label: '狭い', result: 'correct', neutral: false };
 
     it('reviews the asked word, counts the answer and records its mastery change', () => {
         const progress = userProgress({ learningQueue: [word('semai')] });
@@ -136,7 +148,7 @@ describe('applyEffects', () => {
 
         expect(next.learningQueue[0].production!.memoryStrength).toBeGreaterThan(100);
         expect(next.stats.totalReviews).toBe(1);
-        expect(record).toMatchObject({ item: semaiItem, label: '狭い', result: 'correct', vocabDelta: 0 });
+        expect(record).toMatchObject({ item: semaiItem, label: '狭い', result: 'correct', shown: 'correct', vocabDelta: 0 });
         expect(record!.delta).toBeGreaterThan(0);
     });
 

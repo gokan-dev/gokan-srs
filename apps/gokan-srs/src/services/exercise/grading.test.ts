@@ -14,7 +14,7 @@ const grade = (slot: AnswerSlot, input: string, cue: ProductionCue = {}) => grad
 
 /** A production slot for `vocab`, the way the production card builds it. */
 const production = (vocab: WordForms, synonyms: SynonymCandidate[] = []) =>
-    wordSlot(vocab, { vocabId: 'target', otherForm: 'correct', role: 'core', synonyms });
+    wordSlot(vocab, { vocabId: 'target', otherForm: 'correct', role: 'core', candidates: synonyms });
 
 const taberu: WordForms = {
     reading: { primary: 'たべる', alternatives: [] },
@@ -194,7 +194,7 @@ describe('a production slot: any form of the word is correct (issue #95)', () =>
     });
 
     it('accepts the cloze blank surface and its reading', () => {
-        const slot = wordSlot(taberu, { otherForm: 'correct', role: 'core', synonyms: [], occurrence: { surface: '食べていた', reading: 'たべていた', inflected: true } });
+        const slot = wordSlot(taberu, { otherForm: 'correct', role: 'core', candidates: [], occurrence: { surface: '食べていた', reading: 'たべていた', inflected: true } });
         expect(grade(slot, '食べていた').result).toBe('correct');
         expect(grade(slot, 'たべていた').result).toBe('correct');
     });
@@ -248,7 +248,7 @@ describe('a production slot: readings and written forms (issue #71 Part A)', () 
 describe('parity: a production card and a grammar blank grade the same answer the same way', () => {
     // The sentence wants 食べ (to be followed by たら); the dataset stores the lemma reading on it.
     const blank = wordSlot(taberu, {
-        vocabId: 'taberu', otherForm: 'minor_error', role: 'support', synonyms: [],
+        vocabId: 'taberu', otherForm: 'minor_error', role: 'support', candidates: [],
         occurrence: { surface: '食べ', reading: 'たべる', inflected: true },
     });
     const card = production(taberu);
@@ -275,12 +275,14 @@ describe('parity: a production card and a grammar blank grade the same answer th
 
     describe('with near-synonyms', () => {
         const kuu = candidate('kuu', 'interchangeable', '食う', 'くう', { shared: ['eat'] });
+        const kuuConfusable = candidate('kuu', 'confusable', '食う', 'くう', { shared: ['eat'] });
         const curated = candidate('kuu', 'interchangeable', '食う', 'くう', { curated: true });
-        const blankWith = (synonyms: SynonymCandidate[]) => ({ ...blank, word: { ...blank.word!, synonyms } });
+        const blankWith = (synonyms: SynonymCandidate[]) => ({ ...blank, word: { ...blank.word!, candidates: synonyms } });
 
         const cases: [sentence: string, synonyms: SynonymCandidate[], expected: AnswerResult, why: string][] = [
             ['Why not eat vegetables?', [kuu], 'correct', 'a synonym the sentence means'],
-            ['The vegetables are fresh.', [kuu], 'wrong', 'a synonym the sentence does not mean'],
+            ['The vegetables are fresh.', [kuu], 'minor_error', 'an interchangeable synonym the sentence does not mean'],
+            ['The vegetables are fresh.', [kuuConfusable], 'wrong', 'a confusable synonym the sentence does not mean'],
             ['The vegetables are fresh.', [curated], 'minor_error', 'a curated pair out of context'],
         ];
 
@@ -412,15 +414,25 @@ describe('near-synonyms (issue #71 Part B)', () => {
         expect(synonymOf('かならず', [candidate('same', 'interchangeable', '必', 'かならず')])).toBeUndefined();
     });
 
-    it('grades by the card\'s text: correct when the cue uses a shared meaning, neutral otherwise', () => {
-        const chiisai = candidate('chiisai', 'interchangeable', '小さい', 'ちいさい', { shared: ['small'] });
+    it('grades by the card\'s text: correct when the cue uses a shared meaning, the tier otherwise', () => {
+        const chiisai = candidate('chiisai', 'confusable', '小さい', 'ちいさい', { shared: ['small'] });
         const inCue = grade(production(kanarazu, [chiisai]), '小さい', { sentence: 'Japan is a small country.' });
         expect(inCue.result).toBe('correct');
-        expect(inCue.synonym).toMatchObject({ outcome: 'correct', meaning: 'small', written: '小さい', label: '小さい (ちいさい)' });
+        expect(inCue.synonym).toMatchObject({ outcome: 'correct', written: '小さい', label: '小さい (ちいさい)' });
+        expect(inCue.synonym?.relation).toEqual({ tier: 'confusable', curated: false, shared: ['small'], meaning: 'small' });
 
         const outOfCue = grade(production(kanarazu, [chiisai]), '小さい', { sentence: 'The street is narrow.' });
         expect(outOfCue.result).toBe('wrong');
         expect(outOfCue.synonym?.outcome).toBe('confusable');
+    });
+
+    // Restored (issue #150): out of context, an auto interchangeable pair is accepted
+    // again. 作文 and 作曲 share only "composition".
+    it('accepts an auto interchangeable pair out of context as a near miss', () => {
+        const sakubun = candidate('sakubun', 'interchangeable', '作文', 'さくぶん', { shared: ['composition'] });
+        const outOfCue = grade(production(kanarazu, [sakubun]), '作文', { glosses: ['music'] });
+        expect(outOfCue.result).toBe('minor_error');
+        expect(outOfCue.synonym?.outcome).toBe('minor_error');
     });
 
     it('keeps a curated interchangeable pair a near miss out of context', () => {
@@ -459,7 +471,7 @@ describe('gradeExercise', () => {
     });
 
     describe('a near-synonym answer', () => {
-        const chiisai = candidate('chiisai', 'interchangeable', '小さい', 'ちいさい', { shared: ['small'] });
+        const chiisai = candidate('chiisai', 'confusable', '小さい', 'ちいさい', { shared: ['small'] });
         const withSynonym = production({ ...kanarazu, reading: { primary: 'せまい', alternatives: [] }, writtenForm: { kanji: '狭い', alternatives: [], containedKanji: ['狭'] } }, [chiisai]);
         const card = (cue: ProductionCue): GradedExercise => ({ kind: 'production-cloze', label: '狭い', slots: [withSynonym], cue });
 

@@ -17,12 +17,18 @@ import {
 } from '../calibration';
 import { coreSlots, isNeutral } from './grading';
 import type { AnsweredExercise, ExerciseGrade, HostItem } from './types';
+import { OUTCOME_LOOK } from './wordRelation';
 
 export type Effect =
     /** The asked item's own review, through the one SRS formula. */
     | { kind: 'review'; item: HostItem; label: string; result: AnswerResult; strengthModifier: number; latencyMs: number; blankCount: number }
-    /** No credit, no penalty: reschedule at the unchanged interval and ask again. */
-    | { kind: 'retry'; item: HostItem; label: string; result: AnswerResult }
+    /**
+     * No credit, no penalty: reschedule at the unchanged interval and ask again.
+     * `neutral` when no deciding slot was left (every one a confusable synonym or a
+     * sibling demonstrative): the ticker shows it as neutral, not as the miss
+     * `result` reads as.
+     */
+    | { kind: 'retry'; item: HostItem; label: string; result: AnswerResult; neutral: boolean }
     /** Indirect production credit to a word met on another card. */
     | { kind: 'reinforce'; vocabId: string; label: string; result: AnswerResult }
     /** Nothing was asked (the study card): only push the due date out. */
@@ -62,7 +68,7 @@ export function effectsOf(exercise: AnsweredExercise, grade: ExerciseGrade, { la
         const { synonym } = slotGrade;
         if (synonym) {
             if (word?.vocabId !== undefined && word.vocabId === askedWord) producedAnotherWord = true;
-            if (synonym.outcome !== 'confusable') credit(synonym.vocabId, synonym.written, slotGrade.result);
+            if (OUTCOME_LOOK[synonym.outcome].creditsTyped) credit(synonym.vocabId, synonym.written, slotGrade.result);
             return;
         }
         // A revealed slot was read, not produced.
@@ -72,16 +78,21 @@ export function effectsOf(exercise: AnsweredExercise, grade: ExerciseGrade, { la
 
     const undecided = coreSlots(exercise).every(i => isNeutral(grade.slots[i]));
     const asked: Effect = producedAnotherWord || undecided
-        ? { kind: 'retry', item, label, result: grade.overall }
+        ? { kind: 'retry', item, label, result: grade.overall, neutral: undecided }
         : { kind: 'review', item, label, result: grade.overall, strengthModifier: grade.strengthModifier, latencyMs, blankCount: exercise.slots.length };
     return [asked, ...credits.values()];
 }
+
+/** A result as the session ticker shows it: a neutral answer (no credit, no penalty) is not a miss. */
+export type ShownResult = AnswerResult | 'neutral';
 
 /** What one answer did, for the session ticker and its running totals. */
 export interface AnswerRecord {
     item: HostItem;
     label: string;
     result: AnswerResult;
+    /** What the ticker shows: the result, or `neutral` when neither credit nor penalty decided the answer. */
+    shown: ShownResult;
     /** The asked item's own mastery change. */
     delta: number;
     /** Mastery credited to other words (a grammar sentence's vocab, a synonym typed). */
@@ -161,7 +172,7 @@ export function applyEffects(
                     learningQueue = learningQueue.map(v => (v.vocabId === item.vocabId ? updated : v));
                     vocabAnswers += 1;
                     const delta = calculateMasteryPercentage(strengthOf(updated, item.quizType)) - calculateMasteryPercentage(strengthOf(target, item.quizType));
-                    record = { item, label: effect.label, result: effect.result, delta, vocabDelta: 0, vocabBreakdown: [] };
+                    record = { item, label: effect.label, result: effect.result, shown: effect.kind === 'retry' && effect.neutral ? 'neutral' : effect.result, delta, vocabDelta: 0, vocabBreakdown: [] };
                 } else {
                     const target = grammarQueue.find(g => g.grammarId === item.grammarId);
                     if (!target) break;
@@ -179,7 +190,7 @@ export function applyEffects(
                     }
                     grammarQueue = grammarQueue.map(g => (g.grammarId === item.grammarId ? updated : g));
                     const delta = calculateMasteryPercentage(updated.entry.memoryStrength) - calculateMasteryPercentage(target.entry.memoryStrength);
-                    record = { item, label: effect.label, result: effect.result, delta, vocabDelta: 0, vocabBreakdown: [] };
+                    record = { item, label: effect.label, result: effect.result, shown: effect.kind === 'retry' && effect.neutral ? 'neutral' : effect.result, delta, vocabDelta: 0, vocabBreakdown: [] };
                 }
                 break;
             }

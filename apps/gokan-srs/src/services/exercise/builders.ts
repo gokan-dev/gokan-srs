@@ -11,7 +11,8 @@ import type { ProductionCloze } from '../../utils/productionCloze.utils';
 import type { QuizMode, QuizType } from '../../utils/srs.utils';
 import { productionCueOf } from '../../utils/synonymContext.utils';
 import type { GrammarBlankPlan } from '../../context/quiz/grammarReducer';
-import { meaningSlot, readingSlot, synonymsOf, wordSlot } from './slots';
+import { meaningSlot, readingSlot, wordSlot } from './slots';
+import { synonymsOf } from './wordRelation';
 import type { Occurrence } from './slots';
 import type { Exercise, HostItem } from './types';
 
@@ -54,7 +55,7 @@ export function vocabExercise(vocab: Vocabulary, item: { quizType: QuizType; qui
                 occurrence: cloze ? clozeOccurrence(vocab, cloze) : undefined,
                 otherForm: 'correct',
                 role: 'core',
-                synonyms: synonymsOf(vocab),
+                candidates: synonymsOf(vocab),
             });
             const cue = productionCueOf(vocab.senses, cloze);
             return cloze

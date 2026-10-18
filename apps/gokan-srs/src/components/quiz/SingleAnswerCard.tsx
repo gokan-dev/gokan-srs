@@ -212,7 +212,7 @@ export function SingleAnswerCard({
                     {miss && (
                         <FeedbackNote accentClass={miss.accentClass}>
                             <p className="type-label mb-2">
-                                Correct answer
+                                {miss.heading}
                             </p>
 
                             {/* A near-synonym collision names the word being tested even on a

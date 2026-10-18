@@ -11,6 +11,7 @@ import { Ruby } from "../../components/Ruby";
 import { ExpandableSenses } from "../../components/quiz/ExpandableSenses";
 import { QuizMasteryCorner } from "../../components/quiz/QuizMasteryCorner";
 import { emphasizeGloss } from "../../utils/productionCloze.utils";
+import { glossPromptLines } from "../../utils/synonymContext.utils";
 import { getCoarsePosLabels, getUniquePosTags, getUniqueRelatedCompounds } from "./quizFormatting";
 
 // The vocab activity's prompts: what each of its exercises shows above the answer.
@@ -193,14 +194,8 @@ export function MeaningPrompt({ vocab, answered, memoryStrength, onOpenWord, sen
 export function ProductionPrompt({ vocab, answered, memoryStrength, onOpenWord }: VocabPromptProps) {
     const { isMobile } = useResponsive();
 
-    // Every gloss of the first sense, then the leading gloss of each later sense.
-    // A single gloss is often too thin a clue to produce a specific word from, and
-    // the full list of every sense is too much of a wall to read mid-session.
-    const [firstSense, ...otherSenses] = vocab.senses;
-    const promptLines = [
-        firstSense?.glosses.join(', '),
-        ...otherSenses.slice(0, 3).map(s => s.glosses[0]),
-    ].filter((line): line is string => !!line);
+    // The same lines grading reads as this card's cue (glossPromptLines).
+    const promptLines = glossPromptLines(vocab.senses).map(line => line.join(', '));
 
     return (
         <>

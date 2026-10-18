@@ -149,7 +149,7 @@ describe('exerciseReducer (via quizReducer)', () => {
         });
 
         it('names the tested word in the ticker, crediting the near-synonym typed', () => {
-            const retry: Effect = { kind: 'retry', item: { kind: 'vocab', vocabId: 'v1', quizType: 'production', quizMode: 'base' }, label: '狭い', result: 'correct' };
+            const retry: Effect = { kind: 'retry', item: { kind: 'vocab', vocabId: 'v1', quizType: 'production', quizMode: 'base' }, label: '狭い', result: 'correct', neutral: false };
             const credit: Effect = { kind: 'reinforce', vocabId: 'v2', label: '小さい', result: 'correct' };
 
             const next = continueWith({ ...initialState, progress: studying('v1', 'v2') }, 'vocab', [retry, credit]);

@@ -1,9 +1,9 @@
 import React from 'react';
 import { useResponsive } from '../context/Responsive/useResponsive';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle, XCircle, AlertCircle } from 'lucide-react';
+import { CheckCircle, XCircle, AlertCircle, MinusCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import type { AnswerResult } from '../services/srs.service';
+import type { ShownResult } from '../services/exercise/effects';
 import type { SessionGains } from '../context/quiz/quizReducer';
 import { resultTextClass } from './quiz/quizStyles';
 
@@ -20,7 +20,8 @@ export interface SessionHistoryEntry {
     key: string;
     href: string;
     label: string;
-    result: AnswerResult;
+    /** A neutral answer (no credit, no penalty) shows as neutral, never as a miss. */
+    result: ShownResult;
     /**
      * Knowledge points this answer moved the item by, which is also exactly how far
      * its MasteryRing moved (one knowledge point is one mastery point - see
@@ -261,6 +262,7 @@ const HistoryTicker: React.FC<{ history: SessionHistoryEntry[] }> = ({ history }
                         {/* Result Icon/Indicator */}
                         {item.result === 'correct' && <CheckCircle className="w-3 h-3 text-feedback-correct" />}
                         {item.result === 'minor_error' && <AlertCircle className="w-3 h-3 text-secondary" />}
+                        {item.result === 'neutral' && <MinusCircle className="w-3 h-3 text-secondary" />}
                         {(item.result === 'wrong' || item.result === 'pass') && <XCircle className="w-3 h-3 text-feedback-incorrect" />}
 
                         {/* Knowledge points, the same unit the total above sums. Was

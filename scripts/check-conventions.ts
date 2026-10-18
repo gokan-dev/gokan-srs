@@ -103,6 +103,14 @@ const BOXED_GLYPH_FILES = new Set(['apps/gokan-srs/src/components/KanjiTile.tsx'
     // The welcome page's step two boxes, named in docs/DESIGN_SYSTEM.md's Welcome page note.
     'apps/gokan-srs/src/pages/setup/welcome/HowItWorks.tsx']);
 
+/**
+ * The dataset's synonym pairs have one reader, services/exercise/wordRelation.ts (relationOf,
+ * synonymsOf, pairWith): grading, the cards, the ticker and every page that shows a pair go
+ * through it, so the tier a page shows is the tier grading uses.
+ */
+const SYNONYM_DATA = /\bVocabSynonym\b|\.synonyms\b|'synonyms'/;
+const SYNONYM_READER = 'apps/gokan-srs/src/services/exercise/wordRelation.ts';
+
 /** Furigana in the app is the Ruby component: readings over the kanji only, half size, kept apart. */
 const RUBY_ELEMENT = /<ruby\b/;
 const RUBY_COMPONENT = 'apps/gokan-srs/src/components/Ruby.tsx';
@@ -260,6 +268,11 @@ function check(files: string[]): Violation[] {
         if (GOKAN_SRS_SOURCE.test(file) && !BOXED_GLYPH_FILES.has(file)) {
             eachLine(text, l => BOXED_GLYPH.test(l), line =>
                 add({ file, line, rule: 'glyph-tile', message: 'A glyph in a box is a KanjiTile (components/KanjiTile.tsx): boxed only when it links, plain when it has no page.' }));
+        }
+
+        if (GOKAN_SRS_SOURCE.test(file) && file !== SYNONYM_READER && !/\.test\.tsx?$/.test(file)) {
+            eachLine(text, l => SYNONYM_DATA.test(l) && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
+                add({ file, line, rule: 'one-synonym-reader', message: 'Reads the dataset\'s synonym pairs. Go through services/exercise/wordRelation.ts (relationOf, synonymsOf, pairWith), so a page and grading read a pair the same way.' }));
         }
 
         if (GOKAN_SRS_SOURCE.test(file) && file !== RUBY_COMPONENT && !file.endsWith('.test.tsx')) {
