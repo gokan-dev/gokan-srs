@@ -163,6 +163,13 @@ describe('effectsOf', () => {
             expect(mixupsOf(answer(card, ['を', 'ひろい']))).toEqual([{ asked: 'semai', answer: 'ひろい' }]);
         });
 
+        it('records the same word typed for the same word in two blanks once', () => {
+            const point: HostItem = { kind: 'grammar', grammarId: 'n5-001' };
+            const blank = wordSlot(forms('狭い', 'せまい'), { vocabId: 'semai', otherForm: 'minor_error', role: 'support', candidates: [] });
+            const card: Answered = { kind: 'grammar-cloze', host: point, label: 'A が いちばん', slots: [answerSlot({ accept: ['が'], role: 'core' }), blank, blank], cue: {} };
+            expect(mixupsOf(answer(card, ['が', 'ひろい', 'ひろい']))).toEqual([{ asked: 'semai', answer: 'ひろい' }]);
+        });
+
         it('writes them dated, after the existing ones, on a retry too', () => {
             const progress = userProgress({ learningQueue: [word('semai', { needsRetry: { production: true } })], mixups: [mixupRecord()] });
             const { progress: next } = applyEffects(progress, answer(semaiCard('The street is narrow.'), ['小さい']), { now, settings });

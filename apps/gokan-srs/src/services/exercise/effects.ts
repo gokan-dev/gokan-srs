@@ -77,7 +77,9 @@ export function effectsOf(exercise: AnsweredExercise, grade: ExerciseGrade, { la
         const word = exercise.slots[i].word;
         const { synonym } = slotGrade;
         const mixup = word?.vocabId ? mixupOf(word.vocabId, slotGrade, answers[i] ?? '', hintLevels[i] ?? 0) : null;
-        if (mixup) mixups.push({ kind: 'mixup', mixup });
+        // One per answer: the same word typed for the same word in two blanks is one confusion.
+        const isNew = (m: Omit<MixupRecord, 'date'>) => !mixups.some(e => e.kind === 'mixup' && e.mixup.asked === m.asked && (e.mixup.typed ?? e.mixup.answer) === (m.typed ?? m.answer));
+        if (mixup && isNew(mixup)) mixups.push({ kind: 'mixup', mixup });
         if (synonym) {
             if (word?.vocabId !== undefined && word.vocabId === askedWord) producedAnotherWord = true;
             if (OUTCOME_LOOK[synonym.outcome].creditsTyped) credit(synonym.vocabId, synonym.written, slotGrade.result);

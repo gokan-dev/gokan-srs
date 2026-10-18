@@ -6,7 +6,7 @@ import { PageHeader } from "../../../components/PageHeader";
 import { Disclosure } from "../../../components/ui/Disclosure";
 import { Pagination } from "../../../components/ui/Pagination";
 import { CardSkeleton } from "../../../components/CardSkeleton";
-import { groupsWithWord } from "../../../utils/mixupGroups.utils";
+import { groupsWithWord, mixupCount } from "../../../utils/mixupGroups.utils";
 import { mixupsPath } from "../../../utils/navigation.utils";
 import { VocabularyTabs } from "../VocabularyTabs";
 import { MixupGroupCard } from "./MixupGroupCard";
@@ -26,20 +26,23 @@ const TIERS = ['interchangeable', 'confusable', 'unrelated'] as const;
 export function MixupsScreen() {
     const [searchParams] = useSearchParams();
     const word = searchParams.get('word');
-    const { groups, vocabById, loading } = useMixups();
-    const [page, setPage] = useState(1);
+    const { groups, vocabById, loading, failed } = useMixups();
+    // Kept per filter: following a word's link starts on its first page.
+    const [paged, setPaged] = useState({ word, page: 1 });
+    const page = paged.word === word ? paged.page : 1;
+    const setPage = (next: number) => setPaged({ word, page: next });
 
     const wordVocab = word ? vocabById.get(word) : undefined;
     const shown = word ? groupsWithWord(groups, word) : groups;
     const totalPages = Math.max(1, Math.ceil(shown.length / PAGE_SIZE));
     const current = Math.min(page, totalPages);
-    const mixupCount = groups.reduce((sum, g) => sum + g.pairs.reduce((s, p) => s + p.count, 0), 0);
+    const total = mixupCount(groups.flatMap(g => g.pairs));
 
     return (
         <Page width="wide">
             <PageHeader
                 title="Vocabulary"
-                subtitle={groups.length > 0 ? `${groups.length.toLocaleString('en-US')} groups · ${mixupCount.toLocaleString('en-US')} mix-ups` : undefined}
+                subtitle={groups.length > 0 ? `${groups.length.toLocaleString('en-US')} groups · ${total.toLocaleString('en-US')} mix-ups` : undefined}
                 className="mb-4"
             />
             <VocabularyTabs />
@@ -68,6 +71,14 @@ export function MixupsScreen() {
                         </span>
                         <Link to={mixupsPath()} className="text-sm text-accent hover:underline">Show all groups</Link>
                     </div>
+                )}
+
+                {(failed.words > 0 || failed.index) && (
+                    <p className="type-support text-error" role="alert">
+                        {failed.words > 0 && `${failed.words.toLocaleString('en-US')} ${failed.words === 1 ? 'word' : 'words'} could not be loaded, so some mix-ups are missing. `}
+                        {failed.index && 'Answers that were not a synonym could not be looked up. '}
+                        Reload the page to try again.
+                    </p>
                 )}
 
                 {loading && shown.length === 0 ? (

@@ -79,7 +79,7 @@ export function resolveAnswers(records: readonly MixupRecord[], index: SearchInd
         if (record.typed !== undefined || record.answer === undefined) return [record];
         const answer = record.answer.trim();
         const kana = toHiragana(looksLikeRomaji(answer) ? romajiToHiragana(answer.toLowerCase()) : answer);
-        const words = index.filter(e => (e.r === kana || e.w === answer) && learning.has(e.id) && e.id !== record.asked);
+        const words = index.filter(e => (toHiragana(e.r) === kana || e.w === answer) && learning.has(e.id) && e.id !== record.asked);
         return words.map(e => ({ asked: record.asked, typed: e.id, answer: record.answer, date: record.date }));
     });
 }
@@ -98,33 +98,32 @@ export function mixupPairs(
     now: number,
 ): MixupPair[] {
     const pairs = new Map<string, MixupPair>();
-    for (const record of records) {
+    const stored = new Map<string, PairRelation>();
+    for (const record of [...records].sort((x, y) => x.date - y.date)) {
         const { asked, typed } = record;
         if (typed === undefined || typed === asked) continue;
         const key = pairKey(asked, typed);
         let pair = pairs.get(key);
         if (!pair) {
-            const current = relation(asked, typed);
-            const stored: PairRelation | null = record.tier ? { tier: record.tier, curated: record.curated === true, shared: record.shared ?? [] } : null;
-            const known = current === undefined ? stored : current;
-            pair = {
-                words: asked < typed ? [asked, typed] : [typed, asked],
-                tier: known?.tier ?? 'unrelated',
-                curated: known?.curated ?? false,
-                shared: known?.shared ?? [],
-                directions: [],
-                count: 0,
-                weight: 0,
-            };
+            pair = { words: asked < typed ? [asked, typed] : [typed, asked], tier: 'unrelated', curated: false, shared: [], directions: [], count: 0, weight: 0 };
             pairs.set(key, pair);
         }
+        if (record.tier) stored.set(key, { tier: record.tier, curated: record.curated === true, shared: record.shared ?? [] });
         const direction = pair.directions.find(d => d.asked === asked && d.typed === typed);
         if (direction) direction.count++;
         else pair.directions.push({ asked, typed, count: 1 });
         pair.count++;
         pair.weight += mixupWeight(record, now);
     }
-    for (const pair of pairs.values()) pair.directions.sort((a, b) => b.count - a.count);
+    for (const [key, pair] of pairs) {
+        pair.directions.sort((a, b) => b.count - a.count);
+        // Read from either word, whichever has loaded; the newest stored copy otherwise.
+        const [a, b] = pair.words;
+        const fromA = relation(a, b);
+        const current = fromA === undefined ? relation(b, a) : fromA;
+        const known = current === undefined ? stored.get(key) : current;
+        if (known) Object.assign(pair, { tier: known.tier, curated: known.curated, shared: known.shared });
+    }
     return [...pairs.values()];
 }
 
@@ -223,6 +222,16 @@ export function pairsWithWord(pairs: readonly MixupPair[], vocabId: string): Mix
 /** The other word of a pair. */
 export function otherWord(pair: Pick<MixupPair, 'words'>, vocabId: string): string {
     return pair.words[0] === vocabId ? pair.words[1] : pair.words[0];
+}
+
+/** "once", "4 times". */
+export function timesLabel(count: number): string {
+    return count === 1 ? 'once' : `${count.toLocaleString('en-US')} times`;
+}
+
+/** How many mix-ups some pairs record. */
+export function mixupCount(pairs: readonly Pick<MixupPair, 'count'>[]): number {
+    return pairs.reduce((sum, p) => sum + p.count, 0);
 }
 
 /** Every vocab id the records name: the words to load to show them. */

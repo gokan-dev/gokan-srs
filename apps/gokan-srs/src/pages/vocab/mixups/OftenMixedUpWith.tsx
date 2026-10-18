@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { headwordOf } from "@gokan/dataset-schema";
 import { DetailSection } from "../../../components/detail/DetailSection";
-import { otherWord, pairsWithWord } from "../../../utils/mixupGroups.utils";
+import { otherWord, pairsWithWord, timesLabel } from "../../../utils/mixupGroups.utils";
 import { mixupsPath } from "../../../utils/navigation.utils";
 import { TierChip } from "./TierChip";
 import { useMixups } from "./useMixups";
@@ -33,7 +33,7 @@ export function OftenMixedUpWith({ vocabId }: { vocabId: string }) {
                             </div>
                             <p className="type-meta">
                                 {pair.shared.length > 0 ? `${pair.shared.join(', ')} · ` : ''}
-                                {pair.count === 1 ? 'once' : `${pair.count.toLocaleString('en-US')} times`}
+                                {timesLabel(pair.count)}
                             </p>
                         </li>
                     );

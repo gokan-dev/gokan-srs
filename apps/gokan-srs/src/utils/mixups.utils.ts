@@ -11,10 +11,20 @@ export function mixupKey(record: MixupRecord): string {
     return `${record.asked}\u0000${record.typed ?? record.answer ?? ''}\u0000${record.date}`;
 }
 
-/** Oldest first, then capped to the newest MIXUP_LIMIT. */
+/**
+ * Oldest first, capped to MIXUP_LIMIT. Over the limit, the oldest raw answers go
+ * first: most never resolve to a word (a typo, a wrong conjugation), so they must not
+ * push out the pairs grading identified.
+ */
 function capped(records: MixupRecord[]): MixupRecord[] {
     const sorted = [...records].sort((a, b) => a.date - b.date);
-    return sorted.slice(Math.max(0, sorted.length - MIXUP_LIMIT));
+    let excess = sorted.length - MIXUP_LIMIT;
+    if (excess <= 0) return sorted;
+    const kept = sorted.filter(r => {
+        if (excess > 0 && r.typed === undefined) { excess--; return false; }
+        return true;
+    });
+    return kept.slice(Math.max(0, kept.length - MIXUP_LIMIT));
 }
 
 /** The list with new records added, capped. */

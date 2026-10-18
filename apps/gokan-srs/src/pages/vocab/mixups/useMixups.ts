@@ -15,12 +15,16 @@ export interface Mixups {
     vocabById: ReadonlyMap<string, Vocabulary>;
     /** True until the words (and the search index, for raw answers) have loaded. */
     loading: boolean;
+    /**
+     * What failed to load, shown rather than skipped (data integrity fails loudly): the
+     * words whose file did not load, and whether the raw answers could not be looked up.
+     */
+    failed: { words: number; index: boolean };
 }
 
 /**
  * The learner's mix-ups as pairs and groups, for the Mix-ups page and a word's
- * "Often mixed up with" (`vocabId`: that word's records only, and the raw answers,
- * which may resolve to it). Raw answers are resolved through the search index; every
+ * "Often mixed up with" (`vocabId`: that word's own records only). Raw answers are resolved through the search index; every
  * pair's tier is read through relationOf (pairRelation) on the loaded words, so the
  * page shows what grading uses.
  */
@@ -28,9 +32,11 @@ export function useMixups(vocabId?: string): Mixups {
     const { state } = useQuiz();
     const now = useNow(60_000);
     const stored = state.progress?.mixups;
-    // One word's page needs only its own records, and only their words loaded.
+    // One word's page needs only its own records, and only their words loaded. Raw answers
+    // on another word's card that resolve to this one are left to the Mix-ups page: looking
+    // them up would load the search index (3 MB) on every word page.
     const records = useMemo(
-        () => (vocabId === undefined ? stored : stored?.filter(r => r.asked === vocabId || r.typed === vocabId || r.typed === undefined)),
+        () => (vocabId === undefined ? stored : stored?.filter(r => r.asked === vocabId || r.typed === vocabId)),
         [stored, vocabId],
     );
     const queue = state.progress?.learningQueue;
@@ -53,10 +59,15 @@ export function useMixups(vocabId?: string): Mixups {
     );
     const groups = useMemo(() => mixupGroups(pairs), [pairs]);
 
+    const vocabsReady = vocabs.status === 'ready';
     return {
         pairs,
         groups,
         vocabById,
         loading: (hasRaw && index.status === 'loading') || vocabs.status === 'loading',
+        failed: {
+            words: vocabsReady ? ids.filter(id => !vocabById.has(id)).length : vocabs.status === 'error' ? ids.length : 0,
+            index: hasRaw && (index.status === 'error' || (index.status === 'ready' && index.data === null)),
+        },
     };
 }

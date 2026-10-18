@@ -7,6 +7,7 @@ import { useAsyncData } from "../../../hooks/useAsyncData";
 import { VocabularyService } from "../../../services/vocabulary.service";
 import { indexLearnerVocab } from "../../../utils/sentenceRanking";
 import type { LearnerVocab } from "../../../utils/sentenceRanking";
+import { mixupCount, timesLabel } from "../../../utils/mixupGroups.utils";
 import type { MixupGroup, MixupPair } from "../../../utils/mixupGroups.utils";
 import { InteractiveSentence } from "../../../components/InteractiveSentence";
 import { ListRow } from "../../../components/ui/ListRow";
@@ -14,8 +15,6 @@ import { TagChip } from "../../../components/TagChip";
 import { WordStudyStatus } from "../../../components/WordStudyStatus";
 import { exampleForMeanings, markedGlosses, sensesSharing, sharedSenseType } from "./sharedSense";
 import { TierChip } from "./TierChip";
-
-const times = (n: number) => (n === 1 ? 'once' : `${n.toLocaleString('en-US')} times`);
 
 /** What a group is called: the meanings its pairs share, or the asked word's first gloss when none does. */
 function groupLabel(group: MixupGroup, vocabById: ReadonlyMap<string, Vocabulary>): string {
@@ -72,7 +71,7 @@ function GroupWord({ vocab, group, vocabById, learner }: GroupWordProps) {
 
             {typedFor.map(d => (
                 <p key={d.typed} className="type-meta">
-                    You typed <span lang="ja" className="font-gothic">{nameOf(d.typed, vocabById)}</span> for <span lang="ja" className="font-gothic">{headwordOf(vocab)}</span> {times(d.count)}
+                    You typed <span lang="ja" className="font-gothic">{nameOf(d.typed, vocabById)}</span> for <span lang="ja" className="font-gothic">{headwordOf(vocab)}</span> {timesLabel(d.count)}
                 </p>
             ))}
 
@@ -105,7 +104,7 @@ function GroupPair({ pair, vocabById }: { pair: MixupPair; vocabById: ReadonlyMa
             <TierChip tier={pair.tier} />
             {pair.shared.length > 0 && <span className="type-support">{pair.shared.join(', ')}</span>}
             {pair.curated && <span className="type-meta">marked by hand</span>}
-            <span className="type-meta tabular-nums">{times(pair.count)}</span>
+            <span className="type-meta tabular-nums">{timesLabel(pair.count)}</span>
         </li>
     );
 }
@@ -120,7 +119,7 @@ export function MixupGroupCard({ group, vocabById }: MixupGroupCardProps) {
     const { state } = useQuiz();
     const queue = state.progress?.learningQueue;
     const learner = useMemo(() => indexLearnerVocab(queue), [queue]);
-    const count = group.pairs.reduce((sum, p) => sum + p.count, 0);
+    const count = mixupCount(group.pairs);
 
     return (
         <section id={`group-${group.id}`} className="rounded-md border border-divider bg-surface p-4 md:p-6 min-w-0">

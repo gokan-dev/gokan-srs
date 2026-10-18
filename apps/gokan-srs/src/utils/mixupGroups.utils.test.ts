@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-    groupsWithWord, mixupGroups, mixupPairs, mixupWeight, mixupWordIds, otherWord, pairsWithWord, resolveAnswers,
+    groupsWithWord, mixupCount, mixupGroups, mixupPairs, mixupWeight, mixupWordIds, otherWord, pairsWithWord, resolveAnswers, timesLabel,
 } from './mixupGroups.utils';
 import type { PairRelation } from './mixupGroups.utils';
 import { mixupRecord, searchIndexEntry } from '../test/fixtures';
@@ -44,6 +44,14 @@ describe('mixupPairs', () => {
         expect(mixupPairs([stale], notLoaded, NOW)[0]).toMatchObject({ tier: 'confusable', shared: ['shine'] });
         // Loaded, and the dataset no longer pairs them: not a synonym, whatever the record says.
         expect(mixupPairs([stale], () => null, NOW)[0]).toMatchObject({ tier: 'unrelated', shared: [] });
+    });
+
+    it('reads the pair from either word, and from any record carrying a tier while neither has loaded', () => {
+        const fromTyped = (a: string, b: string) => (a === '光る' ? relation(a, b) : undefined);
+        expect(mixupPairs([typed('輝く', '光る')], fromTyped, NOW)[0].tier).toBe('interchangeable');
+        const rawFirst = mixupRecord({ asked: '輝く', typed: '光る', tier: undefined, shared: undefined, answer: 'ひかる', date: 1 });
+        const identified = mixupRecord({ asked: '光る', typed: '輝く', tier: 'confusable', shared: ['shine'], date: 2 });
+        expect(mixupPairs([rawFirst, identified], notLoaded, NOW)[0]).toMatchObject({ tier: 'confusable', shared: ['shine'] });
     });
 
     it('reads a pair the dataset does not have as not a synonym', () => {
@@ -95,6 +103,13 @@ describe('mixupGroups', () => {
     });
 });
 
+describe('timesLabel and mixupCount', () => {
+    it('words a count and sums one', () => {
+        expect([timesLabel(1), timesLabel(4)]).toEqual(['once', '4 times']);
+        expect(mixupCount([{ count: 2 }, { count: 3 }])).toBe(5);
+    });
+});
+
 describe('a word\'s pairs', () => {
     it('lists the pairs a word is in, the most mixed up first, and names the other word', () => {
         const pairs = mixupPairs([typed('輝く', '光る'), typed('輝く', '差す'), typed('輝く', '差す')], relation, NOW);
@@ -119,6 +134,13 @@ describe('resolveAnswers', () => {
         const learning = new Set(['terasu', 'kagayaku']);
         for (const answer of ['てらす', 'terasu', 'テラス', '照らす']) {
             expect(resolveAnswers([raw(answer)], index, learning).map(r => r.typed)).toEqual(['terasu']);
+        }
+    });
+
+    it('resolves a katakana word from its hiragana or romaji', () => {
+        const terebi = [searchIndexEntry({ id: 'terebi', w: 'テレビ', r: 'テレビ' })];
+        for (const answer of ['てれび', 'terebi', 'テレビ']) {
+            expect(resolveAnswers([raw(answer)], terebi, new Set(['terebi'])).map(r => r.typed)).toEqual(['terebi']);
         }
     });
 

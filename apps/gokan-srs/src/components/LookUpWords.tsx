@@ -42,7 +42,7 @@ export function LookUpWords({ words, onVocabClick, mixupsOf }: LookUpWordsProps)
             {mixupsOf && (
                 <Link
                     to={mixupsPath(mixupsOf)}
-                    className="inline-flex items-center min-h-9 px-3 rounded border border-divider text-accent font-sans text-sm hover:bg-accent/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent transition-colors"
+                    className="inline-flex items-center min-h-9 px-3 rounded-md border border-divider text-accent font-sans text-sm hover:bg-accent/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent transition-colors"
                 >
                     Compare in Mix-ups
                 </Link>

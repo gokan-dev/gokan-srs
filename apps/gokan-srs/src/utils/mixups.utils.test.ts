@@ -23,6 +23,14 @@ describe('appendMixups', () => {
         expect(next[0].date).toBe(1);
         expect(next.at(-1)?.date).toBe(MIXUP_LIMIT);
     });
+
+
+    it('drops the oldest raw answers first, so typos never push out identified pairs', () => {
+        const raw = Array.from({ length: MIXUP_LIMIT }, (_, i) => mixupRecord({ typed: undefined, answer: 'x', date: 10 + i }));
+        const next = appendMixups([mixupRecord({ date: 1 }), ...raw], [mixupRecord({ date: 5000 })]);
+        expect(next).toHaveLength(MIXUP_LIMIT);
+        expect(next.filter(r => r.typed !== undefined).map(r => r.date)).toEqual([1, 5000]);
+    });
 });
 
 describe('mergeMixups', () => {
