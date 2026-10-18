@@ -1,0 +1,70 @@
+// Kanji learning order pages (KanjiOrdersPage, KanjiOrderPage, KanjiRangePage) only. The hub's
+// tiles are app.scss's.
+
+@use '../tokens' as *;
+
+// An order's ranges: one row each, the steps, the first kanji, then the counts.
+.range-list {
+  @include bare-list;
+
+  li + li {
+    border-top: 1px solid var(--divider);
+  }
+
+  a {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 $space-2;
+    min-height: $target;
+    padding: $space-1 0;
+  }
+
+  .meta {
+    margin-left: auto;
+  }
+}
+
+.range-title {
+  font-weight: 500;
+}
+
+.range-preview {
+  min-width: 0;
+  font-family: $font-mincho;
+  font-size: $text-lg;
+  color: var(--primary);
+}
+
+.kanji-tiles {
+  @include glyph-tiles;
+}
+
+// One step of a range: its number and kanji, then the words it unlocks.
+.range-step {
+  margin-top: $space-3;
+
+  h3 {
+    display: flex;
+    align-items: baseline;
+    gap: $space-1;
+    margin: 0 0 $space-1;
+    font-size: $text-base;
+    font-weight: 500;
+
+    a {
+      font-family: $font-mincho;
+      font-size: $text-2xl;
+    }
+  }
+
+  .meta {
+    margin: $space-1 0 0;
+  }
+}
+
+.range-step-number {
+  min-width: 3rem;
+  color: var(--tertiary);
+  font-variant-numeric: tabular-nums;
+}

@@ -1,0 +1,34 @@
+<script lang="ts">
+  import type { KanjiOrder } from '@gokan/dataset-schema';
+  import { kanjiIndexPath, kanjiOrderPath } from '../lib/urls';
+  import PageLayout from './PageLayout.svelte';
+
+  interface Props {
+    /** Every order, the most followed first (KANJI_ORDERS), with what it covers. */
+    orders: { order: KanjiOrder; kanjiCount: number; wordCount: number }[];
+  }
+
+  let { orders }: Props = $props();
+</script>
+
+<PageLayout trail={[{ label: 'Kanji', href: kanjiIndexPath() }, { label: 'Learning orders' }]} section="kanji" wide>
+  <div class="page-intro">
+    <h1>Vocabulary by kanji learning order</h1>
+    <p>
+      Each kanji book teaches the characters in its own order. Pick yours to see the words you can
+      read at each step: a word comes in at the step of its last kanji, once you know every kanji in it.
+    </p>
+  </div>
+
+  <ul class="tiles">
+    {#each orders as { order, kanjiCount, wordCount } (order.id)}
+      <li>
+        <a class="tile" href={kanjiOrderPath(order.id)}>
+          <span class="tile-title">{order.label}</span>
+          <span class="tile-meta">{kanjiCount.toLocaleString('en')} kanji · {wordCount.toLocaleString('en')} words</span>
+          <span class="tile-blurb">{order.description}</span>
+        </a>
+      </li>
+    {/each}
+  </ul>
+</PageLayout>

@@ -13,6 +13,11 @@ export const BUDGETS = {
     grammarIndex: 150 * KB,
     /** Each page of a JLPT word list. */
     jlptPage: 150 * KB,
+    /**
+     * Each kanji order page: the orders hub, an order, and a range of 100 steps with the words
+     * they unlock (the heaviest, held by WORDS_PER_KANJI in lib/kanjiOrders.ts).
+     */
+    kanjiOrderPage: 150 * KB,
     /** The stylesheet every page loads. */
     sharedStylesheet: 10 * KB,
     /** The search script every page loads. */

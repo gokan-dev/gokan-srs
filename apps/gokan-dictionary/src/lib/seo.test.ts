@@ -2,8 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
     vocabMeta, kanjiMeta, grammarMeta, homeMeta, grammarChaptersIndexMeta, grammarChapterMeta, grammarFamilyMeta, grammarConjugationsIndexMeta,
     grammarFamiliesIndexMeta, searchMeta, vocabJlptMeta, searchablePattern, quotedGlosses, sentenceCase,
+    kanjiOrdersMeta, kanjiOrderMeta, kanjiRangeMeta,
 } from './seo';
-import type { GrammarChapter } from '@gokan/dataset-schema';
+import { KANJI_ORDERS, kanjiOrder, type GrammarChapter } from '@gokan/dataset-schema';
 import { grammarPoint, kanji, vocabulary } from '../test/fixtures';
 
 describe('vocabMeta', () => {
@@ -219,5 +220,28 @@ describe('grammarFamiliesIndexMeta and searchMeta', () => {
     it('describe their pages', () => {
         expect(grammarFamiliesIndexMeta(123).description).toContain('123 groups');
         expect(searchMeta().title).toContain('Search');
+    });
+});
+
+describe('kanji order pages', () => {
+    it('lead the titles with what a learner types', () => {
+        expect(kanjiOrderMeta(kanjiOrder('kklc'), 2300, 34187).title).toBe('KKLC vocabulary list by kanji step - Gokan Dictionary');
+        expect(kanjiRangeMeta(kanjiOrder('kklc'), { first: 1, last: 100 }, 412).title)
+            .toBe('KKLC vocabulary: words you can read after kanji 1 to 100 - Gokan Dictionary');
+        expect(kanjiOrdersMeta([...KANJI_ORDERS]).title).toBe('Vocabulary by kanji learning order: KKLC, RTK and more - Gokan Dictionary');
+    });
+
+    it('name an order that is not a book, or an older edition, as it is searched', () => {
+        expect(kanjiOrderMeta(kanjiOrder('jlpt'), 2211, 32186).title).toBe('JLPT kanji order vocabulary list by kanji step - Gokan Dictionary');
+        expect(kanjiOrderMeta(kanjiOrder('rtkLegacy'), 3007, 34694).title).toBe('RTK 1st to 5th edition vocabulary list by kanji step - Gokan Dictionary');
+    });
+
+    it('say how many kanji and words each page covers', () => {
+        expect(kanjiOrdersMeta([...KANJI_ORDERS]).description).toContain(`${KANJI_ORDERS.length} kanji learning orders`);
+        const order = kanjiOrderMeta(kanjiOrder('kklc'), 2300, 34187).description;
+        expect(order).toContain('2,300 kanji');
+        expect(order).toContain('34,187 words');
+        const range = kanjiRangeMeta(kanjiOrder('henshall'), { first: 1901, last: 1945 }, 1);
+        expect(range.description).toContain('The 45 kanji of Henshall steps 1901 to 1945 and the 1 word they unlock');
     });
 });

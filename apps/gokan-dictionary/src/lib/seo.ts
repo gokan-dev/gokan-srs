@@ -3,7 +3,7 @@
 // (which only knows how to wrap an already-decided {title, description} into HTML).
 
 import { headwordOf, secondaryForm } from '@gokan/dataset-schema';
-import type { GrammarChapter, GrammarPoint, Kanji, Vocabulary } from '@gokan/dataset-schema';
+import type { GrammarChapter, GrammarPoint, Kanji, KanjiOrder, Vocabulary } from '@gokan/dataset-schema';
 import { SITE_NAME } from './site';
 
 export interface PageMeta {
@@ -166,6 +166,32 @@ export function kanjiIndexMeta(kanjiCount: number): PageMeta {
     return {
         title: `Kanji List by JLPT Level - ${SITE_NAME}`,
         description: `All ${kanjiCount.toLocaleString()} kanji, grouped by JLPT level, each with its KKLC step and the vocabulary that uses it.`,
+    };
+}
+
+export function kanjiOrdersMeta(orders: KanjiOrder[]): PageMeta {
+    const named = orders.slice(0, 2).map(order => order.label).join(', ');
+    return {
+        title: `Vocabulary by kanji learning order: ${named} and more - ${SITE_NAME}`,
+        description: `${orders.length} kanji learning orders, ${named} among them, with the words you can read at each step: every word listed at the step of its last kanji.`,
+    };
+}
+
+export function kanjiOrderMeta(order: KanjiOrder, kanjiCount: number, wordCount: number): PageMeta {
+    const name = order.searchName;
+    return {
+        title: `${name} vocabulary list by kanji step - ${SITE_NAME}`,
+        description: `${order.description}: ${kanjiCount.toLocaleString('en')} kanji in steps of 100, and the ${wordCount.toLocaleString('en')} words you can read after each, every word at the step of its last kanji.`,
+    };
+}
+
+export function kanjiRangeMeta(order: KanjiOrder, range: { first: number; last: number }, wordCount: number): PageMeta {
+    const name = order.searchName;
+    const kanjiCount = range.last - range.first + 1;
+    const words = `${wordCount.toLocaleString('en')} word${wordCount === 1 ? '' : 's'}`;
+    return {
+        title: `${name} vocabulary: words you can read after kanji ${range.first} to ${range.last} - ${SITE_NAME}`,
+        description: `The ${kanjiCount} kanji of ${name} steps ${range.first} to ${range.last} and the ${words} they unlock, under the kanji that completes each, most frequent first, with readings and meanings.`,
     };
 }
 

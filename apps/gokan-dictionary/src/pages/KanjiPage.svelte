@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { kanjiBookPositions, kanjiGradeLabel, kunReadingLabel } from '@gokan/dataset-schema';
-  import type { Kanji } from '@gokan/dataset-schema';
+  import { isKanjiOrderId, kanjiBookPositions, kanjiGradeLabel, kunReadingLabel } from '@gokan/dataset-schema';
+  import type { Kanji, KanjiBook, KanjiOrderId } from '@gokan/dataset-schema';
   import type { VocabSummary } from '../lib/types';
-  import { kanjiIndexPath, kanjiPath } from '../lib/urls';
+  import { rangeOfStep } from '../lib/kanjiOrders';
+  import { kanjiIndexPath, kanjiPath, kanjiRangePath } from '../lib/urls';
   import PageLayout from './PageLayout.svelte';
   import Chip from './Chip.svelte';
   import VocabEntryList from './VocabEntryList.svelte';
@@ -13,9 +14,18 @@
     words: VocabSummary[];
     /** Every kanji with a page, so a component that is one (子 in 学) links to it. */
     kanjiWithPages: ReadonlySet<string>;
+    /** Each learning order's length: a book position links to its range page when the book is an order. */
+    orderLengths: ReadonlyMap<KanjiOrderId, number>;
   }
 
-  let { kanji, words, kanjiWithPages }: Props = $props();
+  let { kanji, words, kanjiWithPages, orderLengths }: Props = $props();
+
+  /** The range page listing the words this kanji's step unlocks; none for a book that is not an order (Essential Kanji). */
+  function rangeHref(book: KanjiBook, position: number): string | undefined {
+    if (!isKanjiOrderId(book)) return undefined;
+    const length = orderLengths.get(book);
+    return length === undefined ? undefined : kanjiRangePath(book, rangeOfStep(position, length));
+  }
 
   const WORDS_VISIBLE = 30;
   const level = $derived(kanji.steps.jlpt);
@@ -78,7 +88,8 @@
       <h2>In kanji courses</h2>
       <dl class="kanji-courses">
         {#each courses as { book, name, position } (book)}
-          <div><dt>{name}</dt><dd>#{position.toLocaleString('en')}</dd></div>
+          {@const href = rangeHref(book, position)}
+          <div><dt>{name}</dt><dd>{#if href}<a {href}>#{position.toLocaleString('en')}</a>{:else}#{position.toLocaleString('en')}{/if}</dd></div>
         {/each}
       </dl>
     </section>

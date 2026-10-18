@@ -13,7 +13,7 @@ export const KANJI_RANGE_SIZE = 100;
  * and the kanji's own page lists every word with it. This cap is what keeps a range page within
  * its budget (`kanjiOrderPage`, lib/budgets.ts).
  */
-export const WORDS_PER_KANJI = 8;
+export const WORDS_PER_KANJI = 5;
 
 /** Steps `first` to `last` of an order, both included, 1-based. */
 export interface StepRange {
