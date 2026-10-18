@@ -369,7 +369,8 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   pages. Wide screens: one row (logo, nav, search on the right). Phones (below 40rem): at
   most two rows, the logo shortened to 語感 beside the nav, then the search field; the home
   page's hero is its search field, so the header leaves its own out. Nav links, pager
-  links, toggles, tiles and disclosure summaries are at least 44px tall.
+  links, toggles, tiles, disclosure summaries and a link that is its row's one action (a
+  kanji's book position, a range step's glyph) are at least 44px tall.
 - **Lists**: a word list is three aligned columns, headword | reading | gloss (stacked
   on a phone and in the word page's aside); the reading shows only when it differs from
   the headword, and a word learned in kana is never listed by its kanji spelling. A long
@@ -426,7 +427,8 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
 app's onboarding and main routes and the dictionary's page types, no page scrolls
 sideways, no text is below 12px (furigana in `rt` and SVG chart labels excepted), every
 input is at least 16px (smaller makes iOS zoom), the dictionary's nav links, pager links,
-toggles, tiles and disclosure summaries are at least 44px tall, and a word in a dictionary
+toggles, tiles, disclosure summaries and single-action links are at least 44px tall, every
+dictionary list row is plain (primary ink, no underline), and a word in a dictionary
 sentence carries only its dotted border, never the running-text underline, and no word in an
 app sentence (linked or studied) has a side margin (Japanese has no spaces between words), no
 reading sits over kana (a marked fallback excepted), no ruby breaks across lines and no two
