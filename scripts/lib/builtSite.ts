@@ -116,6 +116,10 @@ export function dictionaryPages(): { path: string; ready: string }[] {
         { path: '/kanji/', ready: 'Kanji' },
         { path: `/kanji/${encodeURIComponent('学')}/`, ready: 'In kanji courses' },
         { path: `/kanji/${encodeURIComponent('一')}/`, ready: 'Words with' },
+        { path: '/kanji/orders/', ready: 'Vocabulary by kanji learning order' },
+        { path: '/kanji/orders/kklc/', ready: 'Steps 1 to 100' },
+        // The heaviest range page (check-build): the most words to lay out.
+        { path: '/kanji/orders/jlpt/301-400/', ready: 'Words by step' },
         { path: '/grammar/', ready: 'Grammar' },
         { path: `/grammar/${grammarPoint}/`, ready: 'Grammar' },
     ];

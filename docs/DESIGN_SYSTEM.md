@@ -359,7 +359,8 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
 - **Kanji page**: the glyph, its meanings (`entry-gloss`), its readings labelled On and Kun
   (the okurigana in parentheses, `kunReadingLabel`), the JLPT chip, then one meta line that
   names the level only when there is no chip. Sections: Components, Words, In kanji courses
-  (each book's number), then the name readings behind a `<details>`.
+  (each book's number, linking to the range page of that order holding it), then the name
+  readings behind a `<details>`.
 - **Shared between page sheets**: a rule two page types use goes in `app.scss`, unless that
   breaks its budget; then it is a mixin in `_tokens.scss` (`glyph-tiles`, `entry-gloss`,
   `stacked-entries`) included by each page sheet, so the source stays one copy.
@@ -388,6 +389,7 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   | Kanji page HTML, the heaviest | 80 KB |
   | `/grammar/` HTML | 150 KB |
   | Each JLPT list page | 150 KB |
+  | Each kanji order page (hub, order, range of 100 steps) | 150 KB |
   | Shared stylesheet (`app.scss`) | 10 KB |
   | Search script (every page) | 10 KB |
   | Query engine (loaded on first focus) | 10 KB |

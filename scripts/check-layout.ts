@@ -103,7 +103,7 @@ const MEASURE = (deviceWidth: number, tapTargets: string) => `(() => {
     return problems;
 })()`;
 
-const DICTIONARY_TAP_TARGETS = '.site-nav a, .pager a, summary, .kanji-tiles a, button.button';
+const DICTIONARY_TAP_TARGETS = '.site-nav a, .pager a, summary, .kanji-tiles a, .range-list a, button.button';
 
 const failures: string[] = [];
 let checked = 0;
