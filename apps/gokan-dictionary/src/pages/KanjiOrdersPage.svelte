@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { KanjiOrder } from '@gokan/dataset-schema';
+  import { countLabel } from '../lib/counts';
   import { kanjiIndexPath, kanjiOrderPath } from '../lib/urls';
   import PageLayout from './PageLayout.svelte';
 
@@ -25,7 +26,7 @@
       <li>
         <a class="tile" href={kanjiOrderPath(order.id)}>
           <span class="tile-title">{order.label}</span>
-          <span class="tile-meta">{kanjiCount.toLocaleString('en')} kanji · {wordCount.toLocaleString('en')} words</span>
+          <span class="tile-meta">{kanjiCount.toLocaleString('en')} kanji · {countLabel(wordCount, 'word')}</span>
           <span class="tile-blurb">{order.description}</span>
         </a>
       </li>

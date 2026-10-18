@@ -4,6 +4,7 @@
 
 import { headwordOf, secondaryForm } from '@gokan/dataset-schema';
 import type { GrammarChapter, GrammarPoint, Kanji, KanjiOrder, Vocabulary } from '@gokan/dataset-schema';
+import { countLabel } from './counts';
 import { SITE_NAME } from './site';
 
 export interface PageMeta {
@@ -48,7 +49,7 @@ export function kanjiMeta(kanji: Kanji, vocabCount: number): PageMeta {
     const readings = [...new Set([...kanji.readings.on, ...kanji.readings.kun.map(reading => reading.replace(/[.-]/g, ''))])].slice(0, 4);
     const opening = meaning ? `The kanji ${kanji.character} means "${meaning}"` : `The kanji ${kanji.character}`;
     const read = readings.length > 0 ? `, read ${readings.join(', ')}` : '';
-    const strokes = `${kanji.strokeCount} stroke${kanji.strokeCount === 1 ? '' : 's'}`;
+    const strokes = countLabel(kanji.strokeCount, 'stroke');
     const words = vocabCount > 0 ? `, and the ${vocabCount} word${vocabCount === 1 ? ' that uses' : 's that use'} it` : '';
     const description = `${opening}${read}. Its ${strokes}, components and readings${words}.`;
 
@@ -143,7 +144,7 @@ export function grammarChaptersIndexMeta(chapterCount: number, pointCount: numbe
 export function grammarChapterMeta(chapter: GrammarChapter): PageMeta {
     const title = `${chapter.title} - Grammar Chapter ${chapter.jlptLevel ? `(N${chapter.jlptLevel})` : ''} - ${SITE_NAME}`;
     const summary = chapter.summary.replace(/\s+/g, ' ').trim();
-    const description = `${chapter.title}: ${truncate(summary, 120)} ${chapter.points.length} grammar point${chapter.points.length === 1 ? '' : 's'} taught together in this chapter.`;
+    const description = `${chapter.title}: ${truncate(summary, 120)} ${countLabel(chapter.points.length, 'grammar point')} taught together in this chapter.`;
 
     return { title, description };
 }
@@ -181,17 +182,21 @@ export function kanjiOrderMeta(order: KanjiOrder, kanjiCount: number, wordCount:
     const name = order.searchName;
     return {
         title: `${name} vocabulary list by kanji step - ${SITE_NAME}`,
-        description: `${name} (${order.description}): ${kanjiCount.toLocaleString('en')} kanji in steps of 100, and the ${wordCount.toLocaleString('en')} words you can read after each, every word at the step of its last kanji.`,
+        description: `${name} (${order.description}): ${kanjiCount.toLocaleString('en')} kanji in steps of 100, and the ${countLabel(wordCount, 'word')} you can read after each, every word at the step of its last kanji.`,
     };
+}
+
+/** A range page's heading, and its title without the site name: the two say the same thing. */
+export function kanjiRangeHeading(order: KanjiOrder, range: { first: number; last: number }): string {
+    return `${order.searchName} vocabulary: words you can read after kanji ${range.first} to ${range.last}`;
 }
 
 export function kanjiRangeMeta(order: KanjiOrder, range: { first: number; last: number }, wordCount: number): PageMeta {
     const name = order.searchName;
     const kanjiCount = range.last - range.first + 1;
-    const words = `${wordCount.toLocaleString('en')} word${wordCount === 1 ? '' : 's'}`;
     return {
-        title: `${name} vocabulary: words you can read after kanji ${range.first} to ${range.last} - ${SITE_NAME}`,
-        description: `The ${kanjiCount} kanji of ${name} steps ${range.first} to ${range.last} and the ${words} they unlock, under the kanji that completes each, most frequent first, with readings and meanings.`,
+        title: `${kanjiRangeHeading(order, range)} - ${SITE_NAME}`,
+        description: `The ${kanjiCount} kanji of ${name} steps ${range.first} to ${range.last} and the ${countLabel(wordCount, 'word')} they unlock, under the kanji that completes each, most frequent first, with readings and meanings.`,
     };
 }
 

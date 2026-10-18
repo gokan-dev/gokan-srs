@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
     vocabMeta, kanjiMeta, grammarMeta, homeMeta, grammarChaptersIndexMeta, grammarChapterMeta, grammarFamilyMeta, grammarConjugationsIndexMeta,
     grammarFamiliesIndexMeta, searchMeta, vocabJlptMeta, searchablePattern, quotedGlosses, sentenceCase,
-    kanjiOrdersMeta, kanjiOrderMeta, kanjiRangeMeta,
+    kanjiOrdersMeta, kanjiOrderMeta, kanjiRangeHeading, kanjiRangeMeta,
 } from './seo';
 import { KANJI_ORDERS, kanjiOrder, type GrammarChapter } from '@gokan/dataset-schema';
 import { grammarPoint, kanji, vocabulary } from '../test/fixtures';
@@ -234,6 +234,15 @@ describe('kanji order pages', () => {
     it('name an order that is not a book, or an older edition, as it is searched', () => {
         expect(kanjiOrderMeta(kanjiOrder('jlpt'), 2211, 32186).title).toBe('JLPT kanji order vocabulary list by kanji step - Gokan Dictionary');
         expect(kanjiOrderMeta(kanjiOrder('rtkLegacy'), 3007, 34694).title).toBe('RTK 1st to 5th edition vocabulary list by kanji step - Gokan Dictionary');
+    });
+
+    it('head a range page with its title, for every order, never naming kanji twice', () => {
+        for (const order of KANJI_ORDERS) {
+            const range = { first: 301, last: 400 };
+            const heading = kanjiRangeHeading(order, range);
+            expect(heading).not.toContain(`${order.searchName} kanji`);
+            expect(`${heading} - Gokan Dictionary`).toBe(kanjiRangeMeta(order, range, 10).title);
+        }
     });
 
     it('say how many kanji and words each page covers', () => {
