@@ -359,7 +359,8 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
 - **Kanji page**: the glyph, its meanings (`entry-gloss`), its readings labelled On and Kun
   (the okurigana in parentheses, `kunReadingLabel`), the JLPT chip, then one meta line that
   names the level only when there is no chip. Sections: Components, Words, In kanji courses
-  (each book's number), then the name readings behind a `<details>`.
+  (each book's number, linking to the range page of that order holding it), then the name
+  readings behind a `<details>`.
 - **Shared between page sheets**: a rule two page types use goes in `app.scss`, unless that
   breaks its budget; then it is a mixin in `_tokens.scss` (`glyph-tiles`, `entry-gloss`,
   `stacked-entries`) included by each page sheet, so the source stays one copy.
@@ -368,7 +369,8 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   pages. Wide screens: one row (logo, nav, search on the right). Phones (below 40rem): at
   most two rows, the logo shortened to 語感 beside the nav, then the search field; the home
   page's hero is its search field, so the header leaves its own out. Nav links, pager
-  links, toggles, tiles and disclosure summaries are at least 44px tall.
+  links, toggles, tiles, disclosure summaries and a link that is its row's one action (a
+  kanji's book position, a range step's glyph) are at least 44px tall.
 - **Lists**: a word list is three aligned columns, headword | reading | gloss (stacked
   on a phone and in the word page's aside); the reading shows only when it differs from
   the headword, and a word learned in kana is never listed by its kanji spelling. A long
@@ -388,6 +390,7 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   | Kanji page HTML, the heaviest | 80 KB |
   | `/grammar/` HTML | 150 KB |
   | Each JLPT list page | 150 KB |
+  | Each kanji order page (hub, order, range of 100 steps) | 150 KB |
   | Shared stylesheet (`app.scss`) | 10 KB |
   | Search script (every page) | 10 KB |
   | Query engine (loaded on first focus) | 10 KB |
@@ -424,7 +427,8 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
 app's onboarding and main routes and the dictionary's page types, no page scrolls
 sideways, no text is below 12px (furigana in `rt` and SVG chart labels excepted), every
 input is at least 16px (smaller makes iOS zoom), the dictionary's nav links, pager links,
-toggles, tiles and disclosure summaries are at least 44px tall, and a word in a dictionary
+toggles, tiles, disclosure summaries and single-action links are at least 44px tall, every
+dictionary list row is plain (primary ink, no underline), and a word in a dictionary
 sentence carries only its dotted border, never the running-text underline, and no word in an
 app sentence (linked or studied) has a side margin (Japanese has no spaces between words), no
 reading sits over kana (a marked fallback excepted), no ruby breaks across lines and no two

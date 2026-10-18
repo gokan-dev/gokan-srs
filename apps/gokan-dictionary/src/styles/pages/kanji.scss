@@ -61,11 +61,13 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  // Every row as tall as a linked one, so the two columns stay even.
   div {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     gap: $space-2;
-    padding: $space-1 0;
+    min-height: $target;
     border-bottom: 1px solid var(--divider);
   }
 
@@ -74,9 +76,24 @@
     color: var(--secondary);
   }
 
+  // The book's full title, a supporting line under the order label: "RTK, older editions" and
+  // "Remembering the Kanji, 1st to 5th editions" run together would read as one list.
+  .kanji-course-title {
+    display: block;
+    color: var(--tertiary);
+    font-size: $text-sm;
+  }
+
   dd {
     margin: 0;
     font-variant-numeric: tabular-nums;
+
+    // A book position is its row's one action, so it is a 44px target like a tile or a pager link.
+    a {
+      display: inline-block;
+      min-height: $target;
+      line-height: $target;
+    }
   }
 }
 

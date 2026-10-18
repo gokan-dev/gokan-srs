@@ -6,6 +6,7 @@ import {
     loadVocab,
     loadKanjiList,
     loadKanjiVocabIndex,
+    loadKanjiOrderList,
     loadSentences,
     loadFrequencyIndex,
     loadGrammarMinedExamples,
@@ -42,6 +43,12 @@ describe('loadKanjiVocabIndex', () => {
         const index = loadKanjiVocabIndex(FIXTURES_DIR);
         expect(index['思']).toEqual(['1589350']);
         expect(index['日']).toEqual([]);
+    });
+});
+
+describe('loadKanjiOrderList', () => {
+    it("loads an order's kanji in teaching order", () => {
+        expect(loadKanjiOrderList(FIXTURES_DIR, 'kklc')).toEqual(['一', '日', '学', '生']);
     });
 });
 

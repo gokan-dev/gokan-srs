@@ -7,6 +7,7 @@
  */
 export * from './vocabulary';
 export * from './kanji';
+export * from './kanjiSteps';
 export * from './sentence';
 export * from './indexes';
 export * from './grammar';

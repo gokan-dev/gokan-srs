@@ -15,6 +15,11 @@ import {
     vocabJlptPath,
     grammarFamiliesIndexPath,
     absoluteUrl,
+    kanjiOrdersPath,
+    kanjiOrderPath,
+    kanjiOrderSlug,
+    kanjiRangePath,
+    kanjiStepPath,
 } from './urls';
 import { BASE_PATH, SITE_ORIGIN } from './site';
 
@@ -41,6 +46,16 @@ describe('path builders', () => {
         expect(vocabJlptPath(1)).toBe(`${BASE_PATH}/vocab/jlpt-n1/`);
         expect(vocabJlptPath(1, 1)).toBe(`${BASE_PATH}/vocab/jlpt-n1/`);
         expect(vocabJlptPath(1, 3)).toBe(`${BASE_PATH}/vocab/jlpt-n1/3/`);
+    });
+
+    it('puts the kanji orders under the kanji, an order in kebab case, a range by its steps', () => {
+        expect(kanjiOrdersPath()).toBe(`${BASE_PATH}/kanji/orders/`);
+        expect(kanjiOrderPath('kklc')).toBe(`${BASE_PATH}/kanji/orders/kklc/`);
+        expect(kanjiOrderSlug('kanjiInContext')).toBe('kanji-in-context');
+        expect(kanjiOrderPath('rtkLegacy')).toBe(`${BASE_PATH}/kanji/orders/rtk-legacy/`);
+        expect(kanjiRangePath('kklc', { first: 1, last: 100 })).toBe(`${BASE_PATH}/kanji/orders/kklc/1-100/`);
+        expect(kanjiRangePath('henshall', { first: 1901, last: 1945 })).toBe(`${BASE_PATH}/kanji/orders/henshall/1901-1945/`);
+        expect(kanjiStepPath('kklc', { first: 301, last: 400 }, 340)).toBe(`${BASE_PATH}/kanji/orders/kklc/301-400/#step-340`);
     });
 
     it('puts a search query in the results page URL, encoded', () => {

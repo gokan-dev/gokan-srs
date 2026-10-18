@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Kanji } from '@gokan/dataset-schema';
-  import { kanjiPath } from '../lib/urls';
+  import { kanjiOrdersPath, kanjiPath } from '../lib/urls';
   import PageLayout from './PageLayout.svelte';
 
   interface Props {
@@ -19,6 +19,7 @@
   <div class="page-intro">
     <h1>Kanji</h1>
     <p>All {total.toLocaleString('en')} kanji in the dictionary, grouped by JLPT level.</p>
+    <p>Following a kanji book? <a href={kanjiOrdersPath()}>See the words each step of its order unlocks</a>.</p>
   </div>
 
   <nav class="level-nav" aria-label="Levels">

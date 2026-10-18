@@ -99,6 +99,29 @@ $motion: 150ms ease-in-out;
   white-space: nowrap;
 }
 
+/// Bordered rows, each a link that is one by its shape: plain ink, a surface on hover, never
+/// underlined (docs/DESIGN_SYSTEM.md section 8). The row's own layout stays with its list.
+@mixin link-rows {
+  @include bare-list;
+
+  li + li {
+    border-top: 1px solid var(--divider);
+  }
+
+  a {
+    min-height: $target;
+    padding: $space-1 $space-half;
+    color: var(--primary);
+
+    &:hover,
+    &:focus-visible {
+      background-color: var(--surface-hover);
+      color: var(--primary);
+      text-decoration: none;
+    }
+  }
+}
+
 /// A list with no bullets or indent.
 @mixin bare-list {
   list-style: none;

@@ -34,7 +34,8 @@ function measure(manifest: Record<string, ViteManifestEntry>): Measurement[] {
     const wordPages = subdirectories('vocab').filter(name => /^\d+$/.test(name));
     measurements.push({ budget: 'wordPageP90', subject: `${wordPages.length} word pages`, bytes: percentile(wordPages.map(id => sizeOf(pageOf('vocab', id))), 90) });
 
-    const kanjiSizes = subdirectories('kanji').map(character => ({ character, bytes: sizeOf(pageOf('kanji', character)) }));
+    // kanji/orders/ is the learning order pages, not a kanji: no kanji is named with a Latin word.
+    const kanjiSizes = subdirectories('kanji').filter(name => name !== 'orders').map(character => ({ character, bytes: sizeOf(pageOf('kanji', character)) }));
     const heaviest = kanjiSizes.reduce((a, b) => (b.bytes > a.bytes ? b : a));
     measurements.push({ budget: 'kanjiPageMax', subject: `kanji/${heaviest.character}`, bytes: heaviest.bytes });
 
@@ -44,6 +45,14 @@ function measure(manifest: Record<string, ViteManifestEntry>): Measurement[] {
         measurements.push({ budget: 'jlptPage', subject: `vocab/${list}/`, bytes: sizeOf(pageOf('vocab', list)) });
         for (const page of subdirectories(path.join('vocab', list))) {
             measurements.push({ budget: 'jlptPage', subject: `vocab/${list}/${page}/`, bytes: sizeOf(pageOf('vocab', list, page)) });
+        }
+    }
+
+    measurements.push({ budget: 'kanjiOrderPage', subject: 'kanji/orders/', bytes: sizeOf(pageOf('kanji', 'orders')) });
+    for (const order of subdirectories(path.join('kanji', 'orders'))) {
+        measurements.push({ budget: 'kanjiOrderPage', subject: `kanji/orders/${order}/`, bytes: sizeOf(pageOf('kanji', 'orders', order)) });
+        for (const range of subdirectories(path.join('kanji', 'orders', order))) {
+            measurements.push({ budget: 'kanjiOrderPage', subject: `kanji/orders/${order}/${range}/`, bytes: sizeOf(pageOf('kanji', 'orders', order, range)) });
         }
     }
 
@@ -118,9 +127,13 @@ const measurements = measure(manifest);
 const over = overBudget(measurements);
 const problems = [...over.map(m => `over budget: ${describe(m)}`), ...assetProblems(), ...searchProblems()];
 
-for (const m of measurements.filter(m => m.budget !== 'jlptPage')) console.log(`[check-build] ${describe(m)}`);
-const jlpt = measurements.filter(m => m.budget === 'jlptPage');
-console.log(`[check-build] ${describe(jlpt.reduce((a, b) => (b.bytes > a.bytes ? b : a)))} (heaviest of ${jlpt.length} JLPT list pages)`);
+// A budget over many pages reports its heaviest.
+const MANY_PAGES: Partial<Record<Measurement['budget'], string>> = { jlptPage: 'JLPT list pages', kanjiOrderPage: 'kanji order pages' };
+for (const m of measurements.filter(m => MANY_PAGES[m.budget] === undefined)) console.log(`[check-build] ${describe(m)}`);
+for (const [budget, pages] of Object.entries(MANY_PAGES)) {
+    const group = measurements.filter(m => m.budget === budget);
+    console.log(`[check-build] ${describe(group.reduce((a, b) => (b.bytes > a.bytes ? b : a)))} (heaviest of ${group.length} ${pages})`);
+}
 
 if (problems.length > 0) {
     for (const problem of problems) console.error(`[check-build] ${problem}`);

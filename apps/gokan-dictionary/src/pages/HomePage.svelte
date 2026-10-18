@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { VocabSummary } from '../lib/types';
-  import { grammarIndexPath, kanjiIndexPath, vocabIndexPath } from '../lib/urls';
+  import { grammarIndexPath, kanjiIndexPath, kanjiOrdersPath, vocabIndexPath } from '../lib/urls';
   import { SITE_ORIGIN } from '../lib/site';
   import PageLayout from './PageLayout.svelte';
   import SearchBox from './SearchBox.svelte';
@@ -28,7 +28,7 @@
 
   <section class="section">
     <h2>Browse</h2>
-    <ul class="tiles">
+    <ul class="tiles" style="--tiles: 2">
       <li>
         <a class="tile" href={vocabIndexPath()}>
           <span class="tile-title">Vocabulary</span>
@@ -41,6 +41,13 @@
           <span class="tile-title">Kanji</span>
           <span class="tile-meta">{kanjiCount.toLocaleString('en')} characters</span>
           <span class="tile-blurb">The words that use each character.</span>
+        </a>
+      </li>
+      <li>
+        <a class="tile" href={kanjiOrdersPath()}>
+          <span class="tile-title">Kanji learning orders</span>
+          <span class="tile-meta">KKLC, RTK and more</span>
+          <span class="tile-blurb">The words you can read at each step of your kanji book.</span>
         </a>
       </li>
       <li>

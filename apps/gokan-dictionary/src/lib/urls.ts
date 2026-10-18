@@ -6,6 +6,7 @@
 // the base-path prefix, because the deploy step supplies that prefix as the S3 key prefix it
 // syncs into. See site.ts's BASE_PATH comment.
 
+import type { KanjiOrderId } from '@gokan/dataset-schema';
 import { BASE_PATH, SITE_ORIGIN } from './site';
 
 export function homePath(): string {
@@ -34,6 +35,41 @@ export function vocabPath(id: string): string {
 
 export function kanjiPath(character: string): string {
     return `${BASE_PATH}/kanji/${encodeURIComponent(character)}/`;
+}
+
+/** Every kanji learning order, linking to each order's page. */
+export function kanjiOrdersPath(): string {
+    return `${BASE_PATH}/kanji/orders/`;
+}
+
+/** An order id as a URL segment: kebab case, as URLs are written ("kanjiInContext" -> "kanji-in-context"). */
+export function kanjiOrderSlug(order: KanjiOrderId): string {
+    return order.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`);
+}
+
+/** One order's page: its steps in ranges of 100 kanji. */
+export function kanjiOrderPath(order: KanjiOrderId): string {
+    return `${BASE_PATH}/kanji/orders/${kanjiOrderSlug(order)}/`;
+}
+
+/** The segment naming a range of steps: "1-100", or "2201-2300". */
+export function kanjiRangeSlug(range: { first: number; last: number }): string {
+    return `${range.first}-${range.last}`;
+}
+
+/** One range of an order's steps, and the words they unlock: "/dictionary/kanji/orders/kklc/1-100/". */
+export function kanjiRangePath(order: KanjiOrderId, range: { first: number; last: number }): string {
+    return `${kanjiOrderPath(order)}${kanjiRangeSlug(range)}/`;
+}
+
+/** The id of one step's section on its range page. */
+export function kanjiStepAnchor(step: number): string {
+    return `step-${step}`;
+}
+
+/** One step on its range page: "/dictionary/kanji/orders/kklc/301-400/#step-340". */
+export function kanjiStepPath(order: KanjiOrderId, range: { first: number; last: number }, step: number): string {
+    return `${kanjiRangePath(order, range)}#${kanjiStepAnchor(step)}`;
 }
 
 export function grammarIndexPath(): string {

@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { kanjiBookPositions, kanjiGradeLabel, kunReadingLabel } from '@gokan/dataset-schema';
-  import type { Kanji } from '@gokan/dataset-schema';
+  import { isKanjiOrderId, kanjiBookPositions, kanjiGradeLabel, kunReadingLabel } from '@gokan/dataset-schema';
+  import type { Kanji, KanjiBook, KanjiOrderId } from '@gokan/dataset-schema';
   import type { VocabSummary } from '../lib/types';
-  import { kanjiIndexPath, kanjiPath } from '../lib/urls';
+  import { rangeOfStep } from '../lib/kanjiOrders';
+  import { kanjiIndexPath, kanjiPath, kanjiStepPath } from '../lib/urls';
   import PageLayout from './PageLayout.svelte';
   import Chip from './Chip.svelte';
   import VocabEntryList from './VocabEntryList.svelte';
@@ -13,9 +14,18 @@
     words: VocabSummary[];
     /** Every kanji with a page, so a component that is one (子 in 学) links to it. */
     kanjiWithPages: ReadonlySet<string>;
+    /** Each learning order's length: a book position links to its range page when the book is an order. */
+    orderLengths: ReadonlyMap<KanjiOrderId, number>;
   }
 
-  let { kanji, words, kanjiWithPages }: Props = $props();
+  let { kanji, words, kanjiWithPages, orderLengths }: Props = $props();
+
+  /** This kanji's step on its range page, with the words it unlocks; none for a book that is not an order (Essential Kanji). */
+  function rangeHref(book: KanjiBook, position: number): string | undefined {
+    if (!isKanjiOrderId(book)) return undefined;
+    const length = orderLengths.get(book);
+    return length === undefined ? undefined : kanjiStepPath(book, rangeOfStep(position, length), position);
+  }
 
   const WORDS_VISIBLE = 30;
   const level = $derived(kanji.steps.jlpt);
@@ -77,8 +87,10 @@
     <section class="section">
       <h2>In kanji courses</h2>
       <dl class="kanji-courses">
-        {#each courses as { book, name, position } (book)}
-          <div><dt>{name}</dt><dd>#{position.toLocaleString('en')}</dd></div>
+        {#each courses as { book, name, label, position } (book)}
+          {@const href = rangeHref(book, position)}
+          <!-- Named as the order pages its link lands on name it, the full title under it (heard after a comma). -->
+          <div><dt>{#if label}{label}<span class="kanji-course-title"><span class="visually-hidden">, </span>{name}</span>{:else}{name}{/if}</dt><dd>{#if href}<a {href}>#{position.toLocaleString('en')}</a>{:else}#{position.toLocaleString('en')}{/if}</dd></div>
         {/each}
       </dl>
     </section>

@@ -1,5 +1,4 @@
-import type { FrequencyIndex, JlptIndex, MediaWordCount } from '@gokan/dataset-schema';
-import type { KanjiStepIndex } from './kanjiOrder.utils';
+import type { FrequencyIndex, JlptIndex, KanjiStepIndex, MediaWordCount } from '@gokan/dataset-schema';
 import type { LearningOrder } from '../models/user.model';
 import { numericEntries } from './records';
 import { orderIncludesUsuallyKana } from './usuallyKana.utils';

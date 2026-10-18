@@ -502,24 +502,7 @@ a.chip {
 
 .entry-list,
 .grammar-list {
-  @include bare-list;
-
-  li + li {
-    border-top: 1px solid var(--divider);
-  }
-
-  a {
-    min-height: $target;
-    padding: $space-1 $space-half;
-    color: var(--primary);
-
-    &:hover,
-    &:focus-visible {
-      background-color: var(--surface-hover);
-      color: var(--primary);
-      text-decoration: none;
-    }
-  }
+  @include link-rows;
 }
 
 // -- Word lists: headword | reading | gloss ---------------------------------

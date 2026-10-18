@@ -5,10 +5,14 @@
  * - no page scrolls sideways;
  * - no text below the 12px floor (furigana, in `rt`, and SVG chart labels excepted);
  * - every text input is at least 16px, or iOS zooms into it on focus;
- * - the dictionary's nav links, pager links, toggles, tiles and disclosure summaries are at
- *   least 44px tall;
+ * - the dictionary's nav links, pager links, toggles, tiles, disclosure summaries and single links
+ *   in a row (a kanji's book position, a range step's glyph) are at least 44px tall;
+ * - a dictionary list row (`.entry-list a`, `.grammar-list a`, `.range-list a`) is plain: primary
+ *   ink, no underline (docs/DESIGN_SYSTEM.md section 8: a row is a link by its shape);
  * - a word in a dictionary sentence (`.sentence-jp a`) has no text underline: the running-text
  *   underline on `p a` must not stack on its dotted border;
+ * - a dictionary pager link's spoken name contains its visible text (WCAG 2.5.3, Label in Name):
+ *   no `aria-label` that replaces "301-400" with other words;
  * - About before setup shows a visible dictionary link, in a footer aligned with the header;
  * - furigana sits over kanji only, never over kana, no ruby (a run of kanji with its reading)
  *   breaks across lines, and no two readings on a line touch (word pages' example sentences, in each app).
@@ -68,6 +72,14 @@ const MEASURE = (deviceWidth: number, tapTargets: string) => `(() => {
     if (short.length) problems.push('tap target under 44px: ' + short.slice(0, 3).map(el => describe(el) + ' ' + Math.round(el.getBoundingClientRect().height) + 'px').join(', '));
     const underlined = [...document.querySelectorAll('.sentence-jp a')].filter(el => visible(el) && getComputedStyle(el).textDecorationLine !== 'none');
     if (underlined.length) problems.push('sentence word underlined (only its dotted border is): ' + underlined.slice(0, 3).map(describe).join(', '));
+    const probe = document.body.appendChild(document.createElement('span'));
+    probe.style.color = 'var(--primary)';
+    const ink = getComputedStyle(probe).color;
+    probe.remove();
+    const inked = [...document.querySelectorAll('.entry-list a, .grammar-list a, .range-list a')].filter(el => visible(el) && (getComputedStyle(el).color !== ink || getComputedStyle(el).textDecorationLine !== 'none'));
+    if (inked.length) problems.push('list row not plain (primary ink, no underline): ' + inked.slice(0, 3).map(el => describe(el) + ' ' + getComputedStyle(el).color).join(', '));
+    const renamed = [...document.querySelectorAll('.pager a[aria-label]')].filter(el => !el.getAttribute('aria-label').includes(el.textContent.trim()));
+    if (renamed.length) problems.push('pager link named without its visible text (WCAG 2.5.3; prefix it with a visually hidden span instead): ' + renamed.slice(0, 3).map(el => describe(el) + ' named "' + el.getAttribute('aria-label') + '"').join(', '));
     const spaced = [...document.querySelectorAll('[data-sentence] > *')].filter(el => visible(el) && parseFloat(getComputedStyle(el).marginLeft) + parseFloat(getComputedStyle(el).marginRight) > 0);
     if (spaced.length) problems.push('sentence word has a side margin (reads as a space in Japanese): ' + spaced.slice(0, 3).map(describe).join(', '));
     // Furigana (docs/DESIGN_SYSTEM.md): a reading sits over kanji only (what rubyParts counts as
@@ -103,7 +115,7 @@ const MEASURE = (deviceWidth: number, tapTargets: string) => `(() => {
     return problems;
 })()`;
 
-const DICTIONARY_TAP_TARGETS = '.site-nav a, .pager a, summary, .kanji-tiles a, button.button';
+const DICTIONARY_TAP_TARGETS = '.site-nav a, .pager a, summary, .kanji-tiles a, .range-list a, .kanji-courses a, .range-step h3 a, button.button';
 
 const failures: string[] = [];
 let checked = 0;

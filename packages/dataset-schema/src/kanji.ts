@@ -61,11 +61,14 @@ export interface KanjiRadical {
 /** A book that numbers the kanji in the order it teaches them. */
 export type KanjiBook = Exclude<keyof KanjiSteps, 'jlpt' | 'frequency'>;
 
+/** The book and its order's description: one string, so a kanji page and the order pages spell it alike. */
+const RTK_LEGACY_TITLE = 'Remembering the Kanji, 1st to 5th editions';
+
 /** Each book's name, as a learner knows it. */
 export const KANJI_BOOKS: Record<KanjiBook, string> = {
     kklc: 'Kodansha Kanji Learner\'s Course',
     rtk: 'Remembering the Kanji',
-    rtkLegacy: 'Remembering the Kanji, 1st-5th editions',
+    rtkLegacy: RTK_LEGACY_TITLE,
     kanjiInContext: 'Kanji in Context',
     kanjiKana: 'Kanji & Kana',
     henshall: 'A Guide to Remembering Japanese Characters',
@@ -85,12 +88,19 @@ export interface KanjiOrder {
     id: KanjiOrderId;
     /** Short, for a picker and a label: "RTK". */
     label: string;
+    /** No parentheses: the order pages already write it in them, after the label. */
     description: string;
     /**
      * How a sentence naming every order says this one ("Remembering the Kanji in any edition").
      * Orders a learner thinks of as one share it, and `supportedOrdersList` says it once.
      */
     listName: string;
+    /**
+     * How a learner names the order in a search, for the dictionary's page titles ("KKLC
+     * vocabulary list"): the label, unless it would not say it alone (a derived order is not a
+     * book, RTK's older editions are searched by edition).
+     */
+    searchName: string;
 }
 
 /** Every order, the most followed first: a Record, so adding an order fails until it is described. */
@@ -99,17 +109,17 @@ const DERIVED_LIST_NAME = 'JLPT and frequency order';
 const CARDS_LIST_NAME = 'the White Rabbit and Tuttle cards';
 
 const ORDER_INFO: Record<KanjiOrderId, Omit<KanjiOrder, 'id'>> = {
-    kklc: { label: 'KKLC', description: 'Kodansha Kanji Learner\'s Course', listName: 'KKLC' },
-    rtk: { label: 'RTK', description: 'Remembering the Kanji, 6th edition (books 1 and 3)', listName: RTK_LIST_NAME },
-    jlpt: { label: 'JLPT', description: 'N5 first, the most common kanji first within a level', listName: DERIVED_LIST_NAME },
-    frequency: { label: 'Frequency', description: 'The kanji met most often in print first', listName: DERIVED_LIST_NAME },
-    kanjiKana: { label: 'Kanji & Kana', description: 'The jōyō in the order Japanese schools teach it (Hadamitzky)', listName: 'Kanji & Kana (the school-grade order)' },
-    kanjiInContext: { label: 'Kanji in Context', description: 'Nishiguchi and Kono', listName: 'Kanji in Context' },
-    rtkLegacy: { label: 'RTK, older editions', description: 'Remembering the Kanji, 1st to 5th editions', listName: RTK_LIST_NAME },
-    henshall: { label: 'Henshall', description: 'A Guide to Remembering Japanese Characters', listName: 'Henshall' },
-    kanjiFlashcards: { label: 'White Rabbit cards', description: 'Japanese Kanji Flashcards (White Rabbit Press)', listName: CARDS_LIST_NAME },
-    tuttleCards: { label: 'Tuttle cards', description: 'Tuttle Kanji Cards', listName: CARDS_LIST_NAME },
-    maniette: { label: 'Maniette', description: 'Les Kanjis dans la tête, the French RTK', listName: 'Les Kanjis dans la tête' },
+    kklc: { label: 'KKLC', description: 'Kodansha Kanji Learner\'s Course', listName: 'KKLC', searchName: 'KKLC' },
+    rtk: { label: 'RTK', description: 'Remembering the Kanji, 6th edition, books 1 and 3', listName: RTK_LIST_NAME, searchName: 'RTK' },
+    jlpt: { label: 'JLPT', description: 'N5 first, the most common kanji first within a level', listName: DERIVED_LIST_NAME, searchName: 'JLPT kanji order' },
+    frequency: { label: 'Frequency', description: 'The kanji met most often in print first', listName: DERIVED_LIST_NAME, searchName: 'Kanji frequency order' },
+    kanjiKana: { label: 'Kanji & Kana', description: 'The jōyō in the order Japanese schools teach it, after Hadamitzky', listName: 'Kanji & Kana (the school-grade order)', searchName: 'Kanji & Kana' },
+    kanjiInContext: { label: 'Kanji in Context', description: 'Nishiguchi and Kono', listName: 'Kanji in Context', searchName: 'Kanji in Context' },
+    rtkLegacy: { label: 'RTK, older editions', description: RTK_LEGACY_TITLE, listName: RTK_LIST_NAME, searchName: 'RTK 1st to 5th editions' },
+    henshall: { label: 'Henshall', description: 'A Guide to Remembering Japanese Characters', listName: 'Henshall', searchName: 'Henshall' },
+    kanjiFlashcards: { label: 'White Rabbit cards', description: 'Japanese Kanji Flashcards, White Rabbit Press', listName: CARDS_LIST_NAME, searchName: 'White Rabbit kanji cards' },
+    tuttleCards: { label: 'Tuttle cards', description: 'Tuttle Kanji Cards', listName: CARDS_LIST_NAME, searchName: 'Tuttle kanji cards' },
+    maniette: { label: 'Maniette', description: 'Les Kanjis dans la tête, the French RTK', listName: 'Les Kanjis dans la tête', searchName: 'Les Kanjis dans la tête' },
 };
 
 /** The orders a learner can pick, the most followed first. */
@@ -132,11 +142,18 @@ export function isKanjiOrderId(value: unknown): value is KanjiOrderId {
     return typeof value === 'string' && Object.hasOwn(ORDER_INFO, value);
 }
 
-/** The books that teach this kanji and its position in each, in `KANJI_BOOKS` order. */
-export function kanjiBookPositions(kanji: Pick<Kanji, 'steps'>): { book: KanjiBook; name: string; position: number }[] {
+/**
+ * The books that teach this kanji and its position in each, in `KANJI_BOOKS` order. `label` is the
+ * order's label when the book is an order and the label differs from its title ("White Rabbit
+ * cards" for Japanese Kanji Flashcards): the name its order pages use.
+ */
+export function kanjiBookPositions(kanji: Pick<Kanji, 'steps'>): { book: KanjiBook; name: string; label?: string; position: number }[] {
     return (Object.keys(KANJI_BOOKS) as KanjiBook[]).flatMap(book => {
         const position = kanji.steps[book];
-        return position === undefined ? [] : [{ book, name: KANJI_BOOKS[book], position }];
+        if (position === undefined) return [];
+        const name = KANJI_BOOKS[book];
+        const label = isKanjiOrderId(book) ? ORDER_INFO[book].label : undefined;
+        return [{ book, name, position, ...(label === undefined || label === name ? {} : { label }) }];
     });
 }
 

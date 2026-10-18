@@ -43,6 +43,7 @@ export default defineConfig({
         stylesVocab: entry('./src/styles/pages/vocab.scss'),
         stylesKanji: entry('./src/styles/pages/kanji.scss'),
         stylesKanjiIndex: entry('./src/styles/pages/kanji-index.scss'),
+        stylesKanjiOrders: entry('./src/styles/pages/kanji-orders.scss'),
         stylesGrammar: entry('./src/styles/pages/grammar.scss'),
         stylesGrammarIndex: entry('./src/styles/pages/grammar-index.scss'),
         stylesGrammarChapters: entry('./src/styles/pages/grammar-chapters.scss'),

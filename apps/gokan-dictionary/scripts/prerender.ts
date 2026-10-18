@@ -28,6 +28,7 @@ import {
     loadVocab,
     loadKanjiList,
     loadKanjiVocabIndex,
+    loadKanjiOrderList,
     loadSentences,
     loadFrequencyIndex,
     listGrammarIds,
@@ -56,6 +57,9 @@ import {
     grammarChapterMeta,
     grammarFamilyMeta,
     grammarConjugationsIndexMeta,
+    kanjiOrdersMeta,
+    kanjiOrderMeta,
+    kanjiRangeMeta,
     type PageMeta,
 } from '../src/lib/seo';
 import {
@@ -74,6 +78,11 @@ import {
     grammarChapterPath,
     grammarFamilyPath,
     grammarConjugationsIndexPath,
+    kanjiOrdersPath,
+    kanjiOrderPath,
+    kanjiOrderSlug,
+    kanjiRangePath,
+    kanjiRangeSlug,
 } from '../src/lib/urls';
 import { japaneseWithoutLang, renderDocument } from '../src/lib/documentShell';
 import { buildSitemapXml, buildRobotsTxt, shouldEmitRobotsTxt } from '../src/lib/sitemap';
@@ -86,8 +95,9 @@ import { conjugationTables } from '../src/lib/grammarConjugations';
 import { orderSentences } from '../src/lib/sentenceOrder';
 import { searchGrammarRow, searchKanjiRow, searchWordRow, splitSearchIndex } from '../src/lib/searchIndex';
 import { paginate, JLPT_PAGE_SIZE } from '../src/lib/pagination';
-import { headwordOf, JLPT_LEVELS } from '@gokan/dataset-schema';
-import type { GrammarPoint, Kanji, Vocabulary } from '@gokan/dataset-schema';
+import { kanjiRanges, WORDS_PER_KANJI } from '../src/lib/kanjiOrders';
+import { headwordOf, JLPT_LEVELS, KANJI_ORDERS, kanjiStepIndex } from '@gokan/dataset-schema';
+import type { GrammarPoint, Kanji, KanjiOrderId, Vocabulary } from '@gokan/dataset-schema';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = path.join(__dirname, '..');
@@ -148,6 +158,7 @@ async function main(): Promise<void> {
         vocab: asset('src/styles/pages/vocab.scss'),
         kanji: asset('src/styles/pages/kanji.scss'),
         kanjiIndex: asset('src/styles/pages/kanji-index.scss'),
+        kanjiOrders: asset('src/styles/pages/kanji-orders.scss'),
         grammar: asset('src/styles/pages/grammar.scss'),
         grammarIndex: asset('src/styles/pages/grammar-index.scss'),
         grammarChapters: asset('src/styles/pages/grammar-chapters.scss'),
@@ -204,6 +215,9 @@ async function main(): Promise<void> {
     const { default: GrammarFamilyPage } = await import('../src/pages/GrammarFamilyPage.svelte');
     const { default: GrammarConjugationsIndexPage } = await import('../src/pages/GrammarConjugationsIndexPage.svelte');
     const { default: KanjiIndexPage } = await import('../src/pages/KanjiIndexPage.svelte');
+    const { default: KanjiOrdersPage } = await import('../src/pages/KanjiOrdersPage.svelte');
+    const { default: KanjiOrderPage } = await import('../src/pages/KanjiOrderPage.svelte');
+    const { default: KanjiRangePage } = await import('../src/pages/KanjiRangePage.svelte');
     const { default: VocabIndexPage } = await import('../src/pages/VocabIndexPage.svelte');
     const { default: VocabJlptPage } = await import('../src/pages/VocabJlptPage.svelte');
     const { default: SearchPage } = await import('../src/pages/SearchPage.svelte');
@@ -214,6 +228,9 @@ async function main(): Promise<void> {
     const kanjiVocabIndex = loadKanjiVocabIndex(compiledDir);
     const vocabJlptIndex = loadVocabJlptIndex(compiledDir);
     const frequencyIndex = loadFrequencyIndex(compiledDir);
+    const kanjiOrderLists = KANJI_ORDERS.map(order => ({ order, list: loadKanjiOrderList(compiledDir, order.id) }));
+    // A kanji page links each book position to its range page, which needs the order's length.
+    const orderLengths: ReadonlyMap<KanjiOrderId, number> = new Map(kanjiOrderLists.map(({ order, list }) => [order.id, list.length]));
 
     // Built as a separate pass (rather than caching full Vocabulary objects while writing
     // pages below) so memory stays bounded to ~36k small summaries and search rows instead of
@@ -264,7 +281,7 @@ async function main(): Promise<void> {
         // string: static hosts decode the request URL's percent-escapes before resolving a
         // file on disk, so the on-disk name must be the literal UTF-8 character to match what
         // a browser actually requests when it navigates to kanjiPath()'s href.
-        writePage(['kanji', kanji.character], kanjiPath(kanji.character), bodyOf(KanjiPage, { kanji, words, kanjiWithPages }), kanjiMeta(kanji, words.length), {
+        writePage(['kanji', kanji.character], kanjiPath(kanji.character), bodyOf(KanjiPage, { kanji, words, kanjiWithPages, orderLengths }), kanjiMeta(kanji, words.length), {
             pageStylesheetHref: pageStyles.kanji,
         });
     }
@@ -391,6 +408,35 @@ async function main(): Promise<void> {
         pageStylesheetHref: pageStyles.kanjiIndex,
     });
 
+    // One page set per learning order: the words each step unlocks, by kanjiStepIndex, the rule
+    // the app's kanji-driven order follows, so the two never disagree.
+    console.log(`[prerender] writing ${kanjiOrderLists.length} kanji learning order page sets...`);
+    let rangePageCount = 0;
+    const orderTotals = kanjiOrderLists.map(({ order, list }) => {
+        const ranges = kanjiRanges(list, kanjiStepIndex(frequencyIndex, list));
+        const wordCount = ranges.reduce((sum, range) => sum + range.wordCount, 0);
+        const slug = kanjiOrderSlug(order.id);
+        writePage(['kanji', 'orders', slug], kanjiOrderPath(order.id), bodyOf(KanjiOrderPage, { order, ranges, kanjiCount: list.length, wordCount }), kanjiOrderMeta(order, list.length, wordCount), {
+            pageStylesheetHref: pageStyles.kanjiOrders,
+        });
+        const stepRanges = ranges.map(({ first, last }) => ({ first, last }));
+        for (const range of ranges) {
+            const steps = range.steps.map(({ step, character, wordIds }) => ({
+                step,
+                character,
+                words: resolveSummaries(wordIds.slice(0, WORDS_PER_KANJI), summaryById, missingRelatedIds),
+                total: wordIds.length,
+            }));
+            const body = bodyOf(KanjiRangePage, { order, range: { first: range.first, last: range.last }, steps, wordCount: range.wordCount, ranges: stepRanges });
+            writePage(['kanji', 'orders', slug, kanjiRangeSlug(range)], kanjiRangePath(order.id, range), body, kanjiRangeMeta(order, range, range.wordCount), {
+                pageStylesheetHref: pageStyles.kanjiOrders,
+            });
+            rangePageCount += 1;
+        }
+        return { order, kanjiCount: list.length, wordCount };
+    });
+    writePage(['kanji', 'orders'], kanjiOrdersPath(), bodyOf(KanjiOrdersPage, { orders: orderTotals }), kanjiOrdersMeta(KANJI_ORDERS));
+
     console.log('[prerender] writing vocabulary browse pages...');
     const jlptLevelWords = JLPT_LEVELS.map(level => ({
         level,
@@ -477,6 +523,7 @@ async function main(): Promise<void> {
         `[prerender] done: ${vocabIds.length} vocab pages, ${kanjiList.length} kanji pages, ` +
         `${grammarPoints.size} grammar pages, ${chapterRows.length} grammar chapter pages, ` +
         `${familyPages.length} grammar family pages, ${jlptPageCount} JLPT list pages, ` +
+        `${kanjiOrderLists.length} kanji order pages and ${rangePageCount} of their ranges, ` +
         `${sitemapPaths.length} sitemap URLs in ${elapsedSeconds}s.`,
     );
 }

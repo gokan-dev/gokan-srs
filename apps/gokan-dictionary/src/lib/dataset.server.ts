@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import type { FrequencyIndex, GrammarConjugationIndex, GrammarContrastIndex, GrammarExample, GrammarJlptIndex, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex, JlptIndex, Kanji, KanjiVocabIndex, Sentence, Vocabulary } from '@gokan/dataset-schema';
+import type { FrequencyIndex, GrammarConjugationIndex, GrammarContrastIndex, GrammarExample, GrammarJlptIndex, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex, JlptIndex, Kanji, KanjiOrderId, KanjiOrderList, KanjiVocabIndex, Sentence, Vocabulary } from '@gokan/dataset-schema';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -72,6 +72,12 @@ export function loadKanjiList(compiledDir: string): Kanji[] {
 export function loadKanjiVocabIndex(compiledDir: string): KanjiVocabIndex {
     const raw = fs.readFileSync(path.join(compiledDir, 'index', 'kanji-vocab.json'), 'utf-8');
     return JSON.parse(raw) as KanjiVocabIndex;
+}
+
+/** One kanji learning order's kanji, in teaching order: step N is the Nth. */
+export function loadKanjiOrderList(compiledDir: string, order: KanjiOrderId): KanjiOrderList {
+    const raw = fs.readFileSync(path.join(compiledDir, 'index', 'kanji-orders', `${order}.json`), 'utf-8');
+    return JSON.parse(raw) as KanjiOrderList;
 }
 
 export function loadSentences(compiledDir: string, vocabId: string): Sentence[] | null {

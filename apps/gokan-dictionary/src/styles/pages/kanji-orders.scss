@@ -1,0 +1,77 @@
+// Kanji learning order pages (KanjiOrdersPage, KanjiOrderPage, KanjiRangePage) only. The hub's
+// tiles are app.scss's.
+
+@use '../tokens' as *;
+
+// An order's ranges: one row each, the steps, the first kanji, then the counts.
+.range-list {
+  @include link-rows;
+
+  a {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0 $space-2;
+  }
+
+  .meta {
+    margin-left: auto;
+  }
+}
+
+// Wide enough for the longest title ("Steps 3001 to 3007"), so every preview starts in one column.
+.range-title {
+  min-width: 18ch;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.range-preview {
+  min-width: 0;
+  font-family: $font-mincho;
+  font-size: $text-lg;
+  color: var(--primary);
+}
+
+.kanji-tiles {
+  @include glyph-tiles;
+}
+
+// One step of a range: its number and kanji, then the words it unlocks.
+.range-step {
+  margin-top: $space-3;
+  // A #step-N link (the tiles, a kanji page's book position) lands with room above the heading.
+  scroll-margin-top: $space-3;
+
+  h3 {
+    display: flex;
+    align-items: baseline;
+    gap: $space-1;
+    margin: 0 0 $space-1;
+    font-size: $text-base;
+    font-weight: 500;
+
+    // The step's one link: a 44px target around the glyph, the glyph unchanged and next to its
+    // number (centred, it sat a glyph's width away from it).
+    a {
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-start;
+      min-width: $target;
+      min-height: $target;
+      font-family: $font-mincho;
+      font-size: $text-2xl;
+    }
+  }
+
+  .meta {
+    margin: $space-1 0 0;
+  }
+}
+
+.range-step-number {
+  // Four tabular digits (one `ch` each), so every glyph starts in one column.
+  min-width: 4ch;
+  color: var(--tertiary);
+  font-variant-numeric: tabular-nums;
+}
