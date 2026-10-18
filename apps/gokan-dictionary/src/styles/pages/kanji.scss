@@ -76,6 +76,14 @@
     color: var(--secondary);
   }
 
+  // The book's full title, a supporting line under the order label: "RTK, older editions" and
+  // "Remembering the Kanji, 1st to 5th editions" run together would read as one list.
+  .kanji-course-title {
+    display: block;
+    color: var(--tertiary);
+    font-size: $text-sm;
+  }
+
   dd {
     margin: 0;
     font-variant-numeric: tabular-nums;

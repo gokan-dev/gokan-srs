@@ -26,7 +26,7 @@
   const current = $derived(ranges.findIndex(other => other.first === range.first) + 1);
   const rangeHref = (page: number) => kanjiRangePath(order.id, ranges[page - 1]);
   const rangeText = (page: number) => kanjiRangeSlug(ranges[page - 1]);
-  // Heard as "Steps 301-400": alone, a screen reader may read "301-400" as "301 minus 400".
+  // Heard as "Steps 301-400", so the numbers say what they count.
   const rangePrefix = () => 'Steps ';
 </script>
 

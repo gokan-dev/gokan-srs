@@ -61,11 +61,14 @@ export interface KanjiRadical {
 /** A book that numbers the kanji in the order it teaches them. */
 export type KanjiBook = Exclude<keyof KanjiSteps, 'jlpt' | 'frequency'>;
 
+/** The book and its order's description: one string, so a kanji page and the order pages spell it alike. */
+const RTK_LEGACY_TITLE = 'Remembering the Kanji, 1st to 5th editions';
+
 /** Each book's name, as a learner knows it. */
 export const KANJI_BOOKS: Record<KanjiBook, string> = {
     kklc: 'Kodansha Kanji Learner\'s Course',
     rtk: 'Remembering the Kanji',
-    rtkLegacy: 'Remembering the Kanji, 1st-5th editions',
+    rtkLegacy: RTK_LEGACY_TITLE,
     kanjiInContext: 'Kanji in Context',
     kanjiKana: 'Kanji & Kana',
     henshall: 'A Guide to Remembering Japanese Characters',
@@ -111,7 +114,7 @@ const ORDER_INFO: Record<KanjiOrderId, Omit<KanjiOrder, 'id'>> = {
     frequency: { label: 'Frequency', description: 'The kanji met most often in print first', listName: DERIVED_LIST_NAME, searchName: 'Kanji frequency order' },
     kanjiKana: { label: 'Kanji & Kana', description: 'The jōyō in the order Japanese schools teach it (Hadamitzky)', listName: 'Kanji & Kana (the school-grade order)', searchName: 'Kanji & Kana' },
     kanjiInContext: { label: 'Kanji in Context', description: 'Nishiguchi and Kono', listName: 'Kanji in Context', searchName: 'Kanji in Context' },
-    rtkLegacy: { label: 'RTK, older editions', description: 'Remembering the Kanji, 1st to 5th editions', listName: RTK_LIST_NAME, searchName: 'RTK 1st to 5th edition' },
+    rtkLegacy: { label: 'RTK, older editions', description: RTK_LEGACY_TITLE, listName: RTK_LIST_NAME, searchName: 'RTK 1st to 5th edition' },
     henshall: { label: 'Henshall', description: 'A Guide to Remembering Japanese Characters', listName: 'Henshall', searchName: 'Henshall' },
     kanjiFlashcards: { label: 'White Rabbit cards', description: 'Japanese Kanji Flashcards (White Rabbit Press)', listName: CARDS_LIST_NAME, searchName: 'White Rabbit kanji cards' },
     tuttleCards: { label: 'Tuttle cards', description: 'Tuttle Kanji Cards', listName: CARDS_LIST_NAME, searchName: 'Tuttle kanji cards' },
@@ -138,11 +141,18 @@ export function isKanjiOrderId(value: unknown): value is KanjiOrderId {
     return typeof value === 'string' && Object.hasOwn(ORDER_INFO, value);
 }
 
-/** The books that teach this kanji and its position in each, in `KANJI_BOOKS` order. */
-export function kanjiBookPositions(kanji: Pick<Kanji, 'steps'>): { book: KanjiBook; name: string; position: number }[] {
+/**
+ * The books that teach this kanji and its position in each, in `KANJI_BOOKS` order. `label` is the
+ * order's label when the book is an order and the label differs from its title ("White Rabbit
+ * cards" for Japanese Kanji Flashcards): the name its order pages use.
+ */
+export function kanjiBookPositions(kanji: Pick<Kanji, 'steps'>): { book: KanjiBook; name: string; label?: string; position: number }[] {
     return (Object.keys(KANJI_BOOKS) as KanjiBook[]).flatMap(book => {
         const position = kanji.steps[book];
-        return position === undefined ? [] : [{ book, name: KANJI_BOOKS[book], position }];
+        if (position === undefined) return [];
+        const name = KANJI_BOOKS[book];
+        const label = isKanjiOrderId(book) ? ORDER_INFO[book].label : undefined;
+        return [{ book, name, position, ...(label === undefined || label === name ? {} : { label }) }];
     });
 }
 

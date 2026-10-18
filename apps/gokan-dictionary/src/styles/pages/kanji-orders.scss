@@ -70,8 +70,8 @@
 }
 
 .range-step-number {
-  // Four tabular digits, so every glyph starts in one column.
-  min-width: 2.5rem;
+  // Four tabular digits (one `ch` each), so every glyph starts in one column.
+  min-width: 4ch;
   color: var(--tertiary);
   font-variant-numeric: tabular-nums;
 }

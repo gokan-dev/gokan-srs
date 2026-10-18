@@ -87,9 +87,10 @@
     <section class="section">
       <h2>In kanji courses</h2>
       <dl class="kanji-courses">
-        {#each courses as { book, name, position } (book)}
+        {#each courses as { book, name, label, position } (book)}
           {@const href = rangeHref(book, position)}
-          <div><dt>{name}</dt><dd>{#if href}<a {href}>#{position.toLocaleString('en')}</a>{:else}#{position.toLocaleString('en')}{/if}</dd></div>
+          <!-- Named as the order pages its link lands on name it, the full title under it (heard after a comma). -->
+          <div><dt>{#if label}{label}<span class="kanji-course-title"><span class="visually-hidden">, </span>{name}</span>{:else}{name}{/if}</dt><dd>{#if href}<a {href}>#{position.toLocaleString('en')}</a>{:else}#{position.toLocaleString('en')}{/if}</dd></div>
         {/each}
       </dl>
     </section>
