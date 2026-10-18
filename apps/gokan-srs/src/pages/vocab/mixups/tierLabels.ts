@@ -13,7 +13,7 @@ export const TIER_LABEL: Record<MixupTier, { sign: string; label: string; meanin
     confusable: {
         sign: '≈',
         label: 'Confusable',
-        meaning: 'Close in one meaning only. The other word is accepted when the card uses that meaning, unless the pair is marked distinct by hand; otherwise it earns nothing and costs nothing.',
+        meaning: 'Close in one meaning only. When the card uses that meaning, the other word is accepted, unless the pair was marked distinct by hand. Otherwise it earns nothing and costs nothing.',
     },
     unrelated: {
         sign: '≠',

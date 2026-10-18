@@ -72,6 +72,10 @@ const DATASET_URL_HELPER = 'apps/gokan-srs/src/services/http.ts';
 const UI_SOURCE = /^apps\/(gokan-srs|gokan-dictionary)\/src\/.*\.(tsx|svelte)$/;
 const RENDERED_KANJI_SPELLING = /\{[^{}]*\bwrittenForm\.kanji\b[^{}]*\}/;
 const KANJI_SPELLING_NOTE = 'apps/gokan-srs/src/components/KanjiSpellingNote.tsx';
+/** A word's reading rendered as text, as the form beside its headword. */
+const RENDERED_READING = />\{[\w.?]*\breading\.primary\}</;
+/** What makes a rendered reading safe on a line or the two before it: a guard on a word learned in kana. */
+const KANA_GUARD = /usuallyKana|!== headwordOf\(/;
 
 // An agent workflow that can push queues on its branch's lock, so two agents never run on one
 // branch at once; one without the lock is a workflow running the agent with write access.
@@ -246,6 +250,15 @@ function check(files: string[]): Violation[] {
         if (UI_SOURCE.test(file) && file !== KANJI_SPELLING_NOTE) {
             eachLine(text, l => RENDERED_KANJI_SPELLING.test(l), line =>
                 add({ file, line, rule: 'headword', message: 'Renders writtenForm.kanji. Name the word with headwordOf/secondaryForm (@gokan/dataset-schema): a word learned in kana is shown in kana.' }));
+        }
+
+        if (GOKAN_SRS_SOURCE.test(file) && file.endsWith('.tsx') && text.includes('headwordOf(')) {
+            const lines = text.split('\n');
+            lines.forEach((l, i) => {
+                if (RENDERED_READING.test(l) && !lines.slice(Math.max(0, i - 2), i + 1).some(g => KANA_GUARD.test(g))) {
+                    add({ file, line: i + 1, rule: 'secondary-form', message: 'Renders reading.primary beside a headword: for a word learned in kana that repeats the kana (ここ ここ). Use secondaryForm (@gokan/dataset-schema).' });
+                }
+            });
         }
 
         if (WORKFLOW.test(file) && text.includes(AGENT_ACTION)) {

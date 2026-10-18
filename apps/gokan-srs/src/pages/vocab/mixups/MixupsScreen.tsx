@@ -42,7 +42,7 @@ export function MixupsScreen() {
         <Page width="wide">
             <PageHeader
                 title="Vocabulary"
-                subtitle={groups.length > 0 ? `${groups.length.toLocaleString('en-US')} groups · ${total.toLocaleString('en-US')} mix-ups` : undefined}
+                subtitle={`${groups.length.toLocaleString('en-US')} ${groups.length === 1 ? 'group' : 'groups'} · ${total.toLocaleString('en-US')} ${total === 1 ? 'mix-up' : 'mix-ups'}`}
                 className="mb-4"
             />
             <VocabularyTabs />
@@ -50,7 +50,7 @@ export function MixupsScreen() {
             <div className="space-y-6">
                 <div className="space-y-3">
                     <p className="type-support max-w-2xl">
-                        Each time you type another word than the one asked, it is kept here, with the words it is easily confused with, grouped by the meaning they share.
+                        Each time you type a different word from the one asked, it is kept here, with the words it is easily confused with, grouped by the meaning they share.
                     </p>
                     <Disclosure title="What the pair labels mean">
                         <dl className="space-y-3 pt-2">

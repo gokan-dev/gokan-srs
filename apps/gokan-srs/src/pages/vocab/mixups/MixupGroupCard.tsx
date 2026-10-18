@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { headwordOf } from "@gokan/dataset-schema";
+import { headwordOf, secondaryForm } from "@gokan/dataset-schema";
 import type { Vocabulary } from "@gokan/dataset-schema";
 import { useQuiz } from "../../../context/useQuiz";
 import { useAsyncData } from "../../../hooks/useAsyncData";
@@ -22,9 +22,10 @@ function groupLabel(group: MixupGroup, vocabById: ReadonlyMap<string, Vocabulary
     return vocabById.get(group.asked)?.senses[0]?.glosses[0] ?? 'Not synonyms';
 }
 
+/** A word's headword; never its raw id while it loads (or failed to). */
 const nameOf = (id: string, vocabById: ReadonlyMap<string, Vocabulary>) => {
     const vocab = vocabById.get(id);
-    return vocab ? headwordOf(vocab) : id;
+    return vocab ? headwordOf(vocab) : '…';
 };
 
 /** The meanings a word shares with the others in this group. */
@@ -55,7 +56,7 @@ function GroupWord({ vocab, group, vocabById, learner }: GroupWordProps) {
             <ListRow to={`/vocab/${vocab.id}`} trailing={<WordStudyStatus vocabId={vocab.id} />} className="-mx-3">
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 min-w-0">
                     <span lang="ja" className="jp-headword">{headwordOf(vocab)}</span>
-                    <span lang="ja" className="font-gothic text-sm text-secondary">{vocab.reading.primary}</span>
+                    <span lang="ja" className="font-gothic text-sm text-secondary">{secondaryForm(vocab)}</span>
                     {type.map(label => <TagChip key={label} size="sm">{label}</TagChip>)}
                 </div>
             </ListRow>
@@ -93,18 +94,22 @@ function GroupWord({ vocab, group, vocabById, learner }: GroupWordProps) {
     );
 }
 
-/** One pair of the group: the two words, the tier grading uses, what they share, and how often. */
+/**
+ * One pair of the group: the two words and the tier grading uses on one line, what
+ * they share and how often on a second, so every pair wraps the same way on a phone.
+ */
 function GroupPair({ pair, vocabById }: { pair: MixupPair; vocabById: ReadonlyMap<string, Vocabulary> }) {
     const [a, b] = pair.words;
+    const meta = [pair.shared.join(', '), pair.curated ? 'marked by hand' : '', timesLabel(pair.count)].filter(Boolean);
     return (
-        <li className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 min-w-0">
-            <span lang="ja" className="font-mincho text-base text-primary">
-                {nameOf(a, vocabById)} / {nameOf(b, vocabById)}
-            </span>
-            <TierChip tier={pair.tier} />
-            {pair.shared.length > 0 && <span className="type-support">{pair.shared.join(', ')}</span>}
-            {pair.curated && <span className="type-meta">marked by hand</span>}
-            <span className="type-meta tabular-nums">{timesLabel(pair.count)}</span>
+        <li className="py-2 space-y-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span lang="ja" className="font-mincho text-base text-primary">
+                    {nameOf(a, vocabById)} / {nameOf(b, vocabById)}
+                </span>
+                <TierChip tier={pair.tier} />
+            </div>
+            <p className="type-meta">{meta.join(' · ')}</p>
         </li>
     );
 }
@@ -122,7 +127,7 @@ export function MixupGroupCard({ group, vocabById }: MixupGroupCardProps) {
     const count = mixupCount(group.pairs);
 
     return (
-        <section id={`group-${group.id}`} className="rounded-md border border-divider bg-surface p-4 md:p-6 min-w-0">
+        <section id={`group-${group.id}`} className="rounded-md border border-divider bg-surface p-5 md:p-6 min-w-0">
             <h2 className="type-subsection">{groupLabel(group, vocabById)}</h2>
             <p className="type-meta mb-2">
                 {group.words.length.toLocaleString('en-US')} words · {count.toLocaleString('en-US')} {count === 1 ? 'mix-up' : 'mix-ups'}

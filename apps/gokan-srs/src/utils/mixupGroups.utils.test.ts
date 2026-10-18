@@ -149,6 +149,12 @@ describe('resolveAnswers', () => {
         expect(resolveAnswers([raw('かがやく')], index, new Set(['kagayaku']))).toEqual([]);
     });
 
+    it('finds a word from its reading or its written form, once, never the word asked, over many answers', () => {
+        const learning = new Set(['terasu', 'terasu-2', 'kagayaku']);
+        const records = [raw('てらす'), raw('衒らす'), raw('輝く'), raw('かがやく')];
+        expect(resolveAnswers(records, index, learning).map(r => r.typed)).toEqual(['terasu', 'terasu-2', 'terasu-2']);
+    });
+
     it('leaves an identified record as it is', () => {
         const record = typed('輝く', '光る');
         expect(resolveAnswers([record], index, new Set())).toEqual([record]);

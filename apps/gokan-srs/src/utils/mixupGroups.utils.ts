@@ -75,12 +75,25 @@ export function mixupWeight(record: Pick<MixupRecord, 'date' | 'meaning'>, now: 
  * An answer that is no such word is dropped.
  */
 export function resolveAnswers(records: readonly MixupRecord[], index: SearchIndex, learning: ReadonlySet<string>): MixupRecord[] {
+    if (!records.some(r => r.typed === undefined && r.answer !== undefined)) return [...records];
+    // Indexed once, studied words only: a lookup per answer, not a scan of ~36k rows each.
+    const byForm = new Map<string, string[]>();
+    const add = (key: string, id: string) => {
+        const ids = byForm.get(key);
+        if (!ids) byForm.set(key, [id]);
+        else if (!ids.includes(id)) ids.push(id);
+    };
+    for (const e of index) {
+        if (!learning.has(e.id)) continue;
+        add(toHiragana(e.r), e.id);
+        add(e.w, e.id);
+    }
     return records.flatMap(record => {
         if (record.typed !== undefined || record.answer === undefined) return [record];
         const answer = record.answer.trim();
         const kana = toHiragana(looksLikeRomaji(answer) ? romajiToHiragana(answer.toLowerCase()) : answer);
-        const words = index.filter(e => (toHiragana(e.r) === kana || e.w === answer) && learning.has(e.id) && e.id !== record.asked);
-        return words.map(e => ({ asked: record.asked, typed: e.id, answer: record.answer, date: record.date }));
+        const ids = [...new Set([...(byForm.get(kana) ?? []), ...(byForm.get(answer) ?? [])])].filter(id => id !== record.asked);
+        return ids.map(id => ({ asked: record.asked, typed: id, answer: record.answer, date: record.date }));
     });
 }
 
