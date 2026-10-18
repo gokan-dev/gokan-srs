@@ -1,7 +1,7 @@
 import type {
-    FrequencyIndex, JlptIndex, KKLCIndex, Kanji, KanjiOrderId, KanjiOrderList, KanjiVocabIndex, SearchIndex, Sentence, Vocabulary,
+    FrequencyIndex, JlptIndex, KKLCIndex, Kanji, KanjiOrderId, KanjiOrderList, KanjiStepIndex, KanjiVocabIndex, SearchIndex, Sentence, Vocabulary,
 } from '@gokan/dataset-schema';
-import { kanjiStepIndex, type KanjiStepIndex } from '../utils/kanjiOrder.utils';
+import { kanjiStepIndex } from '@gokan/dataset-schema';
 import { rankVocabSearch } from '../utils/vocabSearch.utils';
 import { datasetUrl, fetchJson, readJson, RequestCache, sharedRequest } from './http';
 
