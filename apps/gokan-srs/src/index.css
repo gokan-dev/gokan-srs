@@ -113,6 +113,39 @@ body {
   size/colour combinations, so a heading level or body-copy role has exactly
   one look everywhere it appears.
 */
+/* The welcome page's <h1> only: the homepage leads with one large line (DESIGN_SYSTEM.md section 3). */
+@utility type-hero {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  color: var(--primary);
+  font-size: 2.25rem;
+  line-height: 1.08;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+
+  @media (width >= 40rem) {
+    font-size: 2.875rem;
+  }
+
+  @media (width >= 64rem) {
+    font-size: 3.5rem;
+  }
+}
+
+/* The welcome page's section headings, one step under type-hero. */
+@utility type-display {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  color: var(--primary);
+  font-size: 1.75rem;
+  line-height: 1.2;
+  text-wrap: balance;
+
+  @media (width >= 40rem) {
+    font-size: 2.125rem;
+  }
+}
+
 @utility type-page-title {
   font-family: var(--font-serif);
   color: var(--primary);
@@ -232,4 +265,35 @@ body {
 
 .scrollbar-subtle::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+/*
+  The welcome page's explanatory motion (DESIGN_SYSTEM.md section 4, the one place it runs past
+  200ms): the ink bloom behind a kanji just marked known, the accent stroke that runs down the
+  "How it works" line when the order changes, and the steps settling in with the new word.
+*/
+@keyframes welcome-ink {
+  0% { opacity: 0; transform: scale(0.5); }
+  35% { opacity: 0.16; }
+  100% { opacity: 0; transform: scale(1.3); }
+}
+
+@keyframes welcome-run {
+  0% { opacity: 0; top: var(--run-from); }
+  20% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; top: calc(100% - 40px); }
+}
+
+@keyframes welcome-settle {
+  from { opacity: 0.25; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Every state on the welcome page still changes under reduced motion, without the movement. */
+@media (prefers-reduced-motion: reduce) {
+  [data-welcome] *, [data-welcome] *::before, [data-welcome] *::after {
+    transition: none !important;
+    animation: none !important;
+  }
 }

@@ -9,11 +9,32 @@ import { DICTIONARY_BASE_PATH } from '@gokan/dataset-schema';
  * own (`RouteSeo`, rendered once in App, hoisted into <head> by React).
  */
 export type RouteSeo =
-    | { kind: 'canonical'; path: string }
+    | { kind: 'canonical'; path: string; page?: PageMeta }
     | { kind: 'noindex' };
 
-/** Routes whose content is the same for every visitor, indexed under their own URL. */
-const PUBLIC_PATHS = new Set(['/', '/about']);
+/** What a search result and a shared link show for a page: also og:* and twitter:*. */
+export interface PageMeta {
+    title: string;
+    description: string;
+}
+
+/**
+ * Routes whose content is the same for every visitor, indexed under their own URL, each with
+ * its own title and description: one static pair in index.html made Google see / and /about
+ * as duplicates. index.html keeps only a default <title> (the homepage's), which React places
+ * the route's own before, so the route's wins, and the homepage's og:/twitter: pair for link
+ * previews, which no scraper that runs JavaScript relies on.
+ */
+const PUBLIC_PAGES: Record<string, PageMeta> = {
+    '/': {
+        title: 'Gokan: Japanese vocabulary for the kanji you know (free SRS)',
+        description: 'Free spaced repetition for Japanese vocabulary that follows your kanji book: KKLC, RTK, Kanji in Context and more. Learn the words you can now read. No account.',
+    },
+    '/about': {
+        title: 'About Gokan: why I built it',
+        description: 'Why I built Gokan, what it does, and where its data comes from.',
+    },
+};
 
 /**
  * App detail routes that show a dictionary entry, and that entry's dictionary page. Each app id
@@ -49,7 +70,7 @@ const GRAMMAR_SCREENS = new Set(['browse', 'chapters', 'family']);
  */
 export function routeSeo(pathname: string): RouteSeo {
     const path = normalizePath(pathname);
-    if (PUBLIC_PATHS.has(path)) return { kind: 'canonical', path };
+    if (Object.hasOwn(PUBLIC_PAGES, path)) return { kind: 'canonical', path, page: PUBLIC_PAGES[path] };
 
     for (const { prefix, page } of DICTIONARY_ROUTES) {
         if (!path.startsWith(prefix)) continue;

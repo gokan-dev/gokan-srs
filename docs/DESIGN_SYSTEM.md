@@ -16,7 +16,9 @@ same thing, so the learner can trust it without thinking.
 4. **Type carries the hierarchy**, through a fixed set of roles (section 3), not ad hoc
    sizes.
 5. **Boxes only when they mean something.** A card is an object (an activity, a chart, a
-   modal, an item in a grid of objects). Page sections are a heading plus spacing.
+   modal, an item in a grid of objects). Page sections are a heading plus spacing. The
+   welcome page is the one exception: its sections are full-bleed bands (section 5, Welcome
+   page).
 6. **One frame**: two content widths, one header, one Back (section 5).
 7. **Everything clickable looks clickable, and nothing else does.**
 8. **One word per concept** (section 6).
@@ -124,6 +126,8 @@ instead of ad hoc size/colour combinations:
 
 | Utility | Spec | Use |
 | --- | --- | --- |
+| `type-hero` | serif 600, 36px / `sm` 46px / `lg` 56px, leading 1.08, tracking -0.015em, `primary`, balanced | the welcome page `<h1>` only |
+| `type-display` | serif 600, 28px / `sm` 34px, leading 1.2, `primary`, balanced | the welcome page's section headings |
 | `type-page-title` | serif, `text-2xl` / `md:text-3xl`, `primary` | the one page title |
 | `type-section` | serif, `text-xl`, `primary` | section headings in a page |
 | `type-subsection` | sans 600, `text-base`, `primary` | card and group titles |
@@ -172,7 +176,11 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
 - **Spacing** (8px grid): page top padding 32px (24px mobile); between page sections
   `space-y-10`; heading to content 16px; inside groups 8 or 12px.
 - **Motion**: 150-200ms, ease-in-out, no bounce, no elastic. No `hover:scale-*` or
-  `active:scale-*` anywhere (enforced, `no-scale-transform`).
+  `active:scale-*` anywhere (enforced, `no-scale-transform`). The one exception is
+  explanatory motion on the welcome page only: the ink bloom behind a kanji just marked known
+  (520ms) and the accent stroke that runs down "How it works" when the order changes (380ms),
+  with the steps settling in after it. Everything on that page stops under
+  `prefers-reduced-motion: reduce` (`[data-welcome]` in `index.css`); the states still change.
 
 ## 5. Page frame and navigation
 
@@ -228,6 +236,26 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
   ghost button.
 - Footer ("About Gokan SRS", "Dictionary") on every non-session page on desktop; in the
   mobile More sheet; `/about` before setup shows it at every width (`alwaysVisible`).
+
+### Welcome page (`pages/setup/WelcomeScreen.tsx`, `pages/setup/welcome/`)
+
+The homepage before setup, and the page a crawler renders. It departs from the frame above on
+purpose, and only here:
+
+- **Bands mark its sections** (principle 5): full-bleed, alternating `background` and
+  `surface`, 96px of vertical padding (72px below `sm`), content in a 1120px column with a
+  40px gutter (20px below `sm`). Each section starts with a `type-label` and a `type-display`
+  heading (`SectionHead`); section labels are never accent.
+- **The lede** is the one type combination outside a role: `type-body text-secondary
+  sm:text-lg`.
+- **Two filled buttons**: the hero's "I already know some kanji" and the closing "Set up
+  Gokan", which sits a screen or more below it (principle 1 counts per screen).
+- **Buttons** are `Button` at size `lg` (52px); a link that looks like one ("Browse the
+  dictionary first") takes `buttonClassName` (`components/ui/buttonStyles.ts`), never a copy.
+- **Motion** runs past 200ms in two places (section 4).
+- **Boxed glyphs that do not link**: the Try it demo's tiles (toggle buttons, like the
+  known-kanji grid's) and step two's two boxes (an illustration of the known tiles above,
+  `aria-hidden`). They are the only ones outside `KanjiTile` and the known-kanji grid.
 
 ## 6. Shared components
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { KANJI_ORDERS, isKanjiOrderId, kanjiBookPositions, kanjiGradeLabel, kanjiOrder, kunReadingLabel } from './kanji';
+import { KANJI_ORDERS, isKanjiOrderId, kanjiBookPositions, kanjiGradeLabel, kanjiOrder, kunReadingLabel, supportedOrdersList } from './kanji';
 
 describe('KANJI_ORDERS', () => {
     it('lists every order once, KKLC and RTK first', () => {
@@ -14,6 +14,19 @@ describe('KANJI_ORDERS', () => {
         expect(isKanjiOrderId('essentialKanji')).toBe(false);
         expect(isKanjiOrderId('toString')).toBe(false);
         expect(isKanjiOrderId(undefined)).toBe(false);
+    });
+});
+
+describe('supportedOrdersList', () => {
+    it('names every order once, where its name first appears in KANJI_ORDERS', () => {
+        expect(`${supportedOrdersList()}.`).toBe(
+            'KKLC, Remembering the Kanji in any edition, JLPT and frequency order, Kanji & Kana (the school-grade order), '
+            + 'Kanji in Context, Henshall, the White Rabbit and Tuttle cards, and Les Kanjis dans la tête.',
+        );
+        // rtk and rtkLegacy are not adjacent: the shared name is said at the first of them only.
+        const names = KANJI_ORDERS.map(order => order.listName);
+        expect(supportedOrdersList().split(names[1]).length).toBe(2);
+        expect(new Set(names).size).toBe(8);
     });
 });
 

@@ -39,7 +39,16 @@ export function AboutScreen() {
                         Data Sources
                     </h2>
                     <p className="type-body">
-                        Vocabulary data comes from{" "}
+                        Words and definitions come from{" "}
+                        <a
+                            href="https://www.edrdg.org/jmdict/j_jmdict.html"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-accent underline"
+                        >
+                            JMdict
+                        </a>
+                        , how common each word is from{" "}
                         <a
                             href="https://jpdb.io"
                             target="_blank"
@@ -48,16 +57,16 @@ export function AboutScreen() {
                         >
                             JPDB
                         </a>
-                        {" "}and definitions from{" "}
+                        , and example sentences from{" "}
                         <a
-                            href="https://www.edrdg.org/jmdict/j_jmdict.html"
+                            href="https://tatoeba.org"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-accent underline"
                         >
-                            JMDict
+                            Tatoeba
                         </a>
-                        . Both are open-source and widely trusted in the Japanese learning community.
+                        . All three are open and widely trusted in the Japanese learning community.
                     </p>
                     <p className="type-body mt-3">
                         Grammar points and example sentences are from{" "}
