@@ -3,7 +3,7 @@
   import type { Kanji, KanjiBook, KanjiOrderId } from '@gokan/dataset-schema';
   import type { VocabSummary } from '../lib/types';
   import { rangeOfStep } from '../lib/kanjiOrders';
-  import { kanjiIndexPath, kanjiPath, kanjiRangePath } from '../lib/urls';
+  import { kanjiIndexPath, kanjiPath, kanjiStepPath } from '../lib/urls';
   import PageLayout from './PageLayout.svelte';
   import Chip from './Chip.svelte';
   import VocabEntryList from './VocabEntryList.svelte';
@@ -20,11 +20,11 @@
 
   let { kanji, words, kanjiWithPages, orderLengths }: Props = $props();
 
-  /** The range page listing the words this kanji's step unlocks; none for a book that is not an order (Essential Kanji). */
+  /** This kanji's step on its range page, with the words it unlocks; none for a book that is not an order (Essential Kanji). */
   function rangeHref(book: KanjiBook, position: number): string | undefined {
     if (!isKanjiOrderId(book)) return undefined;
     const length = orderLengths.get(book);
-    return length === undefined ? undefined : kanjiRangePath(book, rangeOfStep(position, length));
+    return length === undefined ? undefined : kanjiStepPath(book, rangeOfStep(position, length), position);
   }
 
   const WORDS_VISIBLE = 30;

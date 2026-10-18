@@ -1043,8 +1043,7 @@ src/styles/
 └── pages/
     ├── home.scss             kanji.scss        grammar.scss            grammar-family.scss   # family page + families index
     ├── vocab.scss            kanji-index.scss  grammar-index.scss      grammar-conjugations.scss
-                      kanji-orders.scss  # order + range pages
-                                                 grammar-chapters.scss   # chapter page + curriculum index
+                              kanji-orders.scss grammar-chapters.scss   # chapter page + curriculum index
 ```
 
 Every page links `app.scss` plus, if it has one, its own page stylesheet (`documentShell.ts`'s `pageStylesheetHref`). The vocabulary index, the JLPT lists, the kanji orders hub and `/search/` are built entirely from shared rules and link nothing extra.

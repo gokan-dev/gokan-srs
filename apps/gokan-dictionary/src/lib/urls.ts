@@ -62,6 +62,16 @@ export function kanjiRangePath(order: KanjiOrderId, range: { first: number; last
     return `${kanjiOrderPath(order)}${kanjiRangeSlug(range)}/`;
 }
 
+/** The id of one step's section on its range page. */
+export function kanjiStepAnchor(step: number): string {
+    return `step-${step}`;
+}
+
+/** One step on its range page: "/dictionary/kanji/orders/kklc/301-400/#step-340". */
+export function kanjiStepPath(order: KanjiOrderId, range: { first: number; last: number }, step: number): string {
+    return `${kanjiRangePath(order, range)}#${kanjiStepAnchor(step)}`;
+}
+
 export function grammarIndexPath(): string {
     return `${BASE_PATH}/grammar/`;
 }
