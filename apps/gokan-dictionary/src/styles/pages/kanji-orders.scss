@@ -40,6 +40,8 @@
 // One step of a range: its number and kanji, then the words it unlocks.
 .range-step {
   margin-top: $space-3;
+  // A #step-N link (the tiles, a kanji page's book position) lands with room above the heading.
+  scroll-margin-top: $space-3;
 
   h3 {
     display: flex;
@@ -49,11 +51,12 @@
     font-size: $text-base;
     font-weight: 500;
 
-    // The step's one link: a 44px target around the glyph, the glyph unchanged.
+    // The step's one link: a 44px target around the glyph, the glyph unchanged and next to its
+    // number (centred, it sat a glyph's width away from it).
     a {
       display: inline-flex;
       align-items: center;
-      justify-content: center;
+      justify-content: flex-start;
       min-width: $target;
       min-height: $target;
       font-family: $font-mincho;
@@ -67,7 +70,8 @@
 }
 
 .range-step-number {
-  min-width: 3rem;
+  // Four tabular digits, so every glyph starts in one column.
+  min-width: 2.5rem;
   color: var(--tertiary);
   font-variant-numeric: tabular-nums;
 }

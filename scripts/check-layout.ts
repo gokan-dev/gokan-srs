@@ -11,6 +11,8 @@
  *   ink, no underline (docs/DESIGN_SYSTEM.md section 8: a row is a link by its shape);
  * - a word in a dictionary sentence (`.sentence-jp a`) has no text underline: the running-text
  *   underline on `p a` must not stack on its dotted border;
+ * - a dictionary pager link's spoken name contains its visible text (WCAG 2.5.3, Label in Name):
+ *   no `aria-label` that replaces "301-400" with other words;
  * - About before setup shows a visible dictionary link, in a footer aligned with the header;
  * - furigana sits over kanji only, never over kana, no ruby (a run of kanji with its reading)
  *   breaks across lines, and no two readings on a line touch (word pages' example sentences, in each app).
@@ -76,6 +78,8 @@ const MEASURE = (deviceWidth: number, tapTargets: string) => `(() => {
     probe.remove();
     const inked = [...document.querySelectorAll('.entry-list a, .grammar-list a, .range-list a')].filter(el => visible(el) && (getComputedStyle(el).color !== ink || getComputedStyle(el).textDecorationLine !== 'none'));
     if (inked.length) problems.push('list row not plain (primary ink, no underline): ' + inked.slice(0, 3).map(el => describe(el) + ' ' + getComputedStyle(el).color).join(', '));
+    const renamed = [...document.querySelectorAll('.pager a[aria-label]')].filter(el => !el.getAttribute('aria-label').includes(el.textContent.trim()));
+    if (renamed.length) problems.push('pager link named without its visible text (WCAG 2.5.3; prefix it with a visually hidden span instead): ' + renamed.slice(0, 3).map(el => describe(el) + ' named "' + el.getAttribute('aria-label') + '"').join(', '));
     const spaced = [...document.querySelectorAll('[data-sentence] > *')].filter(el => visible(el) && parseFloat(getComputedStyle(el).marginLeft) + parseFloat(getComputedStyle(el).marginRight) > 0);
     if (spaced.length) problems.push('sentence word has a side margin (reads as a space in Japanese): ' + spaced.slice(0, 3).map(describe).join(', '));
     // Furigana (docs/DESIGN_SYSTEM.md): a reading sits over kanji only (what rubyParts counts as

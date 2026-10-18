@@ -26,8 +26,8 @@
   const current = $derived(ranges.findIndex(other => other.first === range.first) + 1);
   const rangeHref = (page: number) => kanjiRangePath(order.id, ranges[page - 1]);
   const rangeText = (page: number) => kanjiRangeSlug(ranges[page - 1]);
-  // Said in words: a screen reader reads "301-400" as "301 minus 400".
-  const rangeLabel = (page: number) => `Steps ${ranges[page - 1].first} to ${ranges[page - 1].last}`;
+  // Heard as "Steps 301-400": alone, a screen reader may read "301-400" as "301 minus 400".
+  const rangePrefix = () => 'Steps ';
 </script>
 
 <PageLayout trail={[{ label: 'Kanji', href: kanjiIndexPath() }, { label: 'Orders', href: kanjiOrdersPath() }, { label: order.label, href: kanjiOrderPath(order.id) }, { label: `${range.first} to ${range.last}` }]} section="kanji" wide>
@@ -69,7 +69,7 @@
   </section>
 
   <!-- One pager, at the foot: at 320px a long order's ranges fill more than a screen, and the order page lists them too. -->
-  <Pager count={ranges.length} current={current} hrefOf={rangeHref} textOf={rangeText} labelOf={rangeLabel} label="Steps" />
+  <Pager count={ranges.length} current={current} hrefOf={rangeHref} textOf={rangeText} hiddenPrefixOf={rangePrefix} label="Steps" />
 
   <p class="support"><a href={SITE_ORIGIN + '/'}>Learn these words in Gokan</a>, in the order of your kanji book, with spaced repetition.</p>
 </PageLayout>
