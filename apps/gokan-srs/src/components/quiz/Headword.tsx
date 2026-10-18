@@ -1,5 +1,6 @@
 import { headwordOf } from "@gokan/dataset-schema";
 import type { Vocabulary } from "@gokan/dataset-schema";
+import { Ruby } from "../Ruby";
 
 interface HeadwordProps {
     vocab: Pick<Vocabulary, 'writtenForm' | 'reading' | 'usuallyKana'>;
@@ -22,14 +23,7 @@ export function Headword({ vocab, size, onClick, showReading = false }: Headword
             className={`relative inline-flex items-start leading-none text-primary font-mincho ${large ? 'text-kanji' : 'text-5xl'} ${onClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
             onClick={onClick}
         >
-            {showReading && headword !== vocab.reading.primary ? (
-                <ruby className="ruby-text">
-                    {headword}
-                    <rt className="text-sm font-sans text-secondary not-italic">{vocab.reading.primary}</rt>
-                </ruby>
-            ) : (
-                <span>{headword}</span>
-            )}
+            <span><Ruby text={headword} reading={showReading ? vocab.reading.primary : null} tone="text-secondary" /></span>
         </div>
     );
 }

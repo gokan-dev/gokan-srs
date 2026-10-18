@@ -4,6 +4,7 @@ import type { GrammarPoint } from "@gokan/dataset-schema";
 import type { GrammarBlankPlan, GrammarConjugationPrompt } from "../../context/quiz/grammarReducer";
 import { JlptChip } from "../../components/JlptChip";
 import { QuizMasteryCorner } from "../../components/quiz/QuizMasteryCorner";
+import { Ruby } from "../../components/Ruby";
 import { PointLink } from "./PointLink";
 
 // The grammar activity's prompts: what each of its exercises shows above the answer.
@@ -139,18 +140,16 @@ export function ConjugationAnswer({ prompt, size }: { prompt: GrammarConjugation
  */
 function AnswerWithReading({ written, reading, size }: { written: string; reading: string; size: 'sm' | 'lg' }) {
     const main = size === 'lg' ? 'text-2xl' : 'text-base';
-    const rt = size === 'lg' ? 'text-[0.45em]' : 'text-[0.5em]';
 
+    // Ruby already renders plain text without a reading: this return is for the line height,
+    // leading-loose only where a reading needs the room.
     if (!reading || reading === written) {
         return <p className={`${main} font-mincho text-primary`}>{written}</p>;
     }
 
     return (
         <p className={`${main} font-mincho text-primary leading-loose`}>
-            <ruby>
-                {written}
-                <rt className={`${rt} font-gothic text-tertiary select-none`}>{reading}</rt>
-            </ruby>
+            <Ruby text={written} reading={reading} tone="text-tertiary" />
         </p>
     );
 }
