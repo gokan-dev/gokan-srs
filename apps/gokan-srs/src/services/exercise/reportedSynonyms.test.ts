@@ -76,7 +76,7 @@ describe('reported synonym cases, on the compiled dataset', () => {
         expect([...new Set(CASES.map(c => c.asked))].filter(id => !vocabById.has(id))).toEqual([]);
     });
 
-    it.each(CASES)('$typed on a card for $asked ($sentence)', ({ asked, typed, typedId, sentence, expected }) => {
+    it.each(CASES.map(c => ({ ...c, card: c.sentence ?? 'the gloss card' })))('$typed on a card for $asked ($card)', ({ asked, typed, typedId, sentence, expected }) => {
         const vocab = vocabById.get(asked);
         expect(vocab, `compiled/vocab/${asked}.json`).toBeDefined();
         if (!vocab) return;
