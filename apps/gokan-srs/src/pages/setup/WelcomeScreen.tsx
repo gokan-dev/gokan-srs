@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { useGoogleDrive } from "../../context/useGoogleDrive";
 import { StorageService } from "../../services/storage.service";
 import { Button } from "../../components/ui/Button";
-import { Cloud, Loader2, LogIn, BookOpen, GraduationCap, ChevronRight } from "lucide-react";
+import { Cloud, Loader2, LogIn, BookOpen, GraduationCap, ChevronRight, LockOpen } from "lucide-react";
+import { supportedOrdersList } from "../../utils/supportedOrders.utils";
 
 export function GoogleLoginButton({ onSyncComplete, className }: { onSyncComplete: () => void, className?: string }) {
     const { login, isDownloading, isAuthenticated, downloadProgress } = useGoogleDrive();
@@ -64,7 +65,7 @@ export function GoogleLoginButton({ onSyncComplete, className }: { onSyncComplet
             className={`w-full text-sm font-medium ${className}`}
         >
             <LogIn size={16} className="mr-2" />
-            Already have an account? Log in to restore
+            Restore from Google Drive
         </Button>
     );
 }
@@ -85,11 +86,17 @@ export function WelcomeScreen({ onSelectBeginner, onSelectLearner }: WelcomeScre
             />
 
             <main className="w-full max-w-2xl mx-auto space-y-12 animate-fade-in z-10">
-                {/* Header & Philosophy */}
+                {/* Header & Philosophy. The heading says what the page is (it is the homepage a
+                    search engine indexes); the brand sits above it as a plain line. */}
                 <div className="text-center space-y-6">
-                    <h1 className="text-4xl md:text-5xl font-mincho text-primary mx-auto">
-                        Gokan <span className="text-2xl md:text-3xl text-tertiary font-light">語感</span>
-                    </h1>
+                    <div className="space-y-2">
+                        <p className="font-serif text-xl text-secondary">
+                            Gokan <span lang="ja" className="font-mincho text-tertiary">語感</span>
+                        </p>
+                        <h1 className="font-serif text-3xl md:text-4xl text-primary text-balance">
+                            Japanese vocabulary for the kanji you know
+                        </h1>
+                    </div>
                     <div className="space-y-4 text-secondary leading-relaxed font-serif max-w-xl mx-auto">
                         <p>
                             Gokan is a vocabulary SRS for Japanese learners who are actively studying kanji. It introduces words that use the kanji you already know, keeping your reading queue grounded in real, learnable material.
@@ -104,8 +111,8 @@ export function WelcomeScreen({ onSelectBeginner, onSelectLearner }: WelcomeScre
                             <div className="mx-auto w-8 h-8 rounded-full bg-background border border-divider flex items-center justify-center text-primary">
                                 <BookOpen size={14} />
                             </div>
-                            <h2 className="font-semibold text-primary text-xs">Kanji-aware</h2>
-                            <p className="text-tertiary text-xs">Only shows words your kanji knowledge can support.</p>
+                            <h2 className="font-semibold text-primary text-xs">Follows your kanji book</h2>
+                            <p className="text-tertiary text-xs">New words come from the kanji you've already covered. Nothing stops you learning others.</p>
                         </div>
                         <div className="space-y-1 p-3 rounded-md bg-surface border border-divider">
                             <div className="mx-auto w-8 h-8 rounded-full bg-background border border-divider flex items-center justify-center text-primary">
@@ -116,12 +123,16 @@ export function WelcomeScreen({ onSelectBeginner, onSelectLearner }: WelcomeScre
                         </div>
                         <div className="space-y-1 p-3 rounded-md bg-surface border border-divider">
                             <div className="mx-auto w-8 h-8 rounded-full bg-background border border-divider flex items-center justify-center text-primary">
-                                <Cloud size={14} />
+                                <LockOpen size={14} />
                             </div>
-                            <h2 className="font-semibold text-primary text-xs">Synced</h2>
-                            <p className="text-tertiary text-xs">Progress synced across devices via Google Drive.</p>
+                            <h2 className="font-semibold text-primary text-xs">Free</h2>
+                            <p className="text-tertiary text-xs">No account, no ads. Your progress stays in your browser, or in your own Google Drive if you want it synced.</p>
                         </div>
                     </div>
+
+                    <p className="type-meta max-w-xl mx-auto">
+                        Works with {supportedOrdersList()}.
+                    </p>
                 </div>
 
                 {/* Path Selection */}
@@ -182,9 +193,28 @@ export function WelcomeScreen({ onSelectBeginner, onSelectLearner }: WelcomeScre
                 </p>
 
                 {/* Load Existing */}
-                <div className="pt-8 border-t border-divider w-full max-w-sm mx-auto">
+                <div className="pt-8 border-t border-divider w-full max-w-sm mx-auto space-y-2 text-center">
+                    <p className="type-support">Used Gokan on another device?</p>
                     <GoogleLoginButton onSyncComplete={() => window.location.reload()} />
                 </div>
+
+                {/* What the app does, for a first-time visitor who wants more than the cards, and
+                    for search: this page is the homepage a crawler renders. */}
+                <section className="max-w-xl mx-auto space-y-4">
+                    <h2 className="type-section">How it works</h2>
+                    <p className="type-body">
+                        Pick the kanji order you're following and tell Gokan how far you've got. It gives you words built from those kanji, the most common first, each with a real sentence to read it in. You review them when they're due.
+                    </p>
+                    <p className="type-body">
+                        A word made of kanji you already know has something to hang on to. You know what the pieces mean, so it stops being a random string, and two-kanji words stop blurring into each other.
+                    </p>
+                    <p className="type-body">
+                        Found a word in a game or a show? Search it and it joins your reviews.
+                    </p>
+                    <p className="type-body">
+                        There's grammar too: over 700 points from N5 to N1, practised as fill-in-the-blank in real sentences.
+                    </p>
+                </section>
             </main>
         </div>
     );
