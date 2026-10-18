@@ -1,6 +1,7 @@
 import { isKanjiOrderId } from "@gokan/dataset-schema";
 import type { KanjiKnowledge, UserProgress, UserSettings } from "../models/user.model";
 import type { WatchedEpisode } from "../models/media.model";
+import type { MixupRecord } from "../models/mixup.model";
 import type { NeedsRetryFlags, ReviewLog, SRSEntry, VocabProgress } from "../models/vocabulary.model";
 import { DEFAULT_SRS_ENTRY, DEFAULT_VOCABULARY_PROGRESS } from "../models/vocabulary.model";
 import { DEFAULT_PROGRESS } from "../models/user.model";
@@ -182,6 +183,27 @@ export function hydrateWatchedEpisodes(
         episodes[key] = { ...mark, watched: mark.watched, updatedAt: mark.updatedAt };
     }
     return episodes;
+}
+
+/**
+ * The mix-up records. Absent stays absent; a record without the word asked, a date,
+ * or either the word or the text typed cannot be shown or merged, so it is dropped.
+ */
+export function hydrateMixups(stored: Stored<MixupRecord[]> | undefined): MixupRecord[] | undefined {
+    if (!stored) return undefined;
+    return stored.flatMap((record): MixupRecord[] => {
+        const { asked, typed, answer, tier, curated, shared, meaning, date } = record;
+        if (typeof asked !== 'string' || typeof date !== 'number') return [];
+        if (typeof typed !== 'string' && typeof answer !== 'string') return [];
+        return [{
+            asked, date,
+            ...(typeof typed === 'string' ? { typed } : { answer }),
+            ...(tier === 'interchangeable' || tier === 'confusable' ? { tier } : {}),
+            ...(curated === true ? { curated } : {}),
+            ...(Array.isArray(shared) ? { shared: shared.filter((g): g is string => typeof g === 'string') } : {}),
+            ...(typeof meaning === 'string' ? { meaning } : {}),
+        }];
+    });
 }
 
 /** The sync counter, kept only when it is whole: a half-written one would mislead the merge. */

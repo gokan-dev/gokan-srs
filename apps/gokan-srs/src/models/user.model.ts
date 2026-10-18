@@ -2,6 +2,7 @@ import type { KanjiOrderId } from "@gokan/dataset-schema";
 import type { VocabProgress } from "./vocabulary.model";
 import type { GrammarProgress } from "./grammar.model";
 import type { WatchedEpisode } from "./media.model";
+import type { MixupRecord } from "./mixup.model";
 
 export interface UserProgress {
     kanjiKnowledge: KanjiKnowledge;
@@ -38,6 +39,14 @@ export interface UserProgress {
      * Merged per episode, newest mark wins (mergeWatchedEpisodes).
      */
     watchedEpisodes?: Record<string, WatchedEpisode>;
+
+    /**
+     * Every time the learner produced another word than the one asked, newest last,
+     * capped at MIXUP_LIMIT (utils/mixups.utils.ts). Optional and not defaulted, like
+     * watchedEpisodes: progress that never mixed a word up carries no field. Merged
+     * across devices as a union (mergeMixups).
+     */
+    mixups?: MixupRecord[];
 
     /**
      * Vocab ids whose compiled data no longer exists in the dataset (e.g. a word

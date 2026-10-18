@@ -4,7 +4,7 @@ import type { ProgressWithMetadata } from './types';
 import type { SRSEntry } from '../../models/vocabulary.model';
 import type { GrammarProgress } from '../../models/grammar.model';
 import { DEFAULT_SETTINGS, type UserSettings } from '../../models/user.model';
-import { grammarProgress, srsEntry, userProgress, vocabProgress } from '../../test/fixtures';
+import { grammarProgress, mixupRecord, srsEntry, userProgress, vocabProgress } from '../../test/fixtures';
 
 const makeEntry = (overrides: Partial<SRSEntry> = {}): SRSEntry => srsEntry({ memoryStrength: 10, interval: 5, ...overrides });
 
@@ -371,6 +371,16 @@ describe('mergeProgress (top-level)', () => {
             '16685:2': { watched: true, updatedAt: 100, coverageAtWatch: 0.6 },
             '16685:3': { watched: true, updatedAt: 150 },
         });
+    });
+
+    it('mixups merge as a union keyed by word, typed word and date, oldest first', () => {
+        const both = mixupRecord({ date: 100 });
+        const local = makeProgress({ mixups: [both, mixupRecord({ typed: '1291330', date: 300 })] });
+        const remote = makeProgress({ mixups: [mixupRecord({ answer: 'てらす', typed: undefined, date: 200 }), { ...both }] });
+
+        const merged = mergeProgress(local, remote)!;
+        expect(merged.mixups?.map(m => [m.typed ?? m.answer, m.date])).toEqual([['1272820', 100], ['てらす', 200], ['1291330', 300]]);
+        expect(mergeProgress(makeProgress(), makeProgress())!.mixups).toBeUndefined();
     });
 
     it('watchedEpisodes stays absent when neither side has used the listening library', () => {
