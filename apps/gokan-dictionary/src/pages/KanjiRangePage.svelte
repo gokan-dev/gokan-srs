@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { KanjiOrder } from '@gokan/dataset-schema';
   import { countLabel } from '../lib/counts';
-  import { WORDS_PER_KANJI, type StepRange } from '../lib/kanjiOrders';
+  import { WORDS_PER_KANJI, anyStepCapped, type StepRange } from '../lib/kanjiOrders';
   import { kanjiRangeHeading } from '../lib/seo';
   import type { VocabSummary } from '../lib/types';
   import { SITE_ORIGIN } from '../lib/site';
@@ -35,9 +35,9 @@
     <h1>{kanjiRangeHeading(order, range)}</h1>
     <p>
       Steps {range.first} to {range.last} of {order.label} ({order.description}): {steps.length} kanji, in
-      its order, and the {countLabel(wordCount, 'word')} you can read once you know them, each
-      under the kanji that completes it. Each kanji shows its {WORDS_PER_KANJI} most frequent; its own
-      page lists every word that uses it.
+      its order, and the {countLabel(wordCount, 'word')} you can read once you know them{#if wordCount > 1}, each
+      under the kanji that completes it{/if}. {#if anyStepCapped(steps)}Each kanji shows its {WORDS_PER_KANJI} most frequent; its own
+      page lists every word that uses it.{:else}Each kanji's own page lists every word that uses it.{/if}
     </p>
   </div>
 

@@ -233,7 +233,7 @@ describe('kanji order pages', () => {
 
     it('name an order that is not a book, or an older edition, as it is searched', () => {
         expect(kanjiOrderMeta(kanjiOrder('jlpt'), 2211, 32186).title).toBe('JLPT kanji order vocabulary list by kanji step - Gokan Dictionary');
-        expect(kanjiOrderMeta(kanjiOrder('rtkLegacy'), 3007, 34694).title).toBe('RTK 1st to 5th edition vocabulary list by kanji step - Gokan Dictionary');
+        expect(kanjiOrderMeta(kanjiOrder('rtkLegacy'), 3007, 34694).title).toBe('RTK 1st to 5th editions vocabulary list by kanji step - Gokan Dictionary');
     });
 
     it('head a range page with its title, for every order, never naming kanji twice', () => {

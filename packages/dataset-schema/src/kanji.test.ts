@@ -15,6 +15,10 @@ describe('KANJI_ORDERS', () => {
         expect(isKanjiOrderId('toString')).toBe(false);
         expect(isKanjiOrderId(undefined)).toBe(false);
     });
+
+    it('describes every order without parentheses, so the order pages\' "label (description)" never nests', () => {
+        for (const order of KANJI_ORDERS) expect(order.description).not.toContain('(');
+    });
 });
 
 describe('supportedOrdersList', () => {
@@ -49,6 +53,7 @@ describe('kanjiBookPositions', () => {
         const [legacy] = kanjiBookPositions({ steps: { rtkLegacy: 1 } });
         expect(legacy.name).toBe(kanjiOrder('rtkLegacy').description);
         expect(legacy.name).toBe('Remembering the Kanji, 1st to 5th editions');
+        expect(kanjiOrder('rtkLegacy').searchName).toContain('editions');
     });
 });
 

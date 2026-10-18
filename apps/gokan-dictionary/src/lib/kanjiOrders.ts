@@ -15,6 +15,11 @@ export const KANJI_RANGE_SIZE = 100;
  */
 export const WORDS_PER_KANJI = 5;
 
+/** Whether a range page leaves out some of a step's words, so its intro says how many it shows. */
+export function anyStepCapped(steps: readonly { words: readonly unknown[]; total: number }[]): boolean {
+    return steps.some(step => step.total > step.words.length);
+}
+
 /** Steps `first` to `last` of an order, both included, 1-based. */
 export interface StepRange {
     first: number;

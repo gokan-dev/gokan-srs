@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { kanjiRanges, rangeOfStep } from './kanjiOrders';
+import { anyStepCapped, kanjiRanges, rangeOfStep } from './kanjiOrders';
 
 describe('rangeOfStep', () => {
     it('puts a step in its range of 100, the last range cut at the order end', () => {
@@ -31,5 +31,13 @@ describe('kanjiRanges', () => {
 
     it('has no range for an empty order', () => {
         expect(kanjiRanges([], {})).toEqual([]);
+    });
+});
+
+describe('anyStepCapped', () => {
+    it('is true when a step lists fewer words than it unlocks, false when every step lists them all', () => {
+        expect(anyStepCapped([{ words: ['a'], total: 1 }, { words: ['b', 'c'], total: 7 }])).toBe(true);
+        expect(anyStepCapped([{ words: ['a'], total: 1 }, { words: [], total: 0 }])).toBe(false);
+        expect(anyStepCapped([])).toBe(false);
     });
 });

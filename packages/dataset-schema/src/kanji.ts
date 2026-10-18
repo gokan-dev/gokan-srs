@@ -88,6 +88,7 @@ export interface KanjiOrder {
     id: KanjiOrderId;
     /** Short, for a picker and a label: "RTK". */
     label: string;
+    /** No parentheses: the order pages already write it in them, after the label. */
     description: string;
     /**
      * How a sentence naming every order says this one ("Remembering the Kanji in any edition").
@@ -109,14 +110,14 @@ const CARDS_LIST_NAME = 'the White Rabbit and Tuttle cards';
 
 const ORDER_INFO: Record<KanjiOrderId, Omit<KanjiOrder, 'id'>> = {
     kklc: { label: 'KKLC', description: 'Kodansha Kanji Learner\'s Course', listName: 'KKLC', searchName: 'KKLC' },
-    rtk: { label: 'RTK', description: 'Remembering the Kanji, 6th edition (books 1 and 3)', listName: RTK_LIST_NAME, searchName: 'RTK' },
+    rtk: { label: 'RTK', description: 'Remembering the Kanji, 6th edition, books 1 and 3', listName: RTK_LIST_NAME, searchName: 'RTK' },
     jlpt: { label: 'JLPT', description: 'N5 first, the most common kanji first within a level', listName: DERIVED_LIST_NAME, searchName: 'JLPT kanji order' },
     frequency: { label: 'Frequency', description: 'The kanji met most often in print first', listName: DERIVED_LIST_NAME, searchName: 'Kanji frequency order' },
-    kanjiKana: { label: 'Kanji & Kana', description: 'The jōyō in the order Japanese schools teach it (Hadamitzky)', listName: 'Kanji & Kana (the school-grade order)', searchName: 'Kanji & Kana' },
+    kanjiKana: { label: 'Kanji & Kana', description: 'The jōyō in the order Japanese schools teach it, after Hadamitzky', listName: 'Kanji & Kana (the school-grade order)', searchName: 'Kanji & Kana' },
     kanjiInContext: { label: 'Kanji in Context', description: 'Nishiguchi and Kono', listName: 'Kanji in Context', searchName: 'Kanji in Context' },
-    rtkLegacy: { label: 'RTK, older editions', description: RTK_LEGACY_TITLE, listName: RTK_LIST_NAME, searchName: 'RTK 1st to 5th edition' },
+    rtkLegacy: { label: 'RTK, older editions', description: RTK_LEGACY_TITLE, listName: RTK_LIST_NAME, searchName: 'RTK 1st to 5th editions' },
     henshall: { label: 'Henshall', description: 'A Guide to Remembering Japanese Characters', listName: 'Henshall', searchName: 'Henshall' },
-    kanjiFlashcards: { label: 'White Rabbit cards', description: 'Japanese Kanji Flashcards (White Rabbit Press)', listName: CARDS_LIST_NAME, searchName: 'White Rabbit kanji cards' },
+    kanjiFlashcards: { label: 'White Rabbit cards', description: 'Japanese Kanji Flashcards, White Rabbit Press', listName: CARDS_LIST_NAME, searchName: 'White Rabbit kanji cards' },
     tuttleCards: { label: 'Tuttle cards', description: 'Tuttle Kanji Cards', listName: CARDS_LIST_NAME, searchName: 'Tuttle kanji cards' },
     maniette: { label: 'Maniette', description: 'Les Kanjis dans la tête, the French RTK', listName: 'Les Kanjis dans la tête', searchName: 'Les Kanjis dans la tête' },
 };
