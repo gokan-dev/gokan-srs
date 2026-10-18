@@ -291,7 +291,11 @@ Defined once, in `components/` or `components/ui/`, never copied:
   do this); a y-axis shows the max value and a midline; every bar is a focusable button
   that shows its values on hover, focus and tap; x labels are never truncated.
 - **`TabNav`**: route tabs (active: ink text, 2px accent underline). Used by the Grammar
-  home.
+  home and Vocabulary (Your words, Mix-ups).
+- **Mix-ups** (`pages/vocab/mixups/`): one card per group (an object in a list of objects).
+  A pair's tier is a neutral `TagChip` told apart by its sign and name (= Interchangeable,
+  ≈ Confusable, ≠ Not a synonym), never by a colour; the glosses a group shares are ink and
+  medium weight, the rest `secondary`.
 - **`KanjiTile`** (`KanjiTile.tsx`): one glyph, a word's kanji or a kanji's components. A
   box (surface, divider border, accent on hover and focus) only when it links to the glyph's
   page; a glyph with no page (氵) is drawn plain at the same size, so nothing unclickable

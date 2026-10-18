@@ -135,7 +135,10 @@ Four layers, each the only place its question is answered:
   once at load by `vocabExercise` / `grammarExercise` (`builders.ts`). Accept-lists are
   assembled only by the slot builders (`readingSlot`, `meaningSlot`, `wordSlot` in `slots.ts`).
 - Grading: `gradeExercise` / `gradeSlot` (`grading.ts`) is the only grader: typos, the kanji
-  skeleton, other forms of a word, near-synonyms judged against the cue. Its primitives
+  skeleton, other forms of a word, near-synonyms judged against the cue. A synonym pair is read only
+  through `services/exercise/wordRelation.ts` (`relationOf`, `outcomeOf`, `OUTCOME_LOOK`,
+  `pairRelation`): grading, the cards, the ticker and the Mix-ups page agree on a pair's tier
+  (enforced: `VocabSynonym` / `.synonyms` nowhere else). Its primitives
   (`matchAnswer`, `matchBest` from `utils/answerMatching.ts`, `isFormOfWord` from
   `utils/inflection.utils.ts`, the synonym helpers) are imported only by the engine (enforced).
 - SRS effects: `effectsOf` decides what an answer does (`review`, `retry`, `reinforce`,
@@ -199,6 +202,9 @@ gokan-srs, everything else:
   `components/ui/StackedBarChart.tsx` (the one bar chart), `components/CardSkeleton.tsx`,
   `components/KanjiSpellingNote.tsx` (the kanji spelling of a word learned in kana),
   `components/Ruby.tsx` (every furigana: the only `<ruby>` in the app, enforced).
+- Mix-ups: recorded only by the `mixup` effect (`effects.ts`), stored through
+  `utils/mixups.utils.ts` (cap, Drive union), grouped by `utils/mixupGroups.utils.ts`, loaded for
+  a page by `pages/vocab/mixups/useMixups.ts`; a pair's tier shown through `TierChip`.
 - Words learned in kana in the learning orders: `utils/usuallyKana.utils.ts`
   (`orderIncludesUsuallyKana`, the per-session pacer); scheduling asks `isReadingRelevant`.
 - Test fixtures: `src/test/fixtures.ts` (`vocabProgress`, `grammarProgress`, `userProgress`,
