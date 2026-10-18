@@ -10,8 +10,8 @@
  * - a word in a dictionary sentence (`.sentence-jp a`) has no text underline: the running-text
  *   underline on `p a` must not stack on its dotted border;
  * - About before setup shows a visible dictionary link, in a footer aligned with the header;
- * - furigana sits over kanji only, never over kana, and no two readings on a line touch (a word
- *   page's example sentences, in each app).
+ * - furigana sits over kanji only, never over kana, a word with furigana never breaks across
+ *   lines, and no two readings on a line touch (word pages' example sentences, in each app).
  *
  * Usage: build both apps (`bun run --cwd apps/gokan-srs build`, `bun run --cwd
  * apps/gokan-dictionary build`), then `bun run check:layout`. Needs Chrome or Chromium: found at
@@ -20,6 +20,7 @@
  * Chrome is driven over the DevTools protocol with Bun's own WebSocket: Playwright's transports
  * do not work under Bun on Windows, and this needs nothing installed.
  */
+import { KANJI_CHARS } from '@gokan/dataset-schema';
 import { buildMissing, dictionaryFile, dictionaryPages, listeningTitlesToMark, serve, srsFile, srsRoutes } from './lib/builtSite';
 import { launchChrome, type Tab } from './lib/chrome';
 
@@ -69,17 +70,34 @@ const MEASURE = (deviceWidth: number, tapTargets: string) => `(() => {
     if (underlined.length) problems.push('sentence word underlined (only its dotted border is): ' + underlined.slice(0, 3).map(describe).join(', '));
     const spaced = [...document.querySelectorAll('[data-sentence] > *')].filter(el => visible(el) && parseFloat(getComputedStyle(el).marginLeft) + parseFloat(getComputedStyle(el).marginRight) > 0);
     if (spaced.length) problems.push('sentence word has a side margin (reads as a space in Japanese): ' + spaced.slice(0, 3).map(describe).join(', '));
-    // Furigana (docs/DESIGN_SYSTEM.md): a reading sits over kanji only, never over kana, and two
-    // readings on a line never touch. Measured on the reading's glyphs (a Range over its text), not
-    // its box, whose padding is what keeps them apart.
-    const overKana = [...document.querySelectorAll('ruby')].filter(el => visible(el) && /[\u3041-\u3096\u30a1-\u30fa\u30fc]/.test([...el.childNodes].filter(n => n.nodeName !== 'RT').map(n => n.textContent).join('')));
+    // Furigana (docs/DESIGN_SYSTEM.md): a reading sits over kanji only (what rubyParts counts as
+    // kanji), unless rubyParts fell back to the whole word, which it marks; a word with furigana
+    // never breaks across lines (the browser would cut base and reading apart, putting the wrong
+    // syllables over each kanji); and two readings on a line never touch, measured on the
+    // reading's glyphs (a Range over its text), not its box, whose padding keeps them apart.
+    const kanjiOnly = /^[${KANJI_CHARS}]+$/;
+    const rubies = [...document.querySelectorAll('ruby')].filter(visible);
+    const overKana = rubies.filter(el => !el.hasAttribute('data-ruby-fallback') && !kanjiOnly.test([...el.childNodes].filter(n => n.nodeName !== 'RT').map(n => n.textContent).join('')));
     if (overKana.length) problems.push('reading over kana (furigana goes over the kanji only): ' + overKana.slice(0, 3).map(describe).join(', '));
+    const broken = rubies.filter(el => { const tops = [...el.getClientRects()].filter(r => r.width > 0).map(r => r.top); return tops.some(top => Math.abs(top - tops[0]) >= 2); });
+    if (broken.length) problems.push('word with furigana breaks across lines: ' + broken.slice(0, 3).map(describe).join(', '));
     const readings = [...document.querySelectorAll('rt')].filter(visible).map(el => { const range = document.createRange(); range.selectNodeContents(el); return { el, rect: range.getBoundingClientRect() }; }).filter(r => r.rect.width > 0);
-    readings.sort((a, b) => a.rect.top - b.rect.top || a.rect.left - b.rect.left);
+    // Lines first (tops within 2px), then left to right in each: a sub-pixel difference in top
+    // must not put a reading on the right before one on its left.
+    readings.sort((a, b) => a.rect.top - b.rect.top);
+    const lines = [];
+    for (const reading of readings) {
+        const line = lines[lines.length - 1];
+        if (line && reading.rect.top - line[0].rect.top < 2) line.push(reading);
+        else lines.push([reading]);
+    }
     const touching = [];
-    for (let i = 1; i < readings.length; i++) {
-        const prev = readings[i - 1].rect, next = readings[i].rect;
-        if (Math.abs(next.top - prev.top) < 2 && next.left - prev.right < 1) touching.push(readings[i - 1].el.textContent + ' / ' + readings[i].el.textContent + ' (' + (next.left - prev.right).toFixed(1) + 'px)');
+    for (const line of lines) {
+        line.sort((a, b) => a.rect.left - b.rect.left);
+        for (let i = 1; i < line.length; i++) {
+            const prev = line[i - 1].rect, next = line[i].rect;
+            if (next.left - prev.right < 1) touching.push(line[i - 1].el.textContent + ' / ' + line[i].el.textContent + ' (' + (next.left - prev.right).toFixed(1) + 'px)');
+        }
     }
     if (touching.length) problems.push('neighbouring readings touch: ' + touching.slice(0, 3).join(', ') + (touching.length > 3 ? ' (+' + (touching.length - 3) + ')' : ''));
     return problems;
@@ -97,6 +115,9 @@ async function measure(tab: Tab, page: string, width: number, tapTargets = ''): 
 const DICTIONARY_PAGES = dictionaryPages();
 const SRS_ROUTES = srsRoutes();
 const [COMPLETED_TITLE, WATCHING_TITLE] = listeningTitlesToMark();
+// 登場人物: its sentences hold long readings that wrap at the end of a line at 320 and 375px, the
+// case where a ruby broken across lines puts the wrong syllables over each kanji.
+const FURIGANA_VOCAB = '1638880';
 
 try {
     for (const { width, height } of VIEWPORTS) {
@@ -124,6 +145,8 @@ try {
             await tab.goto(`${app}${route.path}`, route.ready);
             await measure(tab, `srs ${route.path}`, width);
         }
+        await tab.goto(`${app}/vocab/${FURIGANA_VOCAB}`, 'Example sentences');
+        await measure(tab, `srs /vocab/${FURIGANA_VOCAB}`, width);
         // The library's rows with a status line, the tightest rows on a phone.
         await tab.goto(`${app}/listening/${COMPLETED_TITLE}`, 'Mark all watched');
         await tab.click('Mark all watched');
@@ -136,6 +159,8 @@ try {
             await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${page.path}`, page.ready);
             await measure(tab, `dictionary ${page.path}`, width, DICTIONARY_TAP_TARGETS);
         }
+        await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary/vocab/${FURIGANA_VOCAB}/`, 'Meanings');
+        await measure(tab, `dictionary /vocab/${FURIGANA_VOCAB}/`, width, DICTIONARY_TAP_TARGETS);
         await tab.close();
     }
 } catch (error) {
@@ -150,4 +175,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji and apart.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji, on one line and apart.`);

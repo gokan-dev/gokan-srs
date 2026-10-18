@@ -68,7 +68,7 @@ export function InteractiveSentence({
                 const isClickable = onVocabClick && (!segment.isTarget || allowTargetClickable);
 
                 const renderContent = () => (
-                    <Ruby text={segment.content} reading={showFurigana ? segment.reading : null} rtClassName="opacity-80" />
+                    <Ruby text={segment.content} reading={showFurigana ? segment.reading : null} tone="opacity-80" />
                 );
 
                 // The word being studied is excluded from the gloss card - the

@@ -141,13 +141,15 @@ export function ConjugationAnswer({ prompt, size }: { prompt: GrammarConjugation
 function AnswerWithReading({ written, reading, size }: { written: string; reading: string; size: 'sm' | 'lg' }) {
     const main = size === 'lg' ? 'text-2xl' : 'text-base';
 
+    // Ruby already renders plain text without a reading: this return is for the line height,
+    // leading-loose only where a reading needs the room.
     if (!reading || reading === written) {
         return <p className={`${main} font-mincho text-primary`}>{written}</p>;
     }
 
     return (
         <p className={`${main} font-mincho text-primary leading-loose`}>
-            <Ruby text={written} reading={reading} rtClassName="font-gothic text-tertiary" />
+            <Ruby text={written} reading={reading} tone="text-tertiary" />
         </p>
     );
 }

@@ -8,10 +8,17 @@ export interface RubyPart {
     text: string;
     /** The reading over `text`, absent for kana that need none. */
     ruby?: string;
+    /** Set when the kana could not be matched, so `ruby` is the whole reading over the whole word. */
+    fallback?: true;
 }
 
-const KANJI_RUN = /[㐀-鿿々〆ヶ]+/g;
-const HAS_KANJI = /[㐀-鿿々〆ヶ]/;
+/**
+ * What counts as kanji (a regex character-class body), shared with check:layout so the check and
+ * the splitter agree: ヶ (一ヶ月) is kanji here, though it sits in the katakana block.
+ */
+export const KANJI_CHARS = '㐀-鿿々〆ヶ';
+const KANJI_RUN = new RegExp(`[${KANJI_CHARS}]+`, 'g');
+const HAS_KANJI = new RegExp(`[${KANJI_CHARS}]`);
 
 function escapeRegExp(text: string): string {
     return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -21,7 +28,7 @@ function escapeRegExp(text: string): string {
  * The ruby runs of `text` read as `reading`. Kana in the word are matched against the reading,
  * so each run of kanji gets its own part of it (引き出し: 引(ひ)き出(だ)し). When they cannot be
  * matched (an irregular reading, a reading of another form), the whole word carries the whole
- * reading rather than a wrong split. A word without kanji, or without a reading, has no ruby.
+ * reading rather than a wrong split, marked `fallback`. A word without kanji, or without a reading, has no ruby.
  */
 export function rubyParts(text: string, reading: string | undefined): RubyPart[] {
     if (!reading || !HAS_KANJI.test(text)) return [{ text }];
@@ -46,7 +53,7 @@ export function rubyParts(text: string, reading: string | undefined): RubyPart[]
     }
 
     const match = new RegExp(`${pattern}$`).exec(toHiragana(reading));
-    if (!match) return [{ text, ruby: reading }];
+    if (!match) return [{ text, ruby: reading, fallback: true }];
 
     let group = 1;
     return parts.map(part => (part.ruby === undefined ? part : { text: part.text, ruby: match[group++] }));

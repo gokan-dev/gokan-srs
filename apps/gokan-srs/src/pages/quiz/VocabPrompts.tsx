@@ -257,7 +257,7 @@ export function ProductionPrompt({ vocab, answered, memoryStrength, onOpenWord }
                         title={`Open the page for ${headwordOf(vocab)}`}
                         className="relative inline-flex items-start text-5xl leading-none text-primary font-mincho rounded underline decoration-dashed decoration-1 underline-offset-8 hover:opacity-80 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:no-underline"
                     >
-                        <span><Ruby text={headwordOf(vocab)} reading={vocab.reading.primary} rtClassName="text-secondary" /></span>
+                        <span><Ruby text={headwordOf(vocab)} reading={vocab.reading.primary} tone="text-secondary" /></span>
                     </button>
                     <KanjiSpellingNote vocab={vocab} className="mt-3" />
                 </motion.div>

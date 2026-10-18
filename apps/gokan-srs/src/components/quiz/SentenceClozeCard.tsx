@@ -130,7 +130,7 @@ function synonymWords(turn: ExerciseTurn): { vocabId: string; written: string }[
  * and a link to its word's page when it is a word.
  */
 function RevealedForm({ slot, reading, onVocabClick }: { slot: AnswerSlot; reading?: string; onVocabClick?: (vocabId: string) => void }) {
-    const form = <Ruby text={slot.reveal} reading={reading} rtClassName="text-secondary" />;
+    const form = <Ruby text={slot.reveal} reading={reading} tone="text-secondary" />;
 
     const vocabId = slot.word?.vocabId;
     if (!vocabId || !onVocabClick) {

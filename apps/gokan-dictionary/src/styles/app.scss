@@ -723,6 +723,11 @@ a.chip {
   // Over the kanji only (rubyParts), half size. The inline padding keeps neighbouring readings
   // apart (さんど とうじょう, not さんどとうじょう); it only takes space where a reading is wider
   // than its kanji. The default ruby-align stays: centring opens a gap that reads as a space.
+  // A ruby never wraps: the browser would cut base and reading apart, misplacing the syllables.
+  ruby {
+    white-space: nowrap;
+  }
+
   rt {
     font-family: $font-gothic;
     font-size: 0.5em;

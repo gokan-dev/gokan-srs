@@ -23,7 +23,7 @@ export function Headword({ vocab, size, onClick, showReading = false }: Headword
             className={`relative inline-flex items-start leading-none text-primary font-mincho ${large ? 'text-kanji' : 'text-5xl'} ${onClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
             onClick={onClick}
         >
-            <span><Ruby text={headword} reading={showReading ? vocab.reading.primary : null} rtClassName="text-secondary" /></span>
+            <span><Ruby text={headword} reading={showReading ? vocab.reading.primary : null} tone="text-secondary" /></span>
         </div>
     );
 }

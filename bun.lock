@@ -6,6 +6,7 @@
       "name": "gokan",
       "devDependencies": {
         "@eslint/js": "^9.39.1",
+        "@gokan/dataset-schema": "workspace:*",
         "@types/node": "^24.10.1",
         "eslint": "^9.39.1",
         "eslint-plugin-react-hooks": "^7.0.1",
