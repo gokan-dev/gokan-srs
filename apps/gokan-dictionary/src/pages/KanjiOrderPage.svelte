@@ -32,7 +32,7 @@
     {#each ranges as range (range.first)}
       <li>
         <a href={kanjiRangePath(order.id, range)}>
-          <span class="range-title">Steps {range.first.toLocaleString('en')} to {range.last.toLocaleString('en')}</span>
+          <span class="range-title">Steps {range.first} to {range.last}</span>
           <span class="range-preview" lang="ja">{range.steps.slice(0, PREVIEW).map(step => step.character).join('')}</span>
           <span class="meta">{range.steps.length} kanji · {range.wordCount.toLocaleString('en')} words</span>
         </a>

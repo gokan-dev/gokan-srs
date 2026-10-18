@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { KanjiOrder } from '@gokan/dataset-schema';
-  import type { StepRange } from '../lib/kanjiOrders';
+  import { WORDS_PER_KANJI, type StepRange } from '../lib/kanjiOrders';
   import type { VocabSummary } from '../lib/types';
   import { SITE_ORIGIN } from '../lib/site';
   import { kanjiIndexPath, kanjiOrderPath, kanjiOrdersPath, kanjiPath, kanjiRangePath, kanjiRangeSlug } from '../lib/urls';
@@ -31,12 +31,12 @@
     <h1>{order.searchName} kanji {range.first} to {range.last}: the words they unlock</h1>
     <p>
       Steps {range.first} to {range.last} of {order.label} ({order.description}): {steps.length} kanji, in
-      its order, and the {wordCount.toLocaleString('en')} words you can read once you know them, each under the kanji that completes it. The most frequent
-      come first; the kanji's own page lists every word that uses it.
+      its order, and the {wordCount.toLocaleString('en')} words you can read once you know them, each
+      under the kanji that completes it. Each kanji shows its {WORDS_PER_KANJI} most frequent; its own
+      page lists every word that uses it.
     </p>
   </div>
 
-  <!-- One pager, at the foot: at 320px all of a long order's ranges fill more than a screen, and the breadcrumb's order page lists them too. -->
   <section class="section">
     <h2>Kanji</h2>
     <ul class="kanji-tiles">
@@ -50,7 +50,7 @@
     <h2>Words by step</h2>
     {#each steps as { step, character, words, total } (step)}
       <div class="range-step">
-        <h3><span class="range-step-number">{step.toLocaleString('en')}</span> <a href={kanjiPath(character)} lang="ja">{character}</a></h3>
+        <h3><span class="range-step-number">{step}</span> <a href={kanjiPath(character)} lang="ja">{character}</a></h3>
         {#if words.length > 0}
           <VocabEntryList entries={words} />
           {#if total > words.length}
@@ -63,6 +63,7 @@
     {/each}
   </section>
 
+  <!-- One pager, at the foot: at 320px a long order's ranges fill more than a screen, and the order page lists them too. -->
   <Pager count={ranges.length} current={current} hrefOf={rangeHref} textOf={rangeText} label="Steps" />
 
   <p class="support"><a href={SITE_ORIGIN + '/'}>Learn these words in Gokan</a>, in the order of your kanji book, with spaced repetition.</p>
