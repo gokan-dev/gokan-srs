@@ -24,6 +24,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # The real-dataset suites (reported synonym cases, the normalizeGloss pin) fail when
+          # the compiled dataset is missing rather than passing vacuously.
+          submodules: true
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
