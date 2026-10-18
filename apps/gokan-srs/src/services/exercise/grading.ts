@@ -40,21 +40,27 @@ export function supportCoefficient(results: AnswerResult[]): number {
 /**
  * Finds which of the slot word's near-synonyms the answer is. Each candidate is
  * graded exactly as a production card asking for it would grade the answer, so a
- * candidate's conjugated or kanji form matches it too. An exact match beats a typo
- * match whatever the order: with dozens of candidates the input can be one word's
- * exact form and another's typo at once (つむ is 積む exactly, but used to match 止む
- * as a typo first, reported). Otherwise the first typo match wins, candidates the
- * cue means first.
+ * candidate's conjugated or kanji form matches it too. The closest match wins
+ * whatever the order: with dozens of candidates the input can be one word's exact
+ * form and another's typo at once (つむ is 積む exactly, but used to match 止む as a
+ * typo first, reported), or another's form only through the lenient kanji skeleton
+ * (止む is 止む exactly, but 止す's 止 plus any kana also grades it). So one of a
+ * candidate's own forms beats any other correct match, which beats a typo; within
+ * each, candidates the cue means first.
  */
 function findSynonym(input: string, candidates: SynonymCandidate[], cue: ProductionCue): SynonymCandidate | null {
+    let form: SynonymCandidate | null = null;
     let typo: SynonymCandidate | null = null;
     for (const candidate of orderSynonymsForCue(candidates, cue)) {
         const slot = wordSlot(candidate.vocab, { otherForm: 'correct', role: 'core', candidates: [] });
         const { result } = gradeSlot(slot, input, 0, cue);
-        if (result === 'correct') return candidate;
+        if (result === 'correct') {
+            if (slot.accept.includes(input.trim())) return candidate;
+            form ??= candidate;
+        }
         if (result === 'minor_error') typo ??= candidate;
     }
-    return typo;
+    return form ?? typo;
 }
 
 /**

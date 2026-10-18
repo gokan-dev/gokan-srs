@@ -398,6 +398,15 @@ describe('near-synonyms (issue #71 Part B)', () => {
         expect(synonymOf('きっとお', [yamu, kitto])?.vocabId).toBe('kitto');
     });
 
+    // 止す (よす) lists first on a 埋める card, and its 止 plus any kana grades 止む
+    // through the kanji skeleton; 止む is a form of 止む itself.
+    it('prefers a candidate\'s own form over another\'s kanji-skeleton match listed earlier', () => {
+        const yosu: SynonymCandidate = { vocabId: 'yosu', relation: 'confusable', vocab: { reading: { primary: 'よす', alternatives: [] }, writtenForm: { kanji: '止す', alternatives: [], containedKanji: [] }, senses: [{ pos: ['v5s'], glosses: [], misc: { rawTags: [] }, related: { compounds: [] } }] } };
+        const yamu: SynonymCandidate = { vocabId: 'yamu', relation: 'confusable', vocab: { reading: { primary: 'やむ', alternatives: [] }, writtenForm: { kanji: '止む', alternatives: [], containedKanji: [] }, senses: [{ pos: ['v5m'], glosses: [], misc: { rawTags: [] }, related: { compounds: [] } }] } };
+        expect(synonymOf('止む', [yosu])?.vocabId).toBe('yosu');
+        expect(synonymOf('止む', [yosu, yamu])?.vocabId).toBe('yamu');
+    });
+
     it('takes the first exact match in list order, and nothing for an unrelated answer', () => {
         const kittoKanji = candidate('kitto-2', 'confusable', '屹度', 'きっと');
         expect(synonymOf('きっと', [kitto, kittoKanji])?.vocabId).toBe('kitto');
