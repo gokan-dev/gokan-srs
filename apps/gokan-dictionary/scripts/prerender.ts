@@ -435,7 +435,7 @@ async function main(): Promise<void> {
         }
         return { order, kanjiCount: list.length, wordCount };
     });
-    writePage(['kanji', 'orders'], kanjiOrdersPath(), bodyOf(KanjiOrdersPage, { orders: orderTotals }), kanjiOrdersMeta([...KANJI_ORDERS]));
+    writePage(['kanji', 'orders'], kanjiOrdersPath(), bodyOf(KanjiOrdersPage, { orders: orderTotals }), kanjiOrdersMeta(KANJI_ORDERS));
 
     console.log('[prerender] writing vocabulary browse pages...');
     const jlptLevelWords = JLPT_LEVELS.map(level => ({

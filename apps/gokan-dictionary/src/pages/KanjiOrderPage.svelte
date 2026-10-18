@@ -17,11 +17,11 @@
   const PREVIEW = 10;
 </script>
 
-<PageLayout trail={[{ label: 'Kanji', href: kanjiIndexPath() }, { label: 'Learning orders', href: kanjiOrdersPath() }, { label: order.label }]} section="kanji" wide>
+<PageLayout trail={[{ label: 'Kanji', href: kanjiIndexPath() }, { label: 'Orders', href: kanjiOrdersPath() }, { label: order.label }]} section="kanji" wide>
   <div class="page-intro">
     <h1>{order.searchName} vocabulary by kanji step</h1>
     <p>
-      {order.description}: {kanjiCount.toLocaleString('en')} kanji, step 1 the first it teaches. A word
+      {order.label} ({order.description}) has {kanjiCount.toLocaleString('en')} kanji, step 1 the first it teaches. A word
       comes in at the step of its last kanji, once you know every kanji in it, so each range below
       lists the words you can read on reaching it: {wordCount.toLocaleString('en')} in all. Words
       usually written in kana, and words with a kanji this order does not teach, are not listed.

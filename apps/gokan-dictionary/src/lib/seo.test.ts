@@ -228,7 +228,7 @@ describe('kanji order pages', () => {
         expect(kanjiOrderMeta(kanjiOrder('kklc'), 2300, 34187).title).toBe('KKLC vocabulary list by kanji step - Gokan Dictionary');
         expect(kanjiRangeMeta(kanjiOrder('kklc'), { first: 1, last: 100 }, 412).title)
             .toBe('KKLC vocabulary: words you can read after kanji 1 to 100 - Gokan Dictionary');
-        expect(kanjiOrdersMeta([...KANJI_ORDERS]).title).toBe('Vocabulary by kanji learning order: KKLC, RTK and more - Gokan Dictionary');
+        expect(kanjiOrdersMeta(KANJI_ORDERS).title).toBe('Vocabulary by kanji learning order: KKLC, RTK and more - Gokan Dictionary');
     });
 
     it('name an order that is not a book, or an older edition, as it is searched', () => {
@@ -237,9 +237,9 @@ describe('kanji order pages', () => {
     });
 
     it('say how many kanji and words each page covers', () => {
-        expect(kanjiOrdersMeta([...KANJI_ORDERS]).description).toContain(`${KANJI_ORDERS.length} kanji learning orders`);
+        expect(kanjiOrdersMeta(KANJI_ORDERS).description).toContain(`${KANJI_ORDERS.length} kanji learning orders`);
         const order = kanjiOrderMeta(kanjiOrder('kklc'), 2300, 34187).description;
-        expect(order).toContain('2,300 kanji');
+        expect(order).toContain('KKLC (Kodansha Kanji Learner\'s Course): 2,300 kanji');
         expect(order).toContain('34,187 words');
         const range = kanjiRangeMeta(kanjiOrder('henshall'), { first: 1901, last: 1945 }, 1);
         expect(range.description).toContain('The 45 kanji of Henshall steps 1901 to 1945 and the 1 word they unlock');

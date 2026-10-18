@@ -169,7 +169,7 @@ export function kanjiIndexMeta(kanjiCount: number): PageMeta {
     };
 }
 
-export function kanjiOrdersMeta(orders: KanjiOrder[]): PageMeta {
+export function kanjiOrdersMeta(orders: readonly KanjiOrder[]): PageMeta {
     const named = orders.slice(0, 2).map(order => order.label).join(', ');
     return {
         title: `Vocabulary by kanji learning order: ${named} and more - ${SITE_NAME}`,
@@ -181,7 +181,7 @@ export function kanjiOrderMeta(order: KanjiOrder, kanjiCount: number, wordCount:
     const name = order.searchName;
     return {
         title: `${name} vocabulary list by kanji step - ${SITE_NAME}`,
-        description: `${order.description}: ${kanjiCount.toLocaleString('en')} kanji in steps of 100, and the ${wordCount.toLocaleString('en')} words you can read after each, every word at the step of its last kanji.`,
+        description: `${name} (${order.description}): ${kanjiCount.toLocaleString('en')} kanji in steps of 100, and the ${wordCount.toLocaleString('en')} words you can read after each, every word at the step of its last kanji.`,
     };
 }
 

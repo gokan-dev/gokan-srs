@@ -26,18 +26,17 @@
   const rangeText = (page: number) => kanjiRangeSlug(ranges[page - 1]);
 </script>
 
-<PageLayout trail={[{ label: 'Kanji', href: kanjiIndexPath() }, { label: 'Learning orders', href: kanjiOrdersPath() }, { label: order.label, href: kanjiOrderPath(order.id) }, { label: `${range.first} to ${range.last}` }]} section="kanji" wide>
+<PageLayout trail={[{ label: 'Kanji', href: kanjiIndexPath() }, { label: 'Orders', href: kanjiOrdersPath() }, { label: order.label, href: kanjiOrderPath(order.id) }, { label: `${range.first} to ${range.last}` }]} section="kanji" wide>
   <div class="page-intro">
     <h1>{order.searchName} kanji {range.first} to {range.last}: the words they unlock</h1>
     <p>
-      {steps.length} kanji of {order.description}, in its order, and the {wordCount.toLocaleString('en')}
-      words you can read once you know them, each under the kanji that completes it. The most frequent
+      Steps {range.first} to {range.last} of {order.label} ({order.description}): {steps.length} kanji, in
+      its order, and the {wordCount.toLocaleString('en')} words you can read once you know them, each under the kanji that completes it. The most frequent
       come first; the kanji's own page lists every word that uses it.
     </p>
   </div>
 
-  <Pager count={ranges.length} current={current} hrefOf={rangeHref} textOf={rangeText} label="Steps" />
-
+  <!-- One pager, at the foot: at 320px all of a long order's ranges fill more than a screen, and the breadcrumb's order page lists them too. -->
   <section class="section">
     <h2>Kanji</h2>
     <ul class="kanji-tiles">

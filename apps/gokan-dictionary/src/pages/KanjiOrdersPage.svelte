@@ -11,12 +11,12 @@
   let { orders }: Props = $props();
 </script>
 
-<PageLayout trail={[{ label: 'Kanji', href: kanjiIndexPath() }, { label: 'Learning orders' }]} section="kanji" wide>
+<PageLayout trail={[{ label: 'Kanji', href: kanjiIndexPath() }, { label: 'Orders' }]} section="kanji" wide>
   <div class="page-intro">
     <h1>Vocabulary by kanji learning order</h1>
     <p>
-      Each kanji book teaches the characters in its own order. Pick yours to see the words you can
-      read at each step: a word comes in at the step of its last kanji, once you know every kanji in it.
+      Every kanji book teaches the characters in its own order, and the JLPT and frequency orders are
+      here too. Pick yours to see the words you can read at each step: a word comes in at the step of its last kanji, once you know every kanji in it.
     </p>
   </div>
 
