@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { isAboutPath, routeSeo } from './seo.utils';
+
+const home = routeSeo('/');
+const PUBLIC_HOME_TITLE = home.kind === 'canonical' ? home.page?.title : undefined;
 import html from '../../index.html?raw';
 import appSource from '../App.tsx?raw';
 
@@ -8,9 +11,37 @@ const APP_ROUTES = [...appSource.matchAll(/<Route path="([^"]+)"/g)].map(match =
 
 describe('routeSeo', () => {
     it('indexes the homepage and About under their own URL', () => {
-        expect(routeSeo('/')).toEqual({ kind: 'canonical', path: '/' });
-        expect(routeSeo('/about')).toEqual({ kind: 'canonical', path: '/about' });
-        expect(routeSeo('/about/')).toEqual({ kind: 'canonical', path: '/about' });
+        expect(routeSeo('/')).toMatchObject({ kind: 'canonical', path: '/' });
+        expect(routeSeo('/about')).toMatchObject({ kind: 'canonical', path: '/about' });
+        expect(routeSeo('/about/')).toMatchObject({ kind: 'canonical', path: '/about' });
+    });
+
+    it('gives the homepage and About their own title and description', () => {
+        expect(routeSeo('/')).toMatchObject({
+            page: {
+                title: 'Gokan: Japanese vocabulary for the kanji you know (free SRS)',
+                description: 'Free spaced repetition for Japanese vocabulary that follows your kanji book: KKLC, RTK, Kanji in Context and more. Learn the words you can now read. No account.',
+            },
+        });
+        expect(routeSeo('/about/')).toMatchObject({
+            page: {
+                title: 'About Gokan: why I built it',
+                description: 'Why I built Gokan, what it does, and where its data comes from.',
+            },
+        });
+    });
+
+    it('never repeats a title or a description between public routes', () => {
+        const pages = ['/', '/about'].map(path => {
+            const seo = routeSeo(path);
+            return seo.kind === 'canonical' ? seo.page : undefined;
+        });
+        expect(new Set(pages.map(page => page?.title)).size).toBe(2);
+        expect(new Set(pages.map(page => page?.description)).size).toBe(2);
+    });
+
+    it('leaves a dictionary page to describe itself', () => {
+        expect(routeSeo('/vocab/1589350')).not.toHaveProperty('page');
     });
 
     it('points each detail route at the dictionary page it duplicates', () => {
@@ -74,5 +105,22 @@ describe('index.html', () => {
         expect(html).not.toMatch(/property="og:url"/);
         expect(html).not.toMatch(/name="twitter:url"/);
         expect(html).not.toMatch(/name="robots"/);
+    });
+
+    // React places a route's <title> before the first one in <head>, so one default is
+    // overridden; any other per-page tag here would sit beside the route's as a duplicate.
+    it('declares one default title, and no description of its own', () => {
+        expect([...html.matchAll(/<title>/g)]).toHaveLength(1);
+        expect(html).toContain(`<title>${PUBLIC_HOME_TITLE}</title>`);
+        for (const tag of ['name="title"', 'name="description"', 'property="og:title"', 'property="og:description"', 'name="twitter:title"', 'name="twitter:description"']) {
+            expect(html, tag).not.toContain(tag);
+        }
+    });
+
+    it('names the dictionary as nearly 36,000 words, everywhere it counts them', () => {
+        const counts = [...html.matchAll(/(\d+,\d{3}) words/g)].map(match => match[1]);
+        expect(counts.length).toBeGreaterThan(1);
+        expect(new Set(counts)).toEqual(new Set(['36,000']));
+        expect(html).not.toContain('38,000');
     });
 });
