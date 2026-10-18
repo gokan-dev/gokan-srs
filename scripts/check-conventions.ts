@@ -90,13 +90,18 @@ const SETTING_SOURCES = /--setting-sources[= ]+([\w,]+)/g;
 const KUN_READINGS = /\breadings\.kun\b/;
 const KUN_READING_LABEL = /\bkunReadingLabel\b/;
 
+/** A glyph size: text-2xl, or an arbitrary 24px or more (text-[28px]). */
+const GLYPH_SIZE = String.raw`\btext-(?:2xl\b|\[(?:2[4-9]|[3-9]\d|\d{3,})px\])`;
+
 /**
  * A glyph drawn as a tile is a KanjiTile: a box only when it links somewhere, so a glyph with no
  * page never looks clickable (DESIGN_SYSTEM.md, principle 7). The known-kanji grid's toggles are
  * the one other boxed glyph, and they are buttons.
  */
-const BOXED_GLYPH = /\bfont-mincho\b(?=.*\btext-2xl\b)(?=.*\bborder\b)|\bborder\b(?=.*\bfont-mincho\b)(?=.*\btext-2xl\b)/;
-const BOXED_GLYPH_FILES = new Set(['apps/gokan-srs/src/components/KanjiTile.tsx', 'apps/gokan-srs/src/components/KanjiKnowledgeGrid.tsx']);
+const BOXED_GLYPH = new RegExp(String.raw`\bfont-mincho\b(?=.*${GLYPH_SIZE})(?=.*\bborder\b)|\bborder\b(?=.*\bfont-mincho\b)(?=.*${GLYPH_SIZE})`);
+const BOXED_GLYPH_FILES = new Set(['apps/gokan-srs/src/components/KanjiTile.tsx', 'apps/gokan-srs/src/components/KanjiKnowledgeGrid.tsx',
+    // The welcome page's step two boxes, named in docs/DESIGN_SYSTEM.md's Welcome page note.
+    'apps/gokan-srs/src/pages/setup/welcome/HowItWorks.tsx']);
 
 /** Furigana in the app is the Ruby component: readings over the kanji only, half size, kept apart. */
 const RUBY_ELEMENT = /<ruby\b/;

@@ -109,14 +109,17 @@ export function HowItWorks() {
                             <ExampleKanjiBox {...example.kanji[0]} />
                             <span className="text-lg">+</span>
                             <ExampleKanjiBox {...example.kanji[1]} />
-                            <svg width="28" height="14" viewBox="0 0 28 14" className="flex-none">
-                                <path d="M1 7h24M19 1l6 6-6 6" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                            <span className="ml-1 flex flex-col">
-                                <span lang="ja" className="font-mincho text-[36px] leading-[1.3] text-primary">
-                                    <Ruby text={example.word} reading={example.kana} tone="text-secondary" />
+                            {/* The arrow and the word wrap as one, so on a phone the arrow never points at empty space. */}
+                            <span className="flex flex-none items-center gap-3">
+                                <svg width="28" height="14" viewBox="0 0 28 14" className="flex-none">
+                                    <path d="M1 7h24M19 1l6 6-6 6" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                                <span className="ml-1 flex flex-col">
+                                    <span lang="ja" className="font-mincho text-[36px] leading-[1.3] text-primary">
+                                        <Ruby text={example.word} reading={example.kana} tone="text-secondary" />
+                                    </span>
+                                    <span className="text-sm text-primary">{example.gloss}</span>
                                 </span>
-                                <span className="text-sm text-primary">{example.gloss}</span>
                             </span>
                         </div>
                     }

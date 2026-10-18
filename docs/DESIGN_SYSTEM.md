@@ -253,6 +253,9 @@ purpose, and only here:
 - **Buttons** are `Button` at size `lg` (52px); a link that looks like one ("Browse the
   dictionary first") takes `buttonClassName` (`components/ui/buttonStyles.ts`), never a copy.
 - **Motion** runs past 200ms in two places (section 4).
+- **Boxed glyphs that do not link**: the Try it demo's tiles (toggle buttons, like the
+  known-kanji grid's) and step two's two boxes (an illustration of the known tiles above,
+  `aria-hidden`). They are the only ones outside `KanjiTile` and the known-kanji grid.
 
 ## 6. Shared components
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { Sentence, Vocabulary } from '@gokan/dataset-schema';
+import { KANJI_ORDERS, type Sentence, type Vocabulary } from '@gokan/dataset-schema';
 import { DEMO_START_KNOWN, DEMO_TILES, DEMO_WORDS, WELCOME_EXAMPLES, WELCOME_ORDER_IDS, demoAnswerIsRight } from './welcomeExamples';
 
 // import.meta.glob rather than node:fs, which this tsconfig has no types for; each yields nothing
@@ -24,6 +24,11 @@ function file<T>(files: Record<string, T>, name: string): T {
 }
 
 describe('WELCOME_EXAMPLES', () => {
+    it('leaves five orders off the chips, as step one\'s "and five more" says', () => {
+        // A new order fails here until the approved copy in HowItWorks is updated with it.
+        expect(KANJI_ORDERS.length - WELCOME_ORDER_IDS.length).toBe(5);
+    });
+
     it('gives every chip an example whose first accepted answer is right', () => {
         for (const id of WELCOME_ORDER_IDS) {
             const example = WELCOME_EXAMPLES[id];

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { isAboutPath, routeSeo } from './seo.utils';
 import html from '../../index.html?raw';
 import appSource from '../App.tsx?raw';
+import alsoInGokanSource from '../pages/setup/welcome/AlsoInGokan.tsx?raw';
 
 const home = routeSeo('/');
 const PUBLIC_HOME = home.kind === 'canonical' ? home.page : undefined;
@@ -139,5 +140,8 @@ describe('index.html', () => {
         expect(counts.length).toBeGreaterThan(1);
         expect(new Set(counts)).toEqual(new Set(['36,000']));
         expect(html).not.toContain('38,000');
+        // The welcome page says it too, in "Also in Gokan".
+        const welcomeCounts = [...alsoInGokanSource.matchAll(/(\d+,\d{3}) words/g)].map(match => match[1]);
+        expect(welcomeCounts).toEqual(['36,000']);
     });
 });

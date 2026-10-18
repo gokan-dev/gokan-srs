@@ -24,7 +24,7 @@ export function AlsoInGokan() {
                     Over 700 grammar points from N5 to N1. You practise them by filling the gap in real sentences, and the words in those sentences count as review too.
                 </Item>
                 <Item title="A dictionary">
-                    Every word, kanji and grammar point has its own page, nearly 36,000 words in all. You don't need to set anything up. <a href="/dictionary/">Browse the dictionary</a>
+                    Every word, kanji and grammar point has its own page, nearly 36,000 words in all. You don't need to set anything up. <a href="/dictionary/" className="text-accent hover:text-accent-hover">Browse the dictionary</a>
                 </Item>
                 {/* Every order the picker offers, named from the shared package, so the list cannot fall behind it. */}
                 <Item title="Your kanji book">{supportedOrdersList()}.</Item>

@@ -87,7 +87,7 @@ export function KanjiDemo() {
                 })}
             </ul>
 
-            <p aria-live="polite" className="mt-[18px] mb-0 text-[13px] text-secondary">
+            <p aria-live="polite" className="type-support mt-[18px] mb-0">
                 {known.size} kanji known, {readable} {readable === 1 ? "word" : "words"} you can read
             </p>
         </figure>
