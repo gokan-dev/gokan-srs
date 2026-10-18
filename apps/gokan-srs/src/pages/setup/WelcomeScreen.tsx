@@ -3,7 +3,7 @@ import { useGoogleDrive } from "../../context/useGoogleDrive";
 import { StorageService } from "../../services/storage.service";
 import { Button } from "../../components/ui/Button";
 import { Cloud, Loader2, LogIn, BookOpen, GraduationCap, ChevronRight, LockOpen } from "lucide-react";
-import { supportedOrdersList } from "../../utils/supportedOrders.utils";
+import { supportedOrdersList } from "@gokan/dataset-schema";
 
 export function GoogleLoginButton({ onSyncComplete, className }: { onSyncComplete: () => void, className?: string }) {
     const { login, isDownloading, isAuthenticated, downloadProgress } = useGoogleDrive();

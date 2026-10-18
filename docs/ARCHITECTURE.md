@@ -848,7 +848,7 @@ What Google and DuckDuckGo show for the site is decided entirely by `apps/gokan-
 ### Onboarding Flow (`pages/setup/OnboardingFlow.tsx`)
 
 Wrapper for new users, replacing a direct `SetupScreen` call. Manages a two-step process:
-1. **Welcome Screen** (`WelcomeScreen.tsx`): the homepage a crawler renders (it never has a setup), so its `<h1>` says what the page is ("Japanese vocabulary for the kanji you know"), the brand as a plain line above it. It explains the app, names every supported order in one line (`supportedOrdersList`, `utils/supportedOrders.utils.ts`: a `Record` over `KanjiOrderId`, so a new order fails to compile until it is named there), ends with a short "How it works" section, and offers three paths:
+1. **Welcome Screen** (`WelcomeScreen.tsx`): the homepage a crawler renders (it never has a setup), so its `<h1>` says what the page is ("Japanese vocabulary for the kanji you know"), the brand as a plain line above it. It explains the app, names every supported order in one line (`supportedOrdersList` from `@gokan/dataset-schema`, over each order's `listName` in `ORDER_INFO`: a new order fails to compile until it is named there, and `check:conventions` rejects a second `Record<KanjiOrderId, …>` in an app), ends with a short "How it works" section, and offers three paths:
    - *Just starting out (Beginner)*: Skips the wizard entirely - initializes with KKLC step 0, an empty kanji set, and the `kanji_coverage` learning order.
    - *I already know some kanji (Kanji Learner)*: Proceeds to the Setup Screen wizard.
    - *Used Gokan on another device?*: `GoogleLoginButton` ("Restore from Google Drive") - Drive login to restore existing progress (auto-retries the download once authenticated).

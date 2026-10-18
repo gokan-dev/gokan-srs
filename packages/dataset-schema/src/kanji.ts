@@ -86,25 +86,43 @@ export interface KanjiOrder {
     /** Short, for a picker and a label: "RTK". */
     label: string;
     description: string;
+    /**
+     * How a sentence naming every order says this one ("Remembering the Kanji in any edition").
+     * Orders a learner thinks of as one share it, and `supportedOrdersList` says it once.
+     */
+    listName: string;
 }
 
 /** Every order, the most followed first: a Record, so adding an order fails until it is described. */
+const RTK_LIST_NAME = 'Remembering the Kanji in any edition';
+const DERIVED_LIST_NAME = 'JLPT and frequency order';
+const CARDS_LIST_NAME = 'the White Rabbit and Tuttle cards';
+
 const ORDER_INFO: Record<KanjiOrderId, Omit<KanjiOrder, 'id'>> = {
-    kklc: { label: 'KKLC', description: 'Kodansha Kanji Learner\'s Course' },
-    rtk: { label: 'RTK', description: 'Remembering the Kanji, 6th edition (books 1 and 3)' },
-    jlpt: { label: 'JLPT', description: 'N5 first, the most common kanji first within a level' },
-    frequency: { label: 'Frequency', description: 'The kanji met most often in print first' },
-    kanjiKana: { label: 'School grades', description: 'Kanji & Kana: the jōyō in the order Japanese schools teach it' },
-    kanjiInContext: { label: 'Kanji in Context', description: 'Nishiguchi and Kono' },
-    rtkLegacy: { label: 'RTK, older editions', description: 'Remembering the Kanji, 1st to 5th editions' },
-    henshall: { label: 'Henshall', description: 'A Guide to Remembering Japanese Characters' },
-    kanjiFlashcards: { label: 'White Rabbit cards', description: 'Japanese Kanji Flashcards (White Rabbit Press)' },
-    tuttleCards: { label: 'Tuttle cards', description: 'Tuttle Kanji Cards' },
-    maniette: { label: 'Maniette', description: 'Les Kanjis dans la tête, the French RTK' },
+    kklc: { label: 'KKLC', description: 'Kodansha Kanji Learner\'s Course', listName: 'KKLC' },
+    rtk: { label: 'RTK', description: 'Remembering the Kanji, 6th edition (books 1 and 3)', listName: RTK_LIST_NAME },
+    jlpt: { label: 'JLPT', description: 'N5 first, the most common kanji first within a level', listName: DERIVED_LIST_NAME },
+    frequency: { label: 'Frequency', description: 'The kanji met most often in print first', listName: DERIVED_LIST_NAME },
+    kanjiKana: { label: 'Kanji & Kana', description: 'The jōyō in the order Japanese schools teach it (Hadamitzky)', listName: 'Kanji & Kana (the school-grade order)' },
+    kanjiInContext: { label: 'Kanji in Context', description: 'Nishiguchi and Kono', listName: 'Kanji in Context' },
+    rtkLegacy: { label: 'RTK, older editions', description: 'Remembering the Kanji, 1st to 5th editions', listName: RTK_LIST_NAME },
+    henshall: { label: 'Henshall', description: 'A Guide to Remembering Japanese Characters', listName: 'Henshall' },
+    kanjiFlashcards: { label: 'White Rabbit cards', description: 'Japanese Kanji Flashcards (White Rabbit Press)', listName: CARDS_LIST_NAME },
+    tuttleCards: { label: 'Tuttle cards', description: 'Tuttle Kanji Cards', listName: CARDS_LIST_NAME },
+    maniette: { label: 'Maniette', description: 'Les Kanjis dans la tête, the French RTK', listName: 'Les Kanjis dans la tête' },
 };
 
 /** The orders a learner can pick, the most followed first. */
 export const KANJI_ORDERS: readonly KanjiOrder[] = (Object.keys(ORDER_INFO) as KanjiOrderId[]).map(id => ({ id, ...ORDER_INFO[id] }));
+
+/**
+ * Every order a learner can follow, as one English list in `KANJI_ORDERS` order, each `listName`
+ * said once where it first appears: "KKLC, ..., and Les Kanjis dans la tête".
+ */
+export function supportedOrdersList(): string {
+    const names = [...new Set(KANJI_ORDERS.map(order => order.listName))];
+    return names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`;
+}
 
 export function kanjiOrder(id: KanjiOrderId): KanjiOrder {
     return { id, ...ORDER_INFO[id] };

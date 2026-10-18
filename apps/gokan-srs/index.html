@@ -33,9 +33,11 @@
   <!-- Primary Meta Tags -->
   <!--
     The one default title, the homepage's: a route with its own renders it before this one, so
-    it wins (components/RouteSeo.tsx). No canonical, og:url, robots tag, description or
-    og:/twitter: title and description here: this file is every route, so any of them would sit
-    beside a route's own, or claim every route is the homepage.
+    it wins (components/RouteSeo.tsx). No canonical, og:url, robots tag or description here: this
+    file is every route, so any of them would sit beside a route's own, or claim every route is
+    the homepage. The og:/twitter: title and description below are the one exception: link-preview
+    scrapers run no JavaScript and would otherwise see none (utils/seo.utils.test.ts checks they
+    equal the homepage's).
   -->
   <title>Gokan: Japanese vocabulary for the kanji you know (free SRS)</title>
   <meta name="author" content="Gokan SRS" />
@@ -44,12 +46,16 @@
 
   <!-- Open Graph / Facebook -->
   <meta property="og:type" content="website" />
+  <meta property="og:title" content="Gokan: Japanese vocabulary for the kanji you know (free SRS)" />
+  <meta property="og:description" content="Free spaced repetition for Japanese vocabulary that follows your kanji book: KKLC, RTK, Kanji in Context and more. Learn the words you can now read. No account." />
   <meta property="og:image" content="https://gokan-srs.com/og-image.png" />
   <meta property="og:locale" content="en_US" />
   <meta property="og:locale:alternate" content="ja_JP" />
 
   <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Gokan: Japanese vocabulary for the kanji you know (free SRS)" />
+  <meta name="twitter:description" content="Free spaced repetition for Japanese vocabulary that follows your kanji book: KKLC, RTK, Kanji in Context and more. Learn the words you can now read. No account." />
   <meta name="twitter:image" content="https://gokan-srs.com/og-image.png" />
 
   <!-- Web App Manifest -->

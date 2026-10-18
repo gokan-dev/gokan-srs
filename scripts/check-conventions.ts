@@ -125,6 +125,12 @@ function linksAloneInParagraphs(text: string): number[] {
     return lines;
 }
 
+/**
+ * Learning orders are named, and their per-order data kept, in @gokan/dataset-schema (`ORDER_INFO`):
+ * a table over every order in an app is a second place that names them, and drifts.
+ */
+const ORDER_TABLE = /\bRecord<\s*KanjiOrderId\b/;
+
 const SCHEMA_DIR = 'packages/dataset-schema/src';
 const APP_SOURCE = /^apps\/(gokan-srs|gokan-dictionary)\/(src|scripts)\/.*\.(tsx?|svelte)$/;
 
@@ -268,6 +274,11 @@ function check(files: string[]): Violation[] {
         }
         if (DETAIL_SCREEN.test(file) && !(text.includes('<DetailHeader') && text.includes('<DetailBody'))) {
             add({ file, rule: 'detail-layout', message: 'A detail page is DetailHeader then DetailBody (components/detail/), like the vocab, kanji and grammar pages.' });
+        }
+
+        if (APP_SOURCE.test(file)) {
+            eachLine(text, l => ORDER_TABLE.test(l), line =>
+                add({ file, line, rule: 'one-order-table', message: 'A Record over every KanjiOrderId belongs in @gokan/dataset-schema (ORDER_INFO, KANJI_ORDERS): add a field there.' }));
         }
 
         if (redeclaration && APP_SOURCE.test(file)) {

@@ -22,7 +22,8 @@ export interface PageMeta {
  * Routes whose content is the same for every visitor, indexed under their own URL, each with
  * its own title and description: one static pair in index.html made Google see / and /about
  * as duplicates. index.html keeps only a default <title> (the homepage's), which React places
- * the route's own before, so the route's wins.
+ * the route's own before, so the route's wins, and the homepage's og:/twitter: pair for link
+ * previews, which no scraper that runs JavaScript relies on.
  */
 const PUBLIC_PAGES: Record<string, PageMeta> = {
     '/': {

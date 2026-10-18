@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { isAboutPath, routeSeo } from './seo.utils';
-
-const home = routeSeo('/');
-const PUBLIC_HOME_TITLE = home.kind === 'canonical' ? home.page?.title : undefined;
 import html from '../../index.html?raw';
 import appSource from '../App.tsx?raw';
+
+const home = routeSeo('/');
+const PUBLIC_HOME = home.kind === 'canonical' ? home.page : undefined;
 
 /** Every route path App declares, read from its source so a new route cannot be missed here. */
 const APP_ROUTES = [...appSource.matchAll(/<Route path="([^"]+)"/g)].map(match => match[1]);
@@ -108,12 +108,29 @@ describe('index.html', () => {
     });
 
     // React places a route's <title> before the first one in <head>, so one default is
-    // overridden; any other per-page tag here would sit beside the route's as a duplicate.
+    // overridden. The description stays out: Google reads it, and it would sit beside a route's.
     it('declares one default title, and no description of its own', () => {
+        expect(PUBLIC_HOME).toBeDefined();
         expect([...html.matchAll(/<title>/g)]).toHaveLength(1);
-        expect(html).toContain(`<title>${PUBLIC_HOME_TITLE}</title>`);
-        for (const tag of ['name="title"', 'name="description"', 'property="og:title"', 'property="og:description"', 'name="twitter:title"', 'name="twitter:description"']) {
-            expect(html, tag).not.toContain(tag);
+        expect(html).toContain(`<title>${PUBLIC_HOME?.title}</title>`);
+        expect(html).not.toContain('name="title"');
+        expect(html).not.toContain('name="description"');
+    });
+
+    // Link-preview scrapers (Facebook, X, Slack, Discord) run no JavaScript, so they see only
+    // these: the homepage's pair, once each. A shared /about link previews as the homepage until
+    // About is prerendered; a JavaScript client gets the route's own pair from RouteSeo.
+    it('declares the homepage title and description for link previews, once each', () => {
+        expect(PUBLIC_HOME).toBeDefined();
+        const tags: [string, string | undefined][] = [
+            ['property="og:title"', PUBLIC_HOME?.title],
+            ['property="og:description"', PUBLIC_HOME?.description],
+            ['name="twitter:title"', PUBLIC_HOME?.title],
+            ['name="twitter:description"', PUBLIC_HOME?.description],
+        ];
+        for (const [attribute, content] of tags) {
+            expect(html.split(attribute), attribute).toHaveLength(2);
+            expect(html, attribute).toContain(`<meta ${attribute} content="${content}" />`);
         }
     });
 
