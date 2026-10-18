@@ -29,6 +29,7 @@ const StatsScreen = lazy(() => import('./pages/stats/StatsScreen').then(module =
 const AboutScreen = lazy(() => import('./pages/about/AboutScreen').then(module => ({ default: module.AboutScreen })));
 const VocabDetailScreen = lazy(() => import('./pages/vocab/VocabDetailScreen'));
 const VocabularyListScreen = lazy(() => import('./pages/vocab/VocabularyListScreen').then(module => ({ default: module.VocabularyListScreen })));
+const MixupsScreen = lazy(() => import('./pages/vocab/mixups/MixupsScreen').then(module => ({ default: module.MixupsScreen })));
 const KanjiDetailScreen = lazy(() => import('./pages/kanji/KanjiDetailScreen'));
 const GrammarDetailScreen = lazy(() => import('./pages/grammar/GrammarDetailScreen'));
 const GrammarFamilyScreen = lazy(() => import('./pages/grammar/GrammarFamilyScreen'));
@@ -136,6 +137,9 @@ const AppScreens: React.FC = () => {
                                 } />
                                 <Route path="/vocab" element={
                                     <VocabularyListScreen />
+                                } />
+                                <Route path="/vocab/mixups" element={
+                                    <MixupsScreen />
                                 } />
                                 <Route path="/vocab/:vocabId" element={
                                     <VocabDetailScreen />

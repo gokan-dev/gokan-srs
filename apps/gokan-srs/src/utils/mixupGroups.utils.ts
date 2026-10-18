@@ -88,13 +88,13 @@ const pairKey = (a: string, b: string) => (a < b ? `${a} ${b}` : `${b} ${a}`);
 
 /**
  * Every pair the records name. Its tier and shared meanings come from `relation`,
- * the pair as grading reads it today, so the page shows the tier grading uses; the
- * record's own copy is the fallback when the word's file did not load. A pair the
- * dataset does not have is `unrelated`.
+ * the pair as grading reads it today (null: the dataset has no such pair), so the
+ * page shows the tier grading uses; the record's own copy is the fallback while the
+ * word's file is not loaded (undefined). A pair the dataset does not have is `unrelated`.
  */
 export function mixupPairs(
     records: readonly MixupRecord[],
-    relation: (asked: string, typed: string) => PairRelation | null,
+    relation: (asked: string, typed: string) => PairRelation | null | undefined,
     now: number,
 ): MixupPair[] {
     const pairs = new Map<string, MixupPair>();
@@ -106,7 +106,7 @@ export function mixupPairs(
         if (!pair) {
             const current = relation(asked, typed);
             const stored: PairRelation | null = record.tier ? { tier: record.tier, curated: record.curated === true, shared: record.shared ?? [] } : null;
-            const known = current ?? stored;
+            const known = current === undefined ? stored : current;
             pair = {
                 words: asked < typed ? [asked, typed] : [typed, asked],
                 tier: known?.tier ?? 'unrelated',

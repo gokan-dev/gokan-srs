@@ -8,6 +8,7 @@ import { useNow } from "../../hooks/useNow";
 import { usePersistControls, usePersistedControlsSnapshot } from "../../hooks/usePersistedControls";
 import { Page } from "../../components/Page";
 import { PageHeader } from "../../components/PageHeader";
+import { VocabularyTabs } from "./VocabularyTabs";
 import { ListRow } from "../../components/ui/ListRow";
 import { FilterToggle } from "../../components/ui/FilterToggle";
 import { JlptChip } from "../../components/JlptChip";
@@ -123,8 +124,9 @@ export function VocabularyListScreen() {
             <PageHeader
                 title="Vocabulary"
                 subtitle={`${progress.length.toLocaleString('en-US')} words · ${masteredCount.toLocaleString('en-US')} mastered`}
-                className="mb-8"
+                className="mb-4"
             />
+            <VocabularyTabs />
 
             <div className="flex flex-col gap-3 mb-6">
                 <input

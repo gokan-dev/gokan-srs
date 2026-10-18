@@ -5,7 +5,7 @@ import type { ProductionCue } from '../../utils/synonymContext.utils';
 import { gradeSlot } from './grading';
 import { wordSlot } from './slots';
 import type { SynonymCandidate } from './types';
-import { OUTCOME_LOOK, orderSynonymsForCue, outcomeOf, pairWith, relationOf, synonymNote, synonymsOf } from './wordRelation';
+import { OUTCOME_LOOK, orderSynonymsForCue, outcomeOf, pairRelation, pairWith, relationOf, synonymNote, synonymsOf } from './wordRelation';
 import type { WordPair } from './wordRelation';
 
 const candidateOf = (entry: VocabSynonym): SynonymCandidate => synonymsOf({ synonyms: [entry] })[0];
@@ -79,6 +79,15 @@ describe('OUTCOME_LOOK: how each outcome reads everywhere', () => {
         expect(synonymNote('correct', '小さい (ちいさい)', '狭い (せまい)', 'small')).toBe('小さい (ちいさい) also means "small" here. The word being tested was 狭い (せまい).');
         expect(synonymNote('minor_error', 'A', 'B', null)).toBe('A is also accepted here - the word being tested was B.');
         expect(synonymNote('confusable', 'A', 'B', null)).toBe('A is a close synonym but not interchangeable here - the word being tested was B.');
+    });
+});
+
+describe('pairRelation (what a page shows)', () => {
+    it('reads the pair out of context, null with no pair, undefined while the word is not loaded', () => {
+        const entry: VocabSynonym = { id: 'b', relation: 'interchangeable', shared: ['shine'], curated: true, w: [], r: ['び'] };
+        expect(pairRelation({ synonyms: [entry] }, 'b')).toEqual({ tier: 'interchangeable', curated: true, shared: ['shine'] });
+        expect(pairRelation({ synonyms: [entry] }, 'c')).toBeNull();
+        expect(pairRelation(undefined, 'b')).toBeUndefined();
     });
 });
 

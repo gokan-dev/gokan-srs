@@ -60,8 +60,11 @@ export function isAboutPath(pathname: string): boolean {
     return normalizePath(pathname) === '/about';
 }
 
-/** Grammar routes that are app screens, not grammar point ids. */
-const GRAMMAR_SCREENS = new Set(['browse', 'chapters', 'family']);
+/** Routes under a detail prefix that are app screens, not ids: grammar's lists, Vocabulary's Mix-ups. */
+const APP_SCREENS: Record<string, ReadonlySet<string>> = {
+    '/grammar/': new Set(['browse', 'chapters', 'family']),
+    '/vocab/': new Set(['mixups']),
+};
 
 /**
  * The SEO of a route, from its pathname as the router reports it (percent-encoded). Personal
@@ -76,7 +79,7 @@ export function routeSeo(pathname: string): RouteSeo {
         if (!path.startsWith(prefix)) continue;
         const segment = path.slice(prefix.length);
         if (segment === '' || segment.includes('/')) return { kind: 'noindex' };
-        if (prefix === '/grammar/' && GRAMMAR_SCREENS.has(segment)) return { kind: 'noindex' };
+        if (APP_SCREENS[prefix]?.has(segment)) return { kind: 'noindex' };
         let decoded: string;
         try {
             decoded = decodeURIComponent(segment);

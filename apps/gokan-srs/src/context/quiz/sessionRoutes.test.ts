@@ -15,6 +15,8 @@ describe('sessionRouteRole', () => {
             expect(sessionRouteRole('/kanji/%E7%8E%84', activity)).toBe('consult');
             expect(sessionRouteRole('/grammar/n5-001', activity)).toBe('consult');
             expect(sessionRouteRole('/grammar/family/contradiction', activity)).toBe('consult');
+            // A quiz's synonym note opens the word's mix-up groups: looked up, then back.
+            expect(sessionRouteRole('/vocab/mixups', activity)).toBe('consult');
         }
     });
 

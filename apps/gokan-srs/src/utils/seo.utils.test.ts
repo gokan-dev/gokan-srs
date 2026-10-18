@@ -60,13 +60,13 @@ describe('routeSeo', () => {
     it('keeps personal and session routes out of the index', () => {
         for (const route of [
             '/quiz', '/grammar', '/grammar/', '/grammar/browse', '/grammar/chapters', '/grammar/family',
-            '/stats', '/settings', '/kanji', '/vocab', '/listening', '/listening/123', '/profile',
+            '/stats', '/settings', '/kanji', '/vocab', '/vocab/mixups', '/listening', '/listening/123', '/profile',
         ]) {
             expect(routeSeo(route), route).toEqual({ kind: 'noindex' });
         }
     });
 
-    // routeSeo keeps its own list of app screens under the detail prefixes (GRAMMAR_SCREENS);
+    // routeSeo keeps its own list of app screens under the detail prefixes (APP_SCREENS);
     // a screen added to App and not there would be canonical to a dictionary page that is not.
     it('keeps every fixed app route under a detail prefix out of the index', () => {
         const fixed = APP_ROUTES.filter(path => /^\/(grammar|vocab|kanji)\/[^:]/.test(path) && !path.includes(':'));

@@ -9,6 +9,7 @@ import type { SynonymRelation, Vocabulary, VocabSynonym } from '@gokan/dataset-s
 import type { AnswerResult } from '../../utils/answerMatching';
 import { sharedMeaningInCue } from '../../utils/synonymContext.utils';
 import type { ProductionCue } from '../../utils/synonymContext.utils';
+import type { PairRelation } from '../../utils/mixupGroups.utils';
 import type { SynonymCandidate } from './types';
 
 /** A pair as the dataset states it: what `relationOf` reads. */
@@ -118,6 +119,19 @@ export function synonymsOf(vocab: Pick<Vocabulary, 'synonyms'>): SynonymCandidat
 /** The pair a word forms with another, when the dataset has one. */
 export function pairWith(vocab: Pick<Vocabulary, 'synonyms'>, otherId: string): WordPair | null {
     return vocab.synonyms?.find(s => s.id === otherId) ?? null;
+}
+
+/**
+ * The pair a word asked forms with the word typed, as a page shows it: relationOf out
+ * of any cue, so the tier on the page is the tier grading uses. Undefined while the
+ * asked word is not loaded; null when the dataset has no such pair ("not a synonym").
+ */
+export function pairRelation(asked: Pick<Vocabulary, 'synonyms'> | undefined, typed: string): PairRelation | null | undefined {
+    if (!asked) return undefined;
+    const pair = pairWith(asked, typed);
+    if (!pair) return null;
+    const { tier, curated, shared } = relationOf(pair, {});
+    return { tier, curated, shared };
 }
 
 /** Entries whose shared meaning the cue uses come first, so when an answer is only a typo of several of them, the one this card means wins. */

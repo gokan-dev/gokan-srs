@@ -18,6 +18,7 @@ const SHARED: Record<string, PairRelation> = {
     '行く いらっしゃる': { tier: 'interchangeable', curated: false, shared: ['go'] },
 };
 const relation = (a: string, b: string) => SHARED[`${a} ${b}`] ?? SHARED[`${b} ${a}`] ?? null;
+const notLoaded = () => undefined;
 const typed = (asked: string, word: string, daysAgo = 0) => mixupRecord({ asked, typed: word, tier: undefined, shared: undefined, date: NOW - daysAgo * DAY });
 
 describe('mixupWeight', () => {
@@ -40,7 +41,9 @@ describe('mixupPairs', () => {
     it('takes the tier grading reads today over the record\'s copy, and the copy when the word did not load', () => {
         const stale = mixupRecord({ asked: '輝く', typed: '光る', tier: 'confusable', shared: ['shine'] });
         expect(mixupPairs([stale], relation, NOW)[0].tier).toBe('interchangeable');
-        expect(mixupPairs([stale], () => null, NOW)[0]).toMatchObject({ tier: 'confusable', shared: ['shine'] });
+        expect(mixupPairs([stale], notLoaded, NOW)[0]).toMatchObject({ tier: 'confusable', shared: ['shine'] });
+        // Loaded, and the dataset no longer pairs them: not a synonym, whatever the record says.
+        expect(mixupPairs([stale], () => null, NOW)[0]).toMatchObject({ tier: 'unrelated', shared: [] });
     });
 
     it('reads a pair the dataset does not have as not a synonym', () => {
