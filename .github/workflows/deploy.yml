@@ -38,6 +38,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # The real-dataset suites in bun run check fail when the compiled dataset is missing.
+          submodules: true
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
