@@ -112,6 +112,21 @@ const MEASURE = (deviceWidth: number, tapTargets: string) => `(() => {
         }
     }
     if (touching.length) problems.push('neighbouring readings touch: ' + touching.slice(0, 3).join(', ') + (touching.length > 3 ? ' (+' + (touching.length - 3) + ')' : ''));
+    // A reading (any Japanese span) in a list row is one unit beside its headword: it is cut with
+    // an ellipsis or wraps whole, never broken mid-word (しょうじょ / う). Counted on its text's
+    // line boxes, since a flex item's own box is one rectangle however many lines it holds.
+    const splitInRow = [...document.querySelectorAll('[data-list-row] span[lang=ja]')].filter(visible).filter(el => {
+        const tops = [];
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+            if (n.parentElement.closest('rt')) continue;
+            const range = document.createRange();
+            range.selectNodeContents(n);
+            for (const rect of range.getClientRects()) if (rect.width > 0) tops.push(rect.top);
+        }
+        return tops.some(top => Math.abs(top - tops[0]) >= 2);
+    });
+    if (splitInRow.length) problems.push('Japanese in a list row breaks across lines (a reading is one unit): ' + splitInRow.slice(0, 3).map(describe).join(', '));
     return problems;
 })()`;
 
@@ -133,6 +148,22 @@ const [COMPLETED_TITLE, WATCHING_TITLE] = listeningTitlesToMark();
 // measureFuriganaFixture names it as the thing to update.
 const FURIGANA_VOCAB = '1638880';
 const FIXTURE_MOVED = `FURIGANA_VOCAB ${FURIGANA_VOCAB} has no example sentence with furigana: pick another word whose sentences wrap at 320px`;
+
+// The Mix-ups page with groups on it, and a word page with "Often mixed up with": the shine
+// group of issue #150 (輝く, 光る, 差す, and 照らす as "not a synonym") and the state group.
+// Readable records under a readable key, which the compact payload keeps as it is.
+const MIXUP_WORD = '1224020';
+const MIXUP_LONG_READING = '1356730';
+const MIXUPS = [
+    ['1224020', '1272820'], ['1224020', '1272820'], ['1272820', '1291330'], ['1224020', '1291330'], ['1224020', '1350840'],
+    ['1356730', '1545820'], ['1356730', '1355810'], ['1444980', '1356730'], ['1351030', '1356730'],
+].map(([asked, typed], i) => ({ asked, typed, date: Date.UTC(2026, 9, 1) + i * 3_600_000 }));
+const SEED_MIXUPS = `(() => {
+    const key = 'GOKAN_SRS_PROGRESS';
+    const progress = JSON.parse(localStorage.getItem(key));
+    progress.mixups = ${JSON.stringify(MIXUPS)};
+    localStorage.setItem(key, JSON.stringify(progress));
+})()`;
 
 /** Measures the fixture word's page, after checking it still shows a reading to measure. */
 async function measureFuriganaFixture(tab: Tab, url: string, ready: string, page: string, width: number, tapTargets = ''): Promise<void> {
@@ -173,6 +204,15 @@ try {
             await measure(tab, `srs ${route.path}`, width);
         }
         await measureFuriganaFixture(tab, `${app}/vocab/${FURIGANA_VOCAB}`, 'Example sentences', `srs /vocab/${FURIGANA_VOCAB}`, width);
+        await tab.evaluate<void>(SEED_MIXUPS);
+        await tab.goto(`${app}/vocab/mixups`, 'Pairs');
+        await tab.until(`document.body.innerText.includes('Not a synonym')`, 'the shine group with its unrelated pair');
+        await measure(tab, 'srs /vocab/mixups, two groups', width);
+        await tab.goto(`${app}/vocab/${MIXUP_WORD}`, 'Often mixed up with');
+        await measure(tab, `srs /vocab/${MIXUP_WORD}, often mixed up with`, width);
+        // 症状's row: a long reading beside an interchangeable chip, the tightest of these rows.
+        await tab.goto(`${app}/vocab/${MIXUP_LONG_READING}`, 'Often mixed up with');
+        await measure(tab, `srs /vocab/${MIXUP_LONG_READING}, often mixed up with`, width);
         // The library's rows with a status line, the tightest rows on a phone.
         await tab.goto(`${app}/listening/${COMPLETED_TITLE}`, 'Mark all watched');
         await tab.click('Mark all watched');
@@ -200,4 +240,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji, on one line and apart.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji, on one line and apart, Japanese in list rows unbroken.`);

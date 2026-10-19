@@ -1,7 +1,7 @@
 import { insertAtFraction } from '../../utils/insertAtFraction';
 import type { UserProgress } from '../../models/user.model';
 import type { GrammarExample, GrammarPoint } from '@gokan/dataset-schema';
-import type { AnswerResult } from '../../services/srs.service';
+import type { ShownResult } from '../../services/exercise/effects';
 import { GrammarSRSService } from '../../services/grammarSrs.service';
 import type { QuizState, SessionGains } from './quizReducer';
 import type { AnswerSlot, Exercise } from '../../services/exercise/types';
@@ -142,7 +142,7 @@ export interface GrammarQuizState {
 export interface GrammarHistoryItem {
     grammarId: string;
     title: string;
-    result: AnswerResult;
+    result: ShownResult;
     delta: number;
     /** Knowledge points the same answer credited to the sentence's vocabulary. Absent when nothing was reinforced. */
     vocabDelta?: number;

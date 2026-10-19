@@ -13,7 +13,7 @@ import { QuizCardFrame } from "./QuizCardFrame";
 import { ClozeBlank } from "./ClozeBlank";
 import { FeedbackNote } from "./FeedbackNote";
 import { ContinueButton, SubmitButton } from "./QuizButtons";
-import { blankBorderClass, resultAccentClass } from "./quizStyles";
+import { blankBorderClass, missStyleOf, resultAccentClass } from "./quizStyles";
 
 interface SentenceClozeCardProps {
     api: ExerciseTurnApi;
@@ -76,7 +76,7 @@ export function SentenceClozeCard({ api, sentence, header, feedbackExtra, onVoca
                                 value={turn.answers[part.index] ?? ''}
                                 onChange={value => api.setAnswer(part.index, value)}
                                 inputRef={part.index === 0 ? firstInputRef : undefined}
-                                borderClass={blankBorderClass(grade?.result, { feedbackShown: !!feedback, revealed: hintLevel >= 2 })}
+                                borderClass={blankBorderClass(grade, { feedbackShown: !!feedback, revealed: hintLevel >= 2 })}
                                 feedbackShown={!!feedback}
                                 hintLevel={hintLevel}
                                 onHint={() => api.revealHint(part.index)}
@@ -97,9 +97,10 @@ export function SentenceClozeCard({ api, sentence, header, feedbackExtra, onVoca
 
             <CardSection>
                 {feedback && (
-                    <FeedbackNote accentClass={resultAccentClass(feedback.grade.overall)} className="mb-4">
+                    // A neutral or accepted synonym is never drawn as a miss (missStyleOf).
+                    <FeedbackNote accentClass={feedback.grade.overall === 'correct' ? resultAccentClass('correct') : missStyleOf(feedback.grade).accentClass} className="mb-4">
                         <p className="text-sm font-gothic text-primary">{feedback.grade.message}</p>
-                        <LookUpWords words={synonymWords(turn)} onVocabClick={onVocabClick} />
+                        <LookUpWords words={synonymWords(turn)} onVocabClick={onVocabClick} mixupsOf={mixupsOf(turn)} />
                         {feedbackExtra}
                     </FeedbackNote>
                 )}
@@ -110,6 +111,12 @@ export function SentenceClozeCard({ api, sentence, header, feedbackExtra, onVoca
             </CardSection>
         </QuizCardFrame>
     );
+}
+
+/** The first word a near-synonym was typed for, whose groups the Mix-ups page shows. */
+function mixupsOf(turn: ExerciseTurn): string | undefined {
+    const i = (turn.feedback?.grade.slots ?? []).findIndex(grade => grade.synonym);
+    return i >= 0 ? turn.exercise.slots[i]?.word?.vocabId : undefined;
 }
 
 /** For each blank answered with a near-synonym: the tested word and the one typed, to look either up. */

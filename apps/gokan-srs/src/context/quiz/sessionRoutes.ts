@@ -6,7 +6,8 @@ export type SessionActivity = 'vocab' | 'grammar';
  * What a route means for a study session:
  * - `activity`: the session's own page (`/quiz`, `/grammar`).
  * - `consult`: a page the learner opens to look something up and come back from
- *   (a word, kanji, grammar point or grammar family). The session is paused, not ended.
+ *   (a word, kanji, grammar point or grammar family, the Mix-ups page). The session is
+ *   paused, not ended.
  * - `leave`: everything else. The session ends, as it always has.
  *
  * Decided by the destination alone, never by the link that was followed, so the
@@ -21,6 +22,7 @@ const ACTIVITY_PATH: Record<SessionActivity, string> = {
 };
 
 const CONSULT_PATTERNS = [
+    '/vocab/mixups',
     '/vocab/:vocabId',
     '/kanji/:character',
     '/grammar/family/:familyId',

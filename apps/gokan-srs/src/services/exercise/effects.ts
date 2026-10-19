@@ -16,22 +16,34 @@ import {
     frequencyModifierOf, growthLevelOf, isCalibratedGrammarReview, isCalibratedVocabReview, recordCalibratedAnswer, withCalibrationDefaults,
 } from '../calibration';
 import { coreSlots, isNeutral } from './grading';
-import type { AnsweredExercise, ExerciseGrade, HostItem } from './types';
+import type { MixupRecord } from '../../models/mixup.model';
+import { appendMixups } from '../../utils/mixups.utils';
+import type { AnsweredExercise, ExerciseGrade, HostItem, SlotGrade } from './types';
+import { OUTCOME_LOOK } from './wordRelation';
 
 export type Effect =
     /** The asked item's own review, through the one SRS formula. */
     | { kind: 'review'; item: HostItem; label: string; result: AnswerResult; strengthModifier: number; latencyMs: number; blankCount: number }
-    /** No credit, no penalty: reschedule at the unchanged interval and ask again. */
-    | { kind: 'retry'; item: HostItem; label: string; result: AnswerResult }
+    /**
+     * No credit, no penalty: reschedule at the unchanged interval and ask again.
+     * `neutral` when no deciding slot was left (every one a confusable synonym or a
+     * sibling demonstrative): the ticker shows it as neutral, not as the miss
+     * `result` reads as.
+     */
+    | { kind: 'retry'; item: HostItem; label: string; result: AnswerResult; neutral: boolean }
     /** Indirect production credit to a word met on another card. */
     | { kind: 'reinforce'; vocabId: string; label: string; result: AnswerResult }
     /** Nothing was asked (the study card): only push the due date out. */
-    | { kind: 'defer'; item: HostItem };
+    | { kind: 'defer'; item: HostItem }
+    /** Another word was produced than the one asked: remembered in `UserProgress.mixups`, dated when written. */
+    | { kind: 'mixup'; mixup: Omit<MixupRecord, 'date'> };
 
 export interface AnswerContext {
     /** Frozen at submit, before any AI check and before the learner reads the feedback. */
     latencyMs: number;
     hintLevels: number[];
+    /** The answers as typed, one per slot: a wrong one grading did not identify is remembered as typed. */
+    answers: string[];
 }
 
 /**
@@ -44,9 +56,12 @@ export interface AnswerContext {
  * - if no deciding slot is left (every one was neutral: a confusable synonym, a
  *   sibling demonstrative's meaning), the item is retried too: nothing decided a result;
  * - any other word answered right without its hint revealed earns indirect
- *   credit, once per word.
+ *   credit, once per word;
+ * - a slot asking for a word answered with another word is a mix-up: the pair
+ *   grading identified (whatever it earned), or the text of a wrong answer it did
+ *   not identify.
  */
-export function effectsOf(exercise: AnsweredExercise, grade: ExerciseGrade, { latencyMs, hintLevels }: AnswerContext): Effect[] {
+export function effectsOf(exercise: AnsweredExercise, grade: ExerciseGrade, { latencyMs, hintLevels, answers }: AnswerContext): Effect[] {
     const { host: item, label } = exercise;
     if (exercise.kind === 'study') return [{ kind: 'defer', item }];
 
@@ -57,12 +72,17 @@ export function effectsOf(exercise: AnsweredExercise, grade: ExerciseGrade, { la
         if (!credits.has(vocabId)) credits.set(vocabId, { kind: 'reinforce', vocabId, label: creditLabel, result });
     };
 
+    const mixups: Effect[] = [];
     grade.slots.forEach((slotGrade, i) => {
         const word = exercise.slots[i].word;
         const { synonym } = slotGrade;
+        const mixup = word?.vocabId ? mixupOf(word.vocabId, slotGrade, answers[i] ?? '', hintLevels[i] ?? 0) : null;
+        // One per answer: the same word typed for the same word in two blanks is one confusion.
+        const isNew = (m: Omit<MixupRecord, 'date'>) => !mixups.some(e => e.kind === 'mixup' && e.mixup.asked === m.asked && (e.mixup.typed ?? e.mixup.answer) === (m.typed ?? m.answer));
+        if (mixup && isNew(mixup)) mixups.push({ kind: 'mixup', mixup });
         if (synonym) {
             if (word?.vocabId !== undefined && word.vocabId === askedWord) producedAnotherWord = true;
-            if (synonym.outcome !== 'confusable') credit(synonym.vocabId, synonym.written, slotGrade.result);
+            if (OUTCOME_LOOK[synonym.outcome].creditsTyped) credit(synonym.vocabId, synonym.written, slotGrade.result);
             return;
         }
         // A revealed slot was read, not produced.
@@ -72,16 +92,38 @@ export function effectsOf(exercise: AnsweredExercise, grade: ExerciseGrade, { la
 
     const undecided = coreSlots(exercise).every(i => isNeutral(grade.slots[i]));
     const asked: Effect = producedAnotherWord || undecided
-        ? { kind: 'retry', item, label, result: grade.overall }
+        ? { kind: 'retry', item, label, result: grade.overall, neutral: undecided }
         : { kind: 'review', item, label, result: grade.overall, strengthModifier: grade.strengthModifier, latencyMs, blankCount: exercise.slots.length };
-    return [asked, ...credits.values()];
+    return [asked, ...credits.values(), ...mixups];
 }
+
+/** The mix-up one slot's answer is, if any. A revealed answer was read, not produced. */
+function mixupOf(asked: string, grade: SlotGrade, answer: string, hintLevel: number): Omit<MixupRecord, 'date'> | null {
+    const { synonym } = grade;
+    if (synonym) {
+        const { tier, curated, shared, meaning } = synonym.relation;
+        return {
+            asked, typed: synonym.vocabId, tier,
+            ...(curated ? { curated: true as const } : {}),
+            ...(shared.length > 0 ? { shared } : {}),
+            ...(meaning !== null ? { meaning } : {}),
+        };
+    }
+    const typed = answer.trim();
+    if (grade.result !== 'wrong' || grade.sibling || hintLevel >= 2 || typed.length === 0) return null;
+    return { asked, answer: typed };
+}
+
+/** A result as the session ticker shows it: a neutral answer (no credit, no penalty) is not a miss. */
+export type ShownResult = AnswerResult | 'neutral';
 
 /** What one answer did, for the session ticker and its running totals. */
 export interface AnswerRecord {
     item: HostItem;
     label: string;
     result: AnswerResult;
+    /** What the ticker shows: the result, or `neutral` when neither credit nor penalty decided the answer. */
+    shown: ShownResult;
     /** The asked item's own mastery change. */
     delta: number;
     /** Mastery credited to other words (a grammar sentence's vocab, a synonym typed). */
@@ -128,7 +170,7 @@ export function applyEffects(
     const productionEnabled = settings?.enableProductionQuiz !== false;
     const frequencyModifier = frequencyModifierOf(settings);
 
-    const askedEffect = effects.find((e): e is Exclude<Effect, { kind: 'reinforce' }> => e.kind !== 'reinforce');
+    const askedEffect = effects.find((e): e is Extract<Effect, { item: HostItem }> => 'item' in e);
     const retrying = askedEffect ? inRetry(progress, askedEffect.item) : false;
 
     let calibration = withCalibrationDefaults(progress.calibration);
@@ -137,6 +179,7 @@ export function applyEffects(
     let vocabAnswers = 0;
     let record: AnswerRecord | null = null;
     const credited: { label: string; delta: number }[] = [];
+    const mixups: MixupRecord[] = [];
 
     for (const effect of effects) {
         switch (effect.kind) {
@@ -161,7 +204,7 @@ export function applyEffects(
                     learningQueue = learningQueue.map(v => (v.vocabId === item.vocabId ? updated : v));
                     vocabAnswers += 1;
                     const delta = calculateMasteryPercentage(strengthOf(updated, item.quizType)) - calculateMasteryPercentage(strengthOf(target, item.quizType));
-                    record = { item, label: effect.label, result: effect.result, delta, vocabDelta: 0, vocabBreakdown: [] };
+                    record = { item, label: effect.label, result: effect.result, shown: effect.kind === 'retry' && effect.neutral ? 'neutral' : effect.result, delta, vocabDelta: 0, vocabBreakdown: [] };
                 } else {
                     const target = grammarQueue.find(g => g.grammarId === item.grammarId);
                     if (!target) break;
@@ -179,7 +222,7 @@ export function applyEffects(
                     }
                     grammarQueue = grammarQueue.map(g => (g.grammarId === item.grammarId ? updated : g));
                     const delta = calculateMasteryPercentage(updated.entry.memoryStrength) - calculateMasteryPercentage(target.entry.memoryStrength);
-                    record = { item, label: effect.label, result: effect.result, delta, vocabDelta: 0, vocabBreakdown: [] };
+                    record = { item, label: effect.label, result: effect.result, shown: effect.kind === 'retry' && effect.neutral ? 'neutral' : effect.result, delta, vocabDelta: 0, vocabBreakdown: [] };
                 }
                 break;
             }
@@ -203,6 +246,9 @@ export function applyEffects(
                 if (delta !== 0) credited.push({ label: effect.label, delta });
                 break;
             }
+            case 'mixup':
+                mixups.push({ ...effect.mixup, date: now.getTime() });
+                break;
         }
     }
 
@@ -219,6 +265,7 @@ export function applyEffects(
             grammarQueue,
             calibration,
             stats: { ...progress.stats, totalReviews: progress.stats.totalReviews + vocabAnswers },
+            ...(mixups.length > 0 ? { mixups: appendMixups(progress.mixups, mixups) } : {}),
         },
         record,
     };

@@ -7,7 +7,7 @@ import { insertAtFraction } from '../../utils/insertAtFraction';
 import type { ProgressWithMetadata } from '../../services/sync/types';
 import type { Vocabulary } from '@gokan/dataset-schema';
 import type { WatchedEpisode } from '../../models/media.model';
-import type { AnswerResult } from '../../services/srs.service';
+import type { ShownResult } from '../../services/exercise/effects';
 import { SRSService } from '../../services/srs.service';
 import { rebaseStrengthsToSchedule } from '../../services/calibration';
 import type { QuizItem, QuizMode, QuizType, TaskKey } from '../../utils/srs.utils';
@@ -82,7 +82,7 @@ export interface SessionGains {
 export interface VocabHistoryItem {
     vocabId: string;
     writtenForm: string;
-    result: AnswerResult;
+    result: ShownResult;
     delta: number;
     /** Credit the answer gave another word (the near-synonym typed). Absent when none. */
     vocabDelta?: number;

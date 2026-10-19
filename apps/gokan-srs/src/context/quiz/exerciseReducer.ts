@@ -105,7 +105,7 @@ export function exerciseReducer(state: QuizState, action: ExerciseAction): QuizS
             const credit = record.vocabDelta > 0 ? { vocabDelta: record.vocabDelta, vocabBreakdown: record.vocabBreakdown } : {};
             switch (record.item.kind) {
                 case 'vocab': {
-                    const entry: VocabHistoryItem = { vocabId: record.item.vocabId, writtenForm: record.label, result: record.result, delta: record.delta, ...credit };
+                    const entry: VocabHistoryItem = { vocabId: record.item.vocabId, writtenForm: record.label, result: record.shown, delta: record.delta, ...credit };
                     return {
                         ...next,
                         sessionHistory: [entry, ...state.sessionHistory].slice(0, 50),
@@ -114,7 +114,7 @@ export function exerciseReducer(state: QuizState, action: ExerciseAction): QuizS
                     };
                 }
                 case 'grammar': {
-                    const entry: GrammarHistoryItem = { grammarId: record.item.grammarId, title: record.label, result: record.result, delta: record.delta, ...credit };
+                    const entry: GrammarHistoryItem = { grammarId: record.item.grammarId, title: record.label, result: record.shown, delta: record.delta, ...credit };
                     return {
                         ...next,
                         grammarSessionHistory: [entry, ...state.grammarSessionHistory].slice(0, 50),

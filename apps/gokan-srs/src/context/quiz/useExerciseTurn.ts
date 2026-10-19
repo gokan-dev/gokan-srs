@@ -73,7 +73,7 @@ export function useExerciseTurn({ host, turn, dispatch, active, loading, refine 
         // The study card asks nothing, so it is never submitted: its Continue writes
         // the effects of an empty answer, which only push the due date out.
         const effects = turn.feedback?.effects
-            ?? (turn.exercise.kind === 'study' ? effectsOf(turn.exercise, gradeExercise(turn.exercise, [], []), { latencyMs: 0, hintLevels: [] }) : null);
+            ?? (turn.exercise.kind === 'study' ? effectsOf(turn.exercise, gradeExercise(turn.exercise, [], []), { latencyMs: 0, hintLevels: [], answers: [] }) : null);
         if (!effects) return;
         dispatch({ type: 'EXERCISE_CONTINUE', host, effects, now: new Date() });
     };
@@ -85,7 +85,7 @@ export function useExerciseTurn({ host, turn, dispatch, active, loading, refine 
         const latencyMs = startTimeRef.current ? Date.now() - startTimeRef.current : 5000;
         let grade = gradeExercise(turn.exercise, turn.answers, turn.hintLevels);
         if (refine) grade = await refine(turn.exercise, grade, turn.answers, () => dispatch({ type: 'EXERCISE_EVALUATING', host }));
-        const effects = effectsOf(turn.exercise, grade, { latencyMs, hintLevels: turn.hintLevels });
+        const effects = effectsOf(turn.exercise, grade, { latencyMs, hintLevels: turn.hintLevels, answers: turn.answers });
         dispatch({ type: 'EXERCISE_SUBMITTED', host, feedback: { grade, effects } });
     };
 

@@ -13,6 +13,7 @@ import { DEFAULT_SETTINGS, type UserSettings } from '../models/user.model';
 import { DEFAULT_SRS_ENTRY, DEFAULT_VOCABULARY_PROGRESS, type ReviewLog, type SRSEntry, type VocabProgress } from '../models/vocabulary.model';
 import type { ProgressWithMetadata } from '../services/sync/types';
 import type { AnswerSlot } from '../services/exercise/types';
+import type { MixupRecord } from '../models/mixup.model';
 
 export function srsEntry(overrides: Partial<SRSEntry> = {}): SRSEntry {
     return { ...DEFAULT_SRS_ENTRY, history: [], ...overrides };
@@ -20,6 +21,11 @@ export function srsEntry(overrides: Partial<SRSEntry> = {}): SRSEntry {
 
 export function reviewLog(overrides: Partial<ReviewLog> = {}): ReviewLog {
     return { date: Date.UTC(2026, 5, 10), result: 'correct', interval: 1, latency: 1000, ...overrides };
+}
+
+/** 光る typed on a 輝く card, out of context. */
+export function mixupRecord(overrides: Partial<MixupRecord> = {}): MixupRecord {
+    return { asked: '1224020', typed: '1272820', tier: 'interchangeable', shared: ['glitter', 'shine'], date: Date.UTC(2026, 5, 10), ...overrides };
 }
 
 /** A learning word with all three directions present (production inert until activated). */

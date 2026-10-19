@@ -72,6 +72,16 @@ const DATASET_URL_HELPER = 'apps/gokan-srs/src/services/http.ts';
 const UI_SOURCE = /^apps\/(gokan-srs|gokan-dictionary)\/src\/.*\.(tsx|svelte)$/;
 const RENDERED_KANJI_SPELLING = /\{[^{}]*\bwrittenForm\.kanji\b[^{}]*\}/;
 const KANJI_SPELLING_NOTE = 'apps/gokan-srs/src/components/KanjiSpellingNote.tsx';
+/** A word's reading rendered as text, as the form beside its headword. */
+const RENDERED_READING = />\{[\w.?]*\breading\.primary\}</;
+/** What makes a rendered reading safe on a line or the two before it: a guard on a word learned in kana. */
+const KANA_GUARD = /usuallyKana|!== headwordOf\(/;
+/**
+ * The form beside a headword is drawn by one component, SecondaryForm: for a word learned in kana
+ * it is the kanji spelling (此処), set in mincho, and every list draws it the same way.
+ */
+const RENDERED_SECONDARY_FORM = /(?<!\$)\{\s*secondaryForm\(/;
+const SECONDARY_FORM_COMPONENT = 'apps/gokan-srs/src/components/SecondaryForm.tsx';
 
 // An agent workflow that can push queues on its branch's lock, so two agents never run on one
 // branch at once; one without the lock is a workflow running the agent with write access.
@@ -82,6 +92,24 @@ const AGENT_BRANCH_LOCK = /^\s+group: agent-branch-\S*\$\{\{.+\}\}\s*\n\s+cancel
 // settings source, so the prompts do not ask for a second copy. A `--setting-sources` without
 // `project` would drop every rule from an agent's context without a word.
 const SETTING_SOURCES = /--setting-sources[= ]+([\w,]+)/g;
+// `bun run check` runs the real-dataset suites, which fail without the compiled dataset (the
+// gokan-dataset submodule), so a job that runs it checks out with submodules. A command line, not
+// a prompt or a step name that mentions it, and not `check:layout` and its siblings.
+const RUNS_CHECK = /^\s*(?:-\s+)?(?:run:\s+)?bun run check\s*(?:$|&&|;|#)/m;
+const SUBMODULE_CHECKOUT = /^\s+submodules:\s*['"]?(?:true|recursive)\b/m;
+const JOB_HEADER = /^ {2}([\w-]+):\s*$/gm;
+
+/** A workflow's jobs, each with its text and the line its header is on. */
+function workflowJobs(text: string): { name: string; line: number; text: string }[] {
+    const start = text.search(/^jobs:\s*$/m);
+    if (start < 0) return [];
+    const headers = [...text.slice(start).matchAll(JOB_HEADER)].map(m => ({ name: m[1], at: start + m.index }));
+    return headers.map((h, i) => ({
+        name: h.name,
+        line: text.slice(0, h.at).split('\n').length,
+        text: text.slice(h.at, headers[i + 1]?.at ?? text.length),
+    }));
+}
 
 /**
  * A kun reading is shown through kunReadingLabel (@gokan/dataset-schema): まな.ぶ as まな(ぶ), the
@@ -102,6 +130,14 @@ const BOXED_GLYPH = new RegExp(String.raw`\bfont-mincho\b(?=.*${GLYPH_SIZE})(?=.
 const BOXED_GLYPH_FILES = new Set(['apps/gokan-srs/src/components/KanjiTile.tsx', 'apps/gokan-srs/src/components/KanjiKnowledgeGrid.tsx',
     // The welcome page's step two boxes, named in docs/DESIGN_SYSTEM.md's Welcome page note.
     'apps/gokan-srs/src/pages/setup/welcome/HowItWorks.tsx']);
+
+/**
+ * The dataset's synonym pairs have one reader, services/exercise/wordRelation.ts (relationOf,
+ * synonymsOf, pairWith): grading, the cards, the ticker and every page that shows a pair go
+ * through it, so the tier a page shows is the tier grading uses.
+ */
+const SYNONYM_DATA = /\bVocabSynonym\b|\.synonyms\b|'synonyms'/;
+const SYNONYM_READER = 'apps/gokan-srs/src/services/exercise/wordRelation.ts';
 
 /** Furigana in the app is the Ruby component: readings over the kanji only, half size, kept apart. */
 const RUBY_ELEMENT = /<ruby\b/;
@@ -240,6 +276,20 @@ function check(files: string[]): Violation[] {
                 add({ file, line, rule: 'headword', message: 'Renders writtenForm.kanji. Name the word with headwordOf/secondaryForm (@gokan/dataset-schema): a word learned in kana is shown in kana.' }));
         }
 
+        if (GOKAN_SRS_SOURCE.test(file) && file.endsWith('.tsx') && text.includes('headwordOf(')) {
+            const lines = text.split('\n');
+            lines.forEach((l, i) => {
+                if (RENDERED_READING.test(l) && !lines.slice(Math.max(0, i - 2), i + 1).some(g => KANA_GUARD.test(g))) {
+                    add({ file, line: i + 1, rule: 'secondary-form', message: 'Renders reading.primary beside a headword: for a word learned in kana that repeats the kana (ここ ここ). Use secondaryForm (@gokan/dataset-schema).' });
+                }
+            });
+        }
+
+        if (GOKAN_SRS_SOURCE.test(file) && file.endsWith('.tsx') && file !== SECONDARY_FORM_COMPONENT) {
+            eachLine(text, l => RENDERED_SECONDARY_FORM.test(l), line =>
+                add({ file, line, rule: 'one-secondary-form', message: 'Renders secondaryForm with its own markup. Use <SecondaryForm vocab={...} /> (components/SecondaryForm.tsx), so a kanji spelling is in mincho in every list.' }));
+        }
+
         if (WORKFLOW.test(file) && text.includes(AGENT_ACTION)) {
             for (const [, sources] of text.matchAll(SETTING_SOURCES)) {
                 if (!sources.split(',').includes('project')) {
@@ -252,6 +302,14 @@ function check(files: string[]): Violation[] {
             add({ file, rule: 'agent-branch-lock', message: 'An agent job that can push queues on its branch lock: job-level concurrency with `group: agent-branch-${{ <branch> }}`, `cancel-in-progress: false`, `queue: max`. Two agents never run on one branch at once.' });
         }
 
+        if (WORKFLOW.test(file)) {
+            for (const job of workflowJobs(text)) {
+                if (RUNS_CHECK.test(job.text) && !SUBMODULE_CHECKOUT.test(job.text)) {
+                    add({ file, line: job.line, rule: 'check-with-dataset', message: `Job \`${job.name}\` runs \`bun run check\` without the dataset: its real-dataset suites fail when the compiled dataset is missing. Give its actions/checkout \`with: submodules: true\`.` });
+                }
+            }
+        }
+
         if (UI_SOURCE.test(file)) {
             eachLine(text, l => KUN_READINGS.test(l) && !KUN_READING_LABEL.test(l), line =>
                 add({ file, line, rule: 'kun-reading', message: 'Show a kun reading through kunReadingLabel (@gokan/dataset-schema): まな(ぶ), the okurigana in parentheses, never a colour.' }));
@@ -260,6 +318,11 @@ function check(files: string[]): Violation[] {
         if (GOKAN_SRS_SOURCE.test(file) && !BOXED_GLYPH_FILES.has(file)) {
             eachLine(text, l => BOXED_GLYPH.test(l), line =>
                 add({ file, line, rule: 'glyph-tile', message: 'A glyph in a box is a KanjiTile (components/KanjiTile.tsx): boxed only when it links, plain when it has no page.' }));
+        }
+
+        if (GOKAN_SRS_SOURCE.test(file) && file !== SYNONYM_READER && !/\.test\.tsx?$/.test(file)) {
+            eachLine(text, l => SYNONYM_DATA.test(l) && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
+                add({ file, line, rule: 'one-synonym-reader', message: 'Reads the dataset\'s synonym pairs. Go through services/exercise/wordRelation.ts (relationOf, synonymsOf, pairWith), so a page and grading read a pair the same way.' }));
         }
 
         if (GOKAN_SRS_SOURCE.test(file) && file !== RUBY_COMPONENT && !file.endsWith('.test.tsx')) {

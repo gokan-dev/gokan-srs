@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hydrateKanjiKnowledge, parseStoredProgress, parseStoredSettings } from './progressHydration';
+import { hydrateKanjiKnowledge, hydrateMixups, parseStoredProgress, parseStoredSettings } from './progressHydration';
 import { DEFAULT_SETTINGS } from '../models/user.model';
 
 describe('parseStoredSettings', () => {
@@ -19,5 +19,24 @@ describe('hydrateKanjiKnowledge', () => {
         const stored = parseStoredProgress('{"kanjiKnowledge":{"method":"custom","step":3,"kanjiSet":[]}}');
         expect(hydrateKanjiKnowledge(stored.kanjiKnowledge).method).toBe('kklc');
         expect(hydrateKanjiKnowledge(undefined)).toEqual({ method: 'kklc', step: 0, kanjiSet: new Set() });
+    });
+});
+
+describe('hydrateMixups', () => {
+    it('keeps whole records and drops ones that cannot be shown or merged', () => {
+        expect(hydrateMixups([
+            { asked: 'a', typed: 'b', tier: 'confusable', shared: ['shine'], date: 1 },
+            { asked: 'a', answer: 'てらす', date: 2 },
+            { asked: 'a', date: 3 },
+            { typed: 'b', date: 4 },
+            { asked: 'a', typed: 'b' },
+        ])).toEqual([
+            { asked: 'a', typed: 'b', tier: 'confusable', shared: ['shine'], date: 1 },
+            { asked: 'a', answer: 'てらす', date: 2 },
+        ]);
+    });
+
+    it('leaves absent progress absent', () => {
+        expect(hydrateMixups(undefined)).toBeUndefined();
     });
 });

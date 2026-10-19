@@ -2,6 +2,7 @@ import type { Sentence, Vocabulary } from '@gokan/dataset-schema';
 import type { LearnerVocab } from './sentenceRanking';
 import { pickSentenceForVocab } from './sentenceRanking';
 import { readingMatchesWord, toInflectableWord } from './inflection.utils';
+import { glossSpanIn, normalizeGloss } from './synonymContext.utils';
 
 /** The target-vocab fields the cloze guard needs (see pickProductionClozeSentence). */
 export type ClozeTargetVocab = Pick<Vocabulary, 'writtenForm' | 'reading'> & Partial<Pick<Vocabulary, 'senses'>>;
@@ -102,31 +103,21 @@ export interface GlossEmphasis {
     labelGlosses: string[];
 }
 
-function cleanGloss(gloss: string): string {
-    return gloss
-        .replace(/\s*\([^)]*\)/g, '')          // drop parentheticals: "to hold (in hand)" -> "to hold"
-        .replace(/^(?:to|a|an|the)\s+/i, '')    // drop a leading article / infinitive "to"
-        .trim();
-}
-
-function escapeRegExp(s: string): string {
-    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
 export function emphasizeGloss(englishText: string, glosses: string[]): GlossEmphasis {
-    const cleaned = [...new Set(glosses.map(cleanGloss).filter(g => g.length > 0))];
+    const cleaned = [...new Set(glosses.map(normalizeGloss).filter(g => g.length > 0))];
 
-    // Inline match: try the most specific glosses first, require >= 3 chars so an
-    // incidental "be"/"do" is never bolded, and match on a word boundary.
+    // Inline match: try the most specific glosses first, and require >= 3 chars so an
+    // incidental "be"/"do" is never bolded. Matched as grading matches a shared meaning
+    // (glossSpanIn), so the word bolded is the one a synonym's context is judged by.
     const candidates = cleaned.filter(g => g.length >= 3).sort((a, b) => b.length - a.length);
     for (const cand of candidates) {
-        const m = new RegExp(`\\b${escapeRegExp(cand)}\\b`, 'i').exec(englishText);
-        if (m) {
+        const span = glossSpanIn(englishText, cand);
+        if (span) {
             return {
                 inline: {
-                    before: englishText.slice(0, m.index),
-                    match: englishText.slice(m.index, m.index + m[0].length),
-                    after: englishText.slice(m.index + m[0].length),
+                    before: englishText.slice(0, span.start),
+                    match: englishText.slice(span.start, span.end),
+                    after: englishText.slice(span.end),
                 },
                 labelGlosses: [],
             };

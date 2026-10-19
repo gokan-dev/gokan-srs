@@ -95,8 +95,8 @@ const GRADING_PRIMITIVES = [
     message: 'Grading belongs to the exercise engine (services/exercise): build slots and call gradeExercise.',
   },
   {
-    group: ['**/utils/synonymContext.utils'],
-    importNames: ['synonymOutcome', 'embeddedSynonymCandidate', 'orderSynonymsForCue'],
+    group: ['**/services/exercise/wordRelation'],
+    importNames: ['orderSynonymsForCue'],
     message: 'Grading belongs to the exercise engine (services/exercise): build slots and call gradeExercise.',
   },
 ]

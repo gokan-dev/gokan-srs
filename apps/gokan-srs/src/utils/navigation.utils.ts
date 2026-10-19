@@ -44,3 +44,8 @@ export function isDestinationActive(pathname: string, destination: NavDestinatio
 export function isMoreActive(pathname: string): boolean {
     return MORE_DESTINATIONS.some(d => isDestinationActive(pathname, d));
 }
+
+/** The Mix-ups page, or only the groups with one word (a quiz's synonym note, a word's "Often mixed up with"). */
+export function mixupsPath(vocabId?: string): string {
+    return vocabId ? `/vocab/mixups?word=${encodeURIComponent(vocabId)}` : '/vocab/mixups';
+}

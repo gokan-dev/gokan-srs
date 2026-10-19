@@ -9,7 +9,8 @@ import { hashString, pickStable } from '../../utils/deterministicPick';
 import { surfaceReading } from '@gokan/dataset-schema';
 import { indexLearnerVocab, pickMostProductive, scoreGrammarExample, wordRole } from '../../utils/sentenceRanking';
 import { computeSessionState } from './sessionState';
-import { markerInflections, synonymsOf, wordSlot } from '../../services/exercise/slots';
+import { markerInflections, wordSlot } from '../../services/exercise/slots';
+import { synonymsOf } from '../../services/exercise/wordRelation';
 import type { MarkerToken } from '../../services/exercise/slots';
 import { inferredWord, toInflectableWord } from '../../utils/inflection.utils';
 import type { InflectableWord } from '../../utils/inflection.utils';
@@ -236,11 +237,11 @@ async function buildBlankSlots(
                     // A word blank grades a near-synonym against the sentence exactly as a
                     // production card does. A marker is the point's own form: another word
                     // in its place is simply wrong.
-                    synonyms: isPattern ? [] : synonymsOf(vocab),
+                    candidates: isPattern ? [] : synonymsOf(vocab),
                 });
             } catch (e) {
                 console.error(`[grammarSelectors] Failed to load vocab ${word.vocabId} for blank ${span[0]}, falling back to surface/reading only`, e);
-                if (!isPattern) slot = { ...plain, word: { vocabId: word.vocabId, label: word.surface, headword: word.baseForm ?? word.surface, lemma: null, otherForm: 'minor_error', synonyms: [] } };
+                if (!isPattern) slot = { ...plain, word: { vocabId: word.vocabId, label: word.surface, headword: word.baseForm ?? word.surface, lemma: null, otherForm: 'minor_error', candidates: [] } };
             }
         }
         slots.push(withInflections(slot));

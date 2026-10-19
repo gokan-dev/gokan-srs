@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { compactProgress, expandProgress, isCompactProgress } from './progressCompaction';
 import { migrateAndHydrateProgress, toPlainProgressJSON } from './progressSerialization';
 import { toStoredProgress, type StoredProgress } from './progressHydration';
-import { grammarProgress, reviewLog, srsEntry, userProgress, userSettings, vocabProgress } from '../test/fixtures';
+import { grammarProgress, mixupRecord, reviewLog, srsEntry, userProgress, userSettings, vocabProgress } from '../test/fixtures';
 import type { UserProgress } from '../models/user.model';
 import type { ReviewLog } from '../models/vocabulary.model';
 
@@ -51,6 +51,7 @@ function realisticProgress(vocabCount = 40): UserProgress {
         completedChapters: ['n5-c01'],
         retiredVocabIds: ['999'],
         watchedEpisodes: { '16685:1': { watched: true, updatedAt: T0, coverageAtWatch: 0.71234 }, '16685:2': { watched: false, updatedAt: T0 + 1 } },
+        mixups: [mixupRecord({ date: T0 }), mixupRecord({ typed: undefined, tier: undefined, shared: undefined, answer: 'てらす', date: T0 + 1 }), mixupRecord({ curated: true, meaning: 'shine', date: T0 + 2 })],
         stats: { newLearnedToday: 3, totalLearned: 0, totalReviews: 120 },
         dailyOverride: true,
         calibration: {
@@ -126,6 +127,14 @@ describe('progress compaction', () => {
         // Through JSON, as stored data always is: a field this build does not know has no static type.
         const restored = storageRoundTrip(toStoredProgress(JSON.parse(JSON.stringify(withExtraField))));
         expect(restored.learningQueue?.[0]?.reading?.history).toEqual([{ date: T0, result: 'correct', interval: 1, latency: 900, note: 'from a newer build' }]);
+    });
+
+    it('stores mix-ups under short codes, and restores them', () => {
+        const progress = realisticProgress();
+        const compact = JSON.stringify(compactProgress(toPlainProgressJSON(progress)));
+        expect(compact).toContain('"mx":');
+        expect(compact).not.toContain('"asked"');
+        expect(migrateAndHydrateProgress(storageRoundTrip(toPlainProgressJSON(progress)), settings).mixups).toEqual(progress.mixups);
     });
 
     it('takes well under half the space of the readable form', () => {

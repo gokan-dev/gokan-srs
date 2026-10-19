@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { headwordOf, secondaryForm } from "@gokan/dataset-schema";
+import { headwordOf } from "@gokan/dataset-schema";
+import { SecondaryForm } from "../../components/SecondaryForm";
 import { useQuiz } from "../../context/useQuiz";
 import { VocabularyService } from "../../services/vocabulary.service";
 import { useAsyncData } from "../../hooks/useAsyncData";
@@ -8,6 +9,7 @@ import { useNow } from "../../hooks/useNow";
 import { usePersistControls, usePersistedControlsSnapshot } from "../../hooks/usePersistedControls";
 import { Page } from "../../components/Page";
 import { PageHeader } from "../../components/PageHeader";
+import { VocabularyTabs } from "./VocabularyTabs";
 import { ListRow } from "../../components/ui/ListRow";
 import { FilterToggle } from "../../components/ui/FilterToggle";
 import { JlptChip } from "../../components/JlptChip";
@@ -123,8 +125,9 @@ export function VocabularyListScreen() {
             <PageHeader
                 title="Vocabulary"
                 subtitle={`${progress.length.toLocaleString('en-US')} words · ${masteredCount.toLocaleString('en-US')} mastered`}
-                className="mb-8"
+                className="mb-4"
             />
+            <VocabularyTabs />
 
             <div className="flex flex-col gap-3 mb-6">
                 <input
@@ -223,7 +226,7 @@ export function VocabularyListScreen() {
                             <div className="flex items-center gap-4 min-w-0">
                                 <div className="min-w-0 md:w-40 md:shrink-0">
                                     <div className="jp-headword truncate">{headwordOf(item)}</div>
-                                    <div className="type-support truncate">{secondaryForm(item)}</div>
+                                    <div className="truncate"><SecondaryForm vocab={item} /></div>
                                 </div>
                                 <div className="hidden md:block flex-1 min-w-0 type-body truncate">{gloss}</div>
                             </div>

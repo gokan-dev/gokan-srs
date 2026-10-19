@@ -939,7 +939,7 @@ describe('conjugated blanks: kana accepted, other forms of a vocab word are mino
             mockSynonyms();
             const plan = (await computeBlankPlan(pointWith([3]), progress, 0))!;
             const blank = plan.blankWordIndices.indexOf(2);
-            expect(plan.slots[blank].word?.synonyms.map(s => s.vocabId)).toEqual(['v-kuu']);
+            expect(plan.slots[blank].word?.candidates.map(s => s.vocabId)).toEqual(['v-kuu']);
 
             const answers = plan.blankWordIndices.map((_, i) => (i === blank ? '食う' : plan.slots[i].accept[0]));
             const graded = gradePlan(plan, answers, []);
@@ -952,7 +952,7 @@ describe('conjugated blanks: kana accepted, other forms of a vocab word are mino
         it('is never looked for on a pattern marker: another word there is wrong', async () => {
             mockSynonyms();
             const plan = (await computeBlankPlan(pointWith([2]), progress, 0))!;
-            expect(plan.slots[plan.blankWordIndices.indexOf(2)].word?.synonyms).toEqual([]);
+            expect(plan.slots[plan.blankWordIndices.indexOf(2)].word?.candidates).toEqual([]);
         });
     });
 

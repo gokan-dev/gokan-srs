@@ -131,6 +131,8 @@ export function srsRoutes(): { path: string; ready: string }[] {
     return [
         { path: '/', ready: 'Study' },
         { path: '/vocab', ready: 'Vocabulary' },
+        // Before any mix-up: the empty page (check-layout measures it with groups too).
+        { path: '/vocab/mixups', ready: 'No mix-ups yet' },
         // Its sentences load after the entry: waiting for them is what lets check-layout measure
         // the linked words in a sentence, not a page that has not rendered one yet.
         { path: `/vocab/${vocabId}`, ready: 'Example sentences' },

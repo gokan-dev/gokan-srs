@@ -8,7 +8,6 @@ import { headwordOf, headwordWithReading } from '@gokan/dataset-schema';
 import type { Vocabulary } from '@gokan/dataset-schema';
 import { isFormOfWord, kanaOfSurface, toInflectableWord } from '../../utils/inflection.utils';
 import type { InflectableWord } from '../../utils/inflection.utils';
-import { embeddedSynonymCandidate } from '../../utils/synonymContext.utils';
 import { demonstrativeParadigm } from './demonstratives';
 import type { AnswerSlot, OtherFormGrade, SlotInflection, SlotRole, SynonymCandidate, WordForms } from './types';
 
@@ -29,11 +28,6 @@ function dictionaryForms(vocab: WordForms): string[] {
         vocab.writtenForm.kanji,
         ...vocab.writtenForm.alternatives,
     ]);
-}
-
-/** The word's near-synonyms as grading candidates, from the forms the dataset embeds on each entry. */
-export function synonymsOf(vocab: Pick<Vocabulary, 'synonyms'>): SynonymCandidate[] {
-    return (vocab.synonyms ?? []).map(embeddedSynonymCandidate);
 }
 
 /** Where a slot's word sits in a sentence: the form the sentence uses. */
@@ -62,7 +56,8 @@ export interface WordSlotOptions {
     occurrence?: Occurrence;
     otherForm: Exclude<OtherFormGrade, 'off'>;
     role: SlotRole;
-    synonyms: SynonymCandidate[];
+    /** The word's near-synonyms (synonymsOf in wordRelation.ts). */
+    candidates: SynonymCandidate[];
 }
 
 /**
@@ -71,7 +66,7 @@ export interface WordSlotOptions {
  * occurrence's dictionary forms are the right word in the wrong form, so they are a
  * near miss; everywhere else they are ideal answers.
  */
-export function wordSlot(vocab: WordForms, { vocabId, occurrence, otherForm, role, synonyms }: WordSlotOptions): AnswerSlot {
+export function wordSlot(vocab: WordForms, { vocabId, occurrence, otherForm, role, candidates }: WordSlotOptions): AnswerSlot {
     const lemma = toInflectableWord(vocab);
     const dictionary = dictionaryForms(vocab);
     const dictionaryIsIdeal = otherForm === 'correct' || !occurrence?.inflected;
@@ -90,7 +85,7 @@ export function wordSlot(vocab: WordForms, { vocabId, occurrence, otherForm, rol
             headword: headwordOf(vocab),
             lemma,
             otherForm,
-            synonyms,
+            candidates,
         },
     };
 }

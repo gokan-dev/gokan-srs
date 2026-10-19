@@ -14,6 +14,7 @@ import {
     hydrateDate,
     hydrateGrammarProgress,
     hydrateWatchedEpisodes,
+    hydrateMixups,
     hydrateKanjiKnowledge,
     hydrateSRSEntry,
     hydrateStats,
@@ -297,6 +298,7 @@ export class MigrationService {
             stats: hydrateStats(progress.stats),
             dailyOverride: progress.dailyOverride ?? DEFAULT_PROGRESS.dailyOverride,
             watchedEpisodes: hydrateWatchedEpisodes(progress.watchedEpisodes),
+            mixups: hydrateMixups(progress.mixups),
             learningQueue: migratedQueue,
             grammarQueue: migratedGrammarQueue,
             // Purely additive, like grammarQueue itself - just default to [] on

@@ -65,8 +65,8 @@ export interface Vocabulary {
     /**
      * Near-synonyms for production-quiz grading, embedded at dataset build time
      * (build-synonyms.ts) rather than in a monolithic index - see VocabSynonym.
-     * Absent when this word has no near-synonyms; a wrong production answer
-     * matching one of these grades by its relation tier instead of flat wrong.
+     * Absent when this word has no near-synonyms; a wrong answer matching one of
+     * these grades by the card's context and the pair's tier instead of flat wrong.
      */
     synonyms?: VocabSynonym[];
 
@@ -124,8 +124,14 @@ export interface UsageHints {
 }
 
 /**
- * `interchangeable`: either word genuinely answers the same production cue.
- * `confusable`: overlapping glosses, but a distinct, non-interchangeable word.
+ * A pair's out-of-context tier, computed by the dataset build or set by hand:
+ * - `interchangeable`: close in general; out of context, the typed word is accepted
+ *   as a near miss (`minor_error`);
+ * - `confusable`: overlapping in one meaning, distinct words; out of context, neutral
+ *   (no credit, no penalty). A curated `confusable` pair is neutral even in context.
+ * Whatever the tier, a card whose text uses a shared meaning grades the pair `correct`
+ * (except a curated `confusable` one). The app reads pairs only through
+ * services/exercise/wordRelation.ts in gokan-srs.
  */
 export type SynonymRelation = 'interchangeable' | 'confusable';
 
@@ -137,7 +143,7 @@ export type SynonymRelation = 'interchangeable' | 'confusable';
  */
 export interface VocabSynonym {
     id: string;
-    /** Out-of-context tier: what the pair earns when the card does not use a shared meaning. */
+    /** Out-of-context tier: what the pair earns when the card does not use a shared meaning (see SynonymRelation). */
     relation: SynonymRelation;
     /**
      * Normalized glosses both words carry. A pair is a synonym IN A SENSE: when the

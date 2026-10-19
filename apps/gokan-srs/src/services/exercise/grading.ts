@@ -8,11 +8,11 @@ import { headwordOf, headwordWithReading } from '@gokan/dataset-schema';
 import { matchBest } from '../../utils/answerMatching';
 import type { AnswerResult } from '../../utils/answerMatching';
 import { isFormOfWord, sameFormUpToRegister } from '../../utils/inflection.utils';
-import { orderSynonymsForCue, sharedMeaningUsed, synonymOutcome } from '../../utils/synonymContext.utils';
 import type { ProductionCue } from '../../utils/synonymContext.utils';
 import { DEMONSTRATIVE_SERIES_NOTE } from './demonstratives';
 import type { DemonstrativeParadigm } from './demonstratives';
 import { wordSlot } from './slots';
+import { OUTCOME_LOOK, orderSynonymsForCue, outcomeOf, relationOf, synonymNote } from './wordRelation';
 import type { AnswerSlot, ExerciseGrade, GradedExercise, SiblingAnswer, SlotGrade, SlotInflection, SynonymAnswer, SynonymCandidate } from './types';
 
 /** How good a result is, best last. `pass` sits between: the learner skipped rather than mis-recalled. */
@@ -40,21 +40,27 @@ export function supportCoefficient(results: AnswerResult[]): number {
 /**
  * Finds which of the slot word's near-synonyms the answer is. Each candidate is
  * graded exactly as a production card asking for it would grade the answer, so a
- * candidate's conjugated or kanji form matches it too. An exact match beats a typo
- * match whatever the order: with dozens of candidates the input can be one word's
- * exact form and another's typo at once (つむ is 積む exactly, but used to match 止む
- * as a typo first, reported). Otherwise the first typo match wins, candidates the
- * cue means first.
+ * candidate's conjugated or kanji form matches it too. The closest match wins
+ * whatever the order: with dozens of candidates the input can be one word's exact
+ * form and another's typo at once (つむ is 積む exactly, but used to match 止む as a
+ * typo first, reported), or another's form only through the lenient kanji skeleton
+ * (止む is 止む exactly, but 止す's 止 plus any kana also grades it). So one of a
+ * candidate's own forms beats any other correct match, which beats a typo; within
+ * each, candidates the cue means first.
  */
 function findSynonym(input: string, candidates: SynonymCandidate[], cue: ProductionCue): SynonymCandidate | null {
+    let form: SynonymCandidate | null = null;
     let typo: SynonymCandidate | null = null;
     for (const candidate of orderSynonymsForCue(candidates, cue)) {
-        const slot = wordSlot(candidate.vocab, { otherForm: 'correct', role: 'core', synonyms: [] });
+        const slot = wordSlot(candidate.vocab, { otherForm: 'correct', role: 'core', candidates: [] });
         const { result } = gradeSlot(slot, input, 0, cue);
-        if (result === 'correct') return candidate;
+        if (result === 'correct') {
+            if (slot.accept.includes(input.trim())) return candidate;
+            form ??= candidate;
+        }
         if (result === 'minor_error') typo ??= candidate;
     }
-    return typo;
+    return form ?? typo;
 }
 
 /**
@@ -134,21 +140,22 @@ export function gradeSlot(slot: AnswerSlot, input: string, hintLevel: number, cu
         best = { result: otherForm, shown: slot.reveal };
     }
 
-    if (best.result !== 'wrong' || word.synonyms.length === 0) return best;
-    const match = findSynonym(input, word.synonyms, cue);
+    if (best.result !== 'wrong' || word.candidates.length === 0) return best;
+    const match = findSynonym(input, word.candidates, cue);
     if (!match) return best;
 
     // A pair is a synonym IN A SENSE: 狭い and 小さい share only "small". So the
-    // outcome depends on the card's own text (synonymOutcome).
-    const outcome = synonymOutcome(match, cue);
+    // outcome depends on the card's own text (relationOf, outcomeOf).
+    const relation = relationOf(match, cue);
+    const outcome = outcomeOf(relation);
     const synonym: SynonymAnswer = {
         vocabId: match.vocabId,
         written: headwordOf(match.vocab),
         label: headwordWithReading(match.vocab),
         outcome,
-        meaning: sharedMeaningUsed(match.shared ?? [], cue),
+        relation,
     };
-    return { result: outcome === 'confusable' ? 'wrong' : outcome, shown: best.shown, synonym };
+    return { result: OUTCOME_LOOK[outcome].result, shown: best.shown, synonym };
 }
 
 /**
@@ -167,22 +174,18 @@ function siblingNote({ answer, words }: SiblingAnswer, paradigm: DemonstrativePa
 
 /** A slot answered with another word's meaning or form: neutral, it counts neither for nor against the result. */
 export function isNeutral(grade: SlotGrade): boolean {
-    return grade.synonym?.outcome === 'confusable' || grade.sibling !== undefined;
+    return (grade.synonym !== undefined && OUTCOME_LOOK[grade.synonym.outcome].neutral) || grade.sibling !== undefined;
 }
 
-/** Names the word the learner typed and the one being tested. */
-function synonymNote(synonym: SynonymAnswer, tested: string): string {
-    switch (synonym.outcome) {
-        case 'correct': return `${synonym.label} also means "${synonym.meaning ?? ''}" here. The word being tested was ${tested}.`;
-        case 'minor_error': return `${synonym.label} is also accepted here - the word being tested was ${tested}.`;
-        case 'confusable': return `${synonym.label} is a close synonym but not interchangeable here - the word being tested was ${tested}.`;
-    }
+/** A slot answered with a near-synonym that answers the card (in context, or an interchangeable pair): accepted, short of the word asked. */
+export function isAcceptedSynonym(grade: SlotGrade): boolean {
+    return grade.synonym !== undefined && OUTCOME_LOOK[grade.synonym.outcome].accepted;
 }
 
 function feedbackMessage(exercise: GradedExercise, slots: SlotGrade[], overall: AnswerResult): string {
     const notes = slots.flatMap((grade, i) => {
         const { word, paradigm } = exercise.slots[i];
-        if (grade.synonym && word) return [{ correct: grade.synonym.outcome === 'correct', note: synonymNote(grade.synonym, word.label) }];
+        if (grade.synonym && word) return [{ correct: grade.synonym.outcome === 'correct', note: synonymNote(grade.synonym.outcome, grade.synonym.label, word.label, grade.synonym.relation.meaning) }];
         if (grade.sibling && paradigm) return [{ correct: false, note: siblingNote(grade.sibling, paradigm, exercise.label) }];
         return [];
     });

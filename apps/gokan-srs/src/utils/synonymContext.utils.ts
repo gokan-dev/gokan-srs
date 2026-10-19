@@ -1,6 +1,5 @@
-import type { Sense, VocabSynonym } from '@gokan/dataset-schema';
+import type { Sense } from '@gokan/dataset-schema';
 import type { ProductionCloze } from './productionCloze.utils';
-import type { SynonymCandidate } from '../services/exercise/types';
 
 /**
  * The text a production card puts in front of the learner, which is what decides
@@ -16,18 +15,20 @@ export interface ProductionCue {
 }
 
 /**
- * The glosses the gloss-prompt card prints: every gloss of the first sense, then
- * the leading gloss of each of the next three senses. Shared with the card itself
- * so grading reads exactly what the learner was shown.
+ * The lines the gloss-prompt card prints, each a list of glosses: every gloss of the
+ * first sense, then the leading gloss of each of the next three senses. A single gloss
+ * is often too thin a clue to produce a specific word from, and every sense is too
+ * much to read mid-session. The card renders these lines and grading reads them, so
+ * grading reads exactly what the learner was shown.
  */
-export function glossPromptGlosses(senses: Pick<Sense, 'glosses'>[]): string[] {
+export function glossPromptLines(senses: Pick<Sense, 'glosses'>[]): string[][] {
     const [first, ...rest] = senses;
-    return [...(first?.glosses ?? []), ...rest.slice(0, 3).map(s => s.glosses[0]).filter(Boolean)];
+    return [first?.glosses ?? [], ...rest.slice(0, 3).map(s => s.glosses.slice(0, 1))].filter(line => line.length > 0);
 }
 
 export function productionCueOf(senses: Pick<Sense, 'glosses'>[], cloze: ProductionCloze | null): ProductionCue {
     if (cloze) return { sentence: cloze.sentence.en[0]?.text ?? '' };
-    return { glosses: glossPromptGlosses(senses) };
+    return { glosses: glossPromptLines(senses).flat() };
 }
 
 /**
@@ -45,7 +46,11 @@ export function normalizeGloss(gloss: string): string {
         .trim();
 }
 
-const tokenize = (text: string) => text.toLowerCase().match(/[a-z0-9]+(?:[-'][a-z0-9]+)*/g) ?? [];
+/** A word of an English text, lowercased, with where it sits in the original text. */
+interface Token { word: string; start: number; end: number }
+
+const tokenize = (text: string): Token[] =>
+    [...text.matchAll(/[a-z0-9]+(?:[-'][a-z0-9]+)*/gi)].map(m => ({ word: m[0].toLowerCase(), start: m.index, end: m.index + m[0].length }));
 
 /** Inflected English forms a gloss word may take in a sentence (think: thinks, thinking). */
 function englishForms(word: string): Set<string> {
@@ -56,16 +61,24 @@ function englishForms(word: string): Set<string> {
 }
 
 /**
- * Does the sentence use this gloss as a whole word or phrase? Any word may be
- * inflected: the head of a verb phrase is usually first ("lined up" for "line up").
+ * Where the sentence uses this gloss as a whole word or phrase, or null. Any word may
+ * be inflected: the head of a verb phrase is usually first ("lined up" for "line up").
  */
-function sentenceUses(tokens: string[], gloss: string): boolean {
-    const words = tokenize(gloss).map(englishForms);
-    if (words.length === 0) return false;
+function glossSpan(tokens: Token[], gloss: string): { start: number; end: number } | null {
+    const words = tokenize(gloss).map(t => englishForms(t.word));
+    if (words.length === 0) return null;
     for (let i = 0; i + words.length <= tokens.length; i++) {
-        if (words.every((forms, j) => forms.has(tokens[i + j]))) return true;
+        if (words.every((forms, j) => forms.has(tokens[i + j].word))) return { start: tokens[i].start, end: tokens[i + words.length - 1].end };
     }
-    return false;
+    return null;
+}
+
+/**
+ * Where an English sentence uses a gloss, matched exactly as grading matches a shared
+ * meaning against a cloze card's sentence: the card bolds what grading reads.
+ */
+export function glossSpanIn(sentence: string, gloss: string): { start: number; end: number } | null {
+    return glossSpan(tokenize(sentence), normalizeGloss(gloss));
 }
 
 /** True when the card's text uses one of the meanings the two words share. */
@@ -77,61 +90,7 @@ export function sharedMeaningInCue(shared: string[], cue: ProductionCue): boolea
     }
     if (cue.sentence) {
         const tokens = tokenize(cue.sentence);
-        if (shared.some(g => sentenceUses(tokens, g))) return true;
+        if (shared.some(g => glossSpan(tokens, g) !== null)) return true;
     }
     return false;
-}
-
-/** The shared gloss the cue uses, for the feedback message. */
-export function sharedMeaningUsed(shared: string[], cue: ProductionCue): string | null {
-    return shared.find(g => sharedMeaningInCue([g], cue)) ?? null;
-}
-
-export type SynonymOutcome = 'correct' | 'minor_error' | 'confusable';
-
-/**
- * What a near-synonym answer earns:
- * - in context (the card uses a shared meaning): `correct`, still flagged as a synonym;
- * - otherwise no credit and no penalty (`confusable`): the two words share a
- *   meaning, just not the one this card asks for. 止む and 埋める share "stop"
- *   (as in "stop a gap"), but in "Fill in the blanks" 止む is not an answer, and
- *   the automatic `interchangeable` tier used to grade it `minor_error` anyway
- *   (reported from production).
- * Hand-curated pairs keep their tier: a curated `interchangeable` pair is a
- * `minor_error` out of context, and a curated `confusable` pair (必ず / 常に) is
- * never upgraded by context, since it was hand-marked as not interchangeable
- * even though the words share a gloss.
- */
-export function synonymOutcome(entry: Pick<VocabSynonym, 'relation' | 'shared' | 'curated'>, cue: ProductionCue): SynonymOutcome {
-    const curatedConfusable = entry.curated && entry.relation === 'confusable';
-    if (!curatedConfusable && sharedMeaningInCue(entry.shared ?? [], cue)) return 'correct';
-    return entry.curated && entry.relation === 'interchangeable' ? 'minor_error' : 'confusable';
-}
-
-/**
- * A grading candidate built from the forms the dataset embeds on the entry, so
- * matching a wrong answer against hundreds of pairs needs no vocab-file fetch.
- */
-export function embeddedSynonymCandidate(entry: VocabSynonym): SynonymCandidate {
-    const { w, r, pos } = entry;
-    return {
-        vocabId: entry.id,
-        relation: entry.relation,
-        shared: entry.shared,
-        curated: entry.curated,
-        vocab: {
-            writtenForm: { kanji: w[0] ?? r[0], alternatives: w.slice(1), containedKanji: [] },
-            reading: { primary: r[0], alternatives: r.slice(1) },
-            // Only pos is read, by the inflection generator (wordClassesOf).
-            senses: pos ? [{ pos, glosses: [], misc: { rawTags: [] }, related: { compounds: [] } }] : [],
-            // So the feedback names a word learned in kana by its kana (headwordOf).
-            ...(entry.u ? { usuallyKana: true as const } : {}),
-        },
-    };
-}
-
-/** Entries whose shared meaning the cue uses come first, so when an answer is only a typo of several of them, the one this card means wins. */
-export function orderSynonymsForCue<T extends { shared?: string[] }>(entries: T[], cue: ProductionCue): T[] {
-    const inCue = entries.filter(e => sharedMeaningInCue(e.shared ?? [], cue));
-    return [...inCue, ...entries.filter(e => !inCue.includes(e))];
 }

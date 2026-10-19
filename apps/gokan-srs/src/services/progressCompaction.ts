@@ -37,6 +37,7 @@ const KEY_CODES = {
     lastReviewedAt: 'lr', consecutiveFailures: 'cf', needsRetry: 'nr', entry: 'e',
     memoryStrength: 'ms', interval: 'iv', difficulty: 'd', dueDate: 'dd',
     date: 'dt', result: 'rs', latency: 'lt', source: 'so', usuallyKana: 'uk',
+    mixups: 'mx', asked: 'ak', typed: 'ty', answer: 'an', tier: 'tt', curated: 'cu', shared: 'sh',
 } as const satisfies Record<string, string>;
 
 const CODE_KEYS: ReadonlyMap<string, string> = new Map(Object.entries(KEY_CODES).map(([key, code]) => [code, key]));
