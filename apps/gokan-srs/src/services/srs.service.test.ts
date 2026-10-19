@@ -157,6 +157,15 @@ describe('SRSService Formula Tests', () => {
         });
     });
 
+    it("rounds a new log's interval to 2 decimals and keeps the entry's interval exact", () => {
+        const { updated, interval } = SRSService.applyAnswer(createVocab(10.0, 0.6), 'reading', 'base', 'correct', 900, mockNow);
+        const log = updated.reading.history[updated.reading.history.length - 1];
+
+        expect(interval).not.toBe(Math.round(interval * 100) / 100);
+        expect(updated.reading.interval).toBe(interval);
+        expect(log.interval).toBe(Math.round(interval * 100) / 100);
+    });
+
     describe('Minor Error Logic (User Examples)', () => {
         // Correct: こたえ (kotae)
         // Testing inputs:
