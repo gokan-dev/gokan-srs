@@ -77,12 +77,10 @@ export function mixupWeight(record: Pick<MixupRecord, 'date' | 'meaning'>, now: 
 export function resolveAnswers(records: readonly MixupRecord[], index: SearchIndex, learning: ReadonlySet<string>): MixupRecord[] {
     if (!records.some(r => r.typed === undefined && r.answer !== undefined)) return [...records];
     // Indexed once, studied words only: a lookup per answer, not a scan of ~36k rows each.
+    // A word can sit twice under one key (a kana word's reading is its written form): the
+    // lookup below dedupes, once for both keys an answer is looked up under.
     const byForm = new Map<string, string[]>();
-    const add = (key: string, id: string) => {
-        const ids = byForm.get(key);
-        if (!ids) byForm.set(key, [id]);
-        else if (!ids.includes(id)) ids.push(id);
-    };
+    const add = (key: string, id: string) => byForm.set(key, [...(byForm.get(key) ?? []), id]);
     for (const e of index) {
         if (!learning.has(e.id)) continue;
         add(toHiragana(e.r), e.id);

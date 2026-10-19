@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { headwordOf, secondaryForm } from "@gokan/dataset-schema";
+import { headwordOf } from "@gokan/dataset-schema";
+import { SecondaryForm } from "../../../components/SecondaryForm";
 import type { Vocabulary } from "@gokan/dataset-schema";
 import { useQuiz } from "../../../context/useQuiz";
 import { useAsyncData } from "../../../hooks/useAsyncData";
@@ -56,7 +57,7 @@ function GroupWord({ vocab, group, vocabById, learner }: GroupWordProps) {
             <ListRow to={`/vocab/${vocab.id}`} trailing={<WordStudyStatus vocabId={vocab.id} />} className="-mx-3">
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 min-w-0">
                     <span lang="ja" className="jp-headword">{headwordOf(vocab)}</span>
-                    <span lang="ja" className="font-gothic text-sm text-secondary">{secondaryForm(vocab)}</span>
+                    <SecondaryForm vocab={vocab} truncate={false} />
                     {type.map(label => <TagChip key={label} size="sm">{label}</TagChip>)}
                 </div>
             </ListRow>

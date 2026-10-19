@@ -201,6 +201,7 @@ gokan-srs, everything else:
   `components/ui/Disclosure.tsx` (collapsed-by-default section),
   `components/ui/StackedBarChart.tsx` (the one bar chart), `components/CardSkeleton.tsx`,
   `components/KanjiSpellingNote.tsx` (the kanji spelling of a word learned in kana),
+  `components/SecondaryForm.tsx` (the form beside a headword, in every list: enforced),
   `components/Ruby.tsx` (every furigana: the only `<ruby>` in the app, enforced).
 - Mix-ups: recorded only by the `mixup` effect (`effects.ts`), stored through
   `utils/mixups.utils.ts` (cap, Drive union), grouped by `utils/mixupGroups.utils.ts`, loaded for

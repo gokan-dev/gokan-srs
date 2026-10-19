@@ -1,5 +1,6 @@
-import { headwordOf, secondaryForm } from "@gokan/dataset-schema";
+import { headwordOf } from "@gokan/dataset-schema";
 import { RelatedEntriesCard } from "../../../components/RelatedEntriesCard";
+import { SecondaryForm } from "../../../components/SecondaryForm";
 import { otherWord, pairsWithWord, timesLabel } from "../../../utils/mixupGroups.utils";
 import { mixupsPath } from "../../../utils/navigation.utils";
 import { TierChip } from "./TierChip";
@@ -30,11 +31,12 @@ export function OftenMixedUpWith({ vocabId }: { vocabId: string }) {
                         to: `/vocab/${other}`,
                         // Never the raw id while the word loads (or failed to).
                         primary: vocab ? headwordOf(vocab) : '…',
+                        // The reading is never broken: on a narrow row the chip drops under it.
                         secondary: (
-                            <>
-                                {vocab && <span lang="ja" className="font-gothic text-sm text-secondary">{secondaryForm(vocab)}</span>}
+                            <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1 min-w-0">
+                                {vocab && <SecondaryForm vocab={vocab} truncate={false} />}
                                 <TierChip tier={pair.tier} />
-                            </>
+                            </span>
                         ),
                         trailing: <span className="type-meta tabular-nums">{timesLabel(pair.count)}</span>,
                         description: pair.shared.length > 0 ? pair.shared.join(', ') : undefined,

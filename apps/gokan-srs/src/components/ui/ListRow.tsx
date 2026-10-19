@@ -21,6 +21,8 @@ interface ListRowProps {
 export function ListRow({ to, children, trailing, className = '' }: ListRowProps) {
     return (
         <div
+            // Marks the row for check:layout, which keeps the Japanese in it to one line each.
+            data-list-row
             className={`
                 relative flex items-center gap-3 rounded-md px-3 py-2 min-w-0
                 hover:bg-surface-hover transition-colors

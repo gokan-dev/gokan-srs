@@ -155,6 +155,11 @@ describe('resolveAnswers', () => {
         expect(resolveAnswers(records, index, learning).map(r => r.typed)).toEqual(['terasu', 'terasu-2', 'terasu-2']);
     });
 
+    it('resolves a kana word, filed under its reading and its written form alike, once', () => {
+        const koko = [searchIndexEntry({ id: 'koko', w: 'ここ', r: 'ここ' })];
+        expect(resolveAnswers([raw('ここ')], koko, new Set(['koko'])).map(r => r.typed)).toEqual(['koko']);
+    });
+
     it('leaves an identified record as it is', () => {
         const record = typed('輝く', '光る');
         expect(resolveAnswers([record], index, new Set())).toEqual([record]);

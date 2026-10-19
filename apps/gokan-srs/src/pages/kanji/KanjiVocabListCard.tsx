@@ -4,7 +4,8 @@ import { FilterToggle } from "../../components/ui/FilterToggle";
 import { JlptChip } from "../../components/JlptChip";
 import { WordStudyStatus } from "../../components/WordStudyStatus";
 import { DetailSection } from "../../components/detail/DetailSection";
-import { headwordOf, secondaryForm } from "@gokan/dataset-schema";
+import { headwordOf } from "@gokan/dataset-schema";
+import { SecondaryForm } from "../../components/SecondaryForm";
 import type { Vocabulary } from "@gokan/dataset-schema";
 import { VocabularyService } from "../../services/vocabulary.service";
 import { useAsyncData } from "../../hooks/useAsyncData";
@@ -68,7 +69,7 @@ export function KanjiVocabListCard({ character, vocabIds }: Props) {
                         <div className="flex items-baseline gap-2 min-w-0">
                             {/* A word learned in kana lists as ここ with 此処 beside it, as in the dictionary. */}
                             <span className="jp-headword shrink-0">{headwordOf(v)}</span>
-                            <span className={`${v.usuallyKana ? 'font-mincho' : 'font-gothic'} text-sm text-secondary truncate`}>{secondaryForm(v)}</span>
+                            <SecondaryForm vocab={v} />
                         </div>
                         <div className="type-support truncate">{v.senses[0]?.glosses.join(', ')}</div>
                     </ListRow>
