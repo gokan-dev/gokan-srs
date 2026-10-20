@@ -48,8 +48,11 @@ export function KanjiKnowledgeEditor({
     // The open grid runs to 20,000px on a phone with Start learning above it: closing it from its
     // end and bringing its title to the bottom of the screen puts the button back in view
     // (one primary button, no sticky footer: see Onboarding Flow in docs/ARCHITECTURE.md).
+    // Closing unmounts the focused "Done marking", so focus moves to the disclosure's toggle
+    // rather than dropping to <body>: Shift+Tab from there reaches Start learning.
     const doneMarking = () => {
         flushSync(() => setGridOpen(false));
+        gridDisclosureRef.current?.querySelector('button')?.focus({ preventScroll: true });
         gridDisclosureRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
     };
 

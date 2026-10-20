@@ -215,13 +215,21 @@ async function checkDoneMarking(tab: Tab, width: number, height: number): Promis
         return;
     }
     if (fromEnd > height) failures.push(`${width}px srs /setup, individual kanji: "Done marking" sits ${Math.round(fromEnd)}px above the page's end (at most one screen, ${height}px)`);
-    await tab.evaluate(`window.scrollTo(0, document.documentElement.scrollHeight)`);
+    // Focused first, as a keyboard user reaches it: `click` alone moves no focus.
+    await tab.evaluate(`(() => {
+        window.scrollTo(0, document.documentElement.scrollHeight);
+        [...document.querySelectorAll('button')].find(el => el.textContent.trim() === 'Done marking')?.focus();
+    })()`);
     await tab.click('Done marking');
     try {
         await tab.until(START_LEARNING_IN_VIEW, 'Start learning in view', 3000);
     } catch {
         failures.push(`${width}px srs /setup: after "Done marking", the "Start learning" button is not on screen`);
     }
+    // Closing the grid unmounts the focused button: focus must land on the toggle (Shift+Tab then
+    // reaches Start learning), not drop to the top of the document.
+    const focused = await tab.evaluate<string | null>(`document.activeElement instanceof HTMLButtonElement ? document.activeElement.textContent.trim() : document.activeElement?.tagName ?? null`);
+    if (focused !== 'Mark individual kanji') failures.push(`${width}px srs /setup: after "Done marking", focus is on ${focused ?? 'nothing'}, not the "Mark individual kanji" toggle`);
 }
 
 /** Measures the fixture word's page, after checking it still shows a reading to measure. */
