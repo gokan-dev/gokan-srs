@@ -222,8 +222,9 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
   chapter review, the kanji unlock) is drawn in `QuizCardFrame`, which owns one width
   (`w-full max-w-2xl`, on the animated wrapper too) and one padding, so a card's size
   never depends on what it contains.
-- **Settings**: Account, Appearance (theme), Review pacing, AI answer
-  checking, Activity settings, Danger zone. Activity settings holds one collapsed
+- **Settings**: Account, Storage (only where the browser can keep progress from being
+  cleared: the one place persistent storage is asked for), Appearance (theme), Review pacing,
+  AI answer checking, Activity settings, Danger zone. Activity settings holds one collapsed
   `Disclosure` per activity (a `type-subsection` heading and a one-line description), so
   they read as subordinate to the global settings.
 - **Desktop/tablet nav** (`md`+): logo, text links Study / Vocabulary / Grammar /

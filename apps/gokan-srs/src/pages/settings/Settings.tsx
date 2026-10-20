@@ -1,7 +1,7 @@
 import { OptionGrid } from "../../components/OptionGrid";
 import type { UserSettings } from "../../models/user.model";
 import { useGoogleDrive } from "../../context/useGoogleDrive";
-import { Cloud, Loader2, LogIn, RefreshCw, Moon, Sun, Monitor, KeyRound } from "lucide-react";
+import { Cloud, HardDrive, Loader2, LogIn, RefreshCw, Moon, Sun, Monitor, KeyRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Theme } from "../../models/theme.model";
@@ -15,6 +15,9 @@ import { useTheme } from "../../context/useTheme";
 import { useState } from "react";
 import { Page } from "../../components/Page";
 import { PageHeader } from "../../components/PageHeader";
+import { useQuiz } from "../../context/useQuiz";
+import { useAsyncData } from "../../hooks/useAsyncData";
+import { StorageService } from "../../services/storage.service";
 
 const THEMES: { value: Theme; label: string; icon: LucideIcon }[] = [
     { value: 'light', label: 'Light', icon: Sun },
@@ -51,6 +54,7 @@ function ActivityDisclosure({ title, description, children }: { title: string; d
 
 function SyncControls() {
     const { login, logout, downloadProgress, isDownloading, isAuthenticated, user } = useGoogleDrive();
+    const { state } = useQuiz();
 
     if (!isAuthenticated) {
         return (
@@ -100,7 +104,8 @@ function SyncControls() {
 
             <Button
                 variant="secondary"
-                onClick={() => void downloadProgress()}
+                // Merged with the progress on screen: the stored copy trails it when writes fail.
+                onClick={() => void downloadProgress(state.progress && state.settings ? { progress: state.progress, settings: state.settings } : undefined)}
                 disabled={isDownloading}
                 className="w-full justify-center"
             >
@@ -117,6 +122,47 @@ function SyncControls() {
                 )}
             </Button>
         </div>
+    );
+}
+
+/**
+ * Whether this browser may clear progress when the device runs low on space, and the one place
+ * to ask it not to. Firefox shows a permission prompt for it, so it is asked here, beside the
+ * reason, never on load. Not shown where progress is not in IndexedDB or the browser cannot say.
+ */
+function DeviceStorageSection() {
+    const status = useAsyncData('device-storage', async () =>
+        await StorageService.progressInIndexedDb() ? StorageService.storageIsPersistent() : null);
+    const [granted, setGranted] = useState<boolean | null>(null);
+    const persistent = granted ?? status.data;
+    if (persistent === null || persistent === undefined) return null;
+
+    return (
+        <SettingsSection title="Storage" description="Your progress is saved in this browser.">
+            {persistent ? (
+                <p className="type-support">This browser keeps it even when the device runs low on space.</p>
+            ) : (
+                <div className="flex flex-col gap-3">
+                    <p className="type-support">
+                        A browser may clear saved data when the device runs low on space. Ask it to keep
+                        your progress; some browsers ask you to confirm.
+                    </p>
+                    <Button
+                        variant="secondary"
+                        onClick={() => void StorageService.requestPersistentStorage().then(setGranted)}
+                        className="w-full justify-center"
+                    >
+                        <HardDrive size={18} className="mr-2" aria-hidden="true" />
+                        Keep my progress in this browser
+                    </Button>
+                    {granted === false && (
+                        <p className="type-support">
+                            The browser did not agree. Signing in keeps a copy in your Google Drive.
+                        </p>
+                    )}
+                </div>
+            )}
+        </SettingsSection>
     );
 }
 
@@ -152,6 +198,8 @@ export function SettingsScreen({
             <SettingsSection title="Account" description="Sign in to keep your progress in your Google Drive and on every device.">
                 <SyncControls />
             </SettingsSection>
+
+            <DeviceStorageSection />
 
             <SettingsSection title="Appearance">
                 <h3 className="type-label mb-2">Theme</h3>
