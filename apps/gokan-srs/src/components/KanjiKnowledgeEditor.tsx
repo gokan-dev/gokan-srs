@@ -1,11 +1,11 @@
 import { KANJI_ORDERS } from "@gokan/dataset-schema";
 import { OptionGrid } from "./OptionGrid";
 import { KanjiCountStepper } from "./KanjiCountStepper";
-import { KanjiKnowledgeGrid } from "./KanjiKnowledgeGrid";
+import { KanjiKnowledgeGrid, KnownInOrder } from "./KanjiKnowledgeGrid";
 import { Disclosure } from "./ui/Disclosure";
 import type { KanjiKnowledge, KanjiLearningMethod } from "../models/user.model";
 import { useKanjiForm } from "../context/KanjiForm/useKanjiForm";
-import { useEffect, useEffectEvent } from "react";
+import { useEffect, useEffectEvent, type ReactNode } from "react";
 
 const METHODS = KANJI_ORDERS.map(order => ({ value: order.id, label: order.label, description: order.description }));
 
@@ -21,12 +21,23 @@ interface KanjiKnowledgeEditorProps {
      */
     countStep?: number;
     onCountStepChange?: (step: number) => void;
+    /**
+     * Setup: the count stepper on its own under the method, then `beforeGrid`, then the grid in a
+     * closed "Mark individual kanji" disclosure. Most learners know "the first N of my book", and
+     * the open grid (2,300 kanji in KKLC) pushed everything after it out of reach. Omitted on the
+     * profile page, where the grid is the point of the page: open, the stepper in its toolbar.
+     */
+    collapseGrid?: boolean;
+    /** What setup shows between the count and the collapsed grid (the vocabulary order, Start learning). */
+    beforeGrid?: ReactNode;
 }
 
 export function KanjiKnowledgeEditor({
     onKanjiKnowledgeChange,
     countStep,
     onCountStepChange,
+    collapseGrid = false,
+    beforeGrid,
 }: KanjiKnowledgeEditorProps) {
     const { state, setKanjiMethod } = useKanjiForm();
 
@@ -66,11 +77,24 @@ export function KanjiKnowledgeEditor({
                 </Disclosure>
             </section>
 
-            <KanjiKnowledgeGrid
-                allKanji={state.allKanji}
-                method={state.kanjiMethod}
-                toolbar={<KanjiCountStepper step={countStep} onStepChange={onCountStepChange} />}
-            />
+            {collapseGrid ? (
+                <>
+                    <section className="space-y-2">
+                        <KanjiCountStepper step={countStep} onStepChange={onCountStepChange} />
+                        <KnownInOrder allKanji={state.allKanji} method={state.kanjiMethod} />
+                    </section>
+                    {beforeGrid}
+                    <Disclosure title="Mark individual kanji">
+                        <KanjiKnowledgeGrid allKanji={state.allKanji} method={state.kanjiMethod} />
+                    </Disclosure>
+                </>
+            ) : (
+                <KanjiKnowledgeGrid
+                    allKanji={state.allKanji}
+                    method={state.kanjiMethod}
+                    toolbar={<KanjiCountStepper step={countStep} onStepChange={onCountStepChange} />}
+                />
+            )}
         </>
     );
 }

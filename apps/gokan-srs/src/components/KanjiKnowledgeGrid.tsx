@@ -23,8 +23,21 @@ const MOBILE_GUTTER_WIDTH = '1.75rem';
 interface KanjiKnowledgeGridProps {
     allKanji: string[];
     method: KanjiLearningMethod;
-    /** Controls shown with the search in the sticky toolbar (the count stepper). */
+    /**
+     * Controls shown with the search in the sticky toolbar (the count stepper). The grid follows
+     * the count only when its stepper rides here: from a stepper above the grid (setup), the
+     * scroll would carry the page away from the field being typed in.
+     */
     toolbar?: ReactNode;
+}
+
+/** How much of one order's list is known: the known set reaches across orders, this counts only the list's share. */
+export function KnownInOrder({ allKanji, method }: { allKanji: string[]; method: KanjiLearningMethod }) {
+    const { state } = useKanjiForm();
+    const knownInList = useMemo(() => allKanji.filter(kanji => state.knownKanji.has(kanji)).length, [allKanji, state.knownKanji]);
+    return (
+        <span className="type-meta tabular-nums">{knownInList.toLocaleString('en-US')} of {allKanji.length.toLocaleString('en-US')} in {kanjiOrder(method).label} order known</span>
+    );
 }
 
 /**
@@ -69,16 +82,15 @@ export function KanjiKnowledgeGrid({ allKanji, method, toolbar }: KanjiKnowledge
     // be sitting. The ref skips the first run, so opening the page doesn't
     // animate the list somewhere the user didn't ask to go.
     const lastCountRef = useRef<number | null>(null);
+    const followsCount = toolbar !== undefined;
     useEffect(() => {
         const previous = lastCountRef.current;
         lastCountRef.current = state.kanjiCount;
-        if (previous === null || previous === state.kanjiCount) return;
+        if (!followsCount || previous === null || previous === state.kanjiCount) return;
 
         scrollToPosition(Math.max(0, state.kanjiCount - 1));
-    }, [state.kanjiCount, scrollToPosition]);
+    }, [state.kanjiCount, followsCount, scrollToPosition]);
 
-    // The known set reaches across orders; the legend counts only this list's share of it.
-    const knownInList = useMemo(() => allKanji.filter(kanji => state.knownKanji.has(kanji)).length, [allKanji, state.knownKanji]);
     const matchIsKnown = match ? state.knownKanji.has(match.kanji) : false;
 
     return (
@@ -142,7 +154,7 @@ export function KanjiKnowledgeGrid({ allKanji, method, toolbar }: KanjiKnowledge
                 <span className="inline-flex items-center gap-1.5 type-meta">
                     <span className="w-4 h-4 rounded-sm border border-dashed border-divider" aria-hidden="true" /> Not known
                 </span>
-                <span className="type-meta tabular-nums">{knownInList.toLocaleString('en-US')} of {allKanji.length.toLocaleString('en-US')} in {kanjiOrder(method).label} order known</span>
+                <KnownInOrder allKanji={allKanji} method={method} />
             </div>
 
             <div ref={gridRef} className="w-full">
