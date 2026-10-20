@@ -4,7 +4,7 @@ import { useQuiz } from "../../context/useQuiz";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import type { KanjiLearningMethod } from "../../models/user.model";
 import { CONSTANTS } from "../../commons/constants";
-import { buildWordOrderContext, computeUncoveredKanji } from "../../utils/wordOrder.utils";
+import { buildWordOrderContext, kanjiCoverageScoresFor } from "../../utils/wordOrder.utils";
 import type { LearnerOrder, WordOrderContext } from "../../utils/wordOrder.utils";
 
 /** Built once per kanji method and page load: the indexes behind it are themselves cached by VocabularyService. */
@@ -41,20 +41,22 @@ export function useWordOrdering(): { context: WordOrderContext | null; learner: 
     const settings = state.settings;
     const learner = useMemo<LearnerOrder | null>(() => {
         if (!progress || !settings || !context) return null;
-        const knownKanji = progress.kanjiKnowledge.kanjiSet;
-        return {
+        const order = {
             order: settings.preferredLearningOrder,
-            knownKanji,
+            knownKanji: progress.kanjiKnowledge.kanjiSet,
             kanjiStep: progress.kanjiKnowledge.step,
             ignoreKnownKanji: settings.ignoreKnownKanjiRequirement === true,
-            uncoveredKanji: settings.preferredLearningOrder === 'kanji_coverage'
-                ? computeUncoveredKanji(
-                    progress.learningQueue.map(item => item.vocabId),
-                    knownKanji,
-                    context.kanjiOf,
+        };
+        return {
+            ...order,
+            coverageScores: order.order === 'kanji_coverage'
+                ? kanjiCoverageScoresFor(
+                    new Set(progress.learningQueue.map(item => item.vocabId)),
+                    context,
+                    order,
                     settings.kanjiCoverageTarget || 1
                 )
-                : new Set(),
+                : new Map(),
         };
     }, [progress, settings, context]);
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildWordOrderContext, computeUncoveredKanji, isLearnableNow, sortWords } from './wordOrder.utils';
+import { buildWordOrderContext, computeUncoveredKanji, isLearnableNow, kanjiCoverageScoresFor, sortWords } from './wordOrder.utils';
 import type { LearnerOrder } from './wordOrder.utils';
 import type { MediaWordCount } from '@gokan/dataset-schema';
 
@@ -21,7 +21,7 @@ function learner(overrides: Partial<LearnerOrder> = {}): LearnerOrder {
         knownKanji: new Set(['日', '月', '本', '火']),
         kanjiStep: 100,
         ignoreKnownKanji: false,
-        uncoveredKanji: new Set(),
+        coverageScores: new Map(),
         ...overrides,
     };
 }
@@ -68,8 +68,16 @@ describe('sortWords', () => {
         });
 
         it('favours words covering under-covered kanji under the kanji coverage order', () => {
-            const sorted = sortWords(words, 'yours', context, learner({ order: 'kanji_coverage', uncoveredKanji: new Set(['火']) }));
-            expect(ids(sorted)[0]).toBe('d');
+            // a, b and c are in the queue: only 火 is left uncovered.
+            const order = learner({ order: 'kanji_coverage' });
+            const coverageScores = kanjiCoverageScoresFor(new Set(['a', 'b', 'c']), context, order, 1);
+            expect(ids(sortWords(words, 'yours', context, { ...order, coverageScores }))[0]).toBe('d');
+        });
+
+        it('is frequency under the kanji coverage order with every kanji covered', () => {
+            const order = learner({ order: 'kanji_coverage' });
+            const coverageScores = kanjiCoverageScoresFor(new Set(['a', 'b', 'c', 'd']), context, order, 1);
+            expect(ids(sortWords(words, 'yours', context, { ...order, coverageScores }))).toEqual(['a', 'b', 'c', 'd']);
         });
     });
 });
@@ -98,6 +106,11 @@ describe('isLearnableNow', () => {
 describe('computeUncoveredKanji', () => {
     it('lists known kanji used by fewer of the learner\'s words than the target', () => {
         const uncovered = computeUncoveredKanji(['a', 'c'], new Set(['日', '本', '月']), context.kanjiOf, 2);
-        expect([...uncovered].sort()).toEqual(['月', '本']);
+        expect(uncovered).toEqual(new Map([['本', 1], ['月', 2]]));
+    });
+
+    it('counts a kanji written twice in one word once', () => {
+        const uncovered = computeUncoveredKanji(['jibunjishin'], new Set(['自']), new Map([['jibunjishin', ['自', '分', '自', '身']]]), 2);
+        expect(uncovered).toEqual(new Map([['自', 1]]));
     });
 });

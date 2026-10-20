@@ -1,5 +1,7 @@
 import type { FrequencyIndex, JlptIndex, KanjiStepIndex, MediaWordCount } from '@gokan/dataset-schema';
 import type { LearningOrder } from '../models/user.model';
+import { kanjiCoverageScore, kanjiCoverageScores } from './kanjiCoverageOrder.utils';
+import type { CoverageCandidate } from './kanjiCoverageOrder.utils';
 import { numericEntries } from './records';
 import { orderIncludesUsuallyKana } from './usuallyKana.utils';
 
@@ -60,31 +62,56 @@ export interface LearnerOrder {
     kanjiStep: number;
     ignoreKnownKanji: boolean;
     /**
-     * Known kanji still below the kanji-coverage target in the learner's
-     * vocabulary (computeUncoveredKanji). Only read by the kanji_coverage order.
+     * Each word's kanji_coverage score (kanjiCoverageScores, built by
+     * kanjiCoverageScoresFor). Only read by the kanji_coverage order.
      */
-    uncoveredKanji: Set<string>;
+    coverageScores: ReadonlyMap<string, number>;
 }
 
 /**
- * Known kanji that appear in fewer than `target` of the learner's words: the
- * kanji_coverage order favours words that cover them. Mirrors step 2 of
- * SRSService.findCandidatesKanjiCoverage.
+ * Known kanji that appear in fewer than `target` of the learner's words, each
+ * with how many more words it needs: the kanji_coverage order favours words
+ * that cover them. The one place this is computed, for the queue refill
+ * (SRSService.findCandidatesKanjiCoverage) and the listening library alike.
  */
 export function computeUncoveredKanji(
     activeIds: Iterable<string>,
-    knownKanji: Set<string>,
-    kanjiOf: Map<string, string[]>,
+    knownKanji: ReadonlySet<string>,
+    kanjiOf: ReadonlyMap<string, readonly string[]>,
     target: number
-): Set<string> {
+): Map<string, number> {
     const counts = new Map<string, number>();
     for (const kanji of knownKanji) counts.set(kanji, 0);
     for (const id of activeIds) {
-        for (const kanji of kanjiOf.get(id) ?? []) {
-            if (counts.has(kanji)) counts.set(kanji, counts.get(kanji)! + 1);
+        for (const kanji of new Set(kanjiOf.get(id))) {
+            const count = counts.get(kanji);
+            if (count !== undefined) counts.set(kanji, count + 1);
         }
     }
-    return new Set([...counts].filter(([, count]) => count < target).map(([kanji]) => kanji));
+    const uncovered = new Map<string, number>();
+    for (const [kanji, count] of counts) if (count < target) uncovered.set(kanji, target - count);
+    return uncovered;
+}
+
+/**
+ * The kanji_coverage score of every word the learner's queue could introduce
+ * now, scored as the queue refill scores its first pick. A static ranking
+ * rather than the refill's greedy loop: close enough for a list a learner
+ * picks from.
+ */
+export function kanjiCoverageScoresFor(
+    activeIds: ReadonlySet<string>,
+    context: WordOrderContext,
+    learner: Omit<LearnerOrder, 'coverageScores'>,
+    target: number
+): Map<string, number> {
+    const candidates: CoverageCandidate[] = [];
+    // frequencyRank was filled in frequency order, so its entries already are.
+    for (const [id, rank] of context.frequencyRank) {
+        if (activeIds.has(id) || !isLearnableNow(id, context, learner)) continue;
+        candidates.push({ id, rank, kanji: context.kanjiOf.get(id) ?? [] });
+    }
+    return kanjiCoverageScores(candidates, computeUncoveredKanji(activeIds, learner.knownKanji, context.kanjiOf, target));
 }
 
 /**
@@ -94,16 +121,13 @@ export function computeUncoveredKanji(
  * requirement off). A word learned in kana needs no kanji, but the
  * kanji-driven orders never introduce it.
  */
-export function isLearnableNow(vocabId: string, context: WordOrderContext, learner: LearnerOrder): boolean {
+export function isLearnableNow(vocabId: string, context: WordOrderContext, learner: Omit<LearnerOrder, 'coverageScores'>): boolean {
     if (context.usuallyKana.has(vocabId)) return orderIncludesUsuallyKana(learner.order);
     if (learner.order === 'kklc') return (context.kanjiStep.get(vocabId) ?? Infinity) <= learner.kanjiStep;
     if (learner.ignoreKnownKanji) return true;
     const kanji = context.kanjiOf.get(vocabId);
     return kanji !== undefined && kanji.every(k => learner.knownKanji.has(k));
 }
-
-/** Weight of one uncovered kanji against frequency rank, as in SRSService.findCandidatesKanjiCoverage. */
-const KANJI_COVERAGE_RANK_VALUE = 2500;
 
 /** Lower sorts first. Words a key knows nothing about go last. */
 function keyOf(sort: Exclude<WordSort, 'yours' | 'occurrences'>, vocabId: string, context: WordOrderContext): number[] {
@@ -123,9 +147,9 @@ function keyOf(sort: Exclude<WordSort, 'yours' | 'occurrences'>, vocabId: string
 function learnerKey(vocabId: string, context: WordOrderContext, learner: LearnerOrder): number[] {
     const learnable = isLearnableNow(vocabId, context, learner) ? 0 : 1;
     if (learner.order === 'kanji_coverage') {
-        const rank = context.frequencyRank.get(vocabId) ?? Infinity;
-        const covered = (context.kanjiOf.get(vocabId) ?? []).filter(k => learner.uncoveredKanji.has(k)).length;
-        return [learnable, -(covered * KANJI_COVERAGE_RANK_VALUE - rank)];
+        const score = learner.coverageScores.get(vocabId)
+            ?? kanjiCoverageScore(context.frequencyRank.get(vocabId) ?? Infinity, 0);
+        return [learnable, -score];
     }
     return [learnable, ...keyOf(learner.order, vocabId, context)];
 }

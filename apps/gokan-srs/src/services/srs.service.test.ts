@@ -8,6 +8,7 @@ import type { VocabProgress } from '../models/vocabulary.model';
 import type { KanjiKnowledge } from '../models/user.model';
 import { CONSTANTS } from '../commons/constants';
 import { isVocabDue } from './scheduling';
+import { buildWordOrderContext, kanjiCoverageScoresFor, sortWords } from '../utils/wordOrder.utils';
 
 // Use floating point tolerance
 const closeTo = (actual: number, expected: number, precision = 4) => {
@@ -736,41 +737,53 @@ describe('Learning Order: Kanji Coverage', () => {
             { id: 'w_super_obs_multi', containedKanji: ['A', 'B', 'C'] }, // Rank 6
         ];
 
-        it('should prioritize frequency penalty over pure coverage count for obscure compounds', async () => {
-            // Create a specialized index where a compound monster is very far away
-            const expandedMockIndex = [...mockIndex];
-            for (let i = expandedMockIndex.length; i < 6000; i++) {
-                expandedMockIndex.push({ id: `filler-${i}`, containedKanji: [] });
-            }
-            expandedMockIndex[6000] = { id: 'w_compound_monster', containedKanji: ['A', 'B', 'C'] };
-            // monster score: 3 * 2500 - 6000 = 1500
-            // w1 score: 1 * 2500 - 0 = 2500
+        const coverageSettings: LearningOrderSettings = { preferredLearningOrder: 'kanji_coverage', kanjiCoverageTarget: 1 };
 
-            vi.spyOn(VocabularyService, 'loadFrequencyIndex').mockResolvedValue(expandedMockIndex);
+        it('offers 自分 before 自分自身, though the compound covers one more kanji', async () => {
+            vi.spyOn(VocabularyService, 'loadFrequencyIndex').mockResolvedValue([
+                { id: 'jibun', containedKanji: ['自', '分'] },
+                { id: 'jibunjishin', containedKanji: ['自', '分', '自', '身'] },
+                { id: 'jishin', containedKanji: ['自', '身'] },
+            ]);
+            const kanjiKnowledge: KanjiKnowledge = { method: 'kklc', step: 10, kanjiSet: new Set(['自', '分', '身']) };
 
-            const kanjiKnowledge: KanjiKnowledge = {
-                method: 'kklc', step: 10,
-                kanjiSet: new Set(['A', 'B', 'C'])
-            };
+            expect(await SRSService.getNextCandidates([], kanjiKnowledge, coverageSettings, 1)).toEqual(['jibun']);
+        });
 
-            const settings: LearningOrderSettings = {
-                preferredLearningOrder: 'kanji_coverage',
-                kanjiCoverageTarget: 1
-            };
+        it("gives a word no bonus for a kanji when it is not among that kanji's top 3 remaining words", async () => {
+            // 生年 and 今年 both cover two kanji, but 生 credits only its three more frequent words.
+            vi.spyOn(VocabularyService, 'loadFrequencyIndex').mockResolvedValue([
+                { id: 'nama', containedKanji: ['生'] },
+                { id: 'ikiru', containedKanji: ['生'] },
+                { id: 'umareru', containedKanji: ['生'] },
+                { id: 'seinen', containedKanji: ['生', '年'] },
+                { id: 'kotoshi', containedKanji: ['今', '年'] },
+            ]);
+            const kanjiKnowledge: KanjiKnowledge = { method: 'kklc', step: 10, kanjiSet: new Set(['生', '年', '今']) };
 
-            // 1. super_obs_multi (rank 6) covers 3 -> score 7494. Should win.
-            const c1 = await SRSService.getNextCandidates([], kanjiKnowledge, settings, 1);
-            expect(c1).toEqual(['w_super_obs_multi']);
+            expect(await SRSService.getNextCandidates([], kanjiKnowledge, coverageSettings, 1)).toEqual(['kotoshi']);
+        });
 
-            // 2. Clear out the multi-cover words around the top
-            expandedMockIndex[6] = { id: 'f6', containedKanji: [] };
-            expandedMockIndex[4] = { id: 'f4', containedKanji: [] };
-            expandedMockIndex[5] = { id: 'f5', containedKanji: [] };
+        it('holds a rare compound behind frequent words: a credited kanji is a ratio of ranks, not a fixed number of places', async () => {
+            const index = [...mockIndex.slice(0, 3)];
+            for (let i = index.length; i < 6000; i++) index.push({ id: `filler-${i}`, containedKanji: [] });
+            index.push({ id: 'w_compound_monster', containedKanji: ['A', 'B', 'C'] });
+            vi.spyOn(VocabularyService, 'loadFrequencyIndex').mockResolvedValue(index);
+            const kanjiKnowledge: KanjiKnowledge = { method: 'kklc', step: 10, kanjiSet: new Set(['A', 'B', 'C']) };
 
-            // Now only w_compound_monster covers 3 (score 1500)
-            // But w1 covers 1 at rank 0 (score 2500). w1 should win.
-            const c2 = await SRSService.getNextCandidates([], kanjiKnowledge, settings, 1);
-            expect(c2).toEqual(['w1']);
+            expect(await SRSService.getNextCandidates([], kanjiKnowledge, coverageSettings, 3)).toEqual(['w1', 'w2', 'w3']);
+        });
+
+        it('ranks the first pick the way the listening library sorts "Your learning order"', async () => {
+            vi.spyOn(VocabularyService, 'loadFrequencyIndex').mockResolvedValue(mockIndex);
+            const kanjiKnowledge: KanjiKnowledge = { method: 'kklc', step: 10, kanjiSet: new Set(['A', 'B', 'C']) };
+            const context = buildWordOrderContext(mockIndex, {}, {});
+            const order = { order: 'kanji_coverage' as const, knownKanji: kanjiKnowledge.kanjiSet, kanjiStep: 10, ignoreKnownKanji: false };
+            const coverageScores = kanjiCoverageScoresFor(new Set(), context, order, 1);
+            const sorted = sortWords(mockIndex.map(entry => [entry.id, 1]), 'yours', context, { ...order, coverageScores });
+
+            const [first] = await SRSService.getNextCandidates([], kanjiKnowledge, coverageSettings, 1);
+            expect(sorted[0][0]).toBe(first);
         });
 
         it('should fallback to frequency if target coverage is met', async () => {
