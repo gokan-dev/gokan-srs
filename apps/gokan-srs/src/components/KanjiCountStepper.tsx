@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Minus, Plus } from "lucide-react";
 import { kanjiOrder } from "@gokan/dataset-schema";
 import { useKanjiForm } from "../context/KanjiForm/useKanjiForm";
@@ -15,6 +15,12 @@ interface KanjiCountStepperProps {
      * existing one by a remembered amount.
      */
     onStepChange?: (step: number) => void;
+    /**
+     * Shown in place of "Known: N kanji", beside Reset. Setup passes the order's share
+     * ("N of 2,300 in KKLC order known"): with nothing stored yet the two counts are equal,
+     * so showing both would state the count twice.
+     */
+    knownReadout?: ReactNode;
 }
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
@@ -30,7 +36,7 @@ const clamp = (value: number, min: number, max: number) => Math.min(Math.max(val
  * field and doing the arithmetic by hand. During setup it degrades to the plain
  * number field.
  */
-export function KanjiCountStepper({ step, onStepChange }: KanjiCountStepperProps) {
+export function KanjiCountStepper({ step, onStepChange, knownReadout }: KanjiCountStepperProps) {
     const { state, setKanjiCount, resetKanji } = useKanjiForm();
     const [confirmingReset, setConfirmingReset] = useState(false);
     const orderLabel = kanjiOrder(state.kanjiMethod).label;
@@ -157,7 +163,7 @@ export function KanjiCountStepper({ step, onStepChange }: KanjiCountStepperProps
             {/* The known set is a union across orders, so its size is its own number, not the count. */}
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 min-h-11 md:min-h-8">
                 <p className="type-meta tabular-nums" aria-live="polite">
-                    Known: <span className="text-primary">{knownCount}</span> kanji
+                    {knownReadout ?? <>Known: <span className="text-primary">{knownCount}</span> kanji</>}
                 </p>
                 {confirmingReset ? (
                     <div className="flex flex-wrap items-center gap-2">

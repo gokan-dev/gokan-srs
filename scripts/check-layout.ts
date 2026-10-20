@@ -14,6 +14,10 @@
  * - a dictionary pager link's spoken name contains its visible text (WCAG 2.5.3, Label in Name):
  *   no `aria-label` that replaces "301-400" with other words;
  * - About before setup shows a visible dictionary link, in a footer aligned with the header;
+ * - setup's "Vocabulary order" heading and "Start learning" button sit within about two screens of
+ *   the top at 320px, 375px and 1280px, not under the kanji grid (issue #158); with the grid
+ *   opened, "Done marking" sits within a screen of the page's end and brings Start learning back
+ *   into view;
  * - furigana sits over kanji only, never over kana, no ruby (a run of kanji with its reading)
  *   breaks across lines, and no two readings on a line touch (word pages' example sentences, in each app).
  *
@@ -29,6 +33,7 @@ import { buildMissing, dictionaryFile, dictionaryPages, listeningTitlesToMark, s
 import { launchChrome, type Tab } from './lib/chrome';
 
 const VIEWPORTS = [{ width: 320, height: 720 }, { width: 375, height: 812 }];
+const DESKTOP = { width: 1280, height: 800 };
 
 function fail(message: string): never {
     console.error(`[check-layout] ${message}`);
@@ -165,6 +170,68 @@ const SEED_MIXUPS = `(() => {
     localStorage.setItem(key, JSON.stringify(progress));
 })()`;
 
+/**
+ * How far down setup's last decisions may sit, in px from the top of the page, by width: the
+ * vocabulary order heading's top and the Start learning button's bottom. Under the open grid they
+ * were 14,000px (desktop) to 20,000px (phone) down. Set from the measured layout (button at 1112px
+ * on desktop, 1444px at 375px, 1528px at 320px, where the method and vocabulary cards stack one
+ * per row) plus about 100px for copy that wraps one more line.
+ */
+const SETUP_REACH_MAX: Record<number, number> = { 320: 1650, 375: 1550, 1280: 1200 };
+const SETUP_REACH = `(() => {
+    const top = el => el ? el.getBoundingClientRect().top + window.scrollY : null;
+    const heading = [...document.querySelectorAll('h3')].find(el => el.textContent.trim() === 'Vocabulary order');
+    const button = [...document.querySelectorAll('button')].find(el => el.textContent.trim() === 'Start learning');
+    return { heading: top(heading), button: button ? top(button) + button.getBoundingClientRect().height : null };
+})()`;
+async function checkSetupReach(tab: Tab, width: number, height: number): Promise<void> {
+    const reach = await tab.evaluate<{ heading: number | null; button: number | null }>(SETUP_REACH);
+    const max = SETUP_REACH_MAX[width] ?? height;
+    for (const [what, at] of [['the "Vocabulary order" heading', reach.heading], ['the "Start learning" button', reach.button]] as const) {
+        if (at === null) failures.push(`${width}px srs /setup: no ${what}`);
+        else if (at > max) failures.push(`${width}px srs /setup: ${what} reaches ${Math.round(at)}px down the page (at most ${max}, screen ${height}px)`);
+    }
+}
+
+/**
+ * With setup's grid open, Start learning is the whole grid above: "Done marking" must sit at the
+ * grid's end (within one screen of the page's bottom), and clicking it from there must put the
+ * button back on screen.
+ */
+const START_LEARNING_IN_VIEW = `(() => {
+    const button = [...document.querySelectorAll('button')].find(el => el.textContent.trim() === 'Start learning');
+    if (!button) return false;
+    const rect = button.getBoundingClientRect();
+    return rect.top >= 0 && rect.bottom <= window.innerHeight;
+})()`;
+async function checkDoneMarking(tab: Tab, width: number, height: number): Promise<void> {
+    const fromEnd = await tab.evaluate<number | null>(`(() => {
+        const done = [...document.querySelectorAll('button')].find(el => el.textContent.trim() === 'Done marking');
+        if (!done) return null;
+        return document.documentElement.scrollHeight - (done.getBoundingClientRect().bottom + window.scrollY);
+    })()`);
+    if (fromEnd === null) {
+        failures.push(`${width}px srs /setup, individual kanji: no "Done marking" at the grid's end`);
+        return;
+    }
+    if (fromEnd > height) failures.push(`${width}px srs /setup, individual kanji: "Done marking" sits ${Math.round(fromEnd)}px above the page's end (at most one screen, ${height}px)`);
+    // Focused first, as a keyboard user reaches it: `click` alone moves no focus.
+    await tab.evaluate(`(() => {
+        window.scrollTo(0, document.documentElement.scrollHeight);
+        [...document.querySelectorAll('button')].find(el => el.textContent.trim() === 'Done marking')?.focus();
+    })()`);
+    await tab.click('Done marking');
+    try {
+        await tab.until(START_LEARNING_IN_VIEW, 'Start learning in view', 3000);
+    } catch {
+        failures.push(`${width}px srs /setup: after "Done marking", the "Start learning" button is not on screen`);
+    }
+    // Closing the grid unmounts the focused button: focus must land on the toggle (Shift+Tab then
+    // reaches Start learning), not drop to the top of the document.
+    const focused = await tab.evaluate<string | null>(`document.activeElement instanceof HTMLButtonElement ? document.activeElement.textContent.trim() : document.activeElement?.tagName ?? null`);
+    if (focused !== 'Mark individual kanji') failures.push(`${width}px srs /setup: after "Done marking", focus is on ${focused ?? 'nothing'}, not the "Mark individual kanji" toggle`);
+}
+
 /** Measures the fixture word's page, after checking it still shows a reading to measure. */
 async function measureFuriganaFixture(tab: Tab, url: string, ready: string, page: string, width: number, tapTargets = ''): Promise<void> {
     try {
@@ -178,6 +245,15 @@ async function measureFuriganaFixture(tab: Tab, url: string, ready: string, page
 }
 
 try {
+    // Desktop, for setup only: the one page whose check here is about height, not width.
+    const desktop = await chrome.openTab(DESKTOP.width, DESKTOP.height);
+    await desktop.goto(`http://127.0.0.1:${srs.port}/`, 'I already know some kanji');
+    await desktop.click('I already know some kanji');
+    await desktop.until(`document.body.innerText.includes('Kanji learning method')`, 'the setup screen');
+    await checkSetupReach(desktop, DESKTOP.width, DESKTOP.height);
+    await desktop.click('Mark individual kanji');
+    await checkDoneMarking(desktop, DESKTOP.width, DESKTOP.height);
+    await desktop.close();
     for (const { width, height } of VIEWPORTS) {
         const tab = await chrome.openTab(width, height);
         const app = `http://127.0.0.1:${srs.port}`;
@@ -196,8 +272,12 @@ try {
         await tab.click('I already know some kanji');
         await tab.until(`document.body.innerText.includes('Kanji learning method')`, 'the setup screen');
         await measure(tab, 'srs /setup', width);
+        await checkSetupReach(tab, width, height);
         await tab.click('More methods');
         await measure(tab, 'srs /setup, every method', width);
+        await tab.click('Mark individual kanji');
+        await measure(tab, 'srs /setup, individual kanji', width);
+        await checkDoneMarking(tab, width, height);
         await tab.click('Start learning');
         for (const route of SRS_ROUTES) {
             await tab.goto(`${app}${route.path}`, route.ready);
@@ -240,4 +320,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji, on one line and apart, Japanese in list rows unbroken.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji, on one line and apart, Japanese in list rows unbroken, setup's decisions above the kanji grid and a way back to them from its end.`);

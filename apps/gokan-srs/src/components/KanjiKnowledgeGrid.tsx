@@ -4,6 +4,7 @@ import { kanjiOrder } from "@gokan/dataset-schema";
 import { useKanjiForm } from "../context/KanjiForm/useKanjiForm";
 import type { KanjiLearningMethod } from "../models/user.model";
 import { findKanjiMatch } from "../utils/kanjiSearch.utils";
+import { followsCountChange } from "../utils/kanjiGrid.utils";
 import { useResponsive } from "../context/Responsive/useResponsive";
 
 /**
@@ -25,6 +26,21 @@ interface KanjiKnowledgeGridProps {
     method: KanjiLearningMethod;
     /** Controls shown with the search in the sticky toolbar (the count stepper). */
     toolbar?: ReactNode;
+    /**
+     * Scroll to the count's frontier when the count changes. Only where the stepper rides in the
+     * sticky toolbar (the profile page): from a stepper above the grid (setup), the scroll would
+     * carry the page away from the field being typed in.
+     */
+    followCount?: boolean;
+}
+
+/** How much of one order's list is known: the known set reaches across orders, this counts only the list's share. */
+export function KnownInOrder({ allKanji, method }: { allKanji: string[]; method: KanjiLearningMethod }) {
+    const { state } = useKanjiForm();
+    const knownInList = useMemo(() => allKanji.filter(kanji => state.knownKanji.has(kanji)).length, [allKanji, state.knownKanji]);
+    return (
+        <span className="type-meta tabular-nums">{knownInList.toLocaleString('en-US')} of {allKanji.length.toLocaleString('en-US')} in {kanjiOrder(method).label} order known</span>
+    );
 }
 
 /**
@@ -32,7 +48,7 @@ interface KanjiKnowledgeGridProps {
  * toolbar that stays at the top while the grid scrolls by. Click a tile to mark
  * it known or not known.
  */
-export function KanjiKnowledgeGrid({ allKanji, method, toolbar }: KanjiKnowledgeGridProps) {
+export function KanjiKnowledgeGrid({ allKanji, method, toolbar, followCount = false }: KanjiKnowledgeGridProps) {
     const { state, toggleKanji } = useKanjiForm();
     const { isMobile } = useResponsive();
     const [query, setQuery] = useState('');
@@ -72,13 +88,11 @@ export function KanjiKnowledgeGrid({ allKanji, method, toolbar }: KanjiKnowledge
     useEffect(() => {
         const previous = lastCountRef.current;
         lastCountRef.current = state.kanjiCount;
-        if (previous === null || previous === state.kanjiCount) return;
+        if (!followsCountChange(previous, state.kanjiCount, followCount)) return;
 
         scrollToPosition(Math.max(0, state.kanjiCount - 1));
-    }, [state.kanjiCount, scrollToPosition]);
+    }, [state.kanjiCount, followCount, scrollToPosition]);
 
-    // The known set reaches across orders; the legend counts only this list's share of it.
-    const knownInList = useMemo(() => allKanji.filter(kanji => state.knownKanji.has(kanji)).length, [allKanji, state.knownKanji]);
     const matchIsKnown = match ? state.knownKanji.has(match.kanji) : false;
 
     return (
@@ -142,7 +156,7 @@ export function KanjiKnowledgeGrid({ allKanji, method, toolbar }: KanjiKnowledge
                 <span className="inline-flex items-center gap-1.5 type-meta">
                     <span className="w-4 h-4 rounded-sm border border-dashed border-divider" aria-hidden="true" /> Not known
                 </span>
-                <span className="type-meta tabular-nums">{knownInList.toLocaleString('en-US')} of {allKanji.length.toLocaleString('en-US')} in {kanjiOrder(method).label} order known</span>
+                <KnownInOrder allKanji={allKanji} method={method} />
             </div>
 
             <div ref={gridRef} className="w-full">

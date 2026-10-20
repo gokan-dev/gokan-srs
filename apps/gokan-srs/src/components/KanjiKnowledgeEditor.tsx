@@ -1,11 +1,13 @@
 import { KANJI_ORDERS } from "@gokan/dataset-schema";
 import { OptionGrid } from "./OptionGrid";
 import { KanjiCountStepper } from "./KanjiCountStepper";
-import { KanjiKnowledgeGrid } from "./KanjiKnowledgeGrid";
+import { KanjiKnowledgeGrid, KnownInOrder } from "./KanjiKnowledgeGrid";
 import { Disclosure } from "./ui/Disclosure";
+import { Button } from "./ui/Button";
 import type { KanjiKnowledge, KanjiLearningMethod } from "../models/user.model";
 import { useKanjiForm } from "../context/KanjiForm/useKanjiForm";
-import { useEffect, useEffectEvent } from "react";
+import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 
 const METHODS = KANJI_ORDERS.map(order => ({ value: order.id, label: order.label, description: order.description }));
 
@@ -21,14 +23,38 @@ interface KanjiKnowledgeEditorProps {
      */
     countStep?: number;
     onCountStepChange?: (step: number) => void;
+    /**
+     * Setup: the count stepper on its own under the method, then `beforeGrid`, then the grid in a
+     * closed "Mark individual kanji" disclosure. Most learners know "the first N of my book", and
+     * the open grid (2,300 kanji in KKLC) pushed everything after it out of reach. Omitted on the
+     * profile page, where the grid is the point of the page: open, the stepper in its toolbar.
+     */
+    collapseGrid?: boolean;
+    /** What setup shows between the count and the collapsed grid (the vocabulary order, Start learning). */
+    beforeGrid?: ReactNode;
 }
 
 export function KanjiKnowledgeEditor({
     onKanjiKnowledgeChange,
     countStep,
     onCountStepChange,
+    collapseGrid = false,
+    beforeGrid,
 }: KanjiKnowledgeEditorProps) {
     const { state, setKanjiMethod } = useKanjiForm();
+    const [gridOpen, setGridOpen] = useState(false);
+    const gridDisclosureRef = useRef<HTMLDivElement>(null);
+
+    // The open grid runs to 20,000px on a phone with Start learning above it: closing it from its
+    // end and bringing its title to the bottom of the screen puts the button back in view
+    // (one primary button, no sticky footer: see Onboarding Flow in docs/ARCHITECTURE.md).
+    // Closing unmounts the focused "Done marking", so focus moves to the disclosure's toggle
+    // rather than dropping to <body>: Shift+Tab from there reaches Start learning.
+    const doneMarking = () => {
+        flushSync(() => setGridOpen(false));
+        gridDisclosureRef.current?.querySelector('button')?.focus({ preventScroll: true });
+        gridDisclosureRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+    };
 
     // Reports every change to the knowledge being edited, once the method's list has loaded (the
     // known prefix is measured in that list). `step` is the known prefix, not the count input:
@@ -66,11 +92,31 @@ export function KanjiKnowledgeEditor({
                 </Disclosure>
             </section>
 
-            <KanjiKnowledgeGrid
-                allKanji={state.allKanji}
-                method={state.kanjiMethod}
-                toolbar={<KanjiCountStepper step={countStep} onStepChange={onCountStepChange} />}
-            />
+            {collapseGrid ? (
+                <>
+                    <KanjiCountStepper
+                        step={countStep}
+                        onStepChange={onCountStepChange}
+                        knownReadout={<KnownInOrder allKanji={state.allKanji} method={state.kanjiMethod} />}
+                    />
+                    {beforeGrid}
+                    <div ref={gridDisclosureRef}>
+                        <Disclosure title="Mark individual kanji" open={gridOpen} onOpenChange={setGridOpen}>
+                            <KanjiKnowledgeGrid allKanji={state.allKanji} method={state.kanjiMethod} />
+                            <div className="flex justify-end pt-4">
+                                <Button variant="ghost" onClick={doneMarking}>Done marking</Button>
+                            </div>
+                        </Disclosure>
+                    </div>
+                </>
+            ) : (
+                <KanjiKnowledgeGrid
+                    allKanji={state.allKanji}
+                    method={state.kanjiMethod}
+                    toolbar={<KanjiCountStepper step={countStep} onStepChange={onCountStepChange} />}
+                    followCount
+                />
+            )}
         </>
     );
 }

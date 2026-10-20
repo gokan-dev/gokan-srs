@@ -44,21 +44,24 @@ export function SetupScreen({ onComplete }: { onComplete: (values: SetupValues) 
             <div className="w-full max-w-2xl md:max-w-3xl mx-auto md:p-8 space-y-12">
                 <SetupHeader />
 
-                <KanjiKnowledgeEditor />
+                {/* The decisions first, the fine-tuning last: the grid is a closed disclosure under Start learning. */}
+                <KanjiKnowledgeEditor
+                    collapseGrid
+                    beforeGrid={
+                        <>
+                            <LearningOrderPicker value={learningOrder} onChange={setLearningOrder} />
 
-                <LearningOrderPicker value={learningOrder} onChange={setLearningOrder} />
-
-                <footer className="pt-4 space-y-4">
-                    <Button
-                        variant="primary"
-                        onClick={handleSubmit}
-                        disabled={state.loading}
-                        className="w-full py-4 text-lg font-serif h-14"
-                    >
-                        Start learning
-                    </Button>
-
-                </footer>
+                            <Button
+                                variant="primary"
+                                onClick={handleSubmit}
+                                disabled={state.loading}
+                                className="w-full py-4 text-lg font-serif h-14"
+                            >
+                                Start learning
+                            </Button>
+                        </>
+                    }
+                />
             </div>
         </div>
     );
