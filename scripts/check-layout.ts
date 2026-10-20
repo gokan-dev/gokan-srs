@@ -163,11 +163,15 @@ const MIXUPS = [
     ['1224020', '1272820'], ['1224020', '1272820'], ['1272820', '1291330'], ['1224020', '1291330'], ['1224020', '1350840'],
     ['1356730', '1545820'], ['1356730', '1355810'], ['1444980', '1356730'], ['1351030', '1356730'],
 ].map(([asked, typed], i) => ({ asked, typed, date: Date.UTC(2026, 9, 1) + i * 3_600_000 }));
-const SEED_MIXUPS = `(() => {
+// Progress is one record in IndexedDB (StorageService), the payload localStorage used to hold.
+const SEED_MIXUPS = `(async () => {
     const key = 'GOKAN_SRS_PROGRESS';
-    const progress = JSON.parse(localStorage.getItem(key));
+    const done = request => new Promise((resolve, reject) => { request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
+    const db = await done(indexedDB.open('gokan-srs'));
+    const progress = JSON.parse(await done(db.transaction('progress').objectStore('progress').get(key)));
     progress.mixups = ${JSON.stringify(MIXUPS)};
-    localStorage.setItem(key, JSON.stringify(progress));
+    await done(db.transaction('progress', 'readwrite').objectStore('progress').put(JSON.stringify(progress), key));
+    db.close();
 })()`;
 
 /**

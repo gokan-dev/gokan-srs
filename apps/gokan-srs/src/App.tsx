@@ -55,6 +55,12 @@ const AppScreens: React.FC = () => {
         return <Loader title="Syncing your progress..." description="進捗を同期中..." />;
     }
 
+    // Progress is read asynchronously, in a few milliseconds: until then whether it exists is
+    // unknown, so neither onboarding nor the app is shown (nor a loader that would only flash).
+    if (!state.progressLoaded) {
+        return <div className="min-h-screen bg-background" aria-busy="true" />;
+    }
+
     // Fatal Error Gate
     if (state.fatalError) {
         return (

@@ -113,6 +113,7 @@ const SRS_WRITES = {
 const SRS_WRITE_OWNERS = [`${SRS}/src/services/exercise/effects.ts`, `${SRS}/src/**/*.test.ts`]
 
 const LOCAL_STORAGE = { name: 'localStorage', message: 'Use StorageService (services/storage.service.ts).' }
+const INDEXED_DB = { name: 'indexedDB', message: 'Progress is stored through StorageService (services/storage.service.ts).' }
 const SESSION_STORAGE = { name: 'sessionStorage', message: 'Use usePersistedControls (hooks/usePersistedControls.ts).' }
 const FETCH = { name: 'fetch', message: 'Network calls belong in a service under services/.' }
 
@@ -196,14 +197,14 @@ export default defineConfig([
       ],
     },
   },
-  // Persistence goes through one typed layer: StorageService for localStorage, and
+  // Persistence goes through one typed layer: StorageService for localStorage and IndexedDB, and
   // usePersistedControls for per-screen UI state in sessionStorage. Direct access elsewhere
   // duplicates serialization and skips the guards a private window or a full quota needs.
   // Network access lives in services/, so pages and contexts never own HTTP details.
   {
     files: [`${SRS}/src/**/*.{ts,tsx}`],
     ignores: [`${SRS}/src/services/**`, `${SRS}/src/hooks/usePersistedControls.ts`, `${SRS}/src/**/*.test.ts`],
-    rules: { 'no-restricted-globals': ['error', LOCAL_STORAGE, SESSION_STORAGE, FETCH] },
+    rules: { 'no-restricted-globals': ['error', LOCAL_STORAGE, INDEXED_DB, SESSION_STORAGE, FETCH] },
   },
   {
     files: [`${SRS}/src/services/**/*.ts`],
@@ -211,11 +212,11 @@ export default defineConfig([
       `${SRS}/src/services/storage.service.ts`,
       `${SRS}/src/**/*.test.ts`,
     ],
-    rules: { 'no-restricted-globals': ['error', LOCAL_STORAGE, SESSION_STORAGE] },
+    rules: { 'no-restricted-globals': ['error', LOCAL_STORAGE, INDEXED_DB, SESSION_STORAGE] },
   },
   {
     files: [`${SRS}/src/hooks/usePersistedControls.ts`],
-    rules: { 'no-restricted-globals': ['error', LOCAL_STORAGE, FETCH] },
+    rules: { 'no-restricted-globals': ['error', LOCAL_STORAGE, INDEXED_DB, FETCH] },
   },
 
   // ---------------------------------------------------------------- app boundaries

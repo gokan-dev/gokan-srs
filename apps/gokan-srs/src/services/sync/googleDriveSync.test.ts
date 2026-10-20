@@ -5,6 +5,7 @@ import { CURRENT_FORMAT_VERSION, MigrationService } from '../migration.service';
 import type { StoredProgress } from '../progressHydration';
 import { DEFAULT_SETTINGS } from '../../models/user.model';
 import type { SyncEnvelope } from './types';
+import { userProgress, vocabProgress } from '../../test/fixtures';
 
 /** A real Response, so the body goes through the same JSON round trip a Drive download does. */
 function jsonResponse(body: unknown, status = 200): Response {
@@ -252,6 +253,44 @@ describe('GoogleDriveSync', () => {
         // Local content passed through untouched (no merge artifacts), version bumped.
         expect(second!.envelope.progress.stats.totalReviews).toBe(11);
         expect(second!.envelope.progress._sync!.version).toBeGreaterThan(first!.envelope.progress._sync!.version);
+    });
+
+    describe('download (sign-in and load)', () => {
+        /** A stored queue holding these words. */
+        const queueOf = (...ids: string[]) => toPlainProgressJSON(userProgress({ learningQueue: ids.map(vocabId => vocabProgress({ vocabId })) })).learningQueue;
+        const idsOf = (envelope: SyncEnvelope | null) => envelope?.progress.learningQueue.map(v => v.vocabId).sort();
+
+        /** Every local write fails, as when the origin is full. */
+        function fillLocalStorage() {
+            const setItem = vi.fn(() => { throw new DOMException('full', 'QuotaExceededError'); });
+            vi.stubGlobal('localStorage', { getItem: () => null, setItem, removeItem: () => undefined });
+            return setItem;
+        }
+
+        // Issue #153: the app used to get a download's result by reading it back from storage, so
+        // with every local write failing it reloaded the last copy that fit and rolled back.
+        it('returns the merged progress itself, whether or not storage can hold it', async () => {
+            const remote = makeEnvelope(5, { learningQueue: queueOf('remote-word') });
+            vi.stubGlobal('fetch', createFetchRouter(singleFileRoutes(() => stored(remote))));
+            const setItem = fillLocalStorage();
+            const local = makeEnvelope(3, { learningQueue: queueOf('local-word') });
+
+            const downloaded = await new GoogleDriveSync('token').download(local.progress, local.settings);
+
+            expect(idsOf(downloaded)).toEqual(['local-word', 'remote-word']);
+            expect(setItem).not.toHaveBeenCalled();
+        });
+
+        it('restores Drive\'s copy on a device with none', async () => {
+            const remote = makeEnvelope(5, { learningQueue: queueOf('remote-word') });
+            vi.stubGlobal('fetch', createFetchRouter(singleFileRoutes(() => stored(remote))));
+            fillLocalStorage();
+
+            const restored = await new GoogleDriveSync('token').download(null, DEFAULT_SETTINGS);
+
+            expect(idsOf(restored)).toEqual(['remote-word']);
+            expect(restored?.settings).toEqual(remote.settings);
+        });
     });
 
     it('a normal sync RESURRECTS grammar entries deleted locally - the union merge cannot express a deletion', async () => {

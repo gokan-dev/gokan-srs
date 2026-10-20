@@ -94,6 +94,12 @@ export const ZERO_SESSION_GAINS: SessionGains = { net: 0, gained: 0, lost: 0, vo
 interface QuizStateBase {
     /** Carries the Drive sync counter at runtime, so it is typed as what storage and the merge return. */
     progress: ProgressWithMetadata | null;
+    /**
+     * False until the stored progress has been read (IndexedDB is read asynchronously). Until
+     * then `progress` being null says nothing, so the app shows a loading state, never
+     * onboarding: a learner with progress must not be offered a fresh start.
+     */
+    progressLoaded: boolean;
     settings: UserSettings | null;
     /** The word whose card is on screen; its exercise (answers, feedback) is turns.vocab. */
     currentVocab: Vocabulary | null;
@@ -123,6 +129,9 @@ interface QuizStateBase {
 export type QuizState = QuizStateBase & GrammarQuizState & ExerciseTurnsState;
 
 export type QuizAction =
+    /** The stored progress, read at start-up (null: this device has none). */
+    | { type: 'PROGRESS_LOADED'; payload: { progress: ProgressWithMetadata | null } }
+    | { type: 'PROGRESS_LOAD_FAILED'; payload: { message: string } }
     | { type: 'SETUP_COMPLETE'; payload: { progress: UserProgress; settings: UserSettings } }
     | { type: 'LOAD_VOCAB_START'; payload: PendingQuizItem }
     /** The loaded word and the exercise built for it (services/exercise/builders.ts); both null when nothing is due. */
@@ -170,6 +179,7 @@ export const initialState: QuizState = {
     ...initialGrammarState,
     ...initialExerciseTurns,
     progress: null,
+    progressLoaded: false,
     settings: null,
     currentVocab: null,
     currentQuizItem: null,
@@ -199,6 +209,13 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
     if (isGrammarAction(action)) return grammarReducer(state, action);
 
     switch (action.type) {
+        case 'PROGRESS_LOADED':
+            // A Drive download that landed first already holds the merge of this copy.
+            return { ...state, progressLoaded: true, progress: state.progress ?? action.payload.progress };
+
+        case 'PROGRESS_LOAD_FAILED':
+            return { ...state, progressLoaded: true, fatalError: action.payload.message };
+
         case 'SETUP_COMPLETE':
             return {
                 ...state,
@@ -339,7 +356,8 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
             };
 
         case 'RESET':
-            return { ...initialState };
+            // Progress is known now: there is none.
+            return { ...initialState, progressLoaded: true };
 
         case 'SESSION_START':
             // Snapshot the session's committed task set. Computed with `now` in the
