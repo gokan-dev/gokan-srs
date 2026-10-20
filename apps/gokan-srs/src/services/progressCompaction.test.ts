@@ -3,8 +3,9 @@ import { compactProgress, expandProgress, isCompactProgress } from './progressCo
 import { migrateAndHydrateProgress, toPlainProgressJSON } from './progressSerialization';
 import { toStoredProgress, type StoredProgress } from './progressHydration';
 import { grammarProgress, mixupRecord, reviewLog, srsEntry, userProgress, userSettings, vocabProgress } from '../test/fixtures';
+import { SRSService, type AnswerResult } from './srs.service';
 import type { UserProgress } from '../models/user.model';
-import type { ReviewLog } from '../models/vocabulary.model';
+import type { ReviewLog, SRSEntry, VocabProgress } from '../models/vocabulary.model';
 
 const DAY = 86_400_000;
 const T0 = Date.UTC(2025, 9, 1, 8, 30, 12, 345);
@@ -62,6 +63,36 @@ function realisticProgress(vocabCount = 40): UserProgress {
         },
         _sync: { lastModified: T0, version: 42 },
         _formatVersion: 12,
+    });
+}
+
+/** A word answered `reviews` times in each direction through the real formula, each answer on its due date. */
+function matureWord(reviews: number): VocabProgress {
+    const results: AnswerResult[] = ['correct', 'correct', 'minor_error', 'correct', 'correct', 'correct', 'wrong', 'correct'];
+    const answer = (start: number, expectedLatency: number) => {
+        let entry = srsEntry({ memoryStrength: 1 });
+        let now = start;
+        for (let i = 0; i < reviews; i++) {
+            const { newEntry, interval } = SRSService.calculateNextState(entry, results[i % results.length], 2345 + i * 733, new Date(now), expectedLatency);
+            entry = newEntry;
+            now += interval * DAY;
+        }
+        return entry;
+    };
+    const last = (entry: SRSEntry) => new Date(entry.history[entry.history.length - 1].date);
+    const reading = answer(T0, 10_000);
+    const meaning = answer(T0 + 5 * 60_000, 10_000);
+    const production = answer(T0 + DAY, 15_000);
+    return vocabProgress({
+        vocabId: '1234567',
+        stage: 'graduated',
+        introductionAt: new Date(T0),
+        lastReviewedAt: last(production),
+        nextReviewAt: null,
+        totalReviews: 3 * reviews,
+        reading,
+        meaning,
+        production,
     });
 }
 
@@ -135,6 +166,16 @@ describe('progress compaction', () => {
         expect(compact).toContain('"mx":');
         expect(compact).not.toContain('"asked"');
         expect(migrateAndHydrateProgress(storageRoundTrip(toPlainProgressJSON(progress)), settings).mixups).toEqual(progress.mixups);
+    });
+
+    // The localStorage ceiling is set by a mature word's size (docs/ARCHITECTURE.md,
+    // Storage Service). A new field that grows every word fails here instead of
+    // quietly lowering how many words fit.
+    it('stores a mature word, 20 reviews per direction, in at most 1,800 chars', () => {
+        const compactSize = (progress: UserProgress) => JSON.stringify(compactProgress(toPlainProgressJSON(progress))).length;
+        const word = matureWord(20);
+        expect(word.reading.history).toHaveLength(20);
+        expect(compactSize(userProgress({ learningQueue: [word] })) - compactSize(userProgress())).toBeLessThanOrEqual(1800);
     });
 
     it('takes well under half the space of the readable form', () => {

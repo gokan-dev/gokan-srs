@@ -5,6 +5,11 @@
 >
 > It is not auto-loaded into agent context; read it on demand when you need the history behind a decision.
 
+- **[2026-10-19]**:
+  - **A review log's interval is rounded when it is written, never in the codec** (#154, `srs.service.ts`, `calculateNextState`). ARCHITECTURE.md rejects rounding floats in `progressCompaction.ts`: the local copy would then differ from Drive's full-precision copy and merge (and upload) on every load. Rounding at write time does not have that problem, because no full-precision value ever exists: both copies are born with the same 2-decimal number. Worth not undoing:
+    - **Round only the log, at the one place it is created.** Moving the rounding into the codec, or into a later pass over stored progress, brings back the merge-on-every-load the codec rule prevents. Rounding the entry's `interval`, `memoryStrength` or `difficulty` would change scheduling: they feed the formula.
+    - **The size budget in `progressCompaction.test.ts` is the ratchet.** It builds a mature word through `calculateNextState` itself, so it measures what is actually written; it was seen failing (2,291 chars against 1,800) with the rounding removed.
+
 - **[2026-10-18]**:
   - **Synonyms: the out-of-context auto tier was switched off on 2026-10-03 and is restored** (#150, `services/exercise/wordRelation.ts`). The 2026-10-02 entry below says "out of context, the old floor decides". The next day, one report (a 埋める card answered つむ, meant as 積む, graded through 止む) got three fixes in one commit (5ce503a7): typos counted in romaji keystrokes, an exact synonym match beating a typo match, and "out of context, only curated tiers survive". The first two already fixed the report (つむ no longer reaches 止む); the third switched the auto tier off for every one of about 121k interchangeable pairs, with no entry here, while the schema, the build header and ARCHITECTURE still described it as live. So 作文 on a 作曲 card read "not interchangeable here" although the pair is stored `interchangeable`. Worth not undoing:
     - **The auto tier decides again out of context** (the table in `outcomeOf`): an interchangeable pair, auto or curated, is `minor_error`. This only accepts more: no answer accepted before is refused. Rejected: keeping the neutral grade and showing the tier only on a page, which would have left a page and the quiz disagreeing on 121k pairs.

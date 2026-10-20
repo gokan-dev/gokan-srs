@@ -405,11 +405,15 @@ export class SRSService {
         // 8. Due Date
         const dueDate = new Date(now.getTime() + newInterval * 24 * 60 * 60 * 1000);
 
-        // History Log
+        // History Log. Its interval is rounded to 2 decimals (about 15 minutes):
+        // it was a third of a log's stored size, and the log is only read back for
+        // the history graph. Rounded here, at birth, so the local and Drive copies
+        // hold the same number; the entry's own interval feeds the formula and
+        // stays exact (see Storage Service in docs/ARCHITECTURE.md).
         const historyLog: ReviewLog = {
             date: now.getTime(),
             result,
-            interval: newInterval,
+            interval: Math.round(newInterval * 100) / 100,
             latency: latencyMs
         };
 
