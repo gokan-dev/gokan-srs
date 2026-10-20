@@ -15,7 +15,9 @@
  *   no `aria-label` that replaces "301-400" with other words;
  * - About before setup shows a visible dictionary link, in a footer aligned with the header;
  * - setup's "Vocabulary order" heading and "Start learning" button sit within about two screens of
- *   the top at 320px, 375px and 1280px, not under the kanji grid (issue #158);
+ *   the top at 320px, 375px and 1280px, not under the kanji grid (issue #158); with the grid
+ *   opened, "Done marking" sits within a screen of the page's end and brings Start learning back
+ *   into view;
  * - furigana sits over kanji only, never over kana, no ruby (a run of kanji with its reading)
  *   breaks across lines, and no two readings on a line touch (word pages' example sentences, in each app).
  *
@@ -191,6 +193,37 @@ async function checkSetupReach(tab: Tab, width: number, height: number): Promise
     }
 }
 
+/**
+ * With setup's grid open, Start learning is the whole grid above: "Done marking" must sit at the
+ * grid's end (within one screen of the page's bottom), and clicking it from there must put the
+ * button back on screen.
+ */
+const START_LEARNING_IN_VIEW = `(() => {
+    const button = [...document.querySelectorAll('button')].find(el => el.textContent.trim() === 'Start learning');
+    if (!button) return false;
+    const rect = button.getBoundingClientRect();
+    return rect.top >= 0 && rect.bottom <= window.innerHeight;
+})()`;
+async function checkDoneMarking(tab: Tab, width: number, height: number): Promise<void> {
+    const fromEnd = await tab.evaluate<number | null>(`(() => {
+        const done = [...document.querySelectorAll('button')].find(el => el.textContent.trim() === 'Done marking');
+        if (!done) return null;
+        return document.documentElement.scrollHeight - (done.getBoundingClientRect().bottom + window.scrollY);
+    })()`);
+    if (fromEnd === null) {
+        failures.push(`${width}px srs /setup, individual kanji: no "Done marking" at the grid's end`);
+        return;
+    }
+    if (fromEnd > height) failures.push(`${width}px srs /setup, individual kanji: "Done marking" sits ${Math.round(fromEnd)}px above the page's end (at most one screen, ${height}px)`);
+    await tab.evaluate(`window.scrollTo(0, document.documentElement.scrollHeight)`);
+    await tab.click('Done marking');
+    try {
+        await tab.until(START_LEARNING_IN_VIEW, 'Start learning in view', 3000);
+    } catch {
+        failures.push(`${width}px srs /setup: after "Done marking", the "Start learning" button is not on screen`);
+    }
+}
+
 /** Measures the fixture word's page, after checking it still shows a reading to measure. */
 async function measureFuriganaFixture(tab: Tab, url: string, ready: string, page: string, width: number, tapTargets = ''): Promise<void> {
     try {
@@ -210,6 +243,8 @@ try {
     await desktop.click('I already know some kanji');
     await desktop.until(`document.body.innerText.includes('Kanji learning method')`, 'the setup screen');
     await checkSetupReach(desktop, DESKTOP.width, DESKTOP.height);
+    await desktop.click('Mark individual kanji');
+    await checkDoneMarking(desktop, DESKTOP.width, DESKTOP.height);
     await desktop.close();
     for (const { width, height } of VIEWPORTS) {
         const tab = await chrome.openTab(width, height);
@@ -234,6 +269,7 @@ try {
         await measure(tab, 'srs /setup, every method', width);
         await tab.click('Mark individual kanji');
         await measure(tab, 'srs /setup, individual kanji', width);
+        await checkDoneMarking(tab, width, height);
         await tab.click('Start learning');
         for (const route of SRS_ROUTES) {
             await tab.goto(`${app}${route.path}`, route.ready);
@@ -276,4 +312,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji, on one line and apart, Japanese in list rows unbroken, setup's decisions above the kanji grid.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji, on one line and apart, Japanese in list rows unbroken, setup's decisions above the kanji grid and a way back to them from its end.`);

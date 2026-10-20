@@ -6,6 +6,9 @@ interface DisclosureProps {
     title: ReactNode;
     children: ReactNode;
     defaultOpen?: boolean;
+    /** Controlled open state, for a caller that closes it from inside (setup's "Done marking"). */
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
     className?: string;
 }
 
@@ -14,14 +17,19 @@ interface DisclosureProps {
  * tails (dictionary details, review history, rare senses) stay out of the
  * way until asked for, rather than competing with the learner's own content.
  */
-export function Disclosure({ title, children, defaultOpen = false, className = '' }: DisclosureProps) {
-    const [open, setOpen] = useState(defaultOpen);
+export function Disclosure({ title, children, defaultOpen = false, open: controlledOpen, onOpenChange, className = '' }: DisclosureProps) {
+    const [uncontrolledOpen, setUncontrolledOpen] = useState(defaultOpen);
+    const open = controlledOpen ?? uncontrolledOpen;
+    const toggle = () => {
+        if (controlledOpen === undefined) setUncontrolledOpen(!open);
+        onOpenChange?.(!open);
+    };
 
     return (
         <div className={className}>
             <button
                 type="button"
-                onClick={() => setOpen(o => !o)}
+                onClick={toggle}
                 aria-expanded={open}
                 className="flex items-center gap-2 w-full text-left type-label py-2 cursor-pointer"
             >

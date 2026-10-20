@@ -25,6 +25,7 @@ vi.mock('../context/KanjiForm/useKanjiForm', () => ({ useKanjiForm: () => form }
 vi.mock('../context/Responsive/useResponsive', () => ({ useResponsive: () => ({ isMobile: false }) }));
 
 const tileCount = (html: string) => (html.match(/data-kanji-pos=/g) ?? []).length;
+const knownLines = (html: string) => (html.match(/Known: |order known/g) ?? []).length;
 
 describe('KanjiKnowledgeEditor', () => {
     it('on the profile page, shows the grid open with the stepper in its toolbar', () => {
@@ -32,6 +33,7 @@ describe('KanjiKnowledgeEditor', () => {
         expect(tileCount(html)).toBe(ALL_KANJI.length);
         expect(html).not.toContain('Mark individual kanji');
         expect(html.indexOf('id="kanji-count"')).toBeLessThan(html.indexOf('type="search"'));
+        expect(html).toContain('Known: ');
     });
 
     it('on setup, shows the stepper and what the count means, with the grid closed', () => {
@@ -39,6 +41,8 @@ describe('KanjiKnowledgeEditor', () => {
         expect(tileCount(html)).toBe(0);
         expect(html).toContain('id="kanji-count"');
         expect(html).toContain('2 of 6 in KKLC order known');
+        expect(knownLines(html)).toBe(1);
+        expect(html).not.toContain('Done marking');
         expect(html).toMatch(/aria-expanded="false"[^>]*>.*Mark individual kanji/);
         expect(html.indexOf('between')).toBeLessThan(html.indexOf('Mark individual kanji'));
     });
