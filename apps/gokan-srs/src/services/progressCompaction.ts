@@ -2,9 +2,9 @@ import { DEFAULT_SRS_ENTRY, DEFAULT_VOCABULARY_PROGRESS, type ReviewLog } from "
 import type { StoredProgress } from "./progressHydration";
 
 /**
- * The compact form progress takes in localStorage, which caps an origin at about 5 MB
- * (Firefox and Safari count the whole origin). A year of reviews in the readable JSON
- * filled it and every save threw. The code never sees this form: StorageService
+ * The compact form progress is stored in (an IndexedDB record since #153, localStorage
+ * before it and where IndexedDB is unavailable). localStorage caps an origin at about
+ * 5 MB, and a year of reviews in the readable JSON filled it and every save threw. The code never sees this form: StorageService
  * compacts right before writing and expands right after reading, so field names in
  * the app stay readable. Google Drive keeps the readable form, which another device on
  * an older build must still be able to read.
@@ -192,13 +192,13 @@ function expandValue(key: string | null, value: unknown): unknown {
     return value;
 }
 
-/** Whether a parsed localStorage value is in the compact form. */
+/** Whether a parsed stored value is in the compact form. */
 export function isCompactProgress(parsed: unknown): boolean {
     return isRecord(parsed) && parsed[MARKER] === CODEC_VERSION;
 }
 
 /**
- * The readable stored shape for a parsed localStorage value: compact payloads are
+ * The readable stored shape for a parsed stored value: compact payloads are
  * expanded, anything else (progress saved before compaction) is returned as is.
  */
 export function expandProgress(parsed: unknown): unknown {
