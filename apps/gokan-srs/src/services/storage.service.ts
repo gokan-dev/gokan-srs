@@ -5,6 +5,7 @@ import { isTheme, type Theme } from "../models/theme.model";
 import { toPlainProgressJSON, migrateAndHydrateProgress } from "./progressSerialization";
 import { parseStoredSettings, toStoredProgress } from "./progressHydration";
 import { compactProgress, expandProgress } from "./progressCompaction";
+import { mergeProgress } from "./sync/mergeProgress";
 import type { ProgressWithMetadata } from "./sync/types";
 
 const KEYS = CONSTANTS.storage;
@@ -104,7 +105,7 @@ export class StorageService {
      */
     static saveProgress(progress: UserProgress): Promise<boolean> {
         // Serialized now, so the write stores the progress as it was when saved.
-        return this.enqueue(JSON.stringify(compactProgress(toPlainProgressJSON(progress))));
+        return this.enqueue(this.serialize(progress));
     }
 
     /** Reads progress, after any write still in flight. Rejects with ProgressUnavailableError when it cannot be read. */
@@ -114,11 +115,7 @@ export class StorageService {
         await this.writes;
         const stored = store.backend === 'indexedDB' ? await readRecord(store.db) : localStorage.getItem(KEYS.progressStorageKey);
         if (!stored) return null;
-
-        // Settings must inform the migration pass's nextReviewAt re-derivation,
-        // or a disabled meaning quiz makes every load disagree with every merge.
-        const parsed: unknown = JSON.parse(stored);
-        return migrateAndHydrateProgress(toStoredProgress(expandProgress(parsed)), this.loadSettings() ?? undefined);
+        return this.parse(stored);
     }
 
     static clearProgress(): Promise<boolean> {
@@ -215,18 +212,50 @@ export class StorageService {
         this.trySet(KEYS.lastAccessDateKey, day);
     }
 
+    private static serialize(progress: UserProgress): string {
+        return JSON.stringify(compactProgress(toPlainProgressJSON(progress)));
+    }
+
+    private static parse(stored: string): ProgressWithMetadata {
+        // Settings must inform the migration pass's nextReviewAt re-derivation,
+        // or a disabled meaning quiz makes every load disagree with every merge.
+        const parsed: unknown = JSON.parse(stored);
+        return migrateAndHydrateProgress(toStoredProgress(expandProgress(parsed)), this.loadSettings() ?? undefined);
+    }
+
+    /**
+     * The value to store when localStorage holds progress and IndexedDB may too. With no record
+     * the localStorage copy moves as it is. With one, neither copy is assumed newer: a tab
+     * still running a build from before IndexedDB keeps writing localStorage after another tab
+     * moved progress and went on studying, so the two are merged per entry, as Drive merges.
+     */
+    private static async movedProgress(db: IDBDatabase, legacy: string): Promise<string> {
+        const existing = await readRecord(db);
+        if (existing === null) return legacy;
+        const settings = this.loadSettings() ?? undefined;
+        const merged = mergeProgress(this.parse(existing), this.parse(legacy), settings);
+        return merged ? this.serialize(merged) : legacy;
+    }
+
     /** Records that progress has been written to IndexedDB (see ProgressUnavailableError). */
     private static markProgressInIndexedDb(): void {
         if (this.markedInIndexedDb) return;
         this.markedInIndexedDb = this.trySet(KEYS.progressInIndexedDbKey, '1');
     }
 
+    /** No progress is kept anywhere now, so a later visit that cannot open IndexedDB has nothing to protect. */
+    private static unmarkProgressInIndexedDb(): void {
+        localStorage.removeItem(KEYS.progressInIndexedDbKey);
+        this.markedInIndexedDb = false;
+    }
+
     /**
      * Opens IndexedDB and, on the first load of a build that has it, moves progress over from
      * localStorage. The localStorage copy may be the only one, so it is removed only once the
      * IndexedDB copy has been read back equal; anything failing on the way keeps localStorage in
-     * use, exactly as before. Progress still found in localStorage later is always the newest
-     * (only a session that could not open IndexedDB writes it there), so it is moved again.
+     * use, exactly as before. Progress found in localStorage on a later load (written by a
+     * session that could not open IndexedDB, or by a tab still on an older build) is merged
+     * into the IndexedDB record, never written over it.
      */
     private static async openProgressStore(): Promise<ProgressStore> {
         let db: IDBDatabase;
@@ -243,8 +272,9 @@ export class StorageService {
         if (legacy === null) return { backend: 'indexedDB', db };
 
         try {
-            await writeRecord(db, legacy);
-            if (await readRecord(db) !== legacy) throw new Error('the copy read back differs from localStorage');
+            const moved = await this.movedProgress(db, legacy);
+            await writeRecord(db, moved);
+            if (await readRecord(db) !== moved) throw new Error('the copy read back differs from what was written');
         } catch (error) {
             console.error('[StorageService] Could not move progress to IndexedDB; it stays in localStorage', error);
             return LOCAL_STORE;
@@ -278,6 +308,7 @@ export class StorageService {
             if (store.backend === 'indexedDB') {
                 await writeRecord(store.db, value);
                 if (value !== null) this.markProgressInIndexedDb();
+                else this.unmarkProgressInIndexedDb();
                 saved = true;
             } else {
                 saved = this.writeLocalProgress(value);

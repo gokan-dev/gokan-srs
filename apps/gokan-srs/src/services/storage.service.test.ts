@@ -215,14 +215,16 @@ describe('StorageService with IndexedDB', () => {
         await expect(StorageService.loadProgress()).rejects.toBeInstanceOf(ProgressUnavailableError);
     });
 
-    it('moves progress again when localStorage holds a newer copy (written by a session that could not open IndexedDB)', async () => {
+    it('merges a localStorage copy left by another tab into the IndexedDB record, never writing over it', async () => {
+        // Word A reviewed after the move; word B answered meanwhile in a tab still on a build before IndexedDB.
         const first = await freshService();
-        await first.StorageService.saveProgress(progress);
-        const newer = userProgress({ learningQueue: [vocabProgress({ vocabId: '99' })] });
-        storage.setItem(KEYS.progressStorageKey, payloadOf(newer));
+        await first.StorageService.saveProgress(userProgress({ learningQueue: [vocabProgress({ vocabId: 'A', reading: srsEntry({ memoryStrength: 9 }) })] }));
+        storage.setItem(KEYS.progressStorageKey, payloadOf(userProgress({ learningQueue: [vocabProgress({ vocabId: 'B' })] })));
 
         const { StorageService } = await freshService();
-        expect(await StorageService.loadProgress()).toEqual(asLoaded(newer));
+        const loaded = await StorageService.loadProgress();
+        expect(loaded?.learningQueue.map(word => word.vocabId).sort()).toEqual(['A', 'B']);
+        expect(loaded?.learningQueue.find(word => word.vocabId === 'A')?.reading.memoryStrength).toBe(9);
         expect(storage.getItem(KEYS.progressStorageKey)).toBeNull();
     });
 
@@ -254,6 +256,16 @@ describe('StorageService with IndexedDB', () => {
         const { StorageService } = await freshService();
         await StorageService.saveProgress(progress);
         await StorageService.clearProgress();
+        expect(await StorageService.loadProgress()).toBeNull();
+    });
+
+    it('offers onboarding, not the fatal error, after a reset when IndexedDB later cannot be opened', async () => {
+        const first = await freshService();
+        await first.StorageService.saveProgress(progress);
+        await first.StorageService.clearProgress();
+
+        vi.stubGlobal('indexedDB', { open: () => { throw new DOMException('denied', 'SecurityError'); } });
+        const { StorageService } = await freshService();
         expect(await StorageService.loadProgress()).toBeNull();
     });
 
