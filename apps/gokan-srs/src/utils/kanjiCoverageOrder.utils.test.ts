@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { kanjiCoverageScore, kanjiCoverageScores, pickKanjiCoverage } from './kanjiCoverageOrder.utils';
+import { coverageCandidates, kanjiCoverageScore, kanjiCoverageScores, pickKanjiCoverage } from './kanjiCoverageOrder.utils';
 import type { CoverageCandidate } from './kanjiCoverageOrder.utils';
 
 /** Candidates in frequency order, ranked by position: [id, kanji]. */
@@ -8,6 +8,18 @@ function candidates(...words: [string, string][]): CoverageCandidate[] {
 }
 
 const uncovered = (kanji: string, needed = 1) => new Map([...kanji].map(k => [k, needed]));
+
+describe('coverageCandidates', () => {
+    it('keeps the learnable words not in the queue, in frequency order with their ranks', () => {
+        const kanjiOf = new Map([['nichi', ['日']], ['tsuki', ['月']], ['kono', []], ['nihon', ['日', '本']]]);
+        const ranked = [...kanjiOf.keys()].map((id, rank) => [id, rank] as const);
+        const result = coverageCandidates(ranked, kanjiOf, new Set(['tsuki']), id => id !== 'kono');
+        expect(result).toEqual([
+            { id: 'nichi', rank: 0, kanji: ['日'] },
+            { id: 'nihon', rank: 3, kanji: ['日', '本'] },
+        ]);
+    });
+});
 
 describe('kanjiCoverageScore', () => {
     it('is pure frequency with no kanji credited', () => {

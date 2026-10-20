@@ -10,8 +10,8 @@ import type { QuizType } from '../utils/srs.utils';
 import { collectJlptCandidates, countJlptCandidates } from './jlptWalk';
 import type { AnswerResult } from '../utils/answerMatching';
 import { orderIncludesUsuallyKana, usuallyKanaPacer, type UsuallyKanaPacer } from '../utils/usuallyKana.utils';
-import { pickKanjiCoverage, type CoverageCandidate } from '../utils/kanjiCoverageOrder.utils';
-import { computeUncoveredKanji } from '../utils/wordOrder.utils';
+import { pickKanjiCoverage } from '../utils/kanjiCoverageOrder.utils';
+import { buildWordOrderContext, computeUncoveredKanji, kanjiCoverageCandidatesFor } from '../utils/wordOrder.utils';
 
 export type { AnswerResult } from '../utils/answerMatching';
 
@@ -724,20 +724,12 @@ export class SRSService {
         const index = await VocabularyService.loadFrequencyIndex();
         if (!index) return [];
 
-        const kanjiOf = new Map(index.map(entry => [entry.id, entry.containedKanji]));
-        const uncovered = computeUncoveredKanji(activeIds, kanjiKnowledge.kanjiSet, kanjiOf, targetCoverage);
+        // Only the frequency index is read: the JLPT and kanji step facts are not used by this order.
+        const context = buildWordOrderContext(index, {}, {});
+        const learner = { order: 'kanji_coverage' as const, knownKanji: kanjiKnowledge.kanjiSet, kanjiStep: kanjiKnowledge.step, ignoreKnownKanji };
+        const uncovered = computeUncoveredKanji(activeIds, kanjiKnowledge.kanjiSet, context.kanjiOf, targetCoverage);
 
-        const learnable: CoverageCandidate[] = [];
-        index.forEach((entry, rank) => {
-            if (activeIds.has(entry.id)) return;
-            // A kanji-driven order: words learned in kana have no place in it (orderIncludesUsuallyKana).
-            if (entry.usuallyKana) return;
-            if (ignoreKnownKanji || entry.containedKanji.every(k => kanjiKnowledge.kanjiSet.has(k))) {
-                learnable.push({ id: entry.id, rank, kanji: entry.containedKanji });
-            }
-        });
-
-        return pickKanjiCoverage(learnable, uncovered, maxToFind);
+        return pickKanjiCoverage(kanjiCoverageCandidatesFor(activeIds, context, learner), uncovered, maxToFind);
     }
 
     /* =======================

@@ -774,15 +774,29 @@ describe('Learning Order: Kanji Coverage', () => {
             expect(await SRSService.getNextCandidates([], kanjiKnowledge, coverageSettings, 3)).toEqual(['w1', 'w2', 'w3']);
         });
 
-        it('ranks the first pick the way the listening library sorts "Your learning order"', async () => {
-            vi.spyOn(VocabularyService, 'loadFrequencyIndex').mockResolvedValue(mockIndex);
-            const kanjiKnowledge: KanjiKnowledge = { method: 'kklc', step: 10, kanjiSet: new Set(['A', 'B', 'C']) };
-            const context = buildWordOrderContext(mockIndex, {}, {});
-            const order = { order: 'kanji_coverage' as const, knownKanji: kanjiKnowledge.kanjiSet, kanjiStep: 10, ignoreKnownKanji: false };
+        // A word learned in kana first, then one whose kanji are unknown, then one with no kanji:
+        // with no kanji known only 人 (hito) is learnable, and with the kanji requirement off, 海 (umi) is first.
+        const parityIndex = [
+            { id: 'kono', containedKanji: [], usuallyKana: true },
+            { id: 'umi', containedKanji: ['海'] },
+            { id: 'hito', containedKanji: [] },
+            ...mockIndex,
+        ];
+        it.each([
+            { name: 'kanji known', index: mockIndex, known: ['A', 'B', 'C'], ignoreKnownKanji: false, expected: 'w_multi' },
+            { name: 'no kanji known', index: parityIndex, known: [], ignoreKnownKanji: false, expected: 'hito' },
+            { name: 'kanji requirement off', index: parityIndex, known: [], ignoreKnownKanji: true, expected: 'umi' },
+        ])('ranks the first pick the way the listening library sorts "Your learning order" ($name)', async ({ index, known, ignoreKnownKanji, expected }) => {
+            vi.spyOn(VocabularyService, 'loadFrequencyIndex').mockResolvedValue(index);
+            const kanjiKnowledge: KanjiKnowledge = { method: 'kklc', step: 10, kanjiSet: new Set(known) };
+            const context = buildWordOrderContext(index, {}, {});
+            const order = { order: 'kanji_coverage' as const, knownKanji: kanjiKnowledge.kanjiSet, kanjiStep: 10, ignoreKnownKanji };
             const coverageScores = kanjiCoverageScoresFor(new Set(), context, order, 1);
-            const sorted = sortWords(mockIndex.map(entry => [entry.id, 1]), 'yours', context, { ...order, coverageScores });
+            const sorted = sortWords(index.map(entry => [entry.id, 1]), 'yours', context, { ...order, coverageScores });
 
-            const [first] = await SRSService.getNextCandidates([], kanjiKnowledge, coverageSettings, 1);
+            const settings: LearningOrderSettings = { ...coverageSettings, ignoreKnownKanjiRequirement: ignoreKnownKanji };
+            const [first] = await SRSService.getNextCandidates([], kanjiKnowledge, settings, 1);
+            expect(first).toBe(expected);
             expect(sorted[0][0]).toBe(first);
         });
 

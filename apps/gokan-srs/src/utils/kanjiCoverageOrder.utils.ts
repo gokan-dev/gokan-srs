@@ -17,6 +17,26 @@ export interface CoverageCandidate {
 }
 
 /**
+ * The words the order could offer, in frequency order: the one place the
+ * refill and the listening sort build the scorer's input. `ranked` is every
+ * word in frequency order with its rank; `isLearnable` is the learner's rule
+ * (isLearnableNow), passed in by both callers so it is written once.
+ */
+export function coverageCandidates(
+    ranked: Iterable<readonly [string, number]>,
+    kanjiOf: ReadonlyMap<string, readonly string[]>,
+    activeIds: ReadonlySet<string>,
+    isLearnable: (id: string) => boolean
+): CoverageCandidate[] {
+    const candidates: CoverageCandidate[] = [];
+    for (const [id, rank] of ranked) {
+        if (activeIds.has(id) || !isLearnable(id)) continue;
+        candidates.push({ id, rank, kanji: kanjiOf.get(id) ?? [] });
+    }
+    return candidates;
+}
+
+/**
  * Log-scale usefulness plus a fixed discount per credited kanji: a frequency
  * penalty that flattens with rank, so a credited kanji lifts a word by a ratio
  * of ranks, never by a fixed number of places. With no kanji credited it is

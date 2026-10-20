@@ -30,7 +30,7 @@ export const CONSTANTS = {
         newUsuallyKanaPerSession: 2,
 
         /**
-         * The kanji_coverage order's score (utils/kanjiCoverage.utils.ts). Swept on
+         * The kanji_coverage order's score (utils/kanjiCoverageOrder.utils.ts). Swept on
          * the compiled dataset (docs/MODIFICATION_LOG.md, issue #156): a larger
          * boost or cap covers more kanji with rarer words, a smaller one drifts
          * back to pure frequency.

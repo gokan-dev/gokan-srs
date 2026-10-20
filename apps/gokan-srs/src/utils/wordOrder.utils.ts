@@ -1,6 +1,6 @@
 import type { FrequencyIndex, JlptIndex, KanjiStepIndex, MediaWordCount } from '@gokan/dataset-schema';
 import type { LearningOrder } from '../models/user.model';
-import { kanjiCoverageScore, kanjiCoverageScores } from './kanjiCoverageOrder.utils';
+import { coverageCandidates, kanjiCoverageScore, kanjiCoverageScores } from './kanjiCoverageOrder.utils';
 import type { CoverageCandidate } from './kanjiCoverageOrder.utils';
 import { numericEntries } from './records';
 import { orderIncludesUsuallyKana } from './usuallyKana.utils';
@@ -94,10 +94,26 @@ export function computeUncoveredKanji(
 }
 
 /**
+ * The words the kanji_coverage order could offer now, in frequency order:
+ * built the same way for the queue refill (SRSService.findCandidatesKanjiCoverage)
+ * and the listening sort.
+ */
+export function kanjiCoverageCandidatesFor(
+    activeIds: ReadonlySet<string>,
+    context: WordOrderContext,
+    learner: Omit<LearnerOrder, 'coverageScores'>
+): CoverageCandidate[] {
+    // frequencyRank was filled in frequency order, so its entries already are.
+    return coverageCandidates(context.frequencyRank, context.kanjiOf, activeIds, id => isLearnableNow(id, context, learner));
+}
+
+/**
  * The kanji_coverage score of every word the learner's queue could introduce
- * now, scored as the queue refill scores its first pick. A static ranking
- * rather than the refill's greedy loop: close enough for a list a learner
- * picks from.
+ * now, scored as the queue refill scores its first pick. The refill also
+ * counts the pending intro candidates as active (they cover kanji too), but it
+ * runs only when none are pending, so in practice the inputs match. A static
+ * ranking rather than the refill's greedy loop: close enough for a list a
+ * learner picks from.
  */
 export function kanjiCoverageScoresFor(
     activeIds: ReadonlySet<string>,
@@ -105,13 +121,10 @@ export function kanjiCoverageScoresFor(
     learner: Omit<LearnerOrder, 'coverageScores'>,
     target: number
 ): Map<string, number> {
-    const candidates: CoverageCandidate[] = [];
-    // frequencyRank was filled in frequency order, so its entries already are.
-    for (const [id, rank] of context.frequencyRank) {
-        if (activeIds.has(id) || !isLearnableNow(id, context, learner)) continue;
-        candidates.push({ id, rank, kanji: context.kanjiOf.get(id) ?? [] });
-    }
-    return kanjiCoverageScores(candidates, computeUncoveredKanji(activeIds, learner.knownKanji, context.kanjiOf, target));
+    return kanjiCoverageScores(
+        kanjiCoverageCandidatesFor(activeIds, context, learner),
+        computeUncoveredKanji(activeIds, learner.knownKanji, context.kanjiOf, target)
+    );
 }
 
 /**
