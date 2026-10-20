@@ -29,6 +29,23 @@ export const CONSTANTS = {
          */
         newUsuallyKanaPerSession: 2,
 
+        /**
+         * The kanji_coverage order's score (utils/kanjiCoverageOrder.utils.ts). Swept on
+         * the compiled dataset (docs/MODIFICATION_LOG.md, issue #156): a larger
+         * boost or cap covers more kanji with rarer words, a smaller one drifts
+         * back to pure frequency.
+         */
+        kanjiCoverage: {
+            /** A kanji credits only one of its this many most frequent remaining words. */
+            wordsPerKanji: 3,
+            /** At most this many credited kanji count towards one word's score. */
+            maxCreditedKanji: 2,
+            /** Each credited kanji ranks a word as if this many times more frequent. */
+            rankBoost: 4,
+            /** Added to the rank before its log, so the very top ranks do not dominate. */
+            rankOffset: 200,
+        },
+
         /** Maximum number of reviews per day (Limit removed) */
         maxReviewsPerDay: 999999,
 

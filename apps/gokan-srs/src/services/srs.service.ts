@@ -10,6 +10,8 @@ import type { QuizType } from '../utils/srs.utils';
 import { collectJlptCandidates, countJlptCandidates } from './jlptWalk';
 import type { AnswerResult } from '../utils/answerMatching';
 import { orderIncludesUsuallyKana, usuallyKanaPacer, type UsuallyKanaPacer } from '../utils/usuallyKana.utils';
+import { pickKanjiCoverage } from '../utils/kanjiCoverageOrder.utils';
+import { buildWordOrderContext, computeUncoveredKanji, kanjiCoverageCandidatesFor } from '../utils/wordOrder.utils';
 
 export type { AnswerResult } from '../utils/answerMatching';
 
@@ -722,101 +724,12 @@ export class SRSService {
         const index = await VocabularyService.loadFrequencyIndex();
         if (!index) return [];
 
-        const candidates: string[] = [];
+        // Only the frequency index is read: the JLPT and kanji step facts are not used by this order.
+        const context = buildWordOrderContext(index, {}, {});
+        const learner = { order: 'kanji_coverage' as const, knownKanji: kanjiKnowledge.kanjiSet, kanjiStep: kanjiKnowledge.step, ignoreKnownKanji };
+        const uncovered = computeUncoveredKanji(activeIds, kanjiKnowledge.kanjiSet, context.kanjiOf, targetCoverage);
 
-        // 1. Calculate how many times each kanji is covered in the active vocabulary
-        const coveredKanjiCount = new Map<string, number>();
-        for (const k of kanjiKnowledge.kanjiSet) {
-            coveredKanjiCount.set(k, 0);
-        }
-
-        // We need a fast lookup for kanji by vocab ID
-        const idToKanji = new Map<string, string[]>();
-        for (const entry of index) {
-            idToKanji.set(entry.id, entry.containedKanji);
-        }
-
-        for (const id of activeIds) {
-            const kanjis = idToKanji.get(id) || [];
-            for (const k of kanjis) {
-                if (coveredKanjiCount.has(k)) {
-                    coveredKanjiCount.set(k, coveredKanjiCount.get(k)! + 1);
-                }
-            }
-        }
-
-        // 2. Identify kanji that haven't met the target coverage yet
-        const uncoveredKanji = new Set<string>();
-        for (const [k, count] of coveredKanjiCount.entries()) {
-            if (count < targetCoverage) {
-                uncoveredKanji.add(k);
-            }
-        }
-
-        // 3. Pre-filter words that are learnable and not already active
-        const learnableUnusedWords = [];
-        for (let rank = 0; rank < index.length; rank++) {
-            const entry = index[rank];
-            if (activeIds.has(entry.id)) continue;
-            // A kanji-driven order: words learned in kana have no place in it (orderIncludesUsuallyKana).
-            if (entry.usuallyKana) continue;
-
-            const allKanjiKnown = ignoreKnownKanji || entry.containedKanji.every((k) => kanjiKnowledge.kanjiSet.has(k));
-            if (allKanjiKnown) {
-                learnableUnusedWords.push({ entry, rank });
-            }
-        }
-
-        const KANJI_COVERAGE_RANK_VALUE = 2500;
-
-        // 4. Find words that maximize a blended score of kanji coverage vs frequency penalty
-        while (candidates.length < maxToFind && uncoveredKanji.size > 0) {
-            let bestEntry = null;
-            let maxScore = -Infinity;
-
-            for (const { entry, rank } of learnableUnusedWords) {
-                if (candidates.includes(entry.id)) continue;
-
-                let coverage = 0;
-                for (const k of entry.containedKanji) {
-                    if (uncoveredKanji.has(k)) coverage++;
-                }
-
-                if (coverage > 0) {
-                    const score = coverage * KANJI_COVERAGE_RANK_VALUE - rank;
-                    if (score > maxScore) {
-                        maxScore = score;
-                        bestEntry = entry;
-                    }
-                }
-            }
-
-            if (!bestEntry) break;
-
-            candidates.push(bestEntry.id);
-            // Re-evaluate coverage for the remaining capacity
-            for (const k of bestEntry.containedKanji) {
-                if (uncoveredKanji.has(k)) {
-                    const newCount = (coveredKanjiCount.get(k) || 0) + 1;
-                    coveredKanjiCount.set(k, newCount);
-                    if (newCount >= targetCoverage) {
-                        uncoveredKanji.delete(k);
-                    }
-                }
-            }
-        }
-
-        // 5. Fallback: Filling remaining slots by pure frequency
-        if (candidates.length < maxToFind) {
-            for (const { entry } of learnableUnusedWords) {
-                if (candidates.length >= maxToFind) break;
-                if (!candidates.includes(entry.id)) {
-                    candidates.push(entry.id);
-                }
-            }
-        }
-
-        return candidates;
+        return pickKanjiCoverage(kanjiCoverageCandidatesFor(activeIds, context, learner), uncovered, maxToFind);
     }
 
     /* =======================
