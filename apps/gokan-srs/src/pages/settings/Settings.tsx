@@ -153,7 +153,7 @@ function DeviceStorageSection() {
                         className="w-full justify-center"
                     >
                         <HardDrive size={18} className="mr-2" aria-hidden="true" />
-                        Keep my progress in this browser
+                        Keep my progress
                     </Button>
                     {granted === false && (
                         <p className="type-support">
