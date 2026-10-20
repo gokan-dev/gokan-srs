@@ -133,7 +133,10 @@ function SyncControls() {
 function DeviceStorageSection() {
     const status = useAsyncData('device-storage', async () =>
         await StorageService.progressInIndexedDb() ? StorageService.storageIsPersistent() : null);
+    const { isAuthenticated } = useGoogleDrive();
     const [granted, setGranted] = useState<boolean | null>(null);
+    // Firefox can hold its prompt open; the button waits with it rather than asking twice.
+    const [requesting, setRequesting] = useState(false);
     const persistent = granted ?? status.data;
     if (persistent === null || persistent === undefined) return null;
 
@@ -149,15 +152,25 @@ function DeviceStorageSection() {
                     </p>
                     <Button
                         variant="secondary"
-                        onClick={() => void StorageService.requestPersistentStorage().then(setGranted)}
+                        onClick={() => {
+                            setRequesting(true);
+                            void StorageService.requestPersistentStorage().then(setGranted).finally(() => setRequesting(false));
+                        }}
+                        disabled={requesting}
                         className="w-full justify-center"
                     >
-                        <HardDrive size={18} className="mr-2" aria-hidden="true" />
+                        {requesting ? (
+                            <Loader2 size={18} className="animate-spin mr-2" aria-hidden="true" />
+                        ) : (
+                            <HardDrive size={18} className="mr-2" aria-hidden="true" />
+                        )}
                         Keep my progress
                     </Button>
                     {granted === false && (
                         <p className="type-support">
-                            The browser did not agree. Signing in keeps a copy in your Google Drive.
+                            {isAuthenticated
+                                ? 'This browser did not grant it. Your progress is also kept in Google Drive. You can try again later.'
+                                : 'This browser did not grant it. Signing in to Google Drive keeps a copy. You can try again later.'}
                         </p>
                     )}
                 </div>
