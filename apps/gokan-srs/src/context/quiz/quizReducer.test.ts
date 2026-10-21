@@ -24,6 +24,29 @@ describe('quizReducer', () => {
         expect(state.settings).toBe(settings);
     });
 
+    describe('reading stored progress (IndexedDB, asynchronous)', () => {
+        it('starts unloaded, so the app shows neither onboarding nor the hub yet', () => {
+            expect(initialState.progressLoaded).toBe(false);
+        });
+
+        it('PROGRESS_LOADED sets the stored progress, or none', () => {
+            const progress = userProgress();
+            expect(quizReducer(initialState, { type: 'PROGRESS_LOADED', payload: { progress } })).toMatchObject({ progressLoaded: true, progress });
+            expect(quizReducer(initialState, { type: 'PROGRESS_LOADED', payload: { progress: null } })).toMatchObject({ progressLoaded: true, progress: null });
+        });
+
+        it('PROGRESS_LOADED keeps progress a Drive download already brought (it merged the stored copy)', () => {
+            const downloaded = userProgress({ learningQueue: [vocabProgress({ vocabId: 'from-drive' })] });
+            const state = quizReducer({ ...initialState, progress: downloaded }, { type: 'PROGRESS_LOADED', payload: { progress: userProgress() } });
+            expect(state.progress).toBe(downloaded);
+        });
+
+        it('PROGRESS_LOAD_FAILED is a fatal error, never a fresh start', () => {
+            const state = quizReducer(initialState, { type: 'PROGRESS_LOAD_FAILED', payload: { message: 'unreadable' } });
+            expect(state).toMatchObject({ progressLoaded: true, progress: null, fatalError: 'unreadable' });
+        });
+    });
+
     it('RESET_DAILY_STATS zeroes newLearnedToday and clears dailyOverride', () => {
         const state: QuizState = {
             ...initialState,
@@ -386,10 +409,10 @@ describe('quizReducer', () => {
         expect(next.progress!.learningQueue[0].reading.history).toEqual(existingHistory);
     });
 
-    it('RESET restores the initial state', () => {
-        const state: QuizState = { ...initialState, progress: userProgress(), turns: { vocab: readingTurn('x'), grammar: null } };
+    it('RESET restores the initial state, progress known to be none', () => {
+        const state: QuizState = { ...initialState, progressLoaded: true, progress: userProgress(), turns: { vocab: readingTurn('x'), grammar: null } };
         const next = quizReducer(state, { type: 'RESET' });
-        expect(next).toEqual(initialState);
+        expect(next).toEqual({ ...initialState, progressLoaded: true });
     });
 
     it('RECONCILE_REMOTE assigns the already-merged progress/settings without touching in-flight quiz state', () => {

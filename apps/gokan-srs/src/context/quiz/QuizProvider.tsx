@@ -1,9 +1,9 @@
-import React, { useCallback, useReducer, useState } from 'react';
+import React, { useCallback, useEffect, useReducer, useState } from 'react';
 import type { ReactNode } from 'react';
 import { DEFAULT_SETTINGS } from '../../models/user.model';
 import type { VocabProgress } from '../../models/vocabulary.model';
 import type { GrammarProgress } from '../../models/grammar.model';
-import { StorageService } from '../../services/storage.service';
+import { ProgressUnavailableError, StorageService } from '../../services/storage.service';
 import type { SessionState } from '../../models/state.model';
 import { QuizContext } from '../useQuiz';
 import { initialState, quizReducer } from './quizReducer';
@@ -53,9 +53,22 @@ export interface QuizContextValue {
 export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [state, dispatch] = useReducer(quizReducer, {
         ...initialState,
-        progress: StorageService.loadProgress(),
         settings: StorageService.loadSettings() ?? DEFAULT_SETTINGS,
     });
+
+    // Progress is read asynchronously (IndexedDB); App shows a loading state until it is in.
+    useEffect(() => {
+        StorageService.loadProgress().then(
+            progress => dispatch({ type: 'PROGRESS_LOADED', payload: { progress } }),
+            (error: unknown) => {
+                console.error('[QuizProvider] Could not read progress', error);
+                const message = error instanceof ProgressUnavailableError
+                    ? error.message
+                    : 'Your saved progress could not be read. Reload the page to try again.';
+                dispatch({ type: 'PROGRESS_LOAD_FAILED', payload: { message } });
+            },
+        );
+    }, []);
 
     const [pageRendered, setPageRendered] = useState(false);
     const markPageRendered = useCallback(() => setPageRendered(true), []);

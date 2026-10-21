@@ -5,9 +5,6 @@ import { ForwardArrow, WelcomeWrap } from "./WelcomeSection";
 
 const NAV_LINK = "text-sm text-secondary transition-colors duration-200 hover:text-primary";
 
-/** Restored progress is read at start-up, so the app reloads into it. */
-const reload = () => window.location.reload();
-
 interface WelcomeHeroProps {
     onSelectBeginner: () => void;
     onSelectLearner: () => void;
@@ -55,7 +52,7 @@ export function WelcomeHero({ onSelectBeginner, onSelectLearner }: WelcomeHeroPr
                     </div>
                     <p className="type-support mt-5">
                         It's free, and you don't need an account. Used Gokan on another device?{" "}
-                        <GoogleLoginButton onSyncComplete={reload} />
+                        <GoogleLoginButton />
                     </p>
                 </div>
 

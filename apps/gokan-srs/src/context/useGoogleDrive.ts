@@ -6,10 +6,26 @@ export interface GoogleUser extends GoogleProfile {
     access_token: string;
 }
 
+/**
+ * A completed blocking download: the merged progress, or null when neither Drive nor this device
+ * had any. Handed to the app directly rather than through storage, so a local write that fails
+ * cannot roll the app back to the last copy that fit. A new object per download, so an effect
+ * keyed on it runs once each time.
+ */
+export interface DriveDownload {
+    envelope: SyncEnvelope | null;
+}
+
+/** A background sync that pulled in another device's changes, and the merged envelope it uploaded. */
+export interface DriveMerge {
+    envelope: SyncEnvelope;
+}
+
 export interface GoogleDriveContextType {
     login: () => void;
     logout: () => void;
-    downloadProgress: () => Promise<void>;
+    /** A blocking download, merged with `local` (the app's live progress) or, without it, with the stored copy. */
+    downloadProgress: (local?: SyncEnvelope) => Promise<void>;
     /** Schedules a debounced background upload. */
     uploadProgress: (envelope: SyncEnvelope) => void;
     /**
@@ -24,11 +40,11 @@ export interface GoogleDriveContextType {
     user: GoogleUser | null;
     isAuthenticated: boolean;
     isInitialLoadComplete: boolean;
-    lastDownloadTime: number | null;
-    /** Bumped after a successful background sync that pulled in remote changes.
-     *  Unlike lastDownloadTime, consumers should MERGE against this (not replace
-     *  state wholesale) so an in-flight action isn't lost. */
-    lastBackgroundMergeTime: number | null;
+    /** The latest blocking download, with what it brought. The app REPLACES its state with it. */
+    lastDownload: DriveDownload | null;
+    /** The latest background sync that pulled in remote changes. Unlike lastDownload,
+     *  consumers MERGE it into their state (not replace it) so an in-flight action isn't lost. */
+    lastBackgroundMerge: DriveMerge | null;
     /** True when a background upload failed due to an expired/invalid token.
      *  Surfaces visibly instead of silently stopping sync. */
     syncPaused: boolean;

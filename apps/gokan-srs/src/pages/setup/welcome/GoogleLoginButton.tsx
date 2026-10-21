@@ -1,7 +1,6 @@
-import { useState, useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
 import { useGoogleDrive } from "../../../context/useGoogleDrive";
-import { StorageService } from "../../../services/storage.service";
 
 /** An action set in a sentence: a button, so it is underlined like the link it reads as. */
 const INLINE_ACTION = "cursor-pointer text-accent underline underline-offset-[3px] transition-colors duration-200 hover:text-accent-hover";
@@ -9,36 +8,19 @@ const INLINE_ACTION = "cursor-pointer text-accent underline underline-offset-[3p
 /**
  * The Drive restore, inline in the hero's small print ("Used Gokan on another device? Restore
  * from Google Drive"). Each state shows in the same place: the link, the restore under way,
- * and a retry when signed in but nothing came down.
+ * and a retry when signed in but nothing came down. A restore hands its progress to the app,
+ * which leaves onboarding on its own.
  */
-export function GoogleLoginButton({ onSyncComplete }: { onSyncComplete: () => void }) {
-    const { login, isDownloading, isAuthenticated, downloadProgress } = useGoogleDrive();
-    const [hasAttemptedAutoRestore, setHasAttemptedAutoRestore] = useState(false);
+export function GoogleLoginButton() {
+    const { login, isDownloading, isAuthenticated, downloadProgress, lastDownload } = useGoogleDrive();
+    const attemptedAutoRestore = useRef(false);
 
-    // Auto-restore effect:
+    // Signed in (a page reload with a stored token) but nothing restored yet: try one download.
     useEffect(() => {
-        let mounted = true;
-        const tryRestore = async () => {
-            if (isAuthenticated && !isDownloading) {
-                // 1. Check if we already have progress (e.g. from login download)
-                if (StorageService.loadProgress()) {
-                    onSyncComplete();
-                    return;
-                }
-
-                // 2. If not, and we haven't tried yet (e.g. page reload), try explicit download
-                if (!hasAttemptedAutoRestore) {
-                    setHasAttemptedAutoRestore(true);
-                    await downloadProgress();
-                    if (mounted) {
-                        onSyncComplete();
-                    }
-                }
-            }
-        };
-        void tryRestore();
-        return () => { mounted = false; };
-    }, [isAuthenticated, isDownloading, hasAttemptedAutoRestore, downloadProgress, onSyncComplete]);
+        if (!isAuthenticated || isDownloading || lastDownload?.envelope || attemptedAutoRestore.current) return;
+        attemptedAutoRestore.current = true;
+        void downloadProgress();
+    }, [isAuthenticated, isDownloading, lastDownload, downloadProgress]);
 
     if (isDownloading) {
         return (
@@ -52,7 +34,7 @@ export function GoogleLoginButton({ onSyncComplete }: { onSyncComplete: () => vo
     if (isAuthenticated) {
         // Signed in but still here (the auto-restore finished or failed): a manual retry.
         return (
-            <button type="button" onClick={() => void downloadProgress().then(onSyncComplete)} className={INLINE_ACTION}>
+            <button type="button" onClick={() => void downloadProgress()} className={INLINE_ACTION}>
                 Retry restore
             </button>
         );

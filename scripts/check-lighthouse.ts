@@ -185,8 +185,10 @@ interface Result { target: Target; formFactor: FormFactor; scores: Record<Catego
 
 /**
  * The onboarded SRS pages live behind the setup gate (`isSetupComplete` is `!!progress`), so the
- * hub and anime list only render once localStorage carries a progress object. Seeding an empty one
- * is enough; Lighthouse then audits the same origin with `--disable-storage-reset` and sees it.
+ * hub and anime list only render once storage carries a progress object. Seeding an empty one in
+ * localStorage is enough: the app moves it to IndexedDB on the next load, the way it moves an
+ * earlier build's progress. Lighthouse then audits the same origin with `--disable-storage-reset`
+ * and sees it.
  */
 async function seedOnboarding(chrome: Chrome, origin: string): Promise<void> {
     const tab = await chrome.openTab(1280, 900, false);

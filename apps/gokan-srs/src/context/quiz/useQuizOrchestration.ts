@@ -11,7 +11,6 @@ import { refineMeaningWithAi } from '../../services/exercise/aiRefine';
 import { MigrationService } from '../../services/migration.service';
 import { trackEvent } from '../../services/analytics';
 import { CONSTANTS } from '../../commons/constants';
-import { DEFAULT_SETTINGS } from '../../models/user.model';
 import type { SetupValues } from '../../models/state.model';
 import { clearStaleNeedsRetry, syncUsuallyKana } from '../../utils/srs.utils';
 import { usuallyKanaBudget } from '../../utils/usuallyKana.utils';
@@ -71,8 +70,8 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
         isAuthenticated,
         isDownloading,
         isInitialLoadComplete,
-        lastDownloadTime,
-        lastBackgroundMergeTime,
+        lastDownload,
+        lastBackgroundMerge,
     } = useGoogleDrive();
 
     const location = useLocation();
@@ -128,7 +127,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                 });
                 // Persist immediately so the version bump isn't dropped if the user
                 // closes/refreshes before any learning action triggers a save.
-                StorageService.saveProgress(updatedProgress);
+                void StorageService.saveProgress(updatedProgress);
             }
         }).catch(err => {
             console.error('[useQuizOrchestration] Async migration failed:', err);
@@ -433,7 +432,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             if (!state.progress) return;
             const progress = { ...state.progress, grammarQueue: [] };
 
-            StorageService.saveProgress(progress);
+            void StorageService.saveProgress(progress);
             dispatch({ type: 'GRAMMAR_RESET_PROGRESS', payload: { progress } });
 
             if (isAuthenticated && state.settings) {
@@ -442,7 +441,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
         },
 
         reset() {
-            StorageService.clearProgress();
+            void StorageService.clearProgress();
             try {
                 logout();
             } catch (e) {
@@ -454,8 +453,10 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
 
     /* ---------- Persistence ---------- */
 
+    // Fire-and-forget, in order: StorageService writes the latest of any saves still queued,
+    // and reports a failed one itself (StorageFullBanner).
     useEffect(() => {
-        if (state.progress) StorageService.saveProgress(state.progress);
+        if (state.progress) void StorageService.saveProgress(state.progress);
     }, [state.progress]);
 
     useEffect(() => {
@@ -474,29 +475,28 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
         // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on content signatures so identical reconciled objects never re-upload; progress and settings are read, not tracked
     }, [progressSignature, settingsSignature, isDownloading, uploadProgress]);
 
-    // React to a completed download: reload data when lastDownloadTime changes.
+    // A completed download replaces the state with what it brought. It is handed over
+    // directly, not read back from storage: with storage full, that read would return the
+    // last copy that fit and roll the app back. The persistence effects then save it.
     useEffect(() => {
-        if (!lastDownloadTime) return;
+        const envelope = lastDownload?.envelope;
+        if (!envelope) return;
 
-        const refreshedProgress = StorageService.loadProgress();
-        const refreshedSettings = StorageService.loadSettings() ?? DEFAULT_SETTINGS;
-
-        if (refreshedProgress) {
-            setTimeout(() => {
-                dispatch({
-                    type: 'SETUP_COMPLETE',
-                    payload: { progress: refreshedProgress, settings: refreshedSettings }
-                });
-                // Calibration transition, only now that the Drive sync has brought the
-                // state up to date: it then rebases the merged state, and the auto-upload
-                // effect publishes the result. Dispatched after SETUP_COMPLETE so it
-                // applies to the reloaded progress, never to a pre-sync snapshot. It is
-                // idempotent (see rebaseStrengthsToSchedule), so a later re-download
-                // simply normalizes anything an older build wrote in the meantime.
-                dispatch({ type: 'REBASE_STRENGTHS', payload: { frequencyModifier: frequencyModifierOf(refreshedSettings) } });
-            }, 0);
-        }
-    }, [lastDownloadTime, dispatch]);
+        const { progress: refreshedProgress, settings: refreshedSettings } = envelope;
+        setTimeout(() => {
+            dispatch({
+                type: 'SETUP_COMPLETE',
+                payload: { progress: refreshedProgress, settings: refreshedSettings }
+            });
+            // Calibration transition, only now that the Drive sync has brought the
+            // state up to date: it then rebases the merged state, and the auto-upload
+            // effect publishes the result. Dispatched after SETUP_COMPLETE so it
+            // applies to the reloaded progress, never to a pre-sync snapshot. It is
+            // idempotent (see rebaseStrengthsToSchedule), so a later re-download
+            // simply normalizes anything an older build wrote in the meantime.
+            dispatch({ type: 'REBASE_STRENGTHS', payload: { frequencyModifier: frequencyModifierOf(refreshedSettings) } });
+        }, 0);
+    }, [lastDownload, dispatch]);
 
     // The same transition for a user not signed in to Drive: there is no sync to
     // wait for, so it runs once the initial load is complete.
@@ -510,30 +510,27 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
     }, [state.progress, state.settings, isInitialLoadComplete, isAuthenticated]);
 
     // React to a background sync that PULLED IN REMOTE CHANGES (routine uploads of
-    // local-only changes never bump lastBackgroundMergeTime - see GoogleDriveContext).
+    // local-only changes never publish lastBackgroundMerge - see GoogleDriveContext).
     // Reconcile (merge) those changes into live state rather than wholesale-replacing
     // it, so an in-flight answer submitted during the sync round-trip is never lost.
     useEffect(() => {
-        if (!lastBackgroundMergeTime || !state.progress || !state.settings) return;
+        if (!lastBackgroundMerge || !state.progress || !state.settings) return;
 
-        const fromDisk = StorageService.loadProgress();
-        const settingsFromDisk = StorageService.loadSettings() ?? DEFAULT_SETTINGS;
-        if (!fromDisk) return;
-
+        const { progress: merged, settings: mergedSettings } = lastBackgroundMerge.envelope;
         const liveVersion = state.progress._sync?.version ?? 0;
-        const diskVersion = fromDisk._sync?.version ?? 0;
+        const mergedVersion = merged._sync?.version ?? 0;
 
-        // Nothing new landed on disk since we last reconciled - avoid a redundant dispatch.
-        if (diskVersion <= liveVersion) return;
+        // Nothing newer than what we last reconciled - avoid a redundant dispatch.
+        if (mergedVersion <= liveVersion) return;
 
-        const reconciledProgress = mergeProgress(state.progress, fromDisk, state.settings);
-        const reconciledSettings = mergeSettings(state.settings, settingsFromDisk, liveVersion, diskVersion);
+        const reconciledProgress = mergeProgress(state.progress, merged, state.settings);
+        const reconciledSettings = mergeSettings(state.settings, mergedSettings, liveVersion, mergedVersion);
 
         if (!reconciledProgress) return;
 
         dispatch({ type: 'RECONCILE_REMOTE', payload: { progress: reconciledProgress, settings: reconciledSettings } });
         // eslint-disable-next-line react-hooks/exhaustive-deps -- reconciles only when a background merge lands; reacting to local state changes would merge on every answer
-    }, [lastBackgroundMergeTime]);
+    }, [lastBackgroundMerge]);
 
     /* ---------- Load vocab ---------- */
 

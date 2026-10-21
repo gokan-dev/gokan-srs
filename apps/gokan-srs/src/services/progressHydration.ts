@@ -38,7 +38,7 @@ export interface StoredVocabProgress extends Omit<Stored<VocabProgress>, 'needsR
     needsRetry?: boolean | Stored<NeedsRetryFlags>;
 }
 
-/** A stored progress payload, from either localStorage or Google Drive. */
+/** A stored progress payload, from either this device's storage or Google Drive. */
 export interface StoredProgress extends Omit<Stored<ProgressWithMetadata>, 'learningQueue'> {
     learningQueue?: StoredVocabProgress[];
 }

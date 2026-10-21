@@ -4,8 +4,8 @@ import { parseStoredProgress, type StoredProgress } from "./progressHydration";
 import type { ProgressWithMetadata } from "./sync/types";
 
 /**
- * Single source of truth for progress (de)serialization, shared by localStorage
- * persistence and Google Drive sync so a stored payload always hydrates into the
+ * Single source of truth for progress (de)serialization, shared by local
+ * persistence (StorageService) and Google Drive sync so a stored payload always hydrates into the
  * exact same in-memory shape regardless of which channel it came from. The stored
  * shape itself, and its hydration, live in progressHydration.ts.
  */

@@ -261,7 +261,12 @@ export const CONSTANTS = {
     },
 
     storage: {
+        /** Progress's key: in localStorage before #153 (and where IndexedDB is unavailable), its record's key in IndexedDB since. */
         progressStorageKey: "GOKAN_SRS_PROGRESS",
+        progressDatabaseName: "gokan-srs",
+        progressObjectStore: "progress",
+        /** Set in localStorage once progress has been written to IndexedDB, so a later visit that cannot open it fails loudly instead of offering a fresh start. */
+        progressInIndexedDbKey: "GOKAN_SRS_PROGRESS_IN_IDB",
         settingsStorageKey: "GOKAN_SRS_SETTINGS",
         googleDriveFileName: "kanji-progress.json",
         googleDriveFolderName: "KanjiApp",

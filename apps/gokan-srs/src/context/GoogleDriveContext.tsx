@@ -3,10 +3,9 @@ import { useGoogleLogin, googleLogout, type TokenResponse } from '@react-oauth/g
 import { GoogleDriveSync, GoogleAuthError } from '../services/sync/googleDriveSync';
 import { fetchGoogleProfile } from '../services/sync/googleAccount';
 import { StorageService } from '../services/storage.service';
-import { MigrationService } from '../services/migration.service';
 import {DEFAULT_SETTINGS} from '../models/user.model';
 import type { SyncEnvelope } from '../services/sync/types';
-import { GoogleDriveContext, type GoogleUser } from './useGoogleDrive';
+import { GoogleDriveContext, type GoogleUser, type DriveDownload, type DriveMerge } from './useGoogleDrive';
 
 /** Keeps a slow-feeling action on screen for at least `minimumMs`, so a fast one does not flash. */
 async function withMinimumDuration<T>(task: () => Promise<T>, minimumMs: number): Promise<T> {
@@ -22,8 +21,8 @@ async function withMinimumDuration<T>(task: () => Promise<T>, minimumMs: number)
 }
 
 export const GoogleDriveProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [lastDownloadTime, setLastDownloadTime] = useState<number | null>(null);
-    const [lastBackgroundMergeTime, setLastBackgroundMergeTime] = useState<number | null>(null);
+    const [lastDownload, setLastDownload] = useState<DriveDownload | null>(null);
+    const [lastBackgroundMerge, setLastBackgroundMerge] = useState<DriveMerge | null>(null);
     const [syncPaused, setSyncPaused] = useState(false);
     const [user, setUser] = useState<GoogleUser | null>(null);
     const [isDownloading, setIsDownloading] = useState(() => StorageService.loadGoogleDriveToken() !== null);
@@ -48,18 +47,18 @@ export const GoogleDriveProvider: React.FC<{ children: React.ReactNode }> = ({ c
         }
     };
 
-    // BLOCKING DOWNLOAD: Fetches remote, merges, updates local storage, triggers app reload
-    const downloadProgress = async (service: GoogleDriveSync): Promise<void> => {
+    // BLOCKING DOWNLOAD: fetches remote, merges, hands the result to the app
+    const downloadProgress = async (service: GoogleDriveSync, local?: SyncEnvelope): Promise<void> => {
         setIsDownloading(true);
-        await runDownload(service);
+        await runDownload(service, local);
     };
 
     /** The download itself, for a caller that has already marked it as in progress. */
-    const runDownload = async (service: GoogleDriveSync): Promise<void> => {
+    const runDownload = async (service: GoogleDriveSync, local?: SyncEnvelope): Promise<void> => {
         const MIN_LOADING_TIME = 1000; // slightly longer for "heavy" feel
 
         try {
-            await withMinimumDuration(() => syncDown(service), MIN_LOADING_TIME);
+            await withMinimumDuration(() => syncDown(service, local), MIN_LOADING_TIME);
         } catch (error) {
             console.error('[GoogleDriveContext] Download failed:', error);
             if (error instanceof GoogleAuthError) {
@@ -71,38 +70,14 @@ export const GoogleDriveProvider: React.FC<{ children: React.ReactNode }> = ({ c
         }
     };
 
-    const syncDown = async (service: GoogleDriveSync): Promise<void> => {
-        let currentLocal = StorageService.loadProgress();
-        const currentSettings = StorageService.loadSettings();
-
-        // We use the sync method because it handles the logic of "Fetch Remote -> Merge"
-        // We want to ensure we have the latest from cloud before we start.
-        // If we have local data, we merge. If not, we initialize.
-        if (currentLocal) {
-            // Async migration before syncing to prevent local old IDs from duplicating with remote new IDs
-            if (MigrationService.needsMigration(currentLocal)) {
-                currentLocal = await MigrationService.migrateAsync(currentLocal);
-                StorageService.saveProgress(currentLocal);
-            }
-
-            const envelopeToSync = {
-                progress: currentLocal,
-                settings: currentSettings ?? DEFAULT_SETTINGS
-            };
-
-            // Even on download, we might have local changes (offline).
-            // sync() will upload them. This is technically a "Sync", but treated as a Download event for the UI.
-            await service.sync(envelopeToSync);
-        } else {
-            const merged = await service.initialize();
-            if (merged) {
-                StorageService.saveProgress(merged.progress);
-                StorageService.saveSettings(merged.settings);
-            }
-        }
-
+    /** `local` is the app's live state when it has one; storage can trail it when writes fail. */
+    const syncDown = async (service: GoogleDriveSync, local?: SyncEnvelope): Promise<void> => {
+        const envelope = local
+            ? await service.download(local.progress, local.settings)
+            : await service.download(await StorageService.loadProgress(), StorageService.loadSettings() ?? DEFAULT_SETTINGS);
         setSyncPaused(false);
-        setLastDownloadTime(Date.now()); // Triggers a full reload in QuizContext
+        // Hands the merged progress to the app, which replaces its state with it and saves it.
+        setLastDownload({ envelope });
     };
 
     // Use generic type compatible with browser (number) and Node (object)
@@ -111,7 +86,7 @@ export const GoogleDriveProvider: React.FC<{ children: React.ReactNode }> = ({ c
     // Read by the stable uploadProgress callback below - keeping these in refs
     // (instead of closing over state) is what lets uploadProgress keep one identity
     // for the provider's whole lifetime. Every sync toggles isUploading and bumps
-    // lastBackgroundMergeTime, so a per-render uploadProgress would re-fire any
+    // lastBackgroundMerge, so a per-render uploadProgress would re-fire any
     // consumer effect that depends on it, on every sync, forever.
     // Mirrored from an effect, never written during render: a render can be thrown away.
     const syncServiceRef = useRef<GoogleDriveSync | null>(null);
@@ -120,7 +95,7 @@ export const GoogleDriveProvider: React.FC<{ children: React.ReactNode }> = ({ c
     useEffect(() => { isDownloadingRef.current = isDownloading; }, [isDownloading]);
 
     // BACKGROUND UPLOAD: Pushes local changes to cloud. Does NOT trigger a full app reload -
-    // instead bumps lastBackgroundMergeTime so callers can reconcile (merge) any remote
+    // instead publishes lastBackgroundMerge so callers can reconcile (merge) any remote
     // changes into live state without discarding whatever the user is doing right now.
     const uploadProgress = useCallback((envelope: SyncEnvelope) => {
         if (uploadDebounceRef.current) {
@@ -133,7 +108,7 @@ export const GoogleDriveProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
             setIsUploading(true);
             try {
-                // sync() does: Fetch Remote -> Merge (or fast-forward) -> Upload -> Save Local.
+                // sync() does: Fetch Remote -> Merge (or fast-forward) -> Upload.
                 const outcome = await service.sync(envelope);
                 setSyncPaused(false);
                 // Only signal a reconcile when the sync actually pulled in remote
@@ -141,7 +116,7 @@ export const GoogleDriveProvider: React.FC<{ children: React.ReactNode }> = ({ c
                 // local-only changes must not bump this - otherwise every answer
                 // would trigger a reconcile pass and reload the active quiz card.
                 if (outcome?.pulledRemoteChanges) {
-                    setLastBackgroundMergeTime(Date.now());
+                    setLastBackgroundMerge({ envelope: outcome.envelope });
                 }
             } catch (error) {
                 console.error('[GoogleDriveContext] Background upload failed:', error);
@@ -227,7 +202,7 @@ export const GoogleDriveProvider: React.FC<{ children: React.ReactNode }> = ({ c
         <GoogleDriveContext.Provider value={{
             login,
             logout,
-            downloadProgress: () => syncService ? downloadProgress(syncService) : Promise.resolve(),
+            downloadProgress: (local?: SyncEnvelope) => syncService ? downloadProgress(syncService, local) : Promise.resolve(),
             uploadProgress,
             uploadAuthoritative,
             isDownloading,
@@ -235,8 +210,8 @@ export const GoogleDriveProvider: React.FC<{ children: React.ReactNode }> = ({ c
             user,
             isAuthenticated: !!user,
             isInitialLoadComplete,
-            lastDownloadTime,
-            lastBackgroundMergeTime,
+            lastDownload,
+            lastBackgroundMerge,
             syncPaused,
         }}>
             {children}

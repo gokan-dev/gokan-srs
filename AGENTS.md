@@ -247,12 +247,13 @@ gokan-dictionary:
   fetched while grading.
 - **An answer writes SRS state only through `applyEffects`** (enforced): `SRSService.applyAnswer`
   and its siblings are never called from a hook, a card or a selector.
-- **Persistence and network go through one layer each** (enforced): `localStorage` only via
-  `StorageService`, `sessionStorage` only via `hooks/usePersistedControls.ts`, `fetch` only in
+- **Persistence and network go through one layer each** (enforced): `localStorage` and
+  `indexedDB` only via `StorageService`, `sessionStorage` only via `hooks/usePersistedControls.ts`, `fetch` only in
   `services/`. Every dataset URL is built by `datasetUrl()` (`services/http.ts`), which adds
   the dataset version browsers cache by (enforced).
-- **Progress in localStorage is compacted** (`services/progressCompaction.ts`), behind
-  `StorageService`, so code always uses the readable names. A new persisted date field goes in
+- **Progress is stored compacted** (`services/progressCompaction.ts`), one record in IndexedDB
+  behind `StorageService`, so code always uses the readable names. Its read is asynchronous;
+  Drive hands its merged progress to the app directly, never through storage. A new persisted date field goes in
   its `DATE_KEYS`; a value may be left out of storage only when hydration restores it. Storage
   writes never throw: a full origin is reported (`StorageFullBanner`), never a crash.
 - **Data integrity fails loudly.** A dataset file that fails to load is a fatal error, never

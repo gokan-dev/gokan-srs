@@ -68,29 +68,13 @@ export class GoogleDriveSync {
         this.driveClient = new DriveClient(accessToken);
     }
 
-    async initialize(localEnvelope?: SyncEnvelope): Promise<SyncEnvelope | null> {
+    /** The remote copy, for a device with no progress of its own yet (a restore); null when Drive has none either. */
+    async initialize(): Promise<SyncEnvelope | null> {
         await this.ensureFolder();
         const { remoteProgress, remoteSettings } = await this.readRemote();
 
-        if (!localEnvelope) {
-            const localProgress = this.getLocalProgress();
-            const localSettings = this.getLocalSettings();
-            if (localProgress && localSettings) {
-                localEnvelope = { progress: localProgress, settings: localSettings };
-            }
-        }
-
-        const localVersion = localEnvelope?.progress._sync?.version ?? 0;
-        const remoteVersion = remoteProgress?._sync?.version ?? 0;
-
-        let mergedSettings = remoteSettings;
-        if (localEnvelope) {
-            mergedSettings = mergeSettings(localEnvelope.settings, remoteSettings, localVersion, remoteVersion);
-        } else if (!mergedSettings) {
-            mergedSettings = this.getLocalSettings() ?? DEFAULT_SETTINGS;
-        }
-
-        const mergedProgress = mergeProgress(localEnvelope?.progress ?? null, remoteProgress, mergedSettings ?? undefined);
+        const mergedSettings = remoteSettings ?? this.getLocalSettings() ?? DEFAULT_SETTINGS;
+        const mergedProgress = mergeProgress(null, remoteProgress, mergedSettings);
 
         if (mergedProgress?._sync?.version) {
             this.latestLocalVersion = mergedProgress._sync.version;
@@ -98,6 +82,21 @@ export class GoogleDriveSync {
 
         if (!mergedProgress) return null;
         return { progress: mergedProgress, settings: mergedSettings };
+    }
+
+    /**
+     * The blocking download at sign-in and on load: the device's progress merged with Drive's
+     * (local changes made offline are uploaded on the way), or Drive's copy alone when the
+     * device has none. Returns what the app should show; null when neither side has progress.
+     */
+    async download(localProgress: ProgressWithMetadata | null, localSettings: UserSettings): Promise<SyncEnvelope | null> {
+        if (!localProgress) return this.initialize();
+        // Migrated first, so local old ids do not duplicate the remote's new ones.
+        const progress = MigrationService.needsMigration(localProgress) ? await MigrationService.migrateAsync(localProgress) : localProgress;
+        const local = { progress, settings: localSettings };
+        const outcome = await this.sync(local);
+        // Contention exhausted the retries: the app keeps the local copy, the next upload merges.
+        return outcome?.envelope ?? local;
     }
 
     /**
@@ -222,8 +221,12 @@ export class GoogleDriveSync {
         return { resolved, remoteProgress, remoteSettings: resolved.envelope?.settings ?? null };
     }
 
+    /**
+     * Records what this instance wrote. The local copy is not written here: the caller hands
+     * the envelope to the app, which persists what it shows. Storage is never the channel
+     * between Drive and the app's state, so a local write that fails cannot roll it back.
+     */
     private finishSync(envelope: SyncEnvelope): void {
-        this.saveLocalEnvelope(envelope);
         this.lastWrittenProgressSignature = progressUploadSignature(envelope.progress);
         this.lastWrittenSettingsSignature = stableStringify(envelope.settings);
         if (envelope.progress._sync?.version) {
@@ -329,16 +332,7 @@ export class GoogleDriveSync {
         return { progress: toPlainProgressJSON(envelope.progress), settings: envelope.settings };
     }
 
-    private getLocalProgress(): ProgressWithMetadata | null {
-        return StorageService.loadProgress();
-    }
-
     private getLocalSettings(): UserSettings | null {
         return StorageService.loadSettings();
-    }
-
-    private saveLocalEnvelope(envelope: SyncEnvelope): void {
-        StorageService.saveProgress(envelope.progress);
-        StorageService.saveSettings(envelope.settings);
     }
 }
