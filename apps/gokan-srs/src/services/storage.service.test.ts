@@ -228,6 +228,24 @@ describe('StorageService with IndexedDB', () => {
         expect(storage.getItem(KEYS.progressStorageKey)).toBeNull();
     });
 
+    it('keeps the record\'s sync version when it merges a leftover copy: a local move is not a sync step', async () => {
+        const first = await freshService();
+        await first.StorageService.saveProgress(userProgress({ _sync: { version: 7, lastModified: Date.UTC(2026, 9, 1) } }));
+        storage.setItem(KEYS.progressStorageKey, payloadOf(userProgress({ _sync: { version: 3, lastModified: Date.UTC(2026, 8, 1) } })));
+
+        const { StorageService } = await freshService();
+        expect((await StorageService.loadProgress())?._sync?.version).toBe(7);
+    });
+
+    it('keeps every kanji either copy marked known when it merges a leftover copy', async () => {
+        const first = await freshService();
+        await first.StorageService.saveProgress(userProgress({ kanjiKnowledge: { method: 'kklc', step: 10, kanjiSet: new Set(['日']) } }));
+        storage.setItem(KEYS.progressStorageKey, payloadOf(userProgress({ kanjiKnowledge: { method: 'kklc', step: 10, kanjiSet: new Set(['月']) } })));
+
+        const { StorageService } = await freshService();
+        expect([...(await StorageService.loadProgress())?.kanjiKnowledge.kanjiSet ?? []].sort()).toEqual(['日', '月'].sort());
+    });
+
     it('writes in order: of saves queued together, the latest is what is stored, and a load waits for it', async () => {
         const { StorageService } = await freshService();
         const versions = [1, 2, 3].map(n => userProgress({ learningQueue: [vocabProgress({ vocabId: `v${n}` })] }));
@@ -267,6 +285,24 @@ describe('StorageService with IndexedDB', () => {
         vi.stubGlobal('indexedDB', { open: () => { throw new DOMException('denied', 'SecurityError'); } });
         const { StorageService } = await freshService();
         expect(await StorageService.loadProgress()).toBeNull();
+    });
+
+    it('a reset in a session that ran on localStorage also removes the IndexedDB record, so the next load does not bring it back', async () => {
+        const first = await freshService();
+        await first.StorageService.saveProgress(progress);
+
+        // A session where IndexedDB could not be opened, but localStorage held progress.
+        const factory = indexedDB;
+        storage.setItem(KEYS.progressStorageKey, payloadOf(progress));
+        vi.stubGlobal('indexedDB', { open: () => { throw new DOMException('denied', 'SecurityError'); } });
+        const local = await freshService();
+        expect(await local.StorageService.progressInIndexedDb()).toBe(false);
+        vi.stubGlobal('indexedDB', factory);
+        expect(await local.StorageService.clearProgress()).toBe(true);
+
+        const { StorageService } = await freshService();
+        expect(await StorageService.loadProgress()).toBeNull();
+        expect(storage.getItem(KEYS.progressInIndexedDbKey)).toBeNull();
     });
 
     // Past localStorage's ceiling of about 5M chars (docs/ARCHITECTURE.md, Storage Service).

@@ -1,4 +1,4 @@
-import type { UserProgress, UserSettings } from "../models/user.model";
+import type { KanjiKnowledge, UserProgress, UserSettings } from "../models/user.model";
 import { CONSTANTS } from "../commons/constants";
 import { DEFAULT_SETTINGS } from "../models/user.model";
 import { isTheme, type Theme } from "../models/theme.model";
@@ -74,6 +74,15 @@ function writeRecord(db: IDBDatabase, value: string | null): Promise<void> {
         // A full origin aborts the transaction with a QuotaExceededError.
         transaction.onabort = () => reject(transaction.error ?? new Error('IndexedDB write aborted'));
     });
+}
+
+/** Every kanji either copy knows; the record's method, and the further step when both copies follow it. */
+function unionKanjiKnowledge(record: KanjiKnowledge, leftover: KanjiKnowledge): KanjiKnowledge {
+    return {
+        method: record.method,
+        step: leftover.method === record.method ? Math.max(record.step, leftover.step) : record.step,
+        kanjiSet: new Set([...record.kanjiSet, ...leftover.kanjiSet]),
+    };
 }
 
 /**
@@ -228,13 +237,24 @@ export class StorageService {
      * the localStorage copy moves as it is. With one, neither copy is assumed newer: a tab
      * still running a build from before IndexedDB keeps writing localStorage after another tab
      * moved progress and went on studying, so the two are merged per entry, as Drive merges.
+     * Two things differ from a Drive merge. Kanji knowledge is the union of both copies (Drive
+     * takes it whole from one side, which on a tie would drop the old tab's marks). The record
+     * keeps its own sync version: a local move is not a sync step, and a raised version would
+     * win the next Drive merge's kanji comparison against a newer copy from another device.
      */
     private static async movedProgress(db: IDBDatabase, legacy: string): Promise<string> {
         const existing = await readRecord(db);
         if (existing === null) return legacy;
-        const settings = this.loadSettings() ?? undefined;
-        const merged = mergeProgress(this.parse(existing), this.parse(legacy), settings);
-        return merged ? this.serialize(merged) : legacy;
+        const record = this.parse(existing);
+        const leftover = this.parse(legacy);
+        const merged = mergeProgress(record, leftover, this.loadSettings() ?? undefined);
+        if (!merged) return legacy;
+        const moved: ProgressWithMetadata = {
+            ...merged,
+            kanjiKnowledge: unionKanjiKnowledge(record.kanjiKnowledge, leftover.kanjiKnowledge),
+            _sync: record._sync,
+        };
+        return this.serialize(moved);
     }
 
     /** Records that progress has been written to IndexedDB (see ProgressUnavailableError). */
@@ -312,6 +332,7 @@ export class StorageService {
                 saved = true;
             } else {
                 saved = this.writeLocalProgress(value);
+                if (value === null && saved) await this.deleteIndexedDbRecord();
             }
         } catch (error) {
             console.error(`[StorageService] Could not write progress${isQuotaError(error) ? ': storage is full' : ''}`, error);
@@ -319,6 +340,25 @@ export class StorageService {
         }
         if (value !== null) this.reportSave(saved);
         return saved;
+    }
+
+    /**
+     * A reset in a session running on localStorage: a record an earlier session wrote to
+     * IndexedDB would come back on the next load that opens it, undoing the reset. While
+     * IndexedDB still cannot be opened, the marker stays and keeps protecting that record.
+     */
+    private static async deleteIndexedDbRecord(): Promise<void> {
+        try {
+            const db = await openDatabase();
+            try {
+                await writeRecord(db, null);
+            } finally {
+                db.close();
+            }
+            this.unmarkProgressInIndexedDb();
+        } catch (error) {
+            console.warn('[StorageService] Could not delete the IndexedDB copy of progress on reset', error);
+        }
     }
 
     private static writeLocalProgress(value: string | null): boolean {
