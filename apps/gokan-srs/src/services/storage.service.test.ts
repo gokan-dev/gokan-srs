@@ -237,13 +237,29 @@ describe('StorageService with IndexedDB', () => {
         expect((await StorageService.loadProgress())?._sync?.version).toBe(7);
     });
 
-    it('keeps every kanji either copy marked known when it merges a leftover copy', async () => {
+    it('keeps every kanji either copy marked known, and the further step on one method, when it merges a leftover copy', async () => {
         const first = await freshService();
         await first.StorageService.saveProgress(userProgress({ kanjiKnowledge: { method: 'kklc', step: 10, kanjiSet: new Set(['日']) } }));
-        storage.setItem(KEYS.progressStorageKey, payloadOf(userProgress({ kanjiKnowledge: { method: 'kklc', step: 10, kanjiSet: new Set(['月']) } })));
+        storage.setItem(KEYS.progressStorageKey, payloadOf(userProgress({ kanjiKnowledge: { method: 'kklc', step: 12, kanjiSet: new Set(['月']) } })));
 
         const { StorageService } = await freshService();
-        expect([...(await StorageService.loadProgress())?.kanjiKnowledge.kanjiSet ?? []].sort()).toEqual(['日', '月'].sort());
+        const knowledge = (await StorageService.loadProgress())?.kanjiKnowledge;
+        expect(knowledge?.method).toBe('kklc');
+        expect(knowledge?.step).toBe(12);
+        expect([...knowledge?.kanjiSet ?? []].sort()).toEqual(['日', '月'].sort());
+    });
+
+    it('keeps the record\'s method and step when the leftover copy follows another method', async () => {
+        // A step counts the first N kanji of its own method, so the leftover's step means nothing on the record's.
+        const first = await freshService();
+        await first.StorageService.saveProgress(userProgress({ kanjiKnowledge: { method: 'kklc', step: 10, kanjiSet: new Set(['日']) } }));
+        storage.setItem(KEYS.progressStorageKey, payloadOf(userProgress({ kanjiKnowledge: { method: 'rtk', step: 30, kanjiSet: new Set(['月']) } })));
+
+        const { StorageService } = await freshService();
+        const knowledge = (await StorageService.loadProgress())?.kanjiKnowledge;
+        expect(knowledge?.method).toBe('kklc');
+        expect(knowledge?.step).toBe(10);
+        expect([...knowledge?.kanjiSet ?? []].sort()).toEqual(['日', '月'].sort());
     });
 
     it('writes in order: of saves queued together, the latest is what is stored, and a load waits for it', async () => {
