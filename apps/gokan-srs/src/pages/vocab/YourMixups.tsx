@@ -61,7 +61,7 @@ export function YourMixups({ vocabId }: { vocabId: string }) {
                     onClick={() => setExpandedFor(expanded ? null : vocabId)}
                     className="mt-3 font-sans text-sm text-accent hover:underline cursor-pointer"
                 >
-                    {expanded ? 'Show fewer' : 'Show all'}
+                    {expanded ? 'Show fewer mix-ups' : 'Show all mix-ups'}
                 </button>
             )}
         </DetailSection>

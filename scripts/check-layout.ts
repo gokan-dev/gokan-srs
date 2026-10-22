@@ -154,15 +154,20 @@ const [COMPLETED_TITLE, WATCHING_TITLE] = listeningTitlesToMark();
 const FURIGANA_VOCAB = '1638880';
 const FIXTURE_MOVED = `FURIGANA_VOCAB ${FURIGANA_VOCAB} has no example sentence with furigana: pick another word whose sentences wrap at 320px`;
 
-// The Mix-ups page with groups on it, and a word page with "Often mixed up with": the shine
-// group of issue #150 (輝く, 光る, 差す, and 照らす as "not a synonym") and the state group.
-// Readable records under a readable key, which the compact payload keeps as it is.
+// A word page with Your mix-ups (輝く: more than the five shown, a long English sentence, an
+// answer naming a word and raw ones), and its Synonyms card holding a mixed-up word. Then 取る,
+// whose 574 pairs make the longest Synonyms card, collapsed and expanded. Readable records under
+// a readable key, which the compact payload keeps as it is.
 const MIXUP_WORD = '1224020';
-const MIXUP_LONG_READING = '1356730';
+const LONG_SYNONYMS_WORD = '1326980';
 const MIXUPS = [
-    ['1224020', '1272820'], ['1224020', '1272820'], ['1272820', '1291330'], ['1224020', '1291330'], ['1224020', '1350840'],
-    ['1356730', '1545820'], ['1356730', '1355810'], ['1444980', '1356730'], ['1351030', '1356730'],
-].map(([asked, typed], i) => ({ asked, typed, date: Date.UTC(2026, 9, 1) + i * 3_600_000 }));
+    { answer: '光る', outcome: 'accepted', typed: '1272820', meaning: 'shine', cue: 'The stars were shining brightly in the clear winter sky above the sleeping mountain village.' },
+    { answer: 'ひかる', outcome: 'accepted', typed: '1272820' },
+    { answer: 'てらす', outcome: 'wrong', cue: 'Her eyes shone with joy.' },
+    { answer: '差す', outcome: 'neutral', typed: '1291330', cue: 'The morning sun shone through the window.' },
+    { answer: 'かがやかせる', outcome: 'wrong' },
+    { answer: 'ひかりかがやく', outcome: 'accepted', meaning: 'glitter', cue: 'The lake glittered.' },
+].map((record, i) => ({ asked: MIXUP_WORD, ...record, date: Date.UTC(2026, 9, 1) + i * 3_600_000 }));
 // Progress is one record in IndexedDB (StorageService), the payload localStorage used to hold.
 const SEED_MIXUPS = `(async () => {
     const key = 'GOKAN_SRS_PROGRESS';
@@ -289,14 +294,18 @@ try {
         }
         await measureFuriganaFixture(tab, `${app}/vocab/${FURIGANA_VOCAB}`, 'Example sentences', `srs /vocab/${FURIGANA_VOCAB}`, width);
         await tab.evaluate<void>(SEED_MIXUPS);
-        await tab.goto(`${app}/vocab/mixups`, 'Pairs');
-        await tab.until(`document.body.innerText.includes('Not a synonym')`, 'the shine group with its unrelated pair');
-        await measure(tab, 'srs /vocab/mixups, two groups', width);
-        await tab.goto(`${app}/vocab/${MIXUP_WORD}`, 'Often mixed up with');
-        await measure(tab, `srs /vocab/${MIXUP_WORD}, often mixed up with`, width);
-        // 症状's row: a long reading beside an interchangeable chip, the tightest of these rows.
-        await tab.goto(`${app}/vocab/${MIXUP_LONG_READING}`, 'Often mixed up with');
-        await measure(tab, `srs /vocab/${MIXUP_LONG_READING}, often mixed up with`, width);
+        await tab.goto(`${app}/vocab/${MIXUP_WORD}`, 'Your mix-ups');
+        await tab.until(`document.body.innerText.includes('Mixed up 2 times')`, 'the Synonyms card counting the seeded mix-ups');
+        await tab.click('Show all mix-ups');
+        await measure(tab, `srs /vocab/${MIXUP_WORD}, your mix-ups and synonyms`, width);
+        await tab.goto(`${app}/vocab/${LONG_SYNONYMS_WORD}`, 'Show all synonyms');
+        await measure(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, synonyms collapsed`, width);
+        await tab.click('Show all synonyms');
+        await tab.until(`document.body.innerText.includes('more not shown')`, 'the expanded Synonyms card');
+        await measure(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, synonyms expanded`, width);
+        // The removed Mix-ups page's path lands on Vocabulary.
+        await tab.goto(`${app}/vocab/mixups`, 'Vocabulary');
+        await tab.until(`location.pathname.endsWith('/vocab')`, '/vocab/mixups redirecting to /vocab');
         // The library's rows with a status line, the tightest rows on a phone.
         await tab.goto(`${app}/listening/${COMPLETED_TITLE}`, 'Mark all watched');
         await tab.click('Mark all watched');
