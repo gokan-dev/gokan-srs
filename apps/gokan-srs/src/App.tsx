@@ -143,7 +143,7 @@ const AppScreens: React.FC = () => {
                                 <Route path="/vocab" element={
                                     <VocabularyListScreen />
                                 } />
-                                {/* The Mix-ups page was removed (issue #162): a word's synonyms and mix-ups are on its page. */}
+                                {/* The Mix-ups page was removed: a word's synonyms and mix-ups are on its own page. */}
                                 <Route path="/vocab/mixups" element={<Navigate to="/vocab" replace />} />
                                 <Route path="/vocab/:vocabId" element={
                                     <VocabDetailScreen />

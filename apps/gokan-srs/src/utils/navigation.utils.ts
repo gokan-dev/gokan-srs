@@ -45,10 +45,10 @@ export function isMoreActive(pathname: string): boolean {
     return MORE_DESTINATIONS.some(d => isDestinationActive(pathname, d));
 }
 
+/** The hash of a word page's Synonyms card: its id, after the `#`. */
+export const SYNONYMS_HASH = '#synonyms';
+
 /** A word's Synonyms card on its page (a quiz's synonym note links there). */
 export function synonymsPath(vocabId: string): string {
-    return `/vocab/${encodeURIComponent(vocabId)}#${SYNONYMS_ANCHOR}`;
+    return `/vocab/${encodeURIComponent(vocabId)}${SYNONYMS_HASH}`;
 }
-
-/** The id of a word page's Synonyms card. */
-export const SYNONYMS_ANCHOR = 'synonyms';

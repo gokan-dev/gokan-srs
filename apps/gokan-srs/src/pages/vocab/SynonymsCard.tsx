@@ -10,8 +10,10 @@ import { useQuiz } from "../../context/useQuiz";
 import { CLOSENESS_LABEL, closenessOf, listedSynonymsOf } from "../../services/exercise/wordRelation";
 import type { Closeness } from "../../services/exercise/wordRelation";
 import { mixedUpLabel, mixupCounts } from "../../utils/mixups.utils";
-import { SYNONYMS_ANCHOR } from "../../utils/navigation.utils";
+import { SYNONYMS_HASH } from "../../utils/navigation.utils";
 import { hasMoreSynonyms, shownSections, synonymSections } from "../../utils/synonymSections.utils";
+
+const ANCHOR = SYNONYMS_HASH.slice(1);
 
 /** How close two words are, as a neutral chip told apart by its sign and its word, never a colour. */
 function ClosenessChip({ closeness }: { closeness: Closeness }) {
@@ -46,9 +48,9 @@ export function SynonymsCard({ vocab }: { vocab: Vocabulary }) {
     }, [vocab, queue, mixedUp]);
 
     // The router does not scroll to a hash, and the card renders after the word loads.
-    const linkedHere = hash === `#${SYNONYMS_ANCHOR}` && sections.length > 0;
+    const linkedHere = hash === SYNONYMS_HASH && sections.length > 0;
     useEffect(() => {
-        if (linkedHere) document.getElementById(SYNONYMS_ANCHOR)?.scrollIntoView({ block: 'start' });
+        if (linkedHere) document.getElementById(ANCHOR)?.scrollIntoView({ block: 'start' });
     }, [linkedHere, vocab.id]);
 
     if (sections.length === 0) return null;
@@ -79,7 +81,7 @@ export function SynonymsCard({ vocab }: { vocab: Vocabulary }) {
 
     return (
         <RelatedEntriesCard
-            id={SYNONYMS_ANCHOR}
+            id={ANCHOR}
             title="Synonyms"
             intro={(
                 <p className="type-support">
