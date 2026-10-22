@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { DetailSection } from "../../components/detail/DetailSection";
+import { resultTextClass } from "../../components/quiz/quizStyles";
 import { useQuiz } from "../../context/useQuiz";
 import type { MixupRecord } from "../../models/mixup.model";
+import type { ShownResult } from "../../services/exercise/effects";
 import { mixupsAsked } from "../../utils/mixups.utils";
 import { formatShortDate } from "../../utils/time.utils";
 
@@ -17,17 +19,22 @@ function gradedAs({ outcome, meaning }: MixupRecord): string {
     }
 }
 
+/** A record's outcome as the result the session shows, for its colour. */
+function shownResultOf({ outcome }: MixupRecord): ShownResult {
+    switch (outcome) {
+        case 'accepted': return 'correct';
+        case 'neutral': return 'neutral';
+        case 'wrong': return 'wrong';
+    }
+}
+
 /**
  * An answer history, so its results use the feedback pair, the words being the second
  * cue; "no penalty" is neither, so it stays secondary. Spelled out rather than over
  * `type-support`, whose own colour would compete with the feedback one.
  */
-function gradedClass({ outcome }: MixupRecord): string {
-    switch (outcome) {
-        case 'accepted': return 'font-sans text-sm text-feedback-correct';
-        case 'neutral': return 'font-sans text-sm text-secondary';
-        case 'wrong': return 'font-sans text-sm text-feedback-incorrect';
-    }
+function gradedClass(record: MixupRecord): string {
+    return `font-sans text-sm ${resultTextClass(shownResultOf(record))}`;
 }
 
 /**
