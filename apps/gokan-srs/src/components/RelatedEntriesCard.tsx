@@ -13,7 +13,7 @@ export interface RelatedEntry {
     to: string;
     /** Japanese text (a word's headword, a grammar point's title). */
     primary: string;
-    /** Inline, right after the primary: a reading, a relation. */
+    /** Inline, right after the primary: a reading, a relation. Several parts as a fragment, so each wraps on its own. */
     secondary?: ReactNode;
     /** Right-aligned: the entry's status. */
     trailing?: ReactNode;
@@ -92,7 +92,8 @@ export function RelatedEntriesCard({
                         <div className="flex flex-col -mx-3">
                             {section.entries.map(entry => (
                                 <ListRow key={entry.key} to={entry.to} trailing={entry.trailing}>
-                                    <div className="flex items-baseline gap-2 min-w-0">
+                                    {/* One wrapping line: what does not fit after the headword starts again at the row's edge. */}
+                                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 min-w-0">
                                         <span className="font-mincho text-lg text-primary shrink-0">{entry.primary}</span>
                                         {entry.secondary}
                                     </div>

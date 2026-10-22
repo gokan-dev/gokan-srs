@@ -38,13 +38,14 @@ export function YourMixups({ vocabId }: { vocabId: string }) {
             <ul className="space-y-4">
                 {shown.map(record => (
                     <li key={`${record.date}-${record.answer}`} className="min-w-0">
+                        {/* The answer is free text: a Latin token the IME left alone has no break point. */}
                         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                             {record.typed ? (
-                                <Link to={`/vocab/${record.typed}`} lang="ja" className="font-gothic text-base text-accent hover:underline">
+                                <Link to={`/vocab/${record.typed}`} lang="ja" className="min-w-0 break-all font-gothic text-base text-accent hover:underline">
                                     {record.answer}
                                 </Link>
                             ) : (
-                                <span lang="ja" className="font-gothic text-base text-primary">{record.answer}</span>
+                                <span lang="ja" className="min-w-0 break-all font-gothic text-base text-primary">{record.answer}</span>
                             )}
                             <span className="type-support">{gradedAs(record)}</span>
                         </div>

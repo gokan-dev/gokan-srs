@@ -1,25 +1,24 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Virtuoso } from 'react-virtuoso';
-import { VocabularyService } from '../../services/vocabulary.service';
 import type { Sentence } from '@gokan/dataset-schema';
 import { InteractiveSentence } from '../../components/InteractiveSentence';
 import { DetailSection } from '../../components/detail/DetailSection';
-import { useAsyncData } from '../../hooks/useAsyncData';
 
 const INITIAL_COUNT = 3;
 
 const SHOW_MORE = 'mt-3 font-sans text-sm text-accent hover:underline cursor-pointer';
 
-/** A word's example sentences: three, then all of them (virtualized, some words have hundreds). */
-export function VocabSentencesCard({ vocabId }: { vocabId: string }) {
+/**
+ * A word's example sentences: three, then all of them (virtualized, some words have hundreds).
+ * Loaded by the page, which waits for them before scrolling to a section below.
+ */
+export function VocabSentencesCard({ vocabId, sentences }: { vocabId: string; sentences: Sentence[] }) {
     const navigate = useNavigate();
-    const loaded = useAsyncData(vocabId, () => VocabularyService.loadSentences(vocabId));
     // Expansion belongs to one word: keyed by it, so moving to another word starts collapsed.
     const [expandedFor, setExpandedFor] = useState<string | null>(null);
     const isExpanded = expandedFor === vocabId;
 
-    const sentences: Sentence[] = loaded.data ?? [];
     if (sentences.length === 0) return null;
 
     // No margins: Virtuoso measures each item's box height, and a margin sits

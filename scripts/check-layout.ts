@@ -19,7 +19,9 @@
  *   opened, "Done marking" sits within a screen of the page's end and brings Start learning back
  *   into view;
  * - furigana sits over kanji only, never over kana, no ruby (a run of kanji with its reading)
- *   breaks across lines, and no two readings on a line touch (word pages' example sentences, in each app).
+ *   breaks across lines, and no two readings on a line touch (word pages' example sentences, in each app);
+ * - a `#synonyms` link followed inside the app leaves a word's Synonyms card at the top of the
+ *   screen once the sections above it have loaded.
  *
  * Usage: build both apps (`bun run --cwd apps/gokan-srs build`, `bun run --cwd
  * apps/gokan-dictionary build`), then `bun run check:layout`. Needs Chrome or Chromium: found at
@@ -155,7 +157,7 @@ const FURIGANA_VOCAB = '1638880';
 const FIXTURE_MOVED = `FURIGANA_VOCAB ${FURIGANA_VOCAB} has no example sentence with furigana: pick another word whose sentences wrap at 320px`;
 
 // A word page with Your mix-ups (輝く: more than the five shown, a long English sentence, an
-// answer naming a word and raw ones), and its Synonyms card holding a mixed-up word. Then 取る,
+// answer naming a word, raw ones and an unconverted Latin token with no break point), and its Synonyms card holding a mixed-up word. Then 取る,
 // whose 574 pairs make the longest Synonyms card, collapsed and expanded. Readable records under
 // a readable key, which the compact payload keeps as it is.
 const MIXUP_WORD = '1224020';
@@ -167,6 +169,7 @@ const MIXUPS = [
     { answer: '差す', outcome: 'neutral', typed: '1291330', cue: 'The morning sun shone through the window.' },
     { answer: 'かがやかせる', outcome: 'wrong' },
     { answer: 'ひかりかがやく', outcome: 'accepted', meaning: 'glitter', cue: 'The lake glittered.' },
+    { answer: `kagayaku${'u'.repeat(32)}`, outcome: 'wrong', cue: 'The lake glittered.' },
 ].map((record, i) => ({ asked: MIXUP_WORD, ...record, date: Date.UTC(2026, 9, 1) + i * 3_600_000 }));
 // Progress is one record in IndexedDB (StorageService), the payload localStorage used to hold.
 const SEED_MIXUPS = `(async () => {
@@ -178,6 +181,28 @@ const SEED_MIXUPS = `(async () => {
     await done(db.transaction('progress', 'readwrite').objectStore('progress').put(JSON.stringify(progress), key));
     db.close();
 })()`;
+
+// 差す: a Synonyms card under example sentences that load after the word, so a `#synonyms` link
+// that scrolls before they arrive leaves the card pushed down the screen.
+const SYNONYMS_LINK_WORD = '1291330';
+/** The card's top after the link, in px: its `scroll-mt-20` (80px), give or take a pixel's rounding. */
+const SYNONYMS_LINK_TOP = 80;
+/**
+ * Follows a `#synonyms` link inside the app, as the quiz's "Compare synonyms" does (no page
+ * load), and checks the card is still at the top of the screen once the page has settled.
+ */
+async function checkSynonymsLink(tab: Tab, app: string, width: number): Promise<void> {
+    await tab.goto(`${app}/vocab`, 'Vocabulary');
+    await tab.evaluate(`(() => {
+        history.pushState({}, '', '/vocab/${SYNONYMS_LINK_WORD}#synonyms');
+        dispatchEvent(new PopStateEvent('popstate'));
+    })()`);
+    await tab.until(`document.getElementById('synonyms') && document.body.innerText.includes('Example sentences')`, 'the Synonyms card under the example sentences');
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    const top = await tab.evaluate<number | null>(`document.getElementById('synonyms')?.getBoundingClientRect().top ?? null`);
+    if (top === null) failures.push(`${width}px srs /vocab/${SYNONYMS_LINK_WORD}#synonyms: no Synonyms card`);
+    else if (Math.abs(top - SYNONYMS_LINK_TOP) > 2) failures.push(`${width}px srs /vocab/${SYNONYMS_LINK_WORD}#synonyms, followed inside the app: the card's top is at ${Math.round(top)}px, not ${SYNONYMS_LINK_TOP}px`);
+}
 
 /**
  * How far down setup's last decisions may sit, in px from the top of the page, by width: the
@@ -303,6 +328,7 @@ try {
         await tab.click('Show all synonyms');
         await tab.until(`document.body.innerText.includes('more not shown')`, 'the expanded Synonyms card');
         await measure(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, synonyms expanded`, width);
+        await checkSynonymsLink(tab, app, width);
         // The removed Mix-ups page's path lands on Vocabulary.
         await tab.goto(`${app}/vocab/mixups`, 'Vocabulary');
         await tab.until(`location.pathname.endsWith('/vocab')`, '/vocab/mixups redirecting to /vocab');
@@ -333,4 +359,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji, on one line and apart, Japanese in list rows unbroken, setup's decisions above the kanji grid and a way back to them from its end.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji, on one line and apart, Japanese in list rows unbroken, setup's decisions above the kanji grid and a way back to them from its end, a #synonyms link landing on its card.`);

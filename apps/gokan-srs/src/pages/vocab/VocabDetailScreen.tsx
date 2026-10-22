@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from "react";
-import { useParams } from "react-router-dom";
+import { useEffect, useState, type ReactNode } from "react";
+import { useLocation, useParams } from "react-router-dom";
 import { KanjiTile } from "../../components/KanjiTile";
 import { headwordOf, textbookLessonsLabel } from "@gokan/dataset-schema";
 import type { Vocabulary } from "@gokan/dataset-schema";
@@ -26,6 +26,7 @@ import { useAsyncData } from "../../hooks/useAsyncData";
 import { useNow } from "../../hooks/useNow";
 import { directionStatus, statusReviewPhrase, vocabLearningStatus } from "../../utils/learningStatus.utils";
 import { organizeSenses, type ShownSense } from "../../utils/senses.utils";
+import { SYNONYMS_ANCHOR, SYNONYMS_HASH } from "../../utils/navigation.utils";
 
 const INITIAL_SENSES = 5;
 
@@ -35,6 +36,17 @@ export default function VocabDetailScreen() {
     const now = useNow();
     const load = useAsyncData(vocabId ?? null, () => VocabularyService.loadVocab(vocabId ?? ''));
     const vocab: Vocabulary | null = load.data ?? null;
+    const sentencesLoad = useAsyncData(vocabId ?? null, () => VocabularyService.loadSentences(vocabId ?? ''));
+    const { hash } = useLocation();
+
+    // The router does not scroll to a hash. The sentences above the Synonyms card arrive after
+    // the word, so scrolling when the card first renders leaves it pushed down the screen: scroll
+    // once they have settled (the rest of the page above the card is drawn with the word).
+    const sentencesSettled = sentencesLoad.status === 'ready' || sentencesLoad.status === 'error';
+    const linkedToSynonyms = hash === SYNONYMS_HASH && vocab !== null && sentencesSettled;
+    useEffect(() => {
+        if (linkedToSynonyms) document.getElementById(SYNONYMS_ANCHOR)?.scrollIntoView({ block: 'start' });
+    }, [linkedToSynonyms, vocabId]);
 
     const progress = state.progress?.learningQueue.find(p => p.vocabId === vocabId);
     const settings = state.settings ?? undefined;
@@ -99,7 +111,7 @@ export default function VocabDetailScreen() {
             </div>
         </DetailSection>
     ) : null;
-    const sentences = <VocabSentencesCard vocabId={vocab.id} />;
+    const sentences = <VocabSentencesCard vocabId={vocab.id} sentences={sentencesLoad.data ?? []} />;
     const related = <VocabRelationshipsCard vocab={vocab} />;
     const yourProgress = progress?.introductionAt ? (
         <YourProgress
