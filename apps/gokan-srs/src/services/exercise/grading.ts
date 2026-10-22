@@ -59,7 +59,7 @@ function findSynonym(input: string, candidates: SynonymCandidate[], cue: Product
         if (result === 'correct') {
             if (slot.accept.includes(answer)) return { candidate, match: 'form' };
             const lemma = slot.word?.lemma;
-            correct ??= { candidate, match: lemma && isFormOfWord(input, lemma) ? 'form' : 'loose' };
+            correct ??= { candidate, match: lemma && isFormOfWord(input, lemma, { loose: false }) ? 'form' : 'loose' };
         }
         if (result === 'minor_error') typo ??= candidate;
     }

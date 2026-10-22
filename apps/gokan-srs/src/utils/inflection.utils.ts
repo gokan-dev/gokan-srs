@@ -495,9 +495,11 @@ const normalize = (s: string) => s.trim().replace(/\s+/g, '');
  * continues in kana. It is a prefix test on the STEM, which is what keeps 上げる
  * from passing as a form of 上がる (stem 上が) and 会社 from passing as 会話. A bare
  * stem (書 for 書く) is deliberately not a form: that stays the dropped-okurigana
- * `minor_error` matchAnswer already gives it.
+ * `minor_error` matchAnswer already gives it. The fallback is loose (止む passes as a
+ * form of 止す), so `loose: false` asks for a listed form only: a mix-up record names
+ * a word only when the answer was that word.
  */
-export function isFormOfWord(input: string, word: InflectableWord): boolean {
+export function isFormOfWord(input: string, word: InflectableWord, { loose = true }: { loose?: boolean } = {}): boolean {
     const u = normalize(input);
     if (!u) return false;
     if (word.written.includes(u) || word.readings.includes(u)) return true;
@@ -505,7 +507,7 @@ export function isFormOfWord(input: string, word: InflectableWord): boolean {
     const forms = generateInflections(word);
     if (forms.some(f => f.written === u || f.kana === u)) return true;
 
-    if (!hasKanji(u)) return false;
+    if (!loose || !hasKanji(u)) return false;
     for (const w of word.written) {
         if (kanjiSkeleton(w) !== kanjiSkeleton(u)) continue;
         for (const cls of word.classes) {

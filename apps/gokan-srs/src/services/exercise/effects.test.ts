@@ -135,17 +135,51 @@ describe('effectsOf', () => {
     describe('mix-ups', () => {
         const mixupsOf = (effects: Effect[]) => effects.flatMap(e => (e.kind === 'mixup' ? [e.mixup] : []));
 
-        it('remembers a synonym grading identified, with the pair as relationOf reads it', () => {
+        it('remembers a synonym grading identified, with the answer, how it was graded and the card', () => {
             expect(mixupsOf(answer(semaiCard('Japan is a small country.'), ['小さい']))).toEqual([
-                { asked: 'semai', typed: 'chiisai', tier: 'confusable', shared: ['small'], meaning: 'small' },
+                { asked: 'semai', answer: '小さい', outcome: 'accepted', typed: 'chiisai', meaning: 'small', cue: 'Japan is a small country.' },
             ]);
             expect(mixupsOf(answer(semaiCard('The street is narrow.'), ['小さい']))).toEqual([
-                { asked: 'semai', typed: 'chiisai', tier: 'confusable', shared: ['small'] },
+                { asked: 'semai', answer: '小さい', outcome: 'neutral', typed: 'chiisai', cue: 'The street is narrow.' },
             ]);
         });
 
+        describe('names the other word only when the answer was that word', () => {
+            const adjective = (kanji: string, reading: string): WordForms => ({ ...forms(kanji, reading), senses: [{ pos: ['adj-i'], glosses: [], misc: { rawTags: [] }, related: { compounds: [] } }] });
+            const chiisaiAdj: SynonymCandidate = { ...chiisai, vocab: adjective('小さい', 'ちいさい') };
+            const card = (candidate: SynonymCandidate, cue: Exercise['cue']): Exercise => ({
+                ...semaiCard(''), cue,
+                slots: [wordSlot(forms('狭い', 'せまい'), { vocabId: 'semai', otherForm: 'correct', role: 'core', candidates: [candidate] })],
+            });
+            const small = { sentence: 'Japan is a small country.' };
+
+            it('an inflection of one of its forms names it', () => {
+                expect(mixupsOf(answer(card(chiisaiAdj, small), ['小さかった']))).toEqual([
+                    { asked: 'semai', answer: '小さかった', outcome: 'accepted', typed: 'chiisai', meaning: 'small', cue: small.sentence },
+                ]);
+            });
+
+            it('a typo of it, which grading still reads as that synonym, keeps the answer as typed', () => {
+                const effects = answer(card(chiisaiAdj, small), ['ちいさいい']);
+                expect(effects.find(e => e.kind === 'reinforce')).toMatchObject({ vocabId: 'chiisai' });
+                expect(mixupsOf(effects)).toEqual([{ asked: 'semai', answer: 'ちいさいい', outcome: 'accepted', meaning: 'small', cue: small.sentence }]);
+            });
+
+            it('a loose kanji match (止む, through 止す\'s 止 plus any kana) keeps the answer as typed', () => {
+                const yosu: SynonymCandidate = { vocabId: 'yosu', relation: 'confusable', shared: ['stop'], vocab: { ...forms('止す', 'よす'), senses: [{ pos: ['v5s'], glosses: [], misc: { rawTags: [] }, related: { compounds: [] } }] } };
+                const effects = answer(card(yosu, { glosses: ['to fill'] }), ['止む']);
+                expect(gradeExercise(card(yosu, { glosses: ['to fill'] }), ['止む'], [0]).slots[0].synonym?.vocabId).toBe('yosu');
+                expect(mixupsOf(effects)).toEqual([{ asked: 'semai', answer: '止む', outcome: 'neutral' }]);
+            });
+        });
+
+        it("keeps a sentence card's English as the cue, and none on the gloss card", () => {
+            const glossCard: Exercise = { ...semaiCard(''), cue: { glosses: ['narrow', 'small'] } };
+            expect(mixupsOf(answer(glossCard, ['小さい']))).toEqual([{ asked: 'semai', answer: '小さい', outcome: 'accepted', typed: 'chiisai', meaning: 'small' }]);
+        });
+
         it('remembers the text of a wrong answer grading did not identify', () => {
-            expect(mixupsOf(answer(semaiCard('The street is narrow.'), [' てらす ']))).toEqual([{ asked: 'semai', answer: 'てらす' }]);
+            expect(mixupsOf(answer(semaiCard('The street is narrow.'), [' てらす ']))).toEqual([{ asked: 'semai', answer: 'てらす', outcome: 'wrong', cue: 'The street is narrow.' }]);
         });
 
         it('remembers nothing for a right answer, a typo, a skip or a revealed answer', () => {
@@ -160,20 +194,20 @@ describe('effectsOf', () => {
             const pattern = answerSlot({ accept: ['が'], role: 'core' });
             const blank = wordSlot(forms('狭い', 'せまい'), { vocabId: 'semai', otherForm: 'minor_error', role: 'support', candidates: [] });
             const card: Answered = { kind: 'grammar-cloze', host: point, label: 'A が いちばん', slots: [pattern, blank], cue: {} };
-            expect(mixupsOf(answer(card, ['を', 'ひろい']))).toEqual([{ asked: 'semai', answer: 'ひろい' }]);
+            expect(mixupsOf(answer(card, ['を', 'ひろい']))).toEqual([{ asked: 'semai', answer: 'ひろい', outcome: 'wrong' }]);
         });
 
         it('records the same word typed for the same word in two blanks once', () => {
             const point: HostItem = { kind: 'grammar', grammarId: 'n5-001' };
             const blank = wordSlot(forms('狭い', 'せまい'), { vocabId: 'semai', otherForm: 'minor_error', role: 'support', candidates: [] });
             const card: Answered = { kind: 'grammar-cloze', host: point, label: 'A が いちばん', slots: [answerSlot({ accept: ['が'], role: 'core' }), blank, blank], cue: {} };
-            expect(mixupsOf(answer(card, ['が', 'ひろい', 'ひろい']))).toEqual([{ asked: 'semai', answer: 'ひろい' }]);
+            expect(mixupsOf(answer(card, ['が', 'ひろい', 'ひろい']))).toEqual([{ asked: 'semai', answer: 'ひろい', outcome: 'wrong' }]);
         });
 
         it('writes them dated, after the existing ones, on a retry too', () => {
             const progress = userProgress({ learningQueue: [word('semai', { needsRetry: { production: true } })], mixups: [mixupRecord()] });
             const { progress: next } = applyEffects(progress, answer(semaiCard('The street is narrow.'), ['小さい']), { now, settings });
-            expect(next.mixups).toEqual([mixupRecord(), { asked: 'semai', typed: 'chiisai', tier: 'confusable', shared: ['small'], date: now.getTime() }]);
+            expect(next.mixups).toEqual([mixupRecord(), { asked: 'semai', answer: '小さい', outcome: 'neutral', typed: 'chiisai', cue: 'The street is narrow.', date: now.getTime() }]);
         });
 
         it('adds no field to progress that never mixed a word up', () => {

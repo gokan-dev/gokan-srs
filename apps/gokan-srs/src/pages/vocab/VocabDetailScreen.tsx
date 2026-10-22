@@ -16,7 +16,8 @@ import { KanjiSpellingNote } from "../../components/KanjiSpellingNote";
 import { Page } from "../../components/Page";
 import { DetailErrorScreen } from "../../components/detail/DetailErrorScreen";
 import { DetailField, DetailSection } from "../../components/detail/DetailSection";
-import { OftenMixedUpWith } from "./mixups/OftenMixedUpWith";
+import { SynonymsCard } from "./SynonymsCard";
+import { YourMixups } from "./YourMixups";
 import { DetailHeader } from "../../components/detail/DetailHeader";
 import { LearnStatus } from "../../components/detail/LearnStatus";
 import { YourProgress, type ProgressDirection } from "../../components/detail/YourProgress";
@@ -121,15 +122,16 @@ export default function VocabDetailScreen() {
         />
     ) : null;
     const dictionaryDetails = <DictionaryDetails vocab={vocab} />;
-    const mixups = <OftenMixedUpWith vocabId={vocab.id} />;
+    const synonyms = <SynonymsCard vocab={vocab} />;
+    const mixups = <YourMixups vocabId={vocab.id} />;
 
     return (
         <Page width="wide">
             {header}
             <DetailBody
-                main={<>{meanings}{sentences}{related}</>}
+                main={<>{meanings}{sentences}{synonyms}{related}</>}
                 side={<>{kanji}{yourProgress}{mixups}{dictionaryDetails}</>}
-                stacked={<>{meanings}{kanji}{sentences}{related}{yourProgress}{mixups}{dictionaryDetails}</>}
+                stacked={<>{meanings}{kanji}{sentences}{synonyms}{related}{yourProgress}{mixups}{dictionaryDetails}</>}
             />
         </Page>
     );

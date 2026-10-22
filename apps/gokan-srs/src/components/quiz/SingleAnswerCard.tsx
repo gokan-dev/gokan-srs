@@ -135,7 +135,7 @@ export function SingleAnswerCard({
                 { vocabId: synonym.vocabId, written: synonym.written },
             ]}
             onVocabClick={onVocabClick}
-            mixupsOf={testedWord?.vocabId}
+            synonymsOf={testedWord?.vocabId}
         />
     );
 

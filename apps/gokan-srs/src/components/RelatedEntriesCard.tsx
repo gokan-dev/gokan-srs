@@ -26,10 +26,14 @@ export interface RelatedSection {
     label?: string;
     count?: number;
     entries: RelatedEntry[];
+    /** A line under the rows (how many the section leaves out). */
+    note?: string;
 }
 
 interface Props {
     title: string;
+    /** An anchor other pages link to (DetailSection). */
+    id?: string;
     /** Shown next to the title. Omit when per-section labels carry the counts instead. */
     count?: number;
     /** An action link under the heading (grammar's "Compare when to use each"). */
@@ -52,6 +56,7 @@ interface Props {
  */
 export function RelatedEntriesCard({
     title,
+    id,
     count,
     headerLink,
     intro,
@@ -63,7 +68,7 @@ export function RelatedEntriesCard({
     collapseLabel = "Show fewer",
 }: Props) {
     return (
-        <DetailSection title={title} count={count}>
+        <DetailSection title={title} count={count} id={id}>
             {intro && <div className="mb-4">{intro}</div>}
 
             {headerLink && (
@@ -95,6 +100,7 @@ export function RelatedEntriesCard({
                                 </ListRow>
                             ))}
                         </div>
+                        {section.note && <p className="type-meta mt-1">{section.note}</p>}
                     </div>
                 ))}
             </div>

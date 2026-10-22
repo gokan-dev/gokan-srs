@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { mixupsPath } from "../utils/navigation.utils";
+import { synonymsPath } from "../utils/navigation.utils";
 
 interface LookUpWord {
     vocabId: string;
@@ -9,19 +9,19 @@ interface LookUpWord {
 interface LookUpWordsProps {
     words: LookUpWord[];
     onVocabClick?: (vocabId: string) => void;
-    /** The word asked, when another word was typed for it: links to its groups on the Mix-ups page. */
-    mixupsOf?: string;
+    /** The word asked, when another word was typed for it: links to its Synonyms card. */
+    synonymsOf?: string;
 }
 
 /**
  * A row of words a quiz card's feedback offers to open, e.g. the tested word and
  * the near-synonym the learner typed instead, and under it a link to the asked
- * word's groups on the Mix-ups page. Opening either pauses the session rather than
- * ending it (see context/quiz/sessionRoutes.ts), so the learner comes back to the
- * same card. The words are buttons, since they sit inside the card's form and the
- * navigation is owned by the caller's onVocabClick; the Mix-ups link is a link.
+ * word's Synonyms card. Opening either pauses the session rather than ending it (see
+ * context/quiz/sessionRoutes.ts), so the learner comes back to the same card. The
+ * words are buttons, since they sit inside the card's form and the navigation is
+ * owned by the caller's onVocabClick; the Synonyms link is a link.
  */
-export function LookUpWords({ words, onVocabClick, mixupsOf }: LookUpWordsProps) {
+export function LookUpWords({ words, onVocabClick, synonymsOf }: LookUpWordsProps) {
     const unique = words.filter((word, index) => words.findIndex(w => w.vocabId === word.vocabId) === index);
     if (!onVocabClick || unique.length === 0) return null;
 
@@ -42,10 +42,10 @@ export function LookUpWords({ words, onVocabClick, mixupsOf }: LookUpWordsProps)
                 ))}
             </div>
             {/* Its own line, so it does not read as a third word to look up. */}
-            {mixupsOf && (
+            {synonymsOf && (
                 <div className="mt-2">
-                    <Link to={mixupsPath(mixupsOf)} className="font-sans text-sm text-accent hover:underline">
-                        Compare in Mix-ups
+                    <Link to={synonymsPath(synonymsOf)} className="font-sans text-sm text-accent hover:underline">
+                        Compare synonyms
                     </Link>
                 </div>
             )}
