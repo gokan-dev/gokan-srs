@@ -79,6 +79,7 @@ export function SynonymsCard({ vocab }: { vocab: Vocabulary }) {
                 </p>
             )}
             sections={shown}
+            wrapDescription
             isExpandable={hasMoreSynonyms(sections, mixedUp)}
             isExpanded={expanded}
             onToggleExpand={() => setExpandedFor(expanded ? null : vocab.id)}

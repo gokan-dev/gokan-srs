@@ -205,6 +205,17 @@ async function checkSynonymsLink(tab: Tab, app: string, width: number): Promise<
 }
 
 /**
+ * A Synonyms row's description is the senses the two words share, its content: it wraps, and
+ * a description cut off with an ellipsis is a failure naming the row.
+ */
+async function checkSynonymDescriptions(tab: Tab, page: string, width: number): Promise<void> {
+    const clipped = await tab.evaluate<string[]>(`[...document.querySelectorAll('#synonyms a .type-support')]
+        .filter(el => el.scrollWidth > el.clientWidth)
+        .map(el => el.closest('a').querySelector('.font-mincho')?.textContent ?? el.textContent)`);
+    for (const row of clipped) failures.push(`${width}px ${page}: the shared senses of ${row} are cut off, not wrapped`);
+}
+
+/**
  * How far down setup's last decisions may sit, in px from the top of the page, by width: the
  * vocabulary order heading's top and the Start learning button's bottom. Under the open grid they
  * were 14,000px (desktop) to 20,000px (phone) down. Set from the measured layout (button at 1112px
@@ -325,9 +336,11 @@ try {
         await measure(tab, `srs /vocab/${MIXUP_WORD}, your mix-ups and synonyms`, width);
         await tab.goto(`${app}/vocab/${LONG_SYNONYMS_WORD}`, 'Show all synonyms');
         await measure(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, synonyms collapsed`, width);
+        await checkSynonymDescriptions(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, synonyms collapsed`, width);
         await tab.click('Show all synonyms');
         await tab.until(`document.body.innerText.includes('more not shown')`, 'the expanded Synonyms card');
         await measure(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, synonyms expanded`, width);
+        await checkSynonymDescriptions(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, synonyms expanded`, width);
         await checkSynonymsLink(tab, app, width);
         // The removed Mix-ups page's path lands on Vocabulary.
         await tab.goto(`${app}/vocab/mixups`, 'Vocabulary');
@@ -359,4 +372,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji, on one line and apart, Japanese in list rows unbroken, setup's decisions above the kanji grid and a way back to them from its end, a #synonyms link landing on its card.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji, on one line and apart, Japanese in list rows unbroken, setup's decisions above the kanji grid and a way back to them from its end, a #synonyms link landing on its card, its rows' shared senses wrapped, not cut off.`);

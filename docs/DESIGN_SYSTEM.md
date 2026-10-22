@@ -295,7 +295,8 @@ Defined once, in `components/` or `components/ui/`, never copied:
   home.
 - **Synonyms card** (`pages/vocab/SynonymsCard.tsx`): a `RelatedEntriesCard` in a word page's
   main column, after the sentences, one labelled section per sense (its glosses), each row the
-  other word, what they share as its description, and how close they are as a neutral `TagChip`
+  other word, what they share as its description (wrapped, never cut off: it is the row's
+  content, unlike Related words' one-line gloss), and how close they are as a neutral `TagChip`
   told apart by its sign and word (= Interchangeable, ≈ Close in this sense, ≠ Not
   interchangeable), never by a colour. A word mixed up with this one says so in the row's
   trailing slot ("Mixed up 2 times"). One line of prose above says what the quiz does with them.

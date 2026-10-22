@@ -17,7 +17,7 @@ export interface RelatedEntry {
     secondary?: ReactNode;
     /** Right-aligned: the entry's status. */
     trailing?: ReactNode;
-    /** A gloss or definition line beneath, one line. */
+    /** A gloss or definition line beneath: one line, cut off, unless the card's `wrapDescription` lets it wrap. */
     description?: string;
 }
 
@@ -41,6 +41,8 @@ interface Props {
     /** Prose above the rows (grammar's differentiator). */
     intro?: ReactNode;
     sections: RelatedSection[];
+    /** Wrap each row's description instead of cutting it to one line: for a card whose description is the row's content (Synonyms' shared senses). */
+    wrapDescription?: boolean;
     /** Expand/collapse is controlled by the caller so it can lazy-load only the displayed rows. */
     isExpandable?: boolean;
     isExpanded?: boolean;
@@ -61,6 +63,7 @@ export function RelatedEntriesCard({
     headerLink,
     intro,
     sections,
+    wrapDescription = false,
     isExpandable = false,
     isExpanded = false,
     onToggleExpand,
@@ -97,7 +100,7 @@ export function RelatedEntriesCard({
                                         <span className="font-mincho text-lg text-primary shrink-0">{entry.primary}</span>
                                         {entry.secondary}
                                     </div>
-                                    {entry.description && <div className="type-support truncate">{entry.description}</div>}
+                                    {entry.description && <div className={`type-support ${wrapDescription ? 'break-words' : 'truncate'}`}>{entry.description}</div>}
                                 </ListRow>
                             ))}
                         </div>
