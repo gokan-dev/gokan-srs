@@ -23,7 +23,7 @@ describe('missStyleOf: a neutral miss looks neutral (PR #125), an accepted answe
     it('gives a confusable synonym the same look', () => {
         const confusable = graded({
             result: 'wrong', shown: '狭い',
-            synonym: { vocabId: 'chiisai', written: '小さい', label: '小さい (ちいさい)', outcome: 'confusable', relation: { tier: 'confusable', curated: false, shared: ['small'], meaning: null } },
+            synonym: { vocabId: 'chiisai', written: '小さい', label: '小さい (ちいさい)', outcome: 'confusable', relation: { tier: 'confusable', curated: false, shared: ['small'], meaning: null }, match: 'form' },
         });
         expect(missStyleOf(confusable)).toEqual(NEUTRAL);
     });
@@ -32,7 +32,7 @@ describe('missStyleOf: a neutral miss looks neutral (PR #125), an accepted answe
     it('never draws an accepted synonym as wrong', () => {
         const accepted = graded({
             result: 'minor_error', shown: 'たぶん',
-            synonym: { vocabId: 'osoraku', written: '恐らく', label: '恐らく (おそらく)', outcome: 'minor_error', relation: { tier: 'interchangeable', curated: true, shared: ['probably'], meaning: null } },
+            synonym: { vocabId: 'osoraku', written: '恐らく', label: '恐らく (おそらく)', outcome: 'minor_error', relation: { tier: 'interchangeable', curated: true, shared: ['probably'], meaning: null }, match: 'form' },
         });
         expect(missStyleOf(accepted)).toEqual(ACCEPTED);
     });
@@ -49,7 +49,7 @@ describe('missStyleOf: a neutral miss looks neutral (PR #125), an accepted answe
 describe('blankBorderClass', () => {
     const shown = { feedbackShown: true, revealed: false };
     it('mutes a neutral blank rather than drawing it wrong', () => {
-        const neutral: SlotGrade = { result: 'wrong', shown: '狭い', synonym: { vocabId: 'c', written: '小さい', label: '小さい', outcome: 'confusable', relation: { tier: 'confusable', curated: false, shared: ['small'], meaning: null } } };
+        const neutral: SlotGrade = { result: 'wrong', shown: '狭い', synonym: { vocabId: 'c', written: '小さい', label: '小さい', outcome: 'confusable', relation: { tier: 'confusable', curated: false, shared: ['small'], meaning: null }, match: 'form' } };
         expect(blankBorderClass(neutral, shown)).toBe('border-secondary');
         expect(blankBorderClass({ result: 'wrong', shown: '狭い' }, shown)).toBe('border-feedback-incorrect');
     });

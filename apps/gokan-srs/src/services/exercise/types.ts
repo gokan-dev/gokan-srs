@@ -121,7 +121,16 @@ export interface SynonymAnswer {
     outcome: SynonymOutcome;
     /** The pair read against the cue: its tier, its shared meanings, the one the cue uses. */
     relation: WordRelation;
+    /**
+     * How the answer matched the word: one of its forms or an inflection of one
+     * (`form`), or only through a typo or the lenient kanji skeleton (`loose`). Both
+     * grade the same; only a `form` match names the word in a mix-up record.
+     */
+    match: SynonymMatch;
 }
+
+/** See SynonymAnswer.match. */
+export type SynonymMatch = 'form' | 'loose';
 
 /** A demonstrative's meaning slot answered with a sibling's meaning (それ answered "this"). Neutral: no credit, no penalty. */
 export interface SiblingAnswer {
@@ -170,7 +179,7 @@ export type Exercise = ExerciseBase & (
 export type GradedExercise = Pick<Exercise, 'kind' | 'label' | 'slots' | 'cue'>;
 
 /** The exercise as its effects read it: what was asked, of which item. */
-export type AnsweredExercise = Pick<Exercise, 'kind' | 'host' | 'label' | 'slots'>;
+export type AnsweredExercise = Pick<Exercise, 'kind' | 'host' | 'label' | 'slots' | 'cue'>;
 
 export interface ExerciseGrade {
     slots: SlotGrade[];

@@ -13,7 +13,7 @@ import { DEMONSTRATIVE_SERIES_NOTE } from './demonstratives';
 import type { DemonstrativeParadigm } from './demonstratives';
 import { wordSlot } from './slots';
 import { OUTCOME_LOOK, orderSynonymsForCue, outcomeOf, relationOf, synonymNote } from './wordRelation';
-import type { AnswerSlot, ExerciseGrade, GradedExercise, SiblingAnswer, SlotGrade, SlotInflection, SynonymAnswer, SynonymCandidate } from './types';
+import type { AnswerSlot, ExerciseGrade, GradedExercise, SiblingAnswer, SlotGrade, SlotInflection, SynonymAnswer, SynonymCandidate, SynonymMatch } from './types';
 
 /** How good a result is, best last. `pass` sits between: the learner skipped rather than mis-recalled. */
 const STANDING: Record<AnswerResult, number> = { wrong: 0, pass: 1, minor_error: 2, correct: 3 };
@@ -46,21 +46,24 @@ export function supportCoefficient(results: AnswerResult[]): number {
  * typo first, reported), or another's form only through the lenient kanji skeleton
  * (止む is 止む exactly, but 止す's 止 plus any kana also grades it). So one of a
  * candidate's own forms beats any other correct match, which beats a typo; within
- * each, candidates the cue means first.
+ * each, candidates the cue means first. `match` says whether the answer is the word
+ * (one of its forms, or an inflection of one) or only close to it.
  */
-function findSynonym(input: string, candidates: SynonymCandidate[], cue: ProductionCue): SynonymCandidate | null {
-    let form: SynonymCandidate | null = null;
+function findSynonym(input: string, candidates: SynonymCandidate[], cue: ProductionCue): { candidate: SynonymCandidate; match: SynonymMatch } | null {
+    const answer = input.trim();
+    let correct: { candidate: SynonymCandidate; match: SynonymMatch } | null = null;
     let typo: SynonymCandidate | null = null;
     for (const candidate of orderSynonymsForCue(candidates, cue)) {
         const slot = wordSlot(candidate.vocab, { otherForm: 'correct', role: 'core', candidates: [] });
         const { result } = gradeSlot(slot, input, 0, cue);
         if (result === 'correct') {
-            if (slot.accept.includes(input.trim())) return candidate;
-            form ??= candidate;
+            if (slot.accept.includes(answer)) return { candidate, match: 'form' };
+            const lemma = slot.word?.lemma;
+            correct ??= { candidate, match: lemma && isFormOfWord(input, lemma) ? 'form' : 'loose' };
         }
         if (result === 'minor_error') typo ??= candidate;
     }
-    return form ?? typo;
+    return correct ?? (typo ? { candidate: typo, match: 'loose' } : null);
 }
 
 /**
@@ -141,8 +144,9 @@ export function gradeSlot(slot: AnswerSlot, input: string, hintLevel: number, cu
     }
 
     if (best.result !== 'wrong' || word.candidates.length === 0) return best;
-    const match = findSynonym(input, word.candidates, cue);
-    if (!match) return best;
+    const found = findSynonym(input, word.candidates, cue);
+    if (!found) return best;
+    const { candidate: match } = found;
 
     // A pair is a synonym IN A SENSE: 狭い and 小さい share only "small". So the
     // outcome depends on the card's own text (relationOf, outcomeOf).
@@ -154,6 +158,7 @@ export function gradeSlot(slot: AnswerSlot, input: string, hintLevel: number, cu
         label: headwordWithReading(match.vocab),
         outcome,
         relation,
+        match: found.match,
     };
     return { result: OUTCOME_LOOK[outcome].result, shown: best.shown, synonym };
 }
