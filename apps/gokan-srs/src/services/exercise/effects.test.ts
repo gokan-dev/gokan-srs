@@ -173,6 +173,16 @@ describe('effectsOf', () => {
             });
         });
 
+        it('keeps no meaning for a curated confusable pair, which the card using it leaves neutral', () => {
+            const curated: Exercise = {
+                ...semaiCard('Japan is a small country.'),
+                slots: [wordSlot(forms('狭い', 'せまい'), { vocabId: 'semai', otherForm: 'correct', role: 'core', candidates: [{ ...chiisai, curated: true }] })],
+            };
+            expect(mixupsOf(answer(curated, ['小さい']))).toEqual([
+                { asked: 'semai', answer: '小さい', outcome: 'neutral', typed: 'chiisai', cue: 'Japan is a small country.' },
+            ]);
+        });
+
         it("keeps a sentence card's English as the cue, and none on the gloss card", () => {
             const glossCard: Exercise = { ...semaiCard(''), cue: { glosses: ['narrow', 'small'] } };
             expect(mixupsOf(answer(glossCard, ['小さい']))).toEqual([{ asked: 'semai', answer: '小さい', outcome: 'accepted', typed: 'chiisai', meaning: 'small' }]);

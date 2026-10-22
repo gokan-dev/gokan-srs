@@ -112,7 +112,8 @@ function mixupOf(asked: string, grade: SlotGrade, input: string, hintLevel: numb
         ? (OUTCOME_LOOK[synonym.outcome].accepted ? 'accepted' : 'neutral')
         : grade.result === 'wrong' && !grade.sibling ? 'wrong' : null;
     if (outcome === null) return null;
-    const meaning = synonym?.relation.meaning ?? null;
+    // The meaning that made it right: a curated confusable pair stays neutral even when the card uses one.
+    const meaning = outcome === 'accepted' ? synonym?.relation.meaning ?? null : null;
     return {
         asked, answer, outcome,
         ...(synonym?.match === 'form' ? { typed: synonym.vocabId } : {}),
