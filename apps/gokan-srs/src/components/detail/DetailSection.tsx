@@ -13,7 +13,7 @@ interface DetailSectionProps {
 /** One section of a detail page: a heading and its content, not a card. */
 export function DetailSection({ title, count, children, className = '', id }: DetailSectionProps) {
     return (
-        <section id={id} className={`scroll-mt-20 ${className}`}>
+        <section id={id} className={`scroll-mt-6 ${className}`}>
             <h2 className="type-section mb-4">
                 {title}
                 {count !== undefined && <span className="type-meta ml-2 tabular-nums">{count.toLocaleString('en-US')}</span>}

@@ -185,8 +185,11 @@ const SEED_MIXUPS = `(async () => {
 // 差す: a Synonyms card under example sentences that load after the word, so a `#synonyms` link
 // that scrolls before they arrive leaves the card pushed down the screen.
 const SYNONYMS_LINK_WORD = '1291330';
-/** The card's top after the link, in px: its `scroll-mt-20` (80px), give or take a pixel's rounding. */
-const SYNONYMS_LINK_TOP = 80;
+/**
+ * The card's top after the link, in px: its `scroll-mt-6` (24px, the page's own top padding on a
+ * phone; the header is not sticky), give or take a pixel's rounding.
+ */
+const SYNONYMS_LINK_TOP = 24;
 /**
  * Follows a `#synonyms` link inside the app, as the quiz's "Compare synonyms" does (no page
  * load), and checks the card is still at the top of the screen once the page has settled.
@@ -206,12 +209,20 @@ async function checkSynonymsLink(tab: Tab, app: string, width: number): Promise<
 
 /**
  * A Synonyms row's description is the senses the two words share, its content: it wraps, and
- * a description cut off with an ellipsis is a failure naming the row.
+ * a description cut off with an ellipsis is a failure naming the row. Finding no description at
+ * all is a failure too, so a changed selector cannot leave the check passing on nothing.
  */
 async function checkSynonymDescriptions(tab: Tab, page: string, width: number): Promise<void> {
-    const clipped = await tab.evaluate<string[]>(`[...document.querySelectorAll('#synonyms a .type-support')]
-        .filter(el => el.scrollWidth > el.clientWidth)
-        .map(el => el.closest('a').querySelector('.font-mincho')?.textContent ?? el.textContent)`);
+    const { found, clipped } = await tab.evaluate<{ found: number; clipped: string[] }>(`(() => {
+        const descriptions = [...document.querySelectorAll('#synonyms a .type-support')];
+        return {
+            found: descriptions.length,
+            clipped: descriptions
+                .filter(el => el.scrollWidth > el.clientWidth)
+                .map(el => el.closest('a').querySelector('.font-mincho')?.textContent ?? el.textContent),
+        };
+    })()`);
+    if (found === 0) failures.push(`${width}px ${page}: no Synonyms descriptions found: the check measured nothing`);
     for (const row of clipped) failures.push(`${width}px ${page}: the shared senses of ${row} are cut off, not wrapped`);
 }
 
