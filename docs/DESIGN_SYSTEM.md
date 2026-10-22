@@ -292,11 +292,20 @@ Defined once, in `components/` or `components/ui/`, never copied:
   do this); a y-axis shows the max value and a midline; every bar is a focusable button
   that shows its values on hover, focus and tap; x labels are never truncated.
 - **`TabNav`**: route tabs (active: ink text, 2px accent underline). Used by the Grammar
-  home and Vocabulary (Your words, Mix-ups).
-- **Mix-ups** (`pages/vocab/mixups/`): one card per group (an object in a list of objects).
-  A pair's tier is a neutral `TagChip` told apart by its sign and name (= Interchangeable,
-  ≈ Confusable, ≠ Not a synonym), never by a colour; the glosses a group shares are ink and
-  medium weight, the rest `secondary`.
+  home.
+- **Synonyms card** (`pages/vocab/SynonymsCard.tsx`): a `RelatedEntriesCard` in a word page's
+  main column, after the sentences, one labelled section per sense (its glosses), each row the
+  other word, what they share as its description (wrapped, never cut off: it is the row's
+  content, unlike Related words' one-line gloss), and how close they are as a neutral `TagChip`
+  told apart by its sign and word (= Interchangeable, ≈ Close in this sense, ≠ Not
+  interchangeable), never by a colour. A word mixed up with this one says so in the row's
+  trailing slot ("Mixed up 2 times"). One line of prose above says what the quiz does with them.
+- **Your mix-ups** (`pages/vocab/YourMixups.tsx`): a `DetailSection` in the side column, one
+  entry per record, newest first: the answer as typed (Japanese, a link only when it names a
+  word) with how it was graded, the card's English sentence (or "From its English meanings"),
+  and the date in `type-meta`. Five, then "Show all mix-ups". It is an answer history, so the
+  grading uses the feedback pair (accepted correct, marked wrong incorrect, the words being the
+  second cue); "no penalty" is neither and stays secondary.
 - **`KanjiTile`** (`KanjiTile.tsx`): one glyph, a word's kanji or a kanji's components. A
   box (surface, divider border, accent on hover and focus) only when it links to the glyph's
   page; a glyph with no page (氵) is drawn plain at the same size, so nothing unclickable

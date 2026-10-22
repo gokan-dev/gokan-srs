@@ -23,9 +23,9 @@ export function reviewLog(overrides: Partial<ReviewLog> = {}): ReviewLog {
     return { date: Date.UTC(2026, 5, 10), result: 'correct', interval: 1, latency: 1000, ...overrides };
 }
 
-/** 光る typed on a 輝く card, out of context. */
+/** 光る typed on a 輝く gloss card, accepted out of context. */
 export function mixupRecord(overrides: Partial<MixupRecord> = {}): MixupRecord {
-    return { asked: '1224020', typed: '1272820', tier: 'interchangeable', shared: ['glitter', 'shine'], date: Date.UTC(2026, 5, 10), ...overrides };
+    return { asked: '1224020', answer: '光る', outcome: 'accepted', typed: '1272820', date: Date.UTC(2026, 5, 10), ...overrides };
 }
 
 /** A learning word with all three directions present (production inert until activated). */

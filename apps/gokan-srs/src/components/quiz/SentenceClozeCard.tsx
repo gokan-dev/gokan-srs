@@ -100,7 +100,7 @@ export function SentenceClozeCard({ api, sentence, header, feedbackExtra, onVoca
                     // A neutral or accepted synonym is never drawn as a miss (missStyleOf).
                     <FeedbackNote accentClass={feedback.grade.overall === 'correct' ? resultAccentClass('correct') : missStyleOf(feedback.grade).accentClass} className="mb-4">
                         <p className="text-sm font-gothic text-primary">{feedback.grade.message}</p>
-                        <LookUpWords words={synonymWords(turn)} onVocabClick={onVocabClick} mixupsOf={mixupsOf(turn)} />
+                        <LookUpWords words={synonymWords(turn)} onVocabClick={onVocabClick} synonymsOf={synonymsOf(turn)} />
                         {feedbackExtra}
                     </FeedbackNote>
                 )}
@@ -113,8 +113,8 @@ export function SentenceClozeCard({ api, sentence, header, feedbackExtra, onVoca
     );
 }
 
-/** The first word a near-synonym was typed for, whose groups the Mix-ups page shows. */
-function mixupsOf(turn: ExerciseTurn): string | undefined {
+/** The first word a near-synonym was typed for, whose Synonyms card the note links to. */
+function synonymsOf(turn: ExerciseTurn): string | undefined {
     const i = (turn.feedback?.grade.slots ?? []).findIndex(grade => grade.synonym);
     return i >= 0 ? turn.exercise.slots[i]?.word?.vocabId : undefined;
 }

@@ -60,7 +60,10 @@ export function isAboutPath(pathname: string): boolean {
     return normalizePath(pathname) === '/about';
 }
 
-/** Routes under a detail prefix that are app screens, not ids: grammar's lists, Vocabulary's Mix-ups. */
+/**
+ * Routes under a detail prefix that are app screens, not ids: grammar's lists, and the
+ * removed Mix-ups page's path, which now redirects to Vocabulary (issue #162).
+ */
 const APP_SCREENS: Record<string, ReadonlySet<string>> = {
     '/grammar/': new Set(['browse', 'chapters', 'family']),
     '/vocab/': new Set(['mixups']),

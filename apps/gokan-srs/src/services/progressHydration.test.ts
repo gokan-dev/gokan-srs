@@ -25,15 +25,20 @@ describe('hydrateKanjiKnowledge', () => {
 describe('hydrateMixups', () => {
     it('keeps whole records and drops ones that cannot be shown or merged', () => {
         expect(hydrateMixups([
-            { asked: 'a', typed: 'b', tier: 'confusable', shared: ['shine'], date: 1 },
-            { asked: 'a', answer: 'てらす', date: 2 },
-            { asked: 'a', date: 3 },
-            { typed: 'b', date: 4 },
-            { asked: 'a', typed: 'b' },
+            { asked: 'a', answer: 'ひかる', outcome: 'accepted', typed: 'b', meaning: 'shine', cue: 'Her eyes shone.', date: 1 },
+            { asked: 'a', answer: 'てらす', outcome: 'wrong', date: 2 },
+            { asked: 'a', answer: 'てらす', outcome: 'wrong' },
+            { answer: 'てらす', outcome: 'wrong', date: 3 },
+            { asked: 'a', outcome: 'neutral', typed: 'b', date: 4 },
         ])).toEqual([
-            { asked: 'a', typed: 'b', tier: 'confusable', shared: ['shine'], date: 1 },
-            { asked: 'a', answer: 'てらす', date: 2 },
+            { asked: 'a', answer: 'ひかる', outcome: 'accepted', typed: 'b', meaning: 'shine', cue: 'Her eyes shone.', date: 1 },
+            { asked: 'a', answer: 'てらす', outcome: 'wrong', date: 2 },
         ]);
+    });
+
+    it('drops a record without an outcome: it predates issue #162 and cannot say where it happened', () => {
+        const stored: unknown = JSON.parse('[{"asked":"a","typed":"b","tier":"confusable","shared":["shine"],"date":1},{"asked":"a","answer":"てらす","date":2},{"asked":"a","answer":"x","outcome":"later","date":3}]');
+        expect(hydrateMixups(parseStoredProgress(JSON.stringify({ mixups: stored })).mixups)).toEqual([]);
     });
 
     it('leaves absent progress absent', () => {

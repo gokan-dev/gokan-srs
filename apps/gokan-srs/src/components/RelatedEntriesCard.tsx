@@ -13,11 +13,11 @@ export interface RelatedEntry {
     to: string;
     /** Japanese text (a word's headword, a grammar point's title). */
     primary: string;
-    /** Inline, right after the primary: a reading, a relation. */
+    /** Inline, right after the primary: a reading, a relation. Several parts as a fragment, so each wraps on its own. */
     secondary?: ReactNode;
     /** Right-aligned: the entry's status. */
     trailing?: ReactNode;
-    /** A gloss or definition line beneath, one line. */
+    /** A gloss or definition line beneath: one line, cut off, unless the card's `wrapDescription` lets it wrap. */
     description?: string;
 }
 
@@ -26,10 +26,14 @@ export interface RelatedSection {
     label?: string;
     count?: number;
     entries: RelatedEntry[];
+    /** A line under the rows (how many the section leaves out). */
+    note?: string;
 }
 
 interface Props {
     title: string;
+    /** An anchor other pages link to (DetailSection). */
+    id?: string;
     /** Shown next to the title. Omit when per-section labels carry the counts instead. */
     count?: number;
     /** An action link under the heading (grammar's "Compare when to use each"). */
@@ -37,6 +41,8 @@ interface Props {
     /** Prose above the rows (grammar's differentiator). */
     intro?: ReactNode;
     sections: RelatedSection[];
+    /** Wrap each row's description instead of cutting it to one line: for a card whose description is the row's content (Synonyms' shared senses). */
+    wrapDescription?: boolean;
     /** Expand/collapse is controlled by the caller so it can lazy-load only the displayed rows. */
     isExpandable?: boolean;
     isExpanded?: boolean;
@@ -52,10 +58,12 @@ interface Props {
  */
 export function RelatedEntriesCard({
     title,
+    id,
     count,
     headerLink,
     intro,
     sections,
+    wrapDescription = false,
     isExpandable = false,
     isExpanded = false,
     onToggleExpand,
@@ -63,7 +71,7 @@ export function RelatedEntriesCard({
     collapseLabel = "Show fewer",
 }: Props) {
     return (
-        <DetailSection title={title} count={count}>
+        <DetailSection title={title} count={count} id={id}>
             {intro && <div className="mb-4">{intro}</div>}
 
             {headerLink && (
@@ -87,14 +95,16 @@ export function RelatedEntriesCard({
                         <div className="flex flex-col -mx-3">
                             {section.entries.map(entry => (
                                 <ListRow key={entry.key} to={entry.to} trailing={entry.trailing}>
-                                    <div className="flex items-baseline gap-2 min-w-0">
+                                    {/* One wrapping line: what does not fit after the headword starts again at the row's edge. */}
+                                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 min-w-0">
                                         <span className="font-mincho text-lg text-primary shrink-0">{entry.primary}</span>
                                         {entry.secondary}
                                     </div>
-                                    {entry.description && <div className="type-support truncate">{entry.description}</div>}
+                                    {entry.description && <div className={`type-support ${wrapDescription ? 'break-words' : 'truncate'}`}>{entry.description}</div>}
                                 </ListRow>
                             ))}
                         </div>
+                        {section.note && <p className="type-meta mt-1">{section.note}</p>}
                     </div>
                 ))}
             </div>

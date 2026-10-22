@@ -16,7 +16,8 @@ import {
     frequencyModifierOf, growthLevelOf, isCalibratedGrammarReview, isCalibratedVocabReview, recordCalibratedAnswer, withCalibrationDefaults,
 } from '../calibration';
 import { coreSlots, isNeutral } from './grading';
-import type { MixupRecord } from '../../models/mixup.model';
+import type { MixupOutcome, MixupRecord } from '../../models/mixup.model';
+import type { ProductionCue } from '../../utils/synonymContext.utils';
 import { appendMixups } from '../../utils/mixups.utils';
 import type { AnsweredExercise, ExerciseGrade, HostItem, SlotGrade } from './types';
 import { OUTCOME_LOOK } from './wordRelation';
@@ -57,12 +58,13 @@ export interface AnswerContext {
  *   sibling demonstrative's meaning), the item is retried too: nothing decided a result;
  * - any other word answered right without its hint revealed earns indirect
  *   credit, once per word;
- * - a slot asking for a word answered with another word is a mix-up: the pair
- *   grading identified (whatever it earned), or the text of a wrong answer it did
- *   not identify.
+ * - a slot asking for a word answered with something else is a mix-up, kept with
+ *   the answer as typed and the card's sentence: a synonym grading identified
+ *   (whatever it earned), or a wrong answer it did not. It names the other word
+ *   only when the answer was that word (SynonymAnswer.match).
  */
 export function effectsOf(exercise: AnsweredExercise, grade: ExerciseGrade, { latencyMs, hintLevels, answers }: AnswerContext): Effect[] {
-    const { host: item, label } = exercise;
+    const { host: item, label, cue } = exercise;
     if (exercise.kind === 'study') return [{ kind: 'defer', item }];
 
     const askedWord = item.kind === 'vocab' ? item.vocabId : null;
@@ -76,9 +78,9 @@ export function effectsOf(exercise: AnsweredExercise, grade: ExerciseGrade, { la
     grade.slots.forEach((slotGrade, i) => {
         const word = exercise.slots[i].word;
         const { synonym } = slotGrade;
-        const mixup = word?.vocabId ? mixupOf(word.vocabId, slotGrade, answers[i] ?? '', hintLevels[i] ?? 0) : null;
+        const mixup = word?.vocabId ? mixupOf(word.vocabId, slotGrade, answers[i] ?? '', hintLevels[i] ?? 0, cue) : null;
         // One per answer: the same word typed for the same word in two blanks is one confusion.
-        const isNew = (m: Omit<MixupRecord, 'date'>) => !mixups.some(e => e.kind === 'mixup' && e.mixup.asked === m.asked && (e.mixup.typed ?? e.mixup.answer) === (m.typed ?? m.answer));
+        const isNew = (m: Omit<MixupRecord, 'date'>) => !mixups.some(e => e.kind === 'mixup' && e.mixup.asked === m.asked && e.mixup.answer === m.answer);
         if (mixup && isNew(mixup)) mixups.push({ kind: 'mixup', mixup });
         if (synonym) {
             if (word?.vocabId !== undefined && word.vocabId === askedWord) producedAnotherWord = true;
@@ -97,21 +99,27 @@ export function effectsOf(exercise: AnsweredExercise, grade: ExerciseGrade, { la
     return [asked, ...credits.values(), ...mixups];
 }
 
-/** The mix-up one slot's answer is, if any. A revealed answer was read, not produced. */
-function mixupOf(asked: string, grade: SlotGrade, answer: string, hintLevel: number): Omit<MixupRecord, 'date'> | null {
+/**
+ * The mix-up one slot's answer is, if any. A revealed answer was read, not produced,
+ * and a skip produced nothing. The card's English sentence is kept so the history can
+ * say where it happened; the gloss card has none (its cue is the word's own glosses).
+ */
+function mixupOf(asked: string, grade: SlotGrade, input: string, hintLevel: number, cue: ProductionCue): Omit<MixupRecord, 'date'> | null {
+    const answer = input.trim();
+    if (hintLevel >= 2 || answer.length === 0) return null;
     const { synonym } = grade;
-    if (synonym) {
-        const { tier, curated, shared, meaning } = synonym.relation;
-        return {
-            asked, typed: synonym.vocabId, tier,
-            ...(curated ? { curated: true as const } : {}),
-            ...(shared.length > 0 ? { shared } : {}),
-            ...(meaning !== null ? { meaning } : {}),
-        };
-    }
-    const typed = answer.trim();
-    if (grade.result !== 'wrong' || grade.sibling || hintLevel >= 2 || typed.length === 0) return null;
-    return { asked, answer: typed };
+    const outcome: MixupOutcome | null = synonym
+        ? (OUTCOME_LOOK[synonym.outcome].accepted ? 'accepted' : 'neutral')
+        : grade.result === 'wrong' && !grade.sibling ? 'wrong' : null;
+    if (outcome === null) return null;
+    // The meaning that made it right: a curated confusable pair stays neutral even when the card uses one.
+    const meaning = outcome === 'accepted' ? synonym?.relation.meaning ?? null : null;
+    return {
+        asked, answer, outcome,
+        ...(synonym?.match === 'form' ? { typed: synonym.vocabId } : {}),
+        ...(meaning !== null ? { meaning } : {}),
+        ...(cue.sentence ? { cue: cue.sentence } : {}),
+    };
 }
 
 /** A result as the session ticker shows it: a neutral answer (no credit, no penalty) is not a miss. */

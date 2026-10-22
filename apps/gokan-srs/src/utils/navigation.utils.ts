@@ -45,7 +45,11 @@ export function isMoreActive(pathname: string): boolean {
     return MORE_DESTINATIONS.some(d => isDestinationActive(pathname, d));
 }
 
-/** The Mix-ups page, or only the groups with one word (a quiz's synonym note, a word's "Often mixed up with"). */
-export function mixupsPath(vocabId?: string): string {
-    return vocabId ? `/vocab/mixups?word=${encodeURIComponent(vocabId)}` : '/vocab/mixups';
+/** The hash of a word page's Synonyms card, and the card's id (after the `#`). */
+export const SYNONYMS_HASH = '#synonyms';
+export const SYNONYMS_ANCHOR = SYNONYMS_HASH.slice(1);
+
+/** A word's Synonyms card on its page (a quiz's synonym note links there). */
+export function synonymsPath(vocabId: string): string {
+    return `/vocab/${encodeURIComponent(vocabId)}${SYNONYMS_HASH}`;
 }
