@@ -18,6 +18,19 @@ function gradedAs({ outcome, meaning }: MixupRecord): string {
 }
 
 /**
+ * An answer history, so its results use the feedback pair, the words being the second
+ * cue; "no penalty" is neither, so it stays secondary. Spelled out rather than over
+ * `type-support`, whose own colour would compete with the feedback one.
+ */
+function gradedClass({ outcome }: MixupRecord): string {
+    switch (outcome) {
+        case 'accepted': return 'font-sans text-sm text-feedback-correct';
+        case 'neutral': return 'font-sans text-sm text-secondary';
+        case 'wrong': return 'font-sans text-sm text-feedback-incorrect';
+    }
+}
+
+/**
  * What the learner typed on this word's cards instead of it, with the card, newest
  * first. Only records where this word was asked: one of it typed on another word's
  * card belongs to that word's history. Absent when there are none.
@@ -47,7 +60,7 @@ export function YourMixups({ vocabId }: { vocabId: string }) {
                             ) : (
                                 <span lang="ja" className="min-w-0 break-all font-gothic text-base text-primary">{record.answer}</span>
                             )}
-                            <span className="type-support">{gradedAs(record)}</span>
+                            <span className={gradedClass(record)}>{gradedAs(record)}</span>
                         </div>
                         <p className="type-support break-words">
                             {record.cue ?? 'From its English meanings'}

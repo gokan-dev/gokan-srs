@@ -303,7 +303,9 @@ Defined once, in `components/` or `components/ui/`, never copied:
 - **Your mix-ups** (`pages/vocab/YourMixups.tsx`): a `DetailSection` in the side column, one
   entry per record, newest first: the answer as typed (Japanese, a link only when it names a
   word) with how it was graded, the card's English sentence (or "From its English meanings"),
-  and the date in `type-meta`. Five, then "Show all mix-ups".
+  and the date in `type-meta`. Five, then "Show all mix-ups". It is an answer history, so the
+  grading uses the feedback pair (accepted correct, marked wrong incorrect, the words being the
+  second cue); "no penalty" is neither and stays secondary.
 - **`KanjiTile`** (`KanjiTile.tsx`): one glyph, a word's kanji or a kanji's components. A
   box (surface, divider border, accent on hover and focus) only when it links to the glyph's
   page; a glyph with no page (氵) is drawn plain at the same size, so nothing unclickable
