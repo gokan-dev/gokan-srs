@@ -45,6 +45,11 @@ describe('synonymSections', () => {
         expect(sections.map(s => [s.sense, ids(s)])).toEqual([[0, ['hosoi']]]);
     });
 
+    it('gives the senses of a word whose every sense is rare their sections, as the dataset pairs through them (婦人)', () => {
+        const sections = synonymSections([sense(['woman', 'lady', 'adult female'], { rawTags: ['dated'] })], [listed('josei', { shared: ['woman'] })], nobody);
+        expect(sections.map(s => [s.sense, ids(s)])).toEqual([[0, ['josei']]]);
+    });
+
     it('puts a pair set by hand with no meaning in common under the first sense', () => {
         expect(ids(synonymSections(kagayaku, [listed('teru', { shared: [], curated: true })], nobody)[0])).toEqual(['teru']);
     });
@@ -106,7 +111,7 @@ describe('shownSections (the caps)', () => {
 });
 
 // On the real compiled dataset: fails rather than passes when the submodule is missing.
-const files = import.meta.glob<Vocabulary>('../../dataset/compiled/vocab/{1487400,1224020,1237680}.json', { eager: true, import: 'default' });
+const files = import.meta.glob<Vocabulary>('../../dataset/compiled/vocab/{1487400,1224020,1237680,1288810,1288850,1496670}.json', { eager: true, import: 'default' });
 const vocabById = new Map(Object.values(files).map(v => [v.id, v]));
 
 describe('the Synonyms card, on the compiled dataset', () => {
@@ -118,7 +123,21 @@ describe('the Synonyms card, on the compiled dataset', () => {
     const find = (id: string, other: string) => sectionsOf(id).flatMap(s => s.words.map(w => ({ section: s, word: w }))).find(e => e.word.vocabId === other);
 
     it("loads every case word's file", () => {
-        expect(['1487400', '1224020', '1237680'].filter(id => !vocabById.has(id))).toEqual([]);
+        expect(['1487400', '1224020', '1237680', '1288810', '1288850', '1496670'].filter(id => !vocabById.has(id))).toEqual([]);
+    });
+
+    it("does not list 来 on ここ's card: its \"next ...\" is a prefix (reported)", () => {
+        expect(find('1288810', '1547710')).toBeUndefined();
+    });
+
+    it("lists もう一人 on 今's card as Close in this sense, not Interchangeable (reported)", () => {
+        const entry = find('1288850', '2267340');
+        expect(entry).toBeDefined();
+        if (entry) expect(closenessOf(entry.word.pair, entry.section.glosses)).toBe('close');
+    });
+
+    it("lists 女性 on 婦人's card, though its one sense is dated", () => {
+        expect(find('1496670', '1345250')).toBeDefined();
     });
 
     it("lists 常に on 必ず's card as Not interchangeable", () => {

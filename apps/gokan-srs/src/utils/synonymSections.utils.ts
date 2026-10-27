@@ -43,12 +43,14 @@ function sharedIn(senseGlosses: ReadonlySet<string>, synonym: ListedSynonym): nu
 /**
  * One section per sense with a synonym. A synonym is listed once, under the sense it
  * shares the most meanings with (the earliest on a tie). A rare or archaic sense gets
- * no section, and a pair sharing only such a sense is not listed; a pair set by hand
+ * no section, and a pair sharing only such a sense is not listed, unless every sense
+ * is rare (婦人): the dataset pairs a word through the same senses. A pair set by hand
  * with no meaning in common goes under the first sense. A word outside the
  * FREQUENT_WORDS the learner does not study is left out.
  */
 export function synonymSections(senses: readonly Pick<Sense, 'glosses' | 'misc'>[], synonyms: readonly ListedSynonym[], learner: SynonymLearner): SynonymSection[] {
-    const shown = senses.flatMap((sense, index) => (isRareSense(sense) ? [] : [{ index, sense, normalized: new Set(sense.glosses.map(normalizeGloss)) }]));
+    const allRare = senses.every(isRareSense);
+    const shown = senses.flatMap((sense, index) => (isRareSense(sense) && !allRare ? [] : [{ index, sense, normalized: new Set(sense.glosses.map(normalizeGloss)) }]));
     if (shown.length === 0) return [];
 
     const placed = new Map<number, { synonym: ListedSynonym; shared: number }[]>();

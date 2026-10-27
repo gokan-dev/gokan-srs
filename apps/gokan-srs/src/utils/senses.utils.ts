@@ -12,7 +12,7 @@ function posLabelOf(sense: Sense): string {
     return sense.pos.filter(isTag).map(shortTagLabel).join(', ');
 }
 
-/** An archaic, obsolete or rare sense: listed apart on the word page, and given no Synonyms section. */
+/** An archaic, obsolete, rare or dated sense: listed apart on the word page, and given no Synonyms section unless every sense is (`synonymSections`). */
 export function isRareSense(sense: Pick<Sense, 'misc'>): boolean {
     return sense.misc.isArchaic === true
         || sense.misc.isRare === true
