@@ -118,7 +118,8 @@ block of 60+ tokens in production code (120+ in tests).
 Both apps: a word is named through `headwordOf`, `secondaryForm` and `headwordWithReading`
 (`searchHeadword` / `searchSecondaryForm` for search rows) from `@gokan/dataset-schema`, never by
 reading `writtenForm.kanji` for display: a word learned in kana (`usuallyKana`) is shown in kana.
-A word's textbook lessons are named through `textbookLessonsLabel`. A kanji's kun reading is
+A word's textbook lessons are named through `textbookLessonsLabel`, how common it is through
+`frequencyBand` (a band and a round "Top 300 words", never a bare rank). A kanji's kun reading is
 shown through `kunReadingLabel` (まな(ぶ), enforced); its learning orders through `KANJI_ORDERS`,
 `kanjiOrder`, `KANJI_BOOKS` and `kanjiBookPositions`, its grade through `kanjiGradeLabel`. Also shared by both apps,
 from the same package: romaji (`romajiToHiragana`, `toHiragana`, `kanaToRomaji`,
@@ -186,10 +187,12 @@ gokan-srs, everything else:
   grammar point), `components/ui/Pagination.tsx`, `pages/stats/components/CoverageChart.tsx` and
   `utils/coverage.utils.ts`, `utils/activity.utils.ts`, `utils/winRate.utils.ts`.
 - Detail pages: `components/detail/` (`DetailHeader` the subject and its main action,
-  `DetailBody` the 8/4 body under it, `LearnStatus`, `DetailSection`, `YourProgress` shared
-  by vocab and grammar, `DetailErrorScreen`), `components/RelatedEntriesCard.tsx`,
-  `components/SRSHistoryGraph.tsx`, `components/KanjiTile.tsx` (a glyph: boxed only when it
-  links),
+  `DetailBody` the 8/4 body under it, or one column of `levels` (a word's page), `LearnStatus`,
+  `DetailSection`, `YourProgress` (a grammar point's) and its `DirectionStatus`, shared with a
+  word's Your study, `DetailErrorScreen`), `components/RelatedEntriesCard.tsx` (its rows alone:
+  `RelatedEntryList`), `components/SRSHistoryGraph.tsx`, `components/KanjiTile.tsx` (a glyph:
+  boxed only when it links), `components/WordTile.tsx` (a word as a boxed link),
+  `components/FrequencyMeter.tsx`,
   `components/InteractiveSentence.tsx`,
   `pages/grammar/GrammarExampleList.tsx`.
 - Settings controls: `components/ui/SettingToggle.tsx`, `SettingSlider.tsx`, `components/OptionGrid.tsx`,
@@ -203,9 +206,15 @@ gokan-srs, everything else:
   `components/ui/StackedBarChart.tsx` (the one bar chart), `components/CardSkeleton.tsx`,
   `components/KanjiSpellingNote.tsx` (the kanji spelling of a word learned in kana),
   `components/SecondaryForm.tsx` (the form beside a headword, in every list: enforced),
-  `components/Ruby.tsx` (every furigana: the only `<ruby>` in the app, enforced).
-- Synonyms and mix-ups, on a word's page: the Synonyms card (`pages/vocab/SynonymsCard.tsx`), its
-  sense sections, order and caps in `utils/synonymSections.utils.ts`, a pair's label from
+  `components/Ruby.tsx` (every furigana: the only `<ruby>` in the app, enforced),
+  `components/ui/TextButton.tsx` (an action written as text), `components/ui/SegmentedToggle.tsx`
+  (one of a few panels, or none), `components/ui/SearchField.tsx`, `components/ui/Marked.tsx`
+  (a search's matches, from `utils/exploreSearch.utils.ts`).
+- A word's page: its Explore panels in `pages/vocab/explore/` (one search each,
+  `utils/exploreSearch.utils.ts`), its two examples from `utils/wordExamples.utils.ts`.
+  Synonyms and mix-ups on it: Closest synonyms and the Synonyms panel
+  (`pages/vocab/explore/SynonymsPanel.tsx`), their sections, order and caps in
+  `utils/synonymSections.utils.ts`, a pair's label from
   `closenessOf` (`CLOSENESS_LABEL`). Mix-ups are recorded only by the `mixup` effect
   (`effects.ts`), stored through `utils/mixups.utils.ts` (cap, Drive union, a word's history and
   counts) and shown by `pages/vocab/YourMixups.tsx`.

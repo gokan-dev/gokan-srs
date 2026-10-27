@@ -11,7 +11,8 @@ same thing, so the learner can trust it without thinking.
    screen; the most important information is the largest and comes first.
 2. **Content before metadata; the learner's data before the dataset's.** Dataset
    internals (ids, counts, dataset-only fields) sit behind a collapsed "Dictionary
-   details" / "Dataset details" `Disclosure`.
+   details" / "Dataset details" `Disclosure` (on a word's page, "Combines N dictionary
+   entries"; its few readable facts are in the header's facts row).
 3. **Colour is a language** (section 2). Accent never decorates.
 4. **Type carries the hierarchy**, through a fixed set of roles (section 3), not ad hoc
    sizes.
@@ -175,6 +176,12 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
   modal, tooltip).
 - **Spacing** (8px grid): page top padding 32px (24px mobile); between page sections
   `space-y-10`; heading to content 16px; inside groups 8 or 12px.
+- **A line means a new level, nothing else.** On a page laid out in levels of importance (a
+  word's page: the essentials, Your study, Explore, the internals), one `border-divider` line
+  separates two levels, with 40px of spacing on each side (`DetailBody`'s `levels`). Nothing
+  draws a line inside a level: example sentences are 16px apart, not ruled, and no line sits
+  above an Explore panel. No cards or boxed sections either: a section is a heading plus
+  spacing (principle 5).
 - **Motion**: 150-200ms, ease-in-out, no bounce, no elastic. No `hover:scale-*` or
   `active:scale-*` anywhere (enforced, `no-scale-transform`). The one exception is
   explanatory motion on the welcome page only: the ink bloom behind a kanji just marked known
@@ -204,12 +211,38 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
   line, the next review after the `StatusDot` label ("● Learning · Due now"), and never
   repeats the status word: a mastered item with nothing scheduled shows only
   "● Mastered" (`statusReviewPhrase`). The kanji header keeps Known / Not known. No mastery rings: those, with their values, are only in "Your
-  progress".
-- **`DetailBody`**: the body under every `DetailHeader`. From `lg` the same 12-column grid,
-  `main` (8: the subject's content, meanings first) and `side` (4: the learner's data,
-  related items, the details `Disclosure`); below `lg`, one column in reading order
-  (`stacked` when it interleaves the two). The 12-column grid exists only in these two
-  components (enforced, `detail-layout`).
+  progress" ("Your study" on a word's page).
+- **`DetailBody`**: the body under every `DetailHeader`. Either from `lg` the same 12-column
+  grid, `main` (8: the subject's content, meanings first) and `side` (4: the learner's data,
+  related items, the details `Disclosure`), and below `lg` one column in reading order
+  (`stacked` when it interleaves the two); or `levels`, one column at every width with a line
+  between levels (section 4). The 12-column grid exists only in these two components
+  (enforced, `detail-layout`).
+- **Word page** (`pages/vocab/VocabDetailScreen.tsx`): `Page width="narrow"` at every width,
+  one column (`DetailBody` `levels`), so the long lists never weigh as much as the meanings:
+  - Header: the headword, its spellings and reading; a chips row (the JLPT chip, then each
+    kanji as a small `KanjiTile` with Known / Not known beside it); a facts row, a `dl` of
+    `type-meta` labels over values, side by side and wrapping: How common (the band, its
+    `FrequencyMeter` and a round "Top 300 words", the exact rank in a `title`), KKLC step or
+    "Learned in kana", Textbooks; the actions as on every detail page.
+  - The essentials, always shown: Meanings (3 common senses, then "Show all N meanings" in
+    place, rare ones under a "Rare and archaic" label), Examples (2 sentences,
+    `pickWordExamples`; "All N sentences →" on the heading's line), Closest synonyms (up to 5
+    `WordTile`s from the first sense's section, "For meaning 1: ..." under them, "Compare all
+    N →").
+  - Your study, for a word in study: one row of 40px rings with each direction's status, "Added
+    ... · N reviews" on the heading's line, "You mixed it up N times. See your mix-ups →", and
+    the learning curve and review log under one collapsed `Disclosure`.
+  - Explore: a `SegmentedToggle` (Sentences, Synonyms, Related, Mix-ups, each only when it has
+    something), none open on load ("Open one to browse it and search in it."), one panel at a
+    time. Each panel has one search field (44px, `text-base`, a hidden label) and a count line
+    above its results (`aria-live`); nothing else, no selects, no filter pills. An English query
+    matches from the start of a word, a Japanese one anywhere, kana folded; matches are marked
+    (`Marked`: `<mark>`, an accent tint, the text's own colour) in the English line.
+    Sentences: 5 at a time and "Shortest first"; Synonyms: groups by meaning, "3 · to get, to
+    obtain", 3 rows each and 4 groups at a time; Related: Built from and Used in, 10 at a time;
+    Mix-ups: Your mix-ups. A link to `#synonyms` opens Explore on Synonyms and lands on it.
+  - Internals: "Combines N dictionary entries", only for a merged entry.
 - **Kanji page**: the header is the glyph, its readings labelled On and Kun, and neutral
   chips (JLPT, and the kanji's number in the learner's own method, "RTK #346"). Main:
   Meanings, then the words using it. Side: Components (with "8 strokes · Radical 子") and
@@ -293,23 +326,40 @@ Defined once, in `components/` or `components/ui/`, never copied:
   that shows its values on hover, focus and tap; x labels are never truncated.
 - **`TabNav`**: route tabs (active: ink text, 2px accent underline). Used by the Grammar
   home.
-- **Synonyms card** (`pages/vocab/SynonymsCard.tsx`): a `RelatedEntriesCard` in a word page's
-  main column, after the sentences, one labelled section per sense (its glosses), each row the
-  other word, what they share as its description (wrapped, never cut off: it is the row's
-  content, unlike Related words' one-line gloss), and how close they are as a neutral `TagChip`
-  told apart by its sign and word (= Interchangeable, ≈ Close in this sense, ≠ Not
-  interchangeable), never by a colour. A word mixed up with this one says so in the row's
-  trailing slot ("Mixed up 2 times"). One line of prose above says what the quiz does with them.
-- **Your mix-ups** (`pages/vocab/YourMixups.tsx`): a `DetailSection` in the side column, one
-  entry per record, newest first: the answer as typed (Japanese, a link only when it names a
-  word) with how it was graded, the card's English sentence (or "From its English meanings"),
-  and the date in `type-meta`. Five, then "Show all mix-ups". It is an answer history, so the
-  grading uses the feedback pair (accepted correct, marked wrong incorrect, the words being the
-  second cue); "no penalty" is neither and stays secondary.
+- **`SegmentedToggle`** (`ui/SegmentedToggle.tsx`): one bordered `rounded-md` group,
+  segments split by `divider` lines, each a 14px label over its count (`type-meta`), at least
+  52px high so four fit at 320px. Single choice that can be undone (pressing the open one
+  closes it), so a toggle (`aria-pressed`, `aria-controls`, an `aria-label` with the full name
+  and the count), not tabs. Open: `bg-accent/12`, a 2px accent bar inset at the bottom, a
+  semibold label; hover `bg-surface-hover`. A word page's Explore.
+- **`TextButton`** (`ui/TextButton.tsx`): an action written as text ("Show 5 more", "Compare
+  all 12 →"), accent, underlined on hover; the arrow when it moves the learner down the page.
+- **Synonyms panel** (`pages/vocab/explore/SynonymsPanel.tsx`) and **Closest synonyms**: the
+  panel lists every synonym in groups by the meaning it shares (the sense's number in Meanings
+  and its first two glosses), each row the other word, what they share as its description
+  (wrapped, never cut off: it is the row's content, unlike Related words' one-line gloss), and
+  how close they are as a neutral `TagChip` told apart by its sign and word (= Interchangeable,
+  ≈ Close in this sense, ≠ Not interchangeable), never by a colour. A word mixed up with this
+  one says so in the row's trailing slot ("Mixed up 2 times"). One line above says what the quiz
+  does with them. Closest synonyms shows the first group's best five (never a ≠ pair) as
+  `WordTile`s.
+- **`WordTile`** (`WordTile.tsx`): one word as a boxed link, the sign (= or ≈), the headword
+  in mincho and its `SecondaryForm`. Boxed because it links, as a `KanjiTile` is (principle 7).
+- **`FrequencyMeter`** (`FrequencyMeter.tsx`): four signal bars (5, 8, 11, 14px high, 4px
+  wide), as many filled as `frequencyBand` says (Very common 4 to Rare 1), filled `secondary`,
+  empty `divider`. Never accent: it is a fact about the word, not the learner's progress. The
+  band's name always stands beside it.
+- **Your mix-ups** (`pages/vocab/YourMixups.tsx`): a word page's Mix-ups panel, one entry per
+  record, newest first: the answer as typed (Japanese, a link only when it names a word) with
+  how it was graded, the card's English sentence (or "From its English meanings"), and the date
+  in `type-meta`. Five, then "Show all mix-ups". It is an answer history, so the grading uses
+  the feedback pair (accepted correct, marked wrong incorrect, the words being the second cue);
+  "no penalty" is neither and stays secondary.
 - **`KanjiTile`** (`KanjiTile.tsx`): one glyph, a word's kanji or a kanji's components. A
   box (surface, divider border, accent on hover and focus) only when it links to the glyph's
   page; a glyph with no page (氵) is drawn plain at the same size, so nothing unclickable
-  looks clickable (principle 7). Optional caption ("Known"). Every boxed glyph is one
+  looks clickable (principle 7). Optional caption ("Known"); at `size="sm"` (32px) the
+  caption sits beside it (a word's kanji in its page's header). Every boxed glyph is one
   (enforced, `glyph-tile`); the known-kanji grid's toggles are the one other, and they are
   buttons. The dictionary's equivalent is the `glyph-tiles` mixin.
 - **Option grids with a long tail** (the kanji method picker): the few options most
