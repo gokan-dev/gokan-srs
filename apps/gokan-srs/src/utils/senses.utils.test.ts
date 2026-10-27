@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { TagsLookup } from '@gokan/dataset-schema';
 import type { Sense } from '@gokan/dataset-schema';
-import { isRareSense, organizeSenses } from './senses.utils';
+import { isRareSense, organizeSenses, senseNumbers } from './senses.utils';
 
 const sense = (pos: string[], glosses: string[], rawTags: string[] = []): Sense =>
     ({ pos, misc: { rawTags }, glosses, related: { compounds: [] } });
@@ -46,5 +46,17 @@ describe('organizeSenses', () => {
         expect(common.map(s => s.sense.glosses[0])).toEqual(['school', 'learning']);
         expect(rare.map(s => s.sense.glosses[0])).toEqual(['old meaning']);
         expect(rare[0].posLabel).toBe('Noun');
+    });
+});
+
+describe('senseNumbers', () => {
+    const misc = (rare: boolean): Pick<Sense, 'misc'> => ({ misc: { rawTags: [], ...(rare ? { isRare: true } : {}) } });
+
+    it('numbers the common senses first, then the rare ones after them, as the page lists them', () => {
+        expect(senseNumbers([misc(false), misc(true), misc(false), misc(true), misc(false)])).toEqual([1, 4, 2, 5, 3]);
+    });
+
+    it('numbers from 1 a word whose every sense is rare', () => {
+        expect(senseNumbers([misc(true), misc(true)])).toEqual([1, 2]);
     });
 });

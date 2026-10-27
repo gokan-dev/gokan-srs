@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { englishRanges, matchesExploreQuery, readExploreQuery, splitAtRanges } from './exploreSearch.utils';
+import { englishRanges, matchesExploreQuery, readExploreQuery, resultCountLine, splitAtRanges } from './exploreSearch.utils';
 
 function query(raw: string) {
     const q = readExploreQuery(raw);
@@ -65,5 +65,21 @@ describe('englishRanges and splitAtRanges', () => {
         expect(englishRanges(query('食べ'), 'eat')).toEqual([]);
         expect(englishRanges(null, 'eat')).toEqual([]);
         expect(splitAtRanges('eat', [])).toEqual([{ text: 'eat', match: false }]);
+    });
+});
+
+describe('resultCountLine', () => {
+    const noun = 'sentence';
+
+    it('counts everything without a query', () => {
+        expect(resultCountLine(1030, 1030, noun, null)).toBe('1,030 sentences');
+        expect(resultCountLine(1, 1, noun, null)).toBe('1 sentence');
+        expect(resultCountLine(2, 2, 'related word', null)).toBe('2 related words');
+    });
+
+    it('says how many of them match a query', () => {
+        expect(resultCountLine(15, 1030, noun, query(' eat '))).toBe('15 of 1,030 match "eat"');
+        expect(resultCountLine(1, 1030, noun, query('eat'))).toBe('1 of 1,030 matches "eat"');
+        expect(resultCountLine(0, 1030, noun, query('eat'))).toBe('0 of 1,030 match "eat"');
     });
 });

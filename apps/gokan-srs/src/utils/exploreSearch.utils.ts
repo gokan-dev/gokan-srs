@@ -51,3 +51,10 @@ export function splitAtRanges(line: string, ranges: readonly [number, number][])
     if (cursor < line.length) parts.push({ text: line.slice(cursor), match: false });
     return parts;
 }
+
+/** The line above a panel's results: "1,030 sentences", or "15 of 1,030 match "eat"". `noun` is singular, its plural regular. */
+export function resultCountLine(matched: number, total: number, noun: string, query: ExploreQuery | null): string {
+    const count = (n: number) => n.toLocaleString('en-US');
+    if (!query) return `${count(total)} ${noun}${total === 1 ? '' : 's'}`;
+    return `${count(matched)} of ${count(total)} match${matched === 1 ? 'es' : ''} "${query.text}"`;
+}

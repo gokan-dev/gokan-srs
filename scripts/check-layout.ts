@@ -20,8 +20,8 @@
  *   into view;
  * - furigana sits over kanji only, never over kana, no ruby (a run of kanji with its reading)
  *   breaks across lines, and no two readings on a line touch (word pages' example sentences, in each app);
- * - a `#synonyms` link followed inside the app leaves a word's Synonyms card at the top of the
- *   screen once the sections above it have loaded.
+ * - a `#synonyms` link followed inside the app opens a word page's Explore on its Synonyms panel
+ *   and leaves Explore at the top of the screen once the sections above it have loaded.
  *
  * Usage: build both apps (`bun run --cwd apps/gokan-srs build`, `bun run --cwd
  * apps/gokan-dictionary build`), then `bun run check:layout`. Needs Chrome or Chromium: found at
@@ -156,10 +156,11 @@ const [COMPLETED_TITLE, WATCHING_TITLE] = listeningTitlesToMark();
 const FURIGANA_VOCAB = '1638880';
 const FIXTURE_MOVED = `FURIGANA_VOCAB ${FURIGANA_VOCAB} has no example sentence with furigana: pick another word whose sentences wrap at 320px`;
 
-// A word page with Your mix-ups (輝く: more than the five shown, a long English sentence, an
-// answer naming a word, raw ones and an unconverted Latin token with no break point), and its Synonyms card holding a mixed-up word. Then 取る,
-// whose 574 pairs make the longest Synonyms card, collapsed and expanded. Readable records under
-// a readable key, which the compact payload keeps as it is.
+// A word page with mix-ups (輝く: more than the five shown, a long English sentence, an answer
+// naming a word, raw ones and an unconverted Latin token with no break point), its Explore opened
+// on Mix-ups, then on Synonyms, which hold a mixed-up word. Then 取る, whose pairs make the longest
+// Synonyms panel, as it opens and with every meaning and row shown. Readable records under a
+// readable key, which the compact payload keeps as it is.
 const MIXUP_WORD = '1224020';
 const LONG_SYNONYMS_WORD = '1326980';
 const MIXUPS = [
@@ -182,17 +183,19 @@ const SEED_MIXUPS = `(async () => {
     db.close();
 })()`;
 
-// 差す: a Synonyms card under example sentences that load after the word, so a `#synonyms` link
-// that scrolls before they arrive leaves the card pushed down the screen.
+// 差す: Explore under example sentences that load after the word, so a `#synonyms` link that
+// scrolls before they arrive leaves Explore pushed down the screen.
 const SYNONYMS_LINK_WORD = '1291330';
 /**
- * The card's top after the link, in px: its `scroll-mt-6` (24px, the page's own top padding on a
+ * Explore's top after the link, in px: its `scroll-mt-6` (24px, the page's own top padding on a
  * phone; the header is not sticky), give or take a pixel's rounding.
  */
 const SYNONYMS_LINK_TOP = 24;
+/** Explore's Synonyms panel is open: its element shown, its rows in it. */
+const SYNONYMS_OPEN = `(() => { const panel = document.getElementById('synonyms'); return !!panel && !panel.hidden && panel.querySelector('a') !== null; })()`;
 /**
  * Follows a `#synonyms` link inside the app, as the quiz's "Compare synonyms" does (no page
- * load), and checks the card is still at the top of the screen once the page has settled.
+ * load), and checks Explore opened on Synonyms, at the top of the screen once the page has settled.
  */
 async function checkSynonymsLink(tab: Tab, app: string, width: number): Promise<void> {
     await tab.goto(`${app}/vocab`, 'Vocabulary');
@@ -200,12 +203,27 @@ async function checkSynonymsLink(tab: Tab, app: string, width: number): Promise<
         history.pushState({}, '', '/vocab/${SYNONYMS_LINK_WORD}#synonyms');
         dispatchEvent(new PopStateEvent('popstate'));
     })()`);
-    await tab.until(`document.getElementById('synonyms') && document.body.innerText.includes('Example sentences')`, 'the Synonyms card under the example sentences');
+    try {
+        await tab.until(`${SYNONYMS_OPEN} && document.body.innerText.includes('Examples')`, 'Explore open on Synonyms under the examples', 10000);
+    } catch {
+        failures.push(`${width}px srs /vocab/${SYNONYMS_LINK_WORD}#synonyms: Explore did not open on Synonyms`);
+        return;
+    }
     await new Promise(resolve => setTimeout(resolve, 2000));
-    const top = await tab.evaluate<number | null>(`document.getElementById('synonyms')?.getBoundingClientRect().top ?? null`);
-    if (top === null) failures.push(`${width}px srs /vocab/${SYNONYMS_LINK_WORD}#synonyms: no Synonyms card`);
-    else if (Math.abs(top - SYNONYMS_LINK_TOP) > 2) failures.push(`${width}px srs /vocab/${SYNONYMS_LINK_WORD}#synonyms, followed inside the app: the card's top is at ${Math.round(top)}px, not ${SYNONYMS_LINK_TOP}px`);
+    const top = await tab.evaluate<number | null>(`document.getElementById('explore')?.getBoundingClientRect().top ?? null`);
+    if (top === null) failures.push(`${width}px srs /vocab/${SYNONYMS_LINK_WORD}#synonyms: no Explore section`);
+    else if (Math.abs(top - SYNONYMS_LINK_TOP) > 2) failures.push(`${width}px srs /vocab/${SYNONYMS_LINK_WORD}#synonyms, followed inside the app: Explore's top is at ${Math.round(top)}px, not ${SYNONYMS_LINK_TOP}px`);
 }
+
+/** Opens every meaning and every row of the open Synonyms panel: its longest state. */
+const EXPAND_SYNONYMS = `(async () => {
+    const more = () => [...document.querySelectorAll('#synonyms button')].filter(b => /^Show (all .* for this meaning|\\d+ more meanings?)$/.test(b.textContent.trim()));
+    for (let round = 0; round < 50 && more().length > 0; round++) {
+        for (const button of more()) button.click();
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    return more().length;
+})()`;
 
 /**
  * A Synonyms row's description is the senses the two words share, its content: it wraps, and
@@ -339,19 +357,32 @@ try {
             await tab.goto(`${app}${route.path}`, route.ready);
             await measure(tab, `srs ${route.path}`, width);
         }
-        await measureFuriganaFixture(tab, `${app}/vocab/${FURIGANA_VOCAB}`, 'Example sentences', `srs /vocab/${FURIGANA_VOCAB}`, width);
+        await measureFuriganaFixture(tab, `${app}/vocab/${FURIGANA_VOCAB}`, 'Examples', `srs /vocab/${FURIGANA_VOCAB}`, width);
+        await tab.click('Sentences');
+        await tab.until(`document.body.innerText.includes('Shortest first')`, 'the Sentences panel');
+        await measure(tab, `srs /vocab/${FURIGANA_VOCAB}, sentences panel`, width);
         await tab.evaluate<void>(SEED_MIXUPS);
-        await tab.goto(`${app}/vocab/${MIXUP_WORD}`, 'Your mix-ups');
-        await tab.until(`document.body.innerText.includes('Mixed up 2 times')`, 'the Synonyms card counting the seeded mix-ups');
+        await tab.goto(`${app}/vocab/${MIXUP_WORD}`, 'Explore');
+        await tab.click('Mix-ups');
+        await tab.until(`document.body.innerText.includes('Show all mix-ups')`, 'the Mix-ups panel');
         await tab.click('Show all mix-ups');
-        await measure(tab, `srs /vocab/${MIXUP_WORD}, your mix-ups and synonyms`, width);
-        await tab.goto(`${app}/vocab/${LONG_SYNONYMS_WORD}`, 'Show all synonyms');
-        await measure(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, synonyms collapsed`, width);
-        await checkSynonymDescriptions(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, synonyms collapsed`, width);
-        await tab.click('Show all synonyms');
-        await tab.until(`document.body.innerText.includes('more not shown')`, 'the expanded Synonyms card');
-        await measure(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, synonyms expanded`, width);
-        await checkSynonymDescriptions(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, synonyms expanded`, width);
+        await measure(tab, `srs /vocab/${MIXUP_WORD}, mix-ups panel`, width);
+        await tab.click('Synonyms');
+        await tab.until(`document.body.innerText.includes('Mixed up 2 times')`, 'the Synonyms panel counting the seeded mix-ups');
+        await measure(tab, `srs /vocab/${MIXUP_WORD}, synonyms panel`, width);
+        await tab.goto(`${app}/vocab/${LONG_SYNONYMS_WORD}`, 'Explore');
+        await measure(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, Explore closed`, width);
+        await tab.click('Synonyms');
+        await tab.until(SYNONYMS_OPEN, 'the Synonyms panel');
+        await measure(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, synonyms panel`, width);
+        await checkSynonymDescriptions(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, synonyms panel`, width);
+        const unopened = await tab.evaluate<number>(EXPAND_SYNONYMS);
+        if (unopened > 0) failures.push(`${width}px srs /vocab/${LONG_SYNONYMS_WORD}: ${unopened} "Show ..." buttons left in the Synonyms panel after opening everything`);
+        await measure(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, synonyms panel, every meaning`, width);
+        await checkSynonymDescriptions(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, synonyms panel, every meaning`, width);
+        await tab.click('Related');
+        await tab.until(`document.body.innerText.includes('Used in')`, 'the Related panel');
+        await measure(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, related panel`, width);
         await checkSynonymsLink(tab, app, width);
         // The removed Mix-ups page's path lands on Vocabulary.
         await tab.goto(`${app}/vocab/mixups`, 'Vocabulary');
@@ -383,4 +414,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji, on one line and apart, Japanese in list rows unbroken, setup's decisions above the kanji grid and a way back to them from its end, a #synonyms link landing on its card, its rows' shared senses wrapped, not cut off.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji, on one line and apart, Japanese in list rows unbroken, setup's decisions above the kanji grid and a way back to them from its end, a #synonyms link opening Explore on Synonyms at the top of the screen, its rows' shared senses wrapped, not cut off.`);

@@ -3,7 +3,7 @@ import type { Sense, Vocabulary } from '@gokan/dataset-schema';
 import { closenessOf, listedSynonymsOf } from '../services/exercise/wordRelation';
 import type { ListedSynonym } from '../services/exercise/wordRelation';
 import {
-    COLLAPSED_SECTIONS, COLLAPSED_WORDS, EXPANDED_WORDS, FREQUENT_WORDS, hasMoreSynonyms, shownSections, synonymSections,
+    CLOSEST_SYNONYMS, FREQUENT_WORDS, closestSynonyms, filterSynonymSections, sectionGlossLine, shownGroups, synonymCount, synonymSections,
 } from './synonymSections.utils';
 import type { SynonymLearner } from './synonymSections.utils';
 
@@ -81,32 +81,40 @@ describe('synonymSections', () => {
     });
 });
 
-describe('shownSections (the caps)', () => {
-    const senses = Array.from({ length: 5 }, (_, i) => sense([`meaning${i}`]));
-    const words = senses.flatMap((_, i) => Array.from({ length: 12 }, (__, j) => listed(`w${i}-${j}`, { shared: [`meaning${i}`], rank: j + 1 })));
+describe('the word page: Closest synonyms and the Explore panel', () => {
+    const senses = Array.from({ length: 6 }, (_, i) => sense([`meaning${i}`]));
+    const words = senses.flatMap((_, i) => Array.from({ length: 8 }, (__, j) => listed(`w${i}-${j}`, { shared: [`meaning${i}`], rank: j + 1 })));
     const sections = synonymSections(senses, words, nobody);
+    const never = () => false;
 
-    it(`collapsed: the first ${COLLAPSED_SECTIONS} sections, ${COLLAPSED_WORDS} words each`, () => {
-        const shown = shownSections(sections, false, new Map());
-        expect(shown.map(s => [s.sense, s.shown.length, s.hidden])).toEqual([[0, 3, 9], [1, 3, 9], [2, 3, 9]]);
+    it(`Closest synonyms: the first section's best ${CLOSEST_SYNONYMS}, leaving out a pair never accepted`, () => {
+        expect(closestSynonyms(sections, never)?.words.map(w => w.vocabId)).toEqual(['w0-0', 'w0-1', 'w0-2', 'w0-3', 'w0-4']);
+        const distinct = closestSynonyms(sections, w => w.vocabId === 'w0-1');
+        expect(distinct?.words.map(w => w.vocabId)).toEqual(['w0-0', 'w0-2', 'w0-3', 'w0-4', 'w0-5']);
+        expect(closestSynonyms(sections.slice(0, 1), () => true)).toBeNull();
+        expect(closestSynonyms([], never)).toBeNull();
     });
 
-    it('collapsed: plus any section holding a word the learner mixed up', () => {
-        const mixedUp = new Map([['w4-11', 1]]);
-        const shown = shownSections(synonymSections(senses, words, { ...nobody, mixedUp }), false, mixedUp);
-        expect(shown.map(s => s.sense)).toEqual([0, 1, 2, 4]);
-        expect(shown.at(-1)?.shown[0].vocabId).toBe('w4-11');
+    it('names a section by its first two glosses', () => {
+        expect(sectionGlossLine({ glosses: ['to get', 'to obtain', 'to acquire'] })).toBe('to get, to obtain');
+        expect(sectionGlossLine({ glosses: ['to shine'] })).toBe('to shine');
     });
 
-    it(`expanded: every section, ${EXPANDED_WORDS} words each, with how many it leaves out`, () => {
-        const shown = shownSections(sections, true, new Map());
-        expect(shown.map(s => [s.shown.length, s.hidden])).toEqual(Array.from({ length: 5 }, () => [10, 2]));
+    it('counts every listed word once', () => {
+        expect(synonymCount(sections)).toBe(48);
     });
 
-    it('offers to expand only when that shows more', () => {
-        expect(hasMoreSynonyms(sections, new Map())).toBe(true);
-        const small = synonymSections(senses.slice(0, 2), [listed('a', { shared: ['meaning0'] })], nobody);
-        expect(hasMoreSynonyms(small, new Map())).toBe(false);
+    it('lists the first groups, plus any holding a word the learner mixed up, and how many are left', () => {
+        expect(shownGroups(sections, 4, new Map())).toMatchObject({ hidden: 2 });
+        expect(shownGroups(sections, 4, new Map()).shown.map(s => s.sense)).toEqual([0, 1, 2, 3]);
+        const mixed = shownGroups(sections, 4, new Map([['w5-7', 1]]));
+        expect([mixed.shown.map(s => s.sense), mixed.hidden]).toEqual([[0, 1, 2, 3, 5], 1]);
+        expect(shownGroups(sections, 8, new Map()).hidden).toBe(0);
+    });
+
+    it('keeps the grouping under a search, dropping a group with no match', () => {
+        const kept = filterSynonymSections(sections, w => w.vocabId.endsWith('-3') && !w.vocabId.startsWith('w2'));
+        expect(kept.map(s => [s.sense, ids(s)])).toEqual([[0, ['w0-3']], [1, ['w1-3']], [3, ['w3-3']], [4, ['w4-3']], [5, ['w5-3']]]);
     });
 });
 
@@ -114,7 +122,7 @@ describe('shownSections (the caps)', () => {
 const files = import.meta.glob<Vocabulary>('../../dataset/compiled/vocab/{1487400,1224020,1237680,1288810,1288850,1496670}.json', { eager: true, import: 'default' });
 const vocabById = new Map(Object.values(files).map(v => [v.id, v]));
 
-describe('the Synonyms card, on the compiled dataset', () => {
+describe('the Synonyms panel and Closest synonyms, on the compiled dataset', () => {
     const sectionsOf = (id: string) => {
         const vocab = vocabById.get(id);
         expect(vocab, `compiled/vocab/${id}.json`).toBeDefined();
@@ -146,10 +154,15 @@ describe('the Synonyms card, on the compiled dataset', () => {
         if (entry) expect(closenessOf(entry.word.pair, entry.section.glosses)).toBe('distinct');
     });
 
-    it("lists 光る on 輝く's card under \"to shine\", where the collapsed card shows it", () => {
+    it("lists 光る on 輝く's card under \"to shine\", among its Closest synonyms", () => {
         expect(find('1224020', '1272820')?.section.glosses[0]).toBe('to shine');
-        const [first] = shownSections(sectionsOf('1224020'), false, new Map());
-        expect(first.shown.map(w => w.vocabId)).toContain('1272820');
+        const closest = closestSynonyms(sectionsOf('1224020'), (w, section) => closenessOf(w.pair, section.glosses) === 'distinct');
+        expect(closest?.words.map(w => w.vocabId)).toContain('1272820');
+    });
+
+    it("leaves 常に out of 必ず's Closest synonyms, though the panel lists it", () => {
+        const closest = closestSynonyms(sectionsOf('1487400'), (w, section) => closenessOf(w.pair, section.glosses) === 'distinct');
+        expect(closest?.words.map(w => w.vocabId) ?? []).not.toContain('1355970');
     });
 
     it("lists 小さい on 狭い's card under its first sense", () => {

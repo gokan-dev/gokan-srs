@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { STATUS_LABEL, directionStatus, grammarLearningStatus, statusReviewPhrase, vocabLearningStatus } from './learningStatus.utils';
+import { STATUS_LABEL, addedLine, directionStatus, grammarLearningStatus, statusReviewPhrase, vocabLearningStatus } from './learningStatus.utils';
 import { grammarProgress, srsEntry, vocabProgress } from '../test/fixtures';
 import { CONSTANTS } from '../commons/constants';
 
@@ -67,5 +67,14 @@ describe('statusReviewPhrase', () => {
     it('never repeats the status of a mastered item', () => {
         expect(statusReviewPhrase('mastered', null, now)).toBeNull();
         expect(statusReviewPhrase('mastered', new Date(now + 3 * 86_400_000), now)).toBe('Next review in 3 days');
+    });
+});
+
+describe('addedLine', () => {
+    it('says when the item was added and how often reviewed', () => {
+        const added = new Date(2026, 8, 12);
+        expect(addedLine(added, 14)).toMatch(/^Added .+ · 14 reviews$/);
+        expect(addedLine(added, 1)).toMatch(/ · 1 review$/);
+        expect(addedLine(added, 1200)).toMatch(/ · 1,200 reviews$/);
     });
 });

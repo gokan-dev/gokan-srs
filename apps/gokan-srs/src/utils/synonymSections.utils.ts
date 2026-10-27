@@ -8,16 +8,17 @@ import { normalizeGloss } from './synonymContext.utils';
  * useful pairs come first, and capped. The pairs are not filtered by quality: their
  * noise comes from English homographs (強い "firm" lists 商会 "firm", a company), which
  * no threshold can see, so each pair sits under the sense it actually shares, where
- * the learner can see why it is there. The caps are a starting point (issue #162).
+ * the learner can see why it is there. A word page shows the first section's best few, and
+ * every section in its Explore panel, a few rows each until asked for more.
  */
 
 /** A word outside the most frequent this many is listed only when the learner studies it. */
 export const FREQUENT_WORDS = 10_000;
-/** Collapsed: the first sections, and words in each. */
-export const COLLAPSED_SECTIONS = 3;
-export const COLLAPSED_WORDS = 3;
-/** Expanded: words in each section. */
-export const EXPANDED_WORDS = 10;
+/** A word page's Closest synonyms: this many from the first section. */
+export const CLOSEST_SYNONYMS = 5;
+/** The Explore Synonyms panel: rows per group before "Show all", and groups shown at a time. */
+export const GROUP_ROWS = 3;
+export const GROUPS_AT_ONCE = 4;
 
 export interface SynonymSection {
     /** The sense's index in the word's senses. */
@@ -91,27 +92,41 @@ function compare(a: { synonym: ListedSynonym; shared: number }, b: { synonym: Li
         || x.vocabId.localeCompare(y.vocabId);
 }
 
-export interface ShownSection extends SynonymSection {
-    /** The words listed in this view. */
-    shown: ListedSynonym[];
-    /** How many words of the section this view leaves out. */
-    hidden: number;
+/**
+ * A word page's Closest synonyms: the first section's best words, up to CLOSEST_SYNONYMS, leaving
+ * out a pair graded never accepted (`distinct`: a curated confusable pair is not a close word).
+ * Null when nothing is left.
+ */
+export function closestSynonyms(sections: readonly SynonymSection[], isDistinct: (synonym: ListedSynonym, section: SynonymSection) => boolean): { section: SynonymSection; words: ListedSynonym[] } | null {
+    const [first] = sections;
+    if (!first) return null;
+    const words = first.words.filter(w => !isDistinct(w, first)).slice(0, CLOSEST_SYNONYMS);
+    return words.length > 0 ? { section: first, words } : null;
+}
+
+/** A section named in a line ("to get, to obtain"): its first two glosses, after the sense's number. */
+export function sectionGlossLine(section: Pick<SynonymSection, 'glosses'>): string {
+    return section.glosses.slice(0, 2).join(', ');
+}
+
+/** How many synonyms the sections list, each once. */
+export function synonymCount(sections: readonly SynonymSection[]): number {
+    return sections.reduce((n, s) => n + s.words.length, 0);
+}
+
+/** Only the words a search keeps, each section in place; a section left empty goes. */
+export function filterSynonymSections(sections: readonly SynonymSection[], keep: (synonym: ListedSynonym) => boolean): SynonymSection[] {
+    return sections.flatMap(section => {
+        const words = section.words.filter(keep);
+        return words.length > 0 ? [{ ...section, words }] : [];
+    });
 }
 
 /**
- * The sections a view lists. Collapsed: the first COLLAPSED_SECTIONS, COLLAPSED_WORDS
- * words each, plus any section holding a word the learner mixed up. Expanded: every
- * section, EXPANDED_WORDS words each.
+ * The groups the panel lists: the first `limit`, plus any holding a word the learner mixed up
+ * (the reason they came), in order; `hidden` is how many it leaves for "Show more meanings".
  */
-export function shownSections(sections: readonly SynonymSection[], expanded: boolean, mixedUp: ReadonlyMap<string, number>): ShownSection[] {
-    const cap = expanded ? EXPANDED_WORDS : COLLAPSED_WORDS;
-    return sections
-        .filter((section, i) => expanded || i < COLLAPSED_SECTIONS || section.words.some(w => mixedUp.has(w.vocabId)))
-        .map(section => ({ ...section, shown: section.words.slice(0, cap), hidden: Math.max(0, section.words.length - cap) }));
-}
-
-/** Whether expanding shows anything more than the collapsed view. */
-export function hasMoreSynonyms(sections: readonly SynonymSection[], mixedUp: ReadonlyMap<string, number>): boolean {
-    const collapsed = shownSections(sections, false, mixedUp);
-    return collapsed.length < sections.length || collapsed.some(s => s.hidden > 0);
+export function shownGroups(sections: readonly SynonymSection[], limit: number, mixedUp: ReadonlyMap<string, number>): { shown: SynonymSection[]; hidden: number } {
+    const shown = sections.filter((section, i) => i < limit || section.words.some(w => mixedUp.has(w.vocabId)));
+    return { shown, hidden: sections.length - shown.length };
 }

@@ -40,3 +40,13 @@ export function organizeSenses(senses: Sense[]): { common: ShownSense[]; rare: S
         rare: withPosLabels(senses.filter(isRareSense)),
     };
 }
+
+/**
+ * Each sense's number as the word's page lists it (organizeSenses: the common senses, then the
+ * rare ones), by its index in `senses`: what a synonym group or "For meaning 1" refers to.
+ */
+export function senseNumbers(senses: readonly Pick<Sense, 'misc'>[]): number[] {
+    const commonCount = senses.filter(s => !isRareSense(s)).length;
+    let common = 0, rare = 0;
+    return senses.map(s => (isRareSense(s) ? commonCount + ++rare : ++common));
+}

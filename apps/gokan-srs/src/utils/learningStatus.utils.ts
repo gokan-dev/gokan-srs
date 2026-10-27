@@ -2,7 +2,7 @@ import type { SRSEntry, VocabProgress } from "../models/vocabulary.model";
 import type { GrammarProgress } from "../models/grammar.model";
 import type { UserSettings } from "../models/user.model";
 import { isEntryMastered, isVocabFullyMastered } from "../services/scheduling";
-import { nextReviewPhrase } from "./time.utils";
+import { formatDate, nextReviewPhrase } from "./time.utils";
 import { isGrammarFullyMastered } from "../services/grammarScheduling";
 
 export type LearningStatus = 'new' | 'learning' | 'mastered';
@@ -49,4 +49,9 @@ export function directionStatus(entry: SRSEntry | undefined, activated: boolean,
     if (isEntryMastered(entry)) return 'Mastered';
     if (!entry.dueDate) return 'Not started';
     return nextReviewPhrase(entry.dueDate, now);
+}
+
+/** When a studied item was added and how often reviewed: "Added Sep 12, 2026 · 14 reviews". */
+export function addedLine(introductionAt: Date, totalReviews: number): string {
+    return `Added ${formatDate(introductionAt)} · ${totalReviews.toLocaleString('en-US')} review${totalReviews === 1 ? '' : 's'}`;
 }

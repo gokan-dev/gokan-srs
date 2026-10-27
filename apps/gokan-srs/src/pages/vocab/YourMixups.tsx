@@ -1,11 +1,11 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { DetailSection } from "../../components/detail/DetailSection";
+import { Marked } from "../../components/ui/Marked";
+import { TextButton } from "../../components/ui/TextButton";
 import { resultTextClass } from "../../components/quiz/quizStyles";
-import { useQuiz } from "../../context/useQuiz";
 import type { MixupRecord } from "../../models/mixup.model";
 import type { ShownResult } from "../../services/exercise/effects";
-import { mixupsAsked } from "../../utils/mixups.utils";
+import { englishRanges, type ExploreQuery } from "../../utils/exploreSearch.utils";
 import { formatShortDate } from "../../utils/time.utils";
 
 const INITIAL_COUNT = 5;
@@ -38,23 +38,20 @@ function gradedClass(record: MixupRecord): string {
 }
 
 /**
- * What the learner typed on this word's cards instead of it, with the card, newest
- * first. Only records where this word was asked: one of it typed on another word's
- * card belongs to that word's history. Absent when there are none.
+ * What the learner typed on this word's cards instead of it, with the card, newest first
+ * (`mixupsAsked`: one of it typed on another word's card belongs to that word's history).
+ * The word page's Explore Mix-ups panel, which passes the records its search keeps.
  */
-export function YourMixups({ vocabId }: { vocabId: string }) {
-    const { state } = useQuiz();
-    const records = state.progress?.mixups;
-    const mine = useMemo(() => mixupsAsked(records, vocabId), [records, vocabId]);
+export function YourMixups({ vocabId, records, query = null }: { vocabId: string; records: readonly MixupRecord[]; query?: ExploreQuery | null }) {
     // Expansion belongs to one word: keyed by it, so another word starts collapsed.
     const [expandedFor, setExpandedFor] = useState<string | null>(null);
     const expanded = expandedFor === vocabId;
 
-    if (mine.length === 0) return null;
-    const shown = expanded ? mine : mine.slice(0, INITIAL_COUNT);
+    if (records.length === 0) return null;
+    const shown = expanded ? records : records.slice(0, INITIAL_COUNT);
 
     return (
-        <DetailSection title="Your mix-ups" count={mine.length}>
+        <div>
             <ul className="space-y-4">
                 {shown.map(record => (
                     <li key={`${record.date}-${record.answer}`} className="min-w-0">
@@ -70,21 +67,17 @@ export function YourMixups({ vocabId }: { vocabId: string }) {
                             <span className={gradedClass(record)}>{gradedAs(record)}</span>
                         </div>
                         <p className="type-support break-words">
-                            {record.cue ?? 'From its English meanings'}
+                            {record.cue ? <Marked text={record.cue} ranges={englishRanges(query, record.cue)} /> : 'From its English meanings'}
                         </p>
                         <p className="type-meta">{formatShortDate(new Date(record.date))}</p>
                     </li>
                 ))}
             </ul>
-            {mine.length > INITIAL_COUNT && (
-                <button
-                    type="button"
-                    onClick={() => setExpandedFor(expanded ? null : vocabId)}
-                    className="mt-3 font-sans text-sm text-accent hover:underline cursor-pointer"
-                >
+            {records.length > INITIAL_COUNT && (
+                <TextButton onClick={() => setExpandedFor(expanded ? null : vocabId)} className="mt-3">
                     {expanded ? 'Show fewer mix-ups' : 'Show all mix-ups'}
-                </button>
+                </TextButton>
             )}
-        </DetailSection>
+        </div>
     );
 }

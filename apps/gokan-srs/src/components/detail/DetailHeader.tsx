@@ -7,8 +7,10 @@ interface DetailHeaderProps {
     title: ReactNode;
     /** Readings, romaji, other spellings: under the title. */
     children?: ReactNode;
-    /** Neutral chips (JLPT, register). */
+    /** Neutral chips (JLPT, register), and a word's kanji. */
     chips?: ReactNode;
+    /** A row of facts under the chips (a word's frequency, KKLC step, textbooks): `dt`/`dd` pairs, laid out here. */
+    facts?: ReactNode;
     /** The learner's relation to the subject: "Learn this word", or its status and next review. */
     actions?: ReactNode;
 }
@@ -20,7 +22,7 @@ interface DetailHeaderProps {
  * `lg` it sits on the body's 8/4 grid, so the action starts on the side
  * column's left edge; below it, the action follows the readings.
  */
-export function DetailHeader({ parentPath, title, children, chips, actions }: DetailHeaderProps) {
+export function DetailHeader({ parentPath, title, children, chips, facts, actions }: DetailHeaderProps) {
     return (
         <header className="w-full mb-10">
             <BackLink parentPath={parentPath} />
@@ -29,6 +31,7 @@ export function DetailHeader({ parentPath, title, children, chips, actions }: De
                     <h1 className="break-words">{title}</h1>
                     {children && <div className="mt-2 space-y-1">{children}</div>}
                     {chips && <div className="flex flex-wrap items-center gap-2 mt-3">{chips}</div>}
+                    {facts && <dl className="flex flex-wrap gap-x-8 gap-y-3 mt-4">{facts}</dl>}
                 </div>
                 {actions && <div className="min-w-0 lg:col-span-4">{actions}</div>}
             </div>
