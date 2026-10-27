@@ -245,6 +245,20 @@ async function checkSynonymDescriptions(tab: Tab, page: string, width: number): 
 }
 
 /**
+ * Explore's segment labels are short so four fit at 320px: one cut off with an ellipsis is a
+ * failure naming it. Measured closed and with Synonyms open (its label then semibold). Finding
+ * fewer than four labels is a failure too: the page measured must show every segment.
+ */
+async function checkExploreLabels(tab: Tab, page: string, width: number): Promise<void> {
+    const { found, clipped } = await tab.evaluate<{ found: number; clipped: string[] }>(`(() => {
+        const labels = [...document.querySelectorAll('[role=group][aria-label="Explore this word"] button > span:first-child')];
+        return { found: labels.length, clipped: labels.filter(el => el.scrollWidth > el.clientWidth).map(el => el.textContent) };
+    })()`);
+    if (found < 4) failures.push(`${width}px ${page}: ${found} Explore segment labels found, not 4: the check measured too little`);
+    for (const label of clipped) failures.push(`${width}px ${page}: the Explore segment label "${label}" is cut off`);
+}
+
+/**
  * How far down setup's last decisions may sit, in px from the top of the page, by width: the
  * vocabulary order heading's top and the Start learning button's bottom. Under the open grid they
  * were 14,000px (desktop) to 20,000px (phone) down. Set from the measured layout (button at 1112px
@@ -355,6 +369,7 @@ try {
         await tab.click('Start learning');
         for (const route of SRS_ROUTES) {
             await tab.goto(`${app}${route.path}`, route.ready);
+            if (route.settled) await tab.until(`document.querySelector(${JSON.stringify(route.settled)}) !== null`, `${route.settled} on ${route.path}`, 10000);
             await measure(tab, `srs ${route.path}`, width);
         }
         await measureFuriganaFixture(tab, `${app}/vocab/${FURIGANA_VOCAB}`, 'Examples', `srs /vocab/${FURIGANA_VOCAB}`, width);
@@ -363,6 +378,7 @@ try {
         await measure(tab, `srs /vocab/${FURIGANA_VOCAB}, sentences panel`, width);
         await tab.evaluate<void>(SEED_MIXUPS);
         await tab.goto(`${app}/vocab/${MIXUP_WORD}`, 'Explore');
+        await checkExploreLabels(tab, `srs /vocab/${MIXUP_WORD}, Explore closed`, width);
         await tab.click('Mix-ups');
         await tab.until(`document.body.innerText.includes('Show all mix-ups')`, 'the Mix-ups panel');
         await tab.click('Show all mix-ups');
@@ -370,6 +386,7 @@ try {
         await tab.click('Synonyms');
         await tab.until(`document.body.innerText.includes('Mixed up 2 times')`, 'the Synonyms panel counting the seeded mix-ups');
         await measure(tab, `srs /vocab/${MIXUP_WORD}, synonyms panel`, width);
+        await checkExploreLabels(tab, `srs /vocab/${MIXUP_WORD}, synonyms panel`, width);
         await tab.goto(`${app}/vocab/${LONG_SYNONYMS_WORD}`, 'Explore');
         await measure(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, Explore closed`, width);
         await tab.click('Synonyms');
@@ -414,4 +431,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji, on one line and apart, Japanese in list rows unbroken, setup's decisions above the kanji grid and a way back to them from its end, a #synonyms link opening Explore on Synonyms at the top of the screen, its rows' shared senses wrapped, not cut off.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji, on one line and apart, Japanese in list rows unbroken, setup's decisions above the kanji grid and a way back to them from its end, the four Explore labels whole, a #synonyms link opening Explore on Synonyms at the top of the screen, its rows' shared senses wrapped, not cut off.`);

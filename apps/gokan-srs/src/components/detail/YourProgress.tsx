@@ -22,10 +22,13 @@ interface YourProgressProps {
     history: ReviewHistorySource[];
 }
 
-/** One direction: its ring, its name and when it is next reviewed. */
-export function DirectionStatus({ direction }: { direction: ProgressDirection }) {
+/**
+ * A direction's ring, its name and status beside it. `underOnPhone` puts the name and status
+ * centred under the ring below `sm`, so three directions share one row on a phone (a word's Your study).
+ */
+export function DirectionStatus({ direction, underOnPhone = false }: { direction: ProgressDirection; underOnPhone?: boolean }) {
     return (
-        <div className="flex items-center gap-3 min-w-0">
+        <div className={`flex items-center min-w-0 ${underOnPhone ? 'flex-col gap-2 text-center sm:flex-row sm:gap-3 sm:text-left' : 'gap-3'}`}>
             <MasteryRing memoryStrength={direction.strength} size={40} variant={direction.variant} label={direction.label} />
             <div className="min-w-0">
                 <div className="type-label">{direction.label}</div>

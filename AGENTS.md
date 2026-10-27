@@ -188,7 +188,8 @@ gokan-srs, everything else:
   `utils/coverage.utils.ts`, `utils/activity.utils.ts`, `utils/winRate.utils.ts`.
 - Detail pages: `components/detail/` (`DetailHeader` the subject and its main action,
   `DetailBody` the 8/4 body under it, or one column of `levels` (a word's page), `LearnStatus`,
-  `DetailSection`, `YourProgress` (a grammar point's) and its `DirectionStatus`, shared with a
+  `DetailSection`, `DetailField` (a labelled value; `compact`, a header's facts row, as a word's
+  How common), `YourProgress` (a grammar point's) and its `DirectionStatus`, shared with a
   word's Your study, `DetailErrorScreen`), `components/RelatedEntriesCard.tsx` (its rows alone:
   `RelatedEntryList`), `components/SRSHistoryGraph.tsx`, `components/KanjiTile.tsx` (a glyph:
   boxed only when it links), `components/WordTile.tsx` (a word as a boxed link),

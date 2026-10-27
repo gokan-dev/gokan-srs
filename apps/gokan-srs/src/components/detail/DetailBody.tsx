@@ -13,10 +13,29 @@ type DetailBodyProps =
     | {
         /**
          * One column at every width, in levels of importance (a word's page: the essentials, the
-         * learner's study, Explore, the internals). A level that is null is left out.
+         * learner's study, Explore, the internals). A level whose node is null is left out.
          */
-        levels: ReactNode[];
+        levels: DetailLevel[];
     };
+
+/**
+ * One level, named: React keys it by `key`, so a level appearing above another (Your study, once
+ * the word is learned) leaves the one below mounted, with its state (Explore's search).
+ */
+export interface DetailLevel {
+    key: string;
+    node: ReactNode;
+}
+
+/** The levels, a `divider` line between two and nothing else (40px each side). No hooks, so tests can call it. */
+export function DetailLevels({ levels }: { levels: DetailLevel[] }) {
+    const shown = levels.filter(level => level.node !== null && level.node !== undefined && level.node !== false);
+    return (
+        <div className="divide-y divide-divider">
+            {shown.map(level => <div key={level.key} className="py-10 first:pt-0 last:pb-0 space-y-10">{level.node}</div>)}
+        </div>
+    );
+}
 
 /**
  * The body of a vocab, kanji or grammar page, under its DetailHeader. Either from `lg` the same
@@ -26,14 +45,7 @@ type DetailBodyProps =
  */
 export function DetailBody(props: DetailBodyProps) {
     const { isMobile, isTablet } = useResponsive();
-    if ('levels' in props) {
-        const shown = props.levels.filter(level => level !== null && level !== undefined && level !== false);
-        return (
-            <div className="divide-y divide-divider">
-                {shown.map((level, i) => <div key={i} className="py-10 first:pt-0 last:pb-0 space-y-10">{level}</div>)}
-            </div>
-        );
-    }
+    if ('levels' in props) return <DetailLevels levels={props.levels} />;
     const { main, side, stacked } = props;
     if (isMobile || isTablet) return <div className="space-y-10">{stacked ?? <>{main}{side}</>}</div>;
     return (

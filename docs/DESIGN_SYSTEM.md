@@ -134,6 +134,7 @@ instead of ad hoc size/colour combinations:
 | `type-subsection` | sans 600, `text-base`, `primary` | card and group titles |
 | `type-body` | sans, `text-base`, `leading-relaxed`, `primary` | body copy, glosses |
 | `type-support` | sans, `text-sm`, `secondary` | descriptions, supporting lines |
+| `type-value` | sans, `text-sm`, `primary` | a fact's value in a header's facts row (`DetailField compact`) |
 | `type-meta` | sans, `text-xs` (12px), `tertiary` | counts, dates, captions |
 | `type-label` | sans 500, `text-sm`, `secondary`, sentence case | field labels (replaces every uppercase tracked label) |
 | `jp-display` | mincho, `text-6xl` / `md:text-7xl`, `primary` | the headword of a detail page |
@@ -216,13 +217,14 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
   grid, `main` (8: the subject's content, meanings first) and `side` (4: the learner's data,
   related items, the details `Disclosure`), and below `lg` one column in reading order
   (`stacked` when it interleaves the two); or `levels`, one column at every width with a line
-  between levels (section 4). The 12-column grid exists only in these two components
+  between levels (section 4), each level named, so one appearing above another (Your study,
+  once the word is learned) does not remount it. The 12-column grid exists only in these two components
   (enforced, `detail-layout`).
 - **Word page** (`pages/vocab/VocabDetailScreen.tsx`): `Page width="narrow"` at every width,
   one column (`DetailBody` `levels`), so the long lists never weigh as much as the meanings:
   - Header: the headword, its spellings and reading; a chips row (the JLPT chip, then each
     kanji as a small `KanjiTile` with Known / Not known beside it); a facts row, a `dl` of
-    `type-meta` labels over values, side by side and wrapping: How common (the band, its
+    `DetailField compact` (a `type-meta` label over a `type-value` value), side by side and wrapping: How common (the band, its
     `FrequencyMeter` and a round "Top 300 words", the exact rank in a `title`), KKLC step or
     "Learned in kana", Textbooks; the actions as on every detail page.
   - The essentials, always shown: Meanings (3 common senses, then "Show all N meanings" in
@@ -230,7 +232,9 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
     `pickWordExamples`; "All N sentences →" on the heading's line), Closest synonyms (up to 5
     `WordTile`s from the first sense's section, "For meaning 1: ..." under them, "Compare all
     N →").
-  - Your study, for a word in study: one row of 40px rings with each direction's status, "Added
+  - Your study, for a word in study: one row of 40px rings, each direction's status beside its
+    ring from `sm`, and below `sm` a 3-column grid with the name and status centred under each
+    ring (three statuses beside their rings do not fit at 375px), "Added
     ... · N reviews" on the heading's line, "You mixed it up N times. See your mix-ups →", and
     the learning curve and review log under one collapsed `Disclosure`.
   - Explore: a `SegmentedToggle` (Sentences, Synonyms, Related, Mix-ups, each only when it has
@@ -328,7 +332,8 @@ Defined once, in `components/` or `components/ui/`, never copied:
   home.
 - **`SegmentedToggle`** (`ui/SegmentedToggle.tsx`): one bordered `rounded-md` group,
   segments split by `divider` lines, each a 14px label over its count (`type-meta`), at least
-  52px high so four fit at 320px. Single choice that can be undone (pressing the open one
+  52px high, with no side padding (the dividers separate them) so four labels fit whole at
+  320px, a semibold "Synonyms" included (`check:layout` fails on a cut-off label). Single choice that can be undone (pressing the open one
   closes it), so a toggle (`aria-pressed`, `aria-controls`, an `aria-label` with the full name
   and the count), not tabs. Open: `bg-accent/12`, a 2px accent bar inset at the bottom, a
   semibold label; hover `bg-surface-hover`. A word page's Explore.

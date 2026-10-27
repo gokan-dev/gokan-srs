@@ -33,12 +33,19 @@ export function DetailSection({ title, count, aside, children, className = '', i
     );
 }
 
-/** A labelled value inside a detail section. */
-export function DetailField({ label, children }: { label: string; children: ReactNode }) {
+interface DetailFieldProps {
+    label: string;
+    children: ReactNode;
+    /** A header's facts row (a word's How common, KKLC step): `type-meta` over `type-value`, side by side with others. */
+    compact?: boolean;
+}
+
+/** A labelled value inside a detail section, or, compact, one fact of a header's facts row. */
+export function DetailField({ label, children, compact = false }: DetailFieldProps) {
     return (
-        <div>
-            <dt className="type-label">{label}</dt>
-            <dd className="type-body">{children}</dd>
+        <div className={compact ? 'min-w-0' : ''}>
+            <dt className={compact ? 'type-meta' : 'type-label'}>{label}</dt>
+            <dd className={compact ? 'type-value' : 'type-body'}>{children}</dd>
         </div>
     );
 }

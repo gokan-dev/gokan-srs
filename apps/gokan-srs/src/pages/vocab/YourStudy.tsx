@@ -38,8 +38,9 @@ export function YourStudy({ progress, now, mixups, onShowMixups }: YourStudyProp
 
     return (
         <DetailSection title="Your study" aside={<p className="type-meta">{addedLine(progress.introductionAt, progress.totalReviews)}</p>}>
-            <ul className="flex flex-wrap gap-x-8 gap-y-4">
-                {directions.map(direction => <li key={direction.key} className="min-w-0"><DirectionStatus direction={direction} /></li>)}
+            {/* One row at every width: below `sm` a column per direction, its status under the ring. */}
+            <ul className={`grid ${directions.length === 3 ? 'grid-cols-3' : 'grid-cols-2'} gap-x-4 gap-y-4 sm:flex sm:flex-wrap sm:gap-x-8`}>
+                {directions.map(direction => <li key={direction.key} className="min-w-0"><DirectionStatus direction={direction} underOnPhone /></li>)}
             </ul>
             {mixups > 0 && (
                 <p className="type-support mt-4">

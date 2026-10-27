@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useParams } from "react-router-dom";
 import { frequencyBand, headwordOf, textbookLessonsLabel } from "@gokan/dataset-schema";
 import type { Sentence, Vocabulary } from "@gokan/dataset-schema";
@@ -13,7 +13,7 @@ import { vocabNextReviewAt } from "../../services/scheduling";
 import { KanjiSpellingNote } from "../../components/KanjiSpellingNote";
 import { Page } from "../../components/Page";
 import { DetailErrorScreen } from "../../components/detail/DetailErrorScreen";
-import { DetailSection } from "../../components/detail/DetailSection";
+import { DetailField, DetailSection } from "../../components/detail/DetailSection";
 import { DetailHeader } from "../../components/detail/DetailHeader";
 import { LearnStatus } from "../../components/detail/LearnStatus";
 import { Disclosure } from "../../components/ui/Disclosure";
@@ -81,6 +81,7 @@ export default function VocabDetailScreen() {
             key={vocab.id}
             vocab={vocab}
             sentences={sentencesLoad.data ?? []}
+            sentencesSettled={sentencesSettled}
             openPanel={openPanel}
             onTogglePanel={togglePanel}
             onShowPanel={showPanel}
@@ -94,6 +95,8 @@ export default function VocabDetailScreen() {
 interface WordPageProps {
     vocab: Vocabulary;
     sentences: Sentence[];
+    /** The sentences have loaded or failed: the page is drawn in full (`data-sentences`, which check-layout waits on). */
+    sentencesSettled: boolean;
     openPanel: ExplorePanel | null;
     onTogglePanel: (panel: ExplorePanel) => void;
     onShowPanel: (panel: ExplorePanel) => void;
@@ -102,7 +105,7 @@ interface WordPageProps {
     knownKanji: ReadonlySet<string> | undefined;
 }
 
-function WordPage({ vocab, sentences, openPanel, onTogglePanel, onShowPanel, now, onLearn, knownKanji }: WordPageProps) {
+function WordPage({ vocab, sentences, sentencesSettled, openPanel, onTogglePanel, onShowPanel, now, onLearn, knownKanji }: WordPageProps) {
     const { state } = useQuiz();
     const progress = state.progress?.learningQueue.find(p => p.vocabId === vocab.id);
     const settings = state.settings ?? undefined;
@@ -169,9 +172,14 @@ function WordPage({ vocab, sentences, openPanel, onTogglePanel, onShowPanel, now
     ) : null;
 
     return (
-        <Page width="narrow">
+        <Page width="narrow" data={{ 'data-sentences': sentencesSettled ? 'settled' : 'loading' }}>
             {header}
-            <DetailBody levels={[essentials, yourStudy, explore, internals]} />
+            <DetailBody levels={[
+                { key: 'essentials', node: essentials },
+                { key: 'your-study', node: yourStudy },
+                { key: 'explore', node: explore },
+                { key: 'internals', node: internals },
+            ]} />
         </Page>
     );
 }
@@ -197,25 +205,16 @@ function WordFacts({ vocab }: { vocab: Vocabulary }) {
     const band = frequencyBand(rank);
     return (
         <>
-            <Fact label="How common">
-                <span className="inline-flex items-center gap-2" title={band.reference === 'Not in the frequency list' ? undefined : `Rank ${rank.toLocaleString('en-US')}`}>
+            <DetailField compact label="How common">
+                <span className="inline-flex items-center gap-2" title={band.ranked ? `Rank ${rank.toLocaleString('en-US')}` : undefined}>
                     <FrequencyMeter band={band} />
                     {band.name}
                 </span>
                 <span className="block type-meta">{band.reference}</span>
-            </Fact>
-            <Fact label="KKLC step">{vocab.usuallyKana ? 'Learned in kana' : vocab.progression.kklcStep}</Fact>
-            {vocab.textbooks && vocab.textbooks.length > 0 && <Fact label="Textbooks">{textbookLessonsLabel(vocab.textbooks)}</Fact>}
+            </DetailField>
+            <DetailField compact label="KKLC step">{vocab.usuallyKana ? 'Learned in kana' : vocab.progression.kklcStep}</DetailField>
+            {vocab.textbooks && vocab.textbooks.length > 0 && <DetailField compact label="Textbooks">{textbookLessonsLabel(vocab.textbooks)}</DetailField>}
         </>
-    );
-}
-
-function Fact({ label, children }: { label: string; children: ReactNode }) {
-    return (
-        <div className="min-w-0">
-            <dt className="type-meta">{label}</dt>
-            <dd className="font-sans text-sm text-primary">{children}</dd>
-        </div>
     );
 }
 

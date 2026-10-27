@@ -27,7 +27,14 @@ describe('frequencyBand', () => {
 
     it('reads an unranked word as Rare, outside the list', () => {
         for (const rank of [UNRANKED, undefined, null, 0]) {
-            expect(frequencyBand(rank)).toEqual({ name: 'Rare', bars: 1, reference: 'Not in the frequency list' });
+            expect(frequencyBand(rank)).toEqual({ name: 'Rare', bars: 1, reference: 'Not in the frequency list', ranked: false });
         }
+    });
+
+    it('says whether the word is ranked, beyond the top 50,000 included', () => {
+        expect(frequencyBand(264).ranked).toBe(true);
+        expect(frequencyBand(80_000).ranked).toBe(true);
+        expect(frequencyBand(UNRANKED).ranked).toBe(false);
+        expect(frequencyBand(undefined).ranked).toBe(false);
     });
 });

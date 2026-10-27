@@ -35,7 +35,7 @@ export function SegmentedToggle<K extends string>({ segments, open, onToggle, la
                         aria-pressed={pressed}
                         aria-controls={segment.controls}
                         aria-label={`${segment.name}, ${segment.count.toLocaleString('en-US')}`}
-                        className={`relative flex-1 min-w-0 min-h-[52px] px-1 py-2 flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors duration-150 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${pressed ? 'bg-accent/12' : 'hover:bg-surface-hover'}`}
+                        className={`relative flex-1 min-w-0 min-h-[52px] py-2 flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors duration-150 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${pressed ? 'bg-accent/12' : 'hover:bg-surface-hover'}`}
                     >
                         <span className={`font-sans text-sm text-primary truncate max-w-full ${pressed ? 'font-semibold' : ''}`}>{segment.label}</span>
                         <span className="type-meta tabular-nums">{segment.count.toLocaleString('en-US')}</span>
