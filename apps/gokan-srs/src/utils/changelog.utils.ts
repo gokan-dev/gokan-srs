@@ -1,11 +1,8 @@
 import type { ChangelogEntry, LiveVersion } from '../models/release.model';
+import { isRecord } from '../services/http';
 
 const VERSION = /^(\d+)\.(\d+)\.(\d+)$/;
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 /** The three numbers of `1.43.0`, or null for anything else. */
 function versionParts(version: string): [number, number, number] | null {
