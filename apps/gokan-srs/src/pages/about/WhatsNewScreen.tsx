@@ -14,7 +14,7 @@ function ChangelogItem({ entry }: { entry: ChangelogEntry }) {
     return (
         <li className="py-4 first:pt-0">
             <p className="type-meta">
-                <span className={entry.version === APP_VERSION ? 'text-primary' : undefined}>v{entry.version}</span>
+                <span className={entry.version === APP_VERSION ? 'text-primary' : undefined}>{entry.version}</span>
                 {' · '}{formatDate(changelogDate(entry.date))}
                 {entry.version === APP_VERSION && ' · Your version'}
             </p>
@@ -43,7 +43,7 @@ export function WhatsNewScreen() {
     return (
         <Page width="narrow">
             <PageHeader title="What's new" subtitle={`You are on version ${APP_VERSION}.`} parentPath="/about" className="mb-8" />
-            {changelog.status === 'error' && <p className="type-body">The list of changes could not be loaded. Check your connection and try again.</p>}
+            {changelog.status === 'error' && <p className="type-body">The list of changes could not be loaded. Check your connection, then reload the page.</p>}
             {(changelog.status === 'loading' || changelog.status === 'idle') && <CardSkeleton />}
             {changelog.status === 'ready' && (
                 <ol className="w-full divide-y divide-divider" data-changelog>

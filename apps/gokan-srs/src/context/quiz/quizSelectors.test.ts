@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { selectNextView, selectCurrentProgress, selectSessionStats, capSessionCommit, collectActionableTaskKeys, selectNextSessionPreview, dedupTaskKeysByVocab } from './quizSelectors';
+import { hasSessionInProgress, selectNextView, selectCurrentProgress, selectSessionStats, capSessionCommit, collectActionableTaskKeys, selectNextSessionPreview, dedupTaskKeysByVocab } from './quizSelectors';
 import { initialState, taskKey } from './quizReducer';
 import type { QuizState, TaskKey } from './quizReducer';
 import type { UserProgress } from '../../models/user.model';
@@ -711,5 +711,18 @@ describe('cross-session: a vocab with two due directions surfaces the other in a
         const readingAnswered = { ...bothDue, reading: entry(future), meaning: entry(past) };
         const sessionTwoCommit = dedupTaskKeysByVocab(collectActionableTaskKeys([readingAnswered], settings, now));
         expect(sessionTwoCommit).toEqual([taskKey('a', 'meaning')]);
+    });
+});
+
+describe('hasSessionInProgress', () => {
+    it('is false between sessions', () => {
+        expect(hasSessionInProgress(initialState)).toBe(false);
+    });
+
+    it('is true for a running or paused session of either activity', () => {
+        expect(hasSessionInProgress({ ...initialState, session: { committed: [] } })).toBe(true);
+        expect(hasSessionInProgress({ ...initialState, session: { committed: [], suspendedAt: 1 } })).toBe(true);
+        expect(hasSessionInProgress({ ...initialState, grammarSession: { committed: [] } })).toBe(true);
+        expect(hasSessionInProgress({ ...initialState, grammarSession: { committed: [], suspendedAt: 1 } })).toBe(true);
     });
 });

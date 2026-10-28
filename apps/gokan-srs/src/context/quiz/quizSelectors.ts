@@ -11,6 +11,15 @@ import { computeSessionStats } from './sessionStats';
 import { introQuizType } from '../../services/scheduling';
 
 /**
+ * Whether a study session (vocab or grammar) is in progress, running or paused on a consult
+ * page. Its task set lives only in this state, so a reload ends it: anything that would reload
+ * the page asks this first.
+ */
+export function hasSessionInProgress(state: Pick<QuizState, 'session' | 'grammarSession'>): boolean {
+    return state.session !== null || state.grammarSession !== null;
+}
+
+/**
  * Single source of truth for "what should the quiz screen show right now".
  * Replaces three previously-independent decision points that had to be kept in
  * agreement by hand: the `nextDue` memo (queue-level "what to load"),
