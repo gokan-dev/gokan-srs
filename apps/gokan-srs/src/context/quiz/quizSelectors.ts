@@ -12,8 +12,9 @@ import { introQuizType } from '../../services/scheduling';
 
 /**
  * Whether a study session (vocab or grammar) is in progress, running or paused on a consult
- * page. Its task set lives only in this state, so a reload ends it: anything that would reload
- * the page asks this first.
+ * page. Its task set lives only in this state, so a reload ends it. A reload the learner chooses
+ * (the update banner) asks this first; the chunk-load guard does not (docs/ARCHITECTURE.md,
+ * Deployment).
  */
 export function hasSessionInProgress(state: Pick<QuizState, 'session' | 'grammarSession'>): boolean {
     return state.session !== null || state.grammarSession !== null;
