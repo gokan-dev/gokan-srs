@@ -11,12 +11,11 @@ describe('sessionRouteRole', () => {
 
     it('treats word, kanji, grammar point and grammar family pages as consult, for either activity', () => {
         for (const activity of ['vocab', 'grammar'] as const) {
+            // Also where a quiz's synonym note opens the word's Synonyms card: looked up, then back.
             expect(sessionRouteRole('/vocab/1263400', activity)).toBe('consult');
             expect(sessionRouteRole('/kanji/%E7%8E%84', activity)).toBe('consult');
             expect(sessionRouteRole('/grammar/n5-001', activity)).toBe('consult');
             expect(sessionRouteRole('/grammar/family/contradiction', activity)).toBe('consult');
-            // A quiz's synonym note opens the word's mix-up groups: looked up, then back.
-            expect(sessionRouteRole('/vocab/mixups', activity)).toBe('consult');
         }
     });
 

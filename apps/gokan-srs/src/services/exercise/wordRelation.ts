@@ -3,13 +3,12 @@
 // The one reader of the dataset's synonym pairs (VocabSynonym, Vocabulary.synonyms:
 // enforced by check:conventions). A pair is two words sharing at least one meaning;
 // its tier says how close they are out of context. Grading, effects, the cards, the
-// ticker, the mix-up records and the pages that show a pair all read it through
-// here, so the tier a page shows is the tier grading uses.
+// ticker and a word page's Synonyms card all read it through here, so the label a
+// page shows cannot disagree with grading.
 import type { SynonymRelation, Vocabulary, VocabSynonym } from '@gokan/dataset-schema';
 import type { AnswerResult } from '../../utils/answerMatching';
 import { sharedMeaningInCue } from '../../utils/synonymContext.utils';
 import type { ProductionCue } from '../../utils/synonymContext.utils';
-import type { PairRelation } from '../../utils/mixupGroups.utils';
 import type { SynonymCandidate } from './types';
 
 /** A pair as the dataset states it: what `relationOf` reads. */
@@ -116,23 +115,56 @@ export function synonymsOf(vocab: Pick<Vocabulary, 'synonyms'>): SynonymCandidat
     return (vocab.synonyms ?? []).map(candidateOf);
 }
 
-/** The pair a word forms with another, when the dataset has one. */
-export function pairWith(vocab: Pick<Vocabulary, 'synonyms'>, otherId: string): WordPair | null {
-    return vocab.synonyms?.find(s => s.id === otherId) ?? null;
+/** A word's synonym as its page lists it: the other word's forms, what they share, how frequent it is. */
+export interface ListedSynonym {
+    vocabId: string;
+    /** Enough to name the word (headwordOf, SecondaryForm) without loading its file. */
+    forms: Pick<Vocabulary, 'writtenForm' | 'reading' | 'usuallyKana'>;
+    /** The normalized meanings both words carry. */
+    shared: string[];
+    /** The other word's frequency rank (1 is the most frequent), or null when unranked. */
+    rank: number | null;
+    tier: SynonymRelation;
+    curated: boolean;
+    pair: WordPair;
 }
 
-/**
- * The pair a word asked forms with the word typed, as a page shows it: relationOf out
- * of any cue, so the tier on the page is the tier grading uses. Undefined while the
- * asked word is not loaded; null when the dataset has no such pair ("not a synonym").
- */
-export function pairRelation(asked: Pick<Vocabulary, 'synonyms'> | undefined, typed: string): PairRelation | null | undefined {
-    if (!asked) return undefined;
-    const pair = pairWith(asked, typed);
-    if (!pair) return null;
-    const { tier, curated, shared } = relationOf(pair, {});
-    return { tier, curated, shared };
+/** Every synonym of the word, as its page lists them. */
+export function listedSynonymsOf(vocab: Pick<Vocabulary, 'synonyms'>): ListedSynonym[] {
+    return (vocab.synonyms ?? []).map(entry => {
+        const { vocab: forms, ...pair } = candidateOf(entry);
+        return {
+            vocabId: entry.id,
+            forms,
+            shared: entry.shared ?? [],
+            rank: entry.f ?? null,
+            tier: entry.relation,
+            curated: entry.curated === true,
+            pair,
+        };
+    });
 }
+
+/** How close two words are, as a word page labels the pair. */
+export type Closeness = 'interchangeable' | 'close' | 'distinct';
+
+/**
+ * The pair's label, from outcomeOf: read in the sense the page lists it under (its
+ * glosses as the cue) and out of context. A pair grading never accepts, even in this
+ * sense, is not interchangeable (必ず / 常に); one accepted out of context too is
+ * interchangeable; one accepted only when the card uses this sense is close in it.
+ */
+export function closenessOf(pair: WordPair, senseGlosses: string[]): Closeness {
+    if (outcomeOf(relationOf(pair, { glosses: senseGlosses })) === 'confusable') return 'distinct';
+    return outcomeOf(relationOf(pair, {})) === 'minor_error' ? 'interchangeable' : 'close';
+}
+
+/** Each label is told apart by its sign and its word, never by a colour (docs/DESIGN_SYSTEM.md). */
+export const CLOSENESS_LABEL: Record<Closeness, { sign: string; label: string }> = {
+    interchangeable: { sign: '=', label: 'Interchangeable' },
+    close: { sign: '≈', label: 'Close in this sense' },
+    distinct: { sign: '≠', label: 'Not interchangeable' },
+};
 
 /** Entries whose shared meaning the cue uses come first, so when an answer is only a typo of several of them, the one this card means wins. */
 export function orderSynonymsForCue<T extends WordPair>(entries: T[], cue: ProductionCue): T[] {

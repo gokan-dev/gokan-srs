@@ -187,6 +187,13 @@ body {
   line-height: 1.25rem;
 }
 
+@utility type-value {
+  font-family: var(--font-sans);
+  color: var(--primary);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
 @utility type-meta {
   font-family: var(--font-sans);
   color: var(--tertiary);

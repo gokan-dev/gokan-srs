@@ -12,12 +12,13 @@ import type { Vocabulary } from '@gokan/dataset-schema';
 import { vocabExercise } from './builders';
 import { gradeExercise, isNeutral } from './grading';
 
-type Expected = 'correct' | 'minor_error' | 'neutral';
+type Expected = 'correct' | 'minor_error' | 'neutral' | 'wrong';
 
 interface ReportedCase {
     asked: string;
     typed: string;
-    /** The vocab id of the word typed; null when it must not be identified as `notTyped`. */
+    /** The vocab id of the word typed; null when no synonym is identified (or, with
+     *  `notTyped`, when it must not be that word). */
     typedId: string | null;
     /** The English sentence of a cloze card; absent on the gloss card. */
     sentence?: string;
@@ -29,6 +30,7 @@ const ids = {
     ichiban: '1165970', saikou: '1293850', shibaru: '1476050', shimeru: '1436570', naraberu: '1508390', narabu: '1508380',
     tsuyoi: '1236070', joubu: '1580480', sakkyoku: '1297650', sakubun: '1297960', kiwotsukete: '1221870', kiwotsukeru: '1591990',
     semai: '1237680', chiisai: '1347750', jinbutsu: '1369070', otoko: '1419990', umeru: '1524500', yamu: '1310640',
+    kotaeru: '1449540', kotae: '1449530', igai: '1155090', hoka: '1203260',
 };
 
 const CASES: ReportedCase[] = [
@@ -48,12 +50,21 @@ const CASES: ReportedCase[] = [
     { asked: ids.umeru, typed: 'つむ', typedId: null, sentence: 'Fill in the blanks.', expected: { notTyped: ids.yamu } },
     // Out of context, the auto tier decides again (issue #150): accepted, short of the word.
     { asked: ids.sakkyoku, typed: '作文', typedId: ids.sakubun, sentence: 'She set the old poem to music.', expected: 'minor_error' },
+    // Issue #162 lifted "nothing accepted today is refused" for dataset pairs: a pair
+    // needs a gloss both words use the same way, so 答える / 答え ("to answer" / "answer")
+    // is no pair. On the verb's card its own noun is still accepted, through the verb's
+    // own forms; on the noun's card the verb is now wrong.
+    { asked: ids.kotaeru, typed: '答え', typedId: null, expected: 'correct' },
+    { asked: ids.kotae, typed: '答える', typedId: null, expected: 'wrong' },
+    // A bound-form sense still pairs when it shares 3 or more glosses that way (以外 is a suffix).
+    { asked: ids.igai, typed: '他', typedId: ids.hoka, expected: 'correct' },
+    { asked: ids.hoka, typed: '以外', typedId: ids.igai, expected: 'correct' },
 ];
 
 // import.meta.glob rather than node:fs, which this tsconfig has no types for. Only the
 // case words' files, never the whole dataset.
 const files = import.meta.glob<Vocabulary>(
-    '../../../dataset/compiled/vocab/{1487400,1396130,1407980,1165970,1293850,1476050,1508390,1236070,1297650,1221870,1237680,1369070,1524500}.json',
+    '../../../dataset/compiled/vocab/{1487400,1396130,1407980,1165970,1293850,1476050,1508390,1236070,1297650,1221870,1237680,1369070,1524500,1449540,1449530,1155090,1203260}.json',
     { eager: true, import: 'default' },
 );
 const vocabById = new Map(Object.values(files).map(v => [v.id, v]));
@@ -87,13 +98,14 @@ describe('reported synonym cases, on the compiled dataset', () => {
             expect(slot.synonym?.vocabId).not.toBe(expected.notTyped);
             return;
         }
-        expect(slot.synonym?.vocabId).toBe(typedId);
+        expect(slot.synonym?.vocabId ?? null).toBe(typedId);
         switch (expected) {
             case 'neutral':
                 expect(isNeutral(slot)).toBe(true);
                 break;
             case 'correct':
             case 'minor_error':
+            case 'wrong':
                 expect(grade.overall).toBe(expected);
                 break;
         }

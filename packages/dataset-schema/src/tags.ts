@@ -357,7 +357,11 @@ export function shortTagLabel(tag: Tags): string {
     return TagsShortLookup[tag] ?? TagsLookup[tag];
 }
 
-/** Tags marking a sense as one a learner rarely meets: listed last, behind a disclosure. */
+/**
+ * Tags marking a sense as one a learner rarely meets: listed last, behind a disclosure.
+ * gokan-dataset's build-synonyms.ts pairs a word through such a sense only when it has no
+ * other, and keeps its own copy of this list, pinned to it by gokan-srs's senses.utils.test.ts.
+ */
 export const RARE_SENSE_TAGS: readonly Tags[] = ['arch', 'obs', 'rare', 'dated'];
 
 const TAG_SET: ReadonlySet<string> = new Set(TagsKey);

@@ -186,22 +186,21 @@ export function hydrateWatchedEpisodes(
 }
 
 /**
- * The mix-up records. Absent stays absent; a record without the word asked, a date,
- * or either the word or the text typed cannot be shown or merged, so it is dropped.
+ * The mix-up records. Absent stays absent. A record without the word asked, the
+ * answer, its outcome or a date is dropped: one without `outcome` predates issue #162
+ * and cannot say where the mistake was (some name words that were never typed).
  */
 export function hydrateMixups(stored: Stored<MixupRecord[]> | undefined): MixupRecord[] | undefined {
     if (!stored) return undefined;
     return stored.flatMap((record): MixupRecord[] => {
-        const { asked, typed, answer, tier, curated, shared, meaning, date } = record;
-        if (typeof asked !== 'string' || typeof date !== 'number') return [];
-        if (typeof typed !== 'string' && typeof answer !== 'string') return [];
+        const { asked, answer, outcome, typed, meaning, cue, date } = record;
+        if (typeof asked !== 'string' || typeof answer !== 'string' || typeof date !== 'number') return [];
+        if (outcome !== 'accepted' && outcome !== 'neutral' && outcome !== 'wrong') return [];
         return [{
-            asked, date,
-            ...(typeof typed === 'string' ? { typed } : { answer }),
-            ...(tier === 'interchangeable' || tier === 'confusable' ? { tier } : {}),
-            ...(curated === true ? { curated } : {}),
-            ...(Array.isArray(shared) ? { shared: shared.filter((g): g is string => typeof g === 'string') } : {}),
+            asked, answer, outcome, date,
+            ...(typeof typed === 'string' ? { typed } : {}),
             ...(typeof meaning === 'string' ? { meaning } : {}),
+            ...(typeof cue === 'string' ? { cue } : {}),
         }];
     });
 }

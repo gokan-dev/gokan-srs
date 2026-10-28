@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { compactProgress, expandProgress, isCompactProgress } from './progressCompaction';
 import { migrateAndHydrateProgress, toPlainProgressJSON } from './progressSerialization';
 import { toStoredProgress, type StoredProgress } from './progressHydration';
+import { MIXUP_LIMIT } from '../utils/mixups.utils';
 import { grammarProgress, mixupRecord, reviewLog, srsEntry, userProgress, userSettings, vocabProgress } from '../test/fixtures';
 import { SRSService, type AnswerResult } from './srs.service';
 import type { UserProgress } from '../models/user.model';
@@ -52,7 +53,11 @@ function realisticProgress(vocabCount = 40): UserProgress {
         completedChapters: ['n5-c01'],
         retiredVocabIds: ['999'],
         watchedEpisodes: { '16685:1': { watched: true, updatedAt: T0, coverageAtWatch: 0.71234 }, '16685:2': { watched: false, updatedAt: T0 + 1 } },
-        mixups: [mixupRecord({ date: T0 }), mixupRecord({ typed: undefined, tier: undefined, shared: undefined, answer: 'てらす', date: T0 + 1 }), mixupRecord({ curated: true, meaning: 'shine', date: T0 + 2 })],
+        mixups: [
+            mixupRecord({ date: T0 }),
+            mixupRecord({ typed: undefined, answer: 'てらす', outcome: 'wrong', cue: 'The sun shines on the sea.', date: T0 + 1 }),
+            mixupRecord({ outcome: 'neutral', meaning: 'shine', cue: 'Her eyes shone.', date: T0 + 2 }),
+        ],
         stats: { newLearnedToday: 3, totalLearned: 0, totalReviews: 120 },
         dailyOverride: true,
         calibration: {
@@ -165,7 +170,18 @@ describe('progress compaction', () => {
         const compact = JSON.stringify(compactProgress(toPlainProgressJSON(progress)));
         expect(compact).toContain('"mx":');
         expect(compact).not.toContain('"asked"');
+        expect(compact).not.toContain('"accepted"');
         expect(migrateAndHydrateProgress(storageRoundTrip(toPlainProgressJSON(progress)), settings).mixups).toEqual(progress.mixups);
+    });
+
+    it('keeps a full history of mix-ups small: MIXUP_LIMIT records, each with a sentence', () => {
+        const mixups = Array.from({ length: MIXUP_LIMIT }, (_, i) => mixupRecord({
+            asked: String(1_200_000 + i), typed: String(1_300_000 + i), answer: 'ひかります',
+            meaning: 'shine', cue: 'The stars were shining brightly in the clear winter sky that night.', date: T0 + i * DAY,
+        }));
+        const compact = JSON.stringify(compactProgress(toPlainProgressJSON(userProgress({ mixups }))));
+        const empty = JSON.stringify(compactProgress(toPlainProgressJSON(userProgress())));
+        expect(new TextEncoder().encode(compact).length - new TextEncoder().encode(empty).length).toBeLessThan(100_000);
     });
 
     // The localStorage ceiling is set by a mature word's size (docs/ARCHITECTURE.md,

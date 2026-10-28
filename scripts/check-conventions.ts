@@ -133,7 +133,7 @@ const BOXED_GLYPH_FILES = new Set(['apps/gokan-srs/src/components/KanjiTile.tsx'
 
 /**
  * The dataset's synonym pairs have one reader, services/exercise/wordRelation.ts (relationOf,
- * synonymsOf, pairWith): grading, the cards, the ticker and every page that shows a pair go
+ * synonymsOf, listedSynonymsOf): grading, the cards, the ticker and every page that shows a pair go
  * through it, so the tier a page shows is the tier grading uses.
  */
 const SYNONYM_DATA = /\bVocabSynonym\b|\.synonyms\b|'synonyms'/;
@@ -322,7 +322,7 @@ function check(files: string[]): Violation[] {
 
         if (GOKAN_SRS_SOURCE.test(file) && file !== SYNONYM_READER && !/\.test\.tsx?$/.test(file)) {
             eachLine(text, l => SYNONYM_DATA.test(l) && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
-                add({ file, line, rule: 'one-synonym-reader', message: 'Reads the dataset\'s synonym pairs. Go through services/exercise/wordRelation.ts (relationOf, synonymsOf, pairWith), so a page and grading read a pair the same way.' }));
+                add({ file, line, rule: 'one-synonym-reader', message: 'Reads the dataset\'s synonym pairs. Go through services/exercise/wordRelation.ts (relationOf, synonymsOf, listedSynonymsOf), so a page and grading read a pair the same way.' }));
         }
 
         if (GOKAN_SRS_SOURCE.test(file) && file !== RUBY_COMPONENT && !file.endsWith('.test.tsx')) {

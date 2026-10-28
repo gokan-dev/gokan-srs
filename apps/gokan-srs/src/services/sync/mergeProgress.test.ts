@@ -373,13 +373,14 @@ describe('mergeProgress (top-level)', () => {
         });
     });
 
-    it('mixups merge as a union keyed by word, typed word and date, oldest first', () => {
-        const both = mixupRecord({ date: 100 });
-        const local = makeProgress({ mixups: [both, mixupRecord({ typed: '1291330', date: 300 })] });
-        const remote = makeProgress({ mixups: [mixupRecord({ answer: 'てらす', typed: undefined, date: 200 }), { ...both }] });
+    it('mixups merge as a union keyed by word asked, answer and date, oldest first', () => {
+        const both = mixupRecord({ date: 100, cue: 'Her eyes shone.' });
+        const local = makeProgress({ mixups: [both, mixupRecord({ answer: 'ひかる', date: 100 })] });
+        const remote = makeProgress({ mixups: [mixupRecord({ answer: 'てらす', typed: undefined, outcome: 'wrong', date: 200 }), { ...both }] });
 
         const merged = mergeProgress(local, remote)!;
-        expect(merged.mixups?.map(m => [m.typed ?? m.answer, m.date])).toEqual([['1272820', 100], ['てらす', 200], ['1291330', 300]]);
+        expect(merged.mixups?.map(m => [m.answer, m.date])).toEqual([['光る', 100], ['ひかる', 100], ['てらす', 200]]);
+        expect(merged.mixups?.[0]).toEqual(both);
         expect(mergeProgress(makeProgress(), makeProgress())!.mixups).toBeUndefined();
     });
 

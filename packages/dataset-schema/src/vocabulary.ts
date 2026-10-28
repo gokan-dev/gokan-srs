@@ -167,6 +167,12 @@ export interface VocabSynonym {
     pos?: string[];
     /** The other word is learned in kana (Vocabulary.usuallyKana): name it by `r[0]`. */
     u?: true;
+    /**
+     * The other word's frequency rank: its 1-based position in `index/frequency.json`,
+     * so a word page can order and cut its synonyms without loading that index.
+     * Absent when the word is unranked.
+     */
+    f?: number;
 }
 
 /** A lesson of a textbook that teaches a word. Genki runs 1-23 (I: 1-12, II: 13-23). */

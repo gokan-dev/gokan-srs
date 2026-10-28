@@ -125,17 +125,19 @@ export function dictionaryPages(): { path: string; ready: string }[] {
     ];
 }
 
-/** The app after onboarding, at its main routes (each waits for a word the page always shows). */
-export function srsRoutes(): { path: string; ready: string }[] {
+/**
+ * The app after onboarding, at its main routes. Each waits for a word the page always shows, and
+ * `settled`, a selector, when part of the page loads after that word.
+ */
+export function srsRoutes(): { path: string; ready: string; settled?: string }[] {
     const vocabId = firstEntry(join(SRS_DIST, 'data/compiled/vocab'), name => name.endsWith('.json')).replace(/\.json$/, '');
     return [
         { path: '/', ready: 'Study' },
         { path: '/vocab', ready: 'Vocabulary' },
-        // Before any mix-up: the empty page (check-layout measures it with groups too).
-        { path: '/vocab/mixups', ready: 'No mix-ups yet' },
-        // Its sentences load after the entry: waiting for them is what lets check-layout measure
-        // the linked words in a sentence, not a page that has not rendered one yet.
-        { path: `/vocab/${vocabId}`, ready: 'Example sentences' },
+        // Its sentences load after the entry: waiting for them (loaded or failed, so a word with no
+        // English sentence settles too) is what lets check-layout measure the linked words in a
+        // sentence, not a page that has not rendered one yet.
+        { path: `/vocab/${vocabId}`, ready: 'Meanings', settled: '[data-sentences="settled"]' },
         { path: '/kanji', ready: 'Kanji learning method' },
         { path: `/kanji/${encodeURIComponent('学')}`, ready: 'Components' },
         { path: '/grammar/browse', ready: 'Grammar' },

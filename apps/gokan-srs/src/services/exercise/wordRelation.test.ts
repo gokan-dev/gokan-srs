@@ -5,7 +5,7 @@ import type { ProductionCue } from '../../utils/synonymContext.utils';
 import { gradeSlot } from './grading';
 import { wordSlot } from './slots';
 import type { SynonymCandidate } from './types';
-import { OUTCOME_LOOK, orderSynonymsForCue, outcomeOf, pairRelation, pairWith, relationOf, synonymNote, synonymsOf } from './wordRelation';
+import { CLOSENESS_LABEL, OUTCOME_LOOK, closenessOf, listedSynonymsOf, orderSynonymsForCue, outcomeOf, relationOf, synonymNote, synonymsOf } from './wordRelation';
 import type { WordPair } from './wordRelation';
 
 const candidateOf = (entry: VocabSynonym): SynonymCandidate => synonymsOf({ synonyms: [entry] })[0];
@@ -82,21 +82,36 @@ describe('OUTCOME_LOOK: how each outcome reads everywhere', () => {
     });
 });
 
-describe('pairRelation (what a page shows)', () => {
-    it('reads the pair out of context, null with no pair, undefined while the word is not loaded', () => {
-        const entry: VocabSynonym = { id: 'b', relation: 'interchangeable', shared: ['shine'], curated: true, w: [], r: ['び'] };
-        expect(pairRelation({ synonyms: [entry] }, 'b')).toEqual({ tier: 'interchangeable', curated: true, shared: ['shine'] });
-        expect(pairRelation({ synonyms: [entry] }, 'c')).toBeNull();
-        expect(pairRelation(undefined, 'b')).toBeUndefined();
+describe('closenessOf (the label a word page shows, from outcomeOf)', () => {
+    const sense = ['small', 'little'];
+
+    it('reads a curated confusable pair as Not interchangeable, even in the sense they share', () => {
+        expect(closenessOf({ relation: 'confusable', curated: true, shared: ['always'] }, ['always', 'all the time'])).toBe('distinct');
+    });
+
+    it('reads an interchangeable pair, auto or curated, as Interchangeable', () => {
+        expect(closenessOf({ relation: 'interchangeable', shared: ['small'] }, sense)).toBe('interchangeable');
+        expect(closenessOf({ relation: 'interchangeable', curated: true, shared: [] }, sense)).toBe('interchangeable');
+    });
+
+    it('reads an auto confusable pair as Close in this sense', () => {
+        expect(closenessOf({ relation: 'confusable', shared: ['small'] }, sense)).toBe('close');
+    });
+
+    it('names each label by a sign and a word', () => {
+        expect(CLOSENESS_LABEL.distinct).toEqual({ sign: '≠', label: 'Not interchangeable' });
     });
 });
 
-describe('pairWith', () => {
-    it('finds the pair a word forms with another, or null', () => {
-        const entry: VocabSynonym = { id: 'b', relation: 'confusable', shared: ['x'], w: [], r: ['び'] };
-        expect(pairWith({ synonyms: [entry] }, 'b')).toBe(entry);
-        expect(pairWith({ synonyms: [entry] }, 'c')).toBeNull();
-        expect(pairWith({}, 'b')).toBeNull();
+describe('listedSynonymsOf (a word page reads the pairs here)', () => {
+    it("names the other word from the entry's forms and carries its rank", () => {
+        const [listed] = listedSynonymsOf({ synonyms: [{ id: 'k', relation: 'confusable', shared: ['here'], w: ['此処'], r: ['ここ'], u: true, f: 56 }] });
+        expect(headwordOf(listed.forms)).toBe('ここ');
+        expect(listed).toMatchObject({ vocabId: 'k', shared: ['here'], rank: 56, tier: 'confusable', curated: false });
+    });
+
+    it('has a null rank for an unranked word', () => {
+        expect(listedSynonymsOf({ synonyms: [{ id: 'x', relation: 'interchangeable', w: [], r: ['えっ'] }] })[0].rank).toBeNull();
     });
 });
 

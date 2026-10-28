@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
 import { ListRow } from "./ui/ListRow";
+import { TextButton } from "./ui/TextButton";
 import { DetailSection } from "./detail/DetailSection";
 
 /**
@@ -13,12 +14,12 @@ export interface RelatedEntry {
     to: string;
     /** Japanese text (a word's headword, a grammar point's title). */
     primary: string;
-    /** Inline, right after the primary: a reading, a relation. */
+    /** Inline, right after the primary: a reading, a relation. Several parts as a fragment, so each wraps on its own. */
     secondary?: ReactNode;
     /** Right-aligned: the entry's status. */
     trailing?: ReactNode;
-    /** A gloss or definition line beneath, one line. */
-    description?: string;
+    /** A gloss or definition line beneath: one line, cut off, unless the list's `wrapDescription` lets it wrap. Text, with any search match marked. */
+    description?: ReactNode;
 }
 
 export interface RelatedSection {
@@ -26,10 +27,14 @@ export interface RelatedSection {
     label?: string;
     count?: number;
     entries: RelatedEntry[];
+    /** Under the rows: how many the section leaves out, or the action that shows them. */
+    footer?: ReactNode;
 }
 
 interface Props {
     title: string;
+    /** An anchor other pages link to (DetailSection). */
+    id?: string;
     /** Shown next to the title. Omit when per-section labels carry the counts instead. */
     count?: number;
     /** An action link under the heading (grammar's "Compare when to use each"). */
@@ -52,6 +57,7 @@ interface Props {
  */
 export function RelatedEntriesCard({
     title,
+    id,
     count,
     headerLink,
     intro,
@@ -63,7 +69,7 @@ export function RelatedEntriesCard({
     collapseLabel = "Show fewer",
 }: Props) {
     return (
-        <DetailSection title={title} count={count}>
+        <DetailSection title={title} count={count} id={id}>
             {intro && <div className="mb-4">{intro}</div>}
 
             {headerLink && (
@@ -75,39 +81,51 @@ export function RelatedEntriesCard({
                 </Link>
             )}
 
-            <div className="space-y-5">
-                {sections.map((section, i) => (
-                    <div key={section.label ?? i}>
-                        {section.label && (
-                            <h3 className="type-label mb-1">
-                                {section.label}
-                                {section.count !== undefined && <span className="type-meta ml-2 tabular-nums">{section.count}</span>}
-                            </h3>
-                        )}
-                        <div className="flex flex-col -mx-3">
-                            {section.entries.map(entry => (
-                                <ListRow key={entry.key} to={entry.to} trailing={entry.trailing}>
-                                    <div className="flex items-baseline gap-2 min-w-0">
-                                        <span className="font-mincho text-lg text-primary shrink-0">{entry.primary}</span>
-                                        {entry.secondary}
-                                    </div>
-                                    {entry.description && <div className="type-support truncate">{entry.description}</div>}
-                                </ListRow>
-                            ))}
-                        </div>
-                    </div>
-                ))}
-            </div>
+            <RelatedEntryList sections={sections} />
 
             {isExpandable && onToggleExpand && (
-                <button
-                    type="button"
-                    onClick={onToggleExpand}
-                    className="mt-3 font-sans text-sm text-accent hover:underline cursor-pointer"
-                >
+                <TextButton onClick={onToggleExpand} className="mt-3">
                     {isExpanded ? collapseLabel : expandLabel}
-                </button>
+                </TextButton>
             )}
         </DetailSection>
+    );
+}
+
+/**
+ * The rows of related entries, in labelled groups, without a section around them: the card
+ * above, and a word page's Explore panels, which have a heading of their own.
+ */
+export function RelatedEntryList({ sections, wrapDescription = false }: {
+    sections: RelatedSection[];
+    /** Wrap each row's description instead of cutting it to one line: for a list whose description is the row's content (Synonyms' shared senses). */
+    wrapDescription?: boolean;
+}) {
+    return (
+        <div className="space-y-5">
+            {sections.map((section, i) => (
+                <div key={section.label ?? i}>
+                    {section.label && (
+                        <h3 className="type-label mb-1">
+                            {section.label}
+                            {section.count !== undefined && <span className="type-meta ml-2 tabular-nums">{section.count.toLocaleString('en-US')}</span>}
+                        </h3>
+                    )}
+                    <div className="flex flex-col -mx-3">
+                        {section.entries.map(entry => (
+                            <ListRow key={entry.key} to={entry.to} trailing={entry.trailing}>
+                                {/* One wrapping line: what does not fit after the headword starts again at the row's edge. */}
+                                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 min-w-0">
+                                    <span className="font-mincho text-lg text-primary shrink-0">{entry.primary}</span>
+                                    {entry.secondary}
+                                </div>
+                                {entry.description && <div className={`type-support ${wrapDescription ? 'break-words' : 'truncate'}`}>{entry.description}</div>}
+                            </ListRow>
+                        ))}
+                    </div>
+                    {section.footer && <div className="mt-1">{section.footer}</div>}
+                </div>
+            ))}
+        </div>
     );
 }

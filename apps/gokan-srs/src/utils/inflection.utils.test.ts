@@ -133,6 +133,12 @@ describe('isFormOfWord', () => {
         expect(isFormOfWord('食べさせられなかったら', TABERU)).toBe(true);
     });
 
+    it('asks for a listed form only when not loose, so the stem fallback does not count', () => {
+        expect(isFormOfWord('食べさせられなかったら', TABERU, { loose: false })).toBe(false);
+        expect(isFormOfWord('食べた', TABERU, { loose: false })).toBe(true);
+        expect(isFormOfWord('たべる', TABERU, { loose: false })).toBe(true);
+    });
+
     it('rejects a different word, even one sharing kanji or kana', () => {
         expect(isFormOfWord('上げる', AGARU)).toBe(false);
         expect(isFormOfWord('会社', KAIWA)).toBe(false);

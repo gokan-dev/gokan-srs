@@ -22,7 +22,6 @@ const ACTIVITY_PATH: Record<SessionActivity, string> = {
 };
 
 const CONSULT_PATTERNS = [
-    '/vocab/mixups',
     '/vocab/:vocabId',
     '/kanji/:character',
     '/grammar/family/:familyId',

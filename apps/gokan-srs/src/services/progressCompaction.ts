@@ -1,4 +1,5 @@
 import { DEFAULT_SRS_ENTRY, DEFAULT_VOCABULARY_PROGRESS, type ReviewLog } from "../models/vocabulary.model";
+import type { MixupOutcome } from "../models/mixup.model";
 import type { StoredProgress } from "./progressHydration";
 
 /**
@@ -15,7 +16,8 @@ import type { StoredProgress } from "./progressHydration";
  *    stored as deltas from the previous log;
  *  - nulls, values equal to their hydration default and the derived `nextReviewAt`
  *    of a non-graduated item (recomputed on every load) are left out;
- *  - `stage` becomes 0/1, a boolean history a 0/1 string, the kanji set one string.
+ *  - `stage` becomes 0/1, a mix-up's `outcome` 0/1/2, a boolean history a 0/1 string,
+ *    the kanji set one string.
  *
  * Floats are deliberately NOT rounded: the Drive copy keeps full precision, and a local
  * copy that differs from it by rounding would read as a change to merge on every load.
@@ -37,7 +39,7 @@ const KEY_CODES = {
     lastReviewedAt: 'lr', consecutiveFailures: 'cf', needsRetry: 'nr', entry: 'e',
     memoryStrength: 'ms', interval: 'iv', difficulty: 'd', dueDate: 'dd',
     date: 'dt', result: 'rs', latency: 'lt', source: 'so', usuallyKana: 'uk',
-    mixups: 'mx', asked: 'ak', typed: 'ty', answer: 'an', tier: 'tt', curated: 'cu', shared: 'sh',
+    mixups: 'mx', asked: 'ak', typed: 'ty', answer: 'an', outcome: 'oc', cue: 'cq',
 } as const satisfies Record<string, string>;
 
 const CODE_KEYS: ReadonlyMap<string, string> = new Map(Object.entries(KEY_CODES).map(([key, code]) => [code, key]));
@@ -49,6 +51,7 @@ const ESCAPE = '!';
 const DATE_KEYS: ReadonlySet<string> = new Set(['introductionAt', 'nextReviewAt', 'lastReviewedAt', 'dueDate']);
 const STAGES = ['learning', 'graduated'] as const;
 const RESULTS = ['correct', 'minor_error', 'wrong', 'pass'] as const satisfies readonly ReviewLog['result'][];
+const OUTCOMES = ['accepted', 'neutral', 'wrong'] as const satisfies readonly MixupOutcome[];
 const SOURCES = ['reinforcement'] as const satisfies readonly NonNullable<ReviewLog['source']>[];
 const LOG_FIELDS: ReadonlySet<string> = new Set(['date', 'result', 'interval', 'latency', 'source']);
 
@@ -126,6 +129,10 @@ function compactValue(key: string | null, value: unknown): unknown {
         const stage = indexOfValue(STAGES, value);
         return stage < 0 ? value : stage;
     }
+    if (key === 'outcome') {
+        const outcome = indexOfValue(OUTCOMES, value);
+        return outcome < 0 ? value : outcome;
+    }
     if (key === 'kanjiSet' && Array.isArray(value) && value.every(item => typeof item === 'string' && [...item].length === 1)) {
         return value.join('');
     }
@@ -178,6 +185,7 @@ function expandKey(code: string): string {
 function expandValue(key: string | null, value: unknown): unknown {
     if (key !== null && DATE_KEYS.has(key) && typeof value === 'number') return new Date(value).toISOString();
     if (key === 'stage' && typeof value === 'number') return STAGES[value] ?? value;
+    if (key === 'outcome' && typeof value === 'number') return OUTCOMES[value] ?? value;
     if (key === 'kanjiSet' && typeof value === 'string') return [...value];
     if (key === 'history') return expandHistory(value);
     if (Array.isArray(value)) return value.map(item => expandValue(null, item));

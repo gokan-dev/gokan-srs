@@ -7,7 +7,7 @@
  * shares their `history` arrays between fixtures, so a test pushing a review log would
  * leak it into every other fixture built in the same file.
  */
-import type { GrammarBrowseRow, GrammarExample, GrammarPoint, SearchIndexEntry, Vocabulary } from '@gokan/dataset-schema';
+import type { GrammarBrowseRow, GrammarExample, GrammarPoint, SearchIndexEntry, Sentence, Vocabulary } from '@gokan/dataset-schema';
 import { DEFAULT_GRAMMAR_PROGRESS, type GrammarProgress } from '../models/grammar.model';
 import { DEFAULT_SETTINGS, type UserSettings } from '../models/user.model';
 import { DEFAULT_SRS_ENTRY, DEFAULT_VOCABULARY_PROGRESS, type ReviewLog, type SRSEntry, type VocabProgress } from '../models/vocabulary.model';
@@ -23,9 +23,9 @@ export function reviewLog(overrides: Partial<ReviewLog> = {}): ReviewLog {
     return { date: Date.UTC(2026, 5, 10), result: 'correct', interval: 1, latency: 1000, ...overrides };
 }
 
-/** 光る typed on a 輝く card, out of context. */
+/** 光る typed on a 輝く gloss card, accepted out of context. */
 export function mixupRecord(overrides: Partial<MixupRecord> = {}): MixupRecord {
-    return { asked: '1224020', typed: '1272820', tier: 'interchangeable', shared: ['glitter', 'shine'], date: Date.UTC(2026, 5, 10), ...overrides };
+    return { asked: '1224020', answer: '光る', outcome: 'accepted', typed: '1272820', date: Date.UTC(2026, 5, 10), ...overrides };
 }
 
 /** A learning word with all three directions present (production inert until activated). */
@@ -71,6 +71,12 @@ export function vocabulary(overrides: Partial<Vocabulary> = {}): Vocabulary {
         senses: [{ pos: ['n'], misc: { rawTags: [] }, glosses: ['Japan'], related: { compounds: [] } }],
         ...overrides,
     };
+}
+
+/** An example sentence: its Japanese, one English line, no words matched. */
+export function sentence(overrides: Partial<Sentence> = {}): Sentence {
+    const id = overrides.id ?? 's1';
+    return { id, original: '日本です。', en: [{ id: `${id}-en`, text: 'It is Japan.' }], vocabIds: [], ...overrides };
 }
 
 /** A deciding answer slot with no word: revealing it shows its first accepted form. */

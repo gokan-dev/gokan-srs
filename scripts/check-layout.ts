@@ -19,7 +19,9 @@
  *   opened, "Done marking" sits within a screen of the page's end and brings Start learning back
  *   into view;
  * - furigana sits over kanji only, never over kana, no ruby (a run of kanji with its reading)
- *   breaks across lines, and no two readings on a line touch (word pages' example sentences, in each app).
+ *   breaks across lines, and no two readings on a line touch (word pages' example sentences, in each app);
+ * - a `#synonyms` link followed inside the app opens a word page's Explore on its Synonyms panel
+ *   and leaves Explore at the top of the screen once the sections above it have loaded.
  *
  * Usage: build both apps (`bun run --cwd apps/gokan-srs build`, `bun run --cwd
  * apps/gokan-dictionary build`), then `bun run check:layout`. Needs Chrome or Chromium: found at
@@ -154,15 +156,22 @@ const [COMPLETED_TITLE, WATCHING_TITLE] = listeningTitlesToMark();
 const FURIGANA_VOCAB = '1638880';
 const FIXTURE_MOVED = `FURIGANA_VOCAB ${FURIGANA_VOCAB} has no example sentence with furigana: pick another word whose sentences wrap at 320px`;
 
-// The Mix-ups page with groups on it, and a word page with "Often mixed up with": the shine
-// group of issue #150 (輝く, 光る, 差す, and 照らす as "not a synonym") and the state group.
-// Readable records under a readable key, which the compact payload keeps as it is.
+// A word page with mix-ups (輝く: more than the five shown, a long English sentence, an answer
+// naming a word, raw ones and an unconverted Latin token with no break point), its Explore opened
+// on Mix-ups, then on Synonyms, which hold a mixed-up word. Then 取る, whose pairs make the longest
+// Synonyms panel, as it opens and with every meaning and row shown. Readable records under a
+// readable key, which the compact payload keeps as it is.
 const MIXUP_WORD = '1224020';
-const MIXUP_LONG_READING = '1356730';
+const LONG_SYNONYMS_WORD = '1326980';
 const MIXUPS = [
-    ['1224020', '1272820'], ['1224020', '1272820'], ['1272820', '1291330'], ['1224020', '1291330'], ['1224020', '1350840'],
-    ['1356730', '1545820'], ['1356730', '1355810'], ['1444980', '1356730'], ['1351030', '1356730'],
-].map(([asked, typed], i) => ({ asked, typed, date: Date.UTC(2026, 9, 1) + i * 3_600_000 }));
+    { answer: '光る', outcome: 'accepted', typed: '1272820', meaning: 'shine', cue: 'The stars were shining brightly in the clear winter sky above the sleeping mountain village.' },
+    { answer: 'ひかる', outcome: 'accepted', typed: '1272820' },
+    { answer: 'てらす', outcome: 'wrong', cue: 'Her eyes shone with joy.' },
+    { answer: '差す', outcome: 'neutral', typed: '1291330', cue: 'The morning sun shone through the window.' },
+    { answer: 'かがやかせる', outcome: 'wrong' },
+    { answer: 'ひかりかがやく', outcome: 'accepted', meaning: 'glitter', cue: 'The lake glittered.' },
+    { answer: `kagayaku${'u'.repeat(32)}`, outcome: 'wrong', cue: 'The lake glittered.' },
+].map((record, i) => ({ asked: MIXUP_WORD, ...record, date: Date.UTC(2026, 9, 1) + i * 3_600_000 }));
 // Progress is one record in IndexedDB (StorageService), the payload localStorage used to hold.
 const SEED_MIXUPS = `(async () => {
     const key = 'GOKAN_SRS_PROGRESS';
@@ -173,6 +182,155 @@ const SEED_MIXUPS = `(async () => {
     await done(db.transaction('progress', 'readwrite').objectStore('progress').put(JSON.stringify(progress), key));
     db.close();
 })()`;
+
+// 差す: Explore under example sentences that load after the word, so a `#synonyms` link that
+// scrolls before they arrive leaves Explore pushed down the screen.
+const SYNONYMS_LINK_WORD = '1291330';
+/**
+ * Explore's top after the link, in px: its `scroll-mt-6` (24px, the page's own top padding on a
+ * phone; the header is not sticky), give or take a pixel's rounding.
+ */
+const SYNONYMS_LINK_TOP = 24;
+/** Explore's Synonyms panel is open: its element shown, its rows in it. */
+const SYNONYMS_OPEN = `(() => { const panel = document.getElementById('synonyms'); return !!panel && !panel.hidden && panel.querySelector('a') !== null; })()`;
+/**
+ * Follows a `#synonyms` link inside the app, as the quiz's "Compare synonyms" does (no page
+ * load), and checks Explore opened on Synonyms, at the top of the screen once the page has settled.
+ */
+async function checkSynonymsLink(tab: Tab, app: string, width: number): Promise<void> {
+    await tab.goto(`${app}/vocab`, 'Vocabulary');
+    await tab.evaluate(`(() => {
+        history.pushState({}, '', '/vocab/${SYNONYMS_LINK_WORD}#synonyms');
+        dispatchEvent(new PopStateEvent('popstate'));
+    })()`);
+    try {
+        await tab.until(`${SYNONYMS_OPEN} && document.body.innerText.includes('Examples')`, 'Explore open on Synonyms under the examples', 10000);
+    } catch {
+        failures.push(`${width}px srs /vocab/${SYNONYMS_LINK_WORD}#synonyms: Explore did not open on Synonyms`);
+        return;
+    }
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    const top = await tab.evaluate<number | null>(`document.getElementById('explore')?.getBoundingClientRect().top ?? null`);
+    if (top === null) failures.push(`${width}px srs /vocab/${SYNONYMS_LINK_WORD}#synonyms: no Explore section`);
+    else if (Math.abs(top - SYNONYMS_LINK_TOP) > 2) failures.push(`${width}px srs /vocab/${SYNONYMS_LINK_WORD}#synonyms, followed inside the app: Explore's top is at ${Math.round(top)}px, not ${SYNONYMS_LINK_TOP}px`);
+}
+
+/** Opens every meaning and every row of the open Synonyms panel: its longest state. */
+const EXPAND_SYNONYMS = `(async () => {
+    const more = () => [...document.querySelectorAll('#synonyms button')].filter(b => /^Show (all .* for this meaning|\\d+ more meanings?)$/.test(b.textContent.trim()));
+    for (let round = 0; round < 50 && more().length > 0; round++) {
+        for (const button of more()) button.click();
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    return more().length;
+})()`;
+
+/**
+ * A Synonyms row's description is the senses the two words share, its content: it wraps, and
+ * a description cut off with an ellipsis is a failure naming the row. Finding no description at
+ * all is a failure too, so a changed selector cannot leave the check passing on nothing.
+ */
+async function checkSynonymDescriptions(tab: Tab, page: string, width: number): Promise<void> {
+    const { found, clipped } = await tab.evaluate<{ found: number; clipped: string[] }>(`(() => {
+        const descriptions = [...document.querySelectorAll('#synonyms a .type-support')];
+        return {
+            found: descriptions.length,
+            clipped: descriptions
+                .filter(el => el.scrollWidth > el.clientWidth)
+                .map(el => el.closest('a').querySelector('.font-mincho')?.textContent ?? el.textContent),
+        };
+    })()`);
+    if (found === 0) failures.push(`${width}px ${page}: no Synonyms descriptions found: the check measured nothing`);
+    for (const row of clipped) failures.push(`${width}px ${page}: the shared senses of ${row} are cut off, not wrapped`);
+}
+
+/**
+ * Explore's segment labels are short so four fit at 320px: one cut off with an ellipsis is a
+ * failure naming it. Measured closed and with Synonyms open (its label then semibold). Finding
+ * fewer than four labels is a failure too: the page measured must show every segment.
+ */
+async function checkExploreLabels(tab: Tab, page: string, width: number): Promise<void> {
+    const { found, clipped, crowded } = await tab.evaluate<{ found: number; clipped: string[]; crowded: string[] }>(`(() => {
+        const labels = [...document.querySelectorAll('[role=group][aria-label="Explore this word"] [data-segment-label]')];
+        const inset = el => {
+            const label = el.getBoundingClientRect();
+            const segment = el.closest('button').getBoundingClientRect();
+            return Math.min(label.left - segment.left, segment.right - label.right);
+        };
+        return {
+            found: labels.length,
+            clipped: labels.filter(el => el.scrollWidth > el.clientWidth).map(el => el.textContent),
+            crowded: labels.filter(el => inset(el) < ${EXPLORE_LABEL_INSET}).map(el => el.textContent + ' (' + inset(el).toFixed(1) + 'px)'),
+        };
+    })()`);
+    if (found < 4) failures.push(`${width}px ${page}: ${found} Explore segment labels found, not 4: the check measured too little`);
+    for (const label of clipped) failures.push(`${width}px ${page}: the Explore segment label "${label}" is cut off`);
+    for (const label of crowded) failures.push(`${width}px ${page}: the Explore segment label ${label} sits under ${EXPLORE_LABEL_INSET}px from its segment's edge`);
+}
+
+/**
+ * Explore's segments are sized by their labels, so a long one ("Sentences") is never pressed
+ * against its dividers while a short one has room to spare: each label sits at least
+ * EXPLORE_LABEL_INSET px inside its segment, on both sides.
+ */
+const EXPLORE_LABEL_INSET = 4;
+
+/** Each Explore segment's left edge and width, in order, to compare across a press. */
+const EXPLORE_SEGMENT_RECTS = `[...document.querySelectorAll('[role=group][aria-label="Explore this word"] > button')].map(el => { const r = el.getBoundingClientRect(); return { left: r.left, width: r.width }; })`;
+
+/**
+ * Presses an Explore segment and fails when any segment moved or changed width by more than
+ * half a pixel: a segment is sized by its semibold label in every state, so pressing one (its
+ * label turning semibold) never shifts the dividers.
+ */
+async function pressExploreSegmentStill(tab: Tab, page: string, width: number, segment: string): Promise<void> {
+    type Rect = { left: number; width: number };
+    const before = await tab.evaluate<Rect[]>(EXPLORE_SEGMENT_RECTS);
+    await tab.click(segment);
+    const after = await tab.evaluate<Rect[]>(EXPLORE_SEGMENT_RECTS);
+    if (before.length === 0) failures.push(`${width}px ${page}: no Explore segments found: the check measured nothing`);
+    else if (before.length !== after.length) failures.push(`${width}px ${page}: ${before.length} Explore segments before pressing ${segment}, ${after.length} after`);
+    before.forEach((rect, i) => {
+        const moved = Math.max(Math.abs(rect.left - (after[i]?.left ?? rect.left)), Math.abs(rect.width - (after[i]?.width ?? rect.width)));
+        if (moved > 0.5) failures.push(`${width}px ${page}: Explore segment ${i + 1} moved ${moved.toFixed(1)}px when ${segment} was pressed`);
+    });
+}
+
+/**
+ * Learns the word on the open page, through its "Learn this word", and waits for Your study. A
+ * page without the button is a failure: the steps after it must measure a studied word.
+ */
+async function learnOpenWord(tab: Tab, page: string, width: number): Promise<boolean> {
+    const learnable = await tab.evaluate<boolean>(`[...document.querySelectorAll('button')].some(el => el.textContent.trim() === 'Learn this word')`);
+    if (!learnable) {
+        failures.push(`${width}px ${page}: no "Learn this word": the word is already studied, so its Your study is not measured as it first appears`);
+        return false;
+    }
+    await tab.click('Learn this word');
+    try {
+        await tab.until(`[...document.querySelectorAll('h2, h3')].some(el => el.textContent.trim() === 'Your study')`, 'Your study', 5000);
+    } catch {
+        failures.push(`${width}px ${page}: "Learn this word" did not bring up Your study`);
+        return false;
+    }
+    return true;
+}
+
+/**
+ * A studied word's header status is one line ("● Learning · Next review in 1 min"): the parts of
+ * the status line all start on the same line, never the review phrase wrapped under the dot.
+ */
+async function checkHeaderStatus(tab: Tab, page: string, width: number): Promise<void> {
+    const wrapped = await tab.evaluate<boolean | null>(`(() => {
+        const status = document.querySelector('h1')?.closest('header')?.querySelector('p.type-support');
+        if (!status || status.children.length < 2) return null;
+        const rects = [...status.children].map(el => el.getBoundingClientRect());
+        const firstBottom = Math.min(...rects.map(rect => rect.bottom));
+        return rects.some(rect => rect.top >= firstBottom - 1);
+    })()`);
+    if (wrapped === null) failures.push(`${width}px ${page}: no status line with a review phrase in the header`);
+    else if (wrapped) failures.push(`${width}px ${page}: the header status wraps onto a second line`);
+}
 
 /**
  * How far down setup's last decisions may sit, in px from the top of the page, by width: the
@@ -257,6 +415,11 @@ try {
     await checkSetupReach(desktop, DESKTOP.width, DESKTOP.height);
     await desktop.click('Mark individual kanji');
     await checkDoneMarking(desktop, DESKTOP.width, DESKTOP.height);
+    // A studied word's header at 1280px, where the narrow page leaves the header its one column.
+    await desktop.click('Start learning');
+    await desktop.goto(`http://127.0.0.1:${srs.port}/vocab/${MIXUP_WORD}`, 'Explore');
+    if (await learnOpenWord(desktop, `srs /vocab/${MIXUP_WORD}`, DESKTOP.width)) await checkHeaderStatus(desktop, `srs /vocab/${MIXUP_WORD}, studied`, DESKTOP.width);
+    await pressExploreSegmentStill(desktop, `srs /vocab/${MIXUP_WORD}`, DESKTOP.width, 'Synonyms');
     await desktop.close();
     for (const { width, height } of VIEWPORTS) {
         const tab = await chrome.openTab(width, height);
@@ -285,19 +448,11 @@ try {
         await tab.click('Start learning');
         for (const route of SRS_ROUTES) {
             await tab.goto(`${app}${route.path}`, route.ready);
+            if (route.settled) await tab.until(`document.querySelector(${JSON.stringify(route.settled)}) !== null`, `${route.settled} on ${route.path}`, 10000);
             await measure(tab, `srs ${route.path}`, width);
         }
-        await measureFuriganaFixture(tab, `${app}/vocab/${FURIGANA_VOCAB}`, 'Example sentences', `srs /vocab/${FURIGANA_VOCAB}`, width);
-        await tab.evaluate<void>(SEED_MIXUPS);
-        await tab.goto(`${app}/vocab/mixups`, 'Pairs');
-        await tab.until(`document.body.innerText.includes('Not a synonym')`, 'the shine group with its unrelated pair');
-        await measure(tab, 'srs /vocab/mixups, two groups', width);
-        await tab.goto(`${app}/vocab/${MIXUP_WORD}`, 'Often mixed up with');
-        await measure(tab, `srs /vocab/${MIXUP_WORD}, often mixed up with`, width);
-        // 症状's row: a long reading beside an interchangeable chip, the tightest of these rows.
-        await tab.goto(`${app}/vocab/${MIXUP_LONG_READING}`, 'Often mixed up with');
-        await measure(tab, `srs /vocab/${MIXUP_LONG_READING}, often mixed up with`, width);
-        // The library's rows with a status line, the tightest rows on a phone.
+        // The library's rows with a status line, the tightest rows on a phone. Before any word is
+        // learned: the library ranks by known words, which would page the marked titles out of view.
         await tab.goto(`${app}/listening/${COMPLETED_TITLE}`, 'Mark all watched');
         await tab.click('Mark all watched');
         await tab.goto(`${app}/listening/${WATCHING_TITLE}`, 'Mark all watched');
@@ -305,6 +460,40 @@ try {
         await tab.goto(`${app}/listening`, 'Watching ·');
         await tab.until(`document.body.innerText.includes('Completed')`, 'a completed title in the library');
         await measure(tab, 'srs /listening, watching and completed titles', width);
+        await measureFuriganaFixture(tab, `${app}/vocab/${FURIGANA_VOCAB}`, 'Examples', `srs /vocab/${FURIGANA_VOCAB}`, width);
+        await tab.click('Sentences');
+        await tab.until(`document.body.innerText.includes('Shortest first')`, 'the Sentences panel');
+        await measure(tab, `srs /vocab/${FURIGANA_VOCAB}, sentences panel`, width);
+        await tab.evaluate<void>(SEED_MIXUPS);
+        await tab.goto(`${app}/vocab/${MIXUP_WORD}`, 'Explore');
+        // Learned here, so Your study's phone grid is measured on a word that has it.
+        if (await learnOpenWord(tab, `srs /vocab/${MIXUP_WORD}`, width)) await measure(tab, `srs /vocab/${MIXUP_WORD}, studied, Explore closed`, width);
+        await checkExploreLabels(tab, `srs /vocab/${MIXUP_WORD}, Explore closed`, width);
+        await tab.click('Mix-ups');
+        await tab.until(`document.body.innerText.includes('Show all mix-ups')`, 'the Mix-ups panel');
+        await tab.click('Show all mix-ups');
+        await measure(tab, `srs /vocab/${MIXUP_WORD}, mix-ups panel`, width);
+        await pressExploreSegmentStill(tab, `srs /vocab/${MIXUP_WORD}`, width, 'Synonyms');
+        await tab.until(`document.body.innerText.includes('Mixed up 2 times')`, 'the Synonyms panel counting the seeded mix-ups');
+        await measure(tab, `srs /vocab/${MIXUP_WORD}, synonyms panel`, width);
+        await checkExploreLabels(tab, `srs /vocab/${MIXUP_WORD}, synonyms panel`, width);
+        await tab.goto(`${app}/vocab/${LONG_SYNONYMS_WORD}`, 'Explore');
+        await measure(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, Explore closed`, width);
+        await tab.click('Synonyms');
+        await tab.until(SYNONYMS_OPEN, 'the Synonyms panel');
+        await measure(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, synonyms panel`, width);
+        await checkSynonymDescriptions(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, synonyms panel`, width);
+        const unopened = await tab.evaluate<number>(EXPAND_SYNONYMS);
+        if (unopened > 0) failures.push(`${width}px srs /vocab/${LONG_SYNONYMS_WORD}: ${unopened} "Show ..." buttons left in the Synonyms panel after opening everything`);
+        await measure(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, synonyms panel, every meaning`, width);
+        await checkSynonymDescriptions(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, synonyms panel, every meaning`, width);
+        await tab.click('Related');
+        await tab.until(`document.body.innerText.includes('Used in')`, 'the Related panel');
+        await measure(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, related panel`, width);
+        await checkSynonymsLink(tab, app, width);
+        // The removed Mix-ups page's path lands on Vocabulary.
+        await tab.goto(`${app}/vocab/mixups`, 'Vocabulary');
+        await tab.until(`location.pathname.endsWith('/vocab')`, '/vocab/mixups redirecting to /vocab');
         for (const page of DICTIONARY_PAGES) {
             await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${page.path}`, page.ready);
             await measure(tab, `dictionary ${page.path}`, width, DICTIONARY_TAP_TARGETS);
@@ -324,4 +513,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji, on one line and apart, Japanese in list rows unbroken, setup's decisions above the kanji grid and a way back to them from its end.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji, on one line and apart, Japanese in list rows unbroken, setup's decisions above the kanji grid and a way back to them from its end, the four Explore labels whole and clear of their dividers, the segments still when one is pressed, Your study's phone grid on a studied word, its header status on one line at 1280px, a #synonyms link opening Explore on Synonyms at the top of the screen, its rows' shared senses wrapped, not cut off.`);

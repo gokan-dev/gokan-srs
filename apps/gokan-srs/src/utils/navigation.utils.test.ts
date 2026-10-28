@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GRAMMAR, KANJI, STUDY, VOCABULARY, isDestinationActive, isMoreActive, isSessionPath, mixupsPath } from './navigation.utils';
+import { GRAMMAR, KANJI, STUDY, VOCABULARY, isDestinationActive, isMoreActive, isSessionPath, synonymsPath } from './navigation.utils';
 
 describe('isDestinationActive', () => {
     it('marks Study on the hub only', () => {
@@ -42,10 +42,9 @@ describe('isSessionPath', () => {
     });
 });
 
-describe('mixupsPath', () => {
-    it('is the Mix-ups page, inside Vocabulary, or its groups with one word', () => {
-        expect(mixupsPath()).toBe('/vocab/mixups');
-        expect(mixupsPath('1224020')).toBe('/vocab/mixups?word=1224020');
-        expect(isDestinationActive(mixupsPath(), VOCABULARY)).toBe(true);
+describe('synonymsPath', () => {
+    it("is the word's page, at its Synonyms card, inside Vocabulary", () => {
+        expect(synonymsPath('1224020')).toBe('/vocab/1224020#synonyms');
+        expect(isDestinationActive('/vocab/1224020', VOCABULARY)).toBe(true);
     });
 });
