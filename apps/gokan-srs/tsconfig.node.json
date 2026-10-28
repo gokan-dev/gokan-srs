@@ -29,5 +29,5 @@
        .d.ts files import optional peers (stylelint, vscode-languageserver) we do not install. */
     "skipLibCheck": true
   },
-  "include": ["vite.config.ts", "scripts/**/*.ts"]
+  "include": ["vite.config.ts", "scripts/**/*.ts", "release/**/*.ts"]
 }
