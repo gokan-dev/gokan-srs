@@ -1,6 +1,6 @@
 export interface Segment<K extends string> {
     key: K;
-    /** Short, so four fit at 320px ("Sentences"). */
+    /** Short, so four fit at 320px ("Sentences"), each segment as wide as its label needs. */
     label: string;
     /** The full name a screen reader hears with the count ("Example sentences"); it contains the label. */
     name: string;
@@ -19,7 +19,9 @@ interface SegmentedToggleProps<K extends string> {
 }
 
 /**
- * One bordered group of segments, each a label over its count, at most one pressed. Single
+ * One bordered group of segments, each a label over its count, at most one pressed. Each is
+ * sized by its label (`flex-auto`), so the short ones give their spare room to the long ones
+ * and no label is pressed against a divider at 320px. Single
  * choice that can be undone, so a toggle (`aria-pressed`), not tabs: nothing need be open.
  */
 export function SegmentedToggle<K extends string>({ segments, open, onToggle, label }: SegmentedToggleProps<K>) {
@@ -35,7 +37,7 @@ export function SegmentedToggle<K extends string>({ segments, open, onToggle, la
                         aria-pressed={pressed}
                         aria-controls={segment.controls}
                         aria-label={`${segment.name}, ${segment.count.toLocaleString('en-US')}`}
-                        className={`relative flex-1 min-w-0 min-h-[52px] py-2 flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors duration-150 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${pressed ? 'bg-accent/12' : 'hover:bg-surface-hover'}`}
+                        className={`relative flex-auto min-w-0 min-h-[52px] px-1 py-2 flex flex-col items-center justify-center gap-0.5 cursor-pointer transition-colors duration-150 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${pressed ? 'bg-accent/12' : 'hover:bg-surface-hover'}`}
                     >
                         <span className={`font-sans text-sm text-primary truncate max-w-full ${pressed ? 'font-semibold' : ''}`}>{segment.label}</span>
                         <span className="type-meta tabular-nums">{segment.count.toLocaleString('en-US')}</span>

@@ -207,7 +207,9 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
   `text-3xl md:text-4xl` for a grammar point), readings/romaji, neutral chips, and the
   actions area. From `lg` the header uses the body's grid (12 columns, 8/4, `gap-10`), so
   the actions start on the side column's left edge, left-aligned and top-aligned with the
-  headword; below `lg` they follow the readings. The actions hold only the status or,
+  headword; below `lg` they follow the readings. A page whose body is one column (`DetailBody`
+  `levels`, a word's page) passes `layout="column"`: there is no side column to line up with,
+  so the actions follow the facts at every width and the status has the full width. The actions hold only the status or,
   before the item is studied, the one primary "Learn this ..." button. The status is one
   line, the next review after the `StatusDot` label ("● Learning · Due now"), and never
   repeats the status word: a mastered item with nothing scheduled shows only
@@ -226,7 +228,8 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
     kanji as a small `KanjiTile` with Known / Not known beside it); a facts row, a `dl` of
     `DetailField compact` (a `type-meta` label over a `type-value` value), side by side and wrapping: How common (the band, its
     `FrequencyMeter` and a round "Top 300 words", the exact rank in a `title`), KKLC step or
-    "Learned in kana", Textbooks; the actions as on every detail page.
+    "Learned in kana", Textbooks; then the actions, under the facts at every width
+    (`DetailHeader` `layout="column"`), so the status stays one line at 1280px (`check:layout`).
   - The essentials, always shown: Meanings (3 common senses, then "Show all N meanings" in
     place, rare ones under a "Rare and archaic" label), Examples (2 sentences,
     `pickWordExamples`; "All N sentences →" on the heading's line), Closest synonyms (up to 5
@@ -332,8 +335,9 @@ Defined once, in `components/` or `components/ui/`, never copied:
   home.
 - **`SegmentedToggle`** (`ui/SegmentedToggle.tsx`): one bordered `rounded-md` group,
   segments split by `divider` lines, each a 14px label over its count (`type-meta`), at least
-  52px high, with no side padding (the dividers separate them) so four labels fit whole at
-  320px, a semibold "Synonyms" included (`check:layout` fails on a cut-off label). Single choice that can be undone (pressing the open one
+  52px high, each sized by its label (`flex-auto`, `px-1`) so the short ones give their spare
+  room to the long ones: four labels fit whole at 320px, a semibold "Synonyms" included, at
+  least 4px from their dividers (`check:layout` fails on a cut-off or crowded label). Single choice that can be undone (pressing the open one
   closes it), so a toggle (`aria-pressed`, `aria-controls`, an `aria-label` with the full name
   and the count), not tabs. Open: `bg-accent/12`, a 2px accent bar inset at the bottom, a
   semibold label; hover `bg-surface-hover`. A word page's Explore.

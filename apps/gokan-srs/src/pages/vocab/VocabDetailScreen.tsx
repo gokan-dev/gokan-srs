@@ -117,6 +117,7 @@ function WordPage({ vocab, sentences, sentencesSettled, openPanel, onTogglePanel
     const header = (
         <DetailHeader
             parentPath="/vocab"
+            layout="column"
             title={<span className="jp-display">{headwordOf(vocab)}</span>}
             chips={<HeaderChips vocab={vocab} knownKanji={knownKanji} />}
             facts={<WordFacts vocab={vocab} />}
