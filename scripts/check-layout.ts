@@ -31,7 +31,7 @@
  * do not work under Bun on Windows, and this needs nothing installed.
  */
 import { KANJI_CHARS } from '@gokan/dataset-schema';
-import { buildMissing, dictionaryFile, dictionaryPages, listeningTitlesToMark, serve, srsFile, srsRoutes } from './lib/builtSite';
+import { buildMissing, dictionaryFile, dictionaryPages, listeningTitlesToMark, serve, srsFile, srsRoutes, srsVersion } from './lib/builtSite';
 import { launchChrome, type Tab } from './lib/chrome';
 
 const VIEWPORTS = [{ width: 320, height: 720 }, { width: 375, height: 812 }];
@@ -148,6 +148,7 @@ async function measure(tab: Tab, page: string, width: number, tapTargets = ''): 
 
 const DICTIONARY_PAGES = dictionaryPages();
 const SRS_ROUTES = srsRoutes();
+const SRS_VERSION = srsVersion();
 const [COMPLETED_TITLE, WATCHING_TITLE] = listeningTitlesToMark();
 // 登場人物: its sentences hold long readings that wrap at the end of a line at 320 and 375px, the
 // case where a ruby broken across lines puts the wrong syllables over each kanji. A dataset
@@ -434,6 +435,12 @@ try {
         const footerOffset = await tab.evaluate<number | null>(`(() => { const logo = document.querySelector('header a'); const link = document.querySelector('footer a'); return logo && link ? link.getBoundingClientRect().left - logo.getBoundingClientRect().left : null; })()`);
         if (footerOffset === null) failures.push(`${width}px srs /about before setup: no header logo or footer link to align`);
         else if (Math.abs(footerOffset) > 1) failures.push(`${width}px srs /about before setup: footer links start ${footerOffset}px from the header logo's edge`);
+        // The version the build baked in, visible, so a learner can say which one they are on.
+        const versionShown = await tab.evaluate<boolean>(`[...document.querySelectorAll('[data-app-version]')].some(el => el.textContent.includes(${JSON.stringify(`version ${SRS_VERSION}`)}) && el.getBoundingClientRect().width > 0)`);
+        if (!versionShown) failures.push(`${width}px srs /about before setup: version ${SRS_VERSION} is not shown`);
+        await tab.click("See what's new");
+        await tab.until(`document.body.innerText.includes('Your version')`, "What's new before setup");
+        await measure(tab, 'srs /whats-new before setup', width);
         await tab.goto(`${app}/`, 'I already know some kanji');
         await measure(tab, 'srs /welcome', width);
         await tab.click('I already know some kanji');
