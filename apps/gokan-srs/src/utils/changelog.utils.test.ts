@@ -93,4 +93,9 @@ describe('availableUpdate', () => {
         expect(availableUpdate('1.43.0', { version: '1.43.0', dataset: 'a' })).toBeNull();
         expect(availableUpdate('1.43.0', null)).toBeNull();
     });
+
+    it('is null once that version is dismissed, and offers the next one again', () => {
+        expect(availableUpdate('1.42.0', { version: '1.43.0', dataset: 'a' }, '1.43.0')).toBeNull();
+        expect(availableUpdate('1.42.0', { version: '1.44.0', dataset: 'a' }, '1.43.0')).toBe('1.44.0');
+    });
 });

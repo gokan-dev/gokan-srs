@@ -8,6 +8,10 @@ import { ThemeProvider } from "./context/ThemeContext";
 import { App } from './App';
 import { ResponsiveProvider } from "./context/Responsive/ResponsiveProvider";
 import { BrowserRouter } from "react-router-dom";
+import { installChunkLoadGuard } from "./services/chunkLoadGuard";
+
+// Before the first lazy page loads, so a tab left open across a deploy recovers on its own.
+installChunkLoadGuard();
 
 createRoot(document.getElementById('root')!).render(
     <StrictMode>

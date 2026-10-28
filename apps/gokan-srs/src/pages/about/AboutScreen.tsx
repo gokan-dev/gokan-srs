@@ -1,5 +1,7 @@
 import { Page } from "../../components/Page";
 import { PageHeader } from "../../components/PageHeader";
+import { Link } from "react-router-dom";
+import { APP_VERSION } from "../../services/release.service";
 
 export function AboutScreen() {
     return (
@@ -79,6 +81,17 @@ export function AboutScreen() {
                             hanabira.org
                         </a>
                         , used under its Creative Commons license.
+                    </p>
+                </section>
+
+                {/* Version: on a phone the footer is hidden, so this is the way to What's new. */}
+                <section className="animate-slide-up" style={{ animationDelay: "200ms" }}>
+                    <h2 className="type-section mb-3">
+                        Version
+                    </h2>
+                    <p className="type-body">
+                        <span data-app-version>You are on version {APP_VERSION}.</span>{" "}
+                        <Link to="/whats-new" className="text-accent underline">See what's new</Link>
                     </p>
                 </section>
             </article>

@@ -86,10 +86,11 @@ export function parseLiveVersion(body: unknown): LiveVersion {
 }
 
 /**
- * The live version an open tab should offer to reload into, or null when it runs that one. Any
- * difference counts, a rollback included: the tab's chunks are gone either way once the deploy
- * prunes them.
+ * The live version an open tab should offer to reload into, or null when it runs that one or
+ * the learner dismissed that one. Any difference counts, a rollback included: the tab's chunks
+ * are gone either way once the deploy prunes them.
  */
-export function availableUpdate(running: string, live: LiveVersion | null): string | null {
-    return live && live.version !== running ? live.version : null;
+export function availableUpdate(running: string, live: LiveVersion | null, dismissed: string | null = null): string | null {
+    if (!live || live.version === running || live.version === dismissed) return null;
+    return live.version;
 }
