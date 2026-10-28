@@ -57,6 +57,12 @@ summary ("Largest tool results"), which is where a whole read shows.
   `group: agent-branch-<branch>`, `cancel-in-progress: false`, `queue: max` (a later run waits,
   none is dropped). A run that waited checks the branch has not moved on before acting.
   Enforced.
+- A change that ships in the deployed apps (`shipsInDeployment`) adds one entry at the top of
+  `apps/gokan-srs/release/changelog.ts`, the What's new page and the app's version: the next
+  minor (the version its rc tags carry), the day, one plain sentence a learner can read, the
+  issue. The build and a test refuse a list out of order or malformed; that a shipping change
+  added its entry is not mechanised (`bun run check` has no base branch to diff against), so a
+  reviewer checks it against the diff.
 - `git log` is the record of what changed. Add an entry to
   [docs/MODIFICATION_LOG.md](docs/MODIFICATION_LOG.md) only for reasoning a diff cannot show:
   an investigation's result, why the obvious approach was rejected, or an interaction a later

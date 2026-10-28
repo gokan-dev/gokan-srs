@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isAboutPath, routeSeo } from './seo.utils';
+import { isAboutPath, isWhatsNewPath, routeSeo } from './seo.utils';
 import html from '../../index.html?raw';
 import appSource from '../App.tsx?raw';
 import alsoInGokanSource from '../pages/setup/welcome/AlsoInGokan.tsx?raw';
@@ -143,5 +143,18 @@ describe('index.html', () => {
         // The welcome page says it too, in "Also in Gokan".
         const welcomeCounts = [...alsoInGokanSource.matchAll(/(\d+,\d{3}) words/g)].map(match => match[1]);
         expect(welcomeCounts).toEqual(['36,000']);
+    });
+});
+
+describe('isWhatsNewPath', () => {
+    it('recognises What\'s new with or without a trailing slash, and nothing else', () => {
+        expect(isWhatsNewPath('/whats-new')).toBe(true);
+        expect(isWhatsNewPath('/whats-new/')).toBe(true);
+        expect(isWhatsNewPath('/about')).toBe(false);
+        expect(isWhatsNewPath('/whats-new/x')).toBe(false);
+    });
+
+    it('stays out of the index, like every route whose page is not the same for a crawler', () => {
+        expect(routeSeo('/whats-new')).toEqual({ kind: 'noindex' });
     });
 });

@@ -275,8 +275,10 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
 - **Session focus mode** (`/quiz`, `/grammar`): no nav links, no bottom tab bar, no
   search field - just the logo (links to the hub), a search icon, and an "End session"
   ghost button.
-- Footer ("About Gokan SRS", "Dictionary") on every non-session page on desktop; in the
-  mobile More sheet; `/about` before setup shows it at every width (`alwaysVisible`).
+- Footer ("About Gokan SRS", "Dictionary", "What's new", and the version in `type-meta` on
+  the right) on every non-session page on desktop; its links are in the mobile More sheet,
+  and the version is on About and What's new; `/about` before setup shows the footer at
+  every width (`alwaysVisible`).
 
 ### Welcome page (`pages/setup/WelcomeScreen.tsx`, `pages/setup/welcome/`)
 

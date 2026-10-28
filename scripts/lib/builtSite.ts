@@ -144,7 +144,20 @@ export function srsRoutes(): { path: string; ready: string; settled?: string }[]
         { path: '/listening', ready: 'Listening' },
         { path: '/stats', ready: 'Stats' },
         { path: '/settings', ready: 'Settings' },
+        // Its list loads from /changelog.json after the page: the marked entry is in it.
+        { path: '/whats-new', ready: 'Your version' },
     ];
+}
+
+/**
+ * The version the gokan-srs build baked in, from the version.json it wrote beside it: what the
+ * footer and About must show, and what an open tab compares against.
+ */
+export function srsVersion(): string {
+    const body: unknown = JSON.parse(readFileSync(join(SRS_DIST, 'version.json'), 'utf-8'));
+    const version = typeof body === 'object' && body !== null && 'version' in body ? body.version : undefined;
+    if (typeof version !== 'string' || !/^\d+\.\d+\.\d+$/.test(version)) throw new Error('The gokan-srs build wrote no version in version.json.');
+    return version;
 }
 
 /**

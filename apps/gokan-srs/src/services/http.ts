@@ -8,6 +8,11 @@ export async function readJson<T>(response: Response): Promise<T> {
     return body as T;
 }
 
+/** Whether an untrusted value is a plain object, the first narrowing step of every parser. */
+export function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 /** The dataset submodule's commit, injected by vite.config.ts. */
 declare const __DATASET_VERSION__: string;
 

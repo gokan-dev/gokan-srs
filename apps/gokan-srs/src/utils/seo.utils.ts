@@ -1,4 +1,5 @@
 import { DICTIONARY_BASE_PATH } from '@gokan/dataset-schema';
+import { WHATS_NEW } from './navigation.utils';
 
 /**
  * What a route tells search engines: index it under its own URL, defer to the dictionary page
@@ -55,9 +56,14 @@ function normalizePath(pathname: string): string {
     return pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
 }
 
-/** Whether a pathname is the About page: the one route shown before setup (App). */
+/** Whether a pathname is the About page, shown before setup (App). */
 export function isAboutPath(pathname: string): boolean {
     return normalizePath(pathname) === '/about';
+}
+
+/** Whether a pathname is What's new, which About links to and so is shown before setup too. */
+export function isWhatsNewPath(pathname: string): boolean {
+    return normalizePath(pathname) === WHATS_NEW.to;
 }
 
 /**

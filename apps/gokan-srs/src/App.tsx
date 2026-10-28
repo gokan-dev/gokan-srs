@@ -9,12 +9,13 @@ import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-
 import { AppHeader } from './components/nav/AppHeader';
 import { BottomTabBar } from './components/nav/BottomTabBar';
 import { AppFooter } from './components/nav/AppFooter';
-import { isSessionPath } from './utils/navigation.utils';
+import { WHATS_NEW, isSessionPath } from './utils/navigation.utils';
 import { ResumeSessionBar } from './components/ResumeSessionBar';
 import { StorageFullBanner } from './components/StorageFullBanner';
 import { PageRenderedSignal } from './components/PageRenderedSignal';
 import { RouteSeo } from './components/RouteSeo';
-import { isAboutPath } from './utils/seo.utils';
+import { UpdateBanner } from './components/UpdateBanner';
+import { isAboutPath, isWhatsNewPath } from './utils/seo.utils';
 
 // Lazy Load Pages
 // Note: Adapting named exports to default exports for lazy loading where necessary
@@ -27,6 +28,7 @@ const SettingsScreen = lazy(() => import('./pages/settings/Settings').then(modul
 const UserProfileScreen = lazy(() => import('./pages/profile/UserProfileScreen').then(module => ({ default: module.UserProfileScreen })));
 const StatsScreen = lazy(() => import('./pages/stats/StatsScreen').then(module => ({ default: module.StatsScreen }))); // START_ADD (conceptually)
 const AboutScreen = lazy(() => import('./pages/about/AboutScreen').then(module => ({ default: module.AboutScreen })));
+const WhatsNewScreen = lazy(() => import('./pages/about/WhatsNewScreen').then(module => ({ default: module.WhatsNewScreen })));
 const VocabDetailScreen = lazy(() => import('./pages/vocab/VocabDetailScreen'));
 const VocabularyListScreen = lazy(() => import('./pages/vocab/VocabularyListScreen').then(module => ({ default: module.VocabularyListScreen })));
 const KanjiDetailScreen = lazy(() => import('./pages/kanji/KanjiDetailScreen'));
@@ -77,10 +79,12 @@ const AppScreens: React.FC = () => {
         );
     }
 
-    // Setup gate. About is the one route shown before it, a crawler included: it is the page
-    // indexed under /about, so it must not be the onboarding flow every other route shows them.
-    // It gets the app's frame, so a visitor from search sees what site this is and has links on.
-    if (!isSetupComplete && !isAboutPath(location.pathname)) {
+    // Setup gate. About is shown before it, a crawler included: it is the page indexed under
+    // /about, so it must not be the onboarding flow every other route shows them. It gets the
+    // app's frame, so a visitor from search sees what site this is and has links on. What's new,
+    // which About links to, reads no progress either.
+    const whatsNew = isWhatsNewPath(location.pathname);
+    if (!isSetupComplete && !isAboutPath(location.pathname) && !whatsNew) {
         return <KanjiFormProvider initialState={{}}>
             <OnboardingFlow onComplete={actions.setupComplete} />
         </KanjiFormProvider>
@@ -95,16 +99,19 @@ const AppScreens: React.FC = () => {
 
             {/* Its own row beneath the header, only while a session is paused on a consult page. */}
             <StorageFullBanner />
+            {/* Not on the session pages, nor while a session is paused (UpdateBanner): the learner
+                reloads when they choose, between sessions. */}
+            {!focusMode && <UpdateBanner />}
             <ResumeSessionBar />
 
             {/* Screen content */}
             {/* A session card is top-aligned on a phone, so it stays above the keyboard. */}
             <main className={`flex-1 flex flex-col items-center ${focusMode ? 'p-4 md:px-6 md:pt-6 justify-start md:justify-center' : 'justify-start'}`}>
                 <Suspense fallback={<Loader title="Loading..." />}>
-                    {/* Before setup the only route is About: the route elements below read progress,
-                        which does not exist yet. Nor does PageRenderedSignal run: the background
-                        loads it starts are the study flow's. */}
-                    {!isSetupComplete ? <AboutScreen /> : (
+                    {/* Before setup the only routes are About and What's new: the route elements
+                        below read progress, which does not exist yet. Nor does PageRenderedSignal
+                        run: the background loads it starts are the study flow's. */}
+                    {!isSetupComplete ? (whatsNew ? <WhatsNewScreen /> : <AboutScreen />) : (
                         <>
                             <Routes>
                                 <Route path="/" element={
@@ -121,6 +128,9 @@ const AppScreens: React.FC = () => {
                                 } />
                                 <Route path="/about" element={
                                     <AboutScreen />
+                                } />
+                                <Route path={WHATS_NEW.to} element={
+                                    <WhatsNewScreen />
                                 } />
                                 <Route path="/settings" element={
                                     <SettingsScreen

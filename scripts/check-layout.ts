@@ -14,6 +14,8 @@
  * - a dictionary pager link's spoken name contains its visible text (WCAG 2.5.3, Label in Name):
  *   no `aria-label` that replaces "301-400" with other words;
  * - About before setup shows a visible dictionary link, in a footer aligned with the header;
+ * - the update banner, shown by a server whose version.json names a newer version, has Reload and
+ *   Dismiss at least 44px tall, like ResumeSessionBar in the same slot;
  * - setup's "Vocabulary order" heading and "Start learning" button sit within about two screens of
  *   the top at 320px, 375px and 1280px, not under the kanji grid (issue #158); with the grid
  *   opened, "Done marking" sits within a screen of the page's end and brings Start learning back
@@ -30,8 +32,11 @@
  * Chrome is driven over the DevTools protocol with Bun's own WebSocket: Playwright's transports
  * do not work under Bun on Windows, and this needs nothing installed.
  */
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { KANJI_CHARS } from '@gokan/dataset-schema';
-import { buildMissing, dictionaryFile, dictionaryPages, listeningTitlesToMark, serve, srsFile, srsRoutes } from './lib/builtSite';
+import { buildMissing, dictionaryFile, dictionaryPages, listeningTitlesToMark, serve, srsFile, srsRoutes, srsVersion } from './lib/builtSite';
 import { launchChrome, type Tab } from './lib/chrome';
 
 const VIEWPORTS = [{ width: 320, height: 720 }, { width: 375, height: 812 }];
@@ -148,6 +153,13 @@ async function measure(tab: Tab, page: string, width: number, tapTargets = ''): 
 
 const DICTIONARY_PAGES = dictionaryPages();
 const SRS_ROUTES = srsRoutes();
+const SRS_VERSION = srsVersion();
+// The same build behind a version.json naming the next major: what an open tab sees once a newer
+// deploy is live, the one way to render the update banner.
+const NEWER_VERSION = `${Number(SRS_VERSION.split('.')[0]) + 1}.0.0`;
+const NEWER_DIR = mkdtempSync(join(tmpdir(), 'gokan-layout-'));
+writeFileSync(join(NEWER_DIR, 'version.json'), JSON.stringify({ version: NEWER_VERSION, dataset: 'check-layout' }));
+const updated = await serve(pathname => (pathname === '/version.json' ? join(NEWER_DIR, 'version.json') : srsFile(pathname)));
 const [COMPLETED_TITLE, WATCHING_TITLE] = listeningTitlesToMark();
 // 登場人物: its sentences hold long readings that wrap at the end of a line at 320 and 375px, the
 // case where a ruby broken across lines puts the wrong syllables over each kanji. A dataset
@@ -434,6 +446,16 @@ try {
         const footerOffset = await tab.evaluate<number | null>(`(() => { const logo = document.querySelector('header a'); const link = document.querySelector('footer a'); return logo && link ? link.getBoundingClientRect().left - logo.getBoundingClientRect().left : null; })()`);
         if (footerOffset === null) failures.push(`${width}px srs /about before setup: no header logo or footer link to align`);
         else if (Math.abs(footerOffset) > 1) failures.push(`${width}px srs /about before setup: footer links start ${footerOffset}px from the header logo's edge`);
+        // The version the build baked in, visible, so a learner can say which one they are on.
+        const versionShown = await tab.evaluate<boolean>(`[...document.querySelectorAll('[data-app-version]')].some(el => el.textContent.includes(${JSON.stringify(`version ${SRS_VERSION}`)}) && el.getBoundingClientRect().width > 0)`);
+        if (!versionShown) failures.push(`${width}px srs /about before setup: version ${SRS_VERSION} is not shown`);
+        await tab.click("See what's new");
+        await tab.until(`document.body.innerText.includes('Your version')`, "What's new before setup");
+        await measure(tab, 'srs /whats-new before setup', width);
+        // Another origin, so its storage is fresh: About before setup, with the banner up.
+        await tab.goto(`http://127.0.0.1:${updated.port}/about`, 'Why I Built This');
+        await tab.until(`document.querySelector('[data-update-banner]') !== null`, 'the update banner', 10000);
+        await measure(tab, 'srs /about, update banner', width, '[data-update-banner] button');
         await tab.goto(`${app}/`, 'I already know some kanji');
         await measure(tab, 'srs /welcome', width);
         await tab.click('I already know some kanji');
@@ -506,11 +528,13 @@ try {
 } finally {
     await chrome.kill();
     srs.server.close();
+    updated.server.close();
     dictionary.server.close();
+    rmSync(NEWER_DIR, { recursive: true, force: true });
 }
 
 if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji, on one line and apart, Japanese in list rows unbroken, setup's decisions above the kanji grid and a way back to them from its end, the four Explore labels whole and clear of their dividers, the segments still when one is pressed, Your study's phone grid on a studied word, its header status on one line at 1280px, a #synonyms link opening Explore on Synonyms at the top of the screen, its rows' shared senses wrapped, not cut off.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji, on one line and apart, Japanese in list rows unbroken, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, the four Explore labels whole and clear of their dividers, the segments still when one is pressed, Your study's phone grid on a studied word, its header status on one line at 1280px, a #synonyms link opening Explore on Synonyms at the top of the screen, its rows' shared senses wrapped, not cut off.`);

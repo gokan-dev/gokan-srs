@@ -1,6 +1,7 @@
 import { DEFAULT_SRS_ENTRY, DEFAULT_VOCABULARY_PROGRESS, type ReviewLog } from "../models/vocabulary.model";
 import type { MixupOutcome } from "../models/mixup.model";
 import type { StoredProgress } from "./progressHydration";
+import { isRecord } from "./http";
 
 /**
  * The compact form progress is stored in (an IndexedDB record since #153, localStorage
@@ -64,10 +65,6 @@ const HYDRATION_DEFAULTS: ReadonlyMap<string, number | boolean> = new Map<string
     ['totalReviews', DEFAULT_VOCABULARY_PROGRESS.totalReviews],
     ['usuallyKana', DEFAULT_VOCABULARY_PROGRESS.usuallyKana],
 ]);
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 function indexOfValue<T extends string>(list: readonly T[], value: unknown): number {
     return list.findIndex(entry => entry === value);
