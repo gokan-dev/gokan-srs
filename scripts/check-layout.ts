@@ -251,7 +251,7 @@ async function checkSynonymDescriptions(tab: Tab, page: string, width: number): 
  */
 async function checkExploreLabels(tab: Tab, page: string, width: number): Promise<void> {
     const { found, clipped, crowded } = await tab.evaluate<{ found: number; clipped: string[]; crowded: string[] }>(`(() => {
-        const labels = [...document.querySelectorAll('[role=group][aria-label="Explore this word"] button > span:first-child')];
+        const labels = [...document.querySelectorAll('[role=group][aria-label="Explore this word"] [data-segment-label]')];
         const inset = el => {
             const label = el.getBoundingClientRect();
             const segment = el.closest('button').getBoundingClientRect();
@@ -274,6 +274,27 @@ async function checkExploreLabels(tab: Tab, page: string, width: number): Promis
  * EXPLORE_LABEL_INSET px inside its segment, on both sides.
  */
 const EXPLORE_LABEL_INSET = 4;
+
+/** Each Explore segment's left edge and width, in order, to compare across a press. */
+const EXPLORE_SEGMENT_RECTS = `[...document.querySelectorAll('[role=group][aria-label="Explore this word"] > button')].map(el => { const r = el.getBoundingClientRect(); return { left: r.left, width: r.width }; })`;
+
+/**
+ * Presses an Explore segment and fails when any segment moved or changed width by more than
+ * half a pixel: a segment is sized by its semibold label in every state, so pressing one (its
+ * label turning semibold) never shifts the dividers.
+ */
+async function pressExploreSegmentStill(tab: Tab, page: string, width: number, segment: string): Promise<void> {
+    type Rect = { left: number; width: number };
+    const before = await tab.evaluate<Rect[]>(EXPLORE_SEGMENT_RECTS);
+    await tab.click(segment);
+    const after = await tab.evaluate<Rect[]>(EXPLORE_SEGMENT_RECTS);
+    if (before.length === 0) failures.push(`${width}px ${page}: no Explore segments found: the check measured nothing`);
+    else if (before.length !== after.length) failures.push(`${width}px ${page}: ${before.length} Explore segments before pressing ${segment}, ${after.length} after`);
+    before.forEach((rect, i) => {
+        const moved = Math.max(Math.abs(rect.left - (after[i]?.left ?? rect.left)), Math.abs(rect.width - (after[i]?.width ?? rect.width)));
+        if (moved > 0.5) failures.push(`${width}px ${page}: Explore segment ${i + 1} moved ${moved.toFixed(1)}px when ${segment} was pressed`);
+    });
+}
 
 /**
  * Learns the word on the open page, through its "Learn this word", and waits for Your study. A
@@ -398,6 +419,7 @@ try {
     await desktop.click('Start learning');
     await desktop.goto(`http://127.0.0.1:${srs.port}/vocab/${MIXUP_WORD}`, 'Explore');
     if (await learnOpenWord(desktop, `srs /vocab/${MIXUP_WORD}`, DESKTOP.width)) await checkHeaderStatus(desktop, `srs /vocab/${MIXUP_WORD}, studied`, DESKTOP.width);
+    await pressExploreSegmentStill(desktop, `srs /vocab/${MIXUP_WORD}`, DESKTOP.width, 'Synonyms');
     await desktop.close();
     for (const { width, height } of VIEWPORTS) {
         const tab = await chrome.openTab(width, height);
@@ -451,7 +473,7 @@ try {
         await tab.until(`document.body.innerText.includes('Show all mix-ups')`, 'the Mix-ups panel');
         await tab.click('Show all mix-ups');
         await measure(tab, `srs /vocab/${MIXUP_WORD}, mix-ups panel`, width);
-        await tab.click('Synonyms');
+        await pressExploreSegmentStill(tab, `srs /vocab/${MIXUP_WORD}`, width, 'Synonyms');
         await tab.until(`document.body.innerText.includes('Mixed up 2 times')`, 'the Synonyms panel counting the seeded mix-ups');
         await measure(tab, `srs /vocab/${MIXUP_WORD}, synonyms panel`, width);
         await checkExploreLabels(tab, `srs /vocab/${MIXUP_WORD}, synonyms panel`, width);
@@ -491,4 +513,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji, on one line and apart, Japanese in list rows unbroken, setup's decisions above the kanji grid and a way back to them from its end, the four Explore labels whole and clear of their dividers, Your study's phone grid on a studied word, its header status on one line at 1280px, a #synonyms link opening Explore on Synonyms at the top of the screen, its rows' shared senses wrapped, not cut off.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji, on one line and apart, Japanese in list rows unbroken, setup's decisions above the kanji grid and a way back to them from its end, the four Explore labels whole and clear of their dividers, the segments still when one is pressed, Your study's phone grid on a studied word, its header status on one line at 1280px, a #synonyms link opening Explore on Synonyms at the top of the screen, its rows' shared senses wrapped, not cut off.`);

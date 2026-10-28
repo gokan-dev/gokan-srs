@@ -337,7 +337,10 @@ Defined once, in `components/` or `components/ui/`, never copied:
   segments split by `divider` lines, each a 14px label over its count (`type-meta`), at least
   52px high, each sized by its label (`flex-auto`, `px-1`) so the short ones give their spare
   room to the long ones: four labels fit whole at 320px, a semibold "Synonyms" included, at
-  least 4px from their dividers (`check:layout` fails on a cut-off or crowded label). Single choice that can be undone (pressing the open one
+  least 4px from their dividers (`check:layout` fails on a cut-off or crowded label). A
+  segment is sized by its semibold label in every state (an invisible semibold copy shares the
+  label's cell), so pressing one never moves the dividers (`check:layout` fails on a shift over
+  0.5px). Single choice that can be undone (pressing the open one
   closes it), so a toggle (`aria-pressed`, `aria-controls`, an `aria-label` with the full name
   and the count), not tabs. Open: `bg-accent/12`, a 2px accent bar inset at the bottom, a
   semibold label; hover `bg-surface-hover`. A word page's Explore.
