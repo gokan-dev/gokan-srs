@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { DictionaryLink } from './DictionaryLink';
 import { APP_VERSION } from '../../services/release.service';
+import { WHATS_NEW } from '../../utils/navigation.utils';
 
 const LINK = 'font-sans text-sm text-accent hover:underline';
 
@@ -16,7 +17,7 @@ export function AppFooter({ alwaysVisible = false }: { alwaysVisible?: boolean }
             <div className="max-w-5xl mx-auto px-4 md:px-6 py-6 flex flex-wrap items-center gap-x-6 gap-y-2">
                 <Link to="/about" className={LINK}>About Gokan SRS</Link>
                 <DictionaryLink className={LINK} />
-                <Link to="/whats-new" className={LINK}>What's new</Link>
+                <Link to={WHATS_NEW.to} className={LINK}>{WHATS_NEW.label}</Link>
                 <span className="type-meta ml-auto" data-app-version>Version {APP_VERSION}</span>
             </div>
         </footer>

@@ -9,7 +9,7 @@ import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-
 import { AppHeader } from './components/nav/AppHeader';
 import { BottomTabBar } from './components/nav/BottomTabBar';
 import { AppFooter } from './components/nav/AppFooter';
-import { isSessionPath } from './utils/navigation.utils';
+import { WHATS_NEW, isSessionPath } from './utils/navigation.utils';
 import { ResumeSessionBar } from './components/ResumeSessionBar';
 import { StorageFullBanner } from './components/StorageFullBanner';
 import { PageRenderedSignal } from './components/PageRenderedSignal';
@@ -99,7 +99,8 @@ const AppScreens: React.FC = () => {
 
             {/* Its own row beneath the header, only while a session is paused on a consult page. */}
             <StorageFullBanner />
-            {/* Not during a session: the learner reloads when they choose, between reviews. */}
+            {/* Not on the session pages, nor while a session is paused (UpdateBanner): the learner
+                reloads when they choose, between sessions. */}
             {!focusMode && <UpdateBanner />}
             <ResumeSessionBar />
 
@@ -128,7 +129,7 @@ const AppScreens: React.FC = () => {
                                 <Route path="/about" element={
                                     <AboutScreen />
                                 } />
-                                <Route path="/whats-new" element={
+                                <Route path={WHATS_NEW.to} element={
                                     <WhatsNewScreen />
                                 } />
                                 <Route path="/settings" element={

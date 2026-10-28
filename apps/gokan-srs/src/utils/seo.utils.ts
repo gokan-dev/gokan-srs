@@ -1,4 +1,5 @@
 import { DICTIONARY_BASE_PATH } from '@gokan/dataset-schema';
+import { WHATS_NEW } from './navigation.utils';
 
 /**
  * What a route tells search engines: index it under its own URL, defer to the dictionary page
@@ -62,7 +63,7 @@ export function isAboutPath(pathname: string): boolean {
 
 /** Whether a pathname is What's new, which About links to and so is shown before setup too. */
 export function isWhatsNewPath(pathname: string): boolean {
-    return normalizePath(pathname) === '/whats-new';
+    return normalizePath(pathname) === WHATS_NEW.to;
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GRAMMAR, KANJI, STUDY, VOCABULARY, isDestinationActive, isMoreActive, isSessionPath, synonymsPath } from './navigation.utils';
+import { GRAMMAR, KANJI, MORE_DESTINATIONS, STUDY, VOCABULARY, WHATS_NEW, isDestinationActive, isMoreActive, isSessionPath, synonymsPath } from './navigation.utils';
 
 describe('isDestinationActive', () => {
     it('marks Study on the hub only', () => {
@@ -30,6 +30,11 @@ describe('isMoreActive', () => {
         expect(isMoreActive('/about')).toBe(true);
         expect(isMoreActive('/kanji')).toBe(true);
         expect(isMoreActive('/stats')).toBe(false);
+    });
+
+    it("lists What's new, so a phone reaches it and More is active on it", () => {
+        expect(MORE_DESTINATIONS).toContain(WHATS_NEW);
+        expect(isMoreActive('/whats-new')).toBe(true);
     });
 });
 

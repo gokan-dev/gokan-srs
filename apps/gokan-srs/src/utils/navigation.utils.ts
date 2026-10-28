@@ -13,12 +13,14 @@ export const LISTENING: NavDestination = { label: 'Listening', to: '/listening',
 export const STATS: NavDestination = { label: 'Stats', to: '/stats', sections: ['/stats'] };
 export const KANJI: NavDestination = { label: 'Kanji', to: '/kanji', sections: ['/kanji'] };
 export const SETTINGS: NavDestination = { label: 'Settings', to: '/settings', sections: ['/settings'] };
+export const ABOUT: NavDestination = { label: 'About', to: '/about', sections: ['/about'] };
+export const WHATS_NEW: NavDestination = { label: "What's new", to: '/whats-new', sections: [] };
 
 /** The desktop header's text links, in order (Settings sits apart, on the right). */
 export const HEADER_DESTINATIONS = [STUDY, VOCABULARY, GRAMMAR, LISTENING, STATS, KANJI];
 
 /** What the mobile More sheet lists, besides the external Dictionary link. */
-export const MORE_DESTINATIONS = [LISTENING, KANJI, SETTINGS, { label: 'About', to: '/about', sections: ['/about'] }];
+export const MORE_DESTINATIONS = [LISTENING, KANJI, SETTINGS, ABOUT, WHATS_NEW];
 
 /** The two study session pages, shown in focus mode (no navigation). */
 export function isSessionPath(pathname: string): boolean {
