@@ -10,7 +10,7 @@ import { formatDate } from "../../utils/time.utils";
 const ISSUES = 'https://github.com/gokan-dev/gokan-srs/issues';
 
 /** One shipped change: its version and day, then the sentence. */
-export function ChangelogItem({ entry }: { entry: ChangelogEntry }) {
+function ChangelogItem({ entry }: { entry: ChangelogEntry }) {
     return (
         <li className="py-4 first:pt-0">
             <p className="type-meta">
