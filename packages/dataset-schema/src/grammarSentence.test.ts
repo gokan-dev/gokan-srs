@@ -85,6 +85,11 @@ describe('grammarExampleToSentence', () => {
         // 通っている carries its own reading, かよっている.
         expect(grammarExampleToSentence(makeExample(), 'g').matches?.['v-kayou']).toEqual([{ start: 15, length: 5, reading: 'かよっている' }]);
     });
+
+    it('carries the example\'s clip onto the sentence, and adds none when it has no clip', () => {
+        expect(grammarExampleToSentence(makeExample({ audio: { clip: '0123456789abcdef' } }), 'g').audio).toEqual({ clip: '0123456789abcdef' });
+        expect(grammarExampleToSentence(makeExample(), 'g')).not.toHaveProperty('audio');
+    });
 });
 
 describe('patternHighlightRanges', () => {

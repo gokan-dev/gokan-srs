@@ -1,3 +1,5 @@
+import type { AudioRef } from './audio';
+
 /**
  * One tokenized word within a GrammarExample's Japanese sentence. `vocabId` is
  * resolved at build time by matching this word's surface/dictionary form against
@@ -31,6 +33,8 @@ export interface GrammarExample {
      * SRS app's `computeBlankPlan` falls back to other blanks then).
      */
     patternWordIndices: number[];
+    /** The example read aloud, when its clip is in the audio bucket (an example that is one of our sentences shares its clip). */
+    audio?: AudioRef;
 }
 
 /**

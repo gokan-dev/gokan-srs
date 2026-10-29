@@ -1,3 +1,5 @@
+import type { AudioRef } from './audio';
+
 /** Where a vocab occurs in a sentence: a span of `Sentence.original`. */
 export interface SentenceMatch {
     start: number;
@@ -23,6 +25,8 @@ export interface Sentence {
     vocabIds: string[];
     /** vocabId -> where it occurs, for highlighting and linking. Always arrays. */
     matches?: Record<string, SentenceMatch[]>;
+    /** The sentence read aloud, when its clip is in the audio bucket. */
+    audio?: AudioRef;
 }
 
 export interface SentenceSet {
