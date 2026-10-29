@@ -16,7 +16,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     {
         version: '1.44.0',
         date: '2026-10-29',
-        summary: 'Groundwork for listening: recordings of words and sentences can now be served, and the About page credits their voice once they arrive.',
+        summary: 'Groundwork for listening: words and sentences will be read aloud in a coming version, and the About page will credit the voice.',
         issue: 164,
     },
     {
