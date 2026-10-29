@@ -67,6 +67,13 @@ provider "aws" {
 
 data "aws_caller_identity" "current" {}
 
+# The shared audio bucket (#164): production's stack owns it and its policy, which lets this
+# account's distributions read it, so production is applied first. A read-only lookup here:
+# staging serves the same clips and never writes them.
+data "aws_s3_bucket" "audio" {
+  bucket = "${var.project_name}-audio-${data.aws_caller_identity.current.account_id}"
+}
+
 # Read-only lookup of the existing zone: production owns/creates it.
 data "aws_route53_zone" "main" {
   name         = var.zone_name
@@ -196,6 +203,13 @@ resource "aws_cloudfront_distribution" "website" {
     origin_access_control_id = aws_cloudfront_origin_access_control.website.id
   }
 
+  # The shared audio bucket. OAC signs for any S3 origin, so the site's one is reused.
+  origin {
+    domain_name              = data.aws_s3_bucket.audio.bucket_regional_domain_name
+    origin_id                = "S3-${data.aws_s3_bucket.audio.id}"
+    origin_access_control_id = aws_cloudfront_origin_access_control.website.id
+  }
+
   default_cache_behavior {
     allowed_methods  = ["GET", "HEAD", "OPTIONS"]
     cached_methods   = ["GET", "HEAD", "OPTIONS"]
@@ -235,6 +249,20 @@ resource "aws_cloudfront_distribution" "website" {
       event_type   = "viewer-request"
       function_arn = aws_cloudfront_function.dictionary_directory_index.arn
     }
+  }
+
+  # Clips, as on production (../main.tf, where the cache and the SPA fallback are explained).
+  ordered_cache_behavior {
+    path_pattern     = "/audio/*"
+    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
+    cached_methods   = ["GET", "HEAD", "OPTIONS"]
+    target_origin_id = "S3-${data.aws_s3_bucket.audio.id}"
+
+    cache_policy_id = "658327ea-f89d-4fab-a63d-7e88639e58f6" # Managed-CachingOptimized
+
+    viewer_protocol_policy     = "redirect-to-https"
+    compress                   = false
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.staging_noindex.id
   }
 
   # SPA routing: serve index.html for client-side routes.

@@ -92,6 +92,63 @@ resource "aws_s3_bucket_versioning" "website" {
   }
 }
 
+# The audio bucket: VOICEVOX clips of words, sentences and grammar examples (#164, see
+# docs/ARCHITECTURE.md, Audio). One bucket for both environments, owned by this stack and read
+# by the staging stack's distribution too (staging/main.tf looks it up by name), so a clip is
+# written once, not once per environment. Keys are content keys (`audio/{clip}.opus`), so an
+# object is never overwritten or deleted: no versioning, no lifecycle rules, no replication
+# (each would be charged per object, on ~107k of them). Only the maintainer's own credentials
+# write here, through the dataset's `upload:audio`; the site deploy has its own bucket and
+# never lists, writes or prunes this one.
+resource "aws_s3_bucket" "audio" {
+  bucket = "${var.project_name}-audio-${data.aws_caller_identity.current.account_id}"
+
+  # Refilling it means ~15 hours of synthesis and ~107k PUTs again.
+  lifecycle {
+    prevent_destroy = true
+  }
+
+  tags = {
+    Name        = "${var.project_name}-audio"
+    Environment = "shared"
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "audio" {
+  bucket = aws_s3_bucket.audio.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# Read by the CloudFront distributions of this account only (production here, staging in
+# staging/main.tf), through OAC. A pattern rather than the two ARNs, because the staging
+# distribution belongs to another state: naming it here would make each stack's apply wait on
+# the other's. Every distribution in this account is one of Gokan's two.
+resource "aws_s3_bucket_policy" "audio" {
+  bucket = aws_s3_bucket.audio.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "AllowGokanCloudFrontRead"
+        Effect    = "Allow"
+        Principal = { Service = "cloudfront.amazonaws.com" }
+        Action    = "s3:GetObject"
+        Resource  = "${aws_s3_bucket.audio.arn}/audio/*"
+        Condition = {
+          StringLike = {
+            "AWS:SourceArn" = "arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/*"
+          }
+        }
+      }
+    ]
+  })
+}
+
 # CloudFront Origin Access Control
 resource "aws_cloudfront_origin_access_control" "website" {
   name                              = "${var.project_name}-oac"
@@ -209,6 +266,13 @@ resource "aws_cloudfront_distribution" "website" {
     origin_access_control_id = aws_cloudfront_origin_access_control.website.id
   }
 
+  # The shared audio bucket (above). OAC signs for any S3 origin, so the site's one is reused.
+  origin {
+    domain_name              = aws_s3_bucket.audio.bucket_regional_domain_name
+    origin_id                = "S3-${aws_s3_bucket.audio.id}"
+    origin_access_control_id = aws_cloudfront_origin_access_control.website.id
+  }
+
   default_cache_behavior {
     allowed_methods  = ["GET", "HEAD", "OPTIONS"]
     cached_methods   = ["GET", "HEAD", "OPTIONS"]
@@ -247,6 +311,27 @@ resource "aws_cloudfront_distribution" "website" {
       event_type   = "viewer-request"
       function_arn = aws_cloudfront_function.dictionary_directory_index.arn
     }
+  }
+
+  # Clips, from the shared audio bucket: the request path is the object key (`audio/{clip}.opus`).
+  # A clip never changes under its key and is uploaded with
+  # `Cache-Control: public, max-age=31536000, immutable`, which CachingOptimized honours up to its
+  # one-year maximum, so a clip is cached a year and never needs an invalidation. Not compressed:
+  # Opus is already compressed.
+  #
+  # The SPA fallback below is distribution-wide, so a missing clip answers 200 with the app's
+  # shell. The app only asks for clips the dataset lists, and the dataset lists only clips the
+  # bucket holds, so it is not reached in practice.
+  ordered_cache_behavior {
+    path_pattern     = "/audio/*"
+    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
+    cached_methods   = ["GET", "HEAD", "OPTIONS"]
+    target_origin_id = "S3-${aws_s3_bucket.audio.id}"
+
+    cache_policy_id = "658327ea-f89d-4fab-a63d-7e88639e58f6" # Managed-CachingOptimized
+
+    viewer_protocol_policy = "redirect-to-https"
+    compress               = false
   }
 
   # Custom error response for SPA routing (CloudFront handles this, not S3)
@@ -372,6 +457,11 @@ data "aws_caller_identity" "current" {}
 output "s3_bucket_name" {
   description = "Name of the S3 bucket"
   value       = aws_s3_bucket.website.id
+}
+
+output "audio_bucket_name" {
+  description = "The shared audio bucket, passed to the dataset's upload:audio as --bucket"
+  value       = aws_s3_bucket.audio.id
 }
 
 output "cloudfront_domain_name" {
