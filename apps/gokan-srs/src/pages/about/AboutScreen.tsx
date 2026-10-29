@@ -5,10 +5,11 @@ import { APP_VERSION } from "../../services/release.service";
 import { WHATS_NEW } from "../../utils/navigation.utils";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { loadAudioIndex } from "../../services/audio.service";
+import { VoiceCredit } from "./VoiceCredit";
 
 export function AboutScreen() {
-    // The voice's credit as the dataset words it: its terms ask for it in that form.
-    const audio = useAsyncData("audio-index", loadAudioIndex).data;
+    // Lenient on purpose: #178's player treats a failed loadAudioIndex as fatal (ARCHITECTURE.md, Audio).
+    const audio = useAsyncData("audio-index", () => loadAudioIndex()).data;
 
     return (
         <Page width="narrow">
@@ -88,20 +89,7 @@ export function AboutScreen() {
                         </a>
                         , used under its Creative Commons license.
                     </p>
-                    {audio && (
-                        <p className="type-body mt-3">
-                            Words and sentences are read aloud by text-to-speech,{" "}
-                            <a
-                                href={audio.termsUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-accent underline"
-                            >
-                                {audio.credit}
-                            </a>
-                            . The recordings are used under that voice's terms, not the license of the words and sentences.
-                        </p>
-                    )}
+                    {audio && <VoiceCredit audio={audio} />}
                 </section>
 
                 {/* Version: on a phone the footer is hidden, so this is the way to What's new. */}

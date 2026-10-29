@@ -1,17 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AudioIndex } from '@gokan/dataset-schema';
-import { loadAudioIndex } from './audio.service';
-
-const INDEX: AudioIndex = {
-    engine: 'voicevox',
-    engineVersion: '0.26.0',
-    voice: '冥鳴ひまり',
-    style: 'ノーマル',
-    credit: 'VOICEVOX:冥鳴ひまり',
-    termsUrl: 'https://meimeihimari.wixsite.com/himari/terms-of-use',
-    extension: 'opus',
-    contentType: 'audio/ogg',
-};
+import { audioIndex } from '../test/fixtures';
+import { AUDIO_INDEX_SHIPPED, loadAudioIndex } from './audio.service';
 
 // The same question vite.config.ts asks the pinned dataset, answered here without reading the file.
 const shipped = Object.keys(import.meta.glob('../../dataset/compiled/index/audio.json')).length > 0;
@@ -19,12 +8,26 @@ const shipped = Object.keys(import.meta.glob('../../dataset/compiled/index/audio
 describe('loadAudioIndex', () => {
     afterEach(() => { vi.unstubAllGlobals(); });
 
-    it('asks for index/audio.json exactly when the pinned dataset has it, so a missing file is never fetched', async () => {
-        const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(new Response(JSON.stringify(INDEX))));
+    function stubFetch() {
+        const fetchMock = vi.fn((_url: string, _init?: RequestInit) => Promise.resolve(new Response(JSON.stringify(audioIndex()))));
         vi.stubGlobal('fetch', fetchMock);
+        return fetchMock;
+    }
 
-        await expect(loadAudioIndex()).resolves.toEqual(shipped ? INDEX : null);
-        expect(fetchMock).toHaveBeenCalledTimes(shipped ? 1 : 0);
-        if (shipped) expect(fetchMock.mock.calls[0]).toEqual([expect.stringMatching(/^\/data\/compiled\/index\/audio\.json\?v=/), undefined]);
+    it('answers null without asking when the dataset has no index/audio.json, so a missing file is never fetched', async () => {
+        const fetchMock = stubFetch();
+        await expect(loadAudioIndex(false)).resolves.toBeNull();
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('reads index/audio.json once, by its versioned dataset URL, when the dataset has it', async () => {
+        const fetchMock = stubFetch();
+        await expect(loadAudioIndex(true)).resolves.toEqual(audioIndex());
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(fetchMock.mock.calls[0]).toEqual([expect.stringMatching(/^\/data\/compiled\/index\/audio\.json\?v=/), undefined]);
+    });
+
+    it('takes its default from a build flag that agrees with the pinned dataset', () => {
+        expect(AUDIO_INDEX_SHIPPED).toBe(shipped);
     });
 });

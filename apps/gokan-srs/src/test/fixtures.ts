@@ -7,7 +7,7 @@
  * shares their `history` arrays between fixtures, so a test pushing a review log would
  * leak it into every other fixture built in the same file.
  */
-import type { GrammarBrowseRow, GrammarExample, GrammarPoint, SearchIndexEntry, Sentence, Vocabulary } from '@gokan/dataset-schema';
+import type { AudioIndex, GrammarBrowseRow, GrammarExample, GrammarPoint, SearchIndexEntry, Sentence, Vocabulary } from '@gokan/dataset-schema';
 import { DEFAULT_GRAMMAR_PROGRESS, type GrammarProgress } from '../models/grammar.model';
 import { DEFAULT_SETTINGS, type UserSettings } from '../models/user.model';
 import { DEFAULT_SRS_ENTRY, DEFAULT_VOCABULARY_PROGRESS, type ReviewLog, type SRSEntry, type VocabProgress } from '../models/vocabulary.model';
@@ -127,4 +127,19 @@ export function grammarBrowseRow(overrides: Partial<GrammarBrowseRow> = {}): Gra
 
 export function searchIndexEntry(overrides: Partial<SearchIndexEntry> = {}): SearchIndexEntry {
     return { id: '1000000', w: '日', r: 'ひ', m: 'day', ...overrides };
+}
+
+/** The voice the dataset's clips are read in, as `index/audio.json` names it. */
+export function audioIndex(overrides: Partial<AudioIndex> = {}): AudioIndex {
+    return {
+        engine: 'voicevox',
+        engineVersion: '0.26.0',
+        voice: '冥鳴ひまり',
+        style: 'ノーマル',
+        credit: 'VOICEVOX:冥鳴ひまり',
+        termsUrl: 'https://meimeihimari.wixsite.com/himari/terms-of-use',
+        extension: 'opus',
+        contentType: 'audio/ogg',
+        ...overrides,
+    };
 }
