@@ -4,6 +4,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import checker from 'vite-plugin-checker';
 import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { Plugin } from 'vite';
 import { analyticsScriptTag } from '@gokan/analytics';
@@ -20,6 +21,11 @@ const datasetVersion = execFileSync('git', ['rev-parse', '--short=12', 'HEAD:./d
     cwd: fileURLToPath(new URL('.', import.meta.url)),
     encoding: 'utf8',
 }).trim();
+
+// index/audio.json names the voice clips are read in, and the dataset writes it only once a clip
+// is attached (#164). Known here so the app asks for it only when it is there: a missing dataset
+// file answers with the SPA shell, not a 404.
+const audioIndexShipped = existsSync(fileURLToPath(new URL('./dataset/compiled/index/audio.json', import.meta.url)));
 
 // The app's version is the newest changelog entry's (release/changelog.ts), so every build of a
 // tree, a shallow tagless CI checkout included, carries the same one. A list out of order would
@@ -57,6 +63,7 @@ export default defineConfig({
     define: {
         __DATASET_VERSION__: JSON.stringify(datasetVersion),
         __APP_VERSION__: JSON.stringify(appVersion),
+        __AUDIO_INDEX_SHIPPED__: JSON.stringify(audioIndexShipped),
     },
     plugins: [
         react(),

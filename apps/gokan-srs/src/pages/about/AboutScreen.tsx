@@ -3,8 +3,13 @@ import { PageHeader } from "../../components/PageHeader";
 import { Link } from "react-router-dom";
 import { APP_VERSION } from "../../services/release.service";
 import { WHATS_NEW } from "../../utils/navigation.utils";
+import { useAsyncData } from "../../hooks/useAsyncData";
+import { loadAudioIndex } from "../../services/audio.service";
 
 export function AboutScreen() {
+    // The voice's credit as the dataset words it: its terms ask for it in that form.
+    const audio = useAsyncData("audio-index", loadAudioIndex).data;
+
     return (
         <Page width="narrow">
             <PageHeader title="About Gokan SRS" parentPath="/" className="mb-8" />
@@ -83,6 +88,20 @@ export function AboutScreen() {
                         </a>
                         , used under its Creative Commons license.
                     </p>
+                    {audio && (
+                        <p className="type-body mt-3">
+                            Words and sentences are read aloud by text-to-speech,{" "}
+                            <a
+                                href={audio.termsUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-accent underline"
+                            >
+                                {audio.credit}
+                            </a>
+                            . The recordings are used under that voice's terms, not the license of the words and sentences.
+                        </p>
+                    )}
                 </section>
 
                 {/* Version: on a phone the footer is hidden, so this is the way to What's new. */}
