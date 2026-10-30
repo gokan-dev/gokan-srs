@@ -3,8 +3,14 @@ import { PageHeader } from "../../components/PageHeader";
 import { Link } from "react-router-dom";
 import { APP_VERSION } from "../../services/release.service";
 import { WHATS_NEW } from "../../utils/navigation.utils";
+import { useAsyncData } from "../../hooks/useAsyncData";
+import { loadAudioIndex } from "../../services/audio.service";
+import { VoiceCredit } from "./VoiceCredit";
 
 export function AboutScreen() {
+    // Lenient on purpose: #178's player treats a failed loadAudioIndex as fatal (ARCHITECTURE.md, Audio).
+    const audio = useAsyncData("audio-index", () => loadAudioIndex()).data;
+
     return (
         <Page width="narrow">
             <PageHeader title="About Gokan SRS" parentPath="/" className="mb-8" />
@@ -83,6 +89,7 @@ export function AboutScreen() {
                         </a>
                         , used under its Creative Commons license.
                     </p>
+                    {audio && <VoiceCredit audio={audio} />}
                 </section>
 
                 {/* Version: on a phone the footer is hidden, so this is the way to What's new. */}

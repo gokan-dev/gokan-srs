@@ -25,7 +25,8 @@ export function surfaceReading(word: GrammarExampleWord): string | undefined {
  *
  * Offsets are derived from cumulative `surface` length, and `original` is the
  * surfaces joined, so the two always agree (the dataset guarantees the join is
- * `example.jp`). `id` must be unique among the sentences on one page.
+ * `example.jp`). `id` must be unique among the sentences on one page. The example's
+ * clip, when it has one, comes along, so a grammar example plays like any sentence.
  */
 export function grammarExampleToSentence(example: GrammarExample, id: string): Sentence {
     const matches: NonNullable<Sentence['matches']> = {};
@@ -45,6 +46,7 @@ export function grammarExampleToSentence(example: GrammarExample, id: string): S
         en: [{ id: `${id}-en`, text: example.en }],
         vocabIds: Object.keys(matches),
         matches,
+        ...(example.audio ? { audio: example.audio } : {}),
     };
 }
 

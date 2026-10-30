@@ -9,6 +9,7 @@ export * from './vocabulary';
 export * from './kanji';
 export * from './kanjiSteps';
 export * from './sentence';
+export * from './audio';
 export * from './indexes';
 export * from './grammar';
 export * from './media';

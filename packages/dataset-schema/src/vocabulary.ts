@@ -1,3 +1,5 @@
+import type { AudioRef } from './audio';
+
 /** One vocabulary entry, `compiled/vocab/{id}.json`. */
 export interface Vocabulary {
     /** JMdict word ID (lexeme-level, stable) */
@@ -76,6 +78,9 @@ export interface Vocabulary {
      * orders, and with no reading quiz. Decided at dataset build time; absent otherwise.
      */
     usuallyKana?: true;
+
+    /** The word read aloud, when its clip is in the audio bucket. */
+    audio?: AudioRef;
 }
 
 export interface MergedVocabInfo {

@@ -14,6 +14,12 @@ import type { ChangelogEntry } from '../src/models/release.model';
  */
 export const CHANGELOG: readonly ChangelogEntry[] = [
     {
+        version: '1.44.0',
+        date: '2026-10-29',
+        summary: 'Groundwork for listening: words and sentences will be read aloud in a coming version, and the About page will credit the voice.',
+        issue: 164,
+    },
+    {
         version: '1.43.0',
         date: '2026-10-28',
         summary: 'The app now shows its version, has this What\'s new page, and offers a reload when a newer version is live.',
