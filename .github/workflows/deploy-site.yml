@@ -115,14 +115,13 @@ jobs:
       # through the AUDIO_MAX_UPLOADS variable. It runs before the site's credentials are
       # configured, so its own are the only ones in the environment.
       - name: Upload the dataset's new audio clips
-        working-directory: apps/gokan-srs/dataset
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.audio_aws_access_key_id }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.audio_aws_secret_access_key }}
           AWS_REGION: eu-west-3
           AUDIO_BUCKET: ${{ vars.AUDIO_BUCKET }}
           MAX_UPLOADS: ${{ vars.AUDIO_MAX_UPLOADS || '2000' }}
-        run: bun scripts/upload-audio.ts --bucket "$AUDIO_BUCKET" --max-uploads "$MAX_UPLOADS"
+        run: bun run --cwd apps/gokan-srs/dataset upload:audio --bucket "$AUDIO_BUCKET" --max-uploads "$MAX_UPLOADS"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
