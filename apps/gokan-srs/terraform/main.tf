@@ -94,7 +94,7 @@ resource "aws_s3_bucket_versioning" "website" {
 
 # The audio bucket: VOICEVOX clips of words, sentences and grammar examples (#164, see
 # docs/ARCHITECTURE.md, Audio). One bucket for both environments, owned by this stack and read
-# by the staging stack's distribution too (staging/main.tf looks it up by name), so a clip is
+# by the staging stack's distribution too (staging/main.tf builds the same name), so a clip is
 # written once, not once per environment. Keys are content keys (`audio/{clip}.opus`), so an
 # object is never overwritten or deleted: no versioning, no lifecycle rules, no replication
 # (each would be charged per object, on ~107k of them). Only the maintainer's own credentials
@@ -103,7 +103,7 @@ resource "aws_s3_bucket_versioning" "website" {
 resource "aws_s3_bucket" "audio" {
   bucket = "${var.project_name}-audio-${data.aws_caller_identity.current.account_id}"
 
-  # Refilling it means ~15 hours of synthesis and ~107k PUTs again.
+  # Refilling it means ~19 hours of synthesis and ~107k PUTs again.
   lifecycle {
     prevent_destroy = true
   }
