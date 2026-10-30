@@ -37,3 +37,5 @@ jobs:
       aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
       aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       cloudfront_distribution_id: ${{ secrets.STAGING_CLOUDFRONT_DISTRIBUTION_ID }}
+      audio_aws_access_key_id: ${{ secrets.AUDIO_AWS_ACCESS_KEY_ID }}
+      audio_aws_secret_access_key: ${{ secrets.AUDIO_AWS_SECRET_ACCESS_KEY }}

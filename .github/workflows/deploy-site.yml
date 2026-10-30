@@ -53,6 +53,12 @@ on:
         required: true
       cloudfront_distribution_id:
         required: true
+      # The audio key: an IAM user that can list the shared audio bucket and add objects under
+      # audio/, nothing else. The site's key above cannot touch that bucket.
+      audio_aws_access_key_id:
+        required: true
+      audio_aws_secret_access_key:
+        required: true
 
 jobs:
   deploy:
@@ -100,6 +106,23 @@ jobs:
           VITE_SITE_ORIGIN: ${{ inputs.site_origin }}
           VITE_UMAMI_WEBSITE_ID: ${{ inputs.umami_website_id }}
         run: bun run --cwd apps/gokan-dictionary build
+
+      # The clips this dataset version names (#164), uploaded before anything naming them is
+      # published: the deploy fails rather than ship a dataset whose clips the bucket lacks.
+      # upload:audio writes only the committed clips the bucket lacks (fetching just those from
+      # Git LFS), never overwrites or deletes, and fails over its cap, the guard against a key
+      # bug rewriting the bucket. A first fill or a voice change raises the cap for one deploy
+      # through the AUDIO_MAX_UPLOADS variable. It runs before the site's credentials are
+      # configured, so its own are the only ones in the environment.
+      - name: Upload the dataset's new audio clips
+        working-directory: apps/gokan-srs/dataset
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.audio_aws_access_key_id }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.audio_aws_secret_access_key }}
+          AWS_REGION: eu-west-3
+          AUDIO_BUCKET: ${{ vars.AUDIO_BUCKET }}
+          MAX_UPLOADS: ${{ vars.AUDIO_MAX_UPLOADS || '2000' }}
+        run: bun scripts/upload-audio.ts --bucket "$AUDIO_BUCKET" --max-uploads "$MAX_UPLOADS"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4

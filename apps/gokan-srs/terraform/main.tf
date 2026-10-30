@@ -97,9 +97,10 @@ resource "aws_s3_bucket_versioning" "website" {
 # by the staging stack's distribution too (staging/main.tf builds the same name), so a clip is
 # written once, not once per environment. Keys are content keys (`audio/{clip}.opus`), so an
 # object is never overwritten or deleted: no versioning, no lifecycle rules, no replication
-# (each would be charged per object, on ~107k of them). Only the maintainer's own credentials
-# write here, through the dataset's `upload:audio`; the site deploy has its own bucket and
-# never lists, writes or prunes this one.
+# (each would be charged per object, on ~107k of them). Only the audio key writes here: an IAM
+# user (made by hand, like the deploy and Terraform users) allowed s3:ListBucket on this bucket
+# and s3:PutObject under audio/, used by deploy-site.yml's upload step. The site's deploy key
+# never lists, writes or prunes this bucket.
 resource "aws_s3_bucket" "audio" {
   bucket = "${var.project_name}-audio-${data.aws_caller_identity.current.account_id}"
 
