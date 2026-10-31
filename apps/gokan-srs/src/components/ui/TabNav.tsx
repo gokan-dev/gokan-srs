@@ -1,5 +1,6 @@
 import { useEffect, useRef, type KeyboardEvent } from "react";
 import { NavLink } from "react-router-dom";
+import { tabRowScroll } from "../../utils/tabScroll.utils";
 
 /** A tab that is its own page: a link to its route. */
 interface RouteTab {
@@ -66,8 +67,9 @@ function stepTab(index: number, count: number, key: string): number | null {
  *   for a phone scrolls sideways inside itself, the open tab kept in view; the page never does.
  *   A page bleeds the row to the screen's edges (`PAGE_BLEED_INSET` from Page), so the tabs
  *   scroll under the edge and a tab cut there shows the row goes on. The gap is narrower on a
- *   phone: a wide one landing on the screen's edge would hide the next tab whole
- *   (check:layout measures it on the word pages).
+ *   phone: a wide one landing on the screen's edge would hide the next tab whole; choosing a tab
+ *   scrolls the row so a tab is cut at each edge with more behind it (`tabRowScroll`; check:layout
+ *   measures it on the word pages).
  */
 export function TabNav<K extends string>(props: RouteTabNavProps | PageTabNavProps<K>) {
     if ('selected' in props) return <PageTabs {...props} />;
@@ -86,20 +88,26 @@ export function TabNav<K extends string>(props: RouteTabNavProps | PageTabNavPro
 function PageTabs<K extends string>({ tabs, label, selected, onSelect, className = '' }: PageTabNavProps<K>) {
     const rowRef = useRef<HTMLDivElement>(null);
 
-    // Keeps the open tab in the row's view, inside its inline padding (a row bled to the screen's
-    // edges pads itself back in line with the page), scrolling only the row: scrollIntoView would
-    // also scroll the page to the row.
+    // Keeps the open tab in the row's view, scrolling only the row (scrollIntoView would also
+    // scroll the page to the row), where a tab cut by each edge still shows the row goes on.
     useEffect(() => {
         const row = rowRef.current;
-        const tab = row?.querySelector<HTMLElement>('[aria-selected="true"]');
-        if (!row || !tab) return;
+        if (!row) return;
+        const buttons = [...row.querySelectorAll<HTMLElement>('[role="tab"]')];
+        const open = buttons.findIndex(tab => tab.getAttribute('aria-selected') === 'true');
         const style = getComputedStyle(row);
-        const box = row.getBoundingClientRect();
-        const left = box.left + parseFloat(style.paddingLeft);
-        const right = box.right - parseFloat(style.paddingRight);
-        const at = tab.getBoundingClientRect();
-        if (at.left < left) row.scrollLeft -= left - at.left;
-        else if (at.right > right) row.scrollLeft += at.right - right;
+        const start = row.getBoundingClientRect().left - row.scrollLeft;
+        row.scrollLeft = tabRowScroll({
+            tabs: buttons.map(tab => {
+                const box = tab.getBoundingClientRect();
+                return { left: box.left - start, right: box.right - start };
+            }),
+            width: row.clientWidth,
+            maxScroll: row.scrollWidth - row.clientWidth,
+            paddingLeft: parseFloat(style.paddingLeft),
+            paddingRight: parseFloat(style.paddingRight),
+            gap: parseFloat(style.columnGap) || 0,
+        }, open, row.scrollLeft);
     }, [selected]);
 
     const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
