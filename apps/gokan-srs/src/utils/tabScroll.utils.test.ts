@@ -11,7 +11,11 @@ const PHONE_ROW: TabRow = {
     gap: 16,
 };
 
-/** Whether an edge with tabs past it cuts one by a slice on each side (what check:layout asserts). */
+/**
+ * Whether an edge with tabs past it cuts one by a slice on each side, as check:layout asserts.
+ * A deliberate copy of the module's private predicate, not an import of it: a test that reused
+ * the predicate under test would check nothing.
+ */
 function edgeCut(row: TabRow, at: number, edge: 'left' | 'right'): boolean {
     const x = edge === 'left' ? at : at + row.width;
     const hidden = row.tabs.some(tab => (edge === 'left' ? tab.left < x - 0.5 : tab.right > x + 0.5));
