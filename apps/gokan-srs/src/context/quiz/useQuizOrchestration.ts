@@ -25,7 +25,7 @@ import type { QuizState, QuizAction } from './quizReducer';
 import { useExerciseTurn } from './useExerciseTurn';
 import { selectNextView, selectCurrentProgress, selectSessionStats, selectNextSessionPreview, collectActionableTaskKeys, capSessionCommit, dedupTaskKeysByVocab, isWordSessionDone, wordReviewTaskKeys } from './quizSelectors';
 import { useSessionLifecycle } from './useSessionLifecycle';
-import { REVIEW_WORD_PARAM, vocabPath } from '../../utils/navigation.utils';
+import { isReviewFromWord, REVIEW_WORD_PARAM, vocabPath } from '../../utils/navigation.utils';
 import { sessionRouteRole } from './sessionRoutes';
 import { refillCandidates } from './refillCandidates';
 import { progressUploadSignature, stableStringify } from "../../services/progressSerialization";
@@ -275,10 +275,13 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
         onEnd: () => {
             // A word's review that ran out of cards on /quiz goes back to the word's page; leaving
             // for another page, or coming back after the pause expired, goes where the learner went.
+            // Opened from the word's page (pushed, so Back mid-session lands there too), it goes
+            // back to that entry; a deep-linked review has no page behind it, so it replaces itself.
             const word = state.session?.word;
             dispatch({ type: 'SESSION_END' });
             if (word !== undefined && sessionRole === 'activity' && state.session?.suspendedAt === undefined) {
-                void navigate(vocabPath(word), { replace: true });
+                if (isReviewFromWord(location.state)) void navigate(-1);
+                else void navigate(vocabPath(word), { replace: true });
             }
         },
         onSuspend: (now) => dispatch({ type: 'SESSION_SUSPEND', payload: { now: now.getTime() } }),

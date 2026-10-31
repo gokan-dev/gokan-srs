@@ -29,7 +29,10 @@
  *   320px, the open tab inside the row's view, and a tab chosen while it is stuck brings its
  *   panel's top just under the row, as does tapping the open tab again;
  * - a word page's tab row too wide for a phone runs to the screen's edge on each side it has tabs
- *   past, with a tab cut by that edge, so the row shows it scrolls (no tab hidden at the padding).
+ *   past, with a tab cut by that edge, so the row shows it scrolls (no tab hidden at the padding),
+ *   scrolled to either end and after choosing any tab;
+ * - a word page's Review now leaves the word page once in history: a finished review goes back to
+ *   it, and Back mid-review lands on it.
  *
  * Usage: build both apps (`bun run --cwd apps/gokan-srs build`, `bun run --cwd
  * apps/gokan-dictionary build`), then `bun run check:layout`. Needs Chrome or Chromium: found at
@@ -180,6 +183,8 @@ const FIXTURE_MOVED = `FURIGANA_VOCAB ${FURIGANA_VOCAB} has no example sentence 
 // whose pairs make the longest Synonyms tab, as it opens and with every meaning and row shown. Readable records under a
 // readable key, which the compact payload keeps as it is.
 const MIXUP_WORD = '1224020';
+/** Its reading, the answer to its one due card in the Review now check. */
+const MIXUP_WORD_READING = 'かがやく';
 const LONG_SYNONYMS_WORD = '1326980';
 const MIXUPS = [
     { answer: '光る', outcome: 'accepted', typed: '1272820', meaning: 'shine', cue: 'The stars were shining brightly in the clear winter sky above the sleeping mountain village.' },
@@ -309,32 +314,54 @@ async function checkWordFirstScreen(tab: Tab, page: string, width: number, resto
  * A tab row wider than the phone (its tablist's scrollWidth over its clientWidth) is the cue that
  * it scrolls only when it runs to the screen's edge and a tab is cut there: a row stopping at the
  * page's padding hides whole tabs behind a clean edge, or cuts one where it reads as a glitch.
- * Checked with the row scrolled to each end, on the side that then has tabs past the screen's
- * edge (a gap between two tabs landing on the edge hides the next one as surely as the padding).
+ * Checked with the row scrolled to each end, then after choosing each tab in turn from each end
+ * (the row keeps the chosen tab in view): on every side that then has tabs past the screen's edge,
+ * one must be cut by it (a gap between two tabs landing on the edge hides the next one as surely as
+ * the padding). The tab open before is chosen again after, as the tab last chosen carries over.
  */
 async function checkTabRowBleed(tab: Tab, page: string, width: number): Promise<void> {
-    const problems = await tab.evaluate<string[] | null>(`(() => {
+    const problems = await tab.evaluate<string[] | null>(`(async () => {
         const list = document.querySelector('[data-detail-tabs] [role=tablist]');
         if (!list) return null;
         if (list.scrollWidth <= list.clientWidth) return [];
         const edge = document.documentElement.clientWidth;
         const row = list.getBoundingClientRect();
+        const buttons = [...list.querySelectorAll('[role=tab]')];
         const was = list.scrollLeft;
+        const opened = buttons.find(el => el.getAttribute('aria-selected') === 'true');
+        const settle = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 50))));
         const problems = [];
-        // Scrolled to its start the row must show it goes on to the right, scrolled to its end to the left.
         const sides = [
-            ['right', 0, t => t.right > edge + 0.5, row.right >= edge - 0.5, t => t.left < edge - 0.5 && t.right > edge + 0.5, Math.round(edge - row.right)],
-            ['left', list.scrollWidth, t => t.left < -0.5, row.left <= 0.5, t => t.left < -0.5 && t.right > 0.5, Math.round(row.left)],
+            ['right', t => t.right > edge + 0.5, row.right >= edge - 0.5, t => t.left < edge - 0.5 && t.right > edge + 0.5, Math.round(edge - row.right)],
+            ['left', t => t.left < -0.5, row.left <= 0.5, t => t.left < -0.5 && t.right > 0.5, Math.round(row.left)],
         ];
-        for (const [side, scrollTo, past, reaches, cut, gap] of sides) {
+        // Every side with tabs past the screen's edge must show one cut by it.
+        const assess = (when) => {
+            const tabs = buttons.map(el => el.getBoundingClientRect());
+            for (const [side, past, reaches, cut, gap] of sides) {
+                if (!tabs.some(past)) continue;
+                if (!reaches) problems.push("the tab row stops " + gap + "px short of the screen's " + side + " edge, hiding its tabs at the padding");
+                else if (!tabs.some(cut)) problems.push(when + ", the tab row has tabs past the screen's " + side + " edge but none cut by it, so nothing shows it scrolls");
+            }
+        };
+        const ends = [['start', 0], ['end', list.scrollWidth]];
+        for (const [end, scrollTo] of ends) {
             list.scrollLeft = scrollTo;
-            const tabs = [...list.querySelectorAll('[role=tab]')].map(el => el.getBoundingClientRect());
-            if (!tabs.some(past)) continue;
-            if (!reaches) problems.push("the tab row stops " + gap + "px short of the screen's " + side + " edge, hiding its tabs at the padding");
-            else if (!tabs.some(cut)) problems.push("scrolled to its " + (side === 'right' ? 'start' : 'end') + ", the tab row has tabs past the screen's " + side + " edge but none cut by it, so nothing shows it scrolls");
+            assess('scrolled to its ' + end);
         }
+        for (const [end, scrollTo] of ends) {
+            for (const button of buttons) {
+                list.scrollLeft = scrollTo;
+                await settle();
+                button.click();
+                await settle();
+                assess('with ' + button.textContent.trim() + ' chosen from the row\\'s ' + end);
+            }
+        }
+        opened?.click();
+        await settle();
         list.scrollLeft = was;
-        return problems;
+        return [...new Set(problems)];
     })()`);
     if (problems === null) failures.push(`${width}px ${page}: no tab row`);
     else for (const problem of problems) failures.push(`${width}px ${page}: ${problem}`);
@@ -387,6 +414,105 @@ async function checkStickyTabs(tab: Tab, page: string, width: number, next: stri
     const gap = await tab.evaluate<number | null>(PANEL_GAP);
     if (gap === null) failures.push(`${width}px ${page}: no open panel after choosing ${next}`);
     else if (Math.abs(gap) > 2) failures.push(`${width}px ${page}: choosing ${next} with the tab row stuck leaves its panel's top ${Math.round(gap)}px from the row's bottom, not under it`);
+}
+
+/**
+ * Makes a studied word's reading due an hour ago (the reading's due date, and its introduction,
+ * readable or compact), so its page offers Review now. Read on the next page load.
+ */
+const makeReadingDue = (vocabId: string) => `(async () => {
+    const key = 'GOKAN_SRS_PROGRESS';
+    const done = request => new Promise((resolve, reject) => { request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
+    const db = await done(indexedDB.open('gokan-srs'));
+    const progress = JSON.parse(await done(db.transaction('progress').objectStore('progress').get(key)));
+    const queue = progress.q ?? progress.learningQueue;
+    const item = queue.find(entry => (entry.i ?? entry.vocabId) === ${JSON.stringify(vocabId)});
+    const hourAgo = Date.now() - 3600000;
+    const asStored = value => typeof value === 'number' ? hourAgo : new Date(hourAgo).toISOString();
+    for (const [at, reading, due] of [['ia', 'r', 'dd'], ['introductionAt', 'reading', 'dueDate']]) {
+        if (item[at] !== undefined) item[at] = asStored(item[at]);
+        if (item[reading]?.[due] !== undefined) item[reading][due] = asStored(item[reading][due]);
+    }
+    await done(db.transaction('progress', 'readwrite').objectStore('progress').put(JSON.stringify(progress), key));
+    db.close();
+})()`;
+const REVIEW_NOW_SHOWN = `[...document.querySelectorAll('button')].some(el => el.textContent.trim() === 'Review now')`;
+
+/**
+ * Opens a studied word's page from /vocab inside the app (no page load), its reading due, at its
+ * Review now. The record is edited after a fresh load, once the app has settled: a save still
+ * queued from the page before would write over it.
+ */
+async function openDueWord(tab: Tab, app: string, vocabId: string): Promise<boolean> {
+    await tab.goto(`${app}/vocab`, 'Vocabulary');
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    await tab.evaluate<void>(makeReadingDue(vocabId));
+    await tab.goto(`${app}/vocab`, 'Vocabulary');
+    await tab.evaluate(`(() => {
+        history.pushState({}, '', '/vocab/${vocabId}');
+        dispatchEvent(new PopStateEvent('popstate'));
+    })()`);
+    try {
+        await tab.until(REVIEW_NOW_SHOWN, 'Review now', 10000);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Review now leaves the word page once in history, whether the session runs to its end or is left
+ * with Back: finished, it goes back to the word's page, the same entry, and the next Back reaches
+ * the page before the word; left mid-session with Back, it lands on the word's page. Run on a word
+ * just learned (its reading, `reading`, the one card due).
+ */
+async function checkReviewNow(tab: Tab, app: string, width: number, vocabId: string, reading: string): Promise<void> {
+    const page = `srs /vocab/${vocabId}, Review now`;
+    const at = (path: string) => `location.pathname === ${JSON.stringify(path)}`;
+    if (!(await openDueWord(tab, app, vocabId))) {
+        failures.push(`${width}px ${page}: no Review now on the word's page with its reading made due`);
+        return;
+    }
+    await tab.click('Review now');
+    try {
+        await tab.until(`${at('/quiz')} && document.querySelector('input') !== null`, 'the review card', 10000);
+        const during = await tab.evaluate<number>('history.length');
+        await tab.evaluate(`(() => {
+            const input = document.querySelector('input');
+            Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, ${JSON.stringify(reading)});
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        })()`);
+        await tab.click('Submit');
+        await tab.until(`${at(`/vocab/${vocabId}`)} || [...document.querySelectorAll('button')].some(el => el.textContent.trim() === 'Continue')`, 'Continue or the end of the review', 5000);
+        if (await tab.evaluate<boolean>(at('/quiz'))) await tab.click('Continue');
+        await tab.until(at(`/vocab/${vocabId}`), "the word's page once the review is done", 10000);
+        const after = await tab.evaluate<number>('history.length');
+        if (after !== during) failures.push(`${width}px ${page}: the finished review changed history's length (${during} to ${after})`);
+        await tab.evaluate('history.back()');
+        await tab.until(at('/vocab'), 'the page before the word', 5000);
+    } catch (error) {
+        failures.push(`${width}px ${page}: a finished review did not leave the word's page once in history (${error instanceof Error ? error.message : String(error)}, at ${await tab.evaluate<string>('location.pathname')})`);
+    }
+    if (!(await openDueWord(tab, app, vocabId))) {
+        failures.push(`${width}px ${page}: no Review now on the word's page with its reading made due again`);
+        return;
+    }
+    await tab.click('Review now');
+    try {
+        await tab.until(at('/quiz'), 'the review', 10000);
+        await tab.evaluate('history.back()');
+        await tab.until(at(`/vocab/${vocabId}`), "the word's page", 5000);
+    } catch {
+        failures.push(`${width}px ${page}: Back in the middle of the review does not land on the word's page (at ${await tab.evaluate<string>('location.pathname')})`);
+    }
+    // The review left with Back is paused, not ended: ended here, so no later page shows its resume bar.
+    await tab.evaluate('history.forward()');
+    try {
+        await tab.until(`${at('/quiz')} && [...document.querySelectorAll('button')].some(el => el.textContent.trim() === 'End session')`, 'the paused review', 5000);
+        await tab.click('End session');
+    } catch {
+        failures.push(`${width}px ${page}: could not end the review left with Back`);
+    }
 }
 
 /**
@@ -575,7 +701,8 @@ try {
         await tab.evaluate<void>(SEED_MIXUPS);
         await tab.goto(`${app}/vocab/${MIXUP_WORD}`, 'Dict');
         // Learned here, so Your study's phone grid and the mix-ups under it are measured on a word that has them.
-        if (await learnOpenWord(tab, `srs /vocab/${MIXUP_WORD}`, width)) {
+        const learned = await learnOpenWord(tab, `srs /vocab/${MIXUP_WORD}`, width);
+        if (learned) {
             await tab.until(`document.body.innerText.includes('Show all mix-ups')`, 'Your mix-ups in the Study tab');
             await tab.click('Show all mix-ups');
             await measure(tab, `srs /vocab/${MIXUP_WORD}, Study tab with mix-ups`, width);
@@ -590,6 +717,7 @@ try {
         await measure(tab, `srs /vocab/${MIXUP_WORD}, kanji tab`, width);
         // The tab last chosen opens on the next word: Dict first here, for the page as it first shows.
         await openWordTab(tab, `srs /vocab/${MIXUP_WORD}`, width, 'Dict');
+        if (learned) await checkReviewNow(tab, app, width, MIXUP_WORD, MIXUP_WORD_READING);
         await tab.goto(`${app}/vocab/${LONG_SYNONYMS_WORD}`, 'Meanings');
         await measure(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, Dict tab`, width);
         await checkWordFirstScreen(tab, `srs /vocab/${LONG_SYNONYMS_WORD}`, width, height);
@@ -631,4 +759,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji, on one line and apart, Japanese in list rows unbroken, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, its tab row running to the screen's edge with a tab cut there when it scrolls, stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji, on one line and apart, Japanese in list rows unbroken, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, Review now leaving the word page once in history, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off.`);

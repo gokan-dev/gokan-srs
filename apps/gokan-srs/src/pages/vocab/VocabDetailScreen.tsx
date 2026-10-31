@@ -21,7 +21,7 @@ import { useNow } from "../../hooks/useNow";
 import { usePersistedControlsSnapshot, writePersistedControls } from "../../hooks/usePersistedControls";
 import { statusReviewPhrase, vocabLearningStatus } from "../../utils/learningStatus.utils";
 import { mixupsAsked } from "../../utils/mixups.utils";
-import { wordReviewPath } from "../../utils/navigation.utils";
+import { REVIEW_FROM_WORD_STATE, wordReviewPath } from "../../utils/navigation.utils";
 import { synonymCount } from "../../utils/synonymSections.utils";
 import { initialWordTab, WORD_TAB_STORAGE_KEY, WORD_TABS, wordTabHash, type WordTab } from "../../utils/wordTabs.utils";
 import { relatedCount } from "./explore/counts";
@@ -164,7 +164,7 @@ function WordPage({ vocab, sentences, sentencesSettled, now, onLearn, knownKanji
                     nextReview={statusReviewPhrase(status, vocabNextReviewAt(progress, settings), now)}
                     // Replacing this page: the session's end replaces itself with it again, so Back
                     // from either goes where it would have from this page, never to it twice.
-                    onReview={reviewable ? () => void navigate(wordReviewPath(vocab.id), { replace: true }) : undefined}
+                    onReview={reviewable ? () => void navigate(wordReviewPath(vocab.id), { state: REVIEW_FROM_WORD_STATE }) : undefined}
                 />
             ) : (
                 <LearnStatus inStudy={false} learnLabel="Learn this word" onLearn={onLearn} />
