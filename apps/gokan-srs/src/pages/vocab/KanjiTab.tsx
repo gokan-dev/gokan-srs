@@ -16,7 +16,7 @@ export function KanjiTab({ glyphs, knownKanji }: KanjiTabProps) {
         <ul className="space-y-6">
             {glyphs.map((glyph, i) => (
                 <li key={`${glyph}-${i}`}>
-                    <KanjiSummary glyph={glyph} kanji={load.data?.[i] ?? null} known={knownKanji?.has(glyph)} />
+                    <KanjiSummary glyph={glyph} kanji={load.status === 'ready' ? load.data[i] ?? null : 'loading'} known={knownKanji?.has(glyph)} />
                 </li>
             ))}
         </ul>

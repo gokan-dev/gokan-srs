@@ -194,7 +194,9 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
   plus the quiz session's own layout. The header's inner container is
   `max-w-5xl mx-auto px-4 md:px-6`, so the logo and navigation line up with page content.
 - **`Page`** (`components/Page.tsx`): `width: 'narrow' | 'wide'`, a header, children.
-  Every routed page uses it except the quiz sessions and onboarding.
+  Every routed page uses it except the quiz sessions and onboarding. Its inline padding is set
+  once, as `--page-inset` (16px, 24px from `md`); an element that bleeds to the page's edges
+  uses `PAGE_BLEED` and puts the padding back with `PAGE_BLEED_INSET`, never its own numbers.
 - **`PageHeader`**: left-aligned (centre only for logos and empty states). An optional
   `← Back` row in accent above the title (`navigate(-1)` inside the app, else a
   `parentPath` prop; nothing links to `/grammar` as a "Back", since that route starts a
@@ -237,8 +239,10 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
     page mode. Once the header has scrolled away the row sticks at the viewport's top (the app
     header does not stick), on the page background with its `divider` line; a tab chosen while
     it is stuck brings its panel's top just under the row, one chosen while it is in place does
-    not scroll. On a phone the row scrolls sideways inside itself, the open tab kept in view; the
-    page never does. Every tab but Dict has a hash (`#sentences`, `#synonyms`, `#kanji`,
+    not scroll, and the open tab tapped again while it is stuck goes back to its panel's top. On
+    a phone the row scrolls sideways inside itself, the open tab kept in view; the page never
+    does. The row runs to the screen's edges (its tabs padded back in line with the page), so
+    the tabs scroll under the edge and a tab cut there shows there is more (`check:layout`). Every tab but Dict has a hash (`#sentences`, `#synonyms`, `#kanji`,
     `#related`, `#study`), replaced as a tab is chosen; the page opens on the hash's tab, else the
     tab last chosen this browser session, else Dict (`initialWordTab`).
   - Dict: Meanings (3 common senses, then "Show all N meanings" in place, rare ones under a
@@ -348,7 +352,10 @@ Defined once, in `components/` or `components/ui/`, never copied:
   (`selected`), panels of one page, as ARIA tabs: buttons with `role="tab"`, `aria-selected`
   and `aria-controls`, panels with `role="tabpanel"`, Left / Right / Home / End moving between
   them; the row scrolls sideways inside itself when too wide (no scrollbar shown), the open tab
-  kept in its view, its `divider` drawn as an inset line under the tabs. A word's page. There is
+  kept in its view, its `divider` drawn under the tabs as a line over its content box only. A
+  page bleeds the row to the screen's edges (`PAGE_BLEED_INSET`) so a tab cut by the edge is
+  the cue it scrolls; the gap is `gap-4` on a phone, `gap-6` from `sm`, since a wide gap on the
+  edge would hide the next tab whole. A word's page. There is
   no second tab component, and no segmented control: one tab is always open.
 - **`TextButton`** (`ui/TextButton.tsx`): an action written as text ("Show 5 more", "Compare
   all 12 →"), accent, underlined on hover; the arrow when it moves the learner down the page.

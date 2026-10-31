@@ -1,5 +1,6 @@
 import type { ReactNode, Ref } from "react";
 import { useResponsive } from "../../context/Responsive/useResponsive";
+import { PAGE_BLEED } from "../Page";
 
 type DetailBodyProps =
     | {
@@ -13,7 +14,9 @@ type DetailBodyProps =
     | {
         /**
          * One column at every width under a row of tabs (a word's page): the row, which sticks to
-         * the viewport's top once the header has scrolled away, then the tab panels.
+         * the viewport's top once the header has scrolled away, then the tab panels. The row spans
+         * the page's padding (its background covers the content scrolling under it), so the tabs
+         * put the padding back themselves (`PAGE_BLEED_INSET`), scrolling under the screen's edge.
          */
         tabs: ReactNode;
         panels: ReactNode;
@@ -34,7 +37,7 @@ export function DetailBody(props: DetailBodyProps) {
         const { tabs, panels, tabsRef } = props;
         return (
             <>
-                <div ref={tabsRef} data-detail-tabs className="sticky top-0 z-20 -mx-4 px-4 md:-mx-6 md:px-6 bg-background">{tabs}</div>
+                <div ref={tabsRef} data-detail-tabs className={`sticky top-0 z-20 ${PAGE_BLEED} bg-background`}>{tabs}</div>
                 {panels}
             </>
         );

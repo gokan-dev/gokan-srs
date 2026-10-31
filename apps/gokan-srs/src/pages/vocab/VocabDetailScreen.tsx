@@ -10,7 +10,7 @@ import { JlptChip } from "../../components/JlptChip";
 import { FrequencyMeter } from "../../components/FrequencyMeter";
 import { vocabNextReviewAt } from "../../services/scheduling";
 import { KanjiSpellingNote } from "../../components/KanjiSpellingNote";
-import { Page } from "../../components/Page";
+import { Page, PAGE_BLEED_INSET } from "../../components/Page";
 import { DetailErrorScreen } from "../../components/detail/DetailErrorScreen";
 import { DetailBody } from "../../components/detail/DetailBody";
 import { DetailHeader } from "../../components/detail/DetailHeader";
@@ -115,23 +115,32 @@ function WordPage({ vocab, sentences, sentencesSettled, now, onLearn, knownKanji
     const [chosen, setChosen] = useState<WordTab | null>(null);
     const open: WordTab = chosen !== null && has[chosen] ? chosen : initialWordTab(hash, remembered, available);
 
-    // Choosing a tab while the row is stuck brings the new panel's top just under the row, so the
-    // learner reads it from its start; while the row is in its place, nothing moves.
+    // Choosing a tab while the row is stuck brings its panel's top just under the row, so the
+    // learner reads it from its start (the open tab, tapped again, too); while the row is in its
+    // place, nothing moves. Another tab's panel is there only once it renders, hence the flag.
     const rowRef = useRef<HTMLDivElement>(null);
     const panelsRef = useRef<HTMLDivElement>(null);
     const scrollToPanel = useRef(false);
-    useLayoutEffect(() => {
-        if (!scrollToPanel.current) return;
-        scrollToPanel.current = false;
+    const scrollPanelToTop = () => {
         const row = rowRef.current;
         const panels = panelsRef.current;
         if (row && panels) window.scrollTo({ top: window.scrollY + panels.getBoundingClientRect().top - row.offsetHeight });
+    };
+    useLayoutEffect(() => {
+        if (!scrollToPanel.current) return;
+        scrollToPanel.current = false;
+        scrollPanelToTop();
     }, [open]);
 
     const choose = (tab: WordTab) => {
         const row = rowRef.current;
         // Stuck: the row sits at the viewport's top while the page has scrolled past its place.
-        scrollToPanel.current = row !== null && row.getBoundingClientRect().top <= 0 && window.scrollY > 0;
+        const stuck = row !== null && row.getBoundingClientRect().top <= 0 && window.scrollY > 0;
+        if (tab === open) {
+            if (stuck) scrollPanelToTop();
+        } else {
+            scrollToPanel.current = stuck;
+        }
         setChosen(tab);
         writePersistedControls(WORD_TAB_STORAGE_KEY, { tab });
         // The hash names the tab (none for Dict), replaced so tabs never fill the history.
@@ -153,7 +162,9 @@ function WordPage({ vocab, sentences, sentencesSettled, now, onLearn, knownKanji
                     inStudy
                     status={status}
                     nextReview={statusReviewPhrase(status, vocabNextReviewAt(progress, settings), now)}
-                    onReview={reviewable ? () => void navigate(wordReviewPath(vocab.id)) : undefined}
+                    // Replacing this page: the session's end replaces itself with it again, so Back
+                    // from either goes where it would have from this page, never to it twice.
+                    onReview={reviewable ? () => void navigate(wordReviewPath(vocab.id), { replace: true }) : undefined}
                 />
             ) : (
                 <LearnStatus inStudy={false} learnLabel="Learn this word" onLearn={onLearn} />
@@ -208,7 +219,7 @@ function WordPage({ vocab, sentences, sentencesSettled, now, onLearn, knownKanji
             {header}
             <DetailBody
                 tabsRef={rowRef}
-                tabs={<TabNav label="About this word" tabs={tabs} selected={open} onSelect={choose} />}
+                tabs={<TabNav label="About this word" tabs={tabs} selected={open} onSelect={choose} className={PAGE_BLEED_INSET} />}
                 panels={panels}
             />
         </Page>

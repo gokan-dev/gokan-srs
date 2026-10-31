@@ -27,7 +27,9 @@
  *   reading, summary gloss and status line;
  * - a word page's tab row sticks to the top once scrolled to, with no sideways page scroll at
  *   320px, the open tab inside the row's view, and a tab chosen while it is stuck brings its
- *   panel's top just under the row.
+ *   panel's top just under the row, as does tapping the open tab again;
+ * - a word page's tab row too wide for a phone runs to the screen's edge on each side it has tabs
+ *   past, with a tab cut by that edge, so the row shows it scrolls (no tab hidden at the padding).
  *
  * Usage: build both apps (`bun run --cwd apps/gokan-srs build`, `bun run --cwd
  * apps/gokan-dictionary build`), then `bun run check:layout`. Needs Chrome or Chromium: found at
@@ -304,9 +306,44 @@ async function checkWordFirstScreen(tab: Tab, page: string, width: number, resto
 }
 
 /**
+ * A tab row wider than the phone (its tablist's scrollWidth over its clientWidth) is the cue that
+ * it scrolls only when it runs to the screen's edge and a tab is cut there: a row stopping at the
+ * page's padding hides whole tabs behind a clean edge, or cuts one where it reads as a glitch.
+ * Checked with the row scrolled to each end, on the side that then has tabs past the screen's
+ * edge (a gap between two tabs landing on the edge hides the next one as surely as the padding).
+ */
+async function checkTabRowBleed(tab: Tab, page: string, width: number): Promise<void> {
+    const problems = await tab.evaluate<string[] | null>(`(() => {
+        const list = document.querySelector('[data-detail-tabs] [role=tablist]');
+        if (!list) return null;
+        if (list.scrollWidth <= list.clientWidth) return [];
+        const edge = document.documentElement.clientWidth;
+        const row = list.getBoundingClientRect();
+        const was = list.scrollLeft;
+        const problems = [];
+        // Scrolled to its start the row must show it goes on to the right, scrolled to its end to the left.
+        const sides = [
+            ['right', 0, t => t.right > edge + 0.5, row.right >= edge - 0.5, t => t.left < edge - 0.5 && t.right > edge + 0.5, Math.round(edge - row.right)],
+            ['left', list.scrollWidth, t => t.left < -0.5, row.left <= 0.5, t => t.left < -0.5 && t.right > 0.5, Math.round(row.left)],
+        ];
+        for (const [side, scrollTo, past, reaches, cut, gap] of sides) {
+            list.scrollLeft = scrollTo;
+            const tabs = [...list.querySelectorAll('[role=tab]')].map(el => el.getBoundingClientRect());
+            if (!tabs.some(past)) continue;
+            if (!reaches) problems.push("the tab row stops " + gap + "px short of the screen's " + side + " edge, hiding its tabs at the padding");
+            else if (!tabs.some(cut)) problems.push("scrolled to its " + (side === 'right' ? 'start' : 'end') + ", the tab row has tabs past the screen's " + side + " edge but none cut by it, so nothing shows it scrolls");
+        }
+        list.scrollLeft = was;
+        return problems;
+    })()`);
+    if (problems === null) failures.push(`${width}px ${page}: no tab row`);
+    else for (const problem of problems) failures.push(`${width}px ${page}: ${problem}`);
+}
+
+/**
  * Scrolled past the header, the tab row sticks at the viewport's top, the page does not scroll
- * sideways (measured as scrolled), and the open tab sits inside the row's visible part. Choosing
- * another tab then brings its panel's top just under the row.
+ * sideways (measured as scrolled), and the open tab sits inside the row's visible part. Tapping
+ * the open tab again, then choosing another, each bring the panel's top just under the row.
  */
 async function checkStickyTabs(tab: Tab, page: string, width: number, next: string): Promise<void> {
     const ROW = `document.querySelector('[data-detail-tabs]')`;
@@ -327,17 +364,27 @@ async function checkStickyTabs(tab: Tab, page: string, width: number, next: stri
         const list = ${ROW}?.querySelector('[role=tablist]');
         const open = list?.querySelector('[aria-selected="true"]');
         if (!list || !open) return null;
+        // The row's view stops at its inline padding: a row bled to the screen's edges pads its tabs back in line.
+        const style = getComputedStyle(list);
         const row = list.getBoundingClientRect(), tab = open.getBoundingClientRect();
-        return tab.left < row.left - 0.5 || tab.right > row.right + 0.5;
+        return tab.left < row.left + parseFloat(style.paddingLeft) - 0.5 || tab.right > row.right - parseFloat(style.paddingRight) + 0.5;
     })()`);
     if (hidden === null) failures.push(`${width}px ${page}: no open tab in the tab row`);
     else if (hidden) failures.push(`${width}px ${page}: the open tab is scrolled out of the tab row's view`);
-    if (!(await openWordTab(tab, page, width, next))) return;
-    const gap = await tab.evaluate<number | null>(`(() => {
+    const PANEL_GAP = `(() => {
         const row = ${ROW};
         const panel = [...document.querySelectorAll('[role=tabpanel]')].find(el => !el.hidden);
         return row && panel ? panel.getBoundingClientRect().top - row.getBoundingClientRect().bottom : null;
-    })()`);
+    })()`;
+    // Scrolled down into the open panel, its tab tapped again brings back the panel's top.
+    const open = await tab.evaluate<string | null>(`document.querySelector('[data-detail-tabs] [aria-selected="true"]')?.textContent.trim() ?? null`);
+    if (open !== null && await openWordTab(tab, page, width, open)) {
+        const again = await tab.evaluate<number | null>(PANEL_GAP);
+        if (again === null) failures.push(`${width}px ${page}: no open panel after tapping ${open} again`);
+        else if (Math.abs(again) > 2) failures.push(`${width}px ${page}: tapping the open ${open} tab again with the tab row stuck leaves its panel's top ${Math.round(again)}px from the row's bottom, not under it`);
+    }
+    if (!(await openWordTab(tab, page, width, next))) return;
+    const gap = await tab.evaluate<number | null>(PANEL_GAP);
     if (gap === null) failures.push(`${width}px ${page}: no open panel after choosing ${next}`);
     else if (Math.abs(gap) > 2) failures.push(`${width}px ${page}: choosing ${next} with the tab row stuck leaves its panel's top ${Math.round(gap)}px from the row's bottom, not under it`);
 }
@@ -521,6 +568,7 @@ try {
         await measure(tab, 'srs /listening, watching and completed titles', width);
         await measureFuriganaFixture(tab, `${app}/vocab/${FURIGANA_VOCAB}`, 'Examples', `srs /vocab/${FURIGANA_VOCAB}`, width);
         await checkWordFirstScreen(tab, `srs /vocab/${FURIGANA_VOCAB}`, width, height);
+        await checkTabRowBleed(tab, `srs /vocab/${FURIGANA_VOCAB}`, width);
         await openWordTab(tab, `srs /vocab/${FURIGANA_VOCAB}`, width, 'Sentences');
         await tab.until(`document.body.innerText.includes('Shortest first')`, 'the Sentences panel');
         await measure(tab, `srs /vocab/${FURIGANA_VOCAB}, sentences panel`, width);
@@ -532,6 +580,7 @@ try {
             await tab.click('Show all mix-ups');
             await measure(tab, `srs /vocab/${MIXUP_WORD}, Study tab with mix-ups`, width);
             await checkWordFirstScreen(tab, `srs /vocab/${MIXUP_WORD}, studied`, width, height);
+            await checkTabRowBleed(tab, `srs /vocab/${MIXUP_WORD}, studied`, width);
         }
         await openWordTab(tab, `srs /vocab/${MIXUP_WORD}`, width, 'Synonyms');
         await tab.until(`document.body.innerText.includes('Mixed up 2 times')`, 'the Synonyms tab counting the seeded mix-ups');
@@ -544,6 +593,7 @@ try {
         await tab.goto(`${app}/vocab/${LONG_SYNONYMS_WORD}`, 'Meanings');
         await measure(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, Dict tab`, width);
         await checkWordFirstScreen(tab, `srs /vocab/${LONG_SYNONYMS_WORD}`, width, height);
+        await checkTabRowBleed(tab, `srs /vocab/${LONG_SYNONYMS_WORD}`, width);
         await openWordTab(tab, `srs /vocab/${LONG_SYNONYMS_WORD}`, width, 'Synonyms');
         await tab.until(SYNONYMS_OPEN, 'the Synonyms tab');
         await measure(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, synonyms tab`, width);
@@ -581,4 +631,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji, on one line and apart, Japanese in list rows unbroken, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, its tab row stuck once scrolled to and the open tab in its view, a tab chosen there opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji, on one line and apart, Japanese in list rows unbroken, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, its tab row running to the screen's edge with a tab cut there when it scrolls, stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off.`);

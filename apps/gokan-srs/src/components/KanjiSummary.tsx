@@ -1,10 +1,11 @@
 import { kunReadingLabel, type Kanji } from "@gokan/dataset-schema";
+import { CardSkeleton } from "./CardSkeleton";
 import { KanjiTile } from "./KanjiTile";
 
 interface KanjiSummaryProps {
     glyph: string;
-    /** The kanji's own file, or null while it loads or when the dataset has none for the glyph. */
-    kanji: Kanji | null;
+    /** The kanji's own file, `loading` until it arrives, or null when the dataset has none for the glyph. */
+    kanji: Kanji | null | 'loading';
     /** Whether the learner knows it; absent before onboarding has set the known kanji. */
     known: boolean | undefined;
 }
@@ -15,15 +16,17 @@ interface KanjiSummaryProps {
  * body of the kanji card (#174) too.
  */
 export function KanjiSummary({ glyph, kanji, known }: KanjiSummaryProps) {
-    const readings = kanji ? [
-        { label: 'On', readings: kanji.readings.on },
-        { label: 'Kun', readings: kanji.readings.kun.map(kunReadingLabel) },
+    const loaded = kanji === 'loading' ? null : kanji;
+    const readings = loaded ? [
+        { label: 'On', readings: loaded.readings.on },
+        { label: 'Kun', readings: loaded.readings.kun.map(kunReadingLabel) },
     ].filter(row => row.readings.length > 0) : [];
     return (
         <div className="flex items-start gap-4 min-w-0">
             <KanjiTile glyph={glyph} to={`/kanji/${glyph}`} />
             <div className="min-w-0 flex-1 space-y-1">
-                {kanji && kanji.meanings.length > 0 && <p className="type-body">{kanji.meanings.join(', ')}</p>}
+                {kanji === 'loading' && <CardSkeleton variant="line" />}
+                {loaded && loaded.meanings.length > 0 && <p className="type-body">{loaded.meanings.join(', ')}</p>}
                 {readings.length > 0 && (
                     <dl className="space-y-0.5">
                         {readings.map(row => (
