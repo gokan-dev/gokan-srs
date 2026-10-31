@@ -7,10 +7,11 @@ interface RouteTab {
     to: string;
 }
 
-/** A tab of one page: a button showing its panel (`controls`, the panel's id) in place. */
+/** A tab of one page: a button (`id`, which its panel names in `aria-labelledby`) showing its panel (`controls`, the panel's id) in place. */
 export interface PageTab<K extends string> {
     key: K;
     label: string;
+    id: string;
     controls: string;
 }
 
@@ -27,11 +28,6 @@ interface PageTabNavProps<K extends string> {
     selected: K;
     onSelect: (key: K) => void;
     className?: string;
-}
-
-/** A tab button's id, which its panel names in `aria-labelledby`. */
-export function pageTabId(key: string): string {
-    return `tab-${key}`;
 }
 
 /**
@@ -97,7 +93,7 @@ function PageTabs<K extends string>({ tabs, label, selected, onSelect, className
         event.preventDefault();
         const tab = tabs[next];
         onSelect(tab.key);
-        document.getElementById(pageTabId(tab.key))?.focus();
+        document.getElementById(tab.id)?.focus();
     };
 
     return (
@@ -107,7 +103,7 @@ function PageTabs<K extends string>({ tabs, label, selected, onSelect, className
                 return (
                     <button
                         key={tab.key}
-                        id={pageTabId(tab.key)}
+                        id={tab.id}
                         type="button"
                         role="tab"
                         aria-selected={active}

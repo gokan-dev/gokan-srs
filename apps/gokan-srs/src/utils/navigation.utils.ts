@@ -56,7 +56,7 @@ export function vocabPath(vocabId: string, tab: WordTab = 'dict'): string {
 
 /** A word's Synonyms tab (a quiz's synonym note, "Compare synonyms", links there). */
 export function synonymsPath(vocabId: string): string {
-    return vocabPath(vocabId, 'synonyms');
+    return vocabPath(vocabId, 'synonym');
 }
 
 /** The `/quiz` search parameter naming the word a "Review now" session is for. */

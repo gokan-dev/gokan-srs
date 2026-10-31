@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 import { useResponsive } from "../../context/Responsive/useResponsive";
 
 type DetailBodyProps =
@@ -12,40 +12,33 @@ type DetailBodyProps =
     }
     | {
         /**
-         * One column at every width, in levels of importance (a word's page: the essentials, the
-         * learner's study, Explore, the internals). A level whose node is null is left out.
+         * One column at every width under a row of tabs (a word's page): the row, which sticks to
+         * the viewport's top once the header has scrolled away, then the tab panels.
          */
-        levels: DetailLevel[];
+        tabs: ReactNode;
+        panels: ReactNode;
+        /** The sticky row's frame, to tell whether it is stuck. */
+        tabsRef?: Ref<HTMLDivElement>;
     };
-
-/**
- * One level, named: React keys it by `key`, so a level appearing above another (Your study, once
- * the word is learned) leaves the one below mounted, with its state (Explore's search).
- */
-export interface DetailLevel {
-    key: string;
-    node: ReactNode;
-}
-
-/** The levels, a `divider` line between two and nothing else (40px each side). No hooks, so tests can call it. */
-export function DetailLevels({ levels }: { levels: DetailLevel[] }) {
-    const shown = levels.filter(level => level.node !== null && level.node !== undefined && level.node !== false);
-    return (
-        <div className="divide-y divide-divider">
-            {shown.map(level => <div key={level.key} className="py-10 first:pt-0 last:pb-0 space-y-10">{level.node}</div>)}
-        </div>
-    );
-}
 
 /**
  * The body of a vocab, kanji or grammar page, under its DetailHeader. Either from `lg` the same
  * 12-column grid (8 for the content, 4 for the side, gap-10), so the side column starts where the
- * header's actions do, and below it one column in reading order; or one column of levels, a
- * `divider` line between two levels and nothing else (40px each side). Sections are spaced, not boxed.
+ * header's actions do, and below it one column in reading order; or one column of tabs, the row
+ * on the page background (the app header does not stick, so the row sticks at the top) and one
+ * panel under it. Sections are spaced, not boxed.
  */
 export function DetailBody(props: DetailBodyProps) {
     const { isMobile, isTablet } = useResponsive();
-    if ('levels' in props) return <DetailLevels levels={props.levels} />;
+    if ('tabs' in props) {
+        const { tabs, panels, tabsRef } = props;
+        return (
+            <>
+                <div ref={tabsRef} data-detail-tabs className="sticky top-0 z-20 -mx-4 px-4 md:-mx-6 md:px-6 bg-background">{tabs}</div>
+                {panels}
+            </>
+        );
+    }
     const { main, side, stacked } = props;
     if (isMobile || isTablet) return <div className="space-y-10">{stacked ?? <>{main}{side}</>}</div>;
     return (

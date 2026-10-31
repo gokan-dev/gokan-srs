@@ -1,6 +1,18 @@
-/** A word page's tabs, in the order the row shows them (each only when it has content). */
-export const WORD_TABS = ['dict', 'sentences', 'synonyms', 'kanji', 'related', 'study'] as const;
+/**
+ * A word page's tabs, in the order the row shows them (each only when it has content), named in
+ * the singular as their panels are (the sentence tab); their hashes are the plural.
+ */
+export const WORD_TABS = ['dict', 'sentence', 'synonym', 'kanji', 'related', 'study'] as const;
 export type WordTab = typeof WORD_TABS[number];
+
+const HASH: Record<WordTab, string> = {
+    dict: '',
+    sentence: '#sentences',
+    synonym: '#synonyms',
+    kanji: '#kanji',
+    related: '#related',
+    study: '#study',
+};
 
 /** The session-storage key the last chosen tab is remembered under, across words (`usePersistedControls`). */
 export const WORD_TAB_STORAGE_KEY = 'gokan.wordPage.tab';
@@ -9,13 +21,12 @@ const isWordTab = (value: unknown): value is WordTab => WORD_TABS.some(tab => ta
 
 /** A tab's URL hash: none for Dict, the page's default; `#synonyms` for Synonyms (a quiz's "Compare synonyms"). */
 export function wordTabHash(tab: WordTab): string {
-    return tab === 'dict' ? '' : `#${tab}`;
+    return HASH[tab];
 }
 
 /** The tab a URL hash names, or null when it names none (no hash, `#dict`, anything else). */
 export function wordTabOfHash(hash: string): WordTab | null {
-    const name = hash.startsWith('#') ? hash.slice(1) : hash;
-    return name !== 'dict' && isWordTab(name) ? name : null;
+    return hash === '' ? null : WORD_TABS.find(tab => HASH[tab] === hash) ?? null;
 }
 
 /**
