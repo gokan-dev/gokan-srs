@@ -2,7 +2,7 @@
 // and the rare and archaic ones last, behind a disclosure. A word like 上 has 27 senses; a
 // learner should not have to read an archaic "emperor" to find "above".
 
-import { isTag, RARE_SENSE_TAGS, shortTagLabel } from '@gokan/dataset-schema';
+import { isRareSense, isTag, shortTagLabel } from '@gokan/dataset-schema';
 import type { Sense } from '@gokan/dataset-schema';
 
 /** Senses shown before the "All N meanings" disclosure. */
@@ -22,17 +22,12 @@ export interface Meanings {
     visible: SenseView[];
     /** The other common senses, behind "All N meanings". */
     more: SenseView[];
-    /** Senses tagged with RARE_SENSE_TAGS, behind "Rare and archaic meanings (N)". */
+    /** Senses `isRareSense` holds rare, behind "Rare and archaic meanings (N)". */
     rare: SenseView[];
 }
 
 /** "Usually kana" is said once, in the page header, rather than on each sense. */
 const HEADER_TAGS: ReadonlySet<string> = new Set(['uk']);
-
-function isRareSense(sense: Sense): boolean {
-    return sense.misc.isArchaic === true || sense.misc.isRare === true
-        || sense.misc.rawTags.some(tag => isTag(tag) && RARE_SENSE_TAGS.includes(tag));
-}
 
 function posLabel(sense: Sense): string {
     return sense.pos.filter(isTag).map(shortTagLabel).join(', ');
@@ -60,22 +55,4 @@ export function meaningsOf(senses: Sense[]): Meanings {
         more: views.slice(VISIBLE_SENSES, common.length),
         rare: views.slice(common.length),
     };
-}
-
-/**
- * The header's one-line answer: the first four distinct glosses of the common senses (ここ lists
- * "here" twice across its senses; the summary says it once).
- */
-export function summaryGloss(senses: Sense[]): string {
-    const seen = new Set<string>();
-    const glosses: string[] = [];
-    const ordered = [...senses.filter(sense => !isRareSense(sense)), ...senses.filter(isRareSense)];
-    for (const gloss of ordered.flatMap(sense => sense.glosses)) {
-        const key = gloss.toLowerCase();
-        if (seen.has(key)) continue;
-        seen.add(key);
-        glosses.push(gloss);
-        if (glosses.length === 4) break;
-    }
-    return glosses.join('; ');
 }

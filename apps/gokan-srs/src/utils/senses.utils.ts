@@ -1,4 +1,4 @@
-import { RARE_SENSE_TAGS, isTag, shortTagLabel } from "@gokan/dataset-schema";
+import { isRareSense, isTag, shortTagLabel } from "@gokan/dataset-schema";
 import type { Sense } from "@gokan/dataset-schema";
 
 export interface ShownSense {
@@ -10,13 +10,6 @@ export interface ShownSense {
 /** The part-of-speech line of a sense: its short labels, joined. */
 function posLabelOf(sense: Sense): string {
     return sense.pos.filter(isTag).map(shortTagLabel).join(', ');
-}
-
-/** An archaic, obsolete, rare or dated sense: listed apart on the word page, and given no Synonyms section unless every sense is (`synonymSections`). */
-export function isRareSense(sense: Pick<Sense, 'misc'>): boolean {
-    return sense.misc.isArchaic === true
-        || sense.misc.isRare === true
-        || sense.misc.rawTags.some(tag => isTag(tag) && RARE_SENSE_TAGS.includes(tag));
 }
 
 /** Marks each sense's part-of-speech line, shown only where it changes from the sense before. */

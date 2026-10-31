@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { TagsLookup } from '@gokan/dataset-schema';
+import { isRareSense, TagsLookup } from '@gokan/dataset-schema';
 import type { Sense } from '@gokan/dataset-schema';
-import { isRareSense, organizeSenses, senseNumbers } from './senses.utils';
+import { organizeSenses, senseNumbers } from './senses.utils';
 
 const sense = (pos: string[], glosses: string[], rawTags: string[] = []): Sense =>
     ({ pos, misc: { rawTags }, glosses, related: { compounds: [] } });

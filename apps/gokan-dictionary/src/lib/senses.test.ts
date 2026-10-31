@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Sense } from '@gokan/dataset-schema';
-import { meaningsOf, summaryGloss, VISIBLE_SENSES } from './senses';
+import { meaningsOf, VISIBLE_SENSES } from './senses';
 
 function sense(glosses: string[], pos: string[] = ['n'], rawTags: string[] = []): Sense {
     return { pos, misc: { rawTags, isArchaic: rawTags.includes('arch') }, glosses, related: { compounds: [] } };
@@ -33,15 +33,5 @@ describe('meaningsOf', () => {
     it('has nothing behind the disclosure when a word has few senses', () => {
         const { visible, more, rare } = meaningsOf([sense(['a']), sense(['b'])]);
         expect([visible.length, more.length, rare.length]).toEqual([2, 0, 0]);
-    });
-});
-
-describe('summaryGloss', () => {
-    it('says each gloss once', () => {
-        expect(summaryGloss([sense(['here', 'this place']), sense(['this point', 'here'])])).toBe('here; this place; this point');
-    });
-
-    it('stops at four glosses and puts rare senses last', () => {
-        expect(summaryGloss([sense(['emperor'], ['n'], ['arch']), sense(['a', 'b']), sense(['c', 'd', 'e'])])).toBe('a; b; c; d');
     });
 });

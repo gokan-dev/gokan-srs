@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { headwordOf, secondaryForm, textbookLessonsLabel } from '@gokan/dataset-schema';
+  import { headwordOf, secondaryForm, summaryGloss, textbookLessonsLabel } from '@gokan/dataset-schema';
   import type { Sentence, Vocabulary } from '@gokan/dataset-schema';
   import type { VocabSummary } from '../lib/types';
   import { kanjiPath, vocabIndexPath, vocabJlptPath } from '../lib/urls';
-  import { meaningsOf, summaryGloss, type SenseView } from '../lib/senses';
+  import { meaningsOf, type SenseView } from '../lib/senses';
   import { sentenceRuns } from '../lib/furigana';
   import { conjugate, wordClassOf } from '../lib/conjugation';
   import { VISIBLE_SENTENCES } from '../lib/sentenceOrder';
