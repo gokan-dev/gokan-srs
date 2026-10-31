@@ -75,7 +75,9 @@ runs:
         fi
 
         bodies="$(gh api --paginate "repos/$REPO/issues/$ISSUE/comments" --jq '.[].body' 2>/dev/null || true)"
-        marker_of() { printf '%s\n' "$bodies" | grep -oE "<!-- gokan-$1 [a-z]+=[^ ]+ -->" | tail -1 | sed -E 's/.*=([^ ]+) -->/\1/'; }
+        # `|| true`: no matching marker is normal (e.g. a first resume has no gokan-resume comment);
+        # grep's exit 1 must not kill the action under `set -euo pipefail`.
+        marker_of() { printf '%s\n' "$bodies" | grep -oE "<!-- gokan-$1 [a-z]+=[^ ]+ -->" | tail -1 | sed -E 's/.*=([^ ]+) -->/\1/' || true; }
 
         # 5. The base the member PR must target: an open PR's base, else a base marker the release
         #    orchestrator wrote on the issue, else main (single-issue flow).
