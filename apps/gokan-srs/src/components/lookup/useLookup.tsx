@@ -70,6 +70,8 @@ export function useLookup(target: LookupTarget | undefined, kind: TriggerKind): 
     const triggerRef = useRef<HTMLElement | null>(null);
     const cardRef = useRef<HTMLDivElement | null>(null);
     const pointer = useRef<{ kind: PointerKind; at: number } | null>(null);
+    /** Set while Esc hands focus back to the trigger: that focus must not open the card again. */
+    const refocusing = useRef(false);
     const id = useId();
     const presentation = target ? cardPresentation(phase) : null;
     const pinned = phase === 'pinned' || phase === 'sheet';
@@ -77,7 +79,11 @@ export function useLookup(target: LookupTarget | undefined, kind: TriggerKind): 
     const dismiss = useCallback((returnFocus = false) => {
         dispatch({ type: 'dismiss' });
         setFocusCard(false);
-        if (returnFocus) triggerRef.current?.focus();
+        if (returnFocus && triggerRef.current && document.activeElement !== triggerRef.current) {
+            refocusing.current = true;
+            triggerRef.current.focus();
+            refocusing.current = false;
+        }
     }, []);
 
     useEffect(() => {
@@ -132,7 +138,7 @@ export function useLookup(target: LookupTarget | undefined, kind: TriggerKind): 
         },
         onFocus: e => {
             const touched = pointer.current?.kind === 'touch' && e.timeStamp - pointer.current.at < TOUCH_FOCUS_WINDOW_MS;
-            if (!touched) enter();
+            if (!touched && !refocusing.current) enter();
         },
         onBlur: e => {
             if (e.relatedTarget instanceof Node && cardRef.current?.contains(e.relatedTarget)) return;
