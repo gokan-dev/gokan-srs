@@ -148,7 +148,7 @@ function WordPage({ vocab, sentences, sentencesSettled, now, onLearn, knownKanji
             layout="column"
             title={<span className="jp-display">{headwordOf(vocab)}</span>}
             chips={<HeaderChips vocab={vocab} />}
-            actions={progress ? (
+            actions={<div data-word-status>{progress ? (
                 <LearnStatus
                     inStudy
                     status={status}
@@ -157,15 +157,15 @@ function WordPage({ vocab, sentences, sentencesSettled, now, onLearn, knownKanji
                 />
             ) : (
                 <LearnStatus inStudy={false} learnLabel="Learn this word" onLearn={onLearn} />
-            )}
+            )}</div>}
         >
             {/* A word shown in kana names its kanji spellings in a note instead. */}
             {!vocab.usuallyKana && vocab.writtenForm.alternatives && vocab.writtenForm.alternatives.length > 0 && (
                 <p className="font-mincho text-2xl text-secondary">{vocab.writtenForm.alternatives.join('・')}</p>
             )}
             {vocab.usuallyKana
-                ? <KanjiSpellingNote vocab={vocab} />
-                : <p className="font-gothic text-2xl text-secondary">{vocab.reading.primary}</p>}
+                ? <div data-word-reading><KanjiSpellingNote vocab={vocab} /></div>
+                : <p data-word-reading className="font-gothic text-2xl text-secondary">{vocab.reading.primary}</p>}
             {vocab.reading.alternatives.length > 0 && (
                 <p className="type-meta">Also: <span className="font-gothic">{vocab.reading.alternatives.join('、')}</span></p>
             )}

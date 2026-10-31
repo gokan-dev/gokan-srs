@@ -22,8 +22,12 @@
  *   into view;
  * - furigana sits over kanji only, never over kana, no ruby (a run of kanji with its reading)
  *   breaks across lines, and no two readings on a line touch (word pages' example sentences, in each app);
- * - a `#synonyms` link followed inside the app opens a word page's Explore on its Synonyms panel
- *   and leaves Explore at the top of the screen once the sections above it have loaded.
+ * - a `#synonyms` link followed inside the app opens a word page on its Synonyms tab;
+ * - a word page's first screen, on a small phone (375x667 and 320x568), holds its headword,
+ *   reading, summary gloss and status line;
+ * - a word page's tab row sticks to the top once scrolled to, with no sideways page scroll at
+ *   320px, the open tab inside the row's view, and a tab chosen while it is stuck brings its
+ *   panel's top just under the row.
  *
  * Usage: build both apps (`bun run --cwd apps/gokan-srs build`, `bun run --cwd
  * apps/gokan-dictionary build`), then `bun run check:layout`. Needs Chrome or Chromium: found at
@@ -169,9 +173,9 @@ const FURIGANA_VOCAB = '1638880';
 const FIXTURE_MOVED = `FURIGANA_VOCAB ${FURIGANA_VOCAB} has no example sentence with furigana: pick another word whose sentences wrap at 320px`;
 
 // A word page with mix-ups (輝く: more than the five shown, a long English sentence, an answer
-// naming a word, raw ones and an unconverted Latin token with no break point), its Explore opened
-// on Mix-ups, then on Synonyms, which hold a mixed-up word. Then 取る, whose pairs make the longest
-// Synonyms panel, as it opens and with every meaning and row shown. Readable records under a
+// naming a word, raw ones and an unconverted Latin token with no break point), learned so its Study
+// tab shows them, then its Synonyms tab, which holds a mixed-up word, and its Kanji tab. Then 取る,
+// whose pairs make the longest Synonyms tab, as it opens and with every meaning and row shown. Readable records under a
 // readable key, which the compact payload keeps as it is.
 const MIXUP_WORD = '1224020';
 const LONG_SYNONYMS_WORD = '1326980';
@@ -195,19 +199,17 @@ const SEED_MIXUPS = `(async () => {
     db.close();
 })()`;
 
-// 差す: Explore under example sentences that load after the word, so a `#synonyms` link that
-// scrolls before they arrive leaves Explore pushed down the screen.
+// 差す: its examples load after the word, so a `#synonyms` link must still land on Synonyms.
 const SYNONYMS_LINK_WORD = '1291330';
-/**
- * Explore's top after the link, in px: its `scroll-mt-6` (24px, the page's own top padding on a
- * phone; the header is not sticky), give or take a pixel's rounding.
- */
-const SYNONYMS_LINK_TOP = 24;
-/** Explore's Synonyms panel is open: its element shown, its rows in it. */
-const SYNONYMS_OPEN = `(() => { const panel = document.getElementById('synonyms'); return !!panel && !panel.hidden && panel.querySelector('a') !== null; })()`;
+/** The word page's Synonyms tab is open: its tab selected, its panel shown with its rows. */
+const SYNONYMS_OPEN = `(() => {
+    const panel = document.getElementById('word-panel-synonym');
+    return document.getElementById('word-tab-synonym')?.getAttribute('aria-selected') === 'true'
+        && !!panel && !panel.hidden && panel.querySelector('a') !== null;
+})()`;
 /**
  * Follows a `#synonyms` link inside the app, as the quiz's "Compare synonyms" does (no page
- * load), and checks Explore opened on Synonyms, at the top of the screen once the page has settled.
+ * load), and checks the page opened on its Synonyms tab, still open once the page has settled.
  */
 async function checkSynonymsLink(tab: Tab, app: string, width: number): Promise<void> {
     await tab.goto(`${app}/vocab`, 'Vocabulary');
@@ -216,20 +218,17 @@ async function checkSynonymsLink(tab: Tab, app: string, width: number): Promise<
         dispatchEvent(new PopStateEvent('popstate'));
     })()`);
     try {
-        await tab.until(`${SYNONYMS_OPEN} && document.body.innerText.includes('Examples')`, 'Explore open on Synonyms under the examples', 10000);
+        await tab.until(`${SYNONYMS_OPEN} && document.querySelector('[data-sentences="settled"]') !== null`, 'the Synonyms tab open, the page settled', 10000);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await tab.until(SYNONYMS_OPEN, 'the Synonyms tab still open', 1000);
     } catch {
-        failures.push(`${width}px srs /vocab/${SYNONYMS_LINK_WORD}#synonyms: Explore did not open on Synonyms`);
-        return;
+        failures.push(`${width}px srs /vocab/${SYNONYMS_LINK_WORD}#synonyms: the page did not open on its Synonyms tab`);
     }
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    const top = await tab.evaluate<number | null>(`document.getElementById('explore')?.getBoundingClientRect().top ?? null`);
-    if (top === null) failures.push(`${width}px srs /vocab/${SYNONYMS_LINK_WORD}#synonyms: no Explore section`);
-    else if (Math.abs(top - SYNONYMS_LINK_TOP) > 2) failures.push(`${width}px srs /vocab/${SYNONYMS_LINK_WORD}#synonyms, followed inside the app: Explore's top is at ${Math.round(top)}px, not ${SYNONYMS_LINK_TOP}px`);
 }
 
 /** Opens every meaning and every row of the open Synonyms panel: its longest state. */
 const EXPAND_SYNONYMS = `(async () => {
-    const more = () => [...document.querySelectorAll('#synonyms button')].filter(b => /^Show (all .* for this meaning|\\d+ more meanings?)$/.test(b.textContent.trim()));
+    const more = () => [...document.querySelectorAll('#word-panel-synonym button')].filter(b => /^Show (all .* for this meaning|\\d+ more meanings?)$/.test(b.textContent.trim()));
     for (let round = 0; round < 50 && more().length > 0; round++) {
         for (const button of more()) button.click();
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -244,7 +243,7 @@ const EXPAND_SYNONYMS = `(async () => {
  */
 async function checkSynonymDescriptions(tab: Tab, page: string, width: number): Promise<void> {
     const { found, clipped } = await tab.evaluate<{ found: number; clipped: string[] }>(`(() => {
-        const descriptions = [...document.querySelectorAll('#synonyms a .type-support')];
+        const descriptions = [...document.querySelectorAll('#word-panel-synonym a .type-support')];
         return {
             found: descriptions.length,
             clipped: descriptions
@@ -256,60 +255,95 @@ async function checkSynonymDescriptions(tab: Tab, page: string, width: number): 
     for (const row of clipped) failures.push(`${width}px ${page}: the shared senses of ${row} are cut off, not wrapped`);
 }
 
-/**
- * Explore's segment labels are short so four fit at 320px: one cut off with an ellipsis is a
- * failure naming it. Measured closed and with Synonyms open (its label then semibold). Finding
- * fewer than four labels is a failure too: the page measured must show every segment.
- */
-async function checkExploreLabels(tab: Tab, page: string, width: number): Promise<void> {
-    const { found, clipped, crowded } = await tab.evaluate<{ found: number; clipped: string[]; crowded: string[] }>(`(() => {
-        const labels = [...document.querySelectorAll('[role=group][aria-label="Explore this word"] [data-segment-label]')];
-        const inset = el => {
-            const label = el.getBoundingClientRect();
-            const segment = el.closest('button').getBoundingClientRect();
-            return Math.min(label.left - segment.left, segment.right - label.right);
-        };
-        return {
-            found: labels.length,
-            clipped: labels.filter(el => el.scrollWidth > el.clientWidth).map(el => el.textContent),
-            crowded: labels.filter(el => inset(el) < ${EXPLORE_LABEL_INSET}).map(el => el.textContent + ' (' + inset(el).toFixed(1) + 'px)'),
-        };
+/** Opens a word page's tab by its label (a `role=tab` button: other buttons share the words). */
+async function openWordTab(tab: Tab, page: string, width: number, label: string): Promise<boolean> {
+    const opened = await tab.evaluate<boolean>(`(() => {
+        const button = [...document.querySelectorAll('[role=tab]')].find(el => el.textContent.trim() === ${JSON.stringify(label)});
+        if (!button) return false;
+        button.click();
+        return true;
     })()`);
-    if (found < 4) failures.push(`${width}px ${page}: ${found} Explore segment labels found, not 4: the check measured too little`);
-    for (const label of clipped) failures.push(`${width}px ${page}: the Explore segment label "${label}" is cut off`);
-    for (const label of crowded) failures.push(`${width}px ${page}: the Explore segment label ${label} sits under ${EXPLORE_LABEL_INSET}px from its segment's edge`);
+    if (!opened) failures.push(`${width}px ${page}: no ${label} tab`);
+    await new Promise(resolve => setTimeout(resolve, 400));
+    return opened;
 }
 
 /**
- * Explore's segments are sized by their labels, so a long one ("Sentences") is never pressed
- * against its dividers while a short one has room to spare: each label sits at least
- * EXPLORE_LABEL_INSET px inside its segment, on both sides.
+ * The smaller phones whose first screen must hold a word page's essentials, by the width the
+ * page is measured at: the iPhone SE (375x667) and the first SE (320x568).
  */
-const EXPLORE_LABEL_INSET = 4;
-
-/** Each Explore segment's left edge and width, in order, to compare across a press. */
-const EXPLORE_SEGMENT_RECTS = `[...document.querySelectorAll('[role=group][aria-label="Explore this word"] > button')].map(el => { const r = el.getBoundingClientRect(); return { left: r.left, width: r.width }; })`;
-
+const FIRST_SCREEN: Record<number, number> = { 320: 568, 375: 667 };
+const FIRST_SCREEN_PARTS = [
+    ['headword', 'h1'],
+    ['reading', '[data-word-reading]'],
+    ['summary gloss', '[data-summary-gloss]'],
+    ['status line', '[data-word-status]'],
+] as const;
 /**
- * Presses an Explore segment and fails when any segment moved or changed width by more than
- * half a pixel: a segment is sized by its semibold label in every state, so pressing one (its
- * label turning semibold) never shifts the dividers.
+ * A word page on a small phone shows, without scrolling, what a learner looks it up for: the
+ * headword, its reading, the summary gloss and the status line (Learn this word, or the status).
  */
-async function pressExploreSegmentStill(tab: Tab, page: string, width: number, segment: string): Promise<void> {
-    type Rect = { left: number; width: number };
-    const before = await tab.evaluate<Rect[]>(EXPLORE_SEGMENT_RECTS);
-    await tab.click(segment);
-    const after = await tab.evaluate<Rect[]>(EXPLORE_SEGMENT_RECTS);
-    if (before.length === 0) failures.push(`${width}px ${page}: no Explore segments found: the check measured nothing`);
-    else if (before.length !== after.length) failures.push(`${width}px ${page}: ${before.length} Explore segments before pressing ${segment}, ${after.length} after`);
-    before.forEach((rect, i) => {
-        const moved = Math.max(Math.abs(rect.left - (after[i]?.left ?? rect.left)), Math.abs(rect.width - (after[i]?.width ?? rect.width)));
-        if (moved > 0.5) failures.push(`${width}px ${page}: Explore segment ${i + 1} moved ${moved.toFixed(1)}px when ${segment} was pressed`);
+async function checkWordFirstScreen(tab: Tab, page: string, width: number, restoreHeight: number): Promise<void> {
+    const height = FIRST_SCREEN[width];
+    if (height === undefined) return;
+    await tab.resize(width, height);
+    const bottoms = await tab.evaluate<(number | null)[]>(`(() => {
+        window.scrollTo(0, 0);
+        return ${JSON.stringify(FIRST_SCREEN_PARTS.map(([, selector]) => selector))}.map(selector => {
+            const el = document.querySelector(selector);
+            const rect = el?.getBoundingClientRect();
+            return rect && rect.height > 0 ? rect.bottom : null;
+        });
+    })()`);
+    FIRST_SCREEN_PARTS.forEach(([name], i) => {
+        const bottom = bottoms[i];
+        if (bottom === null || bottom === undefined) failures.push(`${width}x${height} ${page}: no ${name} to measure`);
+        else if (bottom > height) failures.push(`${width}x${height} ${page}: the ${name} ends ${Math.round(bottom)}px down, below the first screen (${height}px)`);
     });
+    await tab.resize(width, restoreHeight);
 }
 
 /**
- * Learns the word on the open page, through its "Learn this word", and waits for Your study. A
+ * Scrolled past the header, the tab row sticks at the viewport's top, the page does not scroll
+ * sideways (measured as scrolled), and the open tab sits inside the row's visible part. Choosing
+ * another tab then brings its panel's top just under the row.
+ */
+async function checkStickyTabs(tab: Tab, page: string, width: number, next: string): Promise<void> {
+    const ROW = `document.querySelector('[data-detail-tabs]')`;
+    const stuck = await tab.evaluate<number | null>(`(() => {
+        const row = ${ROW};
+        if (!row) return null;
+        window.scrollTo(0, row.getBoundingClientRect().top + window.scrollY + 600);
+        return row.getBoundingClientRect().top;
+    })()`);
+    await new Promise(resolve => setTimeout(resolve, 200));
+    if (stuck === null) {
+        failures.push(`${width}px ${page}: no tab row`);
+        return;
+    }
+    if (Math.abs(stuck) > 1) failures.push(`${width}px ${page}: scrolled past the header, the tab row's top is at ${Math.round(stuck)}px, not stuck at 0`);
+    await measure(tab, `${page}, scrolled, tab row stuck`, width);
+    const hidden = await tab.evaluate<boolean | null>(`(() => {
+        const list = ${ROW}?.querySelector('[role=tablist]');
+        const open = list?.querySelector('[aria-selected="true"]');
+        if (!list || !open) return null;
+        const row = list.getBoundingClientRect(), tab = open.getBoundingClientRect();
+        return tab.left < row.left - 0.5 || tab.right > row.right + 0.5;
+    })()`);
+    if (hidden === null) failures.push(`${width}px ${page}: no open tab in the tab row`);
+    else if (hidden) failures.push(`${width}px ${page}: the open tab is scrolled out of the tab row's view`);
+    if (!(await openWordTab(tab, page, width, next))) return;
+    const gap = await tab.evaluate<number | null>(`(() => {
+        const row = ${ROW};
+        const panel = [...document.querySelectorAll('[role=tabpanel]')].find(el => !el.hidden);
+        return row && panel ? panel.getBoundingClientRect().top - row.getBoundingClientRect().bottom : null;
+    })()`);
+    if (gap === null) failures.push(`${width}px ${page}: no open panel after choosing ${next}`);
+    else if (Math.abs(gap) > 2) failures.push(`${width}px ${page}: choosing ${next} with the tab row stuck leaves its panel's top ${Math.round(gap)}px from the row's bottom, not under it`);
+}
+
+/**
+ * Learns the word on the open page, through its "Learn this word", and opens its Study tab. A
  * page without the button is a failure: the steps after it must measure a studied word.
  */
 async function learnOpenWord(tab: Tab, page: string, width: number): Promise<boolean> {
@@ -320,9 +354,11 @@ async function learnOpenWord(tab: Tab, page: string, width: number): Promise<boo
     }
     await tab.click('Learn this word');
     try {
+        await tab.until(`[...document.querySelectorAll('[role=tab]')].some(el => el.textContent.trim() === 'Study')`, 'the Study tab', 5000);
+        await openWordTab(tab, page, width, 'Study');
         await tab.until(`[...document.querySelectorAll('h2, h3')].some(el => el.textContent.trim() === 'Your study')`, 'Your study', 5000);
     } catch {
-        failures.push(`${width}px ${page}: "Learn this word" did not bring up Your study`);
+        failures.push(`${width}px ${page}: "Learn this word" did not bring up the Study tab and Your study`);
         return false;
     }
     return true;
@@ -334,7 +370,7 @@ async function learnOpenWord(tab: Tab, page: string, width: number): Promise<boo
  */
 async function checkHeaderStatus(tab: Tab, page: string, width: number): Promise<void> {
     const wrapped = await tab.evaluate<boolean | null>(`(() => {
-        const status = document.querySelector('h1')?.closest('header')?.querySelector('p.type-support');
+        const status = document.querySelector('[data-word-status] p.type-support');
         if (!status || status.children.length < 2) return null;
         const rects = [...status.children].map(el => el.getBoundingClientRect());
         const firstBottom = Math.min(...rects.map(rect => rect.bottom));
@@ -429,9 +465,10 @@ try {
     await checkDoneMarking(desktop, DESKTOP.width, DESKTOP.height);
     // A studied word's header at 1280px, where the narrow page leaves the header its one column.
     await desktop.click('Start learning');
-    await desktop.goto(`http://127.0.0.1:${srs.port}/vocab/${MIXUP_WORD}`, 'Explore');
+    await desktop.goto(`http://127.0.0.1:${srs.port}/vocab/${MIXUP_WORD}`, 'Dict');
     if (await learnOpenWord(desktop, `srs /vocab/${MIXUP_WORD}`, DESKTOP.width)) await checkHeaderStatus(desktop, `srs /vocab/${MIXUP_WORD}, studied`, DESKTOP.width);
-    await pressExploreSegmentStill(desktop, `srs /vocab/${MIXUP_WORD}`, DESKTOP.width, 'Synonyms');
+    // The same tabs at every width.
+    await openWordTab(desktop, `srs /vocab/${MIXUP_WORD}`, DESKTOP.width, 'Synonyms');
     await desktop.close();
     for (const { width, height } of VIEWPORTS) {
         const tab = await chrome.openTab(width, height);
@@ -483,35 +520,42 @@ try {
         await tab.until(`document.body.innerText.includes('Completed')`, 'a completed title in the library');
         await measure(tab, 'srs /listening, watching and completed titles', width);
         await measureFuriganaFixture(tab, `${app}/vocab/${FURIGANA_VOCAB}`, 'Examples', `srs /vocab/${FURIGANA_VOCAB}`, width);
-        await tab.click('Sentences');
+        await checkWordFirstScreen(tab, `srs /vocab/${FURIGANA_VOCAB}`, width, height);
+        await openWordTab(tab, `srs /vocab/${FURIGANA_VOCAB}`, width, 'Sentences');
         await tab.until(`document.body.innerText.includes('Shortest first')`, 'the Sentences panel');
         await measure(tab, `srs /vocab/${FURIGANA_VOCAB}, sentences panel`, width);
         await tab.evaluate<void>(SEED_MIXUPS);
-        await tab.goto(`${app}/vocab/${MIXUP_WORD}`, 'Explore');
-        // Learned here, so Your study's phone grid is measured on a word that has it.
-        if (await learnOpenWord(tab, `srs /vocab/${MIXUP_WORD}`, width)) await measure(tab, `srs /vocab/${MIXUP_WORD}, studied, Explore closed`, width);
-        await checkExploreLabels(tab, `srs /vocab/${MIXUP_WORD}, Explore closed`, width);
-        await tab.click('Mix-ups');
-        await tab.until(`document.body.innerText.includes('Show all mix-ups')`, 'the Mix-ups panel');
-        await tab.click('Show all mix-ups');
-        await measure(tab, `srs /vocab/${MIXUP_WORD}, mix-ups panel`, width);
-        await pressExploreSegmentStill(tab, `srs /vocab/${MIXUP_WORD}`, width, 'Synonyms');
-        await tab.until(`document.body.innerText.includes('Mixed up 2 times')`, 'the Synonyms panel counting the seeded mix-ups');
-        await measure(tab, `srs /vocab/${MIXUP_WORD}, synonyms panel`, width);
-        await checkExploreLabels(tab, `srs /vocab/${MIXUP_WORD}, synonyms panel`, width);
-        await tab.goto(`${app}/vocab/${LONG_SYNONYMS_WORD}`, 'Explore');
-        await measure(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, Explore closed`, width);
-        await tab.click('Synonyms');
-        await tab.until(SYNONYMS_OPEN, 'the Synonyms panel');
-        await measure(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, synonyms panel`, width);
-        await checkSynonymDescriptions(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, synonyms panel`, width);
+        await tab.goto(`${app}/vocab/${MIXUP_WORD}`, 'Dict');
+        // Learned here, so Your study's phone grid and the mix-ups under it are measured on a word that has them.
+        if (await learnOpenWord(tab, `srs /vocab/${MIXUP_WORD}`, width)) {
+            await tab.until(`document.body.innerText.includes('Show all mix-ups')`, 'Your mix-ups in the Study tab');
+            await tab.click('Show all mix-ups');
+            await measure(tab, `srs /vocab/${MIXUP_WORD}, Study tab with mix-ups`, width);
+            await checkWordFirstScreen(tab, `srs /vocab/${MIXUP_WORD}, studied`, width, height);
+        }
+        await openWordTab(tab, `srs /vocab/${MIXUP_WORD}`, width, 'Synonyms');
+        await tab.until(`document.body.innerText.includes('Mixed up 2 times')`, 'the Synonyms tab counting the seeded mix-ups');
+        await measure(tab, `srs /vocab/${MIXUP_WORD}, synonyms tab`, width);
+        await openWordTab(tab, `srs /vocab/${MIXUP_WORD}`, width, 'Kanji');
+        await tab.until(`document.body.innerText.includes('Not known') || document.body.innerText.includes('Known')`, 'the Kanji tab');
+        await measure(tab, `srs /vocab/${MIXUP_WORD}, kanji tab`, width);
+        // The tab last chosen opens on the next word: Dict first here, for the page as it first shows.
+        await openWordTab(tab, `srs /vocab/${MIXUP_WORD}`, width, 'Dict');
+        await tab.goto(`${app}/vocab/${LONG_SYNONYMS_WORD}`, 'Meanings');
+        await measure(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, Dict tab`, width);
+        await checkWordFirstScreen(tab, `srs /vocab/${LONG_SYNONYMS_WORD}`, width, height);
+        await openWordTab(tab, `srs /vocab/${LONG_SYNONYMS_WORD}`, width, 'Synonyms');
+        await tab.until(SYNONYMS_OPEN, 'the Synonyms tab');
+        await measure(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, synonyms tab`, width);
+        await checkSynonymDescriptions(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, synonyms tab`, width);
         const unopened = await tab.evaluate<number>(EXPAND_SYNONYMS);
-        if (unopened > 0) failures.push(`${width}px srs /vocab/${LONG_SYNONYMS_WORD}: ${unopened} "Show ..." buttons left in the Synonyms panel after opening everything`);
-        await measure(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, synonyms panel, every meaning`, width);
-        await checkSynonymDescriptions(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, synonyms panel, every meaning`, width);
-        await tab.click('Related');
-        await tab.until(`document.body.innerText.includes('Used in')`, 'the Related panel');
-        await measure(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, related panel`, width);
+        if (unopened > 0) failures.push(`${width}px srs /vocab/${LONG_SYNONYMS_WORD}: ${unopened} "Show ..." buttons left in the Synonyms tab after opening everything`);
+        await measure(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, synonyms tab, every meaning`, width);
+        await checkSynonymDescriptions(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, synonyms tab, every meaning`, width);
+        // The longest panel, so the row can stick: choosing Related from there scrolls to its top.
+        await checkStickyTabs(tab, `srs /vocab/${LONG_SYNONYMS_WORD}`, width, 'Related');
+        await tab.until(`document.body.innerText.includes('Used in')`, 'the Related tab');
+        await measure(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, related tab`, width);
         await checkSynonymsLink(tab, app, width);
         // The removed Mix-ups page's path lands on Vocabulary.
         await tab.goto(`${app}/vocab/mixups`, 'Vocabulary');
@@ -537,4 +581,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji, on one line and apart, Japanese in list rows unbroken, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, the four Explore labels whole and clear of their dividers, the segments still when one is pressed, Your study's phone grid on a studied word, its header status on one line at 1280px, a #synonyms link opening Explore on Synonyms at the top of the screen, its rows' shared senses wrapped, not cut off.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji, on one line and apart, Japanese in list rows unbroken, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, its tab row stuck once scrolled to and the open tab in its view, a tab chosen there opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off.`);
