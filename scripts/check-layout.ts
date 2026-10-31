@@ -32,7 +32,9 @@
  *   past, with a tab cut by that edge, so the row shows it scrolls (no tab hidden at the padding),
  *   scrolled to either end and after choosing any tab;
  * - a word page's Review now leaves the word page once in history: a finished review goes back to
- *   it, and Back mid-review lands on it.
+ *   it, and Back mid-review lands on it;
+ * - a sentence word tapped on a phone opens its lookup card as a bottom sheet that fits the
+ *   viewport, with a 44px Close, and no sideways scroll.
  *
  * Usage: build both apps (`bun run --cwd apps/gokan-srs build`, `bun run --cwd
  * apps/gokan-dictionary build`), then `bun run check:layout`. Needs Chrome or Chromium: found at
@@ -646,6 +648,54 @@ async function checkDoneMarking(tab: Tab, width: number, height: number): Promis
     if (focused !== 'Mark individual kanji') failures.push(`${width}px srs /setup: after "Done marking", focus is on ${focused ?? 'nothing'}, not the "Mark individual kanji" toggle`);
 }
 
+/**
+ * A sentence word tapped on a phone opens its lookup card as a bottom sheet (issue #174). The tap
+ * is a touch pointerdown then a click, which is what the trigger reads to choose the sheet over
+ * the pinned popover; Chrome here is a desktop pointer, so the touch is dispatched by hand.
+ */
+const TAP_SENTENCE_WORD = `(() => {
+    const word = document.querySelector('[data-sentence] [data-lookup-trigger]');
+    if (!word) return false;
+    word.scrollIntoView({ block: 'center' });
+    word.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch', isPrimary: true }));
+    word.click();
+    return true;
+})()`;
+const SHEET_FIT = `(() => {
+    const sheet = document.querySelector('[data-bottom-sheet] > div');
+    const close = document.querySelector('[data-bottom-sheet] [data-sheet-close]');
+    if (!sheet || !close) return 'no sheet or no Close';
+    const r = sheet.getBoundingClientRect();
+    const c = close.getBoundingClientRect();
+    const problems = [];
+    if (r.left < -0.5 || r.right > innerWidth + 0.5 || r.top < -0.5 || r.bottom > innerHeight + 0.5) problems.push('the sheet does not fit the viewport (' + [r.left, r.top, r.right, r.bottom].map(Math.round).join(', ') + ' in ' + innerWidth + 'x' + innerHeight + ')');
+    if (c.width < 43.5 || c.height < 43.5) problems.push('its Close is ' + Math.round(c.width) + 'x' + Math.round(c.height) + 'px, under 44px');
+    return problems.join('; ');
+})()`;
+
+async function checkLookupSheet(tab: Tab, page: string, width: number): Promise<void> {
+    const where = `${width}px ${page}, a sentence word's lookup sheet`;
+    if (!await tab.evaluate<boolean>(TAP_SENTENCE_WORD)) {
+        failures.push(`${where}: no sentence word to tap`);
+        return;
+    }
+    try {
+        await tab.until(`document.querySelector('[data-bottom-sheet] [data-lookup-word]') !== null`, 'the word card in a bottom sheet', 10000);
+    } catch {
+        failures.push(`${where}: tapping a sentence word opened no bottom sheet with its word card`);
+        return;
+    }
+    const fit = await tab.evaluate<string>(SHEET_FIT);
+    if (fit) failures.push(`${where}: ${fit}`);
+    await measure(tab, `${page}, a sentence word's lookup sheet`, width, '[data-sheet-close]');
+    await tab.evaluate<void>(`document.querySelector('[data-bottom-sheet] [data-sheet-close]').click()`);
+    try {
+        await tab.until(`document.querySelector('[data-bottom-sheet]') === null`, 'the sheet closed', 5000);
+    } catch {
+        failures.push(`${where}: Close did not close the sheet`);
+    }
+}
+
 /** Measures the fixture word's page, after checking it still shows a reading to measure. */
 async function measureFuriganaFixture(tab: Tab, url: string, ready: string, page: string, width: number, tapTargets = ''): Promise<void> {
     try {
@@ -725,6 +775,7 @@ try {
         await measure(tab, 'srs /listening, watching and completed titles', width);
         await measureFuriganaFixture(tab, `${app}/vocab/${FURIGANA_VOCAB}`, 'Examples', `srs /vocab/${FURIGANA_VOCAB}`, width);
         await checkWordFirstScreen(tab, `srs /vocab/${FURIGANA_VOCAB}`, width, height);
+        await checkLookupSheet(tab, `srs /vocab/${FURIGANA_VOCAB}`, width);
         await checkTabRowBleed(tab, `srs /vocab/${FURIGANA_VOCAB}`, width);
         await openWordTab(tab, `srs /vocab/${FURIGANA_VOCAB}`, width, 'Sentences');
         await tab.until(`document.body.innerText.includes('Shortest first')`, 'the Sentences panel');
@@ -790,4 +841,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji, on one line and apart, Japanese in list rows unbroken, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, Review now leaving the word page once in history, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji, on one line and apart, Japanese in list rows unbroken, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, Review now leaving the word page once in history, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word's lookup sheet in the viewport with a 44px Close.`);
