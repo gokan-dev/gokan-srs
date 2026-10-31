@@ -241,7 +241,8 @@ gokan-srs, everything else:
 - A word's page: its tabs (`utils/wordTabs.utils.ts`: their hashes, and `initialWordTab`, which
   one opens), Dict (`pages/vocab/DictTab.tsx`), the Sentences, Synonyms and Related panels in
   `pages/vocab/explore/` (one search each, `utils/exploreSearch.utils.ts`), Kanji
-  (`components/KanjiSummary.tsx`, a kanji in brief), Study (`pages/vocab/StudyTab.tsx`); its
+  (`components/KanjiSummary.tsx`, a kanji in brief; `components/KanjiReadings.tsx`, a kanji's
+  On/Kun list, `compact` or `large`, also the kanji page's), Study (`pages/vocab/StudyTab.tsx`); its
   summary gloss from `summaryGloss` (`@gokan/dataset-schema`), its two examples from
   `utils/wordExamples.utils.ts`, its Review now through `wordReviewPath` (a session of that word's
   due cards, `wordReviewTaskKeys`).
