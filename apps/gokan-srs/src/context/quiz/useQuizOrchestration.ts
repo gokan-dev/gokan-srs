@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import type { KanjiKnowledge, UserProgress, UserSettings } from '../../models/user.model';
 import type { Sentence, Vocabulary } from '@gokan/dataset-schema';
 import { StorageService } from '../../services/storage.service';
@@ -23,8 +23,9 @@ import { mergeProgress, mergeSettings } from '../../services/sync/mergeProgress'
 import { useGoogleDrive } from '../useGoogleDrive';
 import type { QuizState, QuizAction } from './quizReducer';
 import { useExerciseTurn } from './useExerciseTurn';
-import { selectNextView, selectCurrentProgress, selectSessionStats, selectNextSessionPreview, collectActionableTaskKeys, capSessionCommit, dedupTaskKeysByVocab } from './quizSelectors';
+import { selectNextView, selectCurrentProgress, selectSessionStats, selectNextSessionPreview, collectActionableTaskKeys, capSessionCommit, dedupTaskKeysByVocab, isWordSessionDone, wordReviewTaskKeys } from './quizSelectors';
 import { useSessionLifecycle } from './useSessionLifecycle';
+import { REVIEW_WORD_PARAM, vocabPath } from '../../utils/navigation.utils';
 import { sessionRouteRole } from './sessionRoutes';
 import { refillCandidates } from './refillCandidates';
 import { progressUploadSignature, stableStringify } from "../../services/progressSerialization";
@@ -75,6 +76,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
     } = useGoogleDrive();
 
     const location = useLocation();
+    const navigate = useNavigate();
 
     const dayBoundaryCheckedRef = useRef(false);
     const migrationTriggeredRef = useRef(false);
@@ -225,10 +227,12 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                 : Promise.resolve(grade);
         },
     });
-    const sessionHasWork =
+    // A word's "Review now" session ends as soon as its own cards are answered, whatever else
+    // is due: it was started for that word alone.
+    const sessionHasWork = !isWordSessionDone(state.session, sessionStats) && (
         nextView.sessionState === 'review' ||
         nextView.sessionState === 'learn' ||
-        nextView.sessionState === 'session-complete';
+        nextView.sessionState === 'session-complete');
 
     useSessionLifecycle({
         role: sessionRole,
@@ -254,16 +258,29 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             // preview (selectNextSessionPreview, which runs the identical dedup+cap
             // pipeline) and the in-session progress bar always agree on what "this
             // session" contains.
-            const taskKeys = capSessionCommit(
-                dedupTaskKeysByVocab(collectActionableTaskKeys(progress.learningQueue, state.settings, now))
-            );
+            //
+            // A word page's "Review now" (`/quiz?review=<id>`) commits that word's due tasks only.
+            const word = new URLSearchParams(location.search).get(REVIEW_WORD_PARAM) ?? undefined;
+            const taskKeys = word !== undefined
+                ? wordReviewTaskKeys(progress.learningQueue, word, state.settings, now)
+                : capSessionCommit(
+                    dedupTaskKeysByVocab(collectActionableTaskKeys(progress.learningQueue, state.settings, now))
+                );
             dispatch({
                 type: 'SESSION_START',
-                payload: { taskKeys, progress: progress === state.progress ? undefined : progress },
+                payload: { taskKeys, progress: progress === state.progress ? undefined : progress, ...(word !== undefined ? { word } : {}) },
             });
             trackEvent({ name: 'session_started', data: { activity: 'vocab' } });
         },
-        onEnd: () => dispatch({ type: 'SESSION_END' }),
+        onEnd: () => {
+            // A word's review that ran out of cards on /quiz goes back to the word's page; leaving
+            // for another page, or coming back after the pause expired, goes where the learner went.
+            const word = state.session?.word;
+            dispatch({ type: 'SESSION_END' });
+            if (word !== undefined && sessionRole === 'activity' && state.session?.suspendedAt === undefined) {
+                void navigate(vocabPath(word), { replace: true });
+            }
+        },
         onSuspend: (now) => dispatch({ type: 'SESSION_SUSPEND', payload: { now: now.getTime() } }),
         onResume: () => {
             restartClock();
