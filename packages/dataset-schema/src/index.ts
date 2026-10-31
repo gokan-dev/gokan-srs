@@ -23,3 +23,4 @@ export * from './ruby';
 export * from './grammarSentence';
 export * from './site';
 export * from './frequency';
+export * from './senses';

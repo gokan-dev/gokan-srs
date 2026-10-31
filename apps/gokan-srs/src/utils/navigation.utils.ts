@@ -1,3 +1,5 @@
+import { wordTabHash, type WordTab } from './wordTabs.utils';
+
 /** A destination in the app's navigation (desktop header, mobile tab bar, More sheet). */
 export interface NavDestination {
     label: string;
@@ -47,13 +49,32 @@ export function isMoreActive(pathname: string): boolean {
     return MORE_DESTINATIONS.some(d => isDestinationActive(pathname, d));
 }
 
-/** The hash that opens a word page's Explore on its Synonyms panel, and the panel's id (after the `#`). */
-export const SYNONYMS_HASH = '#synonyms';
-export const SYNONYMS_ANCHOR = SYNONYMS_HASH.slice(1);
-/** The id of a word page's Explore section, where a link to a panel lands. */
-export const EXPLORE_ANCHOR = 'explore';
+/** A word's page, open on one of its tabs (Dict, which has no hash, by default). */
+export function vocabPath(vocabId: string, tab: WordTab = 'dict'): string {
+    return `/vocab/${encodeURIComponent(vocabId)}${wordTabHash(tab)}`;
+}
 
-/** A word's Synonyms panel on its page, Explore open on it (a quiz's synonym note links there). */
+/** A word's Synonyms tab (a quiz's synonym note, "Compare synonyms", links there). */
 export function synonymsPath(vocabId: string): string {
-    return `/vocab/${encodeURIComponent(vocabId)}${SYNONYMS_HASH}`;
+    return vocabPath(vocabId, 'synonym');
+}
+
+/** The `/quiz` search parameter naming the word a "Review now" session is for. */
+export const REVIEW_WORD_PARAM = 'review';
+
+/** A review session of one word's due cards (its page's "Review now"), which returns to the page when done. */
+export function wordReviewPath(vocabId: string): string {
+    return `/quiz?${REVIEW_WORD_PARAM}=${encodeURIComponent(vocabId)}`;
+}
+
+/**
+ * The router state a word page's Review now pushes `/quiz` with: the word page is the entry
+ * behind it, so the session's end goes back to it (one entry, as Back mid-session would), and only
+ * a deep-linked review, with no page behind it, replaces itself with the word's page.
+ */
+export const REVIEW_FROM_WORD_STATE = { reviewFrom: 'word' } as const;
+
+/** Whether a location's state (untyped: the history entry's) marks a review opened from its word's page. */
+export function isReviewFromWord(state: unknown): boolean {
+    return typeof state === 'object' && state !== null && 'reviewFrom' in state && state.reviewFrom === REVIEW_FROM_WORD_STATE.reviewFrom;
 }

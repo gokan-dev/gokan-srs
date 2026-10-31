@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GRAMMAR, KANJI, MORE_DESTINATIONS, STUDY, VOCABULARY, WHATS_NEW, isDestinationActive, isMoreActive, isSessionPath, synonymsPath } from './navigation.utils';
+import { GRAMMAR, KANJI, MORE_DESTINATIONS, STUDY, VOCABULARY, WHATS_NEW, isDestinationActive, isMoreActive, isReviewFromWord, isSessionPath, REVIEW_FROM_WORD_STATE, synonymsPath, vocabPath, wordReviewPath } from './navigation.utils';
 
 describe('isDestinationActive', () => {
     it('marks Study on the hub only', () => {
@@ -51,5 +51,29 @@ describe('synonymsPath', () => {
     it("is the word's page, at its Synonyms card, inside Vocabulary", () => {
         expect(synonymsPath('1224020')).toBe('/vocab/1224020#synonyms');
         expect(isDestinationActive('/vocab/1224020', VOCABULARY)).toBe(true);
+    });
+});
+
+describe('vocabPath', () => {
+    it('opens Dict with no hash, another tab by its hash', () => {
+        expect(vocabPath('1224020')).toBe('/vocab/1224020');
+        expect(vocabPath('1224020', 'kanji')).toBe('/vocab/1224020#kanji');
+    });
+});
+
+describe('wordReviewPath', () => {
+    it("names the word in the quiz's review parameter", () => {
+        expect(wordReviewPath('1224020')).toBe('/quiz?review=1224020');
+    });
+});
+
+describe('isReviewFromWord', () => {
+    it('reads the state Review now pushes, and nothing else', () => {
+        expect(isReviewFromWord(REVIEW_FROM_WORD_STATE)).toBe(true);
+        expect(isReviewFromWord({ reviewFrom: 'word' })).toBe(true);
+        expect(isReviewFromWord(null)).toBe(false);
+        expect(isReviewFromWord(undefined)).toBe(false);
+        expect(isReviewFromWord({ reviewFrom: 'hub' })).toBe(false);
+        expect(isReviewFromWord('word')).toBe(false);
     });
 });

@@ -4,7 +4,13 @@ import { Button } from "../ui/Button";
 
 type LearnStatusProps =
     | { inStudy: false; learnLabel: string; onLearn: () => void }
-    | { inStudy: true; status: LearningStatus; nextReview: string | null };
+    | {
+        inStudy: true;
+        status: LearningStatus;
+        nextReview: string | null;
+        /** Shown when something is due: a review of this item alone ("Review now" on a word's page). */
+        onReview?: () => void;
+    };
 
 /**
  * A detail header's action area. Not in the learner's study yet: the page's one
@@ -12,6 +18,7 @@ type LearnStatusProps =
  * when it is next reviewed ("Learning · Due now"). `nextReview` is null when
  * nothing follows (a mastered item with nothing scheduled), so the status word
  * never appears twice. The rings are in "Your progress" only, never repeated here.
+ * With `onReview`, Review now follows the status on its line.
  */
 export function LearnStatus(props: LearnStatusProps) {
     if (!props.inStudy) {
@@ -23,14 +30,17 @@ export function LearnStatus(props: LearnStatusProps) {
         );
     }
     return (
-        <p className="flex flex-wrap items-center gap-x-1.5 type-support">
-            <StatusDot status={props.status} />
-            {props.nextReview !== null && (
-                <>
-                    <span aria-hidden="true">·</span>
-                    <span>{props.nextReview}</span>
-                </>
-            )}
-        </p>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <p className="flex flex-wrap items-center gap-x-1.5 type-support">
+                <StatusDot status={props.status} />
+                {props.nextReview !== null && (
+                    <>
+                        <span aria-hidden="true">·</span>
+                        <span>{props.nextReview}</span>
+                    </>
+                )}
+            </p>
+            {props.onReview && <Button size="sm" onClick={props.onReview}>Review now</Button>}
+        </div>
     );
 }

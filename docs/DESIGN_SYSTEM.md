@@ -177,12 +177,10 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
   modal, tooltip).
 - **Spacing** (8px grid): page top padding 32px (24px mobile); between page sections
   `space-y-10`; heading to content 16px; inside groups 8 or 12px.
-- **A line means a new level, nothing else.** On a page laid out in levels of importance (a
-  word's page: the essentials, Your study, Explore, the internals), one `border-divider` line
-  separates two levels, with 40px of spacing on each side (`DetailBody`'s `levels`). Nothing
-  draws a line inside a level: example sentences are 16px apart, not ruled, and no line sits
-  above an Explore panel. No cards or boxed sections either: a section is a heading plus
-  spacing (principle 5).
+- **A line means a new level, nothing else.** A tab row's `divider` line separates the page's
+  header from its one open tab (a word's page); the foot of a word's Dict tab (its facts) sits
+  under one line too. Nothing draws a line inside a level: example sentences are 16px apart, not
+  ruled. No cards or boxed sections either: a section is a heading plus spacing (principle 5).
 - **Motion**: 150-200ms, ease-in-out, no bounce, no elastic. No `hover:scale-*` or
   `active:scale-*` anywhere (enforced, `no-scale-transform`). The one exception is
   explanatory motion on the welcome page only: the ink bloom behind a kanji just marked known
@@ -196,7 +194,11 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
   plus the quiz session's own layout. The header's inner container is
   `max-w-5xl mx-auto px-4 md:px-6`, so the logo and navigation line up with page content.
 - **`Page`** (`components/Page.tsx`): `width: 'narrow' | 'wide'`, a header, children.
-  Every routed page uses it except the quiz sessions and onboarding.
+  Every routed page uses it except the quiz sessions and onboarding. `Page` sets its inline
+  padding as `--page-inset` (16px, 24px from `md`); an element inside a `Page` that bleeds to its
+  edges uses `PAGE_BLEED` and puts the padding back with `PAGE_BLEED_INSET`, never its own
+  numbers. The app chrome (header, footer, search bar, banners) still writes the same values as
+  `px-4 md:px-6` to line up with page content: a change to one must change the other.
 - **`PageHeader`**: left-aligned (centre only for logos and empty states). An optional
   `← Back` row in accent above the title (`navigate(-1)` inside the app, else a
   `parentPath` prop; nothing links to `/grammar` as a "Back", since that route starts a
@@ -208,9 +210,9 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
   actions area. From `lg` the header uses the body's grid (12 columns, 8/4, `gap-10`), so
   the actions start on the side column's left edge, left-aligned and top-aligned with the
   headword; below `lg` they follow the readings. A page whose body is one column (`DetailBody`
-  `levels`, a word's page) passes `layout="column"`: there is no side column to line up with,
-  so the actions follow the facts at every width and the status has the full width. The actions hold only the status or,
-  before the item is studied, the one primary "Learn this ..." button. The status is one
+  `tabs`, a word's page) passes `layout="column"`: there is no side column to line up with,
+  so the actions follow the facts at every width and the status has the full width. The actions hold only the status (on a word's page, with
+  Review now when it is due) or, before the item is studied, the one primary "Learn this ..." button. The status is one
   line, the next review after the `StatusDot` label ("● Learning · Due now"), and never
   repeats the status word: a mastered item with nothing scheduled shows only
   "● Mastered" (`statusReviewPhrase`). The kanji header keeps Known / Not known. No mastery rings: those, with their values, are only in "Your
@@ -218,38 +220,54 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
 - **`DetailBody`**: the body under every `DetailHeader`. Either from `lg` the same 12-column
   grid, `main` (8: the subject's content, meanings first) and `side` (4: the learner's data,
   related items, the details `Disclosure`), and below `lg` one column in reading order
-  (`stacked` when it interleaves the two); or `levels`, one column at every width with a line
-  between levels (section 4), each level named, so one appearing above another (Your study,
-  once the word is learned) does not remount it. The 12-column grid exists only in these two components
+  (`stacked` when it interleaves the two); or `tabs`, one column at every width: a sticky tab
+  row (`TabNav` page tabs) and the panels under it (a word's page). The 12-column grid exists only in these two components
   (enforced, `detail-layout`).
 - **Word page** (`pages/vocab/VocabDetailScreen.tsx`): `Page width="narrow"` at every width,
-  one column (`DetailBody` `levels`), so the long lists never weigh as much as the meanings:
-  - Header: the headword, its spellings and reading; a chips row (the JLPT chip, then each
-    kanji as a small `KanjiTile` with Known / Not known beside it); a facts row, a `dl` of
-    `DetailField compact` (a `type-meta` label over a `type-value` value), side by side and wrapping: How common (the band, its
-    `FrequencyMeter` and a round "Top 300 words", the exact rank in a `title`), KKLC step or
-    "Learned in kana", Textbooks; then the actions, under the facts at every width
-    (`DetailHeader` `layout="column"`), so the status stays one line at 1280px (`check:layout`).
-  - The essentials, always shown: Meanings (3 common senses, then "Show all N meanings" in
-    place, rare ones under a "Rare and archaic" label), Examples (2 sentences,
-    `pickWordExamples`; "All N sentences →" on the heading's line), Closest synonyms (up to 5
-    `WordTile`s from the first sense's section, "For meaning 1: ..." under them, "Compare all
-    N →").
-  - Your study, for a word in study: one row of 40px rings, each direction's status beside its
-    ring from `sm`, and below `sm` a 3-column grid with the name and status centred under each
-    ring (three statuses beside their rings do not fit at 375px), "Added
-    ... · N reviews" on the heading's line, "You mixed it up N times. See your mix-ups →", and
-    the learning curve and review log under one collapsed `Disclosure`.
-  - Explore: a `SegmentedToggle` (Sentences, Synonyms, Related, Mix-ups, each only when it has
-    something), none open on load ("Open one to browse it and search in it."), one panel at a
-    time. Each panel has one search field (44px, `text-base`, a hidden label) and a count line
-    above its results (`aria-live`); nothing else, no selects, no filter pills. An English query
-    matches from the start of a word, a Japanese one anywhere, kana folded; matches are marked
-    (`Marked`: `<mark>`, an accent tint, the text's own colour) in the English line.
-    Sentences: 5 at a time and "Shortest first"; Synonyms: groups by meaning, "3 · to get, to
-    obtain", 3 rows each and 4 groups at a time; Related: Built from and Used in, 10 at a time;
-    Mix-ups: Your mix-ups. A link to `#synonyms` opens Explore on Synonyms and lands on it.
-  - Internals: "Combines N dictionary entries", only for a merged entry.
+  one column: a header holding what a learner looks the word up for, then one row of tabs
+  (`DetailBody` `tabs`), one tab open at a time. The same tabs at every width.
+  - Header, top to bottom: the headword, its spellings and reading (the kana note for a word
+    learned in kana, "Also:" readings); where the play button and the pitch accent will follow
+    the reading (nothing yet, and no space kept); the summary gloss (`summaryGloss`, one
+    `type-body` line of the first four distinct common glosses); one chips row, the JLPT chip then
+    How common on one line (the `FrequencyMeter` and the band's name, the round "Top 300 words"
+    and the exact rank in its `title`); the status line under it at every width (`DetailHeader`
+    `layout="column"`): Learn this word, or the status and the one due phrase, with **Review
+    now** (a small primary `Button`) when a direction is due and no session is in progress.
+    This line is the only place on the page that says "Due now". At 375x667 and 320x568 the
+    headword, reading, summary gloss and status line are on the first screen (`check:layout`).
+  - The tab row: Dict, Sentences, Synonyms, Kanji, Related, Study, each only when it has
+    content, no counts in the labels (each panel's result line gives them). `TabNav` in its
+    page mode. Once the header has scrolled away the row sticks at the viewport's top (the app
+    header does not stick), on the page background with its `divider` line; a tab chosen while
+    it is stuck brings its panel's top just under the row, one chosen while it is in place does
+    not scroll, and the open tab tapped again while it is stuck goes back to its panel's top. On
+    a phone the row scrolls sideways inside itself, the open tab kept in view; the page never
+    does. The row runs to the screen's edges (its tabs padded back in line with the page), so
+    the tabs scroll under the edge and a tab cut there shows there is more: choosing a tab
+    scrolls the row so a tab is cut at each edge with more behind it (`check:layout`, from
+    either end, for every tab). Every tab but Dict has a hash (`#sentences`, `#synonyms`, `#kanji`,
+    `#related`, `#study`), replaced as a tab is chosen; the page opens on the hash's tab, else the
+    tab last chosen this browser session, else Dict (`initialWordTab`).
+  - Dict: Meanings (3 common senses, then "Show all N meanings" in place, rare ones under a
+    "Rare and archaic" label), Examples (2 sentences, `pickWordExamples`; "All N sentences →"
+    opens Sentences), Closest synonyms (up to 5 `WordTile`s from the first sense's section,
+    "For meaning 1: ..." under them, "Compare all N →" opens Synonyms), then at its foot, under a
+    `divider` line, KKLC step (or "Learned in kana") and Textbooks as `DetailField compact`, and
+    "Combines N dictionary entries" for a merged entry.
+  - Sentences, Synonyms, Related: one search field each (44px, `text-base`, a hidden label) and a
+    count line above the results (`aria-live`); nothing else, no selects, no filter pills. An
+    English query matches from the start of a word, a Japanese one anywhere, kana folded;
+    matches are marked (`Marked`: `<mark>`, an accent tint, the text's own colour) in the English
+    line. Sentences: 5 at a time and "Shortest first"; Synonyms: groups by meaning, "3 · to get,
+    to obtain", 3 rows each and 4 groups at a time; Related: Built from and Used in, 10 at a time.
+  - Kanji: each kanji of the word in order as a `KanjiSummary`: its `KanjiTile` linking to its
+    page, its meanings, On and Kun readings (`kunReadingLabel`), Known / Not known.
+  - Study, for a word in study: Your study (one row of 40px rings, each direction's status
+    beside its ring from `sm`, below `sm` a 3-column grid with the name and status centred under
+    each ring; a due direction says its stage, not "Due now"; "Added ... · N reviews" on the
+    heading's line; the learning curve and review log under one collapsed `Disclosure`), then
+    Your mix-ups when there are any, with its search.
 - **Kanji page**: the header is the glyph, its readings labelled On and Kun, and neutral
   chips (JLPT, and the kanji's number in the learner's own method, "RTK #346"). Main:
   Meanings, then the words using it. Side: Components (with "8 strokes · Radical 子") and
@@ -333,19 +351,20 @@ Defined once, in `components/` or `components/ui/`, never copied:
   `utils/stackedBarChart.utils.ts` for why `flex-col-reverse` + `justify-end` does not
   do this); a y-axis shows the max value and a midline; every bar is a focusable button
   that shows its values on hover, focus and tap; x labels are never truncated.
-- **`TabNav`**: route tabs (active: ink text, 2px accent underline). Used by the Grammar
-  home.
-- **`SegmentedToggle`** (`ui/SegmentedToggle.tsx`): one bordered `rounded-md` group,
-  segments split by `divider` lines, each a 14px label over its count (`type-meta`), at least
-  52px high, each sized by its label (`flex-auto`, `px-1`) so the short ones give their spare
-  room to the long ones: four labels fit whole at 320px, a semibold "Synonyms" included, at
-  least 4px from their dividers (`check:layout` fails on a cut-off or crowded label). A
-  segment is sized by its semibold label in every state (an invisible semibold copy shares the
-  label's cell), so pressing one never moves the dividers (`check:layout` fails on a shift over
-  0.5px). Single choice that can be undone (pressing the open one
-  closes it), so a toggle (`aria-pressed`, `aria-controls`, an `aria-label` with the full name
-  and the count), not tabs. Open: `bg-accent/12`, a 2px accent bar inset at the bottom, a
-  semibold label; hover `bg-surface-hover`. A word page's Explore.
+- **`TabNav`** (`ui/TabNav.tsx`): tabs, active in ink text with a 2px accent underline, in
+  two modes. Route tabs (`to`), each its own page, as links: the Grammar home. Page tabs
+  (`selected`), panels of one page, as ARIA tabs: buttons with `role="tab"`, `aria-selected`
+  and `aria-controls`, panels with `role="tabpanel"`, Left / Right / Home / End moving between
+  them; the row scrolls sideways inside itself when too wide (no scrollbar shown), the open tab
+  kept in its view, its `divider` drawn under the tabs as a line over its content box only. The
+  open tab is kept clear of the edge by the padding, the gap and a slice of the next tab
+  (`keepInViewMargin`), then nudged so neither edge falls in a gap between two tabs with more
+  behind it (`tabRowScroll`, `utils/tabScroll.utils.ts`): aligned to the padding alone, the
+  next tab would start exactly on a phone's edge, hidden whole. A
+  page bleeds the row to the screen's edges (`PAGE_BLEED_INSET`) so a tab cut by the edge is
+  the cue it scrolls; the gap is `gap-4` on a phone, `gap-6` from `sm`, since a wide gap on the
+  edge would hide the next tab whole. A word's page. There is
+  no second tab component, and no segmented control: one tab is always open.
 - **`TextButton`** (`ui/TextButton.tsx`): an action written as text ("Show 5 more", "Compare
   all 12 →"), accent, underlined on hover; the arrow when it moves the learner down the page.
 - **Synonyms panel** (`pages/vocab/explore/SynonymsPanel.tsx`) and **Closest synonyms**: the
@@ -363,7 +382,7 @@ Defined once, in `components/` or `components/ui/`, never copied:
   wide), as many filled as `frequencyBand` says (Very common 4 to Rare 1), filled `secondary`,
   empty `divider`. Never accent: it is a fact about the word, not the learner's progress. The
   band's name always stands beside it.
-- **Your mix-ups** (`pages/vocab/YourMixups.tsx`): a word page's Mix-ups panel, one entry per
+- **Your mix-ups** (`pages/vocab/YourMixups.tsx`): in a word page's Study tab, one entry per
   record, newest first: the answer as typed (Japanese, a link only when it names a word) with
   how it was graded, the card's English sentence (or "From its English meanings"), and the date
   in `type-meta`. Five, then "Show all mix-ups". It is an answer history, so the grading uses

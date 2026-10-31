@@ -4,7 +4,7 @@ import type { UserSettings } from '../../models/user.model';
 import { getNextVocabToStudy, isMeaningActionable, isProductionActionable, isReadingActionable } from '../../utils/srs.utils';
 import type { QuizType } from '../../utils/srs.utils';
 import { CONSTANTS } from '../../commons/constants';
-import type { PendingQuizItem, QuizState, TaskKey } from './quizReducer';
+import type { PendingQuizItem, QuizState, SessionTracking, TaskKey } from './quizReducer';
 import { taskKey } from './quizReducer';
 import { computeSessionState } from './sessionState';
 import { computeSessionStats } from './sessionStats';
@@ -55,7 +55,8 @@ export function selectNextView(
 
     // An intro candidate is loaded to show its intro card; its quiz type is the one it
     // will first be asked in, which for a word learned in kana is not reading.
-    const queueItem: PendingQuizItem | null = introCandidates.length > 0
+    // A word's "Review now" session serves that word's due cards, never a new word.
+    const queueItem: PendingQuizItem | null = introCandidates.length > 0 && state.session?.word === undefined
         ? { vocabId: introCandidates[0].id, quizType: introQuizType(introCandidates[0], settings ?? undefined) ?? 'meaning', quizMode: 'base' }
         : getNextVocabToStudy(progress?.learningQueue, settings ?? undefined, now, preferredType, committed);
 
@@ -200,6 +201,26 @@ export function collectActionableTaskKeys(
         if (isProductionActionable(v, settings, now)) keys.push(taskKey(v.vocabId, 'production'));
     }
     return keys;
+}
+
+/**
+ * The tasks of one word actionable right now: what its page's "Review now" offers (shown only
+ * when there are any) and what that session commits. Every due direction, not deduplicated as an
+ * ordinary session is: the learner asked to review this word, and the page would still say
+ * "Due now" for a direction left out.
+ */
+export function wordReviewTaskKeys(
+    queue: VocabProgress[],
+    vocabId: string,
+    settings: UserSettings | undefined,
+    now: Date
+): TaskKey[] {
+    return collectActionableTaskKeys(queue.filter(v => v.vocabId === vocabId), settings, now);
+}
+
+/** A word's "Review now" session has answered every task it committed (none left actionable, no retry pending). */
+export function isWordSessionDone(session: SessionTracking | null, stats: Pick<SessionStats, 'done' | 'total'>): boolean {
+    return session?.word !== undefined && stats.done >= stats.total;
 }
 
 function parseTaskKey(key: string): { vocabId: string; quizType: QuizType } {

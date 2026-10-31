@@ -207,6 +207,12 @@ describe('quizReducer', () => {
         expect(next.session).toEqual({ committed: keys });
     });
 
+    it('SESSION_START keeps the word a Review now session is for', () => {
+        const keys = [taskKey('w', 'reading')];
+        const next = quizReducer(initialState, { type: 'SESSION_START', payload: { taskKeys: keys, word: 'w' } });
+        expect(next.session).toEqual({ committed: keys, word: 'w' });
+    });
+
     it('SESSION_START leaves progress untouched when no updated progress is supplied', () => {
         const progress = userProgress();
         const state: QuizState = { ...initialState, progress };

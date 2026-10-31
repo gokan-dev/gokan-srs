@@ -5,35 +5,32 @@ import { DirectionStatus, type ProgressDirection } from "../../components/detail
 import { ReviewTimeline } from "../../components/ReviewTimeline";
 import { SRSHistoryGraph } from "../../components/SRSHistoryGraph";
 import { Disclosure } from "../../components/ui/Disclosure";
-import { TextButton } from "../../components/ui/TextButton";
 import { isProductionActivated, isReadingRelevant } from "../../services/scheduling";
 import { addedLine, directionStatus } from "../../utils/learningStatus.utils";
 
 interface YourStudyProps {
     progress: VocabProgress & { introductionAt: Date };
     now: number;
-    /** How many mix-ups the learner made on this word's cards (mixupsAsked). */
-    mixups: number;
-    onShowMixups: () => void;
 }
 
 /**
- * A studied word's progress on its page: a ring and its status for each direction on one row,
- * when it was added and how often reviewed on the heading's line, its mix-ups (opening Explore
- * on them), and the learning curve and review log behind one disclosure.
+ * A studied word's progress in its Study tab: a ring and its status for each direction on one
+ * row, when it was added and how often reviewed on the heading's line, and the learning curve and
+ * review log behind one disclosure. A due direction says its stage: the page's header is the one
+ * place that says "Due now".
  */
-export function YourStudy({ progress, now, mixups, onShowMixups }: YourStudyProps) {
+export function YourStudy({ progress, now }: YourStudyProps) {
     // A word learned in kana has no reading direction: no ring, due date or curve for it.
     const readingRelevant = isReadingRelevant(progress);
     // Activation, not a pending due date: a mastered production entry has no dueDate.
     const productionActivated = isProductionActivated(progress.production);
 
     const directions: ProgressDirection[] = [
-        ...(readingRelevant ? [{ key: 'reading', label: 'Reading', strength: progress.reading.memoryStrength, variant: 'reading' as const, status: directionStatus(progress.reading, true, now) }] : []),
-        { key: 'meaning', label: 'Meaning', strength: progress.meaning.memoryStrength, variant: 'meaning' as const, status: directionStatus(progress.meaning, true, now) },
+        ...(readingRelevant ? [{ key: 'reading', label: 'Reading', strength: progress.reading.memoryStrength, variant: 'reading' as const, status: directionStatus(progress.reading, true, now, true) }] : []),
+        { key: 'meaning', label: 'Meaning', strength: progress.meaning.memoryStrength, variant: 'meaning' as const, status: directionStatus(progress.meaning, true, now, true) },
         // "Not started" rather than a hidden ring: production activates lazily, and an
         // absent one reads as the feature being broken.
-        { key: 'production', label: 'Production', strength: progress.production?.memoryStrength ?? 0, variant: 'production' as const, status: directionStatus(progress.production, productionActivated, now) },
+        { key: 'production', label: 'Production', strength: progress.production?.memoryStrength ?? 0, variant: 'production' as const, status: directionStatus(progress.production, productionActivated, now, true) },
     ];
 
     return (
@@ -42,12 +39,6 @@ export function YourStudy({ progress, now, mixups, onShowMixups }: YourStudyProp
             <ul className={`grid ${directions.length === 3 ? 'grid-cols-3' : 'grid-cols-2'} gap-x-4 gap-y-4 sm:flex sm:flex-wrap sm:gap-x-8`}>
                 {directions.map(direction => <li key={direction.key} className="min-w-0"><DirectionStatus direction={direction} underOnPhone /></li>)}
             </ul>
-            {mixups > 0 && (
-                <p className="type-support mt-4">
-                    You mixed it up {mixups === 1 ? 'once' : `${mixups.toLocaleString('en-US')} times`}.{' '}
-                    <TextButton onClick={onShowMixups} arrow>See your mix-ups</TextButton>
-                </p>
-            )}
             <Disclosure title="Learning curve and review history" className="mt-4">
                 <div className="space-y-6">
                     <SRSHistoryGraph

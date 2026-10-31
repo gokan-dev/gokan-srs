@@ -1,45 +1,56 @@
-import { useEffect, useMemo, useState } from "react";
-import { useLocation, useParams } from "react-router-dom";
-import { frequencyBand, headwordOf, textbookLessonsLabel } from "@gokan/dataset-schema";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { frequencyBand, headwordOf, summaryGloss } from "@gokan/dataset-schema";
 import type { Sentence, Vocabulary } from "@gokan/dataset-schema";
-import { KanjiTile } from "../../components/KanjiTile";
-import { DetailBody } from "../../components/detail/DetailBody";
 import { useQuiz } from "../../context/useQuiz";
+import { hasSessionInProgress, wordReviewTaskKeys } from "../../context/quiz/quizSelectors";
 import { VocabularyService } from "../../services/vocabulary.service";
 import { LoadingScreen } from "../../components/LoadingScreen";
 import { JlptChip } from "../../components/JlptChip";
 import { FrequencyMeter } from "../../components/FrequencyMeter";
 import { vocabNextReviewAt } from "../../services/scheduling";
 import { KanjiSpellingNote } from "../../components/KanjiSpellingNote";
-import { Page } from "../../components/Page";
+import { Page, PAGE_BLEED_INSET } from "../../components/Page";
 import { DetailErrorScreen } from "../../components/detail/DetailErrorScreen";
-import { DetailField, DetailSection } from "../../components/detail/DetailSection";
+import { DetailBody } from "../../components/detail/DetailBody";
 import { DetailHeader } from "../../components/detail/DetailHeader";
 import { LearnStatus } from "../../components/detail/LearnStatus";
-import { Disclosure } from "../../components/ui/Disclosure";
-import { TextButton } from "../../components/ui/TextButton";
-import { WordTile } from "../../components/WordTile";
+import { TabNav, type PageTab } from "../../components/ui/TabNav";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { useNow } from "../../hooks/useNow";
-import { CLOSENESS_LABEL, closenessOf } from "../../services/exercise/wordRelation";
+import { usePersistedControlsSnapshot, writePersistedControls } from "../../hooks/usePersistedControls";
 import { statusReviewPhrase, vocabLearningStatus } from "../../utils/learningStatus.utils";
 import { mixupsAsked } from "../../utils/mixups.utils";
-import { EXPLORE_ANCHOR, SYNONYMS_HASH } from "../../utils/navigation.utils";
-import { indexLearnerVocab } from "../../utils/sentenceRanking";
-import { organizeSenses, senseNumbers, type ShownSense } from "../../utils/senses.utils";
-import { closestSynonyms, sectionGlossLine, synonymCount, type SynonymSection } from "../../utils/synonymSections.utils";
-import { pickWordExamples } from "../../utils/wordExamples.utils";
-import { Explore, type ExplorePanel } from "./explore/Explore";
+import { REVIEW_FROM_WORD_STATE, wordReviewPath } from "../../utils/navigation.utils";
+import { synonymCount } from "../../utils/synonymSections.utils";
+import { initialWordTab, WORD_TAB_STORAGE_KEY, WORD_TABS, wordTabHash, type WordTab } from "../../utils/wordTabs.utils";
+import { relatedCount } from "./explore/counts";
+import { RelatedPanel } from "./explore/RelatedPanel";
+import { SentencesPanel } from "./explore/SentencesPanel";
+import { SynonymsPanel } from "./explore/SynonymsPanel";
+import { DictTab } from "./DictTab";
+import { KanjiTab } from "./KanjiTab";
+import { StudyTab } from "./StudyTab";
 import { useWordSynonyms } from "./useWordSynonyms";
-import { WordSentence } from "./WordSentence";
-import { YourStudy } from "./YourStudy";
 
-const INITIAL_SENSES = 3;
+const TAB_LABEL: Record<WordTab, string> = {
+    dict: 'Dict',
+    sentence: 'Sentences',
+    synonym: 'Synonyms',
+    kanji: 'Kanji',
+    related: 'Related',
+    study: 'Study',
+};
+
+/** A tab's panel id, which its tab button controls, and the button's id, which labels the panel. */
+const panelId = (tab: WordTab) => `word-panel-${tab}`;
+const tabId = (tab: WordTab) => `word-tab-${tab}`;
 
 /**
- * A word's page, one narrow column in three levels: the essentials (meanings, two examples,
- * the closest synonyms), the learner's study, and Explore, where the long lists open on request,
- * then the dataset's internals. A line between two levels, nothing else (DESIGN_SYSTEM section 4).
+ * A word's page, one narrow column at every width: a header holding what a learner looks the word
+ * up for (the word, its reading, one line of meaning, how common it is, its status), then one row
+ * of tabs (Dict, Sentences, Synonyms, Kanji, Related, Study, each only when it has content), one
+ * open at a time (DESIGN_SYSTEM section 5, Word page).
  */
 export default function VocabDetailScreen() {
     const { vocabId } = useParams<{ vocabId: string }>();
@@ -48,43 +59,18 @@ export default function VocabDetailScreen() {
     const load = useAsyncData(vocabId ?? null, () => VocabularyService.loadVocab(vocabId ?? ''));
     const vocab: Vocabulary | null = load.data ?? null;
     const sentencesLoad = useAsyncData(vocabId ?? null, () => VocabularyService.loadSentences(vocabId ?? ''));
-    const { hash } = useLocation();
-
-    // The open panel belongs to one word: keyed by it, so another word opens with none, or with
-    // Synonyms when linked there (`#synonyms`, a quiz's "Compare synonyms").
-    const [chosen, setChosen] = useState<{ for: string; panel: ExplorePanel | null } | null>(null);
-    const linkedToSynonyms = hash === SYNONYMS_HASH;
-    const openPanel: ExplorePanel | null = chosen && chosen.for === vocabId ? chosen.panel : linkedToSynonyms ? 'synonym' : null;
-
-    // The router does not scroll to a hash. The examples above Explore arrive after the word, so
-    // scrolling when it first renders leaves it pushed down the screen: scroll once they have
-    // settled (the rest of the page above it is drawn with the word).
     const sentencesSettled = sentencesLoad.status === 'ready' || sentencesLoad.status === 'error';
-    const landOnSynonyms = linkedToSynonyms && vocab !== null && sentencesSettled;
-    useEffect(() => {
-        if (landOnSynonyms) document.getElementById(EXPLORE_ANCHOR)?.scrollIntoView({ block: 'start' });
-    }, [landOnSynonyms, vocabId]);
 
     if (load.status === 'error') return <DetailErrorScreen message="Could not load this word." />;
     if (!vocab) return <LoadingScreen />;
 
-    const togglePanel = (panel: ExplorePanel) => setChosen({ for: vocab.id, panel: openPanel === panel ? null : panel });
-    // Opens a panel from an action above it ("All 1,030 sentences →") and brings Explore to the
-    // top: its heading does not move when a panel opens under it, so no wait for the render.
-    const showPanel = (panel: ExplorePanel) => {
-        setChosen({ for: vocab.id, panel });
-        document.getElementById(EXPLORE_ANCHOR)?.scrollIntoView({ block: 'start' });
-    };
-
     return (
+        // Keyed by the word: another word opens on its own tab choice (initialWordTab), not this one's.
         <WordPage
             key={vocab.id}
             vocab={vocab}
             sentences={sentencesLoad.data ?? []}
             sentencesSettled={sentencesSettled}
-            openPanel={openPanel}
-            onTogglePanel={togglePanel}
-            onShowPanel={showPanel}
             now={now}
             onLearn={() => actions.saveVocabIntroChoice(vocab, 'learn')}
             knownKanji={state.progress?.kanjiKnowledge.kanjiSet}
@@ -97,224 +83,194 @@ interface WordPageProps {
     sentences: Sentence[];
     /** The sentences have loaded or failed: the page is drawn in full (`data-sentences`, which check-layout waits on). */
     sentencesSettled: boolean;
-    openPanel: ExplorePanel | null;
-    onTogglePanel: (panel: ExplorePanel) => void;
-    onShowPanel: (panel: ExplorePanel) => void;
     now: number;
     onLearn: () => void;
     knownKanji: ReadonlySet<string> | undefined;
 }
 
-function WordPage({ vocab, sentences, sentencesSettled, openPanel, onTogglePanel, onShowPanel, now, onLearn, knownKanji }: WordPageProps) {
+function WordPage({ vocab, sentences, sentencesSettled, now, onLearn, knownKanji }: WordPageProps) {
     const { state } = useQuiz();
+    const navigate = useNavigate();
+    const { pathname, hash } = useLocation();
     const progress = state.progress?.learningQueue.find(p => p.vocabId === vocab.id);
     const settings = state.settings ?? undefined;
     const wordSynonyms = useWordSynonyms(vocab);
     const records = state.progress?.mixups;
     const mixups = useMemo(() => mixupsAsked(records, vocab.id), [records, vocab.id]);
+    const studied = progress?.introductionAt ? { ...progress, introductionAt: progress.introductionAt } : null;
+
+    const has: Record<WordTab, boolean> = {
+        dict: true,
+        sentence: sentences.length > 0,
+        synonym: synonymCount(wordSynonyms.sections) > 0,
+        kanji: vocab.writtenForm.containedKanji.length > 0,
+        related: relatedCount(vocab) > 0,
+        study: studied !== null,
+    };
+    const available = WORD_TABS.filter(tab => has[tab]);
+
+    // The open tab: the one chosen on this page, else the hash's, the remembered one or Dict.
+    // Derived on every render, so a tab whose content arrives late (Sentences) opens once it has.
+    const remembered = usePersistedControlsSnapshot<{ tab: WordTab }>(WORD_TAB_STORAGE_KEY).tab;
+    const [chosen, setChosen] = useState<WordTab | null>(null);
+    const open: WordTab = chosen !== null && has[chosen] ? chosen : initialWordTab(hash, remembered, available);
+
+    // Choosing a tab while the row is stuck brings its panel's top just under the row, so the
+    // learner reads it from its start (the open tab, tapped again, too); while the row is in its
+    // place, nothing moves. Another tab's panel is there only once it renders, hence the flag.
+    const rowRef = useRef<HTMLDivElement>(null);
+    const panelsRef = useRef<HTMLDivElement>(null);
+    const scrollToPanel = useRef(false);
+    const scrollPanelToTop = () => {
+        const row = rowRef.current;
+        const panels = panelsRef.current;
+        if (row && panels) window.scrollTo({ top: window.scrollY + panels.getBoundingClientRect().top - row.offsetHeight });
+    };
+    useLayoutEffect(() => {
+        if (!scrollToPanel.current) return;
+        scrollToPanel.current = false;
+        scrollPanelToTop();
+    }, [open]);
+
+    const choose = (tab: WordTab) => {
+        const row = rowRef.current;
+        // Stuck: the row sits at the viewport's top while the page has scrolled past its place.
+        const stuck = row !== null && row.getBoundingClientRect().top <= 0 && window.scrollY > 0;
+        if (tab === open) {
+            if (stuck) scrollPanelToTop();
+        } else {
+            scrollToPanel.current = stuck;
+        }
+        setChosen(tab);
+        writePersistedControls(WORD_TAB_STORAGE_KEY, { tab });
+        // The hash names the tab (none for Dict), replaced so tabs never fill the history.
+        void navigate({ pathname, hash: wordTabHash(tab) }, { replace: true });
+    };
 
     const status = vocabLearningStatus(progress, settings);
+    const due = progress ? wordReviewTaskKeys([progress], vocab.id, settings, new Date(now)).length > 0 : false;
+    const reviewable = due && !hasSessionInProgress(state);
+
     const header = (
         <DetailHeader
             parentPath="/vocab"
             layout="column"
             title={<span className="jp-display">{headwordOf(vocab)}</span>}
-            chips={<HeaderChips vocab={vocab} knownKanji={knownKanji} />}
-            facts={<WordFacts vocab={vocab} />}
-            actions={progress ? (
+            chips={<HeaderChips vocab={vocab} />}
+            actions={<div data-word-status>{progress ? (
                 <LearnStatus
                     inStudy
                     status={status}
                     nextReview={statusReviewPhrase(status, vocabNextReviewAt(progress, settings), now)}
+                    // Pushed with state marking this page as the entry behind it: the session's end
+                    // goes back to it, and Back mid-review lands on it, so history holds it once.
+                    onReview={reviewable ? () => void navigate(wordReviewPath(vocab.id), { state: REVIEW_FROM_WORD_STATE }) : undefined}
                 />
             ) : (
                 <LearnStatus inStudy={false} learnLabel="Learn this word" onLearn={onLearn} />
-            )}
+            )}</div>}
         >
             {/* A word shown in kana names its kanji spellings in a note instead. */}
             {!vocab.usuallyKana && vocab.writtenForm.alternatives && vocab.writtenForm.alternatives.length > 0 && (
                 <p className="font-mincho text-2xl text-secondary">{vocab.writtenForm.alternatives.join('・')}</p>
             )}
             {vocab.usuallyKana
-                ? <KanjiSpellingNote vocab={vocab} />
-                : <p className="font-gothic text-2xl text-secondary">{vocab.reading.primary}</p>}
+                ? <div data-word-reading><KanjiSpellingNote vocab={vocab} /></div>
+                : <p data-word-reading className="font-gothic text-2xl text-secondary">{vocab.reading.primary}</p>}
             {vocab.reading.alternatives.length > 0 && (
                 <p className="type-meta">Also: <span className="font-gothic">{vocab.reading.alternatives.join('、')}</span></p>
             )}
+            {/* Where the play button (issue 178) and the pitch accent (issue 176) will follow the reading. */}
+            <p data-summary-gloss className="type-body pt-2">{summaryGloss(vocab.senses)}</p>
         </DetailHeader>
     );
 
-    const essentials = (
-        <>
-            <MeaningsSection vocab={vocab} />
-            <ExamplesSection vocab={vocab} sentences={sentences} onShowAll={() => onShowPanel('sentence')} />
-            <ClosestSynonyms vocab={vocab} sections={wordSynonyms.sections} onCompare={() => onShowPanel('synonym')} />
-        </>
-    );
-    const yourStudy = progress?.introductionAt
-        ? <YourStudy progress={{ ...progress, introductionAt: progress.introductionAt }} now={now} mixups={mixups.length} onShowMixups={() => onShowPanel('mixup')} />
-        : null;
-    const explore = (
-        <Explore vocab={vocab} open={openPanel} onToggle={onTogglePanel} sentences={sentences} wordSynonyms={wordSynonyms} mixups={mixups} />
-    );
-    const merged = vocab.mergedVocabs && vocab.mergedVocabs.length > 1 ? vocab.mergedVocabs : null;
-    const internals = merged ? (
-        <Disclosure title={`Combines ${merged.length} dictionary entries`}>
-            <ul className="mt-2 space-y-2">
-                {merged.map(entry => (
-                    <li key={entry.id}>
-                        <span className="font-gothic text-primary">{entry.originalPrimaryReading}</span>
-                        <span className="type-meta ml-2">JMdict {entry.id}</span>
-                        <p className="type-support">{entry.originalGlosses.join(', ')}</p>
-                    </li>
-                ))}
-            </ul>
-        </Disclosure>
-    ) : null;
+    // Every tab's panel is there for its tab's aria-controls; only the open one has content.
+    const panels = available.map(tab => (
+        <div
+            key={tab}
+            ref={tab === open ? panelsRef : undefined}
+            id={panelId(tab)}
+            role="tabpanel"
+            aria-labelledby={tabId(tab)}
+            hidden={tab !== open}
+            className="pt-6"
+        >
+            {tab === open && (
+                <TabPanel
+                    tab={tab}
+                    vocab={vocab}
+                    sentences={sentences}
+                    wordSynonyms={wordSynonyms}
+                    mixups={mixups}
+                    studied={studied}
+                    now={now}
+                    knownKanji={knownKanji}
+                    onChoose={choose}
+                />
+            )}
+        </div>
+    ));
+
+    const tabs: PageTab<WordTab>[] = available.map(tab => ({ key: tab, label: TAB_LABEL[tab], id: tabId(tab), controls: panelId(tab) }));
 
     return (
         <Page width="narrow" data={{ 'data-sentences': sentencesSettled ? 'settled' : 'loading' }}>
             {header}
-            <DetailBody levels={[
-                { key: 'essentials', node: essentials },
-                { key: 'your-study', node: yourStudy },
-                { key: 'explore', node: explore },
-                { key: 'internals', node: internals },
-            ]} />
+            <DetailBody
+                tabsRef={rowRef}
+                tabs={<TabNav label="About this word" tabs={tabs} selected={open} onSelect={choose} className={PAGE_BLEED_INSET} />}
+                panels={panels}
+            />
         </Page>
     );
 }
 
-/** The JLPT chip, then each of the word's kanji as a small tile, with whether the learner knows it. */
-function HeaderChips({ vocab, knownKanji }: { vocab: Vocabulary; knownKanji: ReadonlySet<string> | undefined }) {
+interface TabPanelProps {
+    tab: WordTab;
+    vocab: Vocabulary;
+    sentences: readonly Sentence[];
+    wordSynonyms: ReturnType<typeof useWordSynonyms>;
+    mixups: ReturnType<typeof mixupsAsked>;
+    studied: Parameters<typeof StudyTab>[0]['progress'] | null;
+    now: number;
+    knownKanji: ReadonlySet<string> | undefined;
+    onChoose: (tab: WordTab) => void;
+}
+
+function TabPanel({ tab, vocab, sentences, wordSynonyms, mixups, studied, now, knownKanji, onChoose }: TabPanelProps) {
+    switch (tab) {
+        case 'dict':
+            return (
+                <DictTab
+                    vocab={vocab}
+                    sentences={sentences}
+                    synonymSections={wordSynonyms.sections}
+                    onShowSentences={() => onChoose('sentence')}
+                    onCompareSynonyms={() => onChoose('synonym')}
+                />
+            );
+        case 'sentence': return <SentencesPanel vocabId={vocab.id} sentences={sentences} />;
+        case 'synonym': return <SynonymsPanel vocab={vocab} sections={wordSynonyms.sections} mixedUp={wordSynonyms.mixedUp} />;
+        case 'kanji': return <KanjiTab glyphs={vocab.writtenForm.containedKanji} knownKanji={knownKanji} />;
+        case 'related': return <RelatedPanel vocab={vocab} />;
+        case 'study': return studied ? <StudyTab vocabId={vocab.id} progress={studied} now={now} mixups={mixups} /> : null;
+    }
+}
+
+/** The JLPT chip, then how common the word is on one line: the four bars and the band, the round reference and exact rank in its title. */
+function HeaderChips({ vocab }: { vocab: Vocabulary }) {
+    // A word learned in kana is met at its kana spelling's rank.
+    const rank = vocab.usuallyKana ? vocab.frequency.kanaRank ?? vocab.frequency.kanjiRank : vocab.frequency.kanjiRank;
+    const band = frequencyBand(rank);
+    const title = band.ranked ? `${band.reference}, rank ${rank.toLocaleString('en-US')}` : band.reference;
     return (
         <>
             {vocab.jlptLevel && <JlptChip level={vocab.jlptLevel} />}
-            {vocab.writtenForm.containedKanji.map(char => (
-                <span key={char} className="mx-1">
-                    <KanjiTile glyph={char} to={`/kanji/${char}`} size="sm" caption={knownKanji?.has(char) ? 'Known' : 'Not known'} />
-                </span>
-            ))}
+            <span className="inline-flex items-center gap-2 type-support" title={title}>
+                <FrequencyMeter band={band} />
+                {band.name}
+            </span>
         </>
-    );
-}
-
-/** What "Dictionary details" used to hold, as a row of facts: how common, KKLC step, textbooks. */
-function WordFacts({ vocab }: { vocab: Vocabulary }) {
-    // A word learned in kana is met at its kana spelling's rank, and is not part of the kanji order.
-    const rank = vocab.usuallyKana ? vocab.frequency.kanaRank ?? vocab.frequency.kanjiRank : vocab.frequency.kanjiRank;
-    const band = frequencyBand(rank);
-    return (
-        <>
-            <DetailField compact label="How common">
-                <span className="inline-flex items-center gap-2" title={band.ranked ? `Rank ${rank.toLocaleString('en-US')}` : undefined}>
-                    <FrequencyMeter band={band} />
-                    {band.name}
-                </span>
-                <span className="block type-meta">{band.reference}</span>
-            </DetailField>
-            <DetailField compact label="KKLC step">{vocab.usuallyKana ? 'Learned in kana' : vocab.progression.kklcStep}</DetailField>
-            {vocab.textbooks && vocab.textbooks.length > 0 && <DetailField compact label="Textbooks">{textbookLessonsLabel(vocab.textbooks)}</DetailField>}
-        </>
-    );
-}
-
-function MeaningsSection({ vocab }: { vocab: Vocabulary }) {
-    const [expanded, setExpanded] = useState(false);
-    const { common, rare } = organizeSenses(vocab.senses);
-    // A word whose every sense is rare (婦人) leads with them: there is nothing else to show.
-    const lead = common.length > 0 ? common : rare;
-    const rest = common.length > 0 ? rare : [];
-    const total = common.length + rare.length;
-
-    return (
-        <DetailSection title="Meanings">
-            <SenseList senses={expanded ? lead : lead.slice(0, INITIAL_SENSES)} start={1} />
-            {expanded && rest.length > 0 && (
-                <div className="mt-4">
-                    <p className="type-label mb-2">Rare and archaic</p>
-                    <SenseList senses={rest} start={lead.length + 1} />
-                </div>
-            )}
-            {total > INITIAL_SENSES || rest.length > 0 ? (
-                <TextButton onClick={() => setExpanded(!expanded)} className="mt-3">
-                    {expanded ? 'Show fewer meanings' : `Show all ${total} meanings`}
-                </TextButton>
-            ) : null}
-            {vocab.usageHints?.examplePattern && (
-                <p className="type-support mt-4">
-                    Usage: <span className="font-mincho text-base text-primary">{vocab.usageHints.examplePattern}</span>
-                </p>
-            )}
-        </DetailSection>
-    );
-}
-
-function SenseList({ senses, start }: { senses: ShownSense[]; start: number }) {
-    return (
-        <ol start={start} className="space-y-3 list-decimal pl-6 marker:text-tertiary marker:font-sans marker:text-sm">
-            {senses.map(({ sense, posLabel }, i) => (
-                <li key={i} className="pl-1">
-                    {posLabel && <div className="type-meta mb-0.5">{posLabel}</div>}
-                    <p className="type-body">
-                        {sense.appliesToReadings && sense.appliesToReadings.length > 0 && (
-                            <span className="font-gothic text-secondary mr-1">({sense.appliesToReadings.join('、')})</span>
-                        )}
-                        {sense.glosses.join(', ')}
-                    </p>
-                    {/* Strings, not entries: plain text, nothing that looks like a link. */}
-                    {sense.related.compounds.length > 0 && (
-                        <p className="type-support mt-0.5">
-                            See also: <span className="font-mincho text-primary">{sense.related.compounds.join('、')}</span>
-                        </p>
-                    )}
-                </li>
-            ))}
-        </ol>
-    );
-}
-
-/** Two example sentences (pickWordExamples), and the way to all of them in Explore. */
-function ExamplesSection({ vocab, sentences, onShowAll }: { vocab: Vocabulary; sentences: readonly Sentence[]; onShowAll: () => void }) {
-    const { state } = useQuiz();
-    const queue = state.progress?.learningQueue;
-    const examples = useMemo(() => {
-        const firstSense = organizeSenses(vocab.senses).common[0]?.sense.glosses ?? vocab.senses[0]?.glosses ?? [];
-        return pickWordExamples(vocab.id, sentences, firstSense, indexLearnerVocab(queue));
-    }, [vocab, sentences, queue]);
-    if (examples.length === 0) return null;
-    return (
-        <DetailSection
-            title="Examples"
-            aside={sentences.length > examples.length
-                ? <TextButton onClick={onShowAll} arrow>All {sentences.length.toLocaleString('en-US')} sentences</TextButton>
-                : undefined}
-        >
-            <div className="space-y-4">
-                {examples.map(sentence => <WordSentence key={sentence.id} vocabId={vocab.id} sentence={sentence} />)}
-            </div>
-        </DetailSection>
-    );
-}
-
-/** Up to five words from the first sense's synonyms, each a boxed link, and the way to all of them. */
-function ClosestSynonyms({ vocab, sections, onCompare }: { vocab: Vocabulary; sections: SynonymSection[]; onCompare: () => void }) {
-    const closest = closestSynonyms(sections, (w, section) => closenessOf(w.pair, section.glosses) === 'distinct');
-    if (!closest) return null;
-    const number = senseNumbers(vocab.senses)[closest.section.sense];
-    return (
-        <DetailSection
-            title="Closest synonyms"
-            aside={<TextButton onClick={onCompare} arrow>Compare all {synonymCount(sections).toLocaleString('en-US')}</TextButton>}
-        >
-            <ul className="flex flex-wrap gap-2">
-                {closest.words.map(word => (
-                    <li key={word.vocabId} className="min-w-0 max-w-full">
-                        <WordTile to={`/vocab/${word.vocabId}`} vocab={word.forms} sign={CLOSENESS_LABEL[closenessOf(word.pair, closest.section.glosses)]} />
-                    </li>
-                ))}
-            </ul>
-            <p className="type-meta mt-3">For meaning {number}: {sectionGlossLine(closest.section)}</p>
-        </DetailSection>
     );
 }

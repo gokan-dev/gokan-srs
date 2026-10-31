@@ -1,7 +1,8 @@
 import { useParams } from "react-router-dom";
 import type { Kanji } from "@gokan/dataset-schema";
-import { kanjiBookPositions, kanjiGradeLabel, kanjiOrder, kunReadingLabel } from "@gokan/dataset-schema";
+import { kanjiBookPositions, kanjiGradeLabel, kanjiOrder } from "@gokan/dataset-schema";
 import { JlptChip } from "../../components/JlptChip";
+import { KanjiReadings } from "../../components/KanjiReadings";
 import { Chip } from "../../components/ui/Chip";
 import { KanjiTile } from "../../components/KanjiTile";
 import { StatusDot } from "../../components/StatusDot";
@@ -69,7 +70,7 @@ export default function KanjiDetailScreen() {
                 </div>
             }
         >
-            <KanjiReadings kanji={kanji} />
+            <KanjiReadings kanji={kanji} size="large" />
         </DetailHeader>
     );
 
@@ -107,25 +108,6 @@ export default function KanjiDetailScreen() {
                 stacked={<>{meanings}{components}{words}{details}</>}
             />
         </Page>
-    );
-}
-
-/** On and kun readings, each labelled, the okurigana in parentheses: まな(ぶ). */
-function KanjiReadings({ kanji }: { kanji: Kanji }) {
-    const rows = [
-        { label: 'On', readings: kanji.readings.on },
-        { label: 'Kun', readings: kanji.readings.kun.map(kunReadingLabel) },
-    ].filter(row => row.readings.length > 0);
-    if (rows.length === 0) return null;
-    return (
-        <dl className="space-y-1">
-            {rows.map(row => (
-                <div key={row.label} className="flex items-baseline gap-3">
-                    <dt className="type-label w-8 shrink-0">{row.label}</dt>
-                    <dd className="min-w-0 font-gothic text-2xl text-secondary">{row.readings.join('、')}</dd>
-                </div>
-            ))}
-        </dl>
     );
 }
 
