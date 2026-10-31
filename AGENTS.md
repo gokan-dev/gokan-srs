@@ -214,7 +214,7 @@ gokan-srs, everything else:
   grammar point), `components/ui/Pagination.tsx`, `pages/stats/components/CoverageChart.tsx` and
   `utils/coverage.utils.ts`, `utils/activity.utils.ts`, `utils/winRate.utils.ts`.
 - Detail pages: `components/detail/` (`DetailHeader` the subject and its main action,
-  `DetailBody` the 8/4 body under it, or one column of `levels` (a word's page), `LearnStatus`,
+  `DetailBody` the 8/4 body under it, or one column under a sticky tab row, `tabs` (a word's page), `LearnStatus`,
   `DetailSection`, `DetailField` (a labelled value; `compact`, a header's facts row, as a word's
   How common), `YourProgress` (a grammar point's) and its `DirectionStatus`, shared with a
   word's Your study, `DetailErrorScreen`), `components/RelatedEntriesCard.tsx` (its rows alone:
@@ -235,11 +235,16 @@ gokan-srs, everything else:
   `components/KanjiSpellingNote.tsx` (the kanji spelling of a word learned in kana),
   `components/SecondaryForm.tsx` (the form beside a headword, in every list: enforced),
   `components/Ruby.tsx` (every furigana: the only `<ruby>` in the app, enforced),
-  `components/ui/TextButton.tsx` (an action written as text), `components/ui/SegmentedToggle.tsx`
-  (one of a few panels, or none), `components/ui/SearchField.tsx`, `components/ui/Marked.tsx`
+  `components/ui/TextButton.tsx` (an action written as text), `components/ui/TabNav.tsx` (every
+  tab row: route tabs, or a page's own tabs as ARIA tabs), `components/ui/SearchField.tsx`, `components/ui/Marked.tsx`
   (a search's matches, from `utils/exploreSearch.utils.ts`).
-- A word's page: its Explore panels in `pages/vocab/explore/` (one search each,
-  `utils/exploreSearch.utils.ts`), its two examples from `utils/wordExamples.utils.ts`.
+- A word's page: its tabs (`utils/wordTabs.utils.ts`: their hashes, and `initialWordTab`, which
+  one opens), Dict (`pages/vocab/DictTab.tsx`), the Sentences, Synonyms and Related panels in
+  `pages/vocab/explore/` (one search each, `utils/exploreSearch.utils.ts`), Kanji
+  (`components/KanjiSummary.tsx`, a kanji in brief), Study (`pages/vocab/StudyTab.tsx`); its
+  summary gloss from `summaryGloss` (`@gokan/dataset-schema`), its two examples from
+  `utils/wordExamples.utils.ts`, its Review now through `wordReviewPath` (a session of that word's
+  due cards, `wordReviewTaskKeys`).
   Synonyms and mix-ups on it: Closest synonyms and the Synonyms panel
   (`pages/vocab/explore/SynonymsPanel.tsx`), their sections, order and caps in
   `utils/synonymSections.utils.ts`, a pair's label from
