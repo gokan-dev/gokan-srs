@@ -170,6 +170,10 @@ jobs:
           # mark it active for the sweeper, and dispatch its implementation.
           echo "<!-- gokan-base ref=$branch -->" | gh issue comment "$first" --repo "$REPO" --body-file -
           gh issue edit "$first" --repo "$REPO" --add-label ready-for-dev >/dev/null
+          # Delete any stale leftover branch so implement cuts a fresh one from the release branch
+          # rather than "continuing" from an unrelated old base. Safe: a member being started for the
+          # first time has no in-flight work (a resume never comes through here, so none is lost).
+          gh api -X DELETE "repos/$REPO/git/refs/heads/agent/issue-$first" >/dev/null 2>&1 || true
           gh workflow run claude-implement-issue.yml --repo "$REPO" -f issue="$first" -f base="$branch"
 
           { echo "<!-- gokan-release version=$version -->"
@@ -222,6 +226,8 @@ jobs:
           if [ -n "$next" ]; then
             echo "<!-- gokan-base ref=$BRANCH -->" | gh issue comment "$next" --repo "$REPO" --body-file -
             gh issue edit "$next" --repo "$REPO" --add-label ready-for-dev >/dev/null
+            # Fresh branch from the release branch (see the start job): drop any stale leftover first.
+            gh api -X DELETE "repos/$REPO/git/refs/heads/agent/issue-$next" >/dev/null 2>&1 || true
             gh workflow run claude-implement-issue.yml --repo "$REPO" -f issue="$next" -f base="$BRANCH"
             gh issue comment "$tracker" --repo "$REPO" --body "Member #${member:-?} merged; building #$next next."
             echo "finish=false" >> "$GITHUB_OUTPUT"
