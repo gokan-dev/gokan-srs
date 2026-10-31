@@ -23,6 +23,7 @@ function toEntry(v: Vocabulary, query: ExploreQuery | null): RelatedEntry {
     return {
         key: v.id,
         to: `/vocab/${v.id}`,
+        lookup: { kind: 'word', vocabId: v.id },
         primary: headwordOf(v),
         // A word shown in kana names its kanji spelling where the reading would go.
         secondary: <SecondaryForm vocab={v} />,

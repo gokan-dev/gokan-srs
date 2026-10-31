@@ -4,6 +4,7 @@ import { ArrowRight } from "lucide-react";
 import { ListRow } from "./ui/ListRow";
 import { TextButton } from "./ui/TextButton";
 import { DetailSection } from "./detail/DetailSection";
+import type { LookupTarget } from "../utils/lookup.utils";
 
 /**
  * One related entry: a Japanese label, an optional inline secondary (a reading,
@@ -20,6 +21,8 @@ export interface RelatedEntry {
     trailing?: ReactNode;
     /** A gloss or definition line beneath: one line, cut off, unless the list's `wrapDescription` lets it wrap. Text, with any search match marked. */
     description?: ReactNode;
+    /** The word the row names, for its lookup card. */
+    lookup?: LookupTarget;
 }
 
 export interface RelatedSection {
@@ -113,7 +116,7 @@ export function RelatedEntryList({ sections, wrapDescription = false }: {
                     )}
                     <div className="flex flex-col -mx-3">
                         {section.entries.map(entry => (
-                            <ListRow key={entry.key} to={entry.to} trailing={entry.trailing}>
+                            <ListRow key={entry.key} to={entry.to} trailing={entry.trailing} lookup={entry.lookup}>
                                 {/* One wrapping line: what does not fit after the headword starts again at the row's edge. */}
                                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 min-w-0">
                                     <span className="font-mincho text-lg text-primary shrink-0">{entry.primary}</span>

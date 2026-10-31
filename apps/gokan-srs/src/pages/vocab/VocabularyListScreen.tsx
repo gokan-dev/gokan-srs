@@ -200,6 +200,7 @@ export function VocabularyListScreen() {
                         <ListRow
                             key={p.vocabId}
                             to={`/vocab/${p.vocabId}`}
+                            lookup={{ kind: 'word', vocabId: p.vocabId }}
                             className="min-h-16"
                             trailing={
                                 <div className="flex items-center gap-3">

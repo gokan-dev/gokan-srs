@@ -67,6 +67,7 @@ export function SynonymsPanel({ vocab, sections, mixedUp }: { vocab: Vocabulary;
                 return {
                     key: synonym.vocabId,
                     to: `/vocab/${synonym.vocabId}`,
+                    lookup: { kind: 'word', vocabId: synonym.vocabId },
                     primary: headwordOf(synonym.forms),
                     // The reading is never broken: on a narrow row the chip wraps to the row's edge.
                     secondary: (

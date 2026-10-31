@@ -158,7 +158,7 @@ function ClosestSynonyms({ vocab, sections, onCompare }: { vocab: Vocabulary; se
             <ul className="flex flex-wrap gap-2">
                 {closest.words.map(word => (
                     <li key={word.vocabId} className="min-w-0 max-w-full">
-                        <WordTile to={vocabPath(word.vocabId)} vocab={word.forms} sign={CLOSENESS_LABEL[closenessOf(word.pair, closest.section.glosses)]} />
+                        <WordTile to={vocabPath(word.vocabId)} vocabId={word.vocabId} vocab={word.forms} sign={CLOSENESS_LABEL[closenessOf(word.pair, closest.section.glosses)]} />
                     </li>
                 ))}
             </ul>
