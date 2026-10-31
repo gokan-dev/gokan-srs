@@ -35,6 +35,7 @@ const TOUCH_FOCUS_WINDOW_MS = 1000;
  */
 const openCards = new Map<string, { pinned: boolean; dismiss: () => void }>();
 
+/** For a click with no pointer behind it (a script's, an assistive tool's): the device's main pointer. */
 function canHover(): boolean {
     return typeof window.matchMedia === 'function' && window.matchMedia('(hover: hover)').matches;
 }
@@ -117,7 +118,8 @@ export function useLookup(target: LookupTarget | undefined, kind: TriggerKind): 
     }, [presentation, phase, dismiss]);
 
     const pointerKind = (): PointerKind => pointer.current?.kind ?? (canHover() ? 'hover' : 'touch');
-    const hovers = (e: PointerEvent<HTMLElement>) => e.pointerType !== 'touch' && canHover();
+    // The event's own pointer, not the device's: a laptop with a touchscreen has both.
+    const hovers = (e: PointerEvent<HTMLElement>) => e.pointerType !== 'touch';
     const enter = () => dispatch({ type: 'enter' });
     const leave = () => dispatch({ type: 'leave' });
 
@@ -126,7 +128,7 @@ export function useLookup(target: LookupTarget | undefined, kind: TriggerKind): 
         onPointerEnter: e => { if (hovers(e)) enter(); },
         onPointerLeave: e => { if (hovers(e)) leave(); },
         onPointerDown: e => {
-            pointer.current = { kind: e.pointerType === 'touch' || !canHover() ? 'touch' : 'hover', at: e.timeStamp };
+            pointer.current = { kind: hovers(e) ? 'hover' : 'touch', at: e.timeStamp };
         },
         onFocus: e => {
             const touched = pointer.current?.kind === 'touch' && e.timeStamp - pointer.current.at < TOUCH_FOCUS_WINDOW_MS;

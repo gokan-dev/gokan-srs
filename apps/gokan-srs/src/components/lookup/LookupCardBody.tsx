@@ -66,12 +66,16 @@ function WordCardBody({ vocabId, onNavigate }: BodyProps & { vocabId: string }) 
                 ))}
             </ol>
             {hiddenSenses > 0 && <p className="type-meta">+{hiddenSenses} more {hiddenSenses > 1 ? 'meanings' : 'meaning'}</p>}
-            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 pt-1">
-                {state.progress && <StatusDot status={vocabLearningStatus(progress, state.settings ?? undefined)} />}
-                {canLearn && (
-                    <Button variant="secondary" size="sm" onClick={() => actions.saveVocabIntroChoice(vocab, 'learn')}>
-                        Learn this word
-                    </Button>
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 pt-1">
+                {state.progress && (
+                    <div className="flex items-center gap-3">
+                        <StatusDot status={vocabLearningStatus(progress, state.settings ?? undefined)} />
+                        {canLearn && (
+                            <Button variant="secondary" size="sm" onClick={() => actions.saveVocabIntroChoice(vocab, 'learn')}>
+                                Learn this word
+                            </Button>
+                        )}
+                    </div>
                 )}
                 <Link to={vocabPath(vocabId)} onClick={onNavigate} className={OPEN_LINK}>Open word page</Link>
             </div>
