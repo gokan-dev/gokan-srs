@@ -297,6 +297,7 @@ jobs:
           AGENT_GITHUB_TOKEN: ${{ secrets.AGENT_GITHUB_TOKEN }}
           PR: ${{ steps.round.outputs.pr }}
           HUMAN: ${{ steps.round.outputs.human }}
+          BASE: ${{ steps.round.outputs.base }}
           TAG: ${{ steps.round.outputs.tag }}
           SHA: ${{ steps.round.outputs.sha }}
           ROUND: ${{ steps.round.outputs.round }}
@@ -379,8 +380,23 @@ jobs:
               GH_TOKEN="$AGENT_GITHUB_TOKEN" gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file "$body"
               ;;
             done)
-              gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file "$body"
-              gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --add-label agent-done
+              if [[ "$BASE" == release/* ]]; then
+                # A sprint member: merge it into the release branch so claude-start-release.yml's
+                # advance starts the next one. With the PAT, so that merge triggers advance (a
+                # GITHUB_TOKEN merge starts no workflow). No maintainer ping: they approve once, at
+                # release -> main. A merge that cannot go through is surfaced so the sprint is not
+                # silently stuck.
+                [ -n "$AGENT_GITHUB_TOKEN" ] || { echo "::error::AGENT_GITHUB_TOKEN is not set: the member cannot be merged."; exit 1; }
+                if GH_TOKEN="$AGENT_GITHUB_TOKEN" gh pr merge "$PR" --repo "$GITHUB_REPOSITORY" --merge; then
+                  echo "Merged release member PR #$PR into $BASE." >> "$GITHUB_STEP_SUMMARY"
+                else
+                  gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body "<!-- gokan-notice -->
+              @$HUMAN This member is done but could not be merged into \`$BASE\` automatically. Merge it to let the release continue."
+                fi
+              else
+                gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file "$body"
+                gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --add-label agent-done
+              fi
               ;;
             decide)
               gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file "$body"
