@@ -63,5 +63,6 @@ jobs:
         uses: ./.github/actions/resume-issue
         with:
           issue: ${{ matrix.issue }}
-          token: ${{ secrets.AGENT_GITHUB_TOKEN }}
+          # github.token (the job grants actions: write): dispatch works, the PAT has no Actions perm.
+          token: ${{ github.token }}
           human: ${{ vars.AGENT_HUMAN }}

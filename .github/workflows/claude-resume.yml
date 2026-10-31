@@ -22,6 +22,9 @@ concurrency:
 
 jobs:
   resume:
+    # A skipped implement run means the job's `if` was false (a label that was not `ready-for-dev`,
+    # not a real implementation) - there is nothing to resume. Only react to runs that actually ran.
+    if: github.event.workflow_run.conclusion != 'skipped'
     runs-on: ubuntu-latest
     permissions:
       contents: read        # check out the local composite action
@@ -51,6 +54,7 @@ jobs:
         uses: ./.github/actions/resume-issue
         with:
           issue: ${{ steps.issue.outputs.number }}
-          # A PAT so the re-dispatch actually starts a workflow (a GITHUB_TOKEN dispatch does not).
-          token: ${{ secrets.AGENT_GITHUB_TOKEN }}
+          # github.token (the job grants actions: write): a workflow_dispatch IS an exception to the
+          # "GITHUB_TOKEN does not start workflows" rule, and the PAT has no Actions permission.
+          token: ${{ github.token }}
           human: ${{ vars.AGENT_HUMAN }}

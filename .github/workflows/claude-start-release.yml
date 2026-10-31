@@ -18,7 +18,11 @@ on:
     types: [closed, labeled]
 
 env:
-  GH_TOKEN: ${{ secrets.AGENT_GITHUB_TOKEN }}
+  # github.token for everything here: dispatching a member (workflow_dispatch) needs Actions
+  # permission, which the PAT lacks, and a workflow_dispatch IS an exception to the "GITHUB_TOKEN
+  # does not start workflows" rule. The two jobs whose git action must itself trigger a downstream
+  # workflow (a member auto-merge -> advance, the release PR -> review) override this with the PAT.
+  GH_TOKEN: ${{ github.token }}
   REPO: ${{ github.repository }}
   HUMAN: ${{ vars.AGENT_HUMAN }}
 
@@ -185,6 +189,9 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    env:
+      # The PAT so the merge triggers the advance job (a GITHUB_TOKEN merge starts no workflow).
+      GH_TOKEN: ${{ secrets.AGENT_GITHUB_TOKEN }}
     steps:
       - name: Enable auto-merge for the member PR
         continue-on-error: true
@@ -265,6 +272,8 @@ jobs:
       issues: write
       pull-requests: write
     env:
+      # The PAT so the release PR triggers review, and git push authenticates (see the checkout).
+      GH_TOKEN: ${{ secrets.AGENT_GITHUB_TOKEN }}
       VERSION: ${{ needs.advance.outputs.version }}
       TRACKER: ${{ needs.advance.outputs.tracker }}
     steps:

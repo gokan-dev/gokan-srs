@@ -62,6 +62,18 @@ runs:
         # 4. Branch head on origin (empty when the branch does not exist yet: a missed first start).
         head="$(gh api "repos/$REPO/git/refs/heads/$branch" --jq .object.sha 2>/dev/null || true)"
 
+        # Only a real work item: it has an implementation branch, or it is queued (ready-for-dev).
+        # Anything else (an issue that merely got some other label) is not ours to build, so never
+        # dispatch an implementation for it.
+        case " $labels " in
+          *" ready-for-dev "*) queued=true ;;
+          *) queued=false ;;
+        esac
+        if [ -z "$head" ] && [ "$queued" = false ]; then
+          echo "#$ISSUE has no branch and is not ready-for-dev: not under development, nothing to do."
+          exit 0
+        fi
+
         bodies="$(gh api --paginate "repos/$REPO/issues/$ISSUE/comments" --jq '.[].body' 2>/dev/null || true)"
         marker_of() { printf '%s\n' "$bodies" | grep -oE "<!-- gokan-$1 [a-z]+=[^ ]+ -->" | tail -1 | sed -E 's/.*=([^ ]+) -->/\1/'; }
 
