@@ -15,7 +15,7 @@ on:
   issues:
     types: [labeled]
   pull_request:
-    types: [closed, labeled]
+    types: [closed]
 
 env:
   # github.token for everything here: dispatching a member (workflow_dispatch) needs Actions
@@ -176,35 +176,7 @@ jobs:
             echo "@$HUMAN Started release **$version** on \`$branch\`. Building #$first first; the rest follow one at a time as each merges. I will open one \`$branch -> main\` PR when the last lands."
           } | gh issue comment "$TRACKER" --repo "$REPO" --body-file -
 
-  # 2. Auto-merge a member into its release branch once triage says it is done. Best-effort: if the
-  #    repo has not enabled auto-merge, the maintainer merges the member by hand and job 3 still
-  #    fires on that merge.
-  automerge:
-    if: >
-      github.event_name == 'pull_request' &&
-      github.event.action == 'labeled' &&
-      github.event.label.name == 'agent-done' &&
-      startsWith(github.event.pull_request.base.ref, 'release/')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-    env:
-      # The PAT so the merge triggers the advance job (a GITHUB_TOKEN merge starts no workflow).
-      GH_TOKEN: ${{ secrets.AGENT_GITHUB_TOKEN }}
-    steps:
-      - name: Enable auto-merge for the member PR
-        continue-on-error: true
-        env:
-          PR: ${{ github.event.pull_request.number }}
-        run: |
-          set -euo pipefail
-          if printf '%s' '${{ toJSON(github.event.pull_request.labels.*.name) }}' | grep -q needs-decision; then
-            echo "#$PR still has needs-decision; not merging."; exit 0
-          fi
-          gh pr merge "$PR" --repo "$REPO" --merge --auto
-
-  # 3. A member merged into a release branch: tick it off, start the next member, or (when none are
+  # 2. A member merged into a release branch: tick it off, start the next member, or (when none are
   #    left) assemble the changelog and open the release PR.
   advance:
     if: >
@@ -257,7 +229,7 @@ jobs:
             echo "finish=true" >> "$GITHUB_OUTPUT"
           fi
 
-  # 4. Last member merged: fold the fragments into one entry and open the single release PR.
+  # 3. Last member merged: fold the fragments into one entry and open the single release PR.
   finish:
     needs: advance
     if: needs.advance.outputs.finish == 'true'
