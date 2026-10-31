@@ -1,9 +1,10 @@
 /**
  * A clip of a word or sentence read aloud. The file is `audio/{clip}.{extension}` on the
- * site, the extension given by `index/audio.json`. Clips are not in the dataset repository:
- * they are text-to-speech in the one voice `index/audio.json` names, under that voice's
- * terms, not the dataset's licence (docs/ARCHITECTURE.md, Audio). An item carries one only
- * when its clip is in the audio bucket, so a listed clip always exists.
+ * site, the extension given by `index/audio.json`. Clips are committed in the dataset (Git
+ * LFS), but they are text-to-speech in the one voice `index/audio.json` names, under that
+ * voice's terms, not the dataset's licence (docs/ARCHITECTURE.md, Audio). An item carries one
+ * only when the dataset commits its clip, and a deploy uploads every such clip before it
+ * ships the dataset, so a listed clip always exists.
  */
 export interface AudioRef {
     /** The clip's content key: the same input, voice and engine always give the same key. */

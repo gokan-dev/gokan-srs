@@ -33,7 +33,12 @@ jobs:
       s3_bucket: ${{ vars.STAGING_S3_BUCKET_NAME }}
       aws_region: ${{ vars.AWS_REGION }}
       ref: ${{ github.event.inputs.ref || github.ref }}
+      # A raise for a first fill or a voice change, set for one deploy and deleted after.
+      # Production's deploy never passes it, so production always runs at the 2,000 cap.
+      audio_max_uploads: ${{ vars.AUDIO_MAX_UPLOADS || '2000' }}
     secrets:
       aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
       aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       cloudfront_distribution_id: ${{ secrets.STAGING_CLOUDFRONT_DISTRIBUTION_ID }}
+      audio_aws_access_key_id: ${{ secrets.AUDIO_AWS_ACCESS_KEY_ID }}
+      audio_aws_secret_access_key: ${{ secrets.AUDIO_AWS_SECRET_ACCESS_KEY }}
