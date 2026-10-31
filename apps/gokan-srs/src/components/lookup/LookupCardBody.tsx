@@ -1,17 +1,14 @@
 import { Link } from "react-router-dom";
 import { headwordOf } from "@gokan/dataset-schema";
 import { useQuiz } from "../../context/useQuiz";
-import { hasSessionInProgress } from "../../context/quiz/quizSelectors";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { VocabularyService } from "../../services/vocabulary.service";
-import { vocabLearningStatus } from "../../utils/learningStatus.utils";
 import type { LookupTarget } from "../../utils/lookup.utils";
 import { vocabPath } from "../../utils/navigation.utils";
 import { CardSkeleton } from "../CardSkeleton";
 import { KanjiSummary } from "../KanjiSummary";
 import { SecondaryForm } from "../SecondaryForm";
-import { StatusDot } from "../StatusDot";
-import { Button } from "../ui/Button";
+import { WordStudyStatus } from "../WordStudyStatus";
 
 /** Senses shown: a glance, as the old hover gloss; the word's page is one click away. */
 const MAX_SENSES = 2;
@@ -38,7 +35,6 @@ export function LookupCardBody({ target, onNavigate }: BodyProps & { target: Loo
  * except mid-session, where the session decides what comes next.
  */
 function WordCardBody({ vocabId, onNavigate }: BodyProps & { vocabId: string }) {
-    const { state, actions } = useQuiz();
     const load = useAsyncData(vocabId, () => VocabularyService.loadVocab(vocabId));
     if (load.status === 'error') return <p className="type-support text-error">Could not load this word.</p>;
     if (load.status !== 'ready') return <CardSkeleton variant="line" />;
@@ -46,8 +42,6 @@ function WordCardBody({ vocabId, onNavigate }: BodyProps & { vocabId: string }) 
     const vocab = load.data;
     const senses = vocab.senses.slice(0, MAX_SENSES);
     const hiddenSenses = vocab.senses.length - senses.length;
-    const progress = state.progress?.learningQueue.find(p => p.vocabId === vocabId);
-    const canLearn = state.progress !== null && !progress && !hasSessionInProgress(state);
 
     return (
         <div className="space-y-2 min-w-0" data-lookup-word>
@@ -67,16 +61,7 @@ function WordCardBody({ vocabId, onNavigate }: BodyProps & { vocabId: string }) 
             </ol>
             {hiddenSenses > 0 && <p className="type-meta">+{hiddenSenses} more {hiddenSenses > 1 ? 'meanings' : 'meaning'}</p>}
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 pt-1">
-                {state.progress && (
-                    <div className="flex items-center gap-3">
-                        <StatusDot status={vocabLearningStatus(progress, state.settings ?? undefined)} />
-                        {canLearn && (
-                            <Button variant="secondary" size="sm" onClick={() => actions.saveVocabIntroChoice(vocab, 'learn')}>
-                                Learn this word
-                            </Button>
-                        )}
-                    </div>
-                )}
+                <WordStudyStatus vocabId={vocabId} variant="card" />
                 <Link to={vocabPath(vocabId)} onClick={onNavigate} className={OPEN_LINK}>Open word page</Link>
             </div>
         </div>

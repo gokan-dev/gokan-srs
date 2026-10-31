@@ -11,6 +11,24 @@ export type TriggerKind = 'inline' | 'link';
 /** The pointer behind an interaction: one that can hover (a mouse, a pen), or a finger. */
 export type PointerKind = 'hover' | 'touch';
 
+/** The pointer of an event (`PointerEvent.pointerType`), not of the device: a laptop with a touchscreen has both. */
+export function pointerKindOf(pointerType: string): PointerKind {
+    return pointerType === 'touch' ? 'touch' : 'hover';
+}
+
+/** A tap focuses some links on its way to opening them; that focus is not the keyboard's. */
+export const TOUCH_FOCUS_WINDOW_MS = 1000;
+
+/**
+ * Whether a focus on the trigger opens its card: the keyboard's does; one that follows a tap
+ * (the last pointer down, within `TOUCH_FOCUS_WINDOW_MS`) does not, nor does the focus Esc hands
+ * back to the trigger when it closes the card (`returning`), or the card would open again.
+ */
+export function focusOpens(lastPointer: { kind: PointerKind; at: number } | null, at: number, returning: boolean): boolean {
+    if (returning) return false;
+    return !(lastPointer?.kind === 'touch' && at - lastPointer.at < TOUCH_FOCUS_WINDOW_MS);
+}
+
 /** What a click (a tap) on a trigger does. */
 export type ClickAction = 'pin' | 'sheet' | 'follow';
 

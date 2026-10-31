@@ -20,7 +20,17 @@ export function LookupText({ target, children, className = '', focusable = false
     const { triggerProps, card } = useLookup(target, 'inline');
     return (
         <>
-            <span {...triggerProps} lang={lang} className={className} data-lookup-trigger tabIndex={focusable ? 0 : undefined} role={focusable ? 'button' : undefined}>
+            <span
+                {...triggerProps}
+                // A span in the Tab order is a button that opens a dialog; one out of it (a quiz card's word) is only text with a card.
+                aria-haspopup={focusable ? triggerProps['aria-haspopup'] : undefined}
+                aria-expanded={focusable ? triggerProps['aria-expanded'] : undefined}
+                lang={lang}
+                className={className}
+                data-lookup-trigger
+                tabIndex={focusable ? 0 : undefined}
+                role={focusable ? 'button' : undefined}
+            >
                 {children}
             </span>
             {card}

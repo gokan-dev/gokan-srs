@@ -18,7 +18,6 @@ describe('InteractiveSentence', () => {
     it('makes every matched word a lookup trigger', () => {
         const html = renderToStaticMarkup(<InteractiveSentence sentence={example} onVocabClick={() => undefined} />);
         expect(triggers(html)).toHaveLength(2);
-        expect(triggers(html).every(tag => tag.includes('aria-haspopup="dialog"'))).toBe(true);
     });
 
     it('gives the word under review no card, as its quiz card already shows it', () => {
@@ -29,8 +28,9 @@ describe('InteractiveSentence', () => {
 
     it('keeps the words out of the Tab order on a quiz card, and in it on a reading page', () => {
         const quiz = renderToStaticMarkup(<InteractiveSentence sentence={example} onVocabClick={() => undefined} />);
-        expect(triggers(quiz).some(tag => tag.includes('tabindex'))).toBe(false);
+        // Out of the Tab order a word is text with a card: no button role, no popup state.
+        expect(triggers(quiz).some(tag => tag.includes('tabindex') || tag.includes('role=') || tag.includes('aria-haspopup'))).toBe(false);
         const page = renderToStaticMarkup(<InteractiveSentence sentence={example} onVocabClick={() => undefined} keyboardLinks />);
-        expect(triggers(page).every(tag => tag.includes('tabindex="0"') && tag.includes('role="button"'))).toBe(true);
+        expect(triggers(page).every(tag => tag.includes('tabindex="0"') && tag.includes('role="button"') && tag.includes('aria-haspopup="dialog"'))).toBe(true);
     });
 });

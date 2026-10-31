@@ -10,7 +10,6 @@ import { CLOSENESS_LABEL, closenessOf } from "../../services/exercise/wordRelati
 import { indexLearnerVocab } from "../../utils/sentenceRanking";
 import { organizeSenses, senseNumbers, type ShownSense } from "../../utils/senses.utils";
 import { closestSynonyms, sectionGlossLine, synonymCount, type SynonymSection } from "../../utils/synonymSections.utils";
-import { vocabPath } from "../../utils/navigation.utils";
 import { pickWordExamples } from "../../utils/wordExamples.utils";
 import { WordSentence } from "./WordSentence";
 
@@ -158,7 +157,7 @@ function ClosestSynonyms({ vocab, sections, onCompare }: { vocab: Vocabulary; se
             <ul className="flex flex-wrap gap-2">
                 {closest.words.map(word => (
                     <li key={word.vocabId} className="min-w-0 max-w-full">
-                        <WordTile to={vocabPath(word.vocabId)} vocabId={word.vocabId} vocab={word.forms} sign={CLOSENESS_LABEL[closenessOf(word.pair, closest.section.glosses)]} />
+                        <WordTile vocabId={word.vocabId} vocab={word.forms} sign={CLOSENESS_LABEL[closenessOf(word.pair, closest.section.glosses)]} />
                     </li>
                 ))}
             </ul>

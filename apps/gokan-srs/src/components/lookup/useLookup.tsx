@@ -15,6 +15,8 @@ import { createPortal } from "react-dom";
 import {
     cardPresentation,
     clickAction,
+    focusOpens,
+    pointerKindOf,
     lookupReducer,
     pendingDelay,
     type LookupTarget,
@@ -24,9 +26,6 @@ import {
 import { BottomSheet } from "../ui/BottomSheet";
 import { LookupCardBody } from "./LookupCardBody";
 import { LookupPopover } from "./LookupPopover";
-
-/** A tap focuses some links on its way to opening them; that focus is not the keyboard's. */
-const TOUCH_FOCUS_WINDOW_MS = 1000;
 
 /**
  * Every card on screen, so opening one closes the others: a pin closes every card, a hover
@@ -52,7 +51,6 @@ export interface LookupTriggerProps {
     onKeyDown?: (event: KeyboardEvent<HTMLElement>) => void;
     'aria-haspopup'?: 'dialog';
     'aria-expanded'?: boolean;
-    'aria-describedby'?: string;
 }
 
 /**
@@ -76,15 +74,19 @@ export function useLookup(target: LookupTarget | undefined, kind: TriggerKind): 
     const presentation = target ? cardPresentation(phase) : null;
     const pinned = phase === 'pinned' || phase === 'sheet';
 
-    const dismiss = useCallback((returnFocus = false) => {
+    const dismiss = useCallback(() => {
         dispatch({ type: 'dismiss' });
         setFocusCard(false);
-        if (returnFocus && triggerRef.current && document.activeElement !== triggerRef.current) {
-            refocusing.current = true;
-            triggerRef.current.focus();
-            refocusing.current = false;
-        }
     }, []);
+    /** Closes the card and gives focus back to its trigger: Esc, or Tab out of a pinned card. */
+    const dismissToTrigger = useCallback(() => {
+        dismiss();
+        const trigger = triggerRef.current;
+        if (!trigger || document.activeElement === trigger) return;
+        refocusing.current = true;
+        trigger.focus();
+        refocusing.current = false;
+    }, [dismiss]);
 
     useEffect(() => {
         const delay = pendingDelay(phase);
@@ -98,7 +100,7 @@ export function useLookup(target: LookupTarget | undefined, kind: TriggerKind): 
         for (const [other, card] of openCards) {
             if (other !== id && (pinned || !card.pinned)) card.dismiss();
         }
-        openCards.set(id, { pinned, dismiss: () => dismiss() });
+        openCards.set(id, { pinned, dismiss });
         return () => { openCards.delete(id); };
     }, [presentation, pinned, id, dismiss]);
 
@@ -108,7 +110,9 @@ export function useLookup(target: LookupTarget | undefined, kind: TriggerKind): 
         const onKeyDown = (e: globalThis.KeyboardEvent) => {
             if (e.key !== 'Escape') return;
             const focused = document.activeElement;
-            dismiss(focused !== null && (triggerRef.current?.contains(focused) === true || cardRef.current?.contains(focused) === true));
+            const focusWasOurs = focused !== null && (triggerRef.current?.contains(focused) === true || cardRef.current?.contains(focused) === true);
+            if (focusWasOurs) dismissToTrigger();
+            else dismiss();
         };
         const onPointerDown = (e: globalThis.PointerEvent) => {
             if (!(e.target instanceof Node)) return;
@@ -121,27 +125,26 @@ export function useLookup(target: LookupTarget | undefined, kind: TriggerKind): 
             document.removeEventListener('keydown', onKeyDown);
             document.removeEventListener('pointerdown', onPointerDown);
         };
-    }, [presentation, phase, dismiss]);
+    }, [presentation, phase, dismiss, dismissToTrigger]);
 
     const pointerKind = (): PointerKind => pointer.current?.kind ?? (canHover() ? 'hover' : 'touch');
-    // The event's own pointer, not the device's: a laptop with a touchscreen has both.
-    const hovers = (e: PointerEvent<HTMLElement>) => e.pointerType !== 'touch';
+    const hovers = (e: PointerEvent<HTMLElement>) => target !== undefined && pointerKindOf(e.pointerType) === 'hover';
     const enter = () => dispatch({ type: 'enter' });
     const leave = () => dispatch({ type: 'leave' });
 
+    // With no target every handler is a no-op, so a row without a card never re-renders on hover.
     const triggerProps: LookupTriggerProps = {
         ref: element => { triggerRef.current = element; },
         onPointerEnter: e => { if (hovers(e)) enter(); },
         onPointerLeave: e => { if (hovers(e)) leave(); },
         onPointerDown: e => {
-            pointer.current = { kind: hovers(e) ? 'hover' : 'touch', at: e.timeStamp };
+            pointer.current = { kind: pointerKindOf(e.pointerType), at: e.timeStamp };
         },
         onFocus: e => {
-            const touched = pointer.current?.kind === 'touch' && e.timeStamp - pointer.current.at < TOUCH_FOCUS_WINDOW_MS;
-            if (!touched && !refocusing.current) enter();
+            if (target && focusOpens(pointer.current, e.timeStamp, refocusing.current)) enter();
         },
         onBlur: e => {
-            if (e.relatedTarget instanceof Node && cardRef.current?.contains(e.relatedTarget)) return;
+            if (!target || (e.relatedTarget instanceof Node && cardRef.current?.contains(e.relatedTarget))) return;
             leave();
         },
         onClick: e => {
@@ -158,8 +161,9 @@ export function useLookup(target: LookupTarget | undefined, kind: TriggerKind): 
         },
     };
     if (kind === 'inline' && target) {
+        // Enter, and Space for a trigger announced as a button.
         triggerProps.onKeyDown = e => {
-            if (e.key !== 'Enter') return;
+            if (e.key !== 'Enter' && e.key !== ' ') return;
             e.preventDefault();
             e.stopPropagation();
             dispatch({ type: 'pin' });
@@ -167,8 +171,6 @@ export function useLookup(target: LookupTarget | undefined, kind: TriggerKind): 
         };
         triggerProps['aria-haspopup'] = 'dialog';
         triggerProps['aria-expanded'] = presentation !== null;
-    } else if (presentation === 'popover') {
-        triggerProps['aria-describedby'] = id;
     }
 
     let card: ReactNode = null;
@@ -182,7 +184,7 @@ export function useLookup(target: LookupTarget | undefined, kind: TriggerKind): 
                 focusOnOpen={focusCard}
                 onEnter={enter}
                 onLeave={leave}
-                onEscape={() => dismiss(true)}
+                onExit={dismissToTrigger}
             >
                 <LookupCardBody target={target} onNavigate={dismiss} />
             </LookupPopover>,

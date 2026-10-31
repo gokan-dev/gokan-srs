@@ -4,6 +4,9 @@ import {
     OPEN_DELAY_MS,
     cardPresentation,
     clickAction,
+    focusOpens,
+    pointerKindOf,
+    TOUCH_FOCUS_WINDOW_MS,
     headwordGlyphs,
     lookupReducer,
     pendingDelay,
@@ -24,6 +27,30 @@ describe('clickAction', () => {
     it('pins an inline trigger with a mouse and opens the sheet on touch', () => {
         expect(clickAction('inline', 'hover')).toBe('pin');
         expect(clickAction('inline', 'touch')).toBe('sheet');
+    });
+});
+
+describe('pointerKindOf', () => {
+    it("reads the event's own pointer: a mouse or a pen hovers, a finger does not", () => {
+        expect(pointerKindOf('mouse')).toBe('hover');
+        expect(pointerKindOf('pen')).toBe('hover');
+        expect(pointerKindOf('touch')).toBe('touch');
+    });
+});
+
+describe('focusOpens', () => {
+    it("opens on the keyboard's focus", () => {
+        expect(focusOpens(null, 5000, false)).toBe(true);
+        expect(focusOpens({ kind: 'hover', at: 4990 }, 5000, false)).toBe(true);
+    });
+
+    it('does not open on the focus a tap gives a link, but does once that tap is old', () => {
+        expect(focusOpens({ kind: 'touch', at: 4900 }, 5000, false)).toBe(false);
+        expect(focusOpens({ kind: 'touch', at: 5000 - TOUCH_FOCUS_WINDOW_MS }, 5000, false)).toBe(true);
+    });
+
+    it('does not reopen the card on the focus Esc hands back to the word', () => {
+        expect(focusOpens(null, 5000, true)).toBe(false);
     });
 });
 

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuiz } from "../context/useQuiz";
+import { hasSessionInProgress } from "../context/quiz/quizSelectors";
 import { VocabularyService } from "../services/vocabulary.service";
 import { vocabLearningStatus } from "../utils/learningStatus.utils";
 import { Button } from "./ui/Button";
@@ -11,8 +12,11 @@ import { StatusDot } from "./StatusDot";
  * Learn adds the word in place (the same intro choice the quiz's intro card
  * makes) and turns into "Added", so a list or the search can be used to capture
  * words without leaving it. Nothing before setup.
+ *
+ * `card` (a lookup card): the status always shown, New included, and "Learn this word" beside a
+ * new word, except mid-session, where the session decides what comes next.
  */
-export function WordStudyStatus({ vocabId }: { vocabId: string }) {
+export function WordStudyStatus({ vocabId, variant = 'row' }: { vocabId: string; variant?: 'row' | 'card' }) {
     const { state, actions } = useQuiz();
     const [adding, setAdding] = useState(false);
     const [added, setAdded] = useState(false);
@@ -20,8 +24,9 @@ export function WordStudyStatus({ vocabId }: { vocabId: string }) {
     if (!state.progress) return null;
     const progress = state.progress.learningQueue.find(p => p.vocabId === vocabId);
 
-    if (added && progress) return <span className="type-meta">Added</span>;
+    if (added && progress && variant === 'row') return <span className="type-meta">Added</span>;
     if (progress) return <StatusDot status={vocabLearningStatus(progress, state.settings ?? undefined)} />;
+    if (variant === 'card' && hasSessionInProgress(state)) return <StatusDot status="new" />;
 
     const learn = () => {
         setAdding(true);
@@ -34,7 +39,7 @@ export function WordStudyStatus({ vocabId }: { vocabId: string }) {
             .finally(() => setAdding(false));
     };
 
-    return (
+    const button = (
         <Button
             variant="secondary"
             size="sm"
@@ -46,7 +51,14 @@ export function WordStudyStatus({ vocabId }: { vocabId: string }) {
                 learn();
             }}
         >
-            Learn
+            {variant === 'card' ? 'Learn this word' : 'Learn'}
         </Button>
+    );
+    if (variant === 'row') return button;
+    return (
+        <span className="flex items-center gap-3">
+            <StatusDot status="new" />
+            {button}
+        </span>
     );
 }

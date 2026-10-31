@@ -9,12 +9,13 @@ interface LookupPopoverProps {
     focusOnOpen: boolean;
     onEnter: () => void;
     onLeave: () => void;
-    onEscape: () => void;
+    /** Esc, or Tab past either end of the card: it closes and focus goes back to the trigger. */
+    onExit: () => void;
     children: ReactNode;
 }
 
 /** The pointer's card, beside its trigger, kept there as the page scrolls and the card's data arrives. */
-export function LookupPopover({ id, label, anchorRef, cardRef, focusOnOpen, onEnter, onLeave, onEscape, children }: LookupPopoverProps) {
+export function LookupPopover({ id, label, anchorRef, cardRef, focusOnOpen, onEnter, onLeave, onExit, children }: LookupPopoverProps) {
     const [placed, setPlaced] = useState<{ left: number; top: number } | null>(null);
 
     useLayoutEffect(() => {
@@ -55,7 +56,17 @@ export function LookupPopover({ id, label, anchorRef, cardRef, focusOnOpen, onEn
             onClick={e => e.stopPropagation()}
             onKeyDown={e => {
                 e.stopPropagation();
-                if (e.key === 'Escape') onEscape();
+                if (e.key === 'Escape') onExit();
+                // The card sits at the end of the page (a portal): Tab past it would lose the learner's place.
+                if (e.key === 'Tab') {
+                    const items = [...e.currentTarget.querySelectorAll<HTMLElement>('a[href], button:not([disabled])')];
+                    const active = document.activeElement;
+                    const leaving = e.shiftKey ? active === e.currentTarget || active === items[0] : items.length === 0 || active === items.at(-1);
+                    if (leaving) {
+                        e.preventDefault();
+                        onExit();
+                    }
+                }
             }}
             // Hidden until measured, so it never flashes at an unclamped place.
             style={{ left: placed?.left ?? 0, top: placed?.top ?? 0, visibility: placed ? 'visible' : 'hidden' }}
