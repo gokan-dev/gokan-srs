@@ -93,7 +93,7 @@ jobs:
             Write `.preflight/out/ready`: exactly `true` when NO member has a gap, `false` otherwise.
 
             Read only, change nothing, and never write the string `@claude` (it starts other agents).
-          claude_args: "--model claude-opus-5-5 --max-turns 120 --allowedTools Read,Glob,Grep"
+          claude_args: "--model claude-opus-5-5 --max-turns 120 --allowedTools Read,Glob,Grep,Write"
 
       - name: Report token usage
         if: ${{ always() && steps.claude.outcome != 'skipped' }}
