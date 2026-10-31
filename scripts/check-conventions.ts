@@ -141,6 +141,12 @@ const SYNONYM_READER = 'apps/gokan-srs/src/services/exercise/wordRelation.ts';
 
 /** Furigana in the app is the Ruby component: readings over the kanji only, half size, kept apart. */
 const RUBY_ELEMENT = /<ruby\b/;
+/** A sheet's top corners: the panel BottomSheet draws over the bottom of the screen. */
+const SHEET_PANEL = /\brounded-t-md\b/;
+const BOTTOM_SHEET = 'apps/gokan-srs/src/components/ui/BottomSheet.tsx';
+/** The layers drawn over the page, through a portal: the sheet, the lookup card, the quiz settings dialog. */
+const PORTAL_CALL = /\bcreatePortal\(/;
+const PORTAL_FILES = new Set([BOTTOM_SHEET, 'apps/gokan-srs/src/components/lookup/useLookup.tsx', 'apps/gokan-srs/src/components/QuizSettingsMenu.tsx']);
 const RUBY_COMPONENT = 'apps/gokan-srs/src/components/Ruby.tsx';
 
 /**
@@ -328,6 +334,16 @@ function check(files: string[]): Violation[] {
         if (GOKAN_SRS_SOURCE.test(file) && file !== RUBY_COMPONENT && !file.endsWith('.test.tsx')) {
             eachLine(text, l => RUBY_ELEMENT.test(l), line =>
                 add({ file, line, rule: 'one-ruby', message: 'Furigana renders through Ruby (components/Ruby.tsx): each reading over its kanji only (rubyParts), neighbouring readings kept apart.' }));
+        }
+
+        if (GOKAN_SRS_SOURCE.test(file) && file !== BOTTOM_SHEET && !file.endsWith('.test.tsx')) {
+            eachLine(text, l => SHEET_PANEL.test(l), line =>
+                add({ file, line, rule: 'one-sheet', message: 'A panel over the bottom of the screen is a BottomSheet (components/ui/BottomSheet.tsx): backdrop, 44px Close, Esc.' }));
+        }
+
+        if (GOKAN_SRS_SOURCE.test(file) && !PORTAL_FILES.has(file) && !file.endsWith('.test.tsx')) {
+            eachLine(text, l => PORTAL_CALL.test(l), line =>
+                add({ file, line, rule: 'one-lookup-card', message: 'A layer over the page is the lookup card (components/lookup/useLookup.tsx), a BottomSheet or the quiz settings dialog: a word or kanji shown on hover or tap is the lookup card, never a second popover.' }));
         }
 
         if (GOKAN_SRS_SOURCE.test(file) && file.endsWith('.tsx')) {

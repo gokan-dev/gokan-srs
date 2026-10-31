@@ -1,0 +1,1 @@
+Words and kanji can now be looked up where they appear: point at or focus one in a sentence, a word's headword, a kanji tile or a word list (or tap a word in a sentence on a phone) to see its reading, meanings and your progress, and learn the word from there.
