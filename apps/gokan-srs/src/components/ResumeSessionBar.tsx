@@ -3,6 +3,7 @@ import { ArrowLeft } from "lucide-react";
 import { useQuiz } from "../context/useQuiz";
 import { sessionActivityPath, sessionRouteRole } from "../context/quiz/sessionRoutes";
 import type { SessionActivity } from "../context/quiz/sessionRoutes";
+import { REVIEW_FROM_WORD_STATE, vocabPath } from "../utils/navigation.utils";
 
 const ACTIVITY_NOUN: Record<SessionActivity, string> = {
     vocab: 'vocabulary',
@@ -37,11 +38,16 @@ export function ResumeSessionBar() {
         .filter(p => sessionRouteRole(pathname, p.activity) === 'consult')
         .sort((a, b) => b.suspendedAt - a.suspendedAt)[0];
     if (!target) return null;
+    // A word's review paused on that word's own page: the page is the entry behind the
+    // session again, so its end goes back to it (navigate(-1)) instead of adding it twice.
+    const word = target.activity === 'vocab' ? state.session?.word : undefined;
+    const backToWord = word !== undefined && pathname === vocabPath(word);
 
     return (
         <div className="w-full max-w-5xl mx-auto px-4 md:px-6 pt-3">
             <Link
                 to={sessionActivityPath(target.activity)}
+                state={backToWord ? REVIEW_FROM_WORD_STATE : undefined}
                 className="flex w-full items-center gap-2 min-h-11 px-3 rounded-md border border-accent/30 bg-accent/5 text-accent font-gothic text-sm hover:bg-accent/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent transition-colors"
             >
                 <ArrowLeft className="w-4 h-4 shrink-0" aria-hidden="true" />

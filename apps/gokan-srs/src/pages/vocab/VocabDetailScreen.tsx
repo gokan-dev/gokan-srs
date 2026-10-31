@@ -162,8 +162,8 @@ function WordPage({ vocab, sentences, sentencesSettled, now, onLearn, knownKanji
                     inStudy
                     status={status}
                     nextReview={statusReviewPhrase(status, vocabNextReviewAt(progress, settings), now)}
-                    // Replacing this page: the session's end replaces itself with it again, so Back
-                    // from either goes where it would have from this page, never to it twice.
+                    // Pushed with state marking this page as the entry behind it: the session's end
+                    // goes back to it, and Back mid-review lands on it, so history holds it once.
                     onReview={reviewable ? () => void navigate(wordReviewPath(vocab.id), { state: REVIEW_FROM_WORD_STATE }) : undefined}
                 />
             ) : (

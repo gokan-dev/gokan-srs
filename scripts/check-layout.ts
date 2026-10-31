@@ -331,9 +331,12 @@ async function checkTabRowBleed(tab: Tab, page: string, width: number): Promise<
         const opened = buttons.find(el => el.getAttribute('aria-selected') === 'true');
         const settle = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 50))));
         const problems = [];
+        // Cut means a slice of at least 6px on each side of the edge: a 1px sliver is no cue. The 6
+        // mirrors NEIGHBOUR_SLICE (utils/tabScroll.utils.ts), which this in-page script cannot import.
+        const slice = 6;
         const sides = [
-            ['right', t => t.right > edge + 0.5, row.right >= edge - 0.5, t => t.left < edge - 0.5 && t.right > edge + 0.5, Math.round(edge - row.right)],
-            ['left', t => t.left < -0.5, row.left <= 0.5, t => t.left < -0.5 && t.right > 0.5, Math.round(row.left)],
+            ['right', t => t.right > edge + 0.5, row.right >= edge - 0.5, t => t.left <= edge - slice && t.right >= edge + slice, Math.round(edge - row.right)],
+            ['left', t => t.left < -0.5, row.left <= 0.5, t => t.left <= -slice && t.right >= slice, Math.round(row.left)],
         ];
         // Every side with tabs past the screen's edge must show one cut by it.
         const assess = (when) => {
@@ -341,7 +344,7 @@ async function checkTabRowBleed(tab: Tab, page: string, width: number): Promise<
             for (const [side, past, reaches, cut, gap] of sides) {
                 if (!tabs.some(past)) continue;
                 if (!reaches) problems.push("the tab row stops " + gap + "px short of the screen's " + side + " edge, hiding its tabs at the padding");
-                else if (!tabs.some(cut)) problems.push(when + ", the tab row has tabs past the screen's " + side + " edge but none cut by it, so nothing shows it scrolls");
+                else if (!tabs.some(cut)) problems.push(when + ", the tab row has tabs past the screen's " + side + " edge but none cut by it by 6px or more, so nothing shows it scrolls");
             }
         };
         const ends = [['start', 0], ['end', list.scrollWidth]];
@@ -460,34 +463,47 @@ async function openDueWord(tab: Tab, app: string, vocabId: string): Promise<bool
     }
 }
 
+const RESUME_LABEL = 'Back to your vocabulary session';
+const at = (path: string) => `location.pathname === ${JSON.stringify(path)}`;
+const buttonShown = (label: string) => `[...document.querySelectorAll('button')].some(el => el.textContent.trim() === ${JSON.stringify(label)})`;
+
+/**
+ * Answers a word's review on /quiz (its one card, the reading) and waits for the word's page it
+ * returns to. Fails, through `until`, when history's length changes on the way: the end must go
+ * back to the entry behind the session, not add the word's page again.
+ */
+async function finishReview(tab: Tab, vocabId: string, reading: string): Promise<void> {
+    await tab.until(`${at('/quiz')} && document.querySelector('input') !== null`, 'the review card', 10000);
+    const during = await tab.evaluate<number>('history.length');
+    await tab.evaluate(`(() => {
+        const input = document.querySelector('input');
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, ${JSON.stringify(reading)});
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+    })()`);
+    await tab.click('Submit');
+    await tab.until(`${at(`/vocab/${vocabId}`)} || ${buttonShown('Continue')}`, 'Continue or the end of the review', 5000);
+    if (await tab.evaluate<boolean>(at('/quiz'))) await tab.click('Continue');
+    await tab.until(at(`/vocab/${vocabId}`), "the word's page once the review is done", 10000);
+    const after = await tab.evaluate<number>('history.length');
+    if (after !== during) throw new Error(`history's length changed from ${during} to ${after}`);
+}
+
 /**
  * Review now leaves the word page once in history, whether the session runs to its end or is left
  * with Back: finished, it goes back to the word's page, the same entry, and the next Back reaches
- * the page before the word; left mid-session with Back, it lands on the word's page. Run on a word
+ * the page before the word; left mid-session with Back, it lands on the word's page, and resumed
+ * from there through its bar and finished, it goes back to that page again. Run on a word
  * just learned (its reading, `reading`, the one card due).
  */
 async function checkReviewNow(tab: Tab, app: string, width: number, vocabId: string, reading: string): Promise<void> {
     const page = `srs /vocab/${vocabId}, Review now`;
-    const at = (path: string) => `location.pathname === ${JSON.stringify(path)}`;
     if (!(await openDueWord(tab, app, vocabId))) {
         failures.push(`${width}px ${page}: no Review now on the word's page with its reading made due`);
         return;
     }
     await tab.click('Review now');
     try {
-        await tab.until(`${at('/quiz')} && document.querySelector('input') !== null`, 'the review card', 10000);
-        const during = await tab.evaluate<number>('history.length');
-        await tab.evaluate(`(() => {
-            const input = document.querySelector('input');
-            Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, ${JSON.stringify(reading)});
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-        })()`);
-        await tab.click('Submit');
-        await tab.until(`${at(`/vocab/${vocabId}`)} || [...document.querySelectorAll('button')].some(el => el.textContent.trim() === 'Continue')`, 'Continue or the end of the review', 5000);
-        if (await tab.evaluate<boolean>(at('/quiz'))) await tab.click('Continue');
-        await tab.until(at(`/vocab/${vocabId}`), "the word's page once the review is done", 10000);
-        const after = await tab.evaluate<number>('history.length');
-        if (after !== during) failures.push(`${width}px ${page}: the finished review changed history's length (${during} to ${after})`);
+        await finishReview(tab, vocabId, reading);
         await tab.evaluate('history.back()');
         await tab.until(at('/vocab'), 'the page before the word', 5000);
     } catch (error) {
@@ -505,13 +521,23 @@ async function checkReviewNow(tab: Tab, app: string, width: number, vocabId: str
     } catch {
         failures.push(`${width}px ${page}: Back in the middle of the review does not land on the word's page (at ${await tab.evaluate<string>('location.pathname')})`);
     }
-    // The review left with Back is paused, not ended: ended here, so no later page shows its resume bar.
-    await tab.evaluate('history.forward()');
+    // The review left with Back is paused on the word's page; resumed from its bar there and
+    // finished, it goes back to that page again, so history still holds the word once.
     try {
-        await tab.until(`${at('/quiz')} && [...document.querySelectorAll('button')].some(el => el.textContent.trim() === 'End session')`, 'the paused review', 5000);
-        await tab.click('End session');
-    } catch {
-        failures.push(`${width}px ${page}: could not end the review left with Back`);
+        await tab.click(RESUME_LABEL);
+        await finishReview(tab, vocabId, reading);
+        await tab.evaluate('history.back()');
+        await tab.until(at('/vocab'), 'the page before the word', 5000);
+    } catch (error) {
+        failures.push(`${width}px ${page}: a review resumed from the word's page and finished did not leave the word's page once in history (${error instanceof Error ? error.message : String(error)}, at ${await tab.evaluate<string>('location.pathname')})`);
+        // Ended here when the check failed part-way, so no later page shows its resume bar.
+        try {
+            if (!(await tab.evaluate<boolean>(at('/quiz')))) await tab.click(RESUME_LABEL);
+            await tab.until(`${at('/quiz')} && ${buttonShown('End session')}`, 'the paused review', 5000);
+            await tab.click('End session');
+        } catch {
+            failures.push(`${width}px ${page}: could not end the review left with Back`);
+        }
     }
 }
 
