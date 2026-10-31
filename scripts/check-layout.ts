@@ -530,9 +530,14 @@ async function checkReviewNow(tab: Tab, app: string, width: number, vocabId: str
         await tab.until(at('/vocab'), 'the page before the word', 5000);
     } catch (error) {
         failures.push(`${width}px ${page}: a review resumed from the word's page and finished did not leave the word's page once in history (${error instanceof Error ? error.message : String(error)}, at ${await tab.evaluate<string>('location.pathname')})`);
-        // Ended here when the check failed part-way, so no later page shows its resume bar.
+        // Ended here when the check failed part-way, so no later page shows its resume bar. A
+        // failure after the review finished (its history length, the Back to /vocab) leaves no
+        // paused session: neither the bar nor /quiz, so there is nothing to end.
         try {
-            if (!(await tab.evaluate<boolean>(at('/quiz')))) await tab.click(RESUME_LABEL);
+            const onQuiz = await tab.evaluate<boolean>(at('/quiz'));
+            const barShown = await tab.evaluate<boolean>(`[...document.querySelectorAll('a')].some(el => el.textContent.includes(${JSON.stringify(RESUME_LABEL)}))`);
+            if (!onQuiz && !barShown) return;
+            if (!onQuiz) await tab.click(RESUME_LABEL);
             await tab.until(`${at('/quiz')} && ${buttonShown('End session')}`, 'the paused review', 5000);
             await tab.click('End session');
         } catch {
