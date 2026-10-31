@@ -122,6 +122,7 @@ export default defineConfig([
     '**/dist/**',
     '**/node_modules/**',
     '**/.deploy-stage/**',
+    '.claude/**',   // Claude Code's config and local scratch, not project source
     `${SRS}/dataset/**`,
     `${SRS}/public/**`,
     `${SRS}/terraform/**`,
