@@ -1,0 +1,92 @@
+name: "Resume or escalate an issue"
+description: >
+  For one issue's implementation branch (agent/issue-N), decide what an interrupted run needs and
+  act on it, so a crash, a turn limit or a usage limit never leaves development silently stopped.
+  claude-implement-issue.yml already resumes from what it pushed (its deterministic branch, its
+  push-before-any-code and its frequent commits); this action is the automatic re-invocation on top.
+  Shared by claude-resume.yml (reactive, on a finished implement run) and claude-sweep.yml
+  (scheduled), so the rule lives in one place.
+
+  It does nothing when the issue is done (a non-draft PR exists: the review pipeline owns it),
+  waiting on a human (needs-precision / needs-attention / pause-automation), or already being
+  worked (a run in progress). Otherwise it re-dispatches implementation to continue from the
+  pushed checkpoints, bounded by PROGRESS: if the branch head has not advanced since the last
+  resume, it stops and escalates to the maintainer rather than looping forever.
+
+inputs:
+  issue:
+    description: "The issue number whose implementation branch to resume."
+    required: true
+  token:
+    description: "A token with issues:write, actions:write (dispatch implement) and contents:read."
+    required: true
+  human:
+    description: "The maintainer to @mention when escalating. Empty is allowed."
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        ISSUE: ${{ inputs.issue }}
+        REPO: ${{ github.repository }}
+        HUMAN: ${{ inputs.human }}
+      run: |
+        set -euo pipefail
+        branch="agent/issue-$ISSUE"
+
+        # 1. Waiting on a human: never auto-resume.
+        labels="$(gh issue view "$ISSUE" --repo "$REPO" --json labels --jq '[.labels[].name] | join(" ")')"
+        for stop in pause-automation needs-precision needs-attention; do
+          case " $labels " in *" $stop "*) echo "#$ISSUE waits on a human ($stop). Nothing to do."; exit 0;; esac
+        done
+
+        # 2. Done: a non-draft PR for the branch means development finished; the review pipeline
+        #    owns it from here. (Labels flip late in implement, so the PR is the real done-signal.)
+        pr="$(gh pr list --repo "$REPO" --head "$branch" --state open --json number,isDraft,baseRefName --jq '.[0] // empty')"
+        if [ -n "$pr" ] && [ "$(jq -r .isDraft <<<"$pr")" = false ]; then
+          echo "#$ISSUE has open PR #$(jq -r .number <<<"$pr"); review owns it."; exit 0
+        fi
+
+        # 3. Already working: a run in progress or queued for this issue. Leave it (idempotent
+        #    re-entry: the sweeper may fire mid-run). Implement sets its run-name to carry "#N".
+        running="$(gh run list --repo "$REPO" --workflow claude-implement-issue.yml --json status,displayTitle \
+          --jq '.[] | select(.status != "completed") | .displayTitle' || true)"
+        if printf '%s\n' "$running" | grep -qE "#$ISSUE($|[^0-9])"; then
+          echo "#$ISSUE already has a run in progress. Leaving it."; exit 0
+        fi
+
+        # 4. Branch head on origin (empty when the branch does not exist yet: a missed first start).
+        head="$(gh api "repos/$REPO/git/refs/heads/$branch" --jq .object.sha 2>/dev/null || true)"
+
+        bodies="$(gh api --paginate "repos/$REPO/issues/$ISSUE/comments" --jq '.[].body' 2>/dev/null || true)"
+        marker_of() { printf '%s\n' "$bodies" | grep -oE "<!-- gokan-$1 [a-z]+=[^ ]+ -->" | tail -1 | sed -E 's/.*=([^ ]+) -->/\1/'; }
+
+        # 5. The base the member PR must target: an open PR's base, else a base marker the release
+        #    orchestrator wrote on the issue, else main (single-issue flow).
+        base="$(jq -r '.baseRefName // empty' <<<"${pr:-{}}" 2>/dev/null || true)"
+        [ -n "$base" ] || base="$(marker_of base)"
+        base="${base:-main}"
+
+        # 6. Progress bound: the branch head recorded at the last resume. No advance since => the
+        #    agent is not making headway; stop and escalate rather than burn more runs.
+        last="$(marker_of resume)"
+        if [ -n "$head" ] && [ "$head" = "$last" ]; then
+          echo "#$ISSUE stalled: no new commits since the last resume (${head:0:10})."
+          gh label create needs-attention --repo "$REPO" --force --color D93F0B \
+            --description "Development is stuck and needs a maintainer to look" >/dev/null
+          gh issue edit "$ISSUE" --repo "$REPO" --add-label needs-attention
+          { echo "<!-- gokan-notice -->"
+            echo "@$HUMAN \`$branch\` made no progress across a resume (still at \`${head:0:10}\`). Development is paused until someone looks: fix the blocker and remove \`needs-attention\`, or re-run implementation by hand."
+          } | gh issue comment "$ISSUE" --repo "$REPO" --body-file -
+          exit 0
+        fi
+
+        # 7. Resume (or kick off a missed first start). Record the head we resume from, then
+        #    re-dispatch implementation, which continues from the pushed commits (its step 0).
+        echo "<!-- gokan-resume head=${head:-none} -->" | gh issue comment "$ISSUE" --repo "$REPO" --body-file -
+        gh workflow run claude-implement-issue.yml --repo "$REPO" -f issue="$ISSUE" -f base="$base"
+        echo "Re-dispatched implementation of #$ISSUE (base $base) from ${head:-new}."

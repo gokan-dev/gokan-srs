@@ -1,0 +1,212 @@
+# The sprint / release orchestrator (optional; the single-issue flow does not touch it). A release
+# is a tracking issue: its title carries the version and headline ("Release 1.45.0: Detail pages")
+# and its body is an ordered task list of member issues ("- [ ] #172"). Labeling that issue
+# `release-ready` cuts a `release/X.Y.Z` branch and starts the members one at a time against it,
+# each running the normal per-issue round (implement, review, triage, correct) with the release
+# branch as its base. Members auto-merge into the release branch on `agent-done`; when the last one
+# merges, the fragments assemble into one changelog entry and a single `release/X.Y.Z -> main` PR
+# opens for the maintainer. So the maintainer approves once per release, not once per feature.
+#
+# Everything here is keyed off git + the tracker's checkboxes + labels, so a re-run is idempotent
+# and a member's own resume (claude-resume.yml / claude-sweep.yml) is unaffected.
+name: "Agent: start/advance release"
+
+on:
+  issues:
+    types: [labeled]
+  pull_request:
+    types: [closed, labeled]
+
+env:
+  GH_TOKEN: ${{ secrets.AGENT_GITHUB_TOKEN }}
+  REPO: ${{ github.repository }}
+  HUMAN: ${{ vars.AGENT_HUMAN }}
+
+jobs:
+  # 1. Cut the release branch and start the first member.
+  start:
+    if: github.event_name == 'issues' && github.event.label.name == 'release-ready'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      actions: write
+    env:
+      TRACKER: ${{ github.event.issue.number }}
+      TITLE: ${{ github.event.issue.title }}
+      BODY: ${{ github.event.issue.body }}
+    steps:
+      - name: Cut the release branch and start the first member
+        run: |
+          set -euo pipefail
+          version="$(printf '%s' "$TITLE" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+          [ -n "$version" ] || { echo "::error::Tracker title has no X.Y.Z version: '$TITLE'"; exit 1; }
+          branch="release/$version"
+
+          # The members, in task-list order. The first `- [ ] #N` is where we start.
+          members="$(printf '%s' "$BODY" | grep -oE '^- \[[ x]\] #[0-9]+' | grep -oE '[0-9]+' || true)"
+          [ -n "$members" ] || { echo "::error::Tracker #$TRACKER has no '- [ ] #NNN' member list."; exit 1; }
+          first="$(printf '%s' "$BODY" | grep -oE '^- \[ \] #[0-9]+' | grep -oE '[0-9]+' | head -1 || true)"
+
+          for l in release release-ready needs-attention pause-automation; do
+            gh label create "$l" --repo "$REPO" --force >/dev/null 2>&1 || true
+          done
+          gh issue edit "$TRACKER" --repo "$REPO" --add-label release >/dev/null
+
+          # Create the branch off main if it does not already exist (re-run safe).
+          if ! gh api "repos/$REPO/git/refs/heads/$branch" >/dev/null 2>&1; then
+            main_sha="$(gh api "repos/$REPO/git/refs/heads/main" --jq .object.sha)"
+            gh api "repos/$REPO/git/refs" -f ref="refs/heads/$branch" -f sha="$main_sha" >/dev/null
+            echo "Cut $branch from main ($main_sha)."
+          fi
+
+          if [ -z "$first" ]; then
+            echo "No unchecked members: nothing to start."
+            exit 0
+          fi
+
+          # Tell the member its base (so a resume before the PR exists targets the release branch),
+          # mark it active for the sweeper, and dispatch its implementation.
+          echo "<!-- gokan-base ref=$branch -->" | gh issue comment "$first" --repo "$REPO" --body-file -
+          gh issue edit "$first" --repo "$REPO" --add-label ready-for-dev >/dev/null
+          gh workflow run claude-implement-issue.yml --repo "$REPO" -f issue="$first" -f base="$branch"
+
+          { echo "<!-- gokan-release version=$version -->"
+            echo "@$HUMAN Started release **$version** on \`$branch\`. Building #$first first; the rest follow one at a time as each merges. I will open one \`$branch -> main\` PR when the last lands."
+          } | gh issue comment "$TRACKER" --repo "$REPO" --body-file -
+
+  # 2. Auto-merge a member into its release branch once triage says it is done. Best-effort: if the
+  #    repo has not enabled auto-merge, the maintainer merges the member by hand and job 3 still
+  #    fires on that merge.
+  automerge:
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.action == 'labeled' &&
+      github.event.label.name == 'agent-done' &&
+      startsWith(github.event.pull_request.base.ref, 'release/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Enable auto-merge for the member PR
+        continue-on-error: true
+        env:
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          if printf '%s' '${{ toJSON(github.event.pull_request.labels.*.name) }}' | grep -q needs-decision; then
+            echo "#$PR still has needs-decision; not merging."; exit 0
+          fi
+          gh pr merge "$PR" --repo "$REPO" --merge --auto
+
+  # 3. A member merged into a release branch: tick it off, start the next member, or (when none are
+  #    left) assemble the changelog and open the release PR.
+  advance:
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.base.ref, 'release/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      actions: write
+    env:
+      BRANCH: ${{ github.event.pull_request.base.ref }}
+      HEAD_REF: ${{ github.event.pull_request.head.ref }}
+    outputs:
+      finish: ${{ steps.advance.outputs.finish }}
+      version: ${{ steps.advance.outputs.version }}
+      tracker: ${{ steps.advance.outputs.tracker }}
+    steps:
+      - name: Tick the member and start the next
+        id: advance
+        run: |
+          set -euo pipefail
+          version="${BRANCH#release/}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          member="$(printf '%s' "$HEAD_REF" | grep -oE '[0-9]+$' || true)"
+
+          tracker="$(gh issue list --repo "$REPO" --state open --label release --json number,title \
+            | jq -r --arg v "$version" '.[] | select(.title | contains($v)) | .number' | head -1)"
+          [ -n "$tracker" ] || { echo "::error::No open release tracker for $version."; exit 1; }
+          echo "tracker=$tracker" >> "$GITHUB_OUTPUT"
+
+          body="$(gh issue view "$tracker" --repo "$REPO" --json body --jq .body)"
+          if [ -n "$member" ]; then
+            body="$(printf '%s' "$body" | sed -E "s/- \[ \] #$member\\b/- [x] #$member/")"
+            printf '%s' "$body" | gh issue edit "$tracker" --repo "$REPO" --body-file -
+            gh issue edit "$member" --repo "$REPO" --remove-label ready-for-dev >/dev/null 2>&1 || true
+          fi
+
+          next="$(printf '%s' "$body" | grep -oE '^- \[ \] #[0-9]+' | grep -oE '[0-9]+' | head -1 || true)"
+          if [ -n "$next" ]; then
+            echo "<!-- gokan-base ref=$BRANCH -->" | gh issue comment "$next" --repo "$REPO" --body-file -
+            gh issue edit "$next" --repo "$REPO" --add-label ready-for-dev >/dev/null
+            gh workflow run claude-implement-issue.yml --repo "$REPO" -f issue="$next" -f base="$BRANCH"
+            gh issue comment "$tracker" --repo "$REPO" --body "Member #${member:-?} merged; building #$next next."
+            echo "finish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "finish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  # 4. Last member merged: fold the fragments into one entry and open the single release PR.
+  finish:
+    needs: advance
+    if: needs.advance.outputs.finish == 'true'
+    runs-on: ubuntu-latest
+    # The branch lock, so this waits behind any member run still finishing on the release branch.
+    concurrency:
+      group: agent-branch-release/${{ needs.advance.outputs.version }}
+      cancel-in-progress: false
+      queue: max
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    env:
+      VERSION: ${{ needs.advance.outputs.version }}
+      TRACKER: ${{ needs.advance.outputs.tracker }}
+    steps:
+      - name: Checkout the release branch
+        uses: actions/checkout@v4
+        with:
+          ref: release/${{ needs.advance.outputs.version }}
+          fetch-depth: 0
+          token: ${{ secrets.AGENT_GITHUB_TOKEN }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Assemble the changelog and open the release PR
+        run: |
+          set -euo pipefail
+          title="$(gh issue view "$TRACKER" --repo "$REPO" --json title --jq .title)"
+          headline="${title#*: }"   # "Release 1.45.0: Detail pages" -> "Detail pages"
+
+          # The script validates the assembled list in-memory (changelogProblems) before writing;
+          # the release -> main PR then gets full CI. No build here: it needs the dataset submodule.
+          bun apps/gokan-srs/release/assemble-fragments.ts --version "$VERSION" --headline "$headline"
+
+          members="$(gh issue view "$TRACKER" --repo "$REPO" --json body --jq .body \
+            | grep -oE '#[0-9]+' | tr -d '#' | sort -u)"
+          closes="$(for m in $members; do echo "Closes #$m"; done)"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Release $VERSION: assemble the changelog from the sprint's fragments"
+          git push origin "HEAD:release/$VERSION"
+
+          body="$(printf 'Release **%s**: %s\n\nTracking: #%s\n\n%s\n' "$VERSION" "$headline" "$TRACKER" "$closes")"
+          url="$(gh pr create --repo "$REPO" --base main --head "release/$VERSION" \
+            --title "Release $VERSION: $headline" --body "$body")"
+          gh issue comment "$TRACKER" --repo "$REPO" \
+            --body "@$HUMAN All members merged. Release **$VERSION** is ready for your review and one merge: $url"

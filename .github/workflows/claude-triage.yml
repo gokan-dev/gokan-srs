@@ -79,11 +79,14 @@ jobs:
           stop() { echo "$1"; echo "ready=false" >> "$GITHUB_OUTPUT"; exit 0; }
 
           pr_json="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open \
-            --json number,isDraft,author,labels --jq '.[0] // empty')"
+            --json number,isDraft,author,labels,baseRefName --jq '.[0] // empty')"
           [ -n "$pr_json" ] || stop "No open PR for $BRANCH: nothing to triage."
           pr="$(jq -r .number <<<"$pr_json")"
           echo "pr=$pr" >> "$GITHUB_OUTPUT"
           echo "human=${AGENT_HUMAN:-$(jq -r .author.login <<<"$pr_json")}" >> "$GITHUB_OUTPUT"
+          # The PR's base (usually main; a release branch during a sprint): the diff is read
+          # against it, so a member PR's review covers only its own change, not the whole release.
+          echo "base=$(jq -r .baseRefName <<<"$pr_json")" >> "$GITHUB_OUTPUT"
           # A draft is still being iterated by hand (the staging reviewer opens drafts for branches
           # tagged without a PR), and the PR reviewer skips drafts, so a round never completes.
           [ "$(jq -r .isDraft <<<"$pr_json")" = false ] || stop "PR #$pr is a draft."
@@ -156,6 +159,7 @@ jobs:
         env:
           PR: ${{ steps.round.outputs.pr }}
           HEAD: ${{ steps.round.outputs.sha }}
+          BASE: ${{ steps.round.outputs.base }}
         run: |
           set -euo pipefail
           ctx=.triage/context
@@ -174,8 +178,9 @@ jobs:
           } | jq -rs 'sort_by(.at)[] | "# \(.at), \(.author), \(.kind)\n\(.url)\n\n\(.body)\n"' > "$ctx/conversation.md"
           # Exits non-zero while a check is pending or failing; the list is what matters.
           gh pr checks "$PR" --repo "$GITHUB_REPOSITORY" --json name,state,link > "$ctx/checks.json" || true
-          git log --format='%h %an: %s' "origin/main..$HEAD" > "$ctx/commits.txt"
-          git diff "origin/main...$HEAD" > "$ctx/diff.patch"
+          git fetch --quiet --force origin "+refs/heads/$BASE:refs/remotes/origin/$BASE" || true
+          git log --format='%h %an: %s' "origin/$BASE..$HEAD" > "$ctx/commits.txt"
+          git diff "origin/$BASE...$HEAD" > "$ctx/diff.patch"
 
       # For the usage report after the agent; the agent itself has no shell.
       - name: Setup Bun
@@ -218,15 +223,26 @@ jobs:
             comments from people (and `<!-- gokan-decision -->` relays) are the maintainer's
             decisions.
 
-            Sort each point into exactly one group:
-              - Apply: in this PR's scope, a real improvement, and one resolution a careful
+            Sort each point into exactly one group. The test for "Your call" is whether the
+            choice is genuinely the maintainer's to make, which turns on how hard it is to reverse
+            and how far it reaches, NOT on whether it is visible: a choice the user sees but that is
+            cheap to change later is not something to stop a round for.
+              - Apply: in this PR's scope, a real improvement, and a resolution a careful
                 maintainer would accept without discussion: a missing test, a stale doc or comment,
                 a rule from AGENTS.md or docs/DESIGN_SYSTEM.md broken, a naming inconsistency, the
                 check a review says would have caught a finding (the AGENTS.md ratchet), a failing
-                check.
-              - Your call: what the user sees or how the product behaves, where the issue does not
-                already decide it; several reasonable resolutions; a change of scope; two rules
-                pulling against each other. Give two or three concrete options and recommend one.
+                check. Apply ALSO absorbs a choice that has several reasonable options but a clear
+                recommendation and is cheap to reverse later (a layout direction, spacing, ordering,
+                wording, most visual detail): take the recommended option and record it under
+                "Decided by default" in the brief, so the maintainer sees what was chosen and can
+                object at merge, instead of being stopped mid-round for it.
+              - Your call: a decision costly to reverse once shipped (a persisted or stored shape, a
+                URL or route, a storage or serialization format, a public API, a dependency,
+                anything users build state on), a change of scope or product direction, or a real
+                trade-off with no clear recommendation. When unsure whether a choice is cheap to
+                reverse, treat it as Your call: the failure to avoid is shipping a consequential,
+                hard-to-undo choice to save a rubber-stamp. Give two or three concrete options and
+                recommend one.
               - Not in this change: present before this PR, app-wide or in a shared component
                 beyond this PR's purpose, a preference no rule backs, a "consider" with no concrete
                 harm, or something the review itself judged fine.
@@ -236,8 +252,9 @@ jobs:
             previous round changed: polish goes under "Not in this change". A round that only
             produces polish is a done round.
 
-            Write `.triage/out/outcome`: one word. `done` when Apply and Your call are both empty,
-            `decide` when Your call has a point, `apply` otherwise.
+            Write `.triage/out/outcome`: one word. `done` when Apply, Decided by default and Your
+            call are all empty, `decide` when Your call has a point, `apply` otherwise (there is
+            something to change or a default to record, but nothing to ask).
 
             Write `.triage/out/brief.md`, the brief the feedback agent and the maintainer read.
             Markdown, sections in this order, an empty one left out, points numbered across the
@@ -248,8 +265,12 @@ jobs:
               <the change, where (file:line), why (the rule or the finding), and the test that goes
               with it: precise enough to act on without opening the reviews.>
 
+              ## Decided by default (reversible)
+              ### 2. <the choice>
+              Chose <option> because <one line>. Reversible: say so on this PR to change it.
+
               ## Your call
-              ### 2. <the question>
+              ### 3. <the question>
               <the trade-off, in two or three sentences.>
               - [ ] **A**: <option> (recommended)
               - [ ] **B**: <option>

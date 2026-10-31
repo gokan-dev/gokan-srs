@@ -1,0 +1,56 @@
+# Reactive auto-resume. When an "Agent: implement issue" run finishes, this looks at the issue it
+# was working and, if the run stopped short of opening a PR (a crash, the --max-turns ceiling, or a
+# usage limit), re-dispatches implementation to continue from the commits it pushed. The decision
+# and the progress bound live in the shared composite action (.github/actions/resume-issue), which
+# this and the scheduled sweeper (claude-sweep.yml) both use, so the rule is in one place.
+#
+# This is the fast path (fires the moment a run ends). claude-sweep.yml is the backstop for what a
+# completion event cannot catch: a run that never started, a dropped event, or a usage limit that
+# has since reset.
+name: "Agent: resume implementation"
+
+on:
+  workflow_run:
+    workflows: ["Agent: implement issue"]
+    types: [completed]
+
+# One resume decision per issue at a time. The composite action is idempotent, but this keeps a
+# burst of completions from racing.
+concurrency:
+  group: claude-resume-${{ github.event.workflow_run.id }}
+  cancel-in-progress: false
+
+jobs:
+  resume:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read        # check out the local composite action
+      issues: write         # markers, the escalation label and comment
+      pull-requests: read    # the done-signal (an open non-draft PR)
+      actions: write        # re-dispatch claude-implement-issue.yml
+    steps:
+      - name: Resolve the issue from the run title
+        id: issue
+        env:
+          TITLE: ${{ github.event.workflow_run.display_title }}
+        run: |
+          set -euo pipefail
+          # implement sets run-name to "...#<issue>"; pull the first #<number> out of it.
+          n="$(printf '%s' "$TITLE" | grep -oE '#[0-9]+' | head -1 | tr -d '#')"
+          if [ -z "$n" ]; then
+            echo "No issue number in run title '$TITLE'; nothing to resume."
+          fi
+          echo "number=$n" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        if: steps.issue.outputs.number != ''
+        uses: actions/checkout@v4
+
+      - name: Resume or escalate
+        if: steps.issue.outputs.number != ''
+        uses: ./.github/actions/resume-issue
+        with:
+          issue: ${{ steps.issue.outputs.number }}
+          # A PAT so the re-dispatch actually starts a workflow (a GITHUB_TOKEN dispatch does not).
+          token: ${{ secrets.AGENT_GITHUB_TOKEN }}
+          human: ${{ vars.AGENT_HUMAN }}

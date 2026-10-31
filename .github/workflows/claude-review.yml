@@ -103,7 +103,8 @@ jobs:
 
             CI already runs `bun run check` (conventions, lint, typecheck, tests, duplicates,
             unused code) on this PR. Do NOT re-run or re-report any of that. Review ONLY what the
-            gate cannot express, reading the diff (`git diff origin/main...HEAD`) as a careful
+            gate cannot express, reading the diff
+            (`git diff origin/${{ github.event.pull_request.base.ref }}...HEAD`, this PR's base) as a careful
             human reviewer would:
               - docs/DESIGN_SYSTEM.md adherence: tokens over raw colours, type scale, spacing,
                 `rounded-md` vs `rounded-full`, accent only for links/actions, ordinal hues.
@@ -161,6 +162,7 @@ jobs:
       AGENT_GITHUB_TOKEN: ${{ secrets.AGENT_GITHUB_TOKEN }}
       BRANCH: ${{ github.event.pull_request.head.ref }}
       SHA: ${{ github.event.pull_request.head.sha }}
+      BASE: ${{ github.event.pull_request.base.ref }}
       PR: ${{ github.event.pull_request.number }}
       HUMAN: ${{ vars.AGENT_HUMAN || github.event.pull_request.user.login }}
       REVIEW: ${{ needs.review.result }}
@@ -191,15 +193,31 @@ jobs:
             exit 0
           fi
 
-          # This branch's rc tags only: one reachable from main belongs to a merged PR.
-          last="$(git tag --merged "$SHA" --no-merged origin/main --list 'v*-rc.*' --sort=-v:refname | sed -n 1p)"
-          if [ -n "$last" ] && [ "$(git rev-parse "$last^{commit}")" = "$SHA" ]; then
-            echo "$last already stages $SHA (tagged by hand): its staging review hands the round to triage."
+          # The PR's base decides the versioning. `main`: each PR is its own next minor (the
+          # single-issue flow, unchanged). A release branch `release/X.Y.Z`: every member PR shares
+          # the one version X.Y.Z, and its rc tags count up across the whole release, so the sprint
+          # ships as one version.
+          release_version=""
+          case "$BASE" in
+            release/*.*.*) release_version="${BASE#release/}" ;;
+          esac
+
+          # Already staged this exact commit? Its staging review hands the round to triage.
+          if [ -n "$release_version" ]; then
+            onsha="$(git tag --points-at "$SHA" --list "v$release_version-rc.*" | sed -n 1p)"
+          else
+            onsha="$(git tag --points-at "$SHA" --no-merged origin/main --list 'v*-rc.*' | sed -n 1p)"
+          fi
+          if [ -n "$onsha" ]; then
+            echo "$onsha already stages $SHA: its staging review hands the round to triage."
             exit 0
           fi
-          base="${last:-$(git merge-base origin/main "$SHA")}"
-          ships="$(git diff --name-only "$base" "$SHA" | bun packages/deploy/scripts/ships-in-deployment.ts)"
-          echo "Changes since ${last:-main} ship in a deploy: $ships"
+
+          # "Ships something" is measured since this branch's own last rc, else since its base.
+          last="$(git tag --merged "$SHA" --no-merged "origin/$BASE" --list 'v*-rc.*' --sort=-v:refname | sed -n 1p)"
+          diffbase="${last:-$(git merge-base "origin/$BASE" "$SHA")}"
+          ships="$(git diff --name-only "$diffbase" "$SHA" | bun packages/deploy/scripts/ships-in-deployment.ts)"
+          echo "Changes since ${last:-$BASE} ship in a deploy: $ships"
 
           if [ "$ships" = false ]; then
             gh workflow run claude-triage.yml --repo "$GITHUB_REPOSITORY" \
@@ -207,10 +225,14 @@ jobs:
             exit 0
           fi
 
-          if [ -n "$last" ]; then
+          if [ -n "$release_version" ]; then
+            # The next rc in the release's shared family, across every member.
+            highest="$(git tag --list "v$release_version-rc.*" --sort=-v:refname | sed -n 1p)"
+            next="v$release_version-rc.$([ -n "$highest" ] && echo "$(( ${highest##*-rc.} + 1 ))" || echo 1)"
+          elif [ -n "$last" ]; then
             next="${last%-rc.*}-rc.$(( ${last##*-rc.} + 1 ))"
           else
-            # A new PR's first rc is a new minor: v1.30.0-rc.3 is followed by v1.31.0-rc.1.
+            # A new main PR's first rc is a new minor: v1.30.0-rc.3 is followed by v1.31.0-rc.1.
             highest="$(git tag --list 'v*.*.*-rc.*' --sort=-v:refname | sed -n 1p)"
             IFS=. read -r major minor _ <<<"${highest#v}"
             next="v$major.$((minor + 1)).0-rc.1"

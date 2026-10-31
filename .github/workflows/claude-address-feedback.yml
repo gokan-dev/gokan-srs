@@ -74,15 +74,17 @@ jobs:
       pull-requests: read
     outputs:
       name: ${{ steps.pr.outputs.branch }}
+      base: ${{ steps.pr.outputs.base }}
     steps:
-      - name: Find the PR's branch
+      - name: Find the PR's branch and base
         id: pr
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number || github.event.issue.number }}
         run: |
-          branch="$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json headRefName --jq .headRefName)"
-          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          info="$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json headRefName,baseRefName)"
+          echo "branch=$(jq -r .headRefName <<<"$info")" >> "$GITHUB_OUTPUT"
+          echo "base=$(jq -r .baseRefName <<<"$info")" >> "$GITHUB_OUTPUT"
 
   respond:
     needs: branch
@@ -169,8 +171,8 @@ jobs:
 
             When the comment that started this run is a triage brief (its first line
             starts with `<!-- gokan-triage`) or relays a decision on one (`<!-- gokan-decision -->`),
-            that brief is the whole request: apply its Apply points and, for each Your call
-            question, the option the maintainer ticked on the brief or named in their reply,
+            that brief is the whole request: apply its Apply and Decided by default points, and
+            for each Your call question, the option the maintainer ticked on the brief or named in their reply,
             with any note they added (the reply wins where the two differ). Leave every point
             under "Not in this change" alone, and do not act on review points the brief does
             not list: the triage already weighed them. If the decision is to stop, or leaves
@@ -186,8 +188,9 @@ jobs:
             then is the new pointer committed here: never point at a dataset commit that
             is not on the remote.
 
-            Before you finish, sync with `main` so the branch is deployable against the
-            current state of the repo: `git fetch origin main && git merge origin/main`
+            Before you finish, sync with the PR's base branch `${{ needs.branch.outputs.base }}` so the
+            branch is deployable against the current state of the repo: `git fetch origin
+            ${{ needs.branch.outputs.base }} && git merge origin/${{ needs.branch.outputs.base }}`
             (resolve conflicts if any arise). If this PR touches the
             `apps/gokan-srs/dataset` submodule, ALSO check whether the submodule's own
             remote has moved past what's currently pointed at - merging gokan-srs's own

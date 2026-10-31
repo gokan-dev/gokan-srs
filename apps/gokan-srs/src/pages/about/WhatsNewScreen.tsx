@@ -9,7 +9,22 @@ import { formatDate } from "../../utils/time.utils";
 
 const ISSUES = 'https://github.com/gokan-dev/gokan-srs/issues';
 
-/** One shipped change: its version and day, then the sentence. */
+/** A link to an issue or pull request, as the shipped-change line shows it. */
+function IssueLink({ issue }: { issue: number }) {
+    return (
+        <>
+            {' '}
+            <a href={`${ISSUES}/${issue}`} target="_blank" rel="noopener noreferrer" className="font-sans text-sm text-accent hover:underline">
+                #{issue}
+            </a>
+        </>
+    );
+}
+
+/**
+ * One shipped change: its version and day, then the sentence. A release that bundled several
+ * features (a sprint) shows the headline, then each feature as its own line.
+ */
 function ChangelogItem({ entry }: { entry: ChangelogEntry }) {
     return (
         <li className="py-4 first:pt-0">
@@ -20,15 +35,18 @@ function ChangelogItem({ entry }: { entry: ChangelogEntry }) {
             </p>
             <p className="type-body mt-1">
                 {entry.summary}
-                {entry.issue !== undefined && (
-                    <>
-                        {' '}
-                        <a href={`${ISSUES}/${entry.issue}`} target="_blank" rel="noopener noreferrer" className="font-sans text-sm text-accent hover:underline">
-                            #{entry.issue}
-                        </a>
-                    </>
-                )}
+                {entry.issue !== undefined && <IssueLink issue={entry.issue} />}
             </p>
+            {entry.changes !== undefined && (
+                <ul className="mt-2 list-disc ps-5 space-y-1">
+                    {entry.changes.map((change, i) => (
+                        <li key={change.issue ?? `change-${i}`} className="type-body">
+                            {change.summary}
+                            {change.issue !== undefined && <IssueLink issue={change.issue} />}
+                        </li>
+                    ))}
+                </ul>
+            )}
         </li>
     );
 }

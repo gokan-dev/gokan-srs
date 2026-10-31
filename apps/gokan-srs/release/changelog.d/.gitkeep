@@ -1,0 +1,1 @@
+Keeps the changelog.d fragment directory in git when it holds no fragments.

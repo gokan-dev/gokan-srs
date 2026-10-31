@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { availableUpdate, changelogDate, changelogProblems, compareVersions, parseChangelog, parseLiveVersion } from './changelog.utils';
+import { availableUpdate, changelogDate, changelogProblems, compareVersions, fragmentIssue, insertChangelogEntry, parseChangelog, parseLiveVersion, serializeEntry } from './changelog.utils';
 import type { ChangelogEntry } from '../models/release.model';
 import { CHANGELOG } from '../../release/changelog';
 
@@ -97,5 +97,64 @@ describe('availableUpdate', () => {
     it('is null once that version is dismissed, and offers the next one again', () => {
         expect(availableUpdate('1.42.0', { version: '1.43.0', dataset: 'a' }, '1.43.0')).toBeNull();
         expect(availableUpdate('1.42.0', { version: '1.44.0', dataset: 'a' }, '1.43.0')).toBe('1.44.0');
+    });
+});
+
+describe('a release entry that bundled several features (changes)', () => {
+    const release = entry({ version: '1.46.0', issue: undefined, changes: [
+        { summary: 'Tabs on the word page.', issue: 172 },
+        { summary: 'Pitch accent on the reading.', issue: 176 },
+    ] });
+
+    it('passes validation when each change has a summary and a valid issue', () => {
+        expect(changelogProblems([release])).toEqual([]);
+    });
+
+    it('is flagged when changes is present but empty, or a change is malformed', () => {
+        expect(changelogProblems([entry({ changes: [] })]).join()).toContain('changes is present but empty');
+        expect(changelogProblems([entry({ changes: [{ summary: '  ' }] })]).join()).toContain('change 0 summary is empty');
+        expect(changelogProblems([entry({ changes: [{ summary: 'x', issue: 0 }] })]).join()).toContain('change 0 issue is not a number');
+    });
+
+    it('round-trips through the /changelog.json parser', () => {
+        const parsed = parseChangelog(JSON.parse(JSON.stringify([release])));
+        expect(parsed[0].changes).toEqual(release.changes);
+    });
+
+    it('rejects a changes list with a non-object member', () => {
+        expect(() => parseChangelog([{ version: '1.0.0', date: '2026-01-01', summary: 'x', changes: ['nope'] }])).toThrow();
+    });
+});
+
+describe('fragmentIssue', () => {
+    it('reads the issue number off a changelog.d fragment name', () => {
+        expect(fragmentIssue('172-word-page-tabs.md')).toBe(172);
+        expect(fragmentIssue('release/changelog.d/176-pitch-accent.md')).toBe(176);
+    });
+
+    it('is null for anything that is not a <issue>-<slug>.md fragment', () => {
+        expect(fragmentIssue('.gitkeep')).toBeNull();
+        expect(fragmentIssue('no-number.md')).toBeNull();
+        expect(fragmentIssue('172.md')).toBeNull();
+    });
+});
+
+describe('serializeEntry and insertChangelogEntry', () => {
+    it('serialises an entry, escaping apostrophes, with its changes', () => {
+        const text = serializeEntry(entry({ version: '1.46.0', summary: "A word's page.", issue: undefined, changes: [{ summary: 'Tabs.', issue: 172 }] }));
+        expect(text).toContain("summary: 'A word\\'s page.',");
+        expect(text).toContain('changes: [');
+        expect(text).toContain("{ summary: 'Tabs.', issue: 172 },");
+    });
+
+    it('inserts the entry right after the array opener', () => {
+        const source = 'export const CHANGELOG: readonly ChangelogEntry[] = [\n    { version: \'1.0.0\', date: \'2026-01-01\', summary: \'Old.\' },\n];\n';
+        const out = insertChangelogEntry(source, entry({ version: '1.1.0' }));
+        expect(out.indexOf("version: '1.1.0'")).toBeLessThan(out.indexOf("version: '1.0.0'"));
+        expect(out).toContain('readonly ChangelogEntry[] = [\n    {\n        version: \'1.1.0\',');
+    });
+
+    it('throws when the array opener is gone', () => {
+        expect(() => insertChangelogEntry('const X = [];', entry())).toThrow('CHANGELOG array opener');
     });
 });
