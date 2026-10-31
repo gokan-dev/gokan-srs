@@ -1,5 +1,6 @@
-import { kunReadingLabel, type Kanji } from "@gokan/dataset-schema";
+import type { Kanji } from "@gokan/dataset-schema";
 import { CardSkeleton } from "./CardSkeleton";
+import { KanjiReadings } from "./KanjiReadings";
 import { KanjiTile } from "./KanjiTile";
 
 interface KanjiSummaryProps {
@@ -17,26 +18,13 @@ interface KanjiSummaryProps {
  */
 export function KanjiSummary({ glyph, kanji, known }: KanjiSummaryProps) {
     const loaded = kanji === 'loading' ? null : kanji;
-    const readings = loaded ? [
-        { label: 'On', readings: loaded.readings.on },
-        { label: 'Kun', readings: loaded.readings.kun.map(kunReadingLabel) },
-    ].filter(row => row.readings.length > 0) : [];
     return (
         <div className="flex items-start gap-4 min-w-0">
             <KanjiTile glyph={glyph} to={`/kanji/${glyph}`} />
             <div className="min-w-0 flex-1 space-y-1">
                 {kanji === 'loading' && <CardSkeleton variant="line" />}
                 {loaded && loaded.meanings.length > 0 && <p className="type-body">{loaded.meanings.join(', ')}</p>}
-                {readings.length > 0 && (
-                    <dl className="space-y-0.5">
-                        {readings.map(row => (
-                            <div key={row.label} className="flex items-baseline gap-3">
-                                <dt className="type-meta w-8 shrink-0">{row.label}</dt>
-                                <dd className="min-w-0 font-gothic text-base text-secondary break-words" lang="ja">{row.readings.join('、')}</dd>
-                            </div>
-                        ))}
-                    </dl>
-                )}
+                {loaded && <KanjiReadings kanji={loaded} size="compact" />}
                 {known !== undefined && <p className="type-meta">{known ? 'Known' : 'Not known'}</p>}
             </div>
         </div>
