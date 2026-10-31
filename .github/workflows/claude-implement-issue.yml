@@ -158,6 +158,10 @@ jobs:
           # checklist as the agent works, replaced with the final summary on
           # completion - restores the visibility the default @claude-mention
           # trigger has, which a custom `prompt` input suppresses by default.
+          # A dispatched run (resume, sweep, sprint orchestration) is initiated by github.token, so
+          # its actor is github-actions[bot]; the action refuses a bot-initiated run unless it is
+          # listed. No loop risk: these are our own workflow_dispatch invocations.
+          allowed_bots: "github-actions,claude"
           # Only the `issues` trigger supports it (it posts a checklist on the issue). On a
           # workflow_dispatch resume/sprint start the action rejects it outright, so gate it.
           track_progress: ${{ github.event_name == 'issues' }}
