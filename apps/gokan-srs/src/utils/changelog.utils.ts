@@ -1,4 +1,4 @@
-import type { ChangelogEntry, LiveVersion } from '../models/release.model';
+import type { ChangelogChange, ChangelogEntry, LiveVersion } from '../models/release.model';
 import { isRecord } from '../services/http';
 
 const VERSION = /^(\d+)\.(\d+)\.(\d+)$/;
@@ -41,6 +41,13 @@ export function changelogProblems(entries: readonly ChangelogEntry[]): string[] 
         if (!date || date.getMonth() !== Number(day?.[2]) - 1) problems.push(`${name}: date is not a YYYY-MM-DD day`);
         if (entry.summary.trim() === '') problems.push(`${name}: summary is empty`);
         if (entry.issue !== undefined && !(Number.isInteger(entry.issue) && entry.issue > 0)) problems.push(`${name}: issue is not a number`);
+        if (entry.changes !== undefined) {
+            if (entry.changes.length === 0) problems.push(`${name}: changes is present but empty`);
+            entry.changes.forEach((change, j) => {
+                if (change.summary.trim() === '') problems.push(`${name}: change ${j} summary is empty`);
+                if (change.issue !== undefined && !(Number.isInteger(change.issue) && change.issue > 0)) problems.push(`${name}: change ${j} issue is not a number`);
+            });
+        }
         const previous = entries[i - 1];
         if (!previous || !versionParts(previous.version) || !versionParts(entry.version)) return;
         if (compareVersions(previous.version, entry.version) <= 0) problems.push(`${name}: not older than ${previous.version} above it`);
@@ -49,13 +56,33 @@ export function changelogProblems(entries: readonly ChangelogEntry[]): string[] 
     return problems;
 }
 
+/** One of a release's changes from `/changelog.json`, or null when it is not one. */
+function parseChange(value: unknown): ChangelogChange | null {
+    if (!isRecord(value)) return null;
+    const { summary, issue } = value;
+    if (typeof summary !== 'string') return null;
+    if (issue !== undefined && typeof issue !== 'number') return null;
+    return issue === undefined ? { summary } : { summary, issue };
+}
+
 /** One entry from `/changelog.json`, or null when it is not one. */
 function parseEntry(value: unknown): ChangelogEntry | null {
     if (!isRecord(value)) return null;
-    const { version, date, summary, issue } = value;
+    const { version, date, summary, issue, changes } = value;
     if (typeof version !== 'string' || typeof date !== 'string' || typeof summary !== 'string') return null;
     if (issue !== undefined && typeof issue !== 'number') return null;
-    return issue === undefined ? { version, date, summary } : { version, date, summary, issue };
+    let parsedChanges: ChangelogChange[] | undefined;
+    if (changes !== undefined) {
+        if (!Array.isArray(changes)) return null;
+        parsedChanges = [];
+        for (const raw of changes) {
+            const change = parseChange(raw);
+            if (!change) return null;
+            parsedChanges.push(change);
+        }
+    }
+    const base: ChangelogEntry = issue === undefined ? { version, date, summary } : { version, date, summary, issue };
+    return parsedChanges === undefined ? base : { ...base, changes: parsedChanges };
 }
 
 /**
@@ -90,4 +117,55 @@ export function parseLiveVersion(body: unknown): LiveVersion {
 export function availableUpdate(running: string, live: LiveVersion | null, dismissed: string | null = null): string | null {
     if (!live || live.version === running || live.version === dismissed) return null;
     return live.version;
+}
+
+// Release assembly (release/assemble-fragments.ts). A sprint's member PRs drop one
+// `changelog.d/<issue>-<slug>.md` fragment each; at `release` -> `main` these fold into one
+// multi-feature entry, so the whole sprint ships as a single version. Pure here, tested; the
+// script does the file I/O around them.
+
+/** The issue number a `changelog.d/<issue>-<slug>.md` fragment names, or null when it is not one. */
+export function fragmentIssue(filename: string): number | null {
+    const base = filename.replace(/^.*[/\\]/, '');
+    const match = /^(\d+)-.+\.md$/.exec(base);
+    return match ? Number(match[1]) : null;
+}
+
+/** A single-quoted TS string literal (release/changelog.ts's style) for arbitrary text. */
+function quote(text: string): string {
+    return `'${text.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+}
+
+/** One entry as the object literal release/changelog.ts holds, indented for its array. */
+export function serializeEntry(entry: ChangelogEntry): string {
+    const lines = [
+        '    {',
+        `        version: ${quote(entry.version)},`,
+        `        date: ${quote(entry.date)},`,
+        `        summary: ${quote(entry.summary)},`,
+    ];
+    if (entry.issue !== undefined) lines.push(`        issue: ${entry.issue},`);
+    if (entry.changes !== undefined) {
+        lines.push('        changes: [');
+        for (const change of entry.changes) {
+            const issue = change.issue !== undefined ? `, issue: ${change.issue}` : '';
+            lines.push(`            { summary: ${quote(change.summary)}${issue} },`);
+        }
+        lines.push('        ],');
+    }
+    lines.push('    },');
+    return lines.join('\n');
+}
+
+const ARRAY_OPEN = 'export const CHANGELOG: readonly ChangelogEntry[] = [';
+
+/**
+ * release/changelog.ts with `entry` inserted as the newest (top) entry. Throws when the array
+ * marker is gone, so a changed file shape fails loudly rather than silently appending nothing.
+ */
+export function insertChangelogEntry(source: string, entry: ChangelogEntry): string {
+    const at = source.indexOf(ARRAY_OPEN);
+    if (at === -1) throw new Error('changelog.ts: the CHANGELOG array opener was not found');
+    const after = at + ARRAY_OPEN.length;
+    return `${source.slice(0, after)}\n${serializeEntry(entry)}${source.slice(after)}`;
 }

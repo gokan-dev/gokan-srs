@@ -3,25 +3,41 @@
 # only exists while GitHub is delivering the `issues: labeled` event, so it does
 # no work when there is nothing labeled.
 name: "Agent: implement issue"
+# Carries the issue number so claude-resume.yml can find it on a finished run, and so a dispatched
+# resume/sprint run is legible in the Actions list.
+run-name: "Agent: implement issue #${{ github.event.issue.number || inputs.issue }}"
 
 on:
   issues:
     types: [labeled]
+  # Re-invoked to continue an interrupted run (claude-resume.yml / claude-sweep.yml, via the
+  # resume-issue action) and to start a sprint member against a release branch
+  # (claude-start-release.yml). `base` is the branch the work is cut from and the PR targets;
+  # it defaults to `main`, which is the single-issue flow, so the label trigger is unchanged.
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: "The issue number to implement."
+        required: true
+      base:
+        description: "Branch to base the work on and open the PR against."
+        required: false
+        default: main
 
 # Prevent two runs racing on the same issue (e.g. label removed + re-added).
 concurrency:
-  group: claude-issue-${{ github.event.issue.number }}
+  group: claude-issue-${{ github.event.issue.number || inputs.issue }}
   cancel-in-progress: false
 
 jobs:
   implement:
-    # Only react to the one label we care about.
-    if: github.event.label.name == 'ready-for-dev'
+    # The label the maintainer applies, or a dispatched resume / sprint-member start.
+    if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'ready-for-dev'
     runs-on: ubuntu-latest
     # One agent per branch at a time (AGENTS.md): every agent job that can push queues here. The
     # PR reviewer queues behind this run when the PR opens, so it reviews the finished branch.
     concurrency:
-      group: agent-branch-agent/issue-${{ github.event.issue.number }}
+      group: agent-branch-agent/issue-${{ github.event.issue.number || inputs.issue }}
       cancel-in-progress: false
       queue: max
     # A large issue runs for hours. Set explicitly rather than relying on GitHub's
@@ -71,21 +87,23 @@ jobs:
           # An unset secret is an empty string, which selects the app-token fallback.
           github_token: ${{ secrets.AGENT_GITHUB_TOKEN }}
           prompt: |
-            Issue #${{ github.event.issue.number }} was just labeled `ready-for-dev`.
+            You are implementing issue #${{ github.event.issue.number || inputs.issue }} on the base branch
+            `${{ inputs.base || 'main' }}` (usually `main`; a release branch during a sprint). Everywhere
+            below that says `main` as the branch to build on, sync with and open the PR against, use that base.
             You are working autonomously, no human is present. AGENTS.md is already in your context
             (CLAUDE.md imports it): every rule in it applies from the first line you write. Read
             the docs/ARCHITECTURE.md sections for the area the issue touches, and only those
             (AGENTS.md says how).
 
-            The branch for this issue is ALWAYS `agent/issue-${{ github.event.issue.number }}`
+            The branch for this issue is ALWAYS `agent/issue-${{ github.event.issue.number || inputs.issue }}`
             (deterministic, no slug suffix), so an interrupted run can be resumed on it.
 
-            0. Run `git fetch origin`, then check whether `agent/issue-${{ github.event.issue.number }}`
+            0. Run `git fetch origin`, then check whether `agent/issue-${{ github.event.issue.number || inputs.issue }}`
                already exists on origin. If it does, a previous run was interrupted before finishing:
                check it out and CONTINUE from where it left off (read its recent commits and any open
                PR to see what's already done) instead of starting over. If it does not exist, create it
-               from the latest `main`. EITHER WAY, before writing a single line of code, run
-               `git push -u origin agent/issue-${{ github.event.issue.number }}` so the branch exists on
+               from the latest `${{ inputs.base || 'main' }}`. EITHER WAY, before writing a single line of code, run
+               `git push -u origin agent/issue-${{ github.event.issue.number || inputs.issue }}` so the branch exists on
                origin from the very start, runs get cut off (turn limit, usage limit) with no warning,
                and only pushed work survives.
             1. If the issue (plus AGENTS.md, docs/ARCHITECTURE.md and existing conventions) leaves a LOAD-BEARING
@@ -105,16 +123,16 @@ jobs:
             3. Write/update tests for what you change. Make these pass before opening the PR:
                `bun run check` (conventions, lint, typecheck, tests, duplicates, unused code).
                It must be fully green: never relax a rule, disable a lint or add an exemption to pass.
-            4. Open a PULL REQUEST against `main`, NOT a draft, with `Closes
-               #${{ github.event.issue.number }}` in the body (reuse the existing PR if one is
+            4. Open a PULL REQUEST against `${{ inputs.base || 'main' }}`, NOT a draft, with `Closes
+               #${{ github.event.issue.number || inputs.issue }}` in the body (reuse the existing PR if one is
                already open for this branch), a concise summary of what changed and what you tested.
                Then remove `ready-for-dev` and add `pr-open`.
             5. If you genuinely cannot make CI green, comment on the issue explaining the
                blocker rather than opening a broken PR.
-            6. Before you finish, sync with `main` so the branch is deployable against
-               the current state of the repo, not whatever it branched from: `git fetch origin
-               main && git merge origin/main` (resolve conflicts if any arise, they're real
-               integration work, not something to paper over). If this PR touches the
+            6. Before you finish, sync with the base branch `${{ inputs.base || 'main' }}` so the branch is
+               deployable against the current state of the repo, not whatever it branched from: `git fetch
+               origin ${{ inputs.base || 'main' }} && git merge origin/${{ inputs.base || 'main' }}` (resolve
+               conflicts if any arise, they're real integration work, not something to paper over). If this PR touches the
                `apps/gokan-srs/dataset` submodule, ALSO check whether the submodule's own remote
                has moved past what you last pointed it at, merging gokan-srs's own `main` does
                NOT automatically do this, since the submodule pointer only moves when something
@@ -130,7 +148,8 @@ jobs:
             7. Do not tag. When the PR review of your final push is in, the review workflow tags
                an rc for staging itself if the change reaches the deployed apps.
 
-            Hard rules: never push to or merge `main`; never force-push commits you didn't
+            Hard rules: never push to or merge `main` or the base branch directly (always through the PR);
+            never force-push commits you didn't
             create; never touch `.github/workflows/`, secrets, or deployment config; never
             close the issue directly (let the merged PR's `Closes #N` do it); never write
             the string `@claude` in a comment, PR body or commit message (your comments are

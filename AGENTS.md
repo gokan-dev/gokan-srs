@@ -57,12 +57,30 @@ summary ("Largest tool results"), which is where a whole read shows.
   `group: agent-branch-<branch>`, `cancel-in-progress: false`, `queue: max` (a later run waits,
   none is dropped). A run that waited checks the branch has not moved on before acting.
   Enforced.
-- A change that ships in the deployed apps (`shipsInDeployment`) adds one entry at the top of
-  `apps/gokan-srs/release/changelog.ts`, the What's new page and the app's version: the next
-  minor (the version its rc tags carry), the day, one plain sentence a learner can read, the
-  issue. The build and a test refuse a list out of order or malformed; that a shipping change
-  added its entry is not mechanised (`bun run check` has no base branch to diff against), so a
-  reviewer checks it against the diff.
+- **The pipeline runs per issue, optionally batched into a release.** Labeling an issue
+  `ready-for-dev` builds it on `agent/issue-<n>` against `main`: one PR, one version
+  (`claude-implement-issue.yml`). A *sprint* is a tracking issue (title `Release X.Y.Z: ...`, body
+  an ordered `- [ ] #nnn` task list); labeling it `release-ready` (`claude-start-release.yml`) cuts
+  `release/X.Y.Z`, builds its members one at a time against that branch (each the same
+  implement/review/triage/correct round, now base-aware: every workflow diffs and syncs against the
+  PR's base, not a hardcoded `main`), auto-merges them on `agent-done`, and opens one
+  `release/X.Y.Z -> main` PR when the last lands, so the maintainer approves once per release rather
+  than once per feature. Triage (`claude-triage.yml`) asks the maintainer only for choices that are
+  costly to reverse or change scope; a reversible choice with a clear recommendation is applied and
+  noted under "Decided by default". An interrupted run (crash, turn limit, usage limit) resumes
+  itself from the commits it pushed: `claude-resume.yml` reacts to a finished run, `claude-sweep.yml`
+  sweeps hourly, both through `.github/actions/resume-issue`, bounded by progress and escalating with
+  `needs-attention` when a branch stops advancing. `pause-automation` on an issue opts it out.
+- A change that ships in the deployed apps (`shipsInDeployment`) records itself for the What's new
+  page and the app's version. On `main` (a single issue) it adds one entry at the top of
+  `apps/gokan-srs/release/changelog.ts`: the next minor (the version its rc tags carry), the day,
+  one plain sentence a learner can read, the issue. On a `release/X.Y.Z` branch (a sprint) it adds
+  one `apps/gokan-srs/release/changelog.d/<issue>-<slug>.md` fragment instead (that one sentence),
+  never editing `changelog.ts`: `release/assemble-fragments.ts` folds every fragment into one
+  `X.Y.Z` entry when the release opens its `-> main` PR, so the sprint ships as a single version.
+  The build and a test refuse a list out of order or malformed; that a shipping change recorded
+  itself (an entry on `main`, a fragment on a release) is not mechanised (`bun run check` has no
+  base branch to diff against), so a reviewer checks it against the diff.
 - `git log` is the record of what changed. Add an entry to
   [docs/MODIFICATION_LOG.md](docs/MODIFICATION_LOG.md) only for reasoning a diff cannot show:
   an investigation's result, why the obvious approach was rejected, or an interaction a later

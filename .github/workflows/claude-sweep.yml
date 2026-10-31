@@ -1,0 +1,67 @@
+# Scheduled backstop for auto-resume. Every hour it looks at the issues under active development
+# (open, labeled `ready-for-dev`, which implement only clears when it opens the PR) and, for any
+# whose run is not currently working and that is not done or waiting on a human, re-dispatches
+# implementation. This catches what the reactive path (claude-resume.yml) cannot: a run that never
+# started, a dropped completion event, and - the one that matters for usage limits - a branch that
+# could not continue earlier but can now that the limit has reset.
+#
+# The per-issue decision and the progress bound live in the shared composite action
+# (.github/actions/resume-issue), the same one claude-resume.yml uses.
+name: "Agent: sweep stalled implementations"
+
+on:
+  schedule:
+    - cron: "17 * * * *"   # hourly, offset off the top of the hour
+  workflow_dispatch:
+
+concurrency:
+  group: claude-sweep
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: read
+    outputs:
+      issues: ${{ steps.list.outputs.issues }}
+    steps:
+      - name: List issues under active development
+        id: list
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # ready-for-dev marks an issue the pipeline is meant to be building; pause-automation and
+          # needs-attention opt out. The action re-checks all of this per issue, so this is only a
+          # cheap pre-filter.
+          issues="$(gh issue list --repo "$REPO" --state open --label ready-for-dev \
+            --json number,labels \
+            --jq '[.[] | select([.labels[].name] | (index("pause-automation") or index("needs-attention")) | not) | .number]')"
+          echo "issues=$issues" >> "$GITHUB_OUTPUT"
+          echo "Candidates: $issues"
+
+  resume:
+    needs: discover
+    if: needs.discover.outputs.issues != '[]' && needs.discover.outputs.issues != ''
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        issue: ${{ fromJSON(needs.discover.outputs.issues) }}
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+      actions: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resume or escalate
+        uses: ./.github/actions/resume-issue
+        with:
+          issue: ${{ matrix.issue }}
+          token: ${{ secrets.AGENT_GITHUB_TOKEN }}
+          human: ${{ vars.AGENT_HUMAN }}

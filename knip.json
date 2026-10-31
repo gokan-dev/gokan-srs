@@ -2,7 +2,8 @@
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "ignoreExportsUsedInFile": true,
   "ignore": [
-    "apps/gokan-srs/dataset/**"
+    "apps/gokan-srs/dataset/**",
+    ".claude/**"
   ],
   "workspaces": {
     ".": {
