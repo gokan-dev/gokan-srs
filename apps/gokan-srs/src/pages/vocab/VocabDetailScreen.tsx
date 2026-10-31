@@ -176,15 +176,14 @@ function WordPage({ vocab, sentences, sentencesSettled, now, onLearn, knownKanji
 
     // Every tab's panel is there for its tab's aria-controls; only the open one has content.
     const panels = available.map(tab => (
-                <div
+        <div
             key={tab}
             ref={tab === open ? panelsRef : undefined}
             id={panelId(tab)}
             role="tabpanel"
             aria-labelledby={tabId(tab)}
             hidden={tab !== open}
-            tabIndex={0}
-            className="pt-6 focus-visible:outline-none"
+            className="pt-6"
         >
             {tab === open && (
                 <TabPanel
