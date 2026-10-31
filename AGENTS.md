@@ -60,8 +60,11 @@ summary ("Largest tool results"), which is where a whole read shows.
 - **The pipeline runs per issue, optionally batched into a release.** Labeling an issue
   `ready-for-dev` builds it on `agent/issue-<n>` against `main`: one PR, one version
   (`claude-implement-issue.yml`). A *sprint* is a tracking issue (title `Release X.Y.Z: ...`, body
-  an ordered `- [ ] #nnn` task list); labeling it `release-ready` (`claude-start-release.yml`) cuts
-  `release/X.Y.Z`, builds its members one at a time against that branch (each the same
+  an ordered `- [ ] #nnn` task list); labeling it `release-ready` (`claude-start-release.yml`) first
+  runs a pre-flight that reads every member and asks the maintainer, in one round, about every
+  load-bearing decision the issues leave open (the sprint starts only once nothing is pending, so a
+  precision question never stalls it mid-flight), then cuts
+  `release/X.Y.Z` and builds its members one at a time against that branch (each the same
   implement/review/triage/correct round, now base-aware: every workflow diffs and syncs against the
   PR's base, not a hardcoded `main`), auto-merges them on `agent-done`, and opens one
   `release/X.Y.Z -> main` PR when the last lands, so the maintainer approves once per release rather
