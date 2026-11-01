@@ -175,7 +175,7 @@ export type PacingSettings = Pick<UserSettings, 'intervalModifier' | 'intervalMo
  * The learner's review pacing (the slider), applied to every quiz type's
  * interval. The one reader of `intervalModifier`; absent settings read as the default.
  */
-export function frequencyModifierOf(settings: Pick<UserSettings, 'intervalModifier'> | null | undefined): number {
+export function frequencyModifierOf(settings: Partial<Pick<UserSettings, 'intervalModifier'>> | null | undefined): number {
     return settings?.intervalModifier ?? CONSTANTS.srs.intervalModifier.default;
 }
 
