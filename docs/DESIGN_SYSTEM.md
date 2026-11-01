@@ -400,8 +400,8 @@ Defined once, in `components/` or `components/ui/`, never copied:
   is about), every linking `KanjiTile` (not the one beside its own `KanjiSummary`), each kanji
   of a word page's headword, `WordTile`, synonym, related and mix-up rows, the vocabulary list
   and a kanji's word list. One card, two bodies: the **word card** (headword, its
-  `SecondaryForm` and `PlayButton`, the first two meanings, `StatusDot`, "Learn this word" for a word not in
-  study, never mid-session, and "Open word page") and the **kanji card** (`KanjiSummary` and
+  `SecondaryForm` and `PlayButton`, the first two meanings, `StatusDot`, "Learn this word" for
+  a word not in study, never mid-session, and "Open word page") and the **kanji card** (`KanjiSummary` and
   "Open kanji page"). With a mouse it is a popover (`rounded-md`, divider border, `bg-surface`,
   `shadow-lg`, 288px wide), above its trigger and clamped into the viewport, opened after 220ms
   of hover or focus and kept 120ms after leaving the trigger and the card. In a sentence (an
