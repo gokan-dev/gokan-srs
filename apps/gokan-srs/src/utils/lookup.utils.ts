@@ -111,18 +111,30 @@ export function headwordGlyphs(headword: string, kanji: readonly string[]): { te
 }
 
 /**
+ * Where a popover goes, in viewport pixels: the card's left edge, and the edge it is pinned by.
+ * Above the trigger it is pinned by its bottom (`bottom`, from the viewport's bottom edge), below
+ * by its top, so a card that grows as its data arrives grows away from its trigger, never over it.
+ */
+export type PopoverPlace = { left: number; top: number } | { left: number; bottom: number };
+
+/**
  * Where a popover goes: above its trigger and centred on it, clamped into the viewport (a word
  * at a line's end would put half the card off-screen), and below it when there is no room above,
  * the common case for a sentence's first line.
+ *
+ * Pinned by the edge facing the trigger (`PopoverPlace`): a card opens on its loading line and
+ * grows when the word arrives. Pinned by its top above the trigger, it grew down over the trigger
+ * for a frame before it was placed again, and the trigger lost its hover there and then (the word
+ * flickered, and the pointer left it and came back).
  */
 export function placePopover(
     anchor: { left: number; top: number; bottom: number; width: number },
     card: { width: number; height: number },
-    viewportWidth: number,
+    viewport: { width: number; height: number },
     margin = 8,
-): { left: number; top: number } {
+): PopoverPlace {
     const centre = anchor.left + anchor.width / 2;
-    const left = Math.min(Math.max(margin, centre - card.width / 2), Math.max(margin, viewportWidth - card.width - margin));
-    const above = anchor.top - card.height - margin;
-    return { left, top: above >= margin ? above : anchor.bottom + margin };
+    const left = Math.min(Math.max(margin, centre - card.width / 2), Math.max(margin, viewport.width - card.width - margin));
+    const fitsAbove = anchor.top - card.height - margin >= margin;
+    return fitsAbove ? { left, bottom: viewport.height - anchor.top + margin } : { left, top: anchor.bottom + margin };
 }

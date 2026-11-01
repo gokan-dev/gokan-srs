@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GRAMMAR, KANJI, MORE_DESTINATIONS, STUDY, VOCABULARY, WHATS_NEW, isDestinationActive, isMoreActive, isReviewFromWord, isSessionPath, REVIEW_FROM_WORD_STATE, kanjiPath, synonymsPath, vocabPath, wordReviewPath } from './navigation.utils';
+import { GRAMMAR, KANJI, MORE_DESTINATIONS, STUDY, VOCABULARY, WHATS_NEW, isDestinationActive, isMoreActive, isSessionPath, kanjiPath, synonymsPath, vocabPath } from './navigation.utils';
 
 describe('isDestinationActive', () => {
     it('marks Study on the hub only', () => {
@@ -64,22 +64,5 @@ describe('vocabPath', () => {
 describe('kanjiPath', () => {
     it("is the kanji's page, the glyph as written", () => {
         expect(kanjiPath('輝')).toBe('/kanji/輝');
-    });
-});
-
-describe('wordReviewPath', () => {
-    it("names the word in the quiz's review parameter", () => {
-        expect(wordReviewPath('1224020')).toBe('/quiz?review=1224020');
-    });
-});
-
-describe('isReviewFromWord', () => {
-    it('reads the state Review now pushes, and nothing else', () => {
-        expect(isReviewFromWord(REVIEW_FROM_WORD_STATE)).toBe(true);
-        expect(isReviewFromWord({ reviewFrom: 'word' })).toBe(true);
-        expect(isReviewFromWord(null)).toBe(false);
-        expect(isReviewFromWord(undefined)).toBe(false);
-        expect(isReviewFromWord({ reviewFrom: 'hub' })).toBe(false);
-        expect(isReviewFromWord('word')).toBe(false);
     });
 });

@@ -31,8 +31,9 @@
  * - a word page's tab row too wide for a phone runs to the screen's edge on each side it has tabs
  *   past, with a tab cut by that edge, so the row shows it scrolls (no tab hidden at the padding),
  *   scrolled to either end and after choosing any tab;
- * - a word page's Review now leaves the word page once in history: a finished review goes back to
- *   it, and Back mid-review lands on it;
+ * - a due word's page has no Review now;
+ * - a sentence word hovered with a mouse at 1280px keeps its hover as its lookup card opens (the
+ *   card, growing as its word arrives, never covers it);
  * - a sentence word tapped on a phone opens its lookup card as a bottom sheet that fits the
  *   viewport, with a 44px Close and 44px links (Open word page), and no sideways scroll;
  * - a word page's tabs are 44px tap targets on a phone;
@@ -192,8 +193,6 @@ const FIXTURE_MOVED = `FURIGANA_VOCAB ${FURIGANA_VOCAB} has no example sentence 
 // whose pairs make the longest Synonyms tab, as it opens and with every meaning and row shown. Readable records under a
 // readable key, which the compact payload keeps as it is.
 const MIXUP_WORD = '1224020';
-/** Its reading, the answer to its one due card in the Review now check. */
-const MIXUP_WORD_READING = 'かがやく';
 const LONG_SYNONYMS_WORD = '1326980';
 const MIXUPS = [
     { answer: '光る', outcome: 'accepted', typed: '1272820', meaning: 'shine', cue: 'The stars were shining brightly in the clear winter sky above the sleeping mountain village.' },
@@ -499,7 +498,7 @@ async function checkStickyTabs(tab: Tab, page: string, width: number, next: stri
 
 /**
  * Makes a studied word's reading due an hour ago (the reading's due date, and its introduction,
- * readable or compact), so its page offers Review now. Read on the next page load.
+ * readable or compact), so its page says Due now. Read on the next page load.
  */
 const makeReadingDue = (vocabId: string) => `(async () => {
     const key = 'GOKAN_SRS_PROGRESS';
@@ -517,111 +516,28 @@ const makeReadingDue = (vocabId: string) => `(async () => {
     await done(db.transaction('progress', 'readwrite').objectStore('progress').put(JSON.stringify(progress), key));
     db.close();
 })()`;
-const REVIEW_NOW_SHOWN = `[...document.querySelectorAll('button')].some(el => el.textContent.trim() === 'Review now')`;
+const DUE_SHOWN = `document.querySelector('[data-word-status]')?.textContent.includes('Due now') === true`;
+const REVIEW_NOW_SHOWN = `[...document.querySelectorAll('button, a')].some(el => el.textContent.trim() === 'Review now')`;
 
 /**
- * Opens a studied word's page from /vocab inside the app (no page load), its reading due, at its
- * Review now. The record is edited after a fresh load, once the app has settled: a save still
- * queued from the page before would write over it.
+ * A due word's page has no Review now: its status says it is due, and the learner reviews it in
+ * their next session (the button was dropped in 1.46.0 as not useful). Run on a word just learned,
+ * its reading made due. The record is edited after a fresh load, once the app has settled: a save
+ * still queued from the page before would write over it.
  */
-async function openDueWord(tab: Tab, app: string, vocabId: string): Promise<boolean> {
+async function checkNoReviewNow(tab: Tab, app: string, width: number, vocabId: string): Promise<void> {
+    const page = `srs /vocab/${vocabId}, due`;
     await tab.goto(`${app}/vocab`, 'Vocabulary');
     await new Promise(resolve => setTimeout(resolve, 1000));
     await tab.evaluate<void>(makeReadingDue(vocabId));
-    await tab.goto(`${app}/vocab`, 'Vocabulary');
-    await tab.evaluate(`(() => {
-        history.pushState({}, '', '/vocab/${vocabId}');
-        dispatchEvent(new PopStateEvent('popstate'));
-    })()`);
+    await tab.goto(`${app}/vocab/${vocabId}`, 'Dict');
     try {
-        await tab.until(REVIEW_NOW_SHOWN, 'Review now', 10000);
-        return true;
+        await tab.until(DUE_SHOWN, "the word's status saying Due now", 10000);
     } catch {
-        return false;
-    }
-}
-
-const RESUME_LABEL = 'Back to your vocabulary session';
-const at = (path: string) => `location.pathname === ${JSON.stringify(path)}`;
-const buttonShown = (label: string) => `[...document.querySelectorAll('button')].some(el => el.textContent.trim() === ${JSON.stringify(label)})`;
-
-/**
- * Answers a word's review on /quiz (its one card, the reading) and waits for the word's page it
- * returns to. Fails, through `until`, when history's length changes on the way: the end must go
- * back to the entry behind the session, not add the word's page again.
- */
-async function finishReview(tab: Tab, vocabId: string, reading: string): Promise<void> {
-    await tab.until(`${at('/quiz')} && document.querySelector('input') !== null`, 'the review card', 10000);
-    const during = await tab.evaluate<number>('history.length');
-    await tab.evaluate(`(() => {
-        const input = document.querySelector('input');
-        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, ${JSON.stringify(reading)});
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-    })()`);
-    await tab.click('Submit');
-    await tab.until(`${at(`/vocab/${vocabId}`)} || ${buttonShown('Continue')}`, 'Continue or the end of the review', 5000);
-    if (await tab.evaluate<boolean>(at('/quiz'))) await tab.click('Continue');
-    await tab.until(at(`/vocab/${vocabId}`), "the word's page once the review is done", 10000);
-    const after = await tab.evaluate<number>('history.length');
-    if (after !== during) throw new Error(`history's length changed from ${during} to ${after}`);
-}
-
-/**
- * Review now leaves the word page once in history, whether the session runs to its end or is left
- * with Back: finished, it goes back to the word's page, the same entry, and the next Back reaches
- * the page before the word; left mid-session with Back, it lands on the word's page, and resumed
- * from there through its bar and finished, it goes back to that page again. Run on a word
- * just learned (its reading, `reading`, the one card due).
- */
-async function checkReviewNow(tab: Tab, app: string, width: number, vocabId: string, reading: string): Promise<void> {
-    const page = `srs /vocab/${vocabId}, Review now`;
-    if (!(await openDueWord(tab, app, vocabId))) {
-        failures.push(`${width}px ${page}: no Review now on the word's page with its reading made due`);
+        failures.push(`${width}px ${page}: the status line does not say Due now with its reading made due`);
         return;
     }
-    await tab.click('Review now');
-    try {
-        await finishReview(tab, vocabId, reading);
-        await tab.evaluate('history.back()');
-        await tab.until(at('/vocab'), 'the page before the word', 5000);
-    } catch (error) {
-        failures.push(`${width}px ${page}: a finished review did not leave the word's page once in history (${error instanceof Error ? error.message : String(error)}, at ${await tab.evaluate<string>('location.pathname')})`);
-    }
-    if (!(await openDueWord(tab, app, vocabId))) {
-        failures.push(`${width}px ${page}: no Review now on the word's page with its reading made due again`);
-        return;
-    }
-    await tab.click('Review now');
-    try {
-        await tab.until(at('/quiz'), 'the review', 10000);
-        await tab.evaluate('history.back()');
-        await tab.until(at(`/vocab/${vocabId}`), "the word's page", 5000);
-    } catch {
-        failures.push(`${width}px ${page}: Back in the middle of the review does not land on the word's page (at ${await tab.evaluate<string>('location.pathname')})`);
-    }
-    // The review left with Back is paused on the word's page; resumed from its bar there and
-    // finished, it goes back to that page again, so history still holds the word once.
-    try {
-        await tab.click(RESUME_LABEL);
-        await finishReview(tab, vocabId, reading);
-        await tab.evaluate('history.back()');
-        await tab.until(at('/vocab'), 'the page before the word', 5000);
-    } catch (error) {
-        failures.push(`${width}px ${page}: a review resumed from the word's page and finished did not leave the word's page once in history (${error instanceof Error ? error.message : String(error)}, at ${await tab.evaluate<string>('location.pathname')})`);
-        // Ended here when the check failed part-way, so no later page shows its resume bar. A
-        // failure after the review finished (its history length, the Back to /vocab) leaves no
-        // paused session: neither the bar nor /quiz, so there is nothing to end.
-        try {
-            const onQuiz = await tab.evaluate<boolean>(at('/quiz'));
-            const barShown = await tab.evaluate<boolean>(`[...document.querySelectorAll('a')].some(el => el.textContent.includes(${JSON.stringify(RESUME_LABEL)}))`);
-            if (!onQuiz && !barShown) return;
-            if (!onQuiz) await tab.click(RESUME_LABEL);
-            await tab.until(`${at('/quiz')} && ${buttonShown('End session')}`, 'the paused review', 5000);
-            await tab.click('End session');
-        } catch {
-            failures.push(`${width}px ${page}: could not end the review left with Back`);
-        }
-    }
+    if (await tab.evaluate<boolean>(REVIEW_NOW_SHOWN)) failures.push(`${width}px ${page}: the page shows Review now`);
 }
 
 /**
@@ -772,6 +688,52 @@ async function checkLookupSheet(tab: Tab, page: string, width: number): Promise<
     }
 }
 
+/**
+ * A sentence word keeps its hover while its lookup card opens (with a mouse, at 1280px). The card
+ * opens on its loading line and grows when the word arrives; pinned by its top above the word, it
+ * grew down over the word for a frame, so the word lost its hover and got it back (a flicker). The
+ * page records every frame from the pointer's arrival, so a one-frame loss is seen.
+ */
+async function checkLookupKeepsHover(tab: Tab, page: string, width: number): Promise<void> {
+    const where = `${width}px ${page}, a sentence word's lookup card`;
+    const point = await tab.evaluate<{ x: number; y: number } | null>(`(() => {
+        const word = document.querySelector('[data-sentence] [data-lookup-trigger]');
+        if (!word) return null;
+        word.scrollIntoView({ block: 'center' });
+        const r = word.getClientRects()[0];
+        return { x: r.left + Math.min(8, r.width / 2), y: r.top + r.height / 2 };
+    })()`);
+    if (!point) {
+        failures.push(`${where}: no sentence word to hover`);
+        return;
+    }
+    await tab.mouseMove(point.x - 200, Math.max(1, point.y - 200));
+    await new Promise(resolve => setTimeout(resolve, 300));
+    await tab.evaluate<void>(`(() => {
+        const word = document.querySelector('[data-sentence] [data-lookup-trigger]');
+        const log = window.__hoverLog = { carded: false, lost: 0, covered: 0 };
+        const end = performance.now() + 1500;
+        const frame = () => {
+            const card = document.querySelector('[data-lookup-card]');
+            if (card && getComputedStyle(card).visibility === 'visible') {
+                log.carded = true;
+                if (!word.matches(':hover')) log.lost++;
+                const c = card.getBoundingClientRect();
+                const w = word.getClientRects()[0];
+                if (c.left < w.right && c.right > w.left && c.top < w.bottom && c.bottom > w.top) log.covered++;
+            }
+            if (performance.now() < end) requestAnimationFrame(frame);
+        };
+        requestAnimationFrame(frame);
+    })()`);
+    await tab.mouseMove(point.x, point.y);
+    await new Promise(resolve => setTimeout(resolve, 1700));
+    const log = await tab.evaluate<{ carded: boolean; lost: number; covered: number }>('window.__hoverLog');
+    if (!log.carded) failures.push(`${where}: hovering the word opened no card`);
+    else if (log.lost > 0 || log.covered > 0) failures.push(`${where}: the word lost its hover for ${log.lost} frame(s) as the card opened, the card over it for ${log.covered}`);
+    await tab.mouseMove(1, 1);
+}
+
 /** Measures the fixture word's page, after checking it still shows a reading to measure. */
 async function measureFuriganaFixture(tab: Tab, url: string, ready: string, page: string, width: number, tapTargets = ''): Promise<void> {
     try {
@@ -795,6 +757,8 @@ try {
     await checkDoneMarking(desktop, DESKTOP.width, DESKTOP.height);
     // A studied word's header at 1280px, where the narrow page leaves the header its one column.
     await desktop.click('Start learning');
+    await desktop.goto(`http://127.0.0.1:${srs.port}/vocab/${FURIGANA_VOCAB}`, 'Examples');
+    await checkLookupKeepsHover(desktop, `srs /vocab/${FURIGANA_VOCAB}`, DESKTOP.width);
     await desktop.goto(`http://127.0.0.1:${srs.port}/vocab/${MIXUP_WORD}`, 'Dict');
     if (await learnOpenWord(desktop, `srs /vocab/${MIXUP_WORD}`, DESKTOP.width)) await checkHeaderStatus(desktop, `srs /vocab/${MIXUP_WORD}, studied`, DESKTOP.width);
     // The same tabs at every width.
@@ -888,7 +852,7 @@ try {
         await measure(tab, `srs /vocab/${MIXUP_WORD}, kanji tab`, width);
         // The tab last chosen opens on the next word: Dict first here, for the page as it first shows.
         await openWordTab(tab, `srs /vocab/${MIXUP_WORD}`, width, 'Dict');
-        if (learned) await checkReviewNow(tab, app, width, MIXUP_WORD, MIXUP_WORD_READING);
+        if (learned) await checkNoReviewNow(tab, app, width, MIXUP_WORD);
         await tab.goto(`${app}/vocab/${LONG_SYNONYMS_WORD}`, 'Meanings');
         await measure(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, Dict tab`, width);
         await checkWordFirstScreen(tab, `srs /vocab/${LONG_SYNONYMS_WORD}`, width, height);
@@ -930,4 +894,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows unbroken, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, Review now leaving the word page once in history, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows unbroken, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links.`);

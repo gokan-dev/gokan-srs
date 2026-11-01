@@ -1,9 +1,8 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { frequencyBand, headwordOf, summaryGloss } from "@gokan/dataset-schema";
+import { frequencyBand, headwordOf, summaryGloss, textbookLessonsLabel } from "@gokan/dataset-schema";
 import type { Sentence, Vocabulary } from "@gokan/dataset-schema";
 import { useQuiz } from "../../context/useQuiz";
-import { hasSessionInProgress, wordReviewTaskKeys } from "../../context/quiz/quizSelectors";
 import { VocabularyService } from "../../services/vocabulary.service";
 import { LoadingScreen } from "../../components/LoadingScreen";
 import { JlptChip } from "../../components/JlptChip";
@@ -15,6 +14,7 @@ import { Page, PAGE_BLEED_INSET } from "../../components/Page";
 import { DetailErrorScreen } from "../../components/detail/DetailErrorScreen";
 import { DetailBody } from "../../components/detail/DetailBody";
 import { DetailHeader } from "../../components/detail/DetailHeader";
+import { DetailField } from "../../components/detail/DetailSection";
 import { HeadwordKanji } from "../../components/lookup/HeadwordKanji";
 import { LearnStatus } from "../../components/detail/LearnStatus";
 import { TabNav, type PageTab } from "../../components/ui/TabNav";
@@ -23,7 +23,6 @@ import { useNow } from "../../hooks/useNow";
 import { usePersistedControlsSnapshot, writePersistedControls } from "../../hooks/usePersistedControls";
 import { statusReviewPhrase, vocabLearningStatus } from "../../utils/learningStatus.utils";
 import { mixupsAsked } from "../../utils/mixups.utils";
-import { REVIEW_FROM_WORD_STATE, wordReviewPath } from "../../utils/navigation.utils";
 import { synonymCount } from "../../utils/synonymSections.utils";
 import { initialWordTab, WORD_TAB_STORAGE_KEY, WORD_TABS, wordTabHash, type WordTab } from "../../utils/wordTabs.utils";
 import { relatedCount } from "./explore/counts";
@@ -150,8 +149,6 @@ function WordPage({ vocab, sentences, sentencesSettled, now, onLearn, knownKanji
     };
 
     const status = vocabLearningStatus(progress, settings);
-    const due = progress ? wordReviewTaskKeys([progress], vocab.id, settings, new Date(now)).length > 0 : false;
-    const reviewable = due && !hasSessionInProgress(state);
 
     const header = (
         <DetailHeader
@@ -159,14 +156,12 @@ function WordPage({ vocab, sentences, sentencesSettled, now, onLearn, knownKanji
             layout="column"
             title={<span className="jp-display"><HeadwordKanji headword={headwordOf(vocab)} kanji={vocab.writtenForm.containedKanji} /></span>}
             chips={<HeaderChips vocab={vocab} />}
+            facts={headerFacts(vocab)}
             actions={<div data-word-status>{progress ? (
                 <LearnStatus
                     inStudy
                     status={status}
                     nextReview={statusReviewPhrase(status, vocabNextReviewAt(progress, settings), now)}
-                    // Pushed with state marking this page as the entry behind it: the session's end
-                    // goes back to it, and Back mid-review lands on it, so history holds it once.
-                    onReview={reviewable ? () => void navigate(wordReviewPath(vocab.id), { state: REVIEW_FROM_WORD_STATE }) : undefined}
                 />
             ) : (
                 <LearnStatus inStudy={false} learnLabel="Learn this word" onLearn={onLearn} />
@@ -282,6 +277,23 @@ function HeaderChips({ vocab }: { vocab: Vocabulary }) {
                 <FrequencyMeter band={band} />
                 {band.name}
             </span>
+        </>
+    );
+}
+
+/**
+ * The header's facts row, under the chips: the word's KKLC step and its textbook lessons. A word
+ * learned in kana has no KKLC step (the kanji orders never teach it); with no textbook either it
+ * has no row.
+ */
+function headerFacts(vocab: Vocabulary): ReactNode {
+    const kklc = !vocab.usuallyKana;
+    const textbooks = vocab.textbooks && vocab.textbooks.length > 0 ? vocab.textbooks : null;
+    if (!kklc && !textbooks) return undefined;
+    return (
+        <>
+            {kklc && <DetailField compact label="KKLC step">{vocab.progression.kklcStep}</DetailField>}
+            {textbooks && <DetailField compact label="Textbooks">{textbookLessonsLabel(textbooks)}</DetailField>}
         </>
     );
 }

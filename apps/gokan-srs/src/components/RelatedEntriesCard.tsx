@@ -99,17 +99,22 @@ export function RelatedEntriesCard({
  * The rows of related entries, in labelled groups, without a section around them: the card
  * above, and a word page's Explore panels, which have a heading of their own.
  */
-export function RelatedEntryList({ sections, wrapDescription = false }: {
+export function RelatedEntryList({ sections, wrapDescription = false, groupHeadings = false }: {
     sections: RelatedSection[];
     /** Wrap each row's description instead of cutting it to one line: for a list whose description is the row's content (Synonyms' shared senses). */
     wrapDescription?: boolean;
+    /**
+     * The labels as group titles (`type-subsection`, further apart) rather than field labels: for a
+     * list whose groups are its structure (Synonyms, one group per meaning), not a section's asides.
+     */
+    groupHeadings?: boolean;
 }) {
     return (
-        <div className="space-y-5">
+        <div className={groupHeadings ? 'space-y-8' : 'space-y-5'}>
             {sections.map((section, i) => (
                 <div key={section.label ?? i}>
                     {section.label && (
-                        <h3 className="type-label mb-1">
+                        <h3 className={groupHeadings ? 'type-subsection mb-2' : 'type-label mb-1'}>
                             {section.label}
                             {section.count !== undefined && <span className="type-meta ml-2 tabular-nums">{section.count.toLocaleString('en-US')}</span>}
                         </h3>

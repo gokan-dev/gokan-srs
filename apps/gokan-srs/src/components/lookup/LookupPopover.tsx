@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useState, type ReactNode, type RefObject } from "react";
-import { placePopover } from "../../utils/lookup.utils";
+import { placePopover, type PopoverPlace } from "../../utils/lookup.utils";
 
 interface LookupPopoverProps {
     id: string;
@@ -16,7 +16,7 @@ interface LookupPopoverProps {
 
 /** The pointer's card, beside its trigger, kept there as the page scrolls and the card's data arrives. */
 export function LookupPopover({ id, label, anchorRef, cardRef, focusOnOpen, onEnter, onLeave, onExit, children }: LookupPopoverProps) {
-    const [placed, setPlaced] = useState<{ left: number; top: number } | null>(null);
+    const [placed, setPlaced] = useState<PopoverPlace | null>(null);
 
     useLayoutEffect(() => {
         const place = () => {
@@ -24,7 +24,7 @@ export function LookupPopover({ id, label, anchorRef, cardRef, focusOnOpen, onEn
             const card = cardRef.current;
             if (!anchor || !card) return;
             const { width, height } = card.getBoundingClientRect();
-            setPlaced(placePopover(anchor.getBoundingClientRect(), { width, height }, window.innerWidth));
+            setPlaced(placePopover(anchor.getBoundingClientRect(), { width, height }, { width: window.innerWidth, height: window.innerHeight }));
         };
         place();
         const resize = typeof ResizeObserver === 'function' ? new ResizeObserver(place) : null;
@@ -68,8 +68,9 @@ export function LookupPopover({ id, label, anchorRef, cardRef, focusOnOpen, onEn
                     }
                 }
             }}
-            // Hidden until measured, so it never flashes at an unclamped place.
-            style={{ left: placed?.left ?? 0, top: placed?.top ?? 0, visibility: placed ? 'visible' : 'hidden' }}
+            // Hidden until measured, so it never flashes at an unclamped place. Pinned by the edge
+            // facing its trigger, so growing as its data arrives never covers the trigger (placePopover).
+            style={placed === null ? { left: 0, top: 0, visibility: 'hidden' } : { ...placed, visibility: 'visible' }}
             className="fixed z-50 w-72 max-w-[calc(100vw-1rem)] rounded-md border border-divider bg-surface shadow-lg p-3 focus-visible:outline-none"
         >
             {children}

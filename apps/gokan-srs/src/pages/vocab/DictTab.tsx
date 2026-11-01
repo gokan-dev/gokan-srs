@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
-import { textbookLessonsLabel } from "@gokan/dataset-schema";
 import type { Sentence, Vocabulary } from "@gokan/dataset-schema";
-import { DetailField, DetailSection } from "../../components/detail/DetailSection";
+import { DetailSection } from "../../components/detail/DetailSection";
 import { Disclosure } from "../../components/ui/Disclosure";
 import { TextButton } from "../../components/ui/TextButton";
 import { WordTile } from "../../components/WordTile";
@@ -27,7 +26,7 @@ interface DictTabProps {
 
 /**
  * A word page's first tab, what a dictionary entry holds: the meanings, two examples, the
- * closest synonyms, then the word's facts (KKLC step, textbooks) and the entries it merges.
+ * closest synonyms, then the entries it merges (its KKLC step and textbooks are in the header).
  */
 export function DictTab({ vocab, sentences, synonymSections, onShowSentences, onCompareSynonyms }: DictTabProps) {
     return (
@@ -35,33 +34,28 @@ export function DictTab({ vocab, sentences, synonymSections, onShowSentences, on
             <MeaningsSection vocab={vocab} />
             <ExamplesSection vocab={vocab} sentences={sentences} onShowAll={onShowSentences} />
             <ClosestSynonyms vocab={vocab} sections={synonymSections} onCompare={onCompareSynonyms} />
-            <WordFacts vocab={vocab} />
+            <MergedEntries vocab={vocab} />
         </div>
     );
 }
 
-/** The word's place in the learning orders, and the dictionary entries it combines when merged. */
-function WordFacts({ vocab }: { vocab: Vocabulary }) {
+/** The dictionary entries a merged word combines, at the tab's foot. */
+function MergedEntries({ vocab }: { vocab: Vocabulary }) {
     const merged = vocab.mergedVocabs && vocab.mergedVocabs.length > 1 ? vocab.mergedVocabs : null;
+    if (!merged) return null;
     return (
-        <div className="space-y-4 pt-6 border-t border-divider">
-            <dl className="flex flex-wrap gap-x-8 gap-y-3">
-                <DetailField compact label="KKLC step">{vocab.usuallyKana ? 'Learned in kana' : vocab.progression.kklcStep}</DetailField>
-                {vocab.textbooks && vocab.textbooks.length > 0 && <DetailField compact label="Textbooks">{textbookLessonsLabel(vocab.textbooks)}</DetailField>}
-            </dl>
-            {merged && (
-                <Disclosure title={`Combines ${merged.length} dictionary entries`}>
-                    <ul className="mt-2 space-y-2">
-                        {merged.map(entry => (
-                            <li key={entry.id}>
-                                <span className="font-gothic text-primary">{entry.originalPrimaryReading}</span>
-                                <span className="type-meta ml-2">JMdict {entry.id}</span>
-                                <p className="type-support">{entry.originalGlosses.join(', ')}</p>
-                            </li>
-                        ))}
-                    </ul>
-                </Disclosure>
-            )}
+        <div className="pt-6 border-t border-divider">
+            <Disclosure title={`Combines ${merged.length} dictionary entries`}>
+                <ul className="mt-2 space-y-2">
+                    {merged.map(entry => (
+                        <li key={entry.id}>
+                            <span className="font-gothic text-primary">{entry.originalPrimaryReading}</span>
+                            <span className="type-meta ml-2">JMdict {entry.id}</span>
+                            <p className="type-support">{entry.originalGlosses.join(', ')}</p>
+                        </li>
+                    ))}
+                </ul>
+            </Disclosure>
         </div>
     );
 }

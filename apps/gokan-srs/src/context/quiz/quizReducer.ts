@@ -56,12 +56,6 @@ export interface SessionTracking {
      * cap CONSTANTS.srs.newUsuallyKanaPerSession. Absent means none.
      */
     usuallyKanaIntroduced?: number;
-    /**
-     * The word a word page's "Review now" started this session for: it commits only that word's
-     * actionable tasks, serves no new words, and returns to the word's page once they are done.
-     * Absent for an ordinary session.
-     */
-    word?: string;
 }
 
 /**
@@ -162,7 +156,7 @@ export type QuizAction =
     | { type: 'RESET_DAILY_STATS' }
     /** Marks or un-marks listening-library episodes, one or a whole series at once. `updatedAt` is stamped by the caller, keeping this reducer free of Date.now. */
     | { type: 'SET_EPISODES_WATCHED'; payload: { entries: Record<string, WatchedEpisode> } }
-    | { type: 'SESSION_START'; payload: { taskKeys: TaskKey[]; progress?: UserProgress; word?: string } }
+    | { type: 'SESSION_START'; payload: { taskKeys: TaskKey[]; progress?: UserProgress } }
     | { type: 'SESSION_END' }
     | { type: 'SESSION_SUSPEND'; payload: { now: number } }
     | { type: 'SESSION_RESUME' }
@@ -378,9 +372,7 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
             return {
                 ...state,
                 ...(action.payload.progress ? { progress: action.payload.progress } : {}),
-                session: action.payload.word === undefined
-                    ? { committed: action.payload.taskKeys }
-                    : { committed: action.payload.taskKeys, word: action.payload.word },
+                session: { committed: action.payload.taskKeys },
                 // Fresh session -> fresh ticker, so the gains/losses summary reflects
                 // only this session's answers.
                 sessionHistory: [],

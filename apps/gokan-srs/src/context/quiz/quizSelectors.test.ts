@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { hasSessionInProgress, selectNextView, selectCurrentProgress, selectSessionStats, capSessionCommit, collectActionableTaskKeys, selectNextSessionPreview, dedupTaskKeysByVocab, isWordSessionDone, wordReviewTaskKeys } from './quizSelectors';
+import { hasSessionInProgress, selectNextView, selectCurrentProgress, selectSessionStats, capSessionCommit, collectActionableTaskKeys, selectNextSessionPreview, dedupTaskKeysByVocab } from './quizSelectors';
 import { initialState, taskKey } from './quizReducer';
 import type { QuizState, TaskKey } from './quizReducer';
 import type { UserProgress } from '../../models/user.model';
@@ -42,22 +42,6 @@ describe('selectNextView', () => {
 
         const result = selectNextView(state, false, now);
         expect(result.queueItem).toEqual({ vocabId: 'intro-1', quizType: 'reading', quizMode: 'base' });
-    });
-
-    it("serves a word's Review now session its due card, never an unfinished intro batch", () => {
-        const dueItem = makeVocabProgress({
-            vocabId: 'due-1',
-            reading: { ...DEFAULT_VOCABULARY_PROGRESS.reading, dueDate: past },
-        });
-        const state: QuizState = {
-            ...initialState,
-            progress: makeProgress([dueItem]),
-            settings: userSettings(),
-            introCandidates: [makeVocab('intro-1')],
-            session: { committed: [taskKey('due-1', 'reading')], word: 'due-1' },
-        };
-
-        expect(selectNextView(state, false, now).queueItem).toMatchObject({ vocab: { vocabId: 'due-1' }, quizType: 'reading' });
     });
 
     it('reports sessionState "review" when a due item exists', () => {
@@ -740,32 +724,5 @@ describe('hasSessionInProgress', () => {
         expect(hasSessionInProgress({ ...initialState, session: { committed: [], suspendedAt: 1 } })).toBe(true);
         expect(hasSessionInProgress({ ...initialState, grammarSession: { committed: [] } })).toBe(true);
         expect(hasSessionInProgress({ ...initialState, grammarSession: { committed: [], suspendedAt: 1 } })).toBe(true);
-    });
-});
-
-describe('wordReviewTaskKeys', () => {
-    it("lists every due direction of that word, and no other word's", () => {
-        const word = makeVocabProgress({
-            vocabId: 'w',
-            reading: { ...DEFAULT_VOCABULARY_PROGRESS.reading, dueDate: past },
-            meaning: { ...DEFAULT_VOCABULARY_PROGRESS.meaning, dueDate: past },
-        });
-        const other = makeVocabProgress({ vocabId: 'o', reading: { ...DEFAULT_VOCABULARY_PROGRESS.reading, dueDate: past } });
-        expect(wordReviewTaskKeys([word, other], 'w', userSettings(), now)).toEqual([taskKey('w', 'reading'), taskKey('w', 'meaning')]);
-    });
-
-    it('is empty for a word with nothing due', () => {
-        const word = makeVocabProgress({ vocabId: 'w', reading: { ...DEFAULT_VOCABULARY_PROGRESS.reading, dueDate: future } });
-        expect(wordReviewTaskKeys([word], 'w', userSettings(), now)).toEqual([]);
-    });
-});
-
-describe('isWordSessionDone', () => {
-    it("is true only for a word's session with every committed task done", () => {
-        const word = { committed: [taskKey('w', 'reading')], word: 'w' };
-        expect(isWordSessionDone(word, { done: 1, total: 1 })).toBe(true);
-        expect(isWordSessionDone(word, { done: 0, total: 1 })).toBe(false);
-        expect(isWordSessionDone({ committed: [] }, { done: 0, total: 0 })).toBe(false);
-        expect(isWordSessionDone(null, { done: 0, total: 0 })).toBe(false);
     });
 });

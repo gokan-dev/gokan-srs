@@ -111,17 +111,28 @@ describe('headwordGlyphs', () => {
 
 describe('placePopover', () => {
     const card = { width: 200, height: 80 };
+    const desktop = { width: 1280, height: 800 };
+    const phone = { width: 320, height: 640 };
 
-    it('centres the card above its trigger', () => {
-        expect(placePopover({ left: 300, top: 400, bottom: 420, width: 40 }, card, 1280)).toEqual({ left: 220, top: 312 });
+    it('centres the card above its trigger, pinned by its bottom edge 8px over the trigger', () => {
+        expect(placePopover({ left: 300, top: 400, bottom: 420, width: 40 }, card, desktop)).toEqual({ left: 220, bottom: 408 });
     });
 
     it('clamps the card into the viewport at either edge', () => {
-        expect(placePopover({ left: 0, top: 400, bottom: 420, width: 20 }, card, 320).left).toBe(8);
-        expect(placePopover({ left: 300, top: 400, bottom: 420, width: 20 }, card, 320).left).toBe(112);
+        expect(placePopover({ left: 0, top: 400, bottom: 420, width: 20 }, card, phone).left).toBe(8);
+        expect(placePopover({ left: 300, top: 400, bottom: 420, width: 20 }, card, phone).left).toBe(112);
     });
 
-    it('goes below a trigger with no room above it', () => {
-        expect(placePopover({ left: 300, top: 40, bottom: 60, width: 40 }, card, 1280).top).toBe(68);
+    it('goes below a trigger with no room above it, pinned by its top edge', () => {
+        expect(placePopover({ left: 300, top: 40, bottom: 60, width: 40 }, card, desktop)).toEqual({ left: 220, top: 68 });
+    });
+
+    it('never grows over its trigger: above it, the edge facing the trigger does not depend on the height', () => {
+        const anchor = { left: 300, top: 400, bottom: 420, width: 40 };
+        // The card opens on its loading line, then grows when the word arrives.
+        const loading = placePopover(anchor, { width: 200, height: 50 }, desktop);
+        const loaded = placePopover(anchor, { width: 200, height: 180 }, desktop);
+        expect(loading).toEqual(loaded);
+        expect('bottom' in loading && desktop.height - loading.bottom).toBeLessThanOrEqual(anchor.top);
     });
 });

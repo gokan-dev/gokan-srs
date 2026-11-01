@@ -96,7 +96,7 @@ export function SynonymsPanel({ vocab, sections, mixedUp }: { vocab: Vocabulary;
                 placeholder="Search in English or Japanese"
                 countLine={resultCountLine(synonymCount(matched), total, 'synonym', query)}
             />
-            <RelatedEntryList sections={groups} wrapDescription />
+            <RelatedEntryList sections={groups} wrapDescription groupHeadings />
             {hidden > 0 && (
                 <TextButton onClick={() => setGroupsShown(groupsShown + GROUPS_AT_ONCE)} className="mt-4">
                     Show {Math.min(GROUPS_AT_ONCE, hidden)} more meaning{Math.min(GROUPS_AT_ONCE, hidden) === 1 ? '' : 's'}

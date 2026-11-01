@@ -217,7 +217,7 @@ gokan-srs, everything else:
 - Detail pages: `components/detail/` (`DetailHeader` the subject and its main action,
   `DetailBody` the 8/4 body under it, or one column under a sticky tab row, `tabs` (a word's page), `LearnStatus`,
   `DetailSection`, `DetailField` (a labelled value; `compact`, a header's facts row, as a word's
-  How common), `YourProgress` (a grammar point's) and its `DirectionStatus`, shared with a
+  KKLC step and Textbooks), `YourProgress` (a grammar point's) and its `DirectionStatus`, shared with a
   word's Your study, `DetailErrorScreen`), `components/RelatedEntriesCard.tsx` (its rows alone:
   `RelatedEntryList`), `components/SRSHistoryGraph.tsx`, `components/KanjiTile.tsx` (a glyph:
   boxed only when it links), `components/WordTile.tsx` (a word as a boxed link),
@@ -249,8 +249,7 @@ gokan-srs, everything else:
   (`components/KanjiSummary.tsx`, a kanji in brief; `components/KanjiReadings.tsx`, a kanji's
   On/Kun list, `compact` or `large`, also the kanji page's), Study (`pages/vocab/StudyTab.tsx`); its
   summary gloss from `summaryGloss` (`@gokan/dataset-schema`), its two examples from
-  `utils/wordExamples.utils.ts`, its Review now through `wordReviewPath` (a session of that word's
-  due cards, `wordReviewTaskKeys`).
+  `utils/wordExamples.utils.ts`.
   Synonyms and mix-ups on it: Closest synonyms and the Synonyms panel
   (`pages/vocab/explore/SynonymsPanel.tsx`), their sections, order and caps in
   `utils/synonymSections.utils.ts`, a pair's label from

@@ -211,8 +211,7 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
   the actions start on the side column's left edge, left-aligned and top-aligned with the
   headword; below `lg` they follow the readings. A page whose body is one column (`DetailBody`
   `tabs`, a word's page) passes `layout="column"`: there is no side column to line up with,
-  so the actions follow the facts at every width and the status has the full width. The actions hold only the status (on a word's page, with
-  Review now when it is due) or, before the item is studied, the one primary "Learn this ..." button. The status is one
+  so the actions follow the facts at every width and the status has the full width. The actions hold only the status or, before the item is studied, the one primary "Learn this ..." button. The status is one
   line, the next review after the `StatusDot` label ("● Learning · Due now"), and never
   repeats the status word: a mastered item with nothing scheduled shows only
   "● Mastered" (`statusReviewPhrase`). The kanji header keeps Known / Not known. No mastery rings: those, with their values, are only in "Your
@@ -229,12 +228,13 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
   - Header, top to bottom: the headword, its spellings and reading (the kana note for a word
     learned in kana, "Also:" readings), the reading followed by its `PlayButton` (the pitch
     accent will join them); the summary gloss (`summaryGloss`, one
-    `type-body` line of the first four distinct common glosses); one chips row, the JLPT chip then
+    `type-body` line of the first four distinct common glosses); one chips row, the JLPT chip,
     How common on one line (the `FrequencyMeter` and the band's name, the round "Top 300 words"
-    and the exact rank in its `title`); the status line under it at every width (`DetailHeader`
-    `layout="column"`): Learn this word, or the status and the one due phrase, with **Review
-    now** (a small primary `Button`) when a direction is due and no session is in progress.
-    This line is the only place on the page that says "Due now". At 375x667 and 320x568 the
+    and the exact rank in its `title`); under it the facts row (`DetailHeader` `facts`), KKLC step
+    (none for a word learned in kana: the kanji orders never teach it) and Textbooks
+    (`textbookLessonsLabel`) as `DetailField compact`; the status line under it at every width (`DetailHeader`
+    `layout="column"`): Learn this word, or the status and the one due phrase. No Review now: a
+    due word is reviewed in the next session. This line is the only place on the page that says "Due now". At 375x667 and 320x568 the
     headword, reading, summary gloss and status line are on the first screen (`check:layout`).
   - The tab row: Dict, Sentences, Synonyms, Kanji, Related, Study, each only when it has
     content, no counts in the labels (each panel's result line gives them). `TabNav` in its
@@ -253,14 +253,14 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
     "Rare and archaic" label), Examples (2 sentences, `pickWordExamples`; "All N sentences →"
     opens Sentences), Closest synonyms (up to 5 `WordTile`s from the first sense's section,
     "For meaning 1: ..." under them, "Compare all N →" opens Synonyms), then at its foot, under a
-    `divider` line, KKLC step (or "Learned in kana") and Textbooks as `DetailField compact`, and
-    "Combines N dictionary entries" for a merged entry.
+    `divider` line, "Combines N dictionary entries" for a merged entry.
   - Sentences, Synonyms, Related: one search field each (44px, `text-base`, a hidden label) and a
     count line above the results (`aria-live`); nothing else, no selects, no filter pills. An
     English query matches from the start of a word, a Japanese one anywhere, kana folded;
     matches are marked (`Marked`: `<mark>`, an accent tint, the text's own colour) in the English
-    line. Sentences: 5 at a time and "Shortest first"; Synonyms: groups by meaning, "3 · to get,
-    to obtain", 3 rows each and 4 groups at a time; Related: Built from and Used in, 10 at a time.
+    line. Sentences: 5 at a time and "Shortest first"; Synonyms: groups by meaning, each headed
+    "3 · to get, to obtain" in `type-subsection` (a group title, not a field label: the groups are
+    the tab's structure), 32px apart, 3 rows each and 4 groups at a time; Related: Built from and Used in, 10 at a time.
   - Kanji: each kanji of the word in order as a `KanjiSummary`: its `KanjiTile` linking to its
     page, its meanings, On and Kun readings (`kunReadingLabel`), Known / Not known.
   - Study, for a word in study: Your study (one row of 40px rings, each direction's status
@@ -403,7 +403,9 @@ Defined once, in `components/` or `components/ui/`, never copied:
   `SecondaryForm` and `PlayButton`, the first two meanings, `StatusDot`, "Learn this word" for
   a word not in study, never mid-session, and "Open word page") and the **kanji card** (`KanjiSummary` and
   "Open kanji page"). With a mouse it is a popover (`rounded-md`, divider border, `bg-surface`,
-  `shadow-lg`, 288px wide), above its trigger and clamped into the viewport, opened after 220ms
+  `shadow-lg`, 288px wide), above its trigger and clamped into the viewport, pinned by the edge
+  facing its trigger so that growing as its data arrives never covers the trigger (which would
+  take its hover for a frame), opened after 220ms
   of hover or focus and kept 120ms after leaving the trigger and the card. In a sentence (an
   inline trigger) a click or Enter pins it until Esc, a click outside or another pin; Enter
   moves focus into it and Esc gives it back. A tile or row (a link trigger) keeps its link on
@@ -567,7 +569,8 @@ words), no example sentence is ruled (a word page's and a grammar page's are spa
 page's tabs are 44px tall on a phone, no
 reading sits over kana (a marked fallback excepted), no ruby breaks across lines and no two
 readings on a line touch (measured on their glyphs), no kanji reading (`KanjiReadings`, on a
-word page's Kanji tab) breaks across lines, and a sentence word tapped on a word
+word page's Kanji tab) breaks across lines, a sentence word hovered with a mouse at 1280px
+keeps its hover while its lookup card opens, a due word's page has no Review now, and a sentence word tapped on a word
 page opens its lookup card as a bottom sheet inside the viewport, its Close and its links (Open
 word page) 44px. A new page
 type or main route is added to its lists.
