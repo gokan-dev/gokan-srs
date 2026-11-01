@@ -59,6 +59,7 @@ export function KanjiVocabListCard({ character, vocabIds }: Props) {
                     <ListRow
                         key={v.id}
                         to={`/vocab/${v.id}`}
+                        lookup={{ kind: 'word', vocabId: v.id }}
                         trailing={
                             <div className="flex items-center gap-3">
                                 {v.jlptLevel && <span className="hidden sm:inline-flex"><JlptChip level={v.jlptLevel} /></span>}

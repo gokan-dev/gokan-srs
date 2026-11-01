@@ -235,7 +235,9 @@ gokan-srs, everything else:
   `components/KanjiSpellingNote.tsx` (the kanji spelling of a word learned in kana),
   `components/SecondaryForm.tsx` (the form beside a headword, in every list: enforced),
   `components/Ruby.tsx` (every furigana: the only `<ruby>` in the app, enforced),
-  `components/ui/TextButton.tsx` (an action written as text), `components/ui/TabNav.tsx` (every
+  `components/ui/TextButton.tsx` (an action written as text), `components/ui/BottomSheet.tsx`
+  (the one sheet, enforced), `components/lookup/` (a word's or kanji's card on hover, focus and
+  tap: `useLookup`, `LookupText`, `LookupLink`, `HeadwordKanji`; the only popover, enforced), `components/ui/TabNav.tsx` (every
   tab row: route tabs, or a page's own tabs as ARIA tabs), `components/ui/SearchField.tsx`, `components/ui/Marked.tsx`
   (a search's matches, from `utils/exploreSearch.utils.ts`).
 - A word's page: its tabs (`utils/wordTabs.utils.ts`: their hashes, and `initialWordTab`, which

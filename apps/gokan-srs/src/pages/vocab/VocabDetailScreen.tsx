@@ -14,6 +14,7 @@ import { Page, PAGE_BLEED_INSET } from "../../components/Page";
 import { DetailErrorScreen } from "../../components/detail/DetailErrorScreen";
 import { DetailBody } from "../../components/detail/DetailBody";
 import { DetailHeader } from "../../components/detail/DetailHeader";
+import { HeadwordKanji } from "../../components/lookup/HeadwordKanji";
 import { LearnStatus } from "../../components/detail/LearnStatus";
 import { TabNav, type PageTab } from "../../components/ui/TabNav";
 import { useAsyncData } from "../../hooks/useAsyncData";
@@ -155,7 +156,7 @@ function WordPage({ vocab, sentences, sentencesSettled, now, onLearn, knownKanji
         <DetailHeader
             parentPath="/vocab"
             layout="column"
-            title={<span className="jp-display">{headwordOf(vocab)}</span>}
+            title={<span className="jp-display"><HeadwordKanji headword={headwordOf(vocab)} kanji={vocab.writtenForm.containedKanji} /></span>}
             chips={<HeaderChips vocab={vocab} />}
             actions={<div data-word-status>{progress ? (
                 <LearnStatus

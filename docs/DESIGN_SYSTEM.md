@@ -395,6 +395,27 @@ Defined once, in `components/` or `components/ui/`, never copied:
   caption sits beside it (a word's kanji in its page's header). Every boxed glyph is one
   (enforced, `glyph-tile`); the known-kanji grid's toggles are the one other, and they are
   buttons. The dictionary's equivalent is the `glyph-tiles` mixin.
+- **Lookup card** (`components/lookup/`): any Japanese word or kanji looked up in place, on
+  every surface that names one: each word of an `InteractiveSentence` (but the word a quiz card
+  is about), every linking `KanjiTile` (not the one beside its own `KanjiSummary`), each kanji
+  of a word page's headword, `WordTile`, synonym, related and mix-up rows, the vocabulary list
+  and a kanji's word list. One card, two bodies: the **word card** (headword and its
+  `SecondaryForm`, the first two meanings, `StatusDot`, "Learn this word" for a word not in
+  study, never mid-session, and "Open word page") and the **kanji card** (`KanjiSummary` and
+  "Open kanji page"). With a mouse it is a popover (`rounded-md`, divider border, `bg-surface`,
+  `shadow-lg`, 288px wide), above its trigger and clamped into the viewport, opened after 220ms
+  of hover or focus and kept 120ms after leaving the trigger and the card. In a sentence (an
+  inline trigger) a click or Enter pins it until Esc, a click outside or another pin; Enter
+  moves focus into it and Esc gives it back. A tile or row (a link trigger) keeps its link on
+  click and Enter. On touch, a tap on a sentence word opens the card as a `BottomSheet`; a link
+  trigger navigates, with no card, its page being the card's content. Quiz cards keep sentence
+  words out of the Tab order. Its pure parts (`utils/lookup.utils.ts`): which click does what
+  (`clickAction`), the open/close timing (`lookupReducer`), the placement (`placePopover`).
+- **`BottomSheet`** (`ui/BottomSheet.tsx`): a panel over the bottom of the screen on a
+  `bg-primary/20` backdrop, `rounded-t-md`, capped at `max-w-lg` and centred from `sm` up; a
+  44px Close (in the heading row, or in the corner when the content names itself), Esc and a
+  tap on the backdrop close it. The phone navigation's More and the touch lookup card; no
+  second sheet (enforced, `one-sheet`).
 - **Option grids with a long tail** (the kanji method picker): the few options most
   learners pick in an `OptionGrid`, the rest in a collapsed "More ..." `Disclosure`, opened
   when the current choice is among them.
@@ -518,6 +539,10 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
 - `detail-layout`: `grid-cols-12` only in `DetailHeader` and `DetailBody`, and every
   `*DetailScreen` uses both.
 - `one-ruby`: a `<ruby>` in the app only in `components/Ruby.tsx`.
+- `one-sheet`: a sheet's panel (`rounded-t-md`) only in `components/ui/BottomSheet.tsx`.
+- `one-lookup-card`: `createPortal` only in the lookup card (`components/lookup/useLookup.tsx`),
+  `BottomSheet` and the quiz settings dialog: a word or kanji shown on hover or tap is the
+  lookup card, never a second popover.
 
 **Layout, in a browser** (`scripts/check-layout.ts`, `bun run check:layout`, run by CI in
 `.github/workflows/ci-layout.yml` on both production builds): at 320 and 375px, on the
@@ -529,8 +554,9 @@ dictionary list row is plain (primary ink, no underline), and a word in a dictio
 sentence carries only its dotted border, never the running-text underline, and no word in an
 app sentence (linked or studied) has a side margin (Japanese has no spaces between words), no
 reading sits over kana (a marked fallback excepted), no ruby breaks across lines and no two
-readings on a line touch (measured on their glyphs). A new page type or main route is added
-to its lists.
+readings on a line touch (measured on their glyphs), and a sentence word tapped on a word
+page opens its lookup card as a bottom sheet inside the viewport, its Close 44px. A new page
+type or main route is added to its lists.
 
 **Lighthouse, SEO at 100** (`scripts/check-lighthouse.ts`, `bun run check:lighthouse`, run by
 CI in `.github/workflows/ci-lighthouse.yml` on both production builds): one representative page

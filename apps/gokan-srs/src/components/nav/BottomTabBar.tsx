@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { BarChart2, BookOpen, Ellipsis, House, Library, X } from 'lucide-react';
+import { BarChart2, BookOpen, Ellipsis, House, Library } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { DictionaryLink } from './DictionaryLink';
+import { BottomSheet } from '../ui/BottomSheet';
 import { GRAMMAR, MORE_DESTINATIONS, STATS, STUDY, VOCABULARY, isDestinationActive, isMoreActive } from '../../utils/navigation.utils';
 import type { NavDestination } from '../../utils/navigation.utils';
 
@@ -23,37 +24,20 @@ function tabClass(active: boolean): string {
 function MoreSheet({ onClose }: { onClose: () => void }) {
     const { pathname } = useLocation();
 
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') onClose();
-        };
-        document.addEventListener('keydown', handleKeyDown);
-        return () => document.removeEventListener('keydown', handleKeyDown);
-    }, [onClose]);
-
     const itemClass = (active: boolean) =>
         `flex items-center h-12 px-3 rounded-md font-sans text-base transition-colors hover:bg-surface-hover ${active ? 'text-accent' : 'text-primary'}`;
 
     return (
-        <div className="fixed inset-0 z-40 md:hidden" role="dialog" aria-modal="true" aria-label="More">
-            <button type="button" aria-label="Close" onClick={onClose} className="absolute inset-0 w-full h-full bg-primary/20 cursor-default" />
-            <div className="absolute inset-x-0 bottom-0 bg-surface border-t border-divider rounded-t-md shadow-lg p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-                <div className="flex items-center justify-between mb-2">
-                    <h2 className="type-subsection">More</h2>
-                    <button type="button" onClick={onClose} aria-label="Close" autoFocus className="p-2 text-secondary hover:text-primary cursor-pointer">
-                        <X size={18} />
-                    </button>
-                </div>
-                <nav aria-label="More" className="flex flex-col">
-                    {MORE_DESTINATIONS.map(destination => (
-                        <Link key={destination.to} to={destination.to} onClick={onClose} className={itemClass(isDestinationActive(pathname, destination))}>
-                            {destination.label}
-                        </Link>
-                    ))}
-                    <DictionaryLink className={itemClass(false)} onClick={onClose} />
-                </nav>
-            </div>
-        </div>
+        <BottomSheet label="More" onClose={onClose} className="md:hidden">
+            <nav aria-label="More" className="flex flex-col">
+                {MORE_DESTINATIONS.map(destination => (
+                    <Link key={destination.to} to={destination.to} onClick={onClose} className={itemClass(isDestinationActive(pathname, destination))}>
+                        {destination.label}
+                    </Link>
+                ))}
+                <DictionaryLink className={itemClass(false)} onClick={onClose} />
+            </nav>
+        </BottomSheet>
     );
 }
 
@@ -65,6 +49,8 @@ function MoreSheet({ onClose }: { onClose: () => void }) {
 export function BottomTabBar() {
     const { pathname } = useLocation();
     const [moreOpen, setMoreOpen] = useState(false);
+    // Stable, so the sheet's Esc listener is not re-attached on every render.
+    const closeMore = useCallback(() => setMoreOpen(false), []);
 
     return (
         <>
@@ -93,7 +79,7 @@ export function BottomTabBar() {
                     </button>
                 </div>
             </nav>
-            {moreOpen && <MoreSheet onClose={() => setMoreOpen(false)} />}
+            {moreOpen && <MoreSheet onClose={closeMore} />}
         </>
     );
 }

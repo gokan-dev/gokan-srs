@@ -20,7 +20,7 @@ export function KanjiSummary({ glyph, kanji, known }: KanjiSummaryProps) {
     const loaded = kanji === 'loading' ? null : kanji;
     return (
         <div className="flex items-start gap-4 min-w-0">
-            <KanjiTile glyph={glyph} to={`/kanji/${glyph}`} />
+            <KanjiTile glyph={glyph} to={`/kanji/${glyph}`} lookup={false} />
             <div className="min-w-0 flex-1 space-y-1">
                 {kanji === 'loading' && <CardSkeleton variant="line" />}
                 {loaded && loaded.meanings.length > 0 && <p className="type-body">{loaded.meanings.join(', ')}</p>}

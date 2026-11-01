@@ -1,11 +1,15 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
+import type { LookupTarget } from "../../utils/lookup.utils";
+import { useLookup } from "../lookup/useLookup";
 
 interface ListRowProps {
     to: string;
     children: ReactNode;
     trailing?: ReactNode;
     className?: string;
+    /** The word the row names, for its lookup card on hover and focus (the row still opens on click). */
+    lookup?: LookupTarget;
 }
 
 /**
@@ -18,9 +22,12 @@ interface ListRowProps {
  * nesting an interactive element inside an `<a>`. The trailing slot sits above
  * the stretched link; text in it still opens the row.
  */
-export function ListRow({ to, children, trailing, className = '' }: ListRowProps) {
+export function ListRow({ to, children, trailing, className = '', lookup }: ListRowProps) {
+    const { triggerProps, card } = useLookup(lookup, 'link');
     return (
+        <>
         <div
+            {...triggerProps}
             // Marks the row for check:layout, which keeps the Japanese in it to one line each.
             data-list-row
             className={`
@@ -35,5 +42,7 @@ export function ListRow({ to, children, trailing, className = '' }: ListRowProps
             </Link>
             {trailing && <div className="shrink-0 relative pointer-events-none [&_button]:pointer-events-auto">{trailing}</div>}
         </div>
+        {card}
+        </>
     );
 }

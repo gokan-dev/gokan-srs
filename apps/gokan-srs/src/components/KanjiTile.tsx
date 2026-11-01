@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { LookupLink } from "./lookup/LookupLink";
 
 interface KanjiTileProps {
     glyph: string;
@@ -8,6 +8,11 @@ interface KanjiTileProps {
     caption?: string;
     /** `sm` (32px, the caption beside it): a word's kanji inline in its page's header. */
     size?: 'md' | 'sm';
+    /**
+     * Its lookup card on hover and focus, on by default for a tile that links. Off where the tile
+     * stands beside its own summary (KanjiSummary: the Kanji tab, the card itself).
+     */
+    lookup?: boolean;
 }
 
 const BOX = {
@@ -19,7 +24,7 @@ const BOX = {
  * One glyph as a tile: a word's kanji, a kanji's components. A box only when it is a link, so a
  * glyph with nowhere to go never looks clickable (DESIGN_SYSTEM.md, principle 7).
  */
-export function KanjiTile({ glyph, to, caption, size = 'md' }: KanjiTileProps) {
+export function KanjiTile({ glyph, to, caption, size = 'md', lookup = true }: KanjiTileProps) {
     const layout = size === 'sm' ? 'flex items-center gap-2' : 'flex flex-col items-center gap-1';
     const captionLine = caption && <span className="type-meta">{caption}</span>;
     if (!to) {
@@ -31,7 +36,7 @@ export function KanjiTile({ glyph, to, caption, size = 'md' }: KanjiTileProps) {
         );
     }
     return (
-        <Link to={to} className={`${layout} group focus-visible:outline-none`}>
+        <LookupLink to={to} target={lookup ? { kind: 'kanji', glyph } : undefined} className={`${layout} group focus-visible:outline-none`}>
             <span
                 className={`${BOX[size]} flex items-center justify-center rounded-md border border-divider bg-surface font-mincho text-primary group-hover:border-accent group-focus-visible:ring-2 group-focus-visible:ring-accent transition-colors`}
                 lang="ja"
@@ -39,6 +44,6 @@ export function KanjiTile({ glyph, to, caption, size = 'md' }: KanjiTileProps) {
                 {glyph}
             </span>
             {captionLine}
-        </Link>
+        </LookupLink>
     );
 }

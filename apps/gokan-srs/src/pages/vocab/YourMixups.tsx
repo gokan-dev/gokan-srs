@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { LookupLink } from "../../components/lookup/LookupLink";
 import { Marked } from "../../components/ui/Marked";
 import { TextButton } from "../../components/ui/TextButton";
 import { resultTextClass } from "../../components/quiz/quizStyles";
@@ -58,9 +58,9 @@ export function YourMixups({ vocabId, records, query = null }: { vocabId: string
                         {/* The answer is free text: a Latin token the IME left alone has no break point. */}
                         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                             {record.typed ? (
-                                <Link to={`/vocab/${record.typed}`} lang="ja" className="min-w-0 break-all font-gothic text-base text-accent hover:underline">
+                                <LookupLink to={`/vocab/${record.typed}`} target={{ kind: 'word', vocabId: record.typed }} lang="ja" className="min-w-0 break-all font-gothic text-base text-accent hover:underline">
                                     {record.answer}
-                                </Link>
+                                </LookupLink>
                             ) : (
                                 <span lang="ja" className="min-w-0 break-all font-gothic text-base text-primary">{record.answer}</span>
                             )}
