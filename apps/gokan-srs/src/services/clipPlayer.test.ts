@@ -10,7 +10,12 @@ vi.mock('./audio.service', () => ({ loadAudioIndex }));
 class FakeClip implements PlayableClip {
     paused = false;
     private listeners: Record<string, (() => void)[]> = {};
-    constructor(readonly url: string, private readonly playResult: Promise<void> = Promise.resolve()) {}
+    readonly url: string;
+    private readonly playResult: Promise<void>;
+    constructor(url: string, playResult: Promise<void> = Promise.resolve()) {
+        this.url = url;
+        this.playResult = playResult;
+    }
     play() { return this.playResult; }
     pause() { this.paused = true; }
     addEventListener(type: 'ended' | 'error', listener: () => void) { (this.listeners[type] ??= []).push(listener); }
