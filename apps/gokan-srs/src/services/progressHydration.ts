@@ -64,7 +64,7 @@ export function toStoredProgress(parsed: unknown): StoredProgress {
 export function parseStoredSettings(json: string, defaults: UserSettings): UserSettings {
     const parsed: unknown = JSON.parse(json);
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return hydrateSettings({}, defaults);
-    return hydrateSettings(parsed as Partial<UserSettings>, defaults);
+    return hydrateSettings(parsed, defaults);
 }
 
 /**
@@ -76,18 +76,20 @@ export function parseStoredSettings(json: string, defaults: UserSettings): UserS
  */
 export function hydrateSettings(stored: Partial<UserSettings>, defaults: UserSettings): UserSettings {
     const merged = { ...defaults, ...stored };
-    const intervalModifier = typeof stored.intervalModifier === 'number'
+    const presets: Record<string, number> = CONSTANTS.srs.legacyFrequencyPresets;
+    const intervalModifier = typeof stored.intervalModifier === 'number' && Number.isFinite(stored.intervalModifier)
         ? stored.intervalModifier
-        : stored.learningFrequency
-            ? CONSTANTS.srs.legacyFrequencyPresets[stored.learningFrequency]
+        : typeof stored.learningFrequency === 'string' && Object.hasOwn(presets, stored.learningFrequency)
+            ? presets[stored.learningFrequency]
             : defaults.intervalModifier;
     const storedHistory: unknown[] = Array.isArray(stored.intervalModifierHistory) ? stored.intervalModifierHistory : [];
     const valid = storedHistory
         .filter((c): c is IntervalModifierChange => typeof c === 'object' && c !== null
             && 'from' in c && typeof c.from === 'string' && 'value' in c && typeof c.value === 'number')
         .sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0));
-    const intervalModifierHistory = valid.length > 0 ? valid : [{ from: PACING_EPOCH, value: intervalModifier }];
-    return { ...merged, intervalModifier, intervalModifierHistory };
+    if (valid.length === 0) return { ...merged, intervalModifier, intervalModifierHistory: [{ from: PACING_EPOCH, value: intervalModifier }] };
+    // The current value is always the latest change's, as the Drive merge reads it.
+    return { ...merged, intervalModifier: valid[valid.length - 1].value, intervalModifierHistory: valid };
 }
 
 /**

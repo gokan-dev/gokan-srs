@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { commitIntervalModifier } from '../calibration';
 import { mergeEntry, mergeVocabProgress, mergeLearningQueues, mergeGrammarProgress, mergeGrammarQueues, mergeProgress, mergeSettings } from './mergeProgress';
 import type { ProgressWithMetadata } from './types';
 import type { SRSEntry } from '../../models/vocabulary.model';
@@ -412,8 +413,19 @@ describe('mergeSettings', () => {
         const local: UserSettings = { ...DEFAULT_SETTINGS, preferredLearningOrder: 'frequency' };
         const remote: UserSettings = { ...DEFAULT_SETTINGS, preferredLearningOrder: 'kklc' };
 
-        expect(mergeSettings(local, remote, 2, 1)).toBe(local);
-        expect(mergeSettings(local, remote, 1, 1)).toBe(local); // tie -> local wins
-        expect(mergeSettings(local, remote, 1, 2)).toBe(remote);
+        expect(mergeSettings(local, remote, 2, 1)).toEqual(local);
+        expect(mergeSettings(local, remote, 1, 1)).toEqual(local); // tie -> local wins
+        expect(mergeSettings(local, remote, 1, 2)).toEqual(remote);
+    });
+
+    it('unions the pacing history whichever side wins, the latest change setting the value', () => {
+        const local: UserSettings = commitIntervalModifier({ ...DEFAULT_SETTINGS, preferredLearningOrder: 'frequency' }, 3, new Date('2026-10-20T00:00:00Z'));
+        const remote: UserSettings = commitIntervalModifier({ ...DEFAULT_SETTINGS, preferredLearningOrder: 'kklc' }, 1, new Date('2026-10-10T00:00:00Z'));
+
+        const remoteWins = mergeSettings(local, remote, 1, 2);
+        expect(remoteWins.preferredLearningOrder).toBe('kklc');
+        expect(remoteWins.intervalModifier).toBe(3);
+        expect(remoteWins.intervalModifierHistory.map(c => c.value)).toEqual([1.5, 1, 3]);
+        expect(mergeSettings(remote, local, 2, 1).intervalModifierHistory).toEqual(remoteWins.intervalModifierHistory);
     });
 });

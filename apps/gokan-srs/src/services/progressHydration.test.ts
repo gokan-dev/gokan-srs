@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { hydrateKanjiKnowledge, hydrateMixups, parseStoredProgress, parseStoredSettings } from './progressHydration';
-import { DEFAULT_SETTINGS } from '../models/user.model';
+import { DEFAULT_SETTINGS, PACING_EPOCH } from '../models/user.model';
 
 describe('parseStoredSettings', () => {
     it('loads settings stored with the retired answerColors key', () => {
@@ -8,8 +8,26 @@ describe('parseStoredSettings', () => {
         expect(parseStoredSettings(stored, DEFAULT_SETTINGS)).toMatchObject({
             ...DEFAULT_SETTINGS,
             preferredLearningOrder: 'kklc',
-            learningFrequency: 'low',
+            intervalModifier: 2.0,
+            intervalModifierHistory: [{ from: PACING_EPOCH, value: 2.0 }],
         });
+    });
+
+    it('migrates each stored preset to its exact multiplier, seeding the history from the epoch', () => {
+        for (const [preset, multiplier] of [['high', 1.0], ['medium', 1.5], ['low', 2.0]] as const) {
+            const settings = parseStoredSettings(JSON.stringify({ learningFrequency: preset }), DEFAULT_SETTINGS);
+            expect(settings.intervalModifier).toBe(multiplier);
+            expect(settings.intervalModifierHistory).toEqual([{ from: PACING_EPOCH, value: multiplier }]);
+        }
+    });
+
+    it('defaults pacing when nothing is stored, and keeps a stored history as it is', () => {
+        expect(parseStoredSettings('{}', DEFAULT_SETTINGS).intervalModifier).toBe(1.5);
+        expect(parseStoredSettings(JSON.stringify({ learningFrequency: 'nonsense' }), DEFAULT_SETTINGS).intervalModifier).toBe(1.5);
+        const history = [{ from: PACING_EPOCH, value: 2 }, { from: '2026-11-01T00:00:00.000Z', value: 3.2 }];
+        const settings = parseStoredSettings(JSON.stringify({ learningFrequency: 'low', intervalModifier: 3.2, intervalModifierHistory: history }), DEFAULT_SETTINGS);
+        expect(settings.intervalModifier).toBe(3.2);
+        expect(settings.intervalModifierHistory).toEqual(history);
     });
 });
 

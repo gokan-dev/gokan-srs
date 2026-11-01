@@ -8,7 +8,6 @@ import {
     isMeaningQuizEnabled,
     isProductionQuizEnabled,
     isReadingRelevant,
-    isVocabDue,
     isVocabFullyMastered,
     vocabNextReviewAt,
 } from "../services/scheduling";
@@ -60,10 +59,14 @@ export interface QuizItem {
 function isReadingDue(v: VocabProgress, settings: UserSettings | undefined, now: Date): boolean {
     if (!isReadingRelevant(v)) return false;
 
+    // A first review is set at the intro with no interval behind it, so review
+    // pacing never moves it: the date cached at the intro is the one to read.
     const isFirstReview =
         v.totalReviews === 0 &&
         v.introductionAt !== null &&
-        isVocabDue(v, settings, now);
+        v.nextReviewAt !== null &&
+        v.nextReviewAt <= now &&
+        v.stage !== 'graduated';
 
     const isDueReading = v.totalReviews > 0 && isEntryDue(v.reading, settings, now);
 
