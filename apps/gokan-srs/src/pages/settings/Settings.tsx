@@ -241,7 +241,6 @@ export function SettingsScreen({
               */}
             <SettingsSection title="Review pacing" description="How long reviews wait before coming back, for vocabulary and grammar alike.">
                 <ReviewPacing
-                    key={settings.intervalModifier}
                     settings={settings}
                     progress={quizState.progress}
                     onUpdateSettings={onUpdateSettings}

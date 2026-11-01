@@ -181,3 +181,17 @@ export function buildWorkloadForecast(
     const total = result.reduce((sum, d) => sum + d.scheduled + d.projected, 0);
     return { dueNow, days: result, averagePerDay: days > 0 ? total / days : 0 };
 }
+
+/** The busiest day's reviews, scheduled and projected together. */
+export function highestDay(forecast: WorkloadForecast): number {
+    return forecast.days.reduce((max, day) => Math.max(max, day.scheduled + day.projected), 0);
+}
+
+/**
+ * True when there is nothing to forecast: no review planned or projected on any
+ * day and none due now (a new learner, or no introductions lately and nothing
+ * scheduled). Shown as one line rather than an empty chart.
+ */
+export function isEmptyForecast(forecast: WorkloadForecast): boolean {
+    return forecast.dueNow === 0 && highestDay(forecast) === 0;
+}

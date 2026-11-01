@@ -17,4 +17,13 @@ export const THEME = {
         meaning: { loop1: 'var(--mastery-meaning)' },
         production: { loop1: 'var(--mastery-production)' },
     },
+    /**
+     * The accent in steps, for an ordinal series that is not a quiz direction (the
+     * pacing forecast's Scheduled and Projected). The same variables as the
+     * direction colours, under names that do not claim Reading or Meaning.
+     */
+    accentStep: {
+        full: 'var(--mastery-reading)',
+        mid: 'var(--mastery-meaning)',
+    },
 } as const;

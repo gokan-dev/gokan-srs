@@ -34,3 +34,19 @@ export function showsLabelWhenNarrow(index: number, count: number): boolean {
     const every = count <= 10 ? 1 : count <= 20 ? 2 : 5;
     return (count - 1 - index) % every === 0;
 }
+
+/** Which edge of its bar a tooltip lines up with. */
+export type TooltipAnchor = 'start' | 'center' | 'end';
+
+/**
+ * Where bar `index`'s tooltip sits: centred over the bar in the middle third,
+ * and from the bar's outer edge in the first and last third, so the tooltip of
+ * a thin bar near the chart's edge (a month of bars at 320px) opens inward
+ * instead of past the screen.
+ */
+export function tooltipAnchor(index: number, count: number): TooltipAnchor {
+    if (count <= 1) return 'center';
+    if (index < count / 3) return 'start';
+    if (index >= count - count / 3) return 'end';
+    return 'center';
+}

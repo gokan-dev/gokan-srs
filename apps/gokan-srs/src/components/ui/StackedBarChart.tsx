@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { axisTicks, segmentHeightPercent, showsLabelWhenNarrow, stackedBarDomOrder } from "../../utils/stackedBarChart.utils";
+import { axisTicks, segmentHeightPercent, showsLabelWhenNarrow, stackedBarDomOrder, tooltipAnchor, type TooltipAnchor } from "../../utils/stackedBarChart.utils";
+
+const TOOLTIP_POSITION: Record<TooltipAnchor, string> = {
+    start: 'left-0',
+    center: 'left-1/2 -translate-x-1/2',
+    end: 'right-0',
+};
 
 export interface StackedBarChartSegment {
     key: string;
@@ -108,7 +114,8 @@ export function StackedBarChart({ segments, bars, height = 128, maxValue, showLe
                                     {shownIndex === i && (
                                         <div
                                             role="tooltip"
-                                            className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-surface border border-divider shadow-md rounded-md px-2 py-1.5 flex flex-col items-start text-xs w-max z-20 pointer-events-none"
+                                            data-chart-tooltip
+                                            className={`absolute bottom-full mb-2 ${TOOLTIP_POSITION[tooltipAnchor(i, bars.length)]} bg-surface border border-divider shadow-md rounded-md px-2 py-1.5 flex flex-col items-start text-xs w-max z-20 pointer-events-none`}
                                         >
                                             <span className="font-medium text-primary">{bar.title ?? bar.label}: {total.toLocaleString('en-US')}</span>
                                             {segments.map(s => (

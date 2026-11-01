@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useEffectEvent, useRef, type ReactNode } from "react";
 
 interface SettingSliderProps {
     label: string;
@@ -9,9 +9,11 @@ interface SettingSliderProps {
     step: number;
     onChange: (value: number) => void;
     /**
-     * Called once the value is let go: the pointer is released, or a key that moved
-     * it comes up. For a setting that records each change (review pacing), so a drag
-     * commits once rather than on every step.
+     * Called once the value is let go, on the range's native `change` event: once
+     * on a pointer's release (wherever the pointer is), on each key step and on
+     * each assistive-tech adjustment. For a setting that records each change
+     * (review pacing), so a drag commits once rather than on every step. React's
+     * `onChange` is the `input` event, which fires on every step of a drag.
      */
     onCommit?: (value: number) => void;
     /** Text shown next to the label for the current value, e.g. "From 50 on the meaning ring". */
@@ -48,9 +50,15 @@ export function SettingSlider({
     className = "",
     children,
 }: SettingSliderProps) {
-    const commit = (target: EventTarget) => {
-        if (onCommit && target instanceof HTMLInputElement) onCommit(Number(target.value));
-    };
+    const input = useRef<HTMLInputElement>(null);
+    const commit = useEffectEvent((value: number) => onCommit?.(value));
+    useEffect(() => {
+        const range = input.current;
+        if (!range) return;
+        const onNativeChange = () => commit(Number(range.value));
+        range.addEventListener('change', onNativeChange);
+        return () => range.removeEventListener('change', onNativeChange);
+    }, []);
     return (
         <div
             className={`bg-surface rounded-md border border-divider ${dense ? 'p-3' : 'p-4'} ${disabled ? 'opacity-50 pointer-events-none' : ''} ${className}`}
@@ -70,9 +78,8 @@ export function SettingSlider({
                 step={step}
                 value={value}
                 disabled={disabled}
+                ref={input}
                 onChange={(e) => onChange(Number(e.target.value))}
-                onPointerUp={(e) => commit(e.target)}
-                onKeyUp={(e) => commit(e.target)}
                 aria-valuetext={ariaValueText}
                 className="w-full h-2 bg-divider rounded-full appearance-none cursor-pointer accent-accent"
             />

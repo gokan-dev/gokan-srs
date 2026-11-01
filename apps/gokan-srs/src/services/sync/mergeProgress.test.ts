@@ -4,8 +4,8 @@ import { mergeEntry, mergeVocabProgress, mergeLearningQueues, mergeGrammarProgre
 import type { ProgressWithMetadata } from './types';
 import type { SRSEntry } from '../../models/vocabulary.model';
 import type { GrammarProgress } from '../../models/grammar.model';
-import { DEFAULT_SETTINGS, type UserSettings } from '../../models/user.model';
-import { grammarProgress, mixupRecord, srsEntry, userProgress, vocabProgress } from '../../test/fixtures';
+import { DEFAULT_SETTINGS, PACING_EPOCH, type UserSettings } from '../../models/user.model';
+import { grammarProgress, mixupRecord, srsEntry, userProgress, userSettings, vocabProgress } from '../../test/fixtures';
 
 const makeEntry = (overrides: Partial<SRSEntry> = {}): SRSEntry => srsEntry({ memoryStrength: 10, interval: 5, ...overrides });
 
@@ -76,7 +76,7 @@ describe('mergeVocabProgress (per-entry merge - the core fix)', () => {
         const dueDate = new Date('2026-03-11T00:00:00Z');
         const entry = () => makeEntry({ interval: 10, dueDate, lastReviewedAt: new Date('2026-03-01T00:00:00Z') });
         const settings = commitIntervalModifier(
-            { ...DEFAULT_SETTINGS, intervalModifier: 1.5, intervalModifierHistory: [{ from: 0, value: 1.5 }] },
+            userSettings({ intervalModifier: 1.5, intervalModifierHistory: [{ from: PACING_EPOCH, value: 1.5 }] }),
             3.0,
             new Date('2026-03-05T00:00:00Z')
         );

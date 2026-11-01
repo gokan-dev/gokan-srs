@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildWorkloadForecast, seededRandom } from './workloadForecast.utils';
+import { buildWorkloadForecast, highestDay, isEmptyForecast, seededRandom } from './workloadForecast.utils';
 import { CONSTANTS } from '../commons/constants';
 import { PACING_EPOCH } from '../models/user.model';
 import type { SRSEntry, VocabProgress } from '../models/vocabulary.model';
@@ -109,5 +109,20 @@ describe('buildWorkloadForecast', () => {
         const started = performance.now();
         buildWorkloadForecast(big, pacing(1.5), now, seededRandom(1));
         expect(performance.now() - started).toBeLessThan(1000);
+    });
+});
+
+describe('highestDay and isEmptyForecast', () => {
+    it('reads the busiest day, scheduled and projected together', () => {
+        const forecast = buildWorkloadForecast(userProgress({ learningQueue: queue(40) }), pacing(1.5), now, seededRandom(3));
+        const busiest = Math.max(...forecast.days.map(d => d.scheduled + d.projected));
+        expect(highestDay(forecast)).toBe(busiest);
+        expect(isEmptyForecast(forecast)).toBe(false);
+    });
+
+    it('is empty for a learner with nothing scheduled and no recent introductions', () => {
+        const forecast = buildWorkloadForecast(userProgress(), pacing(1.5), now, seededRandom(3));
+        expect(highestDay(forecast)).toBe(0);
+        expect(isEmptyForecast(forecast)).toBe(true);
     });
 });
