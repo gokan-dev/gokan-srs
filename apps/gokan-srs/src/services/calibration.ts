@@ -1,7 +1,7 @@
 import { CONSTANTS } from '../commons/constants';
-import type { AdaptiveStats, CalibratedQuizType, Calibration, UserProgress, UserSettings } from '../models/user.model';
+import type { AdaptiveStats, CalibratedQuizType, Calibration, IntervalModifierChange, UserProgress, UserSettings } from '../models/user.model';
 import { CALIBRATED_QUIZ_TYPES } from '../models/user.model';
-import type { ReviewLog, SRSEntry, VocabProgress } from '../models/vocabulary.model';
+import type { ReviewLog, VocabProgress } from '../models/vocabulary.model';
 import type { GrammarProgress } from '../models/grammar.model';
 import type { AnswerResult } from './srs.service';
 import type { Stored } from './progressHydration';
@@ -168,9 +168,70 @@ export function recentWinRate(stats: AdaptiveStats | undefined): number | null {
     return stats.history.filter(Boolean).length / stats.history.length;
 }
 
-/** The user's review-pacing preference, applied to every quiz type's interval. */
-export function frequencyModifierOf(settings: Pick<UserSettings, 'learningFrequency'> | null | undefined): number {
-    return CONSTANTS.srs.frequencyMultipliers[settings?.learningFrequency ?? 'medium'];
+/** What reads review pacing off the settings: the current value and its history. */
+export type PacingSettings = Pick<UserSettings, 'intervalModifier' | 'intervalModifierHistory'>;
+
+/**
+ * The learner's review pacing (the slider), applied to every quiz type's
+ * interval. The one reader of `intervalModifier`; absent settings read as the default.
+ */
+export function frequencyModifierOf(settings: Pick<UserSettings, 'intervalModifier'> | null | undefined): number {
+    return settings?.intervalModifier ?? CONSTANTS.srs.intervalModifier.default;
+}
+
+/**
+ * The pacing value in effect at `date`: the latest change from on or before it.
+ * Null when the history holds nothing that early (an empty history; the seeded
+ * entry is from the epoch, so never for a hydrated one). One lookup shared by
+ * the knowledge curve and the effective due date.
+ */
+export function modifierAt(history: readonly IntervalModifierChange[] | undefined, date: Date | number): number | null {
+    if (!history || history.length === 0) return null;
+    const at = new Date(date).toISOString();
+    let value: number | null = null;
+    for (const change of history) {
+        if (change.from > at) break;
+        value = change.value;
+    }
+    return value;
+}
+
+/** A history ordered by `from`, one entry per date (the later-listed one on a tie). */
+function orderedHistory(changes: readonly IntervalModifierChange[]): IntervalModifierChange[] {
+    const byFrom = new Map<string, IntervalModifierChange>();
+    for (const change of changes) byFrom.set(change.from, change);
+    return [...byFrom.values()].sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0));
+}
+
+/**
+ * Commits a pacing value: sets it and appends it to the history, from `now`.
+ * Called once per commit (the slider's release), never per step of a drag, and
+ * a no-op when the value is already the current one.
+ */
+export function commitIntervalModifier<S extends PacingSettings>(settings: S, value: number, now: Date): S {
+    if (value === settings.intervalModifier) return settings;
+    return {
+        ...settings,
+        intervalModifier: value,
+        intervalModifierHistory: orderedHistory([...settings.intervalModifierHistory, { from: now.toISOString(), value }]),
+    };
+}
+
+/**
+ * Merges two devices' pacing: the union of both histories by `from`, ordered,
+ * and the current value is the latest entry's. Deterministic either way round
+ * (two different values at the very same instant keep the larger), and never
+ * loses a change.
+ */
+export function mergePacing(local: PacingSettings, remote: PacingSettings): PacingSettings {
+    const all = [...local.intervalModifierHistory, ...remote.intervalModifierHistory]
+        .sort((a, b) => a.value - b.value);
+    const intervalModifierHistory = orderedHistory(all);
+    const latest = intervalModifierHistory.at(-1);
+    return {
+        intervalModifier: latest ? latest.value : local.intervalModifier,
+        intervalModifierHistory,
+    };
 }
 
 /**
@@ -185,68 +246,4 @@ export function mergeCalibration(local: Calibration | undefined, remote: Calibra
         type,
         r[type].history.length > l[type].history.length ? r[type] : l[type],
     ])) as Calibration;
-}
-
-/* ---------- One-time transition: strength catches up with the schedule ---------- */
-
-/**
- * Raises an entry's strength to what its own scheduled interval demonstrates.
- *
- * Under the old formula an interval was strength x lnTarget x adaptiveLevel x
- * frequency, so `interval / (lnTarget x frequency)` recovers strength x
- * adaptiveLevel: exactly the rebase the calibration needs, per entry, with every
- * due date left as it is. Under the new formula the same expression gives back
- * the strength itself, so running this again changes nothing: it is idempotent
- * by construction rather than guarded by a stored marker. That matters because a
- * tab still running an older build merges with `...local` and would drop a
- * marker, and re-applying a plain "strength x level" would then double it.
- *
- * Left alone: an unscheduled entry (inert production, skipped words), an
- * already-mastered one, and an interval sitting at the 1-day success floor (that
- * is a scheduling floor, not demonstrated recall). Strength is only ever raised:
- * a wrong answer's shortened interval demonstrates less, never more.
- */
-export function rebaseEntryToSchedule(entry: SRSEntry, frequencyModifier: number): SRSEntry {
-    const F = CONSTANTS.srs.formula;
-    if (entry.dueDate === null) return entry;
-    if (entry.memoryStrength >= F.mastery.maxMemoryStrength) return entry;
-    if (entry.interval <= F.minIntervalAfterSuccess + 1e-9) return entry;
-    const demonstrated = Math.min(entry.interval, F.maxInterval) / (F.lnTarget * frequencyModifier);
-    if (demonstrated <= entry.memoryStrength + 1e-9) return entry;
-    return { ...entry, memoryStrength: demonstrated };
-}
-
-function rebaseVocab(vp: VocabProgress, frequencyModifier: number): VocabProgress {
-    const reading = rebaseEntryToSchedule(vp.reading, frequencyModifier);
-    const meaning = rebaseEntryToSchedule(vp.meaning, frequencyModifier);
-    const production = vp.production ? rebaseEntryToSchedule(vp.production, frequencyModifier) : vp.production;
-    if (reading === vp.reading && meaning === vp.meaning && production === vp.production) return vp;
-    return { ...vp, reading, meaning, production };
-}
-
-function rebaseGrammar(gp: GrammarProgress, frequencyModifier: number): GrammarProgress {
-    const entry = rebaseEntryToSchedule(gp.entry, frequencyModifier);
-    return entry === gp.entry ? gp : { ...gp, entry };
-}
-
-/**
- * Applies rebaseEntryToSchedule to every vocab and grammar entry. Returns the
- * same reference when nothing changed, so a no-op run triggers no save or upload.
- * Stage and nextReviewAt are left as they are: the due dates do not move, and a
- * word that the rebase lifts past mastery graduates on its next answer through
- * the normal path, like any other entry that crossed the ceiling.
- */
-export function rebaseStrengthsToSchedule<T extends Pick<UserProgress, 'learningQueue' | 'grammarQueue'>>(progress: T, frequencyModifier: number): T {
-    let changed = false;
-    const learningQueue = progress.learningQueue.map(vp => {
-        const next = rebaseVocab(vp, frequencyModifier);
-        if (next !== vp) changed = true;
-        return next;
-    });
-    const grammarQueue = progress.grammarQueue.map(gp => {
-        const next = rebaseGrammar(gp, frequencyModifier);
-        if (next !== gp) changed = true;
-        return next;
-    });
-    return changed ? { ...progress, learningQueue, grammarQueue } : progress;
 }

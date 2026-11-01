@@ -18,7 +18,6 @@ import { nextKanjiStep } from '../../utils/kanjiOrder.utils';
 import { pickProductionClozeSentence } from '../../utils/productionCloze.utils';
 import type { ProductionCloze } from '../../utils/productionCloze.utils';
 import { indexLearnerVocab, pickSentenceForVocab } from '../../utils/sentenceRanking';
-import { frequencyModifierOf } from '../../services/calibration';
 import { mergeProgress, mergeSettings } from '../../services/sync/mergeProgress';
 import { useGoogleDrive } from '../useGoogleDrive';
 import type { QuizState, QuizAction } from './quizReducer';
@@ -71,7 +70,6 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
         uploadAuthoritative,
         isAuthenticated,
         isDownloading,
-        isInitialLoadComplete,
         lastDownload,
         lastBackgroundMerge,
     } = useGoogleDrive();
@@ -494,26 +492,8 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
                 type: 'SETUP_COMPLETE',
                 payload: { progress: refreshedProgress, settings: refreshedSettings }
             });
-            // Calibration transition, only now that the Drive sync has brought the
-            // state up to date: it then rebases the merged state, and the auto-upload
-            // effect publishes the result. Dispatched after SETUP_COMPLETE so it
-            // applies to the reloaded progress, never to a pre-sync snapshot. It is
-            // idempotent (see rebaseStrengthsToSchedule), so a later re-download
-            // simply normalizes anything an older build wrote in the meantime.
-            dispatch({ type: 'REBASE_STRENGTHS', payload: { frequencyModifier: frequencyModifierOf(refreshedSettings) } });
         }, 0);
     }, [lastDownload, dispatch]);
-
-    // The same transition for a user not signed in to Drive: there is no sync to
-    // wait for, so it runs once the initial load is complete.
-    const localRebaseDoneRef = useRef(false);
-    useEffect(() => {
-        if (localRebaseDoneRef.current || !state.progress || !state.settings) return;
-        if (!isInitialLoadComplete || isAuthenticated) return;
-        localRebaseDoneRef.current = true;
-        dispatch({ type: 'REBASE_STRENGTHS', payload: { frequencyModifier: frequencyModifierOf(state.settings) } });
-        // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once (guarded by a ref) after the initial load; progress and settings changes must not re-trigger it
-    }, [state.progress, state.settings, isInitialLoadComplete, isAuthenticated]);
 
     // React to a background sync that PULLED IN REMOTE CHANGES (routine uploads of
     // local-only changes never publish lastBackgroundMerge - see GoogleDriveContext).

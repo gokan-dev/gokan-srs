@@ -5,7 +5,7 @@ import type { GrammarProgress } from '../../models/grammar.model';
 import { isVocabFullyMastered, vocabNextReviewAt } from '../scheduling';
 import { isGrammarFullyMastered, grammarNextReviewAt } from '../grammarScheduling';
 import type { ProgressWithMetadata } from './types';
-import { mergeCalibration } from '../calibration';
+import { mergeCalibration, mergePacing } from '../calibration';
 import { mergeWatchedEpisodes } from '../../utils/mediaCoverage.utils';
 import { mergeMixups } from '../../utils/mixups.utils';
 
@@ -218,7 +218,10 @@ export function mergeSettings(
     remoteVersion: number
 ): UserSettings {
     if (!remote) return local;
-    return remoteVersion > localVersion ? remote : local;
+    const winner = remoteVersion > localVersion ? remote : local;
+    // Review pacing is not last-writer-wins: its history is unioned, so a change
+    // made on either device survives and both derive the same due dates.
+    return { ...winner, ...mergePacing(local, remote) };
 }
 
 /**

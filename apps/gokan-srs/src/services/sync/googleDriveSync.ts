@@ -3,7 +3,7 @@ import { DEFAULT_SETTINGS, type UserSettings } from '../../models/user.model';
 import { MigrationService } from '../migration.service';
 import { StorageService } from '../storage.service';
 import { toPlainProgressJSON, migrateAndHydrateProgress, progressUploadSignature, stableStringify } from '../progressSerialization';
-import type { StoredProgress } from '../progressHydration';
+import { hydrateSettings, type StoredProgress } from '../progressHydration';
 import { DriveClient } from './driveClient';
 import { mergeProgress, mergeSettings } from './mergeProgress';
 import type { ProgressWithMetadata, SyncEnvelope } from './types';
@@ -321,7 +321,7 @@ export class GoogleDriveSync {
                 settings,
             };
         }
-        const settings = { ...DEFAULT_SETTINGS, ...stored.settings };
+        const settings = hydrateSettings(stored.settings ?? {}, DEFAULT_SETTINGS);
         return {
             progress: migrateAndHydrateProgress(stored.progress ?? {}, settings),
             settings,
