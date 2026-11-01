@@ -141,7 +141,19 @@ const SYNONYM_READER = 'apps/gokan-srs/src/services/exercise/wordRelation.ts';
 
 /** Furigana in the app is the Ruby component: readings over the kanji only, half size, kept apart. */
 const RUBY_ELEMENT = /<ruby\b/;
+/** A sheet's top corners: the panel BottomSheet draws over the bottom of the screen. */
+const SHEET_PANEL = /\brounded-t-md\b/;
+const BOTTOM_SHEET = 'apps/gokan-srs/src/components/ui/BottomSheet.tsx';
+/** The layers drawn over the page, through a portal: the sheet, the lookup card, the quiz settings dialog. */
+const PORTAL_CALL = /\bcreatePortal\(/;
+const PORTAL_FILES = new Set([BOTTOM_SHEET, 'apps/gokan-srs/src/components/lookup/useLookup.tsx', 'apps/gokan-srs/src/components/QuizSettingsMenu.tsx']);
 const RUBY_COMPONENT = 'apps/gokan-srs/src/components/Ruby.tsx';
+/** A raw part-of-speech code (`v5r`, `adj-i`): a sense's labels come from utils/senses.utils.ts (organizeSenses). */
+const RAW_POS = /\.pos\[/;
+/** A word's or a kanji's page path, built by hand: vocabPath and kanjiPath (utils/navigation.utils.ts) build them. */
+const HAND_BUILT_ENTRY_PATH = /`\/(?:vocab|kanji)\/\$\{/;
+/** The path builders, and the app-route-to-dictionary-page table (the dictionary's URLs, not the app's routes). */
+const ENTRY_PATH_FILES = new Set(['apps/gokan-srs/src/utils/navigation.utils.ts', 'apps/gokan-srs/src/utils/seo.utils.ts']);
 
 /**
  * Detail pages (vocab, kanji, grammar) share one frame: DetailHeader, then DetailBody, the 8/4
@@ -269,6 +281,8 @@ function check(files: string[]): Violation[] {
         if (DATASET_URL_SOURCE.test(file) && file !== DATASET_URL_HELPER && !/\.test\.tsx?$/.test(file)) {
             eachLine(text, l => l.includes('/data/compiled/') && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
                 add({ file, line, rule: 'dataset-url', message: 'Build dataset URLs with datasetUrl() (services/http.ts); it adds the dataset version browsers cache by.' }));
+            eachLine(text, l => l.includes('/audio/') && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
+                add({ file, line, rule: 'audio-url', message: 'Build audio clip URLs with audioUrl() (services/http.ts), the one place that knows where clips are served.' }));
         }
 
         if (UI_SOURCE.test(file) && file !== KANJI_SPELLING_NOTE) {
@@ -328,6 +342,26 @@ function check(files: string[]): Violation[] {
         if (GOKAN_SRS_SOURCE.test(file) && file !== RUBY_COMPONENT && !file.endsWith('.test.tsx')) {
             eachLine(text, l => RUBY_ELEMENT.test(l), line =>
                 add({ file, line, rule: 'one-ruby', message: 'Furigana renders through Ruby (components/Ruby.tsx): each reading over its kanji only (rubyParts), neighbouring readings kept apart.' }));
+        }
+
+        if (GOKAN_SRS_SOURCE.test(file) && file.endsWith('.tsx') && !file.endsWith('.test.tsx')) {
+            eachLine(text, l => RAW_POS.test(l), line =>
+                add({ file, line, rule: 'pos-labels', message: 'Renders a raw part-of-speech code. Take the sense\'s posLabel from organizeSenses (utils/senses.utils.ts), in the page\'s sense order.' }));
+        }
+
+        if (GOKAN_SRS_SOURCE.test(file) && !ENTRY_PATH_FILES.has(file) && !/\.test\.tsx?$/.test(file)) {
+            eachLine(text, l => HAND_BUILT_ENTRY_PATH.test(l), line =>
+                add({ file, line, rule: 'entry-paths', message: 'Builds a word or kanji path by hand. Use vocabPath / kanjiPath (utils/navigation.utils.ts), so every link to an entry is one URL.' }));
+        }
+
+        if (GOKAN_SRS_SOURCE.test(file) && file !== BOTTOM_SHEET && !file.endsWith('.test.tsx')) {
+            eachLine(text, l => SHEET_PANEL.test(l), line =>
+                add({ file, line, rule: 'one-sheet', message: 'A panel over the bottom of the screen is a BottomSheet (components/ui/BottomSheet.tsx): backdrop, 44px Close, Esc.' }));
+        }
+
+        if (GOKAN_SRS_SOURCE.test(file) && !PORTAL_FILES.has(file) && !file.endsWith('.test.tsx')) {
+            eachLine(text, l => PORTAL_CALL.test(l), line =>
+                add({ file, line, rule: 'one-lookup-card', message: 'A layer over the page is the lookup card (components/lookup/useLookup.tsx), a BottomSheet or the quiz settings dialog: a word or kanji shown on hover or tap is the lookup card, never a second popover.' }));
         }
 
         if (GOKAN_SRS_SOURCE.test(file) && file.endsWith('.tsx')) {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GRAMMAR, KANJI, MORE_DESTINATIONS, STUDY, VOCABULARY, WHATS_NEW, isDestinationActive, isMoreActive, isSessionPath, synonymsPath } from './navigation.utils';
+import { GRAMMAR, KANJI, MORE_DESTINATIONS, STUDY, VOCABULARY, WHATS_NEW, isDestinationActive, isMoreActive, isSessionPath, kanjiPath, synonymsPath, vocabPath } from './navigation.utils';
 
 describe('isDestinationActive', () => {
     it('marks Study on the hub only', () => {
@@ -51,5 +51,18 @@ describe('synonymsPath', () => {
     it("is the word's page, at its Synonyms card, inside Vocabulary", () => {
         expect(synonymsPath('1224020')).toBe('/vocab/1224020#synonyms');
         expect(isDestinationActive('/vocab/1224020', VOCABULARY)).toBe(true);
+    });
+});
+
+describe('vocabPath', () => {
+    it('opens Dict with no hash, another tab by its hash', () => {
+        expect(vocabPath('1224020')).toBe('/vocab/1224020');
+        expect(vocabPath('1224020', 'kanji')).toBe('/vocab/1224020#kanji');
+    });
+});
+
+describe('kanjiPath', () => {
+    it("is the kanji's page, the glyph as written", () => {
+        expect(kanjiPath('輝')).toBe('/kanji/輝');
     });
 });

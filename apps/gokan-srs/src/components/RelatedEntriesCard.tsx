@@ -4,6 +4,7 @@ import { ArrowRight } from "lucide-react";
 import { ListRow } from "./ui/ListRow";
 import { TextButton } from "./ui/TextButton";
 import { DetailSection } from "./detail/DetailSection";
+import type { LookupTarget } from "../utils/lookup.utils";
 
 /**
  * One related entry: a Japanese label, an optional inline secondary (a reading,
@@ -20,6 +21,8 @@ export interface RelatedEntry {
     trailing?: ReactNode;
     /** A gloss or definition line beneath: one line, cut off, unless the list's `wrapDescription` lets it wrap. Text, with any search match marked. */
     description?: ReactNode;
+    /** The word the row names, for its lookup card. */
+    lookup?: LookupTarget;
 }
 
 export interface RelatedSection {
@@ -96,24 +99,29 @@ export function RelatedEntriesCard({
  * The rows of related entries, in labelled groups, without a section around them: the card
  * above, and a word page's Explore panels, which have a heading of their own.
  */
-export function RelatedEntryList({ sections, wrapDescription = false }: {
+export function RelatedEntryList({ sections, wrapDescription = false, groupHeadings = false }: {
     sections: RelatedSection[];
     /** Wrap each row's description instead of cutting it to one line: for a list whose description is the row's content (Synonyms' shared senses). */
     wrapDescription?: boolean;
+    /**
+     * The labels as group titles (`type-subsection`, further apart) rather than field labels: for a
+     * list whose groups are its structure (Synonyms, one group per meaning), not a section's asides.
+     */
+    groupHeadings?: boolean;
 }) {
     return (
-        <div className="space-y-5">
+        <div className={groupHeadings ? 'space-y-8' : 'space-y-5'}>
             {sections.map((section, i) => (
                 <div key={section.label ?? i}>
                     {section.label && (
-                        <h3 className="type-label mb-1">
+                        <h3 className={groupHeadings ? 'type-subsection mb-2' : 'type-label mb-1'}>
                             {section.label}
                             {section.count !== undefined && <span className="type-meta ml-2 tabular-nums">{section.count.toLocaleString('en-US')}</span>}
                         </h3>
                     )}
                     <div className="flex flex-col -mx-3">
                         {section.entries.map(entry => (
-                            <ListRow key={entry.key} to={entry.to} trailing={entry.trailing}>
+                            <ListRow key={entry.key} to={entry.to} trailing={entry.trailing} lookup={entry.lookup}>
                                 {/* One wrapping line: what does not fit after the headword starts again at the row's edge. */}
                                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 min-w-0">
                                     <span className="font-mincho text-lg text-primary shrink-0">{entry.primary}</span>

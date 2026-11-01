@@ -53,6 +53,11 @@ describe('directionStatus', () => {
         expect(directionStatus(srsEntry({ dueDate: new Date(now - 1) }), true, now)).toBe('Due now');
         expect(directionStatus(srsEntry({ dueDate: new Date(now + 2 * 86_400_000) }), true, now)).toBe('Next review in 2 days');
     });
+
+    it('says the stage of a due direction when the header already says it is due', () => {
+        expect(directionStatus(srsEntry({ dueDate: new Date(now - 1) }), true, now, true)).toBe('Learning');
+        expect(directionStatus(srsEntry({ dueDate: new Date(now + 2 * 86_400_000) }), true, now, true)).toBe('Next review in 2 days');
+    });
 });
 
 describe('statusReviewPhrase', () => {

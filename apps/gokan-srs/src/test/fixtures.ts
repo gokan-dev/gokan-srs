@@ -7,7 +7,7 @@
  * shares their `history` arrays between fixtures, so a test pushing a review log would
  * leak it into every other fixture built in the same file.
  */
-import type { AudioIndex, GrammarBrowseRow, GrammarExample, GrammarPoint, SearchIndexEntry, Sentence, Vocabulary } from '@gokan/dataset-schema';
+import type { AudioIndex, GrammarBrowseRow, GrammarExample, GrammarPoint, Kanji, SearchIndexEntry, Sentence, Vocabulary } from '@gokan/dataset-schema';
 import { DEFAULT_GRAMMAR_PROGRESS, type GrammarProgress } from '../models/grammar.model';
 import { DEFAULT_SETTINGS, type UserSettings } from '../models/user.model';
 import { DEFAULT_SRS_ENTRY, DEFAULT_VOCABULARY_PROGRESS, type ReviewLog, type SRSEntry, type VocabProgress } from '../models/vocabulary.model';
@@ -69,6 +69,19 @@ export function vocabulary(overrides: Partial<Vocabulary> = {}): Vocabulary {
         frequency: { kanjiRank: 1 },
         progression: { kklcStep: 1 },
         senses: [{ pos: ['n'], misc: { rawTags: [] }, glosses: ['Japan'], related: { compounds: [] } }],
+        ...overrides,
+    };
+}
+
+/** 学: one on and one kun reading (まな.ぶ, okurigana after the dot), no learning orders. */
+export function kanji(overrides: Partial<Kanji> = {}): Kanji {
+    return {
+        character: '学',
+        steps: {},
+        meanings: ['study', 'learning'],
+        readings: { on: ['ガク'], kun: ['まな.ぶ'], nanori: [] },
+        strokeCount: 8,
+        components: [],
         ...overrides,
     };
 }

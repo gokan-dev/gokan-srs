@@ -1,6 +1,6 @@
+import { isRareSense } from '@gokan/dataset-schema';
 import type { Sense } from '@gokan/dataset-schema';
 import type { ListedSynonym } from '../services/exercise/wordRelation';
-import { isRareSense } from './senses.utils';
 import { normalizeGloss } from './synonymContext.utils';
 
 /**

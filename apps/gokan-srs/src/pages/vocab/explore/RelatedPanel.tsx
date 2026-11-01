@@ -11,6 +11,7 @@ import { englishRanges, matchesExploreQuery, resultCountLine, type ExploreQuery 
 import { PanelSearch } from "./PanelSearch";
 import { usePanelQuery } from "./usePanelQuery";
 import { relatedCount } from "./counts";
+import { vocabPath } from "../../../utils/navigation.utils";
 
 const PAGE = 10;
 
@@ -22,7 +23,8 @@ function toEntry(v: Vocabulary, query: ExploreQuery | null): RelatedEntry {
     const gloss = v.senses[0]?.glosses.join(", ") ?? '';
     return {
         key: v.id,
-        to: `/vocab/${v.id}`,
+        to: vocabPath(v.id),
+        lookup: { kind: 'word', vocabId: v.id },
         primary: headwordOf(v),
         // A word shown in kana names its kanji spelling where the reading would go.
         secondary: <SecondaryForm vocab={v} />,

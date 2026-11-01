@@ -1,5 +1,5 @@
 import type { Sentence } from "@gokan/dataset-schema";
-import { WordGlossTooltip, type WordLinkProps } from "./WordGlossTooltip";
+import { LookupText } from "./lookup/LookupText";
 import { Ruby } from "./Ruby";
 import { segmentInteractiveSentence, type HighlightRange } from "@gokan/dataset-schema";
 
@@ -11,10 +11,10 @@ interface InteractiveSentenceProps {
     showFurigana?: boolean;
     allowTargetClickable?: boolean;
     /**
-     * Show a reading/gloss card on hover over a matched word. On by default: a
-     * learner reading a sentence should not have to navigate away to find out
-     * what a word means. Turn it off where the surrounding UI is itself a
-     * definition and the card would only repeat it.
+     * Give each matched word its lookup card (hover, focus, click or tap; see
+     * `components/lookup/`). On by default: a learner reading a sentence should
+     * not have to navigate away to find out what a word means. Turn it off where
+     * the surrounding UI is itself a definition and the card would only repeat it.
      */
     showGlossOnHover?: boolean;
     /**
@@ -27,9 +27,9 @@ interface InteractiveSentenceProps {
      */
     highlightRanges?: HighlightRange[];
     /**
-     * Makes each clickable word a link reachable with Tab and opened with Enter.
-     * For reading pages (a word's or grammar point's examples); off on quiz cards,
-     * where Tab moves between the answer and Submit.
+     * Puts each word in the Tab order, Enter pinning its card (or opening the word,
+     * for one without a card). For reading pages (a word's or grammar point's
+     * examples); off on quiz cards, where Tab moves between the answer and Submit.
      */
     keyboardLinks?: boolean;
 }
@@ -59,72 +59,67 @@ export function InteractiveSentence({
                 if (segment.type === 'text') {
                     if (!emphasized) return <span key={i}>{segment.content}</span>;
                     return (
-                        <span key={i} className="text-accent font-semibold border-b-2 border-accent/30 px-0.5">
+                        <span key={i} className="text-accent font-semibold border-b-2 border-accent/30">
                             {segment.content}
                         </span>
                     );
                 }
 
+                const vocabId = segment.vocabId!;
                 const isClickable = onVocabClick && (!segment.isTarget || allowTargetClickable);
 
                 const renderContent = () => (
                     <Ruby text={segment.content} reading={showFurigana ? segment.reading : null} tone="opacity-80" />
                 );
 
-                // The word being studied is excluded from the gloss card - the
-                // surrounding card already shows its meaning, so the tooltip
-                // would only restate it.
-                const glossed = showGlossOnHover && !segment.isTarget;
+                // The word being studied has no card: the surrounding card already shows its
+                // meaning, so the card would only restate it.
+                const lookedUp = showGlossOnHover && !segment.isTarget;
 
-                const targetClass = `text-accent font-semibold border-b-2 border-accent/30 px-0.5 ${isClickable ? 'cursor-pointer hover:border-accent transition-colors' : ''}`;
+                const targetClass = `text-accent font-semibold border-b-2 border-accent/30 ${isClickable || lookedUp ? 'cursor-pointer hover:border-accent transition-colors' : ''}`;
                 // No permanent underline: a sentence full of underlines reads as noise. A word
-                // shows it is a link on hover and on keyboard focus. No word has a side margin,
-                // the studied one included (its padding frames it): Japanese has no spaces between
+                // shows it is a link on hover and on keyboard focus. No word has side space (margin
+                // or padding), the studied one included (its underline marks it): Japanese has no spaces between
                 // words, and with most words linked (kana ones too) a margin read as a space at
                 // nearly every word boundary (実在 する もの と).
                 const clickableClass = "cursor-pointer text-primary border-b border-transparent hover:text-accent hover:border-accent focus-visible:outline-none focus-visible:text-accent focus-visible:border-accent transition-colors";
-                const matchClassName = emphasized ? targetClass : isClickable ? clickableClass : "";
 
-                if (!isClickable && !glossed && !emphasized) return <span key={i}>{renderContent()}</span>;
-
-                const handleClick = isClickable
-                    ? (e: React.MouseEvent) => {
-                        e.stopPropagation();
-                        onVocabClick?.(segment.vocabId!);
-                    }
-                    : undefined;
-
-                const linkProps: WordLinkProps | undefined = isClickable && keyboardLinks
-                    ? {
-                        role: 'link',
-                        tabIndex: 0,
-                        onKeyDown: e => {
-                            if (e.key !== 'Enter') return;
-                            e.preventDefault();
-                            onVocabClick?.(segment.vocabId!);
-                        },
-                    }
-                    : undefined;
-
-                if (!glossed) {
+                // A word with a card opens it (a click pins it, a tap opens it as a sheet); its
+                // page is the card's "Open word page".
+                if (lookedUp) {
                     return (
-                        <span key={i} onClick={handleClick} className={matchClassName} title={isClickable ? "Click to view details" : undefined} {...linkProps}>
+                        <LookupText key={i} target={{ kind: 'word', vocabId }} className={emphasized ? targetClass : clickableClass} focusable={keyboardLinks}>
                             {renderContent()}
-                        </span>
+                        </LookupText>
                     );
                 }
 
+                const matchClassName = emphasized ? targetClass : isClickable ? clickableClass : "";
+                if (!isClickable) {
+                    return emphasized ? <span key={i} className={matchClassName}>{renderContent()}</span> : <span key={i}>{renderContent()}</span>;
+                }
+
                 return (
-                    <WordGlossTooltip
+                    <span
                         key={i}
-                        vocabId={segment.vocabId!}
                         className={matchClassName}
-                        onClick={handleClick}
-                        fallbackTitle={isClickable ? "Click to view details" : undefined}
-                        linkProps={linkProps}
+                        title="Click to view details"
+                        onClick={e => {
+                            e.stopPropagation();
+                            onVocabClick(vocabId);
+                        }}
+                        {...(keyboardLinks ? {
+                            role: 'link',
+                            tabIndex: 0,
+                            onKeyDown: (e: React.KeyboardEvent) => {
+                                if (e.key !== 'Enter') return;
+                                e.preventDefault();
+                                onVocabClick(vocabId);
+                            },
+                        } : {})}
                     >
                         {renderContent()}
-                    </WordGlossTooltip>
+                    </span>
                 );
             })}
         </span>

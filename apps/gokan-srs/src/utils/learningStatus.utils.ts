@@ -42,12 +42,15 @@ export function statusReviewPhrase(status: LearningStatus, due: Date | null, now
 /**
  * One direction's line in "Your progress": "Not started" until the direction is
  * activated (production starts lazily), "Mastered" once it is, otherwise when it
- * is next reviewed ("Due now", "Next review in 3 days").
+ * is next reviewed ("Due now", "Next review in 3 days"). `dueSaidAbove`: the page's
+ * header already says "Due now" (a word's status line), so a due direction says its
+ * stage ("Learning") instead, and the page says it once.
  */
-export function directionStatus(entry: SRSEntry | undefined, activated: boolean, now: number): string {
+export function directionStatus(entry: SRSEntry | undefined, activated: boolean, now: number, dueSaidAbove = false): string {
     if (!entry || !activated) return 'Not started';
     if (isEntryMastered(entry)) return 'Mastered';
     if (!entry.dueDate) return 'Not started';
+    if (dueSaidAbove && entry.dueDate.getTime() <= now) return STATUS_LABEL.learning;
     return nextReviewPhrase(entry.dueDate, now);
 }
 

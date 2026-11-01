@@ -8,6 +8,7 @@ import { LoadingScreen } from "../../components/LoadingScreen";
 import { useQuiz } from "../../context/useQuiz";
 import VocabIntroCard from "../../components/VocabIntroCard";
 import { LearnKanjiCard } from "../../components/LearnKanjiCard";
+import { vocabPath } from "../../utils/navigation.utils";
 
 interface VocabQuizScreenProps {
     onVocabClick: (vocabId: string) => void;
@@ -71,7 +72,7 @@ export function VocabQuizScreen({ onVocabClick }: VocabQuizScreenProps) {
 
             const history: SessionHistoryEntry[] = state.sessionHistory.map((item, index) => ({
                 key: `${item.vocabId}-${index}`,
-                href: `/vocab/${item.vocabId}`,
+                href: vocabPath(item.vocabId),
                 label: item.writtenForm,
                 result: item.result,
                 delta: item.delta,

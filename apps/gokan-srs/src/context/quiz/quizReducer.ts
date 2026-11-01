@@ -132,6 +132,8 @@ export type QuizAction =
     /** The stored progress, read at start-up (null: this device has none). */
     | { type: 'PROGRESS_LOADED'; payload: { progress: ProgressWithMetadata | null } }
     | { type: 'PROGRESS_LOAD_FAILED'; payload: { message: string } }
+    /** A dataset file a page needs failed to load: fatal, as every dataset failure is (ARCHITECTURE.md, Fatal Errors). */
+    | { type: 'DATA_LOAD_FAILED'; payload: { message: string } }
     | { type: 'SETUP_COMPLETE'; payload: { progress: UserProgress; settings: UserSettings } }
     | { type: 'LOAD_VOCAB_START'; payload: PendingQuizItem }
     /** The loaded word and the exercise built for it (services/exercise/builders.ts); both null when nothing is due. */
@@ -215,6 +217,9 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
 
         case 'PROGRESS_LOAD_FAILED':
             return { ...state, progressLoaded: true, fatalError: action.payload.message };
+
+        case 'DATA_LOAD_FAILED':
+            return { ...state, fatalError: action.payload.message };
 
         case 'SETUP_COMPLETE':
             return {

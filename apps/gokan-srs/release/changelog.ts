@@ -14,6 +14,16 @@ import type { ChangelogEntry } from '../src/models/release.model';
  */
 export const CHANGELOG: readonly ChangelogEntry[] = [
     {
+        version: '1.46.0',
+        date: '2026-11-01',
+        summary: 'Detail pages (layout, cards, play buttons)',
+        changes: [
+            { summary: 'A word\'s page now opens on its meaning and status, with one row of tabs below (Dict, Sentences, Synonyms, Kanji, Related, Study).', issue: 172 },
+            { summary: 'Words and kanji can now be looked up where they appear: point at or focus one in a sentence, a word\'s headword, a kanji tile or a word list (or tap a word in a sentence on a phone) to see its reading, meanings and your progress, and learn the word from there.', issue: 174 },
+            { summary: 'Words and example sentences can now be heard: a play button after a word\'s reading, on its page and its word card, and at the end of each example sentence on word and grammar pages.', issue: 178 },
+        ],
+    },
+    {
         version: '1.45.0',
         date: '2026-10-30',
         summary: 'Recordings of every word, and of the first sentences you meet for each, are ready; the About page now credits their voice. Play buttons come in a later version.',

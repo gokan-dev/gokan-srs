@@ -20,6 +20,7 @@ import { ArrowDownUp } from "lucide-react";
 import { formatTimeUntil } from "../../utils/time.utils";
 import { matchesVocabQuery, readVocabQuery } from "../../utils/vocabSearch.utils";
 import { matchesVocabStatus, vocabSortKey, VOCAB_SORT_LABEL, VOCAB_STATUS_LABEL, type VocabSort, type VocabStatusFilter } from "../../utils/vocabStatus.utils";
+import { vocabPath } from "../../utils/navigation.utils";
 
 const STATE_KEY = 'gokan_vocab_list_state';
 const PAGE_SIZE = 50;
@@ -199,7 +200,8 @@ export function VocabularyListScreen() {
                     return (
                         <ListRow
                             key={p.vocabId}
-                            to={`/vocab/${p.vocabId}`}
+                            to={vocabPath(p.vocabId)}
+                            lookup={{ kind: 'word', vocabId: p.vocabId }}
                             className="min-h-16"
                             trailing={
                                 <div className="flex items-center gap-3">

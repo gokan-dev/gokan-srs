@@ -8,6 +8,7 @@ import { useAsyncData } from '../hooks/useAsyncData';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { useResponsive } from '../context/Responsive/useResponsive';
 import { WordStudyStatus } from './WordStudyStatus';
+import { vocabPath } from '../utils/navigation.utils';
 
 interface SearchBarProps {
     /**
@@ -101,7 +102,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
     const handleSelect = (id: string) => {
         close();
         setQuery('');
-        void navigate(`/vocab/${id}`);
+        void navigate(vocabPath(id));
     };
 
     // The combobox pattern: focus stays in the field, arrows move a highlighted option.

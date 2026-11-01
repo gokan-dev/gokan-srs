@@ -208,15 +208,16 @@ gokan-srs, everything else:
   download.
 - Page frame: `components/Page.tsx` (the two widths), `components/PageHeader.tsx` (title,
   Back, actions), `components/ui/TabNav.tsx` (route tabs), `components/nav/` (header, tab bar,
-  footer), destinations in `utils/navigation.utils.ts`.
+  footer), destinations in `utils/navigation.utils.ts` (a word's page only through `vocabPath`, a
+  kanji's through `kanjiPath`: enforced).
 - Lists and stats: `components/ui/ListRow.tsx` rows, `components/WordStudyStatus.tsx` (a word's
   status, or Learn), `utils/learningStatus.utils.ts` (New / Learning / Mastered for a word or a
   grammar point), `components/ui/Pagination.tsx`, `pages/stats/components/CoverageChart.tsx` and
   `utils/coverage.utils.ts`, `utils/activity.utils.ts`, `utils/winRate.utils.ts`.
 - Detail pages: `components/detail/` (`DetailHeader` the subject and its main action,
-  `DetailBody` the 8/4 body under it, or one column of `levels` (a word's page), `LearnStatus`,
+  `DetailBody` the 8/4 body under it, or one column under a sticky tab row, `tabs` (a word's page), `LearnStatus`,
   `DetailSection`, `DetailField` (a labelled value; `compact`, a header's facts row, as a word's
-  How common), `YourProgress` (a grammar point's) and its `DirectionStatus`, shared with a
+  KKLC step and Textbooks), `YourProgress` (a grammar point's) and its `DirectionStatus`, shared with a
   word's Your study, `DetailErrorScreen`), `components/RelatedEntriesCard.tsx` (its rows alone:
   `RelatedEntryList`), `components/SRSHistoryGraph.tsx`, `components/KanjiTile.tsx` (a glyph:
   boxed only when it links), `components/WordTile.tsx` (a word as a boxed link),
@@ -233,13 +234,22 @@ gokan-srs, everything else:
   `components/ui/Disclosure.tsx` (collapsed-by-default section),
   `components/ui/StackedBarChart.tsx` (the one bar chart), `components/CardSkeleton.tsx`,
   `components/KanjiSpellingNote.tsx` (the kanji spelling of a word learned in kana),
+  `components/PlayButton.tsx` (a word or sentence read aloud: one player, `services/clipPlayer.ts`,
+  clip URLs only from `audioUrl`, enforced; beside a sentence, `SentenceWithPlay`),
   `components/SecondaryForm.tsx` (the form beside a headword, in every list: enforced),
   `components/Ruby.tsx` (every furigana: the only `<ruby>` in the app, enforced),
-  `components/ui/TextButton.tsx` (an action written as text), `components/ui/SegmentedToggle.tsx`
-  (one of a few panels, or none), `components/ui/SearchField.tsx`, `components/ui/Marked.tsx`
+  `components/ui/TextButton.tsx` (an action written as text), `components/ui/BottomSheet.tsx`
+  (the one sheet, enforced), `components/lookup/` (a word's or kanji's card on hover, focus and
+  tap: `useLookup`, `LookupText`, `LookupLink`, `HeadwordKanji`; the only popover, enforced), `components/ui/TabNav.tsx` (every
+  tab row: route tabs, or a page's own tabs as ARIA tabs), `components/ui/SearchField.tsx`, `components/ui/Marked.tsx`
   (a search's matches, from `utils/exploreSearch.utils.ts`).
-- A word's page: its Explore panels in `pages/vocab/explore/` (one search each,
-  `utils/exploreSearch.utils.ts`), its two examples from `utils/wordExamples.utils.ts`.
+- A word's page: its tabs (`utils/wordTabs.utils.ts`: their hashes, and `initialWordTab`, which
+  one opens), Dict (`pages/vocab/DictTab.tsx`), the Sentences, Synonyms and Related panels in
+  `pages/vocab/explore/` (one search each, `utils/exploreSearch.utils.ts`), Kanji
+  (`components/KanjiSummary.tsx`, a kanji in brief; `components/KanjiReadings.tsx`, a kanji's
+  On/Kun list, `compact` or `large`, also the kanji page's), Study (`pages/vocab/StudyTab.tsx`); its
+  summary gloss from `summaryGloss` (`@gokan/dataset-schema`), its two examples from
+  `utils/wordExamples.utils.ts`.
   Synonyms and mix-ups on it: Closest synonyms and the Synonyms panel
   (`pages/vocab/explore/SynonymsPanel.tsx`), their sections, order and caps in
   `utils/synonymSections.utils.ts`, a pair's label from

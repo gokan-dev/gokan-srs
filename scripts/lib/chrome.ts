@@ -32,6 +32,10 @@ export interface Tab {
     goto(url: string, readyText: string): Promise<void>;
     /** Clicks the first button, summary or link whose text starts with `text`. */
     click(text: string): Promise<void>;
+    /** Sets the viewport, keeping the page and its storage (a smaller phone's first screen). */
+    resize(width: number, height: number): Promise<void>;
+    /** Moves a real mouse pointer to a viewport point: `:hover` and pointer events as a learner's mouse gives them. */
+    mouseMove(x: number, y: number): Promise<void>;
     close(): Promise<void>;
 }
 
@@ -144,11 +148,18 @@ export async function launchChrome(): Promise<Chrome> {
             if (!clicked) throw new Error(`nothing to click named "${text}"`);
             await sleep(400);
         };
+        const resize = async (w: number, h: number): Promise<void> => {
+            await send('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: true }, sessionId);
+            await sleep(300);
+        };
+        const mouseMove = async (x: number, y: number): Promise<void> => {
+            await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y }, sessionId);
+        };
         const close = async (): Promise<void> => {
             if (context) await send('Target.disposeBrowserContext', { browserContextId: context });
             else await send('Target.closeTarget', { targetId });
         };
-        return { evaluate, until, goto, click, close };
+        return { evaluate, until, goto, click, resize, mouseMove, close };
     }
 
     async function kill(): Promise<void> {

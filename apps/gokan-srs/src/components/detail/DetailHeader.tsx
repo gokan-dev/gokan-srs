@@ -15,7 +15,7 @@ interface DetailHeaderProps {
     actions?: ReactNode;
     /**
      * `grid` (the default) sits on the body's 8/4 grid from `lg`; `column` keeps the actions
-     * under the facts at every width, for a page whose body is one column (`DetailBody` `levels`).
+     * under the facts at every width, for a page whose body is one column (`DetailBody` `tabs`).
      */
     layout?: 'grid' | 'column';
 }

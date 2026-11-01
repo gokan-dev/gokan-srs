@@ -1,3 +1,5 @@
+import { wordTabHash, type WordTab } from './wordTabs.utils';
+
 /** A destination in the app's navigation (desktop header, mobile tab bar, More sheet). */
 export interface NavDestination {
     label: string;
@@ -47,13 +49,20 @@ export function isMoreActive(pathname: string): boolean {
     return MORE_DESTINATIONS.some(d => isDestinationActive(pathname, d));
 }
 
-/** The hash that opens a word page's Explore on its Synonyms panel, and the panel's id (after the `#`). */
-export const SYNONYMS_HASH = '#synonyms';
-export const SYNONYMS_ANCHOR = SYNONYMS_HASH.slice(1);
-/** The id of a word page's Explore section, where a link to a panel lands. */
-export const EXPLORE_ANCHOR = 'explore';
+/** A word's page, open on one of its tabs (Dict, which has no hash, by default). */
+export function vocabPath(vocabId: string, tab: WordTab = 'dict'): string {
+    return `/vocab/${encodeURIComponent(vocabId)}${wordTabHash(tab)}`;
+}
 
-/** A word's Synonyms panel on its page, Explore open on it (a quiz's synonym note links there). */
+/**
+ * A kanji's page. The glyph is one character, never a path separator, so it goes in as written:
+ * the URL is the one these pages have always had.
+ */
+export function kanjiPath(glyph: string): string {
+    return `/kanji/${glyph}`;
+}
+
+/** A word's Synonyms tab (a quiz's synonym note, "Compare synonyms", links there). */
 export function synonymsPath(vocabId: string): string {
-    return `/vocab/${encodeURIComponent(vocabId)}${SYNONYMS_HASH}`;
+    return vocabPath(vocabId, 'synonym');
 }
