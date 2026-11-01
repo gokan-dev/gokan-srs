@@ -10,12 +10,12 @@ export interface PlayableClip {
 
 export interface ClipPlayer {
     /** Plays `clip`, stopping any other; pressed again while it plays (or loads), stops it. Rejects only if the clip's URL cannot be built. */
-    toggle(clip: string): Promise<void>;
+    toggle: (clip: string) => Promise<void>;
     /** Stops `clip` if it is the one playing (its button left the page). */
-    stopIf(clip: string): void;
+    stopIf: (clip: string) => void;
     /** The clip playing or about to, or null. */
-    playing(): string | null;
-    subscribe(listener: () => void): () => void;
+    playing: () => string | null;
+    subscribe: (listener: () => void) => () => void;
 }
 
 interface ClipPlayerDeps {

@@ -10,6 +10,7 @@ import { JlptChip } from "../../components/JlptChip";
 import { FrequencyMeter } from "../../components/FrequencyMeter";
 import { vocabNextReviewAt } from "../../services/scheduling";
 import { KanjiSpellingNote } from "../../components/KanjiSpellingNote";
+import { PlayButton } from "../../components/PlayButton";
 import { Page, PAGE_BLEED_INSET } from "../../components/Page";
 import { DetailErrorScreen } from "../../components/detail/DetailErrorScreen";
 import { DetailBody } from "../../components/detail/DetailBody";
@@ -175,13 +176,22 @@ function WordPage({ vocab, sentences, sentencesSettled, now, onLearn, knownKanji
             {!vocab.usuallyKana && vocab.writtenForm.alternatives && vocab.writtenForm.alternatives.length > 0 && (
                 <p className="font-mincho text-2xl text-secondary">{vocab.writtenForm.alternatives.join('・')}</p>
             )}
-            {vocab.usuallyKana
-                ? <div data-word-reading><KanjiSpellingNote vocab={vocab} /></div>
-                : <p data-word-reading className="font-gothic text-2xl text-secondary">{vocab.reading.primary}</p>}
+            {/* The reading, then its play button (issue 178; the pitch accent, issue 176, will join them). */}
+            {vocab.usuallyKana && (
+                <div data-word-reading className="flex items-center gap-x-2 min-w-0">
+                    <KanjiSpellingNote vocab={vocab} className="min-w-0" />
+                    <PlayButton audio={vocab.audio} label={`Play ${headwordOf(vocab)}`} />
+                </div>
+            )}
+            {!vocab.usuallyKana && (
+                <p data-word-reading className="flex flex-wrap items-center gap-x-2 font-gothic text-2xl text-secondary">
+                    <span lang="ja">{vocab.reading.primary}</span>
+                    <PlayButton audio={vocab.audio} label={`Play ${headwordOf(vocab)}`} />
+                </p>
+            )}
             {vocab.reading.alternatives.length > 0 && (
                 <p className="type-meta">Also: <span className="font-gothic">{vocab.reading.alternatives.join('、')}</span></p>
             )}
-            {/* Where the play button (issue 178) and the pitch accent (issue 176) will follow the reading. */}
             <p data-summary-gloss className="type-body pt-2">{summaryGloss(vocab.senses)}</p>
         </DetailHeader>
     );

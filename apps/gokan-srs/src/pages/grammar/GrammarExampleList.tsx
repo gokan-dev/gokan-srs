@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { GrammarExample } from "@gokan/dataset-schema";
 import { InteractiveSentence } from "../../components/InteractiveSentence";
+import { PlayButton } from "../../components/PlayButton";
 import { grammarExampleToSentence, patternHighlightRanges } from "@gokan/dataset-schema";
 
 /**
@@ -27,6 +28,7 @@ export function GrammarExampleList({ examples, initialCount }: { examples: Gramm
                             highlightRanges={patternHighlightRanges(example)}
                             keyboardLinks
                         />
+                        <PlayButton audio={example.audio} label="Play sentence" className="ml-1" />
                     </div>
                     <p className="type-meta mt-1">{example.romaji}</p>
                     <p className="type-support">{example.en}</p>
