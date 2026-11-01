@@ -34,9 +34,10 @@ interface PageTabNavProps<K extends string> {
 /**
  * A row's tabs: their underline overlaps the row's divider. A row that scrolls clips anything
  * outside it, so page tabs (`inset`) draw the divider as an inset line under the tabs instead.
+ * Page tabs are a page's main way around on a phone, so they are 44px tap targets there.
  */
 function tabClass(active: boolean, inset = false): string {
-    return `${inset ? '' : '-mb-px '}py-2 border-b-2 font-sans text-sm font-medium whitespace-nowrap transition-colors duration-150 ease-in-out ${
+    return `${inset ? 'inline-flex items-center min-h-11 md:min-h-0 ' : '-mb-px '}py-2 border-b-2 font-sans text-sm font-medium whitespace-nowrap transition-colors duration-150 ease-in-out ${
         active ? 'border-accent text-primary' : 'border-transparent text-secondary hover:text-primary'
     }`;
 }

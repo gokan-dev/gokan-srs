@@ -4,7 +4,8 @@ import { useQuiz } from "../../context/useQuiz";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { VocabularyService } from "../../services/vocabulary.service";
 import type { LookupTarget } from "../../utils/lookup.utils";
-import { vocabPath } from "../../utils/navigation.utils";
+import { kanjiPath, vocabPath } from "../../utils/navigation.utils";
+import { organizeSenses } from "../../utils/senses.utils";
 import { CardSkeleton } from "../CardSkeleton";
 import { KanjiSummary } from "../KanjiSummary";
 import { PlayButton } from "../PlayButton";
@@ -15,7 +16,8 @@ import { WordStudyStatus } from "../WordStudyStatus";
 const MAX_SENSES = 2;
 const MAX_GLOSSES_PER_SENSE = 4;
 
-const OPEN_LINK = "font-sans text-sm text-accent hover:underline";
+/** The card's main action: 44px tall on phones, where the bottom sheet is the card. */
+const OPEN_LINK = "inline-flex items-center min-h-11 md:min-h-0 font-sans text-sm text-accent hover:underline";
 
 interface BodyProps {
     /** Called when a link in the card is followed, so the card closes behind it. */
@@ -41,7 +43,11 @@ function WordCardBody({ vocabId, onNavigate }: BodyProps & { vocabId: string }) 
     if (load.status !== 'ready') return <CardSkeleton variant="line" />;
 
     const vocab = load.data;
-    const senses = vocab.senses.slice(0, MAX_SENSES);
+    // The page's order (organizeSenses): the senses a learner meets first, archaic and rare ones
+    // only for a word that has nothing else.
+    const { common, rare } = organizeSenses(vocab.senses);
+    const ordered = common.length > 0 ? common : rare;
+    const senses = ordered.slice(0, MAX_SENSES);
     const hiddenSenses = vocab.senses.length - senses.length;
 
     return (
@@ -53,10 +59,10 @@ function WordCardBody({ vocabId, onNavigate }: BodyProps & { vocabId: string }) 
                 <PlayButton audio={vocab.audio} label={`Play ${headwordOf(vocab)}`} />
             </div>
             <ol className="space-y-0.5">
-                {senses.map((sense, i) => (
+                {senses.map(({ sense, posLabel }, i) => (
                     <li key={i} className="type-support">
                         {senses.length > 1 && <span className="text-tertiary mr-1">{i + 1}.</span>}
-                        {sense.pos.length > 0 && <span className="text-tertiary italic mr-1">{sense.pos[0]}</span>}
+                        {posLabel !== null && <span className="text-tertiary italic mr-1">{posLabel}</span>}
                         {sense.glosses.slice(0, MAX_GLOSSES_PER_SENSE).join(', ')}
                     </li>
                 ))}
@@ -78,7 +84,7 @@ function KanjiCardBody({ glyph, onNavigate }: BodyProps & { glyph: string }) {
     return (
         <div className="space-y-3 min-w-0" data-lookup-kanji>
             <KanjiSummary glyph={glyph} kanji={load.status === 'ready' ? load.data : 'loading'} known={state.progress?.kanjiKnowledge.kanjiSet.has(glyph)} />
-            <Link to={`/kanji/${glyph}`} onClick={onNavigate} className={`block ${OPEN_LINK}`}>Open kanji page</Link>
+            <Link to={kanjiPath(glyph)} onClick={onNavigate} className={OPEN_LINK}>Open kanji page</Link>
         </div>
     );
 }

@@ -2,6 +2,7 @@ import type { Kanji } from "@gokan/dataset-schema";
 import { CardSkeleton } from "./CardSkeleton";
 import { KanjiReadings } from "./KanjiReadings";
 import { KanjiTile } from "./KanjiTile";
+import { kanjiPath } from "../utils/navigation.utils";
 
 interface KanjiSummaryProps {
     glyph: string;
@@ -20,7 +21,7 @@ export function KanjiSummary({ glyph, kanji, known }: KanjiSummaryProps) {
     const loaded = kanji === 'loading' ? null : kanji;
     return (
         <div className="flex items-start gap-4 min-w-0">
-            <KanjiTile glyph={glyph} to={`/kanji/${glyph}`} lookup={false} />
+            <KanjiTile glyph={glyph} to={kanjiPath(glyph)} lookup={false} />
             <div className="min-w-0 flex-1 space-y-1">
                 {kanji === 'loading' && <CardSkeleton variant="line" />}
                 {loaded && loaded.meanings.length > 0 && <p className="type-body">{loaded.meanings.join(', ')}</p>}

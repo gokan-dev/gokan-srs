@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GRAMMAR, KANJI, MORE_DESTINATIONS, STUDY, VOCABULARY, WHATS_NEW, isDestinationActive, isMoreActive, isReviewFromWord, isSessionPath, REVIEW_FROM_WORD_STATE, synonymsPath, vocabPath, wordReviewPath } from './navigation.utils';
+import { GRAMMAR, KANJI, MORE_DESTINATIONS, STUDY, VOCABULARY, WHATS_NEW, isDestinationActive, isMoreActive, isReviewFromWord, isSessionPath, REVIEW_FROM_WORD_STATE, kanjiPath, synonymsPath, vocabPath, wordReviewPath } from './navigation.utils';
 
 describe('isDestinationActive', () => {
     it('marks Study on the hub only', () => {
@@ -58,6 +58,12 @@ describe('vocabPath', () => {
     it('opens Dict with no hash, another tab by its hash', () => {
         expect(vocabPath('1224020')).toBe('/vocab/1224020');
         expect(vocabPath('1224020', 'kanji')).toBe('/vocab/1224020#kanji');
+    });
+});
+
+describe('kanjiPath', () => {
+    it("is the kanji's page, the glyph as written", () => {
+        expect(kanjiPath('輝')).toBe('/kanji/輝');
     });
 });
 

@@ -1564,6 +1564,9 @@ The same for every exercise, vocab and grammar alike (see Services & Business Lo
 - A vocabulary file that fails to load for any reason other than a clean not-found (a network/transient failure, or a parse error on a file that genuinely IS present)
 - Index corruption
 - Invalid data format
+- The audio index (`index/audio.json`), on a play button's first press (`PlayButton` dispatches `DATA_LOAD_FAILED`): every clip URL comes from it, so a failed index is the dataset failing, not one clip
+
+**Inline failures in a secondary surface**: a word's or kanji's file that fails inside the lookup card (`components/lookup/LookupCardBody.tsx`) or a word page's Kanji tab (`pages/vocab/KanjiTab.tsx`) shows one inline line in the error colour ("Could not load this word.", "Could not load this word's kanji.") instead of the fatal screen. The failure is in a layer over a page that loaded and that the learner is reading: replacing that page with the fatal screen for a hover card or a tab would lose what they were doing, for a file the page itself does not depend on. It is the same reasoning as `DetailErrorScreen`, which a detail page shows for its own entry. It is never silent: the line says what failed, in place of what would have shown, and the next load retries. Anything that feeds the study state (the queue, a session's words, an index) stays fatal.
 
 ---
 

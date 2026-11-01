@@ -34,7 +34,10 @@
  * - a word page's Review now leaves the word page once in history: a finished review goes back to
  *   it, and Back mid-review lands on it;
  * - a sentence word tapped on a phone opens its lookup card as a bottom sheet that fits the
- *   viewport, with a 44px Close, and no sideways scroll;
+ *   viewport, with a 44px Close and 44px links (Open word page), and no sideways scroll;
+ * - a word page's tabs are 44px tap targets on a phone;
+ * - no word in an app sentence has side space (margin or padding): Japanese has no spaces;
+ * - example sentences (a word page's Dict tab, a grammar page) are spaced apart, never ruled;
  * - play buttons (a word's reading, a word page's and a grammar page's example sentences) are
  *   44px tap targets on a phone at the first line of what they play (the sentence, the reading, a
  *   kana word's note), and each of those pages has a "Play sentence" button.
@@ -106,8 +109,9 @@ const MEASURE = (deviceWidth: number, tapTargets: string) => `(() => {
     if (inked.length) problems.push('list row not plain (primary ink, no underline): ' + inked.slice(0, 3).map(el => describe(el) + ' ' + getComputedStyle(el).color).join(', '));
     const renamed = [...document.querySelectorAll('.pager a[aria-label]')].filter(el => !el.getAttribute('aria-label').includes(el.textContent.trim()));
     if (renamed.length) problems.push('pager link named without its visible text (WCAG 2.5.3; prefix it with a visually hidden span instead): ' + renamed.slice(0, 3).map(el => describe(el) + ' named "' + el.getAttribute('aria-label') + '"').join(', '));
-    const spaced = [...document.querySelectorAll('[data-sentence] > *')].filter(el => visible(el) && parseFloat(getComputedStyle(el).marginLeft) + parseFloat(getComputedStyle(el).marginRight) > 0);
-    if (spaced.length) problems.push('sentence word has a side margin (reads as a space in Japanese): ' + spaced.slice(0, 3).map(describe).join(', '));
+    const sideSpace = el => { const s = getComputedStyle(el); return parseFloat(s.marginLeft) + parseFloat(s.marginRight) + parseFloat(s.paddingLeft) + parseFloat(s.paddingRight); };
+    const spaced = [...document.querySelectorAll('[data-sentence] > *')].filter(el => visible(el) && sideSpace(el) > 0);
+    if (spaced.length) problems.push('sentence word has side margin or padding (reads as a space in Japanese): ' + spaced.slice(0, 3).map(describe).join(', '));
     // Furigana (docs/DESIGN_SYSTEM.md): a reading sits over kanji only (what rubyParts counts as
     // kanji), unless rubyParts fell back to the whole word, which it marks; a ruby (a run of kanji
     // with its reading) never breaks across lines (the browser would cut base and reading apart, putting the wrong
@@ -300,6 +304,23 @@ const GRAMMAR_POINT = 'n5-001';
 
 /** A word learned in kana: its header's play button follows the kanji-spelling note, which wraps at 320px. */
 const KANA_WORD = '1000225';
+
+/** A word page's tabs (components/ui/TabNav.tsx, page tabs): a phone's main way around the page. */
+const PAGE_TABS = '[role="tab"]';
+
+/**
+ * Example sentences are spaced apart, not ruled (docs/DESIGN_SYSTEM.md section 4: nothing draws a
+ * line inside a level), on a word page's Dict tab and a grammar page alike.
+ */
+async function checkExamplesUnruled(tab: Tab, page: string, width: number): Promise<void> {
+    const result = await tab.evaluate<{ count: number; ruled: string[] }>(`(() => {
+        const items = [...document.querySelectorAll('[data-example-sentence]')].filter(el => el.getBoundingClientRect().width > 0);
+        const ruled = items.filter(el => { const s = getComputedStyle(el); return parseFloat(s.borderTopWidth) > 0 || parseFloat(s.borderBottomWidth) > 0; });
+        return { count: items.length, ruled: ruled.slice(0, 3).map(el => el.textContent.trim().slice(0, 20)) };
+    })()`);
+    if (result.count === 0) failures.push(`${width}px ${page}: no example sentence ([data-example-sentence]) to check`);
+    for (const text of result.ruled) failures.push(`${width}px ${page}: example sentence ruled with a top or bottom border (space them apart): ${text}`);
+}
 
 /** At least one sentence on the page carries a play button, named for what it plays. */
 async function checkSentencePlayButtons(tab: Tab, page: string, width: number): Promise<void> {
@@ -727,7 +748,7 @@ async function checkLookupSheet(tab: Tab, page: string, width: number): Promise<
     }
     const fit = await tab.evaluate<string>(SHEET_FIT);
     if (fit) failures.push(`${where}: ${fit}`);
-    await measure(tab, `${page}, a sentence word's lookup sheet`, width, '[data-sheet-close]');
+    await measure(tab, `${page}, a sentence word's lookup sheet`, width, '[data-sheet-close], [data-bottom-sheet] a');
     await tab.evaluate<void>(`document.querySelector('[data-bottom-sheet] [data-sheet-close]').click()`);
     try {
         await tab.until(`document.querySelector('[data-bottom-sheet]') === null`, 'the sheet closed', 5000);
@@ -813,8 +834,9 @@ try {
         await tab.goto(`${app}/listening`, 'Watching ·');
         await tab.until(`document.body.innerText.includes('Completed')`, 'a completed title in the library');
         await measure(tab, 'srs /listening, watching and completed titles', width);
-        await measureFuriganaFixture(tab, `${app}/vocab/${FURIGANA_VOCAB}`, 'Examples', `srs /vocab/${FURIGANA_VOCAB}`, width, PLAY_BUTTONS);
+        await measureFuriganaFixture(tab, `${app}/vocab/${FURIGANA_VOCAB}`, 'Examples', `srs /vocab/${FURIGANA_VOCAB}`, width, `${PLAY_BUTTONS}, ${PAGE_TABS}`);
         await checkSentencePlayButtons(tab, `srs /vocab/${FURIGANA_VOCAB}`, width);
+        await checkExamplesUnruled(tab, `srs /vocab/${FURIGANA_VOCAB}`, width);
         await checkWordFirstScreen(tab, `srs /vocab/${FURIGANA_VOCAB}`, width, height);
         await checkLookupSheet(tab, `srs /vocab/${FURIGANA_VOCAB}`, width);
         await checkTabRowBleed(tab, `srs /vocab/${FURIGANA_VOCAB}`, width);
@@ -825,6 +847,7 @@ try {
         await tab.goto(`${app}/grammar/${GRAMMAR_POINT}`, 'Example sentences');
         await measure(tab, `srs /grammar/${GRAMMAR_POINT}`, width, PLAY_BUTTONS);
         await checkSentencePlayButtons(tab, `srs /grammar/${GRAMMAR_POINT}`, width);
+        await checkExamplesUnruled(tab, `srs /grammar/${GRAMMAR_POINT}`, width);
         await tab.goto(`${app}/vocab/${KANA_WORD}`, 'Usually written in kana');
         await checkPlayButtonsOnFirstLine(tab, `srs /vocab/${KANA_WORD}`, width);
         await tab.evaluate<void>(SEED_MIXUPS);
@@ -888,4 +911,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji, on one line and apart, Japanese in list rows unbroken, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, Review now leaving the word page once in history, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word's lookup sheet in the viewport with a 44px Close.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows unbroken, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, Review now leaving the word page once in history, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links.`);

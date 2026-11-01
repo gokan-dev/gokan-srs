@@ -4,6 +4,7 @@ import { InteractiveSentence } from "../../components/InteractiveSentence";
 import { SentenceWithPlay } from "../../components/PlayButton";
 import { Marked } from "../../components/ui/Marked";
 import { englishRanges, type ExploreQuery } from "../../utils/exploreSearch.utils";
+import { vocabPath } from "../../utils/navigation.utils";
 
 /**
  * One of a word's example sentences: the Japanese with furigana, the word highlighted and every
@@ -13,13 +14,13 @@ export function WordSentence({ vocabId, sentence, query = null }: { vocabId: str
     const navigate = useNavigate();
     const english = sentence.en[0]?.text;
     return (
-        <div>
+        <div data-example-sentence>
             <SentenceWithPlay audio={sentence.audio}>
                 <div className="text-xl text-primary">
                     <InteractiveSentence
                         sentence={sentence}
                         targetVocabId={vocabId}
-                        onVocabClick={(vid) => void navigate(`/vocab/${vid}`)}
+                        onVocabClick={(vid) => void navigate(vocabPath(vid))}
                         showFurigana={true}
                         keyboardLinks
                     />

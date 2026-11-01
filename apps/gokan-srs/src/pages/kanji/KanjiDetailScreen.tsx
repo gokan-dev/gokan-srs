@@ -19,6 +19,7 @@ import { DetailHeader } from "../../components/detail/DetailHeader";
 import { DetailField, DetailSection } from "../../components/detail/DetailSection";
 import { DetailBody } from "../../components/detail/DetailBody";
 import type { KanjiLearningMethod } from "../../models/user.model";
+import { kanjiPath } from "../../utils/navigation.utils";
 
 export default function KanjiDetailScreen() {
     const { character } = useParams<{ character: string }>();
@@ -85,7 +86,7 @@ export default function KanjiDetailScreen() {
                 <ul className="flex flex-wrap gap-3 mb-3">
                     {kanji.components.map(component => (
                         <li key={component}>
-                            <KanjiTile glyph={component} to={linkedLoad.data?.has(component) ? `/kanji/${component}` : undefined} />
+                            <KanjiTile glyph={component} to={linkedLoad.data?.has(component) ? kanjiPath(component) : undefined} />
                         </li>
                     ))}
                 </ul>

@@ -148,6 +148,12 @@ const BOTTOM_SHEET = 'apps/gokan-srs/src/components/ui/BottomSheet.tsx';
 const PORTAL_CALL = /\bcreatePortal\(/;
 const PORTAL_FILES = new Set([BOTTOM_SHEET, 'apps/gokan-srs/src/components/lookup/useLookup.tsx', 'apps/gokan-srs/src/components/QuizSettingsMenu.tsx']);
 const RUBY_COMPONENT = 'apps/gokan-srs/src/components/Ruby.tsx';
+/** A raw part-of-speech code (`v5r`, `adj-i`): a sense's labels come from utils/senses.utils.ts (organizeSenses). */
+const RAW_POS = /\.pos\[/;
+/** A word's or a kanji's page path, built by hand: vocabPath and kanjiPath (utils/navigation.utils.ts) build them. */
+const HAND_BUILT_ENTRY_PATH = /`\/(?:vocab|kanji)\/\$\{/;
+/** The path builders, and the app-route-to-dictionary-page table (the dictionary's URLs, not the app's routes). */
+const ENTRY_PATH_FILES = new Set(['apps/gokan-srs/src/utils/navigation.utils.ts', 'apps/gokan-srs/src/utils/seo.utils.ts']);
 
 /**
  * Detail pages (vocab, kanji, grammar) share one frame: DetailHeader, then DetailBody, the 8/4
@@ -336,6 +342,16 @@ function check(files: string[]): Violation[] {
         if (GOKAN_SRS_SOURCE.test(file) && file !== RUBY_COMPONENT && !file.endsWith('.test.tsx')) {
             eachLine(text, l => RUBY_ELEMENT.test(l), line =>
                 add({ file, line, rule: 'one-ruby', message: 'Furigana renders through Ruby (components/Ruby.tsx): each reading over its kanji only (rubyParts), neighbouring readings kept apart.' }));
+        }
+
+        if (GOKAN_SRS_SOURCE.test(file) && file.endsWith('.tsx') && !file.endsWith('.test.tsx')) {
+            eachLine(text, l => RAW_POS.test(l), line =>
+                add({ file, line, rule: 'pos-labels', message: 'Renders a raw part-of-speech code. Take the sense\'s posLabel from organizeSenses (utils/senses.utils.ts), in the page\'s sense order.' }));
+        }
+
+        if (GOKAN_SRS_SOURCE.test(file) && !ENTRY_PATH_FILES.has(file) && !/\.test\.tsx?$/.test(file)) {
+            eachLine(text, l => HAND_BUILT_ENTRY_PATH.test(l), line =>
+                add({ file, line, rule: 'entry-paths', message: 'Builds a word or kanji path by hand. Use vocabPath / kanjiPath (utils/navigation.utils.ts), so every link to an entry is one URL.' }));
         }
 
         if (GOKAN_SRS_SOURCE.test(file) && file !== BOTTOM_SHEET && !file.endsWith('.test.tsx')) {

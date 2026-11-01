@@ -562,10 +562,13 @@ input is at least 16px (smaller makes iOS zoom), the dictionary's nav links, pag
 toggles, tiles, disclosure summaries and single-action links are at least 44px tall, every
 dictionary list row is plain (primary ink, no underline), and a word in a dictionary
 sentence carries only its dotted border, never the running-text underline, and no word in an
-app sentence (linked or studied) has a side margin (Japanese has no spaces between words), no
+app sentence (linked or studied) has side margin or padding (Japanese has no spaces between
+words), no example sentence is ruled (a word page's and a grammar page's are spaced apart), a word
+page's tabs are 44px tall on a phone, no
 reading sits over kana (a marked fallback excepted), no ruby breaks across lines and no two
 readings on a line touch (measured on their glyphs), and a sentence word tapped on a word
-page opens its lookup card as a bottom sheet inside the viewport, its Close 44px. A new page
+page opens its lookup card as a bottom sheet inside the viewport, its Close and its links (Open
+word page) 44px. A new page
 type or main route is added to its lists.
 
 **Lighthouse, SEO at 100** (`scripts/check-lighthouse.ts`, `bun run check:lighthouse`, run by

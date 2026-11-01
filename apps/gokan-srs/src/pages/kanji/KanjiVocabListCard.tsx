@@ -11,6 +11,7 @@ import { VocabularyService } from "../../services/vocabulary.service";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { useQuiz } from "../../context/useQuiz";
 import { STATUS_LABEL, vocabLearningStatus, type LearningStatus } from "../../utils/learningStatus.utils";
+import { vocabPath } from "../../utils/navigation.utils";
 
 interface Props {
     character: string;
@@ -58,7 +59,7 @@ export function KanjiVocabListCard({ character, vocabIds }: Props) {
                 {vocabs.filter(v => displayedIds.includes(v.id)).map(v => (
                     <ListRow
                         key={v.id}
-                        to={`/vocab/${v.id}`}
+                        to={vocabPath(v.id)}
                         lookup={{ kind: 'word', vocabId: v.id }}
                         trailing={
                             <div className="flex items-center gap-3">

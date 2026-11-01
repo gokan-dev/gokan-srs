@@ -208,7 +208,8 @@ gokan-srs, everything else:
   download.
 - Page frame: `components/Page.tsx` (the two widths), `components/PageHeader.tsx` (title,
   Back, actions), `components/ui/TabNav.tsx` (route tabs), `components/nav/` (header, tab bar,
-  footer), destinations in `utils/navigation.utils.ts`.
+  footer), destinations in `utils/navigation.utils.ts` (a word's page only through `vocabPath`, a
+  kanji's through `kanjiPath`: enforced).
 - Lists and stats: `components/ui/ListRow.tsx` rows, `components/WordStudyStatus.tsx` (a word's
   status, or Learn), `utils/learningStatus.utils.ts` (New / Learning / Mastered for a word or a
   grammar point), `components/ui/Pagination.tsx`, `pages/stats/components/CoverageChart.tsx` and

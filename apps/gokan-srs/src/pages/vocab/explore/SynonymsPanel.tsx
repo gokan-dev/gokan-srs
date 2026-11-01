@@ -14,6 +14,7 @@ import { senseNumbers } from "../../../utils/senses.utils";
 import { filterSynonymSections, GROUP_ROWS, sectionGlossLine, GROUPS_AT_ONCE, shownGroups, synonymCount, type SynonymSection } from "../../../utils/synonymSections.utils";
 import { PanelSearch } from "./PanelSearch";
 import { usePanelQuery } from "./usePanelQuery";
+import { vocabPath } from "../../../utils/navigation.utils";
 
 /** How close two words are, as a neutral chip told apart by its sign and its word, never a colour. */
 function ClosenessChip({ closeness }: { closeness: Closeness }) {
@@ -66,7 +67,7 @@ export function SynonymsPanel({ vocab, sections, mixedUp }: { vocab: Vocabulary;
                 const shared = synonym.shared.join(', ');
                 return {
                     key: synonym.vocabId,
-                    to: `/vocab/${synonym.vocabId}`,
+                    to: vocabPath(synonym.vocabId),
                     lookup: { kind: 'word', vocabId: synonym.vocabId },
                     primary: headwordOf(synonym.forms),
                     // The reading is never broken: on a narrow row the chip wraps to the row's edge.

@@ -20,6 +20,7 @@ import type { LearnerOrder, WordOrderContext, WordSort } from "../../utils/wordO
 import { JitenCredit, MediaCover, VocabularyOnlyNote } from "./listeningShared";
 import { useWordOrdering } from "./useWordOrdering";
 import { useAsyncData } from "../../hooks/useAsyncData";
+import { vocabPath } from "../../utils/navigation.utils";
 
 /** Words shown at first in a "words to learn" list, and how many more each "Show more" adds. */
 const PAGE_SIZE = 10;
@@ -347,7 +348,7 @@ function WordsToLearn({ words, countHint, knowledge, sort, onSortChange, orderCo
                     const newKanji = orderContext && learner && !vocab?.usuallyKana && !isLearnableNow(id, orderContext, learner);
                     return (
                         <li key={id} className="flex items-center gap-3 py-1.5 border-b border-divider last:border-b-0">
-                            <Link to={`/vocab/${id}`} className="min-w-0 flex-1 flex items-baseline gap-2 hover:text-accent">
+                            <Link to={vocabPath(id)} className="min-w-0 flex-1 flex items-baseline gap-2 hover:text-accent">
                                 <span className="font-mincho text-base text-primary">{vocab ? headwordOf(vocab) : '…'}</span>
                                 {vocab && !vocab.usuallyKana && <span className="font-mincho text-xs text-secondary">{vocab.reading.primary}</span>}
                                 {vocab && (

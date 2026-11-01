@@ -59,7 +59,7 @@ export function InteractiveSentence({
                 if (segment.type === 'text') {
                     if (!emphasized) return <span key={i}>{segment.content}</span>;
                     return (
-                        <span key={i} className="text-accent font-semibold border-b-2 border-accent/30 px-0.5">
+                        <span key={i} className="text-accent font-semibold border-b-2 border-accent/30">
                             {segment.content}
                         </span>
                     );
@@ -76,10 +76,10 @@ export function InteractiveSentence({
                 // meaning, so the card would only restate it.
                 const lookedUp = showGlossOnHover && !segment.isTarget;
 
-                const targetClass = `text-accent font-semibold border-b-2 border-accent/30 px-0.5 ${isClickable || lookedUp ? 'cursor-pointer hover:border-accent transition-colors' : ''}`;
+                const targetClass = `text-accent font-semibold border-b-2 border-accent/30 ${isClickable || lookedUp ? 'cursor-pointer hover:border-accent transition-colors' : ''}`;
                 // No permanent underline: a sentence full of underlines reads as noise. A word
-                // shows it is a link on hover and on keyboard focus. No word has a side margin,
-                // the studied one included (its padding frames it): Japanese has no spaces between
+                // shows it is a link on hover and on keyboard focus. No word has side space (margin
+                // or padding), the studied one included (its underline marks it): Japanese has no spaces between
                 // words, and with most words linked (kana ones too) a margin read as a space at
                 // nearly every word boundary (実在 する もの と).
                 const clickableClass = "cursor-pointer text-primary border-b border-transparent hover:text-accent hover:border-accent focus-visible:outline-none focus-visible:text-accent focus-visible:border-accent transition-colors";

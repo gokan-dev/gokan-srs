@@ -54,6 +54,14 @@ export function vocabPath(vocabId: string, tab: WordTab = 'dict'): string {
     return `/vocab/${encodeURIComponent(vocabId)}${wordTabHash(tab)}`;
 }
 
+/**
+ * A kanji's page. The glyph is one character, never a path separator, so it goes in as written:
+ * the URL is the one these pages have always had.
+ */
+export function kanjiPath(glyph: string): string {
+    return `/kanji/${glyph}`;
+}
+
 /** A word's Synonyms tab (a quiz's synonym note, "Compare synonyms", links there). */
 export function synonymsPath(vocabId: string): string {
     return vocabPath(vocabId, 'synonym');
