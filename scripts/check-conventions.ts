@@ -145,7 +145,9 @@ const SYNONYM_READER = 'apps/gokan-srs/src/services/exercise/wordRelation.ts';
  * writes it, hydration and migration move it as stored. Anywhere else a raw read would ignore the
  * pacing slider and disagree with the queue.
  */
-const DUE_DATE_READ = /\.dueDate\b/;
+// A stored dueDate, or the cached nextReviewAt compared as a due date: both are raw, read
+// under no pacing, so a due check on either disagrees with the queue after a slider move.
+const DUE_DATE_READ = /\.dueDate\b|\.nextReviewAt\s*(<=?|>=?)/;
 const DUE_DATE_READERS = new Set([
     'apps/gokan-srs/src/services/scheduling.ts',
     'apps/gokan-srs/src/services/grammarScheduling.ts',
@@ -356,7 +358,7 @@ function check(files: string[]): Violation[] {
 
         if (GOKAN_SRS_SOURCE.test(file) && !DUE_DATE_READERS.has(file) && !/\.test\.tsx?$/.test(file)) {
             eachLine(text, l => DUE_DATE_READ.test(l) && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
-                add({ file, line, rule: 'effective-due-date', message: 'Reads a stored dueDate. Go through services/scheduling.ts (effectiveDueDate, isEntryDue, vocabNextReviewAt) or grammarScheduling.ts, so every reader follows the review pacing the queue uses.' }));
+                add({ file, line, rule: 'effective-due-date', message: 'Reads a stored dueDate, or compares the cached nextReviewAt. Go through services/scheduling.ts (effectiveDueDate, isEntryDue, isVocabDue, isFirstReviewDue) or grammarScheduling.ts, so every reader follows the review pacing the queue uses.' }));
         }
 
         if (GOKAN_SRS_SOURCE.test(file) && file !== RUBY_COMPONENT && !file.endsWith('.test.tsx')) {

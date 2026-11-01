@@ -4,7 +4,7 @@ import type { UserProgress, UserSettings } from '../models/user.model';
 import { DEFAULT_PROGRESS } from '../models/user.model';
 import { DEFAULT_SRS_ENTRY } from '../models/vocabulary.model';
 import type { GrammarProgress } from '../models/grammar.model';
-import { vocabNextReviewAt } from './scheduling';
+import { cachedNextReviewAt } from './scheduling';
 import { grammarNextReviewAt } from './grammarScheduling';
 import { GrammarService } from './grammar.service';
 import { adaptiveStatsWithDefaults, seedCalibrationFromHistory, withCalibrationDefaults } from './calibration';
@@ -265,7 +265,7 @@ export class MigrationService {
         // derivation in mergeVocabProgress and makes nextReviewAt flip on every
         // load->merge round trip (the infinite auto-upload loop).
         migratedQueue = migratedQueue.map((item: VocabProgress) =>
-            item.stage === 'graduated' ? item : { ...item, nextReviewAt: vocabNextReviewAt(item, settings) }
+            item.stage === 'graduated' ? item : { ...item, nextReviewAt: cachedNextReviewAt(item, settings) }
         );
 
         // Enforce the invariant "learningQueue holds no retired id" on every load

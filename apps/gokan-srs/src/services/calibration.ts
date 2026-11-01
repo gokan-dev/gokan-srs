@@ -196,24 +196,47 @@ export function modifierAt(history: readonly IntervalModifierChange[] | undefine
     return value;
 }
 
-/** A history ordered by `from`, one entry per date (the later-listed one on a tie). */
-function orderedHistory(changes: readonly IntervalModifierChange[]): IntervalModifierChange[] {
+/** A pacing value inside the slider's range. */
+function clampModifier(value: number): number {
+    const { min, max } = CONSTANTS.srs.intervalModifier;
+    return Math.min(max, Math.max(min, value));
+}
+
+/**
+ * The one shape a pacing history is kept in, whoever built it (hydration, the
+ * Drive merge, a commit): finite values only, clamped to the slider's range (a
+ * 0 would floor every interval), ordered by `from`, one entry per `from`.
+ * Deterministic whatever the input order: two values at the same instant keep
+ * the larger, so two devices normalise the same union to the same list.
+ */
+export function normalisePacingHistory(changes: readonly IntervalModifierChange[]): IntervalModifierChange[] {
     const byFrom = new Map<string, IntervalModifierChange>();
-    for (const change of changes) byFrom.set(change.from, change);
+    for (const change of changes) {
+        if (!Number.isFinite(change.value)) continue;
+        const value = clampModifier(change.value);
+        const held = byFrom.get(change.from);
+        if (!held || value > held.value) byFrom.set(change.from, { from: change.from, value });
+    }
     return [...byFrom.values()].sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0));
 }
 
 /**
  * Commits a pacing value: sets it and appends it to the history, from `now`.
  * Called once per commit (the slider's release), never per step of a drag, and
- * a no-op when the value is already the current one.
+ * a no-op when the value is already the current one. A commit replaces an entry
+ * from the very same instant, so the value just chosen is the current one.
  */
 export function commitIntervalModifier<S extends PacingSettings>(settings: S, value: number, now: Date): S {
     if (value === settings.intervalModifier) return settings;
+    const from = now.toISOString();
+    const intervalModifierHistory = normalisePacingHistory([
+        ...settings.intervalModifierHistory.filter(change => change.from !== from),
+        { from, value },
+    ]);
     return {
         ...settings,
-        intervalModifier: value,
-        intervalModifierHistory: orderedHistory([...settings.intervalModifierHistory, { from: now.toISOString(), value }]),
+        intervalModifier: intervalModifierHistory.at(-1)?.value ?? clampModifier(value),
+        intervalModifierHistory,
     };
 }
 
@@ -224,9 +247,7 @@ export function commitIntervalModifier<S extends PacingSettings>(settings: S, va
  * loses a change.
  */
 export function mergePacing(local: PacingSettings, remote: PacingSettings): PacingSettings {
-    const all = [...local.intervalModifierHistory, ...remote.intervalModifierHistory]
-        .sort((a, b) => a.value - b.value);
-    const intervalModifierHistory = orderedHistory(all);
+    const intervalModifierHistory = normalisePacingHistory([...local.intervalModifierHistory, ...remote.intervalModifierHistory]);
     const latest = intervalModifierHistory.at(-1);
     return {
         intervalModifier: latest ? latest.value : local.intervalModifier,

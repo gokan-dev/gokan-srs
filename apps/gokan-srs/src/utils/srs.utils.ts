@@ -9,7 +9,8 @@ import {
     isProductionQuizEnabled,
     isReadingRelevant,
     isVocabFullyMastered,
-    vocabNextReviewAt,
+    cachedNextReviewAt,
+    isFirstReviewDue,
 } from "../services/scheduling";
 import { pickStable as pickStableGeneric } from "./deterministicPick";
 
@@ -59,14 +60,7 @@ export interface QuizItem {
 function isReadingDue(v: VocabProgress, settings: UserSettings | undefined, now: Date): boolean {
     if (!isReadingRelevant(v)) return false;
 
-    // A first review is set at the intro with no interval behind it, so review
-    // pacing never moves it: the date cached at the intro is the one to read.
-    const isFirstReview =
-        v.totalReviews === 0 &&
-        v.introductionAt !== null &&
-        v.nextReviewAt !== null &&
-        v.nextReviewAt <= now &&
-        v.stage !== 'graduated';
+    const isFirstReview = isFirstReviewDue(v, now);
 
     const isDueReading = v.totalReviews > 0 && isEntryDue(v.reading, settings, now);
 
@@ -211,7 +205,7 @@ export function syncUsuallyKana(
             : v.reading;
         const synced = { ...v, usuallyKana, reading };
         const stage: VocabProgress['stage'] = v.stage === 'graduated' || (v.totalReviews > 0 && isVocabFullyMastered(synced, settings)) ? 'graduated' : 'learning';
-        return { ...synced, stage, nextReviewAt: stage === 'graduated' ? null : vocabNextReviewAt(synced, settings) };
+        return { ...synced, stage, nextReviewAt: stage === 'graduated' ? null : cachedNextReviewAt(synced, settings) };
     });
     return changed ? next : queue;
 }

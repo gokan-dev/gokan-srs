@@ -70,6 +70,22 @@ describe('mergeVocabProgress (per-entry merge - the core fix)', () => {
         expect(merged.meaning.memoryStrength).toBe(150);
     });
 
+    it('caches the raw stored due date as nextReviewAt, whatever the current pacing', () => {
+        // Set under x1.5 on Mar 1 (interval 10), then the pacing moved to x3.0: the queue reads
+        // the date pushed out, but the cache stays the stored one, so a later move never leaves it stale.
+        const dueDate = new Date('2026-03-11T00:00:00Z');
+        const entry = () => makeEntry({ interval: 10, dueDate, lastReviewedAt: new Date('2026-03-01T00:00:00Z') });
+        const settings = commitIntervalModifier(
+            { ...DEFAULT_SETTINGS, intervalModifier: 1.5, intervalModifierHistory: [{ from: 0, value: 1.5 }] },
+            3.0,
+            new Date('2026-03-05T00:00:00Z')
+        );
+        const local = vocabProgress({ reading: entry(), meaning: makeEntry({ dueDate: null }) });
+        const remote = vocabProgress({ reading: entry(), meaning: makeEntry({ dueDate: null }) });
+
+        expect(mergeVocabProgress(local, remote, settings).nextReviewAt).toEqual(dueDate);
+    });
+
     it('re-derives stage/nextReviewAt rather than merging them directly', () => {
         const local = vocabProgress({
             reading: makeEntry({ memoryStrength: 1270, dueDate: null }), // mastered

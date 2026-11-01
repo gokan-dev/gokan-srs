@@ -2,7 +2,7 @@ import type { ReviewLog, SRSEntry, VocabProgress } from '../../models/vocabulary
 import { DEFAULT_SRS_ENTRY } from '../../models/vocabulary.model';
 import type { UserSettings } from '../../models/user.model';
 import type { GrammarProgress } from '../../models/grammar.model';
-import { isVocabFullyMastered, vocabNextReviewAt } from '../scheduling';
+import { cachedNextReviewAt, isVocabFullyMastered } from '../scheduling';
 import { isGrammarFullyMastered, grammarNextReviewAt } from '../grammarScheduling';
 import type { ProgressWithMetadata } from './types';
 import { mergeCalibration, mergePacing } from '../calibration';
@@ -133,7 +133,7 @@ export function mergeVocabProgress(
     // (e.g. reading alone, when meaning quizzes are disabled).
     const alreadyGraduated = local.stage === 'graduated' || remote.stage === 'graduated';
     merged.stage = (alreadyGraduated || isVocabFullyMastered(merged, settings)) ? 'graduated' : 'learning';
-    merged.nextReviewAt = merged.stage === 'graduated' ? null : vocabNextReviewAt(merged, settings);
+    merged.nextReviewAt = merged.stage === 'graduated' ? null : cachedNextReviewAt(merged, settings);
     return merged;
 }
 

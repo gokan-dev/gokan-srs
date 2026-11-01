@@ -201,6 +201,36 @@ export function vocabNextReviewAt(
     );
 }
 
+/**
+ * The value cached in `VocabProgress.nextReviewAt`: the raw stored date, read
+ * under no review pacing, so it never goes stale when the slider moves. Every
+ * writer of the cache goes through this (or passes a pacing-free settings
+ * slice, as SRSService does), and no reader compares it as a due date: due
+ * checks go through `isVocabDue` / `isEntryDue`, which apply the pacing.
+ */
+export function cachedNextReviewAt(
+    vocab: ScheduledVocab,
+    settings?: Pick<UserSettings, 'enableMeaningQuiz' | 'enableProductionQuiz'>
+): Date | null {
+    return vocabNextReviewAt(vocab, settings && { enableMeaningQuiz: settings.enableMeaningQuiz, enableProductionQuiz: settings.enableProductionQuiz });
+}
+
+/**
+ * True if a word's first review (set at the intro, before any answer) is due.
+ * It has no interval behind it, so review pacing never moves it: the date cached
+ * at the intro is the one to read.
+ */
+export function isFirstReviewDue(
+    vocab: Pick<VocabProgress, 'totalReviews' | 'introductionAt' | 'nextReviewAt' | 'stage'>,
+    now: Date
+): boolean {
+    return vocab.totalReviews === 0
+        && vocab.introductionAt !== null
+        && vocab.nextReviewAt !== null
+        && vocab.nextReviewAt <= now
+        && vocab.stage !== 'graduated';
+}
+
 /** True if the given vocab has a review due now (never true for graduated items). */
 export function isVocabDue(
     vocab: ScheduledVocab & Pick<VocabProgress, 'stage'>,

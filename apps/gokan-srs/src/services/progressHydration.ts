@@ -9,6 +9,7 @@ import { CONSTANTS } from "../commons/constants";
 import type { GrammarProgress } from "../models/grammar.model";
 import { DEFAULT_GRAMMAR_PROGRESS } from "../models/grammar.model";
 import type { ProgressWithMetadata, SyncMetadata } from "./sync/types";
+import { normalisePacingHistory } from "./calibration";
 
 /**
  * The stored shape of progress, and its hydration into real objects.
@@ -83,13 +84,15 @@ export function hydrateSettings(stored: Partial<UserSettings>, defaults: UserSet
             ? presets[stored.learningFrequency]
             : defaults.intervalModifier;
     const storedHistory: unknown[] = Array.isArray(stored.intervalModifierHistory) ? stored.intervalModifierHistory : [];
-    const valid = storedHistory
+    // Normalised as the Drive merge and a commit keep it (deduped, ordered, clamped), so a
+    // hand-edited or older file reads as the merge would.
+    const valid = normalisePacingHistory(storedHistory
         .filter((c): c is IntervalModifierChange => typeof c === 'object' && c !== null
-            && 'from' in c && typeof c.from === 'string' && 'value' in c && typeof c.value === 'number')
-        .sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0));
-    if (valid.length === 0) return { ...merged, intervalModifier, intervalModifierHistory: [{ from: PACING_EPOCH, value: intervalModifier }] };
+            && 'from' in c && typeof c.from === 'string' && 'value' in c && typeof c.value === 'number'));
+    const history = valid.length > 0 ? valid : normalisePacingHistory([{ from: PACING_EPOCH, value: intervalModifier }]);
     // The current value is always the latest change's, as the Drive merge reads it.
-    return { ...merged, intervalModifier: valid[valid.length - 1].value, intervalModifierHistory: valid };
+    const latest = history.at(-1);
+    return { ...merged, intervalModifier: latest ? latest.value : defaults.intervalModifier, intervalModifierHistory: history };
 }
 
 /**
