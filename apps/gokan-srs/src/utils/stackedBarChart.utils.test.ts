@@ -52,4 +52,9 @@ describe('showsLabelWhenNarrow', () => {
         expect(showsLabelWhenNarrow(12, 14)).toBe(false);
         expect(showsLabelWhenNarrow(11, 14)).toBe(true);
     });
+
+    it('shows every fifth label of a month, counting back from the last', () => {
+        const shown = Array.from({ length: 30 }, (_, i) => i).filter(i => showsLabelWhenNarrow(i, 30));
+        expect(shown).toEqual([4, 9, 14, 19, 24, 29]);
+    });
 });

@@ -26,9 +26,11 @@ export function axisTicks(maxValue: number): number[] {
 
 /**
  * Whether bar `index`'s label shows on a narrow screen: with many bars, every
- * other one counting back from the last (today), so labels never collide or
- * truncate. All of them show from `md` up.
+ * other one counting back from the last (today), and every fifth for a month of
+ * bars (the pacing forecast), so labels never collide or truncate. All of them
+ * show from `md` up.
  */
 export function showsLabelWhenNarrow(index: number, count: number): boolean {
-    return count <= 10 || (count - 1 - index) % 2 === 0;
+    const every = count <= 10 ? 1 : count <= 20 ? 2 : 5;
+    return (count - 1 - index) % every === 0;
 }

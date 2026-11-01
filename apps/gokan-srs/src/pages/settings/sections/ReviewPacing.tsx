@@ -21,7 +21,8 @@ const SEGMENTS: StackedBarChartSegment[] = [
     { key: 'projected', label: 'Projected', color: THEME.mastery.meaning.loop1 },
 ];
 
-const roundStep = (value: number) => Math.round(value / RANGE.step) * RANGE.step;
+// To the step, and to one decimal: 7 x 0.1 is 0.7000000000000001, which would be stored as is.
+const roundStep = (value: number) => Number((Math.round(value / RANGE.step) * RANGE.step).toFixed(1));
 const multiplierText = (value: number) => `×${value.toFixed(1)}`;
 const count = (n: number) => Math.round(n).toLocaleString('en-US');
 
@@ -88,20 +89,20 @@ export function ReviewPacing({ settings, progress, onUpdateSettings }: ReviewPac
                             <dt className="type-label">Due now</dt>
                             <dd className="font-sans text-primary tabular-nums">
                                 {count(atCandidate.dueNow)}
-                                {changed && <span className="type-support">, currently {count(current.dueNow)}</span>}
+                                {changed && <span className="block type-support">currently {count(current.dueNow)}</span>}
                             </dd>
                         </div>
                         <div className="min-w-0">
-                            <dt className="type-label">A day, next {FORECAST_DAYS} days</dt>
+                            <dt className="type-label">Daily average</dt>
                             <dd className="font-sans text-primary tabular-nums">
                                 About {count(atCandidate.averagePerDay)}
-                                {changed && <span className="type-support">, currently {count(current.averagePerDay)}</span>}
+                                {changed && <span className="block type-support">currently {count(current.averagePerDay)}</span>}
                             </dd>
                         </div>
                     </dl>
                     <StackedBarChart segments={SEGMENTS} bars={bars} height={120} showLegend />
                     <p className="type-support">
-                        Scheduled reviews are already planned. Projected ones are what answering them at your recent win rate brings back, plus new words and grammar at your pace over the last two weeks. Vocabulary and grammar together.
+                        Reviews a day over the next {FORECAST_DAYS} days. Scheduled reviews are already planned. Projected ones are what answering them at your recent win rate brings back, plus new words and grammar at your pace over the last two weeks. Vocabulary and grammar together.
                     </p>
                 </div>
             )}
