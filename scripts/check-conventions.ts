@@ -139,6 +139,21 @@ const BOXED_GLYPH_FILES = new Set(['apps/gokan-srs/src/components/KanjiTile.tsx'
 const SYNONYM_DATA = /\bVocabSynonym\b|\.synonyms\b|'synonyms'/;
 const SYNONYM_READER = 'apps/gokan-srs/src/services/exercise/wordRelation.ts';
 
+/**
+ * A stored due date is read only where scheduling is decided: the effective due date under the
+ * current review pacing (`effectiveDueDate`) is derived in the scheduling modules, the formula
+ * writes it, hydration and migration move it as stored. Anywhere else a raw read would ignore the
+ * pacing slider and disagree with the queue.
+ */
+const DUE_DATE_READ = /\.dueDate\b/;
+const DUE_DATE_READERS = new Set([
+    'apps/gokan-srs/src/services/scheduling.ts',
+    'apps/gokan-srs/src/services/grammarScheduling.ts',
+    'apps/gokan-srs/src/services/srs.service.ts',
+    'apps/gokan-srs/src/services/progressHydration.ts',
+    'apps/gokan-srs/src/services/migration.service.ts',
+]);
+
 /** Furigana in the app is the Ruby component: readings over the kanji only, half size, kept apart. */
 const RUBY_ELEMENT = /<ruby\b/;
 /** A sheet's top corners: the panel BottomSheet draws over the bottom of the screen. */
@@ -337,6 +352,11 @@ function check(files: string[]): Violation[] {
         if (GOKAN_SRS_SOURCE.test(file) && file !== SYNONYM_READER && !/\.test\.tsx?$/.test(file)) {
             eachLine(text, l => SYNONYM_DATA.test(l) && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
                 add({ file, line, rule: 'one-synonym-reader', message: 'Reads the dataset\'s synonym pairs. Go through services/exercise/wordRelation.ts (relationOf, synonymsOf, listedSynonymsOf), so a page and grading read a pair the same way.' }));
+        }
+
+        if (GOKAN_SRS_SOURCE.test(file) && !DUE_DATE_READERS.has(file) && !/\.test\.tsx?$/.test(file)) {
+            eachLine(text, l => DUE_DATE_READ.test(l) && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
+                add({ file, line, rule: 'effective-due-date', message: 'Reads a stored dueDate. Go through services/scheduling.ts (effectiveDueDate, isEntryDue, vocabNextReviewAt) or grammarScheduling.ts, so every reader follows the review pacing the queue uses.' }));
         }
 
         if (GOKAN_SRS_SOURCE.test(file) && file !== RUBY_COMPONENT && !file.endsWith('.test.tsx')) {
