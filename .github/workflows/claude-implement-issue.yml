@@ -55,10 +55,31 @@ jobs:
           submodules: true   # gokan-dataset submodule, per AGENTS.md
           fetch-depth: 0
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
+      # Bun from GitHub Releases + an Actions cache, NOT bun.sh (whose `latest` download 403s
+      # intermittently and takes every workflow down). Inline (not a local action) so it does not
+      # depend on which branch the agent checks out mid-run.
+      - name: Cache Bun
+        uses: actions/cache@v4
         with:
-          bun-version: latest
+          path: ~/.bun/bin
+          key: bun-${{ runner.os }}-${{ runner.arch }}-v1
+      - name: Setup Bun
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BIN="$HOME/.bun/bin"
+          echo "$BIN" >> "$GITHUB_PATH"
+          if [ -x "$BIN/bun" ]; then "$BIN/bun" --version; exit 0; fi
+          v="$(gh api repos/oven-sh/bun/releases/latest --jq .tag_name | sed -E 's/^bun-v//')"
+          mkdir -p "$BIN"
+          curl -fsSL --retry 5 --retry-all-errors \
+            "https://github.com/oven-sh/bun/releases/download/bun-v$v/bun-linux-x64.zip" -o "$RUNNER_TEMP/bun.zip"
+          unzip -q "$RUNNER_TEMP/bun.zip" -d "$RUNNER_TEMP/bun-dl"
+          mv "$RUNNER_TEMP/bun-dl/bun-linux-x64/bun" "$BIN/bun"
+          chmod +x "$BIN/bun"
+          "$BIN/bun" --version
 
       - name: Install dependencies
         run: bun install
@@ -158,7 +179,13 @@ jobs:
           # checklist as the agent works, replaced with the final summary on
           # completion - restores the visibility the default @claude-mention
           # trigger has, which a custom `prompt` input suppresses by default.
-          track_progress: true
+          # A dispatched run (resume, sweep, sprint orchestration) is initiated by github.token, so
+          # its actor is github-actions[bot]; the action refuses a bot-initiated run unless it is
+          # listed. No loop risk: these are our own workflow_dispatch invocations.
+          allowed_bots: "github-actions,claude"
+          # Only the `issues` trigger supports it (it posts a checklist on the issue). On a
+          # workflow_dispatch resume/sprint start the action rejects it outright, so gate it.
+          track_progress: ${{ github.event_name == 'issues' }}
           # 500 turns ended issue #115's first run a third of the way through. The
           # job timeout above is the real ceiling; a cut-off run resumes on its branch.
           claude_args: "--model claude-opus-5-5 --max-turns 1500 --allowedTools Bash,Edit,Write,Read,Glob,Grep"

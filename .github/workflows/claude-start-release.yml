@@ -59,10 +59,31 @@ jobs:
             gh issue view "$m" --repo "$REPO" --json number,title,body > ".preflight/context/issue-$m.json"
           done
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
+      # Bun from GitHub Releases + an Actions cache, NOT bun.sh (whose `latest` download 403s
+      # intermittently and takes every workflow down). Inline (not a local action) so it does not
+      # depend on which branch the agent checks out mid-run.
+      - name: Cache Bun
+        uses: actions/cache@v4
         with:
-          bun-version: latest
+          path: ~/.bun/bin
+          key: bun-${{ runner.os }}-${{ runner.arch }}-v1
+      - name: Setup Bun
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BIN="$HOME/.bun/bin"
+          echo "$BIN" >> "$GITHUB_PATH"
+          if [ -x "$BIN/bun" ]; then "$BIN/bun" --version; exit 0; fi
+          v="$(gh api repos/oven-sh/bun/releases/latest --jq .tag_name | sed -E 's/^bun-v//')"
+          mkdir -p "$BIN"
+          curl -fsSL --retry 5 --retry-all-errors \
+            "https://github.com/oven-sh/bun/releases/download/bun-v$v/bun-linux-x64.zip" -o "$RUNNER_TEMP/bun.zip"
+          unzip -q "$RUNNER_TEMP/bun.zip" -d "$RUNNER_TEMP/bun-dl"
+          mv "$RUNNER_TEMP/bun-dl/bun-linux-x64/bun" "$BIN/bun"
+          chmod +x "$BIN/bun"
+          "$BIN/bun" --version
 
       - name: Run Claude
         id: claude
@@ -170,6 +191,10 @@ jobs:
           # mark it active for the sweeper, and dispatch its implementation.
           echo "<!-- gokan-base ref=$branch -->" | gh issue comment "$first" --repo "$REPO" --body-file -
           gh issue edit "$first" --repo "$REPO" --add-label ready-for-dev >/dev/null
+          # Delete any stale leftover branch so implement cuts a fresh one from the release branch
+          # rather than "continuing" from an unrelated old base. Safe: a member being started for the
+          # first time has no in-flight work (a resume never comes through here, so none is lost).
+          gh api -X DELETE "repos/$REPO/git/refs/heads/agent/issue-$first" >/dev/null 2>&1 || true
           gh workflow run claude-implement-issue.yml --repo "$REPO" -f issue="$first" -f base="$branch"
 
           { echo "<!-- gokan-release version=$version -->"
@@ -222,6 +247,8 @@ jobs:
           if [ -n "$next" ]; then
             echo "<!-- gokan-base ref=$BRANCH -->" | gh issue comment "$next" --repo "$REPO" --body-file -
             gh issue edit "$next" --repo "$REPO" --add-label ready-for-dev >/dev/null
+            # Fresh branch from the release branch (see the start job): drop any stale leftover first.
+            gh api -X DELETE "repos/$REPO/git/refs/heads/agent/issue-$next" >/dev/null 2>&1 || true
             gh workflow run claude-implement-issue.yml --repo "$REPO" -f issue="$next" -f base="$BRANCH"
             gh issue comment "$tracker" --repo "$REPO" --body "Member #${member:-?} merged; building #$next next."
             echo "finish=false" >> "$GITHUB_OUTPUT"
@@ -256,10 +283,31 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.AGENT_GITHUB_TOKEN }}
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
+      # Bun from GitHub Releases + an Actions cache, NOT bun.sh (whose `latest` download 403s
+      # intermittently and takes every workflow down). Inline (not a local action) so it does not
+      # depend on which branch the agent checks out mid-run.
+      - name: Cache Bun
+        uses: actions/cache@v4
         with:
-          bun-version: latest
+          path: ~/.bun/bin
+          key: bun-${{ runner.os }}-${{ runner.arch }}-v1
+      - name: Setup Bun
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BIN="$HOME/.bun/bin"
+          echo "$BIN" >> "$GITHUB_PATH"
+          if [ -x "$BIN/bun" ]; then "$BIN/bun" --version; exit 0; fi
+          v="$(gh api repos/oven-sh/bun/releases/latest --jq .tag_name | sed -E 's/^bun-v//')"
+          mkdir -p "$BIN"
+          curl -fsSL --retry 5 --retry-all-errors \
+            "https://github.com/oven-sh/bun/releases/download/bun-v$v/bun-linux-x64.zip" -o "$RUNNER_TEMP/bun.zip"
+          unzip -q "$RUNNER_TEMP/bun.zip" -d "$RUNNER_TEMP/bun-dl"
+          mv "$RUNNER_TEMP/bun-dl/bun-linux-x64/bun" "$BIN/bun"
+          chmod +x "$BIN/bun"
+          "$BIN/bun" --version
 
       - name: Install dependencies
         run: bun install
@@ -280,7 +328,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "Release $VERSION: assemble the changelog from the sprint's fragments"
+          # --no-verify: bun install set core.hooksPath, so a plain commit fires the pre-commit
+          # hook (`bun run check`), whose tests need the dataset submodule this minimal checkout
+          # does not have. This commit only assembles the changelog; the release -> main PR gets
+          # full CI, so the hook here is both wrong and impossible to satisfy.
+          git commit --no-verify -am "Release $VERSION: assemble the changelog from the sprint's fragments"
           git push origin "HEAD:release/$VERSION"
 
           body="$(printf 'Release **%s**: %s\n\nTracking: #%s\n\n%s\n' "$VERSION" "$headline" "$TRACKER" "$closes")"

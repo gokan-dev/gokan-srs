@@ -69,11 +69,30 @@ jobs:
             echo "review=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Cache Bun
+        if: steps.head.outputs.review == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/bin
+          key: bun-${{ runner.os }}-${{ runner.arch }}-v1
       - name: Setup Bun
         if: steps.head.outputs.review == 'true'
-        uses: oven-sh/setup-bun@v1
-        with:
-          bun-version: latest
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BIN="$HOME/.bun/bin"
+          echo "$BIN" >> "$GITHUB_PATH"
+          if [ -x "$BIN/bun" ]; then "$BIN/bun" --version; exit 0; fi
+          v="$(gh api repos/oven-sh/bun/releases/latest --jq .tag_name | sed -E 's/^bun-v//')"
+          mkdir -p "$BIN"
+          curl -fsSL --retry 5 --retry-all-errors \
+            "https://github.com/oven-sh/bun/releases/download/bun-v$v/bun-linux-x64.zip" -o "$RUNNER_TEMP/bun.zip"
+          unzip -q "$RUNNER_TEMP/bun.zip" -d "$RUNNER_TEMP/bun-dl"
+          mv "$RUNNER_TEMP/bun-dl/bun-linux-x64/bun" "$BIN/bun"
+          chmod +x "$BIN/bun"
+          "$BIN/bun" --version
 
       - name: Install dependencies
         if: steps.head.outputs.review == 'true'
@@ -176,10 +195,31 @@ jobs:
           # The tag push authenticates with the PAT alone (a GITHUB_TOKEN tag push deploys nothing).
           persist-credentials: false
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
+      # Bun from GitHub Releases + an Actions cache, NOT bun.sh (whose `latest` download 403s
+      # intermittently and takes every workflow down). Inline (not a local action) so it does not
+      # depend on which branch the agent checks out mid-run.
+      - name: Cache Bun
+        uses: actions/cache@v4
         with:
-          bun-version: latest
+          path: ~/.bun/bin
+          key: bun-${{ runner.os }}-${{ runner.arch }}-v1
+      - name: Setup Bun
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BIN="$HOME/.bun/bin"
+          echo "$BIN" >> "$GITHUB_PATH"
+          if [ -x "$BIN/bun" ]; then "$BIN/bun" --version; exit 0; fi
+          v="$(gh api repos/oven-sh/bun/releases/latest --jq .tag_name | sed -E 's/^bun-v//')"
+          mkdir -p "$BIN"
+          curl -fsSL --retry 5 --retry-all-errors \
+            "https://github.com/oven-sh/bun/releases/download/bun-v$v/bun-linux-x64.zip" -o "$RUNNER_TEMP/bun.zip"
+          unzip -q "$RUNNER_TEMP/bun.zip" -d "$RUNNER_TEMP/bun-dl"
+          mv "$RUNNER_TEMP/bun-dl/bun-linux-x64/bun" "$BIN/bun"
+          chmod +x "$BIN/bun"
+          "$BIN/bun" --version
 
       - name: Tag an rc, or hand the round to triage
         run: |
