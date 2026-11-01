@@ -30,6 +30,16 @@ export function datasetUrl(path: string): string {
 }
 
 /**
+ * URL of a word's or sentence's clip read aloud, e.g. `audioUrl('0123456789abcdef', 'opus')`,
+ * the extension from `index/audio.json`. Every clip URL is built here (enforced by the
+ * conventions check). A clip's name is its content key, so a changed clip is a new URL: unlike
+ * a dataset file it needs no `?v=`. In dev, the server proxies `/audio/` to staging.
+ */
+export function audioUrl(clip: string, extension: string): string {
+    return `/audio/${clip}.${extension}`;
+}
+
+/**
  * Fetches a URL and parses its JSON body, failing on a non-2xx status. Every
  * service loads JSON through this rather than keeping its own copy.
  */

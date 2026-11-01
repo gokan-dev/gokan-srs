@@ -275,6 +275,8 @@ function check(files: string[]): Violation[] {
         if (DATASET_URL_SOURCE.test(file) && file !== DATASET_URL_HELPER && !/\.test\.tsx?$/.test(file)) {
             eachLine(text, l => l.includes('/data/compiled/') && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
                 add({ file, line, rule: 'dataset-url', message: 'Build dataset URLs with datasetUrl() (services/http.ts); it adds the dataset version browsers cache by.' }));
+            eachLine(text, l => l.includes('/audio/') && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
+                add({ file, line, rule: 'audio-url', message: 'Build audio clip URLs with audioUrl() (services/http.ts), the one place that knows where clips are served.' }));
         }
 
         if (UI_SOURCE.test(file) && file !== KANJI_SPELLING_NOTE) {

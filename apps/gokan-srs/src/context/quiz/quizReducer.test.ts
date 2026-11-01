@@ -45,6 +45,12 @@ describe('quizReducer', () => {
             const state = quizReducer(initialState, { type: 'PROGRESS_LOAD_FAILED', payload: { message: 'unreadable' } });
             expect(state).toMatchObject({ progressLoaded: true, progress: null, fatalError: 'unreadable' });
         });
+
+        it('DATA_LOAD_FAILED is a fatal error and leaves progress as it was', () => {
+            const progress = userProgress();
+            const state = quizReducer({ ...initialState, progress }, { type: 'DATA_LOAD_FAILED', payload: { message: 'no index' } });
+            expect(state).toMatchObject({ progress, fatalError: 'no index' });
+        });
     });
 
     it('RESET_DAILY_STATS zeroes newLearnedToday and clears dailyOverride', () => {

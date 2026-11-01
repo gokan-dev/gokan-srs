@@ -7,6 +7,7 @@ import type { LookupTarget } from "../../utils/lookup.utils";
 import { vocabPath } from "../../utils/navigation.utils";
 import { CardSkeleton } from "../CardSkeleton";
 import { KanjiSummary } from "../KanjiSummary";
+import { PlayButton } from "../PlayButton";
 import { SecondaryForm } from "../SecondaryForm";
 import { WordStudyStatus } from "../WordStudyStatus";
 
@@ -45,11 +46,12 @@ function WordCardBody({ vocabId, onNavigate }: BodyProps & { vocabId: string }) 
 
     return (
         <div className="space-y-2 min-w-0" data-lookup-word>
-            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 min-w-0">
+            {/* The pitch accent (issue 176) will follow the reading, before the play button. */}
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
                 <span lang="ja" className="font-mincho text-2xl text-primary">{headwordOf(vocab)}</span>
                 <SecondaryForm vocab={vocab} truncate={false} />
+                <PlayButton audio={vocab.audio} label={`Play ${headwordOf(vocab)}`} />
             </div>
-            {/* Where the pitch accent (issue 176) and the play button (issue 178) will follow the reading. */}
             <ol className="space-y-0.5">
                 {senses.map((sense, i) => (
                     <li key={i} className="type-support">

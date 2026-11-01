@@ -233,6 +233,8 @@ gokan-srs, everything else:
   `components/ui/Disclosure.tsx` (collapsed-by-default section),
   `components/ui/StackedBarChart.tsx` (the one bar chart), `components/CardSkeleton.tsx`,
   `components/KanjiSpellingNote.tsx` (the kanji spelling of a word learned in kana),
+  `components/PlayButton.tsx` (a word or sentence read aloud: one player, `services/clipPlayer.ts`,
+  clip URLs only from `audioUrl`, enforced; beside a sentence, `SentenceWithPlay`),
   `components/SecondaryForm.tsx` (the form beside a headword, in every list: enforced),
   `components/Ruby.tsx` (every furigana: the only `<ruby>` in the app, enforced),
   `components/ui/TextButton.tsx` (an action written as text), `components/ui/BottomSheet.tsx`
