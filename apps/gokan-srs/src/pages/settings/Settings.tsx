@@ -1,4 +1,3 @@
-import { OptionGrid } from "../../components/OptionGrid";
 import type { UserSettings } from "../../models/user.model";
 import { useGoogleDrive } from "../../context/useGoogleDrive";
 import { Cloud, HardDrive, Loader2, LogIn, RefreshCw, Moon, Sun, Monitor, KeyRound } from "lucide-react";
@@ -6,6 +5,7 @@ import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Theme } from "../../models/theme.model";
 import { VocabQuizSettings } from "./sections/VocabQuizSettings";
+import { ReviewPacing } from "./sections/ReviewPacing";
 import { GrammarQuizSettings } from "./sections/GrammarQuizSettings";
 import { Button } from "../../components/ui/Button";
 import { SelectableOption } from "../../components/ui/SelectableOption";
@@ -193,6 +193,7 @@ export function SettingsScreen({
     onResetGrammar,
 }: SettingsScreenProps) {
     const { theme, setTheme } = useTheme();
+    const { state: quizState } = useQuiz();
     const [isConfirmingReset, setIsConfirmingReset] = useState(false);
     const [isConfirmingGrammarReset, setIsConfirmingGrammarReset] = useState(false);
     const [grammarResetState, setGrammarResetState] = useState<'idle' | 'working' | 'done' | 'failed'>('idle');
@@ -234,37 +235,15 @@ export function SettingsScreen({
             {/*
               * Review pacing is the one learning preference that is genuinely
               * global: both the vocab scheduler and grammarSrs.service read
-              * learningFrequency. Everything else that used to sit here was
+              * intervalModifier (through frequencyModifierOf). Everything else that used to sit here was
               * vocabulary-only, and now lives behind the cog on that activity's
               * card on the Main hub (see QuizSettingsMenu / pages/settings/sections).
               */}
-            <SettingsSection title="Review pacing" description="How often reviews come back, for vocabulary and grammar alike.">
-                <OptionGrid
-                    columns={3}
-                    value={settings.learningFrequency}
-                    onChange={(value) =>
-                        onUpdateSettings({
-                            ...settings,
-                            learningFrequency: value,
-                        })
-                    }
-                    options={[
-                        {
-                            value: 'high',
-                            label: 'High',
-                            description: 'Faster pace (more frequent)',
-                        },
-                        {
-                            value: 'medium',
-                            label: 'Medium (default)',
-                            description: 'Balanced SRS intervals',
-                        },
-                        {
-                            value: 'low',
-                            label: 'Low',
-                            description: 'Relaxed pace (less frequent)',
-                        },
-                    ]}
+            <SettingsSection title="Review pacing" description="How long reviews wait before coming back, for vocabulary and grammar alike.">
+                <ReviewPacing
+                    settings={settings}
+                    progress={quizState.progress}
+                    onUpdateSettings={onUpdateSettings}
                 />
             </SettingsSection>
 

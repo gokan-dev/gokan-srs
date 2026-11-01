@@ -4,7 +4,7 @@ import { useLocation } from 'react-router-dom';
 import type { GrammarPoint } from '@gokan/dataset-schema';
 import { GrammarService } from '../../services/grammar.service';
 import { GrammarSRSService } from '../../services/grammarSrs.service';
-import { clearStaleGrammarNeedsRetry } from '../../services/grammarScheduling';
+import { clearStaleGrammarNeedsRetry, isGrammarDue } from '../../services/grammarScheduling';
 import { trackEvent } from '../../services/analytics';
 import { CONSTANTS } from '../../commons/constants';
 import type { QuizState, QuizAction } from './quizReducer';
@@ -144,11 +144,11 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
 
     // The selectors are pure: each memo hands them exactly the state it depends on, and the
     // current time as of that state change (the orchestration layer owns the clock).
-    const { progress, grammarIntroCandidates, currentGrammarPoint, grammarSession } = state;
+    const { progress, settings, grammarIntroCandidates, currentGrammarPoint, grammarSession } = state;
 
     const grammarNextView = useMemo(
-        () => selectNextGrammarView({ progress, grammarIntroCandidates, currentGrammarPoint }, hasMoreLearnableGrammar, new Date()),
-        [progress, grammarIntroCandidates, currentGrammarPoint, hasMoreLearnableGrammar]
+        () => selectNextGrammarView({ progress, settings, grammarIntroCandidates, currentGrammarPoint }, hasMoreLearnableGrammar, new Date()),
+        [progress, settings, grammarIntroCandidates, currentGrammarPoint, hasMoreLearnableGrammar]
     );
 
     const currentGrammarProgress = useMemo(
@@ -157,13 +157,13 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
     );
 
     const nextGrammarSessionPreview = useMemo(
-        () => selectNextGrammarSessionPreview({ progress }, new Date()),
-        [progress]
+        () => selectNextGrammarSessionPreview({ progress, settings }, new Date()),
+        [progress, settings]
     );
 
     const grammarSessionStats = useMemo(
-        () => selectGrammarSessionStats({ progress, grammarSession }, hasMoreLearnableGrammar, new Date()),
-        [progress, grammarSession, hasMoreLearnableGrammar]
+        () => selectGrammarSessionStats({ progress, settings, grammarSession }, hasMoreLearnableGrammar, new Date()),
+        [progress, settings, grammarSession, hasMoreLearnableGrammar]
     );
 
     /* ---------- Session lifecycle ---------- */
@@ -197,12 +197,12 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
             // collides with this point's regular due review (issue #36) - see
             // clearStaleGrammarNeedsRetry's doc comment for why, mirroring the
             // vocab fix in useQuizOrchestration.
-            const clearedQueue = clearStaleGrammarNeedsRetry(state.progress.grammarQueue, now);
+            const clearedQueue = clearStaleGrammarNeedsRetry(state.progress.grammarQueue, now, state.settings);
             const progress = clearedQueue === state.progress.grammarQueue
                 ? state.progress
                 : { ...state.progress, grammarQueue: clearedQueue };
 
-            const grammarIds = collectActionableGrammarIds(progress.grammarQueue, now);
+            const grammarIds = collectActionableGrammarIds(progress.grammarQueue, state.settings, now);
             dispatch({
                 type: 'GRAMMAR_SESSION_START',
                 payload: { grammarIds, progress: progress === state.progress ? undefined : progress },
@@ -227,7 +227,7 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
             const updatedQueue = state.progress.grammarQueue;
             const now = new Date();
 
-            const nowDueCount = updatedQueue.filter(g => g.nextReviewAt && g.nextReviewAt <= now).length;
+            const nowDueCount = updatedQueue.filter(g => isGrammarDue(g, now, state.settings)).length;
             const canAddNew = nowDueCount === 0 && grammarNextView.sessionState !== 'waiting';
             const needsCandidates = canAddNew && state.grammarIntroCandidates.length === 0;
 

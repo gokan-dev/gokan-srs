@@ -7,6 +7,7 @@ import { SRSHistoryGraph } from "../../components/SRSHistoryGraph";
 import { Disclosure } from "../../components/ui/Disclosure";
 import { isProductionActivated, isReadingRelevant } from "../../services/scheduling";
 import { addedLine, directionStatus } from "../../utils/learningStatus.utils";
+import { useQuiz } from "../../context/useQuiz";
 
 interface YourStudyProps {
     progress: VocabProgress & { introductionAt: Date };
@@ -21,16 +22,17 @@ interface YourStudyProps {
  */
 export function YourStudy({ progress, now }: YourStudyProps) {
     // A word learned in kana has no reading direction: no ring, due date or curve for it.
+    const { state: { settings } } = useQuiz();
     const readingRelevant = isReadingRelevant(progress);
     // Activation, not a pending due date: a mastered production entry has no dueDate.
     const productionActivated = isProductionActivated(progress.production);
 
     const directions: ProgressDirection[] = [
-        ...(readingRelevant ? [{ key: 'reading', label: 'Reading', strength: progress.reading.memoryStrength, variant: 'reading' as const, status: directionStatus(progress.reading, true, now, true) }] : []),
-        { key: 'meaning', label: 'Meaning', strength: progress.meaning.memoryStrength, variant: 'meaning' as const, status: directionStatus(progress.meaning, true, now, true) },
+        ...(readingRelevant ? [{ key: 'reading', label: 'Reading', strength: progress.reading.memoryStrength, variant: 'reading' as const, status: directionStatus(progress.reading, true, now, settings, true) }] : []),
+        { key: 'meaning', label: 'Meaning', strength: progress.meaning.memoryStrength, variant: 'meaning' as const, status: directionStatus(progress.meaning, true, now, settings, true) },
         // "Not started" rather than a hidden ring: production activates lazily, and an
         // absent one reads as the feature being broken.
-        { key: 'production', label: 'Production', strength: progress.production?.memoryStrength ?? 0, variant: 'production' as const, status: directionStatus(progress.production, productionActivated, now, true) },
+        { key: 'production', label: 'Production', strength: progress.production?.memoryStrength ?? 0, variant: 'production' as const, status: directionStatus(progress.production, productionActivated, now, settings, true) },
     ];
 
     return (

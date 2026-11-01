@@ -2,11 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { initialState, quizReducer, taskKey } from './quizReducer';
 import type { QuizState } from './quizReducer';
 import type { UserSettings } from '../../models/user.model';
-import { DEFAULT_SETTINGS } from '../../models/user.model';
+import { DEFAULT_SETTINGS, PACING_EPOCH } from '../../models/user.model';
 import type { Vocabulary } from '@gokan/dataset-schema';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../../models/vocabulary.model';
 import { CONSTANTS } from '../../commons/constants';
-import { userProgress, vocabProgress, vocabulary } from '../../test/fixtures';
+import { userProgress, userSettings, vocabProgress, vocabulary } from '../../test/fixtures';
 import { vocabExercise } from '../../services/exercise/builders';
 import { newTurn } from './exerciseReducer';
 
@@ -450,17 +450,17 @@ describe('quizReducer', () => {
         expect(next.turns).toBe(state.turns);
     });
 
-    it('REBASE_STRENGTHS rebases the CURRENT progress, and is a no-op (same state) the second time', () => {
+    it('a reload after a pacing change leaves every strength and stored date as it was', () => {
+        // Scheduled at x3, then the slider is lowered to x1.5. The retired
+        // strength rebase raised strength to interval / (lnTarget x 1.5) on load,
+        // doubling it; nothing on load may touch strength now.
         const { lnTarget } = CONSTANTS.srs.formula;
-        const reading = { ...DEFAULT_VOCABULARY_PROGRESS.reading, memoryStrength: 50, interval: 50 * lnTarget * 2, dueDate: new Date('2026-12-01') };
-        const state: QuizState = { ...initialState, progress: userProgress({ learningQueue: [vocabProgress({ reading })] }) };
+        const reading = { ...DEFAULT_VOCABULARY_PROGRESS.reading, memoryStrength: 50, interval: 50 * lnTarget * 3, dueDate: new Date('2026-12-01') };
+        const progress = userProgress({ learningQueue: [vocabProgress({ reading })] });
+        const settings = userSettings({ intervalModifier: 1.5, intervalModifierHistory: [{ from: PACING_EPOCH, value: 3 }, { from: '2026-11-01T00:00:00.000Z', value: 1.5 }] });
 
-        const once = quizReducer(state, { type: 'REBASE_STRENGTHS', payload: { frequencyModifier: 1 } });
-        expect(once.progress!.learningQueue[0].reading.memoryStrength).toBeCloseTo(100, 6);
-        expect(once.progress!.learningQueue[0].reading.dueDate).toEqual(reading.dueDate);
-
-        const twice = quizReducer(once, { type: 'REBASE_STRENGTHS', payload: { frequencyModifier: 1 } });
-        expect(twice).toBe(once);
+        const loaded = quizReducer(initialState, { type: 'SETUP_COMPLETE', payload: { progress, settings } });
+        expect(loaded.progress!.learningQueue[0].reading).toEqual(reading);
     });
 
     describe('RETIRE_VOCAB', () => {

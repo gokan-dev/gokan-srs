@@ -1,5 +1,6 @@
 import type { GrammarProgress } from "../models/grammar.model";
-import { isEntryMastered } from "./scheduling";
+import type { PacingSettings } from "./calibration";
+import { effectiveDueDate, isEntryMastered } from "./scheduling";
 
 /**
  * Grammar's equivalent of scheduling.ts - single source of truth for "when is
@@ -12,17 +13,22 @@ export function isGrammarFullyMastered(progress: Pick<GrammarProgress, 'entry'>)
     return isEntryMastered(progress.entry);
 }
 
-export function grammarNextReviewAt(progress: Pick<GrammarProgress, 'entry'>): Date | null {
-    return isGrammarFullyMastered(progress) ? null : progress.entry.dueDate;
+/** When a grammar point is next due, under the current review pacing (see effectiveDueDate). */
+export function grammarNextReviewAt(
+    progress: Pick<GrammarProgress, 'entry'>,
+    settings: Partial<PacingSettings> | null | undefined
+): Date | null {
+    return isGrammarFullyMastered(progress) ? null : effectiveDueDate(progress.entry, settings);
 }
 
 /** True if the given grammar point has a review due now (never true for graduated items). */
 export function isGrammarDue(
     progress: Pick<GrammarProgress, 'entry' | 'stage'>,
-    now: Date = new Date()
+    now: Date,
+    settings: Partial<PacingSettings> | null | undefined
 ): boolean {
     if (progress.stage === 'graduated') return false;
-    const due = grammarNextReviewAt(progress);
+    const due = grammarNextReviewAt(progress, settings);
     return due !== null && due <= now;
 }
 
@@ -45,12 +51,13 @@ export function isGrammarDue(
  */
 export function clearStaleGrammarNeedsRetry(
     queue: GrammarProgress[],
-    now: Date = new Date()
+    now: Date,
+    settings?: Partial<PacingSettings> | null
 ): GrammarProgress[] {
     let changed = false;
 
     const next = queue.map(g => {
-        if (!g.needsRetry || !isGrammarDue(g, now)) return g;
+        if (!g.needsRetry || !isGrammarDue(g, now, settings)) return g;
         changed = true;
         return { ...g, needsRetry: false };
     });

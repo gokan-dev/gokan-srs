@@ -25,12 +25,12 @@ describe('grammarScheduling', () => {
     describe('grammarNextReviewAt', () => {
         it('returns the entry due date when not mastered', () => {
             const due = new Date('2026-06-05T00:00:00Z');
-            expect(grammarNextReviewAt({ entry: makeEntry({ dueDate: due }) })).toEqual(due);
+            expect(grammarNextReviewAt({ entry: makeEntry({ dueDate: due }) }, undefined)).toEqual(due);
         });
 
         it('returns null once mastered, regardless of dueDate', () => {
             const due = new Date('2026-06-05T00:00:00Z');
-            expect(grammarNextReviewAt({ entry: makeEntry({ memoryStrength: MAX, dueDate: due }) })).toBeNull();
+            expect(grammarNextReviewAt({ entry: makeEntry({ memoryStrength: MAX, dueDate: due }) }, undefined)).toBeNull();
         });
     });
 
@@ -40,19 +40,19 @@ describe('grammarScheduling', () => {
         const future = new Date('2026-07-01T00:00:00Z');
 
         it('is false for graduated items regardless of due date', () => {
-            expect(isGrammarDue({ stage: 'graduated', entry: makeEntry({ dueDate: past }) }, now)).toBe(false);
+            expect(isGrammarDue({ stage: 'graduated', entry: makeEntry({ dueDate: past }) }, now, undefined)).toBe(false);
         });
 
         it('is true when due in the past', () => {
-            expect(isGrammarDue({ stage: 'learning', entry: makeEntry({ dueDate: past }) }, now)).toBe(true);
+            expect(isGrammarDue({ stage: 'learning', entry: makeEntry({ dueDate: past }) }, now, undefined)).toBe(true);
         });
 
         it('is false when due in the future', () => {
-            expect(isGrammarDue({ stage: 'learning', entry: makeEntry({ dueDate: future }) }, now)).toBe(false);
+            expect(isGrammarDue({ stage: 'learning', entry: makeEntry({ dueDate: future }) }, now, undefined)).toBe(false);
         });
 
         it('is false when there is no due date at all', () => {
-            expect(isGrammarDue({ stage: 'learning', entry: makeEntry({ dueDate: null }) }, now)).toBe(false);
+            expect(isGrammarDue({ stage: 'learning', entry: makeEntry({ dueDate: null }) }, now, undefined)).toBe(false);
         });
     });
 

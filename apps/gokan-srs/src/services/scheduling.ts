@@ -2,6 +2,7 @@ import type { SRSEntry, VocabProgress } from "../models/vocabulary.model";
 import type { UserSettings } from "../models/user.model";
 import { CONSTANTS } from "../commons/constants";
 import type { QuizType } from "../utils/srs.utils";
+import { frequencyModifierOf, modifierAt, type PacingSettings } from "./calibration";
 
 const MAX_MEMORY_STRENGTH = CONSTANTS.srs.formula.mastery.maxMemoryStrength;
 
@@ -13,6 +14,67 @@ const MAX_MEMORY_STRENGTH = CONSTANTS.srs.formula.mastery.maxMemoryStrength;
  * to make nextReviewAt report "due" while the queue-selection logic had already
  * stopped considering meaning reviews entirely.
  */
+
+/**
+ * What scheduling reads off the settings: which quiz types are on, and review
+ * pacing. Pacing is optional so a caller with no settings reads stored dates as
+ * they are (a ratio of 1).
+ */
+export type SchedulingSettings = Pick<UserSettings, 'enableMeaningQuiz' | 'enableProductionQuiz'> & Partial<PacingSettings>;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * When an entry is really due, under the CURRENT review pacing. The one reader of
+ * a stored `dueDate`: every due check, count and forecast goes through it.
+ *
+ * Stored dates are never rewritten when the pacing slider moves. A bulk
+ * reschedule changes due dates without a review, and the Drive merge resolves an
+ * entry by `lastReviewedAt` (local on a tie), so the other device would keep its
+ * old dates and upload them back. Instead the effective date is derived: the
+ * interval was set at `dueDate - interval`, under the pacing in effect then
+ * (`modifierAt`), so the effective interval is `interval x current / then`,
+ * clamped to the formula's bounds, counted from that same moment. Moving the
+ * slider writes nothing, two devices with the same synced history derive the same
+ * dates, moving it back restores the stored date exactly, and a review after the
+ * change schedules under the new value (ratio 1).
+ *
+ * Bounds: never over `maxInterval`, and never pulled under the success floor
+ * (`minIntervalAfterSuccess`), or under the stored interval when that was already
+ * shorter (a wrong answer's penalty), or under `minInterval`.
+ */
+export function effectiveDueDate(
+    entry: Pick<SRSEntry, 'dueDate' | 'interval'>,
+    settings?: Partial<PacingSettings> | null
+): Date | null {
+    const { dueDate, interval } = entry;
+    if (dueDate === null) return null;
+    if (!settings?.intervalModifierHistory || !(interval > 0)) return dueDate;
+    const setAt = dueDate.getTime() - interval * DAY_MS;
+    const then = modifierAt(settings.intervalModifierHistory, setAt);
+    if (then === null || then <= 0) return dueDate;
+    const current = settings.intervalModifier === undefined ? then : frequencyModifierOf(settings);
+    if (current === then) return dueDate;
+    const F = CONSTANTS.srs.formula;
+    const floor = Math.max(F.minInterval, Math.min(interval, F.minIntervalAfterSuccess));
+    const effective = Math.min(Math.max(interval * current / then, floor), Math.max(F.maxInterval, interval));
+    return new Date(setAt + effective * DAY_MS);
+}
+
+/** True once an entry has a review scheduled at all (whenever it falls). */
+export function isScheduled(entry: Pick<SRSEntry, 'dueDate'>): boolean {
+    return entry.dueDate !== null;
+}
+
+/** True if the entry has a review due by `now`, under the current pacing. */
+export function isEntryDue(
+    entry: Pick<SRSEntry, 'dueDate' | 'interval'> | undefined,
+    settings: Partial<PacingSettings> | null | undefined,
+    now: Date
+): boolean {
+    const due = entry ? effectiveDueDate(entry, settings) : null;
+    return due !== null && due <= now;
+}
 
 export function isEntryMastered(entry: Pick<SRSEntry, 'memoryStrength'>): boolean {
     return entry.memoryStrength >= MAX_MEMORY_STRENGTH;
@@ -120,7 +182,7 @@ export function isVocabFullyMastered(
  */
 export function vocabNextReviewAt(
     vocab: ScheduledVocab,
-    settings?: Pick<UserSettings, 'enableMeaningQuiz' | 'enableProductionQuiz'>
+    settings?: SchedulingSettings
 ): Date | null {
     if (isVocabFullyMastered(vocab, settings)) return null;
 
@@ -129,9 +191,9 @@ export function vocabNextReviewAt(
     const meaningMastered = !meaningRelevant || isEntryMastered(vocab.meaning);
     const production = relevantProductionEntry(vocab, settings);
 
-    const rDue = readingMastered ? null : vocab.reading.dueDate;
-    const mDue = meaningMastered ? null : vocab.meaning.dueDate;
-    const pDue = !production || isEntryMastered(production) ? null : production.dueDate;
+    const rDue = readingMastered ? null : effectiveDueDate(vocab.reading, settings);
+    const mDue = meaningMastered ? null : effectiveDueDate(vocab.meaning, settings);
+    const pDue = !production || isEntryMastered(production) ? null : effectiveDueDate(production, settings);
 
     return [rDue, mDue, pDue].reduce<Date | null>(
         (earliest, due) => (due && (!earliest || due < earliest) ? due : earliest),
@@ -139,10 +201,40 @@ export function vocabNextReviewAt(
     );
 }
 
+/**
+ * The value cached in `VocabProgress.nextReviewAt`: the raw stored date, read
+ * under no review pacing, so it never goes stale when the slider moves. Every
+ * writer of the cache goes through this (or passes a pacing-free settings
+ * slice, as SRSService does), and no reader compares it as a due date: due
+ * checks go through `isVocabDue` / `isEntryDue`, which apply the pacing.
+ */
+export function cachedNextReviewAt(
+    vocab: ScheduledVocab,
+    settings?: Pick<UserSettings, 'enableMeaningQuiz' | 'enableProductionQuiz'>
+): Date | null {
+    return vocabNextReviewAt(vocab, settings && { enableMeaningQuiz: settings.enableMeaningQuiz, enableProductionQuiz: settings.enableProductionQuiz });
+}
+
+/**
+ * True if a word's first review (set at the intro, before any answer) is due.
+ * It has no interval behind it, so review pacing never moves it: the date cached
+ * at the intro is the one to read.
+ */
+export function isFirstReviewDue(
+    vocab: Pick<VocabProgress, 'totalReviews' | 'introductionAt' | 'nextReviewAt' | 'stage'>,
+    now: Date
+): boolean {
+    return vocab.totalReviews === 0
+        && vocab.introductionAt !== null
+        && vocab.nextReviewAt !== null
+        && vocab.nextReviewAt <= now
+        && vocab.stage !== 'graduated';
+}
+
 /** True if the given vocab has a review due now (never true for graduated items). */
 export function isVocabDue(
     vocab: ScheduledVocab & Pick<VocabProgress, 'stage'>,
-    settings: Pick<UserSettings, 'enableMeaningQuiz' | 'enableProductionQuiz'> | undefined,
+    settings: SchedulingSettings | undefined,
     now: Date = new Date()
 ): boolean {
     if (vocab.stage === 'graduated') return false;

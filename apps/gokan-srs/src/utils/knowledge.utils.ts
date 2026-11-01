@@ -1,5 +1,6 @@
 import { CONSTANTS } from "../commons/constants";
 import type { UserSettings } from "../models/user.model";
+import { modifierAt } from "../services/calibration";
 import type { ReviewLog, SRSEntry, VocabProgress } from "../models/vocabulary.model";
 import { calculateMasteryPercentage } from "./srs.utils";
 
@@ -89,7 +90,8 @@ interface KnowledgeEvent {
 function entryEvents(
     entry: SRSEntry,
     introductionAt: Date | null,
-    frequencyModifier: number,
+    /** The pacing a log was scheduled under. */
+    modifierOfLog: (log: ReviewLog) => number,
     /**
      * Whether an entry with no review history may still be credited at the word's
      * introduction date (see below). True for reading and meaning; decided per word
@@ -102,7 +104,7 @@ function entryEvents(
         return entry.history
             .map(log => ({
                 t: new Date(log.date).getTime(),
-                p: entryKnowledgePoints(strengthFromLog(log, frequencyModifier)),
+                p: entryKnowledgePoints(strengthFromLog(log, modifierOfLog(log))),
             }))
             .sort((a, b) => a.t - b.t);
     }
@@ -176,9 +178,10 @@ export function buildKnowledgeCurve(
     const nowMs = (options.now ?? new Date()).getTime();
     const todayStart = startOfDay(nowMs);
 
-    const frequencyModifier = options.settings?.learningFrequency
-        ? CONSTANTS.srs.frequencyMultipliers[options.settings.learningFrequency]
-        : 1;
+    // Each log is inverted with the pacing in effect when it was scheduled, so
+    // moving the slider never rescales the history.
+    const history = options.settings?.intervalModifierHistory;
+    const modifierOfLog = (log: ReviewLog): number => modifierAt(history, log.date) ?? 1;
 
     const series: KnowledgeEvent[][] = [];
     let earliest = Infinity;
@@ -208,7 +211,7 @@ export function buildKnowledgeCurve(
             [vocab.production, productionNoHistoryCredit],
         ] as const) {
             if (!entry) continue;
-            const events = entryEvents(entry, vocab.introductionAt, frequencyModifier, allowNoHistoryCredit);
+            const events = entryEvents(entry, vocab.introductionAt, modifierOfLog, allowNoHistoryCredit);
             if (events.length === 0) continue;
             series.push(events);
             if (events[0].t < earliest) earliest = events[0].t;
