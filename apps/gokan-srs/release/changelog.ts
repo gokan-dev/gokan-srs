@@ -14,6 +14,12 @@ import type { ChangelogEntry } from '../src/models/release.model';
  */
 export const CHANGELOG: readonly ChangelogEntry[] = [
     {
+        version: '1.47.0',
+        date: '2026-11-01',
+        summary: 'Review pacing is now a slider (from ×0.5 to ×4 on every interval), with the reviews a day it would bring forecast from your own progress and win rate before you change it.',
+        issue: 185,
+    },
+    {
         version: '1.46.0',
         date: '2026-11-01',
         summary: 'Detail pages (layout, cards, play buttons)',
