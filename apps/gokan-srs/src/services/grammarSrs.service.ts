@@ -106,7 +106,7 @@ export class GrammarSRSService {
         );
 
         const finalStage = isGrammarFullyMastered({ entry: newEntry }) ? 'graduated' : progress.stage;
-        const finalNextReviewAt = finalStage === 'graduated' ? null : grammarNextReviewAt({ entry: newEntry });
+        const finalNextReviewAt = finalStage === 'graduated' ? null : grammarNextReviewAt({ entry: newEntry }, null);
 
         return {
             updated: {
@@ -157,7 +157,7 @@ export class GrammarSRSService {
         return {
             ...progress,
             entry,
-            nextReviewAt: progress.stage === 'graduated' ? progress.nextReviewAt : grammarNextReviewAt({ entry }),
+            nextReviewAt: progress.stage === 'graduated' ? progress.nextReviewAt : grammarNextReviewAt({ entry }, null),
             needsRetry: true,
             lastReviewedAt: now,
             totalReviews: progress.totalReviews + 1,

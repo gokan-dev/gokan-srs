@@ -6,6 +6,7 @@ import type { Sentence, Vocabulary } from '@gokan/dataset-schema';
 import { StorageService } from '../../services/storage.service';
 import { VocabularyService, VocabNotFoundError } from '../../services/vocabulary.service';
 import { SRSService } from '../../services/srs.service';
+import { isVocabDue } from '../../services/scheduling';
 import { vocabExercise } from '../../services/exercise/builders';
 import { refineMeaningWithAi } from '../../services/exercise/aiRefine';
 import { MigrationService } from '../../services/migration.service';
@@ -300,7 +301,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
         async advanceQueue({ now }) {
             const updatedQueue = state.progress!.learningQueue;
 
-            const nowDueCount = updatedQueue.filter(v => v.nextReviewAt && v.nextReviewAt <= now).length;
+            const nowDueCount = updatedQueue.filter(v => isVocabDue(v, state.settings ?? undefined, now)).length;
             const canAddNew = nowDueCount === 0 && nextView.sessionState !== 'waiting';
             const needsCandidates = canAddNew && state.introCandidates.length === 0;
 

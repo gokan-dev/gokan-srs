@@ -111,7 +111,7 @@ describe('words learned in kana', () => {
 
     it('never makes the reading quiz actionable, not even a pending retry', () => {
         const v = vocabProgress({ usuallyKana: true, totalReviews: 2, reading: srsEntry({ dueDate: past }), needsRetry: { reading: true } });
-        expect(isReadingActionable(v, now)).toBe(false);
+        expect(isReadingActionable(v, undefined, now)).toBe(false);
     });
 
     it('makes meaning their first review: due before any review is recorded', () => {
@@ -142,7 +142,7 @@ describe('syncUsuallyKana', () => {
         const [synced] = syncUsuallyKana([reviewed], new Set(), undefined, now);
         expect(synced.usuallyKana).toBe(false);
         expect(synced.reading.dueDate).toEqual(now);
-        expect(isReadingActionable(synced, now)).toBe(true);
+        expect(isReadingActionable(synced, undefined, now)).toBe(true);
     });
 
     it('graduates a word whose only unmastered direction was reading', () => {

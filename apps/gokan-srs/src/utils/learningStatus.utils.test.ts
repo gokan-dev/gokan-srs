@@ -41,22 +41,22 @@ describe('directionStatus', () => {
     const now = Date.UTC(2026, 3, 19, 12);
 
     it('is Not started for a direction not activated yet', () => {
-        expect(directionStatus(undefined, false, now)).toBe('Not started');
-        expect(directionStatus(srsEntry({ dueDate: new Date(now) }), false, now)).toBe('Not started');
+        expect(directionStatus(undefined, false, now, undefined)).toBe('Not started');
+        expect(directionStatus(srsEntry({ dueDate: new Date(now) }), false, now, undefined)).toBe('Not started');
     });
 
     it('is Mastered at full strength, whatever the stored due date', () => {
-        expect(directionStatus(srsEntry({ memoryStrength: MAX, dueDate: new Date(now) }), true, now)).toBe('Mastered');
+        expect(directionStatus(srsEntry({ memoryStrength: MAX, dueDate: new Date(now) }), true, now, undefined)).toBe('Mastered');
     });
 
     it('says when the direction is next reviewed', () => {
-        expect(directionStatus(srsEntry({ dueDate: new Date(now - 1) }), true, now)).toBe('Due now');
-        expect(directionStatus(srsEntry({ dueDate: new Date(now + 2 * 86_400_000) }), true, now)).toBe('Next review in 2 days');
+        expect(directionStatus(srsEntry({ dueDate: new Date(now - 1) }), true, now, undefined)).toBe('Due now');
+        expect(directionStatus(srsEntry({ dueDate: new Date(now + 2 * 86_400_000) }), true, now, undefined)).toBe('Next review in 2 days');
     });
 
     it('says the stage of a due direction when the header already says it is due', () => {
-        expect(directionStatus(srsEntry({ dueDate: new Date(now - 1) }), true, now, true)).toBe('Learning');
-        expect(directionStatus(srsEntry({ dueDate: new Date(now + 2 * 86_400_000) }), true, now, true)).toBe('Next review in 2 days');
+        expect(directionStatus(srsEntry({ dueDate: new Date(now - 1) }), true, now, undefined, true)).toBe('Learning');
+        expect(directionStatus(srsEntry({ dueDate: new Date(now + 2 * 86_400_000) }), true, now, undefined, true)).toBe('Next review in 2 days');
     });
 });
 

@@ -202,7 +202,7 @@ export function mergeGrammarProgress(local: GrammarProgress, remote: GrammarProg
 
     const alreadyGraduated = local.stage === 'graduated' || remote.stage === 'graduated';
     merged.stage = (alreadyGraduated || isGrammarFullyMastered(merged)) ? 'graduated' : 'learning';
-    merged.nextReviewAt = merged.stage === 'graduated' ? null : grammarNextReviewAt(merged);
+    merged.nextReviewAt = merged.stage === 'graduated' ? null : grammarNextReviewAt(merged, null);
     return merged;
 }
 

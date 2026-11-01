@@ -1,11 +1,12 @@
 import type { SRSEntry, VocabProgress } from "../models/vocabulary.model";
-import type { UserSettings } from "../models/user.model";
 import {
+    effectiveDueDate,
     isEntryMastered,
     isMeaningQuizEnabled,
     isProductionActivated,
     isProductionQuizEnabled,
     isReadingRelevant,
+    type SchedulingSettings,
 } from "../services/scheduling";
 import { formatWeekday } from "./time.utils";
 
@@ -28,7 +29,7 @@ export interface ReviewForecastBucket {
  */
 export function buildReviewForecast(
     queue: VocabProgress[],
-    settings: Pick<UserSettings, 'enableMeaningQuiz' | 'enableProductionQuiz'> | undefined,
+    settings: SchedulingSettings | undefined,
     now: Date,
     daysToShow: number = 7
 ): ReviewForecastBucket[] {
@@ -48,8 +49,8 @@ export function buildReviewForecast(
     }
 
     const place = (entry: SRSEntry, type: 'reading' | 'meaning' | 'production') => {
-        if (!entry.dueDate || isEntryMastered(entry)) return;
-        const due = new Date(entry.dueDate);
+        const due = effectiveDueDate(entry, settings);
+        if (!due || isEntryMastered(entry)) return;
 
         if (due <= now) {
             buckets[0][type]++;

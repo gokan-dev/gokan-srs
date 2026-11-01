@@ -286,7 +286,7 @@ export class MigrationService {
             const withDefaults = hydrateGrammarProgress(item);
             return withDefaults.stage === 'graduated'
                 ? withDefaults
-                : { ...withDefaults, nextReviewAt: grammarNextReviewAt(withDefaults) };
+                : { ...withDefaults, nextReviewAt: grammarNextReviewAt(withDefaults, null) };
         });
 
         // Cap at SYNC_MIGRATION_VERSION (never CURRENT_FORMAT_VERSION) so

@@ -61,6 +61,11 @@ export function effectiveDueDate(
     return new Date(setAt + effective * DAY_MS);
 }
 
+/** True once an entry has a review scheduled at all (whenever it falls). */
+export function isScheduled(entry: Pick<SRSEntry, 'dueDate'>): boolean {
+    return entry.dueDate !== null;
+}
+
 /** True if the entry has a review due by `now`, under the current pacing. */
 export function isEntryDue(
     entry: Pick<SRSEntry, 'dueDate' | 'interval'> | undefined,

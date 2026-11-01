@@ -2,10 +2,13 @@ import type { VocabProgress } from "../models/vocabulary.model";
 import type { UserSettings } from "../models/user.model";
 import { CONSTANTS } from "../commons/constants";
 import {
+    isEntryDue,
     isEntryMastered,
+    isScheduled,
     isMeaningQuizEnabled,
     isProductionQuizEnabled,
     isReadingRelevant,
+    isVocabDue,
     isVocabFullyMastered,
     vocabNextReviewAt,
 } from "../services/scheduling";
@@ -54,20 +57,15 @@ export interface QuizItem {
  * "is there a real review here" without also matching on the retry flag it's
  * trying to decide whether to clear.
  */
-function isReadingDue(v: VocabProgress, now: Date): boolean {
+function isReadingDue(v: VocabProgress, settings: UserSettings | undefined, now: Date): boolean {
     if (!isReadingRelevant(v)) return false;
 
     const isFirstReview =
         v.totalReviews === 0 &&
         v.introductionAt !== null &&
-        v.nextReviewAt !== null &&
-        v.nextReviewAt <= now &&
-        v.stage !== 'graduated';
+        isVocabDue(v, settings, now);
 
-    const isDueReading =
-        v.totalReviews > 0 &&
-        v.reading.dueDate !== null &&
-        v.reading.dueDate <= now;
+    const isDueReading = v.totalReviews > 0 && isEntryDue(v.reading, settings, now);
 
     return isFirstReview || isDueReading;
 }
@@ -82,14 +80,13 @@ function isPastFirstReview(v: VocabProgress): boolean {
 }
 
 /** Is this vocab's MEANING quiz due for a genuine, regularly-scheduled review - independent of `needsRetry`. See isReadingDue. */
-function isMeaningDue(v: VocabProgress, now: Date): boolean {
-    return isPastFirstReview(v) && v.meaning.dueDate !== null && v.meaning.dueDate <= now;
+function isMeaningDue(v: VocabProgress, settings: UserSettings | undefined, now: Date): boolean {
+    return isPastFirstReview(v) && isEntryDue(v.meaning, settings, now);
 }
 
 /** Is this vocab's PRODUCTION quiz due for a genuine, regularly-scheduled review - independent of `needsRetry`. See isReadingDue. */
-function isProductionDue(v: VocabProgress, now: Date): boolean {
-    const entry = v.production;
-    return isPastFirstReview(v) && !!entry && entry.dueDate !== null && entry.dueDate <= now;
+function isProductionDue(v: VocabProgress, settings: UserSettings | undefined, now: Date): boolean {
+    return isPastFirstReview(v) && isEntryDue(v.production, settings, now);
 }
 
 /**
@@ -98,10 +95,14 @@ function isProductionDue(v: VocabProgress, now: Date): boolean {
  * the session-progress counter, so the two can never disagree about what counts
  * as "a quiz the user has to do now".
  */
-export function isReadingActionable(v: VocabProgress, now: Date = new Date()): boolean {
+export function isReadingActionable(
+    v: VocabProgress,
+    settings: UserSettings | undefined,
+    now: Date = new Date()
+): boolean {
     // A retry flag set before the word was found to be learned in kana is moot too.
     if (!isReadingRelevant(v)) return false;
-    return isReadingDue(v, now) || v.needsRetry?.reading === true;
+    return isReadingDue(v, settings, now) || v.needsRetry?.reading === true;
 }
 
 /** Is this vocab's MEANING quiz actionable right now (due review or pending retry)?
@@ -112,7 +113,7 @@ export function isMeaningActionable(
     now: Date = new Date()
 ): boolean {
     if (!isMeaningQuizEnabled(settings)) return false;
-    return isMeaningDue(v, now) || v.needsRetry?.meaning === true;
+    return isMeaningDue(v, settings, now) || v.needsRetry?.meaning === true;
 }
 
 /** Is this vocab's PRODUCTION quiz actionable right now (due review or pending retry)?
@@ -124,7 +125,7 @@ export function isProductionActionable(
     now: Date = new Date()
 ): boolean {
     if (!isProductionQuizEnabled(settings)) return false;
-    return isProductionDue(v, now) || v.needsRetry?.production === true;
+    return isProductionDue(v, settings, now) || v.needsRetry?.production === true;
 }
 
 /**
@@ -158,9 +159,9 @@ export function clearStaleNeedsRetry(
     const next = queue.map(v => {
         if (!v.needsRetry) return v;
 
-        const clearReading = v.needsRetry.reading === true && isReadingDue(v, now);
-        const clearMeaning = v.needsRetry.meaning === true && isMeaningQuizEnabled(settings) && isMeaningDue(v, now);
-        const clearProduction = v.needsRetry.production === true && isProductionQuizEnabled(settings) && isProductionDue(v, now);
+        const clearReading = v.needsRetry.reading === true && isReadingDue(v, settings, now);
+        const clearMeaning = v.needsRetry.meaning === true && isMeaningQuizEnabled(settings) && isMeaningDue(v, settings, now);
+        const clearProduction = v.needsRetry.production === true && isProductionQuizEnabled(settings) && isProductionDue(v, settings, now);
         if (!clearReading && !clearMeaning && !clearProduction) return v;
 
         changed = true;
@@ -202,7 +203,7 @@ export function syncUsuallyKana(
         const usuallyKana = ids.has(v.vocabId);
         if (usuallyKana === v.usuallyKana) return v;
         changed = true;
-        const reading = !usuallyKana && v.totalReviews > 0 && v.reading.dueDate === null && !isEntryMastered(v.reading)
+        const reading = !usuallyKana && v.totalReviews > 0 && !isScheduled(v.reading) && !isEntryMastered(v.reading)
             ? { ...v.reading, dueDate: now }
             : v.reading;
         const synced = { ...v, usuallyKana, reading };
@@ -254,7 +255,7 @@ export function getNextVocabToStudy(
 
     // 1. Priority: ALL Readings (First Reviews + Due Readings + Retries)
     // We want to clear all reading quizzes before moving to meanings.
-    const allActionableReadings = queue.filter(v => isReadingActionable(v, now));
+    const allActionableReadings = queue.filter(v => isReadingActionable(v, settings, now));
 
     const allActionableMeanings = isMeaningQuizEnabled(settings)
         ? queue.filter(v => isMeaningActionable(v, settings, now))

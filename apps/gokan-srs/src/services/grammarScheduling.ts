@@ -16,7 +16,7 @@ export function isGrammarFullyMastered(progress: Pick<GrammarProgress, 'entry'>)
 /** When a grammar point is next due, under the current review pacing (see effectiveDueDate). */
 export function grammarNextReviewAt(
     progress: Pick<GrammarProgress, 'entry'>,
-    settings?: Partial<PacingSettings> | null
+    settings: Partial<PacingSettings> | null | undefined
 ): Date | null {
     return isGrammarFullyMastered(progress) ? null : effectiveDueDate(progress.entry, settings);
 }
@@ -25,7 +25,7 @@ export function grammarNextReviewAt(
 export function isGrammarDue(
     progress: Pick<GrammarProgress, 'entry' | 'stage'>,
     now: Date,
-    settings?: Partial<PacingSettings> | null
+    settings: Partial<PacingSettings> | null | undefined
 ): boolean {
     if (progress.stage === 'graduated') return false;
     const due = grammarNextReviewAt(progress, settings);

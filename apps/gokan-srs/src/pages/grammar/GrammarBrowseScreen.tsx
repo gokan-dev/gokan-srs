@@ -188,8 +188,8 @@ export function GrammarBrowseScreen() {
                 || row.formation.toLowerCase().includes(q)
             );
         });
-        return sortGrammarRows(rows, sort, progressById);
-    }, [index, query, levels, status, sort, kinds, axes, onlyVariants, onlyFamilied, datasetDetails, progressById]);
+        return sortGrammarRows(rows, sort, progressById, state.settings);
+    }, [index, query, levels, status, sort, kinds, axes, onlyVariants, onlyFamilied, datasetDetails, progressById, state.settings]);
 
     /** By level in level order; by family, the biggest families first. Rows keep the chosen sort inside a group. */
     const groups = useMemo(() => {

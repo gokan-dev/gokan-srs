@@ -1,7 +1,8 @@
 import type { SRSEntry, VocabProgress } from "../models/vocabulary.model";
 import type { GrammarProgress } from "../models/grammar.model";
 import type { UserSettings } from "../models/user.model";
-import { isEntryMastered, isVocabFullyMastered } from "../services/scheduling";
+import { effectiveDueDate, isEntryMastered, isVocabFullyMastered } from "../services/scheduling";
+import type { PacingSettings } from "../services/calibration";
 import { formatDate, nextReviewPhrase } from "./time.utils";
 import { isGrammarFullyMastered } from "../services/grammarScheduling";
 
@@ -46,12 +47,19 @@ export function statusReviewPhrase(status: LearningStatus, due: Date | null, now
  * header already says "Due now" (a word's status line), so a due direction says its
  * stage ("Learning") instead, and the page says it once.
  */
-export function directionStatus(entry: SRSEntry | undefined, activated: boolean, now: number, dueSaidAbove = false): string {
+export function directionStatus(
+    entry: SRSEntry | undefined,
+    activated: boolean,
+    now: number,
+    settings: Partial<PacingSettings> | null | undefined,
+    dueSaidAbove = false
+): string {
     if (!entry || !activated) return 'Not started';
     if (isEntryMastered(entry)) return 'Mastered';
-    if (!entry.dueDate) return 'Not started';
-    if (dueSaidAbove && entry.dueDate.getTime() <= now) return STATUS_LABEL.learning;
-    return nextReviewPhrase(entry.dueDate, now);
+    const due = effectiveDueDate(entry, settings);
+    if (!due) return 'Not started';
+    if (dueSaidAbove && due.getTime() <= now) return STATUS_LABEL.learning;
+    return nextReviewPhrase(due, now);
 }
 
 /** When a studied item was added and how often reviewed: "Added Sep 12, 2026 · 14 reviews". */
