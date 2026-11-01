@@ -227,8 +227,8 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
   one column: a header holding what a learner looks the word up for, then one row of tabs
   (`DetailBody` `tabs`), one tab open at a time. The same tabs at every width.
   - Header, top to bottom: the headword, its spellings and reading (the kana note for a word
-    learned in kana, "Also:" readings); where the play button and the pitch accent will follow
-    the reading (nothing yet, and no space kept); the summary gloss (`summaryGloss`, one
+    learned in kana, "Also:" readings), the reading followed by its `PlayButton` (the pitch
+    accent will join them); the summary gloss (`summaryGloss`, one
     `type-body` line of the first four distinct common glosses); one chips row, the JLPT chip then
     How common on one line (the `FrequencyMeter` and the band's name, the round "Top 300 words"
     and the exact rank in its `title`); the status line under it at every width (`DetailHeader`
@@ -399,8 +399,8 @@ Defined once, in `components/` or `components/ui/`, never copied:
   every surface that names one: each word of an `InteractiveSentence` (but the word a quiz card
   is about), every linking `KanjiTile` (not the one beside its own `KanjiSummary`), each kanji
   of a word page's headword, `WordTile`, synonym, related and mix-up rows, the vocabulary list
-  and a kanji's word list. One card, two bodies: the **word card** (headword and its
-  `SecondaryForm`, the first two meanings, `StatusDot`, "Learn this word" for a word not in
+  and a kanji's word list. One card, two bodies: the **word card** (headword, its
+  `SecondaryForm` and `PlayButton`, the first two meanings, `StatusDot`, "Learn this word" for a word not in
   study, never mid-session, and "Open word page") and the **kanji card** (`KanjiSummary` and
   "Open kanji page"). With a mouse it is a popover (`rounded-md`, divider border, `bg-surface`,
   `shadow-lg`, 288px wide), above its trigger and clamped into the viewport, opened after 220ms
@@ -411,6 +411,13 @@ Defined once, in `components/` or `components/ui/`, never copied:
   trigger navigates, with no card, its page being the card's content. Quiz cards keep sentence
   words out of the Tab order. Its pure parts (`utils/lookup.utils.ts`): which click does what
   (`clickAction`), the open/close timing (`lookupReducer`), the placement (`placePopover`).
+- **`PlayButton`** (`PlayButton.tsx`): a word's reading or a sentence read aloud. A speaker
+  icon in accent (an action), a filled square while it plays; no text, named by `aria-label`
+  ("Play 不思議", "Play sentence"), `aria-pressed` while playing. 44px on phones, 32px from `md`,
+  with negative block margins so it never heightens its line. After a word's reading (its page
+  header, the word card) and at the end of each example sentence on a word page and a grammar
+  page; only where the item has a clip, never disabled; never on a quiz card. No credit on it:
+  every clip is in one voice, credited on About.
 - **`BottomSheet`** (`ui/BottomSheet.tsx`): a panel over the bottom of the screen on a
   `bg-primary/20` backdrop, `rounded-t-md`, capped at `max-w-lg` and centred from `sm` up; a
   44px Close (in the heading row, or in the corner when the content names itself), Esc and a
