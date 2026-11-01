@@ -24,7 +24,7 @@
  *   breaks across lines, and no two readings on a line touch (word pages' example sentences, in each app);
  * - a `#synonyms` link followed inside the app opens a word page on its Synonyms tab;
  * - a word page's first screen, on a small phone (375x667 and 320x568), holds its headword,
- *   reading, summary gloss and status line;
+ *   reading and its play button, summary gloss and status line;
  * - a word page's tab row sticks to the top once scrolled to, with no sideways page scroll at
  *   320px, the open tab inside the row's view, and a tab chosen while it is stuck brings its
  *   panel's top just under the row, as does tapping the open tab again;
@@ -34,7 +34,9 @@
  * - a word page's Review now leaves the word page once in history: a finished review goes back to
  *   it, and Back mid-review lands on it;
  * - a sentence word tapped on a phone opens its lookup card as a bottom sheet that fits the
- *   viewport, with a 44px Close, and no sideways scroll.
+ *   viewport, with a 44px Close, and no sideways scroll;
+ * - play buttons (a word's reading, a word page's and a grammar page's example sentences) are
+ *   44px tap targets on a phone, and each of those pages has a "Play sentence" button.
  *
  * Usage: build both apps (`bun run --cwd apps/gokan-srs build`, `bun run --cwd
  * apps/gokan-dictionary build`), then `bun run check:layout`. Needs Chrome or Chromium: found at
@@ -287,7 +289,20 @@ const FIRST_SCREEN_PARTS = [
     ['reading', '[data-word-reading]'],
     ['summary gloss', '[data-summary-gloss]'],
     ['status line', '[data-word-status]'],
+    // Every word in the dataset has a clip, so its play button follows the reading (issue 178).
+    ['reading\'s play button', '[data-word-reading] [data-play-button]'],
 ] as const;
+/** Play buttons (components/PlayButton.tsx): a 44px tap target on a phone, measured by measure(). */
+const PLAY_BUTTONS = '[data-play-button]';
+// Its examples all have clips, as every grammar example a clip was made for does.
+const GRAMMAR_POINT = 'n5-001';
+
+/** At least one sentence on the page carries a play button, named for what it plays. */
+async function checkSentencePlayButtons(tab: Tab, page: string, width: number): Promise<void> {
+    const named = await tab.evaluate<number>(`[...document.querySelectorAll('[data-sentence] ~ [data-play-button]')].filter(el => el.getAttribute('aria-label') === 'Play sentence' && el.getBoundingClientRect().width > 0).length`);
+    if (named === 0) failures.push(`${width}px ${page}: no sentence has a "Play sentence" button`);
+}
+
 /**
  * A word page on a small phone shows, without scrolling, what a learner looks it up for: the
  * headword, its reading, the summary gloss and the status line (Learn this word, or the status).
@@ -773,13 +788,18 @@ try {
         await tab.goto(`${app}/listening`, 'Watching ·');
         await tab.until(`document.body.innerText.includes('Completed')`, 'a completed title in the library');
         await measure(tab, 'srs /listening, watching and completed titles', width);
-        await measureFuriganaFixture(tab, `${app}/vocab/${FURIGANA_VOCAB}`, 'Examples', `srs /vocab/${FURIGANA_VOCAB}`, width);
+        await measureFuriganaFixture(tab, `${app}/vocab/${FURIGANA_VOCAB}`, 'Examples', `srs /vocab/${FURIGANA_VOCAB}`, width, PLAY_BUTTONS);
+        await checkSentencePlayButtons(tab, `srs /vocab/${FURIGANA_VOCAB}`, width);
         await checkWordFirstScreen(tab, `srs /vocab/${FURIGANA_VOCAB}`, width, height);
         await checkLookupSheet(tab, `srs /vocab/${FURIGANA_VOCAB}`, width);
         await checkTabRowBleed(tab, `srs /vocab/${FURIGANA_VOCAB}`, width);
         await openWordTab(tab, `srs /vocab/${FURIGANA_VOCAB}`, width, 'Sentences');
         await tab.until(`document.body.innerText.includes('Shortest first')`, 'the Sentences panel');
-        await measure(tab, `srs /vocab/${FURIGANA_VOCAB}, sentences panel`, width);
+        await measure(tab, `srs /vocab/${FURIGANA_VOCAB}, sentences panel`, width, PLAY_BUTTONS);
+        await checkSentencePlayButtons(tab, `srs /vocab/${FURIGANA_VOCAB}, sentences panel`, width);
+        await tab.goto(`${app}/grammar/${GRAMMAR_POINT}`, 'Example sentences');
+        await measure(tab, `srs /grammar/${GRAMMAR_POINT}`, width, PLAY_BUTTONS);
+        await checkSentencePlayButtons(tab, `srs /grammar/${GRAMMAR_POINT}`, width);
         await tab.evaluate<void>(SEED_MIXUPS);
         await tab.goto(`${app}/vocab/${MIXUP_WORD}`, 'Dict');
         // Learned here, so Your study's phone grid and the mix-ups under it are measured on a word that has them.
