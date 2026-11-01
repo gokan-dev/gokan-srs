@@ -81,6 +81,11 @@ export default defineConfig({
         }),
     ].filter(Boolean),
     server: {
+        // Clips are not in the dataset checkout (Git LFS pointers only), so dev plays staging's,
+        // the bucket staging and production share (docs/ARCHITECTURE.md, Audio).
+        proxy: {
+            '/audio/': { target: 'https://staging.gokan-srs.com', changeOrigin: true },
+        },
         watch: {
             ignored: ['**/public/data/compiled', '**/public/data/compiled/**'],
         }

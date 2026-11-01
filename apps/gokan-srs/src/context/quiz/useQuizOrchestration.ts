@@ -40,6 +40,8 @@ export interface QuizActions {
     saveSettings: (settings: UserSettings) => void;
     updateKanjiKnowledge: (knowledge: KanjiKnowledge) => void;
     overrideDailyLimit: () => void;
+    /** Suspends the app on a dataset file that failed to load (App shows the fatal error). */
+    dataLoadFailed: (message: string) => void;
     /**
      * Marks or un-marks listening-library episodes of one title in a single update
      * (one episode, or a whole series). Each episode's `coverage` (0..1) is
@@ -391,6 +393,10 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
 
         overrideDailyLimit() {
             dispatch({ type: 'OVERRIDE_DAILY_LIMIT' });
+        },
+
+        dataLoadFailed(message) {
+            dispatch({ type: 'DATA_LOAD_FAILED', payload: { message } });
         },
 
         setEpisodesWatched(mediaId, episodes, watched) {
