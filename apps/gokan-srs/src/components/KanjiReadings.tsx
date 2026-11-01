@@ -6,7 +6,11 @@ interface KanjiReadingsProps {
     size: 'compact' | 'large';
 }
 
-/** On and kun readings, each under its field label, the okurigana in parentheses: まな(ぶ). */
+/**
+ * On and kun readings, each under its field label, the okurigana in parentheses: まな(ぶ). Each
+ * reading is unbreakable with its 、, so a line breaks only between readings and never starts
+ * with a comma: ショ / ウ would read as two readings.
+ */
 export function KanjiReadings({ kanji, size }: KanjiReadingsProps) {
     const rows = [
         { label: 'On', readings: kanji.readings.on },
@@ -18,7 +22,7 @@ export function KanjiReadings({ kanji, size }: KanjiReadingsProps) {
             {rows.map(row => (
                 <div key={row.label} className="flex items-baseline gap-3">
                     <dt className="type-label w-8 shrink-0">{row.label}</dt>
-                    <dd className={`min-w-0 font-gothic text-secondary break-words ${size === 'large' ? 'text-2xl' : 'text-base'}`} lang="ja">{row.readings.join('、')}</dd>
+                    <dd className={`min-w-0 font-gothic text-secondary ${size === 'large' ? 'text-2xl' : 'text-base'}`} lang="ja">{row.readings.map((reading, i) => <span key={reading} data-kanji-reading className="whitespace-nowrap">{reading}{i < row.readings.length - 1 ? '、' : ''}</span>)}</dd>
                 </div>
             ))}
         </dl>

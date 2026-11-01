@@ -566,7 +566,8 @@ app sentence (linked or studied) has side margin or padding (Japanese has no spa
 words), no example sentence is ruled (a word page's and a grammar page's are spaced apart), a word
 page's tabs are 44px tall on a phone, no
 reading sits over kana (a marked fallback excepted), no ruby breaks across lines and no two
-readings on a line touch (measured on their glyphs), and a sentence word tapped on a word
+readings on a line touch (measured on their glyphs), no kanji reading (`KanjiReadings`, on a
+word page's Kanji tab) breaks across lines, and a sentence word tapped on a word
 page opens its lookup card as a bottom sheet inside the viewport, its Close and its links (Open
 word page) 44px. A new page
 type or main route is added to its lists.

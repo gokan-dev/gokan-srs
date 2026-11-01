@@ -322,6 +322,21 @@ async function checkExamplesUnruled(tab: Tab, page: string, width: number): Prom
     for (const text of result.ruled) failures.push(`${width}px ${page}: example sentence ruled with a top or bottom border (space them apart): ${text}`);
 }
 
+/**
+ * A kanji's reading (components/KanjiReadings.tsx) never breaks across lines: ショ / ウ reads as
+ * two readings, or one that does not exist. Lines break only between readings.
+ */
+async function checkKanjiReadingsUnbroken(tab: Tab, page: string, width: number): Promise<void> {
+    const result = await tab.evaluate<{ count: number; broken: string[] }>(`(() => {
+        const readings = [...document.querySelectorAll('[data-kanji-reading]')].filter(el => el.getBoundingClientRect().width > 0);
+        // One rect per text node (the reading and its 、 are two), so a break shows as rects on two rows.
+        const broken = readings.filter(el => { const tops = [...el.getClientRects()].filter(r => r.width > 0).map(r => r.top); return tops.some(top => Math.abs(top - tops[0]) >= 2); });
+        return { count: readings.length, broken: broken.slice(0, 3).map(el => el.textContent.trim()) };
+    })()`);
+    if (result.count === 0) failures.push(`${width}px ${page}: no kanji reading ([data-kanji-reading]) to check`);
+    for (const text of result.broken) failures.push(`${width}px ${page}: a kanji reading breaks across lines: ${text}`);
+}
+
 /** At least one sentence on the page carries a play button, named for what it plays. */
 async function checkSentencePlayButtons(tab: Tab, page: string, width: number): Promise<void> {
     const named = await tab.evaluate<number>(`[...document.querySelectorAll('[data-play-row] [data-sentence]')].map(el => el.closest('[data-play-row]').querySelector(':scope > [data-play-button]')).filter(el => el && el.getAttribute('aria-label') === 'Play sentence' && el.getBoundingClientRect().width > 0).length`);
@@ -844,6 +859,10 @@ try {
         await tab.until(`document.body.innerText.includes('Shortest first')`, 'the Sentences panel');
         await measure(tab, `srs /vocab/${FURIGANA_VOCAB}, sentences panel`, width, PLAY_BUTTONS);
         await checkSentencePlayButtons(tab, `srs /vocab/${FURIGANA_VOCAB}, sentences panel`, width);
+        // 登's On readings (トウ、ト、ドウ、ショウ、チョウ) wrap at both widths.
+        await openWordTab(tab, `srs /vocab/${FURIGANA_VOCAB}`, width, 'Kanji');
+        await tab.until(`document.querySelector('[data-kanji-reading]') !== null`, "the Kanji tab's readings", 10000);
+        await checkKanjiReadingsUnbroken(tab, `srs /vocab/${FURIGANA_VOCAB}, kanji tab`, width);
         await tab.goto(`${app}/grammar/${GRAMMAR_POINT}`, 'Example sentences');
         await measure(tab, `srs /grammar/${GRAMMAR_POINT}`, width, PLAY_BUTTONS);
         await checkSentencePlayButtons(tab, `srs /grammar/${GRAMMAR_POINT}`, width);
@@ -911,4 +930,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows unbroken, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, Review now leaving the word page once in history, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows unbroken, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, Review now leaving the word page once in history, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links.`);
