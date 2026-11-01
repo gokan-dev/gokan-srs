@@ -328,7 +328,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "Release $VERSION: assemble the changelog from the sprint's fragments"
+          # --no-verify: bun install set core.hooksPath, so a plain commit fires the pre-commit
+          # hook (`bun run check`), whose tests need the dataset submodule this minimal checkout
+          # does not have. This commit only assembles the changelog; the release -> main PR gets
+          # full CI, so the hook here is both wrong and impossible to satisfy.
+          git commit --no-verify -am "Release $VERSION: assemble the changelog from the sprint's fragments"
           git push origin "HEAD:release/$VERSION"
 
           body="$(printf 'Release **%s**: %s\n\nTracking: #%s\n\n%s\n' "$VERSION" "$headline" "$TRACKER" "$closes")"
