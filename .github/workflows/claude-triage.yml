@@ -185,7 +185,7 @@ jobs:
       # For the usage report after the agent; the agent itself has no shell.
       - name: Setup Bun
         if: steps.round.outputs.ready == 'true'
-        uses: ./.github/actions/setup-bun
+        uses: oven-sh/setup-bun@v1
         with:
           bun-version: latest
 

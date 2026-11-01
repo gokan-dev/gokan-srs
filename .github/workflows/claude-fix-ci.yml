@@ -68,7 +68,7 @@ jobs:
 
       - name: Setup Bun
         if: steps.head.outputs.fix == 'true'
-        uses: ./.github/actions/setup-bun
+        uses: oven-sh/setup-bun@v1
         with:
           bun-version: latest
 

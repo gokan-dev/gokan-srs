@@ -37,7 +37,7 @@ jobs:
 
       # For the usage report after the agent.
       - name: Setup Bun
-        uses: ./.github/actions/setup-bun
+        uses: oven-sh/setup-bun@v1
         with:
           bun-version: latest
 
