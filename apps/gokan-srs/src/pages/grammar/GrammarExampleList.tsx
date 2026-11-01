@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { GrammarExample } from "@gokan/dataset-schema";
 import { InteractiveSentence } from "../../components/InteractiveSentence";
-import { PlayButton } from "../../components/PlayButton";
+import { SentenceWithPlay } from "../../components/PlayButton";
 import { grammarExampleToSentence, patternHighlightRanges } from "@gokan/dataset-schema";
 
 /**
@@ -20,16 +20,17 @@ export function GrammarExampleList({ examples, initialCount }: { examples: Gramm
         <div>
             {shown.map((example, i) => (
                 <div key={i} className="py-3 border-b border-divider last:border-b-0">
-                    <div className="text-xl text-primary">
-                        <InteractiveSentence
-                            sentence={grammarExampleToSentence(example, `grammar-example-${i}`)}
-                            onVocabClick={(vid) => void navigate(`/vocab/${vid}`)}
-                            showFurigana={true}
-                            highlightRanges={patternHighlightRanges(example)}
-                            keyboardLinks
-                        />
-                        <PlayButton audio={example.audio} label="Play sentence" className="ml-1" />
-                    </div>
+                    <SentenceWithPlay audio={example.audio}>
+                        <div className="text-xl text-primary">
+                            <InteractiveSentence
+                                sentence={grammarExampleToSentence(example, `grammar-example-${i}`)}
+                                onVocabClick={(vid) => void navigate(`/vocab/${vid}`)}
+                                showFurigana={true}
+                                highlightRanges={patternHighlightRanges(example)}
+                                keyboardLinks
+                            />
+                        </div>
+                    </SentenceWithPlay>
                     <p className="type-meta mt-1">{example.romaji}</p>
                     <p className="type-support">{example.en}</p>
                 </div>

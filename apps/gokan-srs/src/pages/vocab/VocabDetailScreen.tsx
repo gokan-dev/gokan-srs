@@ -178,7 +178,7 @@ function WordPage({ vocab, sentences, sentencesSettled, now, onLearn, knownKanji
             )}
             {/* The reading, then its play button (issue 178; the pitch accent, issue 176, will join them). */}
             {vocab.usuallyKana && (
-                <div data-word-reading className="flex items-center gap-x-2 min-w-0">
+                <div data-word-reading className="flex items-start gap-x-2 min-w-0">
                     <KanjiSpellingNote vocab={vocab} className="min-w-0" />
                     <PlayButton audio={vocab.audio} label={`Play ${headwordOf(vocab)}`} />
                 </div>

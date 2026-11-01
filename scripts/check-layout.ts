@@ -36,7 +36,8 @@
  * - a sentence word tapped on a phone opens its lookup card as a bottom sheet that fits the
  *   viewport, with a 44px Close, and no sideways scroll;
  * - play buttons (a word's reading, a word page's and a grammar page's example sentences) are
- *   44px tap targets on a phone, and each of those pages has a "Play sentence" button.
+ *   44px tap targets on a phone at the first line of what they play (the sentence, the reading, a
+ *   kana word's note), and each of those pages has a "Play sentence" button.
  *
  * Usage: build both apps (`bun run --cwd apps/gokan-srs build`, `bun run --cwd
  * apps/gokan-dictionary build`), then `bun run check:layout`. Needs Chrome or Chromium: found at
@@ -297,10 +298,34 @@ const PLAY_BUTTONS = '[data-play-button]';
 // Its examples all have clips, as every grammar example a clip was made for does.
 const GRAMMAR_POINT = 'n5-001';
 
+/** A word learned in kana: its header's play button follows the kanji-spelling note, which wraps at 320px. */
+const KANA_WORD = '1000225';
+
 /** At least one sentence on the page carries a play button, named for what it plays. */
 async function checkSentencePlayButtons(tab: Tab, page: string, width: number): Promise<void> {
-    const named = await tab.evaluate<number>(`[...document.querySelectorAll('[data-sentence] ~ [data-play-button]')].filter(el => el.getAttribute('aria-label') === 'Play sentence' && el.getBoundingClientRect().width > 0).length`);
+    const named = await tab.evaluate<number>(`[...document.querySelectorAll('[data-play-row] [data-sentence]')].map(el => el.closest('[data-play-row]').querySelector(':scope > [data-play-button]')).filter(el => el && el.getAttribute('aria-label') === 'Play sentence' && el.getBoundingClientRect().width > 0).length`);
     if (named === 0) failures.push(`${width}px ${page}: no sentence has a "Play sentence" button`);
+    await checkPlayButtonsOnFirstLine(tab, page, width);
+}
+
+/**
+ * Every play button on the page sits at the first line of what it plays (the element before it:
+ * the sentence, the reading, the kana note): its centre within the upper three quarters of that
+ * first line. A button wrapped alone onto a line below the sentence, or centred between a
+ * wrapped note's two lines, reads as a control of its own.
+ */
+async function checkPlayButtonsOnFirstLine(tab: Tab, page: string, width: number): Promise<void> {
+    const strays = await tab.evaluate<string[]>(`[...document.querySelectorAll(${JSON.stringify(PLAY_BUTTONS)})].filter(el => el.getBoundingClientRect().width > 0).flatMap(el => {
+        const before = el.previousElementSibling;
+        if (!before) return [el.getAttribute('aria-label') + ': nothing before it to follow'];
+        // A sentence's line is its own (leading-loose), not its wrapper's.
+        const style = getComputedStyle(before.querySelector('[data-sentence]') ?? before);
+        const line = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.2;
+        const button = el.getBoundingClientRect();
+        const below = (button.top + button.bottom) / 2 - before.getBoundingClientRect().top;
+        return below < line * 0.75 ? [] : [el.getAttribute('aria-label') + ' centred ' + Math.round(below) + 'px below the top of what it plays (its first line is ' + Math.round(line) + 'px)'];
+    })`);
+    for (const stray of strays) failures.push(`${width}px ${page}: play button off the first line: ${stray}`);
 }
 
 /**
@@ -800,6 +825,8 @@ try {
         await tab.goto(`${app}/grammar/${GRAMMAR_POINT}`, 'Example sentences');
         await measure(tab, `srs /grammar/${GRAMMAR_POINT}`, width, PLAY_BUTTONS);
         await checkSentencePlayButtons(tab, `srs /grammar/${GRAMMAR_POINT}`, width);
+        await tab.goto(`${app}/vocab/${KANA_WORD}`, 'Usually written in kana');
+        await checkPlayButtonsOnFirstLine(tab, `srs /vocab/${KANA_WORD}`, width);
         await tab.evaluate<void>(SEED_MIXUPS);
         await tab.goto(`${app}/vocab/${MIXUP_WORD}`, 'Dict');
         // Learned here, so Your study's phone grid and the mix-ups under it are measured on a word that has them.
@@ -861,4 +888,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji, on one line and apart, Japanese in list rows unbroken, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, Review now leaving the word page once in history, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word's lookup sheet in the viewport with a 44px Close.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart, furigana over kanji, on one line and apart, Japanese in list rows unbroken, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, Review now leaving the word page once in history, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word's lookup sheet in the viewport with a 44px Close.`);

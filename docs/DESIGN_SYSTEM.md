@@ -414,9 +414,12 @@ Defined once, in `components/` or `components/ui/`, never copied:
 - **`PlayButton`** (`PlayButton.tsx`): a word's reading or a sentence read aloud. A speaker
   icon in accent (an action), a filled square while it plays; no text, named by `aria-label`
   ("Play 不思議", "Play sentence"), `aria-pressed` while playing. 44px on phones, 32px from `md`,
-  with negative block margins so it never heightens its line. After a word's reading (its page
-  header, the word card) and at the end of each example sentence on a word page and a grammar
-  page; only where the item has a clip, never disabled; never on a quiz card. No credit on it:
+  with negative block margins so it never heightens its line, and its focus ring drawn inside
+  it (`ring-inset`) so it never overlaps the lines around it. After a word's reading (its page
+  header, the word card; on a word learned in kana, at the first line of its kanji-spelling
+  note) and beside each example sentence on a word page and a grammar page, at the sentence's
+  first line: `SentenceWithPlay` puts it in a right-hand column, so it never wraps onto a line of
+  its own. Only where the item has a clip, never disabled; never on a quiz card. No credit on it:
   every clip is in one voice, credited on About.
 - **`BottomSheet`** (`ui/BottomSheet.tsx`): a panel over the bottom of the screen on a
   `bg-primary/20` backdrop, `rounded-t-md`, capped at `max-w-lg` and centred from `sm` up; a
