@@ -1,0 +1,55 @@
+# Usage-limit resilience for the review-side agents. claude-sweep.yml re-dispatches a stalled
+# `implement` run; this is its counterpart for every OTHER Claude-agent workflow (review, staging
+# review, triage, address-feedback, fix-ci, the release pre-flight, on-demand), which otherwise die
+# on a usage limit or a transient error and wait for a human to re-run them. Hourly, it re-runs any
+# such run that failed recently and has not been retried too many times, with `gh run rerun`.
+#
+# Why re-running is safe: these workflows guard themselves against acting on stale state - the PR
+# reviewer skips a moved branch, triage refuses an already-triaged or moved commit, the release
+# pre-flight is idempotent. The attempt cap stops a genuinely-failing run from looping forever, and
+# the hourly cadence gives a usage window time to reset between tries.
+name: "Agent: retry failed runs"
+
+on:
+  schedule:
+    - cron: "42 * * * *"   # hourly, offset from the sweeper (:17)
+  workflow_dispatch:
+
+concurrency:
+  group: claude-retry
+  cancel-in-progress: false
+
+jobs:
+  retry:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write   # re-run workflow runs
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      # A run that keeps failing stops being retried after this many attempts (usage that never
+      # comes back, or a real failure): it is left for a human rather than retried forever.
+      MAX_ATTEMPTS: "3"
+    steps:
+      - name: Re-run recently-failed agent runs
+        run: |
+          set -euo pipefail
+          # The Claude-agent workflows this covers. `implement` is deliberately absent: claude-sweep
+          # re-dispatches it (a ready-for-dev issue), so retrying it here too would double up.
+          workflows="claude-review.yml claude-review-staging.yml claude-triage.yml claude-address-feedback.yml claude-fix-ci.yml claude-start-release.yml claude.yml"
+          since="$(date -u -d '3 hours ago' +%Y-%m-%dT%H:%M:%SZ)"
+          retried=0
+          for wf in $workflows; do
+            # Failed runs from the last 3 hours not yet retried to the cap. `attempt` rises with each
+            # rerun, so a run that keeps failing drops out; one that now succeeds leaves the list.
+            ids="$(gh run list --repo "$REPO" --workflow "$wf" --status failure --limit 25 \
+              --json databaseId,attempt,createdAt \
+              --jq "[.[] | select(.createdAt > \"$since\" and (.attempt < $MAX_ATTEMPTS))] | .[].databaseId" 2>/dev/null || true)"
+            for id in $ids; do
+              if gh run rerun "$id" --repo "$REPO" --failed 2>/dev/null; then
+                echo "Re-ran $wf run $id."
+                retried=$((retried + 1))
+              fi
+            done
+          done
+          echo "Re-ran $retried failed agent run(s)." | tee -a "$GITHUB_STEP_SUMMARY"

@@ -73,7 +73,10 @@ summary ("Largest tool results"), which is where a whole read shows.
   noted under "Decided by default". An interrupted run (crash, turn limit, usage limit) resumes
   itself from the commits it pushed: `claude-resume.yml` reacts to a finished run, `claude-sweep.yml`
   sweeps hourly, both through `.github/actions/resume-issue`, bounded by progress and escalating with
-  `needs-attention` when a branch stops advancing. `pause-automation` on an issue opts it out.
+  `needs-attention` when a branch stops advancing. `pause-automation` on an issue opts it out. The
+  review-side agents (review, staging review, triage, address-feedback, fix-ci, the release
+  pre-flight, on-demand) are not dispatched per issue, so `claude-retry.yml` re-runs any of their
+  runs that failed recently (a usage limit, a transient error), capped by attempt count.
 - A change that ships in the deployed apps (`shipsInDeployment`) records itself for the What's new
   page and the app's version. On `main` (a single issue) it adds one entry at the top of
   `apps/gokan-srs/release/changelog.ts`: the next minor (the version its rc tags carry), the day,
