@@ -114,7 +114,6 @@ export function StackedBarChart({ segments, bars, height = 128, maxValue, showLe
                                     {shownIndex === i && (
                                         <div
                                             role="tooltip"
-                                            data-chart-tooltip
                                             className={`absolute bottom-full mb-2 ${TOOLTIP_POSITION[tooltipAnchor(i, bars.length)]} bg-surface border border-divider shadow-md rounded-md px-2 py-1.5 flex flex-col items-start text-xs w-max z-20 pointer-events-none`}
                                         >
                                             <span className="font-medium text-primary">{bar.title ?? bar.label}: {total.toLocaleString('en-US')}</span>

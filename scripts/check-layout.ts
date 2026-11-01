@@ -41,7 +41,10 @@
  * - example sentences (a word page's Dict tab, a grammar page) are spaced apart, never ruled;
  * - play buttons (a word's reading, a word page's and a grammar page's example sentences) are
  *   44px tap targets on a phone at the first line of what they play (the sentence, the reading, a
- *   kana word's note), and each of those pages has a "Play sentence" button.
+ *   kana word's note), and each of those pages has a "Play sentence" button;
+ * - Settings' review pacing, with a studied word so its forecast shows: the first and last bar's
+ *   tooltip stays inside the viewport with no sideways scroll, two arrow presses on the slider
+ *   step it twice and keep its focus, and a plain `change` on it (as assistive tech sends) saves.
  *
  * Usage: build both apps (`bun run --cwd apps/gokan-srs build`, `bun run --cwd
  * apps/gokan-dictionary build`), then `bun run check:layout`. Needs Chrome or Chromium: found at
@@ -540,6 +543,70 @@ async function checkNoReviewNow(tab: Tab, app: string, width: number, vocabId: s
     if (await tab.evaluate<boolean>(REVIEW_NOW_SHOWN)) failures.push(`${width}px ${page}: the page shows Review now`);
 }
 
+const PACING_SLIDER = `[...document.querySelectorAll('input[type=range]')].find(el => (el.getAttribute('aria-valuetext') ?? '').startsWith('Intervals'))`;
+const PACING_BARS = `[...document.querySelectorAll('[data-pacing-forecast] button[aria-label]')]`;
+/**
+ * Focuses bar `which` of the pacing chart and reports where its tooltip lands, or why it cannot.
+ * Measured against the device width, as MEASURE does: a phone viewport zooms out to fit a page
+ * that overflows, so `innerWidth` grows with the overflow it would report.
+ */
+const PACING_TOOLTIP = (which: 'first' | 'last', deviceWidth: number) => `(async () => {
+    const bars = ${PACING_BARS};
+    const bar = bars[${which === 'first' ? '0' : 'bars.length - 1'}];
+    if (!bar) return 'no bars in the pacing chart';
+    bar.focus();
+    await new Promise(resolve => setTimeout(resolve, 300));
+    const tip = bar.querySelector('[role="tooltip"]');
+    if (!tip) return 'no tooltip on focus';
+    const r = tip.getBoundingClientRect();
+    const problems = [];
+    if (r.left < 0 || r.right > ${deviceWidth}) problems.push('tooltip spans ' + Math.round(r.left) + '-' + Math.round(r.right) + 'px in a ${deviceWidth}px viewport');
+    if (document.documentElement.scrollWidth > ${deviceWidth}) problems.push('the page scrolls sideways by ' + (document.documentElement.scrollWidth - ${deviceWidth}) + 'px');
+    bar.blur();
+    return problems.join('; ');
+})()`;
+
+/**
+ * Settings' review pacing, on a learner with a studied word (so the forecast and its chart show):
+ * the 30 thin bars' end tooltips stay on screen, the keyboard steps the slider more than once (a
+ * commit must not remount it and drop its focus), and a value set with no pointer or key (a
+ * screen reader's adjust action sends only input and change) is saved.
+ */
+async function checkReviewPacing(tab: Tab, app: string, width: number): Promise<void> {
+    const page = 'srs /settings, review pacing';
+    await tab.goto(`${app}/settings`, 'Review pacing');
+    try {
+        await tab.until(`document.querySelector('[data-pacing-forecast]') !== null`, 'the pacing forecast', 10000);
+    } catch {
+        failures.push(`${width}px ${page}: no forecast chart with a studied word`);
+        return;
+    }
+    for (const which of ['first', 'last'] as const) {
+        const problem = await tab.evaluate<string>(PACING_TOOLTIP(which, width));
+        if (problem) failures.push(`${width}px ${page}: the ${which} bar's tooltip: ${problem}`);
+    }
+    const before = await tab.evaluate<number>(`Number(${PACING_SLIDER}.value)`);
+    await tab.evaluate<void>(`${PACING_SLIDER}.focus()`);
+    await tab.press('ArrowRight');
+    await tab.press('ArrowRight');
+    const after = await tab.evaluate<{ value: number; focused: boolean }>(`(() => { const el = ${PACING_SLIDER}; return { value: Number(el.value), focused: document.activeElement === el }; })()`);
+    const expected = Number((before + 0.2).toFixed(1));
+    if (after.value !== expected) failures.push(`${width}px ${page}: two ArrowRight presses from ${before} gave ${after.value}, not ${expected}`);
+    if (!after.focused) failures.push(`${width}px ${page}: the slider loses focus after an arrow press`);
+    // React reads its own value tracker: the native setter, then input and change, as assistive tech sends them.
+    const target = expected === 3 ? 2.5 : 3;
+    await tab.evaluate<void>(`(() => {
+        const el = ${PACING_SLIDER};
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, '${target}');
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    await tab.goto(`${app}/settings`, 'Review pacing');
+    const saved = await tab.evaluate<number>(`Number(${PACING_SLIDER}.value)`);
+    if (saved !== target) failures.push(`${width}px ${page}: a value set by a plain change event (${target}) was not saved (reads ${saved} after a reload)`);
+}
+
 /**
  * Learns the word on the open page, through its "Learn this word", and opens its Study tab. A
  * page without the button is a failure: the steps after it must measure a studied word.
@@ -853,6 +920,7 @@ try {
         // The tab last chosen opens on the next word: Dict first here, for the page as it first shows.
         await openWordTab(tab, `srs /vocab/${MIXUP_WORD}`, width, 'Dict');
         if (learned) await checkNoReviewNow(tab, app, width, MIXUP_WORD);
+        if (learned) await checkReviewPacing(tab, app, width);
         await tab.goto(`${app}/vocab/${LONG_SYNONYMS_WORD}`, 'Meanings');
         await measure(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, Dict tab`, width);
         await checkWordFirstScreen(tab, `srs /vocab/${LONG_SYNONYMS_WORD}`, width, height);
@@ -894,4 +962,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows unbroken, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows unbroken, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard and saved by a plain change.`);

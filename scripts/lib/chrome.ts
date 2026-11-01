@@ -24,6 +24,10 @@ const CHROME_CANDIDATES = [
     '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
 ];
 
+/** The keys `press` knows, with their virtual key codes. */
+const KEY_CODES = { ArrowLeft: 37, ArrowRight: 39 } as const;
+export type KeyName = keyof typeof KEY_CODES;
+
 interface Message { id?: number; result?: unknown; error?: { message: string } }
 
 export interface Tab {
@@ -36,6 +40,8 @@ export interface Tab {
     resize(width: number, height: number): Promise<void>;
     /** Moves a real mouse pointer to a viewport point: `:hover` and pointer events as a learner's mouse gives them. */
     mouseMove(x: number, y: number): Promise<void>;
+    /** Presses and releases a key on the focused element, as a keyboard does (`ArrowRight`). */
+    press(key: KeyName): Promise<void>;
     close(): Promise<void>;
 }
 
@@ -155,11 +161,17 @@ export async function launchChrome(): Promise<Chrome> {
         const mouseMove = async (x: number, y: number): Promise<void> => {
             await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y }, sessionId);
         };
+        const press = async (key: KeyName): Promise<void> => {
+            const event = { key, code: key, windowsVirtualKeyCode: KEY_CODES[key], nativeVirtualKeyCode: KEY_CODES[key] };
+            await send('Input.dispatchKeyEvent', { type: 'keyDown', ...event }, sessionId);
+            await send('Input.dispatchKeyEvent', { type: 'keyUp', ...event }, sessionId);
+            await sleep(300);
+        };
         const close = async (): Promise<void> => {
             if (context) await send('Target.disposeBrowserContext', { browserContextId: context });
             else await send('Target.closeTarget', { targetId });
         };
-        return { evaluate, until, goto, click, resize, mouseMove, close };
+        return { evaluate, until, goto, click, resize, mouseMove, press, close };
     }
 
     async function kill(): Promise<void> {
