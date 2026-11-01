@@ -226,6 +226,16 @@ describe('review pacing', () => {
         expect(commitIntervalModifier(settings, 2, new Date())).toBe(settings);
     });
 
+    it('commitIntervalModifier never sorts a commit behind a later-dated entry', () => {
+        // Merged from a device whose clock runs an hour ahead.
+        const ahead = '2026-11-01T11:00:00.000Z';
+        const settings = { intervalModifier: 3, intervalModifierHistory: [...history, { from: ahead, value: 3 }] };
+        const committed = commitIntervalModifier(settings, 1.2, new Date('2026-11-01T10:00:00Z'));
+        expect(committed.intervalModifier).toBe(1.2);
+        expect(committed.intervalModifierHistory.at(-1)).toEqual({ from: '2026-11-01T11:00:00.001Z', value: 1.2 });
+        expect(modifierAt(committed.intervalModifierHistory, new Date('2026-11-01T12:00:00Z'))).toBe(1.2);
+    });
+
     it('two devices\' histories merge to the same ordered list either way round', () => {
         const a = { intervalModifier: 3, intervalModifierHistory: [history[0], history[1]] };
         const b = { intervalModifier: 2.2, intervalModifierHistory: [history[0], { from: '2026-10-10T00:00:00.000Z', value: 2.2 }] };

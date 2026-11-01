@@ -7,13 +7,15 @@ import { SettingSlider } from "../../../components/ui/SettingSlider";
 import { StackedBarChart, type StackedBarChartSegment } from "../../../components/ui/StackedBarChart";
 import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
 import { useNow } from "../../../hooks/useNow";
-import { buildWorkloadForecast, highestDay, isEmptyForecast, seededRandom } from "../../../utils/workloadForecast.utils";
+import { buildWorkloadForecast, hasScheduledReviews, highestDay, isEmptyForecast, seededRandom } from "../../../utils/workloadForecast.utils";
 import { formatShortDate } from "../../../utils/time.utils";
 
 const RANGE = CONSTANTS.srs.intervalModifier;
 /** One seed for every position, so moving the slider changes the workload, not the dice. */
 const FORECAST_SEED = 185;
 const FORECAST_DAYS = 30;
+/** Quiet time after the last step before a commit: a burst of key steps is one history entry. */
+const COMMIT_DELAY_MS = 600;
 
 // Bottom to top: the accent in steps, under names that claim no quiz direction.
 const SEGMENTS: StackedBarChartSegment[] = [
@@ -37,7 +39,9 @@ interface ReviewPacingProps {
  * buys, forecast from the learner's own queue and win rate. The forecast follows
  * the slider while it moves (debounced); the setting is written, and its history
  * appended, only when the slider is let go (its native `change`: a release, a key
- * step, an assistive-tech adjustment). Never remounted by a commit, so a keyboard
+ * step, an assistive-tech adjustment), and then only after a short quiet time, so
+ * a burst of key steps is one entry (flushed at once on blur and on unmount, so
+ * leaving the page never loses it). Never remounted by a commit, so a keyboard
  * keeps its focus from one step to the next. When the setting changes from
  * somewhere else (a Drive merge, another commit), the draft follows it, adjusted
  * during render rather than in an effect, so it never shows a stale position.
@@ -75,6 +79,11 @@ export function ReviewPacing({ settings, progress, onUpdateSettings }: ReviewPac
         if (next !== settings.intervalModifier) onUpdateSettings(commitIntervalModifier(settings, next, new Date()));
     };
 
+    // Shown while either position has something in the window, so dragging toward
+    // reviews that lie past it brings them into view.
+    const empty = !current || (isEmptyForecast(current) && (!atCandidate || isEmptyForecast(atCandidate)));
+    const anyScheduled = useMemo(() => progress !== null && hasScheduledReviews(progress, settings), [progress, settings]);
+
     const changed = atCandidate !== null && current !== null && candidate !== settings.intervalModifier;
     // One scale for both positions, so the bars shrink as intervals lengthen rather than the axis.
     const maxValue = current && atCandidate ? Math.max(1, highestDay(current), highestDay(atCandidate)) : undefined;
@@ -91,11 +100,16 @@ export function ReviewPacing({ settings, progress, onUpdateSettings }: ReviewPac
             step={RANGE.step}
             onChange={(value) => setDraft(roundStep(value))}
             onCommit={commit}
+            commitDelayMs={COMMIT_DELAY_MS}
         >
-            {current && isEmptyForecast(current) && (
-                <p className="mt-4 type-support">The forecast appears once you have reviews scheduled.</p>
+            {current && empty && (
+                <p className="mt-4 type-support">
+                    {anyScheduled
+                        ? `No reviews in the next ${FORECAST_DAYS} days at this setting.`
+                        : 'The forecast appears once you have reviews scheduled.'}
+                </p>
             )}
-            {atCandidate && current && !isEmptyForecast(current) && (
+            {atCandidate && current && !empty && (
                 <div className="mt-5 space-y-4" data-pacing-forecast>
                     <dl className="grid grid-cols-2 gap-3">
                         <div className="min-w-0">

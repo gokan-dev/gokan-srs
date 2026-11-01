@@ -544,6 +544,8 @@ async function checkNoReviewNow(tab: Tab, app: string, width: number, vocabId: s
 }
 
 const PACING_SLIDER = `[...document.querySelectorAll('input[type=range]')].find(el => (el.getAttribute('aria-valuetext') ?? '').startsWith('Intervals'))`;
+/** The pacing setting as stored on this device: its value and history (`StorageService.saveSettings`). */
+const STORED_PACING = `(() => { const s = JSON.parse(localStorage.getItem('GOKAN_SRS_SETTINGS') ?? '{}'); return { value: s.intervalModifier ?? null, history: s.intervalModifierHistory ?? [] }; })()`;
 const PACING_BARS = `[...document.querySelectorAll('[data-pacing-forecast] button[aria-label]')]`;
 /**
  * Focuses bar `which` of the pacing chart and reports where its tooltip lands, or why it cannot.
@@ -585,16 +587,36 @@ async function checkReviewPacing(tab: Tab, app: string, width: number): Promise<
         const problem = await tab.evaluate<string>(PACING_TOOLTIP(which, width));
         if (problem) failures.push(`${width}px ${page}: the ${which} bar's tooltip: ${problem}`);
     }
+    // Stepped toward the middle, so five steps never reach an end of the range.
     const before = await tab.evaluate<number>(`Number(${PACING_SLIDER}.value)`);
+    const key = before > 2.5 ? 'ArrowLeft' : 'ArrowRight';
+    const step = key === 'ArrowLeft' ? -0.1 : 0.1;
+    const since = await tab.evaluate<string>(`new Date().toISOString()`);
     await tab.evaluate<void>(`${PACING_SLIDER}.focus()`);
-    await tab.press('ArrowRight');
-    await tab.press('ArrowRight');
+    await tab.press(key);
+    await tab.press(key);
     const after = await tab.evaluate<{ value: number; focused: boolean }>(`(() => { const el = ${PACING_SLIDER}; return { value: Number(el.value), focused: document.activeElement === el }; })()`);
-    const expected = Number((before + 0.2).toFixed(1));
-    if (after.value !== expected) failures.push(`${width}px ${page}: two ArrowRight presses from ${before} gave ${after.value}, not ${expected}`);
+    const expected = Number((before + 2 * step).toFixed(1));
+    if (after.value !== expected) failures.push(`${width}px ${page}: two ${key} presses from ${before} gave ${after.value}, not ${expected}`);
     if (!after.focused) failures.push(`${width}px ${page}: the slider loses focus after an arrow press`);
+    // Five steps in a row, each 300ms after the last: one burst, so one history entry.
+    for (let i = 0; i < 3; i++) await tab.press(key);
+    const burst = Number((before + 5 * step).toFixed(1));
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    const entries = await tab.evaluate<number>(`${STORED_PACING}.history.filter(change => change.from >= '${since}').length`);
+    if (entries !== 1) failures.push(`${width}px ${page}: five key steps in a row wrote ${entries} pacing history entries, not one`);
+    await tab.goto(`${app}/settings`, 'Review pacing');
+    const reloaded = await tab.evaluate<number>(`Number(${PACING_SLIDER}.value)`);
+    if (reloaded !== burst) failures.push(`${width}px ${page}: after five key steps to ${burst} and a reload, the slider reads ${reloaded}`);
+    // One more step, then straight away Tab: the pending commit is flushed on blur, not lost.
+    await tab.evaluate<void>(`${PACING_SLIDER}.focus()`);
+    await tab.press(key, 0);
+    await tab.press('Tab', 0);
+    const tabbed = Number((burst + step).toFixed(1));
+    const stored = await tab.evaluate<number | null>(`${STORED_PACING}.value`);
+    if (stored !== tabbed) failures.push(`${width}px ${page}: a key step then Tab away saved ${stored}, not ${tabbed}`);
     // React reads its own value tracker: the native setter, then input and change, as assistive tech sends them.
-    const target = expected === 3 ? 2.5 : 3;
+    const target = tabbed === 3 ? 2.5 : 3;
     await tab.evaluate<void>(`(() => {
         const el = ${PACING_SLIDER};
         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, '${target}');
@@ -962,4 +984,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows unbroken, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard and saved by a plain change.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows unbroken, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and a plain change saved.`);

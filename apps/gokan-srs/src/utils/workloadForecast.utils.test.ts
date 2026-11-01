@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildWorkloadForecast, highestDay, isEmptyForecast, seededRandom } from './workloadForecast.utils';
+import { buildWorkloadForecast, hasScheduledReviews, highestDay, isEmptyForecast, seededRandom } from './workloadForecast.utils';
 import { CONSTANTS } from '../commons/constants';
 import { PACING_EPOCH } from '../models/user.model';
 import type { SRSEntry, VocabProgress } from '../models/vocabulary.model';
@@ -112,7 +112,7 @@ describe('buildWorkloadForecast', () => {
     });
 });
 
-describe('highestDay and isEmptyForecast', () => {
+describe('highestDay, isEmptyForecast and hasScheduledReviews', () => {
     it('reads the busiest day, scheduled and projected together', () => {
         const forecast = buildWorkloadForecast(userProgress({ learningQueue: queue(40) }), pacing(1.5), now, seededRandom(3));
         const busiest = Math.max(...forecast.days.map(d => d.scheduled + d.projected));
@@ -124,5 +124,16 @@ describe('highestDay and isEmptyForecast', () => {
         const forecast = buildWorkloadForecast(userProgress(), pacing(1.5), now, seededRandom(3));
         expect(highestDay(forecast)).toBe(0);
         expect(isEmptyForecast(forecast)).toBe(true);
+    });
+
+    it('tells reviews past the window from nothing scheduled, and a lower pacing brings them in', () => {
+        // Scheduled under x1.5 ten days ago, 70 days out: due in 60 days, past the window.
+        const far = userProgress({ learningQueue: [word('v1', { reading: scheduledEntry(60, 70), meaning: undefined })] });
+        const current = pacing(1.5);
+        expect(isEmptyForecast(buildWorkloadForecast(far, current, now, seededRandom(3)))).toBe(true);
+        expect(hasScheduledReviews(far, current)).toBe(true);
+        expect(hasScheduledReviews(userProgress(), current)).toBe(false);
+        const lower = commitIntervalModifier(current, 0.5, now);
+        expect(isEmptyForecast(buildWorkloadForecast(far, lower, now, seededRandom(3)))).toBe(false);
     });
 });

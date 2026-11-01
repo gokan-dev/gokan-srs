@@ -221,18 +221,19 @@ export function normalisePacingHistory(changes: readonly IntervalModifierChange[
 }
 
 /**
- * Commits a pacing value: sets it and appends it to the history, from `now`.
- * Called once per commit (the slider's release), never per step of a drag, and
- * a no-op when the value is already the current one. A commit replaces an entry
- * from the very same instant, so the value just chosen is the current one.
+ * Commits a pacing value: sets it and appends it to the history. Called once per
+ * commit, never per step: the slider coalesces a drag, or a burst of key steps,
+ * into one commit (`ReviewPacing`). A no-op when the value is already the
+ * current one. Stamped at `now`, or just after the latest entry when that one is
+ * later (merged from a device whose clock runs ahead), so the value just chosen
+ * is always the history's last entry and the current one.
  */
 export function commitIntervalModifier<S extends PacingSettings>(settings: S, value: number, now: Date): S {
     if (value === settings.intervalModifier) return settings;
-    const from = now.toISOString();
-    const intervalModifierHistory = normalisePacingHistory([
-        ...settings.intervalModifierHistory.filter(change => change.from !== from),
-        { from, value },
-    ]);
+    const latest = settings.intervalModifierHistory.at(-1);
+    const latestAt = latest ? Date.parse(latest.from) : Number.NEGATIVE_INFINITY;
+    const from = new Date(Math.max(now.getTime(), Number.isFinite(latestAt) ? latestAt + 1 : now.getTime())).toISOString();
+    const intervalModifierHistory = normalisePacingHistory([...settings.intervalModifierHistory, { from, value }]);
     return {
         ...settings,
         intervalModifier: intervalModifierHistory.at(-1)?.value ?? clampModifier(value),

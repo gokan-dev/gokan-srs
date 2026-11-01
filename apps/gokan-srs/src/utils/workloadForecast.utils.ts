@@ -9,6 +9,7 @@ import {
     isProductionActivated,
     isProductionQuizEnabled,
     isReadingRelevant,
+    isScheduled,
     newSRSEntry,
 } from "../services/scheduling";
 import { isGrammarFullyMastered } from "../services/grammarScheduling";
@@ -61,6 +62,46 @@ const EXPECTED_LATENCY: Record<CalibratedQuizType, number> = {
     grammar: CONSTANTS.srs.quizProperties.grammar.expectedLatency,
 };
 
+type ForecastProgress = Pick<UserProgress, 'learningQueue' | 'grammarQueue' | 'calibration'>;
+
+/**
+ * Every entry the forecast counts, with its quiz type: the relevance rules of
+ * `buildReviewForecast` (no graduated or mastered entry, no disabled quiz type,
+ * no reading for a word learned in kana, no production entry never activated).
+ * The one walk behind the forecast and `hasScheduledReviews`.
+ */
+function plannedReviews(
+    progress: ForecastProgress,
+    settings: WorkloadSettings,
+    visit: (entry: SRSEntry, type: CalibratedQuizType) => void
+): void {
+    const meaningOn = isMeaningQuizEnabled(settings);
+    const productionOn = isProductionQuizEnabled(settings);
+    const relevant = (entry: SRSEntry | undefined, type: CalibratedQuizType) => {
+        if (entry && isScheduled(entry) && !isEntryMastered(entry)) visit(entry, type);
+    };
+    for (const v of progress.learningQueue) {
+        if (v.stage === 'graduated') continue;
+        if (isReadingRelevant(v)) relevant(v.reading, 'reading');
+        if (meaningOn) relevant(v.meaning, 'meaning');
+        if (productionOn && v.production && isProductionActivated(v.production)) relevant(v.production, 'production');
+    }
+    for (const g of progress.grammarQueue) {
+        if (g.stage === 'graduated' || isGrammarFullyMastered(g)) continue;
+        relevant(g.entry, 'grammar');
+    }
+}
+
+/**
+ * True when any review the forecast counts is planned, however far out. Tells a
+ * learner with nothing scheduled from one whose reviews all fall past the window.
+ */
+export function hasScheduledReviews(progress: ForecastProgress, settings: WorkloadSettings): boolean {
+    let any = false;
+    plannedReviews(progress, settings, () => { any = true; });
+    return any;
+}
+
 /**
  * The reviews a day to expect over the next `days` days at `settings`'s pacing,
  * from the learner's own progress. Shown under the pacing slider, computed for
@@ -80,7 +121,7 @@ const EXPECTED_LATENCY: Record<CalibratedQuizType, number> = {
  * deterministic for a seed.
  */
 export function buildWorkloadForecast(
-    progress: Pick<UserProgress, 'learningQueue' | 'grammarQueue' | 'calibration'>,
+    progress: ForecastProgress,
     settings: WorkloadSettings,
     now: Date,
     random: () => number,
@@ -137,33 +178,19 @@ export function buildWorkloadForecast(
     };
 
     let dueNow = 0;
-    const scheduled = (entry: SRSEntry | undefined, type: CalibratedQuizType) => {
-        if (!entry || isEntryMastered(entry)) return;
+    plannedReviews(progress, settings, (entry, type) => {
         const due = effectiveDueDate(entry, settings);
         if (!due) return;
         if (due <= now) dueNow++;
         follow(entry, type, due.getTime(), true, 1);
-    };
+    });
 
     const meaningOn = isMeaningQuizEnabled(settings);
-    const productionOn = isProductionQuizEnabled(settings);
     const paceSince = now.getTime() - PACE_WINDOW_DAYS * DAY_MS;
-    let newWords = 0;
-
-    for (const v of progress.learningQueue) {
-        if (v.introductionAt && v.introductionAt.getTime() > paceSince && v.introductionAt <= now) newWords++;
-        if (v.stage === 'graduated') continue;
-        if (isReadingRelevant(v)) scheduled(v.reading, 'reading');
-        if (meaningOn) scheduled(v.meaning, 'meaning');
-        if (productionOn && v.production && isProductionActivated(v.production)) scheduled(v.production, 'production');
-    }
-
-    let newGrammar = 0;
-    for (const g of progress.grammarQueue) {
-        if (g.introductionAt && g.introductionAt.getTime() > paceSince && g.introductionAt <= now) newGrammar++;
-        if (g.stage === 'graduated' || isGrammarFullyMastered(g)) continue;
-        scheduled(g.entry, 'grammar');
-    }
+    const recent = (introductionAt: Date | null | undefined) =>
+        !!introductionAt && introductionAt.getTime() > paceSince && introductionAt <= now;
+    const newWords = progress.learningQueue.filter(v => recent(v.introductionAt)).length;
+    const newGrammar = progress.grammarQueue.filter(g => recent(g.introductionAt)).length;
 
     // One representative word (and grammar point) a day, weighted by the pace:
     // the same expectation as simulating each, at a fraction of the cost.

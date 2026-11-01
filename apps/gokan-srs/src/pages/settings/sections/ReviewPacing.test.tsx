@@ -23,4 +23,12 @@ describe('ReviewPacing', () => {
         expect(html).toContain('Due now');
         expect(html).not.toContain('The forecast appears');
     });
+
+    it('says there is nothing in the window, not nothing scheduled, when every review is further out', () => {
+        const far = srsEntry({ memoryStrength: 30, interval: 70, dueDate: new Date(Date.now() + 60 * 86_400_000) });
+        const html = render(userProgress({ learningQueue: [vocabProgress({ vocabId: 'v1', totalReviews: 3, reading: far, meaning: srsEntry({ ...far }) })] }));
+        expect(html).not.toContain('once you have reviews scheduled');
+        expect(html).toContain('No reviews in the next 30 days at this setting.');
+        expect(html).not.toContain('data-pacing-forecast');
+    });
 });

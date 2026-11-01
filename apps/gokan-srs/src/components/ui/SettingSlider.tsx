@@ -16,6 +16,12 @@ interface SettingSliderProps {
      * `onChange` is the `input` event, which fires on every step of a drag.
      */
     onCommit?: (value: number) => void;
+    /**
+     * Waits this long after the last `change` before committing, so a burst of
+     * key steps (or a held key's repeats) is one commit. A pending commit is
+     * flushed at once on blur and on unmount, so leaving never loses it.
+     */
+    commitDelayMs?: number;
     /** Text shown next to the label for the current value, e.g. "From 50 on the meaning ring". */
     valueText: string;
     /** Read by assistive tech in place of the raw number, e.g. "From the first review". */
@@ -43,6 +49,7 @@ export function SettingSlider({
     step,
     onChange,
     onCommit,
+    commitDelayMs = 0,
     valueText,
     ariaValueText,
     disabled = false,
@@ -52,12 +59,35 @@ export function SettingSlider({
 }: SettingSliderProps) {
     const input = useRef<HTMLInputElement>(null);
     const commit = useEffectEvent((value: number) => onCommit?.(value));
+    const delay = useEffectEvent(() => commitDelayMs);
     useEffect(() => {
         const range = input.current;
         if (!range) return;
-        const onNativeChange = () => commit(Number(range.value));
+        let pending: { timer: ReturnType<typeof setTimeout>; value: number } | null = null;
+        const flush = () => {
+            if (!pending) return;
+            clearTimeout(pending.timer);
+            const { value } = pending;
+            pending = null;
+            commit(value);
+        };
+        const onNativeChange = () => {
+            const value = Number(range.value);
+            const wait = delay();
+            if (wait <= 0) {
+                commit(value);
+                return;
+            }
+            if (pending) clearTimeout(pending.timer);
+            pending = { timer: setTimeout(flush, wait), value };
+        };
         range.addEventListener('change', onNativeChange);
-        return () => range.removeEventListener('change', onNativeChange);
+        range.addEventListener('blur', flush);
+        return () => {
+            range.removeEventListener('change', onNativeChange);
+            range.removeEventListener('blur', flush);
+            flush();
+        };
     }, []);
     return (
         <div
