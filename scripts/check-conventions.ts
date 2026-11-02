@@ -217,6 +217,27 @@ function read(file: string): string | null {
     return buffer.includes(0) ? null : buffer.toString('utf8');
 }
 
+/**
+ * Every JSX opening tag in a file, with the line it starts on. A tag runs to the first `>` outside
+ * braces, so a multi-line className and an arrow function prop (`=>`) stay inside it.
+ */
+function jsxOpeningTags(text: string): { line: number; tag: string }[] {
+    const tags: { line: number; tag: string }[] = [];
+    const start = /<[A-Za-z][\w.]*[\s/>]/g;
+    for (let m = start.exec(text); m; m = start.exec(text)) {
+        let depth = 0;
+        let end = m.index + 1;
+        for (; end < text.length; end++) {
+            const c = text[end];
+            if (c === '{') depth++;
+            else if (c === '}') depth--;
+            else if (c === '>' && depth === 0) break;
+        }
+        tags.push({ line: text.slice(0, m.index).split('\n').length, tag: text.slice(m.index, end + 1) });
+    }
+    return tags;
+}
+
 function eachLine(text: string, test: (line: string) => boolean, onMatch: (line: number) => void): void {
     text.split('\n').forEach((line, i) => {
         if (test(line)) onMatch(i + 1);
@@ -295,6 +316,11 @@ function check(files: string[]): Violation[] {
         if (GOKAN_SRS_SOURCE.test(file) && file.endsWith('.tsx') && !file.endsWith('.test.tsx')) {
             eachLine(text, l => UNTYPED_DT.test(l), line =>
                 add({ file, line, rule: 'type-role', message: 'A <dt> takes a type role in its className (type-label, type-meta...), not a hand-built size, weight and colour (docs/DESIGN_SYSTEM.md section 3).' }));
+            for (const { line, tag } of jsxOpeningTags(text)) {
+                if (/\splaceholder=/.test(tag) && /\bfont-(?:gothic|mincho)\b/.test(tag) && !/\bplaceholder:font-/.test(tag)) {
+                    add({ file, line, rule: 'placeholder-font', message: 'A field in a Japanese face sets its placeholder\'s font too (placeholder:font-sans for English copy): the placeholder inherits font-gothic/font-mincho otherwise (docs/DESIGN_SYSTEM.md section 3).' });
+                }
+            }
         }
 
         if (GOKAN_SRS_SOURCE.test(file) && file !== TIME_UTILS_FILE) {
