@@ -44,6 +44,8 @@ const SUB_FLOOR_PX = /\btext-\[(\d+(?:\.\d+)?)px\]/;
 const SUB_FLOOR_REM = /\btext-\[(\d+(?:\.\d+)?)rem\]/;
 const SCALE_TRANSFORM = /\b(?:hover|active):scale-/;
 const TRACKING_WIDE = /\btracking-wide(?:r|st)?\b/;
+/** A definition term without a type role (type-label, type-meta...): DESIGN_SYSTEM section 3 names its size, weight and colour once. */
+const UNTYPED_DT = /<dt\b(?![^>]*className=[^>]*\btype-[a-z])/;
 const LOCALE_DATE_TIME = /\.toLocaleDateString\(|\.toLocaleTimeString\(|\bdateStyle\s*:|\btimeStyle\s*:/;
 const TIME_UTILS_FILE = 'apps/gokan-srs/src/utils/time.utils.ts';
 const GOKAN_SRS_SOURCE = /^apps\/gokan-srs\/src\/.*\.tsx?$/;
@@ -288,6 +290,11 @@ function check(files: string[]): Violation[] {
                 add({ file, line, rule: 'no-scale-transform', message: 'No hover:scale-* or active:scale-*. Motion is 150-200ms ease-in-out, no bounce.' }));
             eachLine(text, l => TRACKING_WIDE.test(l), line =>
                 add({ file, line, rule: 'no-tracking-wide', message: 'No tracking-wide/wider/widest. Use type-label instead of an uppercase tracked label.' }));
+        }
+
+        if (GOKAN_SRS_SOURCE.test(file) && file.endsWith('.tsx') && !file.endsWith('.test.tsx')) {
+            eachLine(text, l => UNTYPED_DT.test(l), line =>
+                add({ file, line, rule: 'type-role', message: 'A <dt> takes a type role in its className (type-label, type-meta...), not a hand-built size, weight and colour (docs/DESIGN_SYSTEM.md section 3).' }));
         }
 
         if (GOKAN_SRS_SOURCE.test(file) && file !== TIME_UTILS_FILE) {

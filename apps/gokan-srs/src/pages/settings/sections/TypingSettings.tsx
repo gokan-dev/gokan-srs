@@ -38,7 +38,7 @@ export function TypingSettings({ settings, onUpdateSettings }: TypingSettingsPro
                 <dl className="mt-3 space-y-2">
                     {JAPANESE_KEYBOARDS.map(({ platform, steps }) => (
                         <div key={platform}>
-                            <dt className="font-sans text-sm font-medium text-primary">{platform}</dt>
+                            <dt className="type-label">{platform}</dt>
                             <dd className="type-support">{steps}</dd>
                         </div>
                     ))}
