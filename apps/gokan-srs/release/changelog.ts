@@ -14,6 +14,12 @@ import type { ChangelogEntry } from '../src/models/release.model';
  */
 export const CHANGELOG: readonly ChangelogEntry[] = [
     {
+        version: '1.48.0',
+        date: '2026-11-02',
+        summary: 'Japanese answers can now be typed in romaji, turned into kana as you type (taberu becomes たべる), with no Japanese keyboard needed; a katakana word answered in hiragana now counts as right.',
+        issue: 186,
+    },
+    {
         version: '1.47.0',
         date: '2026-11-01',
         summary: 'Review pacing is now a slider, from ×0.5 to ×4 on every interval. Under it, a forecast from your own progress shows how many reviews a day each setting would bring.',
