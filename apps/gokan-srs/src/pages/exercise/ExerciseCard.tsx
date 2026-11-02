@@ -10,10 +10,13 @@ import { formatReadingList } from "../quiz/quizFormatting";
 import { MeaningPrompt, ProductionClozeHeader, ProductionPrompt, ReadingPrompt } from "../quiz/VocabPrompts";
 import { ConjugationAnswer, ConjugationPrompt, GrammarCardHeader, SentenceCue } from "../grammar/GrammarPrompts";
 
-/** Reading and production from a gloss both take the word's reading, in kana: a near miss shows what it was close to, a miss every reading. */
-const kanaAnswer = (vocab: Vocabulary) => ({
+/**
+ * Reading and production from a gloss both take the word's reading, in kana: a near miss shows what it was close to, a miss every reading.
+ * `convertsRomaji` (ExerciseTurnApi.convertsRomaji) says whether romaji may be typed, which the placeholder names.
+ */
+const kanaAnswer = (vocab: Vocabulary, convertsRomaji: boolean) => ({
     inputLabel: 'Reading (hiragana)',
-    inputPlaceholder: CONSTANTS.quiz.hiraganaAnswerPlaceholder,
+    inputPlaceholder: convertsRomaji ? CONSTANTS.quiz.romajiAnswerPlaceholder : CONSTANTS.quiz.hiraganaAnswerPlaceholder,
     correctAnswer: (grade: SlotGrade | null) => (
         <span className="text-2xl">
             {grade?.result === 'minor_error' ? grade.shown : formatReadingList(vocab.reading)}
@@ -50,7 +53,7 @@ export function ExerciseCard({ api, onVocabClick }: ExerciseCardProps) {
                 <SingleAnswerCard
                     api={api}
                     kind="reading"
-                    {...kanaAnswer(vocab)}
+                    {...kanaAnswer(vocab, api.convertsRomaji(0))}
                     onVocabClick={onVocabClick}
                 >
                     <ReadingPrompt vocab={vocab} answered={answered} memoryStrength={currentProgress?.reading.memoryStrength ?? 0} onOpenWord={() => onVocabClick(vocab.id)} />
@@ -86,7 +89,7 @@ export function ExerciseCard({ api, onVocabClick }: ExerciseCardProps) {
                 <SingleAnswerCard
                     api={api}
                     kind="production"
-                    {...kanaAnswer(vocab)}
+                    {...kanaAnswer(vocab, api.convertsRomaji(0))}
                     onVocabClick={onVocabClick}
                 >
                     <ProductionPrompt vocab={vocab} answered={answered} memoryStrength={currentProgress?.production?.memoryStrength ?? 0} onOpenWord={() => onVocabClick(vocab.id)} />
@@ -138,7 +141,7 @@ export function ExerciseCard({ api, onVocabClick }: ExerciseCardProps) {
                     api={api}
                     kind="conjugation"
                     inputLabel={`${exercise.prompt.formLabel} of ${exercise.prompt.lemma}`}
-                    inputPlaceholder="Type the form..."
+                    inputPlaceholder={api.convertsRomaji(0) ? CONSTANTS.quiz.conjugationRomajiPlaceholder : CONSTANTS.quiz.conjugationPlaceholder}
                     correctAnswer={() => <ConjugationAnswer prompt={exercise.prompt} size={answered ? 'lg' : 'sm'} />}
                     revealable
                     onVocabClick={onVocabClick}

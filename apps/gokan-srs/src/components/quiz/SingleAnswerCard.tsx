@@ -185,7 +185,7 @@ export function SingleAnswerCard({
                                 ${isMobile ? 'px-3 py-2 text-lg placeholder:text-sm' : 'px-4 py-3 text-xl'}
                                 ${miss?.inputBorderClass ?? 'border-divider'}
                             `}
-                            placeholder={convertsRomaji ? CONSTANTS.quiz.romajiAnswerPlaceholder : inputPlaceholder}
+                            placeholder={inputPlaceholder}
                             autoFocus
                             // Left enabled once revealed, so Enter still submits: a revealed
                             // answer grades as a near miss whatever the input holds.
