@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { DEFAULT_SETTINGS } from '../../models/user.model';
 import type { Dispatch } from 'react';
 import { useLocation } from 'react-router-dom';
 import type { GrammarPoint } from '@gokan/dataset-schema';
@@ -181,6 +182,7 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
         dispatch,
         active: grammarSessionRole === 'activity',
         loading: state.isLoadingGrammar,
+        romajiInput: state.settings?.romajiInput ?? DEFAULT_SETTINGS.romajiInput,
     });
 
     const grammarSessionHasWork =

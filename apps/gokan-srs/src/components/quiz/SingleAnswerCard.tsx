@@ -10,6 +10,7 @@ import { CardSection } from "../ui/CardSection";
 import { Button } from "../ui/Button";
 import { LookUpWords } from "../LookUpWords";
 import { QuizCardFrame } from "./QuizCardFrame";
+import { AnswerInput } from "./AnswerInput";
 import { FeedbackNote } from "./FeedbackNote";
 import { ContinueButton, SubmitButton } from "./QuizButtons";
 import { missStyleOf } from "./quizStyles";
@@ -83,6 +84,7 @@ export function SingleAnswerCard({
     const correct = grade?.overall === 'correct';
     const synonym = slotGrade?.synonym;
     const revealed = (turn?.hintLevels[0] ?? 0) >= 2;
+    const convertsRomaji = api.convertsRomaji(0);
     // A neutral miss (a confusable synonym, a sibling demonstrative) is not penalised, so it does not look like one.
     const miss = grade && !correct ? missStyleOf(grade) : null;
 
@@ -169,16 +171,16 @@ export function SingleAnswerCard({
                         >
                             {inputLabel}
                         </label>
-                        <input
-                            ref={inputRef}
+                        <AnswerInput
+                            inputRef={inputRef}
                             id="answer"
-                            type="text"
                             value={turn.answers[0] ?? ''}
-                            onChange={(e) => api.setAnswer(0, e.target.value)}
+                            onValueChange={(value) => api.setAnswer(0, value)}
+                            convertsRomaji={convertsRomaji}
                             onFocus={() => setIsInputFocused(true)}
                             onBlur={() => setIsInputFocused(false)}
                             className={`w-full border rounded-md text-center transition-all duration-200
-                                font-gothic bg-surface text-primary placeholder:text-input-placeholder caret-accent
+                                font-gothic bg-surface text-primary placeholder:text-input-placeholder placeholder:font-sans caret-accent
                                 focus:outline-none focus:border-accent focus:ring-4 focus:ring-accent/10
                                 ${isMobile ? 'px-3 py-2 text-lg placeholder:text-sm' : 'px-4 py-3 text-xl'}
                                 ${miss?.inputBorderClass ?? 'border-divider'}
@@ -188,10 +190,6 @@ export function SingleAnswerCard({
                             // Left enabled once revealed, so Enter still submits: a revealed
                             // answer grades as a near miss whatever the input holds.
                             disabled={!!feedback}
-                            autoComplete="off"
-                            autoCorrect="off"
-                            autoCapitalize="off"
-                            spellCheck="false"
                         />
                     </div>
 

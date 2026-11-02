@@ -35,6 +35,29 @@ function candidate(vocabId: string, relation: SynonymCandidate['relation'], kanj
     };
 }
 
+describe('the script a slot is typed in (issue #186)', () => {
+    it('is Japanese for a reading or a word, English for a meaning', () => {
+        expect(readingSlot({ reading: { primary: 'たべる', alternatives: [] } }).script).toBe('japanese');
+        expect(production(taberu).script).toBe('japanese');
+        expect(meaningSlot(['to eat']).script).toBe('english');
+    });
+});
+
+describe('a katakana word answered in hiragana (issue #186)', () => {
+    const coffee = readingSlot({ reading: { primary: 'コーヒー', alternatives: [] } });
+
+    it('is graded on its reading, not on the keyboard mode', () => {
+        expect(grade(coffee, 'こーひー')).toEqual({ result: 'correct', shown: 'コーヒー' });
+        expect(grade(coffee, 'コーヒー')).toEqual({ result: 'correct', shown: 'コーヒー' });
+        expect(grade(readingSlot({ reading: { primary: 'たべる', alternatives: [] } }), 'タベル').result).toBe('correct');
+    });
+
+    it('keeps a typo a typo', () => {
+        expect(grade(coffee, 'こーひ').result).toBe('wrong');
+        expect(grade(readingSlot({ reading: { primary: 'テレビジョン', alternatives: [] } }), 'てれびじょ').result).toBe('minor_error');
+    });
+});
+
 describe('the reading slot (alternatives)', () => {
     const slot = readingSlot({ reading: { primary: 'main', alternatives: ['alt', 'other'] } });
 

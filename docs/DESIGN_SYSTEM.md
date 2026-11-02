@@ -116,7 +116,9 @@ browser).
 - `--font-sans`: `"Inter", "Noto Sans JP", system-ui, sans-serif` - the `body` font and
   every UI sans usage (`font-sans`).
 - `--font-gothic`: `"Noto Sans JP", "Hiragino Sans", "Meiryo", "Yu Gothic", sans-serif` -
-  Japanese UI text (`font-gothic`).
+  Japanese UI text (`font-gothic`). A field typed in Japanese sets `placeholder:font-sans`,
+  because the placeholder inherits the field's face; the `--font-sans` fallback draws a
+  Japanese placeholder (ひらがな, 語) in Noto Sans JP. Enforced (`placeholder-font`).
 - `--font-serif`: `"Source Serif 4", Georgia, serif` - page and section titles, the logo.
 - `--font-mincho`: `"Noto Serif JP", "Hiragino Mincho ProN", "Yu Mincho", "MS PMincho",
   serif` - Japanese display (headwords, sentences). `font-serif` has no CJK glyphs; never
@@ -281,7 +283,8 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
   (`w-full max-w-2xl`, on the animated wrapper too) and one padding, so a card's size
   never depends on what it contains.
 - **Settings**: Account, Storage (only where the browser can keep progress from being
-  cleared: the one place persistent storage is asked for), Appearance (theme), Review pacing,
+  cleared: the one place persistent storage is asked for), Appearance (theme), Typing answers
+  (romaji as kana; how to add a Japanese keyboard, in a collapsed `Disclosure`), Review pacing,
   AI answer checking, Activity settings, Danger zone. Activity settings holds one collapsed
   `Disclosure` per activity (a `type-subsection` heading and a one-line description), so
   they read as subordinate to the global settings.

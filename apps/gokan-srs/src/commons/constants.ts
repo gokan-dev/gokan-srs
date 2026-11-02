@@ -12,6 +12,11 @@ export const CONSTANTS = {
 
     quiz: {
         hiraganaAnswerPlaceholder: "ひらがな",
+        /** A Japanese answer field's placeholder while it converts romaji (the "Type romaji as kana" setting). */
+        romajiAnswerPlaceholder: "Type in romaji or kana",
+        /** The conjugation drill's placeholder, with and without "Type romaji as kana". */
+        conjugationPlaceholder: "Type the form...",
+        conjugationRomajiPlaceholder: "Type the form, in romaji or kana",
         correctAnswerAutoAdvanceDelay: 1800,
         incorrectAnswerRevealDelay: 400,
     },

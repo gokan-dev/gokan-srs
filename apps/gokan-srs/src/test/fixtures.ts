@@ -95,7 +95,7 @@ export function sentence(overrides: Partial<Sentence> = {}): Sentence {
 /** A deciding answer slot with no word: revealing it shows its first accepted form. */
 export function answerSlot(overrides: Partial<AnswerSlot> = {}): AnswerSlot {
     const accept = overrides.accept ?? [];
-    return { accept, near: [], leniency: 'standard', role: 'core', reveal: accept[0] ?? '', gloss: '', ...overrides };
+    return { accept, near: [], leniency: 'standard', script: 'japanese', role: 'core', reveal: accept[0] ?? '', gloss: '', ...overrides };
 }
 
 export function grammarExample(overrides: Partial<GrammarExample> = {}): GrammarExample {

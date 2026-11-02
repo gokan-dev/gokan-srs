@@ -7,6 +7,7 @@ import type { Theme } from "../../models/theme.model";
 import { VocabQuizSettings } from "./sections/VocabQuizSettings";
 import { ReviewPacing } from "./sections/ReviewPacing";
 import { GrammarQuizSettings } from "./sections/GrammarQuizSettings";
+import { TypingSettings } from "./sections/TypingSettings";
 import { Button } from "../../components/ui/Button";
 import { SelectableOption } from "../../components/ui/SelectableOption";
 import { SettingToggle } from "../../components/ui/SettingToggle";
@@ -230,6 +231,10 @@ export function SettingsScreen({
                         </SelectableOption>
                     ))}
                 </div>
+            </SettingsSection>
+
+            <SettingsSection title="Typing answers" description="How Japanese answers are typed, in every activity.">
+                <TypingSettings settings={settings} onUpdateSettings={onUpdateSettings} />
             </SettingsSection>
 
             {/*

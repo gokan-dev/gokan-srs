@@ -76,6 +76,7 @@ export function wordSlot(vocab: WordForms, { vocabId, occurrence, otherForm, rol
         // The two tiers never overlap, or a right answer could be downgraded by match order.
         near: dictionaryIsIdeal ? [] : dictionary.filter(f => !accept.includes(f)),
         leniency: 'standard',
+        script: 'japanese',
         role,
         reveal: occurrence?.surface ?? vocab.reading.primary,
         gloss: vocab.senses?.flatMap(s => s.glosses)[0] ?? '',
@@ -96,6 +97,7 @@ export function readingSlot(vocab: Pick<Vocabulary, 'reading'>): AnswerSlot {
         accept: unique([vocab.reading.primary, ...vocab.reading.alternatives]),
         near: [],
         leniency: 'standard',
+        script: 'japanese',
         role: 'core',
         reveal: vocab.reading.primary,
         gloss: '',
@@ -123,6 +125,7 @@ export function meaningSlot(glosses: string[], reading?: string): AnswerSlot {
         accept: parts,
         near: [],
         leniency: 'gloss',
+        script: 'english',
         role: 'core',
         reveal: glosses[0] ?? '',
         gloss: '',

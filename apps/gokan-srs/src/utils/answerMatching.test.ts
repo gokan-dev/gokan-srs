@@ -60,6 +60,20 @@ describe('matchAnswer counts typos in romaji keystrokes, not kana', () => {
     });
 });
 
+describe('matchAnswer compares a Japanese answer in hiragana', () => {
+    it('grades the reading, never the script it was typed in', () => {
+        expect(matchAnswer('こーひー', 'コーヒー')).toBe('correct');
+        expect(matchAnswer('コーヒー', 'こーひー')).toBe('correct');
+        expect(matchAnswer('ぱん', 'パン')).toBe('correct');
+        expect(matchAnswer('Tしゃつ', 'Tシャツ')).toBe('correct');
+    });
+
+    it('keeps kanji strict', () => {
+        expect(matchAnswer('こーひー屋', 'コーヒー屋')).toBe('correct');
+        expect(matchAnswer('こーひー店', 'コーヒー屋')).toBe('wrong');
+    });
+});
+
 describe('matchAnswer: an answer missing a kana', () => {
     it('stays wrong on a short word, where it is usually a different word', () => {
         expect(matchAnswer('おばさん', 'おばあさん')).toBe('wrong');

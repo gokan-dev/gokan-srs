@@ -44,6 +44,8 @@ const SUB_FLOOR_PX = /\btext-\[(\d+(?:\.\d+)?)px\]/;
 const SUB_FLOOR_REM = /\btext-\[(\d+(?:\.\d+)?)rem\]/;
 const SCALE_TRANSFORM = /\b(?:hover|active):scale-/;
 const TRACKING_WIDE = /\btracking-wide(?:r|st)?\b/;
+/** A definition term without a type role (type-label, type-meta...): DESIGN_SYSTEM section 3 names its size, weight and colour once. */
+const UNTYPED_DT = /<dt\b(?![^>]*className=[^>]*\btype-[a-z])/;
 const LOCALE_DATE_TIME = /\.toLocaleDateString\(|\.toLocaleTimeString\(|\bdateStyle\s*:|\btimeStyle\s*:/;
 const TIME_UTILS_FILE = 'apps/gokan-srs/src/utils/time.utils.ts';
 const GOKAN_SRS_SOURCE = /^apps\/gokan-srs\/src\/.*\.tsx?$/;
@@ -215,6 +217,27 @@ function read(file: string): string | null {
     return buffer.includes(0) ? null : buffer.toString('utf8');
 }
 
+/**
+ * Every JSX opening tag in a file, with the line it starts on. A tag runs to the first `>` outside
+ * braces, so a multi-line className and an arrow function prop (`=>`) stay inside it.
+ */
+function jsxOpeningTags(text: string): { line: number; tag: string }[] {
+    const tags: { line: number; tag: string }[] = [];
+    const start = /<[A-Za-z][\w.]*[\s/>]/g;
+    for (let m = start.exec(text); m; m = start.exec(text)) {
+        let depth = 0;
+        let end = m.index + 1;
+        for (; end < text.length; end++) {
+            const c = text[end];
+            if (c === '{') depth++;
+            else if (c === '}') depth--;
+            else if (c === '>' && depth === 0) break;
+        }
+        tags.push({ line: text.slice(0, m.index).split('\n').length, tag: text.slice(m.index, end + 1) });
+    }
+    return tags;
+}
+
 function eachLine(text: string, test: (line: string) => boolean, onMatch: (line: number) => void): void {
     text.split('\n').forEach((line, i) => {
         if (test(line)) onMatch(i + 1);
@@ -288,6 +311,16 @@ function check(files: string[]): Violation[] {
                 add({ file, line, rule: 'no-scale-transform', message: 'No hover:scale-* or active:scale-*. Motion is 150-200ms ease-in-out, no bounce.' }));
             eachLine(text, l => TRACKING_WIDE.test(l), line =>
                 add({ file, line, rule: 'no-tracking-wide', message: 'No tracking-wide/wider/widest. Use type-label instead of an uppercase tracked label.' }));
+        }
+
+        if (GOKAN_SRS_SOURCE.test(file) && file.endsWith('.tsx') && !file.endsWith('.test.tsx')) {
+            eachLine(text, l => UNTYPED_DT.test(l), line =>
+                add({ file, line, rule: 'type-role', message: 'A <dt> takes a type role in its className (type-label, type-meta...), not a hand-built size, weight and colour (docs/DESIGN_SYSTEM.md section 3).' }));
+            for (const { line, tag } of jsxOpeningTags(text)) {
+                if (/\splaceholder=/.test(tag) && /\bfont-(?:gothic|mincho)\b/.test(tag) && !/\bplaceholder:font-sans\b/.test(tag)) {
+                    add({ file, line, rule: 'placeholder-font', message: 'A field in a Japanese face sets `placeholder:font-sans`: the placeholder inherits font-gothic/font-mincho otherwise, and the `--font-sans` fallback draws Japanese placeholders in Noto Sans JP (docs/DESIGN_SYSTEM.md section 3).' });
+                }
+            }
         }
 
         if (GOKAN_SRS_SOURCE.test(file) && file !== TIME_UTILS_FILE) {

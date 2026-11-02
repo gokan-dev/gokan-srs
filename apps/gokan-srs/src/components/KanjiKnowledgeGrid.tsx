@@ -110,7 +110,7 @@ export function KanjiKnowledgeGrid({ allKanji, method, toolbar, followCount = fa
                     onChange={e => setQuery(e.target.value)}
                     placeholder="Find a kanji or a position (語 or 1240)"
                     aria-label="Find a kanji or a position"
-                    className="w-full h-10 pl-9 pr-9 border rounded-md border-divider bg-surface text-primary font-gothic text-base md:text-sm placeholder:text-input-placeholder"
+                    className="w-full h-10 pl-9 pr-9 border rounded-md border-divider bg-surface text-primary font-gothic text-base md:text-sm placeholder:text-input-placeholder placeholder:font-sans"
                 />
                 {hasQuery && (
                     <button
