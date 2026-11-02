@@ -26,7 +26,7 @@ export function TypingSettings({ settings, onUpdateSettings }: TypingSettingsPro
         <div className="space-y-4">
             <SettingToggle
                 label="Type romaji as kana"
-                description={<>Japanese answers turn romaji into hiragana as you type: taberu becomes <span lang="ja" className="font-gothic">たべる</span>. A Japanese keyboard works either way.</>}
+                description={<>Japanese answers turn romaji into hiragana as you type: taberu becomes <span lang="ja" className="font-gothic whitespace-nowrap">たべる</span>. A Japanese keyboard works either way.</>}
                 checked={settings.romajiInput}
                 onChange={(checked) => onUpdateSettings({ ...settings, romajiInput: checked })}
             />
