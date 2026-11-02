@@ -7,7 +7,7 @@
 // comparison itself is never re-implemented elsewhere, so a given typo is graded
 // identically whichever quiz asked the question.
 import { hasKanji, kanjiSkeleton } from './kanji.utils';
-import { kanaToRomaji } from '@gokan/dataset-schema';
+import { kanaToRomaji, toHiragana } from '@gokan/dataset-schema';
 
 export type AnswerResult = 'correct' | 'minor_error' | 'wrong' | 'pass';
 
@@ -89,8 +89,10 @@ export function matchAnswer(input: string, expected: string, leniency: Leniency 
     const tolerance = TOLERANCE[leniency];
     const isLatin = !hasKanji(expected) && !KANA.test(expected);
 
-    const u = isLatin ? normalizeLatin(input) : input.trim().replace(/\s+/g, '');
-    const e = isLatin ? normalizeLatin(expected) : expected.trim().replace(/\s+/g, '');
+    // A Japanese answer is compared in hiragana: the reading is graded, never the
+    // keyboard mode, so コーヒー typed as romaji (こーひー) is the word.
+    const u = isLatin ? normalizeLatin(input) : toHiragana(input.trim().replace(/\s+/g, ''));
+    const e = isLatin ? normalizeLatin(expected) : toHiragana(expected.trim().replace(/\s+/g, ''));
 
     if (u === 'pass') return 'pass';
     // An empty expected form (a gloss that was only a parenthesised note) would

@@ -209,7 +209,7 @@ async function buildBlankSlots(
                 ? words.map(w => w.reading ?? w.surface).join('')
                 : null;
             slots.push(withInflections(
-                { accept: Array.from(new Set([surface, ...(reading ? [reading] : [])])), near: [], leniency: 'standard', role, reveal: surface, gloss: '' },
+                { accept: Array.from(new Set([surface, ...(reading ? [reading] : [])])), near: [], leniency: 'standard', script: 'japanese', role, reveal: surface, gloss: '' },
             ));
             continue;
         }
@@ -219,6 +219,7 @@ async function buildBlankSlots(
             accept: Array.from(new Set([word.surface, ...(word.reading ? [word.reading] : [])])),
             near: [],
             leniency: 'standard',
+            script: 'japanese',
             role,
             reveal: word.surface,
             gloss: '',
@@ -361,6 +362,7 @@ export async function computeConjugationPlan(point: GrammarPoint, reviewCount: n
             near: [],
             // Its answers are whole conjugated forms, where a missed key is a slip.
             leniency: 'lenient',
+            script: 'japanese',
             // The derivation IS the point, so this slot decides the point's result.
             role: 'core',
             reveal: accepted[0] ?? '',

@@ -91,6 +91,9 @@ export interface SlotInflection {
     registerFree: boolean;
 }
 
+/** See AnswerSlot.script. */
+export type AnswerScript = 'japanese' | 'english';
+
 /** One answer the learner types. Built once when the exercise is built, so grading stays pure and synchronous. */
 export interface AnswerSlot {
     /** Forms graded `correct` (a typo of one is a `minor_error`). */
@@ -98,6 +101,8 @@ export interface AnswerSlot {
     /** Forms that are right but not ideal (the wrong register, the dictionary form of a conjugated word): `minor_error` at best. */
     near: string[];
     leniency: Leniency;
+    /** The script the answer is typed in: a Japanese answer's field converts romaji to kana as it is typed. */
+    script: AnswerScript;
     role: SlotRole;
     /** What a fully revealed hint writes into the input, and the form a missed slot shows. */
     reveal: string;
