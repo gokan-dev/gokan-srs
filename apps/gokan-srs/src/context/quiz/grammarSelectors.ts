@@ -3,6 +3,7 @@ import type { GrammarProgress } from '../../models/grammar.model';
 import type { UserProgress } from '../../models/user.model';
 import type { SessionState } from '../../models/state.model';
 import { isGrammarDue, grammarNextReviewAt, isGrammarFullyMastered } from '../../services/grammarScheduling';
+import type { PacingSettings } from '../../services/calibration';
 import { VocabularyService } from '../../services/vocabulary.service';
 import { GrammarService } from '../../services/grammar.service';
 import { hashString, pickStable } from '../../utils/deterministicPick';
@@ -44,18 +45,18 @@ function pickStableGrammar(items: GrammarProgress[]): GrammarProgress | null {
  * for queueItem (mirroring vocab); sessionState is computed independently.
  */
 export function selectNextGrammarView(
-    state: Pick<QuizState, 'progress' | 'grammarIntroCandidates' | 'currentGrammarPoint'>,
+    state: Pick<QuizState, 'progress' | 'settings' | 'grammarIntroCandidates' | 'currentGrammarPoint'>,
     hasMoreLearnableGrammar: boolean,
     now: Date
 ): GrammarNextViewResult {
-    const { progress, grammarIntroCandidates } = state;
+    const { progress, settings, grammarIntroCandidates } = state;
 
     let queueItem: PendingGrammarQuizItem | null = null;
     if (grammarIntroCandidates.length > 0) {
         queueItem = { grammarId: grammarIntroCandidates[0].id };
     } else if (progress) {
         const dueOrRetry = progress.grammarQueue.filter(g =>
-            g.stage !== 'graduated' && (isGrammarDue(g, now) || g.needsRetry)
+            g.stage !== 'graduated' && (isGrammarDue(g, now, settings) || g.needsRetry)
         );
         const picked = pickStableGrammar(dueOrRetry);
         queueItem = picked ? { grammarId: picked.grammarId } : null;
@@ -65,8 +66,8 @@ export function selectNextGrammarView(
         progress ? progress.grammarQueue : undefined,
         {
             isLearning: g => g.stage === 'learning',
-            isDue: g => isGrammarDue(g, now) || !!g.needsRetry,
-            nextReviewAtOf: g => grammarNextReviewAt(g),
+            isDue: g => isGrammarDue(g, now, settings) || !!g.needsRetry,
+            nextReviewAtOf: g => grammarNextReviewAt(g, settings),
             canLearn: hasMoreLearnableGrammar || grammarIntroCandidates.length > 0,
             states: { review: 'review', learn: 'learn', waiting: 'waiting', exhausted: 'exhausted' },
         }
@@ -707,9 +708,13 @@ export function selectCurrentGrammarProgress(
 }
 
 /** Every grammar point actionable right now (due, or awaiting a retry), as grammar ids - grammar's equivalent of collectActionableTaskKeys. */
-export function collectActionableGrammarIds(queue: GrammarProgress[], now: Date): string[] {
+export function collectActionableGrammarIds(
+    queue: GrammarProgress[],
+    settings: Partial<PacingSettings> | null | undefined,
+    now: Date
+): string[] {
     return queue
-        .filter(g => g.stage !== 'graduated' && (isGrammarDue(g, now) || g.needsRetry))
+        .filter(g => g.stage !== 'graduated' && (isGrammarDue(g, now, settings) || g.needsRetry))
         .map(g => g.grammarId);
 }
 
@@ -734,7 +739,7 @@ export interface GrammarSessionStats {
  * split, so there's no staggering to account for.
  */
 export function selectGrammarSessionStats(
-    state: Pick<QuizState, 'progress' | 'grammarSession'>,
+    state: Pick<QuizState, 'progress' | 'settings' | 'grammarSession'>,
     hasMoreLearnableGrammar: boolean,
     now: Date
 ): GrammarSessionStats {
@@ -746,7 +751,7 @@ export function selectGrammarSessionStats(
 
     const core = computeSessionStats({
         committed: state.grammarSession?.committed ?? [],
-        actionable: collectActionableGrammarIds(state.progress.grammarQueue, now),
+        actionable: collectActionableGrammarIds(state.progress.grammarQueue, state.settings, now),
         isRetry: id => byId.get(id)?.needsRetry === true,
         // One key per point already, so the waiting count is just distinct ids.
         waitingCountOf: keys => new Set(keys).size,
@@ -763,7 +768,7 @@ export interface NextGrammarSessionPreview {
 
 /** Preview of the next grammar session's contents, mirroring selectNextSessionPreview - shown on the Main hub's grammar activity card. */
 export function selectNextGrammarSessionPreview(
-    state: Pick<QuizState, 'progress'>,
+    state: Pick<QuizState, 'progress' | 'settings'>,
     now: Date
 ): NextGrammarSessionPreview {
     if (!state.progress) return { review: 0, new: 0, retries: 0 };
@@ -772,7 +777,7 @@ export function selectNextGrammarSessionPreview(
         isGraduated: g => g.stage === 'graduated',
         isRetry: g => !!g.needsRetry,
         isNew: g => g.totalReviews === 0,
-        isDue: g => isGrammarDue(g, now),
+        isDue: g => isGrammarDue(g, now, state.settings),
     });
 }
 

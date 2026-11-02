@@ -2,10 +2,10 @@ import type { ReviewLog, SRSEntry, VocabProgress } from '../../models/vocabulary
 import { DEFAULT_SRS_ENTRY } from '../../models/vocabulary.model';
 import type { UserSettings } from '../../models/user.model';
 import type { GrammarProgress } from '../../models/grammar.model';
-import { isVocabFullyMastered, vocabNextReviewAt } from '../scheduling';
+import { cachedNextReviewAt, isVocabFullyMastered } from '../scheduling';
 import { isGrammarFullyMastered, grammarNextReviewAt } from '../grammarScheduling';
 import type { ProgressWithMetadata } from './types';
-import { mergeCalibration } from '../calibration';
+import { mergeCalibration, mergePacing } from '../calibration';
 import { mergeWatchedEpisodes } from '../../utils/mediaCoverage.utils';
 import { mergeMixups } from '../../utils/mixups.utils';
 
@@ -133,7 +133,7 @@ export function mergeVocabProgress(
     // (e.g. reading alone, when meaning quizzes are disabled).
     const alreadyGraduated = local.stage === 'graduated' || remote.stage === 'graduated';
     merged.stage = (alreadyGraduated || isVocabFullyMastered(merged, settings)) ? 'graduated' : 'learning';
-    merged.nextReviewAt = merged.stage === 'graduated' ? null : vocabNextReviewAt(merged, settings);
+    merged.nextReviewAt = merged.stage === 'graduated' ? null : cachedNextReviewAt(merged, settings);
     return merged;
 }
 
@@ -202,7 +202,7 @@ export function mergeGrammarProgress(local: GrammarProgress, remote: GrammarProg
 
     const alreadyGraduated = local.stage === 'graduated' || remote.stage === 'graduated';
     merged.stage = (alreadyGraduated || isGrammarFullyMastered(merged)) ? 'graduated' : 'learning';
-    merged.nextReviewAt = merged.stage === 'graduated' ? null : grammarNextReviewAt(merged);
+    merged.nextReviewAt = merged.stage === 'graduated' ? null : grammarNextReviewAt(merged, null);
     return merged;
 }
 
@@ -218,7 +218,10 @@ export function mergeSettings(
     remoteVersion: number
 ): UserSettings {
     if (!remote) return local;
-    return remoteVersion > localVersion ? remote : local;
+    const winner = remoteVersion > localVersion ? remote : local;
+    // Review pacing is not last-writer-wins: its history is unioned, so a change
+    // made on either device survives and both derive the same due dates.
+    return { ...winner, ...mergePacing(local, remote) };
 }
 
 /**

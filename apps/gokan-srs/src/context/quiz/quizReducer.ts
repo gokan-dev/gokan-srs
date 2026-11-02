@@ -9,7 +9,6 @@ import type { Vocabulary } from '@gokan/dataset-schema';
 import type { WatchedEpisode } from '../../models/media.model';
 import type { ShownResult } from '../../services/exercise/effects';
 import { SRSService } from '../../services/srs.service';
-import { rebaseStrengthsToSchedule } from '../../services/calibration';
 import type { QuizItem, QuizMode, QuizType, TaskKey } from '../../utils/srs.utils';
 import { syncUsuallyKana, taskKey } from '../../utils/srs.utils';
 import { introQuizType } from '../../services/scheduling';
@@ -162,15 +161,8 @@ export type QuizAction =
     | { type: 'SESSION_RESUME' }
     | { type: 'RECONCILE_REMOTE'; payload: { progress: UserProgress; settings: UserSettings } }
     /**
-     * Folds the old interval-only adaptive level into strength (see
-     * rebaseStrengthsToSchedule). Computed from the CURRENT progress in the
-     * reducer rather than passed in, so it can never overwrite an answer that
-     * landed between scheduling the rebase and applying it.
-     */
-    | { type: 'REBASE_STRENGTHS'; payload: { frequencyModifier: number } }
-    /**
      * Brings the queue's usuallyKana flags in line with the dataset (syncUsuallyKana).
-     * Like REBASE_STRENGTHS, applied to the CURRENT progress in the reducer, so an
+     * Applied to the CURRENT progress in the reducer, so an
      * answer landing in between is never overwritten. `now` comes from the caller.
      */
     | { type: 'SYNC_USUALLY_KANA'; payload: { ids: ReadonlySet<string>; now: Date } }
@@ -394,12 +386,6 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
             const running = { ...state.session };
             delete running.suspendedAt;
             return { ...state, session: running };
-        }
-
-        case 'REBASE_STRENGTHS': {
-            if (!state.progress) return state;
-            const rebased = rebaseStrengthsToSchedule(state.progress, action.payload.frequencyModifier);
-            return rebased === state.progress ? state : { ...state, progress: rebased };
         }
 
         case 'SYNC_USUALLY_KANA': {

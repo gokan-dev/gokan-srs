@@ -350,7 +350,10 @@ Defined once, in `components/` or `components/ui/`, never copied:
   chart, the review forecast, daily activity). Bars share a bottom baseline (see
   `utils/stackedBarChart.utils.ts` for why `flex-col-reverse` + `justify-end` does not
   do this); a y-axis shows the max value and a midline; every bar is a focusable button
-  that shows its values on hover, focus and tap; x labels are never truncated.
+  that shows its values on hover, focus and tap, its tooltip anchored to the bar's outer
+  edge in the first and last third (`tooltipAnchor`) so it stays inside the chart; x labels
+  are never truncated. A long chart (the 30-day pacing forecast) keeps one bar a day at every
+  width: on a phone its per-bar values are a detail, read through the figures above it.
 - **`TabNav`** (`ui/TabNav.tsx`): tabs, active in ink text with a 2px accent underline, in
   two modes. Route tabs (`to`), each its own page, as links: the Grammar home. Page tabs
   (`selected`), panels of one page, as ARIA tabs: buttons with `role="tab"`, `aria-selected`

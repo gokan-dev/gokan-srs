@@ -98,7 +98,8 @@ afterEach(() => {
 describe('selectNextGrammarView', () => {
     it('prioritizes grammarIntroCandidates for queueItem over the due pool', () => {
         const point = makeGrammarPoint();
-        const state: Pick<QuizState, 'progress' | 'grammarIntroCandidates' | 'currentGrammarPoint'> = {
+        const state: Pick<QuizState, 'progress' | 'settings' | 'grammarIntroCandidates' | 'currentGrammarPoint'> = {
+            settings: null,
             progress: makeProgress({ grammarQueue: [grammarProgress({ entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, dueDate: past } })] }),
             grammarIntroCandidates: [point],
             currentGrammarPoint: null,
@@ -109,7 +110,8 @@ describe('selectNextGrammarView', () => {
     });
 
     it('sessionState is "review" when a queued grammar point is due', () => {
-        const state: Pick<QuizState, 'progress' | 'grammarIntroCandidates' | 'currentGrammarPoint'> = {
+        const state: Pick<QuizState, 'progress' | 'settings' | 'grammarIntroCandidates' | 'currentGrammarPoint'> = {
+            settings: null,
             progress: makeProgress({ grammarQueue: [grammarProgress({ entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, dueDate: past } })] }),
             grammarIntroCandidates: [],
             currentGrammarPoint: null,
@@ -119,7 +121,8 @@ describe('selectNextGrammarView', () => {
     });
 
     it('sessionState is "learn" when nothing is due but more grammar can be learned', () => {
-        const state: Pick<QuizState, 'progress' | 'grammarIntroCandidates' | 'currentGrammarPoint'> = {
+        const state: Pick<QuizState, 'progress' | 'settings' | 'grammarIntroCandidates' | 'currentGrammarPoint'> = {
+            settings: null,
             progress: makeProgress({ grammarQueue: [] }),
             grammarIntroCandidates: [],
             currentGrammarPoint: null,
@@ -129,7 +132,8 @@ describe('selectNextGrammarView', () => {
     });
 
     it('sessionState is "waiting" when learning items exist but none are due and nothing more to learn', () => {
-        const state: Pick<QuizState, 'progress' | 'grammarIntroCandidates' | 'currentGrammarPoint'> = {
+        const state: Pick<QuizState, 'progress' | 'settings' | 'grammarIntroCandidates' | 'currentGrammarPoint'> = {
+            settings: null,
             progress: makeProgress({ grammarQueue: [grammarProgress({ entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, dueDate: future } })] }),
             grammarIntroCandidates: [],
             currentGrammarPoint: null,
@@ -141,7 +145,8 @@ describe('selectNextGrammarView', () => {
     });
 
     it('sessionState is "exhausted" with an empty queue and nothing learnable', () => {
-        const state: Pick<QuizState, 'progress' | 'grammarIntroCandidates' | 'currentGrammarPoint'> = {
+        const state: Pick<QuizState, 'progress' | 'settings' | 'grammarIntroCandidates' | 'currentGrammarPoint'> = {
+            settings: null,
             progress: makeProgress({ grammarQueue: [] }),
             grammarIntroCandidates: [],
             currentGrammarPoint: null,
@@ -152,7 +157,8 @@ describe('selectNextGrammarView', () => {
 
     it('shouldShowIntro is true when the loaded point has no matching queue entry yet', () => {
         const point = makeGrammarPoint();
-        const state: Pick<QuizState, 'progress' | 'grammarIntroCandidates' | 'currentGrammarPoint'> = {
+        const state: Pick<QuizState, 'progress' | 'settings' | 'grammarIntroCandidates' | 'currentGrammarPoint'> = {
+            settings: null,
             progress: makeProgress({ grammarQueue: [] }),
             grammarIntroCandidates: [],
             currentGrammarPoint: point,
@@ -163,7 +169,8 @@ describe('selectNextGrammarView', () => {
 
     it('shouldShowIntro is false once the point has been introduced', () => {
         const point = makeGrammarPoint();
-        const state: Pick<QuizState, 'progress' | 'grammarIntroCandidates' | 'currentGrammarPoint'> = {
+        const state: Pick<QuizState, 'progress' | 'settings' | 'grammarIntroCandidates' | 'currentGrammarPoint'> = {
+            settings: null,
             progress: makeProgress({ grammarQueue: [grammarProgress({ grammarId: point.id, introductionAt: past })] }),
             grammarIntroCandidates: [],
             currentGrammarPoint: point,
@@ -1272,12 +1279,12 @@ describe('selectNextGrammarSessionPreview', () => {
             ],
         });
 
-        const preview = selectNextGrammarSessionPreview({ progress }, now);
+        const preview = selectNextGrammarSessionPreview({ progress, settings: null }, now);
         expect(preview).toEqual({ review: 1, new: 1, retries: 1 });
     });
 
     it('is all-zero without progress', () => {
-        expect(selectNextGrammarSessionPreview({ progress: null }, now)).toEqual({ review: 0, new: 0, retries: 0 });
+        expect(selectNextGrammarSessionPreview({ progress: null, settings: null }, now)).toEqual({ review: 0, new: 0, retries: 0 });
     });
 });
 
@@ -1290,17 +1297,17 @@ describe('collectActionableGrammarIds', () => {
             grammarProgress({ grammarId: 'graduated', stage: 'graduated', needsRetry: true, entry: { ...DEFAULT_GRAMMAR_PROGRESS.entry, dueDate: past } }),
         ];
 
-        expect(collectActionableGrammarIds(queue, now).sort()).toEqual(['due', 'retry'].sort());
+        expect(collectActionableGrammarIds(queue, null, now).sort()).toEqual(['due', 'retry'].sort());
     });
 });
 
 describe('selectGrammarSessionStats', () => {
     function stateWith(queue: GrammarProgress[], committed: string[]) {
-        return { progress: makeProgress({ grammarQueue: queue }), grammarSession: { committed } };
+        return { progress: makeProgress({ grammarQueue: queue }), settings: null, grammarSession: { committed } };
     }
 
     it('returns zeros without progress', () => {
-        const stats = selectGrammarSessionStats({ progress: null, grammarSession: null }, false, now);
+        const stats = selectGrammarSessionStats({ progress: null, settings: null, grammarSession: null }, false, now);
         expect(stats).toEqual({ done: 0, total: 0, retriesPending: 0, waiting: 0, moreNew: false });
     });
 

@@ -32,7 +32,7 @@ function makeEnvelope(version: number, overrides: StoredProgress = {}): SyncEnve
             _formatVersion: CURRENT_FORMAT_VERSION,
             ...overrides,
         }),
-        settings: { ...DEFAULT_SETTINGS, preferredLearningOrder: 'frequency', enableMeaningQuiz: true, learningFrequency: 'medium' },
+        settings: { ...DEFAULT_SETTINGS, preferredLearningOrder: 'frequency', enableMeaningQuiz: true },
     };
 }
 

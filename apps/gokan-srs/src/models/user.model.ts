@@ -3,6 +3,19 @@ import type { VocabProgress } from "./vocabulary.model";
 import type { GrammarProgress } from "./grammar.model";
 import type { WatchedEpisode } from "./media.model";
 import type { MixupRecord } from "./mixup.model";
+import { CONSTANTS } from "../commons/constants";
+
+/** One committed value of the review-pacing slider, in effect from `from` (an ISO date) on. */
+export interface IntervalModifierChange {
+    from: string;
+    value: number;
+}
+
+/**
+ * Where a pacing history starts: the value seeded at migration (or for a new
+ * learner) holds for every log before the first change.
+ */
+export const PACING_EPOCH = new Date(0).toISOString();
 
 export interface UserProgress {
     kanjiKnowledge: KanjiKnowledge;
@@ -146,7 +159,25 @@ export interface UserSettings {
     enableMeaningQuiz: boolean;
     /** Production quiz (English meaning prompt, Japanese reading answer). Defaults to true when absent. */
     enableProductionQuiz?: boolean;
-    learningFrequency: 'high' | 'medium' | 'low';
+    /**
+     * @deprecated Superseded by `intervalModifier`. Read only by hydration, which
+     * migrates a stored preset to its exact multiplier; left in stored JSON so a
+     * tab on an older build still has a value.
+     */
+    learningFrequency?: 'high' | 'medium' | 'low';
+    /**
+     * Review pacing: multiplies every interval, for vocabulary and grammar alike.
+     * Read only through `frequencyModifierOf` (services/calibration.ts). Always
+     * the latest `intervalModifierHistory` entry's value.
+     */
+    intervalModifier: number;
+    /**
+     * Every committed value of `intervalModifier`, ordered by `from` (an ISO date,
+     * as stored). Read through `modifierAt`: the knowledge curve inverts a log with
+     * the value it was scheduled under, and an entry's effective due date scales
+     * its interval by now / then. Drive merges it as a union, so no change is lost.
+     */
+    intervalModifierHistory: IntervalModifierChange[];
     geminiApiKey?: string;
     enableGeminiContext?: boolean;
     alwaysUseAiForMeaningContext?: boolean;
@@ -194,7 +225,8 @@ export const DEFAULT_SETTINGS: UserSettings = {
     kanjiCoverageTarget: 1,
     enableMeaningQuiz: true,
     enableProductionQuiz: true,
-    learningFrequency: 'medium',
+    intervalModifier: CONSTANTS.srs.intervalModifier.default,
+    intervalModifierHistory: [{ from: PACING_EPOCH, value: CONSTANTS.srs.intervalModifier.default }],
     enableGeminiContext: false,
     alwaysUseAiForMeaningContext: true,
     meaningContextThreshold: 'normal',

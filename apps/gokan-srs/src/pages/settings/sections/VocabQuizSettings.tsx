@@ -17,7 +17,7 @@ interface VocabQuizSettingsProps {
  * settings page (under "Activity settings") and from the vocabulary quiz's own
  * cog popover, so the two can never drift apart.
  *
- * Deliberately excludes `learningFrequency` (SRS pacing - grammar's scheduler
+ * Deliberately excludes `intervalModifier` (SRS pacing - grammar's scheduler
  * reads it too) and the Gemini/AI options (global by design, and context-aware
  * validation is expected to reach other activities), which stay global.
  */

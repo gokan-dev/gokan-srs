@@ -65,7 +65,7 @@ export default function GrammarDetailScreen() {
     if (!point) return <LoadingScreen />;
 
     const studied = !!progress?.introductionAt;
-    const entryStatus = progress ? directionStatus(progress.entry, studied, now) : '';
+    const entryStatus = progress ? directionStatus(progress.entry, studied, now, state.settings) : '';
 
     const header = (
         <DetailHeader
@@ -81,7 +81,7 @@ export default function GrammarDetailScreen() {
                 <LearnStatus
                     inStudy
                     status={grammarLearningStatus(progress)}
-                    nextReview={statusReviewPhrase(grammarLearningStatus(progress), grammarNextReviewAt(progress), now)}
+                    nextReview={statusReviewPhrase(grammarLearningStatus(progress), grammarNextReviewAt(progress, state.settings), now)}
                 />
             ) : (
                 <LearnStatus inStudy={false} learnLabel="Learn this grammar point" onLearn={() => grammarActions.saveGrammarIntroChoice(point, 'learn')} />

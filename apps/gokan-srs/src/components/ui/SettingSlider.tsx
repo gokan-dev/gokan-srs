@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useEffect, useEffectEvent, useRef, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 
 interface SettingSliderProps {
     label: string;
@@ -8,6 +9,21 @@ interface SettingSliderProps {
     max: number;
     step: number;
     onChange: (value: number) => void;
+    /**
+     * Called once the value is let go, on the range's native `change` event: once
+     * on a pointer's release (wherever the pointer is), on each key step and on
+     * each assistive-tech adjustment. For a setting that records each change
+     * (review pacing), so a drag commits once rather than on every step. React's
+     * `onChange` is the `input` event, which fires on every step of a drag.
+     */
+    onCommit?: (value: number) => void;
+    /**
+     * Waits this long after the last `change` before committing, so a burst of
+     * key steps (or a held key's repeats) is one commit. A pending commit is
+     * flushed at once on blur, on unmount and when the page goes away (`pagehide`,
+     * or hidden), so leaving never loses it.
+     */
+    commitDelayMs?: number;
     /** Text shown next to the label for the current value, e.g. "From 50 on the meaning ring". */
     valueText: string;
     /** Read by assistive tech in place of the raw number, e.g. "From the first review". */
@@ -16,6 +32,8 @@ interface SettingSliderProps {
     /** Tighter padding/typography, for the in-quiz settings popover. */
     dense?: boolean;
     className?: string;
+    /** Shown under the range, inside the card: what the value buys (the pacing forecast). */
+    children?: ReactNode;
 }
 
 /**
@@ -32,12 +50,58 @@ export function SettingSlider({
     max,
     step,
     onChange,
+    onCommit,
+    commitDelayMs = 0,
     valueText,
     ariaValueText,
     disabled = false,
     dense = false,
     className = "",
+    children,
 }: SettingSliderProps) {
+    const input = useRef<HTMLInputElement>(null);
+    const commit = useEffectEvent((value: number) => onCommit?.(value));
+    const delay = useEffectEvent(() => commitDelayMs);
+    useEffect(() => {
+        const range = input.current;
+        if (!range) return;
+        let pending: { timer: ReturnType<typeof setTimeout>; value: number } | null = null;
+        const flush = () => {
+            if (!pending) return;
+            clearTimeout(pending.timer);
+            const { value } = pending;
+            pending = null;
+            commit(value);
+        };
+        const onNativeChange = () => {
+            const value = Number(range.value);
+            const wait = delay();
+            if (wait <= 0) {
+                commit(value);
+                return;
+            }
+            if (pending) clearTimeout(pending.timer);
+            pending = { timer: setTimeout(flush, wait), value };
+        };
+        // A reload, a tab close or a discarded background tab runs no React cleanup and
+        // no reliable blur: the page going away flushes too. Synchronously, so the
+        // setting's write (an effect of the commit's render) lands before the page goes.
+        const flushNow = () => flushSync(flush);
+        const onVisibility = () => {
+            if (document.visibilityState === 'hidden') flushNow();
+        };
+        range.addEventListener('change', onNativeChange);
+        range.addEventListener('blur', flush);
+        window.addEventListener('pagehide', flushNow);
+        document.addEventListener('visibilitychange', onVisibility);
+        return () => {
+            range.removeEventListener('change', onNativeChange);
+            range.removeEventListener('blur', flush);
+            window.removeEventListener('pagehide', flushNow);
+            document.removeEventListener('visibilitychange', onVisibility);
+            flush();
+        };
+    }, []);
     return (
         <div
             className={`bg-surface rounded-md border border-divider ${dense ? 'p-3' : 'p-4'} ${disabled ? 'opacity-50 pointer-events-none' : ''} ${className}`}
@@ -57,10 +121,12 @@ export function SettingSlider({
                 step={step}
                 value={value}
                 disabled={disabled}
+                ref={input}
                 onChange={(e) => onChange(Number(e.target.value))}
                 aria-valuetext={ariaValueText}
                 className="w-full h-2 bg-divider rounded-full appearance-none cursor-pointer accent-accent"
             />
+            {children}
         </div>
     );
 }

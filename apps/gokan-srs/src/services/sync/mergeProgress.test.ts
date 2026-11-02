@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest';
+import { commitIntervalModifier } from '../calibration';
 import { mergeEntry, mergeVocabProgress, mergeLearningQueues, mergeGrammarProgress, mergeGrammarQueues, mergeProgress, mergeSettings } from './mergeProgress';
 import type { ProgressWithMetadata } from './types';
 import type { SRSEntry } from '../../models/vocabulary.model';
 import type { GrammarProgress } from '../../models/grammar.model';
-import { DEFAULT_SETTINGS, type UserSettings } from '../../models/user.model';
-import { grammarProgress, mixupRecord, srsEntry, userProgress, vocabProgress } from '../../test/fixtures';
+import { DEFAULT_SETTINGS, PACING_EPOCH, type UserSettings } from '../../models/user.model';
+import { grammarProgress, mixupRecord, srsEntry, userProgress, userSettings, vocabProgress } from '../../test/fixtures';
 
 const makeEntry = (overrides: Partial<SRSEntry> = {}): SRSEntry => srsEntry({ memoryStrength: 10, interval: 5, ...overrides });
 
@@ -67,6 +68,22 @@ describe('mergeVocabProgress (per-entry merge - the core fix)', () => {
         // Both devices' progress must survive - neither clobbers the other.
         expect(merged.reading.memoryStrength).toBe(200);
         expect(merged.meaning.memoryStrength).toBe(150);
+    });
+
+    it('caches the raw stored due date as nextReviewAt, whatever the current pacing', () => {
+        // Set under x1.5 on Mar 1 (interval 10), then the pacing moved to x3.0: the queue reads
+        // the date pushed out, but the cache stays the stored one, so a later move never leaves it stale.
+        const dueDate = new Date('2026-03-11T00:00:00Z');
+        const entry = () => makeEntry({ interval: 10, dueDate, lastReviewedAt: new Date('2026-03-01T00:00:00Z') });
+        const settings = commitIntervalModifier(
+            userSettings({ intervalModifier: 1.5, intervalModifierHistory: [{ from: PACING_EPOCH, value: 1.5 }] }),
+            3.0,
+            new Date('2026-03-05T00:00:00Z')
+        );
+        const local = vocabProgress({ reading: entry(), meaning: makeEntry({ dueDate: null }) });
+        const remote = vocabProgress({ reading: entry(), meaning: makeEntry({ dueDate: null }) });
+
+        expect(mergeVocabProgress(local, remote, settings).nextReviewAt).toEqual(dueDate);
     });
 
     it('re-derives stage/nextReviewAt rather than merging them directly', () => {
@@ -412,8 +429,19 @@ describe('mergeSettings', () => {
         const local: UserSettings = { ...DEFAULT_SETTINGS, preferredLearningOrder: 'frequency' };
         const remote: UserSettings = { ...DEFAULT_SETTINGS, preferredLearningOrder: 'kklc' };
 
-        expect(mergeSettings(local, remote, 2, 1)).toBe(local);
-        expect(mergeSettings(local, remote, 1, 1)).toBe(local); // tie -> local wins
-        expect(mergeSettings(local, remote, 1, 2)).toBe(remote);
+        expect(mergeSettings(local, remote, 2, 1)).toEqual(local);
+        expect(mergeSettings(local, remote, 1, 1)).toEqual(local); // tie -> local wins
+        expect(mergeSettings(local, remote, 1, 2)).toEqual(remote);
+    });
+
+    it('unions the pacing history whichever side wins, the latest change setting the value', () => {
+        const local: UserSettings = commitIntervalModifier({ ...DEFAULT_SETTINGS, preferredLearningOrder: 'frequency' }, 3, new Date('2026-10-20T00:00:00Z'));
+        const remote: UserSettings = commitIntervalModifier({ ...DEFAULT_SETTINGS, preferredLearningOrder: 'kklc' }, 1, new Date('2026-10-10T00:00:00Z'));
+
+        const remoteWins = mergeSettings(local, remote, 1, 2);
+        expect(remoteWins.preferredLearningOrder).toBe('kklc');
+        expect(remoteWins.intervalModifier).toBe(3);
+        expect(remoteWins.intervalModifierHistory.map(c => c.value)).toEqual([1.5, 1, 3]);
+        expect(mergeSettings(remote, local, 2, 1).intervalModifierHistory).toEqual(remoteWins.intervalModifierHistory);
     });
 });

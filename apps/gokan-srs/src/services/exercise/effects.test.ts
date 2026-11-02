@@ -11,7 +11,7 @@ import type { VocabProgress } from '../../models/vocabulary.model';
 import { answerSlot, grammarProgress, mixupRecord, srsEntry, userProgress, userSettings, vocabProgress } from '../../test/fixtures';
 
 const now = new Date('2026-06-10T00:00:00Z');
-const settings = userSettings({ learningFrequency: 'medium', enableMeaningQuiz: true, enableProductionQuiz: true });
+const settings = userSettings({ enableMeaningQuiz: true, enableProductionQuiz: true });
 
 /** A studied word whose three directions are active, so the seed-first path is not what a test exercises. */
 function word(vocabId: string, overrides: Partial<VocabProgress> = {}): VocabProgress {

@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { axisTicks, segmentHeightPercent, showsLabelWhenNarrow, stackedBarDomOrder } from "../../utils/stackedBarChart.utils";
+import { axisTicks, segmentHeightPercent, showsLabelWhenNarrow, stackedBarDomOrder, tooltipAnchor, type TooltipAnchor } from "../../utils/stackedBarChart.utils";
+
+const TOOLTIP_POSITION: Record<TooltipAnchor, string> = {
+    start: 'left-0',
+    center: 'left-1/2 -translate-x-1/2',
+    end: 'right-0',
+};
 
 export interface StackedBarChartSegment {
     key: string;
@@ -13,6 +19,8 @@ export interface StackedBarChartBar {
     values: Record<string, number>;
     /** Shown under the label, e.g. "(Due)". */
     footnote?: string;
+    /** Names the bar in its tooltip and for screen readers when the axis label is terse ("3" for Nov 3). */
+    title?: string;
 }
 
 interface StackedBarChartProps {
@@ -42,6 +50,8 @@ export function StackedBarChart({ segments, bars, height = 128, maxValue, showLe
     const show = (i: number) => setShownIndex(i);
     const hide = (i: number) => setShownIndex(prev => (prev === i ? null : prev));
     const toggle = (i: number) => setShownIndex(prev => (prev === i ? null : i));
+    // A month of bars at 320px leaves no room for the usual gap between them.
+    const gap = bars.length > 20 ? 'gap-px' : 'gap-1.5';
 
     return (
         <div className="w-full">
@@ -62,7 +72,7 @@ export function StackedBarChart({ segments, bars, height = 128, maxValue, showLe
                 </div>
 
                 <div className="flex-1 min-w-0">
-                    <div className="relative flex items-end gap-1.5" style={{ height }}>
+                    <div className={`relative flex items-end ${gap}`} style={{ height }}>
                         {ticks.slice(0, -1).map(tick => (
                             <div
                                 key={tick}
@@ -88,7 +98,7 @@ export function StackedBarChart({ segments, bars, height = 128, maxValue, showLe
                                     onFocus={() => show(i)}
                                     onBlur={() => hide(i)}
                                     onClick={() => toggle(i)}
-                                    aria-label={`${bar.label}: ${segments.map(s => `${s.label} ${bar.values[s.key] ?? 0}`).join(', ')}`}
+                                    aria-label={`${bar.title ?? bar.label}: ${segments.map(s => `${s.label} ${bar.values[s.key] ?? 0}`).join(', ')}`}
                                 >
                                     {domOrder.map((segment, idx) => (
                                         <div
@@ -104,9 +114,9 @@ export function StackedBarChart({ segments, bars, height = 128, maxValue, showLe
                                     {shownIndex === i && (
                                         <div
                                             role="tooltip"
-                                            className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-surface border border-divider shadow-md rounded-md px-2 py-1.5 flex flex-col items-start text-xs w-max z-20 pointer-events-none"
+                                            className={`absolute bottom-full mb-2 ${TOOLTIP_POSITION[tooltipAnchor(i, bars.length)]} bg-surface border border-divider shadow-md rounded-md px-2 py-1.5 flex flex-col items-start text-xs w-max z-20 pointer-events-none`}
                                         >
-                                            <span className="font-medium text-primary">{bar.label}: {total.toLocaleString('en-US')}</span>
+                                            <span className="font-medium text-primary">{bar.title ?? bar.label}: {total.toLocaleString('en-US')}</span>
                                             {segments.map(s => (
                                                 <span key={s.key} className="text-secondary">{s.label}: {(bar.values[s.key] ?? 0).toLocaleString('en-US')}</span>
                                             ))}
@@ -117,7 +127,7 @@ export function StackedBarChart({ segments, bars, height = 128, maxValue, showLe
                         })}
                     </div>
 
-                    <div className="flex gap-1.5 mt-1.5" aria-hidden="true">
+                    <div className={`flex ${gap} mt-1.5`} aria-hidden="true">
                         {bars.map((bar, i) => (
                             <div key={i} className={`flex-1 min-w-0 text-center type-meta leading-tight ${showsLabelWhenNarrow(i, bars.length) ? '' : 'invisible md:visible'}`}>
                                 {bar.label}

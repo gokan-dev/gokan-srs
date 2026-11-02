@@ -7,7 +7,7 @@ import type { Vocabulary } from '@gokan/dataset-schema';
 import type { VocabProgress } from '../../models/vocabulary.model';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../../models/vocabulary.model';
 import { CONSTANTS } from '../../commons/constants';
-import { userProgress, userSettings, vocabProgress, vocabulary } from '../../test/fixtures';
+import { srsEntry, userProgress, userSettings, vocabProgress, vocabulary } from '../../test/fixtures';
 
 const now = new Date('2026-06-10T00:00:00Z');
 const past = new Date('2026-06-01T00:00:00Z');
@@ -71,7 +71,7 @@ describe('selectNextView', () => {
     });
 
     it('reports sessionState "waiting" with the earliest upcoming review date when nothing is due/learnable', () => {
-        const upcoming = makeVocabProgress({ vocabId: 'later', nextReviewAt: future, stage: 'learning' });
+        const upcoming = makeVocabProgress({ vocabId: 'later', nextReviewAt: future, reading: srsEntry({ dueDate: future }), stage: 'learning' });
         const state: QuizState = { ...initialState, progress: makeProgress([upcoming]), settings: userSettings() };
         const result = selectNextView(state, false, now);
 

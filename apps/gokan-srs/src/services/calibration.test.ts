@@ -6,15 +6,17 @@ import {
     isCalibratedGrammarReview,
     isCalibratedVocabReview,
     mergeCalibration,
-    rebaseEntryToSchedule,
-    rebaseStrengthsToSchedule,
+    commitIntervalModifier,
+    frequencyModifierOf,
+    mergePacing,
+    modifierAt,
     recentWinRate,
     recordCalibratedAnswer,
     updateAdaptiveStats,
     withCalibrationDefaults,
 } from './calibration';
 import { SRSService } from './srs.service';
-import { defaultCalibration } from '../models/user.model';
+import { defaultCalibration, PACING_EPOCH } from '../models/user.model';
 import { CONSTANTS } from '../commons/constants';
 import type { SRSEntry, VocabProgress } from '../models/vocabulary.model';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../models/vocabulary.model';
@@ -185,47 +187,67 @@ describe('the formula: the level grows strength, the interval reads straight off
     });
 });
 
-describe('rebase: strength catches up with the schedule', () => {
-    it('recovers strength x the old adaptive level from an interval scheduled under the old formula, keeping the due date', () => {
-        const S = 71.5, level = 2.75, freq = 1.5;
-        const old = entry({ memoryStrength: S, interval: S * F.lnTarget * level * freq });
-        const rebased = rebaseEntryToSchedule(old, freq);
-        expect(rebased.memoryStrength).toBeCloseTo(S * level, 6);
-        expect(rebased.dueDate).toBe(old.dueDate);
-        expect(rebased.interval).toBe(old.interval);
+describe('review pacing', () => {
+    const expected = CONSTANTS.srs.quizProperties.reading.expectedLatency;
+    const history = [
+        { from: PACING_EPOCH, value: 1.5 },
+        { from: '2026-10-01T00:00:00.000Z', value: 3 },
+        { from: '2026-10-20T00:00:00.000Z', value: 2 },
+    ];
+
+    it('frequencyModifierOf reads the slider, the default when absent', () => {
+        expect(frequencyModifierOf({ intervalModifier: 2.7 })).toBe(2.7);
+        expect(frequencyModifierOf(undefined)).toBe(CONSTANTS.srs.intervalModifier.default);
     });
 
-    it('is idempotent: running it twice changes nothing more', () => {
-        const old = entry({ memoryStrength: 71.5, interval: 71.5 * F.lnTarget * 3 * 1.5 });
-        const once = rebaseEntryToSchedule(old, 1.5);
-        expect(rebaseEntryToSchedule(once, 1.5)).toBe(once);
+    it('each legacy preset gives today\'s calculateNextState result through its multiplier', () => {
+        for (const [, multiplier] of Object.entries(CONSTANTS.srs.legacyFrequencyPresets)) {
+            const viaSetting = SRSService.calculateNextState(entry(), 'correct', expected, now, expected, 1, frequencyModifierOf({ intervalModifier: multiplier }));
+            const direct = SRSService.calculateNextState(entry(), 'correct', expected, now, expected, 1, multiplier);
+            expect(viaSetting).toEqual(direct);
+        }
     });
 
-    it('is a no-op on an entry scheduled under the new formula', () => {
-        const fresh = entry({ memoryStrength: 80, interval: 80 * F.lnTarget * 1.5 });
-        expect(rebaseEntryToSchedule(fresh, 1.5)).toBe(fresh);
+    it('modifierAt reads the value in effect at a date, null before any history', () => {
+        expect(modifierAt(history, new Date('2026-09-01'))).toBe(1.5);
+        expect(modifierAt(history, new Date('2026-10-01T00:00:00Z'))).toBe(3);
+        expect(modifierAt(history, new Date('2026-10-19'))).toBe(3);
+        expect(modifierAt(history, new Date('2026-11-01'))).toBe(2);
+        expect(modifierAt([], new Date())).toBeNull();
+        expect(modifierAt([{ from: '2026-10-01T00:00:00.000Z', value: 3 }], new Date('2026-01-01'))).toBeNull();
     });
 
-    it('leaves alone: a wrong answer, the 1-day floor, an unscheduled entry, a mastered one', () => {
-        const wrong = entry({ memoryStrength: 80, interval: 80 * F.lnTarget * 0.3 });
-        expect(rebaseEntryToSchedule(wrong, 1)).toBe(wrong);
-        const floored = entry({ memoryStrength: 1.25, interval: F.minIntervalAfterSuccess });
-        expect(rebaseEntryToSchedule(floored, 1)).toBe(floored);
-        const inert = entry({ dueDate: null, interval: 500 });
-        expect(rebaseEntryToSchedule(inert, 1)).toBe(inert);
-        const mastered = entry({ memoryStrength: F.mastery.maxMemoryStrength, interval: 3000 });
-        expect(rebaseEntryToSchedule(mastered, 1)).toBe(mastered);
+    it('commitIntervalModifier appends one change and sets the value, a no-op for the current one', () => {
+        const settings = { intervalModifier: 2, intervalModifierHistory: history };
+        const committed = commitIntervalModifier(settings, 2.5, new Date('2026-11-01T10:00:00Z'));
+        expect(committed.intervalModifier).toBe(2.5);
+        expect(committed.intervalModifierHistory.at(-1)).toEqual({ from: '2026-11-01T10:00:00.000Z', value: 2.5 });
+        expect(committed.intervalModifierHistory).toHaveLength(4);
+        expect(commitIntervalModifier(settings, 2, new Date())).toBe(settings);
     });
 
-    it('rebases vocab and grammar, and returns the same progress when nothing changes', () => {
-        const progress = {
-            learningQueue: [{ ...DEFAULT_VOCABULARY_PROGRESS, vocabId: 'v', reading: entry({ memoryStrength: 50, interval: 50 * F.lnTarget * 2 }) }],
-            grammarQueue: [{ ...DEFAULT_GRAMMAR_PROGRESS, grammarId: 'g', entry: entry({ memoryStrength: 30, interval: 30 * F.lnTarget * 2 }) }],
-        };
-        const rebased = rebaseStrengthsToSchedule(progress, 1);
-        expect(rebased.learningQueue[0].reading.memoryStrength).toBeCloseTo(100, 6);
-        expect(rebased.grammarQueue[0].entry.memoryStrength).toBeCloseTo(60, 6);
-        expect(rebaseStrengthsToSchedule(rebased, 1)).toBe(rebased);
+    it('commitIntervalModifier never sorts a commit behind a later-dated entry', () => {
+        // Merged from a device whose clock runs an hour ahead.
+        const ahead = '2026-11-01T11:00:00.000Z';
+        const settings = { intervalModifier: 3, intervalModifierHistory: [...history, { from: ahead, value: 3 }] };
+        const committed = commitIntervalModifier(settings, 1.2, new Date('2026-11-01T10:00:00Z'));
+        expect(committed.intervalModifier).toBe(1.2);
+        expect(committed.intervalModifierHistory.at(-1)).toEqual({ from: '2026-11-01T11:00:00.001Z', value: 1.2 });
+        expect(modifierAt(committed.intervalModifierHistory, new Date('2026-11-01T12:00:00Z'))).toBe(1.2);
+    });
+
+    it('two devices\' histories merge to the same ordered list either way round', () => {
+        const a = { intervalModifier: 3, intervalModifierHistory: [history[0], history[1]] };
+        const b = { intervalModifier: 2.2, intervalModifierHistory: [history[0], { from: '2026-10-10T00:00:00.000Z', value: 2.2 }] };
+        const ab = mergePacing(a, b);
+        expect(ab).toEqual(mergePacing(b, a));
+        expect(ab.intervalModifierHistory.map(c => c.from)).toEqual([PACING_EPOCH, '2026-10-01T00:00:00.000Z', '2026-10-10T00:00:00.000Z']);
+        expect(ab.intervalModifier).toBe(2.2);
+        // Two values at the very same instant still merge deterministically.
+        const same = '2026-10-15T00:00:00.000Z';
+        const x = { intervalModifier: 1, intervalModifierHistory: [{ from: same, value: 1 }] };
+        const y = { intervalModifier: 4, intervalModifierHistory: [{ from: same, value: 4 }] };
+        expect(mergePacing(x, y)).toEqual(mergePacing(y, x));
     });
 });
 

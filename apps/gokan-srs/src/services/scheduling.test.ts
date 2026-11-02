@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { introQuizType, isEntryMastered, isMeaningQuizEnabled, isReadingRelevant, isVocabFullyMastered, vocabNextReviewAt, isVocabDue } from './scheduling';
+import { effectiveDueDate, introQuizType, isEntryMastered, isMeaningQuizEnabled, isReadingRelevant, isVocabFullyMastered, vocabNextReviewAt, isVocabDue } from './scheduling';
+import { commitIntervalModifier } from './calibration';
+import { SRSService } from './srs.service';
+import { PACING_EPOCH } from '../models/user.model';
 import { CONSTANTS } from '../commons/constants';
 import type { SRSEntry } from '../models/vocabulary.model';
 import { srsEntry, vocabProgress } from '../test/fixtures';
@@ -148,5 +151,62 @@ describe('scheduling', () => {
             });
             expect(isVocabDue(vocab, { enableMeaningQuiz: false }, now)).toBe(false);
         });
+    });
+});
+
+describe('effectiveDueDate: scheduled reviews follow the pacing slider', () => {
+    const DAY = 24 * 60 * 60 * 1000;
+    const F = CONSTANTS.srs.formula;
+    const setAt = new Date('2026-10-01T00:00:00Z');
+    const changedAt = new Date('2026-10-05T00:00:00Z');
+    const at = (interval: number): SRSEntry => makeEntry({ interval, dueDate: new Date(setAt.getTime() + interval * DAY) });
+    const pacing = { intervalModifier: 1.5, intervalModifierHistory: [{ from: PACING_EPOCH, value: 1.5 }] };
+    const moved = (value: number) => commitIntervalModifier(pacing, value, changedAt);
+
+    it('reads the stored date when the pacing has not moved, or without settings', () => {
+        const entry = at(20);
+        expect(effectiveDueDate(entry, pacing)).toBe(entry.dueDate);
+        expect(effectiveDueDate(entry, undefined)).toBe(entry.dueDate);
+        expect(effectiveDueDate(makeEntry({ dueDate: null }), pacing)).toBeNull();
+    });
+
+    it('raising the modifier pushes the due date out by the ratio', () => {
+        expect(effectiveDueDate(at(20), moved(3))).toEqual(new Date(setAt.getTime() + 40 * DAY));
+    });
+
+    it('lowering it pulls the due date in, into due now when it lands in the past', () => {
+        const entry = at(20);
+        const lowered = moved(0.75);
+        expect(effectiveDueDate(entry, lowered)).toEqual(new Date(setAt.getTime() + 10 * DAY));
+        expect(isVocabDue(vocabProgress({ totalReviews: 3, reading: entry, meaning: makeEntry({ dueDate: null }) }), { enableMeaningQuiz: false, ...lowered }, new Date('2026-10-12T00:00:00Z'))).toBe(true);
+        expect(isVocabDue(vocabProgress({ totalReviews: 3, reading: entry, meaning: makeEntry({ dueDate: null }) }), { enableMeaningQuiz: false, ...pacing }, new Date('2026-10-12T00:00:00Z'))).toBe(false);
+    });
+
+    it('moving it back restores the stored date exactly', () => {
+        const entry = at(17.3);
+        const back = commitIntervalModifier(moved(2.7), 1.5, new Date('2026-10-06T00:00:00Z'));
+        expect(effectiveDueDate(entry, back)).toBe(entry.dueDate);
+    });
+
+    it('an entry reviewed after a change schedules under the new value, with no extra scaling', () => {
+        const settings = moved(3);
+        const reviewedAt = new Date('2026-10-10T00:00:00Z');
+        const { newEntry } = SRSService.calculateNextState(at(5), 'correct', 5000, reviewedAt, 10000, 1, settings.intervalModifier);
+        expect(effectiveDueDate(newEntry, settings)).toBe(newEntry.dueDate);
+    });
+
+    it('holds the bounds: never under the success floor, nor over maxInterval', () => {
+        const short = at(2);
+        expect(effectiveDueDate(short, moved(0.5))).toEqual(new Date(setAt.getTime() + F.minIntervalAfterSuccess * DAY));
+        // A wrong answer's penalty, already under the floor, is never pulled shorter.
+        const penalty = at(F.minIntervalAfterWrong);
+        expect(effectiveDueDate(penalty, moved(0.5))).toEqual(penalty.dueDate);
+        const long = at(3000);
+        expect(effectiveDueDate(long, moved(4))).toEqual(new Date(setAt.getTime() + F.maxInterval * DAY));
+    });
+
+    it('vocabNextReviewAt derives through it', () => {
+        const vocab = vocabProgress({ reading: at(20), meaning: at(30) });
+        expect(vocabNextReviewAt(vocab, { enableMeaningQuiz: true, ...moved(3) })).toEqual(new Date(setAt.getTime() + 40 * DAY));
     });
 });

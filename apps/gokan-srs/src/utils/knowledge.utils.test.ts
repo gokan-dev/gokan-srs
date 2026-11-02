@@ -8,7 +8,9 @@ import {
 import { CONSTANTS } from '../commons/constants';
 import { calculateMasteryPercentage } from './srs.utils';
 import type { ReviewLog, SRSEntry, VocabProgress } from '../models/vocabulary.model';
-import { srsEntry, vocabProgress } from '../test/fixtures';
+import { srsEntry, userSettings, vocabProgress } from '../test/fixtures';
+import { PACING_EPOCH } from '../models/user.model';
+import { commitIntervalModifier } from '../services/calibration';
 
 const F = CONSTANTS.srs.formula;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -317,5 +319,34 @@ describe('buildKnowledgeCurve with production', () => {
         const readingOnly = buildKnowledgeCurve([{ ...vocab, production: undefined }], { range: 7, now });
 
         expect(curve.currentTotal).toBeCloseTo(readingOnly.currentTotal, 5);
+    });
+});
+
+describe('buildKnowledgeCurve under review pacing', () => {
+    const now = new Date('2026-11-01T12:00:00Z');
+    const today = now.getTime();
+
+    it('moving the modifier leaves the curve for past days unchanged', () => {
+        const vocab = makeVocab({
+            introductionAt: new Date(today - 10 * DAY_MS),
+            reading: makeEntry({ memoryStrength: 120, history: [log(today - 8 * DAY_MS, 6), log(today - 4 * DAY_MS, 30)] }),
+        });
+        const before = userSettings({ intervalModifier: 2, intervalModifierHistory: [{ from: PACING_EPOCH, value: 2 }] });
+        const after = commitIntervalModifier(before, 0.8, now);
+
+        const curveBefore = buildKnowledgeCurve([vocab], { range: 10, now, settings: before });
+        const curveAfter = buildKnowledgeCurve([vocab], { range: 10, now, settings: after });
+        expect(curveAfter.points).toEqual(curveBefore.points);
+    });
+
+    it('inverts each log with the value in effect at its date', () => {
+        const at3 = log(today - 2 * DAY_MS, 30);
+        const vocab = makeVocab({ introductionAt: new Date(today - 5 * DAY_MS), reading: makeEntry({ history: [at3] }) });
+        const settings = userSettings({
+            intervalModifier: 1,
+            intervalModifierHistory: [{ from: PACING_EPOCH, value: 3 }, { from: new Date(today - DAY_MS).toISOString(), value: 1 }],
+        });
+        const curve = buildKnowledgeCurve([vocab], { range: 5, now, settings });
+        expect(curve.currentTotal).toBeCloseTo(entryKnowledgePoints(strengthFromLog(at3, 3)), 6);
     });
 });

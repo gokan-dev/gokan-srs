@@ -145,7 +145,25 @@ export const CONSTANTS = {
             reinforcementStrengthRatio: 0.5,
         },
 
-        frequencyMultipliers: {
+        /**
+         * The review-pacing slider: a hard multiplier on every interval
+         * (strength x lnTarget x modifier). Calibration still governs on top of
+         * it: a modifier set too high drops the win rate, the level falls, and
+         * strength grows slower until intervals come back.
+         */
+        intervalModifier: {
+            min: 0.5,
+            max: 4.0,
+            step: 0.1,
+            /** Today's Medium preset, so a new learner paces as before. */
+            default: 1.5,
+        },
+
+        /**
+         * The three presets the slider replaced, read only to migrate a stored
+         * `learningFrequency` to its exact multiplier (services/progressHydration.ts).
+         */
+        legacyFrequencyPresets: {
             high: 1.0,
             medium: 1.5,
             low: 2.0

@@ -37,6 +37,10 @@ export interface VocabProgress {
     vocabId: string;
     stage: 'learning' | 'graduated';
     introductionAt: Date | null;
+    /**
+     * The earliest stored due date, cached at write time. Never read for "is it
+     * due": that is derived under the current pacing (services/scheduling.ts).
+     */
     nextReviewAt: Date | null;
     lastReviewedAt: Date | null;
     totalReviews: number;

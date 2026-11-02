@@ -1,13 +1,15 @@
 import { isKanjiOrderId } from "@gokan/dataset-schema";
-import type { KanjiKnowledge, UserProgress, UserSettings } from "../models/user.model";
+import type { IntervalModifierChange, KanjiKnowledge, UserProgress, UserSettings } from "../models/user.model";
 import type { WatchedEpisode } from "../models/media.model";
 import type { MixupRecord } from "../models/mixup.model";
 import type { NeedsRetryFlags, ReviewLog, SRSEntry, VocabProgress } from "../models/vocabulary.model";
 import { DEFAULT_SRS_ENTRY, DEFAULT_VOCABULARY_PROGRESS } from "../models/vocabulary.model";
-import { DEFAULT_PROGRESS } from "../models/user.model";
+import { DEFAULT_PROGRESS, PACING_EPOCH } from "../models/user.model";
+import { CONSTANTS } from "../commons/constants";
 import type { GrammarProgress } from "../models/grammar.model";
 import { DEFAULT_GRAMMAR_PROGRESS } from "../models/grammar.model";
 import type { ProgressWithMetadata, SyncMetadata } from "./sync/types";
+import { normalisePacingHistory } from "./calibration";
 
 /**
  * The stored shape of progress, and its hydration into real objects.
@@ -62,8 +64,35 @@ export function toStoredProgress(parsed: unknown): StoredProgress {
 /** The parsed JSON of stored settings, laid over the defaults so a field added since is always present. */
 export function parseStoredSettings(json: string, defaults: UserSettings): UserSettings {
     const parsed: unknown = JSON.parse(json);
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return { ...defaults };
-    return { ...defaults, ...(parsed as Partial<UserSettings>) };
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return hydrateSettings({}, defaults);
+    return hydrateSettings(parsed, defaults);
+}
+
+/**
+ * Stored settings (this device's or Drive's) laid over the defaults, with review
+ * pacing migrated: a stored `learningFrequency` preset becomes its exact
+ * multiplier (High 1.0, Medium 1.5, Low 2.0), so no learner's intervals change on
+ * update, and the history is seeded with that value from the epoch, so every
+ * existing log reads the value it was scheduled with.
+ */
+export function hydrateSettings(stored: Partial<UserSettings>, defaults: UserSettings): UserSettings {
+    const merged = { ...defaults, ...stored };
+    const presets: Record<string, number> = CONSTANTS.srs.legacyFrequencyPresets;
+    const intervalModifier = typeof stored.intervalModifier === 'number' && Number.isFinite(stored.intervalModifier)
+        ? stored.intervalModifier
+        : typeof stored.learningFrequency === 'string' && Object.hasOwn(presets, stored.learningFrequency)
+            ? presets[stored.learningFrequency]
+            : defaults.intervalModifier;
+    const storedHistory: unknown[] = Array.isArray(stored.intervalModifierHistory) ? stored.intervalModifierHistory : [];
+    // Normalised as the Drive merge and a commit keep it (deduped, ordered, clamped), so a
+    // hand-edited or older file reads as the merge would.
+    const valid = normalisePacingHistory(storedHistory
+        .filter((c): c is IntervalModifierChange => typeof c === 'object' && c !== null
+            && 'from' in c && typeof c.from === 'string' && 'value' in c && typeof c.value === 'number'));
+    const history = valid.length > 0 ? valid : normalisePacingHistory([{ from: PACING_EPOCH, value: intervalModifier }]);
+    // The current value is always the latest change's, as the Drive merge reads it.
+    const latest = history.at(-1);
+    return { ...merged, intervalModifier: latest ? latest.value : defaults.intervalModifier, intervalModifierHistory: history };
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { axisTicks, segmentHeightPercent, showsLabelWhenNarrow, stackedBarDomOrder } from './stackedBarChart.utils';
+import { axisTicks, segmentHeightPercent, showsLabelWhenNarrow, stackedBarDomOrder, tooltipAnchor } from './stackedBarChart.utils';
 
 describe('stackedBarDomOrder', () => {
     it('reverses bottom-to-top order to DOM order, so flex-col + justify-end anchors the first segment to the baseline', () => {
@@ -51,5 +51,28 @@ describe('showsLabelWhenNarrow', () => {
         expect(showsLabelWhenNarrow(13, 14)).toBe(true);
         expect(showsLabelWhenNarrow(12, 14)).toBe(false);
         expect(showsLabelWhenNarrow(11, 14)).toBe(true);
+    });
+
+    it('shows every fifth label of a month, counting back from the last', () => {
+        const shown = Array.from({ length: 30 }, (_, i) => i).filter(i => showsLabelWhenNarrow(i, 30));
+        expect(shown).toEqual([4, 9, 14, 19, 24, 29]);
+    });
+});
+
+describe('tooltipAnchor', () => {
+    it('opens inward from the outer third of bars, centred in the middle', () => {
+        expect(tooltipAnchor(0, 30)).toBe('start');
+        expect(tooltipAnchor(9, 30)).toBe('start');
+        expect(tooltipAnchor(10, 30)).toBe('center');
+        expect(tooltipAnchor(19, 30)).toBe('center');
+        expect(tooltipAnchor(20, 30)).toBe('end');
+        expect(tooltipAnchor(29, 30)).toBe('end');
+    });
+
+    it('anchors the end bars of a week too, and centres a lone bar', () => {
+        expect(tooltipAnchor(0, 7)).toBe('start');
+        expect(tooltipAnchor(3, 7)).toBe('center');
+        expect(tooltipAnchor(6, 7)).toBe('end');
+        expect(tooltipAnchor(0, 1)).toBe('center');
     });
 });

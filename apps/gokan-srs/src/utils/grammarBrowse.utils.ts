@@ -1,6 +1,7 @@
 import type { GrammarBrowseRow } from "@gokan/dataset-schema";
 import type { GrammarProgress } from "../models/grammar.model";
 import { grammarNextReviewAt } from "../services/grammarScheduling";
+import type { PacingSettings } from "../services/calibration";
 import { grammarLearningStatus, type LearningStatus } from "./learningStatus.utils";
 
 export type GrammarStatusFilter = LearningStatus | 'all';
@@ -24,13 +25,14 @@ export function sortGrammarRows(
     rows: readonly GrammarBrowseRow[],
     sort: GrammarSort,
     progressById: ReadonlyMap<string, GrammarProgress>,
+    settings?: Partial<PacingSettings> | null,
 ): GrammarBrowseRow[] {
     const key = (row: GrammarBrowseRow): number => {
         const progress = progressById.get(row.id);
         switch (sort) {
             case 'teaching': return row.orderIndex ?? LAST;
             case 'next_review': {
-                const due = progress?.introductionAt ? grammarNextReviewAt(progress) : null;
+                const due = progress?.introductionAt ? grammarNextReviewAt(progress, settings) : null;
                 return due?.getTime() ?? LAST;
             }
             case 'mistakes': return -(progress?.entry.history.filter(log => log.result === 'wrong').length ?? 0);

@@ -8,7 +8,7 @@ import type { PendingQuizItem, QuizState, TaskKey } from './quizReducer';
 import { taskKey } from './quizReducer';
 import { computeSessionState } from './sessionState';
 import { computeSessionStats } from './sessionStats';
-import { introQuizType } from '../../services/scheduling';
+import { introQuizType, isVocabDue, vocabNextReviewAt } from '../../services/scheduling';
 
 /**
  * Whether a study session (vocab or grammar) is in progress, running or paused on a consult
@@ -63,8 +63,8 @@ export function selectNextView(
         progress && settings ? progress.learningQueue : undefined,
         {
             isLearning: v => v.stage === 'learning',
-            isDue: v => !!v.nextReviewAt && v.nextReviewAt <= now,
-            nextReviewAtOf: v => v.nextReviewAt,
+            isDue: v => isVocabDue(v, settings ?? undefined, now),
+            nextReviewAtOf: v => (v.stage === 'graduated' ? null : vocabNextReviewAt(v, settings ?? undefined)),
             canLearn: hasMoreLearnable || introCandidates.length > 0,
             states: { review: 'review', learn: 'learn', waiting: 'waiting', exhausted: 'exhausted' },
             extraState: state.nextKanjiToLearn ? 'learn-kanji' : null,
@@ -195,7 +195,7 @@ export function collectActionableTaskKeys(
 ): TaskKey[] {
     const keys: TaskKey[] = [];
     for (const v of queue) {
-        if (isReadingActionable(v, now)) keys.push(taskKey(v.vocabId, 'reading'));
+        if (isReadingActionable(v, settings, now)) keys.push(taskKey(v.vocabId, 'reading'));
         if (isMeaningActionable(v, settings, now)) keys.push(taskKey(v.vocabId, 'meaning'));
         if (isProductionActionable(v, settings, now)) keys.push(taskKey(v.vocabId, 'production'));
     }

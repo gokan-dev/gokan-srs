@@ -57,7 +57,7 @@ describe('SRSService Intro Logic (Pure Functions)', () => {
             const soon = new Date(Date.now() + 1000);
 
             expect(updated.reading.dueDate).toBeNull();
-            expect(isReadingActionable(updated, soon)).toBe(false);
+            expect(isReadingActionable(updated, undefined, soon)).toBe(false);
             // Meaning is the first review: due now, although nothing was reviewed yet.
             expect(isMeaningActionable(updated, undefined, soon)).toBe(true);
         });
