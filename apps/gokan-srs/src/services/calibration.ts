@@ -223,10 +223,13 @@ export function normalisePacingHistory(changes: readonly IntervalModifierChange[
 /**
  * Commits a pacing value: sets it and appends it to the history. Called once per
  * commit, never per step: the slider coalesces a drag, or a burst of key steps,
- * into one commit (`ReviewPacing`). A no-op when the value is already the
- * current one. Stamped at `now`, or just after the latest entry when that one is
- * later (merged from a device whose clock runs ahead), so the value just chosen
- * is always the history's last entry and the current one.
+ * into one commit (`ReviewPacing`), and saves a pending one on blur, on unmount
+ * and when the page goes away. A no-op when the value is already the current one.
+ * Stamped at `now`, or just after the latest entry when that one is later (merged
+ * from a device whose clock runs ahead), so the value just chosen is the current
+ * `intervalModifier` and the history's last entry. `modifierAt` does not return
+ * it before its stamp, though: a review made inside that skew window is scaled
+ * as if under the entry before (accepted, see ARCHITECTURE "UserSettings").
  */
 export function commitIntervalModifier<S extends PacingSettings>(settings: S, value: number, now: Date): S {
     if (value === settings.intervalModifier) return settings;

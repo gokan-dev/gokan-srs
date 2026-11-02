@@ -1,4 +1,5 @@
 import { useEffect, useEffectEvent, useRef, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 
 interface SettingSliderProps {
     label: string;
@@ -19,7 +20,8 @@ interface SettingSliderProps {
     /**
      * Waits this long after the last `change` before committing, so a burst of
      * key steps (or a held key's repeats) is one commit. A pending commit is
-     * flushed at once on blur and on unmount, so leaving never loses it.
+     * flushed at once on blur, on unmount and when the page goes away (`pagehide`,
+     * or hidden), so leaving never loses it.
      */
     commitDelayMs?: number;
     /** Text shown next to the label for the current value, e.g. "From 50 on the meaning ring". */
@@ -81,11 +83,22 @@ export function SettingSlider({
             if (pending) clearTimeout(pending.timer);
             pending = { timer: setTimeout(flush, wait), value };
         };
+        // A reload, a tab close or a discarded background tab runs no React cleanup and
+        // no reliable blur: the page going away flushes too. Synchronously, so the
+        // setting's write (an effect of the commit's render) lands before the page goes.
+        const flushNow = () => flushSync(flush);
+        const onVisibility = () => {
+            if (document.visibilityState === 'hidden') flushNow();
+        };
         range.addEventListener('change', onNativeChange);
         range.addEventListener('blur', flush);
+        window.addEventListener('pagehide', flushNow);
+        document.addEventListener('visibilitychange', onVisibility);
         return () => {
             range.removeEventListener('change', onNativeChange);
             range.removeEventListener('blur', flush);
+            window.removeEventListener('pagehide', flushNow);
+            document.removeEventListener('visibilitychange', onVisibility);
             flush();
         };
     }, []);

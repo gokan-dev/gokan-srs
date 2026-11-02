@@ -615,8 +615,16 @@ async function checkReviewPacing(tab: Tab, app: string, width: number): Promise<
     const tabbed = Number((burst + step).toFixed(1));
     const stored = await tab.evaluate<number | null>(`${STORED_PACING}.value`);
     if (stored !== tabbed) failures.push(`${width}px ${page}: a key step then Tab away saved ${stored}, not ${tabbed}`);
+    // One more step, then straight away a reload: no blur and no React cleanup run, so the
+    // pending commit is saved on the page going away (pagehide), or not at all.
+    await tab.evaluate<void>(`${PACING_SLIDER}.focus()`);
+    await tab.press(key, 0);
+    const left = Number((tabbed + step).toFixed(1));
+    await tab.goto(`${app}/settings`, 'Review pacing');
+    const afterLeaving = await tab.evaluate<{ slider: number; stored: number | null }>(`({ slider: Number(${PACING_SLIDER}.value), stored: ${STORED_PACING}.value })`);
+    if (afterLeaving.slider !== left || afterLeaving.stored !== left) failures.push(`${width}px ${page}: a key step to ${left} then straight away a reload reads ${afterLeaving.slider} (stored ${afterLeaving.stored})`);
     // React reads its own value tracker: the native setter, then input and change, as assistive tech sends them.
-    const target = tabbed === 3 ? 2.5 : 3;
+    const target = left === 3 ? 2.5 : 3;
     await tab.evaluate<void>(`(() => {
         const el = ${PACING_SLIDER};
         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, '${target}');
@@ -984,4 +992,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows unbroken, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and a plain change saved.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows unbroken, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);
