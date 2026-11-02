@@ -47,6 +47,23 @@ const ROMAJI_MAP: Record<string, string> = {
     va: 'ゔぁ', vi: 'ゔぃ', vu: 'ゔ', ve: 'ゔぇ', vo: 'ゔぉ',
     // Bare vowels (1-char)
     a: 'あ', i: 'い', u: 'う', e: 'え', o: 'お',
+    // Loanword combos, as Google and Microsoft IMEs type them. After every spelling above,
+    // so kanaToRomaji keeps its first (Hepburn) spelling of each plain kana.
+    fa: 'ふぁ', fi: 'ふぃ', fe: 'ふぇ', fo: 'ふぉ', fyu: 'ふゅ',
+    she: 'しぇ', sye: 'しぇ', che: 'ちぇ', cye: 'ちぇ', tye: 'ちぇ',
+    je: 'じぇ', jye: 'じぇ', zye: 'じぇ', dye: 'ぢぇ',
+    thi: 'てぃ', thu: 'てゅ', dhi: 'でぃ', dhu: 'でゅ', twu: 'とぅ', dwu: 'どぅ',
+    tsa: 'つぁ', tsi: 'つぃ', tse: 'つぇ', tso: 'つぉ',
+    ye: 'いぇ', wu: 'う', who: 'うぉ', wyi: 'ゐ', wye: 'ゑ',
+    kwa: 'くぁ', gwa: 'ぐぁ',
+    kye: 'きぇ', gye: 'ぎぇ', nye: 'にぇ', hye: 'ひぇ', bye: 'びぇ', pye: 'ぴぇ', mye: 'みぇ', rye: 'りぇ',
+    vya: 'ゔゃ', vyu: 'ゔゅ', vyo: 'ゔょ',
+    // Small kana on their own: an x or l prefix.
+    xa: 'ぁ', xi: 'ぃ', xu: 'ぅ', xe: 'ぇ', xo: 'ぉ',
+    la: 'ぁ', li: 'ぃ', lu: 'ぅ', le: 'ぇ', lo: 'ぉ',
+    xya: 'ゃ', xyu: 'ゅ', xyo: 'ょ', lya: 'ゃ', lyu: 'ゅ', lyo: 'ょ',
+    xtsu: 'っ', xtu: 'っ', ltsu: 'っ', ltu: 'っ',
+    xwa: 'ゎ', lwa: 'ゎ', xka: 'ゕ', xke: 'ゖ', lka: 'ゕ', lke: 'ゖ',
 };
 
 const VOWELS = new Set(['a', 'i', 'u', 'e', 'o']);
@@ -206,9 +223,86 @@ export function kanaToRomaji(input: string): string {
             i += 1;
             continue;
         }
+        if (s[i] === 'ん') {
+            // "nn" where a single n would join what follows (かんい is kan'i, not かに), as an IME is typed.
+            const after = kanaToRomaji(s.slice(i + 1, i + 3))[0] ?? '';
+            result += after !== '' && (VOWELS.has(after) || after === 'y' || after === 'n') ? 'nn' : 'n';
+            i += 1;
+            continue;
+        }
         const pair = KANA_TO_ROMAJI[s.slice(i, i + 2)];
         if (pair !== undefined && i + 1 < s.length) { result += pair; i += 2; continue; }
         result += KANA_TO_ROMAJI[s[i]] ?? s[i];
+        i += 1;
+    }
+    return result;
+}
+
+/** A text field's value and its caret, as `convertRomajiInput` reads and returns them. */
+export interface RomajiInput {
+    text: string;
+    caret: number;
+}
+
+const LETTER = /[a-z]/;
+
+/**
+ * Romaji typed into a Japanese answer field, converted as an IME converts it: every
+ * complete syllable becomes hiragana, an unfinished one stays as typed until the next
+ * letter decides it ("kak" is かk), and anything that is not an ASCII letter, "-" or
+ * "'" (kana or kanji from a real IME, a space) passes through untouched.
+ *
+ * Only the text before the caret is converted, and the caret stays right after what
+ * was typed, so editing in the middle of an answer works and the text after the caret
+ * is never rewritten. Idempotent: converted text converts to itself, so Backspace
+ * removes one kana and nothing is converted twice.
+ *
+ * ん follows the IME: "n" waits for the next letter ("kana" is かな, "kanji" かんじ),
+ * "nn" and "n'" are ん, and a final "n" waits too (finishRomajiInput settles it).
+ * っ is a doubled consonant ("kitte") or "tch" ("matcha"); "-" is ー.
+ */
+export function convertRomajiInput(text: string, caret: number): RomajiInput {
+    const head = convertRomaji(text.slice(0, caret), false);
+    return { text: head + text.slice(caret), caret: head.length };
+}
+
+/** The answer as submitted: all of it converted, and a final "n" read as ん ("hon" is ほん). */
+export function finishRomajiInput(text: string): string {
+    return convertRomaji(text, true);
+}
+
+function convertRomaji(input: string, finished: boolean): string {
+    // Only ASCII letters are lowercased: a capital typed by a phone keyboard is the same key.
+    const s = input.replace(/[A-Z]/g, c => c.toLowerCase());
+    let result = '';
+    let i = 0;
+    while (i < s.length) {
+        const c = s[i];
+        const next = s[i + 1];
+        if (c === '-') { result += 'ー'; i += 1; continue; }
+        if (!LETTER.test(c)) { result += c; i += 1; continue; }
+
+        if (c === 'n') {
+            if (next === "'" || next === 'n') { result += 'ん'; i += 2; continue; }
+            if (next === undefined) { result += finished ? 'ん' : 'n'; i += 1; continue; }
+            if (VOWELS.has(next) || next === 'y') {
+                const syllable = longestSyllable(s, i, 2);
+                if (syllable) { result += syllable.kana; i += syllable.length; continue; }
+                // "ny" at the end: the syllable is still being typed.
+                result += c; i += 1; continue;
+            }
+            // Anything else after it decides it: ん ("kanji", "hon-", "honか").
+            result += 'ん'; i += 1; continue;
+        }
+
+        if ((c === next && !VOWELS.has(c)) || (c === 't' && next === 'c' && s[i + 2] === 'h')) {
+            result += 'っ'; i += 1; continue;
+        }
+
+        const syllable = longestSyllable(s, i, 1);
+        if (syllable) { result += syllable.kana; i += syllable.length; continue; }
+        // Not a syllable (yet): kept as typed, so the next letter can complete it.
+        result += c;
         i += 1;
     }
     return result;
@@ -219,9 +313,9 @@ export function looksLikeRomaji(input: string): boolean {
     return /[a-z]/i.test(input);
 }
 
-/** The longest syllable (3 letters down to `minLength`) starting at `i`, or null. */
+/** The longest syllable (4 letters, as "xtsu", down to `minLength`) starting at `i`, or null. */
 function longestSyllable(s: string, i: number, minLength: number): { kana: string; length: number } | null {
-    for (let length = 3; length >= minLength; length--) {
+    for (let length = 4; length >= minLength; length--) {
         const kana = ROMAJI_MAP[s.slice(i, i + length)];
         if (kana) return { kana, length };
     }
