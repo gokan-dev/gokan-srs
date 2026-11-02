@@ -83,8 +83,10 @@ describe('convertRomajiInput', () => {
         expect(convertRomajiInput('コーヒーnomu', 8)).toEqual({ text: 'コーヒーのむ', caret: 6 });
     });
 
-    it('reads capitals as the same keys', () => {
+    it('reads capitals as the same keys, and keeps a letter left as a letter as typed', () => {
         expect(typeKeys('Taberu')).toBe('たべる');
+        expect(typeKeys('Tshatsu')).toBe('Tしゃつ');
+        expect(typeKeys('KAK')).toBe('かK');
     });
 });
 

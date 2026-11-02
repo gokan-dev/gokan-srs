@@ -243,7 +243,8 @@ export function finishRomajiInput(text: string): string {
 }
 
 function convertRomaji(input: string, finished: boolean): string {
-    // Only ASCII letters are lowercased: a capital typed by a phone keyboard is the same key.
+    // Matched in lowercase (a capital typed by a phone keyboard is the same key), but a letter
+    // left as a letter keeps its case: the T of Tシャツ.
     const s = input.replace(/[A-Z]/g, c => c.toLowerCase());
     let result = '';
     let i = 0;
@@ -255,12 +256,12 @@ function convertRomaji(input: string, finished: boolean): string {
 
         if (c === 'n') {
             if (next === "'" || next === 'n') { result += 'ん'; i += 2; continue; }
-            if (next === undefined) { result += finished ? 'ん' : 'n'; i += 1; continue; }
+            if (next === undefined) { result += finished ? 'ん' : input[i]; i += 1; continue; }
             if (VOWELS.has(next) || next === 'y') {
                 const syllable = longestSyllable(s, i, 2);
                 if (syllable) { result += syllable.kana; i += syllable.length; continue; }
                 // "ny" at the end: the syllable is still being typed.
-                result += c; i += 1; continue;
+                result += input[i]; i += 1; continue;
             }
             // Anything else after it decides it: ん ("kanji", "hon-", "honか").
             result += 'ん'; i += 1; continue;
@@ -273,7 +274,7 @@ function convertRomaji(input: string, finished: boolean): string {
         const syllable = longestSyllable(s, i, 1);
         if (syllable) { result += syllable.kana; i += syllable.length; continue; }
         // Not a syllable (yet): kept as typed, so the next letter can complete it.
-        result += c;
+        result += input[i];
         i += 1;
     }
     return result;

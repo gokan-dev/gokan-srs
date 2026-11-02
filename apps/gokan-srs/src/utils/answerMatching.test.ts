@@ -65,6 +65,7 @@ describe('matchAnswer compares a Japanese answer in hiragana', () => {
         expect(matchAnswer('こーひー', 'コーヒー')).toBe('correct');
         expect(matchAnswer('コーヒー', 'こーひー')).toBe('correct');
         expect(matchAnswer('ぱん', 'パン')).toBe('correct');
+        expect(matchAnswer('Tしゃつ', 'Tシャツ')).toBe('correct');
     });
 
     it('keeps kanji strict', () => {
