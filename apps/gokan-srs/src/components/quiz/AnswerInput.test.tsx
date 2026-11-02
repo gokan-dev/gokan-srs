@@ -33,6 +33,18 @@ function mount(convertsRomaji: boolean): HTMLInputElement {
     return input;
 }
 
+/** The field, beside a second answer field (another cloze blank) and a button (Hint). */
+function mountBeside(): { field: HTMLInputElement; other: HTMLInputElement; button: HTMLButtonElement } {
+    act(() => root.render(<><Field convertsRomaji /><AnswerInput value="" convertsRomaji onValueChange={() => undefined} /><button type="button">Hint</button></>));
+    const [field, other] = container.querySelectorAll('input');
+    const button = container.querySelector('button');
+    if (!field || !other || !button) throw new Error('fields not rendered');
+    return { field, other, button };
+}
+
+const blurTo = (field: HTMLInputElement, relatedTarget: HTMLElement | null) =>
+    fire(field, new FocusEvent('focusout', { bubbles: true, relatedTarget }));
+
 const setNativeValue = (input: HTMLInputElement, value: string) =>
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, value);
 
@@ -98,12 +110,23 @@ describe('AnswerInput on a Japanese answer', () => {
         expect(field.selectionStart).toBe(2);
     });
 
-    it('reads a final n as ん when the field is left', () => {
-        const field = mount(true);
-        type(field, 'hon');
-        expect(field.value).toBe('ほn');
-        fire(field, new FocusEvent('focusout', { bubbles: true }));
-        expect(reported.at(-1)).toBe('ほん');
+    it('reads a final n as ん when focus moves to another answer field', () => {
+        const { field, other } = mountBeside();
+        type(field, 'kan');
+        expect(field.value).toBe('かn');
+        blurTo(field, other);
+        expect(reported.at(-1)).toBe('かん');
+    });
+
+    it('keeps a final n pending on any other blur, as an IME does', () => {
+        const { field, button } = mountBeside();
+        type(field, 'kan');
+        blurTo(field, null);
+        expect(reported.at(-1)).toBe('かn');
+        blurTo(field, button);
+        expect(reported.at(-1)).toBe('かn');
+        type(field, 'i');
+        expect(field.value).toBe('かに');
     });
 
     it('leaves a composition alone, and an IME\'s kana as it commits them', () => {

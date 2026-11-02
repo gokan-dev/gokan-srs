@@ -12,14 +12,19 @@ interface AnswerInputProps extends NativeInputProps {
     inputRef?: Ref<HTMLInputElement>;
 }
 
+/** Marks every answer field (`data-answer-input` below), so a blur can tell moving to another blank from leaving the answer. */
+const ANSWER_INPUT_ATTRIBUTE = 'data-answer-input';
+
 /** Text a composition ended with that a Latin keyboard typed (Gboard composes words), not an IME's kana. */
 const LATIN_ONLY = /^[\x20-\x7e]*$/;
 
 /**
  * Every typed answer's field: the single-answer card's and each cloze blank. On a
  * Japanese answer it converts romaji to kana as it is typed (convertRomajiInput),
- * keeping the caret where it was, and settles a final "n" as ん when the field is
- * left; submitting settles it too (useExerciseTurn's submittedAnswers).
+ * keeping the caret where it was, and settles a final "n" as ん when focus moves to
+ * another answer field; submitting settles it too (useExerciseTurn's submittedAnswers).
+ * Any other blur (the Hint button, another tab, a phone keyboard closing) leaves the
+ * "n" pending, as an IME does, so kan, away, then i is かに.
  *
  * A real IME is left alone: nothing is rewritten while a composition is in
  * progress, and its kana pass through the converter. A predictive keyboard (Gboard)
@@ -53,7 +58,8 @@ export function AnswerInput({ value, onValueChange, convertsRomaji, inputRef, on
     };
 
     const handleBlur = (e: FocusEvent<HTMLInputElement>) => {
-        if (convertsRomaji) {
+        const toAnswer = e.relatedTarget instanceof HTMLElement && e.relatedTarget.hasAttribute(ANSWER_INPUT_ATTRIBUTE);
+        if (convertsRomaji && toAnswer) {
             const finished = finishRomajiInput(e.currentTarget.value);
             if (finished !== e.currentTarget.value) onValueChange(finished);
         }
@@ -73,6 +79,7 @@ export function AnswerInput({ value, onValueChange, convertsRomaji, inputRef, on
             }}
             onCompositionEnd={handleCompositionEnd}
             onBlur={handleBlur}
+            data-answer-input=""
             // No suggestions, corrections or capitals: an answer is typed key by key, and a
             // keyboard's prediction would compose (and hold back) the romaji being converted.
             autoComplete="off"
