@@ -7,64 +7,35 @@
  * feeding it a non-romaji query never breaks the surrounding search.
  */
 
-// Longest keys are tried first, so 3-char combos win over their prefixes.
-const ROMAJI_MAP: Record<string, string> = {
-    // Y-combos
-    kya: 'きゃ', kyu: 'きゅ', kyo: 'きょ',
-    gya: 'ぎゃ', gyu: 'ぎゅ', gyo: 'ぎょ',
-    sha: 'しゃ', shu: 'しゅ', sho: 'しょ', shi: 'し',
-    sya: 'しゃ', syu: 'しゅ', syo: 'しょ',
-    ja: 'じゃ', ju: 'じゅ', jo: 'じょ', ji: 'じ',
-    jya: 'じゃ', jyu: 'じゅ', jyo: 'じょ',
-    zya: 'じゃ', zyu: 'じゅ', zyo: 'じょ',
-    cha: 'ちゃ', chu: 'ちゅ', cho: 'ちょ', chi: 'ち',
-    cya: 'ちゃ', cyu: 'ちゅ', cyo: 'ちょ',
-    tya: 'ちゃ', tyu: 'ちゅ', tyo: 'ちょ', ti: 'ち',
-    dya: 'ぢゃ', dyu: 'ぢゅ', dyo: 'ぢょ', di: 'ぢ', du: 'づ',
-    nya: 'にゃ', nyu: 'にゅ', nyo: 'にょ',
-    hya: 'ひゃ', hyu: 'ひゅ', hyo: 'ひょ',
-    bya: 'びゃ', byu: 'びゅ', byo: 'びょ',
-    pya: 'ぴゃ', pyu: 'ぴゅ', pyo: 'ぴょ',
-    mya: 'みゃ', myu: 'みゅ', myo: 'みょ',
-    rya: 'りゃ', ryu: 'りゅ', ryo: 'りょ',
-    tsu: 'つ', tu: 'つ',
-    fu: 'ふ', hu: 'ふ',
-    // Basic gojuon + voiced/handakuon (2-char)
-    ka: 'か', ki: 'き', ku: 'く', ke: 'け', ko: 'こ',
-    ga: 'が', gi: 'ぎ', gu: 'ぐ', ge: 'げ', go: 'ご',
-    sa: 'さ', su: 'す', se: 'せ', so: 'そ', si: 'し',
-    za: 'ざ', zi: 'じ', zu: 'ず', ze: 'ぜ', zo: 'ぞ',
-    ta: 'た', te: 'て', to: 'と',
-    da: 'だ', de: 'で', do: 'ど',
-    na: 'な', ni: 'に', nu: 'ぬ', ne: 'ね', no: 'の',
-    ha: 'は', hi: 'ひ', he: 'へ', ho: 'ほ',
-    ba: 'ば', bi: 'び', bu: 'ぶ', be: 'べ', bo: 'ぼ',
-    pa: 'ぱ', pi: 'ぴ', pu: 'ぷ', pe: 'ぺ', po: 'ぽ',
-    ma: 'ま', mi: 'み', mu: 'む', me: 'め', mo: 'も',
-    ya: 'や', yu: 'ゆ', yo: 'よ',
-    ra: 'ら', ri: 'り', ru: 'る', re: 'れ', ro: 'ろ',
-    wa: 'わ', wo: 'を', wi: 'うぃ', we: 'うぇ',
-    va: 'ゔぁ', vi: 'ゔぃ', vu: 'ゔ', ve: 'ゔぇ', vo: 'ゔぉ',
-    // Bare vowels (1-char)
-    a: 'あ', i: 'い', u: 'う', e: 'え', o: 'お',
-    // Loanword combos, as Google and Microsoft IMEs type them. After every spelling above,
-    // so kanaToRomaji keeps its first (Hepburn) spelling of each plain kana.
-    fa: 'ふぁ', fi: 'ふぃ', fe: 'ふぇ', fo: 'ふぉ', fyu: 'ふゅ',
-    she: 'しぇ', sye: 'しぇ', che: 'ちぇ', cye: 'ちぇ', tye: 'ちぇ',
-    je: 'じぇ', jye: 'じぇ', zye: 'じぇ', dye: 'ぢぇ',
-    thi: 'てぃ', thu: 'てゅ', dhi: 'でぃ', dhu: 'でゅ', twu: 'とぅ', dwu: 'どぅ',
-    tsa: 'つぁ', tsi: 'つぃ', tse: 'つぇ', tso: 'つぉ',
-    ye: 'いぇ', wu: 'う', who: 'うぉ', wyi: 'ゐ', wye: 'ゑ',
-    kwa: 'くぁ', gwa: 'ぐぁ',
-    kye: 'きぇ', gye: 'ぎぇ', nye: 'にぇ', hye: 'ひぇ', bye: 'びぇ', pye: 'ぴぇ', mye: 'みぇ', rye: 'りぇ',
-    vya: 'ゔゃ', vyu: 'ゔゅ', vyo: 'ゔょ',
-    // Small kana on their own: an x or l prefix.
-    xa: 'ぁ', xi: 'ぃ', xu: 'ぅ', xe: 'ぇ', xo: 'ぉ',
-    la: 'ぁ', li: 'ぃ', lu: 'ぅ', le: 'ぇ', lo: 'ぉ',
-    xya: 'ゃ', xyu: 'ゅ', xyo: 'ょ', lya: 'ゃ', lyu: 'ゅ', lyo: 'ょ',
-    xtsu: 'っ', xtu: 'っ', ltsu: 'っ', ltu: 'っ',
-    xwa: 'ゎ', lwa: 'ゎ', xka: 'ゕ', xke: 'ゖ', lka: 'ゕ', lke: 'ゖ',
-};
+/** "a あ b い" as [a, あ], [b, い]: the table below is written as such lists, being shipped in the dictionary's search engine, which has a size budget. */
+function pairs(list: string): [string, string][] {
+    const words = list.split(' ');
+    return words.flatMap((word, i): [string, string][] => (i % 2 === 0 ? [[word, words[i + 1] ?? '']] : []));
+}
+
+// Romaji -> kana, as Google and Microsoft IMEs type it. Longest keys are tried first, so
+// 3-char combos win over their prefixes. Order matters only to kanaToRomaji, which spells a
+// kana the first way listed: Hepburn first (しゃ is sha, not sya; ち chi, not ti).
+const ROMAJI_MAP: Record<string, string> = {};
+// Contracted sounds: a consonant's a, u, o and e (sha しゃ, kye きぇ).
+for (const [consonant, kana] of pairs('sh し ch ち j じ ky き gy ぎ ny に hy ひ by び py ぴ my み ry り sy し zy じ jy じ cy ち ty ち dy ぢ')) {
+    for (const [vowel, small] of pairs('a ゃ u ゅ o ょ e ぇ')) ROMAJI_MAP[consonant + vowel] = kana + small;
+}
+for (const [romaji, kana] of pairs('shi し chi ち tsu つ fu ふ ji じ')) ROMAJI_MAP[romaji] = kana;
+// The rows: a consonant and its kana for a, i, u, e, o (ti is ち, tu つ, as an IME reads them).
+for (const [consonant, kana] of [['', 'あいうえお'], ...pairs('k かきくけこ g がぎぐげご s さしすせそ z ざじずぜぞ t たちつてと d だぢづでど n なにぬねの h はひふへほ b ばびぶべぼ p ぱぴぷぺぽ m まみむめも r らりるれろ')]) {
+    [...kana].forEach((k, i) => { ROMAJI_MAP[consonant + 'aiueo'[i]] = k; });
+}
+// Everything else: y and w, v, loanword combos, small kana (x, and l below).
+for (const [romaji, kana] of pairs(
+    'ya や yu ゆ yo よ ye いぇ wa わ wo を wi うぃ we うぇ wu う who うぉ wyi ゐ wye ゑ '
+    + 'va ゔぁ vi ゔぃ vu ゔ ve ゔぇ vo ゔぉ vya ゔゃ vyu ゔゅ vyo ゔょ fa ふぁ fi ふぃ fe ふぇ fo ふぉ fyu ふゅ '
+    + 'thi てぃ thu てゅ dhi でぃ dhu でゅ twu とぅ dwu どぅ tsa つぁ tsi つぃ tse つぇ tso つぉ kwa くぁ gwa ぐぁ '
+    + 'xa ぁ xi ぃ xu ぅ xe ぇ xo ぉ xya ゃ xyu ゅ xyo ょ xtsu っ xtu っ xwa ゎ xka ゕ xke ゖ',
+)) ROMAJI_MAP[romaji] = kana;
+for (const key of Object.keys(ROMAJI_MAP)) {
+    if (key.startsWith('x')) ROMAJI_MAP['l' + key.slice(1)] = ROMAJI_MAP[key];
+}
 
 const VOWELS = new Set(['a', 'i', 'u', 'e', 'o']);
 
