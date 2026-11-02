@@ -216,6 +216,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
         dispatch,
         active: sessionRole === 'activity',
         loading: state.isLoadingVocab,
+        romajiInput: state.settings?.romajiInput !== false,
         refine: (current, grade, answers, onStart) => {
             const settings = state.settings;
             const check = settings?.enableGeminiContext && settings.geminiApiKey

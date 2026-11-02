@@ -181,6 +181,7 @@ export function useGrammarOrchestration(state: QuizState, dispatch: Dispatch<Qui
         dispatch,
         active: grammarSessionRole === 'activity',
         loading: state.isLoadingGrammar,
+        romajiInput: state.settings?.romajiInput !== false,
     });
 
     const grammarSessionHasWork =

@@ -75,6 +75,7 @@ export function SentenceClozeCard({ api, sentence, header, feedbackExtra, onVoca
                                 // it (EXERCISE_REVEAL_HINT), so nothing is substituted at render.
                                 value={turn.answers[part.index] ?? ''}
                                 onChange={value => api.setAnswer(part.index, value)}
+                                convertsRomaji={api.convertsRomaji(part.index)}
                                 inputRef={part.index === 0 ? firstInputRef : undefined}
                                 borderClass={blankBorderClass(grade, { feedbackShown: !!feedback, revealed: hintLevel >= 2 })}
                                 feedbackShown={!!feedback}

@@ -1,5 +1,6 @@
 import { useEffect, useEffectEvent, useRef } from 'react';
 import type { Dispatch } from 'react';
+import { finishRomajiInput } from '@gokan/dataset-schema';
 import { CONSTANTS } from '../../commons/constants';
 import { gradeExercise } from '../../services/exercise/grading';
 import { effectsOf } from '../../services/exercise/effects';
@@ -16,6 +17,8 @@ export interface ExerciseTurnApi {
     submit: () => void;
     continueToNext: () => void;
     canSubmit: boolean;
+    /** Whether the answer at `index` converts romaji to kana as it is typed: a Japanese slot, with the setting on. */
+    convertsRomaji: (index: number) => boolean;
     /** True when feedback is up and waits for the learner rather than moving on by itself. */
     showContinue: boolean;
 }
@@ -41,6 +44,16 @@ function submitsEmpty(kind: ExerciseKind): boolean {
     }
 }
 
+/**
+ * The answers as graded: on a slot that converts romaji, all of it converted and a
+ * final "n" read as ん ("hon" is ほん), whatever the field last showed. Enter submits
+ * without leaving the field, and a phone keyboard may still hold its last word, so
+ * this is the one place that settles an answer.
+ */
+export function submittedAnswers(exercise: Exercise, answers: string[], romajiInput: boolean): string[] {
+    return answers.map((answer, i) => (romajiInput && exercise.slots[i]?.script === 'japanese' ? finishRomajiInput(answer) : answer));
+}
+
 interface UseExerciseTurnOptions {
     host: ExerciseHost;
     turn: ExerciseTurn | null;
@@ -49,6 +62,8 @@ interface UseExerciseTurnOptions {
     active: boolean;
     /** True while the host is still loading the card. */
     loading: boolean;
+    /** The "Type romaji as kana" setting. */
+    romajiInput: boolean;
     /** An optional asynchronous second opinion on a grade (the AI meaning check). `onStart` shows the card is evaluating. */
     refine?: (exercise: Exercise, grade: ExerciseGrade, answers: string[], onStart: () => void) => Promise<ExerciseGrade>;
 }
@@ -58,7 +73,7 @@ interface UseExerciseTurnOptions {
  * decide the effects at submit with the latency frozen there, write them on
  * Continue, and move on by itself after an answer with nothing to read.
  */
-export function useExerciseTurn({ host, turn, dispatch, active, loading, refine }: UseExerciseTurnOptions) {
+export function useExerciseTurn({ host, turn, dispatch, active, loading, romajiInput, refine }: UseExerciseTurnOptions) {
     const startTimeRef = useRef<number | null>(null);
 
     // The clock starts when an exercise is shown; a retry served straight back is
@@ -83,9 +98,14 @@ export function useExerciseTurn({ host, turn, dispatch, active, loading, refine 
         // Frozen here, before any AI check and before the learner reads the answer:
         // time spent on the feedback must not count as a slow answer.
         const latencyMs = startTimeRef.current ? Date.now() - startTimeRef.current : 5000;
-        let grade = gradeExercise(turn.exercise, turn.answers, turn.hintLevels);
-        if (refine) grade = await refine(turn.exercise, grade, turn.answers, () => dispatch({ type: 'EXERCISE_EVALUATING', host }));
-        const effects = effectsOf(turn.exercise, grade, { latencyMs, hintLevels: turn.hintLevels, answers: turn.answers });
+        const answers = submittedAnswers(turn.exercise, turn.answers, romajiInput);
+        // The field shows the answer as graded (ほん, not ほn).
+        answers.forEach((answer, index) => {
+            if (answer !== turn.answers[index]) dispatch({ type: 'EXERCISE_SET_ANSWER', host, index, value: answer });
+        });
+        let grade = gradeExercise(turn.exercise, answers, turn.hintLevels);
+        if (refine) grade = await refine(turn.exercise, grade, answers, () => dispatch({ type: 'EXERCISE_EVALUATING', host }));
+        const effects = effectsOf(turn.exercise, grade, { latencyMs, hintLevels: turn.hintLevels, answers });
         dispatch({ type: 'EXERCISE_SUBMITTED', host, feedback: { grade, effects } });
     };
 
@@ -106,6 +126,7 @@ export function useExerciseTurn({ host, turn, dispatch, active, loading, refine 
         canSubmit: !!turn && !turn.feedback && !turn.isEvaluating && !loading
             && turn.exercise.slots.length > 0
             && (submitsEmpty(turn.exercise.kind) || turn.answers.some(a => a.trim().length > 0)),
+        convertsRomaji: index => romajiInput && turn?.exercise.slots[index]?.script === 'japanese',
         showContinue: !!turn?.feedback && !turn.feedback.grade.autoAdvance,
     };
 

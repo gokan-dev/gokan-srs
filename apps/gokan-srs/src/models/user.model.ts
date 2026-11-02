@@ -218,6 +218,12 @@ export interface UserSettings {
      * see, e.g. ["Comedy", "Slice of Life"]. Empty or absent shows every title.
      */
     listeningGenres?: string[];
+    /**
+     * "Type romaji as kana": a Japanese answer field converts romaji to hiragana as
+     * it is typed (convertRomajiInput). On by default, and harmless with a real IME,
+     * whose kana pass through; off leaves every answer as typed.
+     */
+    romajiInput: boolean;
 }
 
 export const DEFAULT_SETTINGS: UserSettings = {
@@ -237,6 +243,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
     // that preset, then to 50 (meaningContextThresholdOf).
     ignoreKnownKanjiRequirement: false,
     kanjiCountStep: 10,
+    romajiInput: true,
 };
 
 /** Every quiz type at level 1 with an empty window: where calibration starts. */

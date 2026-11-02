@@ -1,9 +1,12 @@
 import type { ReactNode, Ref } from "react";
 import { blankWidthEm } from "../../utils/blankWidth";
+import { AnswerInput } from "./AnswerInput";
 
 interface ClozeBlankProps {
     value: string;
     onChange: (value: string) => void;
+    /** A Japanese blank with "Type romaji as kana" on (ExerciseTurnApi.convertsRomaji). */
+    convertsRomaji: boolean;
     inputRef?: Ref<HTMLInputElement>;
     /** Tailwind border classes for the underline (see blankBorderClass). */
     borderClass: string;
@@ -22,21 +25,17 @@ interface ClozeBlankProps {
  * then the answer, and a slot under it for the correct form after answering. Shared by
  * the grammar cloze and the vocab production cloze.
  */
-export function ClozeBlank({ value, onChange, inputRef, borderClass, feedbackShown, hintLevel, onHint, gloss, reveal }: ClozeBlankProps) {
+export function ClozeBlank({ value, onChange, convertsRomaji, inputRef, borderClass, feedbackShown, hintLevel, onHint, gloss, reveal }: ClozeBlankProps) {
     const revealed = hintLevel >= 2;
     return (
         <span className="inline-flex flex-col items-center mx-0.5 align-middle">
             <span className="inline-flex items-center gap-1">
-                <input
-                    ref={inputRef}
-                    type="text"
+                <AnswerInput
+                    inputRef={inputRef}
                     value={value}
-                    onChange={(e) => onChange(e.target.value)}
+                    onValueChange={onChange}
+                    convertsRomaji={convertsRomaji}
                     disabled={feedbackShown || revealed}
-                    autoComplete="off"
-                    autoCorrect="off"
-                    autoCapitalize="off"
-                    spellCheck="false"
                     style={{ width: `${blankWidthEm(value)}em` }}
                     className={`border-b-2 bg-transparent text-center focus:outline-none transition-colors font-gothic caret-accent ${borderClass}`}
                 />
