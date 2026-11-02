@@ -116,10 +116,9 @@ browser).
 - `--font-sans`: `"Inter", "Noto Sans JP", system-ui, sans-serif` - the `body` font and
   every UI sans usage (`font-sans`).
 - `--font-gothic`: `"Noto Sans JP", "Hiragino Sans", "Meiryo", "Yu Gothic", sans-serif` -
-  Japanese UI text (`font-gothic`). A field typed in Japanese also sets its placeholder's
-  face, because the placeholder inherits the field's: `placeholder:font-sans` for English
-  copy, `placeholder:font-gothic` for a Japanese one (ひらがな). The answer card picks one from
-  the placeholder text (`containsJapanese`). Enforced (`placeholder-font`).
+  Japanese UI text (`font-gothic`). A field typed in Japanese sets `placeholder:font-sans`,
+  because the placeholder inherits the field's face; the `--font-sans` fallback draws a
+  Japanese placeholder (ひらがな, 語) in Noto Sans JP. Enforced (`placeholder-font`).
 - `--font-serif`: `"Source Serif 4", Georgia, serif` - page and section titles, the logo.
 - `--font-mincho`: `"Noto Serif JP", "Hiragino Mincho ProN", "Yu Mincho", "MS PMincho",
   serif` - Japanese display (headwords, sentences). `font-serif` has no CJK glyphs; never

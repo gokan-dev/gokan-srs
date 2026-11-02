@@ -63,13 +63,13 @@ describe('ExerciseCard placeholders', () => {
         expect(placeholderOf(conjugation, false)).toBe('Type the form...');
     });
 
-    it('draws an English placeholder in Inter and ひらがな in the Japanese face, while the answer stays gothic', () => {
+    it('draws the placeholder in font-sans whatever its language, while the answer stays gothic', () => {
         const on = classesOf(reading, true);
         expect(on).toContain('placeholder:font-sans');
         expect(on).toContain('font-gothic');
         const off = classesOf(reading, false);
-        expect(off).not.toContain('placeholder:font-sans');
-        expect(off).toContain('placeholder:font-gothic');
+        expect(off).toContain('placeholder:font-sans');
+        expect(off).toContain('font-gothic');
         expect(classesOf(conjugation, true)).toContain('placeholder:font-sans');
     });
 });

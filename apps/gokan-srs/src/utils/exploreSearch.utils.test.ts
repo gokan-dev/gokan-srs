@@ -1,22 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { containsJapanese, englishRanges, matchesExploreQuery, readExploreQuery, resultCountLine, splitAtRanges } from './exploreSearch.utils';
+import { englishRanges, matchesExploreQuery, readExploreQuery, resultCountLine, splitAtRanges } from './exploreSearch.utils';
 
 function query(raw: string) {
     const q = readExploreQuery(raw);
     if (!q) throw new Error(`no query for "${raw}"`);
     return q;
 }
-
-describe('containsJapanese', () => {
-    it('is true for kana or kanji anywhere, false for English copy', () => {
-        expect(containsJapanese('ひらがな')).toBe(true);
-        expect(containsJapanese('コーヒー')).toBe(true);
-        expect(containsJapanese('the て-form')).toBe(true);
-        expect(containsJapanese('食')).toBe(true);
-        expect(containsJapanese('Type in romaji or kana')).toBe(false);
-        expect(containsJapanese('')).toBe(false);
-    });
-});
 
 describe('readExploreQuery', () => {
     it('reads an empty or blank field as no query', () => {

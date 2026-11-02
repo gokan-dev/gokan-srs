@@ -6,7 +6,6 @@ import type { SlotGrade } from "../../services/exercise/types";
 import { useResponsive } from "../../context/Responsive/useResponsive";
 import { useQuizFocusManagement } from "../../hooks/useQuizFocusManagement";
 import { CONSTANTS } from "../../commons/constants";
-import { containsJapanese } from "../../utils/exploreSearch.utils";
 import { CardSection } from "../ui/CardSection";
 import { Button } from "../ui/Button";
 import { LookUpWords } from "../LookUpWords";
@@ -181,8 +180,7 @@ export function SingleAnswerCard({
                             onFocus={() => setIsInputFocused(true)}
                             onBlur={() => setIsInputFocused(false)}
                             className={`w-full border rounded-md text-center transition-all duration-200
-                                font-gothic bg-surface text-primary placeholder:text-input-placeholder caret-accent
-                                ${containsJapanese(inputPlaceholder) ? 'placeholder:font-gothic' : 'placeholder:font-sans'}
+                                font-gothic bg-surface text-primary placeholder:text-input-placeholder placeholder:font-sans caret-accent
                                 focus:outline-none focus:border-accent focus:ring-4 focus:ring-accent/10
                                 ${isMobile ? 'px-3 py-2 text-lg placeholder:text-sm' : 'px-4 py-3 text-xl'}
                                 ${miss?.inputBorderClass ?? 'border-divider'}

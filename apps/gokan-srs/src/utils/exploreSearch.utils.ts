@@ -12,11 +12,6 @@ export type ExploreQuery =
 
 const JAPANESE = /[぀-ヿ㐀-鿿豈-﫿々ー]/;
 
-/** Whether a text holds any kana or kanji: a search is read as Japanese, a placeholder drawn in the Japanese face. */
-export function containsJapanese(text: string): boolean {
-    return JAPANESE.test(text);
-}
-
 function escapeRegExp(text: string): string {
     return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -25,7 +20,7 @@ function escapeRegExp(text: string): string {
 export function readExploreQuery(raw: string): ExploreQuery | null {
     const text = raw.trim();
     if (text === '') return null;
-    if (containsJapanese(text)) return { kind: 'japanese', text, kana: toHiragana(text) };
+    if (JAPANESE.test(text)) return { kind: 'japanese', text, kana: toHiragana(text) };
     // A word starts after anything that is not a letter or a digit ("to-do", "(eat)").
     return { kind: 'english', text, pattern: new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp(text)}`, 'giu') };
 }
