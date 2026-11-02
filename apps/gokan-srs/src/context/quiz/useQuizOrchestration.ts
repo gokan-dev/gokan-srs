@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch } from 'react';
 import { useLocation } from 'react-router-dom';
 import type { KanjiKnowledge, UserProgress, UserSettings } from '../../models/user.model';
+import { DEFAULT_SETTINGS } from '../../models/user.model';
 import type { Sentence, Vocabulary } from '@gokan/dataset-schema';
 import { StorageService } from '../../services/storage.service';
 import { VocabularyService, VocabNotFoundError } from '../../services/vocabulary.service';
@@ -216,7 +217,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
         dispatch,
         active: sessionRole === 'activity',
         loading: state.isLoadingVocab,
-        romajiInput: state.settings?.romajiInput !== false,
+        romajiInput: state.settings?.romajiInput ?? DEFAULT_SETTINGS.romajiInput,
         refine: (current, grade, answers, onStart) => {
             const settings = state.settings;
             const check = settings?.enableGeminiContext && settings.geminiApiKey

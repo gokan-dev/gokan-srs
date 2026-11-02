@@ -44,6 +44,11 @@ function submitsEmpty(kind: ExerciseKind): boolean {
     }
 }
 
+/** Whether the answer at `index` converts romaji to kana: a Japanese slot, with "Type romaji as kana" on. The one place this is decided. */
+export function slotConvertsRomaji(exercise: Exercise | undefined, index: number, romajiInput: boolean): boolean {
+    return romajiInput && exercise?.slots[index]?.script === 'japanese';
+}
+
 /**
  * The answers as graded: on a slot that converts romaji, all of it converted and a
  * final "n" read as ん ("hon" is ほん), whatever the field last showed. Enter submits
@@ -51,7 +56,7 @@ function submitsEmpty(kind: ExerciseKind): boolean {
  * this is the one place that settles an answer.
  */
 export function submittedAnswers(exercise: Exercise, answers: string[], romajiInput: boolean): string[] {
-    return answers.map((answer, i) => (romajiInput && exercise.slots[i]?.script === 'japanese' ? finishRomajiInput(answer) : answer));
+    return answers.map((answer, i) => (slotConvertsRomaji(exercise, i, romajiInput) ? finishRomajiInput(answer) : answer));
 }
 
 interface UseExerciseTurnOptions {
@@ -126,7 +131,7 @@ export function useExerciseTurn({ host, turn, dispatch, active, loading, romajiI
         canSubmit: !!turn && !turn.feedback && !turn.isEvaluating && !loading
             && turn.exercise.slots.length > 0
             && (submitsEmpty(turn.exercise.kind) || turn.answers.some(a => a.trim().length > 0)),
-        convertsRomaji: index => romajiInput && turn?.exercise.slots[index]?.script === 'japanese',
+        convertsRomaji: index => slotConvertsRomaji(turn?.exercise, index, romajiInput),
         showContinue: !!turn?.feedback && !turn.feedback.grade.autoAdvance,
     };
 
