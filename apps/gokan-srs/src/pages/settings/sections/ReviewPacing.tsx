@@ -40,8 +40,8 @@ interface ReviewPacingProps {
  * the slider while it moves (debounced); the setting is written, and its history
  * appended, only when the slider is let go (its native `change`: a release, a key
  * step, an assistive-tech adjustment), and then only after a short quiet time, so
- * a burst of key steps is one entry (flushed at once on blur and on unmount, so
- * leaving the page never loses it). Never remounted by a commit, so a keyboard
+ * a burst of key steps is one entry (when a pending commit is saved early: see
+ * `SettingSlider`'s `commitDelayMs`). Never remounted by a commit, so a keyboard
  * keeps its focus from one step to the next. When the setting changes from
  * somewhere else (a Drive merge, another commit), the draft follows it, adjusted
  * during render rather than in an effect, so it never shows a stale position.
