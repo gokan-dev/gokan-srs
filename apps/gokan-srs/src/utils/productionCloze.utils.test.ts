@@ -162,6 +162,12 @@ describe('pickProductionClozeSentence: the word as written (PR #195 staging revi
         expect(pickProductionClozeSentence('v1', [inside, whole], noLearner, juugo)?.sentence.id).toBe('whole');
     });
 
+    it('keeps a lone place-value kanji inside a number: 百 in 三百円 is 百 in use', () => {
+        const hyaku = numeral('百', 'ひゃく');
+        const price = makeSentence({ id: 'price', original: '三百円です。', matches: { v1: [{ start: 1, length: 1, reading: 'ひゃく' }] } });
+        expect(pickProductionClozeSentence('v1', [price], noLearner, hyaku)?.sentence.id).toBe('price');
+    });
+
     it('keeps a span in kana as the word as written (conjugated: the 遊んでる case above)', () => {
         const kare = vocabulary({ writtenForm: { kanji: '彼', alternatives: [], containedKanji: ['彼'] }, reading: { primary: 'かれ', alternatives: [] } });
         const kana = makeSentence({ id: 'kana', original: 'かれは来る。', matches: { v1: [{ start: 0, length: 2, reading: 'かれ' }] } });

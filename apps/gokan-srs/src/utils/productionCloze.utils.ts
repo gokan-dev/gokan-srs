@@ -47,9 +47,18 @@ function writesTheWord(surface: string, word: InflectableWord): boolean {
     return word.readings.some(r => r.length > 0 && kana.startsWith(toHiragana(r)[0]));
 }
 
-/** True when a numeral span is part of a longer number: 十五 in 二十五, 三 in 三十. */
+/** The place-value kanji: alone, each is the word in use inside a number (百 in 三百円). */
+const PLACE_VALUE = new Set(['十', '百', '千', '万', '億', '兆']);
+
+/**
+ * True when a numeral span is part of a longer number: 十五 in 二十五, 三 in 三十. A span that
+ * is exactly one place-value kanji is never rejected here (百 in 三百円, 万 in 一万円, 十 in 二十):
+ * there the number is built from that word. A sound-changed one (びゃく in 三百) is still
+ * dropped by the reading guard.
+ */
 function insideLongerNumeral(original: string, match: SentenceMatch): boolean {
     const surface = original.slice(match.start, match.start + match.length);
+    if (PLACE_VALUE.has(surface)) return false;
     const before = original[match.start - 1] ?? '';
     const after = original[match.start + match.length] ?? '';
     return (NUMERAL.test(surface[0] ?? '') && NUMERAL.test(before))
@@ -78,8 +87,8 @@ function insideLongerNumeral(original: string, match: SentenceMatch): boolean {
  * "grow wild" cue (the reported production-quiz bug). `readingMatchesWord` drops
  * such a match; a reading-mismatched sole candidate just falls back to the gloss
  * card. The same guard drops a span that writes the word another way (３ for 三: the card's
- * headword never appears in it) and a numeral inside a longer one (十五 in 二十五): neither is
- * the word in use, and the intro card shows this pick too. (Omitting `vocab` skips the guard -
+ * headword never appears in it) and a numeral inside a longer one (十五 in 二十五, though a lone place-value
+ * kanji is kept: 百 in 三百円): neither is the word in use, and the intro card shows this pick too. (Omitting `vocab` skips the guard -
  * used only by selection-logic tests.)
  *
  * Returns null when no sentence has a usable match - the caller reads that as
