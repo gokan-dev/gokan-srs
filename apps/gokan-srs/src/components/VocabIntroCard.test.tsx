@@ -77,6 +77,9 @@ describe('VocabIntroCard', () => {
         expect(shown?.textContent).toContain('He, work.');
         // The intro is a study card: no play button, as on every quiz card, though the sentence has a clip.
         expect(shown?.querySelector('[data-play-row] button')).toBeNull();
+        // A session card keeps its sentence words out of the Tab order (DESIGN_SYSTEM section 6).
+        expect(shown?.querySelector('[tabindex="0"]')).toBeNull();
+        expect(shown?.querySelector('[role="button"]')).toBeNull();
     });
 
     it('renders no sentence section for a word with no usable sentence', () => {

@@ -1,7 +1,8 @@
-import type { Sentence, Vocabulary } from '@gokan/dataset-schema';
+import { toHiragana } from '@gokan/dataset-schema';
+import type { Sentence, SentenceMatch, Vocabulary } from '@gokan/dataset-schema';
 import type { LearnerVocab } from './sentenceRanking';
 import { pickSentenceForVocab } from './sentenceRanking';
-import { readingMatchesWord, toInflectableWord } from './inflection.utils';
+import { readingMatchesWord, toInflectableWord, type InflectableWord } from './inflection.utils';
 import { glossSpanIn, normalizeGloss } from './synonymContext.utils';
 
 /** The target-vocab fields the cloze guard needs (see pickProductionClozeSentence). */
@@ -30,6 +31,31 @@ export function blankSurfaceOf(cloze: ProductionCloze): string {
     return cloze.sentence.original.slice(cloze.blankStart, cloze.blankStart + cloze.blankLength);
 }
 
+const HAN = /\p{Script=Han}/u;
+/** A numeral's own characters: kanji numerals and digits, half- and full-width. */
+const NUMERAL = /[〇零一二三四五六七八九十百千万億兆0-9０-９]/u;
+
+/**
+ * True when the span is the word as written: it carries one of the word's kanji (食べたら for
+ * 食べる), or it is in kana and starts as a reading does (たべたら, かれ for a word learned in
+ * kana). A span that is neither writes the word another way: ３ for 三, ６ for 六.
+ */
+function writesTheWord(surface: string, word: InflectableWord): boolean {
+    const kanji = new Set([...word.written.join('')].filter(c => HAN.test(c)));
+    if ([...surface].some(c => kanji.has(c))) return true;
+    const kana = toHiragana(surface);
+    return word.readings.some(r => r.length > 0 && kana.startsWith(toHiragana(r)[0]));
+}
+
+/** True when a numeral span is part of a longer number: 十五 in 二十五, 三 in 三十. */
+function insideLongerNumeral(original: string, match: SentenceMatch): boolean {
+    const surface = original.slice(match.start, match.start + match.length);
+    const before = original[match.start - 1] ?? '';
+    const after = original[match.start + match.length] ?? '';
+    return (NUMERAL.test(surface[0] ?? '') && NUMERAL.test(before))
+        || (NUMERAL.test(surface[surface.length - 1] ?? '') && NUMERAL.test(after));
+}
+
 /**
  * Picks the sentence (and blank span within it) to drive this turn's production
  * cloze card, restricted to sentences carrying a usable `matches[vocabId]` entry
@@ -51,7 +77,10 @@ export function blankSurfaceOf(cloze: ProductionCloze): string {
  * without this guard its cloze would blank 遊んでる and grade it correct against a
  * "grow wild" cue (the reported production-quiz bug). `readingMatchesWord` drops
  * such a match; a reading-mismatched sole candidate just falls back to the gloss
- * card. (Omitting `vocab` skips the guard - used only by selection-logic tests.)
+ * card. The same guard drops a span that writes the word another way (３ for 三: the card's
+ * headword never appears in it) and a numeral inside a longer one (十五 in 二十五): neither is
+ * the word in use, and the intro card shows this pick too. (Omitting `vocab` skips the guard -
+ * used only by selection-logic tests.)
  *
  * Returns null when no sentence has a usable match - the caller reads that as
  * "fall back to the gloss-prompt card" (the `production` exercise). Coverage is
@@ -69,7 +98,11 @@ export function pickProductionClozeSentence(
         const matches = s.matches?.[vocabId];
         if (!matches || matches.length === 0) return false;
         // The span this sentence would blank is matches[0] (the first occurrence).
-        return !word || readingMatchesWord(matches[0].reading ?? '', word);
+        const match = matches[0];
+        if (!word) return true;
+        return readingMatchesWord(match.reading ?? '', word)
+            && writesTheWord(s.original.slice(match.start, match.start + match.length), word)
+            && !insideLongerNumeral(s.original, match);
     });
     const sentence = pickSentenceForVocab(vocabId, usable, learner);
     if (!sentence) return null;

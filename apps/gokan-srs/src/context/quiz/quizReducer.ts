@@ -285,6 +285,7 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
                     retiredVocabIds: alreadyRetired ? retired : [...retired, vocabId],
                 },
                 currentVocab: null,
+                introSentence: null,
                 currentQuizItem: null,
                 isLoadingVocab: false,
                 turns: { ...state.turns, vocab: null },

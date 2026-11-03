@@ -61,7 +61,7 @@ export default function VocabIntroCard({ vocab, sentence, onVocabClick, onLearn,
             {/* The word in use: the easiest sentence for this learner, the one its production cloze picks. */}
             {sentence && (
                 <CardSection className="text-center">
-                    <WordSentence vocabId={vocab.id} sentence={sentence} onVocabClick={onVocabClick} playable={false} />
+                    <WordSentence vocabId={vocab.id} sentence={sentence} onVocabClick={onVocabClick} playable={false} keyboardLinks={false} />
                 </CardSection>
             )}
         </IntroCardShell>

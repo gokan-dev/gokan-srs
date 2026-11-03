@@ -138,6 +138,37 @@ describe('pickProductionClozeSentence', () => {
     });
 });
 
+describe('pickProductionClozeSentence: the word as written (PR #195 staging review)', () => {
+    const numeral = (kanji: string, reading: string) => vocabulary({
+        writtenForm: { kanji, alternatives: [], containedKanji: [...kanji] },
+        reading: { primary: reading, alternatives: [] },
+    });
+    const san = numeral('三', 'さん');
+    const juugo = numeral('十五', 'じゅうご');
+
+    it('rejects a span that writes the word as a digit: ３ is not 三 in use', () => {
+        const digit = makeSentence({ id: 'digit', original: '３ドルです。', matches: { v1: [{ start: 0, length: 1, reading: 'さん' }] } });
+        expect(pickProductionClozeSentence('v1', [digit], noLearner, san)).toBeNull();
+        const written = makeSentence({ id: 'kanji', original: '三人です。', matches: { v1: [{ start: 0, length: 1, reading: 'さん' }] } });
+        expect(pickProductionClozeSentence('v1', [digit, written], noLearner, san)?.sentence.id).toBe('kanji');
+    });
+
+    it('rejects a numeral inside a longer one: 十五 in 二十五, 三 in 三十', () => {
+        const inside = makeSentence({ id: 'inside', original: '五の五倍は二十五', matches: { v1: [{ start: 6, length: 2, reading: 'じゅうご' }] } });
+        expect(pickProductionClozeSentence('v1', [inside], noLearner, juugo)).toBeNull();
+        const leading = makeSentence({ id: 'leading', original: '三十人です。', matches: { v1: [{ start: 0, length: 1, reading: 'さん' }] } });
+        expect(pickProductionClozeSentence('v1', [leading], noLearner, san)).toBeNull();
+        const whole = makeSentence({ id: 'whole', original: '彼は十五歳だ。', matches: { v1: [{ start: 2, length: 2, reading: 'じゅうご' }] } });
+        expect(pickProductionClozeSentence('v1', [inside, whole], noLearner, juugo)?.sentence.id).toBe('whole');
+    });
+
+    it('keeps a span in kana as the word as written (conjugated: the 遊んでる case above)', () => {
+        const kare = vocabulary({ writtenForm: { kanji: '彼', alternatives: [], containedKanji: ['彼'] }, reading: { primary: 'かれ', alternatives: [] } });
+        const kana = makeSentence({ id: 'kana', original: 'かれは来る。', matches: { v1: [{ start: 0, length: 2, reading: 'かれ' }] } });
+        expect(pickProductionClozeSentence('v1', [kana], noLearner, kare)?.sentence.id).toBe('kana');
+    });
+});
+
 describe('emphasizeGloss', () => {
     it('bolds the matching gloss in the English sentence, preserving surrounding text', () => {
         const text = 'Poor is not the one who has too little, but the one who wants too much.';

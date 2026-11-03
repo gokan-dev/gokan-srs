@@ -2,9 +2,7 @@ import { useMemo, useState } from "react";
 import type { Sentence } from "@gokan/dataset-schema";
 import { TextButton } from "../../../components/ui/TextButton";
 import { matchesExploreQuery, resultCountLine } from "../../../utils/exploreSearch.utils";
-import { useNavigate } from "react-router-dom";
 import { WordSentence } from "../../../components/WordSentence";
-import { vocabPath } from "../../../utils/navigation.utils";
 import { PanelSearch } from "./PanelSearch";
 import { usePanelQuery } from "./usePanelQuery";
 
@@ -12,7 +10,6 @@ const PAGE = 5;
 
 /** Every example sentence of the word, 5 at a time, searchable, in the dataset's order or shortest first. */
 export function SentencesPanel({ vocabId, sentences }: { vocabId: string; sentences: readonly Sentence[] }) {
-    const navigate = useNavigate();
     const { text, setText, query } = usePanelQuery();
     const [shortestFirst, setShortestFirst] = useState(false);
     const [shown, setShown] = useState(PAGE);
@@ -39,7 +36,7 @@ export function SentencesPanel({ vocabId, sentences }: { vocabId: string; senten
                 )}
             />
             <div className="space-y-4">
-                {matched.slice(0, shown).map(sentence => <WordSentence key={sentence.id} vocabId={vocabId} sentence={sentence} query={query} onVocabClick={vid => void navigate(vocabPath(vid))} />)}
+                {matched.slice(0, shown).map(sentence => <WordSentence key={sentence.id} vocabId={vocabId} sentence={sentence} query={query} />)}
             </div>
             {matched.length > shown && (
                 <TextButton onClick={() => setShown(shown + PAGE)} className="mt-4">

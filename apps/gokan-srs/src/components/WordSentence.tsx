@@ -1,17 +1,21 @@
+import { useNavigate } from "react-router-dom";
 import type { Sentence } from "@gokan/dataset-schema";
 import { InteractiveSentence } from "./InteractiveSentence";
 import { SentenceWithPlay } from "./PlayButton";
 import { Marked } from "./ui/Marked";
 import { englishRanges, type ExploreQuery } from "../utils/exploreSearch.utils";
+import { vocabPath } from "../utils/navigation.utils";
 
 interface WordSentenceProps {
     vocabId: string;
     sentence: Sentence;
-    /** Opens a word: the word page navigates, a session pauses (its own handler). */
-    onVocabClick: (vocabId: string) => void;
+    /** Opens a word: the word page's own by default; a session passes its handler, which pauses. */
+    onVocabClick?: (vocabId: string) => void;
     query?: ExploreQuery | null;
     /** Its play button beside it; off on a study card, where listening is an exercise. */
     playable?: boolean;
+    /** Its words in the Tab order; off on a session card (DESIGN_SYSTEM section 6, Lookup card). */
+    keyboardLinks?: boolean;
 }
 
 /**
@@ -19,7 +23,8 @@ interface WordSentenceProps {
  * other word a link, its play button beside its first line, and its English under it, a search's matches marked.
  * The word page's examples and the intro card's one example.
  */
-export function WordSentence({ vocabId, sentence, onVocabClick, query = null, playable = true }: WordSentenceProps) {
+export function WordSentence({ vocabId, sentence, onVocabClick, query = null, playable = true, keyboardLinks = true }: WordSentenceProps) {
+    const navigate = useNavigate();
     const english = sentence.en[0]?.text;
     return (
         <div data-example-sentence>
@@ -28,9 +33,9 @@ export function WordSentence({ vocabId, sentence, onVocabClick, query = null, pl
                     <InteractiveSentence
                         sentence={sentence}
                         targetVocabId={vocabId}
-                        onVocabClick={onVocabClick}
+                        onVocabClick={onVocabClick ?? (vid => void navigate(vocabPath(vid)))}
                         showFurigana={true}
-                        keyboardLinks
+                        keyboardLinks={keyboardLinks}
                     />
                 </div>
             </SentenceWithPlay>

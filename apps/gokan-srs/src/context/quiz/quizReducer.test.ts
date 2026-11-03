@@ -6,7 +6,7 @@ import { DEFAULT_SETTINGS, PACING_EPOCH } from '../../models/user.model';
 import type { Vocabulary } from '@gokan/dataset-schema';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../../models/vocabulary.model';
 import { CONSTANTS } from '../../commons/constants';
-import { userProgress, userSettings, vocabProgress, vocabulary } from '../../test/fixtures';
+import { sentence, userProgress, userSettings, vocabProgress, vocabulary } from '../../test/fixtures';
 import { vocabExercise } from '../../services/exercise/builders';
 import { newTurn } from './exerciseReducer';
 
@@ -471,6 +471,7 @@ describe('quizReducer', () => {
                     learningQueue: [vocabProgress({ vocabId: 'dead' }), vocabProgress({ vocabId: 'alive' })],
                 }),
                 currentQuizItem: { vocabId: 'dead', quizType: 'reading', quizMode: 'base' },
+                introSentence: sentence(),
                 isLoadingVocab: true,
             };
             const next = quizReducer(state, { type: 'RETIRE_VOCAB', payload: { vocabId: 'dead' } });
@@ -478,6 +479,7 @@ describe('quizReducer', () => {
             expect(next.progress!.retiredVocabIds).toEqual(['dead']);
             expect(next.isLoadingVocab).toBe(false);
             expect(next.currentVocab).toBeNull();
+            expect(next.introSentence).toBeNull();
             expect(next.currentQuizItem).toBeNull();
         });
 
