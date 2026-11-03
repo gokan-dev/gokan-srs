@@ -33,7 +33,8 @@
  *   scrolled to either end and after choosing any tab;
  * - a new word's intro card (a fresh learner's first cards) shows its example sentence, its words
  *   out of the Tab order (a session card, checked on a sentence that links another word), and its
- *   Skip and Learn on the first screen;
+ *   Skip and Learn on the first screen at 320x720 and 375x812 (on a smaller phone, 568 and 667
+ *   tall, a card with many senses may run past it, and the card opens at its top instead);
  * - a due word's page has no Review now;
  * - a sentence word hovered with a mouse at 1280px keeps its hover as its lookup card opens (the
  *   card, growing as its word arrives, never covers it);
@@ -642,8 +643,10 @@ async function checkReviewPacing(tab: Tab, app: string, width: number): Promise<
 
 /**
  * A fresh learner's first cards, new words' intros (issue #184): each one's example sentence, when
- * it has one, wraps (measured: no sideways scroll), and Skip and Learn sit on the first screen,
- * under the sentence, so a long one never pushes them out of reach. Its words stay out of the Tab
+ * it has one, wraps (measured: no sideways scroll), and Skip and Learn sit on the first screen at
+ * the `VIEWPORTS` sizes (320x720 and 375x812), under the sentence. On a smaller phone
+ * (`FIRST_SCREEN`, 568 and 667 tall) a card with many senses may run past the first screen; there
+ * `checkIntroOpensAtTop` holds the card at its top instead. Its words stay out of the Tab
  * order, as on every session card (DESIGN_SYSTEM section 6, Lookup card). The first word's sentence
  * may link no other word, so the cards are skipped through until one does, or that part of the check
  * would hold whatever the card does.
@@ -1067,4 +1070,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows unbroken, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, and Skip and Learn on the first screen, opening at its top on a small phone, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows unbroken, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);
