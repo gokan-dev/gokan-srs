@@ -10,7 +10,9 @@ import { indexLearnerVocab } from "../../utils/sentenceRanking";
 import { organizeSenses, senseNumbers, type ShownSense } from "../../utils/senses.utils";
 import { closestSynonyms, sectionGlossLine, synonymCount, type SynonymSection } from "../../utils/synonymSections.utils";
 import { pickWordExamples } from "../../utils/wordExamples.utils";
-import { WordSentence } from "./WordSentence";
+import { useNavigate } from "react-router-dom";
+import { WordSentence } from "../../components/WordSentence";
+import { vocabPath } from "../../utils/navigation.utils";
 
 const INITIAL_SENSES = 3;
 
@@ -118,6 +120,7 @@ function SenseList({ senses, start }: { senses: ShownSense[]; start: number }) {
 /** Two example sentences (pickWordExamples), and the way to all of them in the Sentences tab. */
 function ExamplesSection({ vocab, sentences, onShowAll }: { vocab: Vocabulary; sentences: readonly Sentence[]; onShowAll: () => void }) {
     const { state } = useQuiz();
+    const navigate = useNavigate();
     const queue = state.progress?.learningQueue;
     const examples = useMemo(() => {
         const firstSense = organizeSenses(vocab.senses).common[0]?.sense.glosses ?? vocab.senses[0]?.glosses ?? [];
@@ -132,7 +135,7 @@ function ExamplesSection({ vocab, sentences, onShowAll }: { vocab: Vocabulary; s
                 : undefined}
         >
             <div className="space-y-4">
-                {examples.map(sentence => <WordSentence key={sentence.id} vocabId={vocab.id} sentence={sentence} />)}
+                {examples.map(sentence => <WordSentence key={sentence.id} vocabId={vocab.id} sentence={sentence} onVocabClick={vid => void navigate(vocabPath(vid))} />)}
             </div>
         </DetailSection>
     );

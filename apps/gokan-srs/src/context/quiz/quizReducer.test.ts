@@ -108,7 +108,7 @@ describe('quizReducer', () => {
     it('LOAD_VOCAB_SUCCESS sets the word and its exercise, ready to answer, and clears loading', () => {
         const vocab = makeVocab();
         const { exercise } = readingTurn();
-        const next = quizReducer(initialState, { type: 'LOAD_VOCAB_SUCCESS', payload: { vocab, exercise } });
+        const next = quizReducer(initialState, { type: 'LOAD_VOCAB_SUCCESS', payload: { vocab, exercise, introSentence: null } });
 
         expect(next.currentVocab).toBe(vocab);
         expect(next.turns.vocab).toEqual(newTurn(exercise));
@@ -116,7 +116,7 @@ describe('quizReducer', () => {
     });
 
     it('LOAD_VOCAB_SUCCESS without a queue item leaves no card on screen', () => {
-        const next = quizReducer(initialState, { type: 'LOAD_VOCAB_SUCCESS', payload: { vocab: null, exercise: null } });
+        const next = quizReducer(initialState, { type: 'LOAD_VOCAB_SUCCESS', payload: { vocab: null, exercise: null, introSentence: null } });
         expect(next.turns.vocab).toBeNull();
     });
 

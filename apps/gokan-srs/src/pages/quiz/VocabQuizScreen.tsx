@@ -64,6 +64,8 @@ export function VocabQuizScreen({ onVocabClick }: VocabQuizScreenProps) {
                 return (
                     <VocabIntroCard
                         vocab={state.currentVocab}
+                        sentence={state.introSentence}
+                        onVocabClick={onVocabClick}
                         onLearn={() => actions.saveVocabIntroChoice(state.currentVocab!, 'learn')}
                         onSkip={() => actions.saveVocabIntroChoice(state.currentVocab!, 'skip')}
                     />
