@@ -31,6 +31,10 @@
  * - a word page's tab row too wide for a phone runs to the screen's edge on each side it has tabs
  *   past, with a tab cut by that edge, so the row shows it scrolls (no tab hidden at the padding),
  *   scrolled to either end and after choosing any tab;
+ * - a new word's intro card (a fresh learner's first cards) shows its example sentence, its words
+ *   out of the Tab order (a session card, checked on a sentence that links another word), and its
+ *   Skip and Learn on the first screen at 320x720 and 375x812 (on a smaller phone, 568 and 667
+ *   tall, a card with many senses may run past it, and the card opens at its top instead);
  * - a due word's page has no Review now;
  * - a sentence word hovered with a mouse at 1280px keeps its hover as its lookup card opens (the
  *   card, growing as its word arrives, never covers it);
@@ -638,6 +642,77 @@ async function checkReviewPacing(tab: Tab, app: string, width: number): Promise<
 }
 
 /**
+ * A fresh learner's first cards, new words' intros (issue #184): each one's example sentence, when
+ * it has one, wraps (measured: no sideways scroll), and Skip and Learn sit on the first screen at
+ * the `VIEWPORTS` sizes (320x720 and 375x812), under the sentence. On a smaller phone
+ * (`FIRST_SCREEN`, 568 and 667 tall) a card with many senses may run past the first screen; there
+ * `checkIntroOpensAtTop` holds the card at its top instead. Its words stay out of the Tab
+ * order, as on every session card (DESIGN_SYSTEM section 6, Lookup card). The first word's sentence
+ * may link no other word, so the cards are skipped through until one does, or that part of the check
+ * would hold whatever the card does.
+ */
+const INTRO_CARD = `(() => {
+    const bottoms = ['Skip', 'Learn'].map(label => [...document.querySelectorAll('form button')].find(el => el.textContent.trim() === label)?.getBoundingClientRect().bottom ?? null);
+    const shown = document.querySelector('[data-example-sentence]');
+    return {
+        bottoms,
+        sentence: shown?.textContent ?? null,
+        linked: shown?.querySelectorAll('[data-lookup-trigger]').length ?? 0,
+        tabbable: shown?.querySelectorAll('[tabindex="0"]').length ?? 0,
+        card: document.querySelector('form')?.parentElement?.textContent ?? '',
+    };
+})()`;
+
+/** How many intro cards to skip through looking for a sentence that links another word. */
+const INTRO_CARDS = 8;
+
+async function checkIntroCard(tab: Tab, app: string, width: number, height: number): Promise<void> {
+    await tab.goto(`${app}/quiz`, 'Skip');
+    let sawSentence = false;
+    let sawLinked = false;
+    for (let n = 1; n <= INTRO_CARDS && !sawLinked; n++) {
+        const page = `srs /quiz, a new word's intro (card ${n})`;
+        await measure(tab, page, width);
+        const card = await tab.evaluate<{ bottoms: (number | null)[]; sentence: string | null; linked: number; tabbable: number; card: string }>(INTRO_CARD);
+        if (card.sentence !== null) sawSentence = true;
+        if (card.linked > 0) sawLinked = true;
+        if (card.tabbable > 0) failures.push(`${width}px ${page}: ${card.tabbable} sentence word(s) in the Tab order (${card.sentence}): a session card keeps them out (keyboardLinks off)`);
+        for (const [i, label] of ['Skip', 'Learn'].entries()) {
+            const bottom = card.bottoms[i];
+            if (bottom === null || bottom === undefined) failures.push(`${width}px ${page}: no ${label} button`);
+            else if (bottom > height) failures.push(`${width}px ${page}: ${label} ends ${Math.round(bottom)}px down, below the first screen (${height}px)`);
+        }
+        if (sawLinked || n === INTRO_CARDS) break;
+        await tab.click('Skip');
+        await tab.until(`(document.querySelector('form')?.parentElement?.textContent ?? '') !== ${JSON.stringify(card.card)} && document.body.innerText.includes('Skip')`, `the intro card after card ${n}`, 10000);
+    }
+    const page = 'srs /quiz, new words\' intros';
+    if (!sawSentence) failures.push(`${width}px ${page}: no example sentence on the first ${INTRO_CARDS} cards: pick a learning order whose first words have one`);
+    else if (!sawLinked) failures.push(`${width}px ${page}: no sentence on the first ${INTRO_CARDS} cards links another word, so its Tab order goes unchecked: pick a learning order whose first words have one`);
+}
+
+/**
+ * A new word's intro opens at its top on a small phone (DESIGN_SYSTEM section 1: the headword
+ * first). The mount focus on Learn must not scroll a card taller than the screen down to its
+ * buttons, hiding the word it introduces; they are reached by scrolling. Measured on a fresh
+ * learner's first card (一日, eight lines of glosses), which is taller than 568px.
+ */
+async function checkIntroOpensAtTop(tab: Tab, app: string, width: number, restoreHeight: number): Promise<void> {
+    const height = FIRST_SCREEN[width];
+    if (height === undefined) return;
+    await tab.resize(width, height);
+    await tab.goto(`${app}/quiz`, 'Skip');
+    const opened = await tab.evaluate<{ scrollY: number; focused: string }>(`new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve({
+        scrollY: window.scrollY,
+        focused: document.activeElement?.textContent?.trim() ?? '',
+    }))))`);
+    const page = `srs /quiz, a new word's intro (card 1)`;
+    if (opened.scrollY !== 0) failures.push(`${width}x${height} ${page}: opens scrolled ${Math.round(opened.scrollY)}px down, so the headword is off the top (focus Learn with preventScroll)`);
+    if (opened.focused !== 'Learn') failures.push(`${width}x${height} ${page}: Learn does not have focus on mount (has: ${JSON.stringify(opened.focused)})`);
+    await tab.resize(width, restoreHeight);
+}
+
+/**
  * Learns the word on the open page, through its "Learn this word", and opens its Study tab. A
  * page without the button is a failure: the steps after it must measure a studied word.
  */
@@ -910,6 +985,9 @@ try {
         await tab.goto(`${app}/listening`, 'Watching ·');
         await tab.until(`document.body.innerText.includes('Completed')`, 'a completed title in the library');
         await measure(tab, 'srs /listening, watching and completed titles', width);
+        // After the library: skipping intro cards marks words known, which reorders it.
+        await checkIntroOpensAtTop(tab, app, width, height);
+        await checkIntroCard(tab, app, width, height);
         await measureFuriganaFixture(tab, `${app}/vocab/${FURIGANA_VOCAB}`, 'Examples', `srs /vocab/${FURIGANA_VOCAB}`, width, `${PLAY_BUTTONS}, ${PAGE_TABS}`);
         await checkSentencePlayButtons(tab, `srs /vocab/${FURIGANA_VOCAB}`, width);
         await checkExamplesUnruled(tab, `srs /vocab/${FURIGANA_VOCAB}`, width);
@@ -992,4 +1070,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows unbroken, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows unbroken, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);

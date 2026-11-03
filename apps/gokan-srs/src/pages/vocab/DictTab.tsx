@@ -10,7 +10,7 @@ import { indexLearnerVocab } from "../../utils/sentenceRanking";
 import { organizeSenses, senseNumbers, type ShownSense } from "../../utils/senses.utils";
 import { closestSynonyms, sectionGlossLine, synonymCount, type SynonymSection } from "../../utils/synonymSections.utils";
 import { pickWordExamples } from "../../utils/wordExamples.utils";
-import { WordSentence } from "./WordSentence";
+import { WordSentence } from "../../components/WordSentence";
 
 const INITIAL_SENSES = 3;
 

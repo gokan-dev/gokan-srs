@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import type { Sentence } from "@gokan/dataset-schema";
 import { TextButton } from "../../../components/ui/TextButton";
 import { matchesExploreQuery, resultCountLine } from "../../../utils/exploreSearch.utils";
-import { WordSentence } from "../WordSentence";
+import { WordSentence } from "../../../components/WordSentence";
 import { PanelSearch } from "./PanelSearch";
 import { usePanelQuery } from "./usePanelQuery";
 

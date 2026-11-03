@@ -1,19 +1,23 @@
 import { headwordOf } from "@gokan/dataset-schema";
-import type { Vocabulary } from "@gokan/dataset-schema";
+import type { Sentence, Vocabulary } from "@gokan/dataset-schema";
 import { CardSection } from "./ui/CardSection";
 import { KanjiSpellingNote } from "./KanjiSpellingNote";
 import { formatReadingList } from "../pages/quiz/quizFormatting";
 import { JlptChip } from "./JlptChip";
 import { IntroCardShell } from "./IntroCardShell";
-
+import { WordSentence } from "./WordSentence";
 
 interface IntroVocabCardProps {
     vocab: Vocabulary;
+    /** The word in use (cardSentences.ts); null shows no sentence section. */
+    sentence: Sentence | null;
+    /** Opens a word of the sentence; in a session it pauses, never ends. */
+    onVocabClick: (vocabId: string) => void;
     onLearn: () => void;
     onSkip: () => void;
 }
 
-export default function VocabIntroCard({ vocab, onLearn, onSkip }: IntroVocabCardProps) {
+export default function VocabIntroCard({ vocab, sentence, onVocabClick, onLearn, onSkip }: IntroVocabCardProps) {
     return (
         <IntroCardShell onLearn={onLearn} onSkip={onSkip} learnLabel="Learn this word">
             {/* Kanji */}
@@ -53,6 +57,13 @@ export default function VocabIntroCard({ vocab, onLearn, onSkip }: IntroVocabCar
                     ))}
                 </div>
             </CardSection>
+
+            {/* The word in use: the easiest sentence for this learner, the one its production cloze picks. */}
+            {sentence && (
+                <CardSection className="text-center">
+                    <WordSentence vocabId={vocab.id} sentence={sentence} onVocabClick={onVocabClick} playable={false} keyboardLinks={false} />
+                </CardSection>
+            )}
         </IntroCardShell>
     );
 }

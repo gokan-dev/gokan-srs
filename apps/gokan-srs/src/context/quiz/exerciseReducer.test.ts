@@ -24,7 +24,7 @@ const grammarCard = () => grammarExercise(grammarPoint(), {
 });
 
 const withVocabCard = (state: QuizState = initialState) =>
-    quizReducer(state, { type: 'LOAD_VOCAB_SUCCESS', payload: { vocab: vocabulary(), exercise: readingCard() } });
+    quizReducer(state, { type: 'LOAD_VOCAB_SUCCESS', payload: { vocab: vocabulary(), exercise: readingCard(), introSentence: null } });
 const withGrammarCard = (state: QuizState = initialState) =>
     quizReducer(state, { type: 'GRAMMAR_LOAD_SUCCESS', payload: { point: grammarPoint(), exercise: grammarCard() } });
 
@@ -104,7 +104,7 @@ describe('exerciseReducer (via quizReducer)', () => {
             });
             const cloze = { sentence: { id: 's1', original: '野菜を食べたら？', en: [], vocabIds: ['taberu'] }, blankStart: 3, blankLength: 4, blankReading: 'たべたら' };
             const exercise = vocabExercise(taberu, { quizType: 'production', quizMode: 'base' }, { sentence: null, cloze });
-            const loaded = quizReducer(initialState, { type: 'LOAD_VOCAB_SUCCESS', payload: { vocab: taberu, exercise } });
+            const loaded = quizReducer(initialState, { type: 'LOAD_VOCAB_SUCCESS', payload: { vocab: taberu, exercise, introSentence: null } });
 
             expect(revealHint(loaded, 'vocab', 0, true).turns.vocab!.answers).toEqual(['食べたら']);
         });

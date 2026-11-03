@@ -3,7 +3,7 @@ import type { Dispatch } from 'react';
 import { useLocation } from 'react-router-dom';
 import type { KanjiKnowledge, UserProgress, UserSettings } from '../../models/user.model';
 import { DEFAULT_SETTINGS } from '../../models/user.model';
-import type { Sentence, Vocabulary } from '@gokan/dataset-schema';
+import type { Vocabulary } from '@gokan/dataset-schema';
 import { StorageService } from '../../services/storage.service';
 import { VocabularyService, VocabNotFoundError } from '../../services/vocabulary.service';
 import { SRSService } from '../../services/srs.service';
@@ -17,13 +17,12 @@ import type { SetupValues } from '../../models/state.model';
 import { clearStaleNeedsRetry, syncUsuallyKana } from '../../utils/srs.utils';
 import { usuallyKanaBudget } from '../../utils/usuallyKana.utils';
 import { nextKanjiStep } from '../../utils/kanjiOrder.utils';
-import { pickProductionClozeSentence } from '../../utils/productionCloze.utils';
-import type { ProductionCloze } from '../../utils/productionCloze.utils';
-import { indexLearnerVocab, pickSentenceForVocab } from '../../utils/sentenceRanking';
+import { indexLearnerVocab } from '../../utils/sentenceRanking';
 import { mergeProgress, mergeSettings } from '../../services/sync/mergeProgress';
 import { useGoogleDrive } from '../useGoogleDrive';
 import type { QuizState, QuizAction } from './quizReducer';
 import { useExerciseTurn } from './useExerciseTurn';
+import { awaitsIntro, needsSentences, resolveCardSentences, upcomingIntroIds } from './cardSentences';
 import { selectNextView, selectCurrentProgress, selectSessionStats, selectNextSessionPreview, collectActionableTaskKeys, capSessionCommit, dedupTaskKeysByVocab } from './quizSelectors';
 import { useSessionLifecycle } from './useSessionLifecycle';
 import { sessionRouteRole } from './sessionRoutes';
@@ -534,7 +533,7 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
         const queueItem = nextView.queueItem;
 
         if (!queueItem) {
-            dispatch({ type: 'LOAD_VOCAB_SUCCESS', payload: { vocab: null, exercise: null } });
+            dispatch({ type: 'LOAD_VOCAB_SUCCESS', payload: { vocab: null, exercise: null, introSentence: null } });
 
             if (state.progress && state.settings && (nextView.sessionState === 'learn' || nextView.sessionState === 'exhausted')) {
                 void actions.advanceQueue({ now: new Date() });
@@ -585,43 +584,28 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
         const loadKey = `${vid}:${quizType}:${queueItem.quizMode}`;
         loadingKeyRef.current = loadKey;
 
-        // Every production card needs sentences fetched up front to decide whether a
-        // usable cloze match exists at all - unlike meaning's context mode, that
-        // decision can't be made before the fetch (it depends on which sentences the
-        // dataset actually resolved a match for), so it happens below once loaded
-        // rather than by picking a quizMode synchronously in getNextVocabToStudy.
-        const needsSentences = (quizType === 'meaning' && queueItem.quizMode === 'context') || quizType === 'production';
+        // Which cards need the word's sentences before they render, and which sentence
+        // each shows, are decided in cardSentences.ts (the intro included).
+        const intro = awaitsIntro(state.progress?.learningQueue, vid);
 
         Promise.all([
             VocabularyService.loadVocab(vid),
-            needsSentences ? VocabularyService.loadSentences(vid) : Promise.resolve(null),
+            needsSentences(queueItem, intro) ? VocabularyService.loadSentences(vid) : Promise.resolve(null),
         ]).then(([vocab, sentences]) => {
             if (loadingKeyRef.current !== loadKey) return; // superseded by a newer target
 
-            let sentence: Sentence | null = null;
-            let cloze: ProductionCloze | null = null;
-
-            // Both sentence-driven cards rank the word's sentences with the shared
-            // ranker (utils/sentenceRanking.ts), the same rule the grammar review uses.
-            const learner = indexLearnerVocab(state.progress?.learningQueue);
-
+            // Every sentence-driven card ranks the word's sentences with the shared ranker
+            // (utils/sentenceRanking.ts), the same rule the grammar review uses.
             // Near-synonyms need nothing loaded here: each entry on the vocab file
             // carries the other word's forms, which the grader checks only after a
             // wrong answer (services/exercise/grading.ts).
-            if (quizType === 'production') {
-                if (sentences && sentences.length > 0) {
-                    // Pass the loaded vocab so the cloze guard rejects a sentence whose
-                    // blanked span is a differently-read homograph (遊ぶ/あそぶ matched to
-                    // the rare すさぶ entry) - see pickProductionClozeSentence.
-                    cloze = pickProductionClozeSentence(vid, sentences, learner, vocab);
-                }
-            } else if (sentences && sentences.length > 0) {
-                sentence = pickSentenceForVocab(vid, sentences, learner) ?? null;
-            }
+            const { sentence, cloze, introSentence } = resolveCardSentences(
+                vid, vocab, queueItem, intro, sentences, indexLearnerVocab(state.progress?.learningQueue),
+            );
 
             // The card's exercise is built once, here: what it asks, what decides a
             // synonym, and what it shows (services/exercise/builders.ts).
-            dispatch({ type: 'LOAD_VOCAB_SUCCESS', payload: { vocab, exercise: vocabExercise(vocab, queueItem, { sentence, cloze }) } });
+            dispatch({ type: 'LOAD_VOCAB_SUCCESS', payload: { vocab, exercise: vocabExercise(vocab, queueItem, { sentence, cloze }), introSentence } });
         }).catch(err => {
             if (loadingKeyRef.current !== loadKey) return;
             // A vocab the dataset dropped (file genuinely absent) is retired, not
@@ -637,6 +621,22 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the next item, progress and route; the load guard compares currentQuizItem, so helpers are stable inputs
     }, [nextView.queueItem, state.progress, state.settings, nextView.sessionState, location.pathname]);
+
+    // Warm the next intros' files while a card is up, so Skip or Learn does not flash the
+    // loading screen on their two downloads. Its own effect, so it also runs when the intro
+    // candidates arrive after the card loaded (they are fetched asynchronously). Fire and
+    // forget: the requests are cached (RequestCache), so the card's own load shares them and
+    // retries a failed one; a vocab failure there is fatal, a sentence failure shows the card
+    // without a sentence.
+    const currentVocabId = state.currentVocab?.id;
+    const learningQueue = state.progress?.learningQueue;
+    useEffect(() => {
+        if (currentVocabId === undefined) return;
+        for (const id of upcomingIntroIds(state.introCandidates, learningQueue, currentVocabId)) {
+            VocabularyService.loadVocab(id).catch(() => undefined);
+            void VocabularyService.loadSentences(id);
+        }
+    }, [state.introCandidates, learningQueue, currentVocabId]);
 
     return { actions, exercise, nextView, currentProgress, sessionStats, nextSessionPreview };
 }

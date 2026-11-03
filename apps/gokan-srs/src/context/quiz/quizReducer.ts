@@ -5,7 +5,7 @@ import type {
 } from '../../models/user.model';
 import { insertAtFraction } from '../../utils/insertAtFraction';
 import type { ProgressWithMetadata } from '../../services/sync/types';
-import type { Vocabulary } from '@gokan/dataset-schema';
+import type { Sentence, Vocabulary } from '@gokan/dataset-schema';
 import type { WatchedEpisode } from '../../models/media.model';
 import type { ShownResult } from '../../services/exercise/effects';
 import { SRSService } from '../../services/srs.service';
@@ -102,6 +102,8 @@ interface QuizStateBase {
     settings: UserSettings | null;
     /** The word whose card is on screen; its exercise (answers, feedback) is turns.vocab. */
     currentVocab: Vocabulary | null;
+    /** The example the word's intro card shows (cardSentences.ts); null shows none. */
+    introSentence: Sentence | null;
     currentQuizItem: PendingQuizItem | null;
     isLoadingVocab: boolean;
     introCandidates: Vocabulary[]; // Potential new items, not yet in learningQueue
@@ -136,7 +138,7 @@ export type QuizAction =
     | { type: 'SETUP_COMPLETE'; payload: { progress: UserProgress; settings: UserSettings } }
     | { type: 'LOAD_VOCAB_START'; payload: PendingQuizItem }
     /** The loaded word and the exercise built for it (services/exercise/builders.ts); both null when nothing is due. */
-    | { type: 'LOAD_VOCAB_SUCCESS'; payload: { vocab: Vocabulary | null; exercise: Exercise | null } }
+    | { type: 'LOAD_VOCAB_SUCCESS'; payload: { vocab: Vocabulary | null; exercise: Exercise | null; introSentence: Sentence | null } }
     | { type: 'LOAD_VOCAB_ERROR'; payload: { vocabId: string, error: unknown } }
     /** The vocab's data no longer exists in the dataset: drop it from learningQueue and tombstone it in retiredVocabIds so it is never served again (even if a merge respawns it). See VocabNotFoundError. */
     | { type: 'RETIRE_VOCAB'; payload: { vocabId: string } }
@@ -176,6 +178,7 @@ export const initialState: QuizState = {
     progressLoaded: false,
     settings: null,
     currentVocab: null,
+    introSentence: null,
     currentQuizItem: null,
     isLoadingVocab: false,
     introCandidates: [],
@@ -241,6 +244,7 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
             return {
                 ...withTurn(state, 'vocab', action.payload.exercise && newTurn(action.payload.exercise)),
                 currentVocab: action.payload.vocab,
+                introSentence: action.payload.introSentence,
                 isLoadingVocab: false,
             };
 
@@ -281,6 +285,7 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
                     retiredVocabIds: alreadyRetired ? retired : [...retired, vocabId],
                 },
                 currentVocab: null,
+                introSentence: null,
                 currentQuizItem: null,
                 isLoadingVocab: false,
                 turns: { ...state.turns, vocab: null },

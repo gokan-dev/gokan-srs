@@ -42,7 +42,9 @@ export function IntroCardShell({
 
     useEffect(() => {
         const lastChild = formRef.current?.lastElementChild as HTMLElement | undefined;
-        lastChild?.focus();
+        // preventScroll: on a short phone a long card would otherwise open scrolled down to
+        // the buttons, hiding the headword it introduces; Learn is reached by scrolling.
+        lastChild?.focus({ preventScroll: true });
     }, []);
 
     return (

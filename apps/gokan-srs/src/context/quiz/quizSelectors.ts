@@ -5,6 +5,7 @@ import { getNextVocabToStudy, isMeaningActionable, isProductionActionable, isRea
 import type { QuizType } from '../../utils/srs.utils';
 import { CONSTANTS } from '../../commons/constants';
 import type { PendingQuizItem, QuizState, TaskKey } from './quizReducer';
+import { awaitsIntro } from './cardSentences';
 import { taskKey } from './quizReducer';
 import { computeSessionState } from './sessionState';
 import { computeSessionStats } from './sessionStats';
@@ -73,8 +74,7 @@ export function selectNextView(
 
     let shouldShowIntro = false;
     if (state.currentVocab && progress) {
-        const vocabProgress = progress.learningQueue.find(v => v.vocabId === state.currentVocab!.id);
-        shouldShowIntro = !vocabProgress || !vocabProgress.introductionAt;
+        shouldShowIntro = awaitsIntro(progress.learningQueue, state.currentVocab.id);
     }
 
     // The session cleared everything it committed to, but the cap (or work that came
