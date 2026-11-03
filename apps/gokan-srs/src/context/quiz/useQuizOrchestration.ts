@@ -606,15 +606,6 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             // The card's exercise is built once, here: what it asks, what decides a
             // synonym, and what it shows (services/exercise/builders.ts).
             dispatch({ type: 'LOAD_VOCAB_SUCCESS', payload: { vocab, exercise: vocabExercise(vocab, queueItem, { sentence, cloze }), introSentence } });
-
-            // Warm the next intros' files while this card is up, so Skip or Learn does not
-            // flash the loading screen on their two downloads. Fire and forget: the requests
-            // are cached (RequestCache), so the card's own load shares them, and a failure here
-            // is ignored because that load retries it and still fails loudly.
-            for (const id of upcomingIntroIds(state.introCandidates, state.progress?.learningQueue, vid)) {
-                VocabularyService.loadVocab(id).catch(() => undefined);
-                void VocabularyService.loadSentences(id);
-            }
         }).catch(err => {
             if (loadingKeyRef.current !== loadKey) return;
             // A vocab the dataset dropped (file genuinely absent) is retired, not
@@ -630,6 +621,22 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the next item, progress and route; the load guard compares currentQuizItem, so helpers are stable inputs
     }, [nextView.queueItem, state.progress, state.settings, nextView.sessionState, location.pathname]);
+
+    // Warm the next intros' files while a card is up, so Skip or Learn does not flash the
+    // loading screen on their two downloads. Its own effect, so it also runs when the intro
+    // candidates arrive after the card loaded (they are fetched asynchronously). Fire and
+    // forget: the requests are cached (RequestCache), so the card's own load shares them and
+    // retries a failed one; a vocab failure there is fatal, a sentence failure shows the card
+    // without a sentence.
+    const currentVocabId = state.currentVocab?.id;
+    const learningQueue = state.progress?.learningQueue;
+    useEffect(() => {
+        if (currentVocabId === undefined) return;
+        for (const id of upcomingIntroIds(state.introCandidates, learningQueue, currentVocabId)) {
+            VocabularyService.loadVocab(id).catch(() => undefined);
+            void VocabularyService.loadSentences(id);
+        }
+    }, [state.introCandidates, learningQueue, currentVocabId]);
 
     return { actions, exercise, nextView, currentProgress, sessionStats, nextSessionPreview };
 }
