@@ -31,8 +31,9 @@
  * - a word page's tab row too wide for a phone runs to the screen's edge on each side it has tabs
  *   past, with a tab cut by that edge, so the row shows it scrolls (no tab hidden at the padding),
  *   scrolled to either end and after choosing any tab;
- * - a new word's intro card (a fresh learner's first card) shows its example sentence, its words
- *   out of the Tab order (a session card), and its Skip and Learn on the first screen;
+ * - a new word's intro card (a fresh learner's first cards) shows its example sentence, its words
+ *   out of the Tab order (a session card, checked on a sentence that links another word), and its
+ *   Skip and Learn on the first screen;
  * - a due word's page has no Review now;
  * - a sentence word hovered with a mouse at 1280px keeps its hover as its lookup card opens (the
  *   card, growing as its word arrives, never covers it);
@@ -640,32 +641,51 @@ async function checkReviewPacing(tab: Tab, app: string, width: number): Promise<
 }
 
 /**
- * A fresh learner's first card, a new word's intro (issue #184): its example sentence, when it has
- * one, wraps (measured: no sideways scroll), and Skip and Learn sit on the first screen, under the
- * sentence, so a long one never pushes them out of reach. Its words stay out of the Tab order, as on
- * every session card (DESIGN_SYSTEM section 6, Lookup card).
+ * A fresh learner's first cards, new words' intros (issue #184): each one's example sentence, when
+ * it has one, wraps (measured: no sideways scroll), and Skip and Learn sit on the first screen,
+ * under the sentence, so a long one never pushes them out of reach. Its words stay out of the Tab
+ * order, as on every session card (DESIGN_SYSTEM section 6, Lookup card). The first word's sentence
+ * may link no other word, so the cards are skipped through until one does, or that part of the check
+ * would hold whatever the card does.
  */
-const INTRO_BUTTONS = `(() => {
+const INTRO_CARD = `(() => {
     const bottoms = ['Skip', 'Learn'].map(label => [...document.querySelectorAll('form button')].find(el => el.textContent.trim() === label)?.getBoundingClientRect().bottom ?? null);
+    const shown = document.querySelector('[data-example-sentence]');
     return {
         bottoms,
-        sentence: document.querySelector('[data-example-sentence]') !== null,
-        tabbable: document.querySelectorAll('[data-example-sentence] [tabindex="0"]').length,
+        sentence: shown?.textContent ?? null,
+        linked: shown?.querySelectorAll('[data-lookup-trigger]').length ?? 0,
+        tabbable: shown?.querySelectorAll('[tabindex="0"]').length ?? 0,
+        card: document.querySelector('form')?.parentElement?.textContent ?? '',
     };
 })()`;
 
+/** How many intro cards to skip through looking for a sentence that links another word. */
+const INTRO_CARDS = 8;
+
 async function checkIntroCard(tab: Tab, app: string, width: number, height: number): Promise<void> {
-    const page = 'srs /quiz, a new word\'s intro';
     await tab.goto(`${app}/quiz`, 'Skip');
-    await measure(tab, page, width);
-    const { bottoms, sentence, tabbable } = await tab.evaluate<{ bottoms: (number | null)[]; sentence: boolean; tabbable: number }>(INTRO_BUTTONS);
-    if (!sentence) failures.push(`${width}px ${page}: no example sentence: the first word has none to measure, pick a learning order whose first word does`);
-    if (tabbable > 0) failures.push(`${width}px ${page}: ${tabbable} sentence word(s) in the Tab order: a session card keeps them out (keyboardLinks off)`);
-    for (const [i, label] of ['Skip', 'Learn'].entries()) {
-        const bottom = bottoms[i];
-        if (bottom === null || bottom === undefined) failures.push(`${width}px ${page}: no ${label} button`);
-        else if (bottom > height) failures.push(`${width}px ${page}: ${label} ends ${Math.round(bottom)}px down, below the first screen (${height}px)`);
+    let sawSentence = false;
+    let sawLinked = false;
+    for (let n = 1; n <= INTRO_CARDS && !sawLinked; n++) {
+        const page = `srs /quiz, a new word's intro (card ${n})`;
+        await measure(tab, page, width);
+        const card = await tab.evaluate<{ bottoms: (number | null)[]; sentence: string | null; linked: number; tabbable: number; card: string }>(INTRO_CARD);
+        if (card.sentence !== null) sawSentence = true;
+        if (card.linked > 0) sawLinked = true;
+        if (card.tabbable > 0) failures.push(`${width}px ${page}: ${card.tabbable} sentence word(s) in the Tab order (${card.sentence}): a session card keeps them out (keyboardLinks off)`);
+        for (const [i, label] of ['Skip', 'Learn'].entries()) {
+            const bottom = card.bottoms[i];
+            if (bottom === null || bottom === undefined) failures.push(`${width}px ${page}: no ${label} button`);
+            else if (bottom > height) failures.push(`${width}px ${page}: ${label} ends ${Math.round(bottom)}px down, below the first screen (${height}px)`);
+        }
+        if (sawLinked || n === INTRO_CARDS) break;
+        await tab.click('Skip');
+        await tab.until(`(document.querySelector('form')?.parentElement?.textContent ?? '') !== ${JSON.stringify(card.card)} && document.body.innerText.includes('Skip')`, `the intro card after card ${n}`, 10000);
     }
+    const page = 'srs /quiz, new words\' intros';
+    if (!sawSentence) failures.push(`${width}px ${page}: no example sentence on the first ${INTRO_CARDS} cards: pick a learning order whose first words have one`);
+    else if (!sawLinked) failures.push(`${width}px ${page}: no sentence on the first ${INTRO_CARDS} cards links another word, so its Tab order goes unchecked: pick a learning order whose first words have one`);
 }
 
 /**
@@ -927,7 +947,6 @@ try {
         await measure(tab, 'srs /setup, individual kanji', width);
         await checkDoneMarking(tab, width, height);
         await tab.click('Start learning');
-        await checkIntroCard(tab, app, width, height);
         for (const route of SRS_ROUTES) {
             await tab.goto(`${app}${route.path}`, route.ready);
             if (route.settled) await tab.until(`document.querySelector(${JSON.stringify(route.settled)}) !== null`, `${route.settled} on ${route.path}`, 10000);
@@ -942,6 +961,8 @@ try {
         await tab.goto(`${app}/listening`, 'Watching ·');
         await tab.until(`document.body.innerText.includes('Completed')`, 'a completed title in the library');
         await measure(tab, 'srs /listening, watching and completed titles', width);
+        // After the library: skipping intro cards marks words known, which reorders it.
+        await checkIntroCard(tab, app, width, height);
         await measureFuriganaFixture(tab, `${app}/vocab/${FURIGANA_VOCAB}`, 'Examples', `srs /vocab/${FURIGANA_VOCAB}`, width, `${PLAY_BUTTONS}, ${PAGE_TABS}`);
         await checkSentencePlayButtons(tab, `srs /vocab/${FURIGANA_VOCAB}`, width);
         await checkExamplesUnruled(tab, `srs /vocab/${FURIGANA_VOCAB}`, width);
