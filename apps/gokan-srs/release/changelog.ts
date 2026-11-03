@@ -14,6 +14,12 @@ import type { ChangelogEntry } from '../src/models/release.model';
  */
 export const CHANGELOG: readonly ChangelogEntry[] = [
     {
+        version: '1.49.0',
+        date: '2026-11-03',
+        summary: "A new word's intro card now shows it in one example sentence, the easiest for you to read, with furigana and its English.",
+        issue: 184,
+    },
+    {
         version: '1.48.0',
         date: '2026-11-02',
         summary: 'Japanese answers can now be typed in romaji, turned into kana as you type (taberu becomes たべる), with no Japanese keyboard needed; a katakana word answered in hiragana now counts as right.',
