@@ -12,8 +12,14 @@ function untypeable(readings: string[]): string[] {
     return readings.filter(reading => finishRomajiInput(kanaToRomaji(reading)) !== toHiragana(reading));
 }
 
+// Reading every vocab file (about 36k) is the whole cost; the check itself takes 0.1s. That is
+// under the default 5s on Linux CI but 15s warm and near two minutes cold on Windows, where each
+// file open is slow, and no single index carries the alternative readings. The timeout is a hang
+// guard sized for that, not a loosening: every reading is still checked.
+const WHOLE_DATASET_TIMEOUT_MS = 180_000;
+
 describe('romaji input covers the dataset', () => {
-    it('types every word reading', () => {
+    it('types every word reading', { timeout: WHOLE_DATASET_TIMEOUT_MS }, () => {
         const readings = listVocabIds(compiledDir).flatMap(id => {
             const { reading } = loadVocab(compiledDir, id);
             return [reading.primary, ...reading.alternatives];

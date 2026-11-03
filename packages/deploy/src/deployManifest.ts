@@ -258,9 +258,11 @@ export function cacheControlFor(site: Site, file: string): string {
             // a request for the new version made before the invalidation lands gets the old file.
             return file.startsWith('assets/') ? IMMUTABLE : ONE_HOUR;
         case 'dictionary':
-            // The two unhashed files a reader or crawler must actually see change.
-            if (file === 'data/search.json' || file === 'sitemap.xml') return ONE_HOUR;
-            return IMMUTABLE;
+            // assets/ is Vite's hashed bundle (stylesheets, scripts, the web font). Everything else
+            // keeps its name across releases (the search index under data/, the sitemap, the
+            // favicon). Matched by what it is not, never by a list of names: a renamed or new
+            // unhashed file would otherwise be immutable for a year, as the split search index was.
+            return file.startsWith('assets/') ? IMMUTABLE : ONE_HOUR;
     }
 }
 

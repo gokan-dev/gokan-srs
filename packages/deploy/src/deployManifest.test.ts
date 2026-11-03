@@ -267,8 +267,10 @@ describe('cacheControlFor', () => {
     });
 
     it('never marks a file that keeps its name across releases immutable', () => {
-        expect(cacheControlFor('dictionary', 'data/search.json')).toBe('public, max-age=3600');
+        expect(cacheControlFor('dictionary', 'data/search-core.json')).toBe('public, max-age=3600');
+        expect(cacheControlFor('dictionary', 'data/search-full.json')).toBe('public, max-age=3600');
         expect(cacheControlFor('dictionary', 'sitemap.xml')).toBe('public, max-age=3600');
+        expect(cacheControlFor('dictionary', 'favicon.svg')).toBe('public, max-age=3600');
         expect(cacheControlFor('srs', 'data/compiled/vocab/1002120.json')).toBe('public, max-age=3600');
         expect(cacheControlFor('srs', 'manifest.json')).toBe('public, max-age=3600');
     });

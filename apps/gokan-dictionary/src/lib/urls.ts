@@ -129,7 +129,8 @@ export function searchPath(query?: string): string {
 /**
  * Hrefs the client search fetches its prebuilt index from: the core file first, the full one in
  * the background (see SearchIndexFile). Fixed paths, like the pages: the deploy is content
- * addressed, so a changed index is uploaded and served fresh without a hash in its name.
+ * addressed, so a changed index is uploaded under the same name and served with a 1-hour TTL,
+ * never as immutable (cacheControlFor in @gokan/deploy).
  */
 export function searchIndexPaths(): { core: string; full: string } {
     return { core: `${BASE_PATH}/data/search-core.json`, full: `${BASE_PATH}/data/search-full.json` };
