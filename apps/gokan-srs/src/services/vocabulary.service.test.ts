@@ -54,6 +54,34 @@ describe('VocabularyService.loadVocab not-found detection', () => {
     });
 });
 
+describe('VocabularyService.loadSentences', () => {
+    it("downloads a word's sentences once for two callers (the intro prefetch and the card's load)", async () => {
+        const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(res({ body: '[]' })));
+
+        const [a, b] = await Promise.all([VocabularyService.loadSentences('s1'), VocabularyService.loadSentences('s1')]);
+        const later = await VocabularyService.loadSentences('s1');
+
+        expect(a).toEqual([]);
+        expect(b).toEqual([]);
+        expect(later).toEqual([]);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('gives null for a word with no sentence file (a 404 or the SPA fallback)', async () => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(res({ status: 404 }));
+        expect(await VocabularyService.loadSentences('none404')).toBeNull();
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue(res({ status: 200, contentType: 'text/html', body: '<!doctype html>' }));
+        expect(await VocabularyService.loadSentences('noneSpa')).toBeNull();
+    });
+
+    it('gives null on a transient failure without caching it, so a later call retries', async () => {
+        const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(res({ status: 503 })).mockResolvedValueOnce(res({ body: '[]' }));
+        expect(await VocabularyService.loadSentences('flaky')).toBeNull();
+        expect(await VocabularyService.loadSentences('flaky')).toEqual([]);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+});
+
 describe('VocabularyService.loadFrequencyIndex', () => {
     it('downloads the index once when two callers ask at the same moment', async () => {
         // The hub's startup asked for it twice at once (usually-kana ids, more learnable words)

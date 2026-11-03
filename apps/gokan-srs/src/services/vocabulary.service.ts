@@ -68,6 +68,17 @@ async function fetchKanji(character: string): Promise<Kanji | null> {
     return readJson<Kanji>(response);
 }
 
+/** A word's sentence file, or null (cached) when the dataset has none for it; a transient failure throws, so it is not cached. */
+async function fetchSentences(vocabId: string): Promise<Sentence[] | null> {
+    const path = datasetUrl(`sentences/${vocabId}.json`);
+    const response = await fetch(path);
+    if (isMissingFile(response)) return null;
+    if (!response.ok) {
+        throw new Error(`Failed to fetch ${path}: ${response.status} ${response.statusText}`);
+    }
+    return readJson<Sentence[]>(response);
+}
+
 export class VocabularyService {
     private static kklcIndex = sharedRequest(() => fetchJson<KKLCIndex>(datasetUrl('index/kklc.json')));
     private static frequencyIndex = sharedRequest(() => fetchJson<FrequencyIndex>(datasetUrl('index/frequency.json')));
@@ -75,6 +86,7 @@ export class VocabularyService {
     private static searchIndex = sharedRequest(() => fetchJson<SearchIndex>(datasetUrl('index/search.json')));
     private static vocabs = new RequestCache(fetchVocab);
     private static kanji = new RequestCache(fetchKanji);
+    private static sentences = new RequestCache(fetchSentences);
     private static kanjiVocabIndex = sharedRequest(() => fetchJson<KanjiVocabIndex>(datasetUrl('index/kanji-vocab.json')));
     private static jlptIndex = sharedRequest(() => fetchJson<JlptIndex>(datasetUrl('index/jlpt.json')));
     private static kanjiOrders = new RequestCache(order => fetchJson<KanjiOrderList>(datasetUrl(`index/kanji-orders/${order}.json`)));
@@ -159,12 +171,16 @@ export class VocabularyService {
         return this.kanjiVocabIndex.get();
     }
 
-    /** The word's example sentences (the file is a plain Sentence array), or null when it has none. */
+    /**
+     * The word's example sentences (the file is a plain Sentence array), or null when it has none.
+     * The request is cached, so the session's prefetch of an upcoming intro and the card's own
+     * load share one download. A failed load still reads as null (no sentences is a valid
+     * state) but is not cached, so a later call retries it.
+     */
     static async loadSentences(vocabId: string): Promise<Sentence[] | null> {
         try {
-            return await fetchJson<Sentence[]>(datasetUrl(`sentences/${vocabId}.json`));
+            return await this.sentences.get(vocabId);
         } catch {
-            // No sentences found for this vocab is a valid state
             return null;
         }
     }

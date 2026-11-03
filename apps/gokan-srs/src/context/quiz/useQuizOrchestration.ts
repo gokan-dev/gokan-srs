@@ -22,7 +22,7 @@ import { mergeProgress, mergeSettings } from '../../services/sync/mergeProgress'
 import { useGoogleDrive } from '../useGoogleDrive';
 import type { QuizState, QuizAction } from './quizReducer';
 import { useExerciseTurn } from './useExerciseTurn';
-import { awaitsIntro, needsSentences, resolveCardSentences } from './cardSentences';
+import { awaitsIntro, needsSentences, resolveCardSentences, upcomingIntroIds } from './cardSentences';
 import { selectNextView, selectCurrentProgress, selectSessionStats, selectNextSessionPreview, collectActionableTaskKeys, capSessionCommit, dedupTaskKeysByVocab } from './quizSelectors';
 import { useSessionLifecycle } from './useSessionLifecycle';
 import { sessionRouteRole } from './sessionRoutes';
@@ -606,6 +606,15 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
             // The card's exercise is built once, here: what it asks, what decides a
             // synonym, and what it shows (services/exercise/builders.ts).
             dispatch({ type: 'LOAD_VOCAB_SUCCESS', payload: { vocab, exercise: vocabExercise(vocab, queueItem, { sentence, cloze }), introSentence } });
+
+            // Warm the next intros' files while this card is up, so Skip or Learn does not
+            // flash the loading screen on their two downloads. Fire and forget: the requests
+            // are cached (RequestCache), so the card's own load shares them, and a failure here
+            // is ignored because that load retries it and still fails loudly.
+            for (const id of upcomingIntroIds(state.introCandidates, state.progress?.learningQueue, vid)) {
+                VocabularyService.loadVocab(id).catch(() => undefined);
+                void VocabularyService.loadSentences(id);
+            }
         }).catch(err => {
             if (loadingKeyRef.current !== loadKey) return;
             // A vocab the dataset dropped (file genuinely absent) is retired, not

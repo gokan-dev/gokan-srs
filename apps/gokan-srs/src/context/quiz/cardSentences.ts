@@ -17,6 +17,30 @@ export function awaitsIntro(queue: readonly VocabProgress[] | undefined, vocabId
     return !queue?.find(v => v.vocabId === vocabId)?.introductionAt;
 }
 
+/** How many upcoming intros have their files fetched ahead while a card is up. */
+export const INTRO_PREFETCH_COUNT = 2;
+
+/**
+ * The next words whose card will open on an intro, other than the current card's word, in the
+ * order they come: the session's new-word candidates first (`selectNextView` shows them from the
+ * front), then learning-queue words not yet introduced, in queue order. The loading effect warms
+ * their vocab and sentence files, so an intro does not wait on two downloads after Skip or Learn.
+ */
+export function upcomingIntroIds(
+    candidates: readonly Pick<Vocabulary, 'id'>[],
+    queue: readonly VocabProgress[] | undefined,
+    currentId: string,
+    limit: number = INTRO_PREFETCH_COUNT,
+): string[] {
+    const ids: string[] = [];
+    const add = (id: string) => {
+        if (ids.length < limit && id !== currentId && !ids.includes(id) && awaitsIntro(queue, id)) ids.push(id);
+    };
+    for (const candidate of candidates) add(candidate.id);
+    for (const entry of queue ?? []) add(entry.vocabId);
+    return ids;
+}
+
 /**
  * Whether the card needs the word's sentences fetched before it renders: meaning in context and
  * production (whether a usable cloze exists depends on which sentences carry a match), and the

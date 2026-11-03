@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { indexLearnerVocab } from '../../utils/sentenceRanking';
 import { pickProductionClozeSentence } from '../../utils/productionCloze.utils';
 import { sentence, vocabProgress, vocabulary } from '../../test/fixtures';
-import { awaitsIntro, needsSentences, resolveCardSentences } from './cardSentences';
+import { awaitsIntro, needsSentences, resolveCardSentences, upcomingIntroIds } from './cardSentences';
 
 const word = vocabulary({ id: 'v1', writtenForm: { kanji: '仕事', alternatives: [], containedKanji: ['仕', '事'] }, reading: { primary: 'しごと', alternatives: [] } });
 const noLearner = indexLearnerVocab([]);
@@ -57,6 +57,27 @@ describe('needsSentences', () => {
         expect(needsSentences({ quizType: 'reading', quizMode: 'base' }, false)).toBe(false);
         expect(needsSentences({ quizType: 'meaning', quizMode: 'context' }, false)).toBe(true);
         expect(needsSentences({ quizType: 'production', quizMode: 'base' }, false)).toBe(true);
+    });
+});
+
+describe('upcomingIntroIds', () => {
+    const introduced = new Date('2026-01-01');
+    const queue = [
+        vocabProgress({ vocabId: 'q1', introductionAt: introduced }),
+        vocabProgress({ vocabId: 'q2', introductionAt: null }),
+        vocabProgress({ vocabId: 'q3', introductionAt: null }),
+    ];
+
+    it('skips the current word and introduced words, keeping candidate then queue order', () => {
+        expect(upcomingIntroIds([], queue, 'none', 5)).toEqual(['q2', 'q3']);
+        expect(upcomingIntroIds([vocabulary({ id: 'c1' }), vocabulary({ id: 'c2' })], queue, 'c1', 5)).toEqual(['c2', 'q2', 'q3']);
+        expect(upcomingIntroIds([vocabulary({ id: 'q1' })], queue, 'q2', 5)).toEqual(['q3']);
+    });
+
+    it('caps the count, at two by default', () => {
+        const candidates = ['c1', 'c2', 'c3'].map(id => vocabulary({ id }));
+        expect(upcomingIntroIds(candidates, queue, 'none')).toEqual(['c1', 'c2']);
+        expect(upcomingIntroIds(candidates, queue, 'c1', 1)).toEqual(['c2']);
     });
 });
 
