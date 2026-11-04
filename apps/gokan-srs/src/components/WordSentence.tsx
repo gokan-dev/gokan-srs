@@ -12,7 +12,8 @@ interface WordSentenceProps {
     /** Opens a word: the word page's own by default; a session passes its handler, which pauses. */
     onVocabClick?: (vocabId: string) => void;
     query?: ExploreQuery | null;
-    /** Its play button beside it; off on a study card, where listening is an exercise. */
+    /** Its play button beside it: on the word page and the intro card (before any exercise on the
+     *  word); off on a study card, where listening is an exercise. */
     playable?: boolean;
     /** Its words in the Tab order; off on a session card (DESIGN_SYSTEM section 6, Lookup card). */
     keyboardLinks?: boolean;

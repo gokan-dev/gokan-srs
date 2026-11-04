@@ -6,33 +6,48 @@ import { formatReadingList } from "../pages/quiz/quizFormatting";
 import { JlptChip } from "./JlptChip";
 import { IntroCardShell } from "./IntroCardShell";
 import { WordSentence } from "./WordSentence";
+import { PlayButton } from "./PlayButton";
+import { HeadwordKanji } from "./lookup/HeadwordKanji";
 
 interface IntroVocabCardProps {
     vocab: Vocabulary;
     /** The word in use (cardSentences.ts); null shows no sentence section. */
     sentence: Sentence | null;
-    /** Opens a word of the sentence; in a session it pauses, never ends. */
+    /** Opens a word of the sentence; in a session it pauses, never ends. A lookup card's own
+     *  links ("Open word page", "Open kanji page") go to consult routes, which pause it too. */
     onVocabClick: (vocabId: string) => void;
     onLearn: () => void;
     onSkip: () => void;
 }
 
+/**
+ * A new word before its first exercise: heard (its reading and its sentence play, since nothing
+ * has been asked yet), its kanji looked up as on its page, and its page one lookup card away.
+ */
 export default function VocabIntroCard({ vocab, sentence, onVocabClick, onLearn, onSkip }: IntroVocabCardProps) {
+    const headword = headwordOf(vocab);
+    const play = <PlayButton audio={vocab.audio} label={`Play ${headword}`} />;
     return (
         <IntroCardShell onLearn={onLearn} onSkip={onSkip} learnLabel="Learn this word">
             {/* Kanji */}
             <CardSection>
                 <div className="text-center">
-                    <div className="text-primary font-mincho leading-none text-kanji flex items-center justify-center">
-                        {headwordOf(vocab)}
+                    {/* Its kanji open their cards, as on the word page (a word shown in kana has none). */}
+                    <div lang="ja" data-intro-headword className="text-primary font-mincho leading-none text-kanji flex items-center justify-center">
+                        <HeadwordKanji headword={headword} kanji={vocab.writtenForm.containedKanji} />
                     </div>
 
-                    {/* A word shown in kana already shows its reading: name its kanji spelling instead. */}
+                    {/* A word shown in kana already shows its reading: name its kanji spelling instead.
+                        The play button goes where the word page puts it: after the reading, or on the note's line. */}
                     {vocab.usuallyKana ? (
-                        <KanjiSpellingNote vocab={vocab} className="mt-4" />
+                        <div data-word-reading className="flex justify-center items-start gap-x-2 mt-4 min-w-0">
+                            <KanjiSpellingNote vocab={vocab} className="min-w-0" />
+                            {play}
+                        </div>
                     ) : (
-                        <div className="flex flex-row justify-center items-center gap-1 mt-4 text-base font-gothic text-secondary/90 opacity-90">
-                            {formatReadingList(vocab.reading)}
+                        <div data-word-reading className="flex flex-row flex-wrap justify-center items-center gap-x-2 mt-4 text-base font-gothic text-secondary/90 opacity-90">
+                            <span lang="ja">{formatReadingList(vocab.reading)}</span>
+                            {play}
                         </div>
                     )}
                     {vocab.jlptLevel && (
@@ -58,10 +73,11 @@ export default function VocabIntroCard({ vocab, sentence, onVocabClick, onLearn,
                 </div>
             </CardSection>
 
-            {/* The word in use: the easiest sentence for this learner, the one its production cloze picks. */}
+            {/* The word in use: the easiest sentence for this learner, the one its production cloze picks.
+                It plays: no exercise on this word has been asked yet, so hearing it gives nothing away. */}
             {sentence && (
                 <CardSection className="text-center">
-                    <WordSentence vocabId={vocab.id} sentence={sentence} onVocabClick={onVocabClick} playable={false} keyboardLinks={false} />
+                    <WordSentence vocabId={vocab.id} sentence={sentence} onVocabClick={onVocabClick} keyboardLinks={false} />
                 </CardSection>
             )}
         </IntroCardShell>
