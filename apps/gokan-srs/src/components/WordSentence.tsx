@@ -17,12 +17,12 @@ interface WordSentenceProps {
     playable?: boolean;
     /** Its words in the Tab order; off on a session card (DESIGN_SYSTEM section 6, Lookup card). */
     keyboardLinks?: boolean;
-    /** On a centred card (the intro). On a phone the translation is centred on the sentence's column,
-     *  beside the play button, so the two share one axis (about 24px left of the headword's): a spacer
-     *  balancing the button would cost the sentence 48px of a 320px line, wrapping a one-line sentence
-     *  and pushing Learn off the first screen. From `md` up the line can spare it: the sentence row is
-     *  as wide as the sentence and centred, a spacer balancing its button, and the translation is
-     *  centred on the card, so both sit on the headword's axis with the button right after the sentence. */
+    /** On a centred card (the intro). The sentence row is as wide as the sentence and centred, so its
+     *  button sits right after it at every width. On a phone the translation is centred on the sentence's
+     *  column (the button set aside), so the two share one axis (about 24px left of the headword's): a
+     *  spacer balancing the button would cost the sentence 48px of a 320px line, wrapping a one-line
+     *  sentence and pushing Learn off the first screen. From `md` up the line can spare it: a spacer
+     *  balances the button and the translation is centred on the card, so both sit on the headword's axis. */
     centred?: boolean;
 }
 

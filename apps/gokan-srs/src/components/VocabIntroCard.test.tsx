@@ -133,9 +133,11 @@ describe('VocabIntroCard', () => {
         mount(example);
         const reading = container.querySelector('[data-word-reading]');
         expect(reading?.firstElementChild?.getAttribute('aria-hidden')).toBe('true');
-        // From md the sentence row is content-width and centred, a spacer before it balancing its button.
+        // The sentence row is content-width and centred at every width, so its button follows the
+        // sentence; from md a spacer before it balances the button.
         const row = container.querySelector('[data-play-row]');
-        expect(row?.className).toContain('md:w-fit');
+        expect(row?.className).toContain('w-fit max-w-full mx-auto');
+        expect(row?.className).not.toContain('md:w-fit');
         expect(row?.firstElementChild?.getAttribute('aria-hidden')).toBe('true');
         expect(row?.firstElementChild?.className).toContain('hidden md:block');
         // On a phone the translation is centred on the sentence's column, the button's width set aside.

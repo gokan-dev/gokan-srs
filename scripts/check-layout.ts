@@ -654,7 +654,8 @@ async function checkReviewPacing(tab: Tab, app: string, width: number): Promise<
  * order, as on every session card (DESIGN_SYSTEM section 6, Lookup card). Its play buttons (the
  * reading's on every card, the sentence's when it has a clip; issue 196) are 44px tap targets at the
  * first line of what they play, at full opacity; its readings break only between readings; and its
- * sentence is centred on its translation's axis, within 2px. The first word's sentence
+ * sentence is centred on its translation's axis, within 2px, its play button within 16px of its end
+ * (`INTRO_BUTTON_GAP`). The first word's sentence
  * may link no other word, so the cards are skipped through until one does, or that part of the check
  * would hold whatever the card does.
  */
@@ -704,6 +705,8 @@ const INTRO_CARD = `(() => {
 
 interface IntroCardMeasure { bottoms: (number | null)[]; sentence: string | null; linked: number; tabbable: number; readingPlay: boolean; card: string; dimmed: string[]; sentenceOffset: number | null; headwordOffset: number | null; buttonGap: number | null }
 
+/** How far the sentence's play button may start after the sentence's text, at every width. */
+const INTRO_BUTTON_GAP = 16;
 /** How many intro cards to skip through looking for a sentence that links another word. */
 const INTRO_CARDS = 8;
 /** How many intro cards are measured at least: the first six hold reading lists that wrap at 320px (二, 六). */
@@ -724,6 +727,8 @@ async function checkIntroCard(tab: Tab, app: string, width: number, height: numb
         for (const dimmed of card.dimmed) failures.push(`${width}px ${page}: play button dimmed: ${dimmed}`);
         // The sentence sits centred over its translation, the two in one column beside its play button.
         if (card.sentenceOffset !== null && Math.abs(card.sentenceOffset) > 2) failures.push(`${width}px ${page}: the sentence's centre is ${Math.round(card.sentenceOffset)}px off its translation's (${card.sentence}): keep the two on one axis (WordSentence centred)`);
+        // Its play button right after it, as the reading's, never pinned to the card's edge (rc.3 review).
+        if (card.buttonGap !== null && card.buttonGap > INTRO_BUTTON_GAP) failures.push(`${width}px ${page}: the sentence's play button starts ${Math.round(card.buttonGap)}px after the sentence (${card.sentence}), more than ${INTRO_BUTTON_GAP}px: the row is as wide as the sentence (SentenceWithPlay centred)`);
         if (card.sentence !== null) sawSentence = true;
         if (card.linked > 0) sawLinked = true;
         if (card.tabbable > 0) failures.push(`${width}px ${page}: ${card.tabbable} sentence word(s) in the Tab order (${card.sentence}): a session card keeps them out (keyboardLinks off)`);
@@ -740,9 +745,6 @@ async function checkIntroCard(tab: Tab, app: string, width: number, height: numb
     if (!sawSentence) failures.push(`${width}px ${page}: no example sentence on the first ${INTRO_CARDS} cards: pick a learning order whose first words have one`);
     else if (!sawLinked) failures.push(`${width}px ${page}: no sentence on the first ${INTRO_CARDS} cards links another word, so its Tab order goes unchecked: pick a learning order whose first words have one`);
 }
-
-/** How far the sentence's play button may start after the sentence's text, at 1280px. */
-const INTRO_BUTTON_GAP = 16;
 
 /**
  * A new word's intro at 1280px (issue 196, rc.2 review): where the line can spare a spacer as wide
@@ -768,7 +770,7 @@ async function checkIntroDesktop(tab: Tab, app: string): Promise<void> {
         if (card.buttonGap !== null) {
             measured++;
             if (card.headwordOffset !== null && Math.abs(card.headwordOffset) > 2) failures.push(`${width}px ${page}: the sentence's centre is ${Math.round(card.headwordOffset)}px off the headword's (${card.sentence}): from md up a spacer balances its play button (SentenceWithPlay centred)`);
-            if (card.buttonGap > INTRO_BUTTON_GAP) failures.push(`${width}px ${page}: the sentence's play button starts ${Math.round(card.buttonGap)}px after the sentence (${card.sentence}), more than ${INTRO_BUTTON_GAP}px: from md up the row is as wide as the sentence`);
+            if (card.buttonGap > INTRO_BUTTON_GAP) failures.push(`${width}px ${page}: the sentence's play button starts ${Math.round(card.buttonGap)}px after the sentence (${card.sentence}), more than ${INTRO_BUTTON_GAP}px: the row is as wide as the sentence`);
         }
         if (n === INTRO_CARDS_MEASURED) break;
         await tab.click(skip);
@@ -1200,4 +1202,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows and word readings unbroken, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button undimmed, its sentence centred on its translation (and at 1280px on the headword, its button right after it), a word learned in kana's intro, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows and word readings unbroken, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button undimmed, its sentence centred on its translation with its button right after it (and at 1280px on the headword), a word learned in kana's intro, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);

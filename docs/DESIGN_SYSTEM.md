@@ -429,10 +429,11 @@ Defined once, in `components/` or `components/ui/`, never copied:
   the intro card, at the sentence's first line: `SentenceWithPlay` puts it in a right-hand column,
   so it never wraps onto a line of its own. On a centred card (the intro) a word's reading balances
   the button with a `PlaySpacer` as wide as it (`WordReading`'s `intro` variant), so the reading
-  stays under the headword, the button right after it. From `md` up the sentence does the same
-  (`WordSentence centred`: a content-width row, centred, its spacer on the left); on a phone it
-  keeps that width for its words and its translation is centred on its column instead, so the two
-  share one axis about 24px left of the headword's. A kana word's spelling note, a long line, is
+  stays under the headword, the button right after it. The sentence's row is as wide as the
+  sentence and centred (`WordSentence centred`), so its button is right after it at every width;
+  from `md` up a spacer on its left balances it too; on a phone the sentence keeps that width for
+  its words and its translation is centred on its column instead, so the two share one axis about
+  24px left of the headword's. A kana word's spelling note, a long line, is
   balanced from `md` up only, likewise. A word's reading line is one component,
   `WordReading` (the word page header and the intro, enforced). Only where the item has a clip, never disabled; never
   on a quiz card (listening is an exercise there). The intro card is the one session card with
