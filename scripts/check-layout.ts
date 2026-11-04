@@ -34,7 +34,8 @@
  * - a new word's intro card (a fresh learner's first cards) shows its example sentence, its words
  *   out of the Tab order (a session card, checked on a sentence that links another word), and its
  *   Skip and Learn on the first screen at 320x720 and 375x812 (on a smaller phone, 568 and 667
- *   tall, a card with many senses may run past it, and the card opens at its top instead);
+ *   tall, a card with many senses may run past it, and the card opens at its top instead); its play
+ *   buttons (the reading's, the sentence's) are 44px tap targets at the first line of what they play;
  * - a due word's page has no Review now;
  * - a sentence word hovered with a mouse at 1280px keeps its hover as its lookup card opens (the
  *   card, growing as its word arrives, never covers it);
@@ -647,7 +648,9 @@ async function checkReviewPacing(tab: Tab, app: string, width: number): Promise<
  * the `VIEWPORTS` sizes (320x720 and 375x812), under the sentence. On a smaller phone
  * (`FIRST_SCREEN`, 568 and 667 tall) a card with many senses may run past the first screen; there
  * `checkIntroOpensAtTop` holds the card at its top instead. Its words stay out of the Tab
- * order, as on every session card (DESIGN_SYSTEM section 6, Lookup card). The first word's sentence
+ * order, as on every session card (DESIGN_SYSTEM section 6, Lookup card). Its play buttons (the
+ * reading's on every card, the sentence's when it has a clip; issue 196) are 44px tap targets at the
+ * first line of what they play. The first word's sentence
  * may link no other word, so the cards are skipped through until one does, or that part of the check
  * would hold whatever the card does.
  */
@@ -659,6 +662,7 @@ const INTRO_CARD = `(() => {
         sentence: shown?.textContent ?? null,
         linked: shown?.querySelectorAll('[data-lookup-trigger]').length ?? 0,
         tabbable: shown?.querySelectorAll('[tabindex="0"]').length ?? 0,
+        readingPlay: document.querySelector('[data-word-reading] [data-play-button]') !== null,
         card: document.querySelector('form')?.parentElement?.textContent ?? '',
     };
 })()`;
@@ -672,8 +676,11 @@ async function checkIntroCard(tab: Tab, app: string, width: number, height: numb
     let sawLinked = false;
     for (let n = 1; n <= INTRO_CARDS && !sawLinked; n++) {
         const page = `srs /quiz, a new word's intro (card ${n})`;
-        await measure(tab, page, width);
-        const card = await tab.evaluate<{ bottoms: (number | null)[]; sentence: string | null; linked: number; tabbable: number; card: string }>(INTRO_CARD);
+        await measure(tab, page, width, PLAY_BUTTONS);
+        await checkPlayButtonsOnFirstLine(tab, page, width);
+        const card = await tab.evaluate<{ bottoms: (number | null)[]; sentence: string | null; linked: number; tabbable: number; readingPlay: boolean; card: string }>(INTRO_CARD);
+        // Every word in the dataset has a clip, so its reading plays on its intro (issue 196).
+        if (!card.readingPlay) failures.push(`${width}px ${page}: no play button on the word's reading ([data-word-reading] [data-play-button])`);
         if (card.sentence !== null) sawSentence = true;
         if (card.linked > 0) sawLinked = true;
         if (card.tabbable > 0) failures.push(`${width}px ${page}: ${card.tabbable} sentence word(s) in the Tab order (${card.sentence}): a session card keeps them out (keyboardLinks off)`);
@@ -1070,4 +1077,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows unbroken, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows unbroken, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);
