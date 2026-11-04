@@ -716,6 +716,8 @@ async function checkIntroCard(tab: Tab, app: string, width: number, height: numb
     await tab.goto(`${app}/quiz`, 'Skip');
     let sawSentence = false;
     let sawLinked = false;
+    // Cards whose sentence had a play button to measure, so the gap check cannot pass on none.
+    let gapsMeasured = 0;
     for (let n = 1; n <= INTRO_CARDS; n++) {
         const page = `srs /quiz, a new word's intro (card ${n})`;
         await measure(tab, page, width, PLAY_BUTTONS);
@@ -728,6 +730,7 @@ async function checkIntroCard(tab: Tab, app: string, width: number, height: numb
         // The sentence sits centred over its translation, the two in one column beside its play button.
         if (card.sentenceOffset !== null && Math.abs(card.sentenceOffset) > 2) failures.push(`${width}px ${page}: the sentence's centre is ${Math.round(card.sentenceOffset)}px off its translation's (${card.sentence}): keep the two on one axis (WordSentence centred)`);
         // Its play button right after it, as the reading's, never pinned to the card's edge (rc.3 review).
+        if (card.buttonGap !== null) gapsMeasured++;
         if (card.buttonGap !== null && card.buttonGap > INTRO_BUTTON_GAP) failures.push(`${width}px ${page}: the sentence's play button starts ${Math.round(card.buttonGap)}px after the sentence (${card.sentence}), more than ${INTRO_BUTTON_GAP}px: the row is as wide as the sentence (SentenceWithPlay centred)`);
         if (card.sentence !== null) sawSentence = true;
         if (card.linked > 0) sawLinked = true;
@@ -744,6 +747,7 @@ async function checkIntroCard(tab: Tab, app: string, width: number, height: numb
     const page = 'srs /quiz, new words\' intros';
     if (!sawSentence) failures.push(`${width}px ${page}: no example sentence on the first ${INTRO_CARDS} cards: pick a learning order whose first words have one`);
     else if (!sawLinked) failures.push(`${width}px ${page}: no sentence on the first ${INTRO_CARDS} cards links another word, so its Tab order goes unchecked: pick a learning order whose first words have one`);
+    if (gapsMeasured === 0) failures.push(`${width}px ${page}: no sentence with a play button on the first ${INTRO_CARDS} cards to measure`);
 }
 
 /**
