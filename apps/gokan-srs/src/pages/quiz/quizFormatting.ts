@@ -1,13 +1,5 @@
-import { useState } from 'react';
 import type { Sense } from '@gokan/dataset-schema';
-
-/** Between a word's readings wherever they are listed (the intro card, the reading quiz's reveal). */
-export const READING_SEPARATOR = ', ';
-
-/** A word's readings in the order they are listed: its primary, then its alternatives. */
-export function readingList(reading: { primary: string; alternatives: string[] }): string[] {
-    return [reading.primary, ...reading.alternatives];
-}
+import { READING_SEPARATOR, readingList } from '../../utils/readings.utils';
 
 /** "primary, alt1, alt2": the reading quiz's correct-answer reveal (the intro card renders the same list, WordReading). */
 export function formatReadingList(reading: { primary: string; alternatives: string[] }): string {
@@ -74,12 +66,4 @@ export function getCoarsePosLabels(senses: Sense[]): string[] {
 /** Deduped related compounds across all senses. */
 export function getUniqueRelatedCompounds(senses: Sense[]): string[] {
     return Array.from(new Set(senses.flatMap(sense => sense.related?.compounds ?? [])));
-}
-
-/** Shared "+N more definitions" expand/collapse behavior for quiz cards. */
-export function useExpandableDefinitions(senses: Sense[], maxDefs: number) {
-    const [isExpanded, setIsExpanded] = useState(false);
-    const hasMoreDefs = senses.length > maxDefs;
-    const displayedSenses = isExpanded ? senses : senses.slice(0, maxDefs);
-    return { displayedSenses, hasMoreDefs, isExpanded, toggleExpanded: () => setIsExpanded(v => !v) };
 }

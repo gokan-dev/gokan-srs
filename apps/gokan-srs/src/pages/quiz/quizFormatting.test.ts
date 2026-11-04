@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Sense } from '@gokan/dataset-schema';
-import { coarsePosLabel, formatReadingList, getCoarsePosLabels, readingList } from './quizFormatting';
+import { coarsePosLabel, formatReadingList, getCoarsePosLabels } from './quizFormatting';
 
 /** Minimal Sense - getCoarsePosLabels only reads `pos`. */
 const sense = (pos: string[]): Sense => ({
@@ -64,14 +64,8 @@ describe('getCoarsePosLabels', () => {
     });
 });
 
-describe('readingList', () => {
-    it('lists the primary reading first, then the alternatives in order', () => {
-        const reading = { primary: 'いちにち', alternatives: ['いちじつ', 'ひとひ'] };
-        expect(readingList(reading)).toEqual(['いちにち', 'いちじつ', 'ひとひ']);
-        expect(formatReadingList(reading)).toBe('いちにち, いちじつ, ひとひ');
-    });
-
-    it('is the primary alone when there are no alternatives', () => {
-        expect(readingList({ primary: 'に', alternatives: [] })).toEqual(['に']);
+describe('formatReadingList', () => {
+    it('joins the primary reading and the alternatives in order', () => {
+        expect(formatReadingList({ primary: 'いちにち', alternatives: ['いちじつ', 'ひとひ'] })).toBe('いちにち, いちじつ, ひとひ');
     });
 });

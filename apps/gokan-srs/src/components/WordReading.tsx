@@ -3,7 +3,7 @@ import { headwordOf } from "@gokan/dataset-schema";
 import type { Vocabulary } from "@gokan/dataset-schema";
 import { KanjiSpellingNote } from "./KanjiSpellingNote";
 import { PlayButton, PlaySpacer } from "./PlayButton";
-import { READING_SEPARATOR, readingList } from "../pages/quiz/quizFormatting";
+import { READING_SEPARATOR, readingList } from "../utils/readings.utils";
 
 /** The word page's header (its main reading, large, left) or a new word's intro card (every reading, centred). */
 export type WordReadingVariant = 'page' | 'intro';
