@@ -45,8 +45,9 @@ export default function VocabIntroCard({ vocab, sentence, onVocabClick, onLearn,
                             {play}
                         </div>
                     ) : (
-                        <div data-word-reading className="flex flex-row flex-wrap justify-center items-center gap-x-2 mt-4 text-base font-gothic text-secondary/90 opacity-90">
-                            <span lang="ja">{formatReadingList(vocab.reading)}</span>
+                        <div data-word-reading className="flex justify-center items-start gap-x-2 mt-4 text-base font-gothic text-secondary/90 opacity-90">
+                            {/* A long reading list wraps beside the button, which stays at its first line. */}
+                            <span lang="ja" className="min-w-0">{formatReadingList(vocab.reading)}</span>
                             {play}
                         </div>
                     )}
