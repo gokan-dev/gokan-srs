@@ -167,6 +167,12 @@ const BOTTOM_SHEET = 'apps/gokan-srs/src/components/ui/BottomSheet.tsx';
 const PORTAL_CALL = /\bcreatePortal\(/;
 const PORTAL_FILES = new Set([BOTTOM_SHEET, 'apps/gokan-srs/src/components/lookup/useLookup.tsx', 'apps/gokan-srs/src/components/QuizSettingsMenu.tsx']);
 const RUBY_COMPONENT = 'apps/gokan-srs/src/components/Ruby.tsx';
+/** A word's reading row (its reading, its play button, the kana note): one component, on the word page and the intro. */
+const WORD_READING_MARK = /\bdata-word-reading\b/;
+const WORD_READING_COMPONENT = 'apps/gokan-srs/src/components/WordReading.tsx';
+/** A shared component reaching into a page module: the layering runs the other way. */
+const SRS_COMPONENT = /^apps\/gokan-srs\/src\/components\/.*\.tsx?$/;
+const IMPORT_FROM_PAGES = /\bfrom\s+['"](\.\.\/)+pages\/|\bimport\(\s*['"](\.\.\/)+pages\//;
 /** A raw part-of-speech code (`v5r`, `adj-i`): a sense's labels come from utils/senses.utils.ts (organizeSenses). */
 const RAW_POS = /\.pos\[/;
 /** A word's or a kanji's page path, built by hand: vocabPath and kanjiPath (utils/navigation.utils.ts) build them. */
@@ -407,6 +413,16 @@ function check(files: string[]): Violation[] {
         if (GOKAN_SRS_SOURCE.test(file) && !ENTRY_PATH_FILES.has(file) && !/\.test\.tsx?$/.test(file)) {
             eachLine(text, l => HAND_BUILT_ENTRY_PATH.test(l), line =>
                 add({ file, line, rule: 'entry-paths', message: 'Builds a word or kanji path by hand. Use vocabPath / kanjiPath (utils/navigation.utils.ts), so every link to an entry is one URL.' }));
+        }
+
+        if (GOKAN_SRS_SOURCE.test(file) && file !== WORD_READING_COMPONENT && !/\.test\.tsx?$/.test(file)) {
+            eachLine(text, l => WORD_READING_MARK.test(l) && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
+                add({ file, line, rule: 'one-word-reading', message: 'A word\'s reading row is WordReading (components/WordReading.tsx): where its play button goes, and how its readings wrap, is decided once for the word page and the intro.' }));
+        }
+
+        if (SRS_COMPONENT.test(file) && !/\.test\.tsx?$/.test(file)) {
+            eachLine(text, l => IMPORT_FROM_PAGES.test(l), line =>
+                add({ file, line, rule: 'components-not-from-pages', message: 'A shared component imports from pages/. Shared building blocks live in components/, hooks/ and utils/, and pages use them: move what it needs out of the page module.' }));
         }
 
         if (GOKAN_SRS_SOURCE.test(file) && file !== BOTTOM_SHEET && !file.endsWith('.test.tsx')) {

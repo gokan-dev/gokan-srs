@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Sense } from '@gokan/dataset-schema';
-import { coarsePosLabel, getCoarsePosLabels } from './quizFormatting';
+import { coarsePosLabel, formatReadingList, getCoarsePosLabels } from './quizFormatting';
 
 /** Minimal Sense - getCoarsePosLabels only reads `pos`. */
 const sense = (pos: string[]): Sense => ({
@@ -61,5 +61,11 @@ describe('getCoarsePosLabels', () => {
     it('is empty when no sense carries a mappable class', () => {
         expect(getCoarsePosLabels([sense(['unc'])])).toEqual([]);
         expect(getCoarsePosLabels([])).toEqual([]);
+    });
+});
+
+describe('formatReadingList', () => {
+    it('joins the primary reading and the alternatives in order', () => {
+        expect(formatReadingList({ primary: 'いちにち', alternatives: ['いちじつ', 'ひとひ'] })).toBe('いちにち, いちじつ, ひとひ');
     });
 });

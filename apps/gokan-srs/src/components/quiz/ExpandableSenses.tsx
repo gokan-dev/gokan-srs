@@ -1,7 +1,6 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { motion } from "framer-motion";
 import type { Sense } from "@gokan/dataset-schema";
-import { useExpandableDefinitions } from "../../pages/quiz/quizFormatting";
 
 interface ExpandableSensesProps {
     senses: Sense[];
@@ -15,7 +14,10 @@ interface ExpandableSensesProps {
 
 /** A word's senses, revealed with the feedback of a vocab quiz card. */
 export function ExpandableSenses({ senses, maxDefs, heading, footer }: ExpandableSensesProps) {
-    const { displayedSenses, hasMoreDefs, isExpanded, toggleExpanded } = useExpandableDefinitions(senses, maxDefs);
+    const [isExpanded, setIsExpanded] = useState(false);
+    const hasMoreDefs = senses.length > maxDefs;
+    const displayedSenses = isExpanded ? senses : senses.slice(0, maxDefs);
+    const toggleExpanded = () => setIsExpanded(v => !v);
     return (
         <motion.div
             initial={{ opacity: 0, y: 5 }}

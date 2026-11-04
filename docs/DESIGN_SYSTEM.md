@@ -404,7 +404,7 @@ Defined once, in `components/` or `components/ui/`, never copied:
 - **Lookup card** (`components/lookup/`): any Japanese word or kanji looked up in place, on
   every surface that names one: each word of an `InteractiveSentence` (but the word a quiz card
   is about), every linking `KanjiTile` (not the one beside its own `KanjiSummary`), each kanji
-  of a word page's headword, `WordTile`, synonym, related and mix-up rows, the vocabulary list
+  of a word page's headword and of a new word's intro card's, `WordTile`, synonym, related and mix-up rows, the vocabulary list
   and a kanji's word list. One card, two bodies: the **word card** (headword, its
   `SecondaryForm` and `PlayButton`, the first two meanings, `StatusDot`, "Learn this word" for
   a word not in study, never mid-session, and "Open word page") and the **kanji card** (`KanjiSummary` and
@@ -424,10 +424,20 @@ Defined once, in `components/` or `components/ui/`, never copied:
   ("Play 不思議", "Play sentence"), `aria-pressed` while playing. 44px on phones, 32px from `md`,
   with negative block margins so it never heightens its line, and its focus ring drawn inside
   it (`ring-inset`) so it never overlaps the lines around it. After a word's reading (its page
-  header, the word card; on a word learned in kana, at the first line of its kanji-spelling
-  note) and beside each example sentence on a word page and a grammar page, at the sentence's
-  first line: `SentenceWithPlay` puts it in a right-hand column, so it never wraps onto a line of
-  its own. Only where the item has a clip, never disabled; never on a quiz card. No credit on it:
+  header, the word card, a new word's intro card; on a word learned in kana, at the first line
+  of its kanji-spelling note) and beside each example sentence on a word page, a grammar page and
+  the intro card, at the sentence's first line: `SentenceWithPlay` puts it in a right-hand column,
+  so it never wraps onto a line of its own. On a centred card (the intro) a word's reading balances
+  the button with a `PlaySpacer` as wide as it (`WordReading`'s `intro` variant), so the reading
+  stays under the headword, the button right after it. The sentence's row is as wide as the
+  sentence and centred (`WordSentence centred`), so its button is right after it at every width;
+  from `md` up a spacer on its left balances it too; on a phone the sentence keeps that width for
+  its words and its translation is centred on its column instead, so the two share one axis about
+  24px left of the headword's. A kana word's spelling note, a long line, is
+  balanced from `md` up only, likewise. A word's reading line is one component,
+  `WordReading` (the word page header and the intro, enforced). Only where the item has a clip, never disabled; never
+  on a quiz card (listening is an exercise there). The intro card is the one session card with
+  it: it comes before any exercise on its word, so hearing it gives nothing away. No credit on it:
   every clip is in one voice, credited on About.
 - **`BottomSheet`** (`ui/BottomSheet.tsx`): a panel over the bottom of the screen on a
   `bg-primary/20` backdrop, `rounded-t-md`, capped at `max-w-lg` and centred from `sm` up; a

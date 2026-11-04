@@ -14,6 +14,12 @@ import type { ChangelogEntry } from '../src/models/release.model';
  */
 export const CHANGELOG: readonly ChangelogEntry[] = [
     {
+        version: '1.50.0',
+        date: '2026-11-04',
+        summary: "A new word's intro card now plays the word and its example sentence, and each of its kanji opens a card that links to the kanji's page.",
+        issue: 196,
+    },
+    {
         version: '1.49.0',
         date: '2026-11-03',
         summary: "A new word's intro card now shows it in one example sentence, the easiest for you to read, with furigana and its English.",

@@ -9,6 +9,7 @@ import { CONSTANTS } from '../../commons/constants';
 import { sentence, userProgress, userSettings, vocabProgress, vocabulary } from '../../test/fixtures';
 import { vocabExercise } from '../../services/exercise/builders';
 import { newTurn } from './exerciseReducer';
+import { selectNextView } from './quizSelectors';
 
 const makeVocab = (id = 'v1'): Vocabulary => vocabulary({ id });
 /** A reading card for the vocabulary fixture, being answered. */
@@ -305,6 +306,38 @@ describe('quizReducer', () => {
             );
             expect(roundTrip.turns).toBe(withAnswer.turns);
             expect(roundTrip.progress).toBe(withAnswer.progress);
+        });
+
+        // Issue 196: a lookup card's link on the intro card opens a consult page; the intro
+        // records no choice on the way, so the same word's intro is waiting on return.
+        describe('a page opened from an intro card', () => {
+            const word = makeVocab('v-new');
+            const onIntro: QuizState = {
+                ...running,
+                progress: userProgress(),
+                settings: userSettings(),
+                currentVocab: word,
+                introCandidates: [word],
+                introSentence: sentence(),
+            };
+            const now = new Date('2026-06-10T00:00:00Z');
+            const paused = quizReducer(onIntro, { type: 'SESSION_SUSPEND', payload: { now: 1 } });
+
+            it('shows the same intro again on return', () => {
+                const back = quizReducer(paused, { type: 'SESSION_RESUME' });
+                expect(back.progress).toBe(onIntro.progress);
+                expect(back.currentVocab).toBe(word);
+                expect(back.introCandidates).toBe(onIntro.introCandidates);
+                expect(back.introSentence).toBe(onIntro.introSentence);
+                expect(selectNextView(back, true, now).shouldShowIntro).toBe(true);
+            });
+
+            it("moves on once the word is learned on its page (the page's own Learn)", () => {
+                const learned = quizReducer(paused, { type: 'VOCAB_INTRO_CHOICE', vocabId: word.id, choice: 'learn', vocabulary: word });
+                const back = quizReducer(learned, { type: 'SESSION_RESUME' });
+                expect(back.introCandidates.some(c => c.id === word.id)).toBe(false);
+                expect(selectNextView(back, true, now).shouldShowIntro).toBe(false);
+            });
         });
     });
 
