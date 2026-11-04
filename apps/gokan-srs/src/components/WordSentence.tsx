@@ -17,6 +17,10 @@ interface WordSentenceProps {
     playable?: boolean;
     /** Its words in the Tab order; off on a session card (DESIGN_SYSTEM section 6, Lookup card). */
     keyboardLinks?: boolean;
+    /** On a centred card (the intro): its translation goes in the sentence's column, beside the play
+     *  button, so the two share one centre axis. A spacer balancing the button instead would cost the
+     *  sentence 48px of a 320px line, wrapping a one-line sentence and pushing Learn off the first screen. */
+    centred?: boolean;
 }
 
 /**
@@ -24,9 +28,10 @@ interface WordSentenceProps {
  * other word a link, its play button beside its first line, and its English under it, a search's matches marked.
  * The word page's examples and the intro card's one example.
  */
-export function WordSentence({ vocabId, sentence, onVocabClick, query = null, playable = true, keyboardLinks = true }: WordSentenceProps) {
+export function WordSentence({ vocabId, sentence, onVocabClick, query = null, playable = true, keyboardLinks = true, centred = false }: WordSentenceProps) {
     const navigate = useNavigate();
     const english = sentence.en[0]?.text;
+    const translation = english && <p data-sentence-english className="type-support mt-1"><Marked text={english} ranges={englishRanges(query, english)} /></p>;
     return (
         <div data-example-sentence>
             <SentenceWithPlay audio={playable ? sentence.audio : undefined}>
@@ -39,8 +44,9 @@ export function WordSentence({ vocabId, sentence, onVocabClick, query = null, pl
                         keyboardLinks={keyboardLinks}
                     />
                 </div>
+                {centred && translation}
             </SentenceWithPlay>
-            {english && <p className="type-support mt-1"><Marked text={english} ranges={englishRanges(query, english)} /></p>}
+            {!centred && translation}
         </div>
     );
 }

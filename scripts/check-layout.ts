@@ -35,7 +35,9 @@
  *   out of the Tab order (a session card, checked on a sentence that links another word), and its
  *   Skip and Learn on the first screen at 320x720 and 375x812 (on a smaller phone, 568 and 667
  *   tall, a card with many senses may run past it, and the card opens at its top instead); its play
- *   buttons (the reading's, the sentence's) are 44px tap targets at the first line of what they play;
+ *   buttons (the reading's, the sentence's) are 44px tap targets at the first line of what they play,
+ *   never dimmed; its readings break only between readings; its sentence is centred on its
+ *   translation;
  * - a due word's page has no Review now;
  * - a sentence word hovered with a mouse at 1280px keeps its hover as its lookup card opens (the
  *   card, growing as its word arrives, never covers it);
@@ -152,9 +154,10 @@ const MEASURE = (deviceWidth: number, tapTargets: string) => `(() => {
     }
     if (touching.length) problems.push('neighbouring readings touch: ' + touching.slice(0, 3).join(', ') + (touching.length > 3 ? ' (+' + (touching.length - 3) + ')' : ''));
     // A reading (any Japanese span) in a list row is one unit beside its headword: it is cut with
-    // an ellipsis or wraps whole, never broken mid-word (しょうじょ / う). Counted on its text's
+    // an ellipsis or wraps whole, never broken mid-word (しょうじょ / う). So is each reading of a
+    // word's reading row (components/WordReading.tsx: アー / ル is no reading). Counted on its text's
     // line boxes, since a flex item's own box is one rectangle however many lines it holds.
-    const splitInRow = [...document.querySelectorAll('[data-list-row] span[lang=ja]')].filter(visible).filter(el => {
+    const splitInRow = [...document.querySelectorAll('[data-list-row] span[lang=ja], [data-word-reading] span[lang=ja]')].filter(visible).filter(el => {
         const tops = [];
         const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
         for (let n = walker.nextNode(); n; n = walker.nextNode()) {
@@ -165,7 +168,7 @@ const MEASURE = (deviceWidth: number, tapTargets: string) => `(() => {
         }
         return tops.some(top => Math.abs(top - tops[0]) >= 2);
     });
-    if (splitInRow.length) problems.push('Japanese in a list row breaks across lines (a reading is one unit): ' + splitInRow.slice(0, 3).map(describe).join(', '));
+    if (splitInRow.length) problems.push('Japanese in a list row or a word reading row breaks across lines (a reading is one unit): ' + splitInRow.slice(0, 3).map(describe).join(', '));
     return problems;
 })()`;
 
@@ -650,37 +653,59 @@ async function checkReviewPacing(tab: Tab, app: string, width: number): Promise<
  * `checkIntroOpensAtTop` holds the card at its top instead. Its words stay out of the Tab
  * order, as on every session card (DESIGN_SYSTEM section 6, Lookup card). Its play buttons (the
  * reading's on every card, the sentence's when it has a clip; issue 196) are 44px tap targets at the
- * first line of what they play. The first word's sentence
+ * first line of what they play, at full opacity; its readings break only between readings; and its
+ * sentence is centred on its translation's axis, within 2px. The first word's sentence
  * may link no other word, so the cards are skipped through until one does, or that part of the check
  * would hold whatever the card does.
  */
 const INTRO_CARD = `(() => {
     const bottoms = ['Skip', 'Learn'].map(label => [...document.querySelectorAll('form button')].find(el => el.textContent.trim() === label)?.getBoundingClientRect().bottom ?? null);
     const shown = document.querySelector('[data-example-sentence]');
+    const card = document.querySelector('form')?.parentElement ?? null;
     return {
         bottoms,
         sentence: shown?.textContent ?? null,
         linked: shown?.querySelectorAll('[data-lookup-trigger]').length ?? 0,
         tabbable: shown?.querySelectorAll('[tabindex="0"]').length ?? 0,
         readingPlay: document.querySelector('[data-word-reading] [data-play-button]') !== null,
-        card: document.querySelector('form')?.parentElement?.textContent ?? '',
+        card: card?.textContent ?? '',
+        dimmed: [...document.querySelectorAll('[data-play-button]')].flatMap(el => {
+            for (let at = el; at && card && card.contains(at); at = at.parentElement) {
+                const opacity = parseFloat(getComputedStyle(at).opacity);
+                if (opacity < 1) return [el.getAttribute('aria-label') + ' at opacity ' + opacity + ' (on ' + at.tagName.toLowerCase() + '.' + String(at.className).trim().split(/\\s+/).slice(0, 4).join('.') + ')'];
+            }
+            return [];
+        }),
+        sentenceOffset: (() => {
+            const text = shown?.querySelector('[data-sentence]');
+            const english = [...(shown?.querySelectorAll('p') ?? [])].at(-1);
+            if (!text || !english) return null;
+            const centre = el => { const range = document.createRange(); range.selectNodeContents(el); const r = range.getBoundingClientRect(); return (r.left + r.right) / 2; };
+            return centre(text) - centre(english);
+        })(),
     };
 })()`;
 
 /** How many intro cards to skip through looking for a sentence that links another word. */
 const INTRO_CARDS = 8;
+/** How many intro cards are measured at least: the first six hold reading lists that wrap at 320px (二, 六). */
+const INTRO_CARDS_MEASURED = 6;
 
 async function checkIntroCard(tab: Tab, app: string, width: number, height: number): Promise<void> {
     await tab.goto(`${app}/quiz`, 'Skip');
     let sawSentence = false;
     let sawLinked = false;
-    for (let n = 1; n <= INTRO_CARDS && !sawLinked; n++) {
+    for (let n = 1; n <= INTRO_CARDS; n++) {
         const page = `srs /quiz, a new word's intro (card ${n})`;
         await measure(tab, page, width, PLAY_BUTTONS);
         await checkPlayButtonsOnFirstLine(tab, page, width);
-        const card = await tab.evaluate<{ bottoms: (number | null)[]; sentence: string | null; linked: number; tabbable: number; readingPlay: boolean; card: string }>(INTRO_CARD);
+        const card = await tab.evaluate<{ bottoms: (number | null)[]; sentence: string | null; linked: number; tabbable: number; readingPlay: boolean; card: string; dimmed: string[]; sentenceOffset: number | null }>(INTRO_CARD);
         // Every word in the dataset has a clip, so its reading plays on its intro (issue 196).
         if (!card.readingPlay) failures.push(`${width}px ${page}: no play button on the word's reading ([data-word-reading] [data-play-button])`);
+        // A play button is an action at full strength, as everywhere else: never inside a dimmed reading.
+        for (const dimmed of card.dimmed) failures.push(`${width}px ${page}: play button dimmed: ${dimmed}`);
+        // The sentence sits centred over its translation, the two in one column beside its play button.
+        if (card.sentenceOffset !== null && Math.abs(card.sentenceOffset) > 2) failures.push(`${width}px ${page}: the sentence's centre is ${Math.round(card.sentenceOffset)}px off its translation's (${card.sentence}): keep the two on one axis (WordSentence centred)`);
         if (card.sentence !== null) sawSentence = true;
         if (card.linked > 0) sawLinked = true;
         if (card.tabbable > 0) failures.push(`${width}px ${page}: ${card.tabbable} sentence word(s) in the Tab order (${card.sentence}): a session card keeps them out (keyboardLinks off)`);
@@ -689,7 +714,7 @@ async function checkIntroCard(tab: Tab, app: string, width: number, height: numb
             if (bottom === null || bottom === undefined) failures.push(`${width}px ${page}: no ${label} button`);
             else if (bottom > height) failures.push(`${width}px ${page}: ${label} ends ${Math.round(bottom)}px down, below the first screen (${height}px)`);
         }
-        if (sawLinked || n === INTRO_CARDS) break;
+        if ((sawLinked && n >= INTRO_CARDS_MEASURED) || n === INTRO_CARDS) break;
         await tab.click('Skip');
         await tab.until(`(document.querySelector('form')?.parentElement?.textContent ?? '') !== ${JSON.stringify(card.card)} && document.body.innerText.includes('Skip')`, `the intro card after card ${n}`, 10000);
     }
@@ -1077,4 +1102,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows unbroken, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows and word readings unbroken, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button undimmed, its sentence centred on its translation, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);

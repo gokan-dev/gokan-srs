@@ -427,7 +427,11 @@ Defined once, in `components/` or `components/ui/`, never copied:
   header, the word card, a new word's intro card; on a word learned in kana, at the first line
   of its kanji-spelling note) and beside each example sentence on a word page, a grammar page and
   the intro card, at the sentence's first line: `SentenceWithPlay` puts it in a right-hand column,
-  so it never wraps onto a line of its own. Only where the item has a clip, never disabled; never
+  so it never wraps onto a line of its own. On a centred card (the intro) a word's reading balances
+  the button with a `PlaySpacer` as wide as it (`WordReading`'s `intro` variant), so the reading
+  stays under the headword; a sentence keeps that width for its words and takes its translation
+  into its column instead (`WordSentence centred`), so the two share one axis. A word's reading line is one component,
+  `WordReading` (the word page header and the intro, enforced). Only where the item has a clip, never disabled; never
   on a quiz card (listening is an exercise there). The intro card is the one session card with
   it: it comes before any exercise on its word, so hearing it gives nothing away. No credit on it:
   every clip is in one voice, credited on About.

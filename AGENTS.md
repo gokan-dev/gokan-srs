@@ -250,7 +250,8 @@ gokan-srs, everything else:
   one opens), Dict (`pages/vocab/DictTab.tsx`), the Sentences, Synonyms and Related panels in
   `pages/vocab/explore/` (one search each, `utils/exploreSearch.utils.ts`), Kanji
   (`components/KanjiSummary.tsx`, a kanji in brief; `components/KanjiReadings.tsx`, a kanji's
-  On/Kun list, `compact` or `large`, also the kanji page's), Study (`pages/vocab/StudyTab.tsx`); its
+  On/Kun list, `compact` or `large`, also the kanji page's), Study (`pages/vocab/StudyTab.tsx`); its reading line, with its play button, on the page and the
+  intro card alike, `components/WordReading.tsx` (enforced); its
   summary gloss from `summaryGloss` (`@gokan/dataset-schema`), its two examples from
   `utils/wordExamples.utils.ts`.
   Synonyms and mix-ups on it: Closest synonyms and the Synonyms panel

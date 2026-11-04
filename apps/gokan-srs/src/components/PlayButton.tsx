@@ -23,6 +23,15 @@ export function PlayButton({ audio, label, className = '' }: PlayButtonProps) {
 }
 
 /**
+ * As wide as a play button, and empty: on a centred line it balances the button on the other side,
+ * so the text stays on the card's centre axis and the button at its edge. Only where the line can
+ * spare the width (a word's reading on the intro, WordReading): a sentence keeps it for its words.
+ */
+export function PlaySpacer() {
+    return <span aria-hidden="true" className="shrink-0 w-11 md:w-8" />;
+}
+
+/**
  * An example sentence with its play button beside it, at its first line: a right-hand column
  * that never wraps onto a line of its own. Its top is the line's (only the bottom margin is
  * negative on phones), which centres it on the first line of a sentence's taller line box.

@@ -1,12 +1,10 @@
 import { headwordOf } from "@gokan/dataset-schema";
 import type { Sentence, Vocabulary } from "@gokan/dataset-schema";
 import { CardSection } from "./ui/CardSection";
-import { KanjiSpellingNote } from "./KanjiSpellingNote";
-import { formatReadingList } from "../pages/quiz/quizFormatting";
 import { JlptChip } from "./JlptChip";
 import { IntroCardShell } from "./IntroCardShell";
 import { WordSentence } from "./WordSentence";
-import { PlayButton } from "./PlayButton";
+import { WordReading } from "./WordReading";
 import { HeadwordKanji } from "./lookup/HeadwordKanji";
 
 interface IntroVocabCardProps {
@@ -26,7 +24,6 @@ interface IntroVocabCardProps {
  */
 export default function VocabIntroCard({ vocab, sentence, onVocabClick, onLearn, onSkip }: IntroVocabCardProps) {
     const headword = headwordOf(vocab);
-    const play = <PlayButton audio={vocab.audio} label={`Play ${headword}`} />;
     return (
         <IntroCardShell onLearn={onLearn} onSkip={onSkip} learnLabel="Learn this word">
             {/* Kanji */}
@@ -37,20 +34,8 @@ export default function VocabIntroCard({ vocab, sentence, onVocabClick, onLearn,
                         <HeadwordKanji headword={headword} kanji={vocab.writtenForm.containedKanji} />
                     </div>
 
-                    {/* A word shown in kana already shows its reading: name its kanji spelling instead.
-                        The play button goes where the word page puts it: after the reading, or on the note's line. */}
-                    {vocab.usuallyKana ? (
-                        <div data-word-reading className="flex justify-center items-start gap-x-2 mt-4 min-w-0">
-                            <KanjiSpellingNote vocab={vocab} className="min-w-0" />
-                            {play}
-                        </div>
-                    ) : (
-                        <div data-word-reading className="flex justify-center items-start gap-x-2 mt-4 text-base font-gothic text-secondary/90 opacity-90">
-                            {/* A long reading list wraps beside the button, which stays at its first line. */}
-                            <span lang="ja" className="min-w-0">{formatReadingList(vocab.reading)}</span>
-                            {play}
-                        </div>
-                    )}
+                    {/* Its reading and play button, as on the word page, centred under the headword. */}
+                    <WordReading vocab={vocab} variant="intro" className="mt-4" />
                     {vocab.jlptLevel && (
                         <div className="flex justify-center mt-3">
                             <JlptChip level={vocab.jlptLevel} />
@@ -78,7 +63,7 @@ export default function VocabIntroCard({ vocab, sentence, onVocabClick, onLearn,
                 It plays: no exercise on this word has been asked yet, so hearing it gives nothing away. */}
             {sentence && (
                 <CardSection className="text-center">
-                    <WordSentence vocabId={vocab.id} sentence={sentence} onVocabClick={onVocabClick} keyboardLinks={false} />
+                    <WordSentence vocabId={vocab.id} sentence={sentence} onVocabClick={onVocabClick} keyboardLinks={false} centred />
                 </CardSection>
             )}
         </IntroCardShell>

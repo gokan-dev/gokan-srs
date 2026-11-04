@@ -122,6 +122,26 @@ describe('VocabIntroCard', () => {
         expect(reading?.querySelector('[data-play-button]')?.getAttribute('aria-label')).toBe('Play 仕事');
     });
 
+    it('lists every reading as its own unit, so a wrapping list breaks only between readings', () => {
+        mount(null, { ...shigoto, reading: { primary: 'に', alternatives: ['ふた', 'アール'] } });
+        const reading = container.querySelector('[data-word-reading]');
+        expect([...(reading?.querySelectorAll('span[lang=ja]') ?? [])].map(el => el.textContent)).toEqual(['に', 'ふた', 'アール']);
+        expect(reading?.textContent).toContain('に, ふた, アール');
+    });
+
+    it("keeps one centre axis: the reading's button balanced by a spacer, the translation in the sentence's column", () => {
+        mount(example);
+        const reading = container.querySelector('[data-word-reading]');
+        expect(reading?.firstElementChild?.getAttribute('aria-hidden')).toBe('true');
+        // Centred together beside the sentence's button, never on the full width under it.
+        const english = container.querySelector('[data-sentence-english]');
+        expect(english?.textContent).toBe('He, work.');
+        expect(english?.closest('[data-play-row]')).not.toBeNull();
+        // No clip, no button, and nothing to balance.
+        mount(sentence({ ...example, audio: undefined }), { ...shigoto, audio: undefined });
+        expect(container.querySelector('[data-word-reading]')?.firstElementChild?.getAttribute('aria-hidden')).toBeNull();
+    });
+
     it('shows no play button for a word or a sentence without a clip, never a disabled one', () => {
         mount(sentence({ ...example, audio: undefined }), { ...shigoto, audio: undefined });
         expect(container.querySelector('[data-play-button]')).toBeNull();
