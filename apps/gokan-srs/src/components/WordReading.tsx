@@ -3,6 +3,7 @@ import { headwordOf } from "@gokan/dataset-schema";
 import type { Vocabulary } from "@gokan/dataset-schema";
 import { KanjiSpellingNote } from "./KanjiSpellingNote";
 import { PlayButton, PlaySpacer } from "./PlayButton";
+import { READING_SEPARATOR, readingList } from "../pages/quiz/quizFormatting";
 
 /** The word page's header (its main reading, large, left) or a new word's intro card (every reading, centred). */
 export type WordReadingVariant = 'page' | 'intro';
@@ -26,9 +27,11 @@ export function WordReading({ vocab, variant, className = '' }: WordReadingProps
     const row = intro ? 'justify-center items-start' : '';
 
     if (vocab.usuallyKana) {
+        // The note is a long line: on a phone it keeps the spacer's width for its words (with it,
+        // する's note ran to three lines at 320px), so it is balanced from md up only.
         return (
             <div data-word-reading className={`flex gap-x-2 min-w-0 ${intro ? row : 'items-start'} ${className}`}>
-                {spacer}
+                {intro && vocab.audio && <PlaySpacer className="hidden md:block" />}
                 <KanjiSpellingNote vocab={vocab} className="min-w-0" />
                 {play}
             </div>
@@ -36,7 +39,7 @@ export function WordReading({ vocab, variant, className = '' }: WordReadingProps
     }
 
     // The page names its other readings on a line of their own ("Also:"); the intro lists them all.
-    const readings = intro ? [vocab.reading.primary, ...vocab.reading.alternatives] : [vocab.reading.primary];
+    const readings = intro ? readingList(vocab.reading) : [vocab.reading.primary];
     return (
         <div data-word-reading className={`flex gap-x-2 font-gothic ${intro ? `${row} text-base` : 'flex-wrap items-center text-2xl'} ${className}`}>
             {spacer}
@@ -45,8 +48,9 @@ export function WordReading({ vocab, variant, className = '' }: WordReadingProps
                 reading longer than the whole line still wraps rather than running off the screen. */}
             <span className={`min-w-0 ${intro ? 'text-secondary/90' : 'text-secondary'}`}>
                 {readings.map((reading, i) => (
-                    <Fragment key={reading}>
-                        {i > 0 && ', '}
+                    // By position: the list is static, and a repeated reading would repeat a key.
+                    <Fragment key={i}>
+                        {i > 0 && READING_SEPARATOR}
                         <span lang="ja" className="inline-block max-w-full">{reading}</span>
                     </Fragment>
                 ))}

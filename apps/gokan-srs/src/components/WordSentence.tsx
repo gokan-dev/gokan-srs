@@ -17,9 +17,12 @@ interface WordSentenceProps {
     playable?: boolean;
     /** Its words in the Tab order; off on a session card (DESIGN_SYSTEM section 6, Lookup card). */
     keyboardLinks?: boolean;
-    /** On a centred card (the intro): its translation goes in the sentence's column, beside the play
-     *  button, so the two share one centre axis. A spacer balancing the button instead would cost the
-     *  sentence 48px of a 320px line, wrapping a one-line sentence and pushing Learn off the first screen. */
+    /** On a centred card (the intro). On a phone the translation is centred on the sentence's column,
+     *  beside the play button, so the two share one axis (about 24px left of the headword's): a spacer
+     *  balancing the button would cost the sentence 48px of a 320px line, wrapping a one-line sentence
+     *  and pushing Learn off the first screen. From `md` up the line can spare it: the sentence row is
+     *  as wide as the sentence and centred, a spacer balancing its button, and the translation is
+     *  centred on the card, so both sit on the headword's axis with the button right after the sentence. */
     centred?: boolean;
 }
 
@@ -31,10 +34,12 @@ interface WordSentenceProps {
 export function WordSentence({ vocabId, sentence, onVocabClick, query = null, playable = true, keyboardLinks = true, centred = false }: WordSentenceProps) {
     const navigate = useNavigate();
     const english = sentence.en[0]?.text;
-    const translation = english && <p data-sentence-english className="type-support mt-1"><Marked text={english} ranges={englishRanges(query, english)} /></p>;
+    const audio = playable ? sentence.audio : undefined;
+    // Centred on a phone: as wide as the sentence's column, the button and its gap (w-11, gap-1) set aside.
+    const column = centred && audio ? 'pr-12 md:pr-0' : '';
     return (
         <div data-example-sentence>
-            <SentenceWithPlay audio={playable ? sentence.audio : undefined}>
+            <SentenceWithPlay audio={audio} centred={centred}>
                 <div className="text-xl text-primary">
                     <InteractiveSentence
                         sentence={sentence}
@@ -44,9 +49,8 @@ export function WordSentence({ vocabId, sentence, onVocabClick, query = null, pl
                         keyboardLinks={keyboardLinks}
                     />
                 </div>
-                {centred && translation}
             </SentenceWithPlay>
-            {!centred && translation}
+            {english && <p data-sentence-english className={`type-support mt-1 ${column}`}><Marked text={english} ranges={englishRanges(query, english)} /></p>}
         </div>
     );
 }

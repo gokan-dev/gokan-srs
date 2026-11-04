@@ -24,21 +24,26 @@ export function PlayButton({ audio, label, className = '' }: PlayButtonProps) {
 
 /**
  * As wide as a play button, and empty: on a centred line it balances the button on the other side,
- * so the text stays on the card's centre axis and the button at its edge. Only where the line can
- * spare the width (a word's reading on the intro, WordReading): a sentence keeps it for its words.
+ * so the text stays on the card's centre axis and the button right after it. Only where the line can
+ * spare the width: a word's reading on the intro (WordReading), and the intro's sentence from `md` up
+ * (SentenceWithPlay `centred`); on a phone a sentence keeps it for its words.
  */
-export function PlaySpacer() {
-    return <span aria-hidden="true" className="shrink-0 w-11 md:w-8" />;
+export function PlaySpacer({ className = '' }: { className?: string }) {
+    return <span aria-hidden="true" className={`shrink-0 w-11 md:w-8 ${className}`} />;
 }
 
 /**
  * An example sentence with its play button beside it, at its first line: a right-hand column
  * that never wraps onto a line of its own. Its top is the line's (only the bottom margin is
  * negative on phones), which centres it on the first line of a sentence's taller line box.
+ * `centred` (the intro card): from `md` up the row is as wide as the sentence and centred, a spacer
+ * on its left balancing the button, so the sentence sits on the card's axis with its button right
+ * after it. Below `md` the row fills the line, as without it (WordSentence says why).
  */
-export function SentenceWithPlay({ audio, children }: { audio: AudioRef | undefined; children: ReactNode }) {
+export function SentenceWithPlay({ audio, centred = false, children }: { audio: AudioRef | undefined; centred?: boolean; children: ReactNode }) {
     return (
-        <div data-play-row className="flex items-start gap-1">
+        <div data-play-row className={`flex items-start gap-1 ${centred ? 'md:w-fit md:max-w-full md:mx-auto' : ''}`}>
+            {centred && audio && <PlaySpacer className="hidden md:block" />}
             <div className="min-w-0 flex-1">{children}</div>
             {audio && <ClipButton clip={audio.clip} label="Play sentence" className="shrink-0 -mb-2.5 md:mb-0" />}
         </div>

@@ -65,7 +65,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { KANJI_CHARS } from '@gokan/dataset-schema';
 import { buildMissing, dictionaryFile, dictionaryPages, listeningTitlesToMark, serve, srsFile, srsRoutes, srsVersion } from './lib/builtSite';
-import { launchChrome, type Tab } from './lib/chrome';
+import { launchChrome, type Chrome, type Tab } from './lib/chrome';
 
 const VIEWPORTS = [{ width: 320, height: 720 }, { width: 375, height: 812 }];
 const DESKTOP = { width: 1280, height: 800 };
@@ -683,8 +683,26 @@ const INTRO_CARD = `(() => {
             const centre = el => { const range = document.createRange(); range.selectNodeContents(el); const r = range.getBoundingClientRect(); return (r.left + r.right) / 2; };
             return centre(text) - centre(english);
         })(),
+        // At 1280px (checkIntroDesktop): the sentence on the headword's axis, its button right after it.
+        headwordOffset: (() => {
+            const text = shown?.querySelector('[data-sentence]');
+            const headword = document.querySelector('[data-intro-headword]');
+            if (!text || !headword) return null;
+            const centre = el => { const range = document.createRange(); range.selectNodeContents(el); const r = range.getBoundingClientRect(); return (r.left + r.right) / 2; };
+            return centre(text) - centre(headword);
+        })(),
+        buttonGap: (() => {
+            const text = shown?.querySelector('[data-sentence]');
+            const button = shown?.querySelector('[data-play-button]');
+            if (!text || !button) return null;
+            const range = document.createRange();
+            range.selectNodeContents(text);
+            return button.getBoundingClientRect().left - range.getBoundingClientRect().right;
+        })(),
     };
 })()`;
+
+interface IntroCardMeasure { bottoms: (number | null)[]; sentence: string | null; linked: number; tabbable: number; readingPlay: boolean; card: string; dimmed: string[]; sentenceOffset: number | null; headwordOffset: number | null; buttonGap: number | null }
 
 /** How many intro cards to skip through looking for a sentence that links another word. */
 const INTRO_CARDS = 8;
@@ -699,7 +717,7 @@ async function checkIntroCard(tab: Tab, app: string, width: number, height: numb
         const page = `srs /quiz, a new word's intro (card ${n})`;
         await measure(tab, page, width, PLAY_BUTTONS);
         await checkPlayButtonsOnFirstLine(tab, page, width);
-        const card = await tab.evaluate<{ bottoms: (number | null)[]; sentence: string | null; linked: number; tabbable: number; readingPlay: boolean; card: string; dimmed: string[]; sentenceOffset: number | null }>(INTRO_CARD);
+        const card = await tab.evaluate<IntroCardMeasure>(INTRO_CARD);
         // Every word in the dataset has a clip, so its reading plays on its intro (issue 196).
         if (!card.readingPlay) failures.push(`${width}px ${page}: no play button on the word's reading ([data-word-reading] [data-play-button])`);
         // A play button is an action at full strength, as everywhere else: never inside a dimmed reading.
@@ -721,6 +739,83 @@ async function checkIntroCard(tab: Tab, app: string, width: number, height: numb
     const page = 'srs /quiz, new words\' intros';
     if (!sawSentence) failures.push(`${width}px ${page}: no example sentence on the first ${INTRO_CARDS} cards: pick a learning order whose first words have one`);
     else if (!sawLinked) failures.push(`${width}px ${page}: no sentence on the first ${INTRO_CARDS} cards links another word, so its Tab order goes unchecked: pick a learning order whose first words have one`);
+}
+
+/** How far the sentence's play button may start after the sentence's text, at 1280px. */
+const INTRO_BUTTON_GAP = 16;
+
+/**
+ * A new word's intro at 1280px (issue 196, rc.2 review): where the line can spare a spacer as wide
+ * as the play button, the sentence sits on the headword's axis (within 2px) with its button right
+ * after it (within 16px), as the reading's does, never at the card's far edge. On a phone the
+ * sentence keeps the spacer's width for its words and is held to its translation's axis instead
+ * (checkIntroCard). Measured on the first cards with a sentence that plays.
+ */
+async function checkIntroDesktop(tab: Tab, app: string): Promise<void> {
+    const width = DESKTOP.width;
+    // The desktop labels: "Skip" is "I already know this" from md up.
+    const skip = 'I already know this';
+    await tab.goto(`${app}/quiz`, skip);
+    let measured = 0;
+    for (let n = 1; n <= INTRO_CARDS_MEASURED; n++) {
+        const page = `srs /quiz, a new word's intro (card ${n})`;
+        // 32px buttons from md up, by design: no 44px tap targets to hold here.
+        await measure(tab, page, width);
+        await checkPlayButtonsOnFirstLine(tab, page, width);
+        const card = await tab.evaluate<IntroCardMeasure>(INTRO_CARD);
+        for (const dimmed of card.dimmed) failures.push(`${width}px ${page}: play button dimmed: ${dimmed}`);
+        if (card.sentenceOffset !== null && Math.abs(card.sentenceOffset) > 2) failures.push(`${width}px ${page}: the sentence's centre is ${Math.round(card.sentenceOffset)}px off its translation's (${card.sentence})`);
+        if (card.buttonGap !== null) {
+            measured++;
+            if (card.headwordOffset !== null && Math.abs(card.headwordOffset) > 2) failures.push(`${width}px ${page}: the sentence's centre is ${Math.round(card.headwordOffset)}px off the headword's (${card.sentence}): from md up a spacer balances its play button (SentenceWithPlay centred)`);
+            if (card.buttonGap > INTRO_BUTTON_GAP) failures.push(`${width}px ${page}: the sentence's play button starts ${Math.round(card.buttonGap)}px after the sentence (${card.sentence}), more than ${INTRO_BUTTON_GAP}px: from md up the row is as wide as the sentence`);
+        }
+        if (n === INTRO_CARDS_MEASURED) break;
+        await tab.click(skip);
+        await tab.until(`(document.querySelector('form')?.parentElement?.textContent ?? '') !== ${JSON.stringify(card.card)} && document.body.innerText.includes(${JSON.stringify(skip)})`, `the intro card after card ${n}`, 10000);
+    }
+    if (measured === 0) failures.push(`${width}px srs /quiz, new words' intros: no sentence with a play button on the first ${INTRO_CARDS_MEASURED} cards to measure`);
+}
+
+/** How many intro cards a Frequency learner skips through looking for a word learned in kana. */
+const KANA_INTRO_CARDS = 12;
+
+/**
+ * A word learned in kana on its intro card (issue 196): its play button follows its kanji
+ * spelling note (WordReading), at that line's first line, undimmed, and the spelling unbroken
+ * (為 / る is no spelling; MEASURE's word readings). Skip and Learn are not held to the first
+ * screen here: the first such word, する, has some twenty senses, which no reading line could
+ * make up for. The default order (kanji coverage) never offers one, so a fresh learner in its
+ * own storage picks Frequency, whose first words include them, and skips to the first.
+ */
+async function checkKanaIntro(chrome: Chrome, app: string, width: number, height: number): Promise<void> {
+    const tab = await chrome.openTab(width, height);
+    const desktop = width >= DESKTOP.width;
+    const skip = desktop ? 'I already know this' : 'Skip';
+    await tab.goto(`${app}/`, 'I already know some kanji');
+    await tab.click('I already know some kanji');
+    await tab.until(`document.body.innerText.includes('Kanji learning method')`, 'the setup screen');
+    // The vocabulary order's Frequency, not the kanji method's of the same name.
+    await tab.click('FrequencyMost common words');
+    await tab.click('Start learning');
+    await tab.goto(`${app}/quiz`, skip);
+    const page = `srs /quiz, a word learned in kana's intro`;
+    for (let n = 1; n <= KANA_INTRO_CARDS; n++) {
+        const kana = await tab.evaluate<boolean>(`(document.querySelector('[data-word-reading]')?.textContent ?? '').includes('Usually written in kana')`);
+        const card = await tab.evaluate<IntroCardMeasure>(INTRO_CARD);
+        if (kana) {
+            await measure(tab, `${page} (card ${n})`, width, desktop ? '' : PLAY_BUTTONS);
+            await checkPlayButtonsOnFirstLine(tab, `${page} (card ${n})`, width);
+            if (!card.readingPlay) failures.push(`${width}px ${page} (card ${n}): no play button on its kanji spelling line`);
+            for (const dimmed of card.dimmed) failures.push(`${width}px ${page} (card ${n}): play button dimmed: ${dimmed}`);
+            await tab.close();
+            return;
+        }
+        await tab.click(skip);
+        await tab.until(`(document.querySelector('form')?.parentElement?.textContent ?? '') !== ${JSON.stringify(card.card)} && document.body.innerText.includes(${JSON.stringify(skip)})`, `the intro card after card ${n}`, 10000);
+    }
+    failures.push(`${width}px ${page}: no word learned in kana in a Frequency learner's first ${KANA_INTRO_CARDS} cards`);
+    await tab.close();
 }
 
 /**
@@ -961,6 +1056,8 @@ try {
     await checkDoneMarking(desktop, DESKTOP.width, DESKTOP.height);
     // A studied word's header at 1280px, where the narrow page leaves the header its one column.
     await desktop.click('Start learning');
+    await checkIntroDesktop(desktop, `http://127.0.0.1:${srs.port}`);
+    await checkKanaIntro(chrome, `http://127.0.0.1:${srs.port}`, DESKTOP.width, DESKTOP.height);
     await desktop.goto(`http://127.0.0.1:${srs.port}/vocab/${FURIGANA_VOCAB}`, 'Examples');
     await checkLookupKeepsHover(desktop, `srs /vocab/${FURIGANA_VOCAB}`, DESKTOP.width);
     await desktop.goto(`http://127.0.0.1:${srs.port}/vocab/${MIXUP_WORD}`, 'Dict');
@@ -1020,6 +1117,7 @@ try {
         // After the library: skipping intro cards marks words known, which reorders it.
         await checkIntroOpensAtTop(tab, app, width, height);
         await checkIntroCard(tab, app, width, height);
+        await checkKanaIntro(chrome, app, width, height);
         await measureFuriganaFixture(tab, `${app}/vocab/${FURIGANA_VOCAB}`, 'Examples', `srs /vocab/${FURIGANA_VOCAB}`, width, `${PLAY_BUTTONS}, ${PAGE_TABS}`);
         await checkSentencePlayButtons(tab, `srs /vocab/${FURIGANA_VOCAB}`, width);
         await checkExamplesUnruled(tab, `srs /vocab/${FURIGANA_VOCAB}`, width);
@@ -1102,4 +1200,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows and word readings unbroken, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button undimmed, its sentence centred on its translation, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows and word readings unbroken, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button undimmed, its sentence centred on its translation (and at 1280px on the headword, its button right after it), a word learned in kana's intro, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);

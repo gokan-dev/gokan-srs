@@ -1,9 +1,17 @@
 import { useState } from 'react';
 import type { Sense } from '@gokan/dataset-schema';
 
-/** "primary, alt1, alt2" - shared by the intro card and reading quiz's correct-answer reveal. */
+/** Between a word's readings wherever they are listed (the intro card, the reading quiz's reveal). */
+export const READING_SEPARATOR = ', ';
+
+/** A word's readings in the order they are listed: its primary, then its alternatives. */
+export function readingList(reading: { primary: string; alternatives: string[] }): string[] {
+    return [reading.primary, ...reading.alternatives];
+}
+
+/** "primary, alt1, alt2": the reading quiz's correct-answer reveal (the intro card renders the same list, WordReading). */
 export function formatReadingList(reading: { primary: string; alternatives: string[] }): string {
-    return [reading.primary, ...reading.alternatives].join(', ');
+    return readingList(reading).join(READING_SEPARATOR);
 }
 
 /** Deduped part-of-speech tags across all senses, optionally including misc/register tags. */

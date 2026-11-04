@@ -129,17 +129,24 @@ describe('VocabIntroCard', () => {
         expect(reading?.textContent).toContain('に, ふた, アール');
     });
 
-    it("keeps one centre axis: the reading's button balanced by a spacer, the translation in the sentence's column", () => {
+    it("keeps one centre axis: the reading's and (from md) the sentence's buttons balanced by spacers", () => {
         mount(example);
         const reading = container.querySelector('[data-word-reading]');
         expect(reading?.firstElementChild?.getAttribute('aria-hidden')).toBe('true');
-        // Centred together beside the sentence's button, never on the full width under it.
+        // From md the sentence row is content-width and centred, a spacer before it balancing its button.
+        const row = container.querySelector('[data-play-row]');
+        expect(row?.className).toContain('md:w-fit');
+        expect(row?.firstElementChild?.getAttribute('aria-hidden')).toBe('true');
+        expect(row?.firstElementChild?.className).toContain('hidden md:block');
+        // On a phone the translation is centred on the sentence's column, the button's width set aside.
         const english = container.querySelector('[data-sentence-english]');
         expect(english?.textContent).toBe('He, work.');
-        expect(english?.closest('[data-play-row]')).not.toBeNull();
+        expect(english?.className).toContain('pr-12 md:pr-0');
         // No clip, no button, and nothing to balance.
         mount(sentence({ ...example, audio: undefined }), { ...shigoto, audio: undefined });
         expect(container.querySelector('[data-word-reading]')?.firstElementChild?.getAttribute('aria-hidden')).toBeNull();
+        expect(container.querySelector('[data-play-row]')?.firstElementChild?.getAttribute('aria-hidden')).toBeNull();
+        expect(container.querySelector('[data-sentence-english]')?.className).not.toContain('pr-12');
     });
 
     it('shows no play button for a word or a sentence without a clip, never a disabled one', () => {
@@ -152,6 +159,10 @@ describe('VocabIntroCard', () => {
         const line = container.querySelector('[data-word-reading]');
         expect(line?.textContent).toContain('此処');
         expect(line?.querySelector('[data-play-button]')?.getAttribute('aria-label')).toBe('Play ここ');
+        // Balanced from md up only: on a phone the note keeps the spacer's width for its words.
+        expect(line?.firstElementChild?.className).toContain('hidden md:block');
+        // Its kanji spelling wraps only as a whole.
+        expect(line?.querySelector('span[lang=ja]')?.textContent).toBe('此処');
         // Its headword is kana: nothing to look up.
         expect(container.querySelector('[data-intro-headword] [data-lookup-trigger]')).toBeNull();
     });
