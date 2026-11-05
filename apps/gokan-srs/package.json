@@ -10,12 +10,12 @@
     "lint": "eslint . --max-warnings 0",
     "preview": "vite preview",
     "sync:dataset": "bun scripts/sync-dataset.ts",
-    "build:data": "bun --cwd dataset build:data && bun run sync:dataset",
+    "build:data": "bun --cwd dataset build && bun run sync:dataset",
     "build:kanji": "bun --cwd dataset build:kanji",
     "build:jlpt": "bun --cwd dataset build:jlpt",
     "build:jpdb": "bun --cwd dataset build:jpdb",
-    "build:grammar": "bun --cwd dataset build:grammar && bun run sync:dataset",
-    "test": "vitest run",
+    "build:grammar": "bun --cwd dataset build && bun run sync:dataset",
+    "test": "bun run sync:dataset && vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {

@@ -5,14 +5,14 @@ import { DEMO_START_KNOWN, DEMO_TILES, DEMO_WORDS, WELCOME_EXAMPLES, WELCOME_ORD
 // import.meta.glob rather than node:fs, which this tsconfig has no types for; each yields nothing
 // when the dataset submodule is not checked out (ci.yml), so the dataset checks skip there.
 const orderFiles = import.meta.glob<string[]>(
-    '../../../../dataset/compiled/index/kanji-orders/*.json', { eager: true, import: 'default' }
+    '../../../../public/data/compiled/index/kanji-orders/*.json', { eager: true, import: 'default' }
 );
 const vocabFiles = import.meta.glob<Pick<Vocabulary, 'writtenForm' | 'reading'>>(
-    '../../../../dataset/compiled/vocab/{1531710,1211510,1304970,1378860,1293990,1487660,1582710,1464700,1368370,1413240,1206900,1413260,1387990,1388300}.json',
+    '../../../../public/data/compiled/vocab/{1531710,1211510,1304970,1378860,1293990,1487660,1582710,1464700,1368370,1413240,1206900,1413260,1387990,1388300}.json',
     { eager: true, import: 'default' }
 );
 const sentenceFiles = import.meta.glob<Pick<Sentence, 'original' | 'matches'>[]>(
-    '../../../../dataset/compiled/sentences/{1531710,1211510,1304970,1378860,1293990,1487660}.json',
+    '../../../../public/data/compiled/sentences/{1531710,1211510,1304970,1378860,1293990,1487660}.json',
     { eager: true, import: 'default' }
 );
 const datasetPresent = Object.keys(orderFiles).length > 0;

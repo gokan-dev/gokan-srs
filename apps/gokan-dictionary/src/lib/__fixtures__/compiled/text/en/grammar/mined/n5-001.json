@@ -1,0 +1,11 @@
+{
+  "kind": "grammar",
+  "lang": "en",
+  "entities": {
+    "n5-001#9dfd86f4669b": {
+      "renderings": [
+        { "id": "fixture-tr-1", "role": "translation", "source": { "source": "tatoeba", "ref": "1" }, "match": "id", "status": "imported", "value": "He thinks.", "of": { "kind": "sentence", "id": "1" } }
+      ]
+    }
+  }
+}

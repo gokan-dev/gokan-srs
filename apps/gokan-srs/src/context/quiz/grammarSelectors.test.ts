@@ -2082,7 +2082,7 @@ describe('cueFormLabel (the conjugation card must not print the ending it asks f
         // import.meta.glob rather than node:fs, which this tsconfig has no types for;
         // it yields nothing when the dataset submodule is not checked out.
         const files = import.meta.glob<Record<string, { formLabel: string }>>(
-            '../../../dataset/compiled/grammar/conjugations.json', { eager: true, import: 'default' }
+            '../../../public/data/compiled/grammar/conjugations.json', { eager: true, import: 'default' }
         );
         const entries = Object.values(files).flatMap(index => Object.values(index));
         for (const { formLabel } of entries) {

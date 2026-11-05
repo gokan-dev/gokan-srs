@@ -1,0 +1,11 @@
+{
+  "kind": "sentence",
+  "lang": "en",
+  "entities": {
+    "1": {
+      "renderings": [
+        { "id": "fixture-tr-1", "role": "translation", "source": { "source": "tatoeba", "ref": "1" }, "match": "id", "status": "imported", "value": "He thinks." }
+      ]
+    }
+  }
+}

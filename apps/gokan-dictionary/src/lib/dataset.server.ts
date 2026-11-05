@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
+import { englishView, type EnglishView } from '@gokan/dataset-schema/english';
 import type { FrequencyIndex, GrammarConjugationIndex, GrammarContrastIndex, GrammarExample, GrammarJlptIndex, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex, JlptIndex, Kanji, KanjiOrderId, KanjiOrderList, KanjiVocabIndex, Sentence, Vocabulary } from '@gokan/dataset-schema';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -53,6 +54,23 @@ export function resolveCompiledDir(): string {
     return compiledDir;
 }
 
+const views = new Map<string, EnglishView>();
+
+/**
+ * One compiled file, in the English shape this app reads. The dataset keeps each file's text
+ * apart from its core, per language; its English view puts them back together, as they were
+ * before the text layer (see @gokan/dataset-schema/english).
+ */
+function readCompiled<T>(compiledDir: string, ...segments: string[]): T {
+    let view = views.get(compiledDir);
+    if (!view) {
+        view = englishView(compiledDir);
+        views.set(compiledDir, view);
+    }
+    // The dataset's own build typed this file; the view gives back the shape the types describe.
+    return view.json(segments.join('/')) as T;
+}
+
 export function listVocabIds(compiledDir: string): string[] {
     return fs.readdirSync(path.join(compiledDir, 'vocab'))
         .filter(name => name.endsWith('.json'))
@@ -60,42 +78,35 @@ export function listVocabIds(compiledDir: string): string[] {
 }
 
 export function loadVocab(compiledDir: string, id: string): Vocabulary {
-    const raw = fs.readFileSync(path.join(compiledDir, 'vocab', `${id}.json`), 'utf-8');
-    return JSON.parse(raw) as Vocabulary;
+    return readCompiled<Vocabulary>(compiledDir, 'vocab', `${id}.json`);
 }
 
 export function loadKanjiList(compiledDir: string): Kanji[] {
-    const raw = fs.readFileSync(path.join(compiledDir, 'kanji.json'), 'utf-8');
-    return JSON.parse(raw) as Kanji[];
+    return readCompiled<Kanji[]>(compiledDir, 'kanji.json');
 }
 
 export function loadKanjiVocabIndex(compiledDir: string): KanjiVocabIndex {
-    const raw = fs.readFileSync(path.join(compiledDir, 'index', 'kanji-vocab.json'), 'utf-8');
-    return JSON.parse(raw) as KanjiVocabIndex;
+    return readCompiled<KanjiVocabIndex>(compiledDir, 'index', 'kanji-vocab.json');
 }
 
 /** One kanji learning order's kanji, in teaching order: step N is the Nth. */
 export function loadKanjiOrderList(compiledDir: string, order: KanjiOrderId): KanjiOrderList {
-    const raw = fs.readFileSync(path.join(compiledDir, 'index', 'kanji-orders', `${order}.json`), 'utf-8');
-    return JSON.parse(raw) as KanjiOrderList;
+    return readCompiled<KanjiOrderList>(compiledDir, 'index', 'kanji-orders', `${order}.json`);
 }
 
 export function loadSentences(compiledDir: string, vocabId: string): Sentence[] | null {
-    const file = path.join(compiledDir, 'sentences', `${vocabId}.json`);
-    if (!fs.existsSync(file)) return null;
-    return JSON.parse(fs.readFileSync(file, 'utf-8')) as Sentence[];
+    if (!fs.existsSync(path.join(compiledDir, 'sentences', `${vocabId}.json`))) return null;
+    return readCompiled<Sentence[]>(compiledDir, 'sentences', `${vocabId}.json`);
 }
 
 /** JLPT level -> that level's vocab, frequency-ordered. Only ~6.4k of ~36k vocab are listed. */
 export function loadVocabJlptIndex(compiledDir: string): JlptIndex {
-    const raw = fs.readFileSync(path.join(compiledDir, 'index', 'jlpt.json'), 'utf-8');
-    return JSON.parse(raw) as JlptIndex;
+    return readCompiled<JlptIndex>(compiledDir, 'index', 'jlpt.json');
 }
 
 /** Every vocab, most frequent first: the order of the dictionary's search index. */
 export function loadFrequencyIndex(compiledDir: string): FrequencyIndex {
-    const raw = fs.readFileSync(path.join(compiledDir, 'index', 'frequency.json'), 'utf-8');
-    return JSON.parse(raw) as FrequencyIndex;
+    return readCompiled<FrequencyIndex>(compiledDir, 'index', 'frequency.json');
 }
 
 // -- Grammar -----------------------------------------------------------------
@@ -104,8 +115,7 @@ export function loadFrequencyIndex(compiledDir: string): FrequencyIndex {
 // read off the directory listing, because that order is the one the pages present.
 
 export function loadGrammarJlptIndex(compiledDir: string): GrammarJlptIndex {
-    const raw = fs.readFileSync(path.join(compiledDir, 'grammar', 'index', 'jlpt.json'), 'utf-8');
-    return JSON.parse(raw) as GrammarJlptIndex;
+    return readCompiled<GrammarJlptIndex>(compiledDir, 'grammar', 'index', 'jlpt.json');
 }
 
 /** Every grammar point id, ordered easiest-first (N5 -> N1), matching the SRS's own order. */
@@ -119,8 +129,7 @@ export function listGrammarIds(compiledDir: string): string[] {
 }
 
 export function loadGrammarPoint(compiledDir: string, id: string): GrammarPoint {
-    const raw = fs.readFileSync(path.join(compiledDir, 'grammar', 'points', `${id}.json`), 'utf-8');
-    return JSON.parse(raw) as GrammarPoint;
+    return readCompiled<GrammarPoint>(compiledDir, 'grammar', 'points', `${id}.json`);
 }
 
 /**
@@ -130,26 +139,22 @@ export function loadGrammarPoint(compiledDir: string, id: string): GrammarPoint 
  * realization is taught only via its canonical, so it has no independent slot).
  */
 export function loadGrammarTeachingOrder(compiledDir: string): GrammarTeachingOrder {
-    const raw = fs.readFileSync(path.join(compiledDir, 'grammar', 'index', 'teaching-order.json'), 'utf-8');
-    return JSON.parse(raw) as GrammarTeachingOrder;
+    return readCompiled<GrammarTeachingOrder>(compiledDir, 'grammar', 'index', 'teaching-order.json');
 }
 
 /** Family id -> its authored contrast lessons/interchangeable note, for the family pages. */
 export function loadGrammarContrasts(compiledDir: string): GrammarContrastIndex {
-    const raw = fs.readFileSync(path.join(compiledDir, 'grammar', 'index', 'contrasts.json'), 'utf-8');
-    return JSON.parse(raw) as GrammarContrastIndex;
+    return readCompiled<GrammarContrastIndex>(compiledDir, 'grammar', 'index', 'contrasts.json');
 }
 
 /** Canonical point id -> its realization variants, for the "Other forms" section on a point page. */
 export function loadGrammarVariantGroups(compiledDir: string): GrammarVariantGroupIndex {
-    const raw = fs.readFileSync(path.join(compiledDir, 'grammar', 'index', 'variant-groups.json'), 'utf-8');
-    return JSON.parse(raw) as GrammarVariantGroupIndex;
+    return readCompiled<GrammarVariantGroupIndex>(compiledDir, 'grammar', 'index', 'variant-groups.json');
 }
 
 /** Point id -> conjugation drill items, for the 40 `kind: 'inflection'` points' conjugation tables. */
 export function loadGrammarConjugations(compiledDir: string): GrammarConjugationIndex {
-    const raw = fs.readFileSync(path.join(compiledDir, 'grammar', 'conjugations.json'), 'utf-8');
-    return JSON.parse(raw) as GrammarConjugationIndex;
+    return readCompiled<GrammarConjugationIndex>(compiledDir, 'grammar', 'conjugations.json');
 }
 
 /**
@@ -159,7 +164,6 @@ export function loadGrammarConjugations(compiledDir: string): GrammarConjugation
  * is the common, permanent case, not an error.
  */
 export function loadGrammarMinedExamples(compiledDir: string, id: string): GrammarExample[] | null {
-    const file = path.join(compiledDir, 'grammar', 'mined', `${id}.json`);
-    if (!fs.existsSync(file)) return null;
-    return JSON.parse(fs.readFileSync(file, 'utf-8')) as GrammarExample[];
+    if (!fs.existsSync(path.join(compiledDir, 'grammar', 'mined', `${id}.json`))) return null;
+    return readCompiled<GrammarExample[]>(compiledDir, 'grammar', 'mined', `${id}.json`);
 }

@@ -3,7 +3,7 @@ import { audioIndex } from '../test/fixtures';
 import { AUDIO_INDEX_SHIPPED, loadAudioIndex } from './audio.service';
 
 // The same question vite.config.ts asks the pinned dataset, answered here without reading the file.
-const shipped = Object.keys(import.meta.glob('../../dataset/compiled/index/audio.json')).length > 0;
+const shipped = Object.keys(import.meta.glob('../../public/data/compiled/index/audio.json')).length > 0;
 
 describe('loadAudioIndex', () => {
     afterEach(() => { vi.unstubAllGlobals(); });

@@ -2,7 +2,6 @@
   {
     "jp": "彼は思う。",
     "romaji": "kare wa omou.",
-    "en": "He thinks.",
     "patternWordIndices": [1],
     "words": [
       { "surface": "彼", "vocabId": null },

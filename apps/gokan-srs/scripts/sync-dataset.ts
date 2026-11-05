@@ -1,10 +1,13 @@
 import fs from 'fs';
 import path from 'path';
+import { englishView } from '@gokan/dataset-schema/english';
 
-// The compiled dataset now lives in the gokan-dataset submodule (apps/gokan-srs/dataset),
-// not in this repo. This copies its output into public/data/compiled so Vite's public-dir
-// passthrough and the existing runtime fetch('/data/compiled/...') calls keep working
-// unchanged. Run automatically before dev/build (see package.json) - not committed to git.
+// The compiled dataset lives in the gokan-dataset submodule (apps/gokan-srs/dataset), not in
+// this repo. This writes its English view into public/data/compiled, so Vite's public-dir
+// passthrough and the runtime fetch('/data/compiled/...') calls keep working unchanged: the
+// dataset keeps each file's text apart from its core, per language, and this app reads English
+// only, in the shape it was written for. Only English is written, so no other language's text is
+// shipped or uploaded. Run automatically before dev/build (see package.json); not committed.
 
 const SRC = path.join(__dirname, '..', 'dataset', 'compiled');
 const DEST = path.join(__dirname, '..', 'public', 'data', 'compiled');
@@ -23,12 +26,11 @@ if (!fs.existsSync(SRC)) {
 
 // A cheap staleness signature: the latest mtime across every file in SRC. Only
 // stats files (no content reads), so it's fast even across tens of thousands
-// of small files - orders of magnitude cheaper than the rm+cp this guards.
-// Catches real rebuilds (build-data.ts rimrafs + recreates vocab/sentences/,
-// build-kanji.ts/build-jlpt-index.ts overwrite their own files in place - both
-// change an mtime this walk sees) but won't notice a file being deleted from
-// SRC without anything else changing. If that ever happens (or you just don't
-// trust the cache), delete public/data/compiled to force a full resync.
+// of small files - orders of magnitude cheaper than the full write this guards.
+// Catches real rebuilds (the dataset's layout stage rewrites compiled/) but won't
+// notice a file being deleted from SRC without anything else changing. If that
+// ever happens (or you just don't trust the cache), delete public/data/compiled
+// to force a full resync.
 function latestMtimeMs(dir: string): number {
     let latest = 0;
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -46,8 +48,16 @@ if (fs.existsSync(DEST) && fs.existsSync(MARKER) && fs.readFileSync(MARKER, 'utf
 }
 
 fs.rmSync(DEST, { recursive: true, force: true });
-fs.cpSync(SRC, DEST, { recursive: true });
+const view = englishView(SRC);
+let written = 0;
+for (const relative of view.files()) {
+    const target = path.join(DEST, relative);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    if (relative.endsWith('.json')) fs.writeFileSync(target, JSON.stringify(view.json(relative)));
+    else fs.copyFileSync(path.join(SRC, relative), target);
+    written++;
+}
 fs.mkdirSync(path.dirname(MARKER), { recursive: true });
 fs.writeFileSync(MARKER, signature);
 
-console.log(`[sync-dataset] Synced ${SRC} -> ${DEST}`);
+console.log(`[sync-dataset] Wrote the English view of ${SRC} (${written} files) -> ${DEST}`);

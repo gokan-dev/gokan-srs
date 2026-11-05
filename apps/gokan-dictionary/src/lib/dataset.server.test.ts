@@ -22,7 +22,7 @@ describe('listVocabIds', () => {
 });
 
 describe('loadVocab', () => {
-    it('loads and parses a vocab file by id', () => {
+    it('loads a vocab file by id, with its English senses from the text layer', () => {
         const vocab = loadVocab(FIXTURES_DIR, '1589350');
         expect(vocab.id).toBe('1589350');
         expect(vocab.writtenForm.kanji).toBe('思う');
@@ -57,6 +57,7 @@ describe('loadSentences', () => {
         const sentences = loadSentences(FIXTURES_DIR, '1589350');
         expect(sentences).not.toBeNull();
         expect(sentences![0].original).toBe('彼は思う。');
+        expect(sentences![0].en).toEqual([{ id: '1', text: 'He thinks.' }]);
     });
 
     it('returns null for a vocab id with no sentence file', () => {
@@ -76,6 +77,7 @@ describe('loadGrammarMinedExamples', () => {
         expect(examples).not.toBeNull();
         expect(examples![0].jp).toBe('彼は思う。');
         expect(examples![0].words[2].vocabId).toBe('1589350');
+        expect(examples![0].en).toBe('He thinks.');
     });
 
     it('returns null for a point with no mined pool', () => {
