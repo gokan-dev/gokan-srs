@@ -5,4 +5,5 @@
 // this package are unchanged. It is the dataset's own projection, the one its check:legacy
 // proves equal to the files before the text layer, re-exported rather than copied so there is
 // one implementation. Node only: never import it from code that ships to a browser.
+// eslint-disable-next-line no-restricted-imports -- the dataset's own projection, reached at the path both apps already resolve the submodule at, re-exported so there is one implementation
 export { englishView, type EnglishView } from '../../../apps/gokan-srs/dataset/src/layout/english';
