@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { audioIndex } from '../test/fixtures';
 import { AUDIO_INDEX_SHIPPED, loadAudioIndex } from './audio.service';
 
-// The same question vite.config.ts asks the pinned dataset, answered here without reading the file.
+// The same question vite.config.ts asks the dataset, answered here from the synced
+// public/data/compiled/ (empty or stale until sync:dataset has run) without reading the file.
 const shipped = Object.keys(import.meta.glob('../../public/data/compiled/index/audio.json')).length > 0;
 
 describe('loadAudioIndex', () => {

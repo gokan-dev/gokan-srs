@@ -81,8 +81,8 @@ function exerciseFor(vocab: Vocabulary, sentence: string | undefined) {
 }
 
 describe('reported synonym cases, on the compiled dataset', () => {
-    // Fails rather than passes when the dataset submodule is not checked out: a suite
-    // that globs nothing would pass vacuously.
+    // Fails rather than passes when public/data/compiled/ has not been synced (sync:dataset):
+    // a suite that globs nothing would pass vacuously.
     it('loads every case word\'s file', () => {
         expect([...new Set(CASES.map(c => c.asked))].filter(id => !vocabById.has(id))).toEqual([]);
     });

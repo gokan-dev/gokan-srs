@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { KANJI_ORDERS, type Sentence, type Vocabulary } from '@gokan/dataset-schema';
 import { DEMO_START_KNOWN, DEMO_TILES, DEMO_WORDS, WELCOME_EXAMPLES, WELCOME_ORDER_IDS, demoAnswerIsRight } from './welcomeExamples';
 
-// import.meta.glob rather than node:fs, which this tsconfig has no types for; each yields nothing
-// when the dataset submodule is not checked out (ci.yml), so the dataset checks skip there.
+// import.meta.glob rather than node:fs, which this tsconfig has no types for; each reads the
+// synced public/data/compiled/, which is empty or stale until sync:dataset has run.
 const orderFiles = import.meta.glob<string[]>(
     '../../../../public/data/compiled/index/kanji-orders/*.json', { eager: true, import: 'default' }
 );
