@@ -118,7 +118,8 @@ describe('the word page: Closest synonyms and the Explore panel', () => {
     });
 });
 
-// On the real compiled dataset: fails rather than passes when the submodule is missing.
+// On the real compiled dataset: the glob reads the synced public/data/compiled/, empty or stale
+// until sync:dataset has run, and then this fails rather than passes.
 const files = import.meta.glob<Vocabulary>('../../public/data/compiled/vocab/{1487400,1224020,1237680,1288810,1288850,1496670}.json', { eager: true, import: 'default' });
 const vocabById = new Map(Object.values(files).map(v => [v.id, v]));
 
