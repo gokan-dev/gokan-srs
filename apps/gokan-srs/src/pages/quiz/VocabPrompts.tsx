@@ -71,7 +71,7 @@ export function ReadingPrompt({ vocab, answered, memoryStrength, onOpenWord }: V
                             )}
 
                             {compounds.length > 0 && (
-                                <div className="text-sm text-primary font-serif">
+                                <div className="text-sm text-primary font-gothic">
                                     {compounds.slice(0, 4).join(' ・ ')}
                                 </div>
                             )}
@@ -112,7 +112,7 @@ export function MeaningPrompt({ vocab, answered, memoryStrength, onOpenWord, sen
                 <h2 className="text-xl md:text-2xl font-serif text-secondary text-center leading-relaxed max-w-2xl mx-auto">
                     {sentence ? (
                         <>
-                            What is the original meaning of <span className="text-primary font-semibold mx-1">{headwordOf(vocab)}</span> in this sentence?
+                            What is the original meaning of <span lang="ja" className="font-mincho text-primary font-semibold mx-1">{headwordOf(vocab)}</span> in this sentence?
                         </>
                     ) : (
                         <>What is the meaning of this word?</>
@@ -220,7 +220,7 @@ export function ProductionPrompt({ vocab, answered, memoryStrength, onOpenWord }
                 </div>
 
                 {promptLines.length > 1 && (
-                    <div className="mt-3 space-y-1 text-sm text-primary font-serif">
+                    <div className="mt-3 space-y-1 text-sm text-primary font-sans">
                         {promptLines.slice(1).map((line, index) => (
                             <p key={index}>{line}</p>
                         ))}
