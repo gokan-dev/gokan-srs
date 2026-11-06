@@ -60,7 +60,7 @@ export function GrammarContrastCard({ pointId, knownIds, showFamilyLink = true }
                 {ready.map((c, i) => (
                     <div key={`${c.lessonId}-${i}`}>
                         <p className="text-tertiary font-gothic text-xs mb-1">{c.lessonTitle}</p>
-                        <p className="text-primary font-serif text-sm leading-relaxed">
+                        <p className="text-primary font-sans text-sm leading-relaxed">
                             <span className="font-semibold">{c.case.situation}</span>{" "}
                             {c.case.guidance}
                         </p>
@@ -68,7 +68,7 @@ export function GrammarContrastCard({ pointId, knownIds, showFamilyLink = true }
                 ))}
 
                 {interchangeable && (
-                    <p className="text-primary font-serif text-sm leading-relaxed">
+                    <p className="text-primary font-sans text-sm leading-relaxed">
                         This is interchangeable with{" "}
                         {interchangeable.known.length === 1 ? "another form" : `${interchangeable.known.length} other forms`}{" "}
                         you already know. They say the same thing in the same register, so there is no

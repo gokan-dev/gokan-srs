@@ -14,6 +14,12 @@ import type { ChangelogEntry } from '../src/models/release.model';
  */
 export const CHANGELOG: readonly ChangelogEntry[] = [
     {
+        version: '1.52.0',
+        date: '2026-11-06',
+        summary: 'Japanese inside grammar lessons, usage notes and word meanings now always shows in a Japanese font, even on a device with none installed.',
+        issue: 200,
+    },
+    {
         version: '1.51.0',
         date: '2026-11-06',
         summary: 'Most grammar points show a refreshed set of corpus examples, now chosen the same way on every update of the data.',

@@ -150,7 +150,7 @@ export function ListeningTitleScreen() {
             <section className="rounded-md border border-divider bg-surface p-4 mb-6 flex gap-4">
                 <MediaCover entry={title} size="title" className="self-start" />
                 <div className="min-w-0 flex-1">
-                    {subtitle && <p className="font-serif text-sm text-secondary">{subtitle}</p>}
+                    {subtitle && <p className="font-sans text-sm text-secondary">{subtitle}</p>}
                     <p className="font-gothic text-xs text-tertiary mt-1">
                         {[
                             title.releaseYear,
@@ -204,7 +204,7 @@ export function ListeningTitleScreen() {
                     {expanded === 'series'
                         ? <ChevronDown size={16} className="shrink-0 text-tertiary" />
                         : <ChevronRight size={16} className="shrink-0 text-tertiary" />}
-                    <span className="font-serif text-sm text-primary flex-1">Words to learn for the whole series</span>
+                    <span className="font-sans text-sm text-primary flex-1">Words to learn for the whole series</span>
                     <span className="font-gothic text-xs text-tertiary tabular-nums">
                         {seriesCoverage.unique.total - seriesCoverage.unique.mastered - seriesCoverage.unique.learning} unknown
                     </span>
@@ -270,7 +270,7 @@ function EpisodeRow({ episode, mark, isOpen, onToggleOpen, onToggleWatched, list
                         : <ChevronRight size={16} className="shrink-0 text-tertiary" />}
                     <div className="min-w-0 flex-1">
                         <div className="flex items-baseline justify-between gap-3">
-                            <span className={`font-serif text-sm ${isWatched ? 'text-secondary' : 'text-primary'}`}>{episode.title}</span>
+                            <span className={`font-sans text-sm ${isWatched ? 'text-secondary' : 'text-primary'}`}>{episode.title}</span>
                             <span className="font-gothic text-sm text-primary tabular-nums">{formatPercent(ratio)}</span>
                         </div>
                         <div className="mt-1.5">
@@ -352,7 +352,7 @@ function WordsToLearn({ words, countHint, knowledge, sort, onSortChange, orderCo
                                 <span className="font-mincho text-base text-primary">{vocab ? headwordOf(vocab) : '…'}</span>
                                 {vocab && !vocab.usuallyKana && <span className="font-mincho text-xs text-secondary">{vocab.reading.primary}</span>}
                                 {vocab && (
-                                    <span className="font-serif text-xs text-tertiary truncate">
+                                    <span className="font-sans text-xs text-tertiary truncate">
                                         {vocab.senses[0]?.glosses.slice(0, 2).join(', ')}
                                     </span>
                                 )}

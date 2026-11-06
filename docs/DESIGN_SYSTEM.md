@@ -122,7 +122,8 @@ browser).
 - `--font-serif`: `"Source Serif 4", Georgia, serif` - page and section titles, the logo.
 - `--font-mincho`: `"Noto Serif JP", "Hiragino Mincho ProN", "Yu Mincho", "MS PMincho",
   serif` - Japanese display (headwords, sentences). `font-serif` has no CJK glyphs; never
-  use it for Japanese text.
+  use it for Japanese text, nor at a body size (`text-xs`/`sm`/`base`): that is body copy,
+  which is sans and is where inline Japanese lands. Enforced (`serif-body-text`).
 
 **Type roles**, defined once as Tailwind v4 `@utility` classes in `index.css`, used
 instead of ad hoc size/colour combinations:

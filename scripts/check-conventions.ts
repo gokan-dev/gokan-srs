@@ -44,6 +44,10 @@ const SUB_FLOOR_PX = /\btext-\[(\d+(?:\.\d+)?)px\]/;
 const SUB_FLOOR_REM = /\btext-\[(\d+(?:\.\d+)?)rem\]/;
 const SCALE_TRANSFORM = /\b(?:hover|active):scale-/;
 const TRACKING_WIDE = /\btracking-wide(?:r|st)?\b/;
+// Serif is a display face (titles, the logo, large prompts). At a body size it is body copy,
+// which is sans (type-body, type-support, type-meta), and body copy is where inline Japanese
+// lands: Source Serif 4 has no CJK glyphs, so it fell back to the system font, or to boxes.
+const SERIF_BODY_TEXT = /\bfont-serif\b(?=.*(?<![\w:-])text-(?:xs|sm|base)\b)|(?<![\w:-])text-(?:xs|sm|base)\b(?=.*\bfont-serif\b)/;
 /** A definition term without a type role (type-label, type-meta...): DESIGN_SYSTEM section 3 names its size, weight and colour once. */
 const UNTYPED_DT = /<dt\b(?![^>]*className=[^>]*\btype-[a-z])/;
 const LOCALE_DATE_TIME = /\.toLocaleDateString\(|\.toLocaleTimeString\(|\bdateStyle\s*:|\btimeStyle\s*:/;
@@ -317,6 +321,8 @@ function check(files: string[]): Violation[] {
                 add({ file, line, rule: 'no-scale-transform', message: 'No hover:scale-* or active:scale-*. Motion is 150-200ms ease-in-out, no bounce.' }));
             eachLine(text, l => TRACKING_WIDE.test(l), line =>
                 add({ file, line, rule: 'no-tracking-wide', message: 'No tracking-wide/wider/widest. Use type-label instead of an uppercase tracked label.' }));
+            eachLine(text, l => SERIF_BODY_TEXT.test(l), line =>
+                add({ file, line, rule: 'serif-body-text', message: 'font-serif at a body size (text-xs/sm/base). Body copy is sans (type-body, type-support, type-meta or font-sans): Source Serif 4 has no CJK glyphs, so inline Japanese falls back to boxes (docs/DESIGN_SYSTEM.md section 3).' }));
         }
 
         if (GOKAN_SRS_SOURCE.test(file) && file.endsWith('.tsx') && !file.endsWith('.test.tsx')) {

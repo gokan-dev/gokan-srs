@@ -89,13 +89,13 @@ export function GrammarDifferentiator({ point, knownIds, inline = false }: Props
             )}
 
             {lede && (
-                <p className="text-primary font-serif text-sm leading-relaxed mb-3">
+                <p className="text-primary font-sans text-sm leading-relaxed mb-3">
                     {lede}
                 </p>
             )}
 
             {axis === 'constraint' && showsUsageNote && (
-                <p className="text-primary font-serif text-sm leading-relaxed mb-3">
+                <p className="text-primary font-sans text-sm leading-relaxed mb-3">
                     {point.usageNote}
                 </p>
             )}
@@ -136,7 +136,7 @@ export function GrammarDifferentiator({ point, knownIds, inline = false }: Props
             {/* No axis classified yet: the usage note is still the best thing to
                 show, and is what the quiz card already uses. */}
             {!axis && showsUsageNote && (
-                <p className="text-primary font-serif text-sm leading-relaxed">
+                <p className="text-primary font-sans text-sm leading-relaxed">
                     {point.usageNote}
                 </p>
             )}

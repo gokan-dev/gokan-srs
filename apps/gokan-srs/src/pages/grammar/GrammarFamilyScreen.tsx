@@ -56,7 +56,7 @@ export default function GrammarFamilyScreen() {
         <Page width="narrow">
             <PageHeader title={entry.name} parentPath="/grammar/browse" className="mb-6" />
 
-            <p className="text-secondary font-serif text-sm mb-6">
+            <p className="type-support mb-6">
                 {entry.lessons.length > 0
                     ? "These express the same core idea. What separates them is when to reach for each one."
                     : "These express the same core idea, and nothing reliably separates them."}
@@ -72,7 +72,7 @@ export default function GrammarFamilyScreen() {
                         <div className="space-y-3">
                             {lesson.cases.map((c, i) => (
                                 <div key={`${lesson.id}-${i}`} className="border-l-2 border-accent/40 pl-3">
-                                    <p className="text-primary font-serif text-sm leading-relaxed">
+                                    <p className="text-primary font-sans text-sm leading-relaxed">
                                         <span className="font-semibold">{c.situation}</span>{" "}
                                         {c.guidance}
                                     </p>
@@ -88,7 +88,7 @@ export default function GrammarFamilyScreen() {
                             Interchangeable
                         </h2>
                         <PointChips ids={entry.interchangeable} members={members} knownIds={knownIds} />
-                        <p className="text-primary font-serif text-sm leading-relaxed">
+                        <p className="text-primary font-sans text-sm leading-relaxed">
                             There is no rule to learn here. These forms say the same thing in the same
                             register, and choosing between them is a matter of feel rather than of fit.
                             Recognise them; do not try to work out when each one applies.

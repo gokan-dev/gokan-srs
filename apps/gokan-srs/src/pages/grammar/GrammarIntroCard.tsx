@@ -77,7 +77,7 @@ export function GrammarIntroCard({ grammarPoint, onLearn, onSkip }: GrammarIntro
                         <p className="type-label mb-1">
                             New chapter
                         </p>
-                        <p className="text-primary font-serif text-sm leading-relaxed">
+                        <p className="text-primary font-sans text-sm leading-relaxed">
                             {chapter.summary}
                         </p>
                     </div>
@@ -85,7 +85,7 @@ export function GrammarIntroCard({ grammarPoint, onLearn, onSkip }: GrammarIntro
             )}
 
             <CardSection>
-                <div className="text-center font-serif text-base text-primary leading-relaxed">
+                <div className="text-center font-sans text-base text-primary leading-relaxed">
                     {grammarPoint.shortExplanation}
                 </div>
             </CardSection>
