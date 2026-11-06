@@ -112,7 +112,7 @@ export function MeaningPrompt({ vocab, answered, memoryStrength, onOpenWord, sen
                 <h2 className="text-xl md:text-2xl font-serif text-secondary text-center leading-relaxed max-w-2xl mx-auto">
                     {sentence ? (
                         <>
-                            What is the original meaning of <span className="text-primary font-semibold mx-1">{headwordOf(vocab)}</span> in this sentence?
+                            What is the original meaning of <span lang="ja" className="font-mincho text-primary font-semibold mx-1">{headwordOf(vocab)}</span> in this sentence?
                         </>
                     ) : (
                         <>What is the meaning of this word?</>

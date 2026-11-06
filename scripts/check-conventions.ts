@@ -47,7 +47,7 @@ const TRACKING_WIDE = /\btracking-wide(?:r|st)?\b/;
 // Serif is a display face (titles, the logo, large prompts). At a body size it is body copy,
 // which is sans (type-body, type-support, type-meta), and body copy is where inline Japanese
 // lands: Source Serif 4 has no CJK glyphs, so it fell back to the system font, or to boxes.
-const SERIF_BODY_TEXT = /\bfont-serif\b(?=.*(?<![\w:-])text-(?:xs|sm|base)\b)|(?<![\w:-])text-(?:xs|sm|base)\b(?=.*\bfont-serif\b)/;
+const SERIF_BODY_TEXT = /\bfont-serif\b(?=.*(?<![\w:-])text-(?:(?:xs|sm|base)\b|\[(?:1[2-7])(?:\.\d+)?px\]))|(?<![\w:-])text-(?:(?:xs|sm|base)\b|\[(?:1[2-7])(?:\.\d+)?px\])(?=.*\bfont-serif\b)/;
 /** A definition term without a type role (type-label, type-meta...): DESIGN_SYSTEM section 3 names its size, weight and colour once. */
 const UNTYPED_DT = /<dt\b(?![^>]*className=[^>]*\btype-[a-z])/;
 const LOCALE_DATE_TIME = /\.toLocaleDateString\(|\.toLocaleTimeString\(|\bdateStyle\s*:|\btimeStyle\s*:/;
@@ -88,6 +88,12 @@ const KANA_GUARD = /usuallyKana|!== headwordOf\(/;
  */
 const RENDERED_SECONDARY_FORM = /(?<!\$)\{\s*secondaryForm\(/;
 const SECONDARY_FORM_COMPONENT = 'apps/gokan-srs/src/components/SecondaryForm.tsx';
+/**
+ * A headword is always Japanese, and the face it inherits may be Source Serif 4 or Inter, neither of
+ * which has CJK glyphs: an element that renders one names a Japanese face itself.
+ */
+const RENDERED_HEADWORD = />\{\s*(?:headwordOf|secondaryForm|headwordWithReading)\(/;
+const JAPANESE_FACE = /\b(?:font-mincho|font-gothic|jp-[\w-]+)\b/;
 
 // An agent workflow that can push queues on its branch's lock, so two agents never run on one
 // branch at once; one without the lock is a workflow running the agent with write access.
@@ -322,7 +328,7 @@ function check(files: string[]): Violation[] {
             eachLine(text, l => TRACKING_WIDE.test(l), line =>
                 add({ file, line, rule: 'no-tracking-wide', message: 'No tracking-wide/wider/widest. Use type-label instead of an uppercase tracked label.' }));
             eachLine(text, l => SERIF_BODY_TEXT.test(l), line =>
-                add({ file, line, rule: 'serif-body-text', message: 'font-serif at a body size (text-xs/sm/base). Body copy is sans (type-body, type-support, type-meta or font-sans): Source Serif 4 has no CJK glyphs, so inline Japanese falls back to boxes (docs/DESIGN_SYSTEM.md section 3).' }));
+                add({ file, line, rule: 'serif-body-text', message: 'font-serif at a body size (text-xs/sm/base, or 12 to 17px). Body copy is sans (type-body, type-support, type-meta or font-sans): Source Serif 4 has no CJK glyphs, so inline Japanese falls back to boxes (docs/DESIGN_SYSTEM.md section 3).' }));
         }
 
         if (GOKAN_SRS_SOURCE.test(file) && file.endsWith('.tsx') && !file.endsWith('.test.tsx')) {
@@ -364,6 +370,11 @@ function check(files: string[]): Violation[] {
         if (GOKAN_SRS_SOURCE.test(file) && file.endsWith('.tsx') && file !== SECONDARY_FORM_COMPONENT) {
             eachLine(text, l => RENDERED_SECONDARY_FORM.test(l), line =>
                 add({ file, line, rule: 'one-secondary-form', message: 'Renders secondaryForm with its own markup. Use <SecondaryForm vocab={...} /> (components/SecondaryForm.tsx), so a kanji spelling is in mincho in every list.' }));
+        }
+
+        if (GOKAN_SRS_SOURCE.test(file) && file.endsWith('.tsx') && !file.endsWith('.test.tsx')) {
+            eachLine(text, l => RENDERED_HEADWORD.test(l) && !JAPANESE_FACE.test(l), line =>
+                add({ file, line, rule: 'headword-japanese-face', message: 'Renders a headword without a Japanese face. Add font-mincho, font-gothic or a jp- class to its element: the inherited face may have no CJK glyphs (docs/DESIGN_SYSTEM.md section 3).' }));
         }
 
         if (WORKFLOW.test(file) && text.includes(AGENT_ACTION)) {

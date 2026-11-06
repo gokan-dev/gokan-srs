@@ -150,7 +150,7 @@ export function ListeningTitleScreen() {
             <section className="rounded-md border border-divider bg-surface p-4 mb-6 flex gap-4">
                 <MediaCover entry={title} size="title" className="self-start" />
                 <div className="min-w-0 flex-1">
-                    {subtitle && <p className="font-sans text-sm text-secondary">{subtitle}</p>}
+                    {subtitle && <p className="type-support">{subtitle}</p>}
                     <p className="font-gothic text-xs text-tertiary mt-1">
                         {[
                             title.releaseYear,
@@ -352,7 +352,7 @@ function WordsToLearn({ words, countHint, knowledge, sort, onSortChange, orderCo
                                 <span className="font-mincho text-base text-primary">{vocab ? headwordOf(vocab) : '…'}</span>
                                 {vocab && !vocab.usuallyKana && <span className="font-mincho text-xs text-secondary">{vocab.reading.primary}</span>}
                                 {vocab && (
-                                    <span className="font-sans text-xs text-tertiary truncate">
+                                    <span className="type-meta truncate">
                                         {vocab.senses[0]?.glosses.slice(0, 2).join(', ')}
                                     </span>
                                 )}
