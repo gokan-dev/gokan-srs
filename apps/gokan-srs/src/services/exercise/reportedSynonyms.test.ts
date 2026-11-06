@@ -64,7 +64,7 @@ const CASES: ReportedCase[] = [
 // import.meta.glob rather than node:fs, which this tsconfig has no types for. Only the
 // case words' files, never the whole dataset.
 const files = import.meta.glob<Vocabulary>(
-    '../../../dataset/compiled/vocab/{1487400,1396130,1407980,1165970,1293850,1476050,1508390,1236070,1297650,1221870,1237680,1369070,1524500,1449540,1449530,1155090,1203260}.json',
+    '../../../public/data/compiled/vocab/{1487400,1396130,1407980,1165970,1293850,1476050,1508390,1236070,1297650,1221870,1237680,1369070,1524500,1449540,1449530,1155090,1203260}.json',
     { eager: true, import: 'default' },
 );
 const vocabById = new Map(Object.values(files).map(v => [v.id, v]));
@@ -81,8 +81,8 @@ function exerciseFor(vocab: Vocabulary, sentence: string | undefined) {
 }
 
 describe('reported synonym cases, on the compiled dataset', () => {
-    // Fails rather than passes when the dataset submodule is not checked out: a suite
-    // that globs nothing would pass vacuously.
+    // Fails rather than passes when public/data/compiled/ has not been synced (sync:dataset):
+    // a suite that globs nothing would pass vacuously.
     it('loads every case word\'s file', () => {
         expect([...new Set(CASES.map(c => c.asked))].filter(id => !vocabById.has(id))).toEqual([]);
     });

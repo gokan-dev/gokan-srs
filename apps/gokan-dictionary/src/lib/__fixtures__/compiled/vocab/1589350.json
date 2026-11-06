@@ -4,8 +4,6 @@
   "reading": { "primary": "おもう", "alternatives": [] },
   "frequency": { "kanjiRank": 1 },
   "progression": { "kklcStep": 1 },
-  "senses": [
-    { "pos": ["v5u"], "misc": { "rawTags": [] }, "glosses": ["to think", "to consider"], "related": { "compounds": [] } }
-  ],
-  "isCommon": true
+  "isCommon": true,
+  "pos": ["v5u"]
 }

@@ -1,0 +1,18 @@
+{
+  "kind": "vocab",
+  "lang": "en",
+  "entities": {
+    "1589350": {
+      "renderings": [
+        {
+          "id": "fixture-def-1",
+          "role": "definition",
+          "source": { "source": "jmdict", "ref": "1589350" },
+          "match": "id",
+          "status": "imported",
+          "senses": [{ "glosses": ["to think", "to consider"], "pos": ["v5u"], "misc": { "rawTags": [] }, "related": { "compounds": [] } }]
+        }
+      ]
+    }
+  }
+}

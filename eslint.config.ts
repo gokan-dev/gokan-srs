@@ -243,6 +243,13 @@ export default defineConfig([
       'no-restricted-imports': ['error', { patterns: [{ group: ['**/gokan-srs/src/**'], message: 'Share it through a package under packages/.' }] }],
     },
   },
+  // Packages sit under the apps: an app imports a package, never the reverse.
+  {
+    files: ['packages/**/*.ts'],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: [{ group: ['**/apps/**'], message: 'A package sits under the apps; it never imports from one.' }] }],
+    },
+  },
 
   // ---------------------------------------------------------------- gokan-dictionary (Svelte)
   {

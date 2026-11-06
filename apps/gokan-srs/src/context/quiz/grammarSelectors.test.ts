@@ -2080,9 +2080,9 @@ describe('cueFormLabel (the conjugation card must not print the ending it asks f
 
     it('leaves no kana inside parentheses for any label the dataset ships', () => {
         // import.meta.glob rather than node:fs, which this tsconfig has no types for;
-        // it yields nothing when the dataset submodule is not checked out.
+        // it reads the synced public/data/compiled/, empty or stale until sync:dataset has run.
         const files = import.meta.glob<Record<string, { formLabel: string }>>(
-            '../../../dataset/compiled/grammar/conjugations.json', { eager: true, import: 'default' }
+            '../../../public/data/compiled/grammar/conjugations.json', { eager: true, import: 'default' }
         );
         const entries = Object.values(files).flatMap(index => Object.values(index));
         for (const { formLabel } of entries) {
