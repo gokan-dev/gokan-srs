@@ -14,9 +14,8 @@
     "build:kanji": "bun --cwd dataset build:kanji",
     "build:jlpt": "bun --cwd dataset build:jlpt",
     "build:jpdb": "bun --cwd dataset build:jpdb",
-    "build:grammar": "bun --cwd dataset build && bun run sync:dataset",
     "test": "bun run sync:dataset && vitest run",
-    "test:watch": "vitest"
+    "test:watch": "bun run sync:dataset && vitest"
   },
   "dependencies": {
     "@gokan/dataset-schema": "workspace:*",
