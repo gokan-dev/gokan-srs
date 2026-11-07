@@ -273,6 +273,11 @@ describe('cacheControlFor', () => {
         expect(cacheControlFor('dictionary', 'favicon.svg')).toBe('public, max-age=3600');
         expect(cacheControlFor('srs', 'data/compiled/vocab/1002120.json')).toBe('public, max-age=3600');
         expect(cacheControlFor('srs', 'manifest.json')).toBe('public, max-age=3600');
+        // The published dataset: names kept across releases, never immutable, not even an
+        // "assets/"-looking path.
+        expect(cacheControlFor('data', 'vocab/1002120.json')).toBe('public, max-age=3600');
+        expect(cacheControlFor('data', 'text/en/vocab/1002120.json')).toBe('public, max-age=3600');
+        expect(cacheControlFor('data', 'assets/x.json')).toBe('public, max-age=3600');
     });
 });
 

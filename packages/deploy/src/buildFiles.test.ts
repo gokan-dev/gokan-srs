@@ -36,3 +36,16 @@ describe('hashBuild', () => {
         expect(content['a/index.html']).toBe(content['b/index.html']);
     });
 });
+
+describe('listFiles with an include filter', () => {
+    it('keeps only the files the filter accepts, and hashBuild hashes only those', () => {
+        fs.mkdirSync(path.join(dir, 'text', 'en'), { recursive: true });
+        fs.mkdirSync(path.join(dir, 'text', 'fr'), { recursive: true });
+        fs.writeFileSync(path.join(dir, 'kanji.json'), '[]');
+        fs.writeFileSync(path.join(dir, 'text', 'en', 'kanji.json'), '{}');
+        fs.writeFileSync(path.join(dir, 'text', 'fr', 'kanji.json'), '{}');
+        const include = (file: string): boolean => !file.startsWith('text/fr/');
+        expect(listFiles(dir, include).sort()).toEqual(['kanji.json', 'text/en/kanji.json']);
+        expect(Object.keys(hashBuild(dir, include).hashes).sort()).toEqual(['kanji.json', 'text/en/kanji.json']);
+    });
+});

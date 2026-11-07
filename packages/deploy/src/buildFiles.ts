@@ -8,8 +8,11 @@ import path from 'node:path';
 
 import { contentHash, pageContentHash, type BuildManifest } from './deployManifest';
 
-/** Every file under `dir`, as POSIX-separated paths relative to it (the keys a deploy uploads to). */
-export function listFiles(dir: string): string[] {
+/**
+ * Every file under `dir`, as POSIX-separated paths relative to it (the keys a deploy uploads to),
+ * keeping only those `include` accepts when it is given (a site's `include`, deployManifest.ts).
+ */
+export function listFiles(dir: string, include?: (file: string) => boolean): string[] {
     const out: string[] = [];
     const walk = (current: string): void => {
         for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
@@ -19,7 +22,7 @@ export function listFiles(dir: string): string[] {
         }
     };
     walk(dir);
-    return out;
+    return include ? out.filter(include) : out;
 }
 
 /** A built dist/: its files (`listFiles`), each one's upload hash and its page content hash. */
@@ -30,8 +33,8 @@ export interface BuildHashes {
 }
 
 /** Every file under `dir`, hashed by bytes (`contentHash`) and by content (`pageContentHash`), from one read of each. */
-export function hashBuild(dir: string): BuildHashes {
-    const files = listFiles(dir);
+export function hashBuild(dir: string, include?: (file: string) => boolean): BuildHashes {
+    const files = listFiles(dir, include);
     const hashes: BuildManifest = {};
     const content: BuildManifest = {};
     for (const file of files) {

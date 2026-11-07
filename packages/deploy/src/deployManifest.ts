@@ -1,5 +1,6 @@
-// Pure logic behind the content-addressed deploy (see scripts/deploy-s3.ts), used for both sites
-// in the bucket: gokan-srs at the root and gokan-dictionary under dictionary/.
+// Pure logic behind the content-addressed deploy (see scripts/deploy-s3.ts), used for every site
+// in the bucket: gokan-srs at the root, gokan-dictionary under dictionary/, and the published
+// dataset under dataset/ (issue #203).
 //
 // Why this exists: `aws s3 sync`'s default comparison uploads a file when the local mtime is
 // newer than the S3 object's, and CI rebuilds from a fresh checkout every run, so every one of
@@ -15,7 +16,9 @@
 
 import crypto from 'node:crypto';
 
-export type Site = 'srs' | 'dictionary';
+import { isPublishedDatasetFile } from './publishedDataset';
+
+export type Site = 'srs' | 'dictionary' | 'data';
 
 export interface SiteConfig {
     /** Built output, relative to the repository root. */
@@ -27,11 +30,17 @@ export interface SiteConfig {
      * is its own file. Decides which file's date a sitemap URL carries (`datedSitemap`).
      */
     fallback: string | null;
+    /** Which files under `dist` are deployed, when not all of them are. */
+    include?: (file: string) => boolean;
 }
 
 export const SITES: Record<Site, SiteConfig> = {
     srs: { dist: 'apps/gokan-srs/dist', prefix: '', fallback: 'index.html' },
     dictionary: { dist: 'apps/gokan-dictionary/dist', prefix: 'dictionary', fallback: null },
+    // The compiled dataset as it is, straight from the submodule checkout (no copy, no build):
+    // core files plus the text of the languages the apps read (publishedDataset.ts). Its own
+    // prefix, so no key is ever owned by two sites' manifests.
+    data: { dist: 'apps/gokan-srs/dataset/compiled', prefix: 'dataset', fallback: null, include: isPublishedDatasetFile },
 };
 
 export function isSite(value: string): value is Site {
@@ -263,6 +272,11 @@ export function cacheControlFor(site: Site, file: string): string {
             // favicon). Matched by what it is not, never by a list of names: a renamed or new
             // unhashed file would otherwise be immutable for a year, as the split search index was.
             return file.startsWith('assets/') ? IMMUTABLE : ONE_HOUR;
+        case 'data':
+            // Dataset files keep their names across dataset releases; readers add the dataset
+            // version to every request, and the hour covers the same gap as data/compiled/ above
+            // (CloudFront's cache key ignores the query string until the invalidation lands).
+            return ONE_HOUR;
     }
 }
 
