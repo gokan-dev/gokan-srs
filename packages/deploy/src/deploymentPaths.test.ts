@@ -29,6 +29,13 @@ describe('shipsInDeployment', () => {
         expect(shipsInDeployment('apps/gokan-srs/terraform/main.tf')).toBe(false);
         expect(shipsInDeployment('eslint.config.ts')).toBe(false);
     });
+
+    it('does not ship the dictionary parity check, while the scripts and lib modules that make pages ship', () => {
+        expect(shipsInDeployment('apps/gokan-dictionary/src/lib/parity.ts')).toBe(false);
+        expect(shipsInDeployment('apps/gokan-dictionary/scripts/check-parity.ts')).toBe(false);
+        expect(shipsInDeployment('apps/gokan-dictionary/scripts/prerender.ts')).toBe(true);
+        expect(shipsInDeployment('apps/gokan-dictionary/src/lib/urls.ts')).toBe(true);
+    });
 });
 
 describe('anyShipsInDeployment', () => {

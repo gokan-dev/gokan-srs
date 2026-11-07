@@ -5,12 +5,18 @@ on:
     branches: ['**']   # not rc tags: their commit was checked on its branch (see ci.yml)
     paths:
       - 'apps/gokan-dictionary/**'
+      - 'packages/**'
+      # The dataset pointer: a bump changes pages, and check:parity reports which.
+      - 'apps/gokan-srs/dataset'
       - 'package.json'
       - 'bun.lock'
       - '.github/workflows/ci-gokan-dictionary.yml'
   pull_request:
     paths:
       - 'apps/gokan-dictionary/**'
+      - 'packages/**'
+      # The dataset pointer: a bump changes pages, and check:parity reports which.
+      - 'apps/gokan-srs/dataset'
       - 'package.json'
       - 'bun.lock'
       - '.github/workflows/ci-gokan-dictionary.yml'
@@ -32,6 +38,10 @@ jobs:
           # fetch the submodule itself if it's missing, but doing it here keeps the build step's
           # failure modes about the build.
           submodules: true
+          # check:parity compares with HEAD^1: in a pull request, HEAD is the merge commit and its
+          # first parent the base branch's tip. Not fetch-depth 0: the history is 0.8 GB here and
+          # 1.3 GB in the dataset, which a full fetch would also pull for the submodule.
+          fetch-depth: 2
 
       # Bun from GitHub Releases + an Actions cache, NOT bun.sh (whose `latest` download 403s
       # intermittently and takes every workflow down). Inline (not a local action) so it does not
@@ -72,3 +82,13 @@ jobs:
 
       - name: Build
         run: bun run --cwd apps/gokan-dictionary build
+
+      # Which pages this pull request changes, in the job summary: the base branch's tip (HEAD^1
+      # of the merge commit) against the merge, so exactly what merging would change.
+      # Differences are informational: a PR that says it changes no page is held to it by review,
+      # and #199's steps run it with --expect identical. Errors are not: a base that fails to
+      # install, build or fetch its dataset, or a missing dist/, turns the job red, so a red step
+      # here is the check failing to run, not a regression in the PR. HEAD was built by the step above.
+      - name: Pages changed (check:parity)
+        if: github.event_name == 'pull_request'
+        run: bun run check:parity --base HEAD^1 --no-build

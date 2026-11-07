@@ -35,10 +35,10 @@ import {
     parseManifest,
     planUploads,
     serializeManifest,
-    type BuildManifest,
     type PreviousDeploy,
     type Site,
 } from '../src/deployManifest';
+import { hashBuild } from '../src/buildFiles';
 
 const PACKAGE_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const REPO_ROOT = path.join(PACKAGE_ROOT, '..', '..');
@@ -100,29 +100,6 @@ function aws(
     }
 }
 
-/** Every file under dir, as POSIX-separated paths relative to it. */
-function listFiles(dir: string, base = dir): string[] {
-    const out: string[] = [];
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-        const full = path.join(dir, entry.name);
-        if (entry.isDirectory()) out.push(...listFiles(full, base));
-        else out.push(path.relative(base, full).split(path.sep).join('/'));
-    }
-    return out;
-}
-
-/** Every built file's upload hash and its page content hash, from one read of each file. */
-function buildManifests(distDir: string, files: string[]): { hashes: BuildManifest; content: BuildManifest } {
-    const hashes: BuildManifest = {};
-    const content: BuildManifest = {};
-    for (const file of files) {
-        const bytes = fs.readFileSync(path.join(distDir, file));
-        hashes[file] = contentHash(bytes);
-        content[file] = pageContentHash(file, bytes);
-    }
-    return { hashes, content };
-}
-
 function readPreviousDeploy(bucket: string, prefix: string): PreviousDeploy {
     const raw = aws(['s3', 'cp', `s3://${bucket}/${objectKey(prefix, MANIFEST_KEY)}`, '-'], { allowFailure: true, capture: true });
     if (raw !== null) {
@@ -179,9 +156,8 @@ function main(): void {
         throw new Error(`[deploy] ${distDir} not found: run the build first.`);
     }
 
-    const files = listFiles(distDir);
-    console.log(`[deploy] ${site}: hashing ${files.length} built file(s)...`);
-    const { hashes: next, content } = buildManifests(distDir, files);
+    const { files, hashes: next, content } = hashBuild(distDir);
+    console.log(`[deploy] ${site}: hashed ${files.length} built file(s).`);
     const previous = readPreviousDeploy(bucket, prefix);
     // The UTC day, as the sitemap's W3C date format expects.
     const today = new Date().toISOString().slice(0, 10);
