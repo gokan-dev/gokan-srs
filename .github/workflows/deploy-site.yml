@@ -174,7 +174,15 @@ jobs:
       # moving from N1 to N5 stayed N1 in production). See packages/deploy/src/deployManifest.ts.
       #
       # Each site prunes only keys its own previous manifest listed, so the app deploy at the
-      # bucket root can never delete the dictionary pages under dictionary/.
+      # bucket root can never delete the dictionary pages under dictionary/ or the dataset under
+      # dataset/.
+      #
+      # The dataset first: it is what the apps read (issue #203), published as it is from the
+      # submodule checkout (core files plus the text of the languages an app reads,
+      # packages/deploy/src/publishedDataset.ts), so an app never goes live ahead of its data.
+      - name: Deploy the dataset to S3
+        run: bun packages/deploy/scripts/deploy-s3.ts --site data --bucket ${{ inputs.s3_bucket }}
+
       - name: Deploy gokan-srs to S3
         run: bun packages/deploy/scripts/deploy-s3.ts --site srs --bucket ${{ inputs.s3_bucket }}
 
@@ -185,7 +193,7 @@ jobs:
         run: |
           aws cloudfront create-invalidation \
             --distribution-id ${{ secrets.cloudfront_distribution_id }} \
-            --paths "/index.html" "/" "/data/compiled/*" "/dictionary/*"
+            --paths "/index.html" "/" "/data/compiled/*" "/dataset/*" "/dictionary/*"
 
       - name: Deployment summary
         run: |

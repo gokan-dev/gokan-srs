@@ -1,7 +1,8 @@
 #!/usr/bin/env bun
 // Content-addressed deploy of one site's dist/ to its S3 prefix (gokan-srs at the bucket root,
-// gokan-dictionary under dictionary/). See src/deployManifest.ts for why neither the default
-// `aws s3 sync` nor `--size-only` is correct here.
+// gokan-dictionary under dictionary/, the published dataset under dataset/). See
+// src/deployManifest.ts for why neither the default `aws s3 sync` nor `--size-only` is correct
+// here.
 //
 // Hash every built file, compare against a manifest stored alongside the site in S3, and upload
 // only what actually differs. The manifest is written LAST, so an interrupted deploy leaves the
@@ -14,7 +15,7 @@
 // Changed files are hardlinked into a staging tree so one recursive upload moves exactly the
 // intended set.
 //
-// Usage: bun packages/deploy/scripts/deploy-s3.ts --site srs|dictionary --bucket <name> [--dry-run]
+// Usage: bun packages/deploy/scripts/deploy-s3.ts --site srs|dictionary|data --bucket <name> [--dry-run]
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -145,7 +146,7 @@ function stageFiles(distDir: string, stageDir: string, files: string[]): void {
 
 function main(): void {
     const { site, bucket, dryRun } = parseArgs();
-    const { dist, prefix } = SITES[site];
+    const { dist, prefix, include } = SITES[site];
     const distDir = path.join(REPO_ROOT, dist);
     const stageDir = path.join(WORK_DIR, site);
     // `cp --recursive`, not `sync`: the staged set is already exactly what must go up, and sync
@@ -156,7 +157,7 @@ function main(): void {
         throw new Error(`[deploy] ${distDir} not found: run the build first.`);
     }
 
-    const { files, hashes: next, content } = hashBuild(distDir);
+    const { files, hashes: next, content } = hashBuild(distDir, include);
     console.log(`[deploy] ${site}: hashed ${files.length} built file(s).`);
     const previous = readPreviousDeploy(bucket, prefix);
     // The UTC day, as the sitemap's W3C date format expects.
