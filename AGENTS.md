@@ -89,8 +89,8 @@ summary ("Largest tool results"), which is where a whole read shows.
   base branch to diff against), so a reviewer checks it against the diff.
   A change that ships code but nothing a learner sees (a refactor, tooling a build imports, a change
   the gate proves leaves the output identical, such as `check:parity --expect identical` or an
-  equality test) adds no entry, so the app's version does not move: its PR says so, and names what
-  proves it.
+  equality test) adds no entry (nor, on a release branch, a fragment), so the app's version does
+  not move: its PR says so, and names what proves it.
 - `git log` is the record of what changed. Add an entry to
   [docs/MODIFICATION_LOG.md](docs/MODIFICATION_LOG.md) only for reasoning a diff cannot show:
   an investigation's result, why the obvious approach was rejected, or an interaction a later
