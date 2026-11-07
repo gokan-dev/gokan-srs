@@ -21,8 +21,13 @@ const WHOLE_DATASET_TIMEOUT_MS = 180_000;
 
 describe('romaji input covers the dataset', () => {
     it('types every word reading', { timeout: WHOLE_DATASET_TIMEOUT_MS }, async () => {
-        const words = await Promise.all((await data.vocabIds()).map(id => data.vocab(id)));
-        const readings = words.flatMap(({ reading }) => [reading.primary, ...reading.alternatives]);
+        // One word at a time, keeping only its readings, as the prerender's page loop does: all ~36k
+        // parsed words at once would be held only to be thrown away.
+        const readings: string[] = [];
+        for (const id of await data.vocabIds()) {
+            const { reading } = await data.vocab(id);
+            readings.push(reading.primary, ...reading.alternatives);
+        }
         expect(readings.length).toBeGreaterThan(1000);
         expect(untypeable(readings)).toEqual([]);
     });
