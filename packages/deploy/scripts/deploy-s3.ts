@@ -1,7 +1,8 @@
 #!/usr/bin/env bun
 // Content-addressed deploy of one site's dist/ to its S3 prefix (gokan-srs at the bucket root,
-// gokan-dictionary under dictionary/, the published dataset under dataset/). See src/deployManifest.ts for why neither the default
-// `aws s3 sync` nor `--size-only` is correct here.
+// gokan-dictionary under dictionary/, the published dataset under dataset/). See
+// src/deployManifest.ts for why neither the default `aws s3 sync` nor `--size-only` is correct
+// here.
 //
 // Hash every built file, compare against a manifest stored alongside the site in S3, and upload
 // only what actually differs. The manifest is written LAST, so an interrupted deploy leaves the
