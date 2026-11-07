@@ -33,6 +33,14 @@ const compiledDir = fileURLToPath(new URL('./dataset/compiled/', import.meta.url
 if (!existsSync(compiledDir)) {
     throw new Error(`The gokan-dataset submodule is not checked out at ${compiledDir}. Run: git submodule update --init --recursive`);
 }
+// Before #211 the dataset was copied into public/data/compiled/ (about 1 GB, ignored by git). Vite
+// copies public/ into dist/, so a copy left in a checkout would ship again: the browser checks
+// would measure a build the deploy never makes, and a deploy from that tree would upload keys the
+// data site owns. Refused rather than skipped, since nothing reads it any more.
+const leftoverDatasetCopy = fileURLToPath(new URL('./public/data/compiled/', import.meta.url));
+if (existsSync(leftoverDatasetCopy)) {
+    throw new Error(`${leftoverDatasetCopy} is a copy of the dataset left from before the app read /dataset/ (#211); vite would ship it in dist/. Delete it: rm -rf apps/gokan-srs/public/data/compiled`);
+}
 const serveDataset: Connect.NextHandleFunction = (request, response, next) => {
     const file = publishedDatasetFile(decodeURIComponent(new URL(request.url ?? '/', 'http://localhost').pathname));
     if (file === null) return next();
