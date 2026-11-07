@@ -18,12 +18,10 @@
     },
     "apps/gokan-srs": {
       "entry": [
-        "src/main.tsx",
-        "scripts/*.ts"
+        "src/main.tsx"
       ],
       "project": [
-        "src/**/*.{ts,tsx}",
-        "scripts/**/*.ts"
+        "src/**/*.{ts,tsx}"
       ],
       "ignoreDependencies": [
         "tailwindcss"

@@ -70,6 +70,15 @@ const DATASET_URL_SOURCE = /^apps\/gokan-srs\/src\/.*\.tsx?$/;
 const DATASET_URL_HELPER = 'apps/gokan-srs/src/services/http.ts';
 
 /**
+ * A dataset file in its English shape is built from its published inputs in one place,
+ * `services/http.ts`: every loader asks it, so no app holds a second way to assemble a file. The
+ * projection (`englishFile`, `englishInputs`) is imported there only, through
+ * `@gokan/dataset-schema/english-file` or straight from the dataset's src/layout/englishFile.
+ */
+const ENGLISH_FILE_IMPORT = /\bfrom\s+['"](@gokan\/dataset-schema\/english-file|[^'"]*\/layout\/englishFile)['"]|\bimport\(\s*['"](@gokan\/dataset-schema\/english-file|[^'"]*\/layout\/englishFile)['"]/;
+const ENGLISH_FILE_SOURCE = /^(apps\/(gokan-srs|gokan-dictionary)\/(src|scripts)\/.*\.(tsx?|svelte)|scripts\/.*\.ts|apps\/gokan-srs\/vite\.config\.ts)$/;
+
+/**
  * A word learned in kana (ここ) has a rare kanji spelling (此処) in writtenForm.kanji, so the UI
  * names words through headwordOf/secondaryForm (@gokan/dataset-schema). Rendering
  * writtenForm.kanji in a JSX or Svelte expression is how the rare spelling would come back.
@@ -347,13 +356,18 @@ function check(files: string[]): Violation[] {
         }
 
         if (DATASET_URL_SOURCE.test(file) && file !== DATASET_URL_HELPER && !/\.test\.tsx?$/.test(file)) {
-            eachLine(text, l => l.includes('/data/compiled/') && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
+            eachLine(text, l => l.includes('/dataset/') && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
                 add({ file, line, rule: 'dataset-url', message: 'Build dataset URLs with datasetUrl() (services/http.ts); it adds the dataset version browsers cache by.' }));
             eachLine(text, l => l.includes('/audio/') && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
                 add({ file, line, rule: 'audio-url', message: 'Build audio clip URLs with audioUrl() (services/http.ts), the one place that knows where clips are served.' }));
         }
 
-        if (UI_SOURCE.test(file) && file !== KANJI_SPELLING_NOTE) {
+        if (ENGLISH_FILE_SOURCE.test(file) && file !== DATASET_URL_HELPER) {
+            eachLine(text, l => ENGLISH_FILE_IMPORT.test(l), line =>
+                add({ file, line, rule: 'english-file', message: 'englishFile/englishInputs are imported only by services/http.ts, the one place a dataset file is built in its English shape: load it through fetchDatasetFile, or englishDatasetFile in a test.' }));
+        }
+
+                if (UI_SOURCE.test(file) && file !== KANJI_SPELLING_NOTE) {
             eachLine(text, l => RENDERED_KANJI_SPELLING.test(l), line =>
                 add({ file, line, rule: 'headword', message: 'Renders writtenForm.kanji. Name the word with headwordOf/secondaryForm (@gokan/dataset-schema): a word learned in kana is shown in kana.' }));
         }
