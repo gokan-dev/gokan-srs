@@ -91,10 +91,11 @@ const ENGLISH_FILE_SOURCE = /^(apps\/(gokan-srs|gokan-dictionary)\/(src|scripts)
  * reads the published dataset at /dataset/. Docs and sources that still describe the step describe
  * a build that no longer exists. MODIFICATION_LOG.md (history), tests and the dataset submodule are
  * out of scope; .gitignore and the SRS vite config name the path because they keep a leftover copy
- * untracked and refuse to build with one.
+ * untracked and refuse to build with one. The package.json files and knip.json held the step's
+ * scripts, so a rebase or a copied script would bring it back there; this file names it in its regex.
  */
 const REMOVED_SYNC_STEP = /sync-dataset|sync:dataset|dataset:sync|public\/data\/compiled/;
-const REMOVED_SYNC_STEP_SCOPE = /^(docs\/ARCHITECTURE\.md|AGENTS\.md|\.gitignore|apps\/[\w-]+\/vite\.config\.ts|apps\/[\w-]+\/(src|scripts)\/.+|packages\/[\w-]+\/src\/.+)$/;
+const REMOVED_SYNC_STEP_SCOPE = /^(docs\/ARCHITECTURE\.md|AGENTS\.md|\.gitignore|(apps\/[\w-]+\/)?package\.json|knip\.json|scripts\/(?!check-conventions\.ts).+\.ts|apps\/[\w-]+\/vite\.config\.ts|apps\/[\w-]+\/(src|scripts)\/.+|packages\/[\w-]+\/src\/.+)$/;
 const REMOVED_SYNC_STEP_ALLOWED = new Set(['.gitignore', 'apps/gokan-srs/vite.config.ts']);
 
 /**
