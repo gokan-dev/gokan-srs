@@ -22,6 +22,9 @@ const NOT_SHIPPED = [
     // Infrastructure has its own workflows (terraform-*.yml); a site deploy does not apply it.
     /^apps\/gokan-srs\/(terraform|docs)\//,
     /^apps\/gokan-srs\/github-actions-trust-policy\.json$/,
+    // `check:parity` compares two builds; no page imports it. Named file by file: the rest of
+    // the dictionary's scripts/ (prerender.ts) and src/lib/ make the pages.
+    /^apps\/gokan-dictionary\/(src\/lib\/parity|scripts\/check-parity)\.ts$/,
 ];
 
 export function shipsInDeployment(path: string): boolean {

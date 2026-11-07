@@ -12,6 +12,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
+    "@gokan/deploy": "workspace:*",
     "@sveltejs/vite-plugin-svelte": "^4.0.0",
     "@types/bun": "^1.4.2",
     "@types/node": "^24.10.1",

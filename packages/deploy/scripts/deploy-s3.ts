@@ -39,6 +39,7 @@ import {
     type PreviousDeploy,
     type Site,
 } from '../src/deployManifest';
+import { listFiles } from '../src/buildFiles';
 
 const PACKAGE_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const REPO_ROOT = path.join(PACKAGE_ROOT, '..', '..');
@@ -98,17 +99,6 @@ function aws(
         if (options.allowFailure) return null;
         throw error;
     }
-}
-
-/** Every file under dir, as POSIX-separated paths relative to it. */
-function listFiles(dir: string, base = dir): string[] {
-    const out: string[] = [];
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-        const full = path.join(dir, entry.name);
-        if (entry.isDirectory()) out.push(...listFiles(full, base));
-        else out.push(path.relative(base, full).split(path.sep).join('/'));
-    }
-    return out;
 }
 
 /** Every built file's upload hash and its page content hash, from one read of each file. */

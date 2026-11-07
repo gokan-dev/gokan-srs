@@ -8,7 +8,8 @@
 //   --base       default origin/main; CI passes HEAD^1, a pull request's base tip (see
 //                .github/workflows/ci-gokan-dictionary.yml)
 //   --no-build   compare HEAD's existing dist/ (CI builds it in the step before)
-//   --expect identical   exit 1 on any difference
+//   --expect identical   exit 1 on any difference, a renamed asset reference included
+// A missing value, or a flag where a value goes, exits 2 with the usage.
 //
 // The base is built in a worktree cached under node_modules/.cache/check-parity and moved on
 // later runs, with its own install and its own dataset: a worktree of the dataset submodule at
@@ -16,12 +17,24 @@
 // from. Thin glue over src/lib/parity.ts; verified by running it.
 
 import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { compareOutputs, exampleCandidates, firstDifference, isIdentical, parityReport, type Example } from '../src/lib/parity';
+import { listFiles } from '@gokan/deploy/build-files';
+import { contentHash, pageContentHash } from '@gokan/deploy/manifest';
+
+import {
+    compareOutputs,
+    exampleCandidates,
+    firstDifference,
+    isIdentical,
+    isTextOutput,
+    parityReport,
+    parseParityArgs,
+    type Example,
+    type Output,
+} from '../src/lib/parity';
 
 const APP_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const REPO_ROOT = path.resolve(APP_DIR, '..', '..');
@@ -32,15 +45,12 @@ const WORKTREE = path.join(REPO_ROOT, 'node_modules', '.cache', 'check-parity');
 const DATASET_SPARSE = ['/.gitattributes', '/src/', '/compiled/'];
 const EXAMPLES = 5;
 
-const args = process.argv.slice(2);
-const option = (name: string): string | undefined => {
-    const at = args.indexOf(name);
-    return at >= 0 ? args[at + 1] : undefined;
-};
-const BASE_REF = option('--base') ?? 'origin/main';
-const BUILD_HEAD = !args.includes('--no-build');
-const expectation = option('--expect');
-if (expectation !== undefined && expectation !== 'identical') throw new Error(`[check-parity] --expect takes "identical", not "${expectation}".`);
+const options = parseParityArgs(process.argv.slice(2));
+if (options instanceof Error) {
+    console.error(`[check-parity] ${options.message}`);
+    process.exit(2);
+}
+const { base: BASE_REF, build: BUILD_HEAD, expectIdentical } = options;
 
 const git = (gitArgs: string[], cwd = REPO_ROOT): string =>
     execFileSync('git', gitArgs, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim();
@@ -108,18 +118,24 @@ function buildBase(commit: string): string {
     return dist;
 }
 
-/** Every file under `dir`, as a forward-slash path to the sha-256 of its bytes. */
-function hashes(dir: string): Map<string, string> {
-    const result = new Map<string, string>();
-    const walk = (relative: string): void => {
-        for (const entry of fs.readdirSync(path.join(dir, relative), { withFileTypes: true })) {
-            const rel = relative ? `${relative}/${entry.name}` : entry.name;
-            if (entry.isDirectory()) walk(rel);
-            else result.set(rel, createHash('sha256').update(fs.readFileSync(path.join(dir, rel))).digest('hex'));
-        }
-    };
-    walk('');
-    return result;
+/** Every file under `dir` (the deploy's own walk), hashed as the deploy hashes it: bytes and content. */
+function output(dir: string): Output {
+    const bytes = new Map<string, string>();
+    const content = new Map<string, string>();
+    for (const file of listFiles(dir)) {
+        const data = fs.readFileSync(path.join(dir, file));
+        bytes.set(file, contentHash(data));
+        content.set(file, pageContentHash(file, data));
+    }
+    return { bytes, content };
+}
+
+/** A changed file shown as its first difference, or by size when it is not text. */
+function example(baseDist: string, headDist: string, file: string): Example {
+    const before = fs.readFileSync(path.join(baseDist, file));
+    const after = fs.readFileSync(path.join(headDist, file));
+    if (!isTextOutput(file)) return { path: file, change: { kind: 'binary', beforeBytes: before.length, afterBytes: after.length } };
+    return { path: file, change: { kind: 'text', difference: firstDifference(before.toString('utf8'), after.toString('utf8')) } };
 }
 
 function main(): void {
@@ -132,17 +148,14 @@ function main(): void {
     if (BUILD_HEAD) run('bun', ['run', 'build'], APP_DIR);
     if (!fs.existsSync(headDist)) throw new Error(`[check-parity] ${headDist} does not exist: build the dictionary, or drop --no-build.`);
 
-    const result = compareOutputs(hashes(baseDist), hashes(headDist));
-    const examples: Example[] = exampleCandidates(result.changed, EXAMPLES).map(file => ({
-        path: file,
-        difference: firstDifference(fs.readFileSync(path.join(baseDist, file), 'utf8'), fs.readFileSync(path.join(headDist, file), 'utf8')),
-    }));
+    const result = compareOutputs(output(baseDist), output(headDist));
+    const examples = exampleCandidates(result, EXAMPLES).map(file => example(baseDist, headDist, file));
     const report = parityReport(result, against, examples);
     console.log(report);
     const summary = process.env.GITHUB_STEP_SUMMARY;
     if (summary) fs.appendFileSync(summary, `## Dictionary pages\n\n${report}\n`);
 
-    if (expectation === 'identical' && !isIdentical(result)) {
+    if (expectIdentical && !isIdentical(result)) {
         console.error('[check-parity] --expect identical: the pages differ.');
         process.exit(1);
     }
