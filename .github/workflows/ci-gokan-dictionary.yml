@@ -85,8 +85,10 @@ jobs:
 
       # Which pages this pull request changes, in the job summary: the base branch's tip (HEAD^1
       # of the merge commit) against the merge, so exactly what merging would change.
-      # Informational: a PR that says it changes no page is held to it by review, and #199's
-      # steps run it with --expect identical. HEAD was built by the step above.
+      # Differences are informational: a PR that says it changes no page is held to it by review,
+      # and #199's steps run it with --expect identical. Errors are not: a base that fails to
+      # install, build or fetch its dataset, or a missing dist/, turns the job red, so a red step
+      # here is the check failing to run, not a regression in the PR. HEAD was built by the step above.
       - name: Pages changed (check:parity)
         if: github.event_name == 'pull_request'
         run: bun run check:parity --base HEAD^1 --no-build
