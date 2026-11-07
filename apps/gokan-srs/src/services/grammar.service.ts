@@ -19,9 +19,9 @@ function fetchMinedExamples(pointId: string): Promise<GrammarExample[] | null> {
 
 /**
  * Loads grammar data compiled by the gokan-dataset submodule's
- * scripts/build-grammar.ts into compiled/grammar/, synced into
- * public/data/compiled/grammar/ by sync-dataset.ts like every other dataset
- * (vocab, kanji, sentences). Mirrors VocabularyService's loading pattern
+ * scripts/build-grammar.ts into compiled/grammar/, published under
+ * /dataset/grammar/ and read through fetchDatasetFile like every other dataset
+ * file (vocab, kanji, sentences). Mirrors VocabularyService's loading pattern
  * (fetch + in-memory cache) - see CLAUDE.md's Grammar section.
  */
 export class GrammarService {

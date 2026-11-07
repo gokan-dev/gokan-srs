@@ -87,6 +87,17 @@ const DICTIONARY_DATA_HOLDER = 'apps/gokan-dictionary/scripts/prerender.ts';
 const ENGLISH_FILE_SOURCE = /^(apps\/(gokan-srs|gokan-dictionary)\/(src|scripts)\/.*\.(tsx?|svelte)|scripts\/.*\.ts|apps\/gokan-srs\/vite\.config\.ts)$/;
 
 /**
+ * Until #211 a sync step copied the dataset into apps/gokan-srs/public/data/compiled/; the app now
+ * reads the published dataset at /dataset/. Docs and sources that still describe the step describe
+ * a build that no longer exists. MODIFICATION_LOG.md (history), tests and the dataset submodule are
+ * out of scope; .gitignore and the SRS vite config name the path because they keep a leftover copy
+ * untracked and refuse to build with one.
+ */
+const REMOVED_SYNC_STEP = /sync-dataset|sync:dataset|dataset:sync|public\/data\/compiled/;
+const REMOVED_SYNC_STEP_SCOPE = /^(docs\/ARCHITECTURE\.md|AGENTS\.md|\.gitignore|apps\/[\w-]+\/vite\.config\.ts|apps\/[\w-]+\/(src|scripts)\/.+|packages\/[\w-]+\/src\/.+)$/;
+const REMOVED_SYNC_STEP_ALLOWED = new Set(['.gitignore', 'apps/gokan-srs/vite.config.ts']);
+
+/**
  * A word learned in kana (ここ) has a rare kanji spelling (此処) in writtenForm.kanji, so the UI
  * names words through headwordOf/secondaryForm (@gokan/dataset-schema). Rendering
  * writtenForm.kanji in a JSX or Svelte expression is how the rare spelling would come back.
@@ -380,7 +391,12 @@ function check(files: string[]): Violation[] {
                 add({ file, line, rule: 'english-file', message: 'englishFile/englishInputs are imported only by services/http.ts, the one place a dataset file is built in its English shape: load it through fetchDatasetFile, or englishDatasetFile in a test.' }));
         }
 
-                if (UI_SOURCE.test(file) && file !== KANJI_SPELLING_NOTE) {
+        if (REMOVED_SYNC_STEP_SCOPE.test(file) && !REMOVED_SYNC_STEP_ALLOWED.has(file) && !/\.test\.tsx?$/.test(file)) {
+            eachLine(text, l => REMOVED_SYNC_STEP.test(l), line =>
+                add({ file, line, rule: 'removed-sync-step', message: 'Names the dataset sync step removed in #211 (sync-dataset, sync:dataset, dataset:sync, public/data/compiled). The app reads the published dataset at /dataset/ (services/http.ts); describe that, or record the history in docs/MODIFICATION_LOG.md.' }));
+        }
+
+        if (UI_SOURCE.test(file) && file !== KANJI_SPELLING_NOTE) {
             eachLine(text, l => RENDERED_KANJI_SPELLING.test(l), line =>
                 add({ file, line, rule: 'headword', message: 'Renders writtenForm.kanji. Name the word with headwordOf/secondaryForm (@gokan/dataset-schema): a word learned in kana is shown in kana.' }));
         }
