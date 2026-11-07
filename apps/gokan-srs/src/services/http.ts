@@ -92,7 +92,7 @@ export function sharedRequest<T>(load: () => Promise<T>): { get: () => Promise<T
  * server returns 404; production CloudFront's distribution-wide SPA fallback rewrites a missing
  * key to index.html at 200 (text/html). A 5xx, 403 or 429 is not absence.
  */
-export function isMissingFile(response: Response): boolean {
+function isMissingFile(response: Response): boolean {
     const contentType = response.headers.get('content-type') || '';
     return response.status === 404 || (response.ok && contentType.includes('text/html'));
 }

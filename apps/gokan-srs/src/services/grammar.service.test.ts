@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { GrammarService } from './grammar.service';
 import type { GrammarExample } from '@gokan/dataset-schema';
-import { datasetPathOf, emptyEnglishText, englishFiles } from '../test/datasetFiles';
+import { datasetPathOf, emptyEnglishText, englishFiles, publishedFetch } from '../test/datasetFiles';
 
 function makeExample(overrides: Partial<GrammarExample> = {}): GrammarExample {
     return {
@@ -26,17 +26,6 @@ afterEach(() => {
     // GrammarService caches on the class itself, so each test starts from an empty cache.
     GrammarService.clearCache();
 });
-
-/** The published files a test serves: a request for any other is a 404. */
-function publishedFetch(files: Record<string, unknown>, status = () => 200) {
-    return vi.fn((url: string) => {
-        const path = datasetPathOf(url);
-        if (status() !== 200) return Promise.resolve(new Response('', { status: status(), statusText: 'Server Error' }));
-        return Promise.resolve(Object.hasOwn(files, path)
-            ? new Response(JSON.stringify(files[path]))
-            : new Response('', { status: 404, statusText: 'Not Found' }));
-    });
-}
 
 /** A point's mined examples as published: their core and their English text. */
 const minedFiles = (id: string, examples: GrammarExample[]) => ({

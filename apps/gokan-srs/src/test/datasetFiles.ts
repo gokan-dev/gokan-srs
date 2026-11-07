@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { englishDatasetFile } from '../services/http';
 
 const COMPILED = 'dataset/compiled/';
@@ -28,3 +29,17 @@ export function datasetPathOf(input: string | URL | Request): string {
 
 /** A file's English text with nothing in it: what a test's loader reads beside a core it made up. */
 export const emptyEnglishText = (): { kind: string; lang: 'en'; entities: Record<string, never> } => ({ kind: 'vocab', lang: 'en', entities: {} });
+
+/**
+ * A `fetch` answering the published dataset from `files` (paths under compiled/): a request for
+ * any other file is a 404, and every request answers `status()` when it is not 200.
+ */
+export function publishedFetch(files: Record<string, unknown>, status = () => 200) {
+    return vi.fn((url: string) => {
+        const path = datasetPathOf(url);
+        if (status() !== 200) return Promise.resolve(new Response('', { status: status(), statusText: 'Server Error' }));
+        return Promise.resolve(Object.hasOwn(files, path)
+            ? new Response(JSON.stringify(files[path]))
+            : new Response('', { status: 404, statusText: 'Not Found' }));
+    });
+}
