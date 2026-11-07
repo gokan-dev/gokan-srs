@@ -1,10 +1,9 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
 import { audioUrl, datasetUrl, fetchDatasetFile, fetchOptionalDatasetFile, RequestCache } from './http';
-import { datasetPathOf, englishFiles, publishedFetch } from '../test/datasetFiles';
+import { datasetPathOf, englishFiles, publishedFetch, publishedFiles } from '../test/datasetFiles';
 
 // Two grammar points and the slot labels both declare, as published.
-const raw = import.meta.glob('../../dataset/compiled/{,text/en/}grammar/{slots,points/n5-001,points/n5-002}.json', { eager: true, import: 'default' });
-const published = Object.fromEntries(Object.entries(raw).map(([key, value]) => [key.slice(key.indexOf('dataset/compiled/') + 'dataset/compiled/'.length), value]));
+const published = publishedFiles(import.meta.glob('../../dataset/compiled/{,text/en/}grammar/{slots,points/n5-001,points/n5-002}.json', { eager: true, import: 'default' }));
 
 describe('datasetUrl', () => {
     it('versions every dataset request with the dataset commit', () => {
@@ -73,7 +72,7 @@ describe('fetchDatasetFile', () => {
 
         const point = await fetchDatasetFile<{ id: string; title: string }>('grammar/points/n5-001.json');
 
-        expect(point).toEqual((await englishFiles(raw))['grammar/points/n5-001.json']);
+        expect(point).toEqual((await englishFiles(published))['grammar/points/n5-001.json']);
         expect(point.id).toBe('n5-001');
         for (const [url] of fetchMock.mock.calls) expect(url).toMatch(/^\/dataset\/.+\.json\?v=[0-9a-f]{12}$/);
     });

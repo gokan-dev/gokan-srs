@@ -1,20 +1,20 @@
 import { describe, it, expect } from 'vitest';
 import { KANJI_ORDERS, type Sentence, type Vocabulary } from '@gokan/dataset-schema';
 import { DEMO_START_KNOWN, DEMO_TILES, DEMO_WORDS, WELCOME_EXAMPLES, WELCOME_ORDER_IDS, demoAnswerIsRight } from './welcomeExamples';
-import { englishFiles } from '../../../test/datasetFiles';
+import { englishFiles, publishedFiles } from '../../../test/datasetFiles';
 
 // The dataset checkout's files, as the app is served them.
-const orderFiles = await englishFiles<string[]>(import.meta.glob(
+const orderFiles = await englishFiles<string[]>(publishedFiles(import.meta.glob(
     '../../../../dataset/compiled/index/kanji-orders/*.json', { eager: true, import: 'default' }
-));
-const vocabFiles = await englishFiles<Pick<Vocabulary, 'writtenForm' | 'reading'>>(import.meta.glob(
+)));
+const vocabFiles = await englishFiles<Pick<Vocabulary, 'writtenForm' | 'reading'>>(publishedFiles(import.meta.glob(
     '../../../../dataset/compiled/{vocab,text/en/vocab}/{1531710,1211510,1304970,1378860,1293990,1487660,1582710,1464700,1368370,1413240,1206900,1413260,1387990,1388300}.json',
     { eager: true, import: 'default' }
-));
-const sentenceFiles = await englishFiles<Pick<Sentence, 'original' | 'matches'>[]>(import.meta.glob(
+)));
+const sentenceFiles = await englishFiles<Pick<Sentence, 'original' | 'matches'>[]>(publishedFiles(import.meta.glob(
     '../../../../dataset/compiled/{sentences,text/en/sentences}/{1531710,1211510,1304970,1378860,1293990,1487660}.json',
     { eager: true, import: 'default' }
-));
+)));
 const datasetPresent = Object.keys(orderFiles).length > 0;
 
 function file<T>(files: Record<string, T>, name: string): T {

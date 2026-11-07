@@ -12,15 +12,15 @@ function res(opts: { status?: number; contentType?: string; body?: string }): Re
 }
 
 const vocabBody = (id: string) => JSON.stringify(vocabulary({ id }));
-/** A file's core answered with `body`, its English text (under text/en/) with an empty one. */
-const withText = (body: string) => (url: string | URL | Request) =>
-    Promise.resolve(res({ body: datasetPathOf(url).startsWith('text/en/') ? JSON.stringify(emptyEnglishText()) : body }));
+/** A file's core answered with `body`, its English text (under text/en/) with an empty one of `kind`. */
+const withText = (body: string, kind: string) => (url: string | URL | Request) =>
+    Promise.resolve(res({ body: datasetPathOf(url).startsWith('text/en/') ? JSON.stringify(emptyEnglishText(kind)) : body }));
 
 afterEach(() => vi.restoreAllMocks());
 
 describe('VocabularyService.loadVocab not-found detection', () => {
     it('returns the vocab on a normal JSON response', async () => {
-        vi.spyOn(globalThis, 'fetch').mockImplementation(withText(vocabBody('100')));
+        vi.spyOn(globalThis, 'fetch').mockImplementation(withText(vocabBody('100'), 'vocab'));
         expect((await VocabularyService.loadVocab('100')).id).toBe('100');
     });
 
@@ -60,7 +60,7 @@ describe('VocabularyService.loadVocab not-found detection', () => {
 
 describe('VocabularyService.loadSentences', () => {
     it("downloads a word's sentences once for two callers (the intro prefetch and the card's load)", async () => {
-        const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(withText('[]'));
+        const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(withText('[]', 'sentence'));
 
         const [a, b] = await Promise.all([VocabularyService.loadSentences('s1'), VocabularyService.loadSentences('s1')]);
         const later = await VocabularyService.loadSentences('s1');
@@ -81,7 +81,7 @@ describe('VocabularyService.loadSentences', () => {
 
     it('gives null on a transient failure without caching it, so a later call retries', async () => {
         let available = false;
-        const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(url => (available ? withText('[]')(url) : Promise.resolve(res({ status: 503 }))));
+        const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(url => (available ? withText('[]', 'sentence')(url) : Promise.resolve(res({ status: 503 }))));
         expect(await VocabularyService.loadSentences('flaky')).toBeNull();
         available = true;
         expect(await VocabularyService.loadSentences('flaky')).toEqual([]);

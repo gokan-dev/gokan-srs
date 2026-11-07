@@ -26,7 +26,7 @@ import { gradeExercise } from '../../services/exercise/grading';
 import { grammarExercise } from '../../services/exercise/builders';
 import type { AnswerSlot } from '../../services/exercise/types';
 import type { GrammarBlankPlan } from './grammarReducer';
-import { englishFiles } from '../../test/datasetFiles';
+import { englishFiles, publishedFiles } from '../../test/datasetFiles';
 
 /** Grades answers against a plan exactly as the grammar card does (a sentence plan carries its own example). */
 const gradePlan = (plan: GrammarBlankPlan, answers: string[], hintLevels: number[] = []) =>
@@ -2081,9 +2081,9 @@ describe('cueFormLabel (the conjugation card must not print the ending it asks f
 
     it('leaves no kana inside parentheses for any label the dataset ships', async () => {
         // The dataset checkout's conjugations, as the app is served them.
-        const files = await englishFiles<Record<string, { formLabel: string }>>(import.meta.glob(
+        const files = await englishFiles<Record<string, { formLabel: string }>>(publishedFiles(import.meta.glob(
             '../../../dataset/compiled/{,text/en/}grammar/conjugations.json', { eager: true, import: 'default' }
-        ));
+        )));
         expect(Object.keys(files)).toEqual(['grammar/conjugations.json']);
         const entries = Object.values(files).flatMap(index => Object.values(index));
         for (const { formLabel } of entries) {

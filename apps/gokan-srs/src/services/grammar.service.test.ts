@@ -30,12 +30,12 @@ afterEach(() => {
 /** A point's mined examples as published: their core and their English text. */
 const minedFiles = (id: string, examples: GrammarExample[]) => ({
     [`grammar/mined/${id}.json`]: examples.map(({ en: _en, ...core }) => core),
-    [`text/en/grammar/mined/${id}.json`]: emptyEnglishText(),
+    [`text/en/grammar/mined/${id}.json`]: emptyEnglishText('grammar'),
 });
 
 /** What the app makes of published files, by the loader's own projection. */
 const english = async (files: Record<string, unknown>, path: string) =>
-    (await englishFiles<unknown>(Object.fromEntries(Object.entries(files).map(([key, value]) => [`dataset/compiled/${key}`, value]))))[path];
+    (await englishFiles<unknown>(files))[path];
 
 describe('GrammarService.loadMinedExamples', () => {
     it('returns the examples, each with its English, on a successful fetch', async () => {
@@ -99,7 +99,8 @@ describe('GrammarService index loaders', () => {
     it('download each index once when callers ask at the same moment', async () => {
         const fetchMock = vi.fn((url: string) => {
             const path = datasetPathOf(url);
-            return okJson(path.startsWith('text/en/') ? emptyEnglishText() : path.includes('teaching-order') ? teachingOrder : {});
+            if (path.startsWith('text/en/')) return okJson(emptyEnglishText(path.includes('teaching-order') ? 'chapter' : 'conjugation'));
+            return okJson(path.includes('teaching-order') ? teachingOrder : {});
         });
         vi.stubGlobal('fetch', fetchMock);
 
@@ -124,7 +125,7 @@ describe('GrammarService index loaders', () => {
         expect(await GrammarService.loadKinds()).toEqual({});
         expect(await GrammarService.loadConjugations()).toEqual({});
 
-        const files = { 'grammar/conjugations.json': { 'n5-te': { marker: 'て', items: [] } }, 'text/en/grammar/conjugations.json': emptyEnglishText() };
+        const files = { 'grammar/conjugations.json': { 'n5-te': { marker: 'て', items: [] } }, 'text/en/grammar/conjugations.json': emptyEnglishText('conjugation') };
         vi.stubGlobal('fetch', publishedFetch(files));
         const conjugations = await GrammarService.loadConjugations();
         expect(conjugations).toEqual(await english(files, 'grammar/conjugations.json'));
