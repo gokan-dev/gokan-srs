@@ -26,6 +26,7 @@ import { gradeExercise } from '../../services/exercise/grading';
 import { grammarExercise } from '../../services/exercise/builders';
 import type { AnswerSlot } from '../../services/exercise/types';
 import type { GrammarBlankPlan } from './grammarReducer';
+import { englishFiles } from '../../test/datasetFiles';
 
 /** Grades answers against a plan exactly as the grammar card does (a sentence plan carries its own example). */
 const gradePlan = (plan: GrammarBlankPlan, answers: string[], hintLevels: number[] = []) =>
@@ -2078,12 +2079,12 @@ describe('cueFormLabel (the conjugation card must not print the ending it asks f
         expect(cueFormLabel('ず (without doing)')).toBe('ず (without doing)');
     });
 
-    it('leaves no kana inside parentheses for any label the dataset ships', () => {
-        // import.meta.glob rather than node:fs, which this tsconfig has no types for;
-        // it reads the synced public/data/compiled/, empty or stale until sync:dataset has run.
-        const files = import.meta.glob<Record<string, { formLabel: string }>>(
-            '../../../public/data/compiled/grammar/conjugations.json', { eager: true, import: 'default' }
-        );
+    it('leaves no kana inside parentheses for any label the dataset ships', async () => {
+        // The dataset checkout's conjugations, as the app is served them.
+        const files = await englishFiles<Record<string, { formLabel: string }>>(import.meta.glob(
+            '../../../dataset/compiled/{,text/en/}grammar/conjugations.json', { eager: true, import: 'default' }
+        ));
+        expect(Object.keys(files)).toEqual(['grammar/conjugations.json']);
         const entries = Object.values(files).flatMap(index => Object.values(index));
         for (const { formLabel } of entries) {
             expect(cueFormLabel(formLabel)).not.toMatch(/\([^)]*[぀-ヿ][^)]*\)/);

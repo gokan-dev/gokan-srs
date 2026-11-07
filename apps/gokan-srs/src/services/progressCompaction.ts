@@ -1,7 +1,7 @@
 import { DEFAULT_SRS_ENTRY, DEFAULT_VOCABULARY_PROGRESS, type ReviewLog } from "../models/vocabulary.model";
 import type { MixupOutcome } from "../models/mixup.model";
 import type { StoredProgress } from "./progressHydration";
-import { isRecord } from "./http";
+import { isRecord } from "./isRecord";
 
 /**
  * The compact form progress is stored in (an IndexedDB record since #153, localStorage

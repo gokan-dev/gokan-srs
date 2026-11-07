@@ -10,11 +10,6 @@ export async function readJson<T>(response: Response): Promise<T> {
     return body as T;
 }
 
-/** Whether an untrusted value is a plain object, the first narrowing step of every parser. */
-export function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
 /** The dataset submodule's commit, injected by vite.config.ts. */
 declare const __DATASET_VERSION__: string;
 
@@ -114,29 +109,60 @@ async function readInput(path: string, response: Response): Promise<unknown> {
 const sharedInputs = new RequestCache<unknown>(path => fetchJson<unknown>(datasetUrl(path)));
 
 /**
- * A dataset file in the English shape the app's types describe, or null when the dataset has no
- * such file (`isMissing`, judged on its core). The dataset keeps each file's English text apart
- * from its core (its docs/MULTILINGUAL.md); the inputs `englishInputs` names are fetched in
- * parallel and put back together by `englishFile`, the dataset's own projection, so the app sees
- * exactly the file it read before the published layout (the equality test in
- * datasetFile.test.ts). Its core exists but its English text does not: an error, never "no text".
- * Not cached: each loader keeps the file in its own `RequestCache`, so callers asking at once
- * share one set of downloads.
+ * `path` in the English shape the app's types describe, from the published files `englishInputs`
+ * names for it (its core, its English text, the shared files it declares), each read by `read`
+ * (shared ones by `readShared`), all asked for at once. The dataset keeps each file's English
+ * text apart from its core (its docs/MULTILINGUAL.md); `englishFile`, its own projection, puts
+ * them back together, so the app sees exactly the file it read before the published layout
+ * (datasetFile.node.test.ts). When reads fail, the core's failure is the one thrown: a missing
+ * file is judged on its core, whatever its text's request did.
+ */
+export async function englishDatasetFile(
+    path: string,
+    read: (input: string) => Promise<unknown>,
+    readShared: (input: string) => Promise<unknown> = read,
+): Promise<unknown> {
+    const inputs = englishInputs(path);
+    const [core, text, ...shared] = await Promise.allSettled([
+        read(inputs.core),
+        inputs.text === undefined ? Promise.resolve(undefined) : read(inputs.text),
+        ...inputs.shared.map(readShared),
+    ]);
+    const valueOf = (result: PromiseSettledResult<unknown>): unknown => {
+        if (result.status === 'rejected') throw result.reason;
+        return result.value;
+    };
+    const coreValue = valueOf(core);
+    return englishFile(path, {
+        core: coreValue,
+        text: valueOf(text),
+        shared: new Map(inputs.shared.map((input, index) => [input, valueOf(shared[index])])),
+    });
+}
+
+/** Thrown by a read when the server says a file's core does not exist. */
+class MissingDatasetFile extends Error {}
+
+/**
+ * A dataset file in its English shape (`englishDatasetFile`, over the published dataset at
+ * /dataset/), or null when the dataset has no such file (`isMissing`, judged on its core). Its
+ * core exists but its English text does not: an error, never "no text". Not cached here: each
+ * loader keeps the file in its own `RequestCache`, so callers asking at once share one set of
+ * downloads; the shared inputs are cached for the session.
  */
 export async function fetchOptionalDatasetFile<T>(path: string, isMissing: (response: Response) => boolean = isMissingFile): Promise<T | null> {
-    const inputs = englishInputs(path);
-    const [core, text, shared] = await Promise.all([
-        fetch(datasetUrl(inputs.core)),
-        inputs.text === undefined ? undefined : fetch(datasetUrl(inputs.text)),
-        Promise.all(inputs.shared.map(async input => [input, await sharedInputs.get(input)] as const)),
-    ]);
-    if (isMissing(core)) return null;
-    const [coreValue, textValue] = await Promise.all([
-        readInput(inputs.core, core),
-        inputs.text === undefined || text === undefined ? undefined : readInput(inputs.text, text),
-    ]);
-    // The dataset's schema (its docs/SCHEMA.md) is what guarantees the shape, as for readJson.
-    return englishFile(path, { core: coreValue, text: textValue, shared: new Map(shared) }) as T;
+    const read = async (input: string): Promise<unknown> => {
+        const response = await fetch(datasetUrl(input));
+        if (input === path && isMissing(response)) throw new MissingDatasetFile(path);
+        return readInput(input, response);
+    };
+    try {
+        // The dataset's schema (its docs/SCHEMA.md) is what guarantees the shape, as for readJson.
+        return await englishDatasetFile(path, read, input => sharedInputs.get(input)) as T;
+    } catch (error) {
+        if (error instanceof MissingDatasetFile) return null;
+        throw error;
+    }
 }
 
 /** A dataset file in its English shape (see `fetchOptionalDatasetFile`); any failure throws, absence included. */

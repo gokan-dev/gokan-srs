@@ -4,10 +4,12 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import checker from 'vite-plugin-checker';
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { createReadStream, existsSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Plugin } from 'vite';
+import type { Connect, Plugin } from 'vite';
 import { analyticsScriptTag } from '@gokan/analytics';
+import { publishedDatasetFile } from '@gokan/deploy/published-dataset';
 import { CHANGELOG } from './release/changelog';
 import { changelogProblems } from './src/utils/changelog.utils';
 import type { LiveVersion } from './src/models/release.model';
@@ -21,6 +23,33 @@ const datasetVersion = execFileSync('git', ['rev-parse', '--short=12', 'HEAD:./d
     cwd: fileURLToPath(new URL('.', import.meta.url)),
     encoding: 'utf8',
 }).trim();
+
+// The dataset as it is published (core files plus text/en/), read by the app from /dataset/. In
+// production the data deploy owns that prefix (docs/ARCHITECTURE.md, Dataset Consumption); the
+// build never copies it into dist/. The dev and preview servers answer it from the submodule
+// checkout, only the files the deploy publishes, so a missing one is a 404 here as it is absent
+// there.
+const compiledDir = fileURLToPath(new URL('./dataset/compiled/', import.meta.url));
+if (!existsSync(compiledDir)) {
+    throw new Error(`The gokan-dataset submodule is not checked out at ${compiledDir}. Run: git submodule update --init --recursive`);
+}
+const serveDataset: Connect.NextHandleFunction = (request, response, next) => {
+    const file = publishedDatasetFile(decodeURIComponent(new URL(request.url ?? '/', 'http://localhost').pathname));
+    if (file === null) return next();
+    const full = join(compiledDir, file);
+    if (!existsSync(full) || !statSync(full).isFile()) {
+        response.statusCode = 404;
+        response.end();
+        return;
+    }
+    response.setHeader('Content-Type', 'application/json');
+    createReadStream(full).pipe(response);
+};
+const datasetPlugin: Plugin = {
+    name: 'gokan-dataset',
+    configureServer: server => { server.middlewares.use(serveDataset); },
+    configurePreviewServer: server => { server.middlewares.use(serveDataset); },
+};
 
 // index/audio.json names the voice clips are read in, and the dataset writes it only once a clip
 // is attached (#164). Known here so the app asks for it only when it is there: a missing dataset
@@ -69,6 +98,7 @@ export default defineConfig({
         react(),
         tailwindcss(),
         releasePlugin,
+        datasetPlugin,
         {
             name: 'gokan-analytics',
             transformIndexHtml: (html: string) => html.replace('</head>', `${analyticsTag}</head>`),
@@ -87,7 +117,7 @@ export default defineConfig({
             '/audio/': { target: 'https://staging.gokan-srs.com', changeOrigin: true },
         },
         watch: {
-            ignored: ['**/public/data/compiled', '**/public/data/compiled/**'],
+            ignored: ['**/dataset/compiled/**'],
         }
     },
     build: {

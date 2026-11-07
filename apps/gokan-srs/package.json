@@ -4,18 +4,17 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "bun run sync:dataset && vite",
+    "dev": "vite",
     "typecheck": "tsc --build --pretty false",
-    "build": "bun run sync:dataset && vite build",
+    "build": "vite build",
     "lint": "eslint . --max-warnings 0",
     "preview": "vite preview",
-    "sync:dataset": "bun scripts/sync-dataset.ts",
-    "build:data": "bun --cwd dataset build && bun run sync:dataset",
+    "build:data": "bun --cwd dataset build",
     "build:kanji": "bun --cwd dataset build:kanji",
     "build:jlpt": "bun --cwd dataset build:jlpt",
     "build:jpdb": "bun --cwd dataset build:jpdb",
-    "test": "bun run sync:dataset && vitest run",
-    "test:watch": "bun run sync:dataset && vitest"
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@gokan/dataset-schema": "workspace:*",
@@ -29,6 +28,7 @@
   },
   "devDependencies": {
     "@gokan/analytics": "workspace:*",
+    "@gokan/deploy": "workspace:*",
     "@tailwindcss/vite": "^4.1.18",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.5",

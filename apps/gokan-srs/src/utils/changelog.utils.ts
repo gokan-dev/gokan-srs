@@ -1,5 +1,5 @@
 import type { ChangelogChange, ChangelogEntry, LiveVersion } from '../models/release.model';
-import { isRecord } from '../services/http';
+import { isRecord } from '../services/isRecord';
 
 const VERSION = /^(\d+)\.(\d+)\.(\d+)$/;
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;

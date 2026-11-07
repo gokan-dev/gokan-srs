@@ -11,6 +11,7 @@ import { headwordOf } from '@gokan/dataset-schema';
 import type { Vocabulary } from '@gokan/dataset-schema';
 import { vocabExercise } from './builders';
 import { gradeExercise, isNeutral } from './grading';
+import { englishFiles } from '../../test/datasetFiles';
 
 type Expected = 'correct' | 'minor_error' | 'neutral' | 'wrong';
 
@@ -61,12 +62,11 @@ const CASES: ReportedCase[] = [
     { asked: ids.hoka, typed: '以外', typedId: ids.igai, expected: 'correct' },
 ];
 
-// import.meta.glob rather than node:fs, which this tsconfig has no types for. Only the
-// case words' files, never the whole dataset.
-const files = import.meta.glob<Vocabulary>(
-    '../../../public/data/compiled/vocab/{1487400,1396130,1407980,1165970,1293850,1476050,1508390,1236070,1297650,1221870,1237680,1369070,1524500,1449540,1449530,1155090,1203260}.json',
+// Only the case words' files, never the whole dataset, as the app is served them.
+const files = await englishFiles<Vocabulary>(import.meta.glob(
+    '../../../dataset/compiled/{vocab,text/en/vocab}/{1487400,1396130,1407980,1165970,1293850,1476050,1508390,1236070,1297650,1221870,1237680,1369070,1524500,1449540,1449530,1155090,1203260}.json',
     { eager: true, import: 'default' },
-);
+));
 const vocabById = new Map(Object.values(files).map(v => [v.id, v]));
 
 /** The production exercise a session builds for the word: the gloss card, or a cloze on the given English. */
@@ -81,8 +81,8 @@ function exerciseFor(vocab: Vocabulary, sentence: string | undefined) {
 }
 
 describe('reported synonym cases, on the compiled dataset', () => {
-    // Fails rather than passes when public/data/compiled/ has not been synced (sync:dataset):
-    // a suite that globs nothing would pass vacuously.
+    // Fails rather than passes when the dataset checkout lacks a case word: a suite that globs
+    // nothing would pass vacuously.
     it('loads every case word\'s file', () => {
         expect([...new Set(CASES.map(c => c.asked))].filter(id => !vocabById.has(id))).toEqual([]);
     });
