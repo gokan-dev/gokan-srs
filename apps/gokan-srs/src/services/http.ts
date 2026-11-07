@@ -145,15 +145,19 @@ class MissingDatasetFile extends Error {}
 
 /**
  * A dataset file in its English shape (`englishDatasetFile`, over the published dataset at
- * /dataset/), or null when the dataset has no such file (`isMissing`, judged on its core). Its
- * core exists but its English text does not: an error, never "no text". Not cached here: each
- * loader keeps the file in its own `RequestCache`, so callers asking at once share one set of
- * downloads; the shared inputs are cached for the session.
+ * /dataset/). With `allowMissing`, null when the dataset has no such file (`isMissingFile`, judged
+ * on its core: the one answer to "is this file absent?", private so no loader gives its own);
+ * without it, absence throws like any other failure. Its core exists but its English text does
+ * not: an error, never "no text". Not cached here: each loader keeps the file in its own
+ * `RequestCache`, so callers asking at once share one set of downloads; the shared inputs are
+ * cached for the session.
  */
-export async function fetchOptionalDatasetFile<T>(path: string, isMissing: (response: Response) => boolean = isMissingFile): Promise<T | null> {
+async function loadDatasetFile<T>(path: string, options: { allowMissing: true }): Promise<T | null>;
+async function loadDatasetFile<T>(path: string, options: { allowMissing: false }): Promise<T>;
+async function loadDatasetFile<T>(path: string, { allowMissing }: { allowMissing: boolean }): Promise<T | null> {
     const read = async (input: string): Promise<unknown> => {
         const response = await fetch(datasetUrl(input));
-        if (input === path && isMissing(response)) throw new MissingDatasetFile(path);
+        if (allowMissing && input === path && isMissingFile(response)) throw new MissingDatasetFile(path);
         return readInput(input, response);
     };
     try {
@@ -165,10 +169,12 @@ export async function fetchOptionalDatasetFile<T>(path: string, isMissing: (resp
     }
 }
 
-/** A dataset file in its English shape (see `fetchOptionalDatasetFile`); any failure throws, absence included. */
-export async function fetchDatasetFile<T>(path: string): Promise<T> {
-    const file = await fetchOptionalDatasetFile<T>(path, () => false);
-    // Unreachable: nothing counts as missing above, so a missing core already threw on its status.
-    if (file === null) throw new Error(`Dataset file ${path} is missing`);
-    return file;
+/** A dataset file in its English shape, or null when the dataset has no such file (see `loadDatasetFile`). */
+export function fetchOptionalDatasetFile<T>(path: string): Promise<T | null> {
+    return loadDatasetFile<T>(path, { allowMissing: true });
+}
+
+/** A dataset file in its English shape (see `loadDatasetFile`); any failure throws, absence included. */
+export function fetchDatasetFile<T>(path: string): Promise<T> {
+    return loadDatasetFile<T>(path, { allowMissing: false });
 }
