@@ -210,9 +210,11 @@ gokan-srs, everything else:
 
 - Data loading in components: `hooks/useAsyncData.ts`. Time: `hooks/useNow.ts`,
   `utils/time.utils.ts`. Debounce: `hooks/useDebouncedValue.ts`.
-- A dataset file's loader caches the request, not its parsed result: `RequestCache` (keyed)
-  or `sharedRequest` (one file) from `services/http.ts`, so callers asking at once share one
-  download.
+- A dataset file is loaded through `fetchDatasetFile` / `fetchOptionalDatasetFile`
+  (`services/http.ts`), the one place that builds it in its English shape from the published
+  dataset at `/dataset/` (`englishFile` / `englishInputs` imported nowhere else: enforced). Its
+  loader caches the request, not its parsed result: `RequestCache` (keyed) or `sharedRequest`
+  (one file) from `services/http.ts`, so callers asking at once share one download.
 - Page frame: `components/Page.tsx` (the two widths), `components/PageHeader.tsx` (title,
   Back, actions), `components/ui/TabNav.tsx` (route tabs), `components/nav/` (header, tab bar,
   footer), destinations in `utils/navigation.utils.ts` (a word's page only through `vocabPath`, a
@@ -272,6 +274,9 @@ gokan-srs, everything else:
 
 gokan-dictionary:
 
+- Data: every page's data through one `DictionaryData` (`lib/types.ts`), today `checkoutData`
+  (`lib/dataset.server.ts`, imported only by `scripts/prerender.ts` and tests: enforced); a
+  cross-page projection (the word summaries) is one index it provides, never built inline.
 - Page frame and breadcrumb: `pages/PageLayout.svelte` (every page: skip link, header with
   `SearchBox.svelte`, footer). Grammar browse pages share `pages/GrammarTabs.svelte`.
 - Lists: `pages/VocabEntryList.svelte` (every word list: headword | reading | gloss, the rest
