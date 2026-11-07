@@ -7,7 +7,8 @@
   "description": "Types (and JMdict tag labels, headword choice) for the compiled gokan-dataset files both apps read.",
   "exports": {
     ".": "./src/index.ts",
-    "./english": "./src/englishView.server.ts"
+    "./english": "./src/englishView.server.ts",
+    "./english-file": "./src/englishFile.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",

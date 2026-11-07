@@ -3,17 +3,7 @@ import type {
 } from '@gokan/dataset-schema';
 import { kanjiStepIndex } from '@gokan/dataset-schema';
 import { rankVocabSearch } from '../utils/vocabSearch.utils';
-import { datasetUrl, fetchJson, readJson, RequestCache, sharedRequest } from './http';
-
-/**
- * Whether the server says this dataset file does not exist, as opposed to a transient failure.
- * A dev server returns 404; production CloudFront's distribution-wide SPA fallback rewrites a
- * missing key to index.html at 200 (text/html). A 5xx, 403 or 429 is not absence.
- */
-function isMissingFile(response: Response): boolean {
-    const contentType = response.headers.get('content-type') || '';
-    return response.status === 404 || (response.ok && contentType.includes('text/html'));
-}
+import { fetchDatasetFile, fetchOptionalDatasetFile, RequestCache, sharedRequest } from './http';
 
 /**
  * A vocab's compiled file genuinely does not exist (it was dropped from the
@@ -36,60 +26,41 @@ export class VocabNotFoundError extends Error {
 }
 
 async function fetchVocab(id: string): Promise<Vocabulary> {
-    const path = datasetUrl(`vocab/${id}.json`);
-    const response = await fetch(path);
-
     // Retire ONLY on a definitive "the server does not have this file", never
     // on a transient failure - retirement is a permanent tombstone, so it must
     // not fire during a deploy or a CloudFront/S3 hiccup. The two definitive
     // signals are a real 404 (dev server, or a true origin 404) and the prod
     // SPA fallback (CloudFront's distribution-wide custom_error_response
-    // rewrites a missing key to index.html at 200/text/html). Everything else -
-    // a 5xx, 403, 429, an offline fetch rejection (never reaches here), or a
-    // 200 whose body is unparseable - is treated as a normal (recoverable,
-    // fatal) error below, so a legitimate word is never retired by a blip.
-    if (isMissingFile(response)) {
-        throw new VocabNotFoundError(id);
-    }
-    if (!response.ok) {
-        throw new Error(`Failed to fetch ${path}: ${response.status} ${response.statusText}`);
-    }
-    return readJson<Vocabulary>(response);
+    // rewrites a missing key to index.html at 200/text/html), both read by
+    // isMissingFile. Everything else - a 5xx, 403, 429, an offline fetch
+    // rejection, or a 200 whose body is unparseable - throws a normal
+    // (recoverable, fatal) error, so a legitimate word is never retired by a blip.
+    const vocab = await fetchOptionalDatasetFile<Vocabulary>(`vocab/${id}.json`);
+    if (vocab === null) throw new VocabNotFoundError(id);
+    return vocab;
 }
 
 /** A kanji's own file, or null (cached like a kanji) when the dataset has no such kanji. */
-async function fetchKanji(character: string): Promise<Kanji | null> {
-    const path = datasetUrl(`kanji/${encodeURIComponent(character)}.json`);
-    const response = await fetch(path);
-    if (isMissingFile(response)) return null;
-    if (!response.ok) {
-        throw new Error(`Failed to fetch ${path}: ${response.status} ${response.statusText}`);
-    }
-    return readJson<Kanji>(response);
+function fetchKanji(character: string): Promise<Kanji | null> {
+    return fetchOptionalDatasetFile<Kanji>(`kanji/${encodeURIComponent(character)}.json`);
 }
 
 /** A word's sentence file, or null (cached) when the dataset has none for it; a transient failure throws, so it is not cached. */
-async function fetchSentences(vocabId: string): Promise<Sentence[] | null> {
-    const path = datasetUrl(`sentences/${vocabId}.json`);
-    const response = await fetch(path);
-    if (isMissingFile(response)) return null;
-    if (!response.ok) {
-        throw new Error(`Failed to fetch ${path}: ${response.status} ${response.statusText}`);
-    }
-    return readJson<Sentence[]>(response);
+function fetchSentences(vocabId: string): Promise<Sentence[] | null> {
+    return fetchOptionalDatasetFile<Sentence[]>(`sentences/${vocabId}.json`);
 }
 
 export class VocabularyService {
-    private static kklcIndex = sharedRequest(() => fetchJson<KKLCIndex>(datasetUrl('index/kklc.json')));
-    private static frequencyIndex = sharedRequest(() => fetchJson<FrequencyIndex>(datasetUrl('index/frequency.json')));
+    private static kklcIndex = sharedRequest(() => fetchDatasetFile<KKLCIndex>('index/kklc.json'));
+    private static frequencyIndex = sharedRequest(() => fetchDatasetFile<FrequencyIndex>('index/frequency.json'));
     private static usuallyKanaIds: ReadonlySet<string> | null = null;
-    private static searchIndex = sharedRequest(() => fetchJson<SearchIndex>(datasetUrl('index/search.json')));
+    private static searchIndex = sharedRequest(() => fetchDatasetFile<SearchIndex>('index/search.json'));
     private static vocabs = new RequestCache(fetchVocab);
     private static kanji = new RequestCache(fetchKanji);
     private static sentences = new RequestCache(fetchSentences);
-    private static kanjiVocabIndex = sharedRequest(() => fetchJson<KanjiVocabIndex>(datasetUrl('index/kanji-vocab.json')));
-    private static jlptIndex = sharedRequest(() => fetchJson<JlptIndex>(datasetUrl('index/jlpt.json')));
-    private static kanjiOrders = new RequestCache(order => fetchJson<KanjiOrderList>(datasetUrl(`index/kanji-orders/${order}.json`)));
+    private static kanjiVocabIndex = sharedRequest(() => fetchDatasetFile<KanjiVocabIndex>('index/kanji-vocab.json'));
+    private static jlptIndex = sharedRequest(() => fetchDatasetFile<JlptIndex>('index/jlpt.json'));
+    private static kanjiOrders = new RequestCache(order => fetchDatasetFile<KanjiOrderList>(`index/kanji-orders/${order}.json`));
     private static kanjiStepIndexes = new Map<KanjiOrderId, KanjiStepIndex>();
 
     /** One kanji learning order's kanji, in teaching order. */
