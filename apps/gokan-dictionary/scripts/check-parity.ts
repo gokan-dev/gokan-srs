@@ -21,8 +21,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { listFiles } from '@gokan/deploy/build-files';
-import { contentHash, pageContentHash } from '@gokan/deploy/manifest';
+import { hashBuild } from '@gokan/deploy/build-files';
 
 import {
     compareOutputs,
@@ -118,16 +117,10 @@ function buildBase(commit: string): string {
     return dist;
 }
 
-/** Every file under `dir` (the deploy's own walk), hashed as the deploy hashes it: bytes and content. */
+/** Every file under `dir`, listed and hashed by the deploy's own `hashBuild`: bytes and content. */
 function output(dir: string): Output {
-    const bytes = new Map<string, string>();
-    const content = new Map<string, string>();
-    for (const file of listFiles(dir)) {
-        const data = fs.readFileSync(path.join(dir, file));
-        bytes.set(file, contentHash(data));
-        content.set(file, pageContentHash(file, data));
-    }
-    return { bytes, content };
+    const { hashes, content } = hashBuild(dir);
+    return { bytes: new Map(Object.entries(hashes)), content: new Map(Object.entries(content)) };
 }
 
 /** A changed file shown as its first difference, or by size when it is not text. */
