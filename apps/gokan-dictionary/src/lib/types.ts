@@ -1,6 +1,12 @@
-// Lightweight cross-page view types and the dictionary's own search index format. The prerender
-// script resolves summaries once per referenced id and passes them down as props, so a page
-// linking to another entry never embeds that entry's full dataset object.
+// Lightweight cross-page view types, the dictionary's own search index format, and DictionaryData,
+// what the pages read of the dataset. The prerender script resolves summaries once per referenced
+// id and passes them down as props, so a page linking to another entry never embeds that entry's
+// full dataset object.
+
+import type {
+    FrequencyIndex, GrammarConjugationIndex, GrammarContrastIndex, GrammarExample, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex,
+    JlptIndex, Kanji, KanjiOrderId, KanjiOrderList, KanjiVocabIndex, Sentence, Vocabulary,
+} from '@gokan/dataset-schema';
 
 /** The site section a page belongs to, marked current in the header nav. */
 export type Section = 'vocab' | 'kanji' | 'grammar';
@@ -64,4 +70,48 @@ export interface SearchIndexFile {
     w: SearchWordColumns;
     k?: SearchKanjiRow[];
     g?: SearchGrammarRow[];
+}
+
+/**
+ * What the dictionary's pages read of the dataset, asked per entity or per index: the one way
+ * they reach it, so its source can change without a page knowing. Today it is the checkout, read
+ * through the English view (`checkoutData` in dataset.server.ts); rendering on request adds a
+ * source over the published dataset (HTTP), and other languages a language parameter, each an
+ * implementation of this. Asynchronous for that reason. Every value is in the English shape the
+ * `@gokan/dataset-schema` types describe.
+ */
+export interface DictionaryData {
+    /** Every word's id, in the order the vocab directory lists them. */
+    vocabIds(): Promise<string[]>;
+    vocab(id: string): Promise<Vocabulary>;
+    /** A word's example sentences, or null when it has none (the common case for a rare word). */
+    sentencesFor(vocabId: string): Promise<Sentence[] | null>;
+    /**
+     * Every word as other pages list it (a kanji's words, a JLPT list, related words), by id: one
+     * index, so a page that lists 600 words reads one file rather than 600 (on request, a file
+     * built at deploy).
+     */
+    wordSummaries(): Promise<ReadonlyMap<string, VocabSummary>>;
+    kanjiList(): Promise<Kanji[]>;
+    /** Kanji -> the words that contain it, most frequent first. */
+    kanjiVocabIndex(): Promise<KanjiVocabIndex>;
+    /** One kanji learning order's kanji, in teaching order: step N is the Nth. */
+    kanjiOrder(order: KanjiOrderId): Promise<KanjiOrderList>;
+    /** JLPT level -> that level's words, frequency-ordered. */
+    vocabJlptIndex(): Promise<JlptIndex>;
+    /** Every word, most frequent first: the order of the search index. */
+    frequencyIndex(): Promise<FrequencyIndex>;
+    /** Every grammar point id, easiest first (N5 to N1), the SRS's own order. */
+    grammarIds(): Promise<string[]>;
+    grammarPoint(id: string): Promise<GrammarPoint>;
+    /** The authored introduction order: chapters, and the points in the order they are taught. */
+    grammarTeachingOrder(): Promise<GrammarTeachingOrder>;
+    /** Family id -> its contrast lessons and interchangeable note. */
+    grammarContrasts(): Promise<GrammarContrastIndex>;
+    /** Canonical point id -> its realization variants. */
+    grammarVariantGroups(): Promise<GrammarVariantGroupIndex>;
+    /** Point id -> its conjugation drill, for the inflection points. */
+    grammarConjugations(): Promise<GrammarConjugationIndex>;
+    /** A point's corpus-mined examples, or null for a point with none (most of them). */
+    grammarMinedExamples(id: string): Promise<GrammarExample[] | null>;
 }

@@ -22,25 +22,7 @@ import { fileURLToPath } from 'node:url';
 import { render } from 'svelte/server';
 import type { Component } from 'svelte';
 
-import {
-    resolveCompiledDir,
-    listVocabIds,
-    loadVocab,
-    loadKanjiList,
-    loadKanjiVocabIndex,
-    loadKanjiOrderList,
-    loadSentences,
-    loadFrequencyIndex,
-    listGrammarIds,
-    loadGrammarPoint,
-    loadVocabJlptIndex,
-    loadGrammarTeachingOrder,
-    loadGrammarContrasts,
-    loadGrammarVariantGroups,
-    loadGrammarConjugations,
-    loadGrammarMinedExamples,
-} from '../src/lib/dataset.server';
-import { vocabSummaryFrom } from '../src/lib/vocabSummary';
+import { checkoutData, resolveCompiledDir } from '../src/lib/dataset.server';
 import { UMAMI_WEBSITE_ID } from '../src/lib/site';
 import {
     vocabMeta,
@@ -86,7 +68,7 @@ import {
 } from '../src/lib/urls';
 import { japaneseWithoutLang, renderDocument } from '../src/lib/documentShell';
 import { buildSitemapXml, buildRobotsTxt, shouldEmitRobotsTxt } from '../src/lib/sitemap';
-import type { SearchWordRow, VocabSummary } from '../src/lib/types';
+import type { DictionaryData, SearchWordRow, VocabSummary } from '../src/lib/types';
 import { grammarSummaryOf, groupByLevel, inTeachingOrder } from '../src/lib/grammarBrowse';
 import { buildChapterLocatorIndex, buildChapterIndexRows } from '../src/lib/grammarChapters';
 import { buildFamilyPages } from '../src/lib/grammarFamilies';
@@ -123,7 +105,7 @@ function readClientManifest(): Record<string, ViteManifestEntry> {
 }
 
 /** Resolves related-vocab ids to summaries, tracking (without spamming) any that don't resolve. */
-function resolveSummaries(ids: string[], summaryById: Map<string, VocabSummary>, missing: Set<string>): VocabSummary[] {
+function resolveSummaries(ids: string[], summaryById: ReadonlyMap<string, VocabSummary>, missing: Set<string>): VocabSummary[] {
     const resolved: VocabSummary[] = [];
     for (const id of ids) {
         const summary = summaryById.get(id);
@@ -143,7 +125,8 @@ function bodyOf<Props extends Record<string, unknown>>(component: Component<Prop
 async function main(): Promise<void> {
     const startedAt = Date.now();
 
-    const compiledDir = resolveCompiledDir();
+    // Every page's data comes through this, never from a loader or a file.
+    const data: DictionaryData = checkoutData(resolveCompiledDir());
     const manifest = readClientManifest();
     const asset = (entry: string) => assetPath(manifest[entry].file);
     // assetPath, not a bare '/' + file: in subfolder mode every href on the page has to carry
@@ -223,36 +206,32 @@ async function main(): Promise<void> {
     const { default: SearchPage } = await import('../src/pages/SearchPage.svelte');
 
     console.log('[prerender] loading dataset indexes...');
-    const vocabIds = listVocabIds(compiledDir);
-    const kanjiList = loadKanjiList(compiledDir);
-    const kanjiVocabIndex = loadKanjiVocabIndex(compiledDir);
-    const vocabJlptIndex = loadVocabJlptIndex(compiledDir);
-    const frequencyIndex = loadFrequencyIndex(compiledDir);
-    const kanjiOrderLists = KANJI_ORDERS.map(order => ({ order, list: loadKanjiOrderList(compiledDir, order.id) }));
+    const vocabIds = await data.vocabIds();
+    const kanjiList = await data.kanjiList();
+    const kanjiVocabIndex = await data.kanjiVocabIndex();
+    const vocabJlptIndex = await data.vocabJlptIndex();
+    const frequencyIndex = await data.frequencyIndex();
+    const kanjiOrderLists = await Promise.all(KANJI_ORDERS.map(async order => ({ order, list: await data.kanjiOrder(order.id) })));
     // A kanji page links each book position to its range page, which needs the order's length.
     const orderLengths: ReadonlyMap<KanjiOrderId, number> = new Map(kanjiOrderLists.map(({ order, list }) => [order.id, list.length]));
 
-    // Built as a separate pass (rather than caching full Vocabulary objects while writing
-    // pages below) so memory stays bounded to ~36k small summaries and search rows instead of
-    // ~36k full parsed vocab files at once.
+    // One index of every word as other pages list it, rather than full Vocabulary objects, so
+    // memory stays bounded to ~36k small summaries; each word's search row is taken while its
+    // page is written below.
     console.log(`[prerender] indexing ${vocabIds.length} vocab summaries...`);
-    const summaryById = new Map<string, VocabSummary>();
+    const summaryById = await data.wordSummaries();
     const searchRowById = new Map<string, SearchWordRow>();
-    for (const id of vocabIds) {
-        const vocab = loadVocab(compiledDir, id);
-        summaryById.set(id, vocabSummaryFrom(vocab));
-        searchRowById.set(id, searchWordRow(vocab));
-    }
 
     let sentenceCount = 0;
     const missingRelatedIds = new Set<string>();
 
     console.log(`[prerender] writing ${vocabIds.length} vocab pages...`);
     for (const id of vocabIds) {
-        const vocab: Vocabulary = loadVocab(compiledDir, id);
+        const vocab: Vocabulary = await data.vocab(id);
+        searchRowById.set(id, searchWordRow(vocab));
         const components = resolveSummaries(vocab.components ?? [], summaryById, missingRelatedIds);
         const parents = resolveSummaries(vocab.parents ?? [], summaryById, missingRelatedIds);
-        const allSentences = loadSentences(compiledDir, id) ?? [];
+        const allSentences = (await data.sentencesFor(id)) ?? [];
         sentenceCount += allSentences.length;
         const sentences = orderSentences(allSentences, id, headwordOf(vocab));
 
@@ -290,19 +269,19 @@ async function main(): Promise<void> {
     // Loaded in full up front (766 points, small files) rather than streamed like vocab: the
     // family/related-points list on each page needs OTHER points' titles, so a second lookup
     // pass would just re-read the same files.
-    const grammarIds = listGrammarIds(compiledDir);
+    const grammarIds = await data.grammarIds();
     console.log(`[prerender] writing ${grammarIds.length} grammar pages...`);
     const grammarPoints = new Map<string, GrammarPoint>();
     for (const id of grammarIds) {
-        grammarPoints.set(id, loadGrammarPoint(compiledDir, id));
+        grammarPoints.set(id, await data.grammarPoint(id));
     }
 
     // The authored teaching order (chapters), the family "when to use each" lessons, the
     // realization-variant groups, and the inflection points' conjugation drill tables.
-    const teachingOrder = loadGrammarTeachingOrder(compiledDir);
-    const contrasts = loadGrammarContrasts(compiledDir);
-    const variantGroups = loadGrammarVariantGroups(compiledDir);
-    const conjugationIndex = loadGrammarConjugations(compiledDir);
+    const teachingOrder = await data.grammarTeachingOrder();
+    const contrasts = await data.grammarContrasts();
+    const variantGroups = await data.grammarVariantGroups();
+    const conjugationIndex = await data.grammarConjugations();
     const chapterLocatorIndex = buildChapterLocatorIndex(teachingOrder);
 
     for (const [id, point] of grammarPoints) {
@@ -310,7 +289,7 @@ async function main(): Promise<void> {
             .map(relatedId => grammarPoints.get(relatedId))
             .filter((other): other is GrammarPoint => Boolean(other))
             .map(grammarSummaryOf);
-        const minedExamplesPool = loadGrammarMinedExamples(compiledDir, id) ?? [];
+        const minedExamplesPool = (await data.grammarMinedExamples(id)) ?? [];
 
         const body = bodyOf(GrammarPage, {
             point,

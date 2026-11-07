@@ -1,19 +1,24 @@
-// Node-only data access for the compiled gokan-dataset. Used by the prerender script
-// (scripts/prerender.ts) and nowhere else - never import this from a .svelte component or
-// any file that ends up in the client bundle (it uses `node:fs`, which doesn't exist in the
-// browser). The `.server.ts` suffix is a naming convention flagging that, not an enforced
+// The dictionary's data from the gokan-dataset checkout on disk: `checkoutData`, the
+// DictionaryData (lib/types.ts) the prerender script reads every page's data through. Node only:
+// never import this from a .svelte component or any file that ends up in the client bundle (it
+// uses `node:fs`). The `.server.ts` suffix is a naming convention flagging that, not an enforced
 // boundary (this app has no framework-level server/client split like SvelteKit does).
 //
-// Every loader here takes an explicit `compiledDir` rather than resolving one internally, so
-// tests can point at a small fixture directory instead of the real ~1GB submodule checkout -
-// see dataset.server.test.ts.
+// `checkoutData` takes an explicit `compiledDir` rather than resolving one itself, so tests can
+// point it at a small fixture directory instead of the real ~1GB submodule checkout (see
+// dataset.server.test.ts).
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { englishView, type EnglishView } from '@gokan/dataset-schema/english';
-import type { FrequencyIndex, GrammarConjugationIndex, GrammarContrastIndex, GrammarExample, GrammarJlptIndex, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex, JlptIndex, Kanji, KanjiOrderId, KanjiOrderList, KanjiVocabIndex, Sentence, Vocabulary } from '@gokan/dataset-schema';
+import { englishView } from '@gokan/dataset-schema/english';
+import type {
+    FrequencyIndex, GrammarConjugationIndex, GrammarContrastIndex, GrammarExample, GrammarJlptIndex, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex,
+    JlptIndex, Kanji, KanjiOrderList, KanjiVocabIndex, Sentence, Vocabulary,
+} from '@gokan/dataset-schema';
+import type { DictionaryData, VocabSummary } from './types';
+import { vocabSummaryFrom } from './vocabSummary';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -26,7 +31,7 @@ const DATASET_SUBMODULE_PATH = path.join('apps', 'gokan-srs', 'dataset');
  * submodule (checked out once, under apps/gokan-srs/dataset - see CLAUDE.md's Dataset
  * Consumption section) if it hasn't been fetched yet.
  *
- * gokan-srs's own equivalent (scripts/sync-dataset.ts) deliberately fails fast instead of
+ * gokan-srs's own equivalent (its vite.config.ts) deliberately fails fast instead of
  * auto-initializing, because its CI (deploy.yml) already checks out the submodule via
  * `submodules: true` on actions/checkout - a missing submodule there means something is
  * genuinely wrong. gokan-dictionary's CI (ci-gokan-dictionary.yml) does not check out
@@ -54,116 +59,53 @@ export function resolveCompiledDir(): string {
     return compiledDir;
 }
 
-const views = new Map<string, EnglishView>();
-
 /**
- * One compiled file, in the English shape this app reads. The dataset keeps each file's text
- * apart from its core, per language; its English view puts them back together, as they were
- * before the text layer (see @gokan/dataset-schema/english).
+ * The dictionary's data, read from a compiled/ directory through its English view: each file in
+ * the English shape this app's types describe. The dataset keeps each file's text apart from its
+ * core, per language; the view puts them back together (see @gokan/dataset-schema/english).
  */
-function readCompiled<T>(compiledDir: string, ...segments: string[]): T {
-    let view = views.get(compiledDir);
-    if (!view) {
-        view = englishView(compiledDir);
-        views.set(compiledDir, view);
-    }
-    // The dataset's own build typed this file; the view gives back the shape the types describe.
-    return view.json(segments.join('/')) as T;
-}
+export function checkoutData(compiledDir: string): DictionaryData {
+    const view = englishView(compiledDir);
+    // The dataset's own build typed each file; the view gives back the shape the types describe.
+    const read = <T>(relative: string): T => view.json(relative) as T;
+    const exists = (relative: string): boolean => fs.existsSync(path.join(compiledDir, relative));
+    // Reads are synchronous here; a throw becomes the promise's rejection, as it would over HTTP.
+    const later = <T>(load: () => T): Promise<T> => new Promise(resolve => resolve(load()));
 
-export function listVocabIds(compiledDir: string): string[] {
-    return fs.readdirSync(path.join(compiledDir, 'vocab'))
+    const vocabIds = (): string[] => fs.readdirSync(path.join(compiledDir, 'vocab'))
         .filter(name => name.endsWith('.json'))
         .map(name => name.slice(0, -'.json'.length));
-}
+    const vocab = (id: string): Vocabulary => read<Vocabulary>(`vocab/${id}.json`);
 
-export function loadVocab(compiledDir: string, id: string): Vocabulary {
-    return readCompiled<Vocabulary>(compiledDir, 'vocab', `${id}.json`);
-}
+    // Built once, from every word file, and kept: about 36k small summaries.
+    let summaries: Promise<ReadonlyMap<string, VocabSummary>> | null = null;
 
-export function loadKanjiList(compiledDir: string): Kanji[] {
-    return readCompiled<Kanji[]>(compiledDir, 'kanji.json');
-}
-
-export function loadKanjiVocabIndex(compiledDir: string): KanjiVocabIndex {
-    return readCompiled<KanjiVocabIndex>(compiledDir, 'index', 'kanji-vocab.json');
-}
-
-/** One kanji learning order's kanji, in teaching order: step N is the Nth. */
-export function loadKanjiOrderList(compiledDir: string, order: KanjiOrderId): KanjiOrderList {
-    return readCompiled<KanjiOrderList>(compiledDir, 'index', 'kanji-orders', `${order}.json`);
-}
-
-export function loadSentences(compiledDir: string, vocabId: string): Sentence[] | null {
-    if (!fs.existsSync(path.join(compiledDir, 'sentences', `${vocabId}.json`))) return null;
-    return readCompiled<Sentence[]>(compiledDir, 'sentences', `${vocabId}.json`);
-}
-
-/** JLPT level -> that level's vocab, frequency-ordered. Only ~6.4k of ~36k vocab are listed. */
-export function loadVocabJlptIndex(compiledDir: string): JlptIndex {
-    return readCompiled<JlptIndex>(compiledDir, 'index', 'jlpt.json');
-}
-
-/** Every vocab, most frequent first: the order of the dictionary's search index. */
-export function loadFrequencyIndex(compiledDir: string): FrequencyIndex {
-    return readCompiled<FrequencyIndex>(compiledDir, 'index', 'frequency.json');
-}
-
-// -- Grammar -----------------------------------------------------------------
-// Grammar lives under its own compiled/grammar/ subtree (points/{id}.json + index/jlpt.json),
-// mirroring the vocab layout one level down. Ids are ordered by JLPT level here rather than
-// read off the directory listing, because that order is the one the pages present.
-
-export function loadGrammarJlptIndex(compiledDir: string): GrammarJlptIndex {
-    return readCompiled<GrammarJlptIndex>(compiledDir, 'grammar', 'index', 'jlpt.json');
-}
-
-/** Every grammar point id, ordered easiest-first (N5 -> N1), matching the SRS's own order. */
-export function listGrammarIds(compiledDir: string): string[] {
-    const index = loadGrammarJlptIndex(compiledDir);
-    const ids: string[] = [];
-    for (const level of [5, 4, 3, 2, 1]) {
-        ids.push(...(index[level] ?? []));
-    }
-    return ids;
-}
-
-export function loadGrammarPoint(compiledDir: string, id: string): GrammarPoint {
-    return readCompiled<GrammarPoint>(compiledDir, 'grammar', 'points', `${id}.json`);
-}
-
-/**
- * The authored introduction order (issue #58) - chapters plus their flattened
- * order. Used to build the chapter browser/detail pages and each point's
- * chapter locator. Not every point appears in it (a non-canonical variant
- * realization is taught only via its canonical, so it has no independent slot).
- */
-export function loadGrammarTeachingOrder(compiledDir: string): GrammarTeachingOrder {
-    return readCompiled<GrammarTeachingOrder>(compiledDir, 'grammar', 'index', 'teaching-order.json');
-}
-
-/** Family id -> its authored contrast lessons/interchangeable note, for the family pages. */
-export function loadGrammarContrasts(compiledDir: string): GrammarContrastIndex {
-    return readCompiled<GrammarContrastIndex>(compiledDir, 'grammar', 'index', 'contrasts.json');
-}
-
-/** Canonical point id -> its realization variants, for the "Other forms" section on a point page. */
-export function loadGrammarVariantGroups(compiledDir: string): GrammarVariantGroupIndex {
-    return readCompiled<GrammarVariantGroupIndex>(compiledDir, 'grammar', 'index', 'variant-groups.json');
-}
-
-/** Point id -> conjugation drill items, for the 40 `kind: 'inflection'` points' conjugation tables. */
-export function loadGrammarConjugations(compiledDir: string): GrammarConjugationIndex {
-    return readCompiled<GrammarConjugationIndex>(compiledDir, 'grammar', 'conjugations.json');
-}
-
-/**
- * The corpus-mined example pool for a point (issue #73's dataset half), for the "Corpus
- * examples" section on its page. One file per eligible point rather than a whole-index file
- * (mirrors loadSentences' per-vocab layout) - most points (~350/828) have none at all, which
- * is the common, permanent case, not an error.
- */
-export function loadGrammarMinedExamples(compiledDir: string, id: string): GrammarExample[] | null {
-    if (!fs.existsSync(path.join(compiledDir, 'grammar', 'mined', `${id}.json`))) return null;
-    return readCompiled<GrammarExample[]>(compiledDir, 'grammar', 'mined', `${id}.json`);
+    return {
+        vocabIds: () => later(() => vocabIds()),
+        vocab: id => later(() => vocab(id)),
+        sentencesFor: vocabId => later(() => (exists(`sentences/${vocabId}.json`) ? read<Sentence[]>(`sentences/${vocabId}.json`) : null)),
+        wordSummaries: () => {
+            summaries ??= later(() => new Map(vocabIds().map(id => [id, vocabSummaryFrom(vocab(id))])));
+            return summaries;
+        },
+        kanjiList: () => later(() => read<Kanji[]>('kanji.json')),
+        kanjiVocabIndex: () => later(() => read<KanjiVocabIndex>('index/kanji-vocab.json')),
+        kanjiOrder: order => later(() => read<KanjiOrderList>(`index/kanji-orders/${order}.json`)),
+        vocabJlptIndex: () => later(() => read<JlptIndex>('index/jlpt.json')),
+        frequencyIndex: () => later(() => read<FrequencyIndex>('index/frequency.json')),
+        // Ordered by JLPT level rather than read off the directory listing: that order is the one
+        // the pages present.
+        grammarIds: () => later(() => {
+            const index = read<GrammarJlptIndex>('grammar/index/jlpt.json');
+            return [5, 4, 3, 2, 1].flatMap(level => index[level] ?? []);
+        }),
+        grammarPoint: id => later(() => read<GrammarPoint>(`grammar/points/${id}.json`)),
+        grammarTeachingOrder: () => later(() => read<GrammarTeachingOrder>('grammar/index/teaching-order.json')),
+        grammarContrasts: () => later(() => read<GrammarContrastIndex>('grammar/index/contrasts.json')),
+        grammarVariantGroups: () => later(() => read<GrammarVariantGroupIndex>('grammar/index/variant-groups.json')),
+        grammarConjugations: () => later(() => read<GrammarConjugationIndex>('grammar/conjugations.json')),
+        // One file per eligible point: most points (~350/828) have none, the common, permanent
+        // case, not an error.
+        grammarMinedExamples: id => later(() => (exists(`grammar/mined/${id}.json`) ? read<GrammarExample[]>(`grammar/mined/${id}.json`) : null)),
+    };
 }
