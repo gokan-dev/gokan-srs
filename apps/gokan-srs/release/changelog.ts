@@ -5,7 +5,9 @@ import type { ChangelogEntry } from '../src/models/release.model';
  * entry's). A change that ships adds one entry at the top, in the same pull request: the next
  * minor after the entry below it, which is the version the agent pipeline's rc tags give that
  * pull request (`v1.43.0-rc.1` ships as `1.43.0`), dated the day it merges, in one plain
- * sentence a learner can read. A change that ships nothing (docs, CI, tests) adds none.
+ * sentence a learner can read. A change that ships nothing (docs, CI, tests) adds none, nor does one
+ * that ships code but nothing a learner sees (a refactor proven identical by `check:parity` or an
+ * equality test): its PR says so (AGENTS.md, Workflow).
  *
  * Committed rather than generated from tags at deploy: the production build is a shallow
  * checkout of `main` with no tags, so the version must be in the tree it builds. vite.config.ts
