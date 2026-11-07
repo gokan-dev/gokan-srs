@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { VocabularyService, VocabNotFoundError } from './vocabulary.service';
 import { vocabulary } from '../test/fixtures';
+import { datasetPathOf, emptyEnglishText } from '../test/datasetFiles';
 
 /** A real Response, so loadVocab's status, content-type and body handling run unmodified. */
 function res(opts: { status?: number; contentType?: string; body?: string }): Response {
@@ -11,12 +12,15 @@ function res(opts: { status?: number; contentType?: string; body?: string }): Re
 }
 
 const vocabBody = (id: string) => JSON.stringify(vocabulary({ id }));
+/** A file's core answered with `body`, its English text (under text/en/) with an empty one of `kind`. */
+const withText = (body: string, kind: string) => (url: string | URL | Request) =>
+    Promise.resolve(res({ body: datasetPathOf(url).startsWith('text/en/') ? JSON.stringify(emptyEnglishText(kind)) : body }));
 
 afterEach(() => vi.restoreAllMocks());
 
 describe('VocabularyService.loadVocab not-found detection', () => {
     it('returns the vocab on a normal JSON response', async () => {
-        vi.spyOn(globalThis, 'fetch').mockResolvedValue(res({ body: vocabBody('100') }));
+        vi.spyOn(globalThis, 'fetch').mockImplementation(withText(vocabBody('100'), 'vocab'));
         expect((await VocabularyService.loadVocab('100')).id).toBe('100');
     });
 
@@ -56,7 +60,7 @@ describe('VocabularyService.loadVocab not-found detection', () => {
 
 describe('VocabularyService.loadSentences', () => {
     it("downloads a word's sentences once for two callers (the intro prefetch and the card's load)", async () => {
-        const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(res({ body: '[]' })));
+        const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(withText('[]', 'sentence'));
 
         const [a, b] = await Promise.all([VocabularyService.loadSentences('s1'), VocabularyService.loadSentences('s1')]);
         const later = await VocabularyService.loadSentences('s1');
@@ -64,7 +68,8 @@ describe('VocabularyService.loadSentences', () => {
         expect(a).toEqual([]);
         expect(b).toEqual([]);
         expect(later).toEqual([]);
-        expect(fetchMock).toHaveBeenCalledTimes(1);
+        // Its core and its English text, each once.
+        expect(fetchMock.mock.calls.map(([url]) => datasetPathOf(url)).sort()).toEqual(['sentences/s1.json', 'text/en/sentences/s1.json']);
     });
 
     it('gives null for a word with no sentence file (a 404 or the SPA fallback)', async () => {
@@ -75,10 +80,12 @@ describe('VocabularyService.loadSentences', () => {
     });
 
     it('gives null on a transient failure without caching it, so a later call retries', async () => {
-        const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(res({ status: 503 })).mockResolvedValueOnce(res({ body: '[]' }));
+        let available = false;
+        const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(url => (available ? withText('[]', 'sentence')(url) : Promise.resolve(res({ status: 503 }))));
         expect(await VocabularyService.loadSentences('flaky')).toBeNull();
+        available = true;
         expect(await VocabularyService.loadSentences('flaky')).toEqual([]);
-        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(fetchMock).toHaveBeenCalledTimes(4);
     });
 });
 

@@ -1,5 +1,5 @@
 import type { AudioIndex } from '@gokan/dataset-schema';
-import { datasetUrl, fetchJson, sharedRequest } from './http';
+import { fetchDatasetFile, sharedRequest } from './http';
 
 /** Whether this build's dataset has `index/audio.json`, injected by vite.config.ts. */
 declare const __AUDIO_INDEX_SHIPPED__: boolean;
@@ -7,7 +7,7 @@ declare const __AUDIO_INDEX_SHIPPED__: boolean;
 /** The build's own answer, exported so a test can check it against the pinned dataset. */
 export const AUDIO_INDEX_SHIPPED: boolean = __AUDIO_INDEX_SHIPPED__;
 
-const audioIndex = sharedRequest(() => fetchJson<AudioIndex>(datasetUrl('index/audio.json')));
+const audioIndex = sharedRequest(() => fetchDatasetFile<AudioIndex>('index/audio.json'));
 
 /**
  * The voice the dataset's clips are read in, with the credit its terms require, or null when

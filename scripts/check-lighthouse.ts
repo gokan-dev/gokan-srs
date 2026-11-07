@@ -29,6 +29,7 @@
 import { spawn } from 'node:child_process';
 import { mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { DATASET_PREFIX } from '@gokan/deploy/published-dataset';
 import { buildMissing, dictionaryPages, serveBoth } from './lib/builtSite';
 import { launchChrome, type Chrome } from './lib/chrome';
 
@@ -169,8 +170,6 @@ function keepMedianReport(base: string, runs: Record<string, unknown>[], medianP
     }
 }
 
-/** Dataset files sit under this path (`datasetUrl()` in apps/gokan-srs/src/services/http.ts). */
-const DATASET_PREFIX = '/data/compiled/';
 
 /** Files a page needs (`first`) issued before a file only the study flow's background loads need (`then`). */
 interface LoadOrder { first: string[]; then: string }

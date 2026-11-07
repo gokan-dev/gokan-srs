@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { GrammarService } from './grammar.service';
 import type { GrammarExample } from '@gokan/dataset-schema';
+import { datasetPathOf, emptyEnglishText, englishFiles, publishedFetch } from '../test/datasetFiles';
 
 function makeExample(overrides: Partial<GrammarExample> = {}): GrammarExample {
     return {
@@ -26,77 +27,81 @@ afterEach(() => {
     GrammarService.clearCache();
 });
 
+/** A point's mined examples as published: their core and their English text. */
+const minedFiles = (id: string, examples: GrammarExample[]) => ({
+    [`grammar/mined/${id}.json`]: examples.map(({ en: _en, ...core }) => core),
+    [`text/en/grammar/mined/${id}.json`]: emptyEnglishText('grammar'),
+});
+
+/** What the app makes of published files, by the loader's own projection. */
+const english = async (files: Record<string, unknown>, path: string) =>
+    (await englishFiles<unknown>(files))[path];
+
 describe('GrammarService.loadMinedExamples', () => {
-    it('returns the parsed examples on a successful fetch', async () => {
-        const examples = [makeExample()];
-        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-            ok: true,
-            status: 200,
-            json: () => Promise.resolve(examples),
-        }));
+    it('returns the examples, each with its English, on a successful fetch', async () => {
+        const files = minedFiles('n5-001', [makeExample()]);
+        vi.stubGlobal('fetch', publishedFetch(files));
 
         const result = await GrammarService.loadMinedExamples('n5-001');
-        expect(result).toEqual(examples);
+        expect(result).toEqual(await english(files, 'grammar/mined/n5-001.json'));
+        expect(result?.[0].words).toEqual(makeExample().words);
     });
 
     it('caches the result - a second call does not fetch again', async () => {
-        const examples = [makeExample()];
-        const fetchMock = vi.fn().mockResolvedValue({
-            ok: true,
-            status: 200,
-            json: () => Promise.resolve(examples),
-        });
+        const fetchMock = publishedFetch(minedFiles('n5-001', [makeExample()]));
         vi.stubGlobal('fetch', fetchMock);
 
         await GrammarService.loadMinedExamples('n5-001');
         await GrammarService.loadMinedExamples('n5-001');
 
-        expect(fetchMock).toHaveBeenCalledTimes(1);
+        // Its core and its English text, once each.
+        expect(fetchMock).toHaveBeenCalledTimes(2);
     });
 
     it('returns null on a 404 (the common case - most points have no mined pool)', async () => {
-        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-            ok: false,
-            status: 404,
-            statusText: 'Not Found',
-        }));
+        vi.stubGlobal('fetch', publishedFetch({}));
 
         const result = await GrammarService.loadMinedExamples('n5-999');
         expect(result).toBeNull();
     });
 
     it('caches a 404 - a second call for the same id does not re-fetch', async () => {
-        const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 404, statusText: 'Not Found' });
+        const fetchMock = publishedFetch({});
         vi.stubGlobal('fetch', fetchMock);
 
         await GrammarService.loadMinedExamples('n5-999');
         await GrammarService.loadMinedExamples('n5-999');
 
-        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(fetchMock).toHaveBeenCalledTimes(2);
     });
 
     it('returns null (without caching) on a non-404 error, so a later call can retry', async () => {
-        const fetchMock = vi.fn()
-            .mockResolvedValueOnce({ ok: false, status: 500, statusText: 'Server Error' })
-            .mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.resolve([makeExample()]) });
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        let status = 500;
+        const files = minedFiles('n5-002', [makeExample()]);
+        const fetchMock = publishedFetch(files, () => status);
         vi.stubGlobal('fetch', fetchMock);
 
         const first = await GrammarService.loadMinedExamples('n5-002');
         expect(first).toBeNull();
 
+        status = 200;
         const second = await GrammarService.loadMinedExamples('n5-002');
-        expect(second).toEqual([makeExample()]);
-        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(second).toEqual(await english(files, 'grammar/mined/n5-002.json'));
+        expect(fetchMock).toHaveBeenCalledTimes(4);
     });
 });
 
 describe('GrammarService index loaders', () => {
     const okJson = (body: unknown) => Promise.resolve(new Response(JSON.stringify(body)));
+    const teachingOrder = { order: ['a'], chapters: [{ id: 'c', points: ['a'] }] };
 
     it('download each index once when callers ask at the same moment', async () => {
-        const fetchMock = vi.fn((url: string) => okJson(url.includes('teaching-order')
-            ? { order: ['a'], chapters: [{ id: 'c', title: 'C', points: ['a'] }] }
-            : {}));
+        const fetchMock = vi.fn((url: string) => {
+            const path = datasetPathOf(url);
+            if (path.startsWith('text/en/')) return okJson(emptyEnglishText(path.includes('teaching-order') ? 'chapter' : 'conjugation'));
+            return okJson(path.includes('teaching-order') ? teachingOrder : {});
+        });
         vi.stubGlobal('fetch', fetchMock);
 
         await Promise.all([
@@ -105,7 +110,11 @@ describe('GrammarService index loaders', () => {
             GrammarService.loadConjugations(), GrammarService.loadConjugations(), GrammarService.loadConjugations(),
         ]);
 
-        expect(fetchMock).toHaveBeenCalledTimes(3);
+        // The teaching order and the conjugations with their English text, the kinds alone.
+        expect(fetchMock.mock.calls.map(([url]) => datasetPathOf(url)).sort()).toEqual([
+            'grammar/conjugations.json', 'grammar/index/kinds.json', 'grammar/index/teaching-order.json',
+            'text/en/grammar/conjugations.json', 'text/en/grammar/index/teaching-order.json',
+        ]);
     });
 
     it('keep their failure results, and retry after a failure', async () => {
@@ -116,8 +125,10 @@ describe('GrammarService index loaders', () => {
         expect(await GrammarService.loadKinds()).toEqual({});
         expect(await GrammarService.loadConjugations()).toEqual({});
 
-        const conjugations = { 'n5-te': [] };
-        vi.stubGlobal('fetch', vi.fn(() => okJson(conjugations)));
-        expect(await GrammarService.loadConjugations()).toEqual(conjugations);
+        const files = { 'grammar/conjugations.json': { 'n5-te': { marker: 'て', items: [] } }, 'text/en/grammar/conjugations.json': emptyEnglishText('conjugation') };
+        vi.stubGlobal('fetch', publishedFetch(files));
+        const conjugations = await GrammarService.loadConjugations();
+        expect(conjugations).toEqual(await english(files, 'grammar/conjugations.json'));
+        expect(Object.keys(conjugations)).toEqual(['n5-te']);
     });
 });

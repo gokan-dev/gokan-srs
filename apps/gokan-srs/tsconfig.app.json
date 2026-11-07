@@ -30,5 +30,8 @@
       "react": ["./node_modules/@types/react"]
     }
   },
-  "include": ["src"]
+  "include": ["src"],
+  /* Tests that read the dataset checkout from disk run under Node, and have Node's types:
+     tsconfig.node-test.json. Nothing the app ships may import them. */
+  "exclude": ["src/**/*.node.test.ts"]
 }

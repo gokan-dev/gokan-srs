@@ -26,3 +26,18 @@ export function isPublishedDatasetFile(file: string): boolean {
     const text = /^text\/([^/]+)\//.exec(file);
     return text === null || PUBLISHED_LANGUAGES.has(text[1]);
 }
+
+/** The URL prefix the published dataset is served under. */
+export const DATASET_PREFIX = '/dataset/';
+
+/**
+ * The file of compiled/ a request for `pathname` (decoded, without its query) reads, as the
+ * published dataset answers it, or null when it is not a published file. What a local server
+ * stands in for: gokan-srs's dev and preview servers, and the servers the browser checks run.
+ */
+export function publishedDatasetFile(pathname: string): string | null {
+    if (!pathname.startsWith(DATASET_PREFIX)) return null;
+    const file = pathname.slice(DATASET_PREFIX.length);
+    if (file.split('/').some(part => part === '' || part === '.' || part === '..')) return null;
+    return isPublishedDatasetFile(file) ? file : null;
+}

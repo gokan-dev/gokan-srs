@@ -1,20 +1,20 @@
 import { describe, it, expect } from 'vitest';
 import { KANJI_ORDERS, type Sentence, type Vocabulary } from '@gokan/dataset-schema';
 import { DEMO_START_KNOWN, DEMO_TILES, DEMO_WORDS, WELCOME_EXAMPLES, WELCOME_ORDER_IDS, demoAnswerIsRight } from './welcomeExamples';
+import { englishFiles, publishedFiles } from '../../../test/datasetFiles';
 
-// import.meta.glob rather than node:fs, which this tsconfig has no types for; each reads the
-// synced public/data/compiled/, which is empty or stale until sync:dataset has run.
-const orderFiles = import.meta.glob<string[]>(
-    '../../../../public/data/compiled/index/kanji-orders/*.json', { eager: true, import: 'default' }
-);
-const vocabFiles = import.meta.glob<Pick<Vocabulary, 'writtenForm' | 'reading'>>(
-    '../../../../public/data/compiled/vocab/{1531710,1211510,1304970,1378860,1293990,1487660,1582710,1464700,1368370,1413240,1206900,1413260,1387990,1388300}.json',
+// The dataset checkout's files, as the app is served them.
+const orderFiles = await englishFiles<string[]>(publishedFiles(import.meta.glob(
+    '../../../../dataset/compiled/index/kanji-orders/*.json', { eager: true, import: 'default' }
+)));
+const vocabFiles = await englishFiles<Pick<Vocabulary, 'writtenForm' | 'reading'>>(publishedFiles(import.meta.glob(
+    '../../../../dataset/compiled/{vocab,text/en/vocab}/{1531710,1211510,1304970,1378860,1293990,1487660,1582710,1464700,1368370,1413240,1206900,1413260,1387990,1388300}.json',
     { eager: true, import: 'default' }
-);
-const sentenceFiles = import.meta.glob<Pick<Sentence, 'original' | 'matches'>[]>(
-    '../../../../public/data/compiled/sentences/{1531710,1211510,1304970,1378860,1293990,1487660}.json',
+)));
+const sentenceFiles = await englishFiles<Pick<Sentence, 'original' | 'matches'>[]>(publishedFiles(import.meta.glob(
+    '../../../../dataset/compiled/{sentences,text/en/sentences}/{1531710,1211510,1304970,1378860,1293990,1487660}.json',
     { eager: true, import: 'default' }
-);
+)));
 const datasetPresent = Object.keys(orderFiles).length > 0;
 
 function file<T>(files: Record<string, T>, name: string): T {

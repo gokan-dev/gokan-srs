@@ -30,8 +30,8 @@ terraform.tfstate
 **/src/**/*.js
 **/src/**/*.js.map
 
-# Synced from the gokan-dataset submodule at build/dev time (bun run sync:dataset) -
-# no longer the source of truth, see apps/gokan-srs/scripts/sync-dataset.ts
+# A copy of the dataset left from before #211 (the app now reads /dataset/), kept untracked;
+# apps/gokan-srs/vite.config.ts refuses to build while it exists
 apps/gokan-srs/public/data/compiled
 
 # The content-addressed deploy (packages/deploy/scripts/deploy-s3.ts): a staging tree of the

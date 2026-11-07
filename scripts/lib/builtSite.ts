@@ -10,10 +10,13 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { extname, join, resolve, sep } from 'node:path';
 import { brotliCompressSync, constants } from 'node:zlib';
+import { publishedDatasetFile } from '@gokan/deploy/published-dataset';
 
 const ROOT = process.cwd();
 const SRS_DIST = join(ROOT, 'apps/gokan-srs/dist');
 const DICTIONARY_DIST = join(ROOT, 'apps/gokan-dictionary/dist');
+/** The dataset the SRS reads from /dataset/: deployed on its own (the data site), so served here from the checkout. */
+const DATASET_DIR = join(ROOT, 'apps/gokan-srs/dataset/compiled');
 
 export function buildMissing(): string | null {
     for (const [dist, app] of [[SRS_DIST, 'gokan-srs'], [DICTIONARY_DIST, 'gokan-dictionary']]) {
@@ -63,8 +66,13 @@ const within = (base: string, target: string) => {
     return path === root || path.startsWith(root + sep);
 };
 
-/** The SRS answers every route with its index, as CloudFront's SPA fallback does. */
+/**
+ * The SRS answers every route with its index, as CloudFront's SPA fallback does, and /dataset/
+ * with the published files.
+ */
 export function srsFile(pathname: string): string {
+    const dataset = publishedDatasetFile(pathname);
+    if (dataset !== null && isFile(join(DATASET_DIR, dataset))) return join(DATASET_DIR, dataset);
     const direct = join(SRS_DIST, pathname);
     return within(SRS_DIST, direct) && isFile(direct) ? direct : join(SRS_DIST, 'index.html');
 }
@@ -130,7 +138,7 @@ export function dictionaryPages(): { path: string; ready: string }[] {
  * `settled`, a selector, when part of the page loads after that word.
  */
 export function srsRoutes(): { path: string; ready: string; settled?: string }[] {
-    const vocabId = firstEntry(join(SRS_DIST, 'data/compiled/vocab'), name => name.endsWith('.json')).replace(/\.json$/, '');
+    const vocabId = firstEntry(join(DATASET_DIR, 'vocab'), name => name.endsWith('.json')).replace(/\.json$/, '');
     return [
         { path: '/', ready: 'Study' },
         { path: '/vocab', ready: 'Vocabulary' },
@@ -165,7 +173,7 @@ export function srsVersion(): string {
  * first is marked watched in full (Completed), the second for one episode (Watching).
  */
 export function listeningTitlesToMark(): [completed: string, watching: string] {
-    const index: unknown = JSON.parse(readFileSync(join(SRS_DIST, 'data/compiled/media/index.json'), 'utf-8'));
+    const index: unknown = JSON.parse(readFileSync(join(DATASET_DIR, 'media/index.json'), 'utf-8'));
     const ids = (Array.isArray(index) ? index : []).flatMap((entry: unknown) =>
         typeof entry === 'object' && entry !== null && 'id' in entry && typeof entry.id === 'string'
             && 'episodeCount' in entry && typeof entry.episodeCount === 'number' && entry.episodeCount > 1 ? [entry.id] : []);

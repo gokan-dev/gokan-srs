@@ -1,16 +1,16 @@
 import type { MediaIndexEntry, MediaLibraryWords, MediaTitle } from '@gokan/dataset-schema';
-import { datasetUrl, fetchJson, RequestCache, sharedRequest } from './http';
+import { fetchDatasetFile, RequestCache, sharedRequest } from './http';
 
 /**
  * Loads the listening library compiled by the gokan-dataset submodule's
  * scripts/build-media.ts into compiled/media/, synced into
- * public/data/compiled/media/ like every other dataset. Same fetch + in-memory
+ * published under /dataset/media/ like every other dataset. Same fetch + in-memory
  * cache pattern as GrammarService.
  */
 export class MediaService {
-    private static index = sharedRequest(() => fetchJson<MediaIndexEntry[]>(datasetUrl('media/index.json')));
-    private static titles = new RequestCache(id => fetchJson<MediaTitle>(datasetUrl(`media/${encodeURIComponent(id)}.json`)));
-    private static libraryWords = sharedRequest(() => fetchJson<MediaLibraryWords>(datasetUrl('media/library.json')));
+    private static index = sharedRequest(() => fetchDatasetFile<MediaIndexEntry[]>('media/index.json'));
+    private static titles = new RequestCache(id => fetchDatasetFile<MediaTitle>(`media/${encodeURIComponent(id)}.json`));
+    private static libraryWords = sharedRequest(() => fetchDatasetFile<MediaLibraryWords>('media/library.json'));
 
     static loadIndex(): Promise<MediaIndexEntry[]> {
         return this.index.get();

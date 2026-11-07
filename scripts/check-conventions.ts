@@ -70,6 +70,35 @@ const DATASET_URL_SOURCE = /^apps\/gokan-srs\/src\/.*\.tsx?$/;
 const DATASET_URL_HELPER = 'apps/gokan-srs/src/services/http.ts';
 
 /**
+ * A dataset file in its English shape is built from its published inputs in one place,
+ * `services/http.ts`: every loader asks it, so no app holds a second way to assemble a file. The
+ * projection (`englishFile`, `englishInputs`) is imported there only, through
+ * `@gokan/dataset-schema/english-file` or straight from the dataset's src/layout/englishFile.
+ */
+const ENGLISH_FILE_IMPORT = /\bfrom\s+['"](@gokan\/dataset-schema\/english-file|[^'"]*\/layout\/englishFile)['"]|\bimport\(\s*['"](@gokan\/dataset-schema\/english-file|[^'"]*\/layout\/englishFile)['"]/;
+/**
+ * The dictionary reads the dataset through one DictionaryData (lib/types.ts): its checkout
+ * implementation, lib/dataset.server.ts, is held by the prerender script, and a page or helper
+ * that imported it would read the checkout around the interface.
+ */
+const DICTIONARY_DATA_IMPORT = /\bfrom\s+['"][^'"]*\/dataset\.server['"]|\bimport\(\s*['"][^'"]*\/dataset\.server['"]/;
+const DICTIONARY_SOURCE = /^apps\/gokan-dictionary\/(src|scripts)\/.*\.(ts|svelte)$/;
+const DICTIONARY_DATA_HOLDER = 'apps/gokan-dictionary/scripts/prerender.ts';
+const ENGLISH_FILE_SOURCE = /^(apps\/(gokan-srs|gokan-dictionary)\/(src|scripts)\/.*\.(tsx?|svelte)|scripts\/.*\.ts|apps\/gokan-srs\/vite\.config\.ts)$/;
+
+/**
+ * Until #211 a sync step copied the dataset into apps/gokan-srs/public/data/compiled/; the app now
+ * reads the published dataset at /dataset/. Docs and sources that still describe the step describe
+ * a build that no longer exists. MODIFICATION_LOG.md (history), tests and the dataset submodule are
+ * out of scope; .gitignore and the SRS vite config name the path because they keep a leftover copy
+ * untracked and refuse to build with one. The package.json files and knip.json held the step's
+ * scripts, so a rebase or a copied script would bring it back there; this file names it in its regex.
+ */
+const REMOVED_SYNC_STEP = /sync-dataset|sync:dataset|dataset:sync|public\/data\/compiled/;
+const REMOVED_SYNC_STEP_SCOPE = /^(docs\/ARCHITECTURE\.md|AGENTS\.md|\.gitignore|(apps\/[\w-]+\/)?package\.json|knip\.json|scripts\/(?!check-conventions\.ts).+\.ts|apps\/[\w-]+\/vite\.config\.ts|apps\/[\w-]+\/(src|scripts)\/.+|packages\/[\w-]+\/src\/.+)$/;
+const REMOVED_SYNC_STEP_ALLOWED = new Set(['.gitignore', 'apps/gokan-srs/vite.config.ts']);
+
+/**
  * A word learned in kana (ここ) has a rare kanji spelling (此処) in writtenForm.kanji, so the UI
  * names words through headwordOf/secondaryForm (@gokan/dataset-schema). Rendering
  * writtenForm.kanji in a JSX or Svelte expression is how the rare spelling would come back.
@@ -347,10 +376,25 @@ function check(files: string[]): Violation[] {
         }
 
         if (DATASET_URL_SOURCE.test(file) && file !== DATASET_URL_HELPER && !/\.test\.tsx?$/.test(file)) {
-            eachLine(text, l => l.includes('/data/compiled/') && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
+            eachLine(text, l => l.includes('/dataset/') && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
                 add({ file, line, rule: 'dataset-url', message: 'Build dataset URLs with datasetUrl() (services/http.ts); it adds the dataset version browsers cache by.' }));
             eachLine(text, l => l.includes('/audio/') && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
                 add({ file, line, rule: 'audio-url', message: 'Build audio clip URLs with audioUrl() (services/http.ts), the one place that knows where clips are served.' }));
+        }
+
+        if (DICTIONARY_SOURCE.test(file) && file !== DICTIONARY_DATA_HOLDER && !file.endsWith('.test.ts')) {
+            eachLine(text, l => DICTIONARY_DATA_IMPORT.test(l), line =>
+                add({ file, line, rule: 'dictionary-data', message: 'Only scripts/prerender.ts (and tests) import lib/dataset.server.ts. A page reads the dataset through the DictionaryData it is given (lib/types.ts), never a loader.' }));
+        }
+
+        if (ENGLISH_FILE_SOURCE.test(file) && file !== DATASET_URL_HELPER) {
+            eachLine(text, l => ENGLISH_FILE_IMPORT.test(l), line =>
+                add({ file, line, rule: 'english-file', message: 'englishFile/englishInputs are imported only by services/http.ts, the one place a dataset file is built in its English shape: load it through fetchDatasetFile, or englishDatasetFile in a test.' }));
+        }
+
+        if (REMOVED_SYNC_STEP_SCOPE.test(file) && !REMOVED_SYNC_STEP_ALLOWED.has(file) && !/\.test\.tsx?$/.test(file)) {
+            eachLine(text, l => REMOVED_SYNC_STEP.test(l), line =>
+                add({ file, line, rule: 'removed-sync-step', message: 'Names the dataset sync step removed in #211 (sync-dataset, sync:dataset, dataset:sync, public/data/compiled). The app reads the published dataset at /dataset/ (services/http.ts); describe that, or record the history in docs/MODIFICATION_LOG.md.' }));
         }
 
         if (UI_SOURCE.test(file) && file !== KANJI_SPELLING_NOTE) {

@@ -2,9 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { audioIndex } from '../test/fixtures';
 import { AUDIO_INDEX_SHIPPED, loadAudioIndex } from './audio.service';
 
-// The same question vite.config.ts asks the dataset, answered here from the synced
-// public/data/compiled/ (empty or stale until sync:dataset has run) without reading the file.
-const shipped = Object.keys(import.meta.glob('../../public/data/compiled/index/audio.json')).length > 0;
+// The same question vite.config.ts asks the dataset checkout, answered here without reading the file.
+const shipped = Object.keys(import.meta.glob('../../dataset/compiled/index/audio.json')).length > 0;
 
 describe('loadAudioIndex', () => {
     afterEach(() => { vi.unstubAllGlobals(); });
@@ -25,7 +24,7 @@ describe('loadAudioIndex', () => {
         const fetchMock = stubFetch();
         await expect(loadAudioIndex(true)).resolves.toEqual(audioIndex());
         expect(fetchMock).toHaveBeenCalledTimes(1);
-        expect(fetchMock.mock.calls[0]).toEqual([expect.stringMatching(/^\/data\/compiled\/index\/audio\.json\?v=/), undefined]);
+        expect(fetchMock.mock.calls[0]).toEqual([expect.stringMatching(/^\/dataset\/index\/audio\.json\?v=/)]);
     });
 
     it('takes its default from a build flag that agrees with the pinned dataset', () => {

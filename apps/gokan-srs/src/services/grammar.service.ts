@@ -1,47 +1,42 @@
 import type { GrammarAliasIndex, GrammarBrowseIndex, GrammarChapter, GrammarConjugationIndex, GrammarContrastIndex, GrammarExample, GrammarJlptIndex, GrammarKindIndex, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex } from '@gokan/dataset-schema';
 import type { GrammarContrastForFocus, GrammarInterchangeableForPoint } from '../models/grammar.model';
-import { datasetUrl, fetchJson, readJson, RequestCache, sharedRequest } from './http';
+import { fetchDatasetFile, fetchOptionalDatasetFile, RequestCache, sharedRequest } from './http';
 
 /**
  * The teaching order, failing (so the cache drops it and a later call retries) when the file
  * is empty: loadTeachingOrder turns any failure into its JLPT fallback.
  */
 async function fetchTeachingOrder(): Promise<GrammarTeachingOrder> {
-    const loaded = await fetchJson<GrammarTeachingOrder>(datasetUrl('grammar/index/teaching-order.json'));
+    const loaded = await fetchDatasetFile<GrammarTeachingOrder>('grammar/index/teaching-order.json');
     if (!loaded?.order?.length || !loaded?.chapters?.length) throw new Error('The teaching order is empty');
     return loaded;
 }
 
-/** A point's mined examples; null (cached) on a 404, the common case of a point with none. */
-async function fetchMinedExamples(pointId: string): Promise<GrammarExample[] | null> {
-    const response = await fetch(datasetUrl(`grammar/mined/${pointId}.json`));
-    if (response.status === 404) return null;
-    if (!response.ok) {
-        throw new Error(`Failed to fetch mined examples for ${pointId}: ${response.statusText}`);
-    }
-    return readJson<GrammarExample[]>(response);
+/** A point's mined examples; null (cached) when it has no file, the common case of a point with none. */
+function fetchMinedExamples(pointId: string): Promise<GrammarExample[] | null> {
+    return fetchOptionalDatasetFile<GrammarExample[]>(`grammar/mined/${pointId}.json`);
 }
 
 /**
  * Loads grammar data compiled by the gokan-dataset submodule's
- * scripts/build-grammar.ts into compiled/grammar/, synced into
- * public/data/compiled/grammar/ by sync-dataset.ts like every other dataset
- * (vocab, kanji, sentences). Mirrors VocabularyService's loading pattern
+ * scripts/build-grammar.ts into compiled/grammar/, published under
+ * /dataset/grammar/ and read through fetchDatasetFile like every other dataset
+ * file (vocab, kanji, sentences). Mirrors VocabularyService's loading pattern
  * (fetch + in-memory cache) - see CLAUDE.md's Grammar section.
  */
 export class GrammarService {
-    private static jlptIndex = sharedRequest(() => fetchJson<GrammarJlptIndex>(datasetUrl('grammar/index/jlpt.json')));
+    private static jlptIndex = sharedRequest(() => fetchDatasetFile<GrammarJlptIndex>('grammar/index/jlpt.json'));
     private static teachingOrder = sharedRequest(fetchTeachingOrder);
     private static chapterByPointId: Map<string, GrammarChapter> | null = null;
-    private static aliases = sharedRequest(() => fetchJson<GrammarAliasIndex>(datasetUrl('grammar/index/aliases.json')));
-    private static kinds = sharedRequest(() => fetchJson<GrammarKindIndex>(datasetUrl('grammar/index/kinds.json')));
-    private static conjugations = sharedRequest(() => fetchJson<GrammarConjugationIndex>(datasetUrl('grammar/conjugations.json')));
-    private static variantGroups = sharedRequest(() => fetchJson<GrammarVariantGroupIndex>(datasetUrl('grammar/index/variant-groups.json')));
-    private static browseIndex = sharedRequest(() => fetchJson<GrammarBrowseIndex>(datasetUrl('grammar/index/browse.json')));
-    private static contrasts = sharedRequest(() => fetchJson<GrammarContrastIndex>(datasetUrl('grammar/index/contrasts.json')));
+    private static aliases = sharedRequest(() => fetchDatasetFile<GrammarAliasIndex>('grammar/index/aliases.json'));
+    private static kinds = sharedRequest(() => fetchDatasetFile<GrammarKindIndex>('grammar/index/kinds.json'));
+    private static conjugations = sharedRequest(() => fetchDatasetFile<GrammarConjugationIndex>('grammar/conjugations.json'));
+    private static variantGroups = sharedRequest(() => fetchDatasetFile<GrammarVariantGroupIndex>('grammar/index/variant-groups.json'));
+    private static browseIndex = sharedRequest(() => fetchDatasetFile<GrammarBrowseIndex>('grammar/index/browse.json'));
+    private static contrasts = sharedRequest(() => fetchDatasetFile<GrammarContrastIndex>('grammar/index/contrasts.json'));
     private static contrastsByFocus: Map<string, GrammarContrastForFocus[]> | null = null;
     private static interchangeableByPoint: Map<string, GrammarInterchangeableForPoint> | null = null;
-    private static points = new RequestCache(id => fetchJson<GrammarPoint>(datasetUrl(`grammar/points/${id}.json`)));
+    private static points = new RequestCache(id => fetchDatasetFile<GrammarPoint>(`grammar/points/${id}.json`));
     private static mined = new RequestCache(fetchMinedExamples);
 
     /** Drops every cached file, so the next load fetches it again. */

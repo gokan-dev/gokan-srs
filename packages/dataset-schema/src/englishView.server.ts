@@ -1,5 +1,5 @@
-// The compiled dataset's English view, for code that reads the dataset from disk (gokan-srs's
-// sync-dataset step, gokan-dictionary's prerender). The dataset keeps each file's explanation
+// The compiled dataset's English view, for code that reads the dataset from disk (gokan-dictionary's
+// checkoutData, gokan-srs's equality test datasetFile.node.test.ts). The dataset keeps each file's explanation
 // text apart from its core, per language (the dataset's docs/MULTILINGUAL.md); this gives back
 // every file in the English shape both apps were written for, so their code and the types in
 // this package are unchanged. It is the dataset's own projection, the one its check:english

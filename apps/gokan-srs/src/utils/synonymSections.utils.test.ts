@@ -6,6 +6,7 @@ import {
     CLOSEST_SYNONYMS, FREQUENT_WORDS, closestSynonyms, filterSynonymSections, sectionGlossLine, shownGroups, synonymCount, synonymSections,
 } from './synonymSections.utils';
 import type { SynonymLearner } from './synonymSections.utils';
+import { englishFiles, publishedFiles } from '../test/datasetFiles';
 
 const sense = (glosses: string[], misc: Partial<Sense['misc']> = {}): Pick<Sense, 'glosses' | 'misc'> => ({ glosses, misc: { rawTags: [], ...misc } });
 
@@ -118,9 +119,8 @@ describe('the word page: Closest synonyms and the Explore panel', () => {
     });
 });
 
-// On the real compiled dataset: the glob reads the synced public/data/compiled/, empty or stale
-// until sync:dataset has run, and then this fails rather than passes.
-const files = import.meta.glob<Vocabulary>('../../public/data/compiled/vocab/{1487400,1224020,1237680,1288810,1288850,1496670}.json', { eager: true, import: 'default' });
+// On the real compiled dataset, as the app is served it.
+const files = await englishFiles<Vocabulary>(publishedFiles(import.meta.glob('../../dataset/compiled/{vocab,text/en/vocab}/{1487400,1224020,1237680,1288810,1288850,1496670}.json', { eager: true, import: 'default' })));
 const vocabById = new Map(Object.values(files).map(v => [v.id, v]));
 
 describe('the Synonyms panel and Closest synonyms, on the compiled dataset', () => {
