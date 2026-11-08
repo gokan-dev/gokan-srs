@@ -38,9 +38,10 @@ variable "distribution_arn" {
 }
 
 # AWS keeps at least 10 of an account's concurrency unreserved, so a reservation needs an account
-# limit above 10 plus every reservation: a new account's limit is 10, raised through Service
-# Quotas (AWS Lambda, Concurrent executions). Here: 1,000, the lowest value it accepts; the
-# reservation below, not the account limit, is the dictionary's ceiling (#209).
+# limit of at least 10 plus every reservation (10 + 10 + 10 with both environments reserving). A
+# new account's limit is 10, so the limit has to be raised through Service Quotas (AWS Lambda,
+# Concurrent executions) before any reservation applies; 1,000 is the lowest value it accepts.
+# The reservation below, not the account limit, is the dictionary's ceiling (#209).
 variable "reserved_concurrency" {
   description = "Most concurrent renders: the cost ceiling against a crawler burst (throttled requests answer 429, never cached). null reserves nothing, so only the account's limit applies."
   type        = number
@@ -76,6 +77,9 @@ locals {
 data "archive_file" "placeholder" {
   type        = "zip"
   output_path = "${path.module}/.placeholder.zip"
+  # The Web Adapter execs run.sh: without the executable bit the function fails at init and
+  # answers 502, where the placeholder is meant to answer 503.
+  output_file_mode = "0755"
 
   source {
     filename = "run.sh"

@@ -205,8 +205,8 @@ module "dictionary_server" {
   distribution_arn = aws_cloudfront_distribution.website.arn
   # Staging serves a second copy of every page: keep it out of search engines, as the rest.
   extra_response_headers = { "X-Robots-Tag" = "noindex, nofollow" }
-  # No reservation until the account's concurrency limit is raised above 10 (see the module):
-  # meanwhile that limit of 10 is staging's ceiling. Back to the default 10 once it is (#209).
+  # No reservation while the request to raise the account's concurrency limit is pending (see the
+  # module); back to the default 10 once it is approved (#209).
   reserved_concurrency = null
 
   tags = { Environment = "staging" }
