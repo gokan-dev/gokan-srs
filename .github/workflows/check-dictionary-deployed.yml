@@ -18,19 +18,28 @@ on:
         type: choice
         options: [staging, production]
         default: staging
+      # No default: staging usually runs an rc tag or a dispatched branch, not main, and a build of
+      # another ref differs on every page it changes, after 40k requests.
       ref:
-        description: 'Branch, tag or SHA the site was deployed from (its build is the reference)'
+        description: 'The rc tag, branch or SHA this environment was last deployed from (its build is the reference)'
         required: true
-        default: 'main'
 
 permissions:
   contents: read
+
+# One run per site at a time: two would ask for every page twice.
+concurrency:
+  group: check-dictionary-deployed-${{ inputs.environment }}
+  cancel-in-progress: false
 
 jobs:
   compare:
     name: Compare with ${{ inputs.environment }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    # Written once: the build's canonicals and the site compared must be the same origin.
+    env:
+      SITE_ORIGIN: ${{ inputs.environment == 'production' && 'https://gokan-srs.com' || 'https://staging.gokan-srs.com' }}
 
     steps:
       - name: Checkout repository
@@ -80,9 +89,9 @@ jobs:
       # analytics tag, or every page differs by one of them.
       - name: Build the reference
         env:
-          VITE_SITE_ORIGIN: ${{ inputs.environment == 'production' && 'https://gokan-srs.com' || 'https://staging.gokan-srs.com' }}
+          VITE_SITE_ORIGIN: ${{ env.SITE_ORIGIN }}
           VITE_UMAMI_WEBSITE_ID: ${{ inputs.environment == 'production' && vars.UMAMI_WEBSITE_ID || '' }}
         run: bun run --cwd apps/gokan-dictionary build
 
       - name: Compare with the deployed site (check:parity --against)
-        run: bun run check:parity --against ${{ inputs.environment == 'production' && 'https://gokan-srs.com' || 'https://staging.gokan-srs.com' }} --no-build --expect identical
+        run: bun run check:parity --against "$SITE_ORIGIN" --no-build --expect identical
