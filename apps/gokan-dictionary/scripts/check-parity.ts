@@ -179,6 +179,23 @@ const PARALLEL_REQUESTS = 8;
  */
 const undated = (body: Buffer): Buffer => Buffer.from(body.toString('utf8').replaceAll(/<lastmod>[^<]*<\/lastmod>/g, ''));
 
+/**
+ * A request that may meet a passing failure over 40k of them against a deployed site: a dropped
+ * connection, or a throttled or unavailable server (429, 503: the function at its concurrency
+ * limit). Retried with a growing wait; any other answer, a 404 included, is the answer.
+ */
+async function fetchPatiently(url: string): Promise<Response> {
+    for (let attempt = 1; ; attempt++) {
+        try {
+            const response = await fetch(url);
+            if ((response.status !== 429 && response.status !== 503) || attempt === 5) return response;
+        } catch (error) {
+            if (attempt === 5) throw error;
+        }
+        await new Promise(done => setTimeout(done, 500 * 2 ** attempt));
+    }
+}
+
 /** Every file of the reference, as `origin` serves it: bytes by path, anything but a 200 left out. */
 async function served(origin: string, files: readonly string[]): Promise<{ output: Output; bodies: Map<string, Buffer>; statuses: Map<string, number> }> {
     const bytes = new Map<string, string>();
@@ -189,7 +206,7 @@ async function served(origin: string, files: readonly string[]): Promise<{ outpu
     const worker = async (): Promise<void> => {
         while (next < files.length) {
             const file = files[next++];
-            const response = await fetch(`${origin}${servedPath(DICTIONARY_BASE_PATH, file)}`);
+            const response = await fetchPatiently(`${origin}${servedPath(DICTIONARY_BASE_PATH, file)}`);
             const raw = Buffer.from(await response.arrayBuffer());
             const body = file === 'sitemap.xml' ? undated(raw) : raw;
             statuses.set(file, response.status);
