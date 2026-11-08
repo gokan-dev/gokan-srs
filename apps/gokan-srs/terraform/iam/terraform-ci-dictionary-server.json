@@ -26,7 +26,11 @@
       "Effect": "Allow",
       "Action": "iam:PassRole",
       "Resource": "arn:aws:iam::413976099932:role/gokan-srs-*dictionary",
-      "Condition": { "StringEquals": { "iam:PassedToService": "lambda.amazonaws.com" } }
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": "lambda.amazonaws.com"
+        }
+      }
     },
     {
       "Sid": "DictionaryServerFunction",
@@ -79,31 +83,6 @@
       "Sid": "DescribeLogGroups",
       "Effect": "Allow",
       "Action": "logs:DescribeLogGroups",
-      "Resource": "*"
-    },
-    {
-      "Sid": "CloudFrontPoliciesAndFunctions",
-      "Effect": "Allow",
-      "Action": [
-        "cloudfront:CreateFunction",
-        "cloudfront:DescribeFunction",
-        "cloudfront:GetFunction",
-        "cloudfront:UpdateFunction",
-        "cloudfront:PublishFunction",
-        "cloudfront:DeleteFunction",
-        "cloudfront:CreateCachePolicy",
-        "cloudfront:GetCachePolicy",
-        "cloudfront:UpdateCachePolicy",
-        "cloudfront:DeleteCachePolicy",
-        "cloudfront:CreateResponseHeadersPolicy",
-        "cloudfront:GetResponseHeadersPolicy",
-        "cloudfront:UpdateResponseHeadersPolicy",
-        "cloudfront:DeleteResponseHeadersPolicy",
-        "cloudfront:CreateOriginAccessControl",
-        "cloudfront:GetOriginAccessControl",
-        "cloudfront:UpdateOriginAccessControl",
-        "cloudfront:DeleteOriginAccessControl"
-      ],
       "Resource": "*"
     }
   ]
