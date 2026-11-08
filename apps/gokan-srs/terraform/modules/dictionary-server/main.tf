@@ -42,9 +42,10 @@ variable "distribution_arn" {
 # Quotas (AWS Lambda, Concurrent executions). Here: 1,000, the lowest value it accepts; the
 # reservation below, not the account limit, is the dictionary's ceiling (#209).
 variable "reserved_concurrency" {
-  description = "Most concurrent renders: the cost ceiling against a crawler burst (throttled requests answer 429, never cached)"
+  description = "Most concurrent renders: the cost ceiling against a crawler burst (throttled requests answer 429, never cached). null reserves nothing, so only the account's limit applies."
   type        = number
   default     = 10
+  nullable    = true
 }
 
 variable "memory_mb" {
