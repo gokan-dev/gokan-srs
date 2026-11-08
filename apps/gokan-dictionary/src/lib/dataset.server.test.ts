@@ -6,7 +6,7 @@ import type { DictionaryData } from './types';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURES_DIR = path.join(__dirname, '__fixtures__', 'compiled');
-const data: DictionaryData = checkoutData(FIXTURES_DIR);
+const data: DictionaryData = checkoutData(FIXTURES_DIR, 'en');
 
 describe('vocabIds', () => {
     it('lists vocab ids from the vocab/ directory, stripping .json', async () => {

@@ -23,7 +23,7 @@ const NOT_SHIPPED = [
     /^apps\/gokan-srs\/(terraform|docs)\//,
     /^apps\/gokan-srs\/github-actions-trust-policy\.json$/,
     // `check:parity` compares two builds; no page imports it. Named file by file: the rest of
-    // the dictionary's scripts/ (prerender.ts) and src/lib/ make the pages.
+    // the dictionary's src/ (routes, lib/server/pages.ts, lib/) makes the pages.
     /^apps\/gokan-dictionary\/(src\/lib\/parity|scripts\/check-parity)\.ts$/,
 ];
 

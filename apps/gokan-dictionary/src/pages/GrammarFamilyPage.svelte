@@ -1,18 +1,16 @@
 <script lang="ts">
+  import type { GrammarFamilyPageProps as Props } from '../lib/pageProps';
   import { langOf } from '../lib/documentShell';
-  import type { FamilyPageData } from '../lib/grammarFamilies';
-  import { grammarFamiliesIndexPath, grammarIndexPath } from '../lib/urls';
+  import { pageLocale } from './pageLocale';
   import PageLayout from './PageLayout.svelte';
   import GrammarList from './GrammarList.svelte';
 
-  interface Props {
-    family: FamilyPageData;
-  }
+  const { urls, messages } = pageLocale();
 
   let { family }: Props = $props();
 </script>
 
-<PageLayout trail={[{ label: 'Grammar', href: grammarIndexPath() }, { label: 'Families', href: grammarFamiliesIndexPath() }, { label: family.name }]} section="grammar">
+<PageLayout trail={[{ label: messages.chrome.sections.grammar, href: urls.grammarIndexPath() }, { label: messages.chrome.grammarTabs.families, href: urls.grammarFamiliesIndexPath() }, { label: family.name }]} section="grammar">
   <div class="page-intro">
     <h1>{family.name}</h1>
     <p>

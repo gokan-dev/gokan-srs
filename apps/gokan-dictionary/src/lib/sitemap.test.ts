@@ -1,17 +1,19 @@
 import { describe, it, expect } from 'vitest';
 import { buildSitemapXml, buildRobotsTxt, shouldEmitRobotsTxt, sitemapPath } from './sitemap';
-import { homePath, vocabPath, absoluteUrl } from './urls';
+import { absoluteUrl, localeUrls } from './urls';
 import { BASE_PATH } from './site';
+
+const urls = localeUrls('en');
 
 describe('buildSitemapXml', () => {
     it('wraps each path in a <url><loc> entry resolved to an absolute URL', () => {
-        const xml = buildSitemapXml([homePath(), vocabPath('1589350')]);
-        expect(xml).toContain(`<loc>${absoluteUrl(homePath())}</loc>`);
-        expect(xml).toContain(`<loc>${absoluteUrl(vocabPath('1589350'))}</loc>`);
+        const xml = buildSitemapXml([urls.homePath(), urls.vocabPath('1589350')]);
+        expect(xml).toContain(`<loc>${absoluteUrl(urls.homePath())}</loc>`);
+        expect(xml).toContain(`<loc>${absoluteUrl(urls.vocabPath('1589350'))}</loc>`);
     });
 
     it('emits absolute URLs carrying the base path', () => {
-        const xml = buildSitemapXml([vocabPath('1589350')]);
+        const xml = buildSitemapXml([urls.vocabPath('1589350')]);
         expect(xml).toContain(`${BASE_PATH}/vocab/1589350/`);
     });
 
@@ -21,7 +23,7 @@ describe('buildSitemapXml', () => {
     });
 
     it('produces a valid urlset root element', () => {
-        const xml = buildSitemapXml([homePath()]);
+        const xml = buildSitemapXml([urls.homePath()]);
         expect(xml).toContain('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">');
         expect(xml.trim().endsWith('</urlset>')).toBe(true);
     });
@@ -40,7 +42,7 @@ describe('buildRobotsTxt', () => {
     it('points at the sitemap under the base path', () => {
         const robots = buildRobotsTxt();
         expect(robots).toContain('User-agent: *');
-        expect(robots).toContain(`Allow: ${homePath()}`);
+        expect(robots).toContain(`Allow: ${urls.homePath()}`);
         expect(robots).toContain(`Sitemap: ${absoluteUrl(sitemapPath())}`);
     });
 });

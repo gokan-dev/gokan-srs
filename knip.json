@@ -40,11 +40,14 @@
       "entry": [
         "src/client/*.ts",
         "scripts/*.ts",
-        "src/pages/*.svelte"
+        "src/hooks.ts"
       ],
       "project": [
         "src/**/*.{ts,svelte}",
         "scripts/**/*.ts"
+      ],
+      "ignoreUnresolved": [
+        "^\\./\\$types$"
       ]
     }
   }

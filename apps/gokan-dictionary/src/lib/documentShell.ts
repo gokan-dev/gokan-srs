@@ -1,14 +1,15 @@
-// Pure HTML-document builder. Svelte's server render() only produces a <body>-shaped
-// fragment (see prototype notes in scripts/prerender.ts) - this wraps that fragment with the
-// <head> (SEO meta, canonical link, JSON-LD, asset links) every static page needs. Kept as
-// plain string templating rather than a Svelte component: a document shell (<html>/<head>)
-// isn't itself a piece of UI, and templating it directly avoids a whole extra SSR call per
-// page for something that's just string concatenation.
+// Pure HTML-document builder: wraps a page's rendered body with the <head> (SEO meta, canonical
+// link, JSON-LD, asset links) every page needs. The server hook (hooks.server.ts) applies it to
+// what SvelteKit renders, so app.html carries only the body. Kept as plain string templating
+// rather than <svelte:head>: a document shell isn't itself a piece of UI, and one template keeps
+// every page's head byte for byte what it was under the static generator this replaced.
 
 import { analyticsScriptTag } from '@gokan/analytics';
 import { absoluteUrl, faviconPath } from './urls';
 
 export interface DocumentShellOptions {
+    /** <html lang>: the page's locale as a BCP 47 tag (htmlLang). */
+    lang: string;
     title: string;
     description: string;
     /** Site-relative path, e.g. "/vocab/1589350/" - used for the canonical link and og:url. */
@@ -105,7 +106,7 @@ export function renderDocument(options: DocumentShellOptions): string {
     const description = escapeHtml(options.description);
 
     return `<!doctype html>
-<html lang="en">
+<html lang="${options.lang}">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />

@@ -1,7 +1,9 @@
 <script lang="ts">
-  import { grammarIndexPath, homePath, kanjiIndexPath, vocabIndexPath } from '../lib/urls';
+  import { pageLocale } from './pageLocale';
   import type { Section } from '../lib/types';
   import SearchBox from './SearchBox.svelte';
+
+  const { urls, messages } = pageLocale();
 
   interface Props {
     section?: Section;
@@ -12,9 +14,9 @@
   let { section, search }: Props = $props();
 
   const LINKS: { section: Section; label: string; href: string }[] = [
-    { section: 'vocab', label: 'Vocabulary', href: vocabIndexPath() },
-    { section: 'kanji', label: 'Kanji', href: kanjiIndexPath() },
-    { section: 'grammar', label: 'Grammar', href: grammarIndexPath() },
+    { section: 'vocab', label: messages.chrome.sections.vocab, href: urls.vocabIndexPath() },
+    { section: 'kanji', label: messages.chrome.sections.kanji, href: urls.kanjiIndexPath() },
+    { section: 'grammar', label: messages.chrome.sections.grammar, href: urls.grammarIndexPath() },
   ];
 </script>
 
@@ -25,8 +27,8 @@
 -->
 <header class="site-header">
   <div class="container container--wide site-header-inner">
-    <a class="site-title" href={homePath()}><span lang="ja">語感</span> <span class="site-title-word">Dictionary</span></a>
-    <nav class="site-nav" aria-label="Main">
+    <a class="site-title" href={urls.homePath()}><span lang="ja">語感</span> <span class="site-title-word">{messages.chrome.siteTitleWord}</span></a>
+    <nav class="site-nav" aria-label={messages.chrome.mainNav}>
       {#each LINKS as link (link.section)}
         <a href={link.href} aria-current={link.section === section ? 'page' : undefined}>{link.label}</a>
       {/each}

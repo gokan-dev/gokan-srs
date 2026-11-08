@@ -1,5 +1,5 @@
-// Lightweight cross-page view types, the dictionary's own search index format, and DictionaryData,
-// what the pages read of the dataset. The prerender script resolves summaries once per referenced
+// Lightweight cross-page view types, the dictionary's own search index format, and EntityData and
+// DictionaryData, what the pages read of the dataset. lib/server/pages.ts resolves summaries once per referenced
 // id and passes them down as props, so a page linking to another entry never embeds that entry's
 // full dataset object.
 
@@ -10,6 +10,9 @@ import type {
 
 /** The site section a page belongs to, marked current in the header nav. */
 export type Section = 'vocab' | 'kanji' | 'grammar';
+
+/** The grammar browse pages' tabs (pages/GrammarTabs.svelte). */
+export type GrammarTab = 'level' | 'families' | 'curriculum' | 'conjugations';
 
 export interface VocabSummary {
     id: string;
@@ -70,48 +73,64 @@ export interface SearchIndexFile {
     w: SearchWordColumns;
     k?: SearchKanjiRow[];
     g?: SearchGrammarRow[];
+    /**
+     * The dataset version the index was built from, written into both files by their routes
+     * (stampedSearchIndex). A page rendered on request lists entries from these rows, so the server
+     * refuses an index of another version (httpData) rather than render a page with entries missing.
+     */
+    datasetVersion?: string;
 }
 
 /**
- * What the dictionary's pages read of the dataset, asked per entity or per index: the one way
- * they reach it, so its source can change without a page knowing. Today it is the checkout, read
- * through the English view (`checkoutData` in dataset.server.ts); rendering on request adds a
- * source over the published dataset (HTTP), and other languages a language parameter, each an
- * implementation of this. Asynchronous for that reason. Every value is in the English shape the
- * `@gokan/dataset-schema` types describe.
+ * What an entity page (a word, a kanji, a grammar point) reads of the dataset, asked per entity or
+ * per index: its own entity's files and the indexes it lists other entries from. A page rendered
+ * on request has this and no more: `httpData` (lib/server/httpData.ts), over the published
+ * dataset; the checkout (`checkoutData`) provides it too, as part of DictionaryData. Asynchronous
+ * for that reason. Every value is in the English shape the `@gokan/dataset-schema` types describe.
  */
-export interface DictionaryData {
-    /** Every word's id, in the order the vocab directory lists them. */
-    vocabIds(): Promise<string[]>;
+export interface EntityData {
     vocab(id: string): Promise<Vocabulary>;
     /** A word's example sentences, or null when it has none (the common case for a rare word). */
     sentencesFor(vocabId: string): Promise<Sentence[] | null>;
     /**
      * Every word as other pages list it (a kanji's words, a JLPT list, related words), by id: one
-     * index, so a page that lists 600 words reads one file rather than 600 (on request, a file
-     * built at deploy).
+     * index, so a page that lists 600 words reads one file rather than 600 (on request, the search
+     * index the build writes). Its keys are every word: a word page exists exactly for them.
      */
     wordSummaries(): Promise<ReadonlyMap<string, VocabSummary>>;
+    /** Every grammar point as a list row shows it, by id: its keys are every point (as wordSummaries). */
+    grammarSummaries(): Promise<ReadonlyMap<string, GrammarSummary>>;
     kanjiList(): Promise<Kanji[]>;
     /** Kanji -> the words that contain it, most frequent first. */
     kanjiVocabIndex(): Promise<KanjiVocabIndex>;
     /** One kanji learning order's kanji, in teaching order: step N is the Nth. */
     kanjiOrder(order: KanjiOrderId): Promise<KanjiOrderList>;
-    /** JLPT level -> that level's words, frequency-ordered. */
-    vocabJlptIndex(): Promise<JlptIndex>;
-    /** Every word, most frequent first: the order of the search index. */
-    frequencyIndex(): Promise<FrequencyIndex>;
-    /** Every grammar point id, easiest first (N5 to N1), the SRS's own order. */
-    grammarIds(): Promise<string[]>;
     grammarPoint(id: string): Promise<GrammarPoint>;
     /** The authored introduction order: chapters, and the points in the order they are taught. */
     grammarTeachingOrder(): Promise<GrammarTeachingOrder>;
-    /** Family id -> its contrast lessons and interchangeable note. */
-    grammarContrasts(): Promise<GrammarContrastIndex>;
     /** Canonical point id -> its realization variants. */
     grammarVariantGroups(): Promise<GrammarVariantGroupIndex>;
     /** Point id -> its conjugation drill, for the inflection points. */
     grammarConjugations(): Promise<GrammarConjugationIndex>;
     /** A point's corpus-mined examples, or null for a point with none (most of them). */
     grammarMinedExamples(id: string): Promise<GrammarExample[] | null>;
+}
+
+/**
+ * What the whole site is built from: EntityData, and the catalogs only list pages and the search
+ * index read (every id, the JLPT and frequency orders, the grammar families). The one source of it
+ * is the checkout, through the English view (`checkoutData` in dataset.server.ts), at build: the
+ * list pages are prerendered. Other languages add a language parameter.
+ */
+export interface DictionaryData extends EntityData {
+    /** Every word's id, in the order the vocab directory lists them. */
+    vocabIds(): Promise<string[]>;
+    /** JLPT level -> that level's words, frequency-ordered. */
+    vocabJlptIndex(): Promise<JlptIndex>;
+    /** Every word, most frequent first: the order of the search index. */
+    frequencyIndex(): Promise<FrequencyIndex>;
+    /** Every grammar point id, easiest first (N5 to N1), the SRS's own order. */
+    grammarIds(): Promise<string[]>;
+    /** Family id -> its contrast lessons and interchangeable note. */
+    grammarContrasts(): Promise<GrammarContrastIndex>;
 }

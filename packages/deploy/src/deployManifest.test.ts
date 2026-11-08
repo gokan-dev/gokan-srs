@@ -4,6 +4,7 @@ import { describe, it, expect } from 'vitest';
 import { DICTIONARY_BASE_PATH } from '@gokan/dataset-schema';
 import {
     cacheControlFor,
+    renderedPageCacheControl,
     changeDates,
     contentHash,
     datedSitemap,
@@ -306,5 +307,18 @@ describe('sites', () => {
     it('builds keys with and without a prefix', () => {
         expect(objectKey('dictionary', 'index.html')).toBe('dictionary/index.html');
         expect(objectKey('', 'index.html')).toBe('index.html');
+    });
+});
+
+describe('renderedPageCacheControl', () => {
+    it('revalidates in the browser, as a deployed page does, and keeps a page a year at the edge', () => {
+        expect(renderedPageCacheControl(200)).toBe('public, max-age=0, must-revalidate, s-maxage=31536000');
+        expect(renderedPageCacheControl(200).startsWith(cacheControlFor('dictionary', 'vocab/1/index.html'))).toBe(true);
+    });
+
+    it('keeps a 404 five minutes at the edge and never caches an error', () => {
+        expect(renderedPageCacheControl(404)).toBe('public, max-age=0, must-revalidate, s-maxage=300');
+        expect(renderedPageCacheControl(500)).toBe('no-store');
+        expect(renderedPageCacheControl(503)).toBe('no-store');
     });
 });

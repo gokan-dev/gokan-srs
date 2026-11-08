@@ -30,7 +30,7 @@ import { spawn } from 'node:child_process';
 import { mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { DATASET_PREFIX } from '@gokan/deploy/published-dataset';
-import { buildMissing, dictionaryPages, serveBoth } from './lib/builtSite';
+import { buildMissing, dictionaryPages, serveProduction } from './lib/builtSite';
 import { launchChrome, type Chrome } from './lib/chrome';
 
 /** The pinned Lighthouse CLI (a devDependency), run under Node so its audit weights never shift under a PR. */
@@ -201,7 +201,8 @@ async function seedOnboarding(chrome: Chrome, origin: string): Promise<void> {
 }
 
 async function main(): Promise<void> {
-    const { server, port } = await serveBoth();
+    // Both apps on one origin; the dictionary's server behind its static files when it renders on request.
+    const { port, stop } = await serveProduction();
     const origin = `http://127.0.0.1:${port}`;
     const srsRuns = RUNS_OVERRIDE ?? SRS_RUNS;
     const dictionaryRuns = RUNS_OVERRIDE ?? DICTIONARY_RUNS;
@@ -247,7 +248,7 @@ async function main(): Promise<void> {
         }
     } finally {
         if (chrome) await chrome.kill();
-        server.close();
+        stop();
     }
 
     report(results);

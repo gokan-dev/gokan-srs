@@ -10,6 +10,9 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+.svelte-kit
+# The dictionary's server (adapter-node), what #209 runs in Lambda
+apps/gokan-dictionary/build
 *.local
 
 # Editor directories and files

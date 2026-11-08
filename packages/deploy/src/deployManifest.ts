@@ -280,6 +280,19 @@ export function cacheControlFor(site: Site, file: string): string {
     }
 }
 
+/**
+ * Cache-control for a dictionary page the server renders on request, by its status. The browser
+ * revalidates it as it does a deployed page (REVALIDATE); CloudFront keeps it a year (`s-maxage`),
+ * since a deploy invalidates `/dictionary/*` and a page changes only with a deploy. A 404 stays
+ * five minutes at the edge, so a page published later is not hidden for long; an error is never
+ * cached (a failed dataset read is retried by the next request).
+ */
+export function renderedPageCacheControl(status: number): string {
+    if (status === 200) return `${REVALIDATE}, s-maxage=31536000`;
+    if (status === 404) return `${REVALIDATE}, s-maxage=300`;
+    return 'no-store';
+}
+
 export interface UploadBatch {
     cacheControl: string;
     files: string[];

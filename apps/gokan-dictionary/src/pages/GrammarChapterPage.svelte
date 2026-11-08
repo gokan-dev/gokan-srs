@@ -1,23 +1,17 @@
 <script lang="ts">
+  import type { GrammarChapterPageProps as Props } from '../lib/pageProps';
   import { langOf } from '../lib/documentShell';
-  import type { ChapterIndexRow } from '../lib/grammarChapters';
-  import { grammarChapterPath, grammarChaptersIndexPath, grammarIndexPath } from '../lib/urls';
+  import { pageLocale } from './pageLocale';
   import PageLayout from './PageLayout.svelte';
   import Chip from './Chip.svelte';
   import GrammarList from './GrammarList.svelte';
 
-  interface Props {
-    chapter: ChapterIndexRow;
-    totalChapters: number;
-    /** Adjacent chapters in teaching order, for prev/next navigation. Null at either end. */
-    previous: { id: string; title: string } | null;
-    next: { id: string; title: string } | null;
-  }
+  const { urls, messages } = pageLocale();
 
   let { chapter, totalChapters, previous, next }: Props = $props();
 </script>
 
-<PageLayout trail={[{ label: 'Grammar', href: grammarIndexPath() }, { label: 'Curriculum', href: grammarChaptersIndexPath() }, { label: `Chapter ${chapter.chapterNumber}` }]} section="grammar">
+<PageLayout trail={[{ label: messages.chrome.sections.grammar, href: urls.grammarIndexPath() }, { label: messages.chrome.grammarTabs.curriculum, href: urls.grammarChaptersIndexPath() }, { label: `Chapter ${chapter.chapterNumber}` }]} section="grammar">
   <div class="page-intro">
     <h1 lang={langOf(chapter.title)}>{chapter.title}</h1>
     <p class="chips"><Chip label={`JLPT N${chapter.jlptLevel}`} /><span class="meta">Chapter {chapter.chapterNumber} of {totalChapters}</span></p>
@@ -31,12 +25,12 @@
 
   <nav class="chapter-pager" aria-label="Chapters">
     {#if previous}
-      <a href={grammarChapterPath(previous.id)}><span class="meta">Previous chapter</span><span lang={langOf(previous.title)}>{previous.title}</span></a>
+      <a href={urls.grammarChapterPath(previous.id)}><span class="meta">Previous chapter</span><span lang={langOf(previous.title)}>{previous.title}</span></a>
     {:else}
       <span></span>
     {/if}
     {#if next}
-      <a class="chapter-pager-next" href={grammarChapterPath(next.id)}><span class="meta">Next chapter</span><span lang={langOf(next.title)}>{next.title}</span></a>
+      <a class="chapter-pager-next" href={urls.grammarChapterPath(next.id)}><span class="meta">Next chapter</span><span lang={langOf(next.title)}>{next.title}</span></a>
     {/if}
   </nav>
 </PageLayout>

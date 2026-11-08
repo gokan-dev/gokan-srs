@@ -1,18 +1,14 @@
 <script lang="ts">
-  import type { KanjiOrder } from '@gokan/dataset-schema';
-  import { countLabel } from '../lib/counts';
-  import { kanjiIndexPath, kanjiOrderPath } from '../lib/urls';
+  import type { KanjiOrdersPageProps as Props } from '../lib/pageProps';
+  import { pageLocale } from './pageLocale';
   import PageLayout from './PageLayout.svelte';
 
-  interface Props {
-    /** Every order, the most followed first (KANJI_ORDERS), with what it covers. */
-    orders: { order: KanjiOrder; kanjiCount: number; wordCount: number }[];
-  }
+  const { urls, messages } = pageLocale();
 
   let { orders }: Props = $props();
 </script>
 
-<PageLayout trail={[{ label: 'Kanji', href: kanjiIndexPath() }, { label: 'Orders' }]} section="kanji" wide>
+<PageLayout trail={[{ label: messages.chrome.sections.kanji, href: urls.kanjiIndexPath() }, { label: messages.chrome.crumbs.kanjiOrders }]} section="kanji" wide>
   <div class="page-intro">
     <h1>Vocabulary by kanji learning order</h1>
     <p>
@@ -24,9 +20,9 @@
   <ul class="tiles">
     {#each orders as { order, kanjiCount, wordCount } (order.id)}
       <li>
-        <a class="tile" href={kanjiOrderPath(order.id)}>
+        <a class="tile" href={urls.kanjiOrderPath(order.id)}>
           <span class="tile-title">{order.label}</span>
-          <span class="tile-meta">{kanjiCount.toLocaleString('en')} kanji · {countLabel(wordCount, 'word')}</span>
+          <span class="tile-meta">{kanjiCount.toLocaleString('en')} kanji · {messages.count(wordCount, 'word')}</span>
           <span class="tile-blurb">{order.description}</span>
         </a>
       </li>

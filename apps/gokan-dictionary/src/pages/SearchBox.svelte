@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { searchPath } from '../lib/urls';
+  import { pageLocale } from './pageLocale';
+
+  const { urls, messages } = pageLocale();
 
   /**
    * The search field, in the header or as the home page's hero. A plain form to /search/, so
@@ -13,14 +15,14 @@
   let { hero = false }: Props = $props();
 </script>
 
-<form class="search" class:search--hero={hero} role="search" action={searchPath()} data-search>
-  <label class="visually-hidden" for="search-input">Search the dictionary</label>
+<form class="search" class:search--hero={hero} role="search" action={urls.searchPath()} data-search>
+  <label class="visually-hidden" for="search-input">{messages.chrome.search.label}</label>
   <input
     id="search-input"
     class="search-input"
     type="search"
     name="q"
-    placeholder="Search: kanji, kana, romaji or English"
+    placeholder={messages.chrome.search.placeholder}
     autocomplete="off"
     autocapitalize="off"
     spellcheck="false"
@@ -34,6 +36,6 @@
   <p class="visually-hidden" role="status" data-search-status></p>
   <div class="search-panel" data-search-panel hidden>
     <p class="search-message" data-search-message></p>
-    <div id="search-listbox" role="listbox" aria-label="Search results" data-search-results></div>
+    <div id="search-listbox" role="listbox" aria-label={messages.chrome.search.results} data-search-results></div>
   </div>
 </form>

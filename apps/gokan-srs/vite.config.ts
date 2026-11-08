@@ -3,7 +3,7 @@ import { configDefaults } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import checker from 'vite-plugin-checker';
-import { execFileSync } from 'node:child_process';
+import { datasetVersion as pinnedDatasetVersion } from '@gokan/deploy/dataset-version';
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,10 +19,7 @@ const isCI = process.env.NODE_ENV === 'production';
 // The dataset submodule's pinned commit, appended to every dataset request (datasetUrl in
 // src/services/http.ts) so browsers never serve a file cached from an older dataset. Read from
 // this repo's tree rather than the submodule, so it works before the submodule is checked out.
-const datasetVersion = execFileSync('git', ['rev-parse', '--short=12', 'HEAD:./dataset'], {
-    cwd: fileURLToPath(new URL('.', import.meta.url)),
-    encoding: 'utf8',
-}).trim();
+const datasetVersion = pinnedDatasetVersion(fileURLToPath(new URL('.', import.meta.url)));
 
 // The dataset as it is published (core files plus text/en/), read by the app from /dataset/. In
 // production the data deploy owns that prefix (docs/ARCHITECTURE.md, Dataset Consumption); the

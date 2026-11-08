@@ -1,11 +1,16 @@
 // Pure helpers behind the grammar browse pages: a point reduced to a list row, the teaching order
-// the rows are listed in, and grouping by JLPT level. Kept out of prerender.ts and the page
+// the rows are listed in, and grouping by JLPT level. Kept out of lib/server/pages.ts and the page
 // components so what a reader sees, and in which order, is unit-tested.
 
 import { JLPT_LEVELS } from '@gokan/dataset-schema';
 import type { GrammarPoint } from '@gokan/dataset-schema';
-import type { GrammarSummary } from './types';
+import type { GrammarSummary, SearchGrammarRow } from './types';
 import { SHORT_GLOSS_LENGTH, truncateAtWord } from './vocabSummary';
+
+/** A point's summary from its search row (searchGrammarRow), equal to grammarSummaryOf of the point. */
+export function grammarSummaryOfRow([id, title, romaji, shortExplanation, jlptLevel]: SearchGrammarRow): GrammarSummary {
+    return { id, title, jlptLevel, ...(romaji ? { romaji } : {}), shortExplanation };
+}
 
 /** A point as a list row links to it: title, level, romaji and its short explanation, cut short. */
 export function grammarSummaryOf(point: GrammarPoint): GrammarSummary {

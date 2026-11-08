@@ -1,5 +1,5 @@
 <script module lang="ts">
-  /** One breadcrumb step after "Dictionary". The last step is the current page and has no link. */
+  /** One breadcrumb step after the dictionary home. The last step is the current page and has no link. */
   export interface Crumb {
     label: string;
     href?: string;
@@ -11,9 +11,11 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import type { Section } from '../lib/types';
-  import { homePath } from '../lib/urls';
+  import { pageLocale } from './pageLocale';
   import SiteHeader from './SiteHeader.svelte';
   import SiteFooter from './SiteFooter.svelte';
+
+  const { urls, messages } = pageLocale();
 
   /**
    * The frame every page shares: skip link, site header, the content container with its
@@ -34,7 +36,7 @@
   let { trail, section, wide = false, headerSearch = true, children }: Props = $props();
 </script>
 
-<a class="skip-link" href="#content">Skip to content</a>
+<a class="skip-link" href="#content">{messages.chrome.skipLink}</a>
 
 <SiteHeader {section} search={headerSearch} />
 
@@ -42,7 +44,7 @@
   <div class="container" class:container--wide={wide}>
     {#if trail}
       <!-- One line on purpose: no template whitespace between items; .breadcrumb-sep's margin spaces them. -->
-      <nav class="breadcrumb" aria-label="Breadcrumb"><a href={homePath()}>Dictionary</a>{#each trail as crumb (crumb.label)}<span class="breadcrumb-sep" aria-hidden="true">/</span>{#if crumb.href}<a href={crumb.href} lang={crumb.jp ? 'ja' : undefined}>{crumb.label}</a>{:else}<span aria-current="page" lang={crumb.jp ? 'ja' : undefined}>{crumb.label}</span>{/if}{/each}</nav>
+      <nav class="breadcrumb" aria-label={messages.chrome.breadcrumb}><a href={urls.homePath()}>{messages.chrome.breadcrumbHome}</a>{#each trail as crumb (crumb.label)}<span class="breadcrumb-sep" aria-hidden="true">/</span>{#if crumb.href}<a href={crumb.href} lang={crumb.jp ? 'ja' : undefined}>{crumb.label}</a>{:else}<span aria-current="page" lang={crumb.jp ? 'ja' : undefined}>{crumb.label}</span>{/if}{/each}</nav>
     {/if}
 
     {@render children()}

@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { SentenceRun } from '../lib/furigana';
-  import { vocabPath } from '../lib/urls';
+  import { pageLocale } from './pageLocale';
+
+  const { urls } = pageLocale();
 
   /**
    * One sentence's Japanese, from its runs (lib/furigana.ts): every recognised word links to its
@@ -15,6 +17,6 @@
 </script>
 
 {#snippet text(run: SentenceRun)}{#each run.parts as part, index (index)}{#if part.ruby}<ruby data-ruby-fallback={part.fallback}>{part.text}<rt>{part.ruby}</rt></ruby>{:else}{part.text}{/if}{/each}{/snippet}
-{#snippet linked(run: SentenceRun)}{#if run.vocabId}<a href={vocabPath(run.vocabId)}>{@render text(run)}</a>{:else}{@render text(run)}{/if}{/snippet}
+{#snippet linked(run: SentenceRun)}{#if run.vocabId}<a href={urls.vocabPath(run.vocabId)}>{@render text(run)}</a>{:else}{@render text(run)}{/if}{/snippet}
 
 <p class="sentence-jp" lang="ja">{#each runs as run, index (index)}{#if run.emphasized}<strong>{@render linked(run)}</strong>{:else}{@render linked(run)}{/if}{/each}</p>

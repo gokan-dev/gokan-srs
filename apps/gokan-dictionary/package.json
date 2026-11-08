@@ -4,16 +4,19 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "bun run build && vite preview",
-    "build": "vite build && bun scripts/prerender.ts && bun scripts/check-build.ts",
-    "prerender": "bun scripts/prerender.ts",
-    "preview": "vite preview",
-    "typecheck": "svelte-check --tsconfig ./tsconfig.json",
-    "test": "vitest run"
+    "dev": "bun run build && bun run preview",
+    "build": "svelte-kit sync && vite build --config vite.assets.config.ts && vite build && bun scripts/check-build.ts",
+    "preview": "vite preview --config vite.assets.config.ts",
+    "typecheck": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "test": "svelte-kit sync && vitest run",
+    "build:on-request": "DICTIONARY_ENTITY_PAGES=on-request bun run build",
+    "sync": "svelte-kit sync"
   },
   "devDependencies": {
     "@gokan/deploy": "workspace:*",
-    "@sveltejs/vite-plugin-svelte": "^4.0.0",
+    "@sveltejs/adapter-node": "5.5.7",
+    "@sveltejs/kit": "2.70.3",
+    "@sveltejs/vite-plugin-svelte": "6.2.4",
     "@types/bun": "^1.4.2",
     "@types/node": "^24.10.1",
     "sass": "^1.103.1",

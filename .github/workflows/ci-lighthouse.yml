@@ -90,8 +90,11 @@ jobs:
       - name: Build the SRS app
         run: bun run --cwd apps/gokan-srs build
 
+      # On request, as production will serve it (#206): the list pages static, the word, kanji and
+      # grammar point pages rendered by the dictionary's server (scripts/lib/builtSite.ts starts it
+      # behind the static files, as CloudFront puts the function behind S3).
       - name: Build the dictionary
-        run: bun run --cwd apps/gokan-dictionary build
+        run: bun run --cwd apps/gokan-dictionary build:on-request
 
       - name: Lighthouse
         run: bun run check:lighthouse

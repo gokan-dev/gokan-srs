@@ -26,7 +26,8 @@ export interface VariantSibling {
 export function buildVariantSiblings(
     point: GrammarPoint,
     variantGroups: GrammarVariantGroupIndex,
-    pointsById: Map<string, GrammarPoint>,
+    /** Each point's level, by id: its summary, or the point itself. */
+    pointsById: ReadonlyMap<string, { jlptLevel: number }>,
 ): VariantSibling[] {
     const group = variantGroups[point.variantOf ?? point.id];
     if (!group) return [];

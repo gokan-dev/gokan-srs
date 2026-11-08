@@ -1,8 +1,8 @@
 <script lang="ts">
+  import type { VocabPageProps as Props } from '../lib/pageProps';
   import { headwordOf, secondaryForm, summaryGloss, textbookLessonsLabel } from '@gokan/dataset-schema';
-  import type { Sentence, Vocabulary } from '@gokan/dataset-schema';
-  import type { VocabSummary } from '../lib/types';
-  import { kanjiPath, vocabIndexPath, vocabJlptPath } from '../lib/urls';
+  import type { Sentence } from '@gokan/dataset-schema';
+  import { pageLocale } from './pageLocale';
   import { meaningsOf, type SenseView } from '../lib/senses';
   import { sentenceRuns } from '../lib/furigana';
   import { conjugate, wordClassOf } from '../lib/conjugation';
@@ -14,13 +14,7 @@
   import FuriganaToggle from './FuriganaToggle.svelte';
   import SentenceText from './SentenceText.svelte';
 
-  interface Props {
-    vocab: Vocabulary;
-    components: VocabSummary[];
-    parents: VocabSummary[];
-    /** Already ordered and capped (lib/sentenceOrder.ts). */
-    sentences: Sentence[];
-  }
+  const { urls, messages } = pageLocale();
 
   let { vocab, components, parents, sentences }: Props = $props();
 
@@ -65,7 +59,7 @@
   </ul>
 {/snippet}
 
-<PageLayout trail={[{ label: 'Vocabulary', href: vocabIndexPath() }, { label: headword, jp: true }]} section="vocab" wide>
+<PageLayout trail={[{ label: messages.chrome.sections.vocab, href: urls.vocabIndexPath() }, { label: headword, jp: true }]} section="vocab" wide>
   <header class="entry-head">
     <h1 class="entry-word" lang="ja">{headword}</h1>
 
@@ -79,7 +73,7 @@
     {#if summary}<p class="entry-gloss">{summary}</p>{/if}
 
     <p class="chips">
-      {#if vocab.jlptLevel}<Chip label={`JLPT N${vocab.jlptLevel}`} href={vocabJlptPath(vocab.jlptLevel)} />{/if}
+      {#if vocab.jlptLevel}<Chip label={`JLPT N${vocab.jlptLevel}`} href={urls.vocabJlptPath(vocab.jlptLevel)} />{/if}
       {#if vocab.isCommon}<Chip label="Common word" />{/if}
       {#if vocab.textbooks?.length}<Chip label={textbookLessonsLabel(vocab.textbooks)} />{/if}
       {#if vocab.writtenForm.alternatives.length > 0}
@@ -143,7 +137,7 @@
             <h2>Kanji used</h2>
             <ul class="kanji-tiles">
               {#each vocab.writtenForm.containedKanji as character, index (index)}
-                <li><a href={kanjiPath(character)} lang="ja">{character}</a></li>
+                <li><a href={urls.kanjiPath(character)} lang="ja">{character}</a></li>
               {/each}
             </ul>
           </section>

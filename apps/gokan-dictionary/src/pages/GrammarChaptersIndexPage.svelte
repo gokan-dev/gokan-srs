@@ -1,21 +1,16 @@
 <script lang="ts">
+  import type { GrammarChaptersIndexPageProps as Props } from '../lib/pageProps';
   import { langOf } from '../lib/documentShell';
-  import type { ChapterIndexRow } from '../lib/grammarChapters';
-  import type { LevelGroup } from '../lib/grammarBrowse';
-  import { grammarChapterPath, grammarIndexPath } from '../lib/urls';
+  import { pageLocale } from './pageLocale';
   import PageLayout from './PageLayout.svelte';
   import GrammarTabs from './GrammarTabs.svelte';
 
-  interface Props {
-    /** Every chapter in teaching order, grouped under the level of its place in the curriculum. */
-    groups: LevelGroup<ChapterIndexRow>[];
-    chapterCount: number;
-  }
+  const { urls, messages } = pageLocale();
 
   let { groups, chapterCount }: Props = $props();
 </script>
 
-<PageLayout trail={[{ label: 'Grammar', href: grammarIndexPath() }, { label: 'Curriculum' }]} section="grammar">
+<PageLayout trail={[{ label: messages.chrome.sections.grammar, href: urls.grammarIndexPath() }, { label: messages.chrome.grammarTabs.curriculum }]} section="grammar">
   <div class="page-intro">
     <h1>Grammar curriculum</h1>
     <p>
@@ -32,7 +27,7 @@
       <ol class="chapter-list">
         {#each group.items as chapter (chapter.id)}
           <li>
-            <a href={grammarChapterPath(chapter.id)}>
+            <a href={urls.grammarChapterPath(chapter.id)}>
               <span class="meta">Chapter {chapter.chapterNumber} · {chapter.points.length} point{chapter.points.length === 1 ? '' : 's'}</span>
               <span class="chapter-list-title" lang={langOf(chapter.title)}>{chapter.title}</span>
               <span class="support" lang={langOf(chapter.summary)}>{chapter.summary}</span>

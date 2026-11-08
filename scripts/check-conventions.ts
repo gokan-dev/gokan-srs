@@ -57,7 +57,7 @@ const GOKAN_SRS_SOURCE = /^apps\/gokan-srs\/src\/.*\.tsx?$/;
 /** Pure-logic directories: every module has a colocated test. */
 const TESTED_DIRS = ['apps/gokan-srs/src/utils', 'apps/gokan-dictionary/src/lib', 'packages/deploy/src'];
 /** Modules with no logic to test: constants and type declarations only. */
-const TEST_EXEMPT = new Set(['apps/gokan-dictionary/src/lib/site.ts', 'apps/gokan-dictionary/src/lib/types.ts']);
+const TEST_EXEMPT = new Set(['apps/gokan-dictionary/src/lib/site.ts', 'apps/gokan-dictionary/src/lib/types.ts', 'apps/gokan-dictionary/src/lib/pageProps.ts']);
 
 const AGENT_STUBS = ['CLAUDE.md', 'GEMINI.md'];
 const AGENT_STUB_CONTENT = '@AGENTS.md';
@@ -70,20 +70,36 @@ const DATASET_URL_SOURCE = /^apps\/gokan-srs\/src\/.*\.tsx?$/;
 const DATASET_URL_HELPER = 'apps/gokan-srs/src/services/http.ts';
 
 /**
- * A dataset file in its English shape is built from its published inputs in one place,
- * `services/http.ts`: every loader asks it, so no app holds a second way to assemble a file. The
- * projection (`englishFile`, `englishInputs`) is imported there only, through
+ * A dataset file in its English shape is built from its published inputs in one place, the
+ * reader both apps share (`publishedDatasetReader`, `englishDatasetFile` in
+ * `@gokan/dataset-schema/published-dataset`), so no app holds a second way to assemble a file. No
+ * app imports the projection (`englishFile`, `englishInputs`) itself, through
  * `@gokan/dataset-schema/english-file` or straight from the dataset's src/layout/englishFile.
  */
 const ENGLISH_FILE_IMPORT = /\bfrom\s+['"](@gokan\/dataset-schema\/english-file|[^'"]*\/layout\/englishFile)['"]|\bimport\(\s*['"](@gokan\/dataset-schema\/english-file|[^'"]*\/layout\/englishFile)['"]/;
 /**
  * The dictionary reads the dataset through one DictionaryData (lib/types.ts): its checkout
- * implementation, lib/dataset.server.ts, is held by the prerender script, and a page or helper
+ * implementation, lib/dataset.server.ts, is held by lib/server/dictionary.ts, and a page or helper
  * that imported it would read the checkout around the interface.
  */
 const DICTIONARY_DATA_IMPORT = /\bfrom\s+['"][^'"]*\/dataset\.server['"]|\bimport\(\s*['"][^'"]*\/dataset\.server['"]/;
 const DICTIONARY_SOURCE = /^apps\/gokan-dictionary\/(src|scripts)\/.*\.(ts|svelte)$/;
-const DICTIONARY_DATA_HOLDER = 'apps/gokan-dictionary/scripts/prerender.ts';
+const DICTIONARY_DATA_HOLDER = 'apps/gokan-dictionary/src/lib/server/dictionary.ts';
+/**
+ * lib/urls.ts keeps the search script's English links as plain functions, for its bundle to stay
+ * byte for byte (#206). Every other link is built for a locale (localeUrls), so a page, a
+ * component or the server importing one of these would link to English whatever its locale.
+ */
+const ENGLISH_SEARCH_LINKS = new Set(['vocabJlptPath', 'vocabPath', 'kanjiPath', 'grammarPath', 'searchPath']);
+const URLS_IMPORT = /\bimport\s*(?:type\s*)?\{([^}]*)\}\s*from\s*['"][^'"]*\/urls['"]/g;
+const DICTIONARY_CLIENT = /^apps\/gokan-dictionary\/src\/client\//;
+// A breadcrumb is chrome: its steps come from the locale's catalog (lib/messages), as its home
+// step does, or a translated page's trail would continue in English after its first step.
+const DICTIONARY_PAGE_COMPONENT = /^apps\/gokan-dictionary\/src\/pages\/[^/]+\.svelte$/;
+const BREADCRUMB_TRAIL = /trail=\{\[([\s\S]*?)\]\}/g;
+// A quoted label, or a backtick one with nothing interpolated (`Orders`). The templated steps
+// (`Chapter ${n}`, `JLPT N${level}`, `Page ${page}`, a kanji range) wait for #170's catalog phrases.
+const QUOTED_LABEL = /\blabel:\s*(?:['"]|`(?![^`]*\$\{))/g;
 const ENGLISH_FILE_SOURCE = /^(apps\/(gokan-srs|gokan-dictionary)\/(src|scripts)\/.*\.(tsx?|svelte)|scripts\/.*\.ts|apps\/gokan-srs\/vite\.config\.ts)$/;
 
 /**
@@ -384,12 +400,39 @@ function check(files: string[]): Violation[] {
 
         if (DICTIONARY_SOURCE.test(file) && file !== DICTIONARY_DATA_HOLDER && !file.endsWith('.test.ts')) {
             eachLine(text, l => DICTIONARY_DATA_IMPORT.test(l), line =>
-                add({ file, line, rule: 'dictionary-data', message: 'Only scripts/prerender.ts (and tests) import lib/dataset.server.ts. A page reads the dataset through the DictionaryData it is given (lib/types.ts), never a loader.' }));
+                add({ file, line, rule: 'dictionary-data', message: 'Only lib/server/dictionary.ts (and tests) import lib/dataset.server.ts. A page reads the dataset through the DictionaryData it chooses (lib/types.ts), never a loader.' }));
         }
 
-        if (ENGLISH_FILE_SOURCE.test(file) && file !== DATASET_URL_HELPER) {
+        if (DICTIONARY_SOURCE.test(file) && !DICTIONARY_CLIENT.test(file)) {
+            for (const match of text.matchAll(URLS_IMPORT)) {
+                const names = match[1].split(',').map(name => name.trim().split(/\s+as\s+/)[0]);
+                const english = names.filter(name => ENGLISH_SEARCH_LINKS.has(name));
+                if (english.length === 0) continue;
+                add({
+                    file,
+                    line: text.slice(0, match.index).split('\n').length,
+                    rule: 'locale-links',
+                    message: `${english.join(', ')} from lib/urls.ts are the search script's English links (client/ only). Build a page's links for its locale: localeUrls(locale), or pageLocale().urls in a component.`,
+                });
+            }
+        }
+
+        if (DICTIONARY_PAGE_COMPONENT.test(file)) {
+            for (const trail of text.matchAll(BREADCRUMB_TRAIL)) {
+                for (const label of trail[1].matchAll(QUOTED_LABEL)) {
+                    add({
+                        file,
+                        line: text.slice(0, trail.index + 'trail={['.length + label.index).split('\n').length,
+                        rule: 'breadcrumb-label',
+                        message: 'A breadcrumb step written as a string literal. Take its label from the catalog (pageLocale().messages: chrome.sections, chrome.grammarTabs, chrome.crumbs), as the home step does.',
+                    });
+                }
+            }
+        }
+
+        if (ENGLISH_FILE_SOURCE.test(file)) {
             eachLine(text, l => ENGLISH_FILE_IMPORT.test(l), line =>
-                add({ file, line, rule: 'english-file', message: 'englishFile/englishInputs are imported only by services/http.ts, the one place a dataset file is built in its English shape: load it through fetchDatasetFile, or englishDatasetFile in a test.' }));
+                add({ file, line, rule: 'english-file', message: 'No app imports englishFile/englishInputs: a dataset file is built in its English shape only by the reader both apps share (publishedDatasetReader, englishDatasetFile in @gokan/dataset-schema/published-dataset). In gokan-srs, load it through fetchDatasetFile.' }));
         }
 
         if (REMOVED_SYNC_STEP_SCOPE.test(file) && !REMOVED_SYNC_STEP_ALLOWED.has(file) && !/\.test\.tsx?$/.test(file)) {

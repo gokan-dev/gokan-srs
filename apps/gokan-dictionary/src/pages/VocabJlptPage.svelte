@@ -1,28 +1,16 @@
 <script lang="ts">
-  import type { VocabSummary } from '../lib/types';
-  import { vocabIndexPath, vocabJlptPath } from '../lib/urls';
+  import type { VocabJlptPageProps as Props } from '../lib/pageProps';
+  import { pageLocale } from './pageLocale';
   import PageLayout from './PageLayout.svelte';
   import Pager from './Pager.svelte';
   import VocabEntryList from './VocabEntryList.svelte';
 
-  interface Props {
-    level: number;
-    /** This page's words, in frequency order. */
-    words: VocabSummary[];
-    /** The level's word count across every page. */
-    total: number;
-    page: number;
-    pageCount: number;
-    /** 1-based rank of this page's first word. */
-    firstRank: number;
-    /** Every level, for the cross-links at the foot of the page. */
-    allLevels: number[];
-  }
+  const { urls, messages } = pageLocale();
 
   let { level, words, total, page, pageCount, firstRank, allLevels }: Props = $props();
 </script>
 
-<PageLayout trail={[{ label: 'Vocabulary', href: vocabIndexPath() }, { label: `JLPT N${level}`, href: page > 1 ? vocabJlptPath(level) : undefined }, ...(page > 1 ? [{ label: `Page ${page}` }] : [])]} section="vocab" wide>
+<PageLayout trail={[{ label: messages.chrome.sections.vocab, href: urls.vocabIndexPath() }, { label: `JLPT N${level}`, href: page > 1 ? urls.vocabJlptPath(level) : undefined }, ...(page > 1 ? [{ label: `Page ${page}` }] : [])]} section="vocab" wide>
   <div class="page-intro">
     <h1>JLPT N{level} vocabulary{page > 1 ? `, page ${page}` : ''}</h1>
     <p>
@@ -31,16 +19,16 @@
     </p>
   </div>
 
-  <Pager count={pageCount} current={page} hrefOf={(p: number) => vocabJlptPath(level, p)} label="Pages" />
+  <Pager count={pageCount} current={page} hrefOf={(p: number) => urls.vocabJlptPath(level, p)} label="Pages" />
 
   <VocabEntryList entries={words} />
 
-  <Pager count={pageCount} current={page} hrefOf={(p: number) => vocabJlptPath(level, p)} label="Pages" />
+  <Pager count={pageCount} current={page} hrefOf={(p: number) => urls.vocabJlptPath(level, p)} label="Pages" />
 
   <nav class="level-nav" aria-label="Other levels">
     <span class="meta">Other levels:</span>
     {#each allLevels.filter(other => other !== level) as other (other)}
-      <a href={vocabJlptPath(other)}>N{other}</a>
+      <a href={urls.vocabJlptPath(other)}>N{other}</a>
     {/each}
   </nav>
 </PageLayout>

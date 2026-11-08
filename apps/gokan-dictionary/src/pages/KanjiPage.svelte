@@ -1,22 +1,14 @@
 <script lang="ts">
+  import type { KanjiPageProps as Props } from '../lib/pageProps';
   import { isKanjiOrderId, kanjiBookPositions, kanjiGradeLabel, kunReadingLabel } from '@gokan/dataset-schema';
-  import type { Kanji, KanjiBook, KanjiOrderId } from '@gokan/dataset-schema';
-  import type { VocabSummary } from '../lib/types';
+  import type { KanjiBook } from '@gokan/dataset-schema';
   import { rangeOfStep } from '../lib/kanjiOrders';
-  import { kanjiIndexPath, kanjiPath, kanjiStepPath } from '../lib/urls';
+  import { pageLocale } from './pageLocale';
   import PageLayout from './PageLayout.svelte';
   import Chip from './Chip.svelte';
   import VocabEntryList from './VocabEntryList.svelte';
 
-  interface Props {
-    kanji: Kanji;
-    /** Every word containing the kanji, most frequent first. */
-    words: VocabSummary[];
-    /** Every kanji with a page, so a component that is one (子 in 学) links to it. */
-    kanjiWithPages: ReadonlySet<string>;
-    /** Each learning order's length: a book position links to its range page when the book is an order. */
-    orderLengths: ReadonlyMap<KanjiOrderId, number>;
-  }
+  const { urls, messages } = pageLocale();
 
   let { kanji, words, kanjiWithPages, orderLengths }: Props = $props();
 
@@ -24,7 +16,7 @@
   function rangeHref(book: KanjiBook, position: number): string | undefined {
     if (!isKanjiOrderId(book)) return undefined;
     const length = orderLengths.get(book);
-    return length === undefined ? undefined : kanjiStepPath(book, rangeOfStep(position, length), position);
+    return length === undefined ? undefined : urls.kanjiStepPath(book, rangeOfStep(position, length), position);
   }
 
   const WORDS_VISIBLE = 30;
@@ -33,7 +25,7 @@
   const courses = $derived(kanjiBookPositions(kanji));
 </script>
 
-<PageLayout trail={[{ label: 'Kanji', href: kanjiIndexPath() }, { label: kanji.character, jp: true }]} section="kanji" wide>
+<PageLayout trail={[{ label: messages.chrome.sections.kanji, href: urls.kanjiIndexPath() }, { label: kanji.character, jp: true }]} section="kanji" wide>
   <header class="entry-head">
     <h1 class="kanji-glyph" lang="ja">{kanji.character}</h1>
     {#if kanji.meanings.length > 0}<p class="entry-gloss">{kanji.meanings.join(', ')}</p>{/if}
@@ -50,7 +42,7 @@
       </dl>
     {/if}
 
-    {#if level}<p class="chips"><Chip label={`JLPT N${level}`} href={`${kanjiIndexPath()}#n${level}`} /></p>{/if}
+    {#if level}<p class="chips"><Chip label={`JLPT N${level}`} href={`${urls.kanjiIndexPath()}#n${level}`} /></p>{/if}
     <!-- The level is the chip's; the line names it only when there is no chip. -->
     <p class="meta">
       {#if !level}Outside the JLPT lists<span class="meta-sep" aria-hidden="true">·</span>{/if}{#if kanji.grade !== undefined}{kanjiGradeLabel(kanji.grade)}<span class="meta-sep" aria-hidden="true">·</span>{/if}{kanji.strokeCount} stroke{kanji.strokeCount === 1 ? '' : 's'}{#if kanji.radical}<span class="meta-sep" aria-hidden="true">·</span>Radical <span lang="ja">{kanji.radical.character}</span>{/if}
@@ -64,7 +56,7 @@
         {#each kanji.components as component (component)}
           <li>
             {#if kanjiWithPages.has(component) && component !== kanji.character}
-              <a href={kanjiPath(component)} lang="ja">{component}</a>
+              <a href={urls.kanjiPath(component)} lang="ja">{component}</a>
             {:else}
               <span lang="ja">{component}</span>
             {/if}

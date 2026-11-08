@@ -1,8 +1,6 @@
 // The dictionary's data from the gokan-dataset checkout on disk: `checkoutData`, the
-// DictionaryData (lib/types.ts) the prerender script reads every page's data through. Node only:
-// never import this from a .svelte component or any file that ends up in the client bundle (it
-// uses `node:fs`). The `.server.ts` suffix is a naming convention flagging that, not an enforced
-// boundary (this app has no framework-level server/client split like SvelteKit does).
+// DictionaryData (lib/types.ts) the pages read their data through (lib/server/pages.ts). Node
+// only (`node:fs`): SvelteKit refuses a `.server.ts` module in anything bound for the browser.
 //
 // `checkoutData` takes an explicit `compiledDir` rather than resolving one itself, so tests can
 // point it at a small fixture directory instead of the real ~1GB submodule checkout (see
@@ -10,21 +8,32 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { englishView } from '@gokan/dataset-schema/english';
 import type {
     FrequencyIndex, GrammarConjugationIndex, GrammarContrastIndex, GrammarExample, GrammarJlptIndex, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex,
     JlptIndex, Kanji, KanjiOrderList, KanjiVocabIndex, Sentence, Vocabulary,
 } from '@gokan/dataset-schema';
-import type { DictionaryData, VocabSummary } from './types';
+import { DATASET_PATHS } from './datasetPaths';
+import type { DatasetLanguage } from './locale';
+import { grammarSummaryOf } from './grammarBrowse';
+import type { DictionaryData, GrammarSummary, VocabSummary } from './types';
 import { vocabSummaryFrom } from './vocabSummary';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-// apps/gokan-dictionary/src/lib -> apps/gokan-dictionary -> apps -> repo root
-const REPO_ROOT = path.resolve(__dirname, '..', '..', '..', '..');
 const DATASET_SUBMODULE_PATH = path.join('apps', 'gokan-srs', 'dataset');
+
+/**
+ * The repo root: the nearest directory, from the working directory up, that holds a `.gitmodules`
+ * naming the dataset submodule. Found from the working directory, not this file: once SvelteKit
+ * bundles the server, this module runs from `.svelte-kit/output/`, wherever that is.
+ */
+function repoRoot(): string {
+    for (let dir = process.cwd(); ; dir = path.dirname(dir)) {
+        const gitmodules = path.join(dir, '.gitmodules');
+        if (fs.existsSync(gitmodules) && fs.readFileSync(gitmodules, 'utf-8').includes('apps/gokan-srs/dataset')) return dir;
+        if (path.dirname(dir) === dir) throw new Error(`[dataset] no repo root above ${process.cwd()}: run the build from inside the gokan-srs checkout.`);
+    }
+}
 
 /**
  * Resolves the compiled dataset directory, auto-initializing the shared gokan-dataset
@@ -39,12 +48,13 @@ const DATASET_SUBMODULE_PATH = path.join('apps', 'gokan-srs', 'dataset');
  * this is the only remaining place that can fetch it before a build needs real data.
  */
 export function resolveCompiledDir(): string {
-    const compiledDir = path.join(REPO_ROOT, DATASET_SUBMODULE_PATH, 'compiled');
+    const root = repoRoot();
+    const compiledDir = path.join(root, DATASET_SUBMODULE_PATH, 'compiled');
 
     if (!fs.existsSync(compiledDir)) {
         console.warn(`[dataset] ${compiledDir} not found, running "git submodule update --init ${DATASET_SUBMODULE_PATH}"...`);
         execFileSync('git', ['submodule', 'update', '--init', DATASET_SUBMODULE_PATH], {
-            cwd: REPO_ROOT,
+            cwd: root,
             stdio: 'inherit',
         });
     }
@@ -60,12 +70,15 @@ export function resolveCompiledDir(): string {
 }
 
 /**
- * The dictionary's data, read from a compiled/ directory through its English view: each file in
- * the English shape this app's types describe. The dataset keeps each file's text apart from its
- * core, per language; the view puts them back together (see @gokan/dataset-schema/english).
+ * Each language's view of a compiled/ directory. The dataset keeps each file's text apart from its
+ * core, per language; a view puts them back together, in the shape this app's types describe (see
+ * @gokan/dataset-schema/english). English is the one the dataset projects today.
  */
-export function checkoutData(compiledDir: string): DictionaryData {
-    const view = englishView(compiledDir);
+const VIEWS: Record<DatasetLanguage, typeof englishView> = { en: englishView };
+
+/** The dictionary's data, read from a compiled/ directory through its view in `language`. */
+export function checkoutData(compiledDir: string, language: DatasetLanguage): DictionaryData {
+    const view = VIEWS[language](compiledDir);
     // The dataset's own build typed each file; the view gives back the shape the types describe.
     const read = <T>(relative: string): T => view.json(relative) as T;
     const exists = (relative: string): boolean => fs.existsSync(path.join(compiledDir, relative));
@@ -75,37 +88,44 @@ export function checkoutData(compiledDir: string): DictionaryData {
     const vocabIds = (): string[] => fs.readdirSync(path.join(compiledDir, 'vocab'))
         .filter(name => name.endsWith('.json'))
         .map(name => name.slice(0, -'.json'.length));
-    const vocab = (id: string): Vocabulary => read<Vocabulary>(`vocab/${id}.json`);
+    const vocab = (id: string): Vocabulary => read<Vocabulary>(DATASET_PATHS.vocab(id));
 
     // Built once, from every word file, and kept: about 36k small summaries.
     let summaries: Promise<ReadonlyMap<string, VocabSummary>> | null = null;
+    let grammarSummaries: Promise<ReadonlyMap<string, GrammarSummary>> | null = null;
+    // Ordered by JLPT level rather than read off the directory listing: that order is the one
+    // the pages present.
+    const grammarIds = (): string[] => {
+        const index = read<GrammarJlptIndex>(DATASET_PATHS.grammarJlptIndex);
+        return [5, 4, 3, 2, 1].flatMap(level => index[level] ?? []);
+    };
+    const grammarPoint = (id: string): GrammarPoint => read<GrammarPoint>(DATASET_PATHS.grammarPoint(id));
 
     return {
         vocabIds: () => later(() => vocabIds()),
         vocab: id => later(() => vocab(id)),
-        sentencesFor: vocabId => later(() => (exists(`sentences/${vocabId}.json`) ? read<Sentence[]>(`sentences/${vocabId}.json`) : null)),
+        sentencesFor: vocabId => later(() => (exists(DATASET_PATHS.sentences(vocabId)) ? read<Sentence[]>(DATASET_PATHS.sentences(vocabId)) : null)),
         wordSummaries: () => {
             summaries ??= later(() => new Map(vocabIds().map(id => [id, vocabSummaryFrom(vocab(id))])));
             return summaries;
         },
-        kanjiList: () => later(() => read<Kanji[]>('kanji.json')),
-        kanjiVocabIndex: () => later(() => read<KanjiVocabIndex>('index/kanji-vocab.json')),
-        kanjiOrder: order => later(() => read<KanjiOrderList>(`index/kanji-orders/${order}.json`)),
-        vocabJlptIndex: () => later(() => read<JlptIndex>('index/jlpt.json')),
-        frequencyIndex: () => later(() => read<FrequencyIndex>('index/frequency.json')),
-        // Ordered by JLPT level rather than read off the directory listing: that order is the one
-        // the pages present.
-        grammarIds: () => later(() => {
-            const index = read<GrammarJlptIndex>('grammar/index/jlpt.json');
-            return [5, 4, 3, 2, 1].flatMap(level => index[level] ?? []);
-        }),
-        grammarPoint: id => later(() => read<GrammarPoint>(`grammar/points/${id}.json`)),
-        grammarTeachingOrder: () => later(() => read<GrammarTeachingOrder>('grammar/index/teaching-order.json')),
-        grammarContrasts: () => later(() => read<GrammarContrastIndex>('grammar/index/contrasts.json')),
-        grammarVariantGroups: () => later(() => read<GrammarVariantGroupIndex>('grammar/index/variant-groups.json')),
-        grammarConjugations: () => later(() => read<GrammarConjugationIndex>('grammar/conjugations.json')),
+        grammarSummaries: () => {
+            grammarSummaries ??= later(() => new Map(grammarIds().map(id => [id, grammarSummaryOf(grammarPoint(id))])));
+            return grammarSummaries;
+        },
+        kanjiList: () => later(() => read<Kanji[]>(DATASET_PATHS.kanjiList)),
+        kanjiVocabIndex: () => later(() => read<KanjiVocabIndex>(DATASET_PATHS.kanjiVocabIndex)),
+        kanjiOrder: order => later(() => read<KanjiOrderList>(DATASET_PATHS.kanjiOrder(order))),
+        vocabJlptIndex: () => later(() => read<JlptIndex>(DATASET_PATHS.vocabJlptIndex)),
+        frequencyIndex: () => later(() => read<FrequencyIndex>(DATASET_PATHS.frequencyIndex)),
+        grammarIds: () => later(() => grammarIds()),
+        grammarPoint: id => later(() => grammarPoint(id)),
+        grammarTeachingOrder: () => later(() => read<GrammarTeachingOrder>(DATASET_PATHS.grammarTeachingOrder)),
+        grammarContrasts: () => later(() => read<GrammarContrastIndex>(DATASET_PATHS.grammarContrasts)),
+        grammarVariantGroups: () => later(() => read<GrammarVariantGroupIndex>(DATASET_PATHS.grammarVariantGroups)),
+        grammarConjugations: () => later(() => read<GrammarConjugationIndex>(DATASET_PATHS.grammarConjugations)),
         // One file per eligible point: most points (~350/828) have none, the common, permanent
         // case, not an error.
-        grammarMinedExamples: id => later(() => (exists(`grammar/mined/${id}.json`) ? read<GrammarExample[]>(`grammar/mined/${id}.json`) : null)),
+        grammarMinedExamples: id => later(() => (exists(DATASET_PATHS.grammarMinedExamples(id)) ? read<GrammarExample[]>(DATASET_PATHS.grammarMinedExamples(id)) : null)),
     };
 }

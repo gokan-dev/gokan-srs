@@ -1,18 +1,16 @@
 <script lang="ts">
-  import { WORD_TYPE_LABEL, type ConjugationTable } from '../lib/grammarConjugations';
-  import { grammarIndexPath, grammarPath } from '../lib/urls';
+  import type { GrammarConjugationsIndexPageProps as Props } from '../lib/pageProps';
+  import { WORD_TYPE_LABEL } from '../lib/grammarConjugations';
+  import { pageLocale } from './pageLocale';
   import PageLayout from './PageLayout.svelte';
   import GrammarTabs from './GrammarTabs.svelte';
 
-  interface Props {
-    tables: ConjugationTable[];
-    formCount: number;
-  }
+  const { urls, messages } = pageLocale();
 
   let { tables, formCount }: Props = $props();
 </script>
 
-<PageLayout trail={[{ label: 'Grammar', href: grammarIndexPath() }, { label: 'Conjugations' }]} section="grammar" wide>
+<PageLayout trail={[{ label: messages.chrome.sections.grammar, href: urls.grammarIndexPath() }, { label: messages.chrome.grammarTabs.conjugations }]} section="grammar" wide>
   <div class="page-intro">
     <h1>Conjugation reference</h1>
     <p>
@@ -35,7 +33,7 @@
             {#each table.rows as row (row.id)}
               <tr>
                 <th scope="row">{row.formLabel}</th>
-                <td><a href={grammarPath(row.id)} lang="ja">{row.pattern}</a></td>
+                <td><a href={urls.grammarPath(row.id)} lang="ja">{row.pattern}</a></td>
                 <td lang="ja">{#if row.example}{row.example.lemma} → {row.example.target}{/if}</td>
                 <td>N{row.jlptLevel}</td>
               </tr>

@@ -92,3 +92,18 @@ jobs:
       - name: Pages changed (check:parity)
         if: github.event_name == 'pull_request'
         run: bun run check:parity --base HEAD^1 --no-build
+
+      # The server that renders the entity pages on request runs on Node (24, the function's
+      # runtime); the checks above run on Bun.
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # The pages a server renders on request (#206): HEAD's static build, in dist/ from the Build
+      # step, against an on-request build of HEAD served as production will serve it (the list
+      # pages static, the word, kanji and grammar point pages rendered from the published dataset
+      # over HTTP, under /dictionary/), every file requested and compared. Held to identical:
+      # rendering on request changes how a page is made, never what it says.
+      - name: Pages rendered on request (check:parity --against-server)
+        run: bun run check:parity --against-server --no-build --expect identical
