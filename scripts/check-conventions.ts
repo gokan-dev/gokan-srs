@@ -93,6 +93,11 @@ const DICTIONARY_DATA_HOLDER = 'apps/gokan-dictionary/src/lib/server/dictionary.
 const ENGLISH_SEARCH_LINKS = new Set(['vocabJlptPath', 'vocabPath', 'kanjiPath', 'grammarPath', 'searchPath']);
 const URLS_IMPORT = /\bimport\s*(?:type\s*)?\{([^}]*)\}\s*from\s*['"][^'"]*\/urls['"]/g;
 const DICTIONARY_CLIENT = /^apps\/gokan-dictionary\/src\/client\//;
+// A breadcrumb is chrome: its steps come from the locale's catalog (lib/messages), as its home
+// step does, or a translated page's trail would continue in English after its first step.
+const DICTIONARY_PAGE_COMPONENT = /^apps\/gokan-dictionary\/src\/pages\/[^/]+\.svelte$/;
+const BREADCRUMB_TRAIL = /trail=\{\[([\s\S]*?)\]\}/g;
+const QUOTED_LABEL = /\blabel:\s*['"]/g;
 const ENGLISH_FILE_SOURCE = /^(apps\/(gokan-srs|gokan-dictionary)\/(src|scripts)\/.*\.(tsx?|svelte)|scripts\/.*\.ts|apps\/gokan-srs\/vite\.config\.ts)$/;
 
 /**
@@ -407,6 +412,19 @@ function check(files: string[]): Violation[] {
                     rule: 'locale-links',
                     message: `${english.join(', ')} from lib/urls.ts are the search script's English links (client/ only). Build a page's links for its locale: localeUrls(locale), or pageLocale().urls in a component.`,
                 });
+            }
+        }
+
+        if (DICTIONARY_PAGE_COMPONENT.test(file)) {
+            for (const trail of text.matchAll(BREADCRUMB_TRAIL)) {
+                for (const label of trail[1].matchAll(QUOTED_LABEL)) {
+                    add({
+                        file,
+                        line: text.slice(0, trail.index + 'trail={['.length + label.index).split('\n').length,
+                        rule: 'breadcrumb-label',
+                        message: 'A breadcrumb step written as a string literal. Take its label from the catalog (pageLocale().messages: chrome.sections, chrome.grammarTabs, chrome.crumbs), as the home step does.',
+                    });
+                }
             }
         }
 

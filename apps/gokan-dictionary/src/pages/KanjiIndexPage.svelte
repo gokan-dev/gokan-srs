@@ -3,7 +3,7 @@
   import { pageLocale } from './pageLocale';
   import PageLayout from './PageLayout.svelte';
 
-  const { urls } = pageLocale();
+  const { urls, messages } = pageLocale();
 
   let { groups }: Props = $props();
 
@@ -12,7 +12,7 @@
   const labelOf = (level: number | null) => (level === null ? 'Outside JLPT' : `JLPT N${level}`);
 </script>
 
-<PageLayout trail={[{ label: 'Kanji' }]} section="kanji" wide>
+<PageLayout trail={[{ label: messages.chrome.sections.kanji }]} section="kanji" wide>
   <div class="page-intro">
     <h1>Kanji</h1>
     <p>All {total.toLocaleString('en')} kanji in the dictionary, grouped by JLPT level.</p>

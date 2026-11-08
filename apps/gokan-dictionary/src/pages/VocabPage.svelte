@@ -14,7 +14,7 @@
   import FuriganaToggle from './FuriganaToggle.svelte';
   import SentenceText from './SentenceText.svelte';
 
-  const { urls } = pageLocale();
+  const { urls, messages } = pageLocale();
 
   let { vocab, components, parents, sentences }: Props = $props();
 
@@ -59,7 +59,7 @@
   </ul>
 {/snippet}
 
-<PageLayout trail={[{ label: 'Vocabulary', href: urls.vocabIndexPath() }, { label: headword, jp: true }]} section="vocab" wide>
+<PageLayout trail={[{ label: messages.chrome.sections.vocab, href: urls.vocabIndexPath() }, { label: headword, jp: true }]} section="vocab" wide>
   <header class="entry-head">
     <h1 class="entry-word" lang="ja">{headword}</h1>
 

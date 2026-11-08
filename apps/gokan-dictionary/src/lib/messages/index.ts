@@ -37,6 +37,8 @@ export interface Messages {
         breadcrumb: string;
         /** The breadcrumb's first step, the dictionary home. */
         breadcrumbHome: string;
+        /** Breadcrumb steps no section or grammar tab names. */
+        crumbs: { kanjiOrders: string; search: string };
         footer: (links: { dataset: string; srs: string }) => LinkedText;
         search: { label: string; placeholder: string; results: string };
         hideFurigana: string;

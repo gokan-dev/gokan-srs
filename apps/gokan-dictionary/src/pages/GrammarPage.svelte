@@ -10,7 +10,7 @@
   import GrammarExamples from './GrammarExamples.svelte';
   import GrammarList from './GrammarList.svelte';
 
-  const { urls } = pageLocale();
+  const { urls, messages } = pageLocale();
 
   let { point, related, chapterLocator, variants, conjugation, minedExamples, minedExamplesTotalCount }: Props = $props();
 
@@ -19,7 +19,7 @@
   );
 </script>
 
-<PageLayout trail={[{ label: 'Grammar', href: urls.grammarIndexPath() }, { label: point.title, jp: true }]} section="grammar" wide>
+<PageLayout trail={[{ label: messages.chrome.sections.grammar, href: urls.grammarIndexPath() }, { label: point.title, jp: true }]} section="grammar" wide>
   <header class="entry-head">
     <h1 lang="ja">{point.title}</h1>
     {#if point.romaji}<p class="entry-sub">{point.romaji}</p>{/if}

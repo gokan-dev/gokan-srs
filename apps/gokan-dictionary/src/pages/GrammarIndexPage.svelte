@@ -1,13 +1,16 @@
 <script lang="ts">
   import type { GrammarIndexPageProps as Props } from '../lib/pageProps';
+  import { pageLocale } from './pageLocale';
   import PageLayout from './PageLayout.svelte';
   import GrammarList from './GrammarList.svelte';
   import GrammarTabs from './GrammarTabs.svelte';
 
+  const { messages } = pageLocale();
+
   let { groups, total }: Props = $props();
 </script>
 
-<PageLayout trail={[{ label: 'Grammar' }]} section="grammar">
+<PageLayout trail={[{ label: messages.chrome.sections.grammar }]} section="grammar">
   <div class="page-intro">
     <h1>Japanese grammar</h1>
     <p>{total.toLocaleString('en')} grammar points from JLPT N5 to N1, in the order they are taught.</p>

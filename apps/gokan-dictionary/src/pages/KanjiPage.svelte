@@ -8,7 +8,7 @@
   import Chip from './Chip.svelte';
   import VocabEntryList from './VocabEntryList.svelte';
 
-  const { urls } = pageLocale();
+  const { urls, messages } = pageLocale();
 
   let { kanji, words, kanjiWithPages, orderLengths }: Props = $props();
 
@@ -25,7 +25,7 @@
   const courses = $derived(kanjiBookPositions(kanji));
 </script>
 
-<PageLayout trail={[{ label: 'Kanji', href: urls.kanjiIndexPath() }, { label: kanji.character, jp: true }]} section="kanji" wide>
+<PageLayout trail={[{ label: messages.chrome.sections.kanji, href: urls.kanjiIndexPath() }, { label: kanji.character, jp: true }]} section="kanji" wide>
   <header class="entry-head">
     <h1 class="kanji-glyph" lang="ja">{kanji.character}</h1>
     {#if kanji.meanings.length > 0}<p class="entry-gloss">{kanji.meanings.join(', ')}</p>{/if}

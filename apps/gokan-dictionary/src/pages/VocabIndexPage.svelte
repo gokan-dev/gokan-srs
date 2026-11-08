@@ -3,7 +3,7 @@
   import { pageLocale } from './pageLocale';
   import PageLayout from './PageLayout.svelte';
 
-  const { urls } = pageLocale();
+  const { urls, messages } = pageLocale();
 
   let { levels, totalCount }: Props = $props();
 
@@ -16,7 +16,7 @@
   };
 </script>
 
-<PageLayout trail={[{ label: 'Vocabulary' }]} section="vocab" wide>
+<PageLayout trail={[{ label: messages.chrome.sections.vocab }]} section="vocab" wide>
   <div class="page-intro">
     <h1>Vocabulary</h1>
     <p>

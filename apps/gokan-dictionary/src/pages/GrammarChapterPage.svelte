@@ -6,12 +6,12 @@
   import Chip from './Chip.svelte';
   import GrammarList from './GrammarList.svelte';
 
-  const { urls } = pageLocale();
+  const { urls, messages } = pageLocale();
 
   let { chapter, totalChapters, previous, next }: Props = $props();
 </script>
 
-<PageLayout trail={[{ label: 'Grammar', href: urls.grammarIndexPath() }, { label: 'Curriculum', href: urls.grammarChaptersIndexPath() }, { label: `Chapter ${chapter.chapterNumber}` }]} section="grammar">
+<PageLayout trail={[{ label: messages.chrome.sections.grammar, href: urls.grammarIndexPath() }, { label: messages.chrome.grammarTabs.curriculum, href: urls.grammarChaptersIndexPath() }, { label: `Chapter ${chapter.chapterNumber}` }]} section="grammar">
   <div class="page-intro">
     <h1 lang={langOf(chapter.title)}>{chapter.title}</h1>
     <p class="chips"><Chip label={`JLPT N${chapter.jlptLevel}`} /><span class="meta">Chapter {chapter.chapterNumber} of {totalChapters}</span></p>

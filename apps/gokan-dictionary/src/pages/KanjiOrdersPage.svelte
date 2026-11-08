@@ -8,7 +8,7 @@
   let { orders }: Props = $props();
 </script>
 
-<PageLayout trail={[{ label: 'Kanji', href: urls.kanjiIndexPath() }, { label: 'Orders' }]} section="kanji" wide>
+<PageLayout trail={[{ label: messages.chrome.sections.kanji, href: urls.kanjiIndexPath() }, { label: messages.chrome.crumbs.kanjiOrders }]} section="kanji" wide>
   <div class="page-intro">
     <h1>Vocabulary by kanji learning order</h1>
     <p>

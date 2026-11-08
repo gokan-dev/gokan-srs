@@ -4,12 +4,12 @@
   import PageLayout from './PageLayout.svelte';
   import GrammarTabs from './GrammarTabs.svelte';
 
-  const { urls } = pageLocale();
+  const { urls, messages } = pageLocale();
 
   let { families }: Props = $props();
 </script>
 
-<PageLayout trail={[{ label: 'Grammar', href: urls.grammarIndexPath() }, { label: 'Families' }]} section="grammar">
+<PageLayout trail={[{ label: messages.chrome.sections.grammar, href: urls.grammarIndexPath() }, { label: messages.chrome.grammarTabs.families }]} section="grammar">
   <div class="page-intro">
     <h1>Grammar families</h1>
     <p>

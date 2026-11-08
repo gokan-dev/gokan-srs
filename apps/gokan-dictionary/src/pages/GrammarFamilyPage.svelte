@@ -5,12 +5,12 @@
   import PageLayout from './PageLayout.svelte';
   import GrammarList from './GrammarList.svelte';
 
-  const { urls } = pageLocale();
+  const { urls, messages } = pageLocale();
 
   let { family }: Props = $props();
 </script>
 
-<PageLayout trail={[{ label: 'Grammar', href: urls.grammarIndexPath() }, { label: 'Families', href: urls.grammarFamiliesIndexPath() }, { label: family.name }]} section="grammar">
+<PageLayout trail={[{ label: messages.chrome.sections.grammar, href: urls.grammarIndexPath() }, { label: messages.chrome.grammarTabs.families, href: urls.grammarFamiliesIndexPath() }, { label: family.name }]} section="grammar">
   <div class="page-intro">
     <h1>{family.name}</h1>
     <p>

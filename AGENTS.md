@@ -297,7 +297,7 @@ gokan-dictionary:
   component `pageLocale().urls` (`pages/pageLocale.ts`, set by the root layout). Its English-only
   path functions are the search script's, `client/` only (enforced).
 - Words: every title, description and word of chrome from the locale's catalog, `lib/messages`
-  (`Messages`, one module per locale, `en.ts`; `messagesFor(locale)`, in a component
+  (`Messages`, one module per locale, `en.ts`; a breadcrumb step too, enforced; `messagesFor(locale)`, in a component
   `pageLocale().messages`; a sentence with links is `LinkedText`). A count is `messages.count`.
   The text tools titles are written with (truncating, a searchable pattern) are `lib/seo.ts`.
 - Client scripts are plain TypeScript (`client/search.ts`, `client/grammarFilter.ts`): no

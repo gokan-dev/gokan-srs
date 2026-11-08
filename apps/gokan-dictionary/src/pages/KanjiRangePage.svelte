@@ -19,7 +19,7 @@
   const rangePrefix = () => 'Steps ';
 </script>
 
-<PageLayout trail={[{ label: 'Kanji', href: urls.kanjiIndexPath() }, { label: 'Orders', href: urls.kanjiOrdersPath() }, { label: order.label, href: urls.kanjiOrderPath(order.id) }, { label: `${range.first} to ${range.last}` }]} section="kanji" wide>
+<PageLayout trail={[{ label: messages.chrome.sections.kanji, href: urls.kanjiIndexPath() }, { label: messages.chrome.crumbs.kanjiOrders, href: urls.kanjiOrdersPath() }, { label: order.label, href: urls.kanjiOrderPath(order.id) }, { label: `${range.first} to ${range.last}` }]} section="kanji" wide>
   <div class="page-intro">
     <h1>{messages.kanjiRangeHeading(order, range)}</h1>
     <p>

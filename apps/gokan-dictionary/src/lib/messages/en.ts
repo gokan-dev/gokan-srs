@@ -37,6 +37,7 @@ export const en: Messages = {
         sections: { vocab: 'Vocabulary', kanji: 'Kanji', grammar: 'Grammar' },
         breadcrumb: 'Breadcrumb',
         breadcrumbHome: 'Dictionary',
+        crumbs: { kanjiOrders: 'Orders', search: 'Search' },
         // The line break is the one every page has carried since the footer was written: a change
         // to it changes all 40k pages, re-uploaded on the next deploy.
         footer: links => [

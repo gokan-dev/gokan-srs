@@ -2,14 +2,14 @@
   import { pageLocale } from './pageLocale';
   import PageLayout from './PageLayout.svelte';
 
-  const { urls } = pageLocale();
+  const { urls, messages } = pageLocale();
 </script>
 
 <!--
   Every match for ?q=, grouped, 50 words a page: rendered by client/search.ts with the same query
   module as the header panel. The page itself is static, kept out of search engines.
 -->
-<PageLayout trail={[{ label: 'Search' }]} wide>
+<PageLayout trail={[{ label: messages.chrome.crumbs.search }]} wide>
   <div class="page-intro">
     <h1 data-search-title>Search</h1>
   </div>

@@ -11,7 +11,7 @@
   const PREVIEW = 10;
 </script>
 
-<PageLayout trail={[{ label: 'Kanji', href: urls.kanjiIndexPath() }, { label: 'Orders', href: urls.kanjiOrdersPath() }, { label: order.label }]} section="kanji" wide>
+<PageLayout trail={[{ label: messages.chrome.sections.kanji, href: urls.kanjiIndexPath() }, { label: messages.chrome.crumbs.kanjiOrders, href: urls.kanjiOrdersPath() }, { label: order.label }]} section="kanji" wide>
   <div class="page-intro">
     <h1>{order.searchName} vocabulary by kanji step</h1>
     <p>
