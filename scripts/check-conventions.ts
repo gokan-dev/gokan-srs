@@ -97,7 +97,9 @@ const DICTIONARY_CLIENT = /^apps\/gokan-dictionary\/src\/client\//;
 // step does, or a translated page's trail would continue in English after its first step.
 const DICTIONARY_PAGE_COMPONENT = /^apps\/gokan-dictionary\/src\/pages\/[^/]+\.svelte$/;
 const BREADCRUMB_TRAIL = /trail=\{\[([\s\S]*?)\]\}/g;
-const QUOTED_LABEL = /\blabel:\s*['"]/g;
+// A quoted label, or a backtick one with nothing interpolated (`Orders`). The templated steps
+// (`Chapter ${n}`, `JLPT N${level}`, `Page ${page}`, a kanji range) wait for #170's catalog phrases.
+const QUOTED_LABEL = /\blabel:\s*(?:['"]|`(?![^`]*\$\{))/g;
 const ENGLISH_FILE_SOURCE = /^(apps\/(gokan-srs|gokan-dictionary)\/(src|scripts)\/.*\.(tsx?|svelte)|scripts\/.*\.ts|apps\/gokan-srs\/vite\.config\.ts)$/;
 
 /**
