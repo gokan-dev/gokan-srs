@@ -8,6 +8,8 @@ import {
     changeDates,
     contentHash,
     datedSitemap,
+    deployRefusal,
+    deployedManifest,
     diffManifests,
     isSite,
     manifestFromListing,
@@ -24,6 +26,75 @@ import {
 /** A stored deploy; its content hashes default to its upload hashes (true of every non-page file). */
 const stored = (manifest: Record<string, string>, changed: Record<string, string> = {}, content = manifest): PreviousDeploy =>
     ({ source: 'manifest', manifest, content, changed });
+
+describe('deployedManifest', () => {
+    const built = { 'index.html': 'home', 'vocab/1/index.html': 'word', 'assets/a-1.css': 'css', 'data/search-core.json': 'index' };
+
+    it('is the build, by default', () => {
+        expect(deployedManifest(stored({}), built)).toEqual(built);
+    });
+
+    it('leaves the pages out when a server serves them, keeping every other file', () => {
+        expect(deployedManifest(stored({}), built, { pagesOnServer: true })).toEqual({ 'assets/a-1.css': 'css', 'data/search-core.json': 'index' });
+    });
+
+    it('keeps what the previous deploy owned under its old hash, so nothing is deleted or re-uploaded', () => {
+        const previous = stored({ 'index.html': 'old-home', 'vocab/2/index.html': 'old-word', 'assets/a-0.css': 'old-css' });
+        const deployed = deployedManifest(previous, built, { pagesOnServer: true, keepRemoved: true });
+        expect(deployed).toEqual({
+            'assets/a-1.css': 'css',
+            'data/search-core.json': 'index',
+            'index.html': 'old-home',
+            'vocab/2/index.html': 'old-word',
+            'assets/a-0.css': 'old-css',
+        });
+        const diff = diffManifests(previous, deployed);
+        expect(diff.removed).toEqual([]);
+        expect(diff.changed.sort()).toEqual(['assets/a-1.css', 'data/search-core.json']);
+    });
+
+    it('lets the next deploy with prunePages prune what was kept', () => {
+        const kept = deployedManifest(stored({ 'vocab/2/index.html': 'old-word' }), built, { pagesOnServer: true, keepRemoved: true });
+        const options = { pagesOnServer: true, prunePages: true };
+        expect(deployRefusal(stored(kept), options)).toBeNull();
+        const next = deployedManifest(stored(kept), built, options);
+        expect(diffManifests(stored(kept), next).removed).toEqual(['vocab/2/index.html']);
+    });
+});
+
+describe('deployRefusal', () => {
+    // What the bucket holds while CloudFront may still serve the dictionary's pages from it.
+    const withPages = stored({ 'index.html': 'home', 'vocab/1/index.html': 'word', 'assets/a-1.css': 'css' });
+
+    it('refuses to leave the pages out with neither flag while the bucket still holds pages', () => {
+        expect(deployRefusal(withPages, { pagesOnServer: true })).toMatch(/still holds 2 page\(s\)/);
+    });
+
+    it('allows it with keepRemoved, deleting no page', () => {
+        expect(deployRefusal(withPages, { pagesOnServer: true, keepRemoved: true })).toBeNull();
+    });
+
+    it('allows it with prunePages, pruning every page', () => {
+        expect(deployRefusal(withPages, { pagesOnServer: true, prunePages: true })).toBeNull();
+        const next = deployedManifest(withPages, { 'assets/a-1.css': 'css', 'index.html': 'home' }, { pagesOnServer: true, prunePages: true });
+        expect(diffManifests(withPages, next).removed.sort()).toEqual(['index.html', 'vocab/1/index.html']);
+    });
+
+    it('allows it when the previous deploy holds no page, or is not a manifest (which deletes nothing)', () => {
+        expect(deployRefusal(stored({ 'assets/a-1.css': 'css' }), { pagesOnServer: true })).toBeNull();
+        expect(deployRefusal({ source: 'listing', manifest: { 'index.html': 'home' } }, { pagesOnServer: true })).toBeNull();
+        expect(deployRefusal({ source: 'none' }, { pagesOnServer: true })).toBeNull();
+    });
+
+    it('never refuses a deploy that uploads its pages', () => {
+        expect(deployRefusal(withPages, {})).toBeNull();
+    });
+
+    it('refuses prunePages without pagesOnServer, and with keepRemoved', () => {
+        expect(deployRefusal(withPages, { prunePages: true })).toMatch(/only applies/);
+        expect(deployRefusal(withPages, { pagesOnServer: true, prunePages: true, keepRemoved: true })).toMatch(/contradict/);
+    });
+});
 
 describe('diffManifests', () => {
     it('uploads only the files whose content hash changed', () => {

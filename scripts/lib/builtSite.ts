@@ -12,6 +12,7 @@ import type { AddressInfo } from 'node:net';
 import { extname, join, resolve, sep } from 'node:path';
 import { brotliCompressSync, constants } from 'node:zlib';
 import { publishedDatasetFile } from '@gokan/deploy/published-dataset';
+import { isDictionaryFilePath } from '../../apps/gokan-dictionary/src/lib/servedPaths';
 
 const ROOT = process.cwd();
 const SRS_DIST = join(ROOT, 'apps/gokan-srs/dist');
@@ -74,14 +75,21 @@ const within = (base: string, target: string) => {
 };
 
 /**
- * The SRS answers every route with its index, as CloudFront's SPA fallback does, and /dataset/
- * with the published files.
+ * A path naming a file, as CloudFront tells one: a dot in it (the /dictionary/*.* behavior; the
+ * SRS's routing function looks at the last segment, where every SRS route has none).
  */
-export function srsFile(pathname: string): string {
+const namesFile = (pathname: string): boolean => (pathname.split('/').at(-1) ?? '').includes('.');
+
+/**
+ * The SRS as its routing function serves it (terraform/modules/spa-fallback): /dataset/ with the
+ * published files, a file as itself or a 404, any other path (a route) with the app's index.
+ */
+export function srsFile(pathname: string): string | null {
     const dataset = publishedDatasetFile(pathname);
     if (dataset !== null && isFile(join(DATASET_DIR, dataset))) return join(DATASET_DIR, dataset);
     const direct = join(SRS_DIST, pathname);
-    return within(SRS_DIST, direct) && isFile(direct) ? direct : join(SRS_DIST, 'index.html');
+    if (within(SRS_DIST, direct) && isFile(direct)) return direct;
+    return namesFile(pathname) ? null : join(SRS_DIST, 'index.html');
 }
 
 /** The dictionary lives under `/dictionary/`; a directory serves its index.html, anything else 404s. */
@@ -93,8 +101,9 @@ export function dictionaryFile(pathname: string): string | null {
 }
 
 /**
- * Where a request no file answers goes instead, as CloudFront sends an S3 miss under /dictionary/
- * to the function that renders it: the origin of the dictionary's server, or null for a 404.
+ * Where a request no file answers goes instead, as CloudFront sends a dictionary page (a path
+ * with no dot, the /dictionary/* behavior) to the dictionary's server: its origin, or null for a
+ * 404.
  */
 export type Fallback = (pathname: string) => string | null;
 
@@ -122,6 +131,11 @@ async function proxy(origin: string, request: IncomingMessage, response: ServerR
 export function serve(resolve: (pathname: string) => string | null, port = 0, fallback?: Fallback): Promise<{ server: Server; port: number }> {
     const server = createServer((request, response) => {
         const pathname = decodeURIComponent(new URL(request.url ?? '/', 'http://localhost').pathname);
+        // /dictionary/* does not match /dictionary: the routing function sends it there.
+        if (pathname === '/dictionary') {
+            response.writeHead(301, { location: '/dictionary/' }).end();
+            return;
+        }
         const file = resolve(pathname);
         if (!file || !isFile(file)) {
             const origin = fallback?.(pathname) ?? null;
@@ -160,14 +174,22 @@ export function dictionaryOnRequest(): boolean {
 }
 
 /**
- * Production's dictionary, locally: both apps on one origin (serveBoth), and behind the
- * dictionary's static files its server (build/, an on-request build), which reads the published
- * dataset and the search index from that same origin, as the function reads them through
- * CloudFront. A /dictionary/ path with no file is the server's. `stop` ends both.
+ * Production's dictionary, locally, routed as CloudFront routes it (terraform, #209): both apps
+ * on one origin, a dictionary file (a path with a dot) from dist/, a dictionary page (any other
+ * path) from its server (build/, an on-request build), which renders the entity pages and serves
+ * the prerendered list pages from its own bundle. The server reads the published dataset and the
+ * search index from this same origin, as the function reads them through CloudFront. `stop` ends
+ * both.
  */
 export async function serveDictionaryOnRequest(port = 0): Promise<{ port: number; stop: () => void }> {
     let serverOrigin: string | null = null;
-    const site = await serveBoth(port, pathname => (pathname.startsWith('/dictionary') ? serverOrigin : null));
+    // Routed by the rule the build is held to, so this stand-in cannot drift from CloudFront.
+    const isDictionaryFile = (pathname: string) => isDictionaryFilePath(pathname.slice('/dictionary/'.length));
+    const site = await serve(
+        pathname => (pathname.startsWith('/dictionary') ? (isDictionaryFile(pathname) ? dictionaryFile(pathname) : null) : srsFile(pathname)),
+        port,
+        pathname => (pathname.startsWith('/dictionary/') && !isDictionaryFile(pathname) ? serverOrigin : null),
+    );
     const probe = await serve(() => null);
     const serverPort = probe.port;
     probe.server.close();

@@ -36,6 +36,11 @@ jobs:
       # A raise for a first fill or a voice change, set for one deploy and deleted after.
       # Production's deploy never passes it, so production always runs at the 2,000 cap.
       audio_max_uploads: ${{ vars.AUDIO_MAX_UPLOADS || '2000' }}
+      # Set together with STAGING_DICTIONARY_ON_REQUEST, which terraform-staging.yml reads.
+      dictionary_rendering: ${{ vars.STAGING_DICTIONARY_RENDERING || 'prerendered' }}
+      dictionary_function: ${{ vars.STAGING_DICTIONARY_FUNCTION }}
+      dictionary_on_request: ${{ vars.STAGING_DICTIONARY_ON_REQUEST || 'false' }}
+      dictionary_keep_old_pages: ${{ vars.STAGING_DICTIONARY_KEEP_OLD_PAGES || 'false' }}
     secrets:
       aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
       aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

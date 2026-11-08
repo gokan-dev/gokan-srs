@@ -10,6 +10,8 @@ on:
   pull_request:
     paths:
       - 'apps/gokan-srs/terraform/staging/**'
+      # The modules both stacks use: a change to one plans both.
+      - 'apps/gokan-srs/terraform/modules/**'
       - '.github/workflows/terraform-staging.yml'
   workflow_dispatch:
 
@@ -24,6 +26,9 @@ env:
   AWS_ACCESS_KEY_ID: ${{ secrets.TF_AWS_ACCESS_KEY_ID }}
   AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_AWS_SECRET_ACCESS_KEY }}
   AWS_REGION: ${{ vars.AWS_REGION }}
+  # Where the dictionary's pages come from (#209): its server ("true") or the bucket (unset or
+  # "false": before the cutover, and the rollback). Changed with STAGING_DICTIONARY_RENDERING.
+  TF_VAR_dictionary_on_request: ${{ vars.STAGING_DICTIONARY_ON_REQUEST || 'false' }}
 
 jobs:
   plan:

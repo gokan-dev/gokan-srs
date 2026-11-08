@@ -205,6 +205,21 @@ describe('parseParityArgs --against-server', () => {
     });
 });
 
+describe('parseParityArgs --against', () => {
+    it('compares with a deployed origin, never with a base or the local server too', () => {
+        expect(parseParityArgs(['--against', 'https://staging.gokan-srs.com', '--expect', 'identical'])).toEqual({
+            base: 'origin/main', build: true, expectIdentical: true, againstServer: false, againstOrigin: 'https://staging.gokan-srs.com',
+        });
+        expect(parseParityArgs(['--against', 'https://staging.gokan-srs.com', '--base', 'main'])).toBeInstanceOf(Error);
+        expect(parseParityArgs(['--against', 'https://staging.gokan-srs.com', '--against-server'])).toBeInstanceOf(Error);
+    });
+
+    it('takes an origin, not a URL with a path', () => {
+        expect(parseParityArgs(['--against', 'https://staging.gokan-srs.com/dictionary/'])).toBeInstanceOf(Error);
+        expect(parseParityArgs(['--against', 'staging.gokan-srs.com'])).toBeInstanceOf(Error);
+    });
+});
+
 describe('servedPath', () => {
     it('serves a page at its directory, with the slash, and a file at its own path', () => {
         expect(servedPath('/dictionary', 'index.html')).toBe('/dictionary/');

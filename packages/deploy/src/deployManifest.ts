@@ -173,6 +173,59 @@ export interface ManifestDiff {
     unchanged: number;
 }
 
+export interface DeployedOptions {
+    /**
+     * The site's pages (`*.html`) are served by its server, not from the bucket (the dictionary
+     * rendering on request, #209): they are built and dated (the sitemap's `<lastmod>` comes from
+     * their content hashes) but never uploaded.
+     */
+    pagesOnServer?: boolean;
+    /**
+     * Keys the previous manifest listed and this build no longer has stay in the bucket, and in
+     * the manifest, so a later deploy prunes them: what a rollback is served from, kept while it
+     * may be needed (#209, the week after the dictionary's cutover).
+     */
+    keepRemoved?: boolean;
+    /**
+     * With `pagesOnServer`, the pages the previous deploy uploaded may be deleted: given only once
+     * CloudFront routes the dictionary's pages to its server and the rollback week is over.
+     * Without it (or `keepRemoved`), `deployRefusal` refuses the deploy (#209).
+     */
+    prunePages?: boolean;
+}
+
+/**
+ * Why this deploy must not run, or null. Leaving the pages out of the bucket (`pagesOnServer`)
+ * deletes every page the previous manifest lists, and the deploy cannot see where CloudFront
+ * sends a page: while it still asks the bucket, that is every dictionary page answering 404. So
+ * the deletion is never implied: it needs `prunePages`, or `keepRemoved` keeps them (#209).
+ */
+export function deployRefusal(previous: PreviousDeploy, { pagesOnServer = false, keepRemoved = false, prunePages = false }: DeployedOptions): string | null {
+    if (prunePages && !pagesOnServer) return '--prune-pages only applies with --pages-on-server.';
+    if (prunePages && keepRemoved) return '--prune-pages and --keep-removed contradict each other: prune the pages, or keep them.';
+    if (!pagesOnServer || keepRemoved || prunePages || previous.source !== 'manifest') return null;
+    const pages = Object.keys(previous.manifest).filter(file => file.endsWith('.html')).length;
+    if (pages === 0) return null;
+    return `the bucket still holds ${pages} page(s) the previous deploy uploaded, and --pages-on-server would delete them. `
+        + 'Give --keep-removed while CloudFront may still serve them (before the cutover, the rollback week), '
+        + 'or --prune-pages once it routes every page to the server.';
+}
+
+/**
+ * What the bucket holds after this deploy, by key and hash: the built files it uploads (all of
+ * them, or only the files that are not pages), plus, with `keepRemoved`, whatever the previous
+ * manifest listed that is no longer built, under its previous hash (unchanged, so not uploaded).
+ */
+export function deployedManifest(previous: PreviousDeploy, next: BuildManifest, { pagesOnServer = false, keepRemoved = false }: DeployedOptions = {}): BuildManifest {
+    const deployed: BuildManifest = pagesOnServer
+        ? Object.fromEntries(Object.entries(next).filter(([file]) => !file.endsWith('.html')))
+        : { ...next };
+    if (keepRemoved && previous.source === 'manifest') {
+        for (const [file, hash] of Object.entries(previous.manifest)) deployed[file] ??= hash;
+    }
+    return deployed;
+}
+
 export function diffManifests(previous: PreviousDeploy, next: BuildManifest): ManifestDiff {
     // Nothing known about what is deployed: upload everything rather than risk a partial deploy.
     if (previous.source === 'none') {

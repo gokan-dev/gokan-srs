@@ -16,10 +16,12 @@
 //                /dictionary/ as in production. With --no-build, dist/ is the static build.
 // A missing value, or a flag where a value goes, exits 2 with the usage.
 //
-// The base is built in a worktree cached under node_modules/.cache/check-parity and moved on
-// later runs, with its own install and its own dataset: a worktree of the dataset submodule at
+// The base is built in a worktree cached in the repository's git directory (check-parity) and
+// moved on later runs, with its own install and its own dataset: a worktree of the dataset submodule at
 // the base's pointer, so a change that moves the pointer is compared against the data it moved
-// from. Thin glue over src/lib/parity.ts; verified by running it.
+// from. Never under node_modules/: Node refuses to strip types from a file there, so the base's
+// vite.config.ts could not load a workspace package's TypeScript (@gokan/deploy/dataset-version).
+// Thin glue over src/lib/parity.ts; verified by running it.
 
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -49,7 +51,10 @@ const APP_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const REPO_ROOT = path.resolve(APP_DIR, '..', '..');
 const APP = path.relative(REPO_ROOT, APP_DIR);
 const DATASET = path.join('apps', 'gokan-srs', 'dataset');
-const WORKTREE = path.join(REPO_ROOT, 'node_modules', '.cache', 'check-parity');
+const WORKTREE = path.join(
+    path.resolve(REPO_ROOT, execFileSync('git', ['rev-parse', '--git-common-dir'], { cwd: REPO_ROOT, encoding: 'utf8' }).trim()),
+    'check-parity',
+);
 /** What the dictionary's build reads from the dataset: its code (the English view) and compiled/. */
 const DATASET_SPARSE = ['/.gitattributes', '/src/', '/compiled/'];
 const EXAMPLES = 5;
@@ -59,7 +64,7 @@ if (options instanceof Error) {
     console.error(`[check-parity] ${options.message}`);
     process.exit(2);
 }
-const { base: BASE_REF, build: BUILD_HEAD, expectIdentical, againstServer } = options;
+const { base: BASE_REF, build: BUILD_HEAD, expectIdentical, againstServer, againstOrigin } = options;
 
 const git = (gitArgs: string[], cwd = REPO_ROOT): string =>
     execFileSync('git', gitArgs, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }).trim();
@@ -168,8 +173,31 @@ function main(): void {
 const REFERENCE = path.join(REPO_ROOT, 'node_modules', '.cache', 'check-parity-server', 'dist');
 const PARALLEL_REQUESTS = 8;
 
-/** Every file of `reference`, as the stand-in serves it: bytes by path, a 404 left out. */
-async function served(port: number, files: readonly string[]): Promise<{ output: Output; bodies: Map<string, Buffer>; statuses: Map<string, number> }> {
+/**
+ * The sitemap as built, from the sitemap as deployed: the deploy dates each URL (<lastmod>,
+ * datedSitemap in @gokan/deploy), which the build leaves out to stay byte-reproducible.
+ */
+const undated = (body: Buffer): Buffer => Buffer.from(body.toString('utf8').replaceAll(/<lastmod>[^<]*<\/lastmod>/g, ''));
+
+/**
+ * A request that may meet a passing failure over 40k of them against a deployed site: a dropped
+ * connection, or a throttled or unavailable server (429, 503: the function at its concurrency
+ * limit). Retried with a growing wait; any other answer, a 404 included, is the answer.
+ */
+async function fetchPatiently(url: string): Promise<Response> {
+    for (let attempt = 1; ; attempt++) {
+        try {
+            const response = await fetch(url);
+            if ((response.status !== 429 && response.status !== 503) || attempt === 5) return response;
+        } catch (error) {
+            if (attempt === 5) throw error;
+        }
+        await new Promise(done => setTimeout(done, 500 * 2 ** attempt));
+    }
+}
+
+/** Every file of the reference, as `origin` serves it: bytes by path, anything but a 200 left out. */
+async function served(origin: string, files: readonly string[]): Promise<{ output: Output; bodies: Map<string, Buffer>; statuses: Map<string, number> }> {
     const bytes = new Map<string, string>();
     const content = new Map<string, string>();
     const bodies = new Map<string, Buffer>();
@@ -178,8 +206,9 @@ async function served(port: number, files: readonly string[]): Promise<{ output:
     const worker = async (): Promise<void> => {
         while (next < files.length) {
             const file = files[next++];
-            const response = await fetch(`http://127.0.0.1:${port}${servedPath(DICTIONARY_BASE_PATH, file)}`);
-            const body = Buffer.from(await response.arrayBuffer());
+            const response = await fetchPatiently(`${origin}${servedPath(DICTIONARY_BASE_PATH, file)}`);
+            const raw = Buffer.from(await response.arrayBuffer());
+            const body = file === 'sitemap.xml' ? undated(raw) : raw;
             statuses.set(file, response.status);
             if (response.status !== 200) continue;
             bodies.set(file, body);
@@ -192,18 +221,51 @@ async function served(port: number, files: readonly string[]): Promise<{ output:
 }
 
 /** What only the server can get wrong: a missing page's status, document and cache-control, and a page's. */
-async function serverProblems(port: number, entityPage: string): Promise<string[]> {
+async function serverProblems(origin: string, entityPage: string): Promise<string[]> {
     const problems: string[] = [];
-    const missing = await fetch(`http://127.0.0.1:${port}${DICTIONARY_BASE_PATH}/vocab/0000000/`);
+    const missing = await fetch(`${origin}${DICTIONARY_BASE_PATH}/vocab/0000000/`);
     const missingBody = await missing.text();
     if (missing.status !== 404) problems.push(`an unknown word answers ${missing.status}, not 404`);
     if (!missingBody.includes('<meta name="robots" content="noindex" />')) problems.push('the 404 page is not noindex');
     if (!/s-maxage=300/.test(missing.headers.get('cache-control') ?? '')) problems.push(`the 404 page's cache-control is "${missing.headers.get('cache-control')}"`);
-    const page = await fetch(`http://127.0.0.1:${port}${servedPath(DICTIONARY_BASE_PATH, entityPage)}`);
+    const page = await fetch(`${origin}${servedPath(DICTIONARY_BASE_PATH, entityPage)}`);
     if (!/must-revalidate, s-maxage=31536000/.test(page.headers.get('cache-control') ?? '')) problems.push(`${entityPage}'s cache-control is "${page.headers.get('cache-control')}"`);
     return problems;
 }
 
+/**
+ * Every file of the static build at `reference` against what `origin` serves, plus what only a
+ * server can get wrong (serverProblems). `label` names what is compared in the report.
+ */
+async function compareServed(origin: string, reference: string, label: string): Promise<void> {
+    // The asset build's manifest is a build file, never requested by a reader.
+    const files = listFiles(reference).filter(file => !file.startsWith('.vite/'));
+    const { output: server, bodies, statuses } = await served(origin, files);
+    const built = output(reference);
+    const kept = (map: ReadonlyMap<string, string>) => new Map([...map].filter(([file]) => !file.startsWith('.vite/')));
+    const result = compareOutputs({ bytes: kept(built.bytes), content: kept(built.content) }, server);
+    const examples = exampleCandidates(result, EXAMPLES).map((file): Example => {
+        const before = fs.readFileSync(path.join(reference, file));
+        const after = bodies.get(file);
+        if (after === undefined) return { path: file, change: { kind: 'binary', beforeBytes: before.length, afterBytes: 0 } };
+        return { path: file, change: { kind: 'text', difference: firstDifference(before.toString('utf8'), after.toString('utf8')) } };
+    });
+    const report = parityReport(result, label, examples);
+    const notServed = [...statuses].filter(([, status]) => status !== 200);
+    console.log(report);
+    for (const [file, status] of notServed.slice(0, EXAMPLES)) console.log(`- ${file}: ${status}`);
+    const problems = await serverProblems(origin, files.find(file => /^vocab\/\d+\/index\.html$/.test(file)) ?? 'vocab/');
+    for (const problem of problems) console.error(`[check-parity] ${problem}`);
+    const summary = process.env.GITHUB_STEP_SUMMARY;
+    if (summary) fs.appendFileSync(summary, `## Dictionary pages served on request\n\n${report}\n`);
+
+    if (problems.length > 0 || (expectIdentical && !isIdentical(result))) {
+        console.error(`[check-parity] what ${origin} serves differs from the static build.`);
+        process.exitCode = 1;
+    }
+}
+
+/** The static build against the same commit built on request, behind a local stand-in for CloudFront. */
 async function mainAgainstServer(): Promise<void> {
     if (BUILD_HEAD) run('bun', ['run', 'build'], APP_DIR);
     const dist = path.join(APP_DIR, 'dist');
@@ -212,37 +274,26 @@ async function mainAgainstServer(): Promise<void> {
     fs.cpSync(dist, REFERENCE, { recursive: true });
     run('bun', ['run', 'build:on-request'], APP_DIR);
 
-    // The asset build's manifest is a build file, never requested by a reader.
-    const files = listFiles(REFERENCE).filter(file => !file.startsWith('.vite/'));
     const site = await serveDictionaryOnRequest();
     try {
-        const { output: server, bodies, statuses } = await served(site.port, files);
-        const reference = output(REFERENCE);
-        const kept = (map: ReadonlyMap<string, string>) => new Map([...map].filter(([file]) => !file.startsWith('.vite/')));
-        const result = compareOutputs({ bytes: kept(reference.bytes), content: kept(reference.content) }, server);
-        const examples = exampleCandidates(result, EXAMPLES).map((file): Example => {
-            const before = fs.readFileSync(path.join(REFERENCE, file));
-            const after = bodies.get(file);
-            if (after === undefined) return { path: file, change: { kind: 'binary', beforeBytes: before.length, afterBytes: 0 } };
-            return { path: file, change: { kind: 'text', difference: firstDifference(before.toString('utf8'), after.toString('utf8')) } };
-        });
-        const report = parityReport(result, 'the static build (served on request)', examples);
-        const notServed = [...statuses].filter(([, status]) => status !== 200);
-        console.log(report);
-        for (const [file, status] of notServed.slice(0, EXAMPLES)) console.log(`- ${file}: ${status}`);
-        const problems = await serverProblems(site.port, files.find(file => /^vocab\/\d+\/index\.html$/.test(file)) ?? 'vocab/');
-        for (const problem of problems) console.error(`[check-parity] ${problem}`);
-        const summary = process.env.GITHUB_STEP_SUMMARY;
-        if (summary) fs.appendFileSync(summary, `## Dictionary pages rendered on request\n\n${report}\n`);
-
-        if (problems.length > 0 || (expectIdentical && !isIdentical(result))) {
-            console.error('[check-parity] the pages served on request differ from the static build.');
-            process.exitCode = 1;
-        }
+        await compareServed(`http://127.0.0.1:${site.port}`, REFERENCE, 'the static build (served on request)');
     } finally {
         site.stop();
     }
 }
 
-if (againstServer) await mainAgainstServer();
+/**
+ * The static build against a deployed site (#209: staging, then production), every sitemap and
+ * entity URL included. Build it as that site was built (VITE_SITE_ORIGIN, and production's
+ * VITE_UMAMI_WEBSITE_ID), or every page differs by its canonical or its analytics tag.
+ */
+async function mainAgainstOrigin(origin: string): Promise<void> {
+    if (BUILD_HEAD) run('bun', ['run', 'build'], APP_DIR);
+    const dist = path.join(APP_DIR, 'dist');
+    if (!fs.existsSync(path.join(dist, 'vocab'))) throw new Error(`[check-parity] ${dist} holds no static build: build the dictionary, or drop --no-build.`);
+    await compareServed(origin, dist, `the static build (served by ${origin})`);
+}
+
+if (againstOrigin !== undefined) await mainAgainstOrigin(againstOrigin);
+else if (againstServer) await mainAgainstServer();
 else main();

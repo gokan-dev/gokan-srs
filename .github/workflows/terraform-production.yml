@@ -7,7 +7,8 @@
 #
 # Path filter is deliberately the TOP-LEVEL terraform files only
 # (apps/gokan-srs/terraform/*.tf), NOT recursive: the staging stack under
-# terraform/staging/** has its own workflow, so the two never trigger on each other.
+# terraform/staging/** has its own workflow, so the two never trigger on each other. The
+# modules both stacks use (terraform/modules/**) trigger both.
 name: "Terraform: production"
 
 on:
@@ -15,6 +16,7 @@ on:
     paths:
       - 'apps/gokan-srs/terraform/*.tf'
       - 'apps/gokan-srs/terraform/.terraform.lock.hcl'
+      - 'apps/gokan-srs/terraform/modules/**'
       - '.github/workflows/terraform-production.yml'
   workflow_dispatch:
 
@@ -29,6 +31,9 @@ env:
   AWS_ACCESS_KEY_ID: ${{ secrets.TF_AWS_ACCESS_KEY_ID }}
   AWS_SECRET_ACCESS_KEY: ${{ secrets.TF_AWS_SECRET_ACCESS_KEY }}
   AWS_REGION: ${{ vars.AWS_REGION }}
+  # Where the dictionary's pages come from (#209): its server ("true") or the bucket (unset or
+  # "false": before the cutover, and the rollback). Changed with DICTIONARY_RENDERING.
+  TF_VAR_dictionary_on_request: ${{ vars.DICTIONARY_ON_REQUEST || 'false' }}
 
 jobs:
   plan:
