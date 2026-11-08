@@ -16,10 +16,12 @@
 //                /dictionary/ as in production. With --no-build, dist/ is the static build.
 // A missing value, or a flag where a value goes, exits 2 with the usage.
 //
-// The base is built in a worktree cached under node_modules/.cache/check-parity and moved on
-// later runs, with its own install and its own dataset: a worktree of the dataset submodule at
+// The base is built in a worktree cached in the repository's git directory (check-parity) and
+// moved on later runs, with its own install and its own dataset: a worktree of the dataset submodule at
 // the base's pointer, so a change that moves the pointer is compared against the data it moved
-// from. Thin glue over src/lib/parity.ts; verified by running it.
+// from. Never under node_modules/: Node refuses to strip types from a file there, so the base's
+// vite.config.ts could not load a workspace package's TypeScript (@gokan/deploy/dataset-version).
+// Thin glue over src/lib/parity.ts; verified by running it.
 
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -49,7 +51,10 @@ const APP_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const REPO_ROOT = path.resolve(APP_DIR, '..', '..');
 const APP = path.relative(REPO_ROOT, APP_DIR);
 const DATASET = path.join('apps', 'gokan-srs', 'dataset');
-const WORKTREE = path.join(REPO_ROOT, 'node_modules', '.cache', 'check-parity');
+const WORKTREE = path.join(
+    path.resolve(REPO_ROOT, execFileSync('git', ['rev-parse', '--git-common-dir'], { cwd: REPO_ROOT, encoding: 'utf8' }).trim()),
+    'check-parity',
+);
 /** What the dictionary's build reads from the dataset: its code (the English view) and compiled/. */
 const DATASET_SPARSE = ['/.gitattributes', '/src/', '/compiled/'];
 const EXAMPLES = 5;
