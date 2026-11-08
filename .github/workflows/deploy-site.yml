@@ -56,6 +56,11 @@ on:
         type: string
         required: false
         default: ''
+      dictionary_on_request:
+        description: '"true" when the environment''s Terraform routes the dictionary''s pages to its server (dictionary_on_request, the *_DICTIONARY_ON_REQUEST variable). Read only to guard the deploy: routing on requires "on-request" rendering, and only then may the pages S3 served be pruned.'
+        type: string
+        required: false
+        default: 'false'
       dictionary_keep_old_pages:
         description: '"true" for the week after the cutover: the pages S3 served stay in the bucket, so routing the dictionary back to S3 (the rollback) serves a complete site. A later deploy without it prunes them.'
         type: string
@@ -146,6 +151,11 @@ jobs:
             on-request) [ -n "${{ inputs.dictionary_function }}" ] || { echo "::error::on-request needs dictionary_function"; exit 1; } ;;
             *) echo "::error::dictionary_rendering is \"${{ inputs.dictionary_rendering }}\", not prerendered or on-request"; exit 1 ;;
           esac
+          # Routed to the server but not rendered by it: the new search index would go up without
+          # the server's code, and every entity page would answer 5xx.
+          if [ "${{ inputs.dictionary_on_request }}" = "true" ] && [ "${{ inputs.dictionary_rendering }}" != "on-request" ]; then
+            echo "::error::the dictionary's pages are routed to its server (dictionary_on_request), so dictionary_rendering must be on-request"; exit 1
+          fi
 
       # On request (#209), the server first: the build for the Lambda, its list pages
       # prerendered and its entity pages left to render, packaged before the static build below
@@ -209,6 +219,26 @@ jobs:
           aws-secret-access-key: ${{ secrets.aws_secret_access_key }}
           aws-region: ${{ inputs.aws_region }}
 
+      # What the dictionary's upload is allowed to do, decided once: on request, the bucket gets
+      # its files and not its pages (--pages-on-server); the pages S3 served are kept for the
+      # rollback week (--keep-removed), or pruned only once CloudFront routes pages to the server
+      # (--prune-pages). deploy-s3.ts refuses anything else (deployRefusal), so pruning is never
+      # implied.
+      - name: Decide the dictionary's upload
+        id: dictionary_flags
+        run: |
+          flags=""
+          if [ "${{ inputs.dictionary_rendering }}" = "on-request" ]; then flags="--pages-on-server"; fi
+          if [ "${{ inputs.dictionary_keep_old_pages }}" = "true" ]; then flags="$flags --keep-removed"
+          elif [ "${{ inputs.dictionary_rendering }}" = "on-request" ] && [ "${{ inputs.dictionary_on_request }}" = "true" ]; then flags="$flags --prune-pages"; fi
+          echo "flags=$flags" >> "$GITHUB_OUTPUT"
+
+      # Before anything goes live: a dictionary upload that deploy-s3.ts would refuse stops the
+      # deploy here, not after the dataset and the app went up without it (the old server would
+      # then read the new dataset under the old search index).
+      - name: Check the dictionary's upload would run
+        run: bun packages/deploy/scripts/deploy-s3.ts --site dictionary --bucket ${{ inputs.s3_bucket }} ${{ steps.dictionary_flags.outputs.flags }} --dry-run
+
       # Both sites use the content-addressed upload rather than `aws s3 sync`: it hashes every
       # built file, compares against a manifest stored beside the site in S3, and uploads only
       # what differs. Sync's default mtime comparison re-uploads everything from a fresh CI
@@ -233,11 +263,7 @@ jobs:
       # the server: a server refuses an index of another dataset version (a 5xx, never cached,
       # retried), so the gap is the minute until the new server and the invalidation below.
       - name: Deploy gokan-dictionary to S3
-        run: |
-          flags=""
-          if [ "${{ inputs.dictionary_rendering }}" = "on-request" ]; then flags="--pages-on-server"; fi
-          if [ "${{ inputs.dictionary_keep_old_pages }}" = "true" ]; then flags="$flags --keep-removed"; fi
-          bun packages/deploy/scripts/deploy-s3.ts --site dictionary --bucket ${{ inputs.s3_bucket }} $flags
+        run: bun packages/deploy/scripts/deploy-s3.ts --site dictionary --bucket ${{ inputs.s3_bucket }} ${{ steps.dictionary_flags.outputs.flags }}
 
       - name: Deploy the dictionary's server
         if: inputs.dictionary_rendering == 'on-request'

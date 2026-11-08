@@ -39,6 +39,7 @@ jobs:
       # Set together with STAGING_DICTIONARY_ON_REQUEST, which terraform-staging.yml reads.
       dictionary_rendering: ${{ vars.STAGING_DICTIONARY_RENDERING || 'prerendered' }}
       dictionary_function: ${{ vars.STAGING_DICTIONARY_FUNCTION }}
+      dictionary_on_request: ${{ vars.STAGING_DICTIONARY_ON_REQUEST || 'false' }}
       dictionary_keep_old_pages: ${{ vars.STAGING_DICTIONARY_KEEP_OLD_PAGES || 'false' }}
     secrets:
       aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}

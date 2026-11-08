@@ -181,11 +181,13 @@ function main(): void {
     // day its page last changed here, after the diff that knows it and before the upload. Written
     // over the built file, so it is hashed, diffed and uploaded like any other: with no content
     // change it has the same bytes as the deployed one and stays where it is.
+    // A dry run dates it in memory only: it touches nothing, so the real run after it (the deploy's
+    // pre-flight, deploy-site.yml) still finds the undated build.
     const sitemapPath = path.join(distDir, SITEMAP_FILE);
     if (fs.existsSync(sitemapPath)) {
         const sitemap = datedSitemap(site, fs.readFileSync(sitemapPath, 'utf-8'), changeDates(previous, content, today));
-        fs.writeFileSync(sitemapPath, sitemap);
-        const bytes = fs.readFileSync(sitemapPath);
+        const bytes = Buffer.from(sitemap, 'utf-8');
+        if (!dryRun) fs.writeFileSync(sitemapPath, bytes);
         built[SITEMAP_FILE] = contentHash(bytes);
         content[SITEMAP_FILE] = pageContentHash(SITEMAP_FILE, bytes);
     }

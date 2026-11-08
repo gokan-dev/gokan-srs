@@ -98,6 +98,7 @@ jobs:
       # Set together with DICTIONARY_ON_REQUEST, which terraform-production.yml reads.
       dictionary_rendering: ${{ vars.DICTIONARY_RENDERING || 'prerendered' }}
       dictionary_function: ${{ vars.DICTIONARY_FUNCTION }}
+      dictionary_on_request: ${{ vars.DICTIONARY_ON_REQUEST || 'false' }}
       dictionary_keep_old_pages: ${{ vars.DICTIONARY_KEEP_OLD_PAGES || 'false' }}
     secrets:
       aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
