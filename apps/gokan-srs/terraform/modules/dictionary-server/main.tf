@@ -37,6 +37,9 @@ variable "distribution_arn" {
   type        = string
 }
 
+# AWS keeps at least 10 of an account's concurrency unreserved, so a reservation needs an account
+# limit above 10 plus every reservation: a new account's limit is 10, raised through Service
+# Quotas (AWS Lambda, Concurrent executions; 1,000 here, #209).
 variable "reserved_concurrency" {
   description = "Most concurrent renders: the cost ceiling against a crawler burst (throttled requests answer 429, never cached)"
   type        = number
