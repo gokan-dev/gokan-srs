@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import { englishDatasetFile } from '../services/http';
+import { englishDatasetFile } from '@gokan/dataset-schema/published-dataset';
 
 const COMPILED = 'dataset/compiled/';
 

@@ -1,4 +1,4 @@
-import { englishFile, englishInputs } from '@gokan/dataset-schema/english-file';
+import { publishedDatasetReader } from '@gokan/dataset-schema/published-dataset';
 
 /**
  * Parses a response's JSON body. The one place a response body is given a type:
@@ -88,93 +88,20 @@ export function sharedRequest<T>(load: () => Promise<T>): { get: () => Promise<T
 }
 
 /**
- * Whether the server says a dataset file does not exist, as opposed to a transient failure. A dev
- * server returns 404; production CloudFront's distribution-wide SPA fallback rewrites a missing
- * key to index.html at 200 (text/html). A 5xx, 403 or 429 is not absence.
+ * The published dataset, read through the reader both apps share (@gokan/dataset-schema's
+ * publishedDatasetReader: a file built from its core, its English text and the shared files it
+ * declares, absence judged on its core, the shared inputs fetched once for the session), every
+ * request by `datasetUrl`. Not cached here: each loader keeps the file in its own `RequestCache`,
+ * so callers asking at once share one set of downloads.
  */
-function isMissingFile(response: Response): boolean {
-    const contentType = response.headers.get('content-type') || '';
-    return response.status === 404 || (response.ok && contentType.includes('text/html'));
-}
+const dataset = publishedDatasetReader({ url: datasetUrl });
 
-async function readInput(path: string, response: Response): Promise<unknown> {
-    if (!response.ok) throw new Error(`Failed to fetch ${datasetUrl(path)}: ${response.status} ${response.statusText}`);
-    return readJson<unknown>(response);
-}
-
-/**
- * The small files several dataset files declare as shared inputs (the grammar slot labels, the
- * browse index's titles): each is fetched once per session and reused by every file that needs it.
- */
-const sharedInputs = new RequestCache<unknown>(path => fetchJson<unknown>(datasetUrl(path)));
-
-/**
- * `path` in the English shape the app's types describe, from the published files `englishInputs`
- * names for it (its core, its English text, the shared files it declares), each read by `read`
- * (shared ones by `readShared`), all asked for at once. The dataset keeps each file's English
- * text apart from its core (its docs/MULTILINGUAL.md); `englishFile`, its own projection, puts
- * them back together, so the app sees exactly the file it read before the published layout
- * (datasetFile.node.test.ts). When reads fail, the core's failure is the one thrown: a missing
- * file is judged on its core, whatever its text's request did.
- */
-export async function englishDatasetFile(
-    path: string,
-    read: (input: string) => Promise<unknown>,
-    readShared: (input: string) => Promise<unknown> = read,
-): Promise<unknown> {
-    const inputs = englishInputs(path);
-    const [core, text, ...shared] = await Promise.allSettled([
-        read(inputs.core),
-        inputs.text === undefined ? Promise.resolve(undefined) : read(inputs.text),
-        ...inputs.shared.map(readShared),
-    ]);
-    const valueOf = (result: PromiseSettledResult<unknown>): unknown => {
-        if (result.status === 'rejected') throw result.reason;
-        return result.value;
-    };
-    const coreValue = valueOf(core);
-    return englishFile(path, {
-        core: coreValue,
-        text: valueOf(text),
-        shared: new Map(inputs.shared.map((input, index) => [input, valueOf(shared[index])])),
-    });
-}
-
-/** Thrown by a read when the server says a file's core does not exist. */
-class MissingDatasetFile extends Error {}
-
-/**
- * A dataset file in its English shape (`englishDatasetFile`, over the published dataset at
- * /dataset/). With `allowMissing`, null when the dataset has no such file (`isMissingFile`, judged
- * on its core: the one answer to "is this file absent?", private so no loader gives its own);
- * without it, absence throws like any other failure. Its core exists but its English text does
- * not: an error, never "no text". Not cached here: each loader keeps the file in its own
- * `RequestCache`, so callers asking at once share one set of downloads; the shared inputs are
- * cached for the session.
- */
-async function loadDatasetFile<T>(path: string, options: { allowMissing: true }): Promise<T | null>;
-async function loadDatasetFile<T>(path: string, options: { allowMissing: false }): Promise<T>;
-async function loadDatasetFile<T>(path: string, { allowMissing }: { allowMissing: boolean }): Promise<T | null> {
-    const read = async (input: string): Promise<unknown> => {
-        const response = await fetch(datasetUrl(input));
-        if (allowMissing && input === path && isMissingFile(response)) throw new MissingDatasetFile(path);
-        return readInput(input, response);
-    };
-    try {
-        // The dataset's schema (its docs/SCHEMA.md) is what guarantees the shape, as for readJson.
-        return await englishDatasetFile(path, read, input => sharedInputs.get(input)) as T;
-    } catch (error) {
-        if (error instanceof MissingDatasetFile) return null;
-        throw error;
-    }
-}
-
-/** A dataset file in its English shape, or null when the dataset has no such file (see `loadDatasetFile`). */
+/** A dataset file in its English shape, or null when the dataset has no such file (see `publishedDatasetReader`). */
 export function fetchOptionalDatasetFile<T>(path: string): Promise<T | null> {
-    return loadDatasetFile<T>(path, { allowMissing: true });
+    return dataset.optionalFile<T>(path);
 }
 
-/** A dataset file in its English shape (see `loadDatasetFile`); any failure throws, absence included. */
+/** A dataset file in its English shape (see `publishedDatasetReader`); any failure throws, absence included. */
 export function fetchDatasetFile<T>(path: string): Promise<T> {
-    return loadDatasetFile<T>(path, { allowMissing: false });
+    return dataset.file<T>(path);
 }

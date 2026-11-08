@@ -70,9 +70,10 @@ const DATASET_URL_SOURCE = /^apps\/gokan-srs\/src\/.*\.tsx?$/;
 const DATASET_URL_HELPER = 'apps/gokan-srs/src/services/http.ts';
 
 /**
- * A dataset file in its English shape is built from its published inputs in one place,
- * `services/http.ts`: every loader asks it, so no app holds a second way to assemble a file. The
- * projection (`englishFile`, `englishInputs`) is imported there only, through
+ * A dataset file in its English shape is built from its published inputs in one place, the
+ * reader both apps share (`publishedDatasetReader`, `englishDatasetFile` in
+ * `@gokan/dataset-schema/published-dataset`), so no app holds a second way to assemble a file. No
+ * app imports the projection (`englishFile`, `englishInputs`) itself, through
  * `@gokan/dataset-schema/english-file` or straight from the dataset's src/layout/englishFile.
  */
 const ENGLISH_FILE_IMPORT = /\bfrom\s+['"](@gokan\/dataset-schema\/english-file|[^'"]*\/layout\/englishFile)['"]|\bimport\(\s*['"](@gokan\/dataset-schema\/english-file|[^'"]*\/layout\/englishFile)['"]/;
@@ -387,9 +388,9 @@ function check(files: string[]): Violation[] {
                 add({ file, line, rule: 'dictionary-data', message: 'Only lib/server/dictionary.ts (and tests) import lib/dataset.server.ts. A page reads the dataset through the DictionaryData it chooses (lib/types.ts), never a loader.' }));
         }
 
-        if (ENGLISH_FILE_SOURCE.test(file) && file !== DATASET_URL_HELPER) {
+        if (ENGLISH_FILE_SOURCE.test(file)) {
             eachLine(text, l => ENGLISH_FILE_IMPORT.test(l), line =>
-                add({ file, line, rule: 'english-file', message: 'englishFile/englishInputs are imported only by services/http.ts, the one place a dataset file is built in its English shape: load it through fetchDatasetFile, or englishDatasetFile in a test.' }));
+                add({ file, line, rule: 'english-file', message: 'No app imports englishFile/englishInputs: a dataset file is built in its English shape only by the reader both apps share (publishedDatasetReader, englishDatasetFile in @gokan/dataset-schema/published-dataset). In gokan-srs, load it through fetchDatasetFile.' }));
         }
 
         if (REMOVED_SYNC_STEP_SCOPE.test(file) && !REMOVED_SYNC_STEP_ALLOWED.has(file) && !/\.test\.tsx?$/.test(file)) {
