@@ -23,6 +23,7 @@ import { orderSentences } from '../sentenceOrder';
 import type { DictionaryData, EntityData, GrammarSummary, SearchIndexFile, SearchWordRow, VocabSummary } from '../types';
 import { kanjiOrderSlug, kanjiRangeSlug, localeUrls } from '../urls';
 import type { PageScript, PageStyle } from './assets';
+import { kept } from './kept';
 import type {
     GrammarChapterPageProps, GrammarChaptersIndexPageProps, GrammarConjugationsIndexPageProps, GrammarFamiliesIndexPageProps, GrammarFamilyPageProps, GrammarIndexPageProps, GrammarPageProps, HomePageProps, KanjiIndexPageProps, KanjiOrderPageProps, KanjiOrdersPageProps, KanjiPageProps, KanjiRangePageProps, VocabIndexPageProps, VocabJlptPageProps, VocabPageProps,
 } from '../pageProps';
@@ -66,12 +67,6 @@ export function errorDocument(status: number, pathname: string, locale: ServedLo
     return { locale, title: meta.title, description: meta.description, canonicalPath: pathname, noindex: true };
 }
 
-/** Built on first use, then kept: every caller shares the one promise. */
-function once<T>(build: () => Promise<T>): () => Promise<T> {
-    let value: Promise<T> | null = null;
-    return () => (value ??= build());
-}
-
 /** What a locale's pages are written with: its paths, its titles and descriptions, and its documents. */
 function writtenIn(locale: ServedLocale) {
     return {
@@ -90,15 +85,15 @@ function resolveSummaries(ids: readonly string[], summaryById: ReadonlyMap<strin
 
 /** The indexes an entity page reads, each built on first use and kept for the source. */
 function entityIndexesOf(source: EntityData) {
-    const kanjiList = once(async () => source.kanjiList());
+    const kanjiList = kept(async () => source.kanjiList());
     return {
-        summaries: once(async () => source.wordSummaries()),
-        grammarSummaries: once(async () => source.grammarSummaries()),
+        summaries: kept(async () => source.wordSummaries()),
+        grammarSummaries: kept(async () => source.grammarSummaries()),
         kanjiList,
-        kanjiByCharacter: once(async (): Promise<ReadonlyMap<string, Kanji>> => new Map((await kanjiList()).map(kanji => [kanji.character, kanji]))),
-        kanjiVocabIndex: once(async () => source.kanjiVocabIndex()),
-        kanjiOrderLists: once(async () => Promise.all(KANJI_ORDERS.map(async order => ({ order, list: await source.kanjiOrder(order.id) })))),
-        grammarIndexes: once(async () => {
+        kanjiByCharacter: kept(async (): Promise<ReadonlyMap<string, Kanji>> => new Map((await kanjiList()).map(kanji => [kanji.character, kanji]))),
+        kanjiVocabIndex: kept(async () => source.kanjiVocabIndex()),
+        kanjiOrderLists: kept(async () => Promise.all(KANJI_ORDERS.map(async order => ({ order, list: await source.kanjiOrder(order.id) })))),
+        grammarIndexes: kept(async () => {
             const [teachingOrder, variantGroups, conjugationIndex] = await Promise.all([
                 source.grammarTeachingOrder(), source.grammarVariantGroups(), source.grammarConjugations(),
             ]);
@@ -203,25 +198,25 @@ export function pagesOf(source: DictionaryData, locale: ServedLocale) {
 
     const indexes = entityIndexesOf(source);
     const { summaries, kanjiList, kanjiOrderLists, grammarIndexes } = indexes;
-    const vocabIds = once(async () => source.vocabIds());
-    const knownVocabIds = once(async (): Promise<ReadonlySet<string>> => new Set(await vocabIds()));
-    const frequencyIndex = once(async () => source.frequencyIndex());
-    const contrasts = once(async () => source.grammarContrasts());
+    const vocabIds = kept(async () => source.vocabIds());
+    const knownVocabIds = kept(async (): Promise<ReadonlySet<string>> => new Set(await vocabIds()));
+    const frequencyIndex = kept(async () => source.frequencyIndex());
+    const contrasts = kept(async () => source.grammarContrasts());
 
     /** Every point by id, loaded in full (766 small files): the list pages show what each says. */
-    const grammarPoints = once(async () => {
+    const grammarPoints = kept(async () => {
         const points = new Map<string, GrammarPoint>();
         for (const id of await source.grammarIds()) points.set(id, await source.grammarPoint(id));
         return points;
     });
 
     /** Every point grouped by level, in the order the curriculum teaches it. */
-    const pointsInOrder = once(async () => inTeachingOrder([...(await grammarPoints()).values()], (await grammarIndexes()).teachingOrder.order));
-    const familyPages = once(async () => buildFamilyPages([...(await grammarPoints()).values()], await contrasts()));
-    const chapterRows = once(async () => buildChapterIndexRows((await grammarIndexes()).teachingOrder, await grammarPoints()));
+    const pointsInOrder = kept(async () => inTeachingOrder([...(await grammarPoints()).values()], (await grammarIndexes()).teachingOrder.order));
+    const familyPages = kept(async () => buildFamilyPages([...(await grammarPoints()).values()], await contrasts()));
+    const chapterRows = kept(async () => buildChapterIndexRows((await grammarIndexes()).teachingOrder, await grammarPoints()));
 
     /** Each JLPT level's words, frequency-ordered; a level with none is left out. */
-    const jlptLevelWords = once(async () => {
+    const jlptLevelWords = kept(async () => {
         const [index, summaryById] = await Promise.all([source.vocabJlptIndex(), summaries()]);
         return JLPT_LEVELS.map(level => ({
             level,
@@ -231,13 +226,13 @@ export function pagesOf(source: DictionaryData, locale: ServedLocale) {
     });
 
     /** One order's ranges of steps, by kanjiStepIndex: the rule the app's kanji-driven order follows. */
-    const orderRanges = once(async () => {
+    const orderRanges = kept(async () => {
         const frequency = await frequencyIndex();
         return new Map((await kanjiOrderLists()).map(({ order, list }) => [order.id, { order, list, ranges: kanjiRanges(list, kanjiStepIndex(frequency, list)) }]));
     });
 
     /** Every example sentence across every word, for the home page's count. */
-    const sentenceCount = once(async () => {
+    const sentenceCount = kept(async () => {
         let count = 0;
         for (const id of await vocabIds()) count += (await source.sentencesFor(id))?.length ?? 0;
         return count;
@@ -423,7 +418,7 @@ export function pagesOf(source: DictionaryData, locale: ServedLocale) {
     }
 
     /** The search index's two files: every word in frequency order (a row's position is its rank), every kanji and point. */
-    const searchIndex = once(async (): Promise<{ core: SearchIndexFile; full: SearchIndexFile }> => {
+    const searchIndex = kept(async (): Promise<{ core: SearchIndexFile; full: SearchIndexFile }> => {
         const known = await knownVocabIds();
         const wordRows: SearchWordRow[] = [];
         for (const { id } of await frequencyIndex()) {

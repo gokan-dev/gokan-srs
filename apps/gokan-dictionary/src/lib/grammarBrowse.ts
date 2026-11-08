@@ -7,12 +7,12 @@ import type { GrammarPoint } from '@gokan/dataset-schema';
 import type { GrammarSummary, SearchGrammarRow } from './types';
 import { SHORT_GLOSS_LENGTH, truncateAtWord } from './vocabSummary';
 
-/** A point as a list row links to it: title, level, romaji and its short explanation, cut short. */
 /** A point's summary from its search row (searchGrammarRow), equal to grammarSummaryOf of the point. */
 export function grammarSummaryOfRow([id, title, romaji, shortExplanation, jlptLevel]: SearchGrammarRow): GrammarSummary {
     return { id, title, jlptLevel, ...(romaji ? { romaji } : {}), shortExplanation };
 }
 
+/** A point as a list row links to it: title, level, romaji and its short explanation, cut short. */
 export function grammarSummaryOf(point: GrammarPoint): GrammarSummary {
     return {
         id: point.id,

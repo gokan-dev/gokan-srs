@@ -89,6 +89,23 @@ describe('pagesOf: entity pages', () => {
         expect(calls.get('vocabIds')).toBe(1);
         expect(calls.get('kanjiList')).toBe(1);
     });
+
+    it('retries an index whose read failed, rather than failing every later page', async () => {
+        const { source } = memorySource({ words: [omou] });
+        const summaries = () => source.wordSummaries();
+        let failed = false;
+        const flaky = {
+            ...source,
+            wordSummaries: () => {
+                if (failed) return summaries();
+                failed = true;
+                return Promise.reject(new Error('503 from CloudFront'));
+            },
+        };
+        const pages = pagesOf(flaky, 'en');
+        await expect(pages.vocabPage('1589350')).rejects.toThrow('503');
+        expect((await pages.vocabPage('1589350')).document.canonicalPath).toBe(urls.vocabPath('1589350'));
+    });
 });
 
 describe('pagesOf: list pages', () => {

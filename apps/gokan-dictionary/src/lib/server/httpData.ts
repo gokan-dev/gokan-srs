@@ -16,6 +16,7 @@ import { grammarSummaryOfRow } from '../grammarBrowse';
 import { fromColumns } from '../searchIndex';
 import type { EntityData, GrammarSummary, SearchIndexFile, VocabSummary } from '../types';
 import { vocabSummaryOfRow } from '../vocabSummary';
+import { kept } from './kept';
 
 export interface HttpDataOptions {
     /** A dataset file's URL: the origin, /dataset/, the path, and the dataset version. */
@@ -29,20 +30,6 @@ export interface HttpDataOptions {
 
 /** Each language's reader of the published dataset: English is the one the dataset projects today. */
 const READERS: Record<DatasetLanguage, typeof publishedDatasetReader> = { en: publishedDatasetReader };
-
-/** Built on first use, then kept; a load that fails is dropped, so the next page retries it. */
-function kept<T>(load: () => Promise<T>): () => Promise<T> {
-    let value: Promise<T> | null = null;
-    return () => {
-        if (value) return value;
-        const request = load();
-        value = request;
-        request.catch(() => {
-            if (value === request) value = null;
-        });
-        return request;
-    };
-}
 
 export function httpData({ datasetUrl, searchIndexUrls, language, fetch: fetchFile = url => fetch(url) }: HttpDataOptions): EntityData {
     const dataset = READERS[language]({ url: datasetUrl, fetch: fetchFile });
