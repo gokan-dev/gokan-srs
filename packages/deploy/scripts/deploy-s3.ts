@@ -16,9 +16,12 @@
 // intended set.
 //
 // Usage: bun packages/deploy/scripts/deploy-s3.ts --site srs|dictionary|data --bucket <name>
-//          [--pages-on-server] [--keep-removed] [--dry-run]
+//          [--pages-on-server [--keep-removed | --prune-pages]] [--dry-run]
 //   --pages-on-server  the dictionary's pages are its server's (#209): dated, never uploaded
 //   --keep-removed     keep what the previous deploy owned and this build lacks (a rollback copy)
+//   --prune-pages      delete the pages the previous deploy uploaded: only once CloudFront routes
+//                      every page to the server. With neither, a bucket still holding pages
+//                      refuses the deploy (deployRefusal), so pruning is never implied.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -31,6 +34,7 @@ import {
     changeDates,
     contentHash,
     datedSitemap,
+    deployRefusal,
     deployedManifest,
     diffManifests,
     isSite,
@@ -72,12 +76,12 @@ function parseArgs(): Args {
     const site = get('--site');
     const bucket = get('--bucket');
     if (!site || !isSite(site) || !bucket) {
-        throw new Error(`usage: deploy-s3.ts --site ${Object.keys(SITES).join('|')} --bucket <name> [--pages-on-server] [--keep-removed] [--dry-run]`);
+        throw new Error(`usage: deploy-s3.ts --site ${Object.keys(SITES).join('|')} --bucket <name> [--pages-on-server [--keep-removed | --prune-pages]] [--dry-run]`);
     }
     const pagesOnServer = argv.includes('--pages-on-server');
     // Only the dictionary has a server; another site's pages would simply never be uploaded.
     if (pagesOnServer && site !== 'dictionary') throw new Error('[deploy] --pages-on-server is for the dictionary only.');
-    return { site, bucket, dryRun: argv.includes('--dry-run'), deployed: { pagesOnServer, keepRemoved: argv.includes('--keep-removed') } };
+    return { site, bucket, dryRun: argv.includes('--dry-run'), deployed: { pagesOnServer, keepRemoved: argv.includes('--keep-removed'), prunePages: argv.includes('--prune-pages') } };
 }
 
 /**
@@ -187,11 +191,16 @@ function main(): void {
     }
     const dates = changeDates(previous, content, today);
 
+    // Before anything is uploaded or deleted, dry run included: it shows the same refusal.
+    const refusal = deployRefusal(previous, deployedOptions);
+    if (refusal !== null) throw new Error(`[deploy] ${site}: ${refusal}`);
+
     // Every page is dated above; what the bucket holds may be less (pages on the server) or more
     // (a rollback copy kept), and is what the manifest records as deployed.
     const next = deployedManifest(previous, built, deployedOptions);
     if (deployedOptions.pagesOnServer) console.log('[deploy] pages are served by the server: dated, not uploaded.');
     if (deployedOptions.keepRemoved) console.log('[deploy] keeping what the previous deploy owned and this build lacks.');
+    if (deployedOptions.prunePages) console.log('[deploy] pruning the pages the previous deploy uploaded.');
     const { changed, removed, unchanged } = diffManifests(previous, next);
     console.log(`[deploy] ${changed.length} changed, ${removed.length} removed, ${unchanged} unchanged.`);
     const batches = planUploads(site, changed);

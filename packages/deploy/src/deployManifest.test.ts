@@ -8,6 +8,7 @@ import {
     changeDates,
     contentHash,
     datedSitemap,
+    deployRefusal,
     deployedManifest,
     diffManifests,
     isSite,
@@ -52,10 +53,46 @@ describe('deployedManifest', () => {
         expect(diff.changed.sort()).toEqual(['assets/a-1.css', 'data/search-core.json']);
     });
 
-    it('lets the next deploy without keepRemoved prune what was kept', () => {
+    it('lets the next deploy with prunePages prune what was kept', () => {
         const kept = deployedManifest(stored({ 'vocab/2/index.html': 'old-word' }), built, { pagesOnServer: true, keepRemoved: true });
-        const next = deployedManifest(stored(kept), built, { pagesOnServer: true });
+        const options = { pagesOnServer: true, prunePages: true };
+        expect(deployRefusal(stored(kept), options)).toBeNull();
+        const next = deployedManifest(stored(kept), built, options);
         expect(diffManifests(stored(kept), next).removed).toEqual(['vocab/2/index.html']);
+    });
+});
+
+describe('deployRefusal', () => {
+    // What the bucket holds while CloudFront may still serve the dictionary's pages from it.
+    const withPages = stored({ 'index.html': 'home', 'vocab/1/index.html': 'word', 'assets/a-1.css': 'css' });
+
+    it('refuses to leave the pages out with neither flag while the bucket still holds pages', () => {
+        expect(deployRefusal(withPages, { pagesOnServer: true })).toMatch(/still holds 2 page\(s\)/);
+    });
+
+    it('allows it with keepRemoved, deleting no page', () => {
+        expect(deployRefusal(withPages, { pagesOnServer: true, keepRemoved: true })).toBeNull();
+    });
+
+    it('allows it with prunePages, pruning every page', () => {
+        expect(deployRefusal(withPages, { pagesOnServer: true, prunePages: true })).toBeNull();
+        const next = deployedManifest(withPages, { 'assets/a-1.css': 'css', 'index.html': 'home' }, { pagesOnServer: true, prunePages: true });
+        expect(diffManifests(withPages, next).removed.sort()).toEqual(['index.html', 'vocab/1/index.html']);
+    });
+
+    it('allows it when the previous deploy holds no page, or is not a manifest (which deletes nothing)', () => {
+        expect(deployRefusal(stored({ 'assets/a-1.css': 'css' }), { pagesOnServer: true })).toBeNull();
+        expect(deployRefusal({ source: 'listing', manifest: { 'index.html': 'home' } }, { pagesOnServer: true })).toBeNull();
+        expect(deployRefusal({ source: 'none' }, { pagesOnServer: true })).toBeNull();
+    });
+
+    it('never refuses a deploy that uploads its pages', () => {
+        expect(deployRefusal(withPages, {})).toBeNull();
+    });
+
+    it('refuses prunePages without pagesOnServer, and with keepRemoved', () => {
+        expect(deployRefusal(withPages, { prunePages: true })).toMatch(/only applies/);
+        expect(deployRefusal(withPages, { pagesOnServer: true, prunePages: true, keepRemoved: true })).toMatch(/contradict/);
     });
 });
 
