@@ -12,6 +12,7 @@ import type { AddressInfo } from 'node:net';
 import { extname, join, resolve, sep } from 'node:path';
 import { brotliCompressSync, constants } from 'node:zlib';
 import { publishedDatasetFile } from '@gokan/deploy/published-dataset';
+import { isDictionaryFilePath } from '../../apps/gokan-dictionary/src/lib/servedPaths';
 
 const ROOT = process.cwd();
 const SRS_DIST = join(ROOT, 'apps/gokan-srs/dist');
@@ -182,7 +183,8 @@ export function dictionaryOnRequest(): boolean {
  */
 export async function serveDictionaryOnRequest(port = 0): Promise<{ port: number; stop: () => void }> {
     let serverOrigin: string | null = null;
-    const isDictionaryFile = (pathname: string) => pathname.slice('/dictionary/'.length).includes('.');
+    // Routed by the rule the build is held to, so this stand-in cannot drift from CloudFront.
+    const isDictionaryFile = (pathname: string) => isDictionaryFilePath(pathname.slice('/dictionary/'.length));
     const site = await serve(
         pathname => (pathname.startsWith('/dictionary') ? (isDictionaryFile(pathname) ? dictionaryFile(pathname) : null) : srsFile(pathname)),
         port,
