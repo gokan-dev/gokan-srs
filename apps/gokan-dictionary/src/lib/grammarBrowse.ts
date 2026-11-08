@@ -1,5 +1,5 @@
 // Pure helpers behind the grammar browse pages: a point reduced to a list row, the teaching order
-// the rows are listed in, and grouping by JLPT level. Kept out of prerender.ts and the page
+// the rows are listed in, and grouping by JLPT level. Kept out of lib/server/pages.ts and the page
 // components so what a reader sees, and in which order, is unit-tested.
 
 import { JLPT_LEVELS } from '@gokan/dataset-schema';

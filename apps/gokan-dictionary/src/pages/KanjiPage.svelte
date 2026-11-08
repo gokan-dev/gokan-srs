@@ -1,22 +1,12 @@
 <script lang="ts">
+  import type { KanjiPageProps as Props } from '../lib/pageProps';
   import { isKanjiOrderId, kanjiBookPositions, kanjiGradeLabel, kunReadingLabel } from '@gokan/dataset-schema';
-  import type { Kanji, KanjiBook, KanjiOrderId } from '@gokan/dataset-schema';
-  import type { VocabSummary } from '../lib/types';
+  import type { KanjiBook } from '@gokan/dataset-schema';
   import { rangeOfStep } from '../lib/kanjiOrders';
   import { kanjiIndexPath, kanjiPath, kanjiStepPath } from '../lib/urls';
   import PageLayout from './PageLayout.svelte';
   import Chip from './Chip.svelte';
   import VocabEntryList from './VocabEntryList.svelte';
-
-  interface Props {
-    kanji: Kanji;
-    /** Every word containing the kanji, most frequent first. */
-    words: VocabSummary[];
-    /** Every kanji with a page, so a component that is one (子 in 学) links to it. */
-    kanjiWithPages: ReadonlySet<string>;
-    /** Each learning order's length: a book position links to its range page when the book is an order. */
-    orderLengths: ReadonlyMap<KanjiOrderId, number>;
-  }
 
   let { kanji, words, kanjiWithPages, orderLengths }: Props = $props();
 

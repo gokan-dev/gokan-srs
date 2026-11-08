@@ -1,8 +1,8 @@
-// Pure URL-building helpers, shared by the prerender script (to build hrefs, canonicals and
+// Pure URL-building helpers, shared by the server (lib/server/pages.ts, to build hrefs, canonicals and
 // sitemap entries) and the page components (to link between pages). Keeping this as the single
 // source of truth means every generated link agrees on BASE_PATH.
 //
-// Note these are URL paths, NOT on-disk paths: prerender.ts writes pages under dist/ WITHOUT
+// Note these are URL paths, NOT on-disk paths: the build writes pages under dist/ WITHOUT
 // the base-path prefix, because the deploy step supplies that prefix as the S3 key prefix it
 // syncs into. See site.ts's BASE_PATH comment.
 

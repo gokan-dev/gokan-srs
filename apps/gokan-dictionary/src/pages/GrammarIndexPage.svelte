@@ -1,15 +1,8 @@
 <script lang="ts">
-  import type { LevelGroup } from '../lib/grammarBrowse';
-  import type { GrammarSummary } from '../lib/types';
+  import type { GrammarIndexPageProps as Props } from '../lib/pageProps';
   import PageLayout from './PageLayout.svelte';
   import GrammarList from './GrammarList.svelte';
   import GrammarTabs from './GrammarTabs.svelte';
-
-  interface Props {
-    /** Every point, grouped N5 first, in teaching order within a level. */
-    groups: LevelGroup<GrammarSummary>[];
-    total: number;
-  }
 
   let { groups, total }: Props = $props();
 </script>

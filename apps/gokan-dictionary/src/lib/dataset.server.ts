@@ -1,8 +1,6 @@
 // The dictionary's data from the gokan-dataset checkout on disk: `checkoutData`, the
-// DictionaryData (lib/types.ts) the prerender script reads every page's data through. Node only:
-// never import this from a .svelte component or any file that ends up in the client bundle (it
-// uses `node:fs`). The `.server.ts` suffix is a naming convention flagging that, not an enforced
-// boundary (this app has no framework-level server/client split like SvelteKit does).
+// DictionaryData (lib/types.ts) the pages read their data through (lib/server/pages.ts). Node
+// only (`node:fs`): SvelteKit refuses a `.server.ts` module in anything bound for the browser.
 //
 // `checkoutData` takes an explicit `compiledDir` rather than resolving one itself, so tests can
 // point it at a small fixture directory instead of the real ~1GB submodule checkout (see
@@ -10,7 +8,6 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { englishView } from '@gokan/dataset-schema/english';
 import type {
@@ -20,11 +17,20 @@ import type {
 import type { DictionaryData, VocabSummary } from './types';
 import { vocabSummaryFrom } from './vocabSummary';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-// apps/gokan-dictionary/src/lib -> apps/gokan-dictionary -> apps -> repo root
-const REPO_ROOT = path.resolve(__dirname, '..', '..', '..', '..');
 const DATASET_SUBMODULE_PATH = path.join('apps', 'gokan-srs', 'dataset');
+
+/**
+ * The repo root: the nearest directory, from the working directory up, that holds a `.gitmodules`
+ * naming the dataset submodule. Found from the working directory, not this file: once SvelteKit
+ * bundles the server, this module runs from `.svelte-kit/output/`, wherever that is.
+ */
+function repoRoot(): string {
+    for (let dir = process.cwd(); ; dir = path.dirname(dir)) {
+        const gitmodules = path.join(dir, '.gitmodules');
+        if (fs.existsSync(gitmodules) && fs.readFileSync(gitmodules, 'utf-8').includes('apps/gokan-srs/dataset')) return dir;
+        if (path.dirname(dir) === dir) throw new Error(`[dataset] no repo root above ${process.cwd()}: run the build from inside the gokan-srs checkout.`);
+    }
+}
 
 /**
  * Resolves the compiled dataset directory, auto-initializing the shared gokan-dataset
@@ -39,12 +45,13 @@ const DATASET_SUBMODULE_PATH = path.join('apps', 'gokan-srs', 'dataset');
  * this is the only remaining place that can fetch it before a build needs real data.
  */
 export function resolveCompiledDir(): string {
-    const compiledDir = path.join(REPO_ROOT, DATASET_SUBMODULE_PATH, 'compiled');
+    const root = repoRoot();
+    const compiledDir = path.join(root, DATASET_SUBMODULE_PATH, 'compiled');
 
     if (!fs.existsSync(compiledDir)) {
         console.warn(`[dataset] ${compiledDir} not found, running "git submodule update --init ${DATASET_SUBMODULE_PATH}"...`);
         execFileSync('git', ['submodule', 'update', '--init', DATASET_SUBMODULE_PATH], {
-            cwd: REPO_ROOT,
+            cwd: root,
             stdio: 'inherit',
         });
     }

@@ -1,9 +1,8 @@
-// Pure HTML-document builder. Svelte's server render() only produces a <body>-shaped
-// fragment (see prototype notes in scripts/prerender.ts) - this wraps that fragment with the
-// <head> (SEO meta, canonical link, JSON-LD, asset links) every static page needs. Kept as
-// plain string templating rather than a Svelte component: a document shell (<html>/<head>)
-// isn't itself a piece of UI, and templating it directly avoids a whole extra SSR call per
-// page for something that's just string concatenation.
+// Pure HTML-document builder: wraps a page's rendered body with the <head> (SEO meta, canonical
+// link, JSON-LD, asset links) every page needs. The server hook (hooks.server.ts) applies it to
+// what SvelteKit renders, so app.html carries only the body. Kept as plain string templating
+// rather than <svelte:head>: a document shell isn't itself a piece of UI, and one template keeps
+// every page's head byte for byte what it was under the static generator this replaced.
 
 import { analyticsScriptTag } from '@gokan/analytics';
 import { absoluteUrl, faviconPath } from './urls';

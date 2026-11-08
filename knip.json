@@ -39,12 +39,14 @@
     "apps/gokan-dictionary": {
       "entry": [
         "src/client/*.ts",
-        "scripts/*.ts",
-        "src/pages/*.svelte"
+        "scripts/*.ts"
       ],
       "project": [
         "src/**/*.{ts,svelte}",
         "scripts/**/*.ts"
+      ],
+      "ignoreUnresolved": [
+        "^\\./\\$types$"
       ]
     }
   }

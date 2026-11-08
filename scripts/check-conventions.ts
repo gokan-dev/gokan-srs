@@ -57,7 +57,7 @@ const GOKAN_SRS_SOURCE = /^apps\/gokan-srs\/src\/.*\.tsx?$/;
 /** Pure-logic directories: every module has a colocated test. */
 const TESTED_DIRS = ['apps/gokan-srs/src/utils', 'apps/gokan-dictionary/src/lib', 'packages/deploy/src'];
 /** Modules with no logic to test: constants and type declarations only. */
-const TEST_EXEMPT = new Set(['apps/gokan-dictionary/src/lib/site.ts', 'apps/gokan-dictionary/src/lib/types.ts']);
+const TEST_EXEMPT = new Set(['apps/gokan-dictionary/src/lib/site.ts', 'apps/gokan-dictionary/src/lib/types.ts', 'apps/gokan-dictionary/src/lib/pageProps.ts']);
 
 const AGENT_STUBS = ['CLAUDE.md', 'GEMINI.md'];
 const AGENT_STUB_CONTENT = '@AGENTS.md';
@@ -78,12 +78,12 @@ const DATASET_URL_HELPER = 'apps/gokan-srs/src/services/http.ts';
 const ENGLISH_FILE_IMPORT = /\bfrom\s+['"](@gokan\/dataset-schema\/english-file|[^'"]*\/layout\/englishFile)['"]|\bimport\(\s*['"](@gokan\/dataset-schema\/english-file|[^'"]*\/layout\/englishFile)['"]/;
 /**
  * The dictionary reads the dataset through one DictionaryData (lib/types.ts): its checkout
- * implementation, lib/dataset.server.ts, is held by the prerender script, and a page or helper
+ * implementation, lib/dataset.server.ts, is held by lib/server/dictionary.ts, and a page or helper
  * that imported it would read the checkout around the interface.
  */
 const DICTIONARY_DATA_IMPORT = /\bfrom\s+['"][^'"]*\/dataset\.server['"]|\bimport\(\s*['"][^'"]*\/dataset\.server['"]/;
 const DICTIONARY_SOURCE = /^apps\/gokan-dictionary\/(src|scripts)\/.*\.(ts|svelte)$/;
-const DICTIONARY_DATA_HOLDER = 'apps/gokan-dictionary/scripts/prerender.ts';
+const DICTIONARY_DATA_HOLDER = 'apps/gokan-dictionary/src/lib/server/dictionary.ts';
 const ENGLISH_FILE_SOURCE = /^(apps\/(gokan-srs|gokan-dictionary)\/(src|scripts)\/.*\.(tsx?|svelte)|scripts\/.*\.ts|apps\/gokan-srs\/vite\.config\.ts)$/;
 
 /**
@@ -384,7 +384,7 @@ function check(files: string[]): Violation[] {
 
         if (DICTIONARY_SOURCE.test(file) && file !== DICTIONARY_DATA_HOLDER && !file.endsWith('.test.ts')) {
             eachLine(text, l => DICTIONARY_DATA_IMPORT.test(l), line =>
-                add({ file, line, rule: 'dictionary-data', message: 'Only scripts/prerender.ts (and tests) import lib/dataset.server.ts. A page reads the dataset through the DictionaryData it is given (lib/types.ts), never a loader.' }));
+                add({ file, line, rule: 'dictionary-data', message: 'Only lib/server/dictionary.ts (and tests) import lib/dataset.server.ts. A page reads the dataset through the DictionaryData it chooses (lib/types.ts), never a loader.' }));
         }
 
         if (ENGLISH_FILE_SOURCE.test(file) && file !== DATASET_URL_HELPER) {

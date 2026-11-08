@@ -120,6 +120,8 @@ const FETCH = { name: 'fetch', message: 'Network calls belong in a service under
 export default defineConfig([
   globalIgnores([
     '**/dist/**',
+    // SvelteKit's generated types and entry points (svelte-kit sync).
+    '**/.svelte-kit/**',
     '**/node_modules/**',
     '**/.deploy-stage/**',
     '.claude/**',   // Claude Code's config and local scratch, not project source
@@ -258,6 +260,12 @@ export default defineConfig([
     languageOptions: {
       globals: globals.browser,
       parserOptions: { parser: tseslint.parser },
+    },
+    rules: {
+      // SvelteKit's resolve() applies its own base path for client-side navigation. These pages are
+      // never hydrated (csr = false), and every href comes from lib/urls.ts, which applies
+      // BASE_PATH and is the one source of links: resolve() would be a second.
+      'svelte/no-navigation-without-resolve': 'off',
     },
   },
   {

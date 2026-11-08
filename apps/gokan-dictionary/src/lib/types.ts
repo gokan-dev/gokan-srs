@@ -1,5 +1,5 @@
 // Lightweight cross-page view types, the dictionary's own search index format, and DictionaryData,
-// what the pages read of the dataset. The prerender script resolves summaries once per referenced
+// what the pages read of the dataset. lib/server/pages.ts resolves summaries once per referenced
 // id and passes them down as props, so a page linking to another entry never embeds that entry's
 // full dataset object.
 

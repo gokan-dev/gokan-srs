@@ -1,16 +1,9 @@
 <script lang="ts">
+  import type { GrammarChaptersIndexPageProps as Props } from '../lib/pageProps';
   import { langOf } from '../lib/documentShell';
-  import type { ChapterIndexRow } from '../lib/grammarChapters';
-  import type { LevelGroup } from '../lib/grammarBrowse';
   import { grammarChapterPath, grammarIndexPath } from '../lib/urls';
   import PageLayout from './PageLayout.svelte';
   import GrammarTabs from './GrammarTabs.svelte';
-
-  interface Props {
-    /** Every chapter in teaching order, grouped under the level of its place in the curriculum. */
-    groups: LevelGroup<ChapterIndexRow>[];
-    chapterCount: number;
-  }
 
   let { groups, chapterCount }: Props = $props();
 </script>

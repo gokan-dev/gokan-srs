@@ -1,4 +1,4 @@
-// Site-wide constants shared by the prerender script, document shell, and page components.
+// Site-wide constants shared by the server (lib/server/), document shell, and page components.
 //
 // The dictionary is deployed as a SUBFOLDER of the gokan-srs site (gokan-srs.com/dictionary),
 // not as its own subdomain: with no established domain authority yet, consolidating every

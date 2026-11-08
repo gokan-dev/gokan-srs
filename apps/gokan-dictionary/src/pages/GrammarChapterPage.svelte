@@ -1,18 +1,10 @@
 <script lang="ts">
+  import type { GrammarChapterPageProps as Props } from '../lib/pageProps';
   import { langOf } from '../lib/documentShell';
-  import type { ChapterIndexRow } from '../lib/grammarChapters';
   import { grammarChapterPath, grammarChaptersIndexPath, grammarIndexPath } from '../lib/urls';
   import PageLayout from './PageLayout.svelte';
   import Chip from './Chip.svelte';
   import GrammarList from './GrammarList.svelte';
-
-  interface Props {
-    chapter: ChapterIndexRow;
-    totalChapters: number;
-    /** Adjacent chapters in teaching order, for prev/next navigation. Null at either end. */
-    previous: { id: string; title: string } | null;
-    next: { id: string; title: string } | null;
-  }
 
   let { chapter, totalChapters, previous, next }: Props = $props();
 </script>

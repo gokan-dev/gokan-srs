@@ -1,5 +1,5 @@
 // Pure helpers behind the grammar curriculum pages (issue #58): resolving where a point sits
-// in the authored teaching order. Kept out of prerender.ts and the page components so the
+// in the authored teaching order. Kept out of lib/server/pages.ts and the page components so the
 // lookup logic is unit-testable without rendering anything or touching the filesystem.
 
 import type { GrammarPoint, GrammarTeachingOrder } from '@gokan/dataset-schema';

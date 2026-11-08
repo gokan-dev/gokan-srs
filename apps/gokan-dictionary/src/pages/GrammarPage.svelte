@@ -1,9 +1,7 @@
 <script lang="ts">
+  import type { GrammarPageProps as Props } from '../lib/pageProps';
   import { langOf } from '../lib/documentShell';
-  import type { GrammarConjugationIndex, GrammarExample, GrammarPoint } from '@gokan/dataset-schema';
-  import type { GrammarSummary } from '../lib/types';
-  import type { ChapterLocator } from '../lib/grammarChapters';
-  import { RELATION_LABELS, type VariantSibling } from '../lib/grammarVariants';
+  import { RELATION_LABELS } from '../lib/grammarVariants';
   import { FORMALITY_LABELS } from '../lib/grammarBrowse';
   import { grammarChapterPath, grammarFamilyPath, grammarIndexPath, grammarPath, vocabPath } from '../lib/urls';
   import PageLayout from './PageLayout.svelte';
@@ -11,21 +9,6 @@
   import FuriganaToggle from './FuriganaToggle.svelte';
   import GrammarExamples from './GrammarExamples.svelte';
   import GrammarList from './GrammarList.svelte';
-
-  interface Props {
-    point: GrammarPoint;
-    related: GrammarSummary[];
-    /** Where this point sits in the teaching order; null when it isn't in it (a non-canonical variant). */
-    chapterLocator: ChapterLocator | null;
-    /** This point's realization variants, e.g. それでは/それじゃ/じゃ; [] when it has none. */
-    variants: VariantSibling[];
-    /** This point's conjugation drill table, for `kind: 'inflection'` points that have one. */
-    conjugation: GrammarConjugationIndex[string] | null;
-    /** Capped corpus-mined sentence pool; [] when the point has none. */
-    minedExamples: GrammarExample[];
-    /** The pool's true size before the cap. */
-    minedExamplesTotalCount: number;
-  }
 
   let { point, related, chapterLocator, variants, conjugation, minedExamples, minedExamplesTotalCount }: Props = $props();
 

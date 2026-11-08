@@ -1,19 +1,10 @@
 <script lang="ts">
-  import type { VocabSummary } from '../lib/types';
+  import type { HomePageProps as Props } from '../lib/pageProps';
   import { grammarIndexPath, kanjiIndexPath, kanjiOrdersPath, vocabIndexPath } from '../lib/urls';
   import { SITE_ORIGIN } from '../lib/site';
   import PageLayout from './PageLayout.svelte';
   import SearchBox from './SearchBox.svelte';
   import VocabEntryList from './VocabEntryList.svelte';
-
-  interface Props {
-    vocabCount: number;
-    kanjiCount: number;
-    grammarCount: number;
-    sentenceCount: number;
-    /** The most frequent N5 words, as a concrete entry point. */
-    featured: VocabSummary[];
-  }
 
   let { vocabCount, kanjiCount, grammarCount, sentenceCount, featured }: Props = $props();
 </script>

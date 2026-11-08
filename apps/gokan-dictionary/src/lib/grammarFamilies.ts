@@ -1,7 +1,7 @@
 // Pure builder behind the family pages (issue #58): grouping points by `family.id` and
 // resolving each family's authored contrast lessons/cases (grammar/index/contrasts.json) into a
 // display-ready shape, with every id already resolved to a title so the page component stays
-// pure presentation. Kept out of prerender.ts and the .svelte component for the same
+// pure presentation. Kept out of lib/server/pages.ts and the .svelte component for the same
 // unit-testability reason as grammarChapters.ts/grammarBrowse.ts.
 
 import type { GrammarContrastIndex, GrammarPoint } from '@gokan/dataset-schema';

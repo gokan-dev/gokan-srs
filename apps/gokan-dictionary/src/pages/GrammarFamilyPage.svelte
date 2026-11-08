@@ -1,13 +1,9 @@
 <script lang="ts">
+  import type { GrammarFamilyPageProps as Props } from '../lib/pageProps';
   import { langOf } from '../lib/documentShell';
-  import type { FamilyPageData } from '../lib/grammarFamilies';
   import { grammarFamiliesIndexPath, grammarIndexPath } from '../lib/urls';
   import PageLayout from './PageLayout.svelte';
   import GrammarList from './GrammarList.svelte';
-
-  interface Props {
-    family: FamilyPageData;
-  }
 
   let { family }: Props = $props();
 </script>

@@ -1,6 +1,6 @@
 // Pure projections from a full Vocabulary to what other pages show of it: the VocabSummary of a
 // word list row and the short gloss a list or search row carries. Separated from
-// scripts/prerender.ts so they're unit-testable without the dataset or the Svelte loader.
+// lib/server/pages.ts so they're unit-testable without the dataset or the Svelte loader.
 
 import { headwordOf } from '@gokan/dataset-schema';
 import type { Vocabulary } from '@gokan/dataset-schema';

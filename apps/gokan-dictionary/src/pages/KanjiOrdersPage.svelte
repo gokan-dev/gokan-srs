@@ -1,13 +1,8 @@
 <script lang="ts">
-  import type { KanjiOrder } from '@gokan/dataset-schema';
+  import type { KanjiOrdersPageProps as Props } from '../lib/pageProps';
   import { countLabel } from '../lib/counts';
   import { kanjiIndexPath, kanjiOrderPath } from '../lib/urls';
   import PageLayout from './PageLayout.svelte';
-
-  interface Props {
-    /** Every order, the most followed first (KANJI_ORDERS), with what it covers. */
-    orders: { order: KanjiOrder; kanjiCount: number; wordCount: number }[];
-  }
 
   let { orders }: Props = $props();
 </script>

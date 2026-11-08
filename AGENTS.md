@@ -15,7 +15,7 @@ deliberately and say so in the PR.
 Gokan (語感) is a Japanese study instrument, not a game: calm, precise, trustworthy.
 
 - `apps/gokan-srs`: the SRS learning app (React 19, TypeScript, Vite, Tailwind v4).
-- `apps/gokan-dictionary`: a static, crawlable dictionary (Svelte 5 SSR at build time).
+- `apps/gokan-dictionary`: a static, crawlable dictionary (SvelteKit, every page prerendered, no client runtime).
 - `packages/dataset-schema` (`@gokan/dataset-schema`): the compiled-dataset types both apps use.
 - `packages/deploy` (`@gokan/deploy`): the content-addressed S3 deploy both apps ship with.
 - `apps/gokan-srs/dataset`: git submodule of the separate `gokan-dataset` repo (raw data, build
@@ -275,7 +275,7 @@ gokan-srs, everything else:
 gokan-dictionary:
 
 - Data: every page's data through one `DictionaryData` (`lib/types.ts`), today `checkoutData`
-  (`lib/dataset.server.ts`, imported only by `scripts/prerender.ts` and tests: enforced); a
+  (`lib/dataset.server.ts`, imported only by `lib/server/pages.ts` and tests: enforced); a
   cross-page projection (the word summaries) is one index it provides, never built inline.
 - Page frame and breadcrumb: `pages/PageLayout.svelte` (every page: skip link, header with
   `SearchBox.svelte`, footer). Grammar browse pages share `pages/GrammarTabs.svelte`.
@@ -382,4 +382,4 @@ gokan-dictionary:
   Reducers, selectors and services are tested directly.
 - Tests build data with the shared fixtures (see above), with fresh nested objects; never share
   `history` arrays between fixtures.
-- Thin I/O glue (DOM wiring, the prerender script) is verified by running it, not unit tests.
+- Thin I/O glue (DOM wiring, the dictionary's routes and server hook) is verified by running it, not unit tests.

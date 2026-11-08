@@ -1,13 +1,9 @@
 <script lang="ts">
-  import { WORD_TYPE_LABEL, type ConjugationTable } from '../lib/grammarConjugations';
+  import type { GrammarConjugationsIndexPageProps as Props } from '../lib/pageProps';
+  import { WORD_TYPE_LABEL } from '../lib/grammarConjugations';
   import { grammarIndexPath, grammarPath } from '../lib/urls';
   import PageLayout from './PageLayout.svelte';
   import GrammarTabs from './GrammarTabs.svelte';
-
-  interface Props {
-    tables: ConjugationTable[];
-    formCount: number;
-  }
 
   let { tables, formCount }: Props = $props();
 </script>

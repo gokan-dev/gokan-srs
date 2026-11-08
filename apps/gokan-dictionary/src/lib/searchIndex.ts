@@ -1,4 +1,4 @@
-// Builds the dictionary's own search index at prerender time (scripts/prerender.ts), from the
+// Builds the dictionary's own search index at prerender time (lib/server/pages.ts, served as /data/search-*.json), from the
 // compiled dataset rather than copying its index/search.json: ranking needs the frequency order,
 // the JLPT level, the common flag and a word's conjugation class, which that file does not carry.
 // The format is documented on SearchWordRow and SearchIndexFile (types.ts).

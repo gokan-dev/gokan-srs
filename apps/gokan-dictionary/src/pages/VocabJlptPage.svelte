@@ -1,23 +1,9 @@
 <script lang="ts">
-  import type { VocabSummary } from '../lib/types';
+  import type { VocabJlptPageProps as Props } from '../lib/pageProps';
   import { vocabIndexPath, vocabJlptPath } from '../lib/urls';
   import PageLayout from './PageLayout.svelte';
   import Pager from './Pager.svelte';
   import VocabEntryList from './VocabEntryList.svelte';
-
-  interface Props {
-    level: number;
-    /** This page's words, in frequency order. */
-    words: VocabSummary[];
-    /** The level's word count across every page. */
-    total: number;
-    page: number;
-    pageCount: number;
-    /** 1-based rank of this page's first word. */
-    firstRank: number;
-    /** Every level, for the cross-links at the foot of the page. */
-    allLevels: number[];
-  }
 
   let { level, words, total, page, pageCount, firstRank, allLevels }: Props = $props();
 </script>

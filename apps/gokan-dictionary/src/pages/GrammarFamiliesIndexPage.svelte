@@ -1,13 +1,8 @@
 <script lang="ts">
-  import type { FamilyPageData } from '../lib/grammarFamilies';
+  import type { GrammarFamiliesIndexPageProps as Props } from '../lib/pageProps';
   import { grammarFamilyPath, grammarIndexPath, grammarPath } from '../lib/urls';
   import PageLayout from './PageLayout.svelte';
   import GrammarTabs from './GrammarTabs.svelte';
-
-  interface Props {
-    /** Largest first: the clusters a learner most needs told apart. */
-    families: FamilyPageData[];
-  }
 
   let { families }: Props = $props();
 </script>

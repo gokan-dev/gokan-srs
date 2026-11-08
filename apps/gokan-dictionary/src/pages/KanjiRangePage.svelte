@@ -1,25 +1,13 @@
 <script lang="ts">
-  import type { KanjiOrder } from '@gokan/dataset-schema';
+  import type { KanjiRangePageProps as Props } from '../lib/pageProps';
   import { countLabel } from '../lib/counts';
-  import { WORDS_PER_KANJI, anyStepCapped, type StepRange } from '../lib/kanjiOrders';
+  import { WORDS_PER_KANJI, anyStepCapped } from '../lib/kanjiOrders';
   import { kanjiRangeHeading } from '../lib/seo';
-  import type { VocabSummary } from '../lib/types';
   import { SITE_ORIGIN } from '../lib/site';
   import { kanjiIndexPath, kanjiOrderPath, kanjiOrdersPath, kanjiPath, kanjiRangePath, kanjiRangeSlug, kanjiStepAnchor } from '../lib/urls';
   import PageLayout from './PageLayout.svelte';
   import Pager from './Pager.svelte';
   import VocabEntryList from './VocabEntryList.svelte';
-
-  interface Props {
-    order: KanjiOrder;
-    range: StepRange;
-    /** Each step of the range: its kanji, the head of the words it unlocks, and how many it unlocks. */
-    steps: { step: number; character: string; words: VocabSummary[]; total: number }[];
-    /** Every word the range unlocks, listed or not. */
-    wordCount: number;
-    /** Every range of the order, for the pager. */
-    ranges: StepRange[];
-  }
 
   let { order, range, steps, wordCount, ranges }: Props = $props();
 

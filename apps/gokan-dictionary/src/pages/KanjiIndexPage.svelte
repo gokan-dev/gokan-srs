@@ -1,12 +1,7 @@
 <script lang="ts">
-  import type { Kanji } from '@gokan/dataset-schema';
+  import type { KanjiIndexPageProps as Props } from '../lib/pageProps';
   import { kanjiOrdersPath, kanjiPath } from '../lib/urls';
   import PageLayout from './PageLayout.svelte';
-
-  interface Props {
-    /** Groups in presentation order (N5 first); `level` is null for kanji outside the JLPT lists. */
-    groups: { level: number | null; kanji: Kanji[] }[];
-  }
 
   let { groups }: Props = $props();
 

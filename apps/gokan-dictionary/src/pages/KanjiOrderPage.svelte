@@ -1,16 +1,8 @@
 <script lang="ts">
-  import type { KanjiOrder } from '@gokan/dataset-schema';
+  import type { KanjiOrderPageProps as Props } from '../lib/pageProps';
   import { countLabel } from '../lib/counts';
-  import type { KanjiRange } from '../lib/kanjiOrders';
   import { kanjiIndexPath, kanjiOrdersPath, kanjiRangePath } from '../lib/urls';
   import PageLayout from './PageLayout.svelte';
-
-  interface Props {
-    order: KanjiOrder;
-    ranges: KanjiRange[];
-    kanjiCount: number;
-    wordCount: number;
-  }
 
   let { order, ranges, kanjiCount, wordCount }: Props = $props();
 

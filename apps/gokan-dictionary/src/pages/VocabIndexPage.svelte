@@ -1,11 +1,7 @@
 <script lang="ts">
+  import type { VocabIndexPageProps as Props } from '../lib/pageProps';
   import { vocabJlptPath } from '../lib/urls';
   import PageLayout from './PageLayout.svelte';
-
-  interface Props {
-    levels: { level: number; count: number }[];
-    totalCount: number;
-  }
 
   let { levels, totalCount }: Props = $props();
 

@@ -1,7 +1,7 @@
 <script lang="ts">
+  import type { VocabPageProps as Props } from '../lib/pageProps';
   import { headwordOf, secondaryForm, summaryGloss, textbookLessonsLabel } from '@gokan/dataset-schema';
-  import type { Sentence, Vocabulary } from '@gokan/dataset-schema';
-  import type { VocabSummary } from '../lib/types';
+  import type { Sentence } from '@gokan/dataset-schema';
   import { kanjiPath, vocabIndexPath, vocabJlptPath } from '../lib/urls';
   import { meaningsOf, type SenseView } from '../lib/senses';
   import { sentenceRuns } from '../lib/furigana';
@@ -13,14 +13,6 @@
   import ConjugationForms from './ConjugationForms.svelte';
   import FuriganaToggle from './FuriganaToggle.svelte';
   import SentenceText from './SentenceText.svelte';
-
-  interface Props {
-    vocab: Vocabulary;
-    components: VocabSummary[];
-    parents: VocabSummary[];
-    /** Already ordered and capped (lib/sentenceOrder.ts). */
-    sentences: Sentence[];
-  }
 
   let { vocab, components, parents, sentences }: Props = $props();
 

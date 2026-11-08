@@ -1,6 +1,6 @@
 // Pure builder behind the conjugation reference (/grammar/conjugations/): the inflection points
 // as one table per word type, a row per form with its pattern and one example. Kept out of
-// prerender.ts and the page component for the same unit-testability reason as the other
+// lib/server/pages.ts and the page component for the same unit-testability reason as the other
 // grammar*.ts helpers.
 
 import type { ConjugationDrillItem, GrammarConjugationIndex, GrammarPoint } from '@gokan/dataset-schema';
