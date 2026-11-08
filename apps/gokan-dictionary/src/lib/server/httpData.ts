@@ -14,7 +14,7 @@ import { DATASET_PATHS } from '../datasetPaths';
 import type { DatasetLanguage } from '../locale';
 import { grammarSummaryOfRow } from '../grammarBrowse';
 import { fromColumns } from '../searchIndex';
-import type { EntityData, GrammarSummary, SearchIndexFile, VocabSummary } from '../types';
+import type { EntityData, GrammarSummary, SearchGrammarRow, SearchIndexFile, SearchKanjiRow, SearchWordColumns, VocabSummary } from '../types';
 import { vocabSummaryOfRow } from '../vocabSummary';
 import { kept } from './kept';
 
@@ -23,6 +23,8 @@ export interface HttpDataOptions {
     datasetUrl: (path: string) => string;
     /** The search index's two files (searchIndexPaths), as absolute URLs. */
     searchIndexUrls: { core: string; full: string };
+    /** The dataset version this server was built for: the search index must carry it (stampedSearchIndex). */
+    datasetVersion: string;
     /** The language of the dataset's text the files are read in. */
     language: DatasetLanguage;
     fetch?: (url: string) => Promise<Response>;
@@ -31,20 +33,49 @@ export interface HttpDataOptions {
 /** Each language's reader of the published dataset: English is the one the dataset projects today. */
 const READERS: Record<DatasetLanguage, typeof publishedDatasetReader> = { en: publishedDatasetReader };
 
-export function httpData({ datasetUrl, searchIndexUrls, language, fetch: fetchFile = url => fetch(url) }: HttpDataOptions): EntityData {
+const isArrayOf = <T>(value: unknown, item: (entry: unknown) => entry is T): value is T[] => Array.isArray(value) && value.every(item);
+const isString = (value: unknown): value is string => typeof value === 'string';
+const isNumber = (value: unknown): value is number => typeof value === 'number';
+const isTuple = <T extends unknown[]>(...items: ((entry: unknown) => boolean)[]) => (value: unknown): value is T =>
+    Array.isArray(value) && value.length === items.length && items.every((item, i) => item(value[i]));
+const isWordColumns = (value: unknown): value is SearchWordColumns => {
+    if (!Array.isArray(value) || value.length !== 6) return false;
+    const columns: unknown[] = value;
+    const [ids] = columns;
+    if (!isArrayOf(ids, isString)) return false;
+    return columns.every((column, i) => (i < 4 ? isArrayOf(column, isString) : isArrayOf(column, isNumber)) && Array.isArray(column) && column.length === ids.length);
+};
+const isKanjiRow = isTuple<SearchKanjiRow>(isString, isNumber, isNumber);
+const isGrammarRow = isTuple<SearchGrammarRow>(isString, isString, isString, isString, isNumber);
+
+/**
+ * A search index file as fetched, checked once here: these rows decide which words exist (a 404)
+ * and what a page lists, so an index of another dataset version (a deploy half done) or of
+ * another shape fails the page, a 5xx never cached, rather than render it with entries missing.
+ */
+export function parseSearchIndexFile(body: unknown, url: string, datasetVersion: string): SearchIndexFile {
+    if (typeof body !== 'object' || body === null) throw new Error(`${url} is not a search index file.`);
+    const { w, k, g, datasetVersion: version }: Record<string, unknown> = { ...body };
+    if (version !== datasetVersion) throw new Error(`${url} is of dataset ${String(version)}, this server of ${datasetVersion}.`);
+    if (!isWordColumns(w)) throw new Error(`${url}: its words (w) are not six equal columns.`);
+    if (k !== undefined && !isArrayOf(k, isKanjiRow)) throw new Error(`${url}: its kanji rows (k) are malformed.`);
+    if (g !== undefined && !isArrayOf(g, isGrammarRow)) throw new Error(`${url}: its grammar rows (g) are malformed.`);
+    return { w, ...(k ? { k } : {}), ...(g ? { g } : {}), datasetVersion };
+}
+
+export function httpData({ datasetUrl, searchIndexUrls, datasetVersion, language, fetch: fetchFile = url => fetch(url) }: HttpDataOptions): EntityData {
     const dataset = READERS[language]({ url: datasetUrl, fetch: fetchFile });
     const file = <T>(path: string) => dataset.file<T>(path);
 
     /** One of the site's own files: the search index. Its absence is an error, never "no words". */
-    const siteJson = async <T>(url: string): Promise<T> => {
+    const searchIndexFile = async (url: string): Promise<SearchIndexFile> => {
         const response = await fetchFile(url);
         if (!response.ok || isMissingFile(response)) throw new Error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
-        // The dictionary's own build wrote it (lib/searchIndex.ts), in the shape SearchIndexFile describes.
         const body: unknown = await response.json();
-        return body as T;
+        return parseSearchIndexFile(body, url, datasetVersion);
     };
     const searchIndex = kept(async () => {
-        const [core, full] = await Promise.all([siteJson<SearchIndexFile>(searchIndexUrls.core), siteJson<SearchIndexFile>(searchIndexUrls.full)]);
+        const [core, full] = await Promise.all([searchIndexFile(searchIndexUrls.core), searchIndexFile(searchIndexUrls.full)]);
         return { core, full };
     });
 

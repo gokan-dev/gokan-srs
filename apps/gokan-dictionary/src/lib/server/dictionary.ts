@@ -8,10 +8,11 @@
 import { building } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { checkoutData, resolveCompiledDir } from '../dataset.server';
-import { datasetLanguageOf, inEveryLocale, SERVED_LOCALES, type ServedLocale } from '../locale';
+import { datasetLanguageOf, DEFAULT_LOCALE, inEveryLocale, SERVED_LOCALES, type ServedLocale } from '../locale';
+import type { SearchIndexFile } from '../types';
 import { httpData } from './httpData';
 import { entityPagesOf, pagesOf, type EntityPages, type Pages } from './pages';
-import { publishedSourceUrls } from './rendering';
+import { publishedSourceUrls, stampedSearchIndex } from './rendering';
 
 const built = new Map<ServedLocale, Pages>();
 const onRequest = new Map<ServedLocale, EntityPages>();
@@ -49,4 +50,12 @@ export function entriesOf<Params extends Record<string, string>>(
 /** Every indexed page's path, every served locale's in turn: one sitemap for the site. */
 export async function sitemapPaths(): Promise<string[]> {
     return (await Promise.all(SERVED_LOCALES.map(locale => pages(locale).sitemapPaths()))).flat();
+}
+
+/**
+ * One of the search index's two files, as its route writes it: stamped with the dataset version.
+ * English's: a locale's own search index (its glosses) comes with the locale (#170).
+ */
+export async function searchIndexFile(part: 'core' | 'full'): Promise<SearchIndexFile> {
+    return stampedSearchIndex((await pages(DEFAULT_LOCALE).searchIndex())[part]);
 }

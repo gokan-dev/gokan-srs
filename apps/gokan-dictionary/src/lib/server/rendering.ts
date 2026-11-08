@@ -3,6 +3,7 @@
 // run time.
 
 import { DATASET_PREFIX } from '@gokan/deploy/published-dataset';
+import type { SearchIndexFile } from '../types';
 import { searchIndexPaths } from '../urls';
 
 declare const __DATASET_VERSION__: string;
@@ -14,12 +15,21 @@ declare const __ENTITY_PAGES__: 'prerendered' | 'on-request';
  */
 export const ENTITY_PAGES_PRERENDERED = __ENTITY_PAGES__ === 'prerendered';
 
-/** Where a page rendered on request reads: the published dataset and the site's search index, on `origin`. */
-export function publishedSourceUrls(origin: string): { datasetUrl: (path: string) => string; searchIndexUrls: { core: string; full: string } } {
+/** A search index file as the build writes it: carrying the dataset version its rows were built from. */
+export function stampedSearchIndex(file: SearchIndexFile): SearchIndexFile {
+    return { ...file, datasetVersion: __DATASET_VERSION__ };
+}
+
+/**
+ * Where a page rendered on request reads: the published dataset and the site's search index, on
+ * `origin`, and the dataset version this server was built for, which the index must carry.
+ */
+export function publishedSourceUrls(origin: string): { datasetUrl: (path: string) => string; searchIndexUrls: { core: string; full: string }; datasetVersion: string } {
     const base = origin.replace(/\/$/, '');
     const { core, full } = searchIndexPaths();
     return {
         datasetUrl: path => `${base}${DATASET_PREFIX}${path}?v=${__DATASET_VERSION__}`,
         searchIndexUrls: { core: `${base}${core}`, full: `${base}${full}` },
+        datasetVersion: __DATASET_VERSION__,
     };
 }

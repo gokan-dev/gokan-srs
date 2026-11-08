@@ -73,6 +73,12 @@ export interface SearchIndexFile {
     w: SearchWordColumns;
     k?: SearchKanjiRow[];
     g?: SearchGrammarRow[];
+    /**
+     * The dataset version the index was built from, written into both files by their routes
+     * (stampedSearchIndex). A page rendered on request lists entries from these rows, so the server
+     * refuses an index of another version (httpData) rather than render a page with entries missing.
+     */
+    datasetVersion?: string;
 }
 
 /**
