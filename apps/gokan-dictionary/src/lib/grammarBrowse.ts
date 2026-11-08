@@ -4,10 +4,15 @@
 
 import { JLPT_LEVELS } from '@gokan/dataset-schema';
 import type { GrammarPoint } from '@gokan/dataset-schema';
-import type { GrammarSummary } from './types';
+import type { GrammarSummary, SearchGrammarRow } from './types';
 import { SHORT_GLOSS_LENGTH, truncateAtWord } from './vocabSummary';
 
 /** A point as a list row links to it: title, level, romaji and its short explanation, cut short. */
+/** A point's summary from its search row (searchGrammarRow), equal to grammarSummaryOf of the point. */
+export function grammarSummaryOfRow([id, title, romaji, shortExplanation, jlptLevel]: SearchGrammarRow): GrammarSummary {
+    return { id, title, jlptLevel, ...(romaji ? { romaji } : {}), shortExplanation };
+}
+
 export function grammarSummaryOf(point: GrammarPoint): GrammarSummary {
     return {
         id: point.id,

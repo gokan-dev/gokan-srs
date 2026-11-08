@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { GrammarPoint, Kanji, KanjiOrderId, Sentence, Vocabulary } from '@gokan/dataset-schema';
 import { grammarPoint, kanji, sentence, vocabulary } from '../../test/fixtures';
 import type { DictionaryData } from '../types';
+import { grammarSummaryOf } from '../grammarBrowse';
 import { vocabSummaryFrom } from '../vocabSummary';
 import { grammarIndexPath, homePath, kanjiIndexPath, kanjiOrderSlug, kanjiPath, vocabIndexPath, vocabJlptPath, vocabPath } from '../urls';
 import { PageNotFound, pagesOf } from './pages';
@@ -37,6 +38,7 @@ function memorySource(world: World): { source: DictionaryData; calls: Map<string
         }),
         sentencesFor: id => ask('sentencesFor', () => world.sentences?.[id] ?? null),
         wordSummaries: () => ask('wordSummaries', () => new Map(world.words.map(word => [word.id, vocabSummaryFrom(word)]))),
+        grammarSummaries: () => ask('grammarSummaries', () => new Map([...points.values()].map(point => [point.id, grammarSummaryOf(point)]))),
         kanjiList: () => ask('kanjiList', () => world.kanji ?? []),
         kanjiVocabIndex: () => ask('kanjiVocabIndex', () => ({})),
         kanjiOrder: (_order: KanjiOrderId) => ask('kanjiOrder', () => (world.kanji ?? []).map(entry => entry.character)),

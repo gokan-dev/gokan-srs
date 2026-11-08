@@ -2,19 +2,30 @@
 // The one JavaScript file in the project: svelte-check and SvelteKit only load
 // svelte.config.{js,mjs,cjs}. `@ts-check` plus the JSDoc types below keep it type-checked anyway.
 // Convert it to svelte.config.ts once the toolchain accepts one.
+import node from '@sveltejs/adapter-node'
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte'
 
 /**
- * Writes the prerendered pages and files into dist/, beside the assets the asset build put there
- * (vite.assets.config.ts), and nothing else. No page loads SvelteKit's client, so neither its
- * `_app/` output nor the `__data.json` it prerenders beside each page (what client-side
- * navigation would fetch) is ever read: neither is written.
+ * The server that renders the entity pages on request (#209 runs it in Lambda): build/. Not
+ * precompressed: CloudFront compresses what it serves, and compressing every prerendered page
+ * (80k files with their `__data.json`, in a static build) fills Node's 4 GB heap.
+ */
+const server = node({ out: 'build', precompress: false })
+
+/**
+ * Two outputs. The server (adapter-node, build/), and the static site: the prerendered pages and
+ * files copied into dist/, beside the assets the asset build put there (vite.assets.config.ts),
+ * and nothing else. No page loads SvelteKit's client, so neither its `_app/` output nor the
+ * `__data.json` it prerenders beside each page (what client-side navigation would fetch) is
+ * deployed.
  * @param {string} dir
  * @returns {import('@sveltejs/kit').Adapter}
  */
-const prerenderedOnly = dir => ({
-  name: 'prerendered-only',
-  adapt(builder) {
+const dictionary = dir => ({
+  ...server,
+  name: 'gokan-dictionary',
+  async adapt(builder) {
+    await server.adapt(builder)
     const prerendered = `${builder.config.kit.outDir}/output/prerendered`
     builder.copy(`${prerendered}/pages`, dir)
     builder.copy(`${prerendered}/dependencies`, dir, { filter: basename => basename !== '__data.json' })
@@ -25,7 +36,7 @@ const prerenderedOnly = dir => ({
 export default {
   preprocess: vitePreprocess(),
   kit: {
-    adapter: prerenderedOnly('dist'),
+    adapter: dictionary('dist'),
     // public/ is the asset build's (the favicon); SvelteKit has no static files of its own.
     files: { assets: 'static' },
     prerender: {

@@ -231,6 +231,13 @@ export function searchMeta(): PageMeta {
     };
 }
 
+/** A page that could not be shown: no such page (404), or a failure (any other status). Never indexed. */
+export function errorMeta(status: number): PageMeta {
+    return status === 404
+        ? { title: `Page not found - ${SITE_NAME}`, description: 'There is no page at this address in the Japanese dictionary.' }
+        : { title: `Page unavailable - ${SITE_NAME}`, description: 'This page of the Japanese dictionary could not be shown.' };
+}
+
 export function homeMeta(): PageMeta {
     return {
         title: `${SITE_NAME} - Japanese Dictionary with Example Sentences`,

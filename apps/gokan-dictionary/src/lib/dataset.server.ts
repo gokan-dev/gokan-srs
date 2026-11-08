@@ -14,7 +14,9 @@ import type {
     FrequencyIndex, GrammarConjugationIndex, GrammarContrastIndex, GrammarExample, GrammarJlptIndex, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex,
     JlptIndex, Kanji, KanjiOrderList, KanjiVocabIndex, Sentence, Vocabulary,
 } from '@gokan/dataset-schema';
-import type { DictionaryData, VocabSummary } from './types';
+import { DATASET_PATHS } from './datasetPaths';
+import { grammarSummaryOf } from './grammarBrowse';
+import type { DictionaryData, GrammarSummary, VocabSummary } from './types';
 import { vocabSummaryFrom } from './vocabSummary';
 
 const DATASET_SUBMODULE_PATH = path.join('apps', 'gokan-srs', 'dataset');
@@ -82,37 +84,44 @@ export function checkoutData(compiledDir: string): DictionaryData {
     const vocabIds = (): string[] => fs.readdirSync(path.join(compiledDir, 'vocab'))
         .filter(name => name.endsWith('.json'))
         .map(name => name.slice(0, -'.json'.length));
-    const vocab = (id: string): Vocabulary => read<Vocabulary>(`vocab/${id}.json`);
+    const vocab = (id: string): Vocabulary => read<Vocabulary>(DATASET_PATHS.vocab(id));
 
     // Built once, from every word file, and kept: about 36k small summaries.
     let summaries: Promise<ReadonlyMap<string, VocabSummary>> | null = null;
+    let grammarSummaries: Promise<ReadonlyMap<string, GrammarSummary>> | null = null;
+    // Ordered by JLPT level rather than read off the directory listing: that order is the one
+    // the pages present.
+    const grammarIds = (): string[] => {
+        const index = read<GrammarJlptIndex>(DATASET_PATHS.grammarJlptIndex);
+        return [5, 4, 3, 2, 1].flatMap(level => index[level] ?? []);
+    };
+    const grammarPoint = (id: string): GrammarPoint => read<GrammarPoint>(DATASET_PATHS.grammarPoint(id));
 
     return {
         vocabIds: () => later(() => vocabIds()),
         vocab: id => later(() => vocab(id)),
-        sentencesFor: vocabId => later(() => (exists(`sentences/${vocabId}.json`) ? read<Sentence[]>(`sentences/${vocabId}.json`) : null)),
+        sentencesFor: vocabId => later(() => (exists(DATASET_PATHS.sentences(vocabId)) ? read<Sentence[]>(DATASET_PATHS.sentences(vocabId)) : null)),
         wordSummaries: () => {
             summaries ??= later(() => new Map(vocabIds().map(id => [id, vocabSummaryFrom(vocab(id))])));
             return summaries;
         },
-        kanjiList: () => later(() => read<Kanji[]>('kanji.json')),
-        kanjiVocabIndex: () => later(() => read<KanjiVocabIndex>('index/kanji-vocab.json')),
-        kanjiOrder: order => later(() => read<KanjiOrderList>(`index/kanji-orders/${order}.json`)),
-        vocabJlptIndex: () => later(() => read<JlptIndex>('index/jlpt.json')),
-        frequencyIndex: () => later(() => read<FrequencyIndex>('index/frequency.json')),
-        // Ordered by JLPT level rather than read off the directory listing: that order is the one
-        // the pages present.
-        grammarIds: () => later(() => {
-            const index = read<GrammarJlptIndex>('grammar/index/jlpt.json');
-            return [5, 4, 3, 2, 1].flatMap(level => index[level] ?? []);
-        }),
-        grammarPoint: id => later(() => read<GrammarPoint>(`grammar/points/${id}.json`)),
-        grammarTeachingOrder: () => later(() => read<GrammarTeachingOrder>('grammar/index/teaching-order.json')),
-        grammarContrasts: () => later(() => read<GrammarContrastIndex>('grammar/index/contrasts.json')),
-        grammarVariantGroups: () => later(() => read<GrammarVariantGroupIndex>('grammar/index/variant-groups.json')),
-        grammarConjugations: () => later(() => read<GrammarConjugationIndex>('grammar/conjugations.json')),
+        grammarSummaries: () => {
+            grammarSummaries ??= later(() => new Map(grammarIds().map(id => [id, grammarSummaryOf(grammarPoint(id))])));
+            return grammarSummaries;
+        },
+        kanjiList: () => later(() => read<Kanji[]>(DATASET_PATHS.kanjiList)),
+        kanjiVocabIndex: () => later(() => read<KanjiVocabIndex>(DATASET_PATHS.kanjiVocabIndex)),
+        kanjiOrder: order => later(() => read<KanjiOrderList>(DATASET_PATHS.kanjiOrder(order))),
+        vocabJlptIndex: () => later(() => read<JlptIndex>(DATASET_PATHS.vocabJlptIndex)),
+        frequencyIndex: () => later(() => read<FrequencyIndex>(DATASET_PATHS.frequencyIndex)),
+        grammarIds: () => later(() => grammarIds()),
+        grammarPoint: id => later(() => grammarPoint(id)),
+        grammarTeachingOrder: () => later(() => read<GrammarTeachingOrder>(DATASET_PATHS.grammarTeachingOrder)),
+        grammarContrasts: () => later(() => read<GrammarContrastIndex>(DATASET_PATHS.grammarContrasts)),
+        grammarVariantGroups: () => later(() => read<GrammarVariantGroupIndex>(DATASET_PATHS.grammarVariantGroups)),
+        grammarConjugations: () => later(() => read<GrammarConjugationIndex>(DATASET_PATHS.grammarConjugations)),
         // One file per eligible point: most points (~350/828) have none, the common, permanent
         // case, not an error.
-        grammarMinedExamples: id => later(() => (exists(`grammar/mined/${id}.json`) ? read<GrammarExample[]>(`grammar/mined/${id}.json`) : null)),
+        grammarMinedExamples: id => later(() => (exists(DATASET_PATHS.grammarMinedExamples(id)) ? read<GrammarExample[]>(DATASET_PATHS.grammarMinedExamples(id)) : null)),
     };
 }

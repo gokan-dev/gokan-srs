@@ -5,8 +5,9 @@
  * scripts/check-lighthouse.ts (both on one origin, the SRS at `/` and the dictionary under
  * `/dictionary/`, so Lighthouse sees the real URLs).
  */
+import { spawn } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { createServer, type Server } from 'node:http';
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { extname, join, resolve, sep } from 'node:path';
 import { brotliCompressSync, constants } from 'node:zlib';
@@ -15,6 +16,8 @@ import { publishedDatasetFile } from '@gokan/deploy/published-dataset';
 const ROOT = process.cwd();
 const SRS_DIST = join(ROOT, 'apps/gokan-srs/dist');
 const DICTIONARY_DIST = join(ROOT, 'apps/gokan-dictionary/dist');
+/** The dictionary's server (adapter-node), which renders the entity pages of an on-request build. */
+const DICTIONARY_SERVER = join(ROOT, 'apps/gokan-dictionary/build/index.js');
 /** The dataset the SRS reads from /dataset/: deployed on its own (the data site), so served here from the checkout. */
 const DATASET_DIR = join(ROOT, 'apps/gokan-srs/dataset/compiled');
 
@@ -47,16 +50,20 @@ const COMPRESSED_SIZES = { min: 1_000, max: 10_000_000 };
 const BROTLI_QUALITY = 3;
 const brotliCache = new Map<string, Buffer>();
 
-function encodedBody(file: string, acceptEncoding: string): { body: Buffer; brotli: boolean } {
-    const body = readFileSync(file);
-    const compressible = COMPRESSED_TYPES.has(extname(file)) && body.length >= COMPRESSED_SIZES.min && body.length <= COMPRESSED_SIZES.max;
+/** `body` as CloudFront sends it: brotli for a text type in the size range, when the browser accepts it. */
+function compressed(body: Buffer, extension: string, acceptEncoding: string, cacheKey?: string): { body: Buffer; brotli: boolean } {
+    const compressible = COMPRESSED_TYPES.has(extension) && body.length >= COMPRESSED_SIZES.min && body.length <= COMPRESSED_SIZES.max;
     if (!compressible || !/\bbr\b/.test(acceptEncoding)) return { body, brotli: false };
-    let compressed = brotliCache.get(file);
-    if (!compressed) {
-        compressed = brotliCompressSync(body, { params: { [constants.BROTLI_PARAM_QUALITY]: BROTLI_QUALITY } });
-        brotliCache.set(file, compressed);
+    let encoded = cacheKey === undefined ? undefined : brotliCache.get(cacheKey);
+    if (!encoded) {
+        encoded = brotliCompressSync(body, { params: { [constants.BROTLI_PARAM_QUALITY]: BROTLI_QUALITY } });
+        if (cacheKey !== undefined) brotliCache.set(cacheKey, encoded);
     }
-    return { body: compressed, brotli: true };
+    return { body: encoded, brotli: true };
+}
+
+function encodedBody(file: string, acceptEncoding: string): { body: Buffer; brotli: boolean } {
+    return compressed(readFileSync(file), extname(file), acceptEncoding, file);
 }
 
 const isFile = (path: string) => existsSync(path) && statSync(path).isFile();
@@ -86,14 +93,40 @@ export function dictionaryFile(pathname: string): string | null {
 }
 
 /**
- * A static server. `resolve` maps a decoded request path to an absolute file, or null for a 404.
- * Port 0 picks a free one; pass a fixed port when the URLs are listed ahead of time.
+ * Where a request no file answers goes instead, as CloudFront sends an S3 miss under /dictionary/
+ * to the function that renders it: the origin of the dictionary's server, or null for a 404.
  */
-export function serve(resolve: (pathname: string) => string | null, port = 0): Promise<{ server: Server; port: number }> {
+export type Fallback = (pathname: string) => string | null;
+
+/**
+ * The request, answered by the server at `origin`: its status, type, cache-control and body,
+ * compressed as CloudFront compresses a function's response.
+ */
+async function proxy(origin: string, request: IncomingMessage, response: ServerResponse): Promise<void> {
+    const upstream = await fetch(`${origin}${request.url ?? '/'}`, { redirect: 'manual' });
+    const headers: Record<string, string> = { vary: 'accept-encoding' };
+    for (const name of ['content-type', 'cache-control', 'location']) {
+        const value = upstream.headers.get(name);
+        if (value !== null) headers[name] = value;
+    }
+    const html = (headers['content-type'] ?? '').startsWith('text/html');
+    const { body, brotli } = compressed(Buffer.from(await upstream.arrayBuffer()), html ? '.html' : '', String(request.headers['accept-encoding'] ?? ''));
+    response.writeHead(upstream.status, { ...headers, ...(brotli ? { 'content-encoding': 'br' } : {}) }).end(body);
+}
+
+/**
+ * A static server. `resolve` maps a decoded request path to an absolute file, or null for a 404;
+ * `fallback`, when given, answers a path no file does. Port 0 picks a free one; pass a fixed port
+ * when the URLs are listed ahead of time.
+ */
+export function serve(resolve: (pathname: string) => string | null, port = 0, fallback?: Fallback): Promise<{ server: Server; port: number }> {
     const server = createServer((request, response) => {
-        const file = resolve(decodeURIComponent(new URL(request.url ?? '/', 'http://localhost').pathname));
+        const pathname = decodeURIComponent(new URL(request.url ?? '/', 'http://localhost').pathname);
+        const file = resolve(pathname);
         if (!file || !isFile(file)) {
-            response.writeHead(404).end('not found');
+            const origin = fallback?.(pathname) ?? null;
+            if (origin === null) response.writeHead(404).end('not found');
+            else proxy(origin, request, response).catch((error: unknown) => response.writeHead(502).end(String(error)));
             return;
         }
         const { body, brotli } = encodedBody(file, String(request.headers['accept-encoding'] ?? ''));
@@ -107,16 +140,66 @@ export function serve(resolve: (pathname: string) => string | null, port = 0): P
 }
 
 /** One origin carrying both apps, as production does: the dictionary under `/dictionary/`, the SRS at the root. */
-export function serveBoth(port = 0): Promise<{ server: Server; port: number }> {
-    return serve(pathname => (pathname.startsWith('/dictionary') ? dictionaryFile(pathname) : srsFile(pathname)), port);
+export function serveBoth(port = 0, fallback?: Fallback): Promise<{ server: Server; port: number }> {
+    return serve(pathname => (pathname.startsWith('/dictionary') ? dictionaryFile(pathname) : srsFile(pathname)), port, fallback);
+}
+
+/**
+ * Both apps on one origin, as production serves them, whichever way the dictionary was built: its
+ * static files alone, or with its server behind them (serveDictionaryOnRequest). `stop` ends it.
+ */
+export async function serveProduction(port = 0): Promise<{ port: number; stop: () => void }> {
+    if (dictionaryOnRequest()) return serveDictionaryOnRequest(port);
+    const { server, port: listening } = await serveBoth(port);
+    return { port: listening, stop: () => { server.close(); } };
+}
+
+/** Whether the dictionary's build renders its entity pages on request: its server built, and no word page in dist/. */
+export function dictionaryOnRequest(): boolean {
+    return existsSync(DICTIONARY_SERVER) && !readdirSync(join(DICTIONARY_DIST, 'vocab')).some(name => /^\d+$/.test(name));
+}
+
+/**
+ * Production's dictionary, locally: both apps on one origin (serveBoth), and behind the
+ * dictionary's static files its server (build/, an on-request build), which reads the published
+ * dataset and the search index from that same origin, as the function reads them through
+ * CloudFront. A /dictionary/ path with no file is the server's. `stop` ends both.
+ */
+export async function serveDictionaryOnRequest(port = 0): Promise<{ port: number; stop: () => void }> {
+    let serverOrigin: string | null = null;
+    const site = await serveBoth(port, pathname => (pathname.startsWith('/dictionary') ? serverOrigin : null));
+    const probe = await serve(() => null);
+    const serverPort = probe.port;
+    probe.server.close();
+    // Node, as in production (the function's runtime), whatever runs this script.
+    const child = spawn('node', [DICTIONARY_SERVER], {
+        env: { ...process.env, HOST: '127.0.0.1', PORT: String(serverPort), DATASET_ORIGIN: `http://127.0.0.1:${site.port}` },
+        stdio: ['ignore', 'inherit', 'inherit'],
+    });
+    const origin = `http://127.0.0.1:${serverPort}`;
+    for (let attempt = 0; ; attempt++) {
+        try {
+            await fetch(`${origin}/search/`);
+            break;
+        } catch (error) {
+            if (attempt > 100 || child.exitCode !== null) throw new Error(`The dictionary's server did not start at ${origin}: ${String(error)}`);
+            await new Promise(done => setTimeout(done, 100));
+        }
+    }
+    serverOrigin = origin;
+    return { port: site.port, stop: () => { child.kill(); site.server.close(); } };
 }
 
 const firstEntry = (dir: string, filter: (name: string) => boolean) => readdirSync(dir).filter(filter).sort()[0];
 
-/** One representative page per dictionary type (home, word, word list, kanji index, kanji, grammar index, grammar point). */
+/**
+ * One representative page per dictionary type (home, word, word list, kanji index, kanji, grammar
+ * index, grammar point). The word and the point are the dataset's first, which have a page in
+ * either build: prerendered in dist/, or rendered on request.
+ */
 export function dictionaryPages(): { path: string; ready: string }[] {
-    const grammarPoint = firstEntry(join(DICTIONARY_DIST, 'grammar'), name => /^n\d-/.test(name));
-    const dictionaryVocab = firstEntry(join(DICTIONARY_DIST, 'vocab'), name => /^\d+$/.test(name));
+    const grammarPoint = firstEntry(join(DATASET_DIR, 'grammar', 'points'), name => /^n\d-.*\.json$/.test(name)).replace(/\.json$/, '');
+    const dictionaryVocab = firstEntry(join(DATASET_DIR, 'vocab'), name => /^\d+\.json$/.test(name)).replace(/\.json$/, '');
     return [
         { path: '/', ready: 'Dictionary' },
         { path: `/vocab/${dictionaryVocab}/`, ready: 'Meanings' },

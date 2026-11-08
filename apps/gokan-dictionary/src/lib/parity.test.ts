@@ -10,6 +10,7 @@ import {
     outputKindOf,
     parityReport,
     parseParityArgs,
+    servedPath,
     type Output,
     type ParityResult,
 } from './parity';
@@ -178,11 +179,11 @@ describe('parityReport', () => {
 
 describe('parseParityArgs', () => {
     it('defaults to origin/main, a build and no expectation', () => {
-        expect(parseParityArgs([])).toEqual({ base: 'origin/main', build: true, expectIdentical: false });
+        expect(parseParityArgs([])).toEqual({ base: 'origin/main', build: true, expectIdentical: false, againstServer: false });
     });
 
     it('reads every option', () => {
-        expect(parseParityArgs(['--base', 'HEAD^1', '--no-build', '--expect', 'identical'])).toEqual({ base: 'HEAD^1', build: false, expectIdentical: true });
+        expect(parseParityArgs(['--base', 'HEAD^1', '--no-build', '--expect', 'identical'])).toEqual({ base: 'HEAD^1', build: false, expectIdentical: true, againstServer: false });
     });
 
     it('rejects a missing value and a flag in place of one', () => {
@@ -194,5 +195,25 @@ describe('parseParityArgs', () => {
     it('rejects an unknown argument and an unknown expectation', () => {
         expect(parseParityArgs(['--bsae', 'main'])).toBeInstanceOf(Error);
         expect(parseParityArgs(['--expect', 'similar'])).toBeInstanceOf(Error);
+    });
+});
+
+describe('parseParityArgs --against-server', () => {
+    it('compares with the server, with or without a build, never with a base', () => {
+        expect(parseParityArgs(['--against-server', '--no-build', '--expect', 'identical'])).toEqual({ base: 'origin/main', build: false, expectIdentical: true, againstServer: true });
+        expect(parseParityArgs(['--against-server', '--base', 'HEAD^1'])).toBeInstanceOf(Error);
+    });
+});
+
+describe('servedPath', () => {
+    it('serves a page at its directory, with the slash, and a file at its own path', () => {
+        expect(servedPath('/dictionary', 'index.html')).toBe('/dictionary/');
+        expect(servedPath('/dictionary', 'vocab/1358280/index.html')).toBe('/dictionary/vocab/1358280/');
+        expect(servedPath('/dictionary', 'data/search-core.json')).toBe('/dictionary/data/search-core.json');
+        expect(servedPath('', 'grammar/n5-001/index.html')).toBe('/grammar/n5-001/');
+    });
+
+    it('percent-encodes a kanji as a browser requests it', () => {
+        expect(servedPath('/dictionary', 'kanji/学/index.html')).toBe('/dictionary/kanji/%E5%AD%A6/');
     });
 });

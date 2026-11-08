@@ -150,3 +150,9 @@ export interface GrammarConjugationsIndexPageProps {
   tables: ConjugationTable[];
   formCount: number;
 }
+
+/** ErrorPage.svelte */
+export interface ErrorPageProps {
+    /** The response's status: 404 for no such page, anything else for a failure. */
+    status: number;
+}

@@ -1,9 +1,11 @@
-// Every page's props and document, built from the DictionaryData it is given: what each route's
-// `load` returns, and the catalog of every page (the routes' prerender entries and the sitemap).
-// The indexes several pages share (word summaries, every grammar point, the JLPT lists, the kanji
-// orders) are built once per `pagesOf` and kept, so 40k pages do not rebuild them 40k times. Pure
-// of I/O but what the source does: the source is chosen in dictionary.ts, the asset hrefs added
-// by the server hook, so this runs on fixtures in a test.
+// Every page's props and document, built from the data it is given: what each route's `load`
+// returns, and the catalog of every page (the routes' prerender entries and the sitemap). Two
+// halves, as the site is served: `entityPagesOf` builds a word, kanji or grammar point page from
+// EntityData alone (the source a page rendered on request has, over HTTP), and `pagesOf` adds the
+// list pages and the catalog, which need the whole dataset (DictionaryData, the checkout, at
+// build). The indexes several pages share are built once per source and kept, so 40k pages do not
+// rebuild them. Pure of I/O but what the source does: the source is chosen in dictionary.ts, the
+// asset hrefs added by the server hook, so this runs on fixtures in a test.
 
 import { headwordOf, JLPT_LEVELS, KANJI_ORDERS, kanjiStepIndex } from '@gokan/dataset-schema';
 import type { GrammarPoint, Kanji, KanjiOrder, KanjiOrderId, KanjiOrderList } from '@gokan/dataset-schema';
@@ -19,10 +21,10 @@ import { JLPT_PAGE_SIZE, paginate } from '../pagination';
 import { searchGrammarRow, searchKanjiRow, searchWordRow, splitSearchIndex } from '../searchIndex';
 import {
     grammarChapterMeta, grammarChaptersIndexMeta, grammarConjugationsIndexMeta, grammarFamiliesIndexMeta, grammarFamilyMeta, grammarIndexMeta, grammarMeta,
-    homeMeta, kanjiIndexMeta, kanjiMeta, kanjiOrderMeta, kanjiOrdersMeta, kanjiRangeMeta, searchMeta, vocabIndexMeta, vocabJlptMeta, vocabMeta, type PageMeta,
+    errorMeta, homeMeta, kanjiIndexMeta, kanjiMeta, kanjiOrderMeta, kanjiOrdersMeta, kanjiRangeMeta, searchMeta, vocabIndexMeta, vocabJlptMeta, vocabMeta, type PageMeta,
 } from '../seo';
 import { orderSentences } from '../sentenceOrder';
-import type { DictionaryData, SearchIndexFile, SearchWordRow, VocabSummary } from '../types';
+import type { DictionaryData, EntityData, GrammarSummary, SearchIndexFile, SearchWordRow, VocabSummary } from '../types';
 import {
     grammarChapterPath, grammarChaptersIndexPath, grammarConjugationsIndexPath, grammarFamiliesIndexPath, grammarFamilyPath, grammarIndexPath, grammarPath,
     homePath, kanjiIndexPath, kanjiOrderPath, kanjiOrderSlug, kanjiOrdersPath, kanjiPath, kanjiRangePath, kanjiRangeSlug, searchPath, vocabIndexPath,
@@ -64,6 +66,12 @@ export interface Rendered<Props> {
 /** A page that could not be built from what was asked: an unknown id, or a page past the last. */
 export class PageNotFound extends Error {}
 
+/** The document of a page that could not be shown (ErrorPage.svelte): never indexed. */
+export function errorDocument(status: number, pathname: string): PageDocument {
+    const meta = errorMeta(status);
+    return { title: meta.title, description: meta.description, canonicalPath: pathname, noindex: true };
+}
+
 /** Built on first use, then kept: every caller shares the one promise. */
 function once<T>(build: () => Promise<T>): () => Promise<T> {
     let value: Promise<T> | null = null;
@@ -79,41 +87,133 @@ function resolveSummaries(ids: readonly string[], summaryById: ReadonlyMap<strin
     return ids.map(id => summaryById.get(id)).filter((summary): summary is VocabSummary => summary !== undefined);
 }
 
-/** Every page the site has, over one source of the dataset. */
+/** The indexes an entity page reads, each built on first use and kept for the source. */
+function entityIndexesOf(source: EntityData) {
+    const kanjiList = once(async () => source.kanjiList());
+    return {
+        summaries: once(async () => source.wordSummaries()),
+        grammarSummaries: once(async () => source.grammarSummaries()),
+        kanjiList,
+        kanjiByCharacter: once(async (): Promise<ReadonlyMap<string, Kanji>> => new Map((await kanjiList()).map(kanji => [kanji.character, kanji]))),
+        kanjiVocabIndex: once(async () => source.kanjiVocabIndex()),
+        kanjiOrderLists: once(async () => Promise.all(KANJI_ORDERS.map(async order => ({ order, list: await source.kanjiOrder(order.id) })))),
+        grammarIndexes: once(async () => {
+            const [teachingOrder, variantGroups, conjugationIndex] = await Promise.all([
+                source.grammarTeachingOrder(), source.grammarVariantGroups(), source.grammarConjugations(),
+            ]);
+            return { teachingOrder, variantGroups, conjugationIndex, chapterLocatorIndex: buildChapterLocatorIndex(teachingOrder) };
+        }),
+    };
+}
+
+type EntityIndexes = ReturnType<typeof entityIndexesOf>;
+
+/** The pages rendered on request: a word, a kanji, a grammar point. */
+export type EntityPages = ReturnType<typeof entityPagesOf>;
+
+/**
+ * The entity pages over one source. Whether an entity exists, and what a page lists of other
+ * entries, come from the summary indexes (every word, every grammar point), never from reading
+ * every file: a page rendered on request reads its own entity's files and those indexes only.
+ */
+export function entityPagesOf(source: EntityData, indexes: EntityIndexes = entityIndexesOf(source)) {
+    const { summaries, grammarSummaries, kanjiByCharacter, kanjiVocabIndex, kanjiOrderLists, grammarIndexes } = indexes;
+
+    async function vocabPage(id: string): Promise<Rendered<VocabPageProps>> {
+        const summaryById = await summaries();
+        if (!summaryById.has(id)) throw new PageNotFound(`no word ${id}`);
+        const [vocab, allSentences] = await Promise.all([source.vocab(id), source.sentencesFor(id)]);
+        const meta = vocabMeta(vocab);
+        return {
+            props: {
+                vocab,
+                components: resolveSummaries(vocab.components ?? [], summaryById),
+                parents: resolveSummaries(vocab.parents ?? [], summaryById),
+                sentences: orderSentences(allSentences ?? [], id, headwordOf(vocab)),
+            },
+            document: documentOf(vocabPath(id), meta, {
+                style: 'vocab',
+                structuredData: { '@context': 'https://schema.org', '@type': 'DefinedTerm', name: headwordOf(vocab), description: meta.description },
+            }),
+        };
+    }
+
+    async function kanjiPage(character: string): Promise<Rendered<KanjiPageProps>> {
+        const [byCharacter, kanjiVocab, summaryById, orders] = await Promise.all([kanjiByCharacter(), kanjiVocabIndex(), summaries(), kanjiOrderLists()]);
+        const kanji = byCharacter.get(character);
+        if (kanji === undefined) throw new PageNotFound(`no kanji ${character}`);
+        // Every word, most frequent first (the index's order); the page collapses all but the first.
+        const words = resolveSummaries(kanjiVocab[kanji.character] ?? [], summaryById);
+        return {
+            props: {
+                kanji,
+                words,
+                kanjiWithPages: new Set(byCharacter.keys()),
+                // A kanji page links each book position to its range page, which needs the order's length.
+                orderLengths: new Map(orders.map(({ order, list: orderList }) => [order.id, orderList.length])),
+            },
+            document: documentOf(kanjiPath(kanji.character), kanjiMeta(kanji, words.length), { style: 'kanji' }),
+        };
+    }
+
+    async function grammarPage(id: string): Promise<Rendered<GrammarPageProps>> {
+        const summaryById = await grammarSummaries();
+        if (!summaryById.has(id)) throw new PageNotFound(`no grammar point ${id}`);
+        const [point, { chapterLocatorIndex, variantGroups, conjugationIndex }, minedExamples] = await Promise.all([
+            source.grammarPoint(id), grammarIndexes(), source.grammarMinedExamples(id),
+        ]);
+        const minedExamplesPool = minedExamples ?? [];
+        return {
+            props: {
+                point,
+                related: (point.family?.relatedPoints ?? [])
+                    .map(relatedId => summaryById.get(relatedId))
+                    .filter((other): other is GrammarSummary => other !== undefined),
+                chapterLocator: chapterLocatorIndex.get(id) ?? null,
+                variants: buildVariantSiblings(point, variantGroups, summaryById),
+                conjugation: conjugationIndex[id] ?? null,
+                minedExamples: minedExamplesPool.slice(0, MAX_MINED_EXAMPLES),
+                minedExamplesTotalCount: minedExamplesPool.length,
+            },
+            document: documentOf(grammarPath(id), grammarMeta(point), {
+                style: 'grammar',
+                structuredData: {
+                    '@context': 'https://schema.org',
+                    '@type': 'DefinedTerm',
+                    name: point.title,
+                    description: point.shortExplanation,
+                    inDefinedTermSet: 'Japanese grammar',
+                },
+            }),
+        };
+    }
+
+    return { vocabPage, kanjiPage, grammarPage };
+}
+
+/** Every page the site has, over one source of the whole dataset. */
 export type Pages = ReturnType<typeof pagesOf>;
 
 export function pagesOf(source: DictionaryData) {
     // -------------------------------------------------------------------------- shared indexes
 
+    const indexes = entityIndexesOf(source);
+    const { summaries, kanjiList, kanjiOrderLists, grammarIndexes } = indexes;
     const vocabIds = once(async () => source.vocabIds());
     const knownVocabIds = once(async (): Promise<ReadonlySet<string>> => new Set(await vocabIds()));
-    const summaries = once(async () => source.wordSummaries());
-    const kanjiList = once(async () => source.kanjiList());
-    const kanjiByCharacter = once(async (): Promise<ReadonlyMap<string, Kanji>> => new Map((await kanjiList()).map(kanji => [kanji.character, kanji])));
     const frequencyIndex = once(async () => source.frequencyIndex());
-    const kanjiVocabIndex = once(async () => source.kanjiVocabIndex());
+    const contrasts = once(async () => source.grammarContrasts());
 
-    const kanjiOrderLists = once(async () => {
-        return Promise.all(KANJI_ORDERS.map(async order => ({ order, list: await source.kanjiOrder(order.id) })));
-    });
-
-    /** Every point by id, loaded in full (766 small files): a page's family list needs other points' titles. */
+    /** Every point by id, loaded in full (766 small files): the list pages show what each says. */
     const grammarPoints = once(async () => {
         const points = new Map<string, GrammarPoint>();
         for (const id of await source.grammarIds()) points.set(id, await source.grammarPoint(id));
         return points;
     });
 
-    const grammarIndexes = once(async () => {
-        const [teachingOrder, contrasts, variantGroups, conjugationIndex] = await Promise.all([
-            source.grammarTeachingOrder(), source.grammarContrasts(), source.grammarVariantGroups(), source.grammarConjugations(),
-        ]);
-        return { teachingOrder, contrasts, variantGroups, conjugationIndex, chapterLocatorIndex: buildChapterLocatorIndex(teachingOrder) };
-    });
-
     /** Every point grouped by level, in the order the curriculum teaches it. */
     const pointsInOrder = once(async () => inTeachingOrder([...(await grammarPoints()).values()], (await grammarIndexes()).teachingOrder.order));
-    const familyPages = once(async () => buildFamilyPages([...(await grammarPoints()).values()], (await grammarIndexes()).contrasts));
+    const familyPages = once(async () => buildFamilyPages([...(await grammarPoints()).values()], await contrasts()));
     const chapterRows = once(async () => buildChapterIndexRows((await grammarIndexes()).teachingOrder, await grammarPoints()));
 
     /** Each JLPT level's words, frequency-ordered; a level with none is left out. */
@@ -152,76 +252,6 @@ export function pagesOf(source: DictionaryData) {
     }
 
     const wordCountOf = (ranges: readonly KanjiRange[]) => ranges.reduce((sum, range) => sum + range.wordCount, 0);
-
-    // -------------------------------------------------------------------------- entity pages
-
-    async function vocabPage(id: string): Promise<Rendered<VocabPageProps>> {
-        if (!(await knownVocabIds()).has(id)) throw new PageNotFound(`no word ${id}`);
-        const [vocab, summaryById, allSentences] = await Promise.all([source.vocab(id), summaries(), source.sentencesFor(id)]);
-        const meta = vocabMeta(vocab);
-        return {
-            props: {
-                vocab,
-                components: resolveSummaries(vocab.components ?? [], summaryById),
-                parents: resolveSummaries(vocab.parents ?? [], summaryById),
-                sentences: orderSentences(allSentences ?? [], id, headwordOf(vocab)),
-            },
-            document: documentOf(vocabPath(id), meta, {
-                style: 'vocab',
-                structuredData: { '@context': 'https://schema.org', '@type': 'DefinedTerm', name: headwordOf(vocab), description: meta.description },
-            }),
-        };
-    }
-
-    async function kanjiPage(character: string): Promise<Rendered<KanjiPageProps>> {
-        const [byCharacter, kanjiVocab, summaryById, orders] = await Promise.all([kanjiByCharacter(), kanjiVocabIndex(), summaries(), kanjiOrderLists()]);
-        const kanji = byCharacter.get(character);
-        if (kanji === undefined) throw new PageNotFound(`no kanji ${character}`);
-        // Every word, most frequent first (the index's order); the page collapses all but the first.
-        const words = resolveSummaries(kanjiVocab[kanji.character] ?? [], summaryById);
-        return {
-            props: {
-                kanji,
-                words,
-                kanjiWithPages: new Set(byCharacter.keys()),
-                // A kanji page links each book position to its range page, which needs the order's length.
-                orderLengths: new Map(orders.map(({ order, list: orderList }) => [order.id, orderList.length])),
-            },
-            document: documentOf(kanjiPath(kanji.character), kanjiMeta(kanji, words.length), { style: 'kanji' }),
-        };
-    }
-
-    async function grammarPage(id: string): Promise<Rendered<GrammarPageProps>> {
-        const points = await grammarPoints();
-        const point = points.get(id);
-        if (point === undefined) throw new PageNotFound(`no grammar point ${id}`);
-        const { chapterLocatorIndex, variantGroups, conjugationIndex } = await grammarIndexes();
-        const minedExamplesPool = (await source.grammarMinedExamples(id)) ?? [];
-        return {
-            props: {
-                point,
-                related: (point.family?.relatedPoints ?? [])
-                    .map(relatedId => points.get(relatedId))
-                    .filter((other): other is GrammarPoint => other !== undefined)
-                    .map(grammarSummaryOf),
-                chapterLocator: chapterLocatorIndex.get(id) ?? null,
-                variants: buildVariantSiblings(point, variantGroups, points),
-                conjugation: conjugationIndex[id] ?? null,
-                minedExamples: minedExamplesPool.slice(0, MAX_MINED_EXAMPLES),
-                minedExamplesTotalCount: minedExamplesPool.length,
-            },
-            document: documentOf(grammarPath(id), grammarMeta(point), {
-                style: 'grammar',
-                structuredData: {
-                    '@context': 'https://schema.org',
-                    '@type': 'DefinedTerm',
-                    name: point.title,
-                    description: point.shortExplanation,
-                    inDefinedTermSet: 'Japanese grammar',
-                },
-            }),
-        };
-    }
 
     // -------------------------------------------------------------------------- grammar lists
 
@@ -442,9 +472,7 @@ export function pagesOf(source: DictionaryData) {
     }
 
     return {
-        vocabPage,
-        kanjiPage,
-        grammarPage,
+        ...entityPagesOf(source, indexes),
         grammarIndexPage,
         grammarFamiliesIndexPage,
         grammarFamilyPage,

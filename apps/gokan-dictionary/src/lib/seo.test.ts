@@ -1,9 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-    vocabMeta, kanjiMeta, grammarMeta, homeMeta, grammarChaptersIndexMeta, grammarChapterMeta, grammarFamilyMeta, grammarConjugationsIndexMeta,
-    grammarFamiliesIndexMeta, searchMeta, vocabJlptMeta, searchablePattern, quotedGlosses, sentenceCase,
-    kanjiOrdersMeta, kanjiOrderMeta, kanjiRangeHeading, kanjiRangeMeta,
-} from './seo';
+import { errorMeta, grammarChapterMeta, grammarChaptersIndexMeta, grammarConjugationsIndexMeta, grammarFamiliesIndexMeta, grammarFamilyMeta, grammarMeta, homeMeta, kanjiMeta, kanjiOrderMeta, kanjiOrdersMeta, kanjiRangeHeading, kanjiRangeMeta, quotedGlosses, searchMeta, searchablePattern, sentenceCase, vocabJlptMeta, vocabMeta } from './seo';
 import { KANJI_ORDERS, kanjiOrder, type GrammarChapter } from '@gokan/dataset-schema';
 import { grammarPoint, kanji, vocabulary } from '../test/fixtures';
 
@@ -252,5 +248,13 @@ describe('kanji order pages', () => {
         expect(order).toContain('34,187 words');
         const range = kanjiRangeMeta(kanjiOrder('henshall'), { first: 1901, last: 1945 }, 1);
         expect(range.description).toContain('The 45 kanji of Henshall steps 1901 to 1945 and the 1 word they unlock');
+    });
+});
+
+describe('errorMeta', () => {
+    it('names a missing page and a failure apart, each under the site name', () => {
+        expect(errorMeta(404).title).toBe('Page not found - Gokan Dictionary');
+        expect(errorMeta(500).title).toBe('Page unavailable - Gokan Dictionary');
+        expect(errorMeta(503)).toEqual(errorMeta(500));
     });
 });

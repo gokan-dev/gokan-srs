@@ -64,7 +64,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { KANJI_CHARS } from '@gokan/dataset-schema';
-import { buildMissing, dictionaryFile, dictionaryPages, listeningTitlesToMark, serve, srsFile, srsRoutes, srsVersion } from './lib/builtSite';
+import { buildMissing, dictionaryPages, listeningTitlesToMark, serve, serveProduction, srsFile, srsRoutes, srsVersion } from './lib/builtSite';
 import { launchChrome, type Chrome, type Tab } from './lib/chrome';
 
 const VIEWPORTS = [{ width: 320, height: 720 }, { width: 375, height: 812 }];
@@ -79,7 +79,8 @@ const missing = buildMissing();
 if (missing) fail(missing);
 
 const srs = await serve(srsFile);
-const dictionary = await serve(dictionaryFile);
+// The dictionary as production serves it: its static files, and its server behind them when it renders on request.
+const dictionary = await serveProduction();
 const chrome = await launchChrome().catch((error: unknown): never => fail(error instanceof Error ? error.message : String(error)));
 
 // -- The measurements -----------------------------------------------------------------------------
@@ -1198,7 +1199,7 @@ try {
     await chrome.kill();
     srs.server.close();
     updated.server.close();
-    dictionary.server.close();
+    dictionary.stop();
     rmSync(NEWER_DIR, { recursive: true, force: true });
 }
 

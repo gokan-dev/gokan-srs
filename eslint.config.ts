@@ -122,6 +122,7 @@ export default defineConfig([
     '**/dist/**',
     // SvelteKit's generated types and entry points (svelte-kit sync).
     '**/.svelte-kit/**',
+    `${DICTIONARY}/build/**`,
     '**/node_modules/**',
     '**/.deploy-stage/**',
     '.claude/**',   // Claude Code's config and local scratch, not project source

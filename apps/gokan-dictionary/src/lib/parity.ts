@@ -45,6 +45,17 @@ export interface ParityResult {
     compared: number;
 }
 
+/**
+ * The URL path a built file is served at under `basePath`: a page (index.html) at its directory,
+ * with the trailing slash, every segment percent-encoded as a browser requests it.
+ */
+export function servedPath(basePath: string, file: string): string {
+    const segments = file.split('/');
+    const page = segments.at(-1) === 'index.html';
+    const kept = page ? segments.slice(0, -1) : segments;
+    return `${basePath}/${kept.map(encodeURIComponent).join('/')}${page && kept.length > 0 ? '/' : ''}`;
+}
+
 /** One output: each path to a hash of its bytes and to its content hash. */
 export interface Output {
     bytes: ReadonlyMap<string, string>;
@@ -194,18 +205,21 @@ export interface ParityOptions {
     base: string;
     build: boolean;
     expectIdentical: boolean;
+    /** Compare the static build with the server's pages (an on-request build), not with a base. */
+    againstServer: boolean;
 }
 
-export const PARITY_USAGE = 'usage: bun run check:parity [--base <ref>] [--no-build] [--expect identical]';
+export const PARITY_USAGE = 'usage: bun run check:parity [--base <ref> | --against-server] [--no-build] [--expect identical]';
 
 /** The command line, or an Error naming what is wrong (a value missing or another flag in its place). */
 export function parseParityArgs(argv: readonly string[]): ParityOptions | Error {
-    const known = new Set(['--base', '--no-build', '--expect']);
+    const known = new Set(['--base', '--no-build', '--expect', '--against-server']);
+    const flags = new Set(['--no-build', '--against-server']);
     const values = new Map<string, string>();
     for (let at = 0; at < argv.length; at++) {
         const arg = argv[at];
         if (!known.has(arg)) return new Error(`unknown argument "${arg}". ${PARITY_USAGE}`);
-        if (arg === '--no-build') continue;
+        if (flags.has(arg)) continue;
         const value = argv[at + 1];
         if (value === undefined || value.startsWith('--')) return new Error(`${arg} needs a value. ${PARITY_USAGE}`);
         values.set(arg, value);
@@ -213,5 +227,7 @@ export function parseParityArgs(argv: readonly string[]): ParityOptions | Error 
     }
     const expectation = values.get('--expect');
     if (expectation !== undefined && expectation !== 'identical') return new Error(`--expect takes "identical", not "${expectation}". ${PARITY_USAGE}`);
-    return { base: values.get('--base') ?? 'origin/main', build: !argv.includes('--no-build'), expectIdentical: expectation === 'identical' };
+    const againstServer = argv.includes('--against-server');
+    if (againstServer && values.has('--base')) return new Error(`--against-server compares the static build with the server, with no base. ${PARITY_USAGE}`);
+    return { base: values.get('--base') ?? 'origin/main', build: !argv.includes('--no-build'), expectIdentical: expectation === 'identical', againstServer };
 }

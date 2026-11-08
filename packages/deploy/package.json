@@ -5,7 +5,9 @@
   "type": "module",
   "exports": {
     "./build-files": "./src/buildFiles.ts",
-    "./published-dataset": "./src/publishedDataset.ts"
+    "./published-dataset": "./src/publishedDataset.ts",
+    "./dataset-version": "./src/datasetVersion.ts",
+    "./deploy-manifest": "./src/deployManifest.ts"
   },
   "description": "Content-addressed S3 deploy for both apps: uploads only the files whose content changed.",
   "scripts": {

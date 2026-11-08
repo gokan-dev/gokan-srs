@@ -10,6 +10,8 @@ A SvelteKit app whose every page is prerendered into a plain static `index.html`
 
 The build has two steps. `vite.assets.config.ts` builds the browser-facing assets the pages link (the stylesheets, the one web font and two plain TypeScript scripts) into `dist/`; then SvelteKit renders every page beside them. Each route's `load` gets its page's props and document shell from `src/lib/server/pages.ts`, which reads the dataset through one `DictionaryData`; `src/hooks.server.ts` wraps the rendered body in the shell (`lib/documentShell.ts`) and refuses Japanese text not marked `lang="ja"`.
 
+The word, kanji and grammar point pages can instead be rendered on request (`bun run build:on-request`): only the 564 list pages are prerendered, and the server SvelteKit builds in `build/` renders the rest from the published dataset over HTTP, the same files the SRS reads, with no database. Until that server runs in production (#209), the deploy prerenders every page. Both builds give the same bytes for every page (`bun run check:parity --against-server`).
+
 A full build writes about 40,350 files, then checks itself (`scripts/check-build.ts`: size budgets, no Svelte runtime, search acceptance queries against the real index), and is byte-for-byte reproducible: rebuilding without a source or dataset change produces identical output, which is what lets the deploy upload only what actually differs.
 
 ## Structure

@@ -1,11 +1,14 @@
 // Every page's document: SvelteKit renders the page's body (app.html holds nothing else), and
 // this wraps it in the document its load chose (renderDocument), with the built assets' hrefs,
 // then refuses a page with Japanese text not marked lang="ja", on every page however it is
-// rendered.
+// rendered. A page rendered on request also gets its Cache-Control here, by status.
 
-import type { Handle } from '@sveltejs/kit';
+import { building } from '$app/environment';
+import type { Handle, HandleServerError } from '@sveltejs/kit';
+import { renderedPageCacheControl } from '@gokan/deploy/deploy-manifest';
 import { japaneseWithoutLang, renderDocument, stripHydrationMarkers } from '$lib/documentShell';
 import { pageScriptHref, pageStylesheetHref, searchScriptHref, stylesheetHref } from '$lib/server/assets';
+import { errorDocument } from '$lib/server/pages';
 import { UMAMI_WEBSITE_ID } from '$lib/site';
 
 /** Where app.html puts the body: everything before it is SvelteKit's head, which must stay empty. */
@@ -37,10 +40,26 @@ export function documentOf(rendered: string, locals: App.Locals, pathname: strin
     return html;
 }
 
-export const handle: Handle = ({ event, resolve }) => resolve(event, {
-    transformPageChunk: ({ html, done }) => {
-        // The loads return no promises, so a page arrives in one chunk.
-        if (!done) throw new Error(`[shell] ${event.url.pathname} was streamed; the document shell needs the whole page.`);
-        return documentOf(html, event.locals, event.url.pathname);
-    },
-});
+export const handle: Handle = async ({ event, resolve }) => {
+    const response = await resolve(event, {
+        transformPageChunk: ({ html, done }) => {
+            // The loads return no promises, so a page arrives in one chunk.
+            if (!done) throw new Error(`[shell] ${event.url.pathname} was streamed; the document shell needs the whole page.`);
+            return documentOf(html, event.locals, event.url.pathname);
+        },
+    });
+    // A prerendered page's headers are the deploy's (cacheControlFor); this is for what the
+    // server renders: kept at the edge, revalidated by the browser, an error never kept.
+    if (!building) response.headers.set('cache-control', renderedPageCacheControl(response.status));
+    return response;
+};
+
+/**
+ * An error SvelteKit did not expect (a failed dataset read, a path no route matches): the error
+ * page gets its document here. A page's own 404 (PageNotFound) already has one (render).
+ */
+export const handleError: HandleServerError = ({ event, status, message }) => {
+    event.locals.document ??= errorDocument(status, event.url.pathname);
+    if (status >= 500) console.error(`[dictionary] ${event.url.pathname}: ${message}`);
+    return { message };
+};

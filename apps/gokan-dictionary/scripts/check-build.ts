@@ -13,7 +13,16 @@ import { describe, overBudget, percentile, type Measurement } from '../src/lib/b
 import { prepareIndex, search, TIER } from '../src/lib/searchQuery';
 import type { SearchIndexFile } from '../src/lib/types';
 
-const DIST_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
+const APP_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const DIST_DIR = path.join(APP_DIR, 'dist');
+
+/**
+ * How the build served the entity pages (vite.config.ts reads the same variable). Prerendered,
+ * their budgets are measured here; on request, dist/ holds none and the server renders them
+ * (build/), so their budgets are measured on the static build, which `check:parity
+ * --against-server` proves the server's pages equal, byte for byte.
+ */
+const ENTITY_PAGES = process.env.DICTIONARY_ENTITY_PAGES === 'on-request' ? 'on-request' : 'prerendered';
 
 interface ViteManifestEntry {
     file: string;
@@ -28,16 +37,23 @@ function subdirectories(relative: string): string[] {
     return fs.readdirSync(path.join(DIST_DIR, relative), { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => entry.name);
 }
 
+const wordPages = () => subdirectories('vocab').filter(name => /^\d+$/.test(name));
+// kanji/orders/ is the learning order pages, not a kanji: no kanji is named with a Latin word.
+const kanjiPages = () => subdirectories('kanji').filter(name => name !== 'orders');
+
 function measure(manifest: Record<string, ViteManifestEntry>): Measurement[] {
     const measurements: Measurement[] = [];
 
-    const wordPages = subdirectories('vocab').filter(name => /^\d+$/.test(name));
-    measurements.push({ budget: 'wordPageP90', subject: `${wordPages.length} word pages`, bytes: percentile(wordPages.map(id => sizeOf(pageOf('vocab', id))), 90) });
-
-    // kanji/orders/ is the learning order pages, not a kanji: no kanji is named with a Latin word.
-    const kanjiSizes = subdirectories('kanji').filter(name => name !== 'orders').map(character => ({ character, bytes: sizeOf(pageOf('kanji', character)) }));
-    const heaviest = kanjiSizes.reduce((a, b) => (b.bytes > a.bytes ? b : a));
-    measurements.push({ budget: 'kanjiPageMax', subject: `kanji/${heaviest.character}`, bytes: heaviest.bytes });
+    // A prerendered build without them is modeProblems' to report.
+    const words = ENTITY_PAGES === 'prerendered' ? wordPages() : [];
+    if (words.length > 0) {
+        measurements.push({ budget: 'wordPageP90', subject: `${words.length} word pages`, bytes: percentile(words.map(id => sizeOf(pageOf('vocab', id))), 90) });
+    }
+    const kanjiSizes = (ENTITY_PAGES === 'prerendered' ? kanjiPages() : []).map(character => ({ character, bytes: sizeOf(pageOf('kanji', character)) }));
+    if (kanjiSizes.length > 0) {
+        const heaviest = kanjiSizes.reduce((a, b) => (b.bytes > a.bytes ? b : a));
+        measurements.push({ budget: 'kanjiPageMax', subject: `kanji/${heaviest.character}`, bytes: heaviest.bytes });
+    }
 
     measurements.push({ budget: 'grammarIndex', subject: 'grammar/', bytes: sizeOf(pageOf('grammar')) });
 
@@ -70,6 +86,15 @@ function measure(manifest: Record<string, ViteManifestEntry>): Measurement[] {
         measurements.push({ budget: 'webFont', subject: `assets/${font}`, bytes: sizeOf(path.join('assets', font)) });
     }
     return measurements;
+}
+
+/** The build has the pages its mode says: every entity page prerendered, or none and the server built. */
+function modeProblems(): string[] {
+    const [words, kanji] = [wordPages().length, kanjiPages().length];
+    if (ENTITY_PAGES === 'prerendered') return words > 0 && kanji > 0 ? [] : [`prerendered build with ${words} word and ${kanji} kanji pages in dist/`];
+    const problems = words + kanji > 0 ? [`on-request build with ${words} word and ${kanji} kanji pages in dist/: they are the server's`] : [];
+    if (!fs.existsSync(path.join(APP_DIR, 'build', 'handler.js'))) problems.push('on-request build without its server (build/handler.js)');
+    return problems;
 }
 
 /** Problems other than sizes: a second web font, or a Svelte runtime reaching the browser. */
@@ -125,7 +150,7 @@ function searchProblems(): string[] {
 const manifest = readJson(path.join('.vite', 'manifest.json')) as Record<string, ViteManifestEntry>;
 const measurements = measure(manifest);
 const over = overBudget(measurements);
-const problems = [...over.map(m => `over budget: ${describe(m)}`), ...assetProblems(), ...searchProblems()];
+const problems = [...over.map(m => `over budget: ${describe(m)}`), ...modeProblems(), ...assetProblems(), ...searchProblems()];
 
 // A budget over many pages reports its heaviest.
 const MANY_PAGES: Partial<Record<Measurement['budget'], string>> = { jlptPage: 'JLPT list pages', kanjiOrderPage: 'kanji order pages' };
@@ -139,4 +164,5 @@ if (problems.length > 0) {
     for (const problem of problems) console.error(`[check-build] ${problem}`);
     process.exit(1);
 }
+if (ENTITY_PAGES === 'on-request') console.log('[check-build] entity pages rendered on request: their budgets are measured on the static build (check:parity --against-server).');
 console.log('[check-build] every budget met, no Svelte runtime, search acceptance queries pass.');
