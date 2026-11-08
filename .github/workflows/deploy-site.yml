@@ -46,6 +46,21 @@ on:
         type: string
         required: false
         default: ''
+      dictionary_rendering:
+        description: 'How the dictionary serves its word, kanji and grammar pages: "prerendered" (every page uploaded to S3) or "on-request" (rendered by its server, #209). Must match the environment''s Terraform (dictionary_on_request).'
+        type: string
+        required: false
+        default: 'prerendered'
+      dictionary_function:
+        description: 'The dictionary server''s Lambda (the Terraform output dictionary_function_name). Required with "on-request".'
+        type: string
+        required: false
+        default: ''
+      dictionary_keep_old_pages:
+        description: '"true" for the week after the cutover: the pages S3 served stay in the bucket, so routing the dictionary back to S3 (the rollback) serves a complete site. A later deploy without it prunes them.'
+        type: string
+        required: false
+        default: 'false'
       audio_max_uploads:
         description: 'Most audio clips this deploy may write. Only staging passes a raise (the AUDIO_MAX_UPLOADS variable, for a first fill or a voice change); production always runs at the default.'
         type: string
@@ -124,9 +139,36 @@ jobs:
           VITE_UMAMI_WEBSITE_ID: ${{ inputs.umami_website_id }}
         run: bun run --cwd apps/gokan-srs build
 
-      # Reads the same dataset/compiled/ tree the step above synced from, and bakes it into
-      # ~39k static pages. VITE_SITE_ORIGIN is what makes staging emit staging canonicals
-      # instead of claiming to be production.
+      - name: Check the dictionary's rendering mode
+        run: |
+          case "${{ inputs.dictionary_rendering }}" in
+            prerendered) ;;
+            on-request) [ -n "${{ inputs.dictionary_function }}" ] || { echo "::error::on-request needs dictionary_function"; exit 1; } ;;
+            *) echo "::error::dictionary_rendering is \"${{ inputs.dictionary_rendering }}\", not prerendered or on-request"; exit 1 ;;
+          esac
+
+      # On request (#209), the server first: the build for the Lambda, its list pages
+      # prerendered and its entity pages left to render, packaged before the static build below
+      # replaces build/. run.sh is the Lambda Web Adapter's entry (handler "run.sh"); the
+      # package.json marks the bundle as ES modules. Source maps stay out (Lambda takes 50 MB).
+      - name: Build and package the dictionary's server
+        if: inputs.dictionary_rendering == 'on-request'
+        env:
+          VITE_SITE_ORIGIN: ${{ inputs.site_origin }}
+          VITE_UMAMI_WEBSITE_ID: ${{ inputs.umami_website_id }}
+        run: |
+          bun run --cwd apps/gokan-dictionary build:on-request
+          cd apps/gokan-dictionary/build
+          printf '#!/bin/sh\nexec node index.js\n' > run.sh
+          chmod 755 run.sh
+          printf '{ "type": "module" }\n' > package.json
+          zip -q -r -X "$RUNNER_TEMP/dictionary-server.zip" . -x '*.map'
+          ls -l "$RUNNER_TEMP/dictionary-server.zip"
+
+      # Reads the same dataset/compiled/ tree as the app, and bakes it into ~40k static pages.
+      # VITE_SITE_ORIGIN is what makes staging emit staging canonicals instead of claiming to be
+      # production. On request it is still built in full: its pages are not uploaded, but they
+      # date the sitemap (each URL's <lastmod> is the day its page's content last changed).
       - name: Build gokan-dictionary
         env:
           VITE_SITE_ORIGIN: ${{ inputs.site_origin }}
@@ -186,8 +228,22 @@ jobs:
       - name: Deploy gokan-srs to S3
         run: bun packages/deploy/scripts/deploy-s3.ts --site srs --bucket ${{ inputs.s3_bucket }}
 
+      # On request, the bucket holds the dictionary's files (assets, the search index, the
+      # sitemap) and its server the pages (--pages-on-server). The search index goes up before
+      # the server: a server refuses an index of another dataset version (a 5xx, never cached,
+      # retried), so the gap is the minute until the new server and the invalidation below.
       - name: Deploy gokan-dictionary to S3
-        run: bun packages/deploy/scripts/deploy-s3.ts --site dictionary --bucket ${{ inputs.s3_bucket }}
+        run: |
+          flags=""
+          if [ "${{ inputs.dictionary_rendering }}" = "on-request" ]; then flags="--pages-on-server"; fi
+          if [ "${{ inputs.dictionary_keep_old_pages }}" = "true" ]; then flags="$flags --keep-removed"; fi
+          bun packages/deploy/scripts/deploy-s3.ts --site dictionary --bucket ${{ inputs.s3_bucket }} $flags
+
+      - name: Deploy the dictionary's server
+        if: inputs.dictionary_rendering == 'on-request'
+        run: |
+          aws lambda update-function-code             --function-name "${{ inputs.dictionary_function }}"             --zip-file "fileb://$RUNNER_TEMP/dictionary-server.zip"             --architectures arm64             --query 'CodeSize' --output text
+          aws lambda wait function-updated-v2 --function-name "${{ inputs.dictionary_function }}"
 
       - name: Invalidate CloudFront cache
         run: |
@@ -202,7 +258,7 @@ jobs:
             echo ""
             echo "**Ref:** ${{ inputs.ref || github.ref_name }}"
             echo "**App:** ${{ inputs.site_origin }}/"
-            echo "**Dictionary:** ${{ inputs.site_origin }}/dictionary/"
+            echo "**Dictionary:** ${{ inputs.site_origin }}/dictionary/ (${{ inputs.dictionary_rendering }})"
             echo "**Bucket:** ${{ inputs.s3_bucket }}"
             echo ""
             echo "Both apps built from the same checkout, so they share one dataset version."

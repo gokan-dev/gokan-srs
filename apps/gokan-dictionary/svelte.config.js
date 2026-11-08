@@ -32,11 +32,25 @@ const dictionary = dir => ({
   },
 })
 
+/**
+ * The path the site is served under (src/lib/site.ts's BASE_PATH: /dictionary on the shared
+ * host, '' on its own origin). Read from the same variable with the same default, since this
+ * file cannot import TypeScript; lib/site.test.ts holds the two equal. SvelteKit routes under it,
+ * and the server finds its prerendered pages under it, at the paths CloudFront forwards.
+ */
+const basePath = (() => {
+  const raw = process.env.VITE_BASE_PATH ?? '/dictionary'
+  if (!raw || raw === '/') return ''
+  const withSlash = raw.startsWith('/') ? raw : `/${raw}`
+  return withSlash.endsWith('/') ? withSlash.slice(0, -1) : withSlash
+})()
+
 /** @type {import('@sveltejs/kit').Config} */
 export default {
   preprocess: vitePreprocess(),
   kit: {
     adapter: dictionary('dist'),
+    paths: { base: basePath },
     // public/ is the asset build's (the favicon); SvelteKit has no static files of its own.
     files: { assets: 'static' },
     prerender: {

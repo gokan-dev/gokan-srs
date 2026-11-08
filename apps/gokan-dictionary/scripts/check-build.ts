@@ -9,7 +9,9 @@ import path from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
+import { listFiles } from '@gokan/deploy/build-files';
 import { describe, overBudget, percentile, type Measurement } from '../src/lib/budgets';
+import { misroutedPaths } from '../src/lib/servedPaths';
 import { prepareIndex, search, TIER } from '../src/lib/searchQuery';
 import type { SearchIndexFile } from '../src/lib/types';
 
@@ -150,7 +152,13 @@ function searchProblems(): string[] {
 const manifest = readJson(path.join('.vite', 'manifest.json')) as Record<string, ViteManifestEntry>;
 const measurements = measure(manifest);
 const over = overBudget(measurements);
-const problems = [...over.map(m => `over budget: ${describe(m)}`), ...modeProblems(), ...assetProblems(), ...searchProblems()];
+/** CloudFront routes by a dot in the path (lib/servedPaths.ts): every built path must follow it. */
+function routingProblems(): string[] {
+    const files = listFiles(DIST_DIR).filter(file => !file.startsWith('.vite/'));
+    return misroutedPaths(files).slice(0, 5).map(file => `${file}: CloudFront would ask the wrong origin for it (a page path has no dot, a file name has one)`);
+}
+
+const problems = [...over.map(m => `over budget: ${describe(m)}`), ...modeProblems(), ...assetProblems(), ...searchProblems(), ...routingProblems()];
 
 // A budget over many pages reports its heaviest.
 const MANY_PAGES: Partial<Record<Measurement['budget'], string>> = { jlptPage: 'JLPT list pages', kanjiOrderPage: 'kanji order pages' };

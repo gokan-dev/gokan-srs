@@ -173,6 +173,36 @@ export interface ManifestDiff {
     unchanged: number;
 }
 
+export interface DeployedOptions {
+    /**
+     * The site's pages (`*.html`) are served by its server, not from the bucket (the dictionary
+     * rendering on request, #209): they are built and dated (the sitemap's `<lastmod>` comes from
+     * their content hashes) but never uploaded.
+     */
+    pagesOnServer?: boolean;
+    /**
+     * Keys the previous manifest listed and this build no longer has stay in the bucket, and in
+     * the manifest, so a later deploy prunes them: what a rollback is served from, kept while it
+     * may be needed (#209, the week after the dictionary's cutover).
+     */
+    keepRemoved?: boolean;
+}
+
+/**
+ * What the bucket holds after this deploy, by key and hash: the built files it uploads (all of
+ * them, or only the files that are not pages), plus, with `keepRemoved`, whatever the previous
+ * manifest listed that is no longer built, under its previous hash (unchanged, so not uploaded).
+ */
+export function deployedManifest(previous: PreviousDeploy, next: BuildManifest, { pagesOnServer = false, keepRemoved = false }: DeployedOptions = {}): BuildManifest {
+    const deployed: BuildManifest = pagesOnServer
+        ? Object.fromEntries(Object.entries(next).filter(([file]) => !file.endsWith('.html')))
+        : { ...next };
+    if (keepRemoved && previous.source === 'manifest') {
+        for (const [file, hash] of Object.entries(previous.manifest)) deployed[file] ??= hash;
+    }
+    return deployed;
+}
+
 export function diffManifests(previous: PreviousDeploy, next: BuildManifest): ManifestDiff {
     // Nothing known about what is deployed: upload everything rather than risk a partial deploy.
     if (previous.source === 'none') {

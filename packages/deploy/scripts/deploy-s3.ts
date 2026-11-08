@@ -15,7 +15,10 @@
 // Changed files are hardlinked into a staging tree so one recursive upload moves exactly the
 // intended set.
 //
-// Usage: bun packages/deploy/scripts/deploy-s3.ts --site srs|dictionary|data --bucket <name> [--dry-run]
+// Usage: bun packages/deploy/scripts/deploy-s3.ts --site srs|dictionary|data --bucket <name>
+//          [--pages-on-server] [--keep-removed] [--dry-run]
+//   --pages-on-server  the dictionary's pages are its server's (#209): dated, never uploaded
+//   --keep-removed     keep what the previous deploy owned and this build lacks (a rollback copy)
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -28,6 +31,7 @@ import {
     changeDates,
     contentHash,
     datedSitemap,
+    deployedManifest,
     diffManifests,
     isSite,
     manifestFromListing,
@@ -36,6 +40,7 @@ import {
     parseManifest,
     planUploads,
     serializeManifest,
+    type DeployedOptions,
     type PreviousDeploy,
     type Site,
 } from '../src/deployManifest';
@@ -54,6 +59,8 @@ interface Args {
     bucket: string;
     /** Report what would be uploaded and deleted, touching nothing. */
     dryRun: boolean;
+    /** What the bucket keeps of the build and of the previous deploy (deployedManifest). */
+    deployed: DeployedOptions;
 }
 
 function parseArgs(): Args {
@@ -65,9 +72,12 @@ function parseArgs(): Args {
     const site = get('--site');
     const bucket = get('--bucket');
     if (!site || !isSite(site) || !bucket) {
-        throw new Error(`usage: deploy-s3.ts --site ${Object.keys(SITES).join('|')} --bucket <name> [--dry-run]`);
+        throw new Error(`usage: deploy-s3.ts --site ${Object.keys(SITES).join('|')} --bucket <name> [--pages-on-server] [--keep-removed] [--dry-run]`);
     }
-    return { site, bucket, dryRun: argv.includes('--dry-run') };
+    const pagesOnServer = argv.includes('--pages-on-server');
+    // Only the dictionary has a server; another site's pages would simply never be uploaded.
+    if (pagesOnServer && site !== 'dictionary') throw new Error('[deploy] --pages-on-server is for the dictionary only.');
+    return { site, bucket, dryRun: argv.includes('--dry-run'), deployed: { pagesOnServer, keepRemoved: argv.includes('--keep-removed') } };
 }
 
 /**
@@ -145,7 +155,7 @@ function stageFiles(distDir: string, stageDir: string, files: string[]): void {
 }
 
 function main(): void {
-    const { site, bucket, dryRun } = parseArgs();
+    const { site, bucket, dryRun, deployed: deployedOptions } = parseArgs();
     const { dist, prefix, include } = SITES[site];
     const distDir = path.join(REPO_ROOT, dist);
     const stageDir = path.join(WORK_DIR, site);
@@ -157,7 +167,7 @@ function main(): void {
         throw new Error(`[deploy] ${distDir} not found: run the build first.`);
     }
 
-    const { files, hashes: next, content } = hashBuild(distDir, include);
+    const { files, hashes: built, content } = hashBuild(distDir, include);
     console.log(`[deploy] ${site}: hashed ${files.length} built file(s).`);
     const previous = readPreviousDeploy(bucket, prefix);
     // The UTC day, as the sitemap's W3C date format expects.
@@ -172,11 +182,16 @@ function main(): void {
         const sitemap = datedSitemap(site, fs.readFileSync(sitemapPath, 'utf-8'), changeDates(previous, content, today));
         fs.writeFileSync(sitemapPath, sitemap);
         const bytes = fs.readFileSync(sitemapPath);
-        next[SITEMAP_FILE] = contentHash(bytes);
+        built[SITEMAP_FILE] = contentHash(bytes);
         content[SITEMAP_FILE] = pageContentHash(SITEMAP_FILE, bytes);
     }
     const dates = changeDates(previous, content, today);
 
+    // Every page is dated above; what the bucket holds may be less (pages on the server) or more
+    // (a rollback copy kept), and is what the manifest records as deployed.
+    const next = deployedManifest(previous, built, deployedOptions);
+    if (deployedOptions.pagesOnServer) console.log('[deploy] pages are served by the server: dated, not uploaded.');
+    if (deployedOptions.keepRemoved) console.log('[deploy] keeping what the previous deploy owned and this build lacks.');
     const { changed, removed, unchanged } = diffManifests(previous, next);
     console.log(`[deploy] ${changed.length} changed, ${removed.length} removed, ${unchanged} unchanged.`);
     const batches = planUploads(site, changed);

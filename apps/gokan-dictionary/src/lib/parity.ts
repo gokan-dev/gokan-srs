@@ -207,13 +207,19 @@ export interface ParityOptions {
     expectIdentical: boolean;
     /** Compare the static build with the server's pages (an on-request build), not with a base. */
     againstServer: boolean;
+    /**
+     * Compare the static build with what a deployed site serves (staging, production), not with
+     * a base: its origin, e.g. https://staging.gokan-srs.com. Build with that origin
+     * (VITE_SITE_ORIGIN), or the canonicals differ on every page.
+     */
+    againstOrigin?: string;
 }
 
-export const PARITY_USAGE = 'usage: bun run check:parity [--base <ref> | --against-server] [--no-build] [--expect identical]';
+export const PARITY_USAGE = 'usage: bun run check:parity [--base <ref> | --against-server | --against <origin>] [--no-build] [--expect identical]';
 
 /** The command line, or an Error naming what is wrong (a value missing or another flag in its place). */
 export function parseParityArgs(argv: readonly string[]): ParityOptions | Error {
-    const known = new Set(['--base', '--no-build', '--expect', '--against-server']);
+    const known = new Set(['--base', '--no-build', '--expect', '--against-server', '--against']);
     const flags = new Set(['--no-build', '--against-server']);
     const values = new Map<string, string>();
     for (let at = 0; at < argv.length; at++) {
@@ -228,6 +234,16 @@ export function parseParityArgs(argv: readonly string[]): ParityOptions | Error 
     const expectation = values.get('--expect');
     if (expectation !== undefined && expectation !== 'identical') return new Error(`--expect takes "identical", not "${expectation}". ${PARITY_USAGE}`);
     const againstServer = argv.includes('--against-server');
-    if (againstServer && values.has('--base')) return new Error(`--against-server compares the static build with the server, with no base. ${PARITY_USAGE}`);
-    return { base: values.get('--base') ?? 'origin/main', build: !argv.includes('--no-build'), expectIdentical: expectation === 'identical', againstServer };
+    const againstOrigin = values.get('--against');
+    if ([againstServer, againstOrigin !== undefined, values.has('--base')].filter(Boolean).length > 1) {
+        return new Error(`--base, --against-server and --against each name what the static build is compared with: one at most. ${PARITY_USAGE}`);
+    }
+    if (againstOrigin !== undefined && !/^https?:\/\/[^/]+$/.test(againstOrigin)) return new Error(`--against takes an origin, scheme and host only (https://staging.gokan-srs.com), not "${againstOrigin}". ${PARITY_USAGE}`);
+    return {
+        base: values.get('--base') ?? 'origin/main',
+        build: !argv.includes('--no-build'),
+        expectIdentical: expectation === 'identical',
+        againstServer,
+        ...(againstOrigin === undefined ? {} : { againstOrigin }),
+    };
 }

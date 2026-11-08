@@ -8,6 +8,7 @@ import {
     changeDates,
     contentHash,
     datedSitemap,
+    deployedManifest,
     diffManifests,
     isSite,
     manifestFromListing,
@@ -24,6 +25,39 @@ import {
 /** A stored deploy; its content hashes default to its upload hashes (true of every non-page file). */
 const stored = (manifest: Record<string, string>, changed: Record<string, string> = {}, content = manifest): PreviousDeploy =>
     ({ source: 'manifest', manifest, content, changed });
+
+describe('deployedManifest', () => {
+    const built = { 'index.html': 'home', 'vocab/1/index.html': 'word', 'assets/a-1.css': 'css', 'data/search-core.json': 'index' };
+
+    it('is the build, by default', () => {
+        expect(deployedManifest(stored({}), built)).toEqual(built);
+    });
+
+    it('leaves the pages out when a server serves them, keeping every other file', () => {
+        expect(deployedManifest(stored({}), built, { pagesOnServer: true })).toEqual({ 'assets/a-1.css': 'css', 'data/search-core.json': 'index' });
+    });
+
+    it('keeps what the previous deploy owned under its old hash, so nothing is deleted or re-uploaded', () => {
+        const previous = stored({ 'index.html': 'old-home', 'vocab/2/index.html': 'old-word', 'assets/a-0.css': 'old-css' });
+        const deployed = deployedManifest(previous, built, { pagesOnServer: true, keepRemoved: true });
+        expect(deployed).toEqual({
+            'assets/a-1.css': 'css',
+            'data/search-core.json': 'index',
+            'index.html': 'old-home',
+            'vocab/2/index.html': 'old-word',
+            'assets/a-0.css': 'old-css',
+        });
+        const diff = diffManifests(previous, deployed);
+        expect(diff.removed).toEqual([]);
+        expect(diff.changed.sort()).toEqual(['assets/a-1.css', 'data/search-core.json']);
+    });
+
+    it('lets the next deploy without keepRemoved prune what was kept', () => {
+        const kept = deployedManifest(stored({ 'vocab/2/index.html': 'old-word' }), built, { pagesOnServer: true, keepRemoved: true });
+        const next = deployedManifest(stored(kept), built, { pagesOnServer: true });
+        expect(diffManifests(stored(kept), next).removed).toEqual(['vocab/2/index.html']);
+    });
+});
 
 describe('diffManifests', () => {
     it('uploads only the files whose content hash changed', () => {

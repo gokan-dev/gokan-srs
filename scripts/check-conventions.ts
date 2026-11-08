@@ -57,7 +57,7 @@ const GOKAN_SRS_SOURCE = /^apps\/gokan-srs\/src\/.*\.tsx?$/;
 /** Pure-logic directories: every module has a colocated test. */
 const TESTED_DIRS = ['apps/gokan-srs/src/utils', 'apps/gokan-dictionary/src/lib', 'packages/deploy/src'];
 /** Modules with no logic to test: constants and type declarations only. */
-const TEST_EXEMPT = new Set(['apps/gokan-dictionary/src/lib/site.ts', 'apps/gokan-dictionary/src/lib/types.ts', 'apps/gokan-dictionary/src/lib/pageProps.ts']);
+const TEST_EXEMPT = new Set(['apps/gokan-dictionary/src/lib/types.ts', 'apps/gokan-dictionary/src/lib/pageProps.ts']);
 
 const AGENT_STUBS = ['CLAUDE.md', 'GEMINI.md'];
 const AGENT_STUB_CONTENT = '@AGENTS.md';

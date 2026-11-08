@@ -85,7 +85,9 @@ jobs:
   deploy:
     name: Deploy to production
     needs: test # Only deploy if every check passes
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # A push to main, or a dispatch on main: the dictionary's cutover deploy (#209) and its
+    # rollback are a change of Actions variables, not of code, so they deploy with no commit.
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     uses: ./.github/workflows/deploy-site.yml
     with:
       environment_name: production
@@ -93,6 +95,10 @@ jobs:
       umami_website_id: ${{ vars.UMAMI_WEBSITE_ID }}
       s3_bucket: ${{ vars.S3_BUCKET_NAME }}
       aws_region: ${{ vars.AWS_REGION }}
+      # Set together with DICTIONARY_ON_REQUEST, which terraform-production.yml reads.
+      dictionary_rendering: ${{ vars.DICTIONARY_RENDERING || 'prerendered' }}
+      dictionary_function: ${{ vars.DICTIONARY_FUNCTION }}
+      dictionary_keep_old_pages: ${{ vars.DICTIONARY_KEEP_OLD_PAGES || 'false' }}
     secrets:
       aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
       aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

@@ -1,16 +1,23 @@
 # Staging stack for staging.gokan-srs.com: an independent Terraform root with
 # its own state, so applying it can never affect the production stack in
-# ../main.tf. Mirrors the production infra: private S3 bucket, CloudFront with
-# SPA error handling, an ACM cert (us-east-1) for the staging subdomain, and a
-# Route53 record in the existing gokan-srs.com hosted zone.
+# ../main.tf. Mirrors the production infra: private S3 bucket, CloudFront with the
+# app's routing function, the dictionary's server (../modules/dictionary-server), an ACM cert
+# (us-east-1) for the staging subdomain, and a Route53 record in the existing gokan-srs.com
+# hosted zone.
 
 terraform {
   required_version = ">= 1.10" # native S3 state locking (use_lockfile)
 
   required_providers {
+    # Exact versions, each released at least two weeks before it was adopted. 6.x for the
+    # nodejs24.x Lambda runtime, which the 5.x line predates.
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 5.0"
+      version = "6.70.0"
+    }
+    archive = {
+      source  = "hashicorp/archive"
+      version = "2.7.1"
     }
   }
 
@@ -50,6 +57,18 @@ variable "project_name" {
   description = "Project name"
   type        = string
   default     = "gokan-srs"
+}
+
+variable "dictionary_on_request" {
+  description = "Serve the dictionary's pages from its server (true) or from the bucket (false: before the cutover, and the rollback). Set by the STAGING_DICTIONARY_ON_REQUEST Actions variable (terraform-staging.yml)."
+  type        = bool
+  default     = false
+}
+
+# The directory-index function moved into the dictionary module (#209), under the same name.
+moved {
+  from = aws_cloudfront_function.dictionary_directory_index
+  to   = module.dictionary_server.aws_cloudfront_function.directory_index
 }
 
 # No hardcoded profile: credentials come from the environment so this works both
@@ -177,36 +196,22 @@ resource "aws_cloudfront_response_headers_policy" "staging_noindex" {
   }
 }
 
-# CloudFront Function rewriting directory-style dictionary URLs onto the actual S3 object key.
-#
-# This is load-bearing, not a nicety. gokan-dictionary emits one page per entry as
-# <path>/index.html, and the S3 origin is reached through OAC (the REST endpoint), which - unlike
-# the S3 *website* endpoint - performs no directory-index resolution at all. Without this
-# rewrite, a request for /dictionary/vocab/1589350/ looks up a key that does not exist, 404s,
-# and gets swallowed by the SPA custom_error_response below: every dictionary page would silently
-# serve the SRS app instead. `default_root_object` does not help, as it only applies to "/".
-resource "aws_cloudfront_function" "dictionary_directory_index" {
-  name    = "${var.project_name}-staging-dictionary-directory-index"
-  runtime = "cloudfront-js-2.0"
-  comment = "Appends index.html to directory-style dictionary URLs"
-  publish = true
+# The dictionary's server, rendering its pages on request (#209).
+module "dictionary_server" {
+  source = "../modules/dictionary-server"
 
-  code = <<-EOT
-    function handler(event) {
-      var request = event.request;
-      var uri = request.uri;
+  name             = "${var.project_name}-staging-dictionary"
+  site_origin      = "https://${var.site_domain}"
+  distribution_arn = aws_cloudfront_distribution.website.arn
+  # Staging serves a second copy of every page: keep it out of search engines, as the rest.
+  extra_response_headers = { "X-Robots-Tag" = "noindex, nofollow" }
 
-      if (uri.endsWith('/')) {
-        request.uri = uri + 'index.html';
-      } else if (!uri.split('/').pop().includes('.')) {
-        // Extensionless and no trailing slash (e.g. /dictionary/vocab/1589350): treat it as the
-        // same page rather than a 404, so a hand-typed or link-shortened URL still resolves.
-        request.uri = uri + '/index.html';
-      }
+  tags = { Environment = "staging" }
+}
 
-      return request;
-    }
-  EOT
+module "spa_fallback" {
+  source = "../modules/spa-fallback"
+  name   = "${var.project_name}-staging-spa-fallback"
 }
 
 resource "aws_cloudfront_distribution" "website" {
@@ -219,6 +224,19 @@ resource "aws_cloudfront_distribution" "website" {
     domain_name              = aws_s3_bucket.website.bucket_regional_domain_name
     origin_id                = "S3-${aws_s3_bucket.website.id}"
     origin_access_control_id = aws_cloudfront_origin_access_control.website.id
+  }
+
+  origin {
+    domain_name              = module.dictionary_server.origin_domain
+    origin_id                = "dictionary-server"
+    origin_access_control_id = module.dictionary_server.origin_access_control_id
+
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "https-only"
+      origin_ssl_protocols   = ["TLSv1.2"]
+    }
   }
 
   # The shared audio bucket. OAC signs for any S3 origin, so the site's one is reused.
@@ -237,35 +255,66 @@ resource "aws_cloudfront_distribution" "website" {
     response_headers_policy_id = aws_cloudfront_response_headers_policy.staging_noindex.id
     viewer_protocol_policy     = "redirect-to-https"
     compress                   = true
-  }
-
-  # The dictionary (apps/gokan-dictionary) is served from the /dictionary/* prefix of this same
-  # bucket, so it shares this hostname's ranking signals instead of splitting them across a
-  # subdomain. It is fully prerendered static HTML, so it must NOT inherit the SPA fallback
-  # behavior - hence its own behavior with the directory-index function attached.
-  #
-  # Known limitation: custom_error_response is distribution-wide in CloudFront, so a genuinely
-  # missing /dictionary/* URL still returns the SPA shell with a 200 rather than a 404 (a soft
-  # 404). Every dictionary URL is generated and sitemap-listed, so this should only be reachable
-  # via a stale link after a dataset change. Fixing it properly means moving the SPA fallback off
-  # custom_error_response and into a function on the default behavior, which is a riskier change
-  # to live app routing than the problem currently warrants.
-  ordered_cache_behavior {
-    path_pattern     = "/dictionary/*"
-    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
-    cached_methods   = ["GET", "HEAD", "OPTIONS"]
-    target_origin_id = "S3-${aws_s3_bucket.website.id}"
-
-    cache_policy_id = "658327ea-f89d-4fab-a63d-7e88639e58f6" # Managed-CachingOptimized
-
-    viewer_protocol_policy = "redirect-to-https"
-    compress               = true
-
-    response_headers_policy_id = aws_cloudfront_response_headers_policy.staging_noindex.id
 
     function_association {
       event_type   = "viewer-request"
-      function_arn = aws_cloudfront_function.dictionary_directory_index.arn
+      function_arn = module.spa_fallback.arn
+    }
+  }
+
+  # The dictionary (apps/gokan-dictionary), at /dictionary/ on this hostname, as on production
+  # (../main.tf, where the split is explained): a file (a path with a dot: the hashed assets, the
+  # search index, the sitemap, the favicon) from the bucket, a page from the dictionary's server.
+  # The first matching behavior wins, so the files' comes first.
+  dynamic "ordered_cache_behavior" {
+    for_each = var.dictionary_on_request ? [1] : []
+    content {
+      path_pattern     = "/dictionary/*.*"
+      allowed_methods  = ["GET", "HEAD", "OPTIONS"]
+      cached_methods   = ["GET", "HEAD", "OPTIONS"]
+      target_origin_id = "S3-${aws_s3_bucket.website.id}"
+
+      cache_policy_id            = "658327ea-f89d-4fab-a63d-7e88639e58f6" # Managed-CachingOptimized
+      response_headers_policy_id = aws_cloudfront_response_headers_policy.staging_noindex.id
+      viewer_protocol_policy     = "redirect-to-https"
+      compress                   = true
+    }
+  }
+
+  dynamic "ordered_cache_behavior" {
+    for_each = var.dictionary_on_request ? [1] : []
+    content {
+      path_pattern     = "/dictionary/*"
+      allowed_methods  = ["GET", "HEAD", "OPTIONS"]
+      cached_methods   = ["GET", "HEAD", "OPTIONS"]
+      target_origin_id = "dictionary-server"
+
+      cache_policy_id            = module.dictionary_server.cache_policy_id
+      response_headers_policy_id = module.dictionary_server.response_headers_policy_id
+      viewer_protocol_policy     = "redirect-to-https"
+      compress                   = true
+    }
+  }
+
+  # Before the cutover, and on rollback: every dictionary file and page from the bucket, as the
+  # static deploy uploaded it.
+  dynamic "ordered_cache_behavior" {
+    for_each = var.dictionary_on_request ? [] : [1]
+    content {
+      path_pattern     = "/dictionary/*"
+      allowed_methods  = ["GET", "HEAD", "OPTIONS"]
+      cached_methods   = ["GET", "HEAD", "OPTIONS"]
+      target_origin_id = "S3-${aws_s3_bucket.website.id}"
+
+      cache_policy_id            = "658327ea-f89d-4fab-a63d-7e88639e58f6" # Managed-CachingOptimized
+      response_headers_policy_id = aws_cloudfront_response_headers_policy.staging_noindex.id
+      viewer_protocol_policy     = "redirect-to-https"
+      compress                   = true
+
+      function_association {
+        event_type   = "viewer-request"
+        function_arn = module.dictionary_server.directory_index_function_arn
+      }
     }
   }
 
@@ -283,20 +332,8 @@ resource "aws_cloudfront_distribution" "website" {
     response_headers_policy_id = aws_cloudfront_response_headers_policy.staging_noindex.id
   }
 
-  # SPA routing: serve index.html for client-side routes.
-  custom_error_response {
-    error_code            = 403
-    response_code         = 200
-    response_page_path    = "/index.html"
-    error_caching_min_ttl = 0
-  }
-
-  custom_error_response {
-    error_code            = 404
-    response_code         = 200
-    response_page_path    = "/index.html"
-    error_caching_min_ttl = 0
-  }
+  # No custom_error_response: the app's routes get its shell from the routing function
+  # (../modules/spa-fallback), so every other error reaches the visitor as it was sent.
 
   restrictions {
     geo_restriction {
@@ -333,6 +370,21 @@ resource "aws_s3_bucket_policy" "website" {
             "AWS:SourceArn" = aws_cloudfront_distribution.website.arn
           }
         }
+      },
+      {
+        # Listing lets S3 answer a missing key with 404, not 403: a missing /dataset/ file is
+        # then "absent" to the reader both apps share (isMissingFile), as it was when the SPA
+        # fallback answered it with the app's shell.
+        Sid       = "AllowCloudFrontListForNotFound"
+        Effect    = "Allow"
+        Principal = { Service = "cloudfront.amazonaws.com" }
+        Action    = "s3:ListBucket"
+        Resource  = aws_s3_bucket.website.arn
+        Condition = {
+          StringEquals = {
+            "AWS:SourceArn" = aws_cloudfront_distribution.website.arn
+          }
+        }
       }
     ]
   })
@@ -363,6 +415,11 @@ output "cloudfront_distribution_id" {
 output "cloudfront_domain_name" {
   description = "Staging CloudFront domain name"
   value       = aws_cloudfront_distribution.website.domain_name
+}
+
+output "dictionary_function_name" {
+  description = "The dictionary server's Lambda, set as the STAGING_DICTIONARY_FUNCTION Actions variable"
+  value       = module.dictionary_server.function_name
 }
 
 output "website_url" {
