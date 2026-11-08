@@ -61,9 +61,9 @@ async function answers(source: EntityData, { words, kanjiOrders, minedFor }: { w
 
 describe('httpData', () => {
     it('answers as the checkout does for the same files (fixtures)', async () => {
-        const checkout = checkoutData(FIXTURES);
+        const checkout = checkoutData(FIXTURES, 'en');
         const fetch = siteFetch(FIXTURES, await wordsIndex(checkout));
-        const over = httpData({ datasetUrl, searchIndexUrls: SEARCH, fetch });
+        const over = httpData({ datasetUrl, searchIndexUrls: SEARCH, language: 'en', fetch });
         const asked = { words: ['1589350'], kanjiOrders: ['kklc' as const], minedFor: ['n5-001'] };
 
         expect(await answers(over, asked)).toEqual(await answers(checkout, asked));
@@ -72,9 +72,9 @@ describe('httpData', () => {
     });
 
     it('fetches each index once, however many pages ask', async () => {
-        const checkout = checkoutData(FIXTURES);
+        const checkout = checkoutData(FIXTURES, 'en');
         const fetch = siteFetch(FIXTURES, await wordsIndex(checkout));
-        const over = httpData({ datasetUrl, searchIndexUrls: SEARCH, fetch });
+        const over = httpData({ datasetUrl, searchIndexUrls: SEARCH, language: 'en', fetch });
         await Promise.all([over.wordSummaries(), over.wordSummaries(), over.kanjiList(), over.kanjiList()]);
         const requested = fetch.mock.calls.map(([url]) => url);
         expect(requested.filter(url => url === SEARCH.core)).toHaveLength(1);
@@ -82,16 +82,16 @@ describe('httpData', () => {
     });
 
     it('fails, rather than reading as an empty dictionary, when the search index is missing', async () => {
-        const over = httpData({ datasetUrl, searchIndexUrls: SEARCH, fetch: () => Promise.resolve(SPA_SHELL()) });
+        const over = httpData({ datasetUrl, searchIndexUrls: SEARCH, language: 'en', fetch: () => Promise.resolve(SPA_SHELL()) });
         await expect(over.wordSummaries()).rejects.toThrow(/search-core\.json/);
     });
 
     it('answers as the checkout does for grammar points, over the real published dataset', async () => {
-        const checkout = checkoutData(COMPILED);
+        const checkout = checkoutData(COMPILED, 'en');
         // A point with variants and mined examples, one with neither, and an N1 point.
         const ids = ['n5-001', 'n5-002', 'n4-010', 'n1-001'];
         const fetch = siteFetch(COMPILED, splitSearchIndex([], [], (await Promise.all((await checkout.grammarIds()).map(id => checkout.grammarPoint(id)))).map(searchGrammarRow)));
-        const over = httpData({ datasetUrl, searchIndexUrls: SEARCH, fetch });
+        const over = httpData({ datasetUrl, searchIndexUrls: SEARCH, language: 'en', fetch });
         const grammar = async (source: EntityData) => ({
             points: await Promise.all(ids.map(id => source.grammarPoint(id))),
             summaries: [...(await source.grammarSummaries())].sort(([a], [b]) => a.localeCompare(b)),
@@ -107,7 +107,7 @@ describe('httpData', () => {
 describe('summaries from search rows', () => {
     // Every word and point of the real dataset: the rows a page rendered on request lists other
     // entries from must say exactly what the prerendered pages say.
-    const checkout = checkoutData(COMPILED);
+    const checkout = checkoutData(COMPILED, 'en');
 
     it('gives every word the summary its file gives', async () => {
         for (const id of await checkout.vocabIds()) {

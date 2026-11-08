@@ -5,7 +5,8 @@
 // date anyway. The deploy adds each URL's, the day its page's content last changed, from the
 // deploy manifest (datedSitemap in packages/deploy/src/deployManifest.ts).
 
-import { absoluteUrl, homePath } from './urls';
+import { DEFAULT_LOCALE } from './locale';
+import { absoluteUrl, localeUrls } from './urls';
 import { BASE_PATH } from './site';
 
 /** Site-relative path the generated sitemap is served at. */
@@ -43,7 +44,7 @@ export function shouldEmitRobotsTxt(): boolean {
 
 export function buildRobotsTxt(): string {
     return `User-agent: *
-Allow: ${homePath()}
+Allow: ${localeUrls(DEFAULT_LOCALE).homePath()}
 
 Sitemap: ${absoluteUrl(sitemapPath())}
 `;

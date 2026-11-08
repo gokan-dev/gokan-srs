@@ -8,8 +8,9 @@ import type { Handle, HandleServerError } from '@sveltejs/kit';
 import { renderedPageCacheControl } from '@gokan/deploy/deploy-manifest';
 import { japaneseWithoutLang, renderDocument, stripHydrationMarkers } from '$lib/documentShell';
 import { pageScriptHref, pageStylesheetHref, searchScriptHref, stylesheetHref } from '$lib/server/assets';
+import { htmlLang, isLocaleSegment, localeOfSegment } from '$lib/locale';
 import { errorDocument } from '$lib/server/pages';
-import { UMAMI_WEBSITE_ID } from '$lib/site';
+import { BASE_PATH, UMAMI_WEBSITE_ID } from '$lib/site';
 
 /** Where app.html puts the body: everything before it is SvelteKit's head, which must stay empty. */
 const BODY_MARKER = '<!--gokan:body-->';
@@ -24,9 +25,10 @@ export function documentOf(rendered: string, locals: App.Locals, pathname: strin
     const head = rendered.slice(0, at).trim();
     if (head !== '') throw new Error(`[shell] ${pathname}: SvelteKit wrote ${head.slice(0, 200)} into the head, which the document shell would drop.`);
 
-    const { style, script, ...shell } = document;
+    const { locale, style, script, ...shell } = document;
     const html = renderDocument({
         ...shell,
+        lang: htmlLang(locale),
         ...(style ? { pageStylesheetHref: pageStylesheetHref(style) } : {}),
         ...(script ? { extraScriptHref: pageScriptHref(script) } : {}),
         // Stripped before trimming: SvelteKit's root component leaves a space beside its markers.
@@ -59,7 +61,10 @@ export const handle: Handle = async ({ event, resolve }) => {
  * page gets its document here. A page's own 404 (PageNotFound) already has one (render).
  */
 export const handleError: HandleServerError = ({ event, status, message }) => {
-    event.locals.document ??= errorDocument(status, event.url.pathname);
+    // A path no route matched has no params: its locale is read off the path, as a route would.
+    const { pathname } = event.url;
+    const segment = (pathname.startsWith(`${BASE_PATH}/`) ? pathname.slice(BASE_PATH.length) : pathname).split('/')[1] ?? '';
+    event.locals.document ??= errorDocument(status, event.url.pathname, localeOfSegment(isLocaleSegment(segment) ? segment : undefined));
     if (status >= 500) console.error(`[dictionary] ${event.url.pathname}: ${message}`);
     return { message };
 };

@@ -8,6 +8,8 @@ import { analyticsScriptTag } from '@gokan/analytics';
 import { absoluteUrl, faviconPath } from './urls';
 
 export interface DocumentShellOptions {
+    /** <html lang>: the page's locale as a BCP 47 tag (htmlLang). */
+    lang: string;
     title: string;
     description: string;
     /** Site-relative path, e.g. "/vocab/1589350/" - used for the canonical link and og:url. */
@@ -104,7 +106,7 @@ export function renderDocument(options: DocumentShellOptions): string {
     const description = escapeHtml(options.description);
 
     return `<!doctype html>
-<html lang="en">
+<html lang="${options.lang}">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />

@@ -1,7 +1,9 @@
 <script lang="ts">
   import type { KanjiIndexPageProps as Props } from '../lib/pageProps';
-  import { kanjiOrdersPath, kanjiPath } from '../lib/urls';
+  import { pageLocale } from './pageLocale';
   import PageLayout from './PageLayout.svelte';
+
+  const { urls } = pageLocale();
 
   let { groups }: Props = $props();
 
@@ -14,7 +16,7 @@
   <div class="page-intro">
     <h1>Kanji</h1>
     <p>All {total.toLocaleString('en')} kanji in the dictionary, grouped by JLPT level.</p>
-    <p>Following a kanji book? <a href={kanjiOrdersPath()}>See the words each step of its order unlocks</a>.</p>
+    <p>Following a kanji book? <a href={urls.kanjiOrdersPath()}>See the words each step of its order unlocks</a>.</p>
   </div>
 
   <nav class="level-nav" aria-label="Levels">
@@ -33,7 +35,7 @@
       <h2>{labelOf(group.level)} <span class="meta">{group.kanji.length}</span></h2>
       <ul class="glyph-grid">
         {#each group.kanji as kanji (kanji.character)}
-          <li><a href={kanjiPath(kanji.character)}><span lang="ja">{kanji.character}</span><span class="visually-hidden">, {labelOf(group.level)}</span></a></li>
+          <li><a href={urls.kanjiPath(kanji.character)}><span lang="ja">{kanji.character}</span><span class="visually-hidden">, {labelOf(group.level)}</span></a></li>
         {/each}
       </ul>
     </section>

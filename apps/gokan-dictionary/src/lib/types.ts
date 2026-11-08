@@ -11,6 +11,9 @@ import type {
 /** The site section a page belongs to, marked current in the header nav. */
 export type Section = 'vocab' | 'kanji' | 'grammar';
 
+/** The grammar browse pages' tabs (pages/GrammarTabs.svelte). */
+export type GrammarTab = 'level' | 'families' | 'curriculum' | 'conjugations';
+
 export interface VocabSummary {
     id: string;
     /** The headword (headwordOf): the kanji spelling, or the kana for a word learned in kana. */

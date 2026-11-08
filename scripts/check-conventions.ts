@@ -85,6 +85,14 @@ const ENGLISH_FILE_IMPORT = /\bfrom\s+['"](@gokan\/dataset-schema\/english-file|
 const DICTIONARY_DATA_IMPORT = /\bfrom\s+['"][^'"]*\/dataset\.server['"]|\bimport\(\s*['"][^'"]*\/dataset\.server['"]/;
 const DICTIONARY_SOURCE = /^apps\/gokan-dictionary\/(src|scripts)\/.*\.(ts|svelte)$/;
 const DICTIONARY_DATA_HOLDER = 'apps/gokan-dictionary/src/lib/server/dictionary.ts';
+/**
+ * lib/urls.ts keeps the search script's English links as plain functions, for its bundle to stay
+ * byte for byte (#206). Every other link is built for a locale (localeUrls), so a page, a
+ * component or the server importing one of these would link to English whatever its locale.
+ */
+const ENGLISH_SEARCH_LINKS = new Set(['vocabJlptPath', 'vocabPath', 'kanjiPath', 'grammarPath', 'searchPath']);
+const URLS_IMPORT = /\bimport\s*(?:type\s*)?\{([^}]*)\}\s*from\s*['"][^'"]*\/urls['"]/g;
+const DICTIONARY_CLIENT = /^apps\/gokan-dictionary\/src\/client\//;
 const ENGLISH_FILE_SOURCE = /^(apps\/(gokan-srs|gokan-dictionary)\/(src|scripts)\/.*\.(tsx?|svelte)|scripts\/.*\.ts|apps\/gokan-srs\/vite\.config\.ts)$/;
 
 /**
@@ -386,6 +394,20 @@ function check(files: string[]): Violation[] {
         if (DICTIONARY_SOURCE.test(file) && file !== DICTIONARY_DATA_HOLDER && !file.endsWith('.test.ts')) {
             eachLine(text, l => DICTIONARY_DATA_IMPORT.test(l), line =>
                 add({ file, line, rule: 'dictionary-data', message: 'Only lib/server/dictionary.ts (and tests) import lib/dataset.server.ts. A page reads the dataset through the DictionaryData it chooses (lib/types.ts), never a loader.' }));
+        }
+
+        if (DICTIONARY_SOURCE.test(file) && !DICTIONARY_CLIENT.test(file)) {
+            for (const match of text.matchAll(URLS_IMPORT)) {
+                const names = match[1].split(',').map(name => name.trim().split(/\s+as\s+/)[0]);
+                const english = names.filter(name => ENGLISH_SEARCH_LINKS.has(name));
+                if (english.length === 0) continue;
+                add({
+                    file,
+                    line: text.slice(0, match.index).split('\n').length,
+                    rule: 'locale-links',
+                    message: `${english.join(', ')} from lib/urls.ts are the search script's English links (client/ only). Build a page's links for its locale: localeUrls(locale), or pageLocale().urls in a component.`,
+                });
+            }
         }
 
         if (ENGLISH_FILE_SOURCE.test(file)) {

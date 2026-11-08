@@ -1,87 +1,9 @@
-// Pure per-page SEO metadata builders. Kept separate from the Svelte components so they're
-// trivially unit-testable without rendering anything, and separate from documentShell.ts
-// (which only knows how to wrap an already-decided {title, description} into HTML).
+// Text tools the titles and descriptions are written with (lib/messages): shortening, casing, and
+// a grammar pattern or explanation as a learner searches it. Kept apart from the catalogs so each
+// is tested once, whatever locale writes with it.
 
-import { headwordOf, secondaryForm } from '@gokan/dataset-schema';
-import type { GrammarChapter, GrammarPoint, Kanji, KanjiOrder, Vocabulary } from '@gokan/dataset-schema';
-import { countLabel } from './counts';
-import { SITE_NAME } from './site';
-
-export interface PageMeta {
-    title: string;
-    description: string;
-}
-
-const JLPT_LABEL = (level: number) => `N${level}`;
-
-// Titles lead with the words a learner types ("思う meaning", "を問わず meaning", "て-form
-// conjugation") and put the English meaning on the result line itself: Search Console showed
-// the old Japanese-only titles surfacing almost solely for Japanese-language queries, where
-// the big Japanese dictionaries win. Everything past ~60 chars may be cut, so the site name
-// goes last.
-const TITLE_MEANING_LENGTH = 40;
-
-export function vocabMeta(vocab: Vocabulary): PageMeta {
-    const meaning = vocab.senses[0]?.glosses.slice(0, 2).join(', ');
-    const jlpt = vocab.jlptLevel ? ` | JLPT ${JLPT_LABEL(vocab.jlptLevel)}` : '';
-    // "思う (おもう)", or "ここ (此処)" for a word learned in kana: both spellings stay searchable.
-    const label = `${headwordOf(vocab)} (${secondaryForm(vocab)})`;
-
-    const title = meaning
-        ? `${label} meaning: ${truncate(meaning, TITLE_MEANING_LENGTH)}${jlpt} - ${SITE_NAME}`
-        : `${label} meaning${jlpt} - ${SITE_NAME}`;
-    const description = meaning
-        ? `${label} means "${meaning}" in English. Readings, every meaning, JLPT level, and example sentences with each word linked.`
-        : `${label}: Japanese dictionary entry with readings, meanings, and example sentences.`;
-
-    return { title, description };
-}
-
-export function kanjiMeta(kanji: Kanji, vocabCount: number): PageMeta {
-    const jlpt = kanji.steps.jlpt ? ` (JLPT ${JLPT_LABEL(kanji.steps.jlpt)})` : '';
-    // Searched as "学 kanji meaning": the character, the word "kanji", then what it means.
-    const meaning = kanji.meanings.slice(0, 3).join(', ');
-    const title = meaning
-        ? `${kanji.character} kanji meaning: ${truncate(meaning, TITLE_MEANING_LENGTH)}${jlpt} - ${SITE_NAME}`
-        : `${kanji.character} kanji${jlpt} - ${SITE_NAME}`;
-
-    // Readings as typed into a search box: まな.ぶ is まなぶ, a suffix reading's dash dropped.
-    const readings = [...new Set([...kanji.readings.on, ...kanji.readings.kun.map(reading => reading.replace(/[.-]/g, ''))])].slice(0, 4);
-    const opening = meaning ? `The kanji ${kanji.character} means "${meaning}"` : `The kanji ${kanji.character}`;
-    const read = readings.length > 0 ? `, read ${readings.join(', ')}` : '';
-    const strokes = countLabel(kanji.strokeCount, 'stroke');
-    const words = vocabCount > 0 ? `, and the ${vocabCount} word${vocabCount === 1 ? ' that uses' : 's that use'} it` : '';
-    const description = `${opening}${read}. Its ${strokes}, components and readings${words}.`;
-
-    return { title, description };
-}
-
-export function grammarMeta(point: GrammarPoint): PageMeta {
-    const level = `JLPT ${JLPT_LABEL(point.jlptLevel)} grammar`;
-    let title: string;
-    if (point.kind === 'inflection' && point.derives) {
-        // A conjugation is searched by its name ("causative form", "te-form"), not its pattern.
-        title = `${sentenceCase(point.derives)} conjugation and usage | ${level} - ${SITE_NAME}`;
-    } else {
-        const pattern = searchablePattern(point.title) || point.title;
-        const romaji = point.romaji ? searchablePattern(point.romaji) : '';
-        const gloss = quotedGlosses(point.shortExplanation);
-        const label = romaji ? `${pattern} (${romaji})` : pattern;
-        title = gloss
-            ? `${label} meaning: ${truncate(gloss, TITLE_MEANING_LENGTH)} | ${level} - ${SITE_NAME}`
-            : `${label} meaning and usage | ${level} - ${SITE_NAME}`;
-    }
-
-    // The short explanation is already a one-line summary written for a learner, so it makes a
-    // better meta description than anything synthesised from the other fields. Trimmed to keep
-    // the whole description inside the ~155 chars Google typically renders.
-    const summary = point.shortExplanation.replace(/\s+/g, ' ').trim();
-    const description = `${point.title}: ${truncate(summary, 120)} JLPT ${JLPT_LABEL(point.jlptLevel)} Japanese grammar with formation and example sentences.`;
-
-    return { title, description };
-}
-
-function truncate(value: string, maxLength: number): string {
+/** `value` cut to `maxLength`, an ellipsis marking the cut. */
+export function truncate(value: string, maxLength: number): string {
     if (value.length <= maxLength) return value;
     return `${value.slice(0, maxLength - 1).trimEnd()}…`;
 }
@@ -127,120 +49,18 @@ export function quotedGlosses(explanation: string): string | undefined {
     return glosses.length > 0 ? glosses.join(', ') : undefined;
 }
 
-export function grammarIndexMeta(pointCount: number): PageMeta {
-    return {
-        title: `Japanese Grammar Points by JLPT Level - ${SITE_NAME}`,
-        description: `All ${pointCount} Japanese grammar points, organized from JLPT N5 to N1, each with its formation pattern, explanation, and example sentences.`,
-    };
-}
 
-export function grammarChaptersIndexMeta(chapterCount: number, pointCount: number): PageMeta {
-    return {
-        title: `Japanese Grammar Curriculum - ${chapterCount} Chapters - ${SITE_NAME}`,
-        description: `The full JLPT N5-N1 grammar teaching order: ${chapterCount} chapters covering ${pointCount} grammar points, grouped the way they are actually taught together.`,
-    };
-}
 
-export function grammarChapterMeta(chapter: GrammarChapter): PageMeta {
-    const title = `${chapter.title} - Grammar Chapter ${chapter.jlptLevel ? `(N${chapter.jlptLevel})` : ''} - ${SITE_NAME}`;
-    const summary = chapter.summary.replace(/\s+/g, ' ').trim();
-    const description = `${chapter.title}: ${truncate(summary, 120)} ${countLabel(chapter.points.length, 'grammar point')} taught together in this chapter.`;
 
-    return { title, description };
-}
 
-export function grammarFamilyMeta(familyName: string, memberCount: number): PageMeta {
-    return {
-        title: `${familyName} - Japanese Grammar Comparison - ${SITE_NAME}`,
-        description: `${familyName}: ${memberCount} related Japanese grammar points compared side by side, with guidance on which one to reach for and why.`,
-    };
-}
 
-export function grammarConjugationsIndexMeta(formCount: number, pointCount: number): PageMeta {
-    return {
-        title: `Japanese Verb and Adjective Conjugation Reference - ${SITE_NAME}`,
-        description: `${formCount} conjugation forms across ${pointCount} inflection patterns (te-form, potential, causative, and more), each with a full table of example verbs and adjectives.`,
-    };
-}
 
-export function kanjiIndexMeta(kanjiCount: number): PageMeta {
-    return {
-        title: `Kanji List by JLPT Level - ${SITE_NAME}`,
-        description: `All ${kanjiCount.toLocaleString()} kanji, grouped by JLPT level, each with its KKLC step and the vocabulary that uses it.`,
-    };
-}
 
-export function kanjiOrdersMeta(orders: readonly KanjiOrder[]): PageMeta {
-    const named = orders.slice(0, 2).map(order => order.label).join(', ');
-    return {
-        title: `Vocabulary by kanji learning order: ${named} and more - ${SITE_NAME}`,
-        description: `${orders.length} kanji learning orders, ${named} among them, with the words you can read at each step: every word listed at the step of its last kanji.`,
-    };
-}
 
-export function kanjiOrderMeta(order: KanjiOrder, kanjiCount: number, wordCount: number): PageMeta {
-    const name = order.searchName;
-    return {
-        title: `${name} vocabulary list by kanji step - ${SITE_NAME}`,
-        description: `${name} (${order.description}): ${kanjiCount.toLocaleString('en')} kanji in steps of 100, and the ${countLabel(wordCount, 'word')} you can read after each, every word at the step of its last kanji.`,
-    };
-}
 
-/** A range page's heading, and its title without the site name: the two say the same thing. */
-export function kanjiRangeHeading(order: KanjiOrder, range: { first: number; last: number }): string {
-    return `${order.searchName} vocabulary: words you can read after kanji ${range.first} to ${range.last}`;
-}
 
-export function kanjiRangeMeta(order: KanjiOrder, range: { first: number; last: number }, wordCount: number): PageMeta {
-    const name = order.searchName;
-    const kanjiCount = range.last - range.first + 1;
-    return {
-        title: `${kanjiRangeHeading(order, range)} - ${SITE_NAME}`,
-        description: `The ${kanjiCount} kanji of ${name} steps ${range.first} to ${range.last} and the ${countLabel(wordCount, 'word')} they unlock, under the kanji that completes each, most frequent first, with readings and meanings.`,
-    };
-}
 
-export function vocabIndexMeta(vocabCount: number): PageMeta {
-    return {
-        title: `Japanese Vocabulary Dictionary - ${SITE_NAME}`,
-        description: `${vocabCount.toLocaleString()} Japanese words with readings, English meanings, JLPT levels, and example sentences. Browse by JLPT level or search.`,
-    };
-}
 
-/** A JLPT list page; pages after the first say which page they are, so their titles stay distinct. */
-export function vocabJlptMeta(level: number, wordCount: number, page = 1): PageMeta {
-    const pageLabel = page > 1 ? `, page ${page}` : '';
-    return {
-        title: `JLPT N${level} Vocabulary List (${wordCount.toLocaleString('en')} words)${pageLabel} - ${SITE_NAME}`,
-        description: `The complete JLPT N${level} vocabulary list${pageLabel}: ${wordCount.toLocaleString('en')} words ordered by frequency, each with its reading, English meaning, and example sentences.`,
-    };
-}
 
-export function grammarFamiliesIndexMeta(familyCount: number): PageMeta {
-    return {
-        title: `Japanese Grammar Families: Near-Synonyms Compared - ${SITE_NAME}`,
-        description: `${familyCount} groups of Japanese grammar near-synonyms, such as でも, しかし and けれども, each compared on its own page.`,
-    };
-}
 
-/** The search results page: kept out of search engines (noindex), but it still needs a title. */
-export function searchMeta(): PageMeta {
-    return {
-        title: `Search - ${SITE_NAME}`,
-        description: 'Search the Japanese dictionary in kanji, kana, romaji or English.',
-    };
-}
 
-/** A page that could not be shown: no such page (404), or a failure (any other status). Never indexed. */
-export function errorMeta(status: number): PageMeta {
-    return status === 404
-        ? { title: `Page not found - ${SITE_NAME}`, description: 'There is no page at this address in the Japanese dictionary.' }
-        : { title: `Page unavailable - ${SITE_NAME}`, description: 'This page of the Japanese dictionary could not be shown.' };
-}
-
-export function homeMeta(): PageMeta {
-    return {
-        title: `${SITE_NAME} - Japanese Dictionary with Example Sentences`,
-        description: 'Free Japanese dictionary: look up any word, kanji, or grammar point. Readings, English meanings, JLPT levels, and real example sentences with every word linked.',
-    };
-}

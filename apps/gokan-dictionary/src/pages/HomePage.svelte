@@ -1,10 +1,12 @@
 <script lang="ts">
   import type { HomePageProps as Props } from '../lib/pageProps';
-  import { grammarIndexPath, kanjiIndexPath, kanjiOrdersPath, vocabIndexPath } from '../lib/urls';
+  import { pageLocale } from './pageLocale';
   import { SITE_ORIGIN } from '../lib/site';
   import PageLayout from './PageLayout.svelte';
   import SearchBox from './SearchBox.svelte';
   import VocabEntryList from './VocabEntryList.svelte';
+
+  const { urls } = pageLocale();
 
   let { vocabCount, kanjiCount, grammarCount, sentenceCount, featured }: Props = $props();
 </script>
@@ -21,28 +23,28 @@
     <h2>Browse</h2>
     <ul class="tiles" style="--tiles: 2">
       <li>
-        <a class="tile" href={vocabIndexPath()}>
+        <a class="tile" href={urls.vocabIndexPath()}>
           <span class="tile-title">Vocabulary</span>
           <span class="tile-meta">By JLPT level</span>
           <span class="tile-blurb">Readings, meanings, forms and example sentences.</span>
         </a>
       </li>
       <li>
-        <a class="tile" href={kanjiIndexPath()}>
+        <a class="tile" href={urls.kanjiIndexPath()}>
           <span class="tile-title">Kanji</span>
           <span class="tile-meta">{kanjiCount.toLocaleString('en')} characters</span>
           <span class="tile-blurb">The words that use each character.</span>
         </a>
       </li>
       <li>
-        <a class="tile" href={kanjiOrdersPath()}>
+        <a class="tile" href={urls.kanjiOrdersPath()}>
           <span class="tile-title">Kanji learning orders</span>
           <span class="tile-meta">KKLC, RTK and more</span>
           <span class="tile-blurb">The words you can read at each step of your kanji book.</span>
         </a>
       </li>
       <li>
-        <a class="tile" href={grammarIndexPath()}>
+        <a class="tile" href={urls.grammarIndexPath()}>
           <span class="tile-title">Grammar</span>
           <span class="tile-meta">{grammarCount.toLocaleString('en')} points</span>
           <span class="tile-blurb">Patterns, explanations and worked examples.</span>

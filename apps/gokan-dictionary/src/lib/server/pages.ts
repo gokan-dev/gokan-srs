@@ -9,8 +9,6 @@
 
 import { headwordOf, JLPT_LEVELS, KANJI_ORDERS, kanjiStepIndex } from '@gokan/dataset-schema';
 import type { GrammarPoint, Kanji, KanjiOrder, KanjiOrderId, KanjiOrderList } from '@gokan/dataset-schema';
-
-
 import { buildChapterIndexRows, buildChapterLocatorIndex } from '../grammarChapters';
 import { conjugationTables } from '../grammarConjugations';
 import { buildFamilyPages } from '../grammarFamilies';
@@ -19,17 +17,11 @@ import { buildVariantSiblings } from '../grammarVariants';
 import { kanjiRanges, WORDS_PER_KANJI, type KanjiRange } from '../kanjiOrders';
 import { JLPT_PAGE_SIZE, paginate } from '../pagination';
 import { searchGrammarRow, searchKanjiRow, searchWordRow, splitSearchIndex } from '../searchIndex';
-import {
-    grammarChapterMeta, grammarChaptersIndexMeta, grammarConjugationsIndexMeta, grammarFamiliesIndexMeta, grammarFamilyMeta, grammarIndexMeta, grammarMeta,
-    errorMeta, homeMeta, kanjiIndexMeta, kanjiMeta, kanjiOrderMeta, kanjiOrdersMeta, kanjiRangeMeta, searchMeta, vocabIndexMeta, vocabJlptMeta, vocabMeta, type PageMeta,
-} from '../seo';
+import type { ServedLocale } from '../locale';
+import { messagesFor, type PageMeta } from '../messages';
 import { orderSentences } from '../sentenceOrder';
 import type { DictionaryData, EntityData, GrammarSummary, SearchIndexFile, SearchWordRow, VocabSummary } from '../types';
-import {
-    grammarChapterPath, grammarChaptersIndexPath, grammarConjugationsIndexPath, grammarFamiliesIndexPath, grammarFamilyPath, grammarIndexPath, grammarPath,
-    homePath, kanjiIndexPath, kanjiOrderPath, kanjiOrderSlug, kanjiOrdersPath, kanjiPath, kanjiRangePath, kanjiRangeSlug, searchPath, vocabIndexPath,
-    vocabJlptPath, vocabPath,
-} from '../urls';
+import { kanjiOrderSlug, kanjiRangeSlug, localeUrls } from '../urls';
 import type { PageScript, PageStyle } from './assets';
 import type {
     GrammarChapterPageProps, GrammarChaptersIndexPageProps, GrammarConjugationsIndexPageProps, GrammarFamiliesIndexPageProps, GrammarFamilyPageProps, GrammarIndexPageProps, GrammarPageProps, HomePageProps, KanjiIndexPageProps, KanjiOrderPageProps, KanjiOrdersPageProps, KanjiPageProps, KanjiRangePageProps, VocabIndexPageProps, VocabJlptPageProps, VocabPageProps,
@@ -47,6 +39,8 @@ const FEATURED_WORDS = 12;
  * hook resolves them to the built files.
  */
 export interface PageDocument {
+    /** The page's language: <html lang>. */
+    locale: ServedLocale;
     title: string;
     description: string;
     /** Site-relative, with the base path: the canonical link and og:url. */
@@ -67,9 +61,9 @@ export interface Rendered<Props> {
 export class PageNotFound extends Error {}
 
 /** The document of a page that could not be shown (ErrorPage.svelte): never indexed. */
-export function errorDocument(status: number, pathname: string): PageDocument {
-    const meta = errorMeta(status);
-    return { title: meta.title, description: meta.description, canonicalPath: pathname, noindex: true };
+export function errorDocument(status: number, pathname: string, locale: ServedLocale): PageDocument {
+    const meta = messagesFor(locale).meta.error(status);
+    return { locale, title: meta.title, description: meta.description, canonicalPath: pathname, noindex: true };
 }
 
 /** Built on first use, then kept: every caller shares the one promise. */
@@ -78,8 +72,15 @@ function once<T>(build: () => Promise<T>): () => Promise<T> {
     return () => (value ??= build());
 }
 
-function documentOf(canonicalPath: string, meta: PageMeta, options: Pick<PageDocument, 'style' | 'script' | 'structuredData' | 'noindex'> = {}): PageDocument {
-    return { title: meta.title, description: meta.description, canonicalPath, ...options };
+/** What a locale's pages are written with: its paths, its titles and descriptions, and its documents. */
+function writtenIn(locale: ServedLocale) {
+    return {
+        urls: localeUrls(locale),
+        meta: messagesFor(locale).meta,
+        documentOf: (canonicalPath: string, meta: PageMeta, options: Pick<PageDocument, 'style' | 'script' | 'structuredData' | 'noindex'> = {}): PageDocument => (
+            { locale, title: meta.title, description: meta.description, canonicalPath, ...options }
+        ),
+    };
 }
 
 /** Resolves related-vocab ids to summaries; an id with no word file is left out. */
@@ -116,14 +117,15 @@ export type EntityPages = ReturnType<typeof entityPagesOf>;
  * entries, come from the summary indexes (every word, every grammar point), never from reading
  * every file: a page rendered on request reads its own entity's files and those indexes only.
  */
-export function entityPagesOf(source: EntityData, indexes: EntityIndexes = entityIndexesOf(source)) {
+export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes: EntityIndexes = entityIndexesOf(source)) {
     const { summaries, grammarSummaries, kanjiByCharacter, kanjiVocabIndex, kanjiOrderLists, grammarIndexes } = indexes;
+    const { urls, meta, documentOf } = writtenIn(locale);
 
     async function vocabPage(id: string): Promise<Rendered<VocabPageProps>> {
         const summaryById = await summaries();
         if (!summaryById.has(id)) throw new PageNotFound(`no word ${id}`);
         const [vocab, allSentences] = await Promise.all([source.vocab(id), source.sentencesFor(id)]);
-        const meta = vocabMeta(vocab);
+        const vocabMeta = meta.vocab(vocab);
         return {
             props: {
                 vocab,
@@ -131,9 +133,9 @@ export function entityPagesOf(source: EntityData, indexes: EntityIndexes = entit
                 parents: resolveSummaries(vocab.parents ?? [], summaryById),
                 sentences: orderSentences(allSentences ?? [], id, headwordOf(vocab)),
             },
-            document: documentOf(vocabPath(id), meta, {
+            document: documentOf(urls.vocabPath(id), vocabMeta, {
                 style: 'vocab',
-                structuredData: { '@context': 'https://schema.org', '@type': 'DefinedTerm', name: headwordOf(vocab), description: meta.description },
+                structuredData: { '@context': 'https://schema.org', '@type': 'DefinedTerm', name: headwordOf(vocab), description: vocabMeta.description },
             }),
         };
     }
@@ -152,7 +154,7 @@ export function entityPagesOf(source: EntityData, indexes: EntityIndexes = entit
                 // A kanji page links each book position to its range page, which needs the order's length.
                 orderLengths: new Map(orders.map(({ order, list: orderList }) => [order.id, orderList.length])),
             },
-            document: documentOf(kanjiPath(kanji.character), kanjiMeta(kanji, words.length), { style: 'kanji' }),
+            document: documentOf(urls.kanjiPath(kanji.character), meta.kanji(kanji, words.length), { style: 'kanji' }),
         };
     }
 
@@ -175,7 +177,7 @@ export function entityPagesOf(source: EntityData, indexes: EntityIndexes = entit
                 minedExamples: minedExamplesPool.slice(0, MAX_MINED_EXAMPLES),
                 minedExamplesTotalCount: minedExamplesPool.length,
             },
-            document: documentOf(grammarPath(id), grammarMeta(point), {
+            document: documentOf(urls.grammarPath(id), meta.grammar(point), {
                 style: 'grammar',
                 structuredData: {
                     '@context': 'https://schema.org',
@@ -191,10 +193,12 @@ export function entityPagesOf(source: EntityData, indexes: EntityIndexes = entit
     return { vocabPage, kanjiPage, grammarPage };
 }
 
-/** Every page the site has, over one source of the whole dataset. */
+/** Every page the site has in one locale, over one source of the whole dataset (read in its language). */
 export type Pages = ReturnType<typeof pagesOf>;
 
-export function pagesOf(source: DictionaryData) {
+export function pagesOf(source: DictionaryData, locale: ServedLocale) {
+    const { urls, meta, documentOf } = writtenIn(locale);
+
     // -------------------------------------------------------------------------- shared indexes
 
     const indexes = entityIndexesOf(source);
@@ -260,20 +264,20 @@ export function pagesOf(source: DictionaryData) {
         // The filter (client/grammarFilter.ts) works over these rows.
         return {
             props: { groups: groupByLevel((await pointsInOrder()).map(grammarSummaryOf)), total: points.size },
-            document: documentOf(grammarIndexPath(), grammarIndexMeta(points.size), { style: 'grammarIndex', script: 'grammarFilter' }),
+            document: documentOf(urls.grammarIndexPath(), meta.grammarIndex(points.size), { style: 'grammarIndex', script: 'grammarFilter' }),
         };
     }
 
     async function grammarFamiliesIndexPage(): Promise<Rendered<GrammarFamiliesIndexPageProps>> {
         const families = await familyPages();
-        return { props: { families }, document: documentOf(grammarFamiliesIndexPath(), grammarFamiliesIndexMeta(families.length), { style: 'grammarFamily' }) };
+        return { props: { families }, document: documentOf(urls.grammarFamiliesIndexPath(), meta.grammarFamiliesIndex(families.length), { style: 'grammarFamily' }) };
     }
 
     /** One near-synonym family, comparing its members: an "X vs Y grammar" page no single point's can be. */
     async function grammarFamilyPage(id: string): Promise<Rendered<GrammarFamilyPageProps>> {
         const family = (await familyPages()).find(candidate => candidate.id === id);
         if (family === undefined) throw new PageNotFound(`no grammar family ${id}`);
-        return { props: { family }, document: documentOf(grammarFamilyPath(family.id), grammarFamilyMeta(family.name, family.members.length), { style: 'grammarFamily' }) };
+        return { props: { family }, document: documentOf(urls.grammarFamilyPath(family.id), meta.grammarFamily(family.name, family.members.length), { style: 'grammarFamily' }) };
     }
 
     async function grammarChaptersIndexPage(): Promise<Rendered<GrammarChaptersIndexPageProps>> {
@@ -281,7 +285,7 @@ export function pagesOf(source: DictionaryData) {
         const { teachingOrder } = await grammarIndexes();
         return {
             props: { groups: groupByLevel(rows), chapterCount: rows.length },
-            document: documentOf(grammarChaptersIndexPath(), grammarChaptersIndexMeta(rows.length, teachingOrder.order.length), { style: 'grammarChapters' }),
+            document: documentOf(urls.grammarChaptersIndexPath(), meta.grammarChaptersIndex(rows.length, teachingOrder.order.length), { style: 'grammarChapters' }),
         };
     }
 
@@ -300,7 +304,7 @@ export function pagesOf(source: DictionaryData) {
                 previous: previous ? { id: previous.id, title: previous.title } : null,
                 next: next ? { id: next.id, title: next.title } : null,
             },
-            document: documentOf(grammarChapterPath(id), grammarChapterMeta(teachingOrder.chapters[index]), { style: 'grammarChapters' }),
+            document: documentOf(urls.grammarChapterPath(id), meta.grammarChapter(teachingOrder.chapters[index]), { style: 'grammarChapters' }),
         };
     }
 
@@ -311,8 +315,8 @@ export function pagesOf(source: DictionaryData) {
         return {
             props: { tables: conjugationTables(conjugationIndex, await grammarPoints()), formCount },
             document: documentOf(
-                grammarConjugationsIndexPath(),
-                grammarConjugationsIndexMeta(new Set(Object.values(conjugationIndex).map(entry => entry.form)).size, formCount),
+                urls.grammarConjugationsIndexPath(),
+                meta.grammarConjugationsIndex(new Set(Object.values(conjugationIndex).map(entry => entry.form)).size, formCount),
                 { style: 'grammarConjugations' },
             ),
         };
@@ -326,12 +330,12 @@ export function pagesOf(source: DictionaryData) {
             ...JLPT_LEVELS.map(level => ({ level, kanji: list.filter(kanji => kanji.steps.jlpt === level) })),
             { level: null, kanji: list.filter(kanji => kanji.steps.jlpt === undefined) },
         ].filter(group => group.kanji.length > 0);
-        return { props: { groups }, document: documentOf(kanjiIndexPath(), kanjiIndexMeta(list.length), { style: 'kanjiIndex' }) };
+        return { props: { groups }, document: documentOf(urls.kanjiIndexPath(), meta.kanjiIndex(list.length), { style: 'kanjiIndex' }) };
     }
 
     async function kanjiOrdersPage(): Promise<Rendered<KanjiOrdersPageProps>> {
         const orders = [...(await orderRanges()).values()].map(({ order, list, ranges }) => ({ order, kanjiCount: list.length, wordCount: wordCountOf(ranges) }));
-        return { props: { orders }, document: documentOf(kanjiOrdersPath(), kanjiOrdersMeta(KANJI_ORDERS)) };
+        return { props: { orders }, document: documentOf(urls.kanjiOrdersPath(), meta.kanjiOrders(KANJI_ORDERS)) };
     }
 
     /** One learning order: the words each step unlocks, in ranges of steps. */
@@ -340,7 +344,7 @@ export function pagesOf(source: DictionaryData) {
         const wordCount = wordCountOf(ranges);
         return {
             props: { order, ranges, kanjiCount: list.length, wordCount },
-            document: documentOf(kanjiOrderPath(order.id), kanjiOrderMeta(order, list.length, wordCount), { style: 'kanjiOrders' }),
+            document: documentOf(urls.kanjiOrderPath(order.id), meta.kanjiOrder(order, list.length, wordCount), { style: 'kanjiOrders' }),
         };
     }
 
@@ -362,7 +366,7 @@ export function pagesOf(source: DictionaryData) {
                 wordCount: range.wordCount,
                 ranges: ranges.map(({ first, last }) => ({ first, last })),
             },
-            document: documentOf(kanjiRangePath(order.id, range), kanjiRangeMeta(order, range, range.wordCount), { style: 'kanjiOrders' }),
+            document: documentOf(urls.kanjiRangePath(order.id, range), meta.kanjiRange(order, range, range.wordCount), { style: 'kanjiOrders' }),
         };
     }
 
@@ -385,7 +389,7 @@ export function pagesOf(source: DictionaryData) {
                 firstRank: (page - 1) * JLPT_PAGE_SIZE + 1,
                 allLevels: levels.map(group => group.level),
             },
-            document: documentOf(vocabJlptPath(level, page), vocabJlptMeta(level, words.length, page)),
+            document: documentOf(urls.vocabJlptPath(level, page), meta.vocabJlpt(level, words.length, page)),
         };
     }
 
@@ -393,13 +397,13 @@ export function pagesOf(source: DictionaryData) {
         const totalCount = (await vocabIds()).length;
         return {
             props: { levels: (await jlptLevelWords()).map(({ level, words }) => ({ level, count: words.length })), totalCount },
-            document: documentOf(vocabIndexPath(), vocabIndexMeta(totalCount)),
+            document: documentOf(urls.vocabIndexPath(), meta.vocabIndex(totalCount)),
         };
     }
 
     /** No props: the results are found in the browser (client/search.ts). */
     function searchPage(): Rendered<Record<string, never>> {
-        return { props: {}, document: documentOf(searchPath(), searchMeta(), { noindex: true }) };
+        return { props: {}, document: documentOf(urls.searchPath(), meta.search(), { noindex: true }) };
     }
 
     async function homePage(): Promise<Rendered<HomePageProps>> {
@@ -414,7 +418,7 @@ export function pagesOf(source: DictionaryData) {
                 // easiest level is the closest thing the dataset has to "words a visitor will know".
                 featured: (levels.find(group => group.level === 5)?.words ?? []).slice(0, FEATURED_WORDS),
             },
-            document: documentOf(homePath(), homeMeta(), { style: 'home' }),
+            document: documentOf(urls.homePath(), meta.home(), { style: 'home' }),
         };
     }
 
@@ -453,26 +457,26 @@ export function pagesOf(source: DictionaryData) {
             vocabIds(), kanjiList(), grammarPoints(), familyPages(), chapterRows(), orderRanges(), jlptLevelWords(),
         ]);
         return [
-            homePath(),
-            ...ids.map(vocabPath),
-            ...list.map(kanji => kanjiPath(kanji.character)),
-            ...[...points.keys()].map(grammarPath),
-            grammarIndexPath(),
-            grammarFamiliesIndexPath(),
-            ...families.map(family => grammarFamilyPath(family.id)),
-            grammarChaptersIndexPath(),
-            ...chapters.map(chapter => grammarChapterPath(chapter.id)),
-            grammarConjugationsIndexPath(),
-            kanjiIndexPath(),
-            ...[...orders.values()].flatMap(({ order, ranges }) => [kanjiOrderPath(order.id), ...ranges.map(range => kanjiRangePath(order.id, range))]),
-            kanjiOrdersPath(),
-            ...levels.flatMap(({ level, words }) => paginate(words, JLPT_PAGE_SIZE).map((_, index) => vocabJlptPath(level, index + 1))),
-            vocabIndexPath(),
+            urls.homePath(),
+            ...ids.map(id => urls.vocabPath(id)),
+            ...list.map(kanji => urls.kanjiPath(kanji.character)),
+            ...[...points.keys()].map(id => urls.grammarPath(id)),
+            urls.grammarIndexPath(),
+            urls.grammarFamiliesIndexPath(),
+            ...families.map(family => urls.grammarFamilyPath(family.id)),
+            urls.grammarChaptersIndexPath(),
+            ...chapters.map(chapter => urls.grammarChapterPath(chapter.id)),
+            urls.grammarConjugationsIndexPath(),
+            urls.kanjiIndexPath(),
+            ...[...orders.values()].flatMap(({ order, ranges }) => [urls.kanjiOrderPath(order.id), ...ranges.map(range => urls.kanjiRangePath(order.id, range))]),
+            urls.kanjiOrdersPath(),
+            ...levels.flatMap(({ level, words }) => paginate(words, JLPT_PAGE_SIZE).map((_, index) => urls.vocabJlptPath(level, index + 1))),
+            urls.vocabIndexPath(),
         ];
     }
 
     return {
-        ...entityPagesOf(source, indexes),
+        ...entityPagesOf(source, locale, indexes),
         grammarIndexPage,
         grammarFamiliesIndexPage,
         grammarFamilyPage,

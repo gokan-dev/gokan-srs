@@ -11,6 +11,7 @@ import type {
     Vocabulary,
 } from '@gokan/dataset-schema';
 import { DATASET_PATHS } from '../datasetPaths';
+import type { DatasetLanguage } from '../locale';
 import { grammarSummaryOfRow } from '../grammarBrowse';
 import { fromColumns } from '../searchIndex';
 import type { EntityData, GrammarSummary, SearchIndexFile, VocabSummary } from '../types';
@@ -21,8 +22,13 @@ export interface HttpDataOptions {
     datasetUrl: (path: string) => string;
     /** The search index's two files (searchIndexPaths), as absolute URLs. */
     searchIndexUrls: { core: string; full: string };
+    /** The language of the dataset's text the files are read in. */
+    language: DatasetLanguage;
     fetch?: (url: string) => Promise<Response>;
 }
+
+/** Each language's reader of the published dataset: English is the one the dataset projects today. */
+const READERS: Record<DatasetLanguage, typeof publishedDatasetReader> = { en: publishedDatasetReader };
 
 /** Built on first use, then kept; a load that fails is dropped, so the next page retries it. */
 function kept<T>(load: () => Promise<T>): () => Promise<T> {
@@ -38,8 +44,8 @@ function kept<T>(load: () => Promise<T>): () => Promise<T> {
     };
 }
 
-export function httpData({ datasetUrl, searchIndexUrls, fetch: fetchFile = url => fetch(url) }: HttpDataOptions): EntityData {
-    const dataset = publishedDatasetReader({ url: datasetUrl, fetch: fetchFile });
+export function httpData({ datasetUrl, searchIndexUrls, language, fetch: fetchFile = url => fetch(url) }: HttpDataOptions): EntityData {
+    const dataset = READERS[language]({ url: datasetUrl, fetch: fetchFile });
     const file = <T>(path: string) => dataset.file<T>(path);
 
     /** One of the site's own files: the search index. Its absence is an error, never "no words". */

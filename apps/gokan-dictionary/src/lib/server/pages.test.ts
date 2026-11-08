@@ -4,8 +4,10 @@ import { grammarPoint, kanji, sentence, vocabulary } from '../../test/fixtures';
 import type { DictionaryData } from '../types';
 import { grammarSummaryOf } from '../grammarBrowse';
 import { vocabSummaryFrom } from '../vocabSummary';
-import { grammarIndexPath, homePath, kanjiIndexPath, kanjiOrderSlug, kanjiPath, vocabIndexPath, vocabJlptPath, vocabPath } from '../urls';
+import { kanjiOrderSlug, localeUrls } from '../urls';
 import { PageNotFound, pagesOf } from './pages';
+
+const urls = localeUrls('en');
 
 interface World {
     words: Vocabulary[];
@@ -64,15 +66,15 @@ const kangaeru = vocabulary({ id: '1281390', writtenForm: { kanji: '考える', 
 
 describe('pagesOf: entity pages', () => {
     it('builds a word page from its source, its related words resolved and an id with no word left out', async () => {
-        const pages = pagesOf(memorySource({ words: [omou, kangaeru] }).source);
+        const pages = pagesOf(memorySource({ words: [omou, kangaeru] }).source, 'en');
         const page = await pages.vocabPage('1281390');
         expect(page.props.components.map(summary => summary.id)).toEqual(['1589350']);
-        expect(page.document).toMatchObject({ canonicalPath: vocabPath('1281390'), style: 'vocab' });
+        expect(page.document).toMatchObject({ canonicalPath: urls.vocabPath('1281390'), style: 'vocab' });
         expect(page.document.structuredData).toMatchObject({ '@type': 'DefinedTerm', name: '考える' });
     });
 
     it('is a PageNotFound for a word, kanji or point the source does not have', async () => {
-        const pages = pagesOf(memorySource({ words: [omou], kanji: [kanji()], points: [grammarPoint()] }).source);
+        const pages = pagesOf(memorySource({ words: [omou], kanji: [kanji()], points: [grammarPoint()] }).source, 'en');
         await expect(pages.vocabPage('9999999')).rejects.toBeInstanceOf(PageNotFound);
         await expect(pages.kanjiPage('猫')).rejects.toBeInstanceOf(PageNotFound);
         await expect(pages.grammarPage('n5-999')).rejects.toBeInstanceOf(PageNotFound);
@@ -81,7 +83,7 @@ describe('pagesOf: entity pages', () => {
 
     it('builds the indexes pages share once, however many pages ask', async () => {
         const { source, calls } = memorySource({ words: [omou, kangaeru], kanji: [kanji()] });
-        const pages = pagesOf(source);
+        const pages = pagesOf(source, 'en');
         await Promise.all([pages.vocabPage('1589350'), pages.vocabPage('1281390'), pages.kanjiPage('学'), pages.vocabIndexPage()]);
         expect(calls.get('wordSummaries')).toBe(1);
         expect(calls.get('vocabIds')).toBe(1);
@@ -91,7 +93,7 @@ describe('pagesOf: entity pages', () => {
 
 describe('pagesOf: list pages', () => {
     it('pages a JLPT list, with no page past the last', async () => {
-        const pages = pagesOf(memorySource({ words: [omou, kangaeru], jlpt: { 5: ['1589350', '1281390'] } }).source);
+        const pages = pagesOf(memorySource({ words: [omou, kangaeru], jlpt: { 5: ['1589350', '1281390'] } }).source, 'en');
         const first = await pages.vocabJlptPage(5, 1);
         expect(first.props.words.map(word => word.id)).toEqual(['1589350', '1281390']);
         expect(first.props.allLevels).toEqual([5]);
@@ -100,14 +102,14 @@ describe('pagesOf: list pages', () => {
     });
 
     it('counts every word\'s sentences on the home page', async () => {
-        const pages = pagesOf(memorySource({ words: [omou, kangaeru], sentences: { '1589350': [sentence(), sentence({ id: 's2' })], '1281390': [sentence({ id: 's3' })] } }).source);
+        const pages = pagesOf(memorySource({ words: [omou, kangaeru], sentences: { '1589350': [sentence(), sentence({ id: 's2' })], '1281390': [sentence({ id: 's3' })] } }).source, 'en');
         expect((await pages.homePage()).props.sentenceCount).toBe(3);
     });
 
     it('marks the search page noindex and gives the grammar index its filter script', async () => {
-        const pages = pagesOf(memorySource({ words: [omou], points: [grammarPoint()] }).source);
+        const pages = pagesOf(memorySource({ words: [omou], points: [grammarPoint()] }).source, 'en');
         expect(pages.searchPage().document.noindex).toBe(true);
-        expect((await pages.grammarIndexPage()).document).toMatchObject({ canonicalPath: grammarIndexPath(), style: 'grammarIndex', script: 'grammarFilter' });
+        expect((await pages.grammarIndexPage()).document).toMatchObject({ canonicalPath: urls.grammarIndexPath(), style: 'grammarIndex', script: 'grammarFilter' });
     });
 });
 
@@ -115,7 +117,7 @@ describe('pagesOf: the catalog', () => {
     const world: World = { words: [omou, kangaeru], kanji: [kanji()], points: [grammarPoint()], jlpt: { 5: ['1589350'] } };
 
     it('lists every value of each route\'s parameters', async () => {
-        const { pageEntries } = pagesOf(memorySource(world).source);
+        const { pageEntries } = pagesOf(memorySource(world).source, 'en');
         expect(await pageEntries.vocab()).toEqual([{ id: '1589350' }, { id: '1281390' }]);
         expect(await pageEntries.kanji()).toEqual([{ character: '学' }]);
         expect(await pageEntries.grammar()).toEqual([{ id: 'n2-169' }]);
@@ -127,18 +129,18 @@ describe('pagesOf: the catalog', () => {
     });
 
     it('lists the sitemap home first, every word, kanji and point, the list pages, and never the search page', async () => {
-        const paths = await pagesOf(memorySource(world).source).sitemapPaths();
-        expect(paths[0]).toBe(homePath());
-        expect(paths.slice(1, 4)).toEqual([vocabPath('1589350'), vocabPath('1281390'), kanjiPath('学')]);
-        expect(paths).toContain(kanjiIndexPath());
-        expect(paths).toContain(vocabJlptPath(5));
-        expect(paths.at(-1)).toBe(vocabIndexPath());
+        const paths = await pagesOf(memorySource(world).source, 'en').sitemapPaths();
+        expect(paths[0]).toBe(urls.homePath());
+        expect(paths.slice(1, 4)).toEqual([urls.vocabPath('1589350'), urls.vocabPath('1281390'), urls.kanjiPath('学')]);
+        expect(paths).toContain(urls.kanjiIndexPath());
+        expect(paths).toContain(urls.vocabJlptPath(5));
+        expect(paths.at(-1)).toBe(urls.vocabIndexPath());
         expect(paths.some(path => path.includes('/search/'))).toBe(false);
         expect(new Set(paths).size).toBe(paths.length);
     });
 
     it('builds the search index in frequency order, leaving out an id with no word', async () => {
-        const pages = pagesOf(memorySource({ ...world, frequency: ['1281390', '0000000', '1589350'] }).source);
+        const pages = pagesOf(memorySource({ ...world, frequency: ['1281390', '0000000', '1589350'] }).source, 'en');
         const { core } = await pages.searchIndex();
         expect(core.w[0]).toEqual(['1281390', '1589350']);
     });

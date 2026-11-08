@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { escapeHtml, japaneseWithoutLang, langOf, renderDocument, stripHydrationMarkers } from './documentShell';
-import { vocabPath, absoluteUrl } from './urls';
+import { absoluteUrl, localeUrls } from './urls';
 
 describe('escapeHtml', () => {
     it('escapes the five HTML-significant characters', () => {
@@ -14,9 +14,10 @@ describe('escapeHtml', () => {
 
 describe('renderDocument', () => {
     const base = {
+        lang: 'en',
         title: '思う - Gokan Dictionary',
         description: 'to think, to consider',
-        canonicalPath: vocabPath('1589350'),
+        canonicalPath: localeUrls('en').vocabPath('1589350'),
         bodyHtml: '<main>hello</main>',
         stylesheetHref: '/assets/styles-abc123.css',
     };
@@ -27,9 +28,14 @@ describe('renderDocument', () => {
         expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
     });
 
+    it('names the page language on <html>', () => {
+        expect(renderDocument(base)).toContain('<html lang="en">');
+        expect(renderDocument({ ...base, lang: 'zh-Hans' })).toContain('<html lang="zh-Hans">');
+    });
+
     it('resolves the canonical path to an absolute URL', () => {
         const html = renderDocument(base);
-        const canonical = absoluteUrl(vocabPath('1589350'));
+        const canonical = absoluteUrl(localeUrls('en').vocabPath('1589350'));
         expect(canonical).toContain('/dictionary/vocab/1589350/');
         expect(html).toContain(`<link rel="canonical" href="${canonical}" />`);
         expect(html).toContain(`<meta property="og:url" content="${canonical}" />`);
@@ -75,6 +81,7 @@ describe('renderDocument', () => {
 
 describe('extraScriptHref', () => {
     const base = {
+        lang: 'en',
         title: 'Grammar',
         description: 'Grammar points',
         canonicalPath: '/dictionary/grammar/',
@@ -98,7 +105,7 @@ describe('extraScriptHref', () => {
 });
 
 describe('noindex', () => {
-    const base = { title: 'Search', description: 'd', canonicalPath: '/dictionary/search/', bodyHtml: '', stylesheetHref: '/s.css' };
+    const base = { lang: 'en', title: 'Search', description: 'd', canonicalPath: '/dictionary/search/', bodyHtml: '', stylesheetHref: '/s.css' };
 
     it('keeps a page out of search engines when asked', () => {
         expect(renderDocument({ ...base, noindex: true })).toContain('<meta name="robots" content="noindex" />');
@@ -112,7 +119,7 @@ describe('stripHydrationMarkers', () => {
     });
 
     it('is applied to the rendered body', () => {
-        const html = renderDocument({ title: 't', description: 'd', canonicalPath: '/', bodyHtml: '<p><!--[-->x<!--]--></p>', stylesheetHref: '/s.css' });
+        const html = renderDocument({ lang: 'en', title: 't', description: 'd', canonicalPath: '/', bodyHtml: '<p><!--[-->x<!--]--></p>', stylesheetHref: '/s.css' });
         expect(html).toContain('<p>x</p>');
     });
 });

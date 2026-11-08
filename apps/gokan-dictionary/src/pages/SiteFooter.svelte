@@ -1,13 +1,13 @@
 <script lang="ts">
   import { SITE_ORIGIN } from '../lib/site';
+  import LinkedText from './LinkedText.svelte';
+  import { pageLocale } from './pageLocale';
+
+  const { messages } = pageLocale();
 </script>
 
 <footer class="site-footer">
   <div class="container container--wide">
-    <p>
-      Data from the open, CC BY-SA-licensed
-      <a href="https://github.com/gokan-dev/gokan-dataset">gokan-dataset</a>.
-      To learn these words with spaced repetition, try <a href={SITE_ORIGIN + '/'}>Gokan SRS</a>.
-    </p>
+    <p><LinkedText parts={messages.chrome.footer({ dataset: 'https://github.com/gokan-dev/gokan-dataset', srs: SITE_ORIGIN + '/' })} /></p>
   </div>
 </footer>

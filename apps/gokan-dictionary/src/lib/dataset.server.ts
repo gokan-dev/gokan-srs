@@ -15,6 +15,7 @@ import type {
     JlptIndex, Kanji, KanjiOrderList, KanjiVocabIndex, Sentence, Vocabulary,
 } from '@gokan/dataset-schema';
 import { DATASET_PATHS } from './datasetPaths';
+import type { DatasetLanguage } from './locale';
 import { grammarSummaryOf } from './grammarBrowse';
 import type { DictionaryData, GrammarSummary, VocabSummary } from './types';
 import { vocabSummaryFrom } from './vocabSummary';
@@ -69,12 +70,15 @@ export function resolveCompiledDir(): string {
 }
 
 /**
- * The dictionary's data, read from a compiled/ directory through its English view: each file in
- * the English shape this app's types describe. The dataset keeps each file's text apart from its
- * core, per language; the view puts them back together (see @gokan/dataset-schema/english).
+ * Each language's view of a compiled/ directory. The dataset keeps each file's text apart from its
+ * core, per language; a view puts them back together, in the shape this app's types describe (see
+ * @gokan/dataset-schema/english). English is the one the dataset projects today.
  */
-export function checkoutData(compiledDir: string): DictionaryData {
-    const view = englishView(compiledDir);
+const VIEWS: Record<DatasetLanguage, typeof englishView> = { en: englishView };
+
+/** The dictionary's data, read from a compiled/ directory through its view in `language`. */
+export function checkoutData(compiledDir: string, language: DatasetLanguage): DictionaryData {
+    const view = VIEWS[language](compiledDir);
     // The dataset's own build typed each file; the view gives back the shape the types describe.
     const read = <T>(relative: string): T => view.json(relative) as T;
     const exists = (relative: string): boolean => fs.existsSync(path.join(compiledDir, relative));

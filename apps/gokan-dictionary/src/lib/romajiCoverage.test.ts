@@ -7,7 +7,7 @@ import type { DictionaryData } from './types';
 // Japanese answer field (convertRomajiInput, settled on submit by finishRomajiInput), gives
 // the reading back. Here rather than in gokan-srs because this app reads the compiled dataset
 // from disk; a reading that fails is a gap in the romaji table to fix, never an exemption.
-const data: DictionaryData = checkoutData(resolveCompiledDir());
+const data: DictionaryData = checkoutData(resolveCompiledDir(), 'en');
 
 function untypeable(readings: string[]): string[] {
     return readings.filter(reading => finishRomajiInput(kanaToRomaji(reading)) !== toHiragana(reading));

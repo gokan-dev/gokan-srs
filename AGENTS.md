@@ -291,7 +291,15 @@ gokan-dictionary:
   row flags in `lib/searchRow.ts`), matched and ranked only by `lib/searchQuery.ts`, the
   same module behind the header panel, `/search/` and the build-time acceptance check.
 - Size budgets: `lib/budgets.ts`, checked by `scripts/check-build.ts` after every build.
-- Every URL from `lib/urls.ts` (it applies the base path); SEO from `lib/seo.ts`.
+- Locales: `lib/locale.ts` (`Locale`, the served ones, a page's locale from its optional route
+  segment `[[locale=locale]]`; English has none). Every link is built for a locale:
+  `localeUrls(locale)` from `lib/urls.ts` (it applies the base path and the locale segment), in a
+  component `pageLocale().urls` (`pages/pageLocale.ts`, set by the root layout). Its English-only
+  path functions are the search script's, `client/` only (enforced).
+- Words: every title, description and word of chrome from the locale's catalog, `lib/messages`
+  (`Messages`, one module per locale, `en.ts`; `messagesFor(locale)`, in a component
+  `pageLocale().messages`; a sentence with links is `LinkedText`). A count is `messages.count`.
+  The text tools titles are written with (truncating, a searchable pattern) are `lib/seo.ts`.
 - Client scripts are plain TypeScript (`client/search.ts`, `client/grammarFilter.ts`): no
   Svelte runtime on any page (the build checks it).
 - Test fixtures: `src/test/fixtures.ts` (`vocabulary`, `grammarPoint`, `kanji`, `sentence`).

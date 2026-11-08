@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { VocabSummary } from '../lib/types';
-  import { vocabPath } from '../lib/urls';
+  import { pageLocale } from './pageLocale';
+
+  const { urls } = pageLocale();
 
   /**
    * Words as three aligned columns, headword | reading | gloss, each row linking to the word.
@@ -31,7 +33,7 @@
 {#snippet rows(words: VocabSummary[], brief: boolean)}
   <ul class="entry-list" class:entry-list--stacked={stacked} class:entry-list--brief={brief}>
     {#each words as word (word.id)}
-      <li><a href={vocabPath(word.id)} lang="ja">{word.word}{#if word.reading}<span>{word.reading}</span>{/if}{#if !brief}<span lang="en">{word.gloss ?? ''}</span>{/if}</a></li>
+      <li><a href={urls.vocabPath(word.id)} lang="ja">{word.word}{#if word.reading}<span>{word.reading}</span>{/if}{#if !brief}<span lang="en">{word.gloss ?? ''}</span>{/if}</a></li>
     {/each}
   </ul>
 {/snippet}

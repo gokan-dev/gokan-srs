@@ -1,7 +1,9 @@
 <script lang="ts">
   import type { VocabIndexPageProps as Props } from '../lib/pageProps';
-  import { vocabJlptPath } from '../lib/urls';
+  import { pageLocale } from './pageLocale';
   import PageLayout from './PageLayout.svelte';
+
+  const { urls } = pageLocale();
 
   let { levels, totalCount }: Props = $props();
 
@@ -30,7 +32,7 @@
   <ul class="tiles" style={`--tiles: ${levels.length}`}>
     {#each levels as { level, count } (level)}
       <li>
-        <a class="tile" href={vocabJlptPath(level)}>
+        <a class="tile" href={urls.vocabJlptPath(level)}>
           <span class="tile-title">JLPT N{level}</span>
           <span class="tile-meta">{count.toLocaleString('en')} words</span>
           <span class="tile-blurb">{JLPT_BLURBS[level]}</span>

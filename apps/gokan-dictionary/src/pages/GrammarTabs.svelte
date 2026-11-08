@@ -1,10 +1,9 @@
-<script module lang="ts">
-  /** The grammar browse pages' shared tabs. */
-  export type GrammarTab = 'level' | 'families' | 'curriculum' | 'conjugations';
-</script>
-
 <script lang="ts">
-  import { grammarChaptersIndexPath, grammarConjugationsIndexPath, grammarFamiliesIndexPath, grammarIndexPath } from '../lib/urls';
+  import type { GrammarTab } from '../lib/types';
+  import { pageLocale } from './pageLocale';
+
+  const { urls, messages } = pageLocale();
+  const tabs = messages.chrome.grammarTabs;
 
   interface Props {
     current: GrammarTab;
@@ -13,14 +12,14 @@
   let { current }: Props = $props();
 
   const TABS: { tab: GrammarTab; label: string; href: string }[] = [
-    { tab: 'level', label: 'By level', href: grammarIndexPath() },
-    { tab: 'families', label: 'Families', href: grammarFamiliesIndexPath() },
-    { tab: 'curriculum', label: 'Curriculum', href: grammarChaptersIndexPath() },
-    { tab: 'conjugations', label: 'Conjugations', href: grammarConjugationsIndexPath() },
+    { tab: 'level', label: tabs.level, href: urls.grammarIndexPath() },
+    { tab: 'families', label: tabs.families, href: urls.grammarFamiliesIndexPath() },
+    { tab: 'curriculum', label: tabs.curriculum, href: urls.grammarChaptersIndexPath() },
+    { tab: 'conjugations', label: tabs.conjugations, href: urls.grammarConjugationsIndexPath() },
   ];
 </script>
 
-<nav class="tabs" aria-label="Browse grammar">
+<nav class="tabs" aria-label={tabs.label}>
   {#each TABS as tab (tab.tab)}
     <a href={tab.href} aria-current={tab.tab === current ? 'page' : undefined}>{tab.label}</a>
   {/each}
