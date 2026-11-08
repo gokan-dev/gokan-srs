@@ -1,0 +1,88 @@
+# Is the deployed dictionary the build? Every file of a static build, compared byte for byte with
+# what staging or production serves (check:parity --against <origin>): the pages the server
+# renders on request, the list pages it serves from its bundle, the files from S3, plus a 404's
+# status, page and cache-control. Run by hand after a cutover or a change to how the dictionary is
+# served (#209), never on a schedule: each run asks for every page, about 40k requests, most of
+# them renders (within Lambda's free tier, but not free of purpose).
+#
+# On a runner rather than a laptop: 40k requests in a few minutes is what a home network or a
+# firewall stops partway (it did, #209). It needs no AWS credentials, only the public site.
+
+name: "Check: deployed dictionary"
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Which site to compare with the build'
+        type: choice
+        options: [staging, production]
+        default: staging
+      ref:
+        description: 'Branch, tag or SHA the site was deployed from (its build is the reference)'
+        required: true
+        default: 'main'
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    name: Compare with ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          submodules: true
+
+      # Bun from GitHub Releases + an Actions cache, NOT bun.sh (whose `latest` download 403s
+      # intermittently and takes every workflow down). Inline (not a local action), as in every
+      # workflow here.
+      - name: Cache Bun
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/bin
+          key: bun-${{ runner.os }}-${{ runner.arch }}-v1
+      - name: Setup Bun
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BIN="$HOME/.bun/bin"
+          echo "$BIN" >> "$GITHUB_PATH"
+          if [ -x "$BIN/bun" ]; then "$BIN/bun" --version; exit 0; fi
+          v="$(gh api repos/oven-sh/bun/releases/latest --jq .tag_name | sed -E 's/^bun-v//')"
+          mkdir -p "$BIN"
+          curl -fsSL --retry 5 --retry-all-errors \
+            "https://github.com/oven-sh/bun/releases/download/bun-v$v/bun-linux-x64.zip" -o "$RUNNER_TEMP/bun.zip"
+          unzip -q "$RUNNER_TEMP/bun.zip" -d "$RUNNER_TEMP/bun-dl"
+          mv "$RUNNER_TEMP/bun-dl/bun-linux-x64/bun" "$BIN/bun"
+          chmod +x "$BIN/bun"
+          "$BIN/bun" --version
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install
+
+      # Built as the site was (deploy-site.yml): its origin in every canonical, and production's
+      # analytics tag, or every page differs by one of them.
+      - name: Build the reference
+        env:
+          VITE_SITE_ORIGIN: ${{ inputs.environment == 'production' && 'https://gokan-srs.com' || 'https://staging.gokan-srs.com' }}
+          VITE_UMAMI_WEBSITE_ID: ${{ inputs.environment == 'production' && vars.UMAMI_WEBSITE_ID || '' }}
+        run: bun run --cwd apps/gokan-dictionary build
+
+      - name: Compare with the deployed site (check:parity --against)
+        run: bun run check:parity --against ${{ inputs.environment == 'production' && 'https://gokan-srs.com' || 'https://staging.gokan-srs.com' }} --no-build --expect identical
