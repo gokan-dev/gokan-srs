@@ -4,9 +4,9 @@
 // the server answers what CloudFront forwards and the static layout stays as it is.
 
 import type { Reroute } from '@sveltejs/kit';
-import { BASE_PATH } from '$lib/site';
+import { withoutBasePath } from '$lib/basePath';
 
 export const reroute: Reroute = ({ url }) => {
-    if (BASE_PATH === '' || !(url.pathname === BASE_PATH || url.pathname.startsWith(`${BASE_PATH}/`))) return undefined;
-    return url.pathname.slice(BASE_PATH.length) || '/';
+    const routed = withoutBasePath(url.pathname);
+    return routed === url.pathname ? undefined : routed;
 };

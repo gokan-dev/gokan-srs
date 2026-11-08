@@ -10,7 +10,8 @@ import { japaneseWithoutLang, renderDocument, stripHydrationMarkers } from '$lib
 import { pageScriptHref, pageStylesheetHref, searchScriptHref, stylesheetHref } from '$lib/server/assets';
 import { htmlLang, isLocaleSegment, localeOfSegment } from '$lib/locale';
 import { errorDocument } from '$lib/server/pages';
-import { BASE_PATH, UMAMI_WEBSITE_ID } from '$lib/site';
+import { withoutBasePath } from '$lib/basePath';
+import { UMAMI_WEBSITE_ID } from '$lib/site';
 
 /** Where app.html puts the body: everything before it is SvelteKit's head, which must stay empty. */
 const BODY_MARKER = '<!--gokan:body-->';
@@ -63,7 +64,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 export const handleError: HandleServerError = ({ event, status, message }) => {
     // A path no route matched has no params: its locale is read off the path, as a route would.
     const { pathname } = event.url;
-    const segment = (pathname.startsWith(`${BASE_PATH}/`) ? pathname.slice(BASE_PATH.length) : pathname).split('/')[1] ?? '';
+    const segment = withoutBasePath(pathname).split('/')[1] ?? '';
     event.locals.document ??= errorDocument(status, event.url.pathname, localeOfSegment(isLocaleSegment(segment) ? segment : undefined));
     if (status >= 500) console.error(`[dictionary] ${event.url.pathname}: ${message}`);
     return { message };
