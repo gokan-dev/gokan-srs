@@ -110,7 +110,7 @@ function worktree(repo: string, workTree: string, commit: string, sparse?: reado
     checkOutAt(workTree, commit, sparse);
 }
 
-/** The base's dist/, built unless the cached build is already of this commit and dataset. */
+/** The base's dist/, built unless the cached build is already of this commit, dataset and locale list. */
 function buildBase(commit: string): string {
     worktree(REPO_ROOT, WORKTREE, commit);
     const datasetCommit = git(['rev-parse', `${commit}:${DATASET.replaceAll('\\', '/')}`]);
@@ -119,7 +119,8 @@ function buildBase(commit: string): string {
     worktree(datasetRepo, path.join(WORKTREE, DATASET), datasetCommit, DATASET_SPARSE);
 
     const marker = path.join(WORKTREE, 'node_modules', '.cache', 'check-parity-build');
-    const stamp = `${commit} ${datasetCommit}`;
+    // The locales too: a base built for another list (English alone, before #170) is not this one.
+    const stamp = `${commit} ${datasetCommit} ${process.env.VITE_DICTIONARY_LOCALES ?? ''}`;
     const dist = path.join(WORKTREE, APP, 'dist');
     if (fs.existsSync(dist) && fs.existsSync(marker) && fs.readFileSync(marker, 'utf8') === stamp) {
         console.log(`[check-parity] base build of ${commit.slice(0, 10)} is cached.`);

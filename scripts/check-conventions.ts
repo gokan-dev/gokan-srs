@@ -204,6 +204,48 @@ const CANCELLED_CONDITION = /(?<!!)\bcancelled\(\)/;
 /** Where a workflow step starts: its `- ` item, whatever key comes first. */
 const WORKFLOW_STEP_START = /^\s*- (?=[a-z-]+:)/gm;
 
+/**
+ * A job that builds the dictionary sets the locales it serves (VITE_DICTIONARY_LOCALES) in the
+ * job's own `env`, never on one step: check:parity starts builds of its own (the base worktree's,
+ * the on-request server's), which see the job's env and not a sibling step's, and an English-only
+ * build compared with a Chinese dist/ fails `--expect identical` for no real reason (#170).
+ */
+const DICTIONARY_BUILD = /apps\/gokan-dictionary\s+build(?::on-request)?\b|\bcheck:parity\b/;
+const JOB_LEVEL_LOCALES = /^ {6}VITE_DICTIONARY_LOCALES:/m;
+
+/**
+ * The locales each environment serves are written once: production's as deploy-site.yml's
+ * `dictionary_locales` default, staging's in deploy-staging.yml. check-dictionary-deployed.yml
+ * rebuilds what an environment serves, so its two literals must equal those, or `--expect
+ * identical` fails against the deployed site with no hint why.
+ */
+const DEPLOY_SITE = '.github/workflows/deploy-site.yml';
+const DEPLOY_STAGING = '.github/workflows/deploy-staging.yml';
+const CHECK_DEPLOYED = '.github/workflows/check-dictionary-deployed.yml';
+const PRODUCTION_LOCALES_DEFAULT = /^ {6}dictionary_locales:\s*\n((?: {8}.*\n)+)/m;
+const STAGING_LOCALES = /^\s+dictionary_locales:\s*'([^']*)'/m;
+const DEPLOYED_LOCALES = /^\s+VITE_DICTIONARY_LOCALES:\s*\$\{\{\s*inputs\.environment == 'production' && '([^']*)' \|\| '([^']*)'\s*\}\}/m;
+
+/** The locale lists the three deploy workflows write, each where it is written, or what is missing. */
+function deployedLocaleViolations(): Violation[] {
+    const readText = (file: string) => (existsSync(file) ? readFileSync(file, 'utf8') : '');
+    const defaults = PRODUCTION_LOCALES_DEFAULT.exec(readText(DEPLOY_SITE))?.[1];
+    const production = defaults ? /^\s+default:\s*'([^']*)'/m.exec(defaults)?.[1] : undefined;
+    const staging = STAGING_LOCALES.exec(readText(DEPLOY_STAGING))?.[1];
+    const deployed = DEPLOYED_LOCALES.exec(readText(CHECK_DEPLOYED));
+    const rule = 'one-locale-list';
+    const missing: Violation[] = [];
+    if (production === undefined) missing.push({ file: DEPLOY_SITE, rule, message: 'No `dictionary_locales` input with a quoted `default`: production\'s locales are written there.' });
+    if (staging === undefined) missing.push({ file: DEPLOY_STAGING, rule, message: 'No quoted `dictionary_locales:`: staging\'s locales are written there.' });
+    if (!deployed) missing.push({ file: CHECK_DEPLOYED, rule, message: 'No `VITE_DICTIONARY_LOCALES: ${{ inputs.environment == \'production\' && \'<production>\' || \'<staging>\' }}`: the check builds what each environment serves.' });
+    if (missing.length || production === undefined || staging === undefined || !deployed) return missing;
+    const line = readText(CHECK_DEPLOYED).slice(0, deployed.index).split('\n').length;
+    const wrong: Violation[] = [];
+    if (deployed[1] !== production) wrong.push({ file: CHECK_DEPLOYED, line, rule, message: `Builds production with '${deployed[1]}', but deploy-site.yml's \`dictionary_locales\` default is '${production}'. Make them equal, or the comparison with the deployed site fails.` });
+    if (deployed[2] !== staging) wrong.push({ file: CHECK_DEPLOYED, line, rule, message: `Builds staging with '${deployed[2]}', but deploy-staging.yml passes \`dictionary_locales: '${staging}'\`. Make them equal, or the comparison with the deployed site fails.` });
+    return wrong;
+}
+
 /** A workflow's jobs, each with its text and the line its header is on. */
 function workflowJobs(text: string): { name: string; line: number; text: string }[] {
     const start = text.search(/^jobs:\s*$/m);
@@ -529,6 +571,11 @@ function check(files: string[]): Violation[] {
                 if (RUNS_CHECK.test(job.text) && !SUBMODULE_CHECKOUT.test(job.text)) {
                     add({ file, line: job.line, rule: 'check-with-dataset', message: `Job \`${job.name}\` runs \`bun run check\` without the dataset: its real-dataset suites fail when the compiled dataset is missing. Give its actions/checkout \`with: submodules: true\`.` });
                 }
+                const code = job.text.split('\n').filter(l => !/^\s*#/.test(l)).join('\n');
+                const header = job.text.split(/^ {4}steps:/m)[0];
+                if (DICTIONARY_BUILD.test(code) && !JOB_LEVEL_LOCALES.test(header)) {
+                    add({ file, line: job.line, rule: 'job-level-locales', message: `Job \`${job.name}\` builds the dictionary without \`VITE_DICTIONARY_LOCALES\` in the job's \`env\`. Set it there, not on one step: check:parity starts builds of its own that only see the job's env.` });
+                }
             }
         }
 
@@ -676,6 +723,9 @@ function check(files: string[]): Violation[] {
         if (!existsSync(stub)) add({ file: stub, rule: 'one-conventions-file', message: `Missing; it must contain "${AGENT_STUB_CONTENT}".` });
     }
     if (!existsSync('AGENTS.md')) add({ file: 'AGENTS.md', rule: 'one-conventions-file', message: 'Missing.' });
+    if (files.some(f => f === DEPLOY_SITE || f === DEPLOY_STAGING || f === CHECK_DEPLOYED)) {
+        for (const v of deployedLocaleViolations()) add(v);
+    }
 
     return violations;
 }
