@@ -2,16 +2,6 @@
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "DictionaryPageRateRule",
-      "Effect": "Allow",
-      "Action": [
-        "wafv2:GetWebACL",
-        "wafv2:UpdateWebACL",
-        "wafv2:ListTagsForResource"
-      ],
-      "Resource": "arn:aws:wafv2:us-east-1:413976099932:global/webacl/CreatedByCloudFront-0fb8c740/*"
-    },
-    {
       "Sid": "DictionaryAlarmTopic",
       "Effect": "Allow",
       "Action": [

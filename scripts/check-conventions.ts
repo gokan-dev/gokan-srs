@@ -170,6 +170,8 @@ const MANAGED_CACHE_POLICIES = new Map([
 ]);
 const CACHE_POLICY_ASSIGNMENT = /^\s*cache_policy_id\s*=\s*([^#\s]+)/;
 const HEADERS_POLICY_ASSIGNMENT = /^\s*response_headers_policy_id\s*=/;
+/** A rule or rule group added to a web ACL: the Free plan's ACL refuses a custom one (#222). */
+const WAF_RULE_RESOURCE = /^\s*resource\s+"aws_wafv2_(web_acl_rule|web_acl_rule_group_association|rule_group)"/;
 
 /**
  * An email address handed to Terraform stays out of public logs: the repository is public, so its
@@ -517,6 +519,8 @@ function check(files: string[]): Violation[] {
             }, line => add({ file, line, rule: 'free-plan-policies', message: `A cache policy that is not a managed one by its ID (${[...MANAGED_CACHE_POLICIES].map(([id, name]) => `${name} "${id}"`).join(', ')}). Production's distribution is on CloudFront's Free plan, which refuses a custom cache policy: the whole apply fails. Use a managed policy, or add one to MANAGED_CACHE_POLICIES with its name.` }));
             eachLine(text, l => HEADERS_POLICY_ASSIGNMENT.test(l), line =>
                 add({ file, line, rule: 'free-plan-policies', message: 'Attaches a response headers policy. Production\'s distribution is on CloudFront\'s Free plan, which refuses a custom one: the whole apply fails. Set a header in a viewer-response CloudFront Function (as page_cache_control in modules/dictionary-server).' }));
+            eachLine(text, l => WAF_RULE_RESOURCE.test(l), line =>
+                add({ file, line, rule: 'free-plan-policies', message: 'Adds a rule to a WAF web ACL. Production\'s web ACL belongs to CloudFront\'s Free plan, which refuses a custom rule (WAFFeatureNotIncludedInPricingPlanException): the apply fails. The dictionary\'s server is capped by its reserved concurrency and watched by its usage alarms instead.' }));
         }
 
         if (TERRAFORM_FILE.test(file)) {
