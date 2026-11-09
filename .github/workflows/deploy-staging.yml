@@ -36,6 +36,9 @@ jobs:
       # A raise for a first fill or a voice change, set for one deploy and deleted after.
       # Production's deploy never passes it, so production always runs at the 2,000 cap.
       audio_max_uploads: ${{ vars.AUDIO_MAX_UPLOADS || '2000' }}
+      # One path (/*) per deploy: staging has no cache worth keeping, and its deploys (about 130 a
+      # month) share the account's 1,000 free invalidation paths with production's.
+      invalidate_everything: 'true'
       # Set together with STAGING_DICTIONARY_ON_REQUEST, which terraform-staging.yml reads.
       dictionary_rendering: ${{ vars.STAGING_DICTIONARY_RENDERING || 'prerendered' }}
       dictionary_function: ${{ vars.STAGING_DICTIONARY_FUNCTION }}

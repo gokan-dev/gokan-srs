@@ -43,12 +43,16 @@ import {
     pageContentHash,
     parseManifest,
     planUploads,
+    sameFiles,
     serializeManifest,
+    servedFiles,
+    serverPages,
     type DeployedOptions,
     type PreviousDeploy,
     type Site,
 } from '../src/deployManifest';
 import { hashBuild } from '../src/buildFiles';
+import { invalidationFor, type Invalidation } from '../src/invalidation';
 
 const PACKAGE_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const REPO_ROOT = path.join(PACKAGE_ROOT, '..', '..');
@@ -65,6 +69,8 @@ interface Args {
     dryRun: boolean;
     /** What the bucket keeps of the build and of the previous deploy (deployedManifest). */
     deployed: DeployedOptions;
+    /** A file the CloudFront paths to clear are appended to, one a line (invalidationFor). */
+    invalidations: string | undefined;
 }
 
 function parseArgs(): Args {
@@ -76,12 +82,25 @@ function parseArgs(): Args {
     const site = get('--site');
     const bucket = get('--bucket');
     if (!site || !isSite(site) || !bucket) {
-        throw new Error(`usage: deploy-s3.ts --site ${Object.keys(SITES).join('|')} --bucket <name> [--pages-on-server [--keep-removed | --prune-pages]] [--dry-run]`);
+        throw new Error(`usage: deploy-s3.ts --site ${Object.keys(SITES).join('|')} --bucket <name> [--pages-on-server [--keep-removed | --prune-pages]] [--invalidations <file>] [--dry-run]`);
     }
     const pagesOnServer = argv.includes('--pages-on-server');
     // Only the dictionary has a server; another site's pages would simply never be uploaded.
     if (pagesOnServer && site !== 'dictionary') throw new Error('[deploy] --pages-on-server is for the dictionary only.');
-    return { site, bucket, dryRun: argv.includes('--dry-run'), deployed: { pagesOnServer, keepRemoved: argv.includes('--keep-removed'), prunePages: argv.includes('--prune-pages') } };
+    return {
+        site,
+        bucket,
+        dryRun: argv.includes('--dry-run'),
+        deployed: { pagesOnServer, keepRemoved: argv.includes('--keep-removed'), prunePages: argv.includes('--prune-pages') },
+        invalidations: get('--invalidations'),
+    };
+}
+
+/** Appends the paths to clear to the workflow's list, and says what they are. */
+function recordInvalidation(site: Site, file: string | undefined, { paths, changedFiles }: Invalidation): void {
+    if (paths.length === 0) console.log(`[deploy] ${site}: nothing a visitor can get changed, nothing to invalidate.`);
+    else console.log(`[deploy] ${site}: invalidate ${paths.join(' ')} (${changedFiles} file(s) changed).`);
+    if (file !== undefined && paths.length > 0) fs.appendFileSync(file, paths.map(p => `${p}\n`).join(''));
 }
 
 /**
@@ -120,7 +139,7 @@ function readPreviousDeploy(bucket: string, prefix: string): PreviousDeploy {
     if (raw !== null) {
         try {
             const stored = parseManifest(JSON.parse(raw));
-            if (stored) return { source: 'manifest', manifest: stored.hashes, content: stored.content, changed: stored.changed };
+            if (stored) return { source: 'manifest', manifest: stored.hashes, content: stored.content, changed: stored.changed, server: stored.server };
         } catch {
             // Unreadable JSON: fall through to the listing, like a missing manifest.
         }
@@ -159,7 +178,7 @@ function stageFiles(distDir: string, stageDir: string, files: string[]): void {
 }
 
 function main(): void {
-    const { site, bucket, dryRun, deployed: deployedOptions } = parseArgs();
+    const { site, bucket, dryRun, deployed: deployedOptions, invalidations } = parseArgs();
     const { dist, prefix, include } = SITES[site];
     const distDir = path.join(REPO_ROOT, dist);
     const stageDir = path.join(WORK_DIR, site);
@@ -207,17 +226,32 @@ function main(): void {
     console.log(`[deploy] ${changed.length} changed, ${removed.length} removed, ${unchanged} unchanged.`);
     const batches = planUploads(site, changed);
 
+    // What a visitor could get before this deploy and can get after it, the bucket's files and the
+    // server's pages: what changed between the two is what CloudFront must stop serving. Only a
+    // stored manifest says what was served; a bucket listing of the root also holds the other
+    // sites' keys, so without one the previous deploy counts as unknown.
+    const server = serverPages(built, deployedOptions);
+    const invalidation = invalidationFor(
+        site,
+        previous.source === 'manifest' ? servedFiles(previous.manifest, previous.server) : null,
+        servedFiles(next, server),
+    );
+
     if (dryRun) {
         for (const { cacheControl, files: batch } of batches) {
             console.log(`[deploy]   would upload ${batch.length} file(s) with "${cacheControl}"`);
         }
         console.log(`[deploy]   would delete ${removed.length} object(s)`);
+        console.log(`[deploy]   would invalidate ${invalidation.paths.length === 0 ? 'nothing' : invalidation.paths.join(' ')}`);
         console.log('[deploy] dry run, nothing was uploaded.');
         return;
     }
 
-    if (changed.length === 0 && removed.length === 0 && previous.source === 'manifest') {
+    // A page the server renders can change with nothing to upload: the manifest still records it,
+    // or the next deploy would clear it again.
+    if (changed.length === 0 && removed.length === 0 && previous.source === 'manifest' && sameFiles(previous.server, server)) {
         console.log('[deploy] nothing to do; leaving the existing manifest in place.');
+        recordInvalidation(site, invalidations, invalidation);
         return;
     }
 
@@ -239,7 +273,10 @@ function main(): void {
     // Written last, and only after every upload and delete has succeeded: if anything above
     // throws, the old manifest survives and the next deploy retries the same work.
     const manifestPath = path.join(WORK_DIR, `${site}${MANIFEST_KEY}`);
-    fs.writeFileSync(manifestPath, serializeManifest({ hashes: next, content, changed: dates }));
+    // Created here too: a deploy that only records server pages uploads nothing, so no staging
+    // tree made the directory.
+    fs.mkdirSync(WORK_DIR, { recursive: true });
+    fs.writeFileSync(manifestPath, serializeManifest({ hashes: next, content, changed: dates, server }));
     aws([
         's3', 'cp', manifestPath, `s3://${bucket}/${objectKey(prefix, MANIFEST_KEY)}`,
         '--cache-control', 'no-store',
@@ -248,6 +285,7 @@ function main(): void {
 
     fs.rmSync(stageDir, { recursive: true, force: true });
     console.log(`[deploy] done: ${changed.length} uploaded, ${removed.length} deleted.`);
+    recordInvalidation(site, invalidations, invalidation);
 }
 
 main();

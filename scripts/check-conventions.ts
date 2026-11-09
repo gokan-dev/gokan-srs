@@ -184,6 +184,26 @@ const EMAIL_VARIABLE = /^variable\s+"(\w+_email)"\s*\{([\s\S]*?)^\}/gm;
 const SENSITIVE = /^\s*sensitive\s*=\s*true\b/m;
 const EMAIL_FROM_VARS = /^\s*TF_VAR_\w*_email:\s*\$\{\{\s*vars\./;
 
+/**
+ * A CloudFront invalidation naming a site's wildcard by hand: the dictionary's or the dataset's
+ * cached responses cleared on every deploy whether they changed or not. invalidationFor decides
+ * what a deploy clears (#199); a fixed list in a workflow is how the whole-site clear came back.
+ * Any quoted site wildcard, not only one on a `--paths` line: a bash array or a continued line is
+ * the same list.
+ */
+const FIXED_SITE_INVALIDATION = /["']\/(dictionary|dataset)\/\*["']/;
+
+/**
+ * A step that clears the cache after a failed deploy runs on `failure()` only: a cancelled run
+ * (by hand, a lost runner) after an upload stored its manifest leaves the next deploy seeing
+ * nothing changed, and old responses cached for a year. It needs `cancelled()` as well.
+ */
+const FAILURE_ONLY_CONDITION = /^\s*-?\s*if:.*\bfailure\(\)/;
+/** `cancelled()` as a condition, not its negation (`!cancelled()` means the opposite). */
+const CANCELLED_CONDITION = /(?<!!)\bcancelled\(\)/;
+/** Where a workflow step starts: its `- ` item, whatever key comes first. */
+const WORKFLOW_STEP_START = /^\s*- (?=[a-z-]+:)/gm;
+
 /** A workflow's jobs, each with its text and the line its header is on. */
 function workflowJobs(text: string): { name: string; line: number; text: string }[] {
     const start = text.search(/^jobs:\s*$/m);
@@ -534,6 +554,34 @@ function check(files: string[]): Violation[] {
         if (WORKFLOW.test(file)) {
             eachLine(text, l => EMAIL_FROM_VARS.test(l), line =>
                 add({ file, line, rule: 'private-email', message: 'Sets a Terraform email variable from an Actions variable, which every step\'s log prints unmasked in a public repository. Read it from a secret (`${{ secrets.NAME }}`), which GitHub masks.' }));
+            eachLine(text, l => FIXED_SITE_INVALIDATION.test(l), line =>
+                add({ file, line, rule: 'selective-invalidation', message: 'Invalidates a site by a fixed wildcard on every deploy, clearing pages that did not change. A deploy clears what changed: the paths deploy-s3.ts --invalidations lists (invalidationFor, packages/deploy/src/invalidation.ts), or "/*" after a failure.' }));
+            const starts = [...text.matchAll(WORKFLOW_STEP_START)].map(m => m.index);
+            const steps = starts.map((start, i) => ({ start, body: text.slice(start, starts[i + 1] ?? text.length) }));
+            const lineAt = (offset: number) => text.slice(0, offset).split('\n').length;
+            for (const { start, body } of steps) {
+                const condition = body.split('\n').find(l => FAILURE_ONLY_CONDITION.test(l));
+                if (condition === undefined || !body.includes('create-invalidation') || CANCELLED_CONDITION.test(condition)) continue;
+                add({ file, line: lineAt(start), rule: 'selective-invalidation', message: 'Clears the cache on failure() only. A cancelled run after an upload stored its manifest leaves the next deploy seeing nothing changed, and the old responses cached for a year: run it on (failure() || cancelled()).' });
+            }
+            // The server keeps dataset indexes for an instance's lifetime: its new code goes live
+            // only once the dataset's invalidation has completed, or an instance started in between
+            // renders cleared pages from a stale file, cached a year. So in a deploy that lists what
+            // to clear, the server's step needs an earlier, unconditional step clearing /dataset/ and
+            // waiting for it (a skipped one, as staging's was, leaves the race open).
+            const serverStep = steps.findIndex(({ body }) => body.includes('update-function-code'));
+            if (serverStep !== -1 && text.includes('--invalidations')) {
+                // Comment lines left out: a step's slice runs on to the comment above the next one.
+                const datasetWaited = steps.slice(0, serverStep).some(({ body }) => {
+                    const code = body.split('\n').filter(l => !/^\s*#/.test(l));
+                    const joined = code.join('\n');
+                    return joined.includes('create-invalidation') && joined.includes('/dataset/') && joined.includes('wait invalidation-completed')
+                        && !code.some(l => /^\s*-?\s*if:/.test(l));
+                });
+                if (!datasetWaited) {
+                    add({ file, line: lineAt(steps[serverStep].start), rule: 'selective-invalidation', message: 'Updates the dictionary server\'s code with no earlier, unconditional step clearing /dataset/ and waiting for it (aws cloudfront wait invalidation-completed). The server keeps dataset indexes for an instance\'s lifetime, so an instance started before the dataset\'s invalidation completes renders the cleared pages from a stale file, cached a year.' });
+                }
+            }
         }
 
         if (UI_SOURCE.test(file)) {

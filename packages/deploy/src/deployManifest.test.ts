@@ -17,15 +17,19 @@ import {
     pageContentHash,
     parseManifest,
     planUploads,
+    sameFiles,
     serializeManifest,
+    servedFiles,
+    serverPages,
     SITES,
     sitemapUrlFile,
     type PreviousDeploy,
 } from './deployManifest';
+import { invalidationFor } from './invalidation';
 
 /** A stored deploy; its content hashes default to its upload hashes (true of every non-page file). */
 const stored = (manifest: Record<string, string>, changed: Record<string, string> = {}, content = manifest): PreviousDeploy =>
-    ({ source: 'manifest', manifest, content, changed });
+    ({ source: 'manifest', manifest, content, changed, server: {} });
 
 describe('deployedManifest', () => {
     const built = { 'index.html': 'home', 'vocab/1/index.html': 'word', 'assets/a-1.css': 'css', 'data/search-core.json': 'index' };
@@ -194,17 +198,22 @@ describe('pageContentHash', () => {
 
 describe('parseManifest', () => {
     it('reads back what a deploy stores', () => {
-        const manifest = { hashes: { 'index.html': 'a' }, content: { 'index.html': 'c' }, changed: { 'index.html': '2026-10-12' } };
+        const manifest = { hashes: { 'index.html': 'a' }, content: { 'index.html': 'c' }, changed: { 'index.html': '2026-10-12' }, server: { 'vocab/1/index.html': 'p' } };
         expect(parseManifest(JSON.parse(serializeManifest(manifest)))).toEqual(manifest);
     });
 
+    it('reads a manifest from before server pages were kept with none, so every server page counts as changed', () => {
+        expect(parseManifest({ hashes: { 'index.html': 'a' }, content: {}, changed: {} }))
+            .toEqual({ hashes: { 'index.html': 'a' }, content: {}, changed: {}, server: {} });
+    });
+
     it('reads a manifest from before change dates as hashes with nothing to date by', () => {
-        expect(parseManifest({ 'index.html': 'a' })).toEqual({ hashes: { 'index.html': 'a' }, content: {}, changed: {} });
+        expect(parseManifest({ 'index.html': 'a' })).toEqual({ hashes: { 'index.html': 'a' }, content: {}, changed: {}, server: {} });
     });
 
     it('reads a manifest from before content hashes with nothing to date by', () => {
         expect(parseManifest({ hashes: { 'index.html': 'a' }, changed: { 'index.html': '2026-10-12' } }))
-            .toEqual({ hashes: { 'index.html': 'a' }, content: {}, changed: {} });
+            .toEqual({ hashes: { 'index.html': 'a' }, content: {}, changed: {}, server: {} });
     });
 
     it('rejects anything else', () => {
@@ -214,6 +223,40 @@ describe('parseManifest', () => {
         expect(parseManifest({ hashes: { 'index.html': 'a' } })).toBeNull();
         expect(parseManifest({ hashes: { 'index.html': 'a' }, changed: { 'index.html': 1 } })).toBeNull();
         expect(parseManifest({ hashes: { 'index.html': 'a' }, content: [], changed: {} })).toBeNull();
+        expect(parseManifest({ hashes: { 'index.html': 'a' }, content: {}, changed: {}, server: { 'a/index.html': 1 } })).toBeNull();
+    });
+});
+
+describe('serverPages and servedFiles', () => {
+    const built = { 'vocab/1/index.html': 'p', 'assets/app-1.css': 'c', 'data/search-core.json': 's' };
+
+    it('takes the pages only when the server renders them', () => {
+        expect(serverPages(built, { pagesOnServer: true })).toEqual({ 'vocab/1/index.html': 'p' });
+        expect(serverPages(built, {})).toEqual({});
+    });
+
+    it('puts the server\'s pages over a page the bucket still holds for a rollback', () => {
+        expect(servedFiles({ 'vocab/1/index.html': 'old', 'assets/app-1.css': 'c' }, { 'vocab/1/index.html': 'new' }))
+            .toEqual({ 'vocab/1/index.html': 'new', 'assets/app-1.css': 'c' });
+    });
+
+    it('leaves out a page only the bucket keeps once the server renders the pages, so its removal is cleared', () => {
+        // Kept with the bytes the server renders: nothing changed on the page until it was removed.
+        const bucket = { 'vocab/1/index.html': 'p1', 'vocab/2/index.html': 'p2', 'assets/app-1.css': 'c' };
+        const before = servedFiles(bucket, { 'vocab/1/index.html': 'p1', 'vocab/2/index.html': 'p2' });
+        const after = servedFiles(bucket, { 'vocab/1/index.html': 'p1' });
+        expect(after).toEqual({ 'vocab/1/index.html': 'p1', 'assets/app-1.css': 'c' });
+        expect(invalidationFor('dictionary', before, after).paths).toEqual(['/dictionary/vocab/2/']);
+    });
+
+    it('is the bucket\'s files when no page is the server\'s', () => {
+        expect(servedFiles({ 'index.html': 'a' }, {})).toEqual({ 'index.html': 'a' });
+    });
+
+    it('compares two manifests by their files and hashes', () => {
+        expect(sameFiles({ a: '1', b: '2' }, { b: '2', a: '1' })).toBe(true);
+        expect(sameFiles({ a: '1' }, { a: '2' })).toBe(false);
+        expect(sameFiles({ a: '1' }, { a: '1', b: '2' })).toBe(false);
     });
 });
 

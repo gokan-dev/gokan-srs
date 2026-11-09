@@ -211,6 +211,33 @@ module "spa_fallback" {
   name   = "${var.project_name}-staging-spa-fallback"
 }
 
+# noindex (above) keeps staging out of results, not out of crawls: a crawler still fetches every
+# page to read it, and each fetch of a dictionary page is a render. Staging's robots.txt, answered
+# here rather than the built one (production's, which allows everything), asks every crawler to
+# fetch nothing. Google then never reads the noindex either, which is fine for a site nothing
+# links to; a URL known from elsewhere could show without its text, never its content.
+resource "aws_cloudfront_function" "staging_robots" {
+  name    = "${var.project_name}-staging-robots"
+  runtime = "cloudfront-js-2.0"
+  comment = "Staging: robots.txt disallows everything"
+  publish = true
+
+  code = <<-EOT
+    function handler(event) {
+      return {
+        statusCode: 200,
+        statusDescription: 'OK',
+        headers: {
+          'content-type': { value: 'text/plain; charset=utf-8' },
+          'cache-control': { value: 'public, max-age=3600' },
+          'x-robots-tag': { value: 'noindex, nofollow' }
+        },
+        body: { encoding: 'text', data: 'User-agent: *\nDisallow: /\n' }
+      };
+    }
+  EOT
+}
+
 resource "aws_cloudfront_distribution" "website" {
   enabled             = true
   is_ipv6_enabled     = true
@@ -256,6 +283,23 @@ resource "aws_cloudfront_distribution" "website" {
     function_association {
       event_type   = "viewer-request"
       function_arn = module.spa_fallback.arn
+    }
+  }
+
+  # robots.txt answered by its function at the edge (staging_robots), never from the bucket.
+  ordered_cache_behavior {
+    path_pattern     = "/robots.txt"
+    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
+    cached_methods   = ["GET", "HEAD", "OPTIONS"]
+    target_origin_id = "S3-${aws_s3_bucket.website.id}"
+
+    cache_policy_id        = "658327ea-f89d-4fab-a63d-7e88639e58f6" # Managed-CachingOptimized
+    viewer_protocol_policy = "redirect-to-https"
+    compress               = true
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.staging_robots.arn
     }
   }
 
