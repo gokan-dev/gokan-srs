@@ -273,6 +273,9 @@ function main(): void {
     // Written last, and only after every upload and delete has succeeded: if anything above
     // throws, the old manifest survives and the next deploy retries the same work.
     const manifestPath = path.join(WORK_DIR, `${site}${MANIFEST_KEY}`);
+    // Created here too: a deploy that only records server pages uploads nothing, so no staging
+    // tree made the directory.
+    fs.mkdirSync(WORK_DIR, { recursive: true });
     fs.writeFileSync(manifestPath, serializeManifest({ hashes: next, content, changed: dates, server }));
     aws([
         's3', 'cp', manifestPath, `s3://${bucket}/${objectKey(prefix, MANIFEST_KEY)}`,
