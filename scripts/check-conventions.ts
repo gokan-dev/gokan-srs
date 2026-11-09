@@ -210,7 +210,7 @@ const WORKFLOW_STEP_START = /^\s*- (?=[a-z-]+:)/gm;
  * the on-request server's), which see the job's env and not a sibling step's, and an English-only
  * build compared with a Chinese dist/ fails `--expect identical` for no real reason (#170).
  */
-const DICTIONARY_BUILD = /apps\/gokan-dictionary\s+build(?::on-request)?\b|\bcheck:parity\b/;
+const DICTIONARY_BUILD = /apps\/gokan-dictionary\s+build(?::on-request)?\b|\bdictionary:build\b|\bcheck:parity\b/;
 const JOB_LEVEL_LOCALES = /^ {6}VITE_DICTIONARY_LOCALES:/m;
 
 /**
@@ -222,6 +222,9 @@ const JOB_LEVEL_LOCALES = /^ {6}VITE_DICTIONARY_LOCALES:/m;
 const DEPLOY_SITE = '.github/workflows/deploy-site.yml';
 const DEPLOY_STAGING = '.github/workflows/deploy-staging.yml';
 const CHECK_DEPLOYED = '.github/workflows/check-dictionary-deployed.yml';
+/** The staging rendered review builds what staging serves, for its local check:layout. */
+const REVIEW_STAGING = '.github/workflows/claude-review-staging.yml';
+const REVIEW_STAGING_LOCALES = /^ {6}VITE_DICTIONARY_LOCALES:\s*(.+?)\s*$/m;
 const PRODUCTION_LOCALES_DEFAULT = /^ {6}dictionary_locales:\s*\n((?: {8}.*\n)+)/m;
 const STAGING_LOCALES = /^\s+dictionary_locales:\s*'([^']*)'/m;
 const DEPLOYED_LOCALES = /^\s+VITE_DICTIONARY_LOCALES:\s*\$\{\{\s*inputs\.environment == 'production' && '([^']*)' \|\| '([^']*)'\s*\}\}/m;
@@ -243,6 +246,10 @@ function deployedLocaleViolations(): Violation[] {
     const wrong: Violation[] = [];
     if (deployed[1] !== production) wrong.push({ file: CHECK_DEPLOYED, line, rule, message: `Builds production with '${deployed[1]}', but deploy-site.yml's \`dictionary_locales\` default is '${production}'. Make them equal, or the comparison with the deployed site fails.` });
     if (deployed[2] !== staging) wrong.push({ file: CHECK_DEPLOYED, line, rule, message: `Builds staging with '${deployed[2]}', but deploy-staging.yml passes \`dictionary_locales: '${staging}'\`. Make them equal, or the comparison with the deployed site fails.` });
+    const reviewText = readText(REVIEW_STAGING);
+    const review = REVIEW_STAGING_LOCALES.exec(reviewText);
+    if (!review) wrong.push({ file: REVIEW_STAGING, rule, message: 'No job-level `VITE_DICTIONARY_LOCALES`: the staging review builds what staging serves.' });
+    else if (review[1].replace(/^'(.*)'$/, '$1') !== staging) wrong.push({ file: REVIEW_STAGING, line: reviewText.slice(0, review.index).split('\n').length, rule, message: `Builds staging's pages with '${review[1]}', but deploy-staging.yml passes \`dictionary_locales: '${staging}'\`. Make them equal.` });
     return wrong;
 }
 
@@ -723,7 +730,7 @@ function check(files: string[]): Violation[] {
         if (!existsSync(stub)) add({ file: stub, rule: 'one-conventions-file', message: `Missing; it must contain "${AGENT_STUB_CONTENT}".` });
     }
     if (!existsSync('AGENTS.md')) add({ file: 'AGENTS.md', rule: 'one-conventions-file', message: 'Missing.' });
-    if (files.some(f => f === DEPLOY_SITE || f === DEPLOY_STAGING || f === CHECK_DEPLOYED)) {
+    if (files.some(f => f === DEPLOY_SITE || f === DEPLOY_STAGING || f === CHECK_DEPLOYED || f === REVIEW_STAGING)) {
         for (const v of deployedLocaleViolations()) add(v);
     }
 

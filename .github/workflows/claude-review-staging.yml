@@ -91,6 +91,10 @@ jobs:
       pull-requests: write  # open the draft PR if needed, post the review
       issues: write         # the in-progress and findings comments go through the Issues API
       id-token: write
+    # The locales staging serves (deploy-staging.yml's, held equal by one-locale-list), so the
+    # local builds this review makes for check:layout have the Chinese pages staging has (#170).
+    env:
+      VITE_DICTIONARY_LOCALES: en zh-hans
     steps:
       - name: Checkout deployed commit
         uses: actions/checkout@v4
