@@ -71,6 +71,11 @@ on:
         type: string
         required: false
         default: '2000'
+      invalidate_everything:
+        description: '"true" clears the whole distribution with one path (/*) instead of what changed: staging, where a cached page is worth nothing and every path counts against the account''s 1,000 free invalidation paths a month.'
+        type: string
+        required: false
+        default: 'false'
     secrets:
       aws_access_key_id:
         required: true
@@ -252,18 +257,27 @@ jobs:
       # The dataset first: it is what the apps read (issue #203), published as it is from the
       # submodule checkout (core files plus the text of the languages an app reads,
       # packages/deploy/src/publishedDataset.ts), so an app never goes live ahead of its data.
+      #
+      # Each upload appends to one list what CloudFront must stop serving (--invalidations,
+      # packages/deploy/src/invalidation.ts): the URLs whose response changed, a site's wildcard
+      # past its cap, nothing when a site is unchanged. Invalidation paths are billed past the
+      # account's 1,000 free a month, so a deploy changing only the app keeps the dictionary cached.
+      - name: Start the invalidation list
+        id: invalidation_list
+        run: ': > "$RUNNER_TEMP/invalidations.txt"'
+
       - name: Deploy the dataset to S3
-        run: bun packages/deploy/scripts/deploy-s3.ts --site data --bucket ${{ inputs.s3_bucket }}
+        run: bun packages/deploy/scripts/deploy-s3.ts --site data --bucket ${{ inputs.s3_bucket }} --invalidations "$RUNNER_TEMP/invalidations.txt"
 
       - name: Deploy gokan-srs to S3
-        run: bun packages/deploy/scripts/deploy-s3.ts --site srs --bucket ${{ inputs.s3_bucket }}
+        run: bun packages/deploy/scripts/deploy-s3.ts --site srs --bucket ${{ inputs.s3_bucket }} --invalidations "$RUNNER_TEMP/invalidations.txt"
 
       # On request, the bucket holds the dictionary's files (assets, the search index, the
       # sitemap) and its server the pages (--pages-on-server). The search index goes up before
       # the server: a server refuses an index of another dataset version (a 5xx, never cached,
       # retried), so the gap is the minute until the new server and the invalidation below.
       - name: Deploy gokan-dictionary to S3
-        run: bun packages/deploy/scripts/deploy-s3.ts --site dictionary --bucket ${{ inputs.s3_bucket }} ${{ steps.dictionary_flags.outputs.flags }}
+        run: bun packages/deploy/scripts/deploy-s3.ts --site dictionary --bucket ${{ inputs.s3_bucket }} ${{ steps.dictionary_flags.outputs.flags }} --invalidations "$RUNNER_TEMP/invalidations.txt"
 
       - name: Deploy the dictionary's server
         if: inputs.dictionary_rendering == 'on-request'
@@ -271,11 +285,35 @@ jobs:
           aws lambda update-function-code             --function-name "${{ inputs.dictionary_function }}"             --zip-file "fileb://$RUNNER_TEMP/dictionary-server.zip"             --architectures arm64             --query 'CodeSize' --output text
           aws lambda wait function-updated-v2 --function-name "${{ inputs.dictionary_function }}"
 
+      # Last, once the server's code is live: a page cleared before it would be rendered again by
+      # the old server and cached for a year.
       - name: Invalidate CloudFront cache
+        id: invalidate
+        run: |
+          if [ "${{ inputs.invalidate_everything }}" = "true" ]; then
+            paths=("/*")
+          else
+            mapfile -t paths < <(sort -u "$RUNNER_TEMP/invalidations.txt")
+          fi
+          if [ "${#paths[@]}" -eq 0 ]; then
+            echo "Nothing a visitor can get changed: no invalidation."
+            echo "summary=nothing (no file a visitor can get changed)" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.cloudfront_distribution_id }} \
+            --paths "${paths[@]}" --query 'Invalidation.Id' --output text
+          echo "summary=${#paths[@]} path(s): ${paths[*]}" >> "$GITHUB_OUTPUT"
+
+      # A deploy that failed after an upload stored its manifest would leave the next one seeing
+      # nothing changed, and the old responses cached for a year: clear everything (one path),
+      # whatever went up.
+      - name: Invalidate everything after a failed deploy
+        if: failure() && steps.invalidation_list.outcome == 'success'
         run: |
           aws cloudfront create-invalidation \
             --distribution-id ${{ secrets.cloudfront_distribution_id }} \
-            --paths "/index.html" "/" "/data/compiled/*" "/dataset/*" "/dictionary/*"
+            --paths "/*" --query 'Invalidation.Id' --output text
 
       - name: Deployment summary
         run: |
@@ -286,6 +324,7 @@ jobs:
             echo "**App:** ${{ inputs.site_origin }}/"
             echo "**Dictionary:** ${{ inputs.site_origin }}/dictionary/ (${{ inputs.dictionary_rendering }})"
             echo "**Bucket:** ${{ inputs.s3_bucket }}"
+            echo "**Invalidated:** ${{ steps.invalidate.outputs.summary }}"
             echo ""
             echo "Both apps built from the same checkout, so they share one dataset version."
             echo ""

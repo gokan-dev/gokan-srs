@@ -184,6 +184,13 @@ const EMAIL_VARIABLE = /^variable\s+"(\w+_email)"\s*\{([\s\S]*?)^\}/gm;
 const SENSITIVE = /^\s*sensitive\s*=\s*true\b/m;
 const EMAIL_FROM_VARS = /^\s*TF_VAR_\w*_email:\s*\$\{\{\s*vars\./;
 
+/**
+ * A CloudFront invalidation naming a site's wildcard by hand: the dictionary's or the dataset's
+ * cached responses cleared on every deploy whether they changed or not. invalidationFor decides
+ * what a deploy clears (#199); a fixed list in a workflow is how the whole-site clear came back.
+ */
+const FIXED_SITE_INVALIDATION = /--paths\b.*"\/(dictionary|dataset)\/\*"/;
+
 /** A workflow's jobs, each with its text and the line its header is on. */
 function workflowJobs(text: string): { name: string; line: number; text: string }[] {
     const start = text.search(/^jobs:\s*$/m);
@@ -534,6 +541,8 @@ function check(files: string[]): Violation[] {
         if (WORKFLOW.test(file)) {
             eachLine(text, l => EMAIL_FROM_VARS.test(l), line =>
                 add({ file, line, rule: 'private-email', message: 'Sets a Terraform email variable from an Actions variable, which every step\'s log prints unmasked in a public repository. Read it from a secret (`${{ secrets.NAME }}`), which GitHub masks.' }));
+            eachLine(text, l => FIXED_SITE_INVALIDATION.test(l), line =>
+                add({ file, line, rule: 'selective-invalidation', message: 'Invalidates a site by a fixed wildcard on every deploy, clearing pages that did not change. A deploy clears what changed: the paths deploy-s3.ts --invalidations lists (invalidationFor, packages/deploy/src/invalidation.ts), or "/*" after a failure.' }));
         }
 
         if (UI_SOURCE.test(file)) {

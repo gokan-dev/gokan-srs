@@ -88,12 +88,34 @@ export type ChangeDates = Record<string, string>;
 
 /**
  * What a deploy stores beside the site: every file's hash (what is uploaded), its page content
- * hash (what is dated) and the day that content last changed.
+ * hash (what is dated), the day that content last changed, and the byte hash of each page its
+ * server renders instead (`server`: the dictionary's pages on request, never uploaded), which is
+ * what tells the next deploy which cached pages to clear (`invalidationFor`).
  */
 export interface StoredManifest {
     hashes: BuildManifest;
     content: BuildManifest;
     changed: ChangeDates;
+    server: BuildManifest;
+}
+
+/**
+ * Every file a visitor of the site can get, by its byte hash: the bucket's, with the server's pages
+ * over them (a page kept in the bucket for a rollback is not what the server answers).
+ */
+export function servedFiles(hashes: BuildManifest, server: BuildManifest): BuildManifest {
+    return { ...hashes, ...server };
+}
+
+/** The pages the server renders, by byte hash: none unless they are its (`pagesOnServer`). */
+export function serverPages(built: BuildManifest, { pagesOnServer = false }: DeployedOptions): BuildManifest {
+    return pagesOnServer ? Object.fromEntries(Object.entries(built).filter(([file]) => file.endsWith('.html'))) : {};
+}
+
+/** Two manifests with the same files under the same hashes. */
+export function sameFiles(a: BuildManifest, b: BuildManifest): boolean {
+    const keys = Object.keys(a);
+    return keys.length === Object.keys(b).length && keys.every(file => b[file] === a[file]);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -114,19 +136,21 @@ function stringRecord(value: unknown): Record<string, string> | null {
  * Narrows a manifest read back from S3; anything malformed counts as no manifest. A manifest
  * from before change dates were kept is a bare map of hashes, and one from before content
  * hashes were kept has no `content`: either reads with nothing to date by, so its files are
- * dated by the deploy reading it.
+ * dated by the deploy reading it. One from before `server` was kept reads with no server pages:
+ * every page the server renders then counts as changed, which clears them (the safe direction).
  */
 export function parseManifest(raw: unknown): StoredManifest | null {
     if (isRecord(raw) && 'hashes' in raw) {
         const hashes = stringRecord(raw.hashes);
         const changed = stringRecord(raw.changed);
-        if (!hashes || !changed) return null;
-        if (!('content' in raw)) return { hashes, content: {}, changed: {} };
+        const server = 'server' in raw ? stringRecord(raw.server) : {};
+        if (!hashes || !changed || !server) return null;
+        if (!('content' in raw)) return { hashes, content: {}, changed: {}, server };
         const content = stringRecord(raw.content);
-        return content ? { hashes, content, changed } : null;
+        return content ? { hashes, content, changed, server } : null;
     }
     const hashes = stringRecord(raw);
-    return hashes ? { hashes, content: {}, changed: {} } : null;
+    return hashes ? { hashes, content: {}, changed: {}, server: {} } : null;
 }
 
 export function serializeManifest(manifest: StoredManifest): string {
@@ -161,7 +185,7 @@ export function manifestFromListing(listing: unknown, prefix: string): BuildMani
  * (gokan-srs's root listing includes all of dictionary/), so pruning from it would delete them.
  */
 export type PreviousDeploy =
-    | { source: 'manifest'; manifest: BuildManifest; content: BuildManifest; changed: ChangeDates }
+    | { source: 'manifest'; manifest: BuildManifest; content: BuildManifest; changed: ChangeDates; server: BuildManifest }
     | { source: 'listing'; manifest: BuildManifest }
     | { source: 'none' };
 
