@@ -71,6 +71,11 @@ on:
         type: string
         required: false
         default: '2000'
+      dictionary_locales:
+        description: 'The locales the dictionary is built and served in, space-separated (VITE_DICTIONARY_LOCALES): "en" (production, until gokan-dataset#53 confirms the Chinese review), "en zh-hans" (staging, #170). A locale the app does not know fails the build.'
+        type: string
+        required: false
+        default: 'en'
       invalidate_everything:
         description: '"true" clears the whole distribution with one path (/*) instead of what changed: staging, where a cached page is worth nothing and every path counts against the account''s 1,000 free invalidation paths a month.'
         type: string
@@ -171,6 +176,7 @@ jobs:
         env:
           VITE_SITE_ORIGIN: ${{ inputs.site_origin }}
           VITE_UMAMI_WEBSITE_ID: ${{ inputs.umami_website_id }}
+          VITE_DICTIONARY_LOCALES: ${{ inputs.dictionary_locales }}
         run: |
           bun run --cwd apps/gokan-dictionary build:on-request
           cd apps/gokan-dictionary/build
@@ -188,6 +194,7 @@ jobs:
         env:
           VITE_SITE_ORIGIN: ${{ inputs.site_origin }}
           VITE_UMAMI_WEBSITE_ID: ${{ inputs.umami_website_id }}
+          VITE_DICTIONARY_LOCALES: ${{ inputs.dictionary_locales }}
         run: bun run --cwd apps/gokan-dictionary build
 
       # The clips this dataset version names (#164), uploaded before anything naming them is

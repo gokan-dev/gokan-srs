@@ -93,7 +93,10 @@ jobs:
       # On request, as production will serve it (#206): the list pages static, the word, kanji and
       # grammar point pages rendered by the dictionary's server (scripts/lib/builtSite.ts starts it
       # behind the static files, as CloudFront puts the function behind S3).
+      # Every locale, staging's included (#170), so a Chinese page type is held to SEO 100 too.
       - name: Build the dictionary
+        env:
+          VITE_DICTIONARY_LOCALES: en zh-hans
         run: bun run --cwd apps/gokan-dictionary build:on-request
 
       - name: Lighthouse

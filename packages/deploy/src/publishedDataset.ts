@@ -9,8 +9,9 @@
 export const APP_LANGUAGES = {
     // gokan-srs stays English (#201, standing decisions).
     srs: ['en'],
-    // #170 adds 'zh-hans' here when the dictionary's Chinese section reads it.
-    dictionary: ['en'],
+    // Its Chinese section (#170), served on staging first (VITE_DICTIONARY_LOCALES): published to
+    // both environments' buckets by the one data deploy, since a site serves only what it builds.
+    dictionary: ['en', 'zh-hans'],
 } as const satisfies Record<string, readonly string[]>;
 
 /** Every language some app reads: what is published. */

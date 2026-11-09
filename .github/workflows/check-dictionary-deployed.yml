@@ -92,6 +92,8 @@ jobs:
         env:
           VITE_SITE_ORIGIN: ${{ env.SITE_ORIGIN }}
           VITE_UMAMI_WEBSITE_ID: ${{ inputs.environment == 'production' && vars.UMAMI_WEBSITE_ID || '' }}
+          # The locales the environment serves (deploy-staging.yml, deploy-site.yml's default).
+          VITE_DICTIONARY_LOCALES: ${{ inputs.environment == 'production' && 'en' || 'en zh-hans' }}
         run: bun run --cwd apps/gokan-dictionary build
 
       - name: Compare with the deployed site (check:parity --against)

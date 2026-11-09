@@ -80,7 +80,11 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      # Every locale, staging's included (#170): the build's own checks (size budgets, served
+      # paths, lang attributes) then cover the Chinese pages.
       - name: Build
+        env:
+          VITE_DICTIONARY_LOCALES: en zh-hans
         run: bun run --cwd apps/gokan-dictionary build
 
       # Which pages this pull request changes, in the job summary: the base branch's tip (HEAD^1
