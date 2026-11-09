@@ -571,9 +571,13 @@ function check(files: string[]): Violation[] {
             // waiting for it (a skipped one, as staging's was, leaves the race open).
             const serverStep = steps.findIndex(({ body }) => body.includes('update-function-code'));
             if (serverStep !== -1 && text.includes('--invalidations')) {
-                const datasetWaited = steps.slice(0, serverStep).some(({ body }) =>
-                    body.includes('create-invalidation') && body.includes('/dataset/') && body.includes('wait invalidation-completed')
-                    && !body.split('\n').some(l => /^\s*-?\s*if:/.test(l)));
+                // Comment lines left out: a step's slice runs on to the comment above the next one.
+                const datasetWaited = steps.slice(0, serverStep).some(({ body }) => {
+                    const code = body.split('\n').filter(l => !/^\s*#/.test(l));
+                    const joined = code.join('\n');
+                    return joined.includes('create-invalidation') && joined.includes('/dataset/') && joined.includes('wait invalidation-completed')
+                        && !code.some(l => /^\s*-?\s*if:/.test(l));
+                });
                 if (!datasetWaited) {
                     add({ file, line: lineAt(steps[serverStep].start), rule: 'selective-invalidation', message: 'Updates the dictionary server\'s code with no earlier, unconditional step clearing /dataset/ and waiting for it (aws cloudfront wait invalidation-completed). The server keeps dataset indexes for an instance\'s lifetime, so an instance started before the dataset\'s invalidation completes renders the cleared pages from a stale file, cached a year.' });
                 }
