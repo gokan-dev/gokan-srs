@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { escapeHtml, japaneseWithoutLang, langOf, renderDocument, stripHydrationMarkers } from './documentShell';
+import { escapeHtml, japaneseWithoutLang, langOf, langOnChinesePage, renderDocument, stripHydrationMarkers } from './documentShell';
 import { absoluteUrl, localeUrls } from './urls';
 
 describe('escapeHtml', () => {
@@ -155,6 +155,16 @@ describe('japaneseWithoutLang', () => {
     it('ignores the head and script contents', () => {
         const html = '<html><head><title>食べる</title></head><body><script type="application/ld+json">{"name":"食べる"}</script><p lang="ja">食べる</p></body></html>';
         expect(japaneseWithoutLang(html)).toEqual([]);
+    });
+});
+
+describe('langOnChinesePage', () => {
+    it('marks kana-only text as Japanese, leaving Chinese and Chinese quoting Japanese alone', () => {
+        expect(langOnChinesePage('ずるいさ')).toBe('ja');
+        expect(langOnChinesePage('‐ている')).toBe('ja');
+        expect(langOnChinesePage('狡猾，奸诈。')).toBeUndefined();
+        expect(langOnChinesePage('去，到；行く的尊敬语')).toBeUndefined();
+        expect(langOnChinesePage('auxiliary')).toBeUndefined();
     });
 });
 

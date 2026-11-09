@@ -4,6 +4,7 @@
   import type { Sentence } from '@gokan/dataset-schema';
   import { valueText, type DefinitionSense } from '@gokan/dataset-schema/text';
   import { pageLocale } from './pageLocale';
+  import { langOnChinesePage } from '../lib/documentShell';
   import { meaningsOf, type SenseView } from '../lib/senses';
   import { sentenceRuns } from '../lib/furigana';
   import { conjugate, wordClassOf } from '../lib/conjugation';
@@ -63,9 +64,10 @@
 {#snippet localSenseList(senses: DefinitionSense[])}
   <ol class="sense-list">
     {#each senses as sense, index (index)}
+      {@const glosses = sense.glosses.map(valueText).join('；')}
       <li>
         {#if sense.appliesToSpellings?.length || sense.appliesToReadings?.length}<p class="sense-pos" lang="ja">{[...(sense.appliesToSpellings ?? []), ...(sense.appliesToReadings ?? [])].join('、')}</p>{/if}
-        {sense.glosses.map(valueText).join('；')}{#each sense.tags ?? [] as tag (tag)}<span class="sense-label">{tag}</span>{/each}
+        <span lang={langOnChinesePage(glosses)}>{glosses}</span>{#each sense.tags ?? [] as tag, tagIndex (tagIndex)}<span class="sense-label" lang={langOnChinesePage(tag)}>{tag}</span>{/each}
       </li>
     {/each}
   </ol>
@@ -96,7 +98,7 @@
       <p class="entry-sub" lang="ja">{vocab.reading.primary}{#if vocab.reading.alternatives.length > 0}<span class="meta" lang="en"> · also <span lang="ja">{vocab.reading.alternatives.join('、')}</span></span>{/if}</p>
     {/if}
 
-    {#if summary}<p class="entry-gloss">{summary}</p>{/if}
+    {#if summary}<p class="entry-gloss" lang={text ? langOnChinesePage(summary) : undefined}>{summary}</p>{/if}
 
     <p class="chips">
       {#if vocab.jlptLevel}<Chip label={`JLPT N${vocab.jlptLevel}`} href={urls.vocabJlptPath(vocab.jlptLevel)} />{/if}
@@ -119,7 +121,7 @@
         <h2>Meanings</h2>
         {#if text}
           {#if chineseSenses.length > 0}{@render localSenseList(chineseSenses)}{/if}
-          {#if text.equivalents.length > 0}<p class="meta">{text.equivalents.map(equivalent => valueText(equivalent.value)).join('、')}</p>{/if}
+          {#if text.equivalents.length > 0}<p class="meta">{#each text.equivalents as equivalent, index (index)}{index > 0 ? '、' : ''}<span lang={langOnChinesePage(valueText(equivalent.value))}>{valueText(equivalent.value)}</span>{/each}</p>{/if}
         {/if}{#if meanings.visible.length > 0}{@render senseList(meanings.visible)}{/if}
         {#if meanings.more.length > 0}
           <details class="disclosure">
