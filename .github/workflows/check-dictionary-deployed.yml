@@ -41,6 +41,9 @@ jobs:
     # Written once: the build's canonicals and the site compared must be the same origin.
     env:
       SITE_ORIGIN: ${{ inputs.environment == 'production' && 'https://gokan-srs.com' || 'https://staging.gokan-srs.com' }}
+      # The locales the environment serves: deploy-site.yml's dictionary_locales default and
+      # deploy-staging.yml's, held equal to them by check:conventions (one-locale-list).
+      VITE_DICTIONARY_LOCALES: ${{ inputs.environment == 'production' && 'en' || 'en zh-hans' }}
 
     steps:
       - name: Checkout repository

@@ -35,6 +35,12 @@ jobs:
     permissions:
       contents: read
 
+    # Every locale, staging's included (#170), for the whole job. The Chinese pages are measured
+    # once the dictionary serves them and their URLs are in scripts/check-layout.ts's page list
+    # (both the sprint's first member, #170).
+    env:
+      VITE_DICTIONARY_LOCALES: en zh-hans
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

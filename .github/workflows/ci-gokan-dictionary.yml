@@ -30,6 +30,12 @@ jobs:
     permissions:
       contents: read
 
+    # Every locale, staging's included (#170), for the whole job: the build's own checks (size
+    # budgets, served paths, lang attributes) then cover what staging serves, and the builds
+    # check:parity starts itself (the base's, the on-request server's) see the same list.
+    env:
+      VITE_DICTIONARY_LOCALES: en zh-hans
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

@@ -39,6 +39,9 @@ jobs:
       # One path (/*) per deploy: staging has no cache worth keeping, and its deploys (about 130 a
       # month) share the account's 1,000 free invalidation paths with production's.
       invalidate_everything: 'true'
+      # The Chinese section (#170) is served on staging only until gokan-dataset#53 confirms its
+      # provisional review; production builds English alone (deploy-site.yml's default).
+      dictionary_locales: 'en zh-hans'
       # Set together with STAGING_DICTIONARY_ON_REQUEST, which terraform-staging.yml reads.
       dictionary_rendering: ${{ vars.STAGING_DICTIONARY_RENDERING || 'prerendered' }}
       dictionary_function: ${{ vars.STAGING_DICTIONARY_FUNCTION }}

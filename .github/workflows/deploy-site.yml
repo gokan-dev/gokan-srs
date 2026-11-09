@@ -71,6 +71,11 @@ on:
         type: string
         required: false
         default: '2000'
+      dictionary_locales:
+        description: 'The locales the dictionary is built and served in, space-separated (VITE_DICTIONARY_LOCALES): "en" (production, until gokan-dataset#53 confirms the Chinese review), "en zh-hans" (staging, #170). The dictionary does not read it yet: the first member of the #170 sprint makes the locales it serves follow it, and a locale it does not know fail the build.'
+        type: string
+        required: false
+        default: 'en'
       invalidate_everything:
         description: '"true" clears the whole distribution with one path (/*) instead of what changed: staging, where a cached page is worth nothing and every path counts against the account''s 1,000 free invalidation paths a month.'
         type: string
@@ -97,6 +102,11 @@ jobs:
 
     permissions:
       contents: read
+
+    # The locales the dictionary is built in, for every build in the job (the static and the
+    # on-request one).
+    env:
+      VITE_DICTIONARY_LOCALES: ${{ inputs.dictionary_locales }}
 
     steps:
       - name: Checkout repository

@@ -10,7 +10,8 @@ describe('isPublishedDatasetFile', () => {
 
     it('publishes the text of a language an app reads, and no other', () => {
         expect(isPublishedDatasetFile('text/en/vocab/1358280.json')).toBe(true);
-        expect(isPublishedDatasetFile('text/zh-hans/vocab/1358280.json')).toBe(false);
+        expect(isPublishedDatasetFile('text/zh-hans/vocab/1358280.json')).toBe(true);
+        expect(isPublishedDatasetFile('text/zh-hant/vocab/1358280.json')).toBe(false);
         expect(isPublishedDatasetFile('text/fr/kanji/学.json')).toBe(false);
     });
 
@@ -35,7 +36,7 @@ describe('publishedDatasetFile', () => {
 
     it('answers nothing outside /dataset/, or for a file the deploy does not publish', () => {
         expect(publishedDatasetFile('/data/compiled/vocab/1358280.json')).toBeNull();
-        expect(publishedDatasetFile('/dataset/text/zh-hans/vocab/1358280.json')).toBeNull();
+        expect(publishedDatasetFile('/dataset/text/zh-hant/vocab/1358280.json')).toBeNull();
         expect(publishedDatasetFile('/dataset/merged_vocabs.log')).toBeNull();
     });
 
