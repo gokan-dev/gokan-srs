@@ -37,10 +37,6 @@ env:
   # Where the dictionary server's usage alarms are emailed (unset: no alarm). A secret, not in the
   # code nor an Actions variable: the repository is public, and a step's log prints a variable as is.
   TF_VAR_dictionary_alarm_email: ${{ secrets.DICTIONARY_ALARM_EMAIL }}
-  # What the dictionary's page rate rule does above its limit: "block" (unset), or "count" while
-  # `Check: deployed dictionary` runs against production (it asks for every page from one address).
-  TF_VAR_dictionary_page_rate_action: ${{ vars.DICTIONARY_PAGE_RATE_ACTION || 'block' }}
-
 jobs:
   plan:
     name: Plan (PR)
