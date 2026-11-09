@@ -205,6 +205,53 @@ resource "aws_lambda_permission" "cloudfront_invoke" {
 # What a browser is told about such a page: revalidate every time, as for a page uploaded to S3
 # (cacheControlFor in @gokan/deploy). A function rather than a response headers policy, for the
 # same plan reason; a page that has its own Cache-Control keeps it.
+# The custom policies the pages' behavior used before, kept one apply so each distribution moves
+# off them first: removed in the same apply, Terraform deletes them before updating the
+# distribution (nothing in the config links them any more) and CloudFront refuses, still in use.
+# Removed by the next commit, once staging and production are applied.
+resource "aws_cloudfront_cache_policy" "pages" {
+  name        = "${var.name}-pages"
+  comment     = "Unused: removed once no distribution references it"
+  min_ttl     = 0
+  default_ttl = 31536000
+  max_ttl     = 31536000
+
+  parameters_in_cache_key_and_forwarded_to_origin {
+    enable_accept_encoding_brotli = true
+    enable_accept_encoding_gzip   = true
+
+    cookies_config {
+      cookie_behavior = "none"
+    }
+    headers_config {
+      header_behavior = "none"
+    }
+    query_strings_config {
+      query_string_behavior = "none"
+    }
+  }
+
+  lifecycle {
+    ignore_changes = all
+  }
+}
+
+resource "aws_cloudfront_response_headers_policy" "pages" {
+  name = "${var.name}-pages"
+
+  custom_headers_config {
+    items {
+      header   = "Cache-Control"
+      value    = "public, max-age=0, must-revalidate"
+      override = false
+    }
+  }
+
+  lifecycle {
+    ignore_changes = all
+  }
+}
+
 resource "aws_cloudfront_function" "page_cache_control" {
   name    = "${var.name}-page-cache-control"
   runtime = "cloudfront-js-2.0"
