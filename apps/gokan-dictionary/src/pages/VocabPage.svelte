@@ -26,6 +26,9 @@
   // wants the meaning immediately, not after scrolling to the Meanings section.
   // On a page in another language (text), its own: the first equivalents, else its first definition's first sense.
   const summary = $derived(text ? localSummary(text) : summaryGloss(vocab.senses));
+  // A page in another language lists its own sources' meanings (shown renderings only) before
+  // English's, for now. In the template that block touches the next one, so English's page keeps
+  // its whitespace (check:parity --expect identical).
   const chineseSenses = $derived(text?.definitions.flatMap(definition => definition.senses) ?? []);
   const meanings = $derived(meaningsOf(vocab.senses));
   const commonCount = $derived(meanings.visible.length + meanings.more.length);
@@ -115,11 +118,9 @@
       <section class="section">
         <h2>Meanings</h2>
         {#if text}
-          <!-- A page in another language: its own sources' meanings (shown renderings only), English's below for now. -->
           {#if chineseSenses.length > 0}{@render localSenseList(chineseSenses)}{/if}
           {#if text.equivalents.length > 0}<p class="meta">{text.equivalents.map(equivalent => valueText(equivalent.value)).join('、')}</p>{/if}
-        {/if}
-        {#if meanings.visible.length > 0}{@render senseList(meanings.visible)}{/if}
+        {/if}{#if meanings.visible.length > 0}{@render senseList(meanings.visible)}{/if}
         {#if meanings.more.length > 0}
           <details class="disclosure">
             <summary>All {commonCount} meanings</summary>
