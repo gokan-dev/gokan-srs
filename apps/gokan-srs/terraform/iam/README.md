@@ -10,5 +10,9 @@ Attach each before the first apply or deploy that needs it.
   CloudFront functions, cache and response headers policies and origin access controls come
   under the `cloudfront:*` the user already has. Merged into the user's managed policy, or its
   own managed policy beside an inline one (a user's inline policies share 2,048 characters).
+- `terraform-ci-dictionary-guards.json`, on `gokan-terraform-ci` as well: the guards against a
+  render loop. The page rate rule added to production's console-created web ACL
+  (`aws_wafv2_web_acl_rule`), and the usage alarms (an SNS topic, its email subscription, two
+  CloudWatch alarms) named after the function.
 - `deploy-dictionary-server.json`, on the site's deploy user (the `AWS_*` secrets of the deploy
   workflows): upload the server's code (`aws lambda update-function-code`) and wait for it.

@@ -66,6 +66,23 @@ variable "dictionary_on_request" {
   default     = false
 }
 
+variable "dictionary_alarm_email" {
+  description = "Where the dictionary server's usage alarms go; empty creates none. Set by the DICTIONARY_ALARM_EMAIL Actions secret (terraform-production.yml), never committed: the repository is public, its plans too."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "dictionary_page_rate_action" {
+  description = "What the dictionary-page-rate rule does above its limit: \"block\" (429), or \"count\" while a production parity check runs (Check: deployed dictionary). Set by the DICTIONARY_PAGE_RATE_ACTION Actions variable."
+  type        = string
+  default     = "block"
+  validation {
+    condition     = contains(["block", "count"], var.dictionary_page_rate_action)
+    error_message = "dictionary_page_rate_action is \"block\" or \"count\"."
+  }
+}
+
 # The directory-index function moved into the dictionary module (#209), under the same name.
 moved {
   from = aws_cloudfront_function.dictionary_directory_index
@@ -241,8 +258,68 @@ module "dictionary_server" {
   name             = "${var.project_name}-dictionary"
   site_origin      = "https://${var.domain_name}"
   distribution_arn = aws_cloudfront_distribution.website.arn
+  alarm_email      = var.dictionary_alarm_email
 
   tags = { Environment = "production" }
+}
+
+# A loop over URLs that each miss the cache makes the dictionary's server render every one of
+# them: reserved concurrency caps what that can cost, this stops it per address. One rule added
+# to the console-created web ACL (which this Terraform references, not owns), counting only page
+# requests (no dot in the path: what the server renders; files come from the bucket, cached). A
+# reader or a crawler stays far below 1,000 pages in 5 minutes (over 3 a second, sustained); an
+# address above it gets 429 (a crawler backs off on it, rather than dropping pages as on a 403)
+# until its rate falls back under the limit. The priority sits after the ACL's own rules.
+resource "aws_wafv2_web_acl_rule" "dictionary_page_rate" {
+  provider    = aws.us_east_1
+  web_acl_arn = var.cloudfront_web_acl_arn
+  name        = "dictionary-page-rate"
+  priority    = 100
+
+  # Counted, not blocked, while a production parity check asks for every page from one address.
+  action {
+    dynamic "block" {
+      for_each = var.dictionary_page_rate_action == "block" ? [1] : []
+      content {
+        custom_response {
+          response_code = 429
+        }
+      }
+    }
+    dynamic "count" {
+      for_each = var.dictionary_page_rate_action == "count" ? [1] : []
+      content {}
+    }
+  }
+
+  statement {
+    rate_based_statement {
+      # Read against PARALLEL_REQUESTS (apps/gokan-dictionary/scripts/check-parity.ts): the check
+      # makes about 10,000 page requests per 5 minutes, so it runs with the action at "count".
+      limit                 = 1000
+      evaluation_window_sec = 300
+      aggregate_key_type    = "IP"
+
+      scope_down_statement {
+        regex_match_statement {
+          regex_string = "^/dictionary/[^.]*$"
+          field_to_match {
+            uri_path {}
+          }
+          text_transformation {
+            priority = 0
+            type     = "NONE"
+          }
+        }
+      }
+    }
+  }
+
+  visibility_config {
+    cloudwatch_metrics_enabled = true
+    metric_name                = "dictionary-page-rate"
+    sampled_requests_enabled   = true
+  }
 }
 
 # The app's routes get its shell (modules/spa-fallback), in place of distribution-wide error pages.
