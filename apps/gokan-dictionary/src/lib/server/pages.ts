@@ -485,7 +485,7 @@ export function pagesOf(source: DictionaryData, locale: ServedLocale) {
         vocabJlptPage: async () => (await jlptLevelWords()).flatMap(({ level, words }) => paginate(words, JLPT_PAGE_SIZE).slice(1).map((_, index) => ({ level: String(level), page: String(index + 2) }))),
     };
     /** Another locale's: its words with text shown in its language (LocaleText.wordIds), and nothing else yet. */
-    const wordsWithText = kept(async () => (text ? text.wordIds() : vocabIds()));
+    const wordsWithText = kept(async () => (text === null ? [] : text.wordIds()));
     const none = () => Promise.resolve([]);
     const pageEntries: typeof everyPageEntries = text === null ? everyPageEntries : {
         vocab: async () => (await wordsWithText()).map(id => ({ id })),
