@@ -180,9 +180,11 @@ resource "aws_cloudfront_origin_access_control" "website" {
 # Security-headers response policy, created via the console and imported into CI
 # state during the state migration. Currently NOT attached to the distribution
 # (its response_headers_policy_id is unset), so it has no effect on live traffic
-# yet; recorded here so `terraform apply` doesn't delete it. To actually enforce
-# these headers, add `response_headers_policy_id = aws_cloudfront_response_headers_policy.security_headers.id`
-# to the default_cache_behavior below (a deliberate, reviewable change).
+# yet; recorded here so `terraform apply` doesn't delete it. It cannot simply be
+# attached: the distribution is on CloudFront's Free flat-rate plan, which refuses a
+# custom response headers policy (the free-plan-policies convention rule refuses it
+# too). Enforcing these headers means setting them in a viewer-response CloudFront
+# Function, as the dictionary's page_cache_control does, or leaving the Free plan.
 resource "aws_cloudfront_response_headers_policy" "security_headers" {
   name    = "${var.project_name}-security-headers"
   comment = "Security headers for gokan-srs"
