@@ -171,6 +171,11 @@ function main(): void {
 
 /** The static build, kept while the on-request build takes dist/. */
 const REFERENCE = path.join(REPO_ROOT, 'node_modules', '.cache', 'check-parity-server', 'dist');
+/**
+ * About 10,000 page requests per 5 minutes from one address: past production's page rate rule
+ * (dictionary-page-rate, limit 1,000, apps/gokan-srs/terraform/main.tf), so a production run has
+ * the rule's action at "count". Read a change to either number against the other.
+ */
 const PARALLEL_REQUESTS = 8;
 
 /**

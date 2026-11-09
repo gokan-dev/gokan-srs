@@ -56,9 +56,10 @@ variable "memory_mb" {
 }
 
 variable "alarm_email" {
-  description = "Where the server's usage alarms are sent; empty creates no alarm. An Actions variable, never committed: the repository is public."
+  description = "Where the server's usage alarms are sent; empty creates no alarm. An Actions secret, never committed: the repository is public, its plans too."
   type        = string
   default     = ""
+  sensitive   = true
 }
 
 # Hourly invocations above which something other than visitors and crawlers filling the cache is
@@ -260,21 +261,26 @@ resource "aws_cloudfront_function" "directory_index" {
 # cache, or a crawler gone wrong), and throttling (the reservation is full, so visitors get 429s).
 # The reservation caps what a loop can cost; these say that it is happening. The subscription
 # has to be confirmed once from the email AWS sends.
+locals {
+  # Whether there is an address, not the address: a sensitive value cannot decide a count.
+  alarms = nonsensitive(var.alarm_email != "")
+}
+
 resource "aws_sns_topic" "alarms" {
-  count = var.alarm_email == "" ? 0 : 1
+  count = local.alarms ? 1 : 0
   name  = "${var.name}-alarms"
   tags  = var.tags
 }
 
 resource "aws_sns_topic_subscription" "alarms_email" {
-  count     = var.alarm_email == "" ? 0 : 1
+  count     = local.alarms ? 1 : 0
   topic_arn = aws_sns_topic.alarms[0].arn
   protocol  = "email"
   endpoint  = var.alarm_email
 }
 
 resource "aws_cloudwatch_metric_alarm" "invocations" {
-  count               = var.alarm_email == "" ? 0 : 1
+  count               = local.alarms ? 1 : 0
   alarm_name          = "${var.name}-invocations"
   alarm_description   = "Dictionary server: more than ${var.alarm_invocations_per_hour} renders in an hour (pages missing the cache far above the organic rate)"
   namespace           = "AWS/Lambda"
@@ -292,7 +298,7 @@ resource "aws_cloudwatch_metric_alarm" "invocations" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "throttles" {
-  count               = var.alarm_email == "" ? 0 : 1
+  count               = local.alarms ? 1 : 0
   alarm_name          = "${var.name}-throttles"
   alarm_description   = "Dictionary server: over 100 throttled renders in 5 minutes (the reserved concurrency is full; visitors get 429s)"
   namespace           = "AWS/Lambda"

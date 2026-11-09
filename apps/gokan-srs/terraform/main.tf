@@ -67,9 +67,20 @@ variable "dictionary_on_request" {
 }
 
 variable "dictionary_alarm_email" {
-  description = "Where the dictionary server's usage alarms go; empty creates none. Set by the DICTIONARY_ALARM_EMAIL Actions variable (terraform-production.yml), never committed: the repository is public."
+  description = "Where the dictionary server's usage alarms go; empty creates none. Set by the DICTIONARY_ALARM_EMAIL Actions secret (terraform-production.yml), never committed: the repository is public, its plans too."
   type        = string
   default     = ""
+  sensitive   = true
+}
+
+variable "dictionary_page_rate_action" {
+  description = "What the dictionary-page-rate rule does above its limit: \"block\" (429), or \"count\" while a production parity check runs (Check: deployed dictionary). Set by the DICTIONARY_PAGE_RATE_ACTION Actions variable."
+  type        = string
+  default     = "block"
+  validation {
+    condition     = contains(["block", "count"], var.dictionary_page_rate_action)
+    error_message = "dictionary_page_rate_action is \"block\" or \"count\"."
+  }
 }
 
 # The directory-index function moved into the dictionary module (#209), under the same name.
@@ -265,16 +276,26 @@ resource "aws_wafv2_web_acl_rule" "dictionary_page_rate" {
   name        = "dictionary-page-rate"
   priority    = 100
 
+  # Counted, not blocked, while a production parity check asks for every page from one address.
   action {
-    block {
-      custom_response {
-        response_code = 429
+    dynamic "block" {
+      for_each = var.dictionary_page_rate_action == "block" ? [1] : []
+      content {
+        custom_response {
+          response_code = 429
+        }
       }
+    }
+    dynamic "count" {
+      for_each = var.dictionary_page_rate_action == "count" ? [1] : []
+      content {}
     }
   }
 
   statement {
     rate_based_statement {
+      # Read against PARALLEL_REQUESTS (apps/gokan-dictionary/scripts/check-parity.ts): the check
+      # makes about 10,000 page requests per 5 minutes, so it runs with the action at "count".
       limit                 = 1000
       evaluation_window_sec = 300
       aggregate_key_type    = "IP"

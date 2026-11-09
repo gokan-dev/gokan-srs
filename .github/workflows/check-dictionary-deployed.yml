@@ -7,6 +7,11 @@
 #
 # On a runner rather than a laptop: 40k requests in a few minutes is what a home network or a
 # firewall stops partway (it did, #209). It needs no AWS credentials, only the public site.
+#
+# Production: its web ACL's page rate rule (dictionary-page-rate) answers 429 to one address above
+# 1,000 pages in 5 minutes, which this run passes in its first minutes. Before it, set the
+# DICTIONARY_PAGE_RATE_ACTION Actions variable to `count` and apply (`Terraform: production`); after
+# it, unset the variable and apply again. Staging has no such rule.
 
 name: "Check: deployed dictionary"
 

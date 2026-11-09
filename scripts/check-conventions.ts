@@ -171,6 +171,17 @@ const MANAGED_CACHE_POLICIES = new Map([
 const CACHE_POLICY_ASSIGNMENT = /^\s*cache_policy_id\s*=\s*([^#\s]+)/;
 const HEADERS_POLICY_ASSIGNMENT = /^\s*response_headers_policy_id\s*=/;
 
+/**
+ * An email address handed to Terraform stays out of public logs: the repository is public, so its
+ * Actions logs and run summaries are too. The variable is `sensitive` (a plan prints
+ * `(sensitive value)`, not a subscription's endpoint), and a workflow sets it from a secret, which
+ * GitHub masks, never from an Actions variable, which a step's log prints as is (#209).
+ */
+const TERRAFORM_FILE = /^apps\/gokan-srs\/terraform\/.+\.tf$/;
+const EMAIL_VARIABLE = /^variable\s+"(\w+_email)"\s*\{([\s\S]*?)^\}/gm;
+const SENSITIVE = /^\s*sensitive\s*=\s*true\b/m;
+const EMAIL_FROM_VARS = /^\s*TF_VAR_\w*_email:\s*\$\{\{\s*vars\./;
+
 /** A workflow's jobs, each with its text and the line its header is on. */
 function workflowJobs(text: string): { name: string; line: number; text: string }[] {
     const start = text.search(/^jobs:\s*$/m);
@@ -506,6 +517,19 @@ function check(files: string[]): Violation[] {
             }, line => add({ file, line, rule: 'free-plan-policies', message: `A cache policy that is not a managed one by its ID (${[...MANAGED_CACHE_POLICIES].map(([id, name]) => `${name} "${id}"`).join(', ')}). Production's distribution is on CloudFront's Free plan, which refuses a custom cache policy: the whole apply fails. Use a managed policy, or add one to MANAGED_CACHE_POLICIES with its name.` }));
             eachLine(text, l => HEADERS_POLICY_ASSIGNMENT.test(l), line =>
                 add({ file, line, rule: 'free-plan-policies', message: 'Attaches a response headers policy. Production\'s distribution is on CloudFront\'s Free plan, which refuses a custom one: the whole apply fails. Set a header in a viewer-response CloudFront Function (as page_cache_control in modules/dictionary-server).' }));
+        }
+
+        if (TERRAFORM_FILE.test(file)) {
+            for (const match of text.matchAll(EMAIL_VARIABLE)) {
+                if (!SENSITIVE.test(match[2])) {
+                    add({ file, line: text.slice(0, match.index).split('\n').length, rule: 'private-email', message: `Variable \`${match[1]}\` holds an email address without \`sensitive = true\`: the plan, published to a public run summary, would print it. Declare it sensitive (and wrap a \`count\` that reads it in \`nonsensitive(... != "")\`).` });
+                }
+            }
+        }
+
+        if (WORKFLOW.test(file)) {
+            eachLine(text, l => EMAIL_FROM_VARS.test(l), line =>
+                add({ file, line, rule: 'private-email', message: 'Sets a Terraform email variable from an Actions variable, which every step\'s log prints unmasked in a public repository. Read it from a secret (`${{ secrets.NAME }}`), which GitHub masks.' }));
         }
 
         if (UI_SOURCE.test(file)) {
