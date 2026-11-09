@@ -12,6 +12,8 @@ import type { AddressInfo } from 'node:net';
 import { extname, join, resolve, sep } from 'node:path';
 import { brotliCompressSync, constants } from 'node:zlib';
 import { publishedDatasetFile } from '@gokan/deploy/published-dataset';
+import { checkoutData } from '../../apps/gokan-dictionary/src/lib/dataset.server';
+import { SERVED_LOCALES } from '../../apps/gokan-dictionary/src/lib/locale';
 import { isDictionaryFilePath } from '../../apps/gokan-dictionary/src/lib/servedPaths';
 
 const ROOT = process.cwd();
@@ -215,11 +217,29 @@ export async function serveDictionaryOnRequest(port = 0): Promise<{ port: number
 const firstEntry = (dir: string, filter: (name: string) => boolean) => readdirSync(dir).filter(filter).sort()[0];
 
 /**
- * One representative page per dictionary type (home, word, word list, kanji index, kanji, grammar
- * index, grammar point). The word and the point are the dataset's first, which have a page in
- * either build: prerendered in dist/, or rendered on request.
+ * The first word with a Chinese page (the dictionary's own answer, LocaleText.wordText), when the
+ * build serves Chinese (VITE_DICTIONARY_LOCALES, as the build reads it): measured as English's
+ * word page is, from the first sprint of #170 on.
  */
-export function dictionaryPages(): { path: string; ready: string }[] {
+async function chineseWordPages(): Promise<{ path: string; ready: string }[]> {
+    if (!SERVED_LOCALES.includes('zh-hans')) return [];
+    const text = checkoutData(DATASET_DIR, 'zh-hans').localeText;
+    if (text === null) throw new Error('A zh-hans checkout reads no Chinese text.');
+    const index: unknown = JSON.parse(readFileSync(join(DATASET_DIR, 'text', 'zh-hans', 'index', 'entities.json'), 'utf-8'));
+    const listed = typeof index === 'object' && index !== null && 'vocab' in index && Array.isArray(index.vocab) ? index.vocab.filter(id => typeof id === 'string') : [];
+    for (const id of listed) {
+        if (await text.wordText(id)) return [{ path: `/zh-hans/vocab/${id}/`, ready: 'Meanings' }];
+    }
+    throw new Error('The dataset has no word with Chinese text shown, but the build serves zh-hans.');
+}
+
+/**
+ * One representative page per dictionary type (home, word, word list, kanji index, kanji, grammar
+ * index, grammar point), and a Chinese word page when the build serves Chinese. The word and the
+ * point are the dataset's first, which have a page in either build: prerendered in dist/, or
+ * rendered on request.
+ */
+export async function dictionaryPages(): Promise<{ path: string; ready: string }[]> {
     const grammarPoint = firstEntry(join(DATASET_DIR, 'grammar', 'points'), name => /^n\d-.*\.json$/.test(name)).replace(/\.json$/, '');
     const dictionaryVocab = firstEntry(join(DATASET_DIR, 'vocab'), name => /^\d+\.json$/.test(name)).replace(/\.json$/, '');
     return [
@@ -235,6 +255,7 @@ export function dictionaryPages(): { path: string; ready: string }[] {
         { path: '/kanji/orders/jlpt/301-400/', ready: 'Words by step' },
         { path: '/grammar/', ready: 'Grammar' },
         { path: `/grammar/${grammarPoint}/`, ready: 'Grammar' },
+        ...(await chineseWordPages()),
     ];
 }
 
