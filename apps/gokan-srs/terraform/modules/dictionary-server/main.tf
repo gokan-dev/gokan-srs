@@ -55,12 +55,6 @@ variable "memory_mb" {
   default     = 1024
 }
 
-variable "extra_response_headers" {
-  description = "Headers added to every dictionary page response (staging's X-Robots-Tag)"
-  type        = map(string)
-  default     = {}
-}
-
 variable "tags" {
   type    = map(string)
   default = {}
@@ -200,57 +194,32 @@ resource "aws_lambda_permission" "cloudfront_invoke" {
   source_arn    = var.distribution_arn
 }
 
-# Pages keep the cache lifetime the server gives them: a rendered page a year at the edge
-# (s-maxage, invalidated by every deploy), a 404 five minutes, an error never
-# (renderedPageCacheControl in @gokan/deploy). A prerendered list page carries no
-# Cache-Control (the server sends it as a file), so it takes the default: a year at the edge as
-# well. No query string, header or cookie is part of the key: no page reads one on the server.
-resource "aws_cloudfront_cache_policy" "pages" {
-  name        = "${var.name}-pages"
-  comment     = "Dictionary pages: the server's Cache-Control, a year by default"
-  min_ttl     = 0
-  default_ttl = 31536000
-  max_ttl     = 31536000
+# Pages are cached by the managed CachingOptimized policy, not a custom one: production's
+# distribution is on CloudFront's Free flat-rate plan, which refuses a custom cache policy and a
+# custom response headers policy (the first production apply of #209 failed on both). It honours
+# the server's Cache-Control: a rendered page a year at the edge (s-maxage, invalidated by every
+# deploy), a 404 five minutes (renderedPageCacheControl in @gokan/deploy). Its 1 s minimum means
+# an error's no-store is held a second, and a prerendered list page (no Cache-Control: the server
+# sends it as a file) a day, which every deploy's invalidation cuts short anyway.
+#
+# What a browser is told about such a page: revalidate every time, as for a page uploaded to S3
+# (cacheControlFor in @gokan/deploy). A function rather than a response headers policy, for the
+# same plan reason; a page that has its own Cache-Control keeps it.
+resource "aws_cloudfront_function" "page_cache_control" {
+  name    = "${var.name}-page-cache-control"
+  runtime = "cloudfront-js-2.0"
+  comment = "Dictionary pages without a Cache-Control: browser revalidation"
+  publish = true
 
-  parameters_in_cache_key_and_forwarded_to_origin {
-    enable_accept_encoding_brotli = true
-    enable_accept_encoding_gzip   = true
-
-    cookies_config {
-      cookie_behavior = "none"
-    }
-    headers_config {
-      header_behavior = "none"
-    }
-    query_strings_config {
-      query_string_behavior = "none"
-    }
-  }
-}
-
-# What a browser is told about a page with no Cache-Control of its own (a prerendered list page):
-# revalidate every time, as for a page uploaded to S3 (cacheControlFor in @gokan/deploy). A page
-# that has one keeps it (override = false).
-resource "aws_cloudfront_response_headers_policy" "pages" {
-  name    = "${var.name}-pages"
-  comment = "Dictionary pages: browser revalidation by default"
-
-  custom_headers_config {
-    items {
-      header   = "Cache-Control"
-      value    = "public, max-age=0, must-revalidate"
-      override = false
-    }
-
-    dynamic "items" {
-      for_each = var.extra_response_headers
-      content {
-        header   = items.key
-        value    = items.value
-        override = true
+  code = <<-EOT
+    function handler(event) {
+      var response = event.response;
+      if (!response.headers['cache-control']) {
+        response.headers['cache-control'] = { value: 'public, max-age=0, must-revalidate' };
       }
+      return response;
     }
-  }
+  EOT
 }
 
 # While the dictionary's pages are served from the bucket (before the cutover, and on rollback:
@@ -293,12 +262,9 @@ output "origin_access_control_id" {
   value = aws_cloudfront_origin_access_control.server.id
 }
 
-output "cache_policy_id" {
-  value = aws_cloudfront_cache_policy.pages.id
-}
-
-output "response_headers_policy_id" {
-  value = aws_cloudfront_response_headers_policy.pages.id
+output "page_cache_control_function_arn" {
+  description = "Viewer-response function for the pages' behavior: the browser's Cache-Control default"
+  value       = aws_cloudfront_function.page_cache_control.arn
 }
 
 output "directory_index_function_arn" {

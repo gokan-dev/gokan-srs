@@ -339,10 +339,14 @@ resource "aws_cloudfront_distribution" "website" {
       cached_methods   = ["GET", "HEAD", "OPTIONS"]
       target_origin_id = "dictionary-server"
 
-      cache_policy_id            = module.dictionary_server.cache_policy_id
-      response_headers_policy_id = module.dictionary_server.response_headers_policy_id
-      viewer_protocol_policy     = "redirect-to-https"
-      compress                   = true
+      cache_policy_id        = "658327ea-f89d-4fab-a63d-7e88639e58f6" # Managed-CachingOptimized (the Free plan takes no custom one)
+      viewer_protocol_policy = "redirect-to-https"
+      compress               = true
+
+      function_association {
+        event_type   = "viewer-response"
+        function_arn = module.dictionary_server.page_cache_control_function_arn
+      }
     }
   }
 
