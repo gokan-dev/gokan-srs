@@ -279,6 +279,31 @@ jobs:
       - name: Deploy gokan-dictionary to S3
         run: bun packages/deploy/scripts/deploy-s3.ts --site dictionary --bucket ${{ inputs.s3_bucket }} ${{ steps.dictionary_flags.outputs.flags }} --invalidations "$RUNNER_TEMP/invalidations.txt"
 
+      # The dataset cleared, and waited for, before the server's code goes live. The server reads
+      # /dataset/ through this distribution and keeps its cross-entity indexes (the kanji list, the
+      # grammar order...) for an instance's lifetime: an instance started while an edge still holds
+      # an old dataset file would render the pages cleared below from it, and they would stay cached
+      # a year (no later deploy clears a page whose bytes it already recorded). Every instance of the
+      # new code starts after this, on the new dataset. Staging clears /* at the end instead.
+      - name: Clear the dataset before the server
+        id: dataset_cleared
+        if: inputs.invalidate_everything != 'true'
+        run: |
+          list="$RUNNER_TEMP/invalidations.txt"
+          # The dataset's path as invalidationFor listed it, sent on its own.
+          dataset=$(grep -x '/dataset/\*' "$list" || true)
+          if [ -z "$dataset" ]; then echo "The dataset did not change."; exit 0; fi
+          id=$(aws cloudfront create-invalidation --distribution-id ${{ secrets.cloudfront_distribution_id }} \
+            --paths "$dataset" --query 'Invalidation.Id' --output text)
+          echo "Dataset invalidation $id; waiting for it before the server."
+          # The wait needs cloudfront:GetInvalidation on the deploy user; without it, two minutes
+          # (longer than an invalidation usually takes), said in the log.
+          aws cloudfront wait invalidation-completed --distribution-id ${{ secrets.cloudfront_distribution_id }} --id "$id" \
+            || { echo "::warning::could not wait for invalidation $id (cloudfront:GetInvalidation?): pausing two minutes instead"; sleep 120; }
+          grep -vx '/dataset/\*' "$list" > "$list.rest" || true
+          mv "$list.rest" "$list"
+          echo "summary=the dataset first, waited for" >> "$GITHUB_OUTPUT"
+
       - name: Deploy the dictionary's server
         if: inputs.dictionary_rendering == 'on-request'
         run: |
@@ -300,31 +325,10 @@ jobs:
             echo "summary=nothing (no file a visitor can get changed)" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # The dataset first, waited for: the dictionary's server reads /dataset/ through this
-          # distribution, so a page cleared in the same request could be rendered from a dataset
-          # file an edge still holds, and that stale page would stay cached a year (no later deploy
-          # clears a page whose bytes it already recorded).
-          dataset=(); rest=()
-          for p in "${paths[@]}"; do
-            case "$p" in
-              /dataset/*) dataset+=("$p") ;;
-              *) rest+=("$p") ;;
-            esac
-          done
-          if [ "${#dataset[@]}" -gt 0 ] && [ "${#rest[@]}" -gt 0 ]; then
-            id=$(aws cloudfront create-invalidation --distribution-id ${{ secrets.cloudfront_distribution_id }} \
-              --paths "${dataset[@]}" --query 'Invalidation.Id' --output text)
-            echo "Dataset invalidation $id; waiting for it before the pages."
-            # The wait needs cloudfront:GetInvalidation on the deploy user; without it, two minutes
-            # (longer than an invalidation usually takes), said in the log.
-            aws cloudfront wait invalidation-completed --distribution-id ${{ secrets.cloudfront_distribution_id }} --id "$id" \
-              || { echo "::warning::could not wait for invalidation $id (cloudfront:GetInvalidation?): pausing two minutes instead"; sleep 120; }
-            paths=("${rest[@]}")
-          fi
           aws cloudfront create-invalidation \
             --distribution-id ${{ secrets.cloudfront_distribution_id }} \
             --paths "${paths[@]}" --query 'Invalidation.Id' --output text
-          echo "summary=${#dataset[@]}+${#rest[@]} path(s): ${dataset[*]} ${rest[*]}" >> "$GITHUB_OUTPUT"
+          echo "summary=${#paths[@]} path(s): ${paths[*]}" >> "$GITHUB_OUTPUT"
 
       # A deploy that failed or was cancelled after an upload stored its manifest would leave the
       # next one seeing nothing changed, and the old responses cached for a year: clear everything
@@ -345,7 +349,7 @@ jobs:
             echo "**App:** ${{ inputs.site_origin }}/"
             echo "**Dictionary:** ${{ inputs.site_origin }}/dictionary/ (${{ inputs.dictionary_rendering }})"
             echo "**Bucket:** ${{ inputs.s3_bucket }}"
-            echo "**Invalidated:** ${{ steps.invalidate.outputs.summary }}"
+            echo "**Invalidated:** ${{ steps.dataset_cleared.outputs.summary && format('{0}, then ', steps.dataset_cleared.outputs.summary) || '' }}${{ steps.invalidate.outputs.summary }}"
             echo ""
             echo "Both apps built from the same checkout, so they share one dataset version."
             echo ""

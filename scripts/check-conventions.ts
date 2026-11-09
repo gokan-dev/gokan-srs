@@ -198,7 +198,11 @@ const FIXED_SITE_INVALIDATION = /["']\/(dictionary|dataset)\/\*["']/;
  * (by hand, a lost runner) after an upload stored its manifest leaves the next deploy seeing
  * nothing changed, and old responses cached for a year. It needs `cancelled()` as well.
  */
-const FAILURE_ONLY_CONDITION = /^\s*if:.*\bfailure\(\)/;
+const FAILURE_ONLY_CONDITION = /^\s*-?\s*if:.*\bfailure\(\)/;
+/** `cancelled()` as a condition, not its negation (`!cancelled()` means the opposite). */
+const CANCELLED_CONDITION = /(?<!!)\bcancelled\(\)/;
+/** Where a workflow step starts: its `- ` item, whatever key comes first. */
+const WORKFLOW_STEP_START = /^\s*- (?=[a-z-]+:)/gm;
 
 /** A workflow's jobs, each with its text and the line its header is on. */
 function workflowJobs(text: string): { name: string; line: number; text: string }[] {
@@ -552,10 +556,20 @@ function check(files: string[]): Violation[] {
                 add({ file, line, rule: 'private-email', message: 'Sets a Terraform email variable from an Actions variable, which every step\'s log prints unmasked in a public repository. Read it from a secret (`${{ secrets.NAME }}`), which GitHub masks.' }));
             eachLine(text, l => FIXED_SITE_INVALIDATION.test(l), line =>
                 add({ file, line, rule: 'selective-invalidation', message: 'Invalidates a site by a fixed wildcard on every deploy, clearing pages that did not change. A deploy clears what changed: the paths deploy-s3.ts --invalidations lists (invalidationFor, packages/deploy/src/invalidation.ts), or "/*" after a failure.' }));
-            for (const step of text.split(/^(?=\s*- name:)/m)) {
+            const starts = [...text.matchAll(WORKFLOW_STEP_START)].map(m => m.index);
+            starts.forEach((start, i) => {
+                const step = text.slice(start, starts[i + 1] ?? text.length);
                 const condition = step.split('\n').find(l => FAILURE_ONLY_CONDITION.test(l));
-                if (condition === undefined || !step.includes('create-invalidation') || condition.includes('cancelled()')) continue;
-                add({ file, line: text.slice(0, text.indexOf(step)).split('\n').length, rule: 'selective-invalidation', message: 'Clears the cache on failure() only. A cancelled run after an upload stored its manifest leaves the next deploy seeing nothing changed, and the old responses cached for a year: run it on (failure() || cancelled()).' });
+                if (condition === undefined || !step.includes('create-invalidation') || CANCELLED_CONDITION.test(condition)) return;
+                add({ file, line: text.slice(0, start).split('\n').length, rule: 'selective-invalidation', message: 'Clears the cache on failure() only. A cancelled run after an upload stored its manifest leaves the next deploy seeing nothing changed, and the old responses cached for a year: run it on (failure() || cancelled()).' });
+            });
+            // The server keeps dataset indexes for an instance's lifetime: its new code goes live
+            // only once the dataset's invalidation has completed, or an instance started in between
+            // renders cleared pages from a stale file, cached a year.
+            const serverCode = text.indexOf('update-function-code');
+            const datasetWait = text.indexOf('wait invalidation-completed');
+            if (serverCode !== -1 && text.includes('--invalidations') && (datasetWait === -1 || datasetWait > serverCode)) {
+                add({ file, line: text.slice(0, serverCode).split('\n').length, rule: 'selective-invalidation', message: 'Updates the dictionary server\'s code before the dataset\'s invalidation has completed. The server keeps dataset indexes for an instance\'s lifetime, so an instance started in between renders the cleared pages from a stale file, cached a year. Clear /dataset/ and wait (aws cloudfront wait invalidation-completed) in a step before this one.' });
             }
         }
 
