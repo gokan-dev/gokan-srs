@@ -300,16 +300,37 @@ jobs:
             echo "summary=nothing (no file a visitor can get changed)" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          # The dataset first, waited for: the dictionary's server reads /dataset/ through this
+          # distribution, so a page cleared in the same request could be rendered from a dataset
+          # file an edge still holds, and that stale page would stay cached a year (no later deploy
+          # clears a page whose bytes it already recorded).
+          dataset=(); rest=()
+          for p in "${paths[@]}"; do
+            case "$p" in
+              /dataset/*) dataset+=("$p") ;;
+              *) rest+=("$p") ;;
+            esac
+          done
+          if [ "${#dataset[@]}" -gt 0 ] && [ "${#rest[@]}" -gt 0 ]; then
+            id=$(aws cloudfront create-invalidation --distribution-id ${{ secrets.cloudfront_distribution_id }} \
+              --paths "${dataset[@]}" --query 'Invalidation.Id' --output text)
+            echo "Dataset invalidation $id; waiting for it before the pages."
+            # The wait needs cloudfront:GetInvalidation on the deploy user; without it, two minutes
+            # (longer than an invalidation usually takes), said in the log.
+            aws cloudfront wait invalidation-completed --distribution-id ${{ secrets.cloudfront_distribution_id }} --id "$id" \
+              || { echo "::warning::could not wait for invalidation $id (cloudfront:GetInvalidation?): pausing two minutes instead"; sleep 120; }
+            paths=("${rest[@]}")
+          fi
           aws cloudfront create-invalidation \
             --distribution-id ${{ secrets.cloudfront_distribution_id }} \
             --paths "${paths[@]}" --query 'Invalidation.Id' --output text
-          echo "summary=${#paths[@]} path(s): ${paths[*]}" >> "$GITHUB_OUTPUT"
+          echo "summary=${#dataset[@]}+${#rest[@]} path(s): ${dataset[*]} ${rest[*]}" >> "$GITHUB_OUTPUT"
 
-      # A deploy that failed after an upload stored its manifest would leave the next one seeing
-      # nothing changed, and the old responses cached for a year: clear everything (one path),
-      # whatever went up.
+      # A deploy that failed or was cancelled after an upload stored its manifest would leave the
+      # next one seeing nothing changed, and the old responses cached for a year: clear everything
+      # (one path), whatever went up.
       - name: Invalidate everything after a failed deploy
-        if: failure() && steps.invalidation_list.outcome == 'success'
+        if: (failure() || cancelled()) && steps.invalidation_list.outcome == 'success'
         run: |
           aws cloudfront create-invalidation \
             --distribution-id ${{ secrets.cloudfront_distribution_id }} \

@@ -25,6 +25,7 @@ import {
     sitemapUrlFile,
     type PreviousDeploy,
 } from './deployManifest';
+import { invalidationFor } from './invalidation';
 
 /** A stored deploy; its content hashes default to its upload hashes (true of every non-page file). */
 const stored = (manifest: Record<string, string>, changed: Record<string, string> = {}, content = manifest): PreviousDeploy =>
@@ -237,6 +238,19 @@ describe('serverPages and servedFiles', () => {
     it('puts the server\'s pages over a page the bucket still holds for a rollback', () => {
         expect(servedFiles({ 'vocab/1/index.html': 'old', 'assets/app-1.css': 'c' }, { 'vocab/1/index.html': 'new' }))
             .toEqual({ 'vocab/1/index.html': 'new', 'assets/app-1.css': 'c' });
+    });
+
+    it('leaves out a page only the bucket keeps once the server renders the pages, so its removal is cleared', () => {
+        // Kept with the bytes the server renders: nothing changed on the page until it was removed.
+        const bucket = { 'vocab/1/index.html': 'p1', 'vocab/2/index.html': 'p2', 'assets/app-1.css': 'c' };
+        const before = servedFiles(bucket, { 'vocab/1/index.html': 'p1', 'vocab/2/index.html': 'p2' });
+        const after = servedFiles(bucket, { 'vocab/1/index.html': 'p1' });
+        expect(after).toEqual({ 'vocab/1/index.html': 'p1', 'assets/app-1.css': 'c' });
+        expect(invalidationFor('dictionary', before, after).paths).toEqual(['/dictionary/vocab/2/']);
+    });
+
+    it('is the bucket\'s files when no page is the server\'s', () => {
+        expect(servedFiles({ 'index.html': 'a' }, {})).toEqual({ 'index.html': 'a' });
     });
 
     it('compares two manifests by their files and hashes', () => {

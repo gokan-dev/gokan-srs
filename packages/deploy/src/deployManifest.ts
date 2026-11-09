@@ -100,11 +100,15 @@ export interface StoredManifest {
 }
 
 /**
- * Every file a visitor of the site can get, by its byte hash: the bucket's, with the server's pages
- * over them (a page kept in the bucket for a rollback is not what the server answers).
+ * Every file a visitor of the site can get, by its byte hash. When the server renders the pages
+ * (`server` has any), they are its pages only: a page the bucket keeps for a rollback is not what
+ * a visitor gets, and counting it would hide a page removed from the build (still in the bucket,
+ * so it would look unchanged and its cached 200 would never be cleared). Otherwise the bucket's.
  */
 export function servedFiles(hashes: BuildManifest, server: BuildManifest): BuildManifest {
-    return { ...hashes, ...server };
+    if (Object.keys(server).length === 0) return { ...hashes };
+    const files = Object.fromEntries(Object.entries(hashes).filter(([file]) => !file.endsWith('.html')));
+    return { ...files, ...server };
 }
 
 /** The pages the server renders, by byte hash: none unless they are its (`pagesOnServer`). */
@@ -360,7 +364,7 @@ export function cacheControlFor(site: Site, file: string): string {
 /**
  * Cache-control for a dictionary page the server renders on request, by its status. The browser
  * revalidates it as it does a deployed page (REVALIDATE); CloudFront keeps it a year (`s-maxage`),
- * since a deploy invalidates `/dictionary/*` and a page changes only with a deploy. A 404 stays
+ * since a page changes only with a deploy, and a deploy that changes it clears it (`invalidationFor`). A 404 stays
  * five minutes at the edge, so a page published later is not hidden for long; an error is held at
  * most a second at the edge (the managed cache policy's minimum), then a failed dataset read is
  * retried.
