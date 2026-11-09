@@ -2,6 +2,7 @@
   import type { VocabPageProps as Props } from '../lib/pageProps';
   import { headwordOf, secondaryForm, summaryGloss, textbookLessonsLabel } from '@gokan/dataset-schema';
   import type { Sentence } from '@gokan/dataset-schema';
+  import { valueText, type DefinitionSense } from '@gokan/dataset-schema/text';
   import { pageLocale } from './pageLocale';
   import { meaningsOf, type SenseView } from '../lib/senses';
   import { sentenceRuns } from '../lib/furigana';
@@ -16,14 +17,16 @@
 
   const { urls, messages } = pageLocale();
 
-  let { vocab, components, parents, sentences }: Props = $props();
+  let { vocab, components, parents, sentences, text, translations }: Props = $props();
 
   const RELATED_VISIBLE = 10;
 
   const headword = $derived(headwordOf(vocab));
   // The single most important fact on the page, beside the word: a reader who searched for it
   // wants the meaning immediately, not after scrolling to the Meanings section.
-  const summary = $derived(summaryGloss(vocab.senses));
+  // On a page in another language (text), its own: the first equivalents, else its first definition's first sense.
+  const summary = $derived(text ? localSummary(text) : summaryGloss(vocab.senses));
+  const chineseSenses = $derived(text?.definitions.flatMap(definition => definition.senses) ?? []);
   const meanings = $derived(meaningsOf(vocab.senses));
   const commonCount = $derived(meanings.visible.length + meanings.more.length);
   // Only when the headword fits its class: a verb listed under an odd spelling gets no table
@@ -35,6 +38,12 @@
   const shownSentences = $derived(sentences.slice(0, VISIBLE_SENTENCES));
   const moreSentences = $derived(sentences.slice(VISIBLE_SENTENCES));
   const hasRelated = $derived(vocab.writtenForm.containedKanji.length > 0 || components.length > 0 || parents.length > 0);
+
+  function localSummary(word: NonNullable<Props['text']>): string {
+    const equivalents = word.equivalents.slice(0, 2).map(equivalent => valueText(equivalent.value));
+    if (equivalents.length > 0) return equivalents.join('，');
+    return (word.definitions[0]?.senses[0]?.glosses ?? []).map(valueText).join('，');
+  }
 </script>
 
 {#snippet senseList(views: SenseView[])}
@@ -48,12 +57,26 @@
   </ol>
 {/snippet}
 
+{#snippet localSenseList(senses: DefinitionSense[])}
+  <ol class="sense-list">
+    {#each senses as sense, index (index)}
+      <li>
+        {#if sense.appliesToSpellings?.length || sense.appliesToReadings?.length}<p class="sense-pos" lang="ja">{[...(sense.appliesToSpellings ?? []), ...(sense.appliesToReadings ?? [])].join('、')}</p>{/if}
+        {sense.glosses.map(valueText).join('；')}{#each sense.tags ?? [] as tag (tag)}<span class="sense-label">{tag}</span>{/each}
+      </li>
+    {/each}
+  </ol>
+{/snippet}
+
 {#snippet sentenceList(list: Sentence[])}
   <ul class="sentence-list">
     {#each list as sentence (sentence.id)}
+      {@const translation = translations?.[sentence.id]}
       <li>
         <SentenceText runs={sentenceRuns(sentence, { targetVocabId: vocab.id })} />
-        {#if sentence.en[0]}<p class="sentence-en">{sentence.en[0].text}</p>{/if}
+        {#if translations}
+          {#if translation}<p class="sentence-en" lang={translation.lang === 'en' ? 'en' : undefined}>{translation.text}</p>{/if}
+        {:else if sentence.en[0]}<p class="sentence-en">{sentence.en[0].text}</p>{/if}
       </li>
     {/each}
   </ul>
@@ -91,6 +114,11 @@
     <div class="entry-main">
       <section class="section">
         <h2>Meanings</h2>
+        {#if text}
+          <!-- A page in another language: its own sources' meanings (shown renderings only), English's below for now. -->
+          {#if chineseSenses.length > 0}{@render localSenseList(chineseSenses)}{/if}
+          {#if text.equivalents.length > 0}<p class="meta">{text.equivalents.map(equivalent => valueText(equivalent.value)).join('、')}</p>{/if}
+        {/if}
         {#if meanings.visible.length > 0}{@render senseList(meanings.visible)}{/if}
         {#if meanings.more.length > 0}
           <details class="disclosure">
