@@ -65,24 +65,38 @@ export function langOf(text: string): 'ja' | undefined {
     return isJapaneseOnly(text) ? 'ja' : undefined;
 }
 
+const HAN = /[\u3400-\u9fff々]/;
+
+/**
+ * Whether a run in Japanese script only may stand in an element of `lang`: in Japanese, always;
+ * in Chinese, when it has Han characters (Chinese itself, or Chinese prose quoting a Japanese
+ * word, as English prose does), never kana alone; in any other language, never.
+ */
+function readsAs(lang: string, text: string): boolean {
+    if (lang === 'ja') return true;
+    return lang.toLowerCase().startsWith('zh') && HAN.test(text);
+}
+
 /**
  * Japanese in a page's body that is not marked as Japanese: an element with the `jp` class but
  * no lang="ja", or a text run in Japanese only (no Latin letters, so not an English sentence
- * quoting a word) whose nearest lang is not "ja". Unmarked, screen readers read it with an
- * English voice and some devices draw it with Chinese glyph shapes; prerender fails on any page
- * this finds anything in. Script contents are skipped (JSON-LD names the word).
+ * quoting a word) whose nearest lang is not "ja" (on a Chinese page, see readsAs). Unmarked,
+ * screen readers read it with an English voice and some devices draw it with Chinese glyph
+ * shapes; prerender fails on any page this finds anything in. Script contents are skipped
+ * (JSON-LD names the word). The nearest lang of the body is the document's <html lang>.
  */
 export function japaneseWithoutLang(html: string): string[] {
     const bodyStart = html.indexOf('<body');
     const body = bodyStart >= 0 ? html.slice(bodyStart) : html;
+    const documentLang = /<html\b[^>]*\slang="([^"]*)"/.exec(html)?.[1] ?? 'en';
     const found: string[] = [];
     const stack: { tag: string; lang: string | null }[] = [];
-    const langHere = () => [...stack].reverse().find(entry => entry.lang !== null)?.lang ?? 'en';
+    const langHere = () => [...stack].reverse().find(entry => entry.lang !== null)?.lang ?? documentLang;
 
     for (const token of body.matchAll(/<script\b[\s\S]*?<\/script>|<(\/?)([a-zA-Z][a-zA-Z0-9]*)([^>]*)>|([^<]+)/g)) {
         const [whole, closing, rawTag, attributes, text] = token;
         if (text !== undefined) {
-            if (isJapaneseOnly(text) && langHere() !== 'ja') found.push(text.trim());
+            if (isJapaneseOnly(text) && !readsAs(langHere(), text)) found.push(text.trim());
             continue;
         }
         if (rawTag === undefined) continue;

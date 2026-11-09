@@ -144,6 +144,14 @@ describe('japaneseWithoutLang', () => {
         expect(japaneseWithoutLang('<body><p lang="ja"><span lang="en">はい</span></p></body>')).toEqual(['はい']);
     });
 
+    it('reads the body in the document\'s language: Chinese may hold Han characters, never kana alone', () => {
+        const chinese = (body: string) => `<html lang="zh-Hans"><head><title>t</title></head><body>${body}</body></html>`;
+        expect(japaneseWithoutLang(chinese('<p>公然、显然</p><p>去，到；行く的尊敬语</p>'))).toEqual([]);
+        expect(japaneseWithoutLang(chinese('<p>はい</p>'))).toEqual(['はい']);
+        expect(japaneseWithoutLang(chinese('<p lang="en">公然</p>'))).toEqual(['公然']);
+        expect(japaneseWithoutLang('<html lang="en"><body><p>公然</p></body></html>')).toEqual(['公然']);
+    });
+
     it('ignores the head and script contents', () => {
         const html = '<html><head><title>食べる</title></head><body><script type="application/ld+json">{"name":"食べる"}</script><p lang="ja">食べる</p></body></html>';
         expect(japaneseWithoutLang(html)).toEqual([]);
