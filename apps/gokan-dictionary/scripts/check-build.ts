@@ -40,6 +40,8 @@ function subdirectories(relative: string): string[] {
 }
 
 const wordPages = () => subdirectories('vocab').filter(name => /^\d+$/.test(name));
+/** A locale's word pages (zh-hans/vocab/{id}/), when the build serves it (VITE_DICTIONARY_LOCALES). */
+const localeWordPages = (locale: string) => (fs.existsSync(path.join(DIST_DIR, locale, 'vocab')) ? subdirectories(path.join(locale, 'vocab')).filter(name => /^\d+$/.test(name)) : []);
 // kanji/orders/ is the learning order pages, not a kanji: no kanji is named with a Latin word.
 const kanjiPages = () => subdirectories('kanji').filter(name => name !== 'orders');
 
@@ -50,6 +52,11 @@ function measure(manifest: Record<string, ViteManifestEntry>): Measurement[] {
     const words = ENTITY_PAGES === 'prerendered' ? wordPages() : [];
     if (words.length > 0) {
         measurements.push({ budget: 'wordPageP90', subject: `${words.length} word pages`, bytes: percentile(words.map(id => sizeOf(pageOf('vocab', id))), 90) });
+    }
+    // Chinese word pages are word pages: held to the same budget.
+    const chineseWords = ENTITY_PAGES === 'prerendered' ? localeWordPages('zh-hans') : [];
+    if (chineseWords.length > 0) {
+        measurements.push({ budget: 'wordPageP90', subject: `${chineseWords.length} zh-hans word pages`, bytes: percentile(chineseWords.map(id => sizeOf(pageOf('zh-hans', 'vocab', id))), 90) });
     }
     const kanjiSizes = (ENTITY_PAGES === 'prerendered' ? kanjiPages() : []).map(character => ({ character, bytes: sizeOf(pageOf('kanji', character)) }));
     if (kanjiSizes.length > 0) {
@@ -92,7 +99,7 @@ function measure(manifest: Record<string, ViteManifestEntry>): Measurement[] {
 
 /** The build has the pages its mode says: every entity page prerendered, or none and the server built. */
 function modeProblems(): string[] {
-    const [words, kanji] = [wordPages().length, kanjiPages().length];
+    const [words, kanji] = [wordPages().length + localeWordPages('zh-hans').length, kanjiPages().length];
     if (ENTITY_PAGES === 'prerendered') return words > 0 && kanji > 0 ? [] : [`prerendered build with ${words} word and ${kanji} kanji pages in dist/`];
     const problems = words + kanji > 0 ? [`on-request build with ${words} word and ${kanji} kanji pages in dist/: they are the server's`] : [];
     if (!fs.existsSync(path.join(APP_DIR, 'build', 'handler.js'))) problems.push('on-request build without its server (build/handler.js)');
