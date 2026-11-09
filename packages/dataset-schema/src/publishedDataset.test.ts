@@ -67,4 +67,13 @@ describe('publishedDatasetReader', () => {
         const reader = publishedDatasetReader({ url, fetch: checkoutFetch(path => (path.startsWith('text/') ? null : new Response('', { status: 503, statusText: 'Service Unavailable' }))) });
         await expect(reader.optionalFile('vocab/1358280.json')).rejects.toThrow(/503/);
     });
+
+    it('reads a published file as it is, failing when it is not published', async () => {
+        const reader = publishedDatasetReader({ url, fetch: checkoutFetch() });
+        const path = 'text/zh-hans/index/entities.json';
+        expect(await reader.publishedFile(path)).toEqual(JSON.parse(readFileSync(join(COMPILED, path), 'utf8')));
+        await expect(reader.publishedFile('text/zh-hans/vocab/0000000.json')).rejects.toThrow(/0000000\.json\?v=test: not published \(404\)/);
+        const fallback = publishedDatasetReader({ url, fetch: () => Promise.resolve(new Response('<!doctype html>', { headers: { 'content-type': 'text/html' } })) });
+        await expect(fallback.publishedFile(path)).rejects.toThrow(/not published \(200\)/);
+    });
 });
