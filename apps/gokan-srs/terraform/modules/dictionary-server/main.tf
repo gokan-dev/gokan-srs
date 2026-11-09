@@ -194,24 +194,13 @@ resource "aws_lambda_permission" "cloudfront_invoke" {
   source_arn    = var.distribution_arn
 }
 
-# Pages are cached by the managed CachingOptimized policy, not a custom one: production's
-# distribution is on CloudFront's Free flat-rate plan, which refuses a custom cache policy and a
-# custom response headers policy (the first production apply of #209 failed on both). It honours
-# the server's Cache-Control: a rendered page a year at the edge (s-maxage, invalidated by every
-# deploy), a 404 five minutes (renderedPageCacheControl in @gokan/deploy). Its 1 s minimum means
-# an error's no-store is held a second, and a prerendered list page (no Cache-Control: the server
-# sends it as a file) a day, which every deploy's invalidation cuts short anyway.
-#
-# What a browser is told about such a page: revalidate every time, as for a page uploaded to S3
-# (cacheControlFor in @gokan/deploy). A function rather than a response headers policy, for the
-# same plan reason; a page that has its own Cache-Control keeps it.
 # The custom policies the pages' behavior used before, kept one apply so each distribution moves
 # off them first: removed in the same apply, Terraform deletes them before updating the
 # distribution (nothing in the config links them any more) and CloudFront refuses, still in use.
 # Removed by the next commit, once staging and production are applied.
 resource "aws_cloudfront_cache_policy" "pages" {
   name        = "${var.name}-pages"
-  comment     = "Unused: removed once no distribution references it"
+  comment     = "Dictionary pages: the server's Cache-Control, a year by default"
   min_ttl     = 0
   default_ttl = 31536000
   max_ttl     = 31536000
@@ -237,7 +226,8 @@ resource "aws_cloudfront_cache_policy" "pages" {
 }
 
 resource "aws_cloudfront_response_headers_policy" "pages" {
-  name = "${var.name}-pages"
+  name    = "${var.name}-pages"
+  comment = "Dictionary pages: browser revalidation by default"
 
   custom_headers_config {
     items {
@@ -252,6 +242,10 @@ resource "aws_cloudfront_response_headers_policy" "pages" {
   }
 }
 
+# What a browser is told about a page with no Cache-Control of its own (a prerendered list page):
+# revalidate every time, as for a page uploaded to S3 (cacheControlFor in @gokan/deploy). A
+# function rather than a response headers policy, which production's Free plan refuses; a page
+# that has its own Cache-Control keeps it.
 resource "aws_cloudfront_function" "page_cache_control" {
   name    = "${var.name}-page-cache-control"
   runtime = "cloudfront-js-2.0"

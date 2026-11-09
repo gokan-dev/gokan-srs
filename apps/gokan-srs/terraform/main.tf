@@ -339,7 +339,15 @@ resource "aws_cloudfront_distribution" "website" {
       cached_methods   = ["GET", "HEAD", "OPTIONS"]
       target_origin_id = "dictionary-server"
 
-      cache_policy_id        = "658327ea-f89d-4fab-a63d-7e88639e58f6" # Managed-CachingOptimized (the Free plan takes no custom one)
+      # Managed CachingOptimized, not a custom policy: this distribution is on CloudFront's Free
+      # flat-rate plan, which refuses a custom cache policy and a custom response headers policy
+      # (the first production apply of #209 failed on both; check-conventions.ts holds it). It
+      # honours the server's Cache-Control: a rendered page a year at the edge (s-maxage,
+      # invalidated by every deploy), a 404 five minutes (renderedPageCacheControl in
+      # @gokan/deploy). Its 1 s minimum means an error's no-store is held a second, and a
+      # prerendered list page (no Cache-Control: the server sends it as a file) a day, which every
+      # deploy's invalidation cuts short anyway.
+      cache_policy_id        = "658327ea-f89d-4fab-a63d-7e88639e58f6" # Managed-CachingOptimized
       viewer_protocol_policy = "redirect-to-https"
       compress               = true
 
