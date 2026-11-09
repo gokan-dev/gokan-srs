@@ -156,6 +156,21 @@ const RUNS_CHECK = /^\s*(?:-\s+)?(?:run:\s+)?bun run check\s*(?:$|&&|;|#)/m;
 const SUBMODULE_CHECKOUT = /^\s+submodules:\s*['"]?(?:true|recursive)\b/m;
 const JOB_HEADER = /^ {2}([\w-]+):\s*$/gm;
 
+/**
+ * Production's CloudFront distribution is on the Free flat-rate plan, which refuses a custom cache
+ * policy and a custom response headers policy: an apply that attaches one fails whole (#209). Its
+ * stack (terraform/main.tf and the modules it uses) attaches managed cache policies only, by their
+ * ID, and no response headers policy (a header goes in a CloudFront Function). Assignments are
+ * checked, not resource definitions: an unattached policy costs nothing. Staging (terraform/staging/)
+ * is not on that plan, and attaches its noindex headers policy on purpose.
+ */
+const PRODUCTION_TERRAFORM = /^apps\/gokan-srs\/terraform\/(main\.tf|modules\/.+\.tf)$/;
+const MANAGED_CACHE_POLICIES = new Map([
+    ['658327ea-f89d-4fab-a63d-7e88639e58f6', 'Managed-CachingOptimized'],
+]);
+const CACHE_POLICY_ASSIGNMENT = /^\s*cache_policy_id\s*=\s*([^#\s]+)/;
+const HEADERS_POLICY_ASSIGNMENT = /^\s*response_headers_policy_id\s*=/;
+
 /** A workflow's jobs, each with its text and the line its header is on. */
 function workflowJobs(text: string): { name: string; line: number; text: string }[] {
     const start = text.search(/^jobs:\s*$/m);
@@ -482,6 +497,15 @@ function check(files: string[]): Violation[] {
                     add({ file, line: job.line, rule: 'check-with-dataset', message: `Job \`${job.name}\` runs \`bun run check\` without the dataset: its real-dataset suites fail when the compiled dataset is missing. Give its actions/checkout \`with: submodules: true\`.` });
                 }
             }
+        }
+
+        if (PRODUCTION_TERRAFORM.test(file)) {
+            eachLine(text, l => {
+                const m = CACHE_POLICY_ASSIGNMENT.exec(l);
+                return !!m && !MANAGED_CACHE_POLICIES.has(m[1].replace(/^"(.*)"$/, '$1'));
+            }, line => add({ file, line, rule: 'free-plan-policies', message: `A cache policy that is not a managed one by its ID (${[...MANAGED_CACHE_POLICIES].map(([id, name]) => `${name} "${id}"`).join(', ')}). Production's distribution is on CloudFront's Free plan, which refuses a custom cache policy: the whole apply fails. Use a managed policy, or add one to MANAGED_CACHE_POLICIES with its name.` }));
+            eachLine(text, l => HEADERS_POLICY_ASSIGNMENT.test(l), line =>
+                add({ file, line, rule: 'free-plan-policies', message: 'Attaches a response headers policy. Production\'s distribution is on CloudFront\'s Free plan, which refuses a custom one: the whole apply fails. Set a header in a viewer-response CloudFront Function (as page_cache_control in modules/dictionary-server).' }));
         }
 
         if (UI_SOURCE.test(file)) {

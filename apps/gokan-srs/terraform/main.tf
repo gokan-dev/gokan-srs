@@ -180,9 +180,11 @@ resource "aws_cloudfront_origin_access_control" "website" {
 # Security-headers response policy, created via the console and imported into CI
 # state during the state migration. Currently NOT attached to the distribution
 # (its response_headers_policy_id is unset), so it has no effect on live traffic
-# yet; recorded here so `terraform apply` doesn't delete it. To actually enforce
-# these headers, add `response_headers_policy_id = aws_cloudfront_response_headers_policy.security_headers.id`
-# to the default_cache_behavior below (a deliberate, reviewable change).
+# yet; recorded here so `terraform apply` doesn't delete it. It cannot simply be
+# attached: the distribution is on CloudFront's Free flat-rate plan, which refuses a
+# custom response headers policy (the free-plan-policies convention rule refuses it
+# too). Enforcing these headers means setting them in a viewer-response CloudFront
+# Function, as the dictionary's page_cache_control does, or leaving the Free plan.
 resource "aws_cloudfront_response_headers_policy" "security_headers" {
   name    = "${var.project_name}-security-headers"
   comment = "Security headers for gokan-srs"
@@ -339,10 +341,22 @@ resource "aws_cloudfront_distribution" "website" {
       cached_methods   = ["GET", "HEAD", "OPTIONS"]
       target_origin_id = "dictionary-server"
 
-      cache_policy_id            = module.dictionary_server.cache_policy_id
-      response_headers_policy_id = module.dictionary_server.response_headers_policy_id
-      viewer_protocol_policy     = "redirect-to-https"
-      compress                   = true
+      # Managed CachingOptimized, not a custom policy: this distribution is on CloudFront's Free
+      # flat-rate plan, which refuses a custom cache policy and a custom response headers policy
+      # (the first production apply of #209 failed on both; check-conventions.ts holds it). It
+      # honours the server's Cache-Control: a rendered page a year at the edge (s-maxage,
+      # invalidated by every deploy), a 404 five minutes (renderedPageCacheControl in
+      # @gokan/deploy). Its 1 s minimum means an error's no-store is held a second, and a
+      # prerendered list page (no Cache-Control: the server sends it as a file) a day, which every
+      # deploy's invalidation cuts short anyway.
+      cache_policy_id        = "658327ea-f89d-4fab-a63d-7e88639e58f6" # Managed-CachingOptimized
+      viewer_protocol_policy = "redirect-to-https"
+      compress               = true
+
+      function_association {
+        event_type   = "viewer-response"
+        function_arn = module.dictionary_server.page_cache_control_function_arn
+      }
     }
   }
 

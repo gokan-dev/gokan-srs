@@ -203,9 +203,7 @@ module "dictionary_server" {
   name             = "${var.project_name}-staging-dictionary"
   site_origin      = "https://${var.site_domain}"
   distribution_arn = aws_cloudfront_distribution.website.arn
-  # Staging serves a second copy of every page: keep it out of search engines, as the rest.
-  extra_response_headers = { "X-Robots-Tag" = "noindex, nofollow" }
-  tags = { Environment = "staging" }
+  tags             = { Environment = "staging" }
 }
 
 module "spa_fallback" {
@@ -288,10 +286,16 @@ resource "aws_cloudfront_distribution" "website" {
       cached_methods   = ["GET", "HEAD", "OPTIONS"]
       target_origin_id = "dictionary-server"
 
-      cache_policy_id            = module.dictionary_server.cache_policy_id
-      response_headers_policy_id = module.dictionary_server.response_headers_policy_id
+      # As production's (../main.tf), which the Free plan holds to managed policies.
+      cache_policy_id            = "658327ea-f89d-4fab-a63d-7e88639e58f6" # Managed-CachingOptimized
+      response_headers_policy_id = aws_cloudfront_response_headers_policy.staging_noindex.id
       viewer_protocol_policy     = "redirect-to-https"
       compress                   = true
+
+      function_association {
+        event_type   = "viewer-response"
+        function_arn = module.dictionary_server.page_cache_control_function_arn
+      }
     }
   }
 
