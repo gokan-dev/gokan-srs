@@ -9,7 +9,8 @@ import { quotedGlosses, searchablePattern, sentenceCase, truncate } from '../seo
 import { SITE_NAME } from '../site';
 import type { CountedNoun, Messages } from './index';
 
-const JLPT_LABEL = (level: number) => `N${level}`;
+const jlptLevel = (level: number) => `N${level}`;
+const jlptLabel = (level: number) => `JLPT ${jlptLevel(level)}`;
 
 // Titles lead with the words a learner types ("思う meaning", "を問わず meaning", "て-form
 // conjugation") and put the English meaning on the result line itself: Search Console showed
@@ -31,6 +32,8 @@ function kanjiRangeHeading(order: KanjiOrder, range: { first: number; last: numb
 export const en: Messages = {
     count,
     kanjiRangeHeading,
+    jlptLabel,
+    jlptLevel,
     chrome: {
         skipLink: 'Skip to content',
         siteTitleWord: 'Dictionary',
@@ -81,7 +84,6 @@ export const en: Messages = {
     },
     vocabIndex: {
         intro: wordCount => `${wordCount.toLocaleString('en')} words with readings, meanings and example sentences. Browse the JLPT lists, or search for any word.`,
-        levelTitle: level => `JLPT ${JLPT_LABEL(level)}`,
         levelBlurbs: {
             5: 'Everyday words, basic verbs and core vocabulary.',
             4: 'Common daily vocabulary, building on N5.',
@@ -91,14 +93,12 @@ export const en: Messages = {
         },
     },
     vocabJlpt: {
-        heading: (level, page) => `JLPT ${JLPT_LABEL(level)} vocabulary${page > 1 ? `, page ${page}` : ''}`,
-        levelCrumb: level => `JLPT ${JLPT_LABEL(level)}`,
+        heading: (level, page) => `${jlptLabel(level)} vocabulary${page > 1 ? `, page ${page}` : ''}`,
         pageCrumb: page => `Page ${page}`,
         intro: wordCount => `${wordCount.toLocaleString('en')} words, most frequent first.`,
         range: (first, last) => `Words ${first.toLocaleString('en')} to ${last.toLocaleString('en')}.`,
         otherLevels: 'Other levels',
         otherLevelsLead: 'Other levels:',
-        levelLink: JLPT_LABEL,
     },
     vocab: {
         usuallyKana: 'Usually written in kana. Kanji spelling',
@@ -156,7 +156,7 @@ export const en: Messages = {
         },
         vocab(vocab: Vocabulary) {
             const meaning = vocab.senses[0]?.glosses.slice(0, 2).join(', ');
-            const jlpt = vocab.jlptLevel ? ` | JLPT ${JLPT_LABEL(vocab.jlptLevel)}` : '';
+            const jlpt = vocab.jlptLevel ? ` | ${jlptLabel(vocab.jlptLevel)}` : '';
             // "思う (おもう)", or "ここ (此処)" for a word learned in kana: both spellings stay searchable.
             const label = `${headwordOf(vocab)} (${secondaryForm(vocab)})`;
 
@@ -170,7 +170,7 @@ export const en: Messages = {
             return { title, description };
         },
         kanji(kanji: Kanji, vocabCount: number) {
-            const jlpt = kanji.steps.jlpt ? ` (JLPT ${JLPT_LABEL(kanji.steps.jlpt)})` : '';
+            const jlpt = kanji.steps.jlpt ? ` (${jlptLabel(kanji.steps.jlpt)})` : '';
             // Searched as "学 kanji meaning": the character, the word "kanji", then what it means.
             const meaning = kanji.meanings.slice(0, 3).join(', ');
             const title = meaning
@@ -188,7 +188,7 @@ export const en: Messages = {
             return { title, description };
         },
         grammar(point: GrammarPoint) {
-            const level = `JLPT ${JLPT_LABEL(point.jlptLevel)} grammar`;
+            const level = `${jlptLabel(point.jlptLevel)} grammar`;
             let title: string;
             if (point.kind === 'inflection' && point.derives) {
                 // A conjugation is searched by its name ("causative form", "te-form"), not its pattern.
@@ -207,7 +207,7 @@ export const en: Messages = {
             // better meta description than anything synthesised from the other fields. Trimmed to keep
             // the whole description inside the ~155 chars Google typically renders.
             const summary = point.shortExplanation.replace(/\s+/g, ' ').trim();
-            const description = `${point.title}: ${truncate(summary, 120)} JLPT ${JLPT_LABEL(point.jlptLevel)} Japanese grammar with formation and example sentences.`;
+            const description = `${point.title}: ${truncate(summary, 120)} ${jlptLabel(point.jlptLevel)} Japanese grammar with formation and example sentences.`;
 
             return { title, description };
         },
@@ -221,8 +221,8 @@ export const en: Messages = {
         vocabJlpt(level: number, wordCount: number, page = 1) {
             const pageLabel = page > 1 ? `, page ${page}` : '';
             return {
-                title: `JLPT N${level} Vocabulary List (${wordCount.toLocaleString('en')} words)${pageLabel} - ${SITE_NAME}`,
-                description: `The complete JLPT N${level} vocabulary list${pageLabel}: ${wordCount.toLocaleString('en')} words ordered by frequency, each with its reading, English meaning, and example sentences.`,
+                title: `${jlptLabel(level)} Vocabulary List (${wordCount.toLocaleString('en')} words)${pageLabel} - ${SITE_NAME}`,
+                description: `The complete ${jlptLabel(level)} vocabulary list${pageLabel}: ${wordCount.toLocaleString('en')} words ordered by frequency, each with its reading, English meaning, and example sentences.`,
             };
         },
         kanjiIndex(kanjiCount: number) {

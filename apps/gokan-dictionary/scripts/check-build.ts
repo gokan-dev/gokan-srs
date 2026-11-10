@@ -10,15 +10,21 @@ import { gzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
 import { listFiles } from '@gokan/deploy/build-files';
+import { serveDictionaryOnRequest } from '../../../scripts/lib/builtSite';
 import { describe, overBudget, percentile, type Measurement } from '../src/lib/budgets';
 import { alternateProblems, brokenLinks } from '../src/lib/builtLinks';
 import { misroutedPaths } from '../src/lib/servedPaths';
+import { datasetLanguageOf, htmlLang, localePrefix, SERVED_LOCALES } from '../src/lib/locale';
 import { BASE_PATH, SITE_ORIGIN } from '../src/lib/site';
+import { messagesFor } from '../src/lib/messages';
+import type { TextFile } from '@gokan/dataset-schema/text';
 import { prepareIndex, search, TIER } from '../src/lib/searchQuery';
 import type { SearchIndexFile } from '../src/lib/types';
 
 const APP_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST_DIR = path.join(APP_DIR, 'dist');
+/** The dataset checkout the build read (lib/dataset.server.ts resolves the same one). */
+const COMPILED_DIR = path.join(APP_DIR, '..', 'gokan-srs', 'dataset', 'compiled');
 
 /**
  * How the build served the entity pages (vite.config.ts reads the same variable). Prerendered,
@@ -209,7 +215,57 @@ function alternatesProblems(): string[] {
     return [...pagesUnder('zh-hans'), ...english].flatMap(page => alternateProblems(page, readBuilt, SITE_ORIGIN, BASE_PATH)).slice(0, 5);
 }
 
-const problems = [...over.map(m => `over budget: ${describe(m)}`), ...modeProblems(), ...assetProblems(), ...searchProblems(), ...routingProblems(), ...linkProblems(), ...alternatesProblems()];
+/**
+ * Every source a word page in another language may credit (its words' and sentences' text files)
+ * has a name in the locale's catalog: a word page with one it cannot name fails to render, so a
+ * source the dataset adds is named here first, never printed as its id.
+ */
+function sourceNameProblems(): string[] {
+    const problems: string[] = [];
+    for (const locale of SERVED_LOCALES.filter(served => localePrefix(served) !== '')) {
+        const named = messagesFor(locale).sources;
+        const found = new Set<string>();
+        for (const group of ['vocab', 'sentences']) {
+            const dir = path.join(COMPILED_DIR, 'text', datasetLanguageOf(locale), group);
+            if (!fs.existsSync(dir)) continue;
+            for (const file of listFiles(dir).filter(name => name.endsWith('.json'))) {
+                const text = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf-8')) as TextFile;
+                for (const entity of Object.values(text.entities)) for (const rendering of entity?.renderings ?? []) found.add(rendering.source.source);
+            }
+        }
+        for (const id of found) if (named[id] === undefined) problems.push(`source "${id}" in the ${locale} text has no name in its catalog (lib/messages, sources)`);
+    }
+    return problems;
+}
+
+/**
+ * A path no route matches answers 404 in the language of its section, from the server (build/,
+ * built in either mode): never a 500 from an error page whose chrome and document disagree on its
+ * locale (routes/+layout.ts and handleError both read it with localeOfPath). Only a server sees
+ * these paths, so the prerendered files cannot show it.
+ */
+async function unmatchedPathProblems(): Promise<string[]> {
+    const locales = SERVED_LOCALES.filter(locale => localePrefix(locale) !== '');
+    if (locales.length === 0) return [];
+    const site = await serveDictionaryOnRequest();
+    try {
+        const problems: string[] = [];
+        for (const locale of locales) {
+            for (const rest of ['/kanji/', '/nope/']) {
+                const pathname = `/dictionary${localePrefix(locale)}${rest}`;
+                const response = await fetch(`http://127.0.0.1:${site.port}${pathname}`);
+                const html = await response.text();
+                if (response.status !== 404) problems.push(`${pathname} answers ${response.status}, not 404`);
+                else if (!html.includes(`<html lang="${htmlLang(locale)}"`)) problems.push(`${pathname}'s 404 is not a page in ${htmlLang(locale)}`);
+            }
+        }
+        return problems;
+    } finally {
+        site.stop();
+    }
+}
+
+const problems = [...over.map(m => `over budget: ${describe(m)}`), ...modeProblems(), ...assetProblems(), ...searchProblems(), ...routingProblems(), ...linkProblems(), ...alternatesProblems(), ...sourceNameProblems(), ...(await unmatchedPathProblems())];
 
 // A budget over many pages reports its heaviest.
 const MANY_PAGES: Partial<Record<Measurement['budget'], string>> = { jlptPage: 'JLPT list pages', kanjiOrderPage: 'kanji order pages' };

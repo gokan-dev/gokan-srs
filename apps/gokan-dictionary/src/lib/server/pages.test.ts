@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { GrammarPoint, Kanji, KanjiOrderId, Sentence, Vocabulary } from '@gokan/dataset-schema';
-import { grammarPoint, kanji, sentence, vocabulary } from '../../test/fixtures';
-import type { DictionaryData, LocaleText } from '../types';
+import { grammarPoint, kanji, sentence, vocabulary, wordText } from '../../test/fixtures';
+import type { DictionaryData, LocaleText, WordText } from '../types';
+import { LOCAL_GLOSS_LENGTH, shortWordTextSummary } from '../senses';
 import { grammarSummaryOf } from '../grammarBrowse';
 import { vocabSummaryFrom } from '../vocabSummary';
 import { kanjiOrderSlug, localeUrls } from '../urls';
@@ -20,16 +21,26 @@ interface World {
     frequency?: string[];
     /** Read in Chinese: the words with Chinese text shown (each a shown equivalent), the others none. */
     chinese?: string[];
+    /** A Chinese word's own text, in place of the equivalent 想. */
+    chineseTexts?: Record<string, WordText>;
 }
 
-/** A Chinese text layer in which exactly `ids` have text shown. */
-function chineseText(ids: readonly string[]): LocaleText {
+/**
+ * A Chinese text layer in which exactly `ids` have text shown: each the equivalent 想, or the text
+ * `texts` gives it.
+ */
+function chineseText(ids: readonly string[], texts: Readonly<Record<string, WordText>> = {}): LocaleText {
     const shown = new Set(ids);
+    const textOf = (id: string): WordText | null => (shown.has(id)
+        ? texts[id] ?? { definitions: [], equivalents: [{ text: '想', sources: [{ source: 'jawiktionary', ref: id }] }] }
+        : null);
     return {
         language: 'zh-hans',
-        wordText: id => Promise.resolve(shown.has(id)
-            ? { definitions: [], equivalents: [{ text: '想', sources: [{ source: 'jawiktionary', ref: id }] }] }
-            : null),
+        wordText: id => Promise.resolve(textOf(id)),
+        wordSummary: id => {
+            const text = textOf(id);
+            return Promise.resolve(text === null ? null : shortWordTextSummary(text));
+        },
         withPages: other => Promise.resolve(other.filter(id => shown.has(id))),
         wordIds: () => Promise.resolve([...ids]),
         firstWordId: () => Promise.resolve(ids.at(0) ?? null),
@@ -74,7 +85,7 @@ function memorySource(world: World): { source: DictionaryData; calls: Map<string
         grammarVariantGroups: () => ask('grammarVariantGroups', () => ({})),
         grammarConjugations: () => ask('grammarConjugations', () => ({})),
         grammarMinedExamples: _id => ask('grammarMinedExamples', () => null),
-        localeText: world.chinese ? chineseText(world.chinese) : null,
+        localeText: world.chinese ? chineseText(world.chinese, world.chineseTexts) : null,
     };
     return { source, calls };
 }
@@ -204,6 +215,15 @@ describe('pagesOf: a locale other than English', () => {
         const linked = await pagesOf(memorySource({ ...chineseWorld, chinese: ['1589350', '1281390'] }).source, 'zh-hans').vocabPage('1281390');
         expect(linked.props.components.map(word => [word.id, word.localGloss])).toEqual([['1589350', '想']]);
         expect(linked.props.withoutPage?.words).toEqual(['1311110']);
+    });
+
+    it('cuts a row\'s Chinese gloss short, as English cuts its own', async () => {
+        // A word with no equivalents is summarised by its first definition sense: here a long one.
+        const long = wordText({ equivalents: [], definitions: [{ ...wordText().definitions[0], senses: [{ glosses: ['表示动作的方向', '表示状态的变化或结果', '用于句末表示强调的语气'] }] }] });
+        const pages = pagesOf(memorySource({ ...world, jlpt: { 5: ['1589350'] }, chinese: ['1589350'], chineseTexts: { '1589350': long } }).source, 'zh-hans');
+        const [row] = (await pages.vocabJlptPage(5, 1)).props.words;
+        expect(row?.localGloss).toBe('表示动作的方向；表示状态的变化或结果');
+        expect(row?.localGloss?.length).toBeLessThanOrEqual(LOCAL_GLOSS_LENGTH);
     });
 
     it('titles a word page with its meaning in Chinese', async () => {

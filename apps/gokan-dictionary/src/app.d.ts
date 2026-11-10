@@ -1,4 +1,5 @@
-import type { Alternate, PageDocument } from '$lib/server/pages';
+import type { PageDocument } from '$lib/server/pages';
+import type { Alternate } from '$lib/types';
 
 declare global {
     namespace App {

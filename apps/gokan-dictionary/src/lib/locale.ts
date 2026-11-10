@@ -4,6 +4,7 @@
 // alone in production, Chinese too on staging (#170). A locale not served has routes that match
 // nothing, so no page is rendered in it.
 
+import { withoutBasePath } from './basePath';
 import { DICTIONARY_LOCALES } from './site';
 
 export const LOCALES = ['en', 'zh-hans'] as const;
@@ -84,6 +85,16 @@ export function localeOfSegment(segment: string | undefined): ServedLocale {
     const locale = SERVED_LOCALES.find(candidate => !isDefaultLocale(candidate) && candidate === segment);
     if (locale === undefined) throw new Error(`[locale] "${segment}" is not a locale segment`);
     return locale;
+}
+
+/**
+ * The locale of a public path, read off its first segment after the base path: what a route's
+ * optional locale segment would give. For a path no route matched (its error page has no params),
+ * so the error page's document (hooks.server.ts) and its chrome (routes/+layout.ts) agree.
+ */
+export function localeOfPath(pathname: string, base?: string): ServedLocale {
+    const segment = withoutBasePath(pathname, base).split('/')[1] ?? '';
+    return localeOfSegment(isLocaleSegment(segment) ? segment : undefined);
 }
 
 /**

@@ -17,7 +17,16 @@ const SITE_NAME = 'Gokan 日语词典';
 /** Titles keep the meaning short: everything past ~30 Chinese characters may be cut. */
 const TITLE_MEANING_LENGTH = 24;
 
-const JLPT_LABEL = (level: number) => `N${level}`;
+const jlptLevel = (level: number) => `N${level}`;
+const jlptLabel = (level: number) => `JLPT ${jlptLevel(level)}`;
+
+/**
+ * The mark on whatever leads to a page served in English only, written once so a rewording reaches
+ * every place it shows: beside a section's name, after a link (its parenthesised form), on a tile.
+ */
+const IN_ENGLISH = '英文';
+const AFTER_LINK = `（${IN_ENGLISH}）`;
+const ENGLISH_PAGES = `${IN_ENGLISH}页面`;
 
 /** Numbers grouped as in English (35,872), whatever the machine building the pages. */
 const grouped = (n: number) => n.toLocaleString('en');
@@ -40,6 +49,8 @@ function meaningOf(vocab: Vocabulary, text: WordText | undefined): string {
 export const zhHans: Messages = {
     count,
     kanjiRangeHeading,
+    jlptLabel,
+    jlptLevel,
     chrome: {
         skipLink: '跳到正文',
         siteTitleWord: '日语词典',
@@ -51,28 +62,28 @@ export const zhHans: Messages = {
         footer: links => [
             '数据来自以 CC BY-SA 许可开放的 ',
             { text: 'gokan-dataset', href: links.dataset },
-            '（英文）。\n      想用间隔重复记住这些词，可以试试 ',
+            `${AFTER_LINK}。想用间隔重复记住这些词，可以试试 `,
             { text: 'Gokan SRS', href: links.srs },
-            '（英文）。',
+            `${AFTER_LINK}。`,
         ],
         search: { label: '搜索词典', placeholder: '搜索：汉字、假名、罗马字或英文', results: '搜索结果' },
         hideFurigana: '隐藏注音',
         showFurigana: '显示注音',
         grammarTabs: { label: '浏览语法', level: '按级别', families: '近义语法', curriculum: '课程顺序', conjugations: '活用' },
-        inEnglish: '英文',
+        inEnglish: IN_ENGLISH,
         languages: '语言',
         pages: '页码',
         allWords: n => `全部 ${grouped(n)} 个词`,
     },
     home: {
         heading: '日语词典',
-        lede: '查日语单词的读音、中文释义和例句。汉字和语法页面目前只有英文版。',
+        lede: `查日语单词的读音、中文释义和例句。汉字和语法页面目前只有${IN_ENGLISH}版。`,
         browse: '浏览',
         tiles: {
             vocab: { title: '词汇', meta: '按 JLPT 级别', blurb: '读音、释义、活用和例句。' },
-            kanji: kanjiCount => ({ title: '汉字', meta: `${grouped(kanjiCount)} 个汉字 · 英文页面`, blurb: '使用每个汉字的词。' }),
-            kanjiOrders: { title: '汉字学习顺序', meta: 'KKLC、RTK 等 · 英文页面', blurb: '按汉字教材的进度，列出每一步能读的词。' },
-            grammar: pointCount => ({ title: '语法', meta: `${grouped(pointCount)} 个语法点 · 英文页面`, blurb: '句型、讲解和例句。' }),
+            kanji: kanjiCount => ({ title: '汉字', meta: `${grouped(kanjiCount)} 个汉字 · ${ENGLISH_PAGES}`, blurb: '使用每个汉字的词。' }),
+            kanjiOrders: { title: '汉字学习顺序', meta: `KKLC、RTK 等 · ${ENGLISH_PAGES}`, blurb: '按汉字教材的进度，列出每一步能读的词。' },
+            grammar: pointCount => ({ title: '语法', meta: `${grouped(pointCount)} 个语法点 · ${ENGLISH_PAGES}`, blurb: '句型、讲解和例句。' }),
         },
         commonWords: '常用词',
         counts: ({ words, kanji, grammar, sentences }) => `${grouped(words)} 个词 · ${grouped(kanji)} 个汉字 · ${grouped(grammar)} 个语法点 · ${grouped(sentences)} 个例句`,
@@ -80,14 +91,13 @@ export const zhHans: Messages = {
         aboutText: links => [
             '本词典基于以 CC BY-SA 许可开放的 ',
             { text: 'gokan-dataset', href: links.dataset },
-            '（英文）：日语词条、英文释义和 JLPT 级别来自 JMdict，例句来自 Tatoeba；中文释义来自中文维基词典，中文对应词来自日文维基词典和维基数据，例句的中文翻译来自 Tatoeba。想记住查过的词，可以用 ',
+            `${AFTER_LINK}：日语词条、英文释义和 JLPT 级别来自 JMdict，例句来自 Tatoeba；中文释义来自中文维基词典，中文对应词来自日文维基词典和维基数据，例句的中文翻译来自 Tatoeba。想记住查过的词，可以用 `,
             { text: 'Gokan SRS', href: links.srs },
-            '（英文）按间隔重复学习。',
+            `${AFTER_LINK}按间隔重复学习。`,
         ],
     },
     vocabIndex: {
         intro: wordCount => `${grouped(wordCount)} 个有中文释义的日语单词，附读音和例句。可以浏览 JLPT 词汇表，或直接搜索。`,
-        levelTitle: level => `JLPT ${JLPT_LABEL(level)}`,
         levelBlurbs: {
             5: '日常用词、基础动词和核心词汇。',
             4: '常见的日常词汇，在 N5 的基础上扩展。',
@@ -97,14 +107,12 @@ export const zhHans: Messages = {
         },
     },
     vocabJlpt: {
-        heading: (level, page) => `JLPT ${JLPT_LABEL(level)} 词汇${page > 1 ? `，第 ${page} 页` : ''}`,
-        levelCrumb: level => `JLPT ${JLPT_LABEL(level)}`,
+        heading: (level, page) => `${jlptLabel(level)} 词汇${page > 1 ? `，第 ${page} 页` : ''}`,
         pageCrumb: page => `第 ${page} 页`,
         intro: wordCount => `${grouped(wordCount)} 个词，按使用频率排列。`,
         range: (first, last) => `第 ${grouped(first)} 至 ${grouped(last)} 个词。`,
         otherLevels: '其他级别',
         otherLevelsLead: '其他级别：',
-        levelLink: JLPT_LABEL,
     },
     vocab: {
         usuallyKana: '通常写作假名。汉字写法',
@@ -145,7 +153,7 @@ export const zhHans: Messages = {
                 teru: '进行，口语（てる）',
             },
         },
-        kanjiInEnglish: '汉字页面为英文。',
+        kanjiInEnglish: `汉字页面为${IN_ENGLISH}。`,
         credit: sourceNames => `来源：${sourceNames.join('、')}`,
         englishMeaningsSource: 'JMdict（英文释义）',
         sentencesSource: 'Tatoeba',
@@ -161,9 +169,9 @@ export const zhHans: Messages = {
             '可以浏览',
             { text: '按 JLPT 级别分类的词汇', href: links.vocab },
             '、',
-            { text: '汉字（英文）', href: links.kanji },
+            { text: `汉字${AFTER_LINK}`, href: links.kanji },
             '或',
-            { text: '语法点（英文）', href: links.grammar },
+            { text: `语法点${AFTER_LINK}`, href: links.grammar },
             '，或者返回',
             { text: '词典首页', href: links.home },
             '。',
@@ -187,7 +195,7 @@ export const zhHans: Messages = {
         // Searched as "思う 意思" or "思う 中文": the word, both spellings, then its meaning in Chinese.
         vocab(vocab: Vocabulary, text?: WordText) {
             const meaning = meaningOf(vocab, text);
-            const jlpt = vocab.jlptLevel ? ` | JLPT ${JLPT_LABEL(vocab.jlptLevel)}` : '';
+            const jlpt = vocab.jlptLevel ? ` | ${jlptLabel(vocab.jlptLevel)}` : '';
             const label = `${headwordOf(vocab)}（${secondaryForm(vocab)}）`;
             const title = meaning
                 ? `${label}的中文意思：${truncate(meaning, TITLE_MEANING_LENGTH)}${jlpt} - ${SITE_NAME}`
@@ -198,7 +206,7 @@ export const zhHans: Messages = {
             return { title, description };
         },
         kanji(kanji: Kanji, vocabCount: number) {
-            const jlpt = kanji.steps.jlpt ? `（JLPT ${JLPT_LABEL(kanji.steps.jlpt)}）` : '';
+            const jlpt = kanji.steps.jlpt ? `（${jlptLabel(kanji.steps.jlpt)}）` : '';
             return {
                 title: `${kanji.character} 汉字的读音和用法${jlpt} - ${SITE_NAME}`,
                 description: `日语汉字 ${kanji.character}：${count(kanji.strokeCount, 'stroke')}，部件、读音，以及使用它的 ${count(vocabCount, 'word')}。`,
@@ -207,8 +215,8 @@ export const zhHans: Messages = {
         grammar(point: GrammarPoint) {
             const pattern = searchablePattern(point.title) || point.title;
             return {
-                title: `${pattern} 的意思和用法 | JLPT ${JLPT_LABEL(point.jlptLevel)} 语法 - ${SITE_NAME}`,
-                description: `${point.title}：JLPT ${JLPT_LABEL(point.jlptLevel)} 日语语法，附接续、讲解和例句。`,
+                title: `${pattern} 的意思和用法 | ${jlptLabel(point.jlptLevel)} 语法 - ${SITE_NAME}`,
+                description: `${point.title}：${jlptLabel(point.jlptLevel)} 日语语法，附接续、讲解和例句。`,
             };
         },
         vocabIndex(vocabCount: number) {
@@ -220,8 +228,8 @@ export const zhHans: Messages = {
         vocabJlpt(level: number, wordCount: number, page = 1) {
             const pageLabel = page > 1 ? `，第 ${page} 页` : '';
             return {
-                title: `JLPT N${level} 词汇表（${grouped(wordCount)} 个词）${pageLabel} - ${SITE_NAME}`,
-                description: `JLPT N${level} 词汇表${pageLabel}：${grouped(wordCount)} 个词，按使用频率排列，每个词附读音、中文释义和例句。`,
+                title: `${jlptLabel(level)} 词汇表（${grouped(wordCount)} 个词）${pageLabel} - ${SITE_NAME}`,
+                description: `${jlptLabel(level)} 词汇表${pageLabel}：${grouped(wordCount)} 个词，按使用频率排列，每个词附读音、中文释义和例句。`,
             };
         },
         kanjiIndex(kanjiCount: number) {

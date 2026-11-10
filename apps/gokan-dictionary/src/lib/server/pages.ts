@@ -19,9 +19,8 @@ import { JLPT_PAGE_SIZE, paginate } from '../pagination';
 import { searchGrammarRow, searchKanjiRow, searchWordRow, splitSearchIndex } from '../searchIndex';
 import { datasetLanguageOf, DEFAULT_LOCALE, type ServedLocale } from '../locale';
 import { messagesFor, type PageMeta } from '../messages';
-import { wordTextSummary } from '../senses';
 import { orderSentences } from '../sentenceOrder';
-import type { DictionaryData, EntityData, GrammarSummary, LocaleText, SearchIndexFile, SearchWordRow, VocabSummary, WordText } from '../types';
+import type { Alternate, DictionaryData, EntityData, GrammarSummary, LocaleText, PageKey, SearchIndexFile, SearchWordRow, VocabSummary, WordText } from '../types';
 import { kanjiOrderSlug, kanjiRangeSlug, localeUrls } from '../urls';
 import type { PageScript, PageStyle } from './assets';
 import { kept } from './kept';
@@ -61,21 +60,8 @@ export interface PageDocument {
     noindex?: boolean;
 }
 
-/**
- * A page of a type more than one locale serves (#170: a word, the home page, the vocabulary
- * lists): what names it in every locale, so its counterpart in another is found (`servesPage`).
- */
-export type PageKey =
-    | { type: 'home' }
-    | { type: 'vocabIndex' }
-    | { type: 'vocabJlpt'; level: number; page: number }
-    | { type: 'vocab'; id: string };
-
-/** One locale's version of a page: an hreflang alternate. */
-export interface Alternate {
-    locale: ServedLocale;
-    path: string;
-}
+// A page's key and its alternates are lib/types.ts's: the language switcher (pages/) reads them too.
+export type { Alternate, PageKey } from '../types';
 
 /** A page's path in `locale`. */
 export function pathOf(key: PageKey, locale: ServedLocale): string {
@@ -130,14 +116,14 @@ function localeTextOf(source: EntityData, locale: ServedLocale): LocaleText | nu
 }
 
 /**
- * A page's word rows in its language: each with its gloss in it (localGloss), for a page in another
- * language, whose rows list only words with text in it; English's rows as they are.
+ * A page's word rows in its language: each with its gloss in it (localGloss, the locale's one
+ * summary of the word), for a page in another language, whose rows list only words with text in
+ * it; English's rows as they are.
  */
 async function inLanguageOf(words: VocabSummary[], text: LocaleText | null): Promise<VocabSummary[]> {
     if (text === null) return words;
     return Promise.all(words.map(async word => {
-        const own = await text.wordText(word.id);
-        const localGloss = own ? wordTextSummary(own) : '';
+        const localGloss = await text.wordSummary(word.id);
         return localGloss ? { ...word, localGloss } : word;
     }));
 }

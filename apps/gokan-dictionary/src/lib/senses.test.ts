@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Sense } from '@gokan/dataset-schema';
 import { wordText } from '../test/fixtures';
-import { meaningsOf, VISIBLE_SENSES, wordTextSummary } from './senses';
+import { LOCAL_GLOSS_LENGTH, meaningsOf, shortWordTextSummary, VISIBLE_SENSES, wordTextSummary } from './senses';
 
 function sense(glosses: string[], pos: string[] = ['n'], rawTags: string[] = []): Sense {
     return { pos, misc: { rawTags, isArchaic: rawTags.includes('arch') }, glosses, related: { compounds: [] } };
@@ -48,5 +48,25 @@ describe('wordTextSummary', () => {
 
     it('is empty for a word with neither', () => {
         expect(wordTextSummary(wordText({ equivalents: [], definitions: [] }))).toBe('');
+    });
+});
+
+describe('shortWordTextSummary', () => {
+    const definition = (glosses: string[]) => wordText({ equivalents: [], definitions: [{ ...wordText().definitions[0], senses: [{ glosses }] }] });
+
+    it('keeps a summary that fits as it is', () => {
+        expect(shortWordTextSummary(wordText())).toBe('想、认为');
+    });
+
+    it('keeps whole glosses up to the last separator inside the limit', () => {
+        const short = shortWordTextSummary(definition(['表示动作的方向', '表示状态的变化或结果', '用于句末表示强调的语气']));
+        expect(short).toBe('表示动作的方向；表示状态的变化或结果');
+        expect(short.length).toBeLessThanOrEqual(LOCAL_GLOSS_LENGTH);
+    });
+
+    it('cuts one long gloss with an ellipsis', () => {
+        const short = shortWordTextSummary(definition(['用于名词之后表示所属关系或者表示动作的对象以及其他种种用法']));
+        expect(short).toHaveLength(LOCAL_GLOSS_LENGTH);
+        expect(short.endsWith('…')).toBe(true);
     });
 });

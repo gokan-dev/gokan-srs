@@ -43,6 +43,10 @@ export interface Messages {
     count: (n: number, noun: CountedNoun) => string;
     /** A kanji range page's heading, also its title. */
     kanjiRangeHeading: (order: KanjiOrder, range: { first: number; last: number }) => string;
+    /** A JLPT level as every page names it (a tile, a breadcrumb step, a chip): "JLPT N5". */
+    jlptLabel: (level: number) => string;
+    /** The level alone, where JLPT is already said (a list of the other levels): "N5". */
+    jlptLevel: (level: number) => string;
     /** What every page has around its content. */
     chrome: {
         skipLink: string;
@@ -86,23 +90,20 @@ export interface Messages {
     };
     vocabIndex: {
         intro: (wordCount: number) => string;
-        levelTitle: (level: number) => string;
         /** What each JLPT level's words are, by level. */
         levelBlurbs: Readonly<Record<number, string>>;
     };
     vocabJlpt: {
         /** The page's heading; a page after the first says which it is. */
         heading: (level: number, page: number) => string;
-        /** The breadcrumb step naming the level, and the one naming a page after the first. */
-        levelCrumb: (level: number) => string;
+        /** The breadcrumb step naming a page after the first (the level's is jlptLabel). */
         pageCrumb: (page: number) => string;
         intro: (wordCount: number) => string;
         /** Which words a page of a split list holds, by rank. */
         range: (first: number, last: number) => string;
-        /** The other levels' links: the nav's accessible name, the words before them, each link. */
+        /** The other levels' links (each a jlptLevel): the nav's accessible name, the words before them. */
         otherLevels: string;
         otherLevelsLead: string;
-        levelLink: (level: number) => string;
     };
     /** A word page's words. */
     vocab: {
@@ -127,7 +128,7 @@ export interface Messages {
         sentencesSource: string;
     };
     /** The dataset's text sources by id (SourceRef.source), as a credit line names them. */
-    sources: Readonly<Record<string, string>>;
+    sources: Readonly<Partial<Record<string, string>>>;
     /**
      * A word page's Meanings in another language, one label per group: its own sources' definitions,
      * its equivalents, then English's meanings.

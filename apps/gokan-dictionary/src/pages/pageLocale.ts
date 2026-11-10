@@ -8,7 +8,7 @@ import { createContext } from 'svelte';
 import { htmlLang, type ServedLocale } from '../lib/locale';
 import { messagesFor, type Messages } from '../lib/messages';
 import { linkLang, linkUrls } from '../lib/localeLinks';
-import type { Alternate } from '../lib/server/pages';
+import type { Alternate } from '../lib/types';
 import type { LocaleUrls } from '../lib/urls';
 
 export interface PageLocale {

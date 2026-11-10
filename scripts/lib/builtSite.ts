@@ -10,13 +10,15 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { extname, join, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { brotliCompressSync, constants } from 'node:zlib';
 import { publishedDatasetFile } from '@gokan/deploy/published-dataset';
 import { checkoutData } from '../../apps/gokan-dictionary/src/lib/dataset.server';
 import { SERVED_LOCALES } from '../../apps/gokan-dictionary/src/lib/locale';
 import { isDictionaryFilePath } from '../../apps/gokan-dictionary/src/lib/servedPaths';
 
-const ROOT = process.cwd();
+/** The repository, wherever the script that imports this runs from (check-build runs in the dictionary's folder). */
+const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const SRS_DIST = join(ROOT, 'apps/gokan-srs/dist');
 const DICTIONARY_DIST = join(ROOT, 'apps/gokan-dictionary/dist');
 /** The dictionary's server (adapter-node), which renders the entity pages of an on-request build. */

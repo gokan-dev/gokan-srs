@@ -50,8 +50,17 @@
   const hasRelated = $derived(vocab.writtenForm.containedKanji.length > 0 || components.length > 0 || parents.length > 0);
   const linkedKanji = $derived(vocab.writtenForm.containedKanji.filter(character => !kanjiWithoutPage.has(character)));
 
-  /** Each source once, by its name in the page's language: a section's credit line on a page in another language. */
-  const sourceNames = (ids: readonly string[]) => [...new Set(ids.map(id => messages.sources[id] ?? id))];
+  /**
+   * Each source once, by its name in the page's language: a section's credit line on a page in
+   * another language. A source the catalog does not name fails the page, never shown as its id
+   * (check-build.ts also holds every source in the text files to a name).
+   */
+  const sourceName = (id: string): string => {
+    const name = messages.sources[id];
+    if (name === undefined) throw new Error(`[vocab] source "${id}" has no name in the catalog (lib/messages, sources)`);
+    return name;
+  };
+  const sourceNames = (ids: readonly string[]) => [...new Set(ids.map(sourceName))];
   const meaningsCredit = $derived(text ? words.credit([
     ...sourceNames([...text.definitions.map(definition => definition.source.source), ...text.equivalents.flatMap(equivalent => equivalent.sources.map(source => source.source))]),
     ...(meanings.visible.length > 0 ? [words.englishMeaningsSource] : []),
@@ -113,7 +122,7 @@
     {#if summary}<p class="entry-gloss" lang={text ? langOnChinesePage(summary) : undefined}>{summary}</p>{/if}
 
     <p class="chips">
-      {#if vocab.jlptLevel}<Chip label={`JLPT N${vocab.jlptLevel}`} href={urls.vocabJlptPath(vocab.jlptLevel)} />{/if}
+      {#if vocab.jlptLevel}<Chip label={messages.jlptLabel(vocab.jlptLevel)} href={urls.vocabJlptPath(vocab.jlptLevel)} />{/if}
       {#if vocab.isCommon}<Chip label={words.commonWord} />{/if}
       <!-- A textbook's name is English's (Genki L3), marked so on a page in another language. -->
       {#if vocab.textbooks?.length}<Chip label={textbookLessonsLabel(vocab.textbooks)} lang={text ? 'en' : undefined} />{/if}

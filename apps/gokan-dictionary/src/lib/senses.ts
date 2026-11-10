@@ -5,6 +5,7 @@
 import { isRareSense, isTag, shortTagLabel } from '@gokan/dataset-schema';
 import type { Sense } from '@gokan/dataset-schema';
 import { valueText } from '@gokan/dataset-schema/text';
+import { truncate } from './seo';
 import type { WordText } from './types';
 
 /** Senses shown before the "All N meanings" disclosure. */
@@ -68,4 +69,22 @@ export function wordTextSummary(word: WordText): string {
     const equivalents = word.equivalents.slice(0, 2).map(equivalent => equivalent.text);
     if (equivalents.length > 0) return equivalents.join('、');
     return (word.definitions[0]?.senses[0]?.glosses ?? []).map(valueText).join('；');
+}
+
+/**
+ * Longest gloss a list row shows on a Chinese page, in characters: about half English's
+ * (SHORT_GLOSS_LENGTH), a Chinese character carrying about two Latin ones, so a row and a list's
+ * budget stay as English sizes them.
+ */
+export const LOCAL_GLOSS_LENGTH = 20;
+
+/**
+ * A word's summary gloss (wordTextSummary) as a list row shows it: whole glosses up to the last
+ * enumeration comma or semicolon inside LOCAL_GLOSS_LENGTH, else cut with an ellipsis.
+ */
+export function shortWordTextSummary(word: WordText): string {
+    const summary = wordTextSummary(word);
+    if (summary.length <= LOCAL_GLOSS_LENGTH) return summary;
+    const boundary = Math.max(summary.lastIndexOf('、', LOCAL_GLOSS_LENGTH), summary.lastIndexOf('；', LOCAL_GLOSS_LENGTH));
+    return boundary > 0 ? summary.slice(0, boundary) : truncate(summary, LOCAL_GLOSS_LENGTH);
 }

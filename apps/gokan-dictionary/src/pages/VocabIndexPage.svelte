@@ -22,7 +22,7 @@
     {#each levels as { level, count } (level)}
       <li>
         <a class="tile" href={urls.vocabJlptPath(level)}>
-          <span class="tile-title">{messages.vocabIndex.levelTitle(level)}</span>
+          <span class="tile-title">{messages.jlptLabel(level)}</span>
           <span class="tile-meta">{messages.count(count, 'word')}</span>
           <span class="tile-blurb">{messages.vocabIndex.levelBlurbs[level]}</span>
         </a>

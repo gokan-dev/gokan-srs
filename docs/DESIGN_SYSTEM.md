@@ -543,9 +543,13 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   kanji's book position, a range step's glyph) are at least 44px tall.
 - **Lists**: a word list is three aligned columns, headword | reading | gloss (stacked
   on a phone and in the word page's aside); the reading shows only when it differs from
-  the headword, and a word learned in kana is never listed by its kanji spelling. A long
-  list shows its head and puts the rest in a `<details>` ("All 401 words"): collapsed, but
-  every link stays in the HTML.
+  the headword, and a word learned in kana is never listed by its kanji spelling. The gloss
+  is the row's one span with a `lang` (English's `en`, a Chinese page's `zh-Hans`), which is
+  how the stylesheet puts it in its column in the sans face, in either language, at no bytes
+  per row; a Chinese gloss is cut at about 20 characters, at a 、 or ； when one falls inside
+  (`shortWordTextSummary`). `check:layout` holds the column at 1280px and the own line on a
+  phone. A long list shows its head and puts the rest in a `<details>` ("All 401 words"):
+  collapsed, but every link stays in the HTML.
 - **Furigana toggle**: "Hide furigana" / "Show furigana", in the section header of every
   page with sentences. It sets `furigana-hidden` on `<html>` and remembers the choice in
   `localStorage` (read in a try/catch, shown by default). It lives in the search script

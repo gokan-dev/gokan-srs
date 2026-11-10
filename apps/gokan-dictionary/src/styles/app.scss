@@ -517,7 +517,9 @@ a.chip {
 
 // -- Word lists: headword | reading | gloss ---------------------------------
 // Rows are kept small: lang="ja" on the link, the headword a bare text cell (an anonymous grid
-// item), the reading a span, the gloss a span marked lang="en". A kanji page lists up to 660.
+// item), the reading a span with no lang, the gloss the one span with a lang (English's "en", a
+// Chinese page's "zh-Hans"): its lang is what marks it the gloss, at no bytes per row, where a
+// class would push a kanji page's 660 rows past its budget. A kanji page lists up to 660.
 
 .entry-list {
   a {
@@ -535,7 +537,7 @@ a.chip {
       color: var(--secondary);
     }
 
-    > [lang="en"] {
+    > [lang] {
       grid-column: 3;
       font-family: $font-sans;
       font-size: $text-sm;

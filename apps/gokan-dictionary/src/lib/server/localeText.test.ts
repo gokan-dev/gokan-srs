@@ -106,6 +106,16 @@ describe('localeText', () => {
         expect(reads.file).toHaveBeenCalledTimes(2);
     });
 
+    it('gives each word with a page its row gloss, cut short, read once', async () => {
+        const reads = memoryReads({ one: [equivalent('a', 'reviewed')], two: [equivalent('b', 'rejected')] });
+        const text = localeText('zh-hans', reads);
+        expect(await text.wordSummary('one')).toBe('a');
+        expect(await text.wordSummary('one')).toBe('a');
+        expect(await text.wordSummary('two')).toBeNull();
+        expect(await text.wordText('one')).not.toBeNull();
+        expect(reads.file).toHaveBeenCalledTimes(2);
+    });
+
     it('reads no file for a word or sentence set its index does not list', async () => {
         const reads = memoryReads({ shown: [equivalent('b', 'reviewed')] });
         const text = localeText('zh-hans', reads);

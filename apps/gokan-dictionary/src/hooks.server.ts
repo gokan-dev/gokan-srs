@@ -10,11 +10,10 @@ import type { Handle, HandleServerError } from '@sveltejs/kit';
 import { renderedPageCacheControl } from '@gokan/deploy/deploy-manifest';
 import { chineseWithoutLang, englishChromeOn, englishWithoutLang, japaneseWithoutLang, linksLeavingSection, renderDocument, stripHydrationMarkers } from '$lib/documentShell';
 import { localeStylesheetHref, pageScriptHref, pageStylesheetHref, searchScriptHref, stylesheetHref } from '$lib/server/assets';
-import { DEFAULT_LOCALE, htmlLang, isLocaleSegment, localeOfSegment, type ServedLocale } from '$lib/locale';
+import { DEFAULT_LOCALE, htmlLang, localeOfPath, type ServedLocale } from '$lib/locale';
 import { catalogStrings, messagesFor } from '$lib/messages';
 import { localeUrls } from '$lib/urls';
 import { errorDocument } from '$lib/server/pages';
-import { withoutBasePath } from '$lib/basePath';
 import { UMAMI_WEBSITE_ID } from '$lib/site';
 
 /** Where app.html puts the body: everything before it is SvelteKit's head, which must stay empty. */
@@ -86,10 +85,8 @@ export const handle: Handle = async ({ event, resolve }) => {
  * page gets its document here. A page's own 404 (PageNotFound) already has one (render).
  */
 export const handleError: HandleServerError = ({ event, status, message }) => {
-    // A path no route matched has no params: its locale is read off the path, as a route would.
-    const { pathname } = event.url;
-    const segment = withoutBasePath(pathname).split('/')[1] ?? '';
-    event.locals.document ??= errorDocument(status, event.url.pathname, localeOfSegment(isLocaleSegment(segment) ? segment : undefined));
+    // A path no route matched has no params: its locale is read off the path, as the layout does.
+    event.locals.document ??= errorDocument(status, event.url.pathname, localeOfPath(event.url.pathname));
     if (status >= 500) console.error(`[dictionary] ${event.url.pathname}: ${message}`);
     return { message };
 };
