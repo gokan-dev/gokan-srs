@@ -68,12 +68,14 @@ export function langOf(text: string): 'ja' | undefined {
 const HAN = /[\u3400-\u9fff々]/;
 
 /**
- * "ja" for dataset text a Chinese page must mark as Japanese: kana with no Han character (a
- * Chinese Wiktionary gloss or tag written in Japanese, ずるいさ), undefined for Chinese text, or
- * Chinese quoting a Japanese word. For a `lang` attribute, as langOf is on an English page.
+ * The lang dataset text needs on a Chinese page: "ja" for kana with no Han character (a Chinese
+ * Wiktionary gloss or tag written in Japanese, ずるいさ), "en" for Latin letters with no Japanese or
+ * Chinese character (a tag it writes in English, idiomatic), undefined for Chinese text, or Chinese
+ * quoting a Japanese word. For a `lang` attribute, as langOf is on an English page.
  */
-export function langOnChinesePage(text: string): 'ja' | undefined {
-    return isJapaneseOnly(text) && !HAN.test(text) ? 'ja' : undefined;
+export function langOnChinesePage(text: string): 'ja' | 'en' | undefined {
+    if (isJapaneseOnly(text) && !HAN.test(text)) return 'ja';
+    return /[A-Za-z]/.test(text) && !JAPANESE_TEXT.test(text) ? 'en' : undefined;
 }
 
 /**

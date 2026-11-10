@@ -159,12 +159,13 @@ describe('japaneseWithoutLang', () => {
 });
 
 describe('langOnChinesePage', () => {
-    it('marks kana-only text as Japanese, leaving Chinese and Chinese quoting Japanese alone', () => {
+    it('marks kana-only text as Japanese and Latin-only text as English, leaving Chinese and Chinese quoting Japanese alone', () => {
         expect(langOnChinesePage('ずるいさ')).toBe('ja');
         expect(langOnChinesePage('‐ている')).toBe('ja');
         expect(langOnChinesePage('狡猾，奸诈。')).toBeUndefined();
         expect(langOnChinesePage('去，到；行く的尊敬语')).toBeUndefined();
-        expect(langOnChinesePage('auxiliary')).toBeUndefined();
+        expect(langOnChinesePage('idiomatic')).toBe('en');
+        expect(langOnChinesePage('CPU的简称')).toBeUndefined();
     });
 });
 
