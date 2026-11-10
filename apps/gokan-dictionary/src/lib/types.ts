@@ -7,6 +7,8 @@ import type {
     FrequencyIndex, GrammarConjugationIndex, GrammarContrastIndex, GrammarExample, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex,
     JlptIndex, Kanji, KanjiOrderId, KanjiOrderList, KanjiVocabIndex, Sentence, Vocabulary,
 } from '@gokan/dataset-schema';
+import type { Definition, SourceRef, Translation } from '@gokan/dataset-schema/text';
+import type { DatasetLanguage } from './locale';
 
 /** The site section a page belongs to, marked current in the header nav. */
 export type Section = 'vocab' | 'kanji' | 'grammar';
@@ -82,11 +84,64 @@ export interface SearchIndexFile {
 }
 
 /**
+ * A word's text in a language other than English, as its page in that language shows it: every
+ * rendering in it is one `isShown` accepts (lib/server/localeText.ts is the one place that
+ * filters). Each rendering keeps its source, for the page's credit line.
+ */
+export interface WordText {
+    /** Each source's own definition (Chinese Wiktionary's), its senses as that source wrote them. */
+    definitions: Definition[];
+    /** The word's equivalents in the language, each text once, with the sources that give it. */
+    equivalents: WordEquivalent[];
+}
+
+/**
+ * One equivalent of a word, as its page lists it: its text, and every source giving that text (a
+ * rendering written in the language's script and one converted to it can agree, and are one).
+ */
+export interface WordEquivalent {
+    text: string;
+    sources: SourceRef[];
+}
+
+/**
+ * An example sentence's translation on a page in another language: the language's own, from its
+ * source, else the sentence's English, marked as English so the sentence stays understandable
+ * (decided in #170).
+ */
+export type SentenceTranslation =
+    | { lang: 'en'; text: string }
+    | { lang: Exclude<DatasetLanguage, 'en'>; text: string; source: SourceRef };
+
+/**
+ * What a page in a language other than English reads of the dataset's text layer
+ * (`text/<language>/`), over either source: only renderings `isShown` accepts ever leave it.
+ */
+export interface LocaleText {
+    language: Exclude<DatasetLanguage, 'en'>;
+    /**
+     * A word's text in the language, or null when none of it is shown. The one answer to whether a
+     * word has a page in the language: it has one exactly when this is not null (the others have
+     * none, decided in #170).
+     */
+    wordText(id: string): Promise<WordText | null>;
+    /** Which of `ids` have a page in the language (wordText not null), in their order. */
+    withPages(ids: readonly string[]): Promise<string[]>;
+    /** Every word with a page in the language, in the text index's order: read at build, for the catalog. */
+    wordIds(): Promise<string[]>;
+    /** The first word in the text index's order with a page in the language, or null when none has one. */
+    firstWordId(): Promise<string | null>;
+    /** A word's example sentences' translations in the language, shown ones only, by sentence id. */
+    sentenceTranslations(vocabId: string): Promise<ReadonlyMap<string, Translation>>;
+}
+
+/**
  * What an entity page (a word, a kanji, a grammar point) reads of the dataset, asked per entity or
  * per index: its own entity's files and the indexes it lists other entries from. A page rendered
  * on request has this and no more: `httpData` (lib/server/httpData.ts), over the published
  * dataset; the checkout (`checkoutData`) provides it too, as part of DictionaryData. Asynchronous
- * for that reason. Every value is in the English shape the `@gokan/dataset-schema` types describe.
+ * for that reason. Every value is in the English shape the `@gokan/dataset-schema` types describe;
+ * a source in another language adds that language's text beside them (`localeText`).
  */
 export interface EntityData {
     vocab(id: string): Promise<Vocabulary>;
@@ -114,13 +169,15 @@ export interface EntityData {
     grammarConjugations(): Promise<GrammarConjugationIndex>;
     /** A point's corpus-mined examples, or null for a point with none (most of them). */
     grammarMinedExamples(id: string): Promise<GrammarExample[] | null>;
+    /** The text layer in the source's language, or null for English, whose text the values above already carry. */
+    localeText: LocaleText | null;
 }
 
 /**
  * What the whole site is built from: EntityData, and the catalogs only list pages and the search
  * index read (every id, the JLPT and frequency orders, the grammar families). The one source of it
  * is the checkout, through the English view (`checkoutData` in dataset.server.ts), at build: the
- * list pages are prerendered. Other languages add a language parameter.
+ * list pages are prerendered. A source in another language reads the same, plus its text.
  */
 export interface DictionaryData extends EntityData {
     /** Every word's id, in the order the vocab directory lists them. */

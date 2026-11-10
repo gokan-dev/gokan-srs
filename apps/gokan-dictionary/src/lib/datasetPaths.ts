@@ -20,4 +20,8 @@ export const DATASET_PATHS = {
     grammarVariantGroups: 'grammar/index/variant-groups.json',
     grammarConjugations: 'grammar/conjugations.json',
     grammarMinedExamples: (id: string) => `grammar/mined/${id}.json`,
+    /** A core file's text in a language other than English, as published (text/zh-hans/vocab/1358280.json). */
+    text: (language: string, corePath: string) => `text/${language}/${corePath}`,
+    /** A language's text index: the core files with text in it, by group (vocab, sentences, kanji). */
+    textEntities: (language: string) => `text/${language}/index/entities.json`,
 } as const;

@@ -44,6 +44,11 @@ export interface Messages {
         hideFurigana: string;
         grammarTabs: { label: string } & Record<GrammarTab, string>;
     };
+    /**
+     * A word page's Meanings in another language, one label per group: its own sources' definitions,
+     * its equivalents, then English's meanings.
+     */
+    meaningGroups: { definitions: string; equivalents: string; english: string };
     /** A page that could not be shown: 404, or any other status. */
     error: {
         heading: (status: number) => string;
@@ -74,8 +79,12 @@ export interface Messages {
     };
 }
 
-/** Every served locale's catalog: serving a locale without one is a type error. */
-const CATALOG: Record<ServedLocale, Messages> = { en };
+/**
+ * Every locale's catalog: a locale without one is a type error, so any locale the build is told to
+ * serve (VITE_DICTIONARY_LOCALES) has one. Chinese has English's words until the sprint's second
+ * member writes its catalog (#170): its pages are on staging only, and read Chinese text already.
+ */
+const CATALOG: Record<ServedLocale, Messages> = { en, 'zh-hans': en };
 
 export function messagesFor(locale: ServedLocale): Messages {
     return CATALOG[locale];

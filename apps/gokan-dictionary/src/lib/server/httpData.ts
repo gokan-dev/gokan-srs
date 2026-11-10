@@ -1,7 +1,8 @@
 // What a page rendered on request reads (EntityData), from the published dataset over HTTP: the
 // same files gokan-srs reads, under /dataset/, each in its English shape through the reader both
-// apps share (publishedDatasetReader), and the summaries of every word and grammar point from the
-// search index the build writes beside the pages. No database: CloudFront caches the files for
+// apps share (publishedDatasetReader), another language's text files beside them (localeText),
+// and the summaries of every word and grammar point from the search index the build writes beside
+// the pages. No database: CloudFront caches the files for
 // every renderer, as it does for every browser. Each index is fetched once per process and kept;
 // an entity's own files on each page.
 
@@ -17,6 +18,7 @@ import { fromColumns } from '../searchIndex';
 import type { EntityData, GrammarSummary, SearchGrammarRow, SearchIndexFile, SearchKanjiRow, SearchWordColumns, VocabSummary } from '../types';
 import { vocabSummaryOfRow } from '../vocabSummary';
 import { kept } from './kept';
+import { localeText } from './localeText';
 
 export interface HttpDataOptions {
     /** A dataset file's URL: the origin, /dataset/, the path, and the dataset version. */
@@ -29,9 +31,6 @@ export interface HttpDataOptions {
     language: DatasetLanguage;
     fetch?: (url: string) => Promise<Response>;
 }
-
-/** Each language's reader of the published dataset: English is the one the dataset projects today. */
-const READERS: Record<DatasetLanguage, typeof publishedDatasetReader> = { en: publishedDatasetReader };
 
 const isArrayOf = <T>(value: unknown, item: (entry: unknown) => entry is T): value is T[] => Array.isArray(value) && value.every(item);
 const isString = (value: unknown): value is string => typeof value === 'string';
@@ -64,7 +63,8 @@ export function parseSearchIndexFile(body: unknown, url: string, datasetVersion:
 }
 
 export function httpData({ datasetUrl, searchIndexUrls, datasetVersion, language, fetch: fetchFile = url => fetch(url) }: HttpDataOptions): EntityData {
-    const dataset = READERS[language]({ url: datasetUrl, fetch: fetchFile });
+    // Every file in its English shape (a page's core facts), and another language's text files as published.
+    const dataset = publishedDatasetReader({ url: datasetUrl, fetch: fetchFile });
     const file = <T>(path: string) => dataset.file<T>(path);
 
     /** One of the site's own files: the search index. Its absence is an error, never "no words". */
@@ -102,5 +102,6 @@ export function httpData({ datasetUrl, searchIndexUrls, datasetVersion, language
         grammarVariantGroups: variantGroups,
         grammarConjugations: conjugations,
         grammarMinedExamples: id => dataset.optionalFile<GrammarExample[]>(DATASET_PATHS.grammarMinedExamples(id)),
+        localeText: language === 'en' ? null : localeText(language, { index: path => dataset.publishedFile(path), file: path => dataset.publishedFile(path), vocab: id => file<Vocabulary>(DATASET_PATHS.vocab(id)) }),
     };
 }

@@ -208,7 +208,7 @@ async function main(): Promise<void> {
     const dictionaryRuns = RUNS_OVERRIDE ?? DICTIONARY_RUNS;
     const allTargets: Target[] = [
         { url: `${origin}/`, label: 'srs welcome', floors: SRS_FLOORS, mode: 'cold', runs: srsRuns, singleDownloads: true },
-        ...dictionaryPages().map(page => ({ url: `${origin}/dictionary${page.path}`, label: `dictionary ${page.path}`, floors: DICTIONARY_FLOORS, mode: 'cold' as const, runs: dictionaryRuns })),
+        ...(await dictionaryPages()).map(page => ({ url: `${origin}/dictionary${page.path}`, label: `dictionary ${page.path}`, floors: DICTIONARY_FLOORS, mode: 'cold' as const, runs: dictionaryRuns })),
         { url: `${origin}/`, label: 'srs hub', floors: SRS_ONBOARDED_FLOORS, mode: 'onboarded', runs: srsRuns, singleDownloads: true },
         {
             url: `${origin}/listening`, label: 'srs anime list', floors: SRS_ONBOARDED_FLOORS, mode: 'onboarded', runs: srsRuns, singleDownloads: true,

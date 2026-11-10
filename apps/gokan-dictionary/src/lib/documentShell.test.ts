@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { escapeHtml, japaneseWithoutLang, langOf, renderDocument, stripHydrationMarkers } from './documentShell';
+import { englishWithoutLang, escapeHtml, japaneseWithoutLang, langOf, langOnChinesePage, renderDocument, stripHydrationMarkers } from './documentShell';
 import { absoluteUrl, localeUrls } from './urls';
 
 describe('escapeHtml', () => {
@@ -144,9 +144,28 @@ describe('japaneseWithoutLang', () => {
         expect(japaneseWithoutLang('<body><p lang="ja"><span lang="en">はい</span></p></body>')).toEqual(['はい']);
     });
 
+    it('reads the body in the document\'s language: Chinese may hold Han characters, never kana alone', () => {
+        const chinese = (body: string) => `<html lang="zh-Hans"><head><title>t</title></head><body>${body}</body></html>`;
+        expect(japaneseWithoutLang(chinese('<p>公然、显然</p><p>去，到；行く的尊敬语</p>'))).toEqual([]);
+        expect(japaneseWithoutLang(chinese('<p>はい</p>'))).toEqual(['はい']);
+        expect(japaneseWithoutLang(chinese('<p lang="en">公然</p>'))).toEqual(['公然']);
+        expect(japaneseWithoutLang('<html lang="en"><body><p>公然</p></body></html>')).toEqual(['公然']);
+    });
+
     it('ignores the head and script contents', () => {
         const html = '<html><head><title>食べる</title></head><body><script type="application/ld+json">{"name":"食べる"}</script><p lang="ja">食べる</p></body></html>';
         expect(japaneseWithoutLang(html)).toEqual([]);
+    });
+});
+
+describe('langOnChinesePage', () => {
+    it('marks kana-only text as Japanese and Latin-only text as English, leaving Chinese and Chinese quoting Japanese alone', () => {
+        expect(langOnChinesePage('ずるいさ')).toBe('ja');
+        expect(langOnChinesePage('‐ている')).toBe('ja');
+        expect(langOnChinesePage('狡猾，奸诈。')).toBeUndefined();
+        expect(langOnChinesePage('去，到；行く的尊敬语')).toBeUndefined();
+        expect(langOnChinesePage('idiomatic')).toBe('en');
+        expect(langOnChinesePage('CPU的简称')).toBeUndefined();
     });
 });
 
@@ -155,5 +174,24 @@ describe('langOf', () => {
         expect(langOf('から / ので')).toBe('ja');
         expect(langOf('Giving a reason')).toBeUndefined();
         expect(langOf('Topic, identity and の')).toBeUndefined();
+    });
+});
+
+describe('englishWithoutLang', () => {
+    const chinese = (body: string) => `<html lang="zh-Hans"><body>${body}</body></html>`;
+
+    it("finds the dataset's English read as Chinese, in a sense list or a sentence's translation", () => {
+        expect(englishWithoutLang(chinese('<ol class="sense-list"><li><p class="sense-pos">Noun</p>wise; clever</li></ol>'))).toEqual(['Noun', 'wise; clever']);
+        expect(englishWithoutLang(chinese('<p class="sentence-en">I think so.</p>'))).toEqual(['I think so.']);
+    });
+
+    it('accepts English marked lang="en", Chinese or Japanese text, and English chrome outside its scope', () => {
+        expect(englishWithoutLang(chinese('<ol class="sense-list" lang="en"><li>wise</li></ol><p class="sentence-en" lang="en">I think so.</p>'))).toEqual([]);
+        expect(englishWithoutLang(chinese('<ol class="sense-list"><li>聪明；CPU</li></ol><p class="sentence-en">我也这么想。</p>'))).toEqual([]);
+        expect(englishWithoutLang(chinese('<h2>Meanings</h2><p class="meta">Also written</p>'))).toEqual([]);
+    });
+
+    it("leaves an English page's body alone", () => {
+        expect(englishWithoutLang('<html lang="en"><body><ol class="sense-list"><li>wise</li></ol></body></html>')).toEqual([]);
     });
 });

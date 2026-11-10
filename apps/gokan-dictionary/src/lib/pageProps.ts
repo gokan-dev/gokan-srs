@@ -10,7 +10,7 @@ import type { FamilyPageData } from './grammarFamilies';
 import type { LevelGroup } from './grammarBrowse';
 import type { VariantSibling } from './grammarVariants';
 import type { KanjiRange, StepRange } from './kanjiOrders';
-import type { GrammarSummary, VocabSummary } from './types';
+import type { GrammarSummary, SentenceTranslation, VocabSummary, WordText } from './types';
 
 /** HomePage.svelte */
 export interface HomePageProps {
@@ -29,6 +29,18 @@ export interface VocabPageProps {
   parents: VocabSummary[];
   /** Already ordered and capped (lib/sentenceOrder.ts). */
   sentences: Sentence[];
+  /** On a page in another language: the word's text in it (shown renderings only). English's page has none. */
+  text?: WordText;
+  /** On a page in another language: each sentence's translation, by sentence id. */
+  translations?: Record<string, SentenceTranslation>;
+  /** On a page in another language: the words it links that have a page in it (the rest link to English's, lib/localeLinks.ts). */
+  wordsInLocale?: string[];
+  /**
+   * On a page in another language: the words its sentences name and the kanji it is written with
+   * that have no page in any language, shown without a link. English's page still links them (a
+   * 404), left to a change of its own.
+   */
+  withoutPage?: { words: string[]; kanji: string[] };
 }
 
 /** VocabIndexPage.svelte */

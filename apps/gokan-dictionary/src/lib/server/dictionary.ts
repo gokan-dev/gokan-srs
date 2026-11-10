@@ -11,14 +11,19 @@ import { checkoutData, resolveCompiledDir } from '../dataset.server';
 import { datasetLanguageOf, DEFAULT_LOCALE, inEveryLocale, SERVED_LOCALES, type ServedLocale } from '../locale';
 import type { SearchIndexFile } from '../types';
 import { httpData } from './httpData';
-import { entityPagesOf, pagesOf, type EntityPages, type Pages } from './pages';
+import { entityPagesOf, PageNotFound, pagesOf, type EntityPages, type Pages } from './pages';
 import { publishedSourceUrls, stampedSearchIndex } from './rendering';
 
 const built = new Map<ServedLocale, Pages>();
 const onRequest = new Map<ServedLocale, EntityPages>();
 
-/** Every page in one locale, over the checkout: what the build prerenders. */
+/**
+ * Every page in one locale, over the checkout: what the build prerenders. On request there is no
+ * checkout: English's list pages are served as the files the build wrote, and another locale has
+ * none yet (#170), so a path the server renders through a list route is a 404.
+ */
 export function pages(locale: ServedLocale): Pages {
+    if (!building && locale !== DEFAULT_LOCALE) throw new PageNotFound(`no ${locale} list pages: only its word pages are served`);
     let localePages = built.get(locale);
     if (localePages === undefined) {
         localePages = pagesOf(checkoutData(resolveCompiledDir(), datasetLanguageOf(locale)), locale);

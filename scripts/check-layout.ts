@@ -182,7 +182,7 @@ async function measure(tab: Tab, page: string, width: number, tapTargets = ''): 
     for (const problem of await tab.evaluate<string[]>(MEASURE(width, tapTargets))) failures.push(`${width}px ${page}: ${problem}`);
 }
 
-const DICTIONARY_PAGES = dictionaryPages();
+const DICTIONARY_PAGES = await dictionaryPages();
 const SRS_ROUTES = srsRoutes();
 const SRS_VERSION = srsVersion();
 // The same build behind a version.json naming the next major: what an open tab sees once a newer

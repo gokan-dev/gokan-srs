@@ -11,7 +11,9 @@ import { fileURLToPath } from 'node:url';
 
 import { listFiles } from '@gokan/deploy/build-files';
 import { describe, overBudget, percentile, type Measurement } from '../src/lib/budgets';
+import { brokenLinks } from '../src/lib/builtLinks';
 import { misroutedPaths } from '../src/lib/servedPaths';
+import { BASE_PATH } from '../src/lib/site';
 import { prepareIndex, search, TIER } from '../src/lib/searchQuery';
 import type { SearchIndexFile } from '../src/lib/types';
 
@@ -39,7 +41,11 @@ function subdirectories(relative: string): string[] {
     return fs.readdirSync(path.join(DIST_DIR, relative), { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => entry.name);
 }
 
-const wordPages = () => subdirectories('vocab').filter(name => /^\d+$/.test(name));
+/** The word pages under `prefix`: English's (''), or a locale's (zh-hans/vocab/{id}/) when the build serves it (VITE_DICTIONARY_LOCALES). */
+function wordPages(prefix = ''): string[] {
+    const dir = path.join(prefix, 'vocab');
+    return fs.existsSync(path.join(DIST_DIR, dir)) ? subdirectories(dir).filter(name => /^\d+$/.test(name)) : [];
+}
 // kanji/orders/ is the learning order pages, not a kanji: no kanji is named with a Latin word.
 const kanjiPages = () => subdirectories('kanji').filter(name => name !== 'orders');
 
@@ -50,6 +56,11 @@ function measure(manifest: Record<string, ViteManifestEntry>): Measurement[] {
     const words = ENTITY_PAGES === 'prerendered' ? wordPages() : [];
     if (words.length > 0) {
         measurements.push({ budget: 'wordPageP90', subject: `${words.length} word pages`, bytes: percentile(words.map(id => sizeOf(pageOf('vocab', id))), 90) });
+    }
+    // Chinese word pages are word pages: held to the same budget.
+    const chineseWords = ENTITY_PAGES === 'prerendered' ? wordPages('zh-hans') : [];
+    if (chineseWords.length > 0) {
+        measurements.push({ budget: 'wordPageP90', subject: `${chineseWords.length} zh-hans word pages`, bytes: percentile(chineseWords.map(id => sizeOf(pageOf('zh-hans', 'vocab', id))), 90) });
     }
     const kanjiSizes = (ENTITY_PAGES === 'prerendered' ? kanjiPages() : []).map(character => ({ character, bytes: sizeOf(pageOf('kanji', character)) }));
     if (kanjiSizes.length > 0) {
@@ -92,7 +103,7 @@ function measure(manifest: Record<string, ViteManifestEntry>): Measurement[] {
 
 /** The build has the pages its mode says: every entity page prerendered, or none and the server built. */
 function modeProblems(): string[] {
-    const [words, kanji] = [wordPages().length, kanjiPages().length];
+    const [words, kanji] = [wordPages().length + wordPages('zh-hans').length, kanjiPages().length];
     if (ENTITY_PAGES === 'prerendered') return words > 0 && kanji > 0 ? [] : [`prerendered build with ${words} word and ${kanji} kanji pages in dist/`];
     const problems = words + kanji > 0 ? [`on-request build with ${words} word and ${kanji} kanji pages in dist/: they are the server's`] : [];
     if (!fs.existsSync(path.join(APP_DIR, 'build', 'handler.js'))) problems.push('on-request build without its server (build/handler.js)');
@@ -158,7 +169,22 @@ function routingProblems(): string[] {
     return misroutedPaths(files).slice(0, 5).map(file => `${file}: CloudFront would ask the wrong origin for it (a page path has no dot, a file name has one)`);
 }
 
-const problems = [...over.map(m => `over budget: ${describe(m)}`), ...modeProblems(), ...assetProblems(), ...searchProblems(), ...routingProblems()];
+/**
+ * Every internal link on a Chinese page names a built page or file: it links a page in Chinese
+ * only where one is served, and English's otherwise (lib/localeLinks.ts). English's pages are all
+ * built, so a broken link there would be a missing page, which the other checks catch.
+ */
+function linkProblems(): string[] {
+    const exists = (file: string) => fs.existsSync(path.join(DIST_DIR, file));
+    const problems: string[] = [];
+    for (const id of wordPages('zh-hans')) {
+        const page = path.join('zh-hans', 'vocab', id);
+        for (const href of brokenLinks(fs.readFileSync(path.join(DIST_DIR, pageOf(page)), 'utf-8'), BASE_PATH, exists)) problems.push(`${page}/ links ${href}, which is not built`);
+    }
+    return problems.slice(0, 5);
+}
+
+const problems = [...over.map(m => `over budget: ${describe(m)}`), ...modeProblems(), ...assetProblems(), ...searchProblems(), ...routingProblems(), ...linkProblems()];
 
 // A budget over many pages reports its heaviest.
 const MANY_PAGES: Partial<Record<Measurement['budget'], string>> = { jlptPage: 'JLPT list pages', kanjiOrderPage: 'kanji order pages' };
