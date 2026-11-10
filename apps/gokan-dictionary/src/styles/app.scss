@@ -83,6 +83,15 @@ body {
   font-family: $font-gothic;
 }
 
+// Chinese text is marked lang="zh-Hans" (a Chinese page's <html>, the switcher's link on an English
+// one): Chinese faces, so a shared character takes its Simplified Chinese form. The page's Japanese
+// keeps its own lang, and with it its Japanese face.
+[lang="zh-Hans"] {
+  --font-sans: #{meta.inspect($font-sans-zh-stack)};
+  --font-serif: #{meta.inspect($font-serif-zh-stack)};
+  font-family: $font-sans;
+}
+
 a {
   color: var(--accent);
   text-decoration: none;
@@ -185,6 +194,19 @@ main {
 
   &--wide {
     max-width: $measure-wide;
+  }
+}
+
+// The same page in another language, above the breadcrumb, at its end.
+.locale-switch {
+  display: flex;
+  justify-content: flex-end;
+  font-size: $text-sm;
+
+  a {
+    display: inline-flex;
+    align-items: center;
+    min-height: $target;
   }
 }
 
@@ -306,6 +328,13 @@ main {
     &[aria-current="page"] {
       color: var(--accent);
     }
+  }
+
+  // A section served in English only, from a page in another language: said beside its name.
+  .lang-mark {
+    margin-inline-start: 0.25em;
+    color: var(--tertiary);
+    font-size: $text-xs;
   }
 }
 

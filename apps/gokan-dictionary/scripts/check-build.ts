@@ -11,9 +11,9 @@ import { fileURLToPath } from 'node:url';
 
 import { listFiles } from '@gokan/deploy/build-files';
 import { describe, overBudget, percentile, type Measurement } from '../src/lib/budgets';
-import { brokenLinks } from '../src/lib/builtLinks';
+import { alternateProblems, brokenLinks } from '../src/lib/builtLinks';
 import { misroutedPaths } from '../src/lib/servedPaths';
-import { BASE_PATH } from '../src/lib/site';
+import { BASE_PATH, SITE_ORIGIN } from '../src/lib/site';
 import { prepareIndex, search, TIER } from '../src/lib/searchQuery';
 import type { SearchIndexFile } from '../src/lib/types';
 
@@ -70,10 +70,13 @@ function measure(manifest: Record<string, ViteManifestEntry>): Measurement[] {
 
     measurements.push({ budget: 'grammarIndex', subject: 'grammar/', bytes: sizeOf(pageOf('grammar')) });
 
-    for (const list of subdirectories('vocab').filter(name => name.startsWith('jlpt-'))) {
-        measurements.push({ budget: 'jlptPage', subject: `vocab/${list}/`, bytes: sizeOf(pageOf('vocab', list)) });
-        for (const page of subdirectories(path.join('vocab', list))) {
-            measurements.push({ budget: 'jlptPage', subject: `vocab/${list}/${page}/`, bytes: sizeOf(pageOf('vocab', list, page)) });
+    // Every locale's JLPT lists: English's, and Chinese's when the build serves it.
+    for (const vocab of ['vocab', path.join('zh-hans', 'vocab')].filter(dir => fs.existsSync(path.join(DIST_DIR, dir)))) {
+        for (const list of subdirectories(vocab).filter(name => name.startsWith('jlpt-'))) {
+            measurements.push({ budget: 'jlptPage', subject: `${vocab}/${list}/`, bytes: sizeOf(pageOf(vocab, list)) });
+            for (const page of subdirectories(path.join(vocab, list))) {
+                measurements.push({ budget: 'jlptPage', subject: `${vocab}/${list}/${page}/`, bytes: sizeOf(pageOf(vocab, list, page)) });
+            }
         }
     }
 
@@ -169,6 +172,14 @@ function routingProblems(): string[] {
     return misroutedPaths(files).slice(0, 5).map(file => `${file}: CloudFront would ask the wrong origin for it (a page path has no dot, a file name has one)`);
 }
 
+/** Every built page under `dir` (relative to dist/), as its index.html. */
+function pagesUnder(dir: string): string[] {
+    if (!fs.existsSync(path.join(DIST_DIR, dir))) return [];
+    return listFiles(path.join(DIST_DIR, dir)).filter(file => file.endsWith('index.html')).map(file => path.join(dir, file));
+}
+
+const readBuilt = (file: string): string | null => (fs.existsSync(path.join(DIST_DIR, file)) ? fs.readFileSync(path.join(DIST_DIR, file), 'utf-8') : null);
+
 /**
  * Every internal link on a Chinese page names a built page or file: it links a page in Chinese
  * only where one is served, and English's otherwise (lib/localeLinks.ts). English's pages are all
@@ -177,14 +188,22 @@ function routingProblems(): string[] {
 function linkProblems(): string[] {
     const exists = (file: string) => fs.existsSync(path.join(DIST_DIR, file));
     const problems: string[] = [];
-    for (const id of wordPages('zh-hans')) {
-        const page = path.join('zh-hans', 'vocab', id);
-        for (const href of brokenLinks(fs.readFileSync(path.join(DIST_DIR, pageOf(page)), 'utf-8'), BASE_PATH, exists)) problems.push(`${page}/ links ${href}, which is not built`);
+    for (const page of pagesUnder('zh-hans')) {
+        for (const href of brokenLinks(readBuilt(page) ?? '', BASE_PATH, exists)) problems.push(`${page} links ${href}, which is not built`);
     }
     return problems.slice(0, 5);
 }
 
-const problems = [...over.map(m => `over budget: ${describe(m)}`), ...modeProblems(), ...assetProblems(), ...searchProblems(), ...routingProblems(), ...linkProblems()];
+/**
+ * Every page's hreflang alternates answer each other (lib/builtLinks.ts, alternateProblems): each
+ * Chinese page, and each English page of a type Chinese serves (home, words, vocabulary lists).
+ */
+function alternatesProblems(): string[] {
+    const english = ['index.html', ...pagesUnder('vocab')];
+    return [...pagesUnder('zh-hans'), ...english].flatMap(page => alternateProblems(page, readBuilt, SITE_ORIGIN, BASE_PATH)).slice(0, 5);
+}
+
+const problems = [...over.map(m => `over budget: ${describe(m)}`), ...modeProblems(), ...assetProblems(), ...searchProblems(), ...routingProblems(), ...linkProblems(), ...alternatesProblems()];
 
 // A budget over many pages reports its heaviest.
 const MANY_PAGES: Partial<Record<Measurement['budget'], string>> = { jlptPage: 'JLPT list pages', kanjiOrderPage: 'kanji order pages' };
