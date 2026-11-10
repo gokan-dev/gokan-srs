@@ -202,7 +202,7 @@ describe('pagesOf: a locale other than English', () => {
         expect(page.props.components).toEqual([]);
         expect(page.props.withoutPage).toEqual({ words: ['1311110', '1589350'], kanji: ['考'] });
         const linked = await pagesOf(memorySource({ ...chineseWorld, chinese: ['1589350', '1281390'] }).source, 'zh-hans').vocabPage('1281390');
-        expect(linked.props.components.map(word => word.id)).toEqual(['1589350']);
+        expect(linked.props.components.map(word => [word.id, word.localGloss])).toEqual([['1589350', '想']]);
         expect(linked.props.withoutPage?.words).toEqual(['1311110']);
     });
 
@@ -225,6 +225,8 @@ describe('pagesOf: a locale other than English', () => {
         const pages = pagesOf(memorySource({ ...world, jlpt: { 5: ['1589350', '1281390'], 4: ['1281390'] } }).source, 'zh-hans');
         const list = await pages.vocabJlptPage(5, 1);
         expect(list.props.words.map(word => word.id)).toEqual(['1589350']);
+        // Each row with its gloss in Chinese, for its list to show in place of English's.
+        expect(list.props.words[0]?.localGloss).toBe('想');
         expect(list.props.allLevels).toEqual([5]);
         await expect(pages.vocabJlptPage(4, 1)).rejects.toBeInstanceOf(PageNotFound);
         const index = await pages.vocabIndexPage();

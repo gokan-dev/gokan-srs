@@ -27,6 +27,11 @@ export interface VocabSummary {
     reading?: string;
     /** The first sense's glosses, cut short (shortGloss). */
     gloss?: string;
+    /**
+     * On a page in another language, the word's gloss in it (wordTextSummary): its list rows show
+     * it in place of English's. Never in the summaries index; added by the page that lists the word.
+     */
+    localGloss?: string;
 }
 
 /**

@@ -25,6 +25,7 @@ import { kanjiOrderSlug, kanjiRangeSlug, localeUrls } from '../urls';
 import type { PageScript, PageStyle } from './assets';
 import { kept } from './kept';
 import { sentenceTranslationsOf } from './localeText';
+import { wordTextSummary } from '../senses';
 import type {
     GrammarChapterPageProps, GrammarChaptersIndexPageProps, GrammarConjugationsIndexPageProps, GrammarFamiliesIndexPageProps, GrammarFamilyPageProps, GrammarIndexPageProps, GrammarPageProps, HomePageProps, KanjiIndexPageProps, KanjiOrderPageProps, KanjiOrdersPageProps, KanjiPageProps, KanjiRangePageProps, VocabIndexPageProps, VocabJlptPageProps, VocabPageProps,
 } from '../pageProps';
@@ -129,6 +130,19 @@ function localeTextOf(source: EntityData, locale: ServedLocale): LocaleText | nu
 }
 
 /**
+ * A page's word rows in its language: each with its gloss in it (localGloss), for a page in another
+ * language, whose rows list only words with text in it; English's rows as they are.
+ */
+async function inLanguageOf(words: VocabSummary[], text: LocaleText | null): Promise<VocabSummary[]> {
+    if (text === null) return words;
+    return Promise.all(words.map(async word => {
+        const own = await text.wordText(word.id);
+        const localGloss = own ? wordTextSummary(own) : '';
+        return localGloss ? { ...word, localGloss } : word;
+    }));
+}
+
+/**
  * Which pages a locale has: English every page; another locale its word pages only, so far (#170:
  * kanji, grammar and list pages are not in its first sprint, and a URL for one answers 404). Wraps a
  * page builder so it is a PageNotFound outside English.
@@ -208,8 +222,8 @@ export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes:
         return {
             props: {
                 vocab,
-                components: linkable(components),
-                parents: linkable(parents),
+                components: await inLanguageOf(linkable(components), text),
+                parents: await inLanguageOf(linkable(parents), text),
                 sentences,
                 // English's props stay as they were: only a page in another language carries its text.
                 ...(localized && translations && inLocale ? {
@@ -480,7 +494,7 @@ export function pagesOf(source: DictionaryData, locale: ServedLocale) {
         return {
             props: {
                 level,
-                words: pageWords,
+                words: await inLanguageOf(pageWords, text),
                 total: words.length,
                 page,
                 pageCount: pages.length,
@@ -514,7 +528,7 @@ export function pagesOf(source: DictionaryData, locale: ServedLocale) {
                 sentenceCount: await sentenceCount(),
                 // The most frequent N5 words: the index is frequency-ordered, so the head of the
                 // easiest level is the closest thing the dataset has to "words a visitor will know".
-                featured: (levels.find(group => group.level === 5)?.words ?? []).slice(0, FEATURED_WORDS),
+                featured: await inLanguageOf((levels.find(group => group.level === 5)?.words ?? []).slice(0, FEATURED_WORDS), text),
             },
             document: documentOf(urls.homePath(), meta.home(), { key: { type: 'home' }, style: 'home' }),
         };
