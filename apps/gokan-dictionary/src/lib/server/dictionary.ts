@@ -11,7 +11,7 @@ import { checkoutData, resolveCompiledDir } from '../dataset.server';
 import { datasetLanguageOf, DEFAULT_LOCALE, inEveryLocale, SERVED_LOCALES, type ServedLocale } from '../locale';
 import type { SearchIndexFile } from '../types';
 import { httpData } from './httpData';
-import { entityPagesOf, PageNotFound, pagesOf, type EntityPages, type Pages } from './pages';
+import { entityPagesOf, PageNotFound, pagesOf, pathOf, type Alternate, type EntityPages, type PageKey, type Pages } from './pages';
 import { publishedSourceUrls, stampedSearchIndex } from './rendering';
 
 const built = new Map<ServedLocale, Pages>();
@@ -63,4 +63,19 @@ export async function sitemapPaths(): Promise<string[]> {
  */
 export async function searchIndexFile(part: 'core' | 'full'): Promise<SearchIndexFile> {
     return stampedSearchIndex((await pages(DEFAULT_LOCALE).searchIndex())[part]);
+}
+
+/**
+ * A page in every served locale that has it, this one included, in LOCALES' order: its hreflang
+ * alternates and its language switcher. Asked of each locale's own answer (a word page from its
+ * text, a list page from its words), so two locales' pages name each other or neither: none when
+ * no other locale has the page. A list page is asked at build only, where every page is built.
+ */
+export async function alternatesOf(key: PageKey, locale: ServedLocale): Promise<Alternate[]> {
+    if (SERVED_LOCALES.length === 1) return [];
+    const serving = await Promise.all(SERVED_LOCALES.map(async other => (
+        other === locale || (key.type === 'vocab' ? await entityPages(other).servesWord(key.id) : await pages(other).servesPage(key))
+    )));
+    const found = SERVED_LOCALES.filter((_, at) => serving[at]);
+    return found.length > 1 ? found.map(other => ({ locale: other, path: pathOf(key, other) })) : [];
 }
