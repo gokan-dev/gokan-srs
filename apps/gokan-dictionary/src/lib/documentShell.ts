@@ -85,26 +85,33 @@ function readsAs(lang: string, text: string): boolean {
     return lang.toLowerCase().startsWith('zh') && langOnChinesePage(text) === undefined;
 }
 
+/** Where a text run of a page's body stands: its nearest lang, and the classes of its ancestors. */
+interface RunContext {
+    lang: string;
+    within: (className: string) => boolean;
+}
+
 /**
- * Japanese in a page's body that is not marked as Japanese: an element with the `jp` class but
- * no lang="ja", or a text run in Japanese only (no Latin letters, so not an English sentence
- * quoting a word) whose nearest lang is not "ja" (on a Chinese page, see readsAs). Unmarked,
- * screen readers read it with an English voice and some devices draw it with Chinese glyph
- * shapes; prerender fails on any page this finds anything in. Script contents are skipped
- * (JSON-LD names the word). The nearest lang of the body is the document's <html lang>.
+ * Walks a page's body: each text run with its context, each opening tag with its classes and
+ * lang. Script contents are skipped (JSON-LD names the word). The nearest lang of the body is the
+ * document's <html lang>.
  */
-export function japaneseWithoutLang(html: string): string[] {
+function walkBody(html: string, visit: { text?: (text: string, at: RunContext) => void; element?: (whole: string, classes: string[], lang: string | null) => void }): void {
     const bodyStart = html.indexOf('<body');
     const body = bodyStart >= 0 ? html.slice(bodyStart) : html;
     const documentLang = /<html\b[^>]*\slang="([^"]*)"/.exec(html)?.[1] ?? 'en';
-    const found: string[] = [];
-    const stack: { tag: string; lang: string | null }[] = [];
-    const langHere = () => [...stack].reverse().find(entry => entry.lang !== null)?.lang ?? documentLang;
+    const stack: { tag: string; lang: string | null; classes: string[] }[] = [];
+    const context: RunContext = {
+        get lang() {
+            return [...stack].reverse().find(entry => entry.lang !== null)?.lang ?? documentLang;
+        },
+        within: className => stack.some(entry => entry.classes.includes(className)),
+    };
 
     for (const token of body.matchAll(/<script\b[\s\S]*?<\/script>|<(\/?)([a-zA-Z][a-zA-Z0-9]*)([^>]*)>|([^<]+)/g)) {
         const [whole, closing, rawTag, attributes, text] = token;
         if (text !== undefined) {
-            if (isJapaneseOnly(text) && !readsAs(langHere(), text)) found.push(text.trim());
+            visit.text?.(text, context);
             continue;
         }
         if (rawTag === undefined) continue;
@@ -116,9 +123,49 @@ export function japaneseWithoutLang(html: string): string[] {
         }
         const classes = /\sclass="([^"]*)"/.exec(attributes)?.[1].split(/\s+/) ?? [];
         const lang = /\slang="([^"]*)"/.exec(attributes)?.[1] ?? null;
-        if (classes.includes('jp') && lang !== 'ja') found.push(whole);
-        if (!VOID_ELEMENTS.has(tag) && !whole.endsWith('/>')) stack.push({ tag, lang });
+        visit.element?.(whole, classes, lang);
+        if (!VOID_ELEMENTS.has(tag) && !whole.endsWith('/>')) stack.push({ tag, lang, classes });
     }
+}
+
+/**
+ * Japanese in a page's body that is not marked as Japanese: an element with the `jp` class but
+ * no lang="ja", or a text run in Japanese only (no Latin letters, so not an English sentence
+ * quoting a word) whose nearest lang is not "ja" (on a Chinese page, see readsAs). Unmarked,
+ * screen readers read it with an English voice and some devices draw it with Chinese glyph
+ * shapes; prerender fails on any page this finds anything in.
+ */
+export function japaneseWithoutLang(html: string): string[] {
+    const found: string[] = [];
+    walkBody(html, {
+        text: (text, at) => {
+            if (isJapaneseOnly(text) && !readsAs(at.lang, text)) found.push(text.trim());
+        },
+        element: (whole, classes, lang) => {
+            if (classes.includes('jp') && lang !== 'ja') found.push(whole);
+        },
+    });
+    return found;
+}
+
+/** Where englishWithoutLang looks: the dataset's English on a word page (JMdict's senses, Tatoeba's translations). */
+const ENGLISH_TEXT_CLASSES = ['sense-list', 'sentence-en'];
+
+/**
+ * The dataset's English text read as Chinese: a text run with Latin letters and no Japanese or
+ * Chinese characters whose nearest lang is Chinese (zh*), where a screen reader would read English
+ * with a Chinese voice. Scoped to the dataset's English on a word page (ENGLISH_TEXT_CLASSES):
+ * the chrome is English's catalog on a Chinese page until the sprint's second member writes its
+ * own (#170), which widens this to the whole body. Prerender fails on any page it finds one in.
+ */
+export function englishWithoutLang(html: string): string[] {
+    const found: string[] = [];
+    walkBody(html, {
+        text: (text, at) => {
+            if (!/[A-Za-z]/.test(text) || JAPANESE_TEXT.test(text)) return;
+            if (at.lang.toLowerCase().startsWith('zh') && ENGLISH_TEXT_CLASSES.some(className => at.within(className))) found.push(text.trim());
+        },
+    });
     return found;
 }
 

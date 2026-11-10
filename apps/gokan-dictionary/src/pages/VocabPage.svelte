@@ -3,7 +3,7 @@
   import { headwordOf, secondaryForm, summaryGloss, textbookLessonsLabel } from '@gokan/dataset-schema';
   import type { Sentence } from '@gokan/dataset-schema';
   import { valueText, type DefinitionSense } from '@gokan/dataset-schema/text';
-  import { pageLocale } from './pageLocale';
+  import { setLinkedWordPages } from './pageLocale';
   import { langOnChinesePage } from '../lib/documentShell';
   import { meaningsOf, type SenseView } from '../lib/senses';
   import { sentenceRuns } from '../lib/furigana';
@@ -16,9 +16,12 @@
   import FuriganaToggle from './FuriganaToggle.svelte';
   import SentenceText from './SentenceText.svelte';
 
-  const { urls, messages } = pageLocale();
+  let { vocab, components, parents, sentences, text, translations, wordsInLocale }: Props = $props();
 
-  let { vocab, components, parents, sentences, text, translations }: Props = $props();
+  // A page in another language links a word there only when it has a page in it (lib/localeLinks.ts).
+  // Set once: a page is rendered once, on the server, and never hydrated.
+  // svelte-ignore state_referenced_locally
+  const { urls, messages } = setLinkedWordPages(wordsInLocale ?? []);
 
   const RELATED_VISIBLE = 10;
 
@@ -33,6 +36,8 @@
   const chineseSenses = $derived(text?.definitions.flatMap(definition => definition.senses) ?? []);
   const meanings = $derived(meaningsOf(vocab.senses));
   const commonCount = $derived(meanings.visible.length + meanings.more.length);
+  // English's meanings on a page in another language are marked as English, for a screen reader's voice.
+  const englishLang = $derived(text ? 'en' : undefined);
   // Only when the headword fits its class: a verb listed under an odd spelling gets no table
   // rather than a wrong one.
   const wordClass = $derived.by(() => {
@@ -44,14 +49,15 @@
   const hasRelated = $derived(vocab.writtenForm.containedKanji.length > 0 || components.length > 0 || parents.length > 0);
 
   function localSummary(word: NonNullable<Props['text']>): string {
-    const equivalents = word.equivalents.slice(0, 2).map(equivalent => valueText(equivalent.value));
-    if (equivalents.length > 0) return equivalents.join('，');
-    return (word.definitions[0]?.senses[0]?.glosses ?? []).map(valueText).join('，');
+    // A list of words takes the enumeration comma, one sense's glosses the semicolon, as in Meanings.
+    const equivalents = word.equivalents.slice(0, 2).map(equivalent => equivalent.text);
+    if (equivalents.length > 0) return equivalents.join('、');
+    return (word.definitions[0]?.senses[0]?.glosses ?? []).map(valueText).join('；');
   }
 </script>
 
 {#snippet senseList(views: SenseView[])}
-  <ol class="sense-list" start={views[0].number}>
+  <ol class="sense-list" start={views[0].number} lang={englishLang}>
     {#each views as sense (sense.number)}
       <li>
         {#if sense.pos}<p class="sense-pos">{sense.pos}</p>{/if}
@@ -66,7 +72,7 @@
     {#each senses as sense, index (index)}
       {@const glosses = sense.glosses.map(valueText).join('；')}
       <li>
-        {#if sense.appliesToSpellings?.length || sense.appliesToReadings?.length}<p class="sense-pos" lang="ja">{[...(sense.appliesToSpellings ?? []), ...(sense.appliesToReadings ?? [])].join('、')}</p>{/if}
+        {#if sense.appliesToSpellings?.length || sense.appliesToReadings?.length}<p class="sense-applies" lang="ja">{[...(sense.appliesToSpellings ?? []), ...(sense.appliesToReadings ?? [])].join('、')}</p>{/if}
         <span lang={langOnChinesePage(glosses)}>{glosses}</span>{#each sense.tags ?? [] as tag, tagIndex (tagIndex)}<span class="sense-label" lang={langOnChinesePage(tag)}>{tag}</span>{/each}
       </li>
     {/each}
@@ -120,17 +126,18 @@
       <section class="section">
         <h2>Meanings</h2>
         {#if text}
-          {#if chineseSenses.length > 0}{@render localSenseList(chineseSenses)}{/if}
-          {#if text.equivalents.length > 0}<p class="meta">{#each text.equivalents as equivalent, index (index)}{index > 0 ? '、' : ''}<span lang={langOnChinesePage(valueText(equivalent.value))}>{valueText(equivalent.value)}</span>{/each}</p>{/if}
+          {#if chineseSenses.length > 0}<p class="sense-group-label">{messages.meaningGroups.definitions}</p>{@render localSenseList(chineseSenses)}{/if}
+          {#if text.equivalents.length > 0}<p class="sense-group-label">{messages.meaningGroups.equivalents}</p><p class="sense-equivalents">{#each text.equivalents as equivalent, index (index)}{index > 0 ? '、' : ''}<span lang={langOnChinesePage(equivalent.text)}>{equivalent.text}</span>{/each}</p>{/if}
+          {#if meanings.visible.length > 0}<p class="sense-group-label">{messages.meaningGroups.english}</p>{/if}
         {/if}{#if meanings.visible.length > 0}{@render senseList(meanings.visible)}{/if}
         {#if meanings.more.length > 0}
-          <details class="disclosure">
+          <details class="disclosure" lang={englishLang}>
             <summary>All {commonCount} meanings</summary>
             {@render senseList(meanings.more)}
           </details>
         {/if}
         {#if meanings.rare.length > 0}
-          <details class="disclosure">
+          <details class="disclosure" lang={englishLang}>
             <summary>Rare and archaic meanings ({meanings.rare.length})</summary>
             {@render senseList(meanings.rare)}
           </details>

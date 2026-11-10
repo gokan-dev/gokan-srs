@@ -44,6 +44,11 @@ export interface Messages {
         hideFurigana: string;
         grammarTabs: { label: string } & Record<GrammarTab, string>;
     };
+    /**
+     * A word page's Meanings in another language, one label per group: its own sources' definitions,
+     * its equivalents, then English's meanings.
+     */
+    meaningGroups: { definitions: string; equivalents: string; english: string };
     /** A page that could not be shown: 404, or any other status. */
     error: {
         heading: (status: number) => string;

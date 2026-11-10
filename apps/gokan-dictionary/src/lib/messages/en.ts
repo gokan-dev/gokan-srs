@@ -51,6 +51,7 @@ export const en: Messages = {
         hideFurigana: 'Hide furigana',
         grammarTabs: { label: 'Browse grammar', level: 'By level', families: 'Families', curriculum: 'Curriculum', conjugations: 'Conjugations' },
     },
+    meaningGroups: { definitions: 'Definitions', equivalents: 'Equivalents', english: 'English meanings' },
     error: {
         heading: status => (status === 404 ? 'Page not found' : 'Page unavailable'),
         explanation: status => (status === 404

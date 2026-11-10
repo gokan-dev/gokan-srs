@@ -6,7 +6,7 @@
 import { building } from '$app/environment';
 import type { Handle, HandleServerError } from '@sveltejs/kit';
 import { renderedPageCacheControl } from '@gokan/deploy/deploy-manifest';
-import { japaneseWithoutLang, renderDocument, stripHydrationMarkers } from '$lib/documentShell';
+import { englishWithoutLang, japaneseWithoutLang, renderDocument, stripHydrationMarkers } from '$lib/documentShell';
 import { pageScriptHref, pageStylesheetHref, searchScriptHref, stylesheetHref } from '$lib/server/assets';
 import { htmlLang, isLocaleSegment, localeOfSegment } from '$lib/locale';
 import { errorDocument } from '$lib/server/pages';
@@ -40,6 +40,8 @@ export function documentOf(rendered: string, locals: App.Locals, pathname: strin
     });
     const unmarked = japaneseWithoutLang(html);
     if (unmarked.length > 0) throw new Error(`[shell] ${shell.canonicalPath} has Japanese text not marked lang="ja", e.g. ${unmarked[0]}`);
+    const english = englishWithoutLang(html);
+    if (english.length > 0) throw new Error(`[shell] ${shell.canonicalPath} has English text read as Chinese, not marked lang="en", e.g. ${english[0]}`);
     return html;
 }
 
