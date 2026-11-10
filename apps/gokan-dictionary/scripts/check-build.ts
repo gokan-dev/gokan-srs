@@ -89,6 +89,9 @@ function measure(manifest: Record<string, ViteManifestEntry>): Measurement[] {
     }
 
     measurements.push({ budget: 'sharedStylesheet', subject: manifest['src/styles/app.scss'].file, bytes: sizeOf(manifest['src/styles/app.scss'].file) });
+    for (const [source, { file }] of Object.entries(manifest).filter(([source]) => source.startsWith('src/styles/locales/'))) {
+        measurements.push({ budget: 'localeStylesheet', subject: `${file} (${source})`, bytes: sizeOf(file) });
+    }
     const searchEntry = manifest['src/client/search.ts'];
     measurements.push({ budget: 'searchScript', subject: searchEntry.file, bytes: sizeOf(searchEntry.file) });
     for (const chunk of searchEntry.dynamicImports ?? []) {

@@ -9,7 +9,7 @@ import { building } from '$app/environment';
 import type { Handle, HandleServerError } from '@sveltejs/kit';
 import { renderedPageCacheControl } from '@gokan/deploy/deploy-manifest';
 import { chineseWithoutLang, englishChromeOn, englishWithoutLang, japaneseWithoutLang, linksLeavingSection, renderDocument, stripHydrationMarkers } from '$lib/documentShell';
-import { pageScriptHref, pageStylesheetHref, searchScriptHref, stylesheetHref } from '$lib/server/assets';
+import { localeStylesheetHref, pageScriptHref, pageStylesheetHref, searchScriptHref, stylesheetHref } from '$lib/server/assets';
 import { DEFAULT_LOCALE, htmlLang, isLocaleSegment, localeOfSegment, type ServedLocale } from '$lib/locale';
 import { catalogStrings, messagesFor } from '$lib/messages';
 import { localeUrls } from '$lib/urls';
@@ -56,6 +56,7 @@ export function documentOf(rendered: string, locals: App.Locals, pathname: strin
         // Stripped before trimming: SvelteKit's root component leaves a space beside its markers.
         bodyHtml: stripHydrationMarkers(rendered.slice(at + BODY_MARKER.length)).trim(),
         stylesheetHref: stylesheetHref(),
+        ...(localeStylesheetHref(locale) ? { localeStylesheetHref: localeStylesheetHref(locale) } : {}),
         scriptHref: searchScriptHref(),
         analyticsWebsiteId: UMAMI_WEBSITE_ID,
     });

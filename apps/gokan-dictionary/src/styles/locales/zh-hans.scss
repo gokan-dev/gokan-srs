@@ -1,0 +1,22 @@
+// A Chinese page's own rules (lib/server/assets.ts, LOCALE_STYLES), linked after app.scss on every
+// page in zh-hans and on no other: the Chinese faces, and the mark on a link to a page served in
+// English only. Apart from app.scss, which every page loads within its 10 KB budget, so English's
+// pages carry none of it.
+
+@use 'sass:meta';
+@use '../tokens' as *;
+
+// Chinese UI text (the page's <html lang="zh-Hans">): Chinese faces, so a character Chinese and
+// Japanese share takes its Simplified Chinese form. The page's Japanese keeps its own lang, and
+// with it its Japanese face (app.scss).
+:root {
+  --font-sans: #{meta.inspect($font-sans-zh-stack)};
+  --font-serif: #{meta.inspect($font-serif-zh-stack)};
+}
+
+// A section served in English only, said beside its name in the header.
+.lang-mark {
+  margin-inline-start: 0.25em;
+  color: var(--tertiary);
+  font-size: $text-xs;
+}

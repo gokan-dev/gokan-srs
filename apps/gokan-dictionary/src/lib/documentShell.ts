@@ -22,6 +22,8 @@ export interface DocumentShellOptions {
     bodyHtml: string;
     /** Absolute href to the built global stylesheet (from the Vite client manifest). */
     stylesheetHref: string;
+    /** Absolute href to the page's locale's own stylesheet, after the shared one: none for English. */
+    localeStylesheetHref?: string;
     /**
      * Absolute href to this page type's own stylesheet, if it has one. Pages built entirely from
      * shared rules (the vocabulary hub and JLPT lists) pass nothing.
@@ -277,7 +279,7 @@ ${(options.alternates ?? []).map(alternate => `<link rel="alternate" hreflang="$
 <meta property="og:url" content="${canonical}" />
 <meta name="twitter:card" content="summary" />
 <link rel="stylesheet" href="${options.stylesheetHref}" />
-${options.pageStylesheetHref ? `<link rel="stylesheet" href="${options.pageStylesheetHref}" />\n` : ''}${options.scriptHref ? `<script type="module" src="${options.scriptHref}"></script>\n` : ''}${options.extraScriptHref ? `<script type="module" src="${options.extraScriptHref}"></script>\n` : ''}${options.structuredData ? `<script type="application/ld+json">${JSON.stringify(options.structuredData)}</script>\n` : ''}${analyticsScriptTag(options.analyticsWebsiteId)}</head>
+${options.localeStylesheetHref ? `<link rel="stylesheet" href="${options.localeStylesheetHref}" />\n` : ''}${options.pageStylesheetHref ? `<link rel="stylesheet" href="${options.pageStylesheetHref}" />\n` : ''}${options.scriptHref ? `<script type="module" src="${options.scriptHref}"></script>\n` : ''}${options.extraScriptHref ? `<script type="module" src="${options.extraScriptHref}"></script>\n` : ''}${options.structuredData ? `<script type="application/ld+json">${JSON.stringify(options.structuredData)}</script>\n` : ''}${analyticsScriptTag(options.analyticsWebsiteId)}</head>
 <body>
 ${stripHydrationMarkers(options.bodyHtml)}
 </body>

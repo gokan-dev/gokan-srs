@@ -217,22 +217,27 @@ export async function serveDictionaryOnRequest(port = 0): Promise<{ port: number
 const firstEntry = (dir: string, filter: (name: string) => boolean) => readdirSync(dir).filter(filter).sort()[0];
 
 /**
- * The first word with a Chinese page (the dictionary's own answer, LocaleText.wordText), when the
- * build serves Chinese (VITE_DICTIONARY_LOCALES, as the build reads it): measured as English's
- * word page is, from the first sprint of #170 on.
+ * Chinese's page types, when the build serves Chinese (VITE_DICTIONARY_LOCALES, as the build reads
+ * it): its home, its vocabulary hub and N5 list, and its first word with a page (the dictionary's
+ * own answer, LocaleText.wordText), measured as English's are (#170).
  */
-async function chineseWordPages(): Promise<{ path: string; ready: string }[]> {
+async function chinesePages(): Promise<{ path: string; ready: string }[]> {
     if (!SERVED_LOCALES.includes('zh-hans')) return [];
     const text = checkoutData(DATASET_DIR, 'zh-hans').localeText;
     if (text === null) throw new Error('A zh-hans checkout reads no Chinese text.');
     const id = await text.firstWordId();
-    if (id !== null) return [{ path: `/zh-hans/vocab/${id}/`, ready: 'Meanings' }];
-    throw new Error('The dataset has no word with Chinese text shown, but the build serves zh-hans.');
+    if (id === null) throw new Error('The dataset has no word with Chinese text shown, but the build serves zh-hans.');
+    return [
+        { path: '/zh-hans/', ready: '日语词典' },
+        { path: '/zh-hans/vocab/', ready: 'JLPT N5' },
+        { path: '/zh-hans/vocab/jlpt-n5/', ready: 'N5' },
+        { path: `/zh-hans/vocab/${id}/`, ready: '词义' },
+    ];
 }
 
 /**
  * One representative page per dictionary type (home, word, word list, kanji index, kanji, grammar
- * index, grammar point), and a Chinese word page when the build serves Chinese. The word and the
+ * index, grammar point), and Chinese's page types when the build serves Chinese. The word and the
  * point are the dataset's first, which have a page in either build: prerendered in dist/, or
  * rendered on request.
  */
@@ -252,7 +257,7 @@ export async function dictionaryPages(): Promise<{ path: string; ready: string }
         { path: '/kanji/orders/jlpt/301-400/', ready: 'Words by step' },
         { path: '/grammar/', ready: 'Grammar' },
         { path: `/grammar/${grammarPoint}/`, ready: 'Grammar' },
-        ...(await chineseWordPages()),
+        ...(await chinesePages()),
     ];
 }
 
