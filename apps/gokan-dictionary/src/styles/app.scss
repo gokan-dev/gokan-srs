@@ -188,13 +188,18 @@ main {
   }
 }
 
-// The same page in another language, above the breadcrumb, at its end; its link a full tap target.
+// The same page in another language, above the breadcrumb, at its end: small and neutral, as the
+// nav's links (DESIGN_SYSTEM.md section 8); its link a full tap target. Its hover and focus are
+// every link's (`a:hover`, `:focus-visible`): a rule of its own would put the shared stylesheet
+// over its budget.
 .locale-switch {
   text-align: end;
+  font-size: $text-sm;
 
   a {
     display: inline-block;
     line-height: $target;
+    color: var(--secondary);
   }
 }
 
