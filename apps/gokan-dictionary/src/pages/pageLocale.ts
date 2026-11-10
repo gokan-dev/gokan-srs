@@ -8,6 +8,7 @@ import { createContext } from 'svelte';
 import { htmlLang, type ServedLocale } from '../lib/locale';
 import { messagesFor, type Messages } from '../lib/messages';
 import { linkLang, linkUrls } from '../lib/localeLinks';
+import type { Alternate } from '../lib/server/pages';
 import type { LocaleUrls } from '../lib/urls';
 
 export interface PageLocale {
@@ -20,13 +21,23 @@ export interface PageLocale {
     linkLang: (href: string) => 'en' | undefined;
     /** Every word of chrome a component shows. */
     messages: Messages;
+    /** The page in the other locales that have it: the language switcher (PageLayout.svelte). */
+    otherLocales: Alternate[];
 }
 
 // Typed by construction; reading it outside the root layout throws (Svelte's missing_context).
 const [getPageLocale, setContext] = createContext<PageLocale>();
 
-export function setPageLocale(locale: ServedLocale): void {
-    setContext({ locale, lang: htmlLang(locale), urls: linkUrls(locale), linkLang: href => linkLang(locale, href), messages: messagesFor(locale) });
+/** Set by the root layout, with the page's alternates from its load (lib/server/route.ts). */
+export function setPageLocale(locale: ServedLocale, alternates: readonly Alternate[]): void {
+    setContext({
+        locale,
+        lang: htmlLang(locale),
+        urls: linkUrls(locale),
+        linkLang: href => linkLang(locale, href),
+        messages: messagesFor(locale),
+        otherLocales: alternates.filter(alternate => alternate.locale !== locale),
+    });
 }
 
 export const pageLocale = getPageLocale;

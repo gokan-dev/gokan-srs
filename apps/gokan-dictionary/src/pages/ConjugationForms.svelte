@@ -1,5 +1,8 @@
 <script lang="ts">
-  import { conjugate, FORM_LABELS, type FormLabel, type WordClass } from '../lib/conjugation';
+  import { conjugate, type FormLabel, type WordClass } from '../lib/conjugation';
+  import { pageLocale } from './pageLocale';
+
+  const { forms } = pageLocale().messages.vocab;
 
   /**
    * A verb's or い-adjective's forms (lib/conjugation.ts): plain and polite, present and past,
@@ -18,10 +21,10 @@
   const kana = $derived(new Map(conjugate(reading, wordClass).map(({ label, form }) => [label, form])));
 
   const GRID: { row: string; plain: FormLabel; polite: FormLabel }[] = [
-    { row: 'Present', plain: 'plain', polite: 'polite' },
-    { row: 'Negative', plain: 'negative', polite: 'polite-negative' },
-    { row: 'Past', plain: 'past', polite: 'polite-past' },
-    { row: 'Past negative', plain: 'past-negative', polite: 'polite-past-negative' },
+    { row: forms.present, plain: 'plain', polite: 'polite' },
+    { row: forms.negative, plain: 'negative', polite: 'polite-negative' },
+    { row: forms.past, plain: 'past', polite: 'polite-past' },
+    { row: forms.pastNegative, plain: 'past-negative', polite: 'polite-past-negative' },
   ];
   const OTHER: FormLabel[] = ['te', 'potential', 'passive', 'causative', 'volitional', 'imperative', 'ba', 'tara'];
   const others = $derived(OTHER.filter(label => written.has(label)));
@@ -33,7 +36,7 @@
 
 <table class="forms">
   <thead>
-    <tr><td></td><th scope="col">Plain</th><th scope="col">Polite</th></tr>
+    <tr><td></td><th scope="col">{forms.plain}</th><th scope="col">{forms.polite}</th></tr>
   </thead>
   <tbody>
     {#each GRID as line (line.row)}
@@ -46,7 +49,7 @@
   <table class="forms forms--list">
     <tbody>
       {#each others as label (label)}
-        <tr><th scope="row">{FORM_LABELS[label]}</th><td>{@render form(label)}</td></tr>
+        <tr><th scope="row">{forms.labels[label]}</th><td>{@render form(label)}</td></tr>
       {/each}
     </tbody>
   </table>

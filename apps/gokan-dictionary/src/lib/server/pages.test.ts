@@ -194,30 +194,67 @@ describe('pagesOf: a locale other than English', () => {
         await expect(pages.vocabPage('9999999')).rejects.toBeInstanceOf(PageNotFound);
     });
 
-    it('names the words it links that have a page in Chinese: the others link to English\'s', async () => {
-        // 考える's page links 思う (Made of) and, in its sentence, 私 and 思う: only 思う has Chinese
-        // text, and 私 has no page at all, so it is not linked.
-        const chineseWorld: World = { ...world, sentences: { '1281390': [sentence()] }, chinese: ['1589350', '1281390'] };
+    it('links only the words with a page in Chinese: its lists leave the others out, its sentences show them unlinked', async () => {
+        // 考える's page links 思う (Made of) and, in its sentence, 私 and 思う. With Chinese text on
+        // 考える alone, 思う leaves Made of, and its sentence shows 思う and 私 unlinked.
+        const chineseWorld: World = { ...world, sentences: { '1281390': [sentence()] }, chinese: ['1281390'] };
         const page = await pagesOf(memorySource(chineseWorld).source, 'zh-hans').vocabPage('1281390');
-        expect(page.props.wordsInLocale).toEqual(['1589350']);
-        expect(page.props.withoutPage).toEqual({ words: ['1311110'], kanji: ['考'] });
+        expect(page.props.components).toEqual([]);
+        expect(page.props.withoutPage).toEqual({ words: ['1311110', '1589350'], kanji: ['考'] });
+        const linked = await pagesOf(memorySource({ ...chineseWorld, chinese: ['1589350', '1281390'] }).source, 'zh-hans').vocabPage('1281390');
+        expect(linked.props.components.map(word => word.id)).toEqual(['1589350']);
+        expect(linked.props.withoutPage?.words).toEqual(['1311110']);
     });
 
-    it('has no kanji, grammar or list page yet: each a 404', async () => {
+    it('titles a word page with its meaning in Chinese', async () => {
+        const page = await pagesOf(memorySource(world).source, 'zh-hans').vocabPage('1589350');
+        expect(page.document.title).toMatch(/^思う（おもう）的中文意思：想/);
+        expect(page.document.key).toEqual({ type: 'vocab', id: '1589350' });
+    });
+
+    it('has no kanji or grammar page yet: each a 404, as its search page', async () => {
         const pages = pagesOf(memorySource(world).source, 'zh-hans');
         await expect(pages.kanjiPage('学')).rejects.toBeInstanceOf(PageNotFound);
         await expect(pages.grammarPage('n2-169')).rejects.toBeInstanceOf(PageNotFound);
-        await expect(pages.homePage()).rejects.toBeInstanceOf(PageNotFound);
-        await expect(pages.vocabJlptPage(5, 1)).rejects.toBeInstanceOf(PageNotFound);
+        await expect(pages.kanjiIndexPage()).rejects.toBeInstanceOf(PageNotFound);
+        await expect(pages.grammarIndexPage()).rejects.toBeInstanceOf(PageNotFound);
         await expect(pages.searchPage()).rejects.toBeInstanceOf(PageNotFound);
     });
 
-    it('lists only its words with text, in its entries and its sitemap', async () => {
+    it('has its home and vocabulary lists, of its words with text only', async () => {
+        const pages = pagesOf(memorySource({ ...world, jlpt: { 5: ['1589350', '1281390'], 4: ['1281390'] } }).source, 'zh-hans');
+        const list = await pages.vocabJlptPage(5, 1);
+        expect(list.props.words.map(word => word.id)).toEqual(['1589350']);
+        expect(list.props.allLevels).toEqual([5]);
+        await expect(pages.vocabJlptPage(4, 1)).rejects.toBeInstanceOf(PageNotFound);
+        const index = await pages.vocabIndexPage();
+        expect(index.props).toEqual({ levels: [{ level: 5, count: 1 }], totalCount: 1 });
+        expect(index.document.canonicalPath).toBe(zhUrls.vocabIndexPath());
+        const home = await pages.homePage();
+        expect(home.props.vocabCount).toBe(1);
+        expect(home.props.featured.map(word => word.id)).toEqual(['1589350']);
+        expect(home.document).toMatchObject({ locale: 'zh-hans', canonicalPath: zhUrls.homePath(), key: { type: 'home' } });
+    });
+
+    it('lists only its pages, in its entries and its sitemap', async () => {
         const pages = pagesOf(memorySource(world).source, 'zh-hans');
         expect(await pages.pageEntries.vocab()).toEqual([{ id: '1589350' }]);
         expect(await pages.pageEntries.kanji()).toEqual([]);
-        expect(await pages.pageEntries.vocabJlpt()).toEqual([]);
-        expect(await pages.sitemapPaths()).toEqual([zhUrls.vocabPath('1589350')]);
+        expect(await pages.pageEntries.vocabJlpt()).toEqual([{ level: '5' }]);
+        expect(await pages.pageEntries.home()).toEqual([{}]);
+        expect(await pages.sitemapPaths()).toEqual([zhUrls.homePath(), zhUrls.vocabPath('1589350'), zhUrls.vocabJlptPath(5), zhUrls.vocabIndexPath()]);
+    });
+
+    it('says which of its pages exist, as a page in another locale asks for its counterpart', async () => {
+        const [chinese, english] = [pagesOf(memorySource(world).source, 'zh-hans'), pagesOf(memorySource(world).source, 'en')];
+        expect(await chinese.servesPage({ type: 'vocab', id: '1589350' })).toBe(true);
+        expect(await chinese.servesPage({ type: 'vocab', id: '1281390' })).toBe(false);
+        expect(await english.servesPage({ type: 'vocab', id: '1281390' })).toBe(true);
+        expect(await english.servesPage({ type: 'vocab', id: '9999999' })).toBe(false);
+        expect(await chinese.servesPage({ type: 'vocabJlpt', level: 5, page: 1 })).toBe(true);
+        expect(await chinese.servesPage({ type: 'vocabJlpt', level: 5, page: 2 })).toBe(false);
+        expect(await chinese.servesPage({ type: 'vocabJlpt', level: 4, page: 1 })).toBe(false);
+        expect(await chinese.servesPage({ type: 'home' })).toBe(true);
     });
 
     it('keeps English\'s word page as it was: no text, no translations', async () => {

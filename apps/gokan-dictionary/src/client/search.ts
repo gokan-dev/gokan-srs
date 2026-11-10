@@ -307,14 +307,16 @@ function initFuriganaToggle(): void {
     } catch {
         // Storage blocked (a private window, a policy): furigana stay shown.
     }
-    const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-furigana-toggle]'));
+    // Each button's two labels in the page's language: the one it is rendered with, and its data-show-label.
+    const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-furigana-toggle]'))
+        .map(button => ({ button, hide: button.textContent, show: button.dataset.showLabel ?? button.textContent }));
 
     function apply(): void {
         root.classList.toggle('furigana-hidden', hidden);
-        for (const button of buttons) button.textContent = hidden ? 'Show furigana' : 'Hide furigana';
+        for (const { button, hide, show } of buttons) button.textContent = hidden ? show : hide;
     }
 
-    for (const button of buttons) {
+    for (const { button } of buttons) {
         button.hidden = false;
         button.addEventListener('click', () => {
             hidden = !hidden;

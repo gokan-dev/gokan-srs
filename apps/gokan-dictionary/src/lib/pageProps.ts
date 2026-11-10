@@ -33,12 +33,11 @@ export interface VocabPageProps {
   text?: WordText;
   /** On a page in another language: each sentence's translation, by sentence id. */
   translations?: Record<string, SentenceTranslation>;
-  /** On a page in another language: the words it links that have a page in it (the rest link to English's, lib/localeLinks.ts). */
-  wordsInLocale?: string[];
   /**
-   * On a page in another language: the words its sentences name and the kanji it is written with
-   * that have no page in any language, shown without a link. English's page still links them (a
-   * 404), left to a change of its own.
+   * On a page in another language: the words its sentences name with no page in it, and the kanji
+   * it is written with that have no page in any language, shown without a link (its Made of and
+   * Used in lists leave such words out). English's page still links them (a 404), left to a
+   * change of its own.
    */
   withoutPage?: { words: string[]; kanji: string[] };
 }

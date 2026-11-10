@@ -9,4 +9,4 @@
   (client/search.ts wires it and unhides it: without the script there is nothing to toggle, so
   the button stays hidden and the furigana shown).
 -->
-<button class="button" type="button" data-furigana-toggle hidden>{messages.chrome.hideFurigana}</button>
+<button class="button" type="button" data-furigana-toggle data-show-label={messages.chrome.showFurigana} hidden>{messages.chrome.hideFurigana}</button>

@@ -50,6 +50,9 @@ export function datasetLanguageOf(locale: ServedLocale): DatasetLanguage {
     return DATASET_LANGUAGE[locale];
 }
 
+/** Each locale's name in its own language: the language switcher's links. */
+export const LOCALE_NAMES: Record<Locale, string> = { en: 'English', 'zh-hans': '简体中文' };
+
 /** The BCP 47 tag for <html lang>: "en", "zh-Hans". */
 const HTML_LANG: Record<Locale, string> = { en: 'en', 'zh-hans': 'zh-Hans' };
 

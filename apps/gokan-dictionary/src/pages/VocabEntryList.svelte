@@ -2,7 +2,7 @@
   import type { VocabSummary } from '../lib/types';
   import { pageLocale } from './pageLocale';
 
-  const { urls } = pageLocale();
+  const { urls, messages } = pageLocale();
 
   /**
    * Words as three aligned columns, headword | reading | gloss, each row linking to the word.
@@ -41,7 +41,7 @@
 {@render rows(shown, false)}
 {#if rest.length > 0}
   <details class="disclosure">
-    <summary>All {entries.length.toLocaleString('en')} words</summary>
+    <summary>{messages.chrome.allWords(entries.length)}</summary>
     {@render rows(rest, briefRest)}
   </details>
 {/if}

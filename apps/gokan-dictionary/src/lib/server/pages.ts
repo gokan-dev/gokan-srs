@@ -559,8 +559,8 @@ export function pagesOf(source: DictionaryData, locale: ServedLocale) {
 
     /** The JLPT list pages the locale has, by level: its words split in pages. */
     const jlptPageCount = async (level: number) => {
-        const words = (await jlptLevelWords()).find(group => group.level === level)?.words ?? [];
-        return paginate(words, JLPT_PAGE_SIZE).length;
+        const words = (await jlptLevelWords()).find(group => group.level === level)?.words;
+        return words ? paginate(words, JLPT_PAGE_SIZE).length : 0;
     };
 
     /** Whether the locale has a page: its counterpart of a page in another locale (dictionary.ts, alternatesOf). */

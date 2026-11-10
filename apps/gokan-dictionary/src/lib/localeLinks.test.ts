@@ -13,7 +13,8 @@ describe('linkUrls', () => {
     });
 
     it("gives an English page English's paths", () => {
-        expect(linkUrls('en')).toEqual(localeUrls('en'));
+        const [urls, english] = [linkUrls('en'), localeUrls('en')];
+        expect([urls.homePath(), urls.vocabPath('1'), urls.kanjiPath('学')]).toEqual([english.homePath(), english.vocabPath('1'), english.kanjiPath('学')]);
     });
 });
 
