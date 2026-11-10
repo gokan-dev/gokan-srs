@@ -189,7 +189,10 @@ const readBuilt = (file: string): string | null => (fs.existsSync(path.join(DIST
  * built, so a broken link there would be a missing page, which the other checks catch.
  */
 function linkProblems(): string[] {
-    const exists = (file: string) => fs.existsSync(path.join(DIST_DIR, file));
+    // On request, a word page is the server's, not a file: a list page's link to one is checked
+    // by the server answering it (check:parity --against-server), not here.
+    const servedOnRequest = (file: string) => ENTITY_PAGES === 'on-request' && /^(zh-hans\/)?vocab\/\d+\/index\.html$/.test(file);
+    const exists = (file: string) => servedOnRequest(file) || fs.existsSync(path.join(DIST_DIR, file));
     const problems: string[] = [];
     for (const page of pagesUnder('zh-hans')) {
         for (const href of brokenLinks(readBuilt(page) ?? '', BASE_PATH, exists)) problems.push(`${page} links ${href}, which is not built`);
