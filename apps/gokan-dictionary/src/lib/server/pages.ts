@@ -186,7 +186,7 @@ export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes:
                 } : {}),
             },
             document: documentOf(urls.vocabPath(id), vocabMeta, {
-                style: localized ? 'vocabLocale' : 'vocab',
+                style: 'vocab',
                 structuredData: { '@context': 'https://schema.org', '@type': 'DefinedTerm', name: headwordOf(vocab), description: vocabMeta.description },
             }),
         };

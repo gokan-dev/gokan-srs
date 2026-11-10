@@ -43,8 +43,6 @@ function asset(entry: string): string {
 const PAGE_STYLES = {
     home: 'src/styles/pages/home.scss',
     vocab: 'src/styles/pages/vocab.scss',
-    /** A word page in another language: vocab.scss and its Meanings' groups. */
-    vocabLocale: 'src/styles/pages/vocab-locale.scss',
     kanji: 'src/styles/pages/kanji.scss',
     kanjiIndex: 'src/styles/pages/kanji-index.scss',
     kanjiOrders: 'src/styles/pages/kanji-orders.scss',
