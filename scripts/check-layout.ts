@@ -1043,23 +1043,28 @@ async function checkLookupKeepsHover(tab: Tab, page: string, width: number): Pro
 /**
  * A word list's gloss is in its column (docs/DESIGN_SYSTEM.md section 8, Lists), whatever its
  * language: at 1280px every row's gloss (its last span) starts at the same x, the third column; on
- * a phone it starts at the row's left edge (inside its padding), on a line of its own under the
- * headword. A Chinese
- * gloss once fell into the reading's column, or onto the headword's line (#227).
+ * a phone, and in a word page's aside at any width, it starts at the row's left edge (inside its
+ * padding), on a line of its own under the headword, and spans the whole row: a gloss auto-placed
+ * into the first column of the next line (a kanji word's, whose reading fills the first line) is
+ * only as wide as that column. A Chinese gloss once fell into the reading's column, onto the
+ * headword's line, or under the headword in its column (#227).
  */
 const DICTIONARY_LIST_PAGES = ['/vocab/jlpt-n5/', ...(DICTIONARY_PAGES.some(page => page.path === '/zh-hans/vocab/jlpt-n5/') ? ['/zh-hans/vocab/jlpt-n5/'] : [])];
-async function checkEntryGlossColumn(tab: Tab, page: string, width: number, stacked: boolean): Promise<void> {
-    const rows = await tab.evaluate<{ row: string; rowLeft: number; rowTop: number; left: number; top: number }[]>(`[...document.querySelectorAll('.entry-list:not(.entry-list--brief) > li > a')]
+/** する: its aside's lists (Made of, Used in) hold kana and kanji words, in English and in Chinese. */
+const ASIDE_LIST_WORD = '1157170';
+const ASIDE_LIST_PAGES = [`/vocab/${ASIDE_LIST_WORD}/`, ...(DICTIONARY_PAGES.some(page => page.path.startsWith('/zh-hans/')) ? [`/zh-hans/vocab/${ASIDE_LIST_WORD}/`] : [])];
+async function checkEntryGlossColumn(tab: Tab, page: string, width: number, stacked: boolean, lists = '.entry-list:not(.entry-list--brief)'): Promise<void> {
+    const rows = await tab.evaluate<{ row: string; rowLeft: number; rowTop: number; rowWidth: number; left: number; top: number; width: number }[]>(`[...document.querySelectorAll(${JSON.stringify(`${lists} > li > a`)})]
         .filter(a => a.getBoundingClientRect().width > 0 && a.lastElementChild)
-        .map(a => { const row = a.getBoundingClientRect(); const style = getComputedStyle(a); const gloss = a.lastElementChild.getBoundingClientRect(); return { row: a.textContent.slice(0, 20), rowLeft: row.left + parseFloat(style.paddingLeft), rowTop: row.top + parseFloat(style.paddingTop), left: gloss.left, top: gloss.top }; })`);
+        .map(a => { const row = a.getBoundingClientRect(); const style = getComputedStyle(a); const gloss = a.lastElementChild.getBoundingClientRect(); return { row: a.textContent.slice(0, 20), rowLeft: row.left + parseFloat(style.paddingLeft), rowTop: row.top + parseFloat(style.paddingTop), rowWidth: row.width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight) - parseFloat(style.borderLeftWidth) - parseFloat(style.borderRightWidth), left: gloss.left, top: gloss.top, width: gloss.width }; })`);
     if (rows.length === 0) {
         failures.push(`${width}px ${page}: no word rows to measure`);
         return;
     }
     const strays = stacked
-        ? rows.filter(row => Math.abs(row.left - row.rowLeft) > 1 || row.top - row.rowTop < 2)
+        ? rows.filter(row => Math.abs(row.left - row.rowLeft) > 1 || row.top - row.rowTop < 2 || Math.abs(row.width - row.rowWidth) > 1)
         : rows.filter(row => Math.abs(row.left - rows[0].left) > 1);
-    if (strays.length > 0) failures.push(`${width}px ${page}: a row's gloss is out of its column (${stacked ? "not on its own line at the row's left edge" : 'not where the first row\'s starts'}): ${strays.slice(0, 3).map(row => row.row).join(', ')}`);
+    if (strays.length > 0) failures.push(`${width}px ${page}: a row's gloss is out of its column (${stacked ? "not on its own line across the row, from its left edge" : 'not where the first row\'s starts'}): ${strays.slice(0, 3).map(row => row.row).join(', ')}`);
 }
 
 /** Measures the fixture word's page, after checking it still shows a reading to measure. */
@@ -1089,6 +1094,10 @@ try {
     for (const path of DICTIONARY_LIST_PAGES) {
         await desktop.goto(`http://127.0.0.1:${dictionary.port}/dictionary${path}`, 'N5');
         await checkEntryGlossColumn(desktop, `dictionary ${path}`, DESKTOP.width, false);
+    }
+    for (const path of ASIDE_LIST_PAGES) {
+        await desktop.goto(`http://127.0.0.1:${dictionary.port}/dictionary${path}`, 'JLPT');
+        await checkEntryGlossColumn(desktop, `dictionary ${path}, its aside`, DESKTOP.width, true, '.entry-list--stacked');
     }
     await checkKanaIntro(chrome, `http://127.0.0.1:${srs.port}`, DESKTOP.width, DESKTOP.height);
     await desktop.goto(`http://127.0.0.1:${srs.port}/vocab/${FURIGANA_VOCAB}`, 'Examples');
@@ -1234,4 +1243,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows and word readings unbroken, a word list's gloss in its column (1280px) or on its own line (phones), a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button undimmed, its sentence centred on its translation with its button right after it (and at 1280px on the headword), a word learned in kana's intro, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows and word readings unbroken, a word list's gloss in its column (1280px) or on its own line across the row (phones, a word page's aside), a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button undimmed, its sentence centred on its translation with its button right after it (and at 1280px on the headword), a word learned in kana's intro, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);

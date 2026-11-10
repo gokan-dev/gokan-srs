@@ -13,6 +13,7 @@ import { listFiles } from '@gokan/deploy/build-files';
 import { serveDictionaryOnRequest } from '../../../scripts/lib/builtSite';
 import { describe, overBudget, percentile, type Measurement } from '../src/lib/budgets';
 import { alternateProblems, brokenLinks } from '../src/lib/builtLinks';
+import { DATASET_PATHS } from '../src/lib/datasetPaths';
 import { misroutedPaths } from '../src/lib/servedPaths';
 import { datasetLanguageOf, htmlLang, localePrefix, SERVED_LOCALES } from '../src/lib/locale';
 import { BASE_PATH, SITE_ORIGIN } from '../src/lib/site';
@@ -23,7 +24,7 @@ import type { SearchIndexFile } from '../src/lib/types';
 
 const APP_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST_DIR = path.join(APP_DIR, 'dist');
-/** The dataset checkout the build read (lib/dataset.server.ts resolves the same one). */
+/** The dataset checkout the build read (lib/dataset.server.ts resolves the same one; sourceNameProblems fails if the two drift apart). */
 const COMPILED_DIR = path.join(APP_DIR, '..', 'gokan-srs', 'dataset', 'compiled');
 
 /**
@@ -220,19 +221,26 @@ function alternatesProblems(): string[] {
  * has a name in the locale's catalog: a word page with one it cannot name fails to render, so a
  * source the dataset adds is named here first, never printed as its id.
  */
-function sourceNameProblems(): string[] {
+function sourceNameProblems(compiledDir = COMPILED_DIR): string[] {
     const problems: string[] = [];
     for (const locale of SERVED_LOCALES.filter(served => localePrefix(served) !== '')) {
         const named = messagesFor(locale).sources;
+        const language = datasetLanguageOf(locale);
         const found = new Set<string>();
-        for (const group of ['vocab', 'sentences']) {
-            const dir = path.join(COMPILED_DIR, 'text', datasetLanguageOf(locale), group);
-            if (!fs.existsSync(dir)) continue;
+        // The directories the pages read (lib/datasetPaths.ts, through localeText.ts): a missing one
+        // means this check and the pages have drifted apart, so it fails rather than reading nothing.
+        for (const group of [path.dirname(DATASET_PATHS.vocab('_')), path.dirname(DATASET_PATHS.sentences('_'))]) {
+            const dir = path.join(compiledDir, DATASET_PATHS.text(language, group));
+            if (!fs.existsSync(dir)) {
+                problems.push(`the ${locale} text has no ${group} directory to read its sources from (${dir})`);
+                continue;
+            }
             for (const file of listFiles(dir).filter(name => name.endsWith('.json'))) {
                 const text = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf-8')) as TextFile;
                 for (const entity of Object.values(text.entities)) for (const rendering of entity?.renderings ?? []) found.add(rendering.source.source);
             }
         }
+        if (found.size === 0) problems.push(`the ${locale} text names no source at all (read under ${path.join(compiledDir, 'text', language)}): the check read nothing`);
         for (const id of found) if (named[id] === undefined) problems.push(`source "${id}" in the ${locale} text has no name in its catalog (lib/messages, sources)`);
     }
     return problems;
