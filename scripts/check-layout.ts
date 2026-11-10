@@ -1067,6 +1067,26 @@ async function checkEntryGlossColumn(tab: Tab, page: string, width: number, stac
     if (strays.length > 0) failures.push(`${width}px ${page}: a row's gloss is out of its column (${stacked ? "not on its own line across the row, from its left edge" : 'not where the first row\'s starts'}): ${strays.slice(0, 3).map(row => row.row).join(', ')}`);
 }
 
+/**
+ * A section's source credit (a Chinese word page's 来源：...) is set off from what comes before it,
+ * at least 8px (docs/DESIGN_SYSTEM.md section 4), so it reads as a note on the whole section and not
+ * as part of its last meaning or disclosure. It once sat flush under them (#227). 食べる credits
+ * both its meanings and its sentences.
+ */
+const SOURCE_CREDIT_WORD = '1358280';
+const SOURCE_CREDIT_PAGES = DICTIONARY_PAGES.some(page => page.path.startsWith('/zh-hans/')) ? [`/zh-hans/vocab/${SOURCE_CREDIT_WORD}/`] : [];
+async function checkSourceCreditGap(tab: Tab, page: string, width: number): Promise<void> {
+    const credits = await tab.evaluate<{ credit: string; gap: number }[]>(`[...document.querySelectorAll('.source-credit')]
+        .filter(el => el.getBoundingClientRect().height > 0 && el.previousElementSibling)
+        .map(el => ({ credit: el.textContent.slice(0, 20), gap: el.getBoundingClientRect().top - el.previousElementSibling.getBoundingClientRect().bottom }))`);
+    if (credits.length < 2) {
+        failures.push(`${width}px ${page}: ${credits.length} source credits to measure, expected the meanings' and the sentences'`);
+        return;
+    }
+    const flush = credits.filter(credit => credit.gap < 8 - 0.5);
+    if (flush.length > 0) failures.push(`${width}px ${page}: a source credit sits under 8px below the element before it: ${flush.map(credit => `${credit.credit} (${credit.gap.toFixed(1)}px)`).join(', ')}`);
+}
+
 /** Measures the fixture word's page, after checking it still shows a reading to measure. */
 async function measureFuriganaFixture(tab: Tab, url: string, ready: string, page: string, width: number, tapTargets = ''): Promise<void> {
     try {
@@ -1098,6 +1118,10 @@ try {
     for (const path of ASIDE_LIST_PAGES) {
         await desktop.goto(`http://127.0.0.1:${dictionary.port}/dictionary${path}`, 'JLPT');
         await checkEntryGlossColumn(desktop, `dictionary ${path}, its aside`, DESKTOP.width, true, '.entry-list--stacked');
+    }
+    for (const path of SOURCE_CREDIT_PAGES) {
+        await desktop.goto(`http://127.0.0.1:${dictionary.port}/dictionary${path}`, '来源');
+        await checkSourceCreditGap(desktop, `dictionary ${path}`, DESKTOP.width);
     }
     await checkKanaIntro(chrome, `http://127.0.0.1:${srs.port}`, DESKTOP.width, DESKTOP.height);
     await desktop.goto(`http://127.0.0.1:${srs.port}/vocab/${FURIGANA_VOCAB}`, 'Examples');
@@ -1226,6 +1250,10 @@ try {
             await measure(tab, `dictionary ${page.path}`, width, DICTIONARY_TAP_TARGETS);
             if (DICTIONARY_LIST_PAGES.includes(page.path)) await checkEntryGlossColumn(tab, `dictionary ${page.path}`, width, true);
         }
+        for (const path of SOURCE_CREDIT_PAGES) {
+            await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${path}`, '来源');
+            await checkSourceCreditGap(tab, `dictionary ${path}`, width);
+        }
         await measureFuriganaFixture(tab, `http://127.0.0.1:${dictionary.port}/dictionary/vocab/${FURIGANA_VOCAB}/`, 'Meanings', `dictionary /vocab/${FURIGANA_VOCAB}/`, width, DICTIONARY_TAP_TARGETS);
         await tab.close();
     }
@@ -1243,4 +1271,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows and word readings unbroken, a word list's gloss in its column (1280px) or on its own line across the row (phones, a word page's aside), a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button undimmed, its sentence centred on its translation with its button right after it (and at 1280px on the headword), a word learned in kana's intro, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows and word readings unbroken, a word list's gloss in its column (1280px) or on its own line across the row (phones, a word page's aside), a section's source credit set off from what comes before it, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button undimmed, its sentence centred on its translation with its button right after it (and at 1280px on the headword), a word learned in kana's intro, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);

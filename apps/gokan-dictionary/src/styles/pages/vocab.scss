@@ -66,6 +66,12 @@
   margin: 0;
 }
 
+// A section's source credit is a note on the whole section, set off from its last meaning or
+// disclosure by the gap between Meanings' groups.
+.source-credit {
+  margin-top: $space-3;
+}
+
 .sense-label {
   margin-left: $space-1;
   color: var(--tertiary);
