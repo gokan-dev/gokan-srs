@@ -501,6 +501,25 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   `lang="ja"` element, and on a `jp`-class element without it): that attribute is also what sets it in the Japanese face, and what
   stops some devices drawing it with Chinese glyph shapes. Headwords and sentences are
   mincho, readings gothic. Nothing below 12px.
+- **Chinese pages** (`/dictionary/zh-hans/...`, #170): `<html lang="zh-Hans">`, so every word of
+  their chrome is Chinese to a browser and a screen reader, and draws a character Chinese and
+  Japanese share in its Simplified Chinese form; the page's Japanese keeps `lang="ja"`, and
+  with it the Japanese faces (the two forms of 直, 骨 or 今 differ). The Chinese UI face is a
+  system stack, as the Japanese ones are, set on a Chinese page's `:root` by its locale
+  stylesheet (`styles/locales/zh-hans.scss`): sans `Inter, "PingFang SC", "Hiragino Sans GB",
+  "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", system-ui, sans-serif` (Inter
+  for the Latin in it: JLPT, N5, numbers; then macOS and iOS, older macOS, Windows, Android
+  and Linux), titles `"Source Serif 4", "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC",
+  SimSun, serif` (the Latin serif, then each system's Song face). No web font: a CJK face is
+  megabytes, against the 40 KB the one Latin font has. English on a Chinese page (JMdict's
+  meanings, an untranslated sentence, a textbook chip) is marked `lang="en"`.
+- **Language switcher**: on a page that has a counterpart in the other language (a word with no
+  Chinese page has none), one small line above the breadcrumb at its end: the other page,
+  named in its own language (English, 简体中文), a 44px tap target. Neutral text link, no flag.
+- **Links to English from a Chinese page** (a kanji, a grammar point, the dataset, the app):
+  marked for a reader as well as by `hreflang="en"`. In the header, a small tertiary 英文 beside
+  the section's name (12px); in a tile or a sentence, in the catalog's words (英文页面,
+  汉字（英文）); under the Kanji used tiles, one line (汉字页面为英文).
 - **Shape**: 6px radius for cards, chips, tiles, inputs and buttons; the search field is
   the one pill. No shadow except the search panel. Spacing on the 8px scale. Page
   sections are a heading plus spacing, not boxes; a box is an object (a tile, a kanji).
@@ -532,7 +551,8 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   every page already loads, and stays hidden without JavaScript.
 - **Motion**: transitions are 150ms ease-in-out and none under `prefers-reduced-motion`.
 - **Budgets**, checked after every build by `scripts/check-build.ts`, which fails the
-  build when one is exceeded (`src/lib/budgets.ts`):
+  build when one is exceeded (`src/lib/budgets.ts`), the same in every language (a Chinese
+  word page is held to the word page's):
 
   | Item | Budget |
   | --- | --- |
@@ -542,6 +562,7 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   | Each JLPT list page | 150 KB |
   | Each kanji order page (hub, order, range of 100 steps) | 150 KB |
   | Shared stylesheet (`app.scss`) | 10 KB |
+  | A locale's stylesheet (`styles/locales/`, its pages only) | 2 KB |
   | Search script (every page) | 10 KB |
   | Query engine (loaded on first focus) | 10 KB |
   | `search-core.json`, gzipped | 300 KB |
