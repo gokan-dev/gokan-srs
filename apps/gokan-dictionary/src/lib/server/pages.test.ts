@@ -194,10 +194,12 @@ describe('pagesOf: a locale other than English', () => {
     });
 
     it('names the words it links that have a page in Chinese: the others link to English\'s', async () => {
-        // 考える's page links 思う (Made of) and, in its sentence, 私 and 思う: only 思う has Chinese text.
+        // 考える's page links 思う (Made of) and, in its sentence, 私 and 思う: only 思う has Chinese
+        // text, and 私 has no page at all, so it is not linked.
         const chineseWorld: World = { ...world, sentences: { '1281390': [sentence()] }, chinese: ['1589350', '1281390'] };
         const page = await pagesOf(memorySource(chineseWorld).source, 'zh-hans').vocabPage('1281390');
         expect(page.props.wordsInLocale).toEqual(['1589350']);
+        expect(page.props.withoutPage).toEqual({ words: ['1311110'], kanji: ['考'] });
     });
 
     it('has no kanji, grammar or list page yet: each a 404', async () => {

@@ -159,14 +159,15 @@ export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes:
         const summaryById = await summaries();
         if (!summaryById.has(id)) throw new PageNotFound(`no word ${id}`);
         const localized = await wordTextOf(id);
-        const [vocab, allSentences, translations] = await Promise.all([
-            source.vocab(id), source.sentencesFor(id), localized?.text.sentenceTranslations(id),
+        const [vocab, allSentences, translations, byCharacter] = await Promise.all([
+            source.vocab(id), source.sentencesFor(id), localized?.text.sentenceTranslations(id), localized ? kanjiByCharacter() : null,
         ]);
         const vocabMeta = meta.vocab(vocab);
         const sentences = orderSentences(allSentences ?? [], id, headwordOf(vocab));
         const components = resolveSummaries(vocab.components ?? [], summaryById);
         const parents = resolveSummaries(vocab.parents ?? [], summaryById);
-        const linked = [...new Set([...components, ...parents].map(word => word.id).concat(sentences.flatMap(sentence => Object.keys(sentence.matches ?? {}))))];
+        const sentenceWords = [...new Set(sentences.flatMap(sentence => Object.keys(sentence.matches ?? {})))];
+        const linked = [...new Set([...components, ...parents].map(word => word.id).concat(sentenceWords.filter(other => summaryById.has(other))))];
         return {
             props: {
                 vocab,
@@ -178,6 +179,10 @@ export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes:
                     text: localized.word,
                     translations: sentenceTranslationsOf(sentences, translations, localized.text.language),
                     wordsInLocale: await wordsWithPages(localized.text, linked),
+                    withoutPage: {
+                        words: sentenceWords.filter(other => !summaryById.has(other)),
+                        kanji: vocab.writtenForm.containedKanji.filter(character => !byCharacter?.has(character)),
+                    },
                 } : {}),
             },
             document: documentOf(urls.vocabPath(id), vocabMeta, {

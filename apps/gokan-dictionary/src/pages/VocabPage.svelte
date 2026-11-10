@@ -16,7 +16,7 @@
   import FuriganaToggle from './FuriganaToggle.svelte';
   import SentenceText from './SentenceText.svelte';
 
-  let { vocab, components, parents, sentences, text, translations, wordsInLocale }: Props = $props();
+  let { vocab, components, parents, sentences, text, translations, wordsInLocale, withoutPage }: Props = $props();
 
   // A page in another language links a word there only when it has a page in it (lib/localeLinks.ts).
   // Set once: a page is rendered once, on the server, and never hydrated.
@@ -46,6 +46,8 @@
   });
   const shownSentences = $derived(sentences.slice(0, VISIBLE_SENTENCES));
   const moreSentences = $derived(sentences.slice(VISIBLE_SENTENCES));
+  const unlinked = $derived(new Set(withoutPage?.words));
+  const kanjiWithoutPage = $derived(new Set(withoutPage?.kanji));
   const hasRelated = $derived(vocab.writtenForm.containedKanji.length > 0 || components.length > 0 || parents.length > 0);
 
   function localSummary(word: NonNullable<Props['text']>): string {
@@ -84,7 +86,7 @@
     {#each list as sentence (sentence.id)}
       {@const translation = translations?.[sentence.id]}
       <li>
-        <SentenceText runs={sentenceRuns(sentence, { targetVocabId: vocab.id })} />
+        <SentenceText runs={sentenceRuns(sentence, { targetVocabId: vocab.id, unlinked })} />
         {#if translations}
           {#if translation}<p class="sentence-en" lang={translation.lang === 'en' ? 'en' : undefined}>{translation.text}</p>{/if}
         {:else if sentence.en[0]}<p class="sentence-en">{sentence.en[0].text}</p>{/if}
@@ -175,7 +177,7 @@
             <h2>Kanji used</h2>
             <ul class="kanji-tiles">
               {#each vocab.writtenForm.containedKanji as character, index (index)}
-                <li><a href={urls.kanjiPath(character)} lang="ja">{character}</a></li>
+                <li>{#if kanjiWithoutPage.has(character)}<span lang="ja">{character}</span>{:else}<a href={urls.kanjiPath(character)} lang="ja">{character}</a>{/if}</li>
               {/each}
             </ul>
           </section>

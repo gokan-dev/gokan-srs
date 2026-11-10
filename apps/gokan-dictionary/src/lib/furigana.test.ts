@@ -16,4 +16,8 @@ describe('sentenceRuns', () => {
         const runs = sentenceRuns(sentence(), { highlightRanges: [{ start: 4, length: 2 }] });
         expect(runs[2]).toEqual({ parts: [{ text: '思', ruby: 'おも' }, { text: 'う' }], vocabId: '1589350', emphasized: true });
     });
+
+    it('keeps the furigana of a word with no page, without its link', () => {
+        expect(sentenceRuns(sentence(), { unlinked: new Set(['1311110']) })[0]).toEqual({ parts: [{ text: '私', ruby: 'わたし' }], emphasized: false });
+    });
 });
