@@ -20,3 +20,9 @@
   color: var(--tertiary);
   font-size: $text-xs;
 }
+
+// A Chinese breadcrumb's steps are a word or two (词典 / 词汇), so the trail reads as running text,
+// where a link is underlined rather than told apart by its colour alone (app.scss, `p a`).
+.breadcrumb a {
+  text-decoration: underline;
+}

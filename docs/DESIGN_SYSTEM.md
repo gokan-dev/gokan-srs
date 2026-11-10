@@ -519,7 +519,8 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
 - **Links to English from a Chinese page** (a kanji, a grammar point, the dataset, the app):
   marked for a reader as well as by `hreflang="en"`. In the header, a small tertiary 英文 beside
   the section's name (12px); in a tile or a sentence, in the catalog's words (英文页面,
-  汉字（英文）); under the Kanji used tiles, one line (汉字页面为英文).
+  汉字（英文）); under the Kanji used tiles, one line (汉字页面为英文). A Chinese breadcrumb's
+  links are underlined: its steps are a word or two, so the trail reads as running text.
 - **Shape**: 6px radius for cards, chips, tiles, inputs and buttons; the search field is
   the one pill. No shadow except the search panel. Spacing on the 8px scale. Page
   sections are a heading plus spacing, not boxes; a box is an object (a tile, a kanji).

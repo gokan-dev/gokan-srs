@@ -19,13 +19,13 @@ import { JLPT_PAGE_SIZE, paginate } from '../pagination';
 import { searchGrammarRow, searchKanjiRow, searchWordRow, splitSearchIndex } from '../searchIndex';
 import { datasetLanguageOf, DEFAULT_LOCALE, type ServedLocale } from '../locale';
 import { messagesFor, type PageMeta } from '../messages';
+import { wordTextSummary } from '../senses';
 import { orderSentences } from '../sentenceOrder';
 import type { DictionaryData, EntityData, GrammarSummary, LocaleText, SearchIndexFile, SearchWordRow, VocabSummary, WordText } from '../types';
 import { kanjiOrderSlug, kanjiRangeSlug, localeUrls } from '../urls';
 import type { PageScript, PageStyle } from './assets';
 import { kept } from './kept';
 import { sentenceTranslationsOf } from './localeText';
-import { wordTextSummary } from '../senses';
 import type {
     GrammarChapterPageProps, GrammarChaptersIndexPageProps, GrammarConjugationsIndexPageProps, GrammarFamiliesIndexPageProps, GrammarFamilyPageProps, GrammarIndexPageProps, GrammarPageProps, HomePageProps, KanjiIndexPageProps, KanjiOrderPageProps, KanjiOrdersPageProps, KanjiPageProps, KanjiRangePageProps, VocabIndexPageProps, VocabJlptPageProps, VocabPageProps,
 } from '../pageProps';
@@ -143,9 +143,9 @@ async function inLanguageOf(words: VocabSummary[], text: LocaleText | null): Pro
 }
 
 /**
- * Which pages a locale has: English every page; another locale its word pages only, so far (#170:
- * kanji, grammar and list pages are not in its first sprint, and a URL for one answers 404). Wraps a
- * page builder so it is a PageNotFound outside English.
+ * Which pages a locale has: English every page; another locale its word pages, its home and its
+ * vocabulary lists, so far (#170: kanji, grammar and kanji order pages are not in its sprint, and a
+ * URL for one answers 404). Wraps a page builder so it is a PageNotFound outside English.
  */
 function pagesInEnglishOnly(locale: ServedLocale) {
     return <Args extends unknown[], Page>(build: (...args: Args) => Page | Promise<Page>) => async (...args: Args): Promise<Page> => {
@@ -217,7 +217,7 @@ export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes:
         const sentenceWords = [...new Set(sentences.flatMap(sentence => Object.keys(sentence.matches ?? {})))];
         // A page in another language links only the words with a page in it (lib/localeLinks.ts):
         // its lists leave the others out, its sentences show them unlinked.
-        const inLocale = localized ? new Set(await localized.text.withPages([...new Set([...components, ...parents].map(word => word.id).concat(sentenceWords))])) : null;
+        const inLocale = localized ? new Set(await localized.text.withPages([...new Set([...components, ...parents].map(word => word.id).concat(sentenceWords.filter(other => summaryById.has(other))))])) : null;
         const linkable = (words: VocabSummary[]) => (inLocale ? words.filter(word => inLocale.has(word.id)) : words);
         return {
             props: {
