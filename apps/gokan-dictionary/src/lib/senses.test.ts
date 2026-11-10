@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Sense } from '@gokan/dataset-schema';
-import { meaningsOf, VISIBLE_SENSES } from './senses';
+import { wordText } from '../test/fixtures';
+import { meaningsOf, VISIBLE_SENSES, wordTextSummary } from './senses';
 
 function sense(glosses: string[], pos: string[] = ['n'], rawTags: string[] = []): Sense {
     return { pos, misc: { rawTags, isArchaic: rawTags.includes('arch') }, glosses, related: { compounds: [] } };
@@ -33,5 +34,19 @@ describe('meaningsOf', () => {
     it('has nothing behind the disclosure when a word has few senses', () => {
         const { visible, more, rare } = meaningsOf([sense(['a']), sense(['b'])]);
         expect([visible.length, more.length, rare.length]).toEqual([2, 0, 0]);
+    });
+});
+
+describe('wordTextSummary', () => {
+    it('names the first two equivalents, with the enumeration comma', () => {
+        expect(wordTextSummary(wordText())).toBe('想、认为');
+    });
+
+    it('falls back to the first definition\'s first sense, its glosses joined by the semicolon', () => {
+        expect(wordTextSummary(wordText({ equivalents: [] }))).toBe('想；认为');
+    });
+
+    it('is empty for a word with neither', () => {
+        expect(wordTextSummary(wordText({ equivalents: [], definitions: [] }))).toBe('');
     });
 });

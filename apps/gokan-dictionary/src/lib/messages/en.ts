@@ -4,6 +4,7 @@
 
 import { headwordOf, secondaryForm } from '@gokan/dataset-schema';
 import type { GrammarChapter, GrammarPoint, Kanji, KanjiOrder, Vocabulary } from '@gokan/dataset-schema';
+import { FORM_LABELS } from '../conjugation';
 import { quotedGlosses, searchablePattern, sentenceCase, truncate } from '../seo';
 import { SITE_NAME } from '../site';
 import type { CountedNoun, Messages } from './index';
@@ -49,8 +50,72 @@ export const en: Messages = {
         ],
         search: { label: 'Search the dictionary', placeholder: 'Search: kanji, kana, romaji or English', results: 'Search results' },
         hideFurigana: 'Hide furigana',
+        showFurigana: 'Show furigana',
         grammarTabs: { label: 'Browse grammar', level: 'By level', families: 'Families', curriculum: 'Curriculum', conjugations: 'Conjugations' },
+        // Never shown: every page an English page links is in English.
+        inEnglish: 'In English',
+        languages: 'Language',
+        pages: 'Pages',
+        allWords: n => `All ${n.toLocaleString('en')} words`,
     },
+    home: {
+        heading: 'Japanese dictionary',
+        lede: 'Look up a word, a kanji or a grammar point, with readings, meanings and example sentences.',
+        browse: 'Browse',
+        tiles: {
+            vocab: { title: 'Vocabulary', meta: 'By JLPT level', blurb: 'Readings, meanings, forms and example sentences.' },
+            kanji: kanjiCount => ({ title: 'Kanji', meta: `${kanjiCount.toLocaleString('en')} characters`, blurb: 'The words that use each character.' }),
+            kanjiOrders: { title: 'Kanji learning orders', meta: 'KKLC, RTK and more', blurb: 'The words you can read at each step of your kanji book.' },
+            grammar: pointCount => ({ title: 'Grammar', meta: `${pointCount.toLocaleString('en')} points`, blurb: 'Patterns, explanations and worked examples.' }),
+        },
+        commonWords: 'Common words',
+        counts: ({ words, kanji, grammar, sentences }) => `${words.toLocaleString('en')} words · ${kanji.toLocaleString('en')} kanji · ${grammar.toLocaleString('en')} grammar points · ${sentences.toLocaleString('en')} example sentences`,
+        about: 'About',
+        aboutText: links => [
+            'Built on the open, CC BY-SA-licensed ',
+            { text: 'gokan-dataset', href: links.dataset },
+            ': JMdict definitions, Tatoeba sentences and JLPT levels. To remember what you look up, learn it with spaced repetition in ',
+            { text: 'Gokan SRS', href: links.srs },
+            '.',
+        ],
+    },
+    vocabIndex: {
+        intro: wordCount => `${wordCount.toLocaleString('en')} words with readings, meanings and example sentences. Browse the JLPT lists, or search for any word.`,
+        levelTitle: level => `JLPT ${JLPT_LABEL(level)}`,
+        levelBlurbs: {
+            5: 'Everyday words, basic verbs and core vocabulary.',
+            4: 'Common daily vocabulary, building on N5.',
+            3: 'The bridge to intermediate Japanese.',
+            2: 'Vocabulary for news, work and study.',
+            1: 'Advanced and specialised vocabulary.',
+        },
+    },
+    vocabJlpt: {
+        heading: (level, page) => `JLPT ${JLPT_LABEL(level)} vocabulary${page > 1 ? `, page ${page}` : ''}`,
+        levelCrumb: level => `JLPT ${JLPT_LABEL(level)}`,
+        pageCrumb: page => `Page ${page}`,
+        intro: wordCount => `${wordCount.toLocaleString('en')} words, most frequent first.`,
+        range: (first, last) => `Words ${first.toLocaleString('en')} to ${last.toLocaleString('en')}.`,
+        otherLevels: 'Other levels',
+        otherLevelsLead: 'Other levels:',
+        levelLink: JLPT_LABEL,
+    },
+    vocab: {
+        usuallyKana: 'Usually written in kana. Kanji spelling',
+        alsoRead: 'also',
+        alsoWritten: 'Also written',
+        commonWord: 'Common word',
+        sections: { meanings: 'Meanings', forms: 'Forms', sentences: 'Example sentences', kanji: 'Kanji used', madeOf: 'Made of', usedIn: 'Used in' },
+        allMeanings: n => `All ${n} meanings`,
+        rareMeanings: n => `Rare and archaic meanings (${n})`,
+        moreExamples: n => `More examples (${n})`,
+        forms: { plain: 'Plain', polite: 'Polite', present: 'Present', negative: 'Negative', past: 'Past', pastNegative: 'Past negative', labels: FORM_LABELS },
+        kanjiInEnglish: 'Kanji pages are in English.',
+        credit: sourceNames => `Sources: ${sourceNames.join(', ')}`,
+        englishMeaningsSource: 'JMdict',
+        sentencesSource: 'Tatoeba',
+    },
+    sources: { zhwiktionary: 'Chinese Wiktionary', jawiktionary: 'Japanese Wiktionary', wikidata: 'Wikidata', wikipedia: 'Wikipedia', 'tatoeba-cmn': 'Tatoeba', gokan: 'Gokan' },
     meaningGroups: { definitions: 'Definitions', equivalents: 'Equivalents', english: 'English meanings' },
     error: {
         heading: status => (status === 404 ? 'Page not found' : 'Page unavailable'),
