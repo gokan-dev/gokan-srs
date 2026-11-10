@@ -58,11 +58,11 @@ export async function sitemapPaths(): Promise<string[]> {
 }
 
 /**
- * One of the search index's two files, as its route writes it: stamped with the dataset version.
- * English's: a locale's own search index (its glosses) comes with the locale (#170).
+ * One of a locale's search index's two files, as its route writes it: stamped with the dataset
+ * version. Each locale's own: its words with a page, their glosses in its language.
  */
-export async function searchIndexFile(part: 'core' | 'full'): Promise<SearchIndexFile> {
-    return stampedSearchIndex((await pages(DEFAULT_LOCALE).searchIndex())[part]);
+export async function searchIndexFile(part: 'core' | 'full', locale: ServedLocale): Promise<SearchIndexFile> {
+    return stampedSearchIndex((await pages(locale).searchIndex())[part]);
 }
 
 /**

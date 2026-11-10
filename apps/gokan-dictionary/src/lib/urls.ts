@@ -124,46 +124,16 @@ export function faviconPath(): string {
     return `${BASE_PATH}/favicon.svg`;
 }
 
-// The search script's links (client/search.ts), English's paths and no other locale's. Kept as
-// they were, comments included (the bundler hashes the chunk before minifying it, so even a
-// reworded comment here renames the script), so the bundle stays byte for byte the one every page
-// links: a renamed script changes all 40k pages, re-uploaded on the next deploy. The script reads
-// the page's locale with #170, after the entity pages render on request (#209), when a rename
-// re-uploads only the list pages. Imported by client/ only (check-conventions.ts).
-
 /**
- * One page of a JLPT level's vocabulary list: "/dictionary/vocab/jlpt-n1/" for the first page,
- * "/dictionary/vocab/jlpt-n1/2/" for the next ones.
+ * Hrefs the client search fetches a locale's prebuilt index from: the core file first, the full
+ * one in the background (see SearchIndexFile). English's at /data/, another locale's under its
+ * segment (/data/zh-hans/), beside the site's other files rather than among its pages. Fixed paths,
+ * like the pages: the deploy is content addressed, so a changed index is uploaded under the same
+ * name and served with a 1-hour TTL, never as immutable (cacheControlFor in @gokan/deploy).
  */
-export function vocabJlptPath(level: number, page = 1): string {
-    return `${BASE_PATH}/vocab/jlpt-n${level}/${page > 1 ? `${page}/` : ''}`;
-}
-
-export function vocabPath(id: string): string {
-    return `${BASE_PATH}/vocab/${id}/`;
-}
-
-export function kanjiPath(character: string): string {
-    return `${BASE_PATH}/kanji/${encodeURIComponent(character)}/`;
-}
-
-export function grammarPath(id: string): string {
-    return `${BASE_PATH}/grammar/${id}/`;
-}
-
-/** The full search results page; `query` goes in its `q` parameter. Not indexed, not in the sitemap. */
-export function searchPath(query?: string): string {
-    return `${BASE_PATH}/search/${query ? `?q=${encodeURIComponent(query)}` : ''}`;
-}
-
-/**
- * Hrefs the client search fetches its prebuilt index from: the core file first, the full one in
- * the background (see SearchIndexFile). Fixed paths, like the pages: the deploy is content
- * addressed, so a changed index is uploaded under the same name and served with a 1-hour TTL,
- * never as immutable (cacheControlFor in @gokan/deploy).
- */
-export function searchIndexPaths(): { core: string; full: string } {
-    return { core: `${BASE_PATH}/data/search-core.json`, full: `${BASE_PATH}/data/search-full.json` };
+export function searchIndexPaths(locale: Locale): { core: string; full: string } {
+    const root = `${BASE_PATH}/data${localePrefix(locale)}`;
+    return { core: `${root}/search-core.json`, full: `${root}/search-full.json` };
 }
 
 export function absoluteUrl(pathname: string): string {

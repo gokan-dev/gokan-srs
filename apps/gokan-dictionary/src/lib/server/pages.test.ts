@@ -158,7 +158,7 @@ describe('pagesOf: list pages', () => {
 
     it('marks the search page noindex and gives the grammar index its filter script', async () => {
         const pages = pagesOf(memorySource({ words: [omou], points: [grammarPoint()] }).source, 'en');
-        expect((await pages.searchPage()).document.noindex).toBe(true);
+        expect(pages.searchPage().document.noindex).toBe(true);
         expect((await pages.grammarIndexPage()).document).toMatchObject({ canonicalPath: urls.grammarIndexPath(), style: 'grammarIndex', script: 'grammarFilter' });
     });
 });
@@ -236,13 +236,34 @@ describe('pagesOf: a locale other than English', () => {
         expect(page.document.key).toEqual({ type: 'vocab', id: '1589350' });
     });
 
-    it('has no kanji or grammar page yet: each a 404, as its search page', async () => {
+    it('has no kanji or grammar page yet: each a 404', async () => {
         const pages = pagesOf(memorySource(world).source, 'zh-hans');
         await expect(pages.kanjiPage('学')).rejects.toBeInstanceOf(PageNotFound);
         await expect(pages.grammarPage('n2-169')).rejects.toBeInstanceOf(PageNotFound);
         await expect(pages.kanjiIndexPage()).rejects.toBeInstanceOf(PageNotFound);
         await expect(pages.grammarIndexPage()).rejects.toBeInstanceOf(PageNotFound);
-        await expect(pages.searchPage()).rejects.toBeInstanceOf(PageNotFound);
+    });
+
+    it('has its own search page, kept out of search engines and the sitemap', async () => {
+        const pages = pagesOf(memorySource(world).source, 'zh-hans');
+        expect(pages.searchPage().document).toMatchObject({ locale: 'zh-hans', canonicalPath: zhUrls.searchPath(), noindex: true });
+        expect(await pages.pageEntries.search()).toEqual([{}]);
+        expect((await pages.sitemapPaths()).some(path => path.includes('/search/'))).toBe(false);
+    });
+
+    it('builds its search index of the words with a Chinese page alone, each with its Chinese gloss, in frequency order', async () => {
+        const texts = { '1589350': wordText(), '1281390': wordText({ equivalents: [{ text: '考虑', sources: [] }] }) };
+        const pages = pagesOf(memorySource({ ...world, frequency: ['1281390', '9999999', '1589350'], chinese: ['1589350', '1281390'], chineseTexts: texts }).source, 'zh-hans');
+        const { core, full } = await pages.searchIndex();
+        expect(core.w[0]).toEqual(['1281390', '1589350']);
+        expect(core.w[3]).toEqual(['考虑', wordTextSummary(texts['1589350'])]);
+        // Kanji and grammar have no Chinese page yet: Chinese's index finds words only.
+        expect(core.k).toEqual([]);
+        expect(core.g).toEqual([]);
+        expect(full.w[0]).toEqual([]);
+        // A word without a Chinese page is never in it.
+        const fewer = await pagesOf(memorySource({ ...world, chinese: ['1589350'] }).source, 'zh-hans').searchIndex();
+        expect(fewer.core.w[0]).toEqual(['1589350']);
     });
 
     it('has its home and vocabulary lists, of its words with text only', async () => {

@@ -135,6 +135,12 @@ export interface Messages {
      */
     meaningGroups: { definitions: string; equivalents: string; english: string };
     /** A page that could not be shown: 404, or any other status. */
+    /** The search results page, before its script has found anything (client/search.ts writes the rest). */
+    searchPage: {
+        heading: string;
+        /** Without JavaScript: where to browse instead. */
+        noScript: (links: { vocab: string; kanji: string; grammar: string }) => LinkedText;
+    };
     error: {
         heading: (status: number) => string;
         explanation: (status: number) => string;
