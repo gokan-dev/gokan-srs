@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { GrammarPoint, Kanji, KanjiOrderId, Sentence, Vocabulary } from '@gokan/dataset-schema';
 import { grammarPoint, kanji, sentence, vocabulary, wordText } from '../../test/fixtures';
 import type { DictionaryData, LocaleText, WordText } from '../types';
-import { LOCAL_GLOSS_LENGTH, shortWordTextSummary } from '../senses';
+import { LOCAL_GLOSS_LENGTH, shortWordTextSummary, wordTextSummary } from '../senses';
 import { grammarSummaryOf } from '../grammarBrowse';
 import { vocabSummaryFrom } from '../vocabSummary';
 import { kanjiOrderSlug, localeUrls } from '../urls';
@@ -40,6 +40,10 @@ function chineseText(ids: readonly string[], texts: Readonly<Record<string, Word
         wordSummary: id => {
             const text = textOf(id);
             return Promise.resolve(text === null ? null : shortWordTextSummary(text));
+        },
+        searchGloss: id => {
+            const text = textOf(id);
+            return Promise.resolve(text === null ? null : wordTextSummary(text));
         },
         withPages: other => Promise.resolve(other.filter(id => shown.has(id))),
         wordIds: () => Promise.resolve([...ids]),

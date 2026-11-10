@@ -102,6 +102,6 @@ export function httpData({ datasetUrl, searchIndexUrls, datasetVersion, language
         grammarVariantGroups: variantGroups,
         grammarConjugations: conjugations,
         grammarMinedExamples: id => dataset.optionalFile<GrammarExample[]>(DATASET_PATHS.grammarMinedExamples(id)),
-        localeText: language === 'en' ? null : localeText(language, { index: path => dataset.publishedFile(path), file: path => dataset.publishedFile(path), vocab: id => file<Vocabulary>(DATASET_PATHS.vocab(id)) }),
+        localeText: language === 'en' ? null : localeText(language, { index: path => dataset.publishedFile(path), file: path => dataset.publishedFile(path), glosses: path => dataset.publishedFile(path), vocab: id => file<Vocabulary>(DATASET_PATHS.vocab(id)) }),
     };
 }

@@ -24,4 +24,6 @@ export const DATASET_PATHS = {
     text: (language: string, corePath: string) => `text/${language}/${corePath}`,
     /** A language's text index: the core files with text in it, by group (vocab, sentences, kanji). */
     textEntities: (language: string) => `text/${language}/index/entities.json`,
+    /** A language's search glosses: each word's short gloss in it, by id (text/zh-hans/index/search.json). */
+    textSearchGlosses: (language: string) => `text/${language}/index/search.json`,
 } as const;

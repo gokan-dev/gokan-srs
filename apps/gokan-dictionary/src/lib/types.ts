@@ -155,6 +155,12 @@ export interface LocaleText {
      * the language: one answer per word, kept, for every page that lists it.
      */
     wordSummary(id: string): Promise<string | null>;
+    /**
+     * A word's gloss in the language as the search index carries it, uncut, or null when it has no
+     * page in the language: the dataset's search gloss when it is made of the word's shown text,
+     * else the word's summary (wordTextSummary). Read at build, for the locale's search index.
+     */
+    searchGloss(id: string): Promise<string | null>;
     /** The first word in the text index's order with a page in the language, or null when none has one. */
     firstWordId(): Promise<string | null>;
     /** A word's example sentences' translations in the language, shown ones only, by sentence id. */
