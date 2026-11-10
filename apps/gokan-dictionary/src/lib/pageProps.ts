@@ -33,6 +33,8 @@ export interface VocabPageProps {
   text?: WordText;
   /** On a page in another language: each sentence's translation, by sentence id. */
   translations?: Record<string, SentenceTranslation>;
+  /** On a page in another language: the words it links that have a page in it (the rest link to English's, lib/localeLinks.ts). */
+  wordsInLocale?: string[];
 }
 
 /** VocabIndexPage.svelte */

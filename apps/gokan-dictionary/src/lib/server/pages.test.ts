@@ -28,9 +28,10 @@ function chineseText(ids: readonly string[]): LocaleText {
     return {
         language: 'zh-hans',
         wordText: id => Promise.resolve(shown.has(id)
-            ? { definitions: [], equivalents: [{ id: `eq-${id}`, role: 'equivalent', source: { source: 'jawiktionary' }, match: 'spelling+reading', status: 'corroborated', value: '想' }] }
+            ? { definitions: [], equivalents: [{ text: '想', sources: [{ source: 'jawiktionary', ref: id }] }] }
             : null),
         wordIds: () => Promise.resolve([...ids]),
+        firstWordId: () => Promise.resolve(ids.at(0) ?? null),
         sentenceTranslations: () => Promise.resolve(new Map()),
     };
 }
@@ -186,10 +187,17 @@ describe('pagesOf: a locale other than English', () => {
     it('has a page for a word with Chinese text shown, and none (404) for a word without', async () => {
         const pages = pagesOf(memorySource(world).source, 'zh-hans');
         const page = await pages.vocabPage('1589350');
-        expect(page.props.text?.equivalents.map(equivalent => equivalent.id)).toEqual(['eq-1589350']);
+        expect(page.props.text?.equivalents).toEqual([{ text: '想', sources: [{ source: 'jawiktionary', ref: '1589350' }] }]);
         expect(page.document).toMatchObject({ locale: 'zh-hans', canonicalPath: zhUrls.vocabPath('1589350') });
         await expect(pages.vocabPage('1281390')).rejects.toBeInstanceOf(PageNotFound);
         await expect(pages.vocabPage('9999999')).rejects.toBeInstanceOf(PageNotFound);
+    });
+
+    it('names the words it links that have a page in Chinese: the others link to English\'s', async () => {
+        // 考える's page links 思う (Made of) and, in its sentence, 私 and 思う: only 思う has Chinese text.
+        const chineseWorld: World = { ...world, sentences: { '1281390': [sentence()] }, chinese: ['1589350', '1281390'] };
+        const page = await pagesOf(memorySource(chineseWorld).source, 'zh-hans').vocabPage('1281390');
+        expect(page.props.wordsInLocale).toEqual(['1589350']);
     });
 
     it('has no kanji, grammar or list page yet: each a 404', async () => {

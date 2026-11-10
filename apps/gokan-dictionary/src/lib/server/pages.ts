@@ -149,6 +149,12 @@ export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes:
         return { text, word };
     }
 
+    /** Which of `ids` have a page in the locale, in order: a link to any other goes to English's page. */
+    async function wordsWithPages(localeText: LocaleText, ids: readonly string[]): Promise<string[]> {
+        const texts = await Promise.all(ids.map(other => localeText.wordText(other)));
+        return ids.filter((_, at) => texts[at] !== null);
+    }
+
     async function vocabPage(id: string): Promise<Rendered<VocabPageProps>> {
         const summaryById = await summaries();
         if (!summaryById.has(id)) throw new PageNotFound(`no word ${id}`);
@@ -158,14 +164,21 @@ export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes:
         ]);
         const vocabMeta = meta.vocab(vocab);
         const sentences = orderSentences(allSentences ?? [], id, headwordOf(vocab));
+        const components = resolveSummaries(vocab.components ?? [], summaryById);
+        const parents = resolveSummaries(vocab.parents ?? [], summaryById);
+        const linked = [...new Set([...components, ...parents].map(word => word.id).concat(sentences.flatMap(sentence => Object.keys(sentence.matches ?? {}))))];
         return {
             props: {
                 vocab,
-                components: resolveSummaries(vocab.components ?? [], summaryById),
-                parents: resolveSummaries(vocab.parents ?? [], summaryById),
+                components,
+                parents,
                 sentences,
                 // English's props stay as they were: only a page in another language carries its text.
-                ...(localized && translations ? { text: localized.word, translations: sentenceTranslationsOf(sentences, translations, localized.text.language) } : {}),
+                ...(localized && translations ? {
+                    text: localized.word,
+                    translations: sentenceTranslationsOf(sentences, translations, localized.text.language),
+                    wordsInLocale: await wordsWithPages(localized.text, linked),
+                } : {}),
             },
             document: documentOf(urls.vocabPath(id), vocabMeta, {
                 style: 'vocab',
