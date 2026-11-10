@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_LOCALE, datasetLanguageOf, htmlLang, inEveryLocale, isLocaleSegment, localeOfSegment, localePrefix, SERVED_LOCALES, servedLocalesOf } from './locale';
+import { DEFAULT_LOCALE, datasetLanguageOf, htmlLang, inEveryLocale, isLocaleSegment, localeOfPath, localeOfSegment, localePrefix, SERVED_LOCALES, servedLocalesOf } from './locale';
 import { DICTIONARY_LOCALES } from './site';
 
 // What this run serves is the environment's (CI builds `en zh-hans`, a laptop English alone), so
@@ -40,6 +40,15 @@ describe('locale', () => {
         expect(() => localeOfSegment('en')).toThrow(/not a locale segment/);
         if (servesChinese) expect(localeOfSegment('zh-hans')).toBe('zh-hans');
         else expect(() => localeOfSegment('zh-hans')).toThrow(/not a locale segment/);
+    });
+
+    it('reads a path\'s locale off its first segment after the base path, as a route would', () => {
+        expect(localeOfPath('/dictionary/', '/dictionary')).toBe('en');
+        expect(localeOfPath('/dictionary/vocab/1/', '/dictionary')).toBe('en');
+        expect(localeOfPath('/dictionary/foo/zh-hans/', '/dictionary')).toBe('en');
+        expect(localeOfPath('/dictionary/en/kanji/', '/dictionary')).toBe('en');
+        expect(localeOfPath('/dictionary/zh-hans/kanji/', '/dictionary')).toBe(servesChinese ? 'zh-hans' : 'en');
+        expect(localeOfPath('/zh-hans/nope/', '')).toBe(servesChinese ? 'zh-hans' : 'en');
     });
 
     it('tags <html> with the BCP 47 name, and reads each locale\'s own text', () => {

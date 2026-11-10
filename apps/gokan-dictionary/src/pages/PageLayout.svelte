@@ -10,12 +10,13 @@
 
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import { htmlLang, LOCALE_NAMES } from '../lib/locale';
   import type { Section } from '../lib/types';
   import { pageLocale } from './pageLocale';
   import SiteHeader from './SiteHeader.svelte';
   import SiteFooter from './SiteFooter.svelte';
 
-  const { urls, messages } = pageLocale();
+  const { urls, messages, otherLocales } = pageLocale();
 
   /**
    * The frame every page shares: skip link, site header, the content container with its
@@ -42,6 +43,10 @@
 
 <main id="content" tabindex="-1">
   <div class="container" class:container--wide={wide}>
+    {#if otherLocales.length > 0}
+      <!-- The same page in the other languages it is in: absent where it has no counterpart. -->
+      <nav class="locale-switch" aria-label={messages.chrome.languages}>{#each otherLocales as alternate (alternate.locale)}<a href={alternate.path} hreflang={htmlLang(alternate.locale)} lang={htmlLang(alternate.locale)}>{LOCALE_NAMES[alternate.locale]}</a>{/each}</nav>
+    {/if}
     {#if trail}
       <!-- One line on purpose: no template whitespace between items; .breadcrumb-sep's margin spaces them. -->
       <nav class="breadcrumb" aria-label={messages.chrome.breadcrumb}><a href={urls.homePath()}>{messages.chrome.breadcrumbHome}</a>{#each trail as crumb (crumb.label)}<span class="breadcrumb-sep" aria-hidden="true">/</span>{#if crumb.href}<a href={crumb.href} lang={crumb.jp ? 'ja' : undefined}>{crumb.label}</a>{:else}<span aria-current="page" lang={crumb.jp ? 'ja' : undefined}>{crumb.label}</span>{/if}{/each}</nav>

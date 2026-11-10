@@ -8,13 +8,29 @@ import type {
     JlptIndex, Kanji, KanjiOrderId, KanjiOrderList, KanjiVocabIndex, Sentence, Vocabulary,
 } from '@gokan/dataset-schema';
 import type { Definition, SourceRef, Translation } from '@gokan/dataset-schema/text';
-import type { DatasetLanguage } from './locale';
+import type { DatasetLanguage, ServedLocale } from './locale';
 
 /** The site section a page belongs to, marked current in the header nav. */
 export type Section = 'vocab' | 'kanji' | 'grammar';
 
 /** The grammar browse pages' tabs (pages/GrammarTabs.svelte). */
 export type GrammarTab = 'level' | 'families' | 'curriculum' | 'conjugations';
+
+/**
+ * A page of a type more than one locale serves (#170: a word, the home page, the vocabulary
+ * lists): what names it in every locale, so its counterpart in another is found (lib/server/pages.ts, `servesPage`).
+ */
+export type PageKey =
+    | { type: 'home' }
+    | { type: 'vocabIndex' }
+    | { type: 'vocabJlpt'; level: number; page: number }
+    | { type: 'vocab'; id: string };
+
+/** One locale's version of a page: an hreflang alternate. */
+export interface Alternate {
+    locale: ServedLocale;
+    path: string;
+}
 
 export interface VocabSummary {
     id: string;
@@ -27,6 +43,11 @@ export interface VocabSummary {
     reading?: string;
     /** The first sense's glosses, cut short (shortGloss). */
     gloss?: string;
+    /**
+     * On a page in another language, the word's gloss in it, cut short (LocaleText.wordSummary): its rows show
+     * it in place of English's. Never in the summaries index; added by the page that lists the word.
+     */
+    localGloss?: string;
 }
 
 /**
@@ -129,6 +150,11 @@ export interface LocaleText {
     withPages(ids: readonly string[]): Promise<string[]>;
     /** Every word with a page in the language, in the text index's order: read at build, for the catalog. */
     wordIds(): Promise<string[]>;
+    /**
+     * A word's gloss as a list row shows it (shortWordTextSummary), or null when it has no page in
+     * the language: one answer per word, kept, for every page that lists it.
+     */
+    wordSummary(id: string): Promise<string | null>;
     /** The first word in the text index's order with a page in the language, or null when none has one. */
     firstWordId(): Promise<string | null>;
     /** A word's example sentences' translations in the language, shown ones only, by sentence id. */

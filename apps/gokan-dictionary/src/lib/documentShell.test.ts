@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { englishWithoutLang, escapeHtml, japaneseWithoutLang, langOf, langOnChinesePage, renderDocument, stripHydrationMarkers } from './documentShell';
+import { chineseWithoutLang, englishChromeOn, englishWithoutLang, escapeHtml, japaneseWithoutLang, langOf, langOnChinesePage, linksLeavingSection, renderDocument, stripHydrationMarkers } from './documentShell';
 import { absoluteUrl, localeUrls } from './urls';
 
 describe('escapeHtml', () => {
@@ -21,6 +21,12 @@ describe('renderDocument', () => {
         bodyHtml: '<main>hello</main>',
         stylesheetHref: '/assets/styles-abc123.css',
     };
+
+    it('lists every alternate after the canonical link, and none for a page in one language', () => {
+        const html = renderDocument({ ...base, alternates: [{ hreflang: 'en', path: '/dictionary/' }, { hreflang: 'zh-Hans', path: '/dictionary/zh-hans/' }] });
+        expect(html).toContain('<link rel="alternate" hreflang="en" href="https://gokan-srs.com/dictionary/" />\n<link rel="alternate" hreflang="zh-Hans" href="https://gokan-srs.com/dictionary/zh-hans/" />\n<link rel="icon"');
+        expect(renderDocument(base)).not.toContain('rel="alternate"');
+    });
 
     it('includes an escaped title and description', () => {
         const html = renderDocument({ ...base, title: '<script>alert(1)</script>' });
@@ -177,21 +183,65 @@ describe('langOf', () => {
     });
 });
 
-describe('englishWithoutLang', () => {
-    const chinese = (body: string) => `<html lang="zh-Hans"><body>${body}</body></html>`;
+const chinese = (body: string) => `<html lang="zh-Hans"><body>${body}</body></html>`;
 
-    it("finds the dataset's English read as Chinese, in a sense list or a sentence's translation", () => {
+describe('englishWithoutLang', () => {
+    it("finds English read as Chinese anywhere in the body: the dataset's, or chrome left untranslated", () => {
         expect(englishWithoutLang(chinese('<ol class="sense-list"><li><p class="sense-pos">Noun</p>wise; clever</li></ol>'))).toEqual(['Noun', 'wise; clever']);
         expect(englishWithoutLang(chinese('<p class="sentence-en">I think so.</p>'))).toEqual(['I think so.']);
+        expect(englishWithoutLang(chinese('<h2>Meanings</h2><p class="meta">Also written</p>'))).toEqual(['Meanings', 'Also written']);
     });
 
-    it('accepts English marked lang="en", Chinese or Japanese text, and English chrome outside its scope', () => {
+    it('accepts English marked lang="en", Chinese or Japanese text, and the names that stand in any language', () => {
         expect(englishWithoutLang(chinese('<ol class="sense-list" lang="en"><li>wise</li></ol><p class="sentence-en" lang="en">I think so.</p>'))).toEqual([]);
         expect(englishWithoutLang(chinese('<ol class="sense-list"><li>聪明；CPU</li></ol><p class="sentence-en">我也这么想。</p>'))).toEqual([]);
-        expect(englishWithoutLang(chinese('<h2>Meanings</h2><p class="meta">Also written</p>'))).toEqual([]);
+        expect(englishWithoutLang(chinese('<a class="chip">JLPT N5</a><a href="/">gokan-dataset</a><a href="/">Gokan SRS</a><p>来源：Tatoeba</p>'))).toEqual([]);
     });
 
     it("leaves an English page's body alone", () => {
         expect(englishWithoutLang('<html lang="en"><body><ol class="sense-list"><li>wise</li></ol></body></html>')).toEqual([]);
+    });
+});
+
+describe('englishChromeOn', () => {
+    const english = ['Meanings', 'Search the dictionary', 'Common word'];
+
+    it("finds English's chrome on a page, marked lang=\"en\" or not, in a text run or an accessible name", () => {
+        expect(englishChromeOn(chinese('<h2>Meanings</h2><p lang="en"> Common word </p><label aria-label="Search the dictionary"></label>'), english))
+            .toEqual(['Meanings', 'Common word', 'Search the dictionary']);
+    });
+
+    it("leaves the dataset's English alone, where a gloss may read like a label", () => {
+        expect(englishChromeOn(chinese('<ol class="sense-list" lang="en"><li>Common word</li></ol><ul class="entry-list"><li><a><span lang="en">Meanings</span></a></li></ul>'), english)).toEqual([]);
+    });
+});
+
+describe('chineseWithoutLang', () => {
+    const own = ['又读', '词义', '活用', '想'];
+
+    it("finds the page's own words standing in another language's element", () => {
+        expect(chineseWithoutLang(chinese('<p class="entry-sub" lang="ja">おもう<span class="meta"> · 又读 <span lang="ja">おもふ</span></span></p>'), own)).toEqual(['· 又读']);
+    });
+
+    it("accepts them in the page's language, and the dataset's Japanese however it reads", () => {
+        expect(chineseWithoutLang(chinese('<h2>词义</h2><p lang="ja"><span lang="zh-Hans">又读</span></p>'), own)).toEqual([]);
+        expect(chineseWithoutLang(chinese('<p class="sentence-jp" lang="ja"><a>活用</a>する</p><nav><span lang="ja">活用</span></nav>'), own)).toEqual([]);
+    });
+
+    it('looks only for strings of two characters or more with a Chinese one', () => {
+        expect(chineseWithoutLang(chinese('<p lang="ja"><a>想</a></p>'), own)).toEqual([]);
+    });
+});
+
+describe('linksLeavingSection', () => {
+    const root = '/dictionary/zh-hans/';
+
+    it('finds a link out of the section that does not say where it leads', () => {
+        expect(linksLeavingSection(chinese('<a href="/dictionary/kanji/%E5%AD%A6/">学</a><a href="https://github.com/">x</a>'), root))
+            .toEqual(['<a href="/dictionary/kanji/%E5%AD%A6/">', '<a href="https://github.com/">']);
+    });
+
+    it('accepts a link in the section, one marked with hreflang, and an in-page anchor', () => {
+        expect(linksLeavingSection(chinese('<a href="/dictionary/zh-hans/vocab/1/">x</a><a href="/dictionary/vocab/1/" hreflang="en">English</a><a href="#content">x</a>'), root)).toEqual([]);
     });
 });

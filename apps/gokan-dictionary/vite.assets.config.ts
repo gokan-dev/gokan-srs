@@ -48,6 +48,8 @@ export default defineConfig({
         stylesGrammarChapters: entry('./src/styles/pages/grammar-chapters.scss'),
         stylesGrammarFamily: entry('./src/styles/pages/grammar-family.scss'),
         stylesGrammarConjugations: entry('./src/styles/pages/grammar-conjugations.scss'),
+        // A locale's own rules, linked by its pages only (assets.ts, LOCALE_STYLES).
+        stylesZhHans: entry('./src/styles/locales/zh-hans.scss'),
         search: entry('./src/client/search.ts'),
         grammarFilter: entry('./src/client/grammarFilter.ts'),
       },

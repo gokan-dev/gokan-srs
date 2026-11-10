@@ -10,15 +10,22 @@ import { gzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
 import { listFiles } from '@gokan/deploy/build-files';
+import { serveDictionaryOnRequest } from '../../../scripts/lib/builtSite';
 import { describe, overBudget, percentile, type Measurement } from '../src/lib/budgets';
-import { brokenLinks } from '../src/lib/builtLinks';
+import { alternateProblems, brokenLinks } from '../src/lib/builtLinks';
+import { DATASET_PATHS } from '../src/lib/datasetPaths';
 import { misroutedPaths } from '../src/lib/servedPaths';
-import { BASE_PATH } from '../src/lib/site';
+import { datasetLanguageOf, htmlLang, localePrefix, SERVED_LOCALES } from '../src/lib/locale';
+import { BASE_PATH, SITE_ORIGIN } from '../src/lib/site';
+import { messagesFor } from '../src/lib/messages';
+import type { TextFile } from '@gokan/dataset-schema/text';
 import { prepareIndex, search, TIER } from '../src/lib/searchQuery';
 import type { SearchIndexFile } from '../src/lib/types';
 
 const APP_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST_DIR = path.join(APP_DIR, 'dist');
+/** The dataset checkout the build read (lib/dataset.server.ts resolves the same one; sourceNameProblems fails if it finds no text there). */
+const COMPILED_DIR = path.join(APP_DIR, '..', 'gokan-srs', 'dataset', 'compiled');
 
 /**
  * How the build served the entity pages (vite.config.ts reads the same variable). Prerendered,
@@ -70,10 +77,13 @@ function measure(manifest: Record<string, ViteManifestEntry>): Measurement[] {
 
     measurements.push({ budget: 'grammarIndex', subject: 'grammar/', bytes: sizeOf(pageOf('grammar')) });
 
-    for (const list of subdirectories('vocab').filter(name => name.startsWith('jlpt-'))) {
-        measurements.push({ budget: 'jlptPage', subject: `vocab/${list}/`, bytes: sizeOf(pageOf('vocab', list)) });
-        for (const page of subdirectories(path.join('vocab', list))) {
-            measurements.push({ budget: 'jlptPage', subject: `vocab/${list}/${page}/`, bytes: sizeOf(pageOf('vocab', list, page)) });
+    // Every locale's JLPT lists: English's, and Chinese's when the build serves it.
+    for (const vocab of ['vocab', path.join('zh-hans', 'vocab')].filter(dir => fs.existsSync(path.join(DIST_DIR, dir)))) {
+        for (const list of subdirectories(vocab).filter(name => name.startsWith('jlpt-'))) {
+            measurements.push({ budget: 'jlptPage', subject: `${vocab}/${list}/`, bytes: sizeOf(pageOf(vocab, list)) });
+            for (const page of subdirectories(path.join(vocab, list))) {
+                measurements.push({ budget: 'jlptPage', subject: `${vocab}/${list}/${page}/`, bytes: sizeOf(pageOf(vocab, list, page)) });
+            }
         }
     }
 
@@ -86,6 +96,9 @@ function measure(manifest: Record<string, ViteManifestEntry>): Measurement[] {
     }
 
     measurements.push({ budget: 'sharedStylesheet', subject: manifest['src/styles/app.scss'].file, bytes: sizeOf(manifest['src/styles/app.scss'].file) });
+    for (const [source, { file }] of Object.entries(manifest).filter(([source]) => source.startsWith('src/styles/locales/'))) {
+        measurements.push({ budget: 'localeStylesheet', subject: `${file} (${source})`, bytes: sizeOf(file) });
+    }
     const searchEntry = manifest['src/client/search.ts'];
     measurements.push({ budget: 'searchScript', subject: searchEntry.file, bytes: sizeOf(searchEntry.file) });
     for (const chunk of searchEntry.dynamicImports ?? []) {
@@ -169,22 +182,98 @@ function routingProblems(): string[] {
     return misroutedPaths(files).slice(0, 5).map(file => `${file}: CloudFront would ask the wrong origin for it (a page path has no dot, a file name has one)`);
 }
 
+/** Every built page under `dir` (relative to dist/), as its index.html. */
+function pagesUnder(dir: string): string[] {
+    if (!fs.existsSync(path.join(DIST_DIR, dir))) return [];
+    return listFiles(path.join(DIST_DIR, dir)).filter(file => file.endsWith('index.html')).map(file => path.join(dir, file));
+}
+
+const readBuilt = (file: string): string | null => (fs.existsSync(path.join(DIST_DIR, file)) ? fs.readFileSync(path.join(DIST_DIR, file), 'utf-8') : null);
+
 /**
  * Every internal link on a Chinese page names a built page or file: it links a page in Chinese
  * only where one is served, and English's otherwise (lib/localeLinks.ts). English's pages are all
  * built, so a broken link there would be a missing page, which the other checks catch.
  */
 function linkProblems(): string[] {
-    const exists = (file: string) => fs.existsSync(path.join(DIST_DIR, file));
+    // On request, a word page is the server's, not a file: a list page's link to one is checked
+    // by the server answering it (check:parity --against-server), not here.
+    const servedOnRequest = (file: string) => ENTITY_PAGES === 'on-request' && /^(zh-hans\/)?vocab\/\d+\/index\.html$/.test(file);
+    const exists = (file: string) => servedOnRequest(file) || fs.existsSync(path.join(DIST_DIR, file));
     const problems: string[] = [];
-    for (const id of wordPages('zh-hans')) {
-        const page = path.join('zh-hans', 'vocab', id);
-        for (const href of brokenLinks(fs.readFileSync(path.join(DIST_DIR, pageOf(page)), 'utf-8'), BASE_PATH, exists)) problems.push(`${page}/ links ${href}, which is not built`);
+    for (const page of pagesUnder('zh-hans')) {
+        for (const href of brokenLinks(readBuilt(page) ?? '', BASE_PATH, exists)) problems.push(`${page} links ${href}, which is not built`);
     }
     return problems.slice(0, 5);
 }
 
-const problems = [...over.map(m => `over budget: ${describe(m)}`), ...modeProblems(), ...assetProblems(), ...searchProblems(), ...routingProblems(), ...linkProblems()];
+/**
+ * Every page's hreflang alternates answer each other (lib/builtLinks.ts, alternateProblems): each
+ * Chinese page, and each English page of a type Chinese serves (home, words, vocabulary lists).
+ */
+function alternatesProblems(): string[] {
+    const english = ['index.html', ...pagesUnder('vocab')];
+    return [...pagesUnder('zh-hans'), ...english].flatMap(page => alternateProblems(page, readBuilt, SITE_ORIGIN, BASE_PATH)).slice(0, 5);
+}
+
+/**
+ * Every source a word page in another language may credit (its words' and sentences' text files)
+ * has a name in the locale's catalog: a word page with one it cannot name fails to render, so a
+ * source the dataset adds is named here first, never printed as its id.
+ */
+function sourceNameProblems(): string[] {
+    const problems: string[] = [];
+    for (const locale of SERVED_LOCALES.filter(served => localePrefix(served) !== '')) {
+        const named = messagesFor(locale).sources;
+        const language = datasetLanguageOf(locale);
+        const found = new Set<string>();
+        // The directories the pages read (lib/datasetPaths.ts, through localeText.ts): a missing one
+        // means this check and the pages have drifted apart, so it fails rather than reading nothing.
+        for (const group of [path.dirname(DATASET_PATHS.vocab('_')), path.dirname(DATASET_PATHS.sentences('_'))]) {
+            const dir = path.join(COMPILED_DIR, DATASET_PATHS.text(language, group));
+            if (!fs.existsSync(dir)) {
+                problems.push(`the ${locale} text has no ${group} directory to read its sources from (${dir})`);
+                continue;
+            }
+            for (const file of listFiles(dir).filter(name => name.endsWith('.json'))) {
+                const text = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf-8')) as TextFile;
+                for (const entity of Object.values(text.entities)) for (const rendering of entity?.renderings ?? []) found.add(rendering.source.source);
+            }
+        }
+        if (found.size === 0) problems.push(`the ${locale} text names no source at all (read under ${path.join(COMPILED_DIR, 'text', language)}): the check read nothing`);
+        for (const id of found) if (named[id] === undefined) problems.push(`source "${id}" in the ${locale} text has no name in its catalog (lib/messages, sources)`);
+    }
+    return problems;
+}
+
+/**
+ * A path no route matches answers 404 in the language of its section, from the server (build/,
+ * built in either mode): never a 500 from an error page whose chrome and document disagree on its
+ * locale (routes/+layout.ts and handleError both read it with localeOfPath). Only a server sees
+ * these paths, so the prerendered files cannot show it.
+ */
+async function unmatchedPathProblems(): Promise<string[]> {
+    const locales = SERVED_LOCALES.filter(locale => localePrefix(locale) !== '');
+    if (locales.length === 0) return [];
+    const site = await serveDictionaryOnRequest();
+    try {
+        const problems: string[] = [];
+        for (const locale of locales) {
+            for (const rest of ['/kanji/', '/nope/']) {
+                const pathname = `/dictionary${localePrefix(locale)}${rest}`;
+                const response = await fetch(`http://127.0.0.1:${site.port}${pathname}`);
+                const html = await response.text();
+                if (response.status !== 404) problems.push(`${pathname} answers ${response.status}, not 404`);
+                else if (!html.includes(`<html lang="${htmlLang(locale)}"`)) problems.push(`${pathname}'s 404 is not a page in ${htmlLang(locale)}`);
+            }
+        }
+        return problems;
+    } finally {
+        site.stop();
+    }
+}
+
+const problems = [...over.map(m => `over budget: ${describe(m)}`), ...modeProblems(), ...assetProblems(), ...searchProblems(), ...routingProblems(), ...linkProblems(), ...alternatesProblems(), ...sourceNameProblems(), ...(await unmatchedPathProblems())];
 
 // A budget over many pages reports its heaviest.
 const MANY_PAGES: Partial<Record<Measurement['budget'], string>> = { jlptPage: 'JLPT list pages', kanjiOrderPage: 'kanji order pages' };

@@ -3,7 +3,7 @@
   import type { Section } from '../lib/types';
   import SearchBox from './SearchBox.svelte';
 
-  const { urls, messages } = pageLocale();
+  const { urls, messages, linkLang } = pageLocale();
 
   interface Props {
     section?: Section;
@@ -30,7 +30,7 @@
     <a class="site-title" href={urls.homePath()}><span lang="ja">語感</span> <span class="site-title-word">{messages.chrome.siteTitleWord}</span></a>
     <nav class="site-nav" aria-label={messages.chrome.mainNav}>
       {#each LINKS as link (link.section)}
-        <a href={link.href} aria-current={link.section === section ? 'page' : undefined}>{link.label}</a>
+        <a href={link.href} hreflang={linkLang(link.href)} aria-current={link.section === section ? 'page' : undefined}>{link.label}{#if linkLang(link.href)}<span class="lang-mark">{messages.chrome.inEnglish}</span>{/if}</a>
       {/each}
     </nav>
     {#if search}<SearchBox />{/if}

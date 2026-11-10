@@ -10,6 +10,7 @@ import {
     type Definition, type DefinitionSense, type EntityText, type Equivalent, type TextEntitiesIndex, type TextFile, type Translation,
 } from '@gokan/dataset-schema/text';
 import { DATASET_PATHS } from '../datasetPaths';
+import { shortWordTextSummary } from '../senses';
 import type { DatasetLanguage } from '../locale';
 import type { LocaleText, SentenceTranslation, WordEquivalent, WordText } from '../types';
 import { kept, keptBy } from './kept';
@@ -102,11 +103,17 @@ export function localeText(language: Exclude<DatasetLanguage, 'en'>, reads: Text
 
     const wordIds = kept(async () => withPages((await index()).vocabOrder));
 
+    const wordSummary = keptBy(async (id: string): Promise<string | null> => {
+        const text = await wordText(id);
+        return text === null ? null : shortWordTextSummary(text);
+    });
+
     return {
         language,
         wordText,
         withPages,
         wordIds,
+        wordSummary,
         firstWordId: async () => {
             for (const id of (await index()).vocabOrder) if (await wordText(id)) return id;
             return null;

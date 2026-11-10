@@ -20,7 +20,7 @@ import { searchGrammarRow, searchKanjiRow, searchWordRow, splitSearchIndex } fro
 import { datasetLanguageOf, DEFAULT_LOCALE, type ServedLocale } from '../locale';
 import { messagesFor, type PageMeta } from '../messages';
 import { orderSentences } from '../sentenceOrder';
-import type { DictionaryData, EntityData, GrammarSummary, LocaleText, SearchIndexFile, SearchWordRow, VocabSummary, WordText } from '../types';
+import type { Alternate, DictionaryData, EntityData, GrammarSummary, LocaleText, PageKey, SearchIndexFile, SearchWordRow, VocabSummary, WordText } from '../types';
 import { kanjiOrderSlug, kanjiRangeSlug, localeUrls } from '../urls';
 import type { PageScript, PageStyle } from './assets';
 import { kept } from './kept';
@@ -43,6 +43,13 @@ const FEATURED_WORDS = 12;
 export interface PageDocument {
     /** The page's language: <html lang>. */
     locale: ServedLocale;
+    /** Which page this is, for a page type more than one locale serves: its counterparts are found by it. */
+    key?: PageKey;
+    /**
+     * The page in every served locale that has it, this one included (route.ts adds them from
+     * `key`): the hreflang alternates and the language switcher. None when no other locale has it.
+     */
+    alternates?: Alternate[];
     title: string;
     description: string;
     /** Site-relative, with the base path: the canonical link and og:url. */
@@ -51,6 +58,20 @@ export interface PageDocument {
     script?: PageScript;
     structuredData?: object;
     noindex?: boolean;
+}
+
+// A page's key and its alternates are lib/types.ts's: the language switcher (pages/) reads them too.
+export type { Alternate, PageKey } from '../types';
+
+/** A page's path in `locale`. */
+export function pathOf(key: PageKey, locale: ServedLocale): string {
+    const urls = localeUrls(locale);
+    switch (key.type) {
+        case 'home': return urls.homePath();
+        case 'vocabIndex': return urls.vocabIndexPath();
+        case 'vocabJlpt': return urls.vocabJlptPath(key.level, key.page);
+        case 'vocab': return urls.vocabPath(key.id);
+    }
 }
 
 /** What a page builder returns: its page component's props, and the document around them. */
@@ -73,7 +94,7 @@ function writtenIn(locale: ServedLocale) {
     return {
         urls: localeUrls(locale),
         meta: messagesFor(locale).meta,
-        documentOf: (canonicalPath: string, meta: PageMeta, options: Pick<PageDocument, 'style' | 'script' | 'structuredData' | 'noindex'> = {}): PageDocument => (
+        documentOf: (canonicalPath: string, meta: PageMeta, options: Pick<PageDocument, 'key' | 'style' | 'script' | 'structuredData' | 'noindex'> = {}): PageDocument => (
             { locale, title: meta.title, description: meta.description, canonicalPath, ...options }
         ),
     };
@@ -95,9 +116,22 @@ function localeTextOf(source: EntityData, locale: ServedLocale): LocaleText | nu
 }
 
 /**
- * Which pages a locale has: English every page; another locale its word pages only, so far (#170:
- * kanji, grammar and list pages are not in its first sprint, and a URL for one answers 404). Wraps a
- * page builder so it is a PageNotFound outside English.
+ * A page's word rows in its language: each with its gloss in it (localGloss, the locale's one
+ * summary of the word), for a page in another language, whose rows list only words with text in
+ * it; English's rows as they are.
+ */
+async function inLanguageOf(words: VocabSummary[], text: LocaleText | null): Promise<VocabSummary[]> {
+    if (text === null) return words;
+    return Promise.all(words.map(async word => {
+        const localGloss = await text.wordSummary(word.id);
+        return localGloss ? { ...word, localGloss } : word;
+    }));
+}
+
+/**
+ * Which pages a locale has: English every page; another locale its word pages, its home and its
+ * vocabulary lists, so far (#170: kanji, grammar and kanji order pages are not in its sprint, and a
+ * URL for one answers 404). Wraps a page builder so it is a PageNotFound outside English.
  */
 function pagesInEnglishOnly(locale: ServedLocale) {
     return <Args extends unknown[], Page>(build: (...args: Args) => Page | Promise<Page>) => async (...args: Args): Promise<Page> => {
@@ -149,6 +183,12 @@ export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes:
         return { text, word };
     }
 
+    /** Whether the locale has a page for a word: every word in English, one with text shown in it in another. */
+    async function servesWord(id: string): Promise<boolean> {
+        if (!(await summaries()).has(id)) return false;
+        return text === null || (await text.wordText(id)) !== null;
+    }
+
     async function vocabPage(id: string): Promise<Rendered<VocabPageProps>> {
         const summaryById = await summaries();
         if (!summaryById.has(id)) throw new PageNotFound(`no word ${id}`);
@@ -156,30 +196,33 @@ export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes:
         const [vocab, allSentences, translations, byCharacter] = await Promise.all([
             source.vocab(id), source.sentencesFor(id), localized?.text.sentenceTranslations(id), localized ? kanjiByCharacter() : null,
         ]);
-        const vocabMeta = meta.vocab(vocab);
+        const vocabMeta = meta.vocab(vocab, localized?.word);
         const sentences = orderSentences(allSentences ?? [], id, headwordOf(vocab));
         const components = resolveSummaries(vocab.components ?? [], summaryById);
         const parents = resolveSummaries(vocab.parents ?? [], summaryById);
         const sentenceWords = [...new Set(sentences.flatMap(sentence => Object.keys(sentence.matches ?? {})))];
-        const linked = [...new Set([...components, ...parents].map(word => word.id).concat(sentenceWords.filter(other => summaryById.has(other))))];
+        // A page in another language links only the words with a page in it (lib/localeLinks.ts):
+        // its lists leave the others out, its sentences show them unlinked.
+        const inLocale = localized ? new Set(await localized.text.withPages([...new Set([...components, ...parents].map(word => word.id).concat(sentenceWords.filter(other => summaryById.has(other))))])) : null;
+        const linkable = (words: VocabSummary[]) => (inLocale ? words.filter(word => inLocale.has(word.id)) : words);
         return {
             props: {
                 vocab,
-                components,
-                parents,
+                components: await inLanguageOf(linkable(components), text),
+                parents: await inLanguageOf(linkable(parents), text),
                 sentences,
                 // English's props stay as they were: only a page in another language carries its text.
-                ...(localized && translations ? {
+                ...(localized && translations && inLocale ? {
                     text: localized.word,
                     translations: sentenceTranslationsOf(sentences, translations, localized.text.language),
-                    wordsInLocale: await localized.text.withPages(linked),
                     withoutPage: {
-                        words: sentenceWords.filter(other => !summaryById.has(other)),
+                        words: sentenceWords.filter(other => !inLocale.has(other)),
                         kanji: vocab.writtenForm.containedKanji.filter(character => !byCharacter?.has(character)),
                     },
                 } : {}),
             },
             document: documentOf(urls.vocabPath(id), vocabMeta, {
+                key: { type: 'vocab', id },
                 style: 'vocab',
                 structuredData: { '@context': 'https://schema.org', '@type': 'DefinedTerm', name: headwordOf(vocab), description: vocabMeta.description },
             }),
@@ -238,7 +281,7 @@ export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes:
         };
     }
 
-    return { vocabPage, kanjiPage: englishOnly(kanjiPage), grammarPage: englishOnly(grammarPage) };
+    return { vocabPage, servesWord, kanjiPage: englishOnly(kanjiPage), grammarPage: englishOnly(grammarPage) };
 }
 
 /** Every page the site has in one locale, over one source of the whole dataset (read in its language). */
@@ -253,6 +296,7 @@ export function pagesOf(source: DictionaryData, locale: ServedLocale) {
 
     const indexes = entityIndexesOf(source);
     const { summaries, kanjiList, kanjiOrderLists, grammarIndexes } = indexes;
+    const entityPages = entityPagesOf(source, locale, indexes);
     const vocabIds = kept(async () => source.vocabIds());
     const knownVocabIds = kept(async (): Promise<ReadonlySet<string>> => new Set(await vocabIds()));
     const frequencyIndex = kept(async () => source.frequencyIndex());
@@ -270,13 +314,17 @@ export function pagesOf(source: DictionaryData, locale: ServedLocale) {
     const familyPages = kept(async () => buildFamilyPages([...(await grammarPoints()).values()], await contrasts()));
     const chapterRows = kept(async () => buildChapterIndexRows((await grammarIndexes()).teachingOrder, await grammarPoints()));
 
-    /** Each JLPT level's words, frequency-ordered; a level with none is left out. */
+    /** Every word with a page in the locale, in its order: every word in English, those with text shown in another. */
+    const localeWordIds = kept(async () => (text === null ? vocabIds() : text.wordIds()));
+    const inLocale = kept(async (): Promise<ReadonlySet<string> | null> => (text === null ? null : new Set(await localeWordIds())));
+
+    /** Each JLPT level's words with a page in the locale, frequency-ordered; a level with none is left out. */
     const jlptLevelWords = kept(async () => {
-        const [index, summaryById] = await Promise.all([source.vocabJlptIndex(), summaries()]);
+        const [index, summaryById, served] = await Promise.all([source.vocabJlptIndex(), summaries(), inLocale()]);
         return JLPT_LEVELS.map(level => ({
             level,
             // The index carries only {id, containedKanji}; an id with no summary is dropped rather than rendered blank.
-            words: resolveSummaries((index[level] ?? []).map(entry => entry.id), summaryById),
+            words: resolveSummaries((index[level] ?? []).map(entry => entry.id).filter(id => served === null || served.has(id)), summaryById),
         })).filter(group => group.words.length > 0);
     });
 
@@ -286,10 +334,10 @@ export function pagesOf(source: DictionaryData, locale: ServedLocale) {
         return new Map((await kanjiOrderLists()).map(({ order, list }) => [order.id, { order, list, ranges: kanjiRanges(list, kanjiStepIndex(frequency, list)) }]));
     });
 
-    /** Every example sentence across every word, for the home page's count. */
+    /** Every example sentence across the locale's words, for the home page's count. */
     const sentenceCount = kept(async () => {
         let count = 0;
-        for (const id of await vocabIds()) count += (await source.sentencesFor(id))?.length ?? 0;
+        for (const id of await localeWordIds()) count += (await source.sentencesFor(id))?.length ?? 0;
         return count;
     });
 
@@ -432,22 +480,22 @@ export function pagesOf(source: DictionaryData, locale: ServedLocale) {
         return {
             props: {
                 level,
-                words: pageWords,
+                words: await inLanguageOf(pageWords, text),
                 total: words.length,
                 page,
                 pageCount: pages.length,
                 firstRank: (page - 1) * JLPT_PAGE_SIZE + 1,
                 allLevels: levels.map(group => group.level),
             },
-            document: documentOf(urls.vocabJlptPath(level, page), meta.vocabJlpt(level, words.length, page)),
+            document: documentOf(urls.vocabJlptPath(level, page), meta.vocabJlpt(level, words.length, page), { key: { type: 'vocabJlpt', level, page } }),
         };
     }
 
     async function vocabIndexPage(): Promise<Rendered<VocabIndexPageProps>> {
-        const totalCount = (await vocabIds()).length;
+        const totalCount = (await localeWordIds()).length;
         return {
             props: { levels: (await jlptLevelWords()).map(({ level, words }) => ({ level, count: words.length })), totalCount },
-            document: documentOf(urls.vocabIndexPath(), meta.vocabIndex(totalCount)),
+            document: documentOf(urls.vocabIndexPath(), meta.vocabIndex(totalCount), { key: { type: 'vocabIndex' } }),
         };
     }
 
@@ -460,15 +508,15 @@ export function pagesOf(source: DictionaryData, locale: ServedLocale) {
         const levels = await jlptLevelWords();
         return {
             props: {
-                vocabCount: (await vocabIds()).length,
+                vocabCount: (await localeWordIds()).length,
                 kanjiCount: (await kanjiList()).length,
                 grammarCount: (await grammarPoints()).size,
                 sentenceCount: await sentenceCount(),
                 // The most frequent N5 words: the index is frequency-ordered, so the head of the
                 // easiest level is the closest thing the dataset has to "words a visitor will know".
-                featured: (levels.find(group => group.level === 5)?.words ?? []).slice(0, FEATURED_WORDS),
+                featured: await inLanguageOf((levels.find(group => group.level === 5)?.words ?? []).slice(0, FEATURED_WORDS), text),
             },
-            document: documentOf(urls.homePath(), meta.home(), { style: 'home' }),
+            document: documentOf(urls.homePath(), meta.home(), { key: { type: 'home' }, style: 'home' }),
         };
     }
 
@@ -486,6 +534,8 @@ export function pagesOf(source: DictionaryData, locale: ServedLocale) {
 
     /** Every value of each route's parameters: the prerender entries. */
     const everyPageEntries = {
+        home: () => Promise.resolve([{}]),
+        vocabIndex: () => Promise.resolve([{}]),
         vocab: async () => (await vocabIds()).map(id => ({ id })),
         kanji: async () => (await kanjiList()).map(kanji => ({ character: kanji.character })),
         grammar: async () => [...(await grammarPoints()).keys()].map(id => ({ id })),
@@ -496,13 +546,35 @@ export function pagesOf(source: DictionaryData, locale: ServedLocale) {
         vocabJlpt: async () => (await jlptLevelWords()).map(({ level }) => ({ level: String(level) })),
         vocabJlptPage: async () => (await jlptLevelWords()).flatMap(({ level, words }) => paginate(words, JLPT_PAGE_SIZE).slice(1).map((_, index) => ({ level: String(level), page: String(index + 2) }))),
     };
-    /** Another locale's: its words with text shown in its language (LocaleText.wordIds), and nothing else yet. */
-    const wordsWithText = kept(async () => (text === null ? [] : text.wordIds()));
+    /**
+     * Another locale's: its home, its words with text shown in its language (LocaleText.wordIds) and
+     * the vocabulary lists of those words; no kanji or grammar page yet.
+     */
     const none = () => Promise.resolve([]);
     const pageEntries: typeof everyPageEntries = text === null ? everyPageEntries : {
-        vocab: async () => (await wordsWithText()).map(id => ({ id })),
-        kanji: none, grammar: none, grammarFamily: none, grammarChapter: none, kanjiOrder: none, kanjiRange: none, vocabJlpt: none, vocabJlptPage: none,
+        ...everyPageEntries,
+        vocab: async () => (await localeWordIds()).map(id => ({ id })),
+        kanji: none, grammar: none, grammarFamily: none, grammarChapter: none, kanjiOrder: none, kanjiRange: none,
     };
+
+    /** The JLPT list pages the locale has, by level: its words split in pages. */
+    const jlptPageCount = async (level: number) => {
+        const words = (await jlptLevelWords()).find(group => group.level === level)?.words;
+        return words ? paginate(words, JLPT_PAGE_SIZE).length : 0;
+    };
+
+    /** Whether the locale has a page: its counterpart of a page in another locale (dictionary.ts, alternatesOf). */
+    async function servesPage(key: PageKey): Promise<boolean> {
+        switch (key.type) {
+            case 'home':
+            case 'vocabIndex':
+                return true;
+            case 'vocabJlpt':
+                return key.page >= 1 && key.page <= (await jlptPageCount(key.level));
+            case 'vocab':
+                return entityPages.servesWord(key.id);
+        }
+    }
 
     /**
      * Every indexed page's path, for the sitemap: the home page first, then each page type in the
@@ -510,7 +582,15 @@ export function pagesOf(source: DictionaryData, locale: ServedLocale) {
      * a framework change. The search page is noindex, so absent.
      */
     async function sitemapPaths(): Promise<string[]> {
-        if (text !== null) return (await wordsWithText()).map(id => urls.vocabPath(id));
+        if (text !== null) {
+            const [ids, levels] = await Promise.all([localeWordIds(), jlptLevelWords()]);
+            return [
+                urls.homePath(),
+                ...ids.map(id => urls.vocabPath(id)),
+                ...levels.flatMap(({ level, words }) => paginate(words, JLPT_PAGE_SIZE).map((_, index) => urls.vocabJlptPath(level, index + 1))),
+                urls.vocabIndexPath(),
+            ];
+        }
         const [ids, list, points, families, chapters, orders, levels] = await Promise.all([
             vocabIds(), kanjiList(), grammarPoints(), familyPages(), chapterRows(), orderRanges(), jlptLevelWords(),
         ]);
@@ -534,7 +614,8 @@ export function pagesOf(source: DictionaryData, locale: ServedLocale) {
     }
 
     return {
-        ...entityPagesOf(source, locale, indexes),
+        ...entityPages,
+        servesPage,
         grammarIndexPage: englishOnly(grammarIndexPage),
         grammarFamiliesIndexPage: englishOnly(grammarFamiliesIndexPage),
         grammarFamilyPage: englishOnly(grammarFamilyPage),
@@ -545,10 +626,10 @@ export function pagesOf(source: DictionaryData, locale: ServedLocale) {
         kanjiOrdersPage: englishOnly(kanjiOrdersPage),
         kanjiOrderPage: englishOnly(kanjiOrderPage),
         kanjiRangePage: englishOnly(kanjiRangePage),
-        vocabJlptPage: englishOnly(vocabJlptPage),
-        vocabIndexPage: englishOnly(vocabIndexPage),
+        vocabJlptPage,
+        vocabIndexPage,
         searchPage: englishOnly(searchPage),
-        homePage: englishOnly(homePage),
+        homePage,
         searchIndex,
         pageEntries,
         sitemapPaths,
