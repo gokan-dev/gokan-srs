@@ -149,12 +149,6 @@ export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes:
         return { text, word };
     }
 
-    /** Which of `ids` have a page in the locale, in order: a link to any other goes to English's page. */
-    async function wordsWithPages(localeText: LocaleText, ids: readonly string[]): Promise<string[]> {
-        const texts = await Promise.all(ids.map(other => localeText.wordText(other)));
-        return ids.filter((_, at) => texts[at] !== null);
-    }
-
     async function vocabPage(id: string): Promise<Rendered<VocabPageProps>> {
         const summaryById = await summaries();
         if (!summaryById.has(id)) throw new PageNotFound(`no word ${id}`);
@@ -178,7 +172,7 @@ export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes:
                 ...(localized && translations ? {
                     text: localized.word,
                     translations: sentenceTranslationsOf(sentences, translations, localized.text.language),
-                    wordsInLocale: await wordsWithPages(localized.text, linked),
+                    wordsInLocale: await localized.text.withPages(linked),
                     withoutPage: {
                         words: sentenceWords.filter(other => !summaryById.has(other)),
                         kanji: vocab.writtenForm.containedKanji.filter(character => !byCharacter?.has(character)),

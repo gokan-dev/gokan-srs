@@ -30,6 +30,7 @@ function chineseText(ids: readonly string[]): LocaleText {
         wordText: id => Promise.resolve(shown.has(id)
             ? { definitions: [], equivalents: [{ text: '想', sources: [{ source: 'jawiktionary', ref: id }] }] }
             : null),
+        withPages: other => Promise.resolve(other.filter(id => shown.has(id))),
         wordIds: () => Promise.resolve([...ids]),
         firstWordId: () => Promise.resolve(ids.at(0) ?? null),
         sentenceTranslations: () => Promise.resolve(new Map()),

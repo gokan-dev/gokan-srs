@@ -125,6 +125,8 @@ export interface LocaleText {
      * none, decided in #170).
      */
     wordText(id: string): Promise<WordText | null>;
+    /** Which of `ids` have a page in the language (wordText not null), in their order. */
+    withPages(ids: readonly string[]): Promise<string[]>;
     /** Every word with a page in the language, in the text index's order: read at build, for the catalog. */
     wordIds(): Promise<string[]>;
     /** The first word in the text index's order with a page in the language, or null when none has one. */

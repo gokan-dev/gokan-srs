@@ -1,11 +1,11 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
-import type { Equivalent, Rendering, TextEntitiesIndex, TextFile, Value } from '@gokan/dataset-schema/text';
+import type { Definition, DefinitionSense, Equivalent, Rendering, TextEntitiesIndex, TextFile, Value } from '@gokan/dataset-schema/text';
 import { sentence } from '../../test/fixtures';
 import { checkoutData } from '../dataset.server';
 import { DATASET_PATHS } from '../datasetPaths';
-import { localeText, sentenceTranslationsOf } from './localeText';
+import { localeText, sentenceTranslationsOf, type WordForms } from './localeText';
 import { pagesOf } from './pages';
 
 const FIXTURES = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '__fixtures__', 'compiled');
@@ -14,8 +14,14 @@ const equivalent = (id: string, status: Rendering['status'], source = 'jawiktion
     { id, role: 'equivalent', source: { source }, match: 'spelling+reading', status, value }
 );
 
-/** A language's text layer in memory: each word's renderings, its index listing every word given. */
-function memoryReads(words: Record<string, Rendering[]>) {
+const definition = (id: string, senses: DefinitionSense[]): Definition => (
+    { id, role: 'definition', source: { source: 'zhwiktionary' }, match: 'spelling+reading', status: 'imported', senses }
+);
+
+const forms = (kanji: string, reading: string): WordForms => ({ writtenForm: { kanji, alternatives: [], containedKanji: [] }, reading: { primary: reading, alternatives: [] } });
+
+/** A language's text layer in memory: each word's renderings, its index listing every word given, and the forms of those in `vocab`. */
+function memoryReads(words: Record<string, Rendering[]>, vocab: Record<string, WordForms> = {}) {
     const files = new Map(Object.entries(words).map(([id, renderings]): [string, TextFile] => [
         DATASET_PATHS.text('zh-hans', DATASET_PATHS.vocab(id)),
         { kind: 'vocab', lang: 'zh-hans', entities: { [id]: { renderings } } },
@@ -25,6 +31,10 @@ function memoryReads(words: Record<string, Rendering[]>) {
         file: vi.fn((filePath: string): Promise<TextFile> => {
             const found = files.get(filePath);
             return found ? Promise.resolve(found) : Promise.reject(new Error(`no ${filePath}`));
+        }),
+        vocab: vi.fn((id: string): Promise<WordForms> => {
+            const found = vocab[id];
+            return found ? Promise.resolve(found) : Promise.reject(new Error(`no vocab ${id}`));
         }),
     };
 }
@@ -52,12 +62,39 @@ describe('localeText', () => {
     });
 
     it('lists an equivalent once when two renderings read the same, with both sources', async () => {
-        const converted = equivalent('c', 'corroborated', 'zhwiktionary', { value: '聪明', derivedFrom: { value: '聰明', lang: 'zh-hant', transform: 'script:hant-to-hans' } });
-        const text = localeText('zh-hans', memoryReads({ word: [equivalent('a', 'corroborated', 'jawiktionary', '聪明'), converted, equivalent('智慧', 'reviewed')] }));
+        const fromTraditional = (id: string, source: string): Equivalent => equivalent(id, 'corroborated', source, { value: '聪明', derivedFrom: { value: '聰明', lang: 'zh-hant', transform: 'script:hant-to-hans' } });
+        // jawiktionary gives 聪明 twice (written so, and converted): it is named once.
+        const text = localeText('zh-hans', memoryReads({
+            word: [equivalent('a', 'corroborated', 'jawiktionary', '聪明'), fromTraditional('b', 'jawiktionary'), fromTraditional('c', 'zhwiktionary'), equivalent('智慧', 'reviewed')],
+        }));
         expect((await text.wordText('word'))?.equivalents).toEqual([
             { text: '聪明', sources: [{ source: 'jawiktionary' }, { source: 'zhwiktionary' }] },
             { text: '智慧', sources: [{ source: 'jawiktionary' }] },
         ]);
+    });
+
+    it('drops a sense written for another spelling of the reading, and a word left with none has no page', async () => {
+        const reads = memoryReads({
+            1157170: [definition('suru', [
+                { glosses: ['做'], appliesToReadings: ['する'] },
+                { glosses: ['存在'] },
+                { glosses: ['印刷'], appliesToSpellings: ['刷る', '摺る'] },
+            ])],
+            other: [definition('soru', [{ glosses: ['剃'], appliesToSpellings: ['剃る'] }])],
+            plain: [definition('plain', [{ glosses: ['想'] }])],
+        }, { 1157170: forms('為る', 'する'), other: forms('為る', 'する') });
+        const text = localeText('zh-hans', reads);
+        expect((await text.wordText('1157170'))?.definitions.flatMap(kept => kept.senses.map(sense => sense.glosses))).toEqual([['做'], ['存在']]);
+        expect(await text.wordText('other')).toBeNull();
+        expect(await text.wordText('plain')).not.toBeNull();
+        // Only a word with a restricted sense has its forms read.
+        expect(reads.vocab.mock.calls.map(([id]) => id).sort()).toEqual(['1157170', 'other']);
+        expect(await text.wordIds()).toEqual(['1157170', 'plain']);
+    });
+
+    it('tells which of some ids have a page, in their order', async () => {
+        const text = localeText('zh-hans', memoryReads({ one: [equivalent('a', 'reviewed')], two: [equivalent('b', 'rejected')], three: [equivalent('c', 'reviewed')] }));
+        expect(await text.withPages(['three', 'unlisted', 'two', 'one'])).toEqual(['three', 'one']);
     });
 
     it('reads a word\'s file once, however often its text is asked (the catalog, then its page)', async () => {

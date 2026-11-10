@@ -128,9 +128,9 @@
       <section class="section">
         <h2>Meanings</h2>
         {#if text}
-          {#if chineseSenses.length > 0}<p class="sense-group-label">{messages.meaningGroups.definitions}</p>{@render localSenseList(chineseSenses)}{/if}
-          {#if text.equivalents.length > 0}<p class="sense-group-label">{messages.meaningGroups.equivalents}</p><p class="sense-equivalents">{#each text.equivalents as equivalent, index (index)}{index > 0 ? '、' : ''}<span lang={langOnChinesePage(equivalent.text)}>{equivalent.text}</span>{/each}</p>{/if}
-          {#if meanings.visible.length > 0}<p class="sense-group-label">{messages.meaningGroups.english}</p>{/if}
+          {#if chineseSenses.length > 0}<h3 class="sense-group-label">{messages.meaningGroups.definitions}</h3>{@render localSenseList(chineseSenses)}{/if}
+          {#if text.equivalents.length > 0}<h3 class="sense-group-label">{messages.meaningGroups.equivalents}</h3><p class="sense-equivalents">{#each text.equivalents as equivalent, index (index)}{index > 0 ? '、' : ''}<span lang={langOnChinesePage(equivalent.text)}>{equivalent.text}</span>{/each}</p>{/if}
+          {#if meanings.visible.length > 0}<h3 class="sense-group-label">{messages.meaningGroups.english}</h3>{/if}
         {/if}{#if meanings.visible.length > 0}{@render senseList(meanings.visible)}{/if}
         {#if meanings.more.length > 0}
           <details class="disclosure" lang={englishLang}>

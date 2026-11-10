@@ -130,6 +130,6 @@ export function checkoutData(compiledDir: string, language: DatasetLanguage): Di
         // One file per eligible point: most points (~350/828) have none, the common, permanent
         // case, not an error.
         grammarMinedExamples: id => later(() => (exists(DATASET_PATHS.grammarMinedExamples(id)) ? read<GrammarExample[]>(DATASET_PATHS.grammarMinedExamples(id)) : null)),
-        localeText: language === 'en' ? null : localeText(language, { index: published, file: published }),
+        localeText: language === 'en' ? null : localeText(language, { index: published, file: published, vocab: id => later(() => vocab(id)) }),
     };
 }

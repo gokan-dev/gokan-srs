@@ -47,7 +47,9 @@
 }
 
 // On a page in another language, each group of Meanings (its definitions, its equivalents,
-// English's meanings) under a field label: two numbered lists never run together unmarked.
+// English's meanings) under a field label: two numbered lists never run together unmarked. An
+// <h3> under Meanings' <h2> (a screen reader reaches it by heading), drawn as a label: this rule
+// sets every value a heading's defaults would change.
 .sense-group-label {
   margin: $space-3 0 $space-1;
   color: var(--secondary);

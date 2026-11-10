@@ -4,10 +4,10 @@
 // those the dataset's acceptance rule shows (`isShown`) leave here, so no page model can carry a
 // rejected text, or one too unreliable to show alone.
 
-import type { Sentence } from '@gokan/dataset-schema';
+import type { Sentence, Vocabulary } from '@gokan/dataset-schema';
 import {
     definitionsOf, equivalentsOf, isShown, translationRenderingsOf, valueText,
-    type EntityText, type Equivalent, type TextEntitiesIndex, type TextFile, type Translation,
+    type Definition, type DefinitionSense, type EntityText, type Equivalent, type TextEntitiesIndex, type TextFile, type Translation,
 } from '@gokan/dataset-schema/text';
 import { DATASET_PATHS } from '../datasetPaths';
 import type { DatasetLanguage } from '../locale';
@@ -20,6 +20,36 @@ export interface TextReads {
     index(path: string): Promise<TextEntitiesIndex>;
     /** One of its text files. */
     file(path: string): Promise<TextFile>;
+    /** A word's core file (its spellings and readings), read only for a word with a sense restricted to some of its forms. */
+    vocab(id: string): Promise<WordForms>;
+}
+
+/** What of a word says which spellings and readings are its own. */
+export type WordForms = Pick<Vocabulary, 'writtenForm' | 'reading' | 'mergedVocabs'>;
+
+/** Every spelling and reading of a word: its kanji forms, its readings, its merged homographs' readings. */
+function formsOf(vocab: WordForms): Set<string> {
+    return new Set([
+        vocab.writtenForm.kanji, ...vocab.writtenForm.alternatives, vocab.reading.primary, ...vocab.reading.alternatives,
+        ...(vocab.mergedVocabs ?? []).map(merged => merged.originalPrimaryReading),
+    ].filter(form => form !== ''));
+}
+
+/** A sense that names the spellings or readings it applies to, any list of them (Chinese Wiktionary's homophone senses). */
+const isRestricted = (sense: DefinitionSense): boolean =>
+    (sense.appliesToSpellings?.length ?? 0) > 0 || (sense.appliesToReadings?.length ?? 0) > 0;
+
+/**
+ * A word's definitions without the senses written for another word. Chinese Wiktionary's する page
+ * also defines its homophones (刷る、摺る: 印刷), each sense naming the spellings it is for: one
+ * whose list (of spellings, or of readings) names none of this word's forms is not a meaning of
+ * this word, and a definition left without senses is dropped.
+ */
+export function ownSenses(definitions: readonly Definition[], forms: ReadonlySet<string>): Definition[] {
+    const names = (list: readonly string[] | undefined) => list === undefined || list.length === 0 || list.some(form => forms.has(form));
+    return definitions
+        .map(definition => ({ ...definition, senses: definition.senses.filter(sense => names(sense.appliesToSpellings) && names(sense.appliesToReadings)) }))
+        .filter(definition => definition.senses.length > 0);
 }
 
 /** An entity's text with only the renderings `isShown` accepts, in the shape the accessors read. */
@@ -37,8 +67,8 @@ export function distinctEquivalents(equivalents: readonly Equivalent[]): WordEqu
     for (const equivalent of equivalents) {
         const text = valueText(equivalent.value);
         const found = byText.get(text);
-        if (found) found.sources.push(equivalent.source);
-        else byText.set(text, { text, sources: [equivalent.source] });
+        if (!found) byText.set(text, { text, sources: [equivalent.source] });
+        else if (!found.sources.some(known => known.source === equivalent.source.source && known.ref === equivalent.source.ref)) found.sources.push(equivalent.source);
     }
     return [...byText.values()];
 }
@@ -55,19 +85,27 @@ export function localeText(language: Exclude<DatasetLanguage, 'en'>, reads: Text
         // A word the index does not list has no text in the language: no request for its file.
         if (!(await index()).vocab.has(id)) return null;
         const text = shown(language, (await textFile(DATASET_PATHS.vocab(id))).entities[id]);
-        const word = { definitions: definitionsOf(text, language), equivalents: distinctEquivalents(equivalentsOf(text, language)) };
+        const definitions = definitionsOf(text, language);
+        // Before the test below, so a word whose only senses are another word's has no page.
+        const restricted = definitions.some(definition => definition.senses.some(isRestricted));
+        const word = {
+            definitions: restricted ? ownSenses(definitions, formsOf(await reads.vocab(id))) : definitions,
+            equivalents: distinctEquivalents(equivalentsOf(text, language)),
+        };
         return word.definitions.length > 0 || word.equivalents.length > 0 ? word : null;
     });
 
-    const wordIds = kept(async () => {
-        const { vocabOrder } = await index();
-        const texts = await Promise.all(vocabOrder.map(wordText));
-        return vocabOrder.filter((_, at) => texts[at] !== null);
-    });
+    const withPages = async (ids: readonly string[]): Promise<string[]> => {
+        const texts = await Promise.all(ids.map(wordText));
+        return ids.filter((_, at) => texts[at] !== null);
+    };
+
+    const wordIds = kept(async () => withPages((await index()).vocabOrder));
 
     return {
         language,
         wordText,
+        withPages,
         wordIds,
         firstWordId: async () => {
             for (const id of (await index()).vocabOrder) if (await wordText(id)) return id;
