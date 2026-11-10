@@ -40,6 +40,7 @@ export default defineConfig({
         styles: entry('./src/styles/app.scss'),
         stylesHome: entry('./src/styles/pages/home.scss'),
         stylesVocab: entry('./src/styles/pages/vocab.scss'),
+        stylesVocabLocale: entry('./src/styles/pages/vocab-locale.scss'),
         stylesKanji: entry('./src/styles/pages/kanji.scss'),
         stylesKanjiIndex: entry('./src/styles/pages/kanji-index.scss'),
         stylesKanjiOrders: entry('./src/styles/pages/kanji-orders.scss'),
