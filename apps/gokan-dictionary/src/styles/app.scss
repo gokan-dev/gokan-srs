@@ -188,10 +188,11 @@ main {
   }
 }
 
-// The same page in another language, above the breadcrumb, at its end: small and neutral, as the
-// breadcrumb's links (DESIGN_SYSTEM.md section 8); its link a full tap target. On hover it takes
-// `a:hover`'s underline (its colour loses to this rule), on focus the global `:focus-visible`
-// outline: a rule of its own would put the shared stylesheet over its budget.
+// The same page in another language, above the breadcrumb, at its end: small and neutral,
+// underlined only on hover (DESIGN_SYSTEM.md section 8); its link a full tap target. On hover it
+// takes `a:hover`'s underline but keeps its colour, since this rule comes after `a:hover` at the
+// same specificity; on focus, the global `:focus-visible` outline. A rule of its own would put the
+// shared stylesheet over its budget.
 .locale-switch {
   text-align: end;
   font-size: $text-sm;

@@ -516,7 +516,8 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
 - **Language switcher**: on a page that has a counterpart in the other language (a word with no
   Chinese page has none), one small line above the breadcrumb at its end: the other page,
   named in its own language (English, 简体中文), a 44px tap target. Neutral text link, no flag:
-  `secondary` at the breadcrumb's size, underlined on hover, as the breadcrumb's links.
+  `secondary` at the breadcrumb's size, underlined only on hover (a Chinese breadcrumb's links
+  are underlined at rest; the switcher, on a line of its own, is not).
 - **Links to English from a Chinese page** (a kanji, a grammar point, the dataset, the app):
   marked for a reader as well as by `hreflang="en"`. In the header, a small tertiary 英文 beside
   the section's name (12px); in a tile or a sentence, in the catalog's words (英文页面,
