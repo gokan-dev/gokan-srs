@@ -145,3 +145,41 @@ describe('search', () => {
         expect(search(INDEX, '   ')).toEqual({ query: '', kana: null, words: [], kanji: [], grammar: [] });
     });
 });
+
+describe('search in an index of Chinese glosses', () => {
+    /** A row of the Chinese index: English's, its gloss the word's Chinese one. */
+    const chinese = (spec: WordSpec, gloss: string): SearchWordRow => {
+        const [id, headword, secondary, , jlpt, flags] = row(spec);
+        return [id, headword, secondary, gloss, jlpt, flags];
+    };
+    const ROWS = [
+        chinese({ id: 'taberu', kanji: '食べる', reading: 'たべる', glosses: ['to eat'], pos: ['v1', 'vt'], jlpt: 5, common: true }, '吃，食'),
+        chinese({ id: 'shokuji', kanji: '食事', reading: 'しょくじ', glosses: ['meal'], jlpt: 4, common: true }, '吃饭；饭食'),
+        chinese({ id: 'benkyou', kanji: '勉強', reading: 'べんきょう', glosses: ['study'], jlpt: 5, common: true }, '(在学校)学习、用功。'),
+        chinese({ id: 'gakusei', kanji: '学生', reading: 'がくせい', glosses: ['student'], jlpt: 5, common: true }, '学生'),
+    ];
+    const CHINESE = prepareIndex([{ w: toColumns(ROWS) }], 'zh-hans');
+    const chineseIds = (query: string) => search(CHINESE, query).words.map(hit => hit.row[0]);
+
+    it('matches a Chinese query against the Chinese glosses: a whole gloss first, then any part of one', () => {
+        expect(search(CHINESE, '吃').words).toEqual([{ row: ROWS[0], tier: TIER.sense }, { row: ROWS[1], tier: TIER.substring }]);
+        // A gloss's parenthesised note is not part of it; its full-width separators split it.
+        expect(search(CHINESE, '学习').words).toEqual([{ row: ROWS[2], tier: TIER.sense }]);
+        expect(chineseIds('用功')).toEqual(['benkyou']);
+    });
+
+    it('reads Japanese, kana and romaji as in English\'s index', () => {
+        expect(chineseIds('食べる')[0]).toBe('taberu');
+        expect(chineseIds('べんきょう')).toEqual(['benkyou']);
+        expect(search(CHINESE, 'taberu').words[0]).toEqual({ row: ROWS[0], tier: TIER.romaji });
+        expect(chineseIds('食べた')[0]).toBe('taberu');
+        // 学 is a kanji of 学生's headword before it is a part of 勉強's gloss.
+        expect(chineseIds('学')).toEqual(['gakusei', 'benkyou']);
+    });
+
+    it('does not read English against Chinese glosses, nor a kanji query against English ones', () => {
+        expect(chineseIds('eat')).toEqual([]);
+        // 食事's English gloss is "meal": a Han query never reads an English gloss, as before there were two indexes.
+        expect(ids('食')).toEqual(['eating', 'taberu', 'kuu']);
+    });
+});
