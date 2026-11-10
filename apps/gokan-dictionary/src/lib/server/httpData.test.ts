@@ -145,7 +145,7 @@ describe('httpData in Chinese', () => {
         const over = httpData({ datasetUrl, searchIndexUrls: SEARCH, datasetVersion: VERSION, language: 'zh-hans', fetch });
         const read = await chinese(over, ['1589350', '0000000']);
         expect(read).toEqual(await chinese(checkout, ['1589350', '0000000']));
-        expect(read.words[0]?.equivalents.map(equivalent => equivalent.id)).toEqual(['eq-shown']);
+        expect(read.words[0]?.equivalents).toEqual([{ text: '想', sources: [{ source: 'jawiktionary', ref: '思う' }] }]);
         expect(read.words[1]).toBeNull();
         // English reads no text layer: its values already carry their text.
         expect(checkoutData(FIXTURES, 'en').localeText).toBeNull();

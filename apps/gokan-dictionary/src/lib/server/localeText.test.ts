@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
-import type { Rendering, TextEntitiesIndex, TextFile } from '@gokan/dataset-schema/text';
+import type { Equivalent, Rendering, TextEntitiesIndex, TextFile, Value } from '@gokan/dataset-schema/text';
 import { sentence } from '../../test/fixtures';
 import { checkoutData } from '../dataset.server';
 import { DATASET_PATHS } from '../datasetPaths';
@@ -10,8 +10,8 @@ import { pagesOf } from './pages';
 
 const FIXTURES = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '__fixtures__', 'compiled');
 
-const equivalent = (id: string, status: Rendering['status'], source = 'jawiktionary'): Rendering => (
-    { id, role: 'equivalent', source: { source }, match: 'spelling+reading', status, value: id }
+const equivalent = (id: string, status: Rendering['status'], source = 'jawiktionary', value: Value = id): Equivalent => (
+    { id, role: 'equivalent', source: { source }, match: 'spelling+reading', status, value }
 );
 
 /** A language's text layer in memory: each word's renderings, its index listing every word given. */
@@ -35,7 +35,7 @@ describe('localeText', () => {
         if (text === null) throw new Error('a zh-hans checkout reads its text layer');
         const word = await text.wordText('1589350');
         expect(word?.definitions.map(definition => definition.id)).toEqual(['def-shown']);
-        expect(word?.equivalents.map(shown => shown.id)).toEqual(['eq-shown']);
+        expect(word?.equivalents.map(shown => shown.text)).toEqual(['想']);
         expect([...(await text.sentenceTranslations('1589350')).values()].map(translation => translation.id)).toEqual(['tr-shown']);
     });
 
@@ -46,8 +46,27 @@ describe('localeText', () => {
         });
         const text = localeText('zh-hans', reads);
         expect(await text.wordText('hidden')).toBeNull();
-        expect((await text.wordText('shown'))?.equivalents.map(shown => shown.id)).toEqual(['b']);
+        expect((await text.wordText('shown'))?.equivalents.map(shown => shown.text)).toEqual(['b']);
         expect(await text.wordIds()).toEqual(['shown']);
+        expect(await text.firstWordId()).toBe('shown');
+    });
+
+    it('lists an equivalent once when two renderings read the same, with both sources', async () => {
+        const converted = equivalent('c', 'corroborated', 'zhwiktionary', { value: '聪明', derivedFrom: { value: '聰明', lang: 'zh-hant', transform: 'script:hant-to-hans' } });
+        const text = localeText('zh-hans', memoryReads({ word: [equivalent('a', 'corroborated', 'jawiktionary', '聪明'), converted, equivalent('智慧', 'reviewed')] }));
+        expect((await text.wordText('word'))?.equivalents).toEqual([
+            { text: '聪明', sources: [{ source: 'jawiktionary' }, { source: 'zhwiktionary' }] },
+            { text: '智慧', sources: [{ source: 'jawiktionary' }] },
+        ]);
+    });
+
+    it('reads a word\'s file once, however often its text is asked (the catalog, then its page)', async () => {
+        const reads = memoryReads({ one: [equivalent('a', 'reviewed')], two: [equivalent('b', 'rejected')] });
+        const text = localeText('zh-hans', reads);
+        expect(await text.wordIds()).toEqual(['one']);
+        expect(await text.wordText('one')).not.toBeNull();
+        expect(await text.wordText('two')).toBeNull();
+        expect(reads.file).toHaveBeenCalledTimes(2);
     });
 
     it('reads no file for a word or sentence set its index does not list', async () => {

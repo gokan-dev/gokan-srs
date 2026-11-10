@@ -225,11 +225,8 @@ async function chineseWordPages(): Promise<{ path: string; ready: string }[]> {
     if (!SERVED_LOCALES.includes('zh-hans')) return [];
     const text = checkoutData(DATASET_DIR, 'zh-hans').localeText;
     if (text === null) throw new Error('A zh-hans checkout reads no Chinese text.');
-    const index: unknown = JSON.parse(readFileSync(join(DATASET_DIR, 'text', 'zh-hans', 'index', 'entities.json'), 'utf-8'));
-    const listed = typeof index === 'object' && index !== null && 'vocab' in index && Array.isArray(index.vocab) ? index.vocab.filter(id => typeof id === 'string') : [];
-    for (const id of listed) {
-        if (await text.wordText(id)) return [{ path: `/zh-hans/vocab/${id}/`, ready: 'Meanings' }];
-    }
+    const id = await text.firstWordId();
+    if (id !== null) return [{ path: `/zh-hans/vocab/${id}/`, ready: 'Meanings' }];
     throw new Error('The dataset has no word with Chinese text shown, but the build serves zh-hans.');
 }
 

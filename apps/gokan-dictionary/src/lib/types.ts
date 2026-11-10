@@ -7,7 +7,7 @@ import type {
     FrequencyIndex, GrammarConjugationIndex, GrammarContrastIndex, GrammarExample, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex,
     JlptIndex, Kanji, KanjiOrderId, KanjiOrderList, KanjiVocabIndex, Sentence, Vocabulary,
 } from '@gokan/dataset-schema';
-import type { Definition, Equivalent, SourceRef, Translation } from '@gokan/dataset-schema/text';
+import type { Definition, SourceRef, Translation } from '@gokan/dataset-schema/text';
 import type { DatasetLanguage } from './locale';
 
 /** The site section a page belongs to, marked current in the header nav. */
@@ -91,8 +91,17 @@ export interface SearchIndexFile {
 export interface WordText {
     /** Each source's own definition (Chinese Wiktionary's), its senses as that source wrote them. */
     definitions: Definition[];
-    /** The word's equivalents in the language, each from its source. */
-    equivalents: Equivalent[];
+    /** The word's equivalents in the language, each text once, with the sources that give it. */
+    equivalents: WordEquivalent[];
+}
+
+/**
+ * One equivalent of a word, as its page lists it: its text, and every source giving that text (a
+ * rendering written in the language's script and one converted to it can agree, and are one).
+ */
+export interface WordEquivalent {
+    text: string;
+    sources: SourceRef[];
 }
 
 /**
@@ -118,6 +127,8 @@ export interface LocaleText {
     wordText(id: string): Promise<WordText | null>;
     /** Every word with a page in the language, in the text index's order: read at build, for the catalog. */
     wordIds(): Promise<string[]>;
+    /** The first word in the text index's order with a page in the language, or null when none has one. */
+    firstWordId(): Promise<string | null>;
     /** A word's example sentences' translations in the language, shown ones only, by sentence id. */
     sentenceTranslations(vocabId: string): Promise<ReadonlyMap<string, Translation>>;
 }
