@@ -6,11 +6,12 @@ import { isGrammarDue, grammarNextReviewAt, isGrammarFullyMastered } from '../..
 import type { PacingSettings } from '../../services/calibration';
 import { VocabularyService } from '../../services/vocabulary.service';
 import { GrammarService } from '../../services/grammar.service';
+import { CONSTANTS } from '../../commons/constants';
 import { hashString, pickStable } from '../../utils/deterministicPick';
 import { surfaceReading } from '@gokan/dataset-schema';
 import { indexLearnerVocab, pickMostProductive, scoreGrammarExample, wordRole } from '../../utils/sentenceRanking';
 import { computeSessionState } from './sessionState';
-import { markerInflections, wordSlot } from '../../services/exercise/slots';
+import { choiceSlot, markerInflections, textSlot, wordSlot } from '../../services/exercise/slots';
 import { synonymsOf } from '../../services/exercise/wordRelation';
 import type { MarkerToken } from '../../services/exercise/slots';
 import { inferredWord, toInflectableWord } from '../../utils/inflection.utils';
@@ -82,6 +83,42 @@ export function selectNextGrammarView(
     return { queueItem, sessionState, nextReviewAt, shouldShowIntro };
 }
 
+/**
+ * The words a pattern blank covers: the pattern's markers and, where the dataset
+ * names one, the word they attach to (GrammarExample.host), so the blank asks for
+ * the form together with the marker (してから, not から after a given して).
+ */
+function askedIndicesOf(example: Pick<GrammarExample, 'patternWordIndices' | 'host'>): number[] {
+    return Array.from(new Set([...(example.host?.wordIndices ?? []), ...example.patternWordIndices])).sort((a, b) => a - b);
+}
+
+/** The host a blank span covers, if it does: the span then starts with the host's words. */
+function hostOfSpan(example: GrammarExample, span: number[]): GrammarExample['host'] {
+    return example.host && span.includes(example.host.wordIndices[0]) ? example.host : undefined;
+}
+
+/**
+ * An example's pattern as one string, or null when it is not one: no pattern
+ * located, or markers apart in the sentence (どこ|に|も ... です), which join into
+ * nothing that is written anywhere.
+ */
+function patternTextOf(example: Pick<GrammarExample, 'words' | 'patternWordIndices'>): string | null {
+    const indices = example.patternWordIndices;
+    if (indices.length === 0 || !indices.every((w, k) => k === 0 || w === indices[k - 1] + 1)) return null;
+    return indices.map(i => example.words[i]?.surface ?? '').join('') || null;
+}
+
+/** A point's marker as its own examples write it: the text most of them use, the shortest on a tie. */
+function markerTextOf(point: Pick<GrammarPoint, 'examples'>): string | null {
+    const counts = new Map<string, number>();
+    for (const example of point.examples) {
+        const text = patternTextOf(example);
+        if (text) counts.set(text, (counts.get(text) ?? 0) + 1);
+    }
+    const [best] = [...counts].sort((a, b) => b[1] - a[1] || a[0].length - b[0].length || a[0].localeCompare(b[0]));
+    return best ? best[0] : null;
+}
+
 function candidateIndicesOf(example: GrammarExample): number[] {
     const indices: number[] = [];
     example.words.forEach((w, i) => {
@@ -138,6 +175,18 @@ function withNear(slot: AnswerSlot, extra: string[]): AnswerSlot {
  * off the token itself otherwise (inferredWord), since most marker tokens link to
  * no entry (あり for ある, し for する).
  */
+async function spanTokens(example: GrammarExample, span: number[]): Promise<MarkerToken[]> {
+    const host = hostOfSpan(example, span);
+    if (!host) return markerTokens(span.map(i => example.words[i]));
+    // The host is one token, however the dataset split it: its form is the whole of
+    // し + て, and its kana is the host's own reading.
+    const hostWords = host.wordIndices.map(i => example.words[i]);
+    const surface = hostWords.map(w => w.surface).join('');
+    const word = await inflectingWordOf({ surface, vocabId: hostWords[0].vocabId, baseForm: host.lemma });
+    const rest = span.filter(i => !host.wordIndices.includes(i)).map(i => example.words[i]);
+    return [{ surface, kana: host.reading, word }, ...await markerTokens(rest)];
+}
+
 async function markerTokens(words: GrammarExampleWord[]): Promise<MarkerToken[]> {
     return Promise.all(words.map(async (w, i) => {
         const kana = surfaceReading(w) ?? (/[一-鿿]/.test(w.surface) ? null : w.surface);
@@ -196,34 +245,34 @@ async function buildBlankSlots(
         const isPattern = !!isPatternSpan[spanIndex];
         const role = !decidedByPattern || isPattern ? 'core' : 'support';
         const words = span.map(i => example.words[i]);
-        const inflections = isPattern ? markerInflections(await markerTokens(words), registerFree) : [];
-        const withInflections = (slot: AnswerSlot): AnswerSlot => (inflections.length > 0 ? { ...slot, inflections } : slot);
+        const host = hostOfSpan(example, span);
+        const inflections = isPattern ? markerInflections(await spanTokens(example, span), registerFree) : [];
+        // The word the blank asks a form of is given beside it, and its kana answers the blank.
+        const withHost = (slot: AnswerSlot): AnswerSlot => (host
+            ? { ...slot, given: host.lemma, ...(span.length === 1 ? { accept: Array.from(new Set([...slot.accept, host.reading])) } : {}) }
+            : slot);
+        const withInflections = (slot: AnswerSlot): AnswerSlot => withHost(inflections.length > 0 ? { ...slot, inflections } : slot);
 
         // A merged span is graded on the concatenation of its words. Only the
         // surface and the reading are meaningful for a multi-token marker: a
         // per-word vocab lookup would offer alternatives for one token of a marker,
         // which is not a form of anything.
         if (span.length > 1) {
-            const surface = words.map(w => w.surface).join('');
-            const reading = words.every(w => w.reading || !/[一-鿿]/.test(w.surface))
-                ? words.map(w => w.reading ?? w.surface).join('')
-                : null;
-            slots.push(withInflections(
-                { accept: Array.from(new Set([surface, ...(reading ? [reading] : [])])), near: [], leniency: 'standard', script: 'japanese', role, reveal: surface, gloss: '' },
-            ));
+            const readings = words.map((w, k) => {
+                if (host?.wordIndices.includes(span[k])) return span[k] === host.wordIndices[0] ? host.reading : '';
+                return w.reading ?? (/[一-鿿]/.test(w.surface) ? null : w.surface);
+            });
+            slots.push(withHost(textSlot({
+                surface: words.map(w => w.surface).join(''),
+                reading: readings.every(r => r !== null) ? readings.join('') : null,
+                role,
+                inflections,
+            })));
             continue;
         }
 
         const [word] = words;
-        const plain: AnswerSlot = {
-            accept: Array.from(new Set([word.surface, ...(word.reading ? [word.reading] : [])])),
-            near: [],
-            leniency: 'standard',
-            script: 'japanese',
-            role,
-            reveal: word.surface,
-            gloss: '',
-        };
+        const plain = textSlot({ surface: word.surface, reading: word.reading, role });
 
         let slot = plain;
         if (word.vocabId) {
@@ -431,9 +480,7 @@ async function applyVariantRotation(
         if (!sibling) continue;
 
         for (const example of sibling.examples) {
-            if (example.patternWordIndices.length === 0) continue;
-
-            // Only widen with a CONTIGUOUS span. A gap means the words do not
+            // Only widen with a CONTIGUOUS span (patternTextOf). A gap means the words do not
             // concatenate into a string that appears anywhere: n5-104's anchor is
             // どこ|に|も ... です, spanning the verb, and joining it yields
             // どこにもです - not a form of anything.
@@ -446,11 +493,7 @@ async function applyVariantRotation(
             // themselves vocab entries (何処, 誰), so the accept-list widening
             // silently did nothing at all: typing どこへも when shown どこにも
             // graded plain wrong.
-            const indices = example.patternWordIndices;
-            const contiguous = indices.every((wordIndex, k) => k === 0 || wordIndex === indices[k - 1] + 1);
-            if (!contiguous) continue;
-
-            const surface = example.patternWordIndices.map(i => example.words[i]?.surface ?? '').join('');
+            const surface = patternTextOf(example);
             if (!surface) continue;
             (member.formalityLevel === chosen.formalityLevel ? sameRegister : otherRegister).push(surface);
         }
@@ -503,11 +546,7 @@ async function applyFamilyInterchange(point: GrammarPoint): Promise<{ sameRegist
         if (axis !== 'register' && axis !== 'variant') continue;
 
         for (const example of sibling.examples) {
-            if (example.patternWordIndices.length === 0) continue;
-            const indices = example.patternWordIndices;
-            const contiguous = indices.every((w, k) => k === 0 || w === indices[k - 1] + 1);
-            if (!contiguous) continue;
-            const surface = indices.map(i => example.words[i]?.surface ?? '').join('');
+            const surface = patternTextOf(example);
             if (!surface) continue;
             (sibling.formalityLevel === point.formalityLevel ? sameRegister : otherRegister).push(surface);
         }
@@ -547,19 +586,22 @@ async function applyFamilyInterchange(point: GrammarPoint): Promise<{ sameRegist
  */
 async function selectProductivePlan(
     point: GrammarPoint,
-    progress: UserProgress | null
+    progress: UserProgress | null,
+    // Narrows the candidates further (an inflection point's sentences must name their host).
+    accepts: (example: GrammarExample) => boolean = () => true,
 ): Promise<GrammarBlankPlan | null> {
     const mined = await GrammarService.loadMinedExamples(point.id);
     const learner = indexLearnerVocab(progress?.learningQueue);
 
     const curatedCandidates = point.examples.filter(e => e.patternWordIndices.length > 0);
-    const candidateExamples = [...curatedCandidates, ...(mined ?? [])];
+    const candidateExamples = [...curatedCandidates, ...(mined ?? [])].filter(accepts);
     if (candidateExamples.length === 0) return null;
 
     const candidates = candidateExamples.map(example => {
         const score = scoreGrammarExample(example, learner);
+        const asked = askedIndicesOf(example);
         const targets = example.words.flatMap((word, i) =>
-            word.vocabId && !example.patternWordIndices.includes(i) && wordRole(word.vocabId, learner) === 'target' ? [i] : []);
+            word.vocabId && !asked.includes(i) && wordRole(word.vocabId, learner) === 'target' ? [i] : []);
         return { example, score, targets };
     }).filter(c => c.score.targets > 0);
 
@@ -569,11 +611,12 @@ async function selectProductivePlan(
     // Blanks: the pattern markers plus every target word, sorted by position -
     // the same reinforcement mechanism Pass 1 uses, just sourced from the
     // productivity targets instead of "every known word".
-    const blankedIndices = Array.from(new Set([...chosen.example.patternWordIndices, ...chosen.targets])).sort((a, b) => a - b);
-    const isPatternArr = blankedIndices.map(i => chosen.example.patternWordIndices.includes(i));
+    const asked = askedIndicesOf(chosen.example);
+    const blankedIndices = Array.from(new Set([...asked, ...chosen.targets])).sort((a, b) => a - b);
+    const isPatternArr = blankedIndices.map(i => asked.includes(i));
     const blankWordSpans = blankSpansOf(blankedIndices, isPatternArr);
     const blankWordIndices = blankWordSpans.map(span => span[0]);
-    const isPatternBlank = blankWordIndices.map(i => chosen.example.patternWordIndices.includes(i));
+    const isPatternBlank = blankWordIndices.map(i => asked.includes(i));
 
     const slots = await buildBlankSlots(chosen.example, blankWordSpans, isPatternBlank, point.formalityLevel);
 
@@ -598,6 +641,11 @@ export async function computeBlankPlan(point: GrammarPoint, progress: UserProgre
     // conjugation drill. Falls through to the cloze path when the dataset has no
     // items, so a partially-built dataset degrades rather than breaking.
     if (point.kind === 'inflection') {
+        // Once the form can be made, it is asked where a sentence needs it.
+        const sentencePlan = reviewCount >= CONSTANTS.srs.grammar.drillReviewsBeforeSentence
+            ? await inflectionSentencePlan(point, progress, reviewCount)
+            : null;
+        if (sentencePlan) return sentencePlan;
         const conjugationPlan = await computeConjugationPlan(point, reviewCount);
         if (conjugationPlan) return conjugationPlan;
     }
@@ -607,6 +655,14 @@ export async function computeBlankPlan(point: GrammarPoint, progress: UserProgre
     const effectivePoint = rotation?.point ?? point;
 
     if (effectivePoint.examples.length === 0) return null;
+
+    // Every other review, the point is picked among the forms it is confused with
+    // instead of typed, when a sentence rules enough of them out. A variant group
+    // keeps to the typed card: its realizations are one answer written several ways.
+    if (!rotation && reviewCount % 2 === 1) {
+        const choice = await choicePlan(point, progress, reviewCount);
+        if (choice) return choice;
+    }
 
     // Reviews only (reviewCount >= 1): the intro card and the first review stay
     // on curated examples. See selectProductivePlan's doc comment for the full rule.
@@ -624,7 +680,16 @@ export async function computeBlankPlan(point: GrammarPoint, progress: UserProgre
     // Nothing to add and no realization to record: the base plan stands unchanged.
     if (!rotation && sameRegister.length === 0 && otherRegister.length === 0) return base;
 
-    const patternWordIndices = base.example?.patternWordIndices ?? [];
+    const example = base.example;
+    const patternWordIndices = example ? askedIndicesOf(example) : [];
+    // A blank that also covers its host is answered with the host in front, so
+    // another realization of the marker is accepted behind the same host.
+    const hosted = (i: number, forms: string[]): string[] => {
+        const host = example ? hostOfSpan(example, base.blankWordSpans[i]) : undefined;
+        if (!host || !example) return forms;
+        const written = host.wordIndices.map(w => example.words[w].surface).join('');
+        return forms.flatMap(form => [written + form, host.reading + form]);
+    };
     return {
         ...base,
         ...(rotation ? { realization: rotation.realization } : {}),
@@ -633,10 +698,135 @@ export async function computeBlankPlan(point: GrammarPoint, progress: UserProgre
         // interchangeable; another register is the wrong one for the hint shown.
         slots: base.slots.map((slot, i) => {
             if (!patternWordIndices.includes(base.blankWordIndices[i])) return slot;
-            const accept = Array.from(new Set([...slot.accept, ...sameRegister]));
-            return withNear({ ...slot, accept }, otherRegister);
+            const accept = Array.from(new Set([...slot.accept, ...hosted(i, sameRegister)]));
+            return withNear({ ...slot, accept }, hosted(i, otherRegister));
         }),
     };
+}
+
+/**
+ * The point picked among the forms it is confused with: a sentence in Japanese
+ * only, its pattern blanked, and for options the right marker and those of
+ * family siblings the sentence rules out by connection (GrammarExample.ruledOut:
+ * the word before the blank is nothing they attach to). Only siblings the learner
+ * has been introduced to, so every option is a real memory, and only when at
+ * least minChoiceDistractors remain. Each wrong option says what it attaches to.
+ * The sentence rotates on the review count. Null when no sentence qualifies.
+ */
+async function choicePlan(point: GrammarPoint, progress: UserProgress | null, reviewCount: number): Promise<GrammarBlankPlan | null> {
+    const introduced = new Set((progress?.grammarQueue ?? []).filter(g => g.introductionAt !== null).map(g => g.grammarId));
+    const { minChoiceDistractors, maxChoiceDistractors } = CONSTANTS.srs.grammar;
+    const usable = (example: GrammarExample) => (example.ruledOut ?? []).filter(id => introduced.has(id));
+
+    // Curated and mined sentences alike: one qualifying curated example would
+    // otherwise be the same card on every choice review.
+    const mined = await GrammarService.loadMinedExamples(point.id);
+    const pool = [...point.examples, ...(mined ?? [])].filter(e => patternTextOf(e) && usable(e).length >= minChoiceDistractors);
+    if (pool.length === 0) return null;
+
+    const start = hashString(`${point.id}:choice:${reviewCount}`) % pool.length;
+    for (let k = 0; k < pool.length; k++) {
+        const example = pool[(start + k) % pool.length];
+        const answer = patternTextOf(example);
+        if (!answer) continue;
+
+        const distractors: { text: string; note: string }[] = [];
+        const siblings = await Promise.all(usable(example).map(id => GrammarService.loadGrammarPoint(id).catch(() => null)));
+        for (const sibling of siblings) {
+            const text = sibling ? markerTextOf(sibling) : null;
+            // Two points can write their marker alike (から, から): the same text is no choice.
+            if (!sibling || !text || text === answer || distractors.some(d => d.text === text)) continue;
+            distractors.push({ text, note: `attaches as: ${sibling.formation}` });
+        }
+        if (distractors.length < minChoiceDistractors) continue;
+
+        const seed = `${point.id}:${example.jp}`;
+        const kept = distractors
+            .sort((a, b) => hashString(`${seed}:${a.text}`) - hashString(`${seed}:${b.text}`))
+            .slice(0, maxChoiceDistractors);
+        const span = [...example.patternWordIndices].sort((a, b) => a - b);
+        const curatedIndex = point.examples.indexOf(example);
+        return {
+            exampleIndex: curatedIndex !== -1 ? curatedIndex : (mined?.indexOf(example) ?? -1),
+            example,
+            blankWordIndices: [span[0]],
+            blankWordSpans: [span],
+            slots: [choiceSlot({ answer, distractors: kept, role: 'core', seed })],
+            readOnly: false,
+            choice: true,
+        };
+    }
+    return null;
+}
+
+/** Whether the learner has been introduced to a word. */
+const knownVocabOf = (progress: UserProgress | null) => (vocabId: string): boolean => {
+    if (!progress) return false;
+    const vp = progress.learningQueue.find(v => v.vocabId === vocabId);
+    return !!vp && vp.introductionAt !== null;
+};
+
+/** The plan that blanks an example's pattern (with its host) and, as reinforcement, every other word the learner knows. */
+async function patternPlan(
+    example: GrammarExample,
+    exampleIndex: number,
+    isKnown: (vocabId: string) => boolean,
+    formalityLevel: GrammarPoint['formalityLevel'],
+): Promise<GrammarBlankPlan> {
+    const asked = askedIndicesOf(example);
+    const knownVocabIndices = candidateIndicesOf(example).filter(
+        i => !asked.includes(i) && isKnown(example.words[i].vocabId!)
+    );
+    const blankedIndices = [...asked, ...knownVocabIndices].sort((a, b) => a - b);
+    const blankWordSpans = blankSpansOf(blankedIndices, blankedIndices.map(i => asked.includes(i)));
+    const blankWordIndices = blankWordSpans.map(span => span[0]);
+    const isPatternBlank = blankWordIndices.map(i => asked.includes(i));
+
+    const slots = await buildBlankSlots(example, blankWordSpans, isPatternBlank, formalityLevel);
+    return { exampleIndex, example, blankWordIndices, blankWordSpans, slots, readOnly: false };
+}
+
+/**
+ * An inflection point asked inside a sentence: the conjugated word is the blank
+ * and its dictionary form is given (GrammarExample.host), so the card asks for
+ * the form where a sentence needs it. The sentence is the most productive one
+ * for the learner's vocabulary, like any review; without one, any sentence that
+ * names its host, rotating on the review count. Null when the point has none,
+ * and the caller stays on the bare drill.
+ */
+async function inflectionSentencePlan(point: GrammarPoint, progress: UserProgress | null, reviewCount: number): Promise<GrammarBlankPlan | null> {
+    const namesHost = (example: GrammarExample) => !!example.host && example.patternWordIndices.length > 0;
+    const plan = await hostedPlan(point, progress, reviewCount, namesHost);
+    return plan && { ...plan, slots: plan.slots.map(formOnly) };
+}
+
+/**
+ * On an inflection point the form is the whole question, as on its drill: another
+ * form of the given word, the given word itself included, is wrong, where a
+ * construction's blank would call it a near miss (the marker being right).
+ */
+function formOnly(slot: AnswerSlot): AnswerSlot {
+    if (!slot.given) return slot;
+    const { inflections: _inflections, ...rest } = slot;
+    return { ...rest, near: [], ...(slot.word ? { word: { ...slot.word, otherForm: 'off' } } : {}) };
+}
+
+/** A sentence that names its host: the most productive one for the learner's vocabulary, else any, rotating on the review count. */
+async function hostedPlan(
+    point: GrammarPoint,
+    progress: UserProgress | null,
+    reviewCount: number,
+    namesHost: (example: GrammarExample) => boolean,
+): Promise<GrammarBlankPlan | null> {
+    const productive = await selectProductivePlan(point, progress, namesHost);
+    if (productive) return productive;
+
+    const mined = await GrammarService.loadMinedExamples(point.id);
+    const pool = [...point.examples, ...(mined ?? [])].filter(namesHost);
+    if (pool.length === 0) return null;
+    const example = pool[hashString(`${point.id}:${reviewCount}`) % pool.length];
+    const curatedIndex = point.examples.indexOf(example);
+    return patternPlan(example, curatedIndex !== -1 ? curatedIndex : (mined?.indexOf(example) ?? -1), knownVocabOf(progress), point.formalityLevel);
 }
 
 async function computeBlankPlanFor(point: GrammarPoint, progress: UserProgress | null, reviewCount: number): Promise<GrammarBlankPlan | null> {
@@ -645,31 +835,13 @@ async function computeBlankPlanFor(point: GrammarPoint, progress: UserProgress |
     const startIndex = hashString(`${point.id}:${reviewCount}`) % point.examples.length;
     const order = Array.from({ length: point.examples.length }, (_, i) => (startIndex + i) % point.examples.length);
 
-    const isKnown = (vocabId: string): boolean => {
-        if (!progress) return false;
-        const vp = progress.learningQueue.find(v => v.vocabId === vocabId);
-        return !!vp && vp.introductionAt !== null;
-    };
+    const isKnown = knownVocabOf(progress);
 
     // Pass 1: PRIMARY - an example whose grammar-pattern markers are located.
     for (const exampleIndex of order) {
         const example = point.examples[exampleIndex];
         if (example.patternWordIndices.length === 0) continue;
-
-        const candidateIndices = candidateIndicesOf(example);
-        const knownVocabIndices = candidateIndices.filter(
-            i => !example.patternWordIndices.includes(i) && isKnown(example.words[i].vocabId!)
-        );
-        const blankedIndices = [...example.patternWordIndices, ...knownVocabIndices].sort((a, b) => a - b);
-        const blankWordSpans = blankSpansOf(
-            blankedIndices,
-            blankedIndices.map(i => example.patternWordIndices.includes(i))
-        );
-        const blankWordIndices = blankWordSpans.map(span => span[0]);
-        const isPatternBlank = blankWordIndices.map(i => example.patternWordIndices.includes(i));
-
-        const slots = await buildBlankSlots(example, blankWordSpans, isPatternBlank, point.formalityLevel);
-        return { exampleIndex, example, blankWordIndices, blankWordSpans, slots, readOnly: false };
+        return patternPlan(example, exampleIndex, isKnown, point.formalityLevel);
     }
 
     // Pass 2: FALLBACK - pattern not locatable anywhere in this point; an example with a known word.

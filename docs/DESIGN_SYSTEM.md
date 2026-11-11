@@ -343,7 +343,11 @@ Defined once, in `components/` or `components/ui/`, never copied:
   A label that wraps keeps the dot beside its first line.
 - **`SelectableOption`** (`ui/SelectableOption.tsx`): the one selected style for a
   single-choice option (option grids, the learning-order picker, the theme picker,
-  onboarding). Selected: accent border, `bg-accent/10`, a check icon top-right, ink text.
+  onboarding, a quiz slot's options). Selected: accent border, `bg-accent/10`, a check icon top-right, ink text.
+  A quiz's options are drawn only by `quiz/SlotChoices.tsx`: while answering, the picked
+  option is the selected one; once answered, the options stop responding (`disabled`), the
+  one that fits is the selected one, and a wrong pick is written in the incorrect colour, so
+  right and wrong are never told apart by a border alone. Japanese options are gothic, `lang="ja"`.
 - **`FilterToggle`** (`ui/FilterToggle.tsx`): the multi-select pill style (list filters,
   genre pills, grammar browse toggles). Selected: accent border, accent text,
   `bg-accent/10`.
@@ -603,6 +607,8 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
 - `detail-layout`: `grid-cols-12` only in `DetailHeader` and `DetailBody`, and every
   `*DetailScreen` uses both.
 - `one-ruby`: a `<ruby>` in the app only in `components/Ruby.tsx`.
+- `one-choice-list`: a quiz slot's options (`choices`) are walked only in
+  `components/quiz/SlotChoices.tsx`.
 - `one-sheet`: a sheet's panel (`rounded-t-md`) only in `components/ui/BottomSheet.tsx`.
 - `one-lookup-card`: `createPortal` only in the lookup card (`components/lookup/useLookup.tsx`),
   `BottomSheet` and the quiz settings dialog: a word or kanji shown on hover or tap is the

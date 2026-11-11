@@ -11,6 +11,7 @@ import { LookUpWords } from "../LookUpWords";
 import { Ruby } from "../Ruby";
 import { QuizCardFrame } from "./QuizCardFrame";
 import { ClozeBlank } from "./ClozeBlank";
+import { ChoiceBlank, ChoiceNotes, SlotChoices } from "./SlotChoices";
 import { FeedbackNote } from "./FeedbackNote";
 import { ContinueButton, SubmitButton } from "./QuizButtons";
 import { blankBorderClass, missStyleOf, resultAccentClass } from "./quizStyles";
@@ -28,7 +29,8 @@ interface SentenceClozeCardProps {
 
 /**
  * The card for every sentence cloze (the vocab production cloze, the grammar
- * cloze): an English cue, then the sentence with one inline input per slot. The
+ * cloze, the grammar choice): a cue, then the sentence with one inline blank per
+ * slot, typed or, for a slot with choices, picked from the options under it. The
  * text between the blanks renders through InteractiveSentence like every other
  * sentence in the app: a gloss on hover, a click to the word's page, furigana once
  * answered. A missed blank reveals the right form beside it, linked to its word.
@@ -68,6 +70,15 @@ export function SentenceClozeCard({ api, sentence, header, feedbackExtra, onVoca
                         const slot = turn.exercise.slots[part.index];
                         const grade = feedback?.grade.slots[part.index];
                         const hintLevel = turn.hintLevels[part.index] ?? 0;
+                        if (slot?.choices) {
+                            return (
+                                <ChoiceBlank
+                                    key={`blank-${part.index}`}
+                                    value={feedback ? slot.reveal : turn.answers[part.index] ?? ''}
+                                    borderClass={blankBorderClass(grade, { feedbackShown: !!feedback, revealed: false })}
+                                />
+                            );
+                        }
                         return (
                             <ClozeBlank
                                 key={`blank-${part.index}`}
@@ -82,6 +93,7 @@ export function SentenceClozeCard({ api, sentence, header, feedbackExtra, onVoca
                                 hintLevel={hintLevel}
                                 onHint={() => api.revealHint(part.index)}
                                 gloss={slot?.gloss ?? ''}
+                                given={slot?.given}
                                 // On anything short of the word itself, strictly right.
                                 reveal={slot && grade && (grade.result !== 'correct' || grade.synonym) && (
                                     <RevealedForm
@@ -94,6 +106,17 @@ export function SentenceClozeCard({ api, sentence, header, feedbackExtra, onVoca
                         );
                     })}
                 </p>
+
+                {turn.exercise.slots.map((slot, i) => slot.choices && (
+                    <div key={`choices-${i}`} className="mt-6">
+                        <SlotChoices
+                            slot={slot}
+                            value={turn.answers[i] ?? ''}
+                            onPick={text => api.setAnswer(i, text)}
+                            grade={feedback?.grade.slots[i]}
+                        />
+                    </div>
+                ))}
             </CardSection>
 
             <CardSection>
@@ -102,6 +125,7 @@ export function SentenceClozeCard({ api, sentence, header, feedbackExtra, onVoca
                     <FeedbackNote accentClass={feedback.grade.overall === 'correct' ? resultAccentClass('correct') : missStyleOf(feedback.grade).accentClass} className="mb-4">
                         <p className="text-sm font-gothic text-primary">{feedback.grade.message}</p>
                         <LookUpWords words={synonymWords(turn)} onVocabClick={onVocabClick} synonymsOf={synonymsOf(turn)} />
+                        {turn.exercise.slots.map((slot, i) => slot.choices && <ChoiceNotes key={`notes-${i}`} slot={slot} />)}
                         {feedbackExtra}
                     </FeedbackNote>
                 )}

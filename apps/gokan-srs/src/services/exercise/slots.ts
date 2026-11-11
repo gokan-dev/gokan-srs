@@ -6,10 +6,11 @@
 // accept the same answers, up to their OtherFormGrade.
 import { headwordOf, headwordWithReading } from '@gokan/dataset-schema';
 import type { Vocabulary } from '@gokan/dataset-schema';
+import { hashString } from '../../utils/deterministicPick';
 import { isFormOfWord, kanaOfSurface, toInflectableWord } from '../../utils/inflection.utils';
 import type { InflectableWord } from '../../utils/inflection.utils';
 import { demonstrativeParadigm } from './demonstratives';
-import type { AnswerSlot, OtherFormGrade, SlotInflection, SlotRole, SynonymCandidate, WordForms } from './types';
+import type { AnswerSlot, OtherFormGrade, SlotChoice, SlotInflection, SlotRole, SynonymCandidate, WordForms } from './types';
 
 function unique(forms: (string | undefined)[]): string[] {
     return Array.from(new Set(forms.filter((f): f is string => !!f)));
@@ -131,6 +132,55 @@ export function meaningSlot(glosses: string[], reading?: string): AnswerSlot {
         gloss: '',
         ...(paradigm ? { paradigm } : {}),
     };
+}
+
+export interface TextSlotOptions {
+    /** The text as the sentence writes it. */
+    surface: string;
+    /** The same text in kana, when every part of it has a known reading. */
+    reading?: string | null;
+    role: SlotRole;
+    /** The conjugated words inside the text (markerInflections). */
+    inflections?: SlotInflection[];
+    /** See AnswerSlot.given. */
+    given?: string;
+}
+
+/**
+ * A slot asking for a run of text exactly as the sentence writes it: a grammar
+ * marker, alone or together with the word it attaches to. No dictionary word is
+ * behind it, so only the text and its kana answer it; its conjugated words grade
+ * another conjugation through `inflections`.
+ */
+export function textSlot({ surface, reading, role, inflections = [], given }: TextSlotOptions): AnswerSlot {
+    return {
+        accept: unique([surface, reading ?? undefined]),
+        near: [],
+        leniency: 'standard',
+        script: 'japanese',
+        role,
+        reveal: surface,
+        gloss: '',
+        ...(inflections.length > 0 ? { inflections } : {}),
+        ...(given ? { given } : {}),
+    };
+}
+
+export interface ChoiceSlotOptions {
+    /** The text that fits. */
+    answer: string;
+    /** The wrong options, each with why it does not fit. */
+    distractors: Required<SlotChoice>[];
+    role: SlotRole;
+    /** Orders the options: the same seed always gives the same order, so a recomputed turn does not reshuffle. */
+    seed: string;
+}
+
+/** A slot answered by picking one option (AnswerSlot.choices). The right one sits wherever the seed puts it. */
+export function choiceSlot({ answer, distractors, role, seed }: ChoiceSlotOptions): AnswerSlot {
+    const choices: SlotChoice[] = [{ text: answer }, ...distractors]
+        .sort((a, b) => hashString(`${seed}:${a.text}`) - hashString(`${seed}:${b.text}`) || a.text.localeCompare(b.text));
+    return { ...textSlot({ surface: answer, role }), choices };
 }
 
 /** One token of a grammar marker: its kana when known, and how its word inflects when it is one that does. */

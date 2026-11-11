@@ -5,6 +5,7 @@
 // same whichever exercise asked. Exercises differ only in their slots' data. Pure
 // and synchronous: whatever grading needs is resolved when the exercise is built.
 import { headwordOf, headwordWithReading } from '@gokan/dataset-schema';
+import { CONSTANTS } from '../../commons/constants';
 import { matchBest } from '../../utils/answerMatching';
 import type { AnswerResult } from '../../utils/answerMatching';
 import { isFormOfWord, sameFormUpToRegister } from '../../utils/inflection.utils';
@@ -104,6 +105,8 @@ function reconjugationGrade(input: string, { lead, word, form, tail, registerFre
 export function gradeSlot(slot: AnswerSlot, input: string, hintLevel: number, cue: ProductionCue): SlotGrade {
     if (hintLevel >= 2) return { result: 'minor_error', shown: slot.reveal };
     if (input.trim().length === 0) return { result: 'pass', shown: slot.reveal };
+    // A pick is exact. There is no typing to forgive, and typo distance would make のに a near miss of ので.
+    if (slot.choices) return { result: slot.accept.includes(input.trim()) ? 'correct' : 'wrong', shown: slot.reveal };
 
     const direct = matchBest(input, slot.accept, slot.leniency);
     if (direct.result === 'pass') return { result: 'pass', shown: slot.reveal };
@@ -235,13 +238,18 @@ export function gradeExercise(exercise: GradedExercise, answers: string[], hintL
 
     const support = slots.flatMap((grade, i) => (!core.includes(i) && counted(i) ? [grade.result] : []));
     const success = overall === 'correct' || overall === 'minor_error';
+    // Picking the answer out of a list is recognition, easier than producing it.
+    const picked = core.length > 0 && core.every(i => exercise.slots[i].choices);
+    const recognition = picked ? CONSTANTS.srs.choiceStrengthRatio : 1;
+    const hasChoices = exercise.slots.some(s => s.choices);
 
     return {
         slots,
         overall,
-        strengthModifier: success ? supportCoefficient(support) : 1,
-        // The meaning card has sentences and glosses worth reading, so it never moves on by itself.
-        autoAdvance: exercise.kind !== 'meaning' && slots.every(s => s.result === 'correct' && !s.synonym),
+        strengthModifier: success ? supportCoefficient(support) * recognition : 1,
+        // The meaning card has sentences and glosses worth reading, and a choice has
+        // the reasons the other options do not fit, so neither moves on by itself.
+        autoAdvance: exercise.kind !== 'meaning' && !hasChoices && slots.every(s => s.result === 'correct' && !s.synonym),
         message: feedbackMessage(exercise, slots, overall),
     };
 }

@@ -18,7 +18,7 @@ import type { SynonymOutcome, WordRelation } from './wordRelation';
 type GrammarRealization = NonNullable<GrammarBlankPlan['realization']>;
 
 /** Every exercise the app serves. A switch over it must name each one, so a new kind fails to compile until it is handled. */
-export type ExerciseKind = 'reading' | 'meaning' | 'production' | 'production-cloze' | 'grammar-cloze' | 'conjugation' | 'study';
+export type ExerciseKind = 'reading' | 'meaning' | 'production' | 'production-cloze' | 'grammar-cloze' | 'grammar-choice' | 'conjugation' | 'study';
 
 /** The item an exercise reviews: one direction of a word, or a grammar point. Its SRS entry is what a `review` effect moves. */
 export type HostItem =
@@ -91,6 +91,13 @@ export interface SlotInflection {
     registerFree: boolean;
 }
 
+/** One option of a slot answered by picking (AnswerSlot.choices). */
+export interface SlotChoice {
+    text: string;
+    /** Why it does not fit, shown once the card is answered. Absent on the right one. */
+    note?: string;
+}
+
 /** See AnswerSlot.script. */
 export type AnswerScript = 'japanese' | 'english';
 
@@ -108,6 +115,21 @@ export interface AnswerSlot {
     reveal: string;
     /** The first hint level. Empty when there is none. */
     gloss: string;
+    /**
+     * A dictionary form the blank shows, when the slot asks for the form of a word it
+     * names: する beside a blank that wants してから. The word is given, so the answer
+     * is how it connects.
+     */
+    given?: string;
+    /**
+     * The options, when the slot is answered by picking one instead of typing: the
+     * right one (in `accept`) among forms the learner could confuse it with. Only
+     * the exact text of a choice answers it. Picking is recognition, so a card
+     * decided by choices earns a reduced gain (gradeExercise's strengthModifier,
+     * which a grammar review applies; a vocab review takes none yet, so a vocab
+     * exercise with choices needs applyEffects to pass it on first).
+     */
+    choices?: SlotChoice[];
     word?: SlotWord;
     /** The conjugated words of a grammar marker, each a near miss in any other conjugation. */
     inflections?: SlotInflection[];
@@ -175,6 +197,8 @@ export type Exercise = ExerciseBase & (
     | { kind: 'production' }
     | { kind: 'production-cloze'; cloze: ProductionCloze; sentence: ClozeSentence }
     | { kind: 'grammar-cloze'; sentence: ClozeSentence; realization?: GrammarRealization }
+    /** The sentence in Japanese only, its pattern picked among the forms it is confused with. */
+    | { kind: 'grammar-choice'; sentence: ClozeSentence }
     | { kind: 'conjugation'; prompt: GrammarConjugationPrompt }
     /** Nothing in the point's examples can be blanked: the sentence is shown to read. */
     | { kind: 'study'; sentence: Sentence }

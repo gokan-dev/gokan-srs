@@ -17,6 +17,16 @@ import type { ChangelogEntry } from '../src/models/release.model';
  */
 export const CHANGELOG: readonly ChangelogEntry[] = [
     {
+        version: '1.63.0',
+        date: '2026-11-11',
+        summary: 'Grammar exercises that ask how a form connects and which form fits',
+        changes: [
+            { summary: 'Where a grammar point needs a particular form of the word before it, the card now gives that word in its dictionary form and asks for the whole connection (してから, not から after a given して).', issue: 237 },
+            { summary: 'Conjugation points (the て-form, the polite past, くない and the others) are asked inside a real sentence after their first two reviews, with the dictionary form given, in place of the bare drill. Three forms with no reliable sentences yet keep the drill.', issue: 236 },
+            { summary: 'A new choice exercise: on some reviews, a sentence is shown in Japanese only and you pick the form that fits among forms you have already learned. Once answered, each wrong option says what it attaches to. It appears where the sentence rules out at least two forms you know, about 80 grammar points for now.', issue: 238 },
+        ],
+    },
+    {
         version: '1.62.0',
         date: '2026-11-11',
         summary: 'Chinese dictionary',

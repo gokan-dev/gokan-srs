@@ -15,6 +15,8 @@ interface ClozeBlankProps {
     hintLevel: number;
     onHint: () => void;
     gloss: string;
+    /** The dictionary form the blank asks a form of (AnswerSlot.given), shown before it. */
+    given?: string;
     /** Shown under the blank once answered, e.g. the correct form. */
     reveal?: ReactNode;
 }
@@ -23,13 +25,15 @@ interface ClozeBlankProps {
  * One inline answer blank in a sentence: an underline input sized from what is typed
  * (never from the answer, which would leak its length), a "?" hint that shows the gloss
  * then the answer, and a slot under it for the correct form after answering. Shared by
- * the grammar cloze and the vocab production cloze.
+ * the grammar cloze and the vocab production cloze. A blank that asks for a form of
+ * a named word shows that word in front of it.
  */
-export function ClozeBlank({ value, onChange, convertsRomaji, inputRef, borderClass, feedbackShown, hintLevel, onHint, gloss, reveal }: ClozeBlankProps) {
+export function ClozeBlank({ value, onChange, convertsRomaji, inputRef, borderClass, feedbackShown, hintLevel, onHint, gloss, given, reveal }: ClozeBlankProps) {
     const revealed = hintLevel >= 2;
     return (
         <span className="inline-flex flex-col items-center mx-0.5 align-middle">
             <span className="inline-flex items-center gap-1">
+                {given && <span lang="ja" className="text-base text-secondary font-gothic whitespace-nowrap">（{given}）</span>}
                 <AnswerInput
                     inputRef={inputRef}
                     value={value}

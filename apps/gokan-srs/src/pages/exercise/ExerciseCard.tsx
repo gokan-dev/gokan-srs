@@ -134,6 +134,29 @@ export function ExerciseCard({ api, onVocabClick }: ExerciseCardProps) {
                 />
             );
 
+        case 'grammar-choice':
+            if (!point) return null;
+            return (
+                <SentenceClozeCard
+                    api={api}
+                    sentence={exercise.sentence}
+                    header={(
+                        <>
+                            <GrammarCardHeader point={point} memoryStrength={grammarStrength} answered={answered} />
+                            {/* The translation would answer the card: it comes with the feedback. */}
+                            <SentenceCue
+                                instruction="Choose what fits the sentence"
+                                english={answered ? exercise.sentence.sentence.en[0]?.text : undefined}
+                            />
+                        </>
+                    )}
+                    feedbackExtra={point.usageNote && (
+                        <p className="text-xs font-gothic text-secondary italic mt-2">{point.usageNote}</p>
+                    )}
+                    onVocabClick={onVocabClick}
+                />
+            );
+
         case 'conjugation':
             if (!point) return null;
             return (

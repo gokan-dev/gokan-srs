@@ -17,6 +17,21 @@ export interface GrammarExampleWord {
     baseForm?: string;
 }
 
+/**
+ * The conjugated word a pattern attaches to in one example (し in してから), set by
+ * the dataset where the point's formation demands a form of that word, or the
+ * point is an inflection. An exercise gives `lemma` and asks for these words
+ * together with the pattern.
+ */
+export interface GrammarExampleHost {
+    /** Indices into `words[]`, contiguous, ending where the pattern starts (or the pattern's own word, on an inflection point). */
+    wordIndices: number[];
+    /** Its dictionary form (する). */
+    lemma: string;
+    /** The host words in kana, as this sentence reads them (して), for an answer typed in kana. */
+    reading: string;
+}
+
 export interface GrammarExample {
     jp: string;
     romaji: string;
@@ -33,6 +48,14 @@ export interface GrammarExample {
      * SRS app's `computeBlankPlan` falls back to other blanks then).
      */
     patternWordIndices: number[];
+    /** The word the pattern attaches to, when the exercise should ask for its form. */
+    host?: GrammarExampleHost;
+    /**
+     * The family siblings (point ids) that cannot stand in this example's blank, by
+     * connection alone: the word before the blank is nothing they attach to. The
+     * wrong answers a choice exercise may offer. Absent when there is none.
+     */
+    ruledOut?: string[];
     /** The example read aloud, when its clip is in the audio bucket (an example that is one of our sentences shares its clip). */
     audio?: AudioRef;
 }

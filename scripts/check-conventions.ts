@@ -318,6 +318,9 @@ const BOTTOM_SHEET = 'apps/gokan-srs/src/components/ui/BottomSheet.tsx';
 const PORTAL_CALL = /\bcreatePortal\(/;
 const PORTAL_FILES = new Set([BOTTOM_SHEET, 'apps/gokan-srs/src/components/lookup/useLookup.tsx', 'apps/gokan-srs/src/components/QuizSettingsMenu.tsx']);
 const RUBY_COMPONENT = 'apps/gokan-srs/src/components/Ruby.tsx';
+/** A component walking a slot's options: the options of a picked slot are drawn in one place. */
+const SLOT_CHOICES_WALK = /\.choices\b[^\n]*\.(?:map|filter)\(/;
+const SLOT_CHOICES_COMPONENT = 'apps/gokan-srs/src/components/quiz/SlotChoices.tsx';
 /** A word's reading row (its reading, its play button, the kana note): one component, on the word page and the intro. */
 const WORD_READING_MARK = /\bdata-word-reading\b/;
 const WORD_READING_COMPONENT = 'apps/gokan-srs/src/components/WordReading.tsx';
@@ -659,6 +662,11 @@ function check(files: string[]): Violation[] {
         if (GOKAN_SRS_SOURCE.test(file) && file !== RUBY_COMPONENT && !file.endsWith('.test.tsx')) {
             eachLine(text, l => RUBY_ELEMENT.test(l), line =>
                 add({ file, line, rule: 'one-ruby', message: 'Furigana renders through Ruby (components/Ruby.tsx): each reading over its kanji only (rubyParts), neighbouring readings kept apart.' }));
+        }
+
+        if (GOKAN_SRS_SOURCE.test(file) && file.endsWith('.tsx') && file !== SLOT_CHOICES_COMPONENT && !file.endsWith('.test.tsx')) {
+            eachLine(text, l => SLOT_CHOICES_WALK.test(l) && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
+                add({ file, line, rule: 'one-choice-list', message: 'Draws a slot\'s options. Use SlotChoices / ChoiceNotes (components/quiz/SlotChoices.tsx), so every exercise answered by picking shows its options, the one that fits and a wrong pick the same way.' }));
         }
 
         if (GOKAN_SRS_SOURCE.test(file) && file.endsWith('.tsx') && !file.endsWith('.test.tsx')) {
