@@ -1,0 +1,1 @@
+The dictionary has a Simplified Chinese section: about 11,000 words with their meanings from Chinese sources, and their example sentences with a Mandarin translation where one exists. Kanji and grammar pages stay in English for now.

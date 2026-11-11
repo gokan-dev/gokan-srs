@@ -1,7 +1,7 @@
 // The languages the dictionary is written in, and how each is addressed. English keeps the URLs
 // the site has always had; another locale lives under its own segment (/dictionary/zh-hans/...).
 // Which locales a build serves is a build setting (VITE_DICTIONARY_LOCALES, lib/site.ts): English
-// alone in production, Chinese too on staging (#170). A locale not served has routes that match
+// and Chinese in production and on staging (#170, since 1.62.0). A locale not served has routes that match
 // nothing, so no page is rendered in it.
 
 import { withoutBasePath } from './basePath';
