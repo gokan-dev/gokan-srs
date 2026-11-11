@@ -8,6 +8,8 @@ describe('DATASET_PATHS', () => {
         expect(DATASET_PATHS.kanjiOrder('kklc')).toBe('index/kanji-orders/kklc.json');
         expect(DATASET_PATHS.grammarPoint('n5-001')).toBe('grammar/points/n5-001.json');
         expect(DATASET_PATHS.grammarMinedExamples('n5-001')).toBe('grammar/mined/n5-001.json');
+        expect(DATASET_PATHS.text('zh-hans', DATASET_PATHS.vocab('1358280'))).toBe('text/zh-hans/vocab/1358280.json');
+        expect(DATASET_PATHS.textEntities('zh-hans')).toBe('text/zh-hans/index/entities.json');
     });
 
     it('names every index as a JSON file under compiled/, never with a leading slash', () => {

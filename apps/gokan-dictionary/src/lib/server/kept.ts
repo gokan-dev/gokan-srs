@@ -15,3 +15,16 @@ export function kept<T>(load: () => Promise<T>): () => Promise<T> {
         return request;
     };
 }
+
+/** `kept` per key: each key's value built on its first use, then kept; a load that fails is dropped for that key alone. */
+export function keptBy<T>(load: (key: string) => Promise<T>): (key: string) => Promise<T> {
+    const byKey = new Map<string, () => Promise<T>>();
+    return key => {
+        let value = byKey.get(key);
+        if (value === undefined) {
+            value = kept(() => load(key));
+            byKey.set(key, value);
+        }
+        return value();
+    };
+}

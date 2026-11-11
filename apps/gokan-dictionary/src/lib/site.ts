@@ -42,3 +42,10 @@ export const SITE_NAME = 'Gokan Dictionary';
 
 /** Set only by the production deploy, so no other build counts visits (see @gokan/analytics). */
 export const UMAMI_WEBSITE_ID: string | undefined = import.meta.env.VITE_UMAMI_WEBSITE_ID;
+
+/**
+ * The locales the dictionary is built and served in, space-separated ("en", "en zh-hans"): set
+ * per environment by the deploy (production English alone, staging with Chinese, #170), read by
+ * lib/locale.ts. Unset is English alone.
+ */
+export const DICTIONARY_LOCALES: string | undefined = import.meta.env.VITE_DICTIONARY_LOCALES;

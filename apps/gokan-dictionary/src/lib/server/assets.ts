@@ -4,6 +4,7 @@
 // into the server here rather than read from disk at run time: the server then carries what its
 // pages link wherever it runs.
 
+import { DEFAULT_LOCALE, type ServedLocale } from '../locale';
 import { assetPath } from '../urls';
 
 interface ViteManifestEntry {
@@ -54,6 +55,16 @@ const PAGE_STYLES = {
 } as const;
 
 export type PageStyle = keyof typeof PAGE_STYLES;
+
+/**
+ * A locale's own stylesheet, linked by every page in it after the shared one: its faces, and what
+ * only its pages show. English has none, so its pages link what they always have.
+ */
+const LOCALE_STYLES: Record<Exclude<ServedLocale, typeof DEFAULT_LOCALE>, string> = {
+    'zh-hans': 'src/styles/locales/zh-hans.scss',
+};
+
+export const localeStylesheetHref = (locale: ServedLocale): string | undefined => (locale === DEFAULT_LOCALE ? undefined : asset(LOCALE_STYLES[locale]));
 
 /** A second script, beside the search one every page links: only the grammar index's filter. */
 const PAGE_SCRIPTS = {

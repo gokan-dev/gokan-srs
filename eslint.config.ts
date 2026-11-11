@@ -246,6 +246,17 @@ export default defineConfig([
       'no-restricted-imports': ['error', { patterns: [{ group: ['**/gokan-srs/src/**'], message: 'Share it through a package under packages/.' }] }],
     },
   },
+  // The dictionary's components never reach into lib/server/ (the data, the page builders): what a
+  // component needs of it is a type in lib/types.ts. The app boundary repeated, as above.
+  {
+    files: [`${DICTIONARY}/src/pages/**/*.{ts,svelte}`, `${DICTIONARY}/src/routes/**/*.svelte`],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: [
+        { group: ['**/gokan-srs/src/**'], message: 'Share it through a package under packages/.' },
+        { group: ['**/lib/server/**', '$lib/server/**'], message: 'A component never imports lib/server/: move what it needs (a type) to lib/types.ts.' },
+      ] }],
+    },
+  },
   // Packages sit under the apps: an app imports a package, never the reverse.
   {
     files: ['packages/**/*.ts'],

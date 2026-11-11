@@ -3,6 +3,7 @@
  * declaring their own copy, so a schema change updates one factory (AGENTS.md, No duplication).
  */
 import type { GrammarPoint, Kanji, Sentence, Vocabulary } from '@gokan/dataset-schema';
+import type { WordText } from '../lib/types';
 
 /** 思う, a common verb with two glosses. */
 export function vocabulary(overrides: Partial<Vocabulary> = {}): Vocabulary {
@@ -64,6 +65,22 @@ export function sentence(overrides: Partial<Sentence> = {}): Sentence {
             '1311110': [{ start: 0, length: 1, reading: 'わたし' }],
             '1589350': [{ start: 4, length: 2, reading: 'おもう' }],
         },
+        ...overrides,
+    };
+}
+
+/** 思う's text in Chinese: one Chinese Wiktionary definition with two senses, and two equivalents. */
+export function wordText(overrides: Partial<WordText> = {}): WordText {
+    return {
+        definitions: [{
+            id: 'd1', role: 'definition', source: { source: 'zhwiktionary', ref: '思う' }, match: 'spelling+reading', status: 'imported',
+            senses: [{ glosses: ['想', '认为'] }, { glosses: ['思念'] }],
+        }],
+        equivalents: [
+            { text: '想', sources: [{ source: 'jawiktionary', ref: '思う' }] },
+            { text: '认为', sources: [{ source: 'wikidata', ref: 'Q1' }] },
+            { text: '思考', sources: [{ source: 'jawiktionary', ref: '思う' }] },
+        ],
         ...overrides,
     };
 }

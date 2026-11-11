@@ -182,7 +182,7 @@ async function measure(tab: Tab, page: string, width: number, tapTargets = ''): 
     for (const problem of await tab.evaluate<string[]>(MEASURE(width, tapTargets))) failures.push(`${width}px ${page}: ${problem}`);
 }
 
-const DICTIONARY_PAGES = dictionaryPages();
+const DICTIONARY_PAGES = await dictionaryPages();
 const SRS_ROUTES = srsRoutes();
 const SRS_VERSION = srsVersion();
 // The same build behind a version.json naming the next major: what an open tab sees once a newer
@@ -1040,6 +1040,80 @@ async function checkLookupKeepsHover(tab: Tab, page: string, width: number): Pro
     await tab.mouseMove(1, 1);
 }
 
+/**
+ * A word list's gloss is in its column (docs/DESIGN_SYSTEM.md section 8, Lists), whatever its
+ * language: at 1280px every row's gloss (its last span) starts at the same x, the third column; on
+ * a phone, and in a word page's aside at any width, it starts at the row's left edge (inside its
+ * padding), on a line of its own under the headword, and spans the whole row: a gloss auto-placed
+ * into the first column of the next line (a kanji word's, whose reading fills the first line) is
+ * only as wide as that column. A Chinese gloss once fell into the reading's column, onto the
+ * headword's line, or under the headword in its column (#227).
+ */
+const DICTIONARY_LIST_PAGES = ['/vocab/jlpt-n5/', ...(DICTIONARY_PAGES.some(page => page.path === '/zh-hans/vocab/jlpt-n5/') ? ['/zh-hans/vocab/jlpt-n5/'] : [])];
+/** する: its aside's lists (Made of, Used in) hold kana and kanji words, in English and in Chinese. */
+const ASIDE_LIST_WORD = '1157170';
+const ASIDE_LIST_PAGES = [`/vocab/${ASIDE_LIST_WORD}/`, ...(DICTIONARY_PAGES.some(page => page.path.startsWith('/zh-hans/')) ? [`/zh-hans/vocab/${ASIDE_LIST_WORD}/`] : [])];
+async function checkEntryGlossColumn(tab: Tab, page: string, width: number, stacked: boolean, lists = '.entry-list:not(.entry-list--brief)'): Promise<void> {
+    const rows = await tab.evaluate<{ row: string; rowLeft: number; rowTop: number; rowWidth: number; left: number; top: number; width: number }[]>(`[...document.querySelectorAll(${JSON.stringify(`${lists} > li > a`)})]
+        .filter(a => a.getBoundingClientRect().width > 0 && a.lastElementChild)
+        .map(a => { const row = a.getBoundingClientRect(); const style = getComputedStyle(a); const gloss = a.lastElementChild.getBoundingClientRect(); return { row: a.textContent.slice(0, 20), rowLeft: row.left + parseFloat(style.paddingLeft), rowTop: row.top + parseFloat(style.paddingTop), rowWidth: row.width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight) - parseFloat(style.borderLeftWidth) - parseFloat(style.borderRightWidth), left: gloss.left, top: gloss.top, width: gloss.width }; })`);
+    if (rows.length === 0) {
+        failures.push(`${width}px ${page}: no word rows to measure`);
+        return;
+    }
+    const strays = stacked
+        ? rows.filter(row => Math.abs(row.left - row.rowLeft) > 1 || row.top - row.rowTop < 2 || Math.abs(row.width - row.rowWidth) > 1)
+        : rows.filter(row => Math.abs(row.left - rows[0].left) > 1);
+    if (strays.length > 0) failures.push(`${width}px ${page}: a row's gloss is out of its column (${stacked ? "not on its own line across the row, from its left edge" : 'not where the first row\'s starts'}): ${strays.slice(0, 3).map(row => row.row).join(', ')}`);
+}
+
+/**
+ * A section's source credit (a Chinese word page's 来源：...) is set off from what comes before it,
+ * at least 8px (docs/DESIGN_SYSTEM.md section 4), so it reads as a note on the whole section and not
+ * as part of its last meaning or disclosure. It once sat flush under them (#227). 食べる credits
+ * both its meanings and its sentences.
+ */
+const SOURCE_CREDIT_WORD = '1358280';
+const SOURCE_CREDIT_PAGES = DICTIONARY_PAGES.some(page => page.path.startsWith('/zh-hans/')) ? [`/zh-hans/vocab/${SOURCE_CREDIT_WORD}/`] : [];
+async function checkSourceCreditGap(tab: Tab, page: string, width: number): Promise<void> {
+    const credits = await tab.evaluate<{ credit: string; gap: number }[]>(`[...document.querySelectorAll('.source-credit')]
+        .filter(el => el.getBoundingClientRect().height > 0 && el.previousElementSibling)
+        .map(el => ({ credit: el.textContent.slice(0, 20), gap: el.getBoundingClientRect().top - el.previousElementSibling.getBoundingClientRect().bottom }))`);
+    if (credits.length < 2) {
+        failures.push(`${width}px ${page}: ${credits.length} source credits to measure, expected the meanings' and the sentences'`);
+        return;
+    }
+    const flush = credits.filter(credit => credit.gap < 8 - 0.5);
+    if (flush.length > 0) failures.push(`${width}px ${page}: a source credit sits under 8px below the element before it: ${flush.map(credit => `${credit.credit} (${credit.gap.toFixed(1)}px)`).join(', ')}`);
+}
+
+/**
+ * The language switcher is one small neutral line (docs/DESIGN_SYSTEM.md section 8): its link in
+ * `secondary`, no larger than the breadcrumb's, so the page head keeps one primary thing. It once
+ * drew in the accent at body size (#227). Both of 食べる's pages have a counterpart, so a switcher.
+ */
+const SWITCHER_PAGES = DICTIONARY_PAGES.some(page => page.path.startsWith('/zh-hans/')) ? [`/vocab/${SOURCE_CREDIT_WORD}/`, `/zh-hans/vocab/${SOURCE_CREDIT_WORD}/`] : [];
+async function checkLocaleSwitch(tab: Tab, page: string, width: number): Promise<void> {
+    const found = await tab.evaluate<{ color: string; secondary: string; size: number; crumb: number } | null>(`(() => {
+        const link = document.querySelector('.locale-switch a');
+        const crumb = document.querySelector('.breadcrumb a');
+        if (!link || !crumb || link.getBoundingClientRect().width === 0) return null;
+        const probe = document.createElement('span');
+        probe.style.color = 'var(--secondary)';
+        link.parentElement.appendChild(probe);
+        const secondary = getComputedStyle(probe).color;
+        probe.remove();
+        const style = getComputedStyle(link);
+        return { color: style.color, secondary, size: parseFloat(style.fontSize), crumb: parseFloat(getComputedStyle(crumb).fontSize) };
+    })()`);
+    if (found === null) {
+        failures.push(`${width}px ${page}: no visible language switcher (or breadcrumb) to measure`);
+        return;
+    }
+    if (found.color !== found.secondary) failures.push(`${width}px ${page}: the language switcher's link is ${found.color}, not the secondary colour (${found.secondary})`);
+    if (found.size > found.crumb + 0.5) failures.push(`${width}px ${page}: the language switcher's link is ${found.size}px, larger than the breadcrumb's ${found.crumb}px`);
+}
+
 /** Measures the fixture word's page, after checking it still shows a reading to measure. */
 async function measureFuriganaFixture(tab: Tab, url: string, ready: string, page: string, width: number, tapTargets = ''): Promise<void> {
     try {
@@ -1064,6 +1138,22 @@ try {
     // A studied word's header at 1280px, where the narrow page leaves the header its one column.
     await desktop.click('Start learning');
     await checkIntroDesktop(desktop, `http://127.0.0.1:${srs.port}`);
+    for (const path of DICTIONARY_LIST_PAGES) {
+        await desktop.goto(`http://127.0.0.1:${dictionary.port}/dictionary${path}`, 'N5');
+        await checkEntryGlossColumn(desktop, `dictionary ${path}`, DESKTOP.width, false);
+    }
+    for (const path of ASIDE_LIST_PAGES) {
+        await desktop.goto(`http://127.0.0.1:${dictionary.port}/dictionary${path}`, 'JLPT');
+        await checkEntryGlossColumn(desktop, `dictionary ${path}, its aside`, DESKTOP.width, true, '.entry-list--stacked');
+    }
+    for (const path of SOURCE_CREDIT_PAGES) {
+        await desktop.goto(`http://127.0.0.1:${dictionary.port}/dictionary${path}`, '来源');
+        await checkSourceCreditGap(desktop, `dictionary ${path}`, DESKTOP.width);
+    }
+    for (const path of SWITCHER_PAGES) {
+        await desktop.goto(`http://127.0.0.1:${dictionary.port}/dictionary${path}`, 'JLPT');
+        await checkLocaleSwitch(desktop, `dictionary ${path}`, DESKTOP.width);
+    }
     await checkKanaIntro(chrome, `http://127.0.0.1:${srs.port}`, DESKTOP.width, DESKTOP.height);
     await desktop.goto(`http://127.0.0.1:${srs.port}/vocab/${FURIGANA_VOCAB}`, 'Examples');
     await checkLookupKeepsHover(desktop, `srs /vocab/${FURIGANA_VOCAB}`, DESKTOP.width);
@@ -1189,6 +1279,15 @@ try {
         for (const page of DICTIONARY_PAGES) {
             await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${page.path}`, page.ready);
             await measure(tab, `dictionary ${page.path}`, width, DICTIONARY_TAP_TARGETS);
+            if (DICTIONARY_LIST_PAGES.includes(page.path)) await checkEntryGlossColumn(tab, `dictionary ${page.path}`, width, true);
+        }
+        for (const path of SOURCE_CREDIT_PAGES) {
+            await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${path}`, '来源');
+            await checkSourceCreditGap(tab, `dictionary ${path}`, width);
+        }
+        for (const path of SWITCHER_PAGES) {
+            await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${path}`, 'JLPT');
+            await checkLocaleSwitch(tab, `dictionary ${path}`, width);
         }
         await measureFuriganaFixture(tab, `http://127.0.0.1:${dictionary.port}/dictionary/vocab/${FURIGANA_VOCAB}/`, 'Meanings', `dictionary /vocab/${FURIGANA_VOCAB}/`, width, DICTIONARY_TAP_TARGETS);
         await tab.close();
@@ -1207,4 +1306,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows and word readings unbroken, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button undimmed, its sentence centred on its translation with its button right after it (and at 1280px on the headword), a word learned in kana's intro, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows and word readings unbroken, a word list's gloss in its column (1280px) or on its own line across the row (phones, a word page's aside), a section's source credit set off from what comes before it, the language switcher small and neutral, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button undimmed, its sentence centred on its translation with its button right after it (and at 1280px on the headword), a word learned in kana's intro, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);

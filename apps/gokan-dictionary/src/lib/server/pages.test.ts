@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { GrammarPoint, Kanji, KanjiOrderId, Sentence, Vocabulary } from '@gokan/dataset-schema';
-import { grammarPoint, kanji, sentence, vocabulary } from '../../test/fixtures';
-import type { DictionaryData } from '../types';
+import { grammarPoint, kanji, sentence, vocabulary, wordText } from '../../test/fixtures';
+import type { DictionaryData, LocaleText, WordText } from '../types';
+import { LOCAL_GLOSS_LENGTH, shortWordTextSummary, wordTextSummary } from '../senses';
 import { grammarSummaryOf } from '../grammarBrowse';
 import { vocabSummaryFrom } from '../vocabSummary';
 import { kanjiOrderSlug, localeUrls } from '../urls';
@@ -18,6 +19,37 @@ interface World {
     jlpt?: Record<number, string[]>;
     /** Every word id, most frequent first; defaults to the words' order. */
     frequency?: string[];
+    /** Read in Chinese: the words with Chinese text shown (each a shown equivalent), the others none. */
+    chinese?: string[];
+    /** A Chinese word's own text, in place of the equivalent 想. */
+    chineseTexts?: Record<string, WordText>;
+}
+
+/**
+ * A Chinese text layer in which exactly `ids` have text shown: each the equivalent 想, or the text
+ * `texts` gives it.
+ */
+function chineseText(ids: readonly string[], texts: Readonly<Record<string, WordText>> = {}): LocaleText {
+    const shown = new Set(ids);
+    const textOf = (id: string): WordText | null => (shown.has(id)
+        ? texts[id] ?? { definitions: [], equivalents: [{ text: '想', sources: [{ source: 'jawiktionary', ref: id }] }] }
+        : null);
+    return {
+        language: 'zh-hans',
+        wordText: id => Promise.resolve(textOf(id)),
+        wordSummary: id => {
+            const text = textOf(id);
+            return Promise.resolve(text === null ? null : shortWordTextSummary(text));
+        },
+        searchGloss: id => {
+            const text = textOf(id);
+            return Promise.resolve(text === null ? null : wordTextSummary(text));
+        },
+        withPages: other => Promise.resolve(other.filter(id => shown.has(id))),
+        wordIds: () => Promise.resolve([...ids]),
+        firstWordId: () => Promise.resolve(ids.at(0) ?? null),
+        sentenceTranslations: () => Promise.resolve(new Map()),
+    };
 }
 
 /** A DictionaryData held in memory, counting how often each method is asked. */
@@ -57,6 +89,7 @@ function memorySource(world: World): { source: DictionaryData; calls: Map<string
         grammarVariantGroups: () => ask('grammarVariantGroups', () => ({})),
         grammarConjugations: () => ask('grammarConjugations', () => ({})),
         grammarMinedExamples: _id => ask('grammarMinedExamples', () => null),
+        localeText: world.chinese ? chineseText(world.chinese, world.chineseTexts) : null,
     };
     return { source, calls };
 }
@@ -160,5 +193,123 @@ describe('pagesOf: the catalog', () => {
         const pages = pagesOf(memorySource({ ...world, frequency: ['1281390', '0000000', '1589350'] }).source, 'en');
         const { core } = await pages.searchIndex();
         expect(core.w[0]).toEqual(['1281390', '1589350']);
+    });
+});
+
+describe('pagesOf: a locale other than English', () => {
+    const world: World = { words: [omou, kangaeru], kanji: [kanji()], points: [grammarPoint()], jlpt: { 5: ['1589350'] }, chinese: ['1589350'] };
+    const zhUrls = localeUrls('zh-hans');
+
+    it('has a page for a word with Chinese text shown, and none (404) for a word without', async () => {
+        const pages = pagesOf(memorySource(world).source, 'zh-hans');
+        const page = await pages.vocabPage('1589350');
+        expect(page.props.text?.equivalents).toEqual([{ text: '想', sources: [{ source: 'jawiktionary', ref: '1589350' }] }]);
+        expect(page.document).toMatchObject({ locale: 'zh-hans', canonicalPath: zhUrls.vocabPath('1589350') });
+        await expect(pages.vocabPage('1281390')).rejects.toBeInstanceOf(PageNotFound);
+        await expect(pages.vocabPage('9999999')).rejects.toBeInstanceOf(PageNotFound);
+    });
+
+    it('links only the words with a page in Chinese: its lists leave the others out, its sentences show them unlinked', async () => {
+        // 考える's page links 思う (Made of) and, in its sentence, 私 and 思う. With Chinese text on
+        // 考える alone, 思う leaves Made of, and its sentence shows 思う and 私 unlinked.
+        const chineseWorld: World = { ...world, sentences: { '1281390': [sentence()] }, chinese: ['1281390'] };
+        const page = await pagesOf(memorySource(chineseWorld).source, 'zh-hans').vocabPage('1281390');
+        expect(page.props.components).toEqual([]);
+        expect(page.props.withoutPage).toEqual({ words: ['1311110', '1589350'], kanji: ['考'] });
+        const linked = await pagesOf(memorySource({ ...chineseWorld, chinese: ['1589350', '1281390'] }).source, 'zh-hans').vocabPage('1281390');
+        expect(linked.props.components.map(word => [word.id, word.localGloss])).toEqual([['1589350', '想']]);
+        expect(linked.props.withoutPage?.words).toEqual(['1311110']);
+    });
+
+    it('cuts a row\'s Chinese gloss short, as English cuts its own', async () => {
+        // A word with no equivalents is summarised by its first definition sense: here a long one.
+        const long = wordText({ equivalents: [], definitions: [{ ...wordText().definitions[0], senses: [{ glosses: ['表示动作的方向', '表示状态的变化或结果', '用于句末表示强调的语气'] }] }] });
+        const pages = pagesOf(memorySource({ ...world, jlpt: { 5: ['1589350'] }, chinese: ['1589350'], chineseTexts: { '1589350': long } }).source, 'zh-hans');
+        const [row] = (await pages.vocabJlptPage(5, 1)).props.words;
+        expect(row?.localGloss).toBe('表示动作的方向；表示状态的变化或结果');
+        expect(row?.localGloss?.length).toBeLessThanOrEqual(LOCAL_GLOSS_LENGTH);
+    });
+
+    it('titles a word page with its meaning in Chinese', async () => {
+        const page = await pagesOf(memorySource(world).source, 'zh-hans').vocabPage('1589350');
+        expect(page.document.title).toMatch(/^思う（おもう）的中文意思：想/);
+        expect(page.document.key).toEqual({ type: 'vocab', id: '1589350' });
+    });
+
+    it('has no kanji or grammar page yet: each a 404', async () => {
+        const pages = pagesOf(memorySource(world).source, 'zh-hans');
+        await expect(pages.kanjiPage('学')).rejects.toBeInstanceOf(PageNotFound);
+        await expect(pages.grammarPage('n2-169')).rejects.toBeInstanceOf(PageNotFound);
+        await expect(pages.kanjiIndexPage()).rejects.toBeInstanceOf(PageNotFound);
+        await expect(pages.grammarIndexPage()).rejects.toBeInstanceOf(PageNotFound);
+    });
+
+    it('has its own search page, kept out of search engines and the sitemap', async () => {
+        const pages = pagesOf(memorySource(world).source, 'zh-hans');
+        expect(pages.searchPage().document).toMatchObject({ locale: 'zh-hans', canonicalPath: zhUrls.searchPath(), noindex: true });
+        expect(await pages.pageEntries.search()).toEqual([{}]);
+        expect((await pages.sitemapPaths()).some(path => path.includes('/search/'))).toBe(false);
+    });
+
+    it('builds its search index of the words with a Chinese page alone, each with its Chinese gloss, in frequency order', async () => {
+        const texts = { '1589350': wordText(), '1281390': wordText({ equivalents: [{ text: '考虑', sources: [] }] }) };
+        const pages = pagesOf(memorySource({ ...world, frequency: ['1281390', '9999999', '1589350'], chinese: ['1589350', '1281390'], chineseTexts: texts }).source, 'zh-hans');
+        const { core, full } = await pages.searchIndex();
+        expect(core.w[0]).toEqual(['1281390', '1589350']);
+        expect(core.w[3]).toEqual(['考虑', wordTextSummary(texts['1589350'])]);
+        // Kanji and grammar have no Chinese page yet: Chinese's index finds words only.
+        expect(core.k).toEqual([]);
+        expect(core.g).toEqual([]);
+        expect(full.w[0]).toEqual([]);
+        // A word without a Chinese page is never in it.
+        const fewer = await pagesOf(memorySource({ ...world, chinese: ['1589350'] }).source, 'zh-hans').searchIndex();
+        expect(fewer.core.w[0]).toEqual(['1589350']);
+    });
+
+    it('has its home and vocabulary lists, of its words with text only', async () => {
+        const pages = pagesOf(memorySource({ ...world, jlpt: { 5: ['1589350', '1281390'], 4: ['1281390'] } }).source, 'zh-hans');
+        const list = await pages.vocabJlptPage(5, 1);
+        expect(list.props.words.map(word => word.id)).toEqual(['1589350']);
+        // Each row with its gloss in Chinese, for its list to show in place of English's.
+        expect(list.props.words[0]?.localGloss).toBe('想');
+        expect(list.props.allLevels).toEqual([5]);
+        await expect(pages.vocabJlptPage(4, 1)).rejects.toBeInstanceOf(PageNotFound);
+        const index = await pages.vocabIndexPage();
+        expect(index.props).toEqual({ levels: [{ level: 5, count: 1 }], totalCount: 1 });
+        expect(index.document.canonicalPath).toBe(zhUrls.vocabIndexPath());
+        const home = await pages.homePage();
+        expect(home.props.vocabCount).toBe(1);
+        expect(home.props.featured.map(word => word.id)).toEqual(['1589350']);
+        expect(home.document).toMatchObject({ locale: 'zh-hans', canonicalPath: zhUrls.homePath(), key: { type: 'home' } });
+    });
+
+    it('lists only its pages, in its entries and its sitemap', async () => {
+        const pages = pagesOf(memorySource(world).source, 'zh-hans');
+        expect(await pages.pageEntries.vocab()).toEqual([{ id: '1589350' }]);
+        expect(await pages.pageEntries.kanji()).toEqual([]);
+        expect(await pages.pageEntries.vocabJlpt()).toEqual([{ level: '5' }]);
+        expect(await pages.pageEntries.home()).toEqual([{}]);
+        expect(await pages.sitemapPaths()).toEqual([zhUrls.homePath(), zhUrls.vocabPath('1589350'), zhUrls.vocabJlptPath(5), zhUrls.vocabIndexPath()]);
+    });
+
+    it('says which of its pages exist, as a page in another locale asks for its counterpart', async () => {
+        const [chinese, english] = [pagesOf(memorySource(world).source, 'zh-hans'), pagesOf(memorySource(world).source, 'en')];
+        expect(await chinese.servesPage({ type: 'vocab', id: '1589350' })).toBe(true);
+        expect(await chinese.servesPage({ type: 'vocab', id: '1281390' })).toBe(false);
+        expect(await english.servesPage({ type: 'vocab', id: '1281390' })).toBe(true);
+        expect(await english.servesPage({ type: 'vocab', id: '9999999' })).toBe(false);
+        expect(await chinese.servesPage({ type: 'vocabJlpt', level: 5, page: 1 })).toBe(true);
+        expect(await chinese.servesPage({ type: 'vocabJlpt', level: 5, page: 2 })).toBe(false);
+        expect(await chinese.servesPage({ type: 'vocabJlpt', level: 4, page: 1 })).toBe(false);
+        expect(await chinese.servesPage({ type: 'home' })).toBe(true);
+    });
+
+    it('keeps English\'s word page as it was: no text, no translations', async () => {
+        const page = await pagesOf(memorySource(world).source, 'en').vocabPage('1589350');
+        expect(Object.keys(page.props).sort()).toEqual(['components', 'parents', 'sentences', 'vocab']);
+    });
+
+    it('refuses a source not read in the locale\'s language', () => {
+        expect(() => pagesOf(memorySource({ words: [omou] }).source, 'zh-hans')).toThrow(/need a source read in zh-hans/);
     });
 });

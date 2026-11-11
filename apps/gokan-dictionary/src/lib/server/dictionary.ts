@@ -9,16 +9,22 @@ import { building } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { checkoutData, resolveCompiledDir } from '../dataset.server';
 import { datasetLanguageOf, DEFAULT_LOCALE, inEveryLocale, SERVED_LOCALES, type ServedLocale } from '../locale';
+import type { SearchIndexPart } from '../searchIndex';
 import type { SearchIndexFile } from '../types';
 import { httpData } from './httpData';
-import { entityPagesOf, pagesOf, type EntityPages, type Pages } from './pages';
+import { entityPagesOf, PageNotFound, pagesOf, pathOf, type Alternate, type EntityPages, type PageKey, type Pages } from './pages';
 import { publishedSourceUrls, stampedSearchIndex } from './rendering';
 
 const built = new Map<ServedLocale, Pages>();
 const onRequest = new Map<ServedLocale, EntityPages>();
 
-/** Every page in one locale, over the checkout: what the build prerenders. */
+/**
+ * Every page in one locale, over the checkout: what the build prerenders. On request there is no
+ * checkout: English's list pages are served as the files the build wrote, and another locale has
+ * none yet (#170), so a path the server renders through a list route is a 404.
+ */
 export function pages(locale: ServedLocale): Pages {
+    if (!building && locale !== DEFAULT_LOCALE) throw new PageNotFound(`no ${locale} list pages: only its word pages are served`);
     let localePages = built.get(locale);
     if (localePages === undefined) {
         localePages = pagesOf(checkoutData(resolveCompiledDir(), datasetLanguageOf(locale)), locale);
@@ -53,9 +59,24 @@ export async function sitemapPaths(): Promise<string[]> {
 }
 
 /**
- * One of the search index's two files, as its route writes it: stamped with the dataset version.
- * English's: a locale's own search index (its glosses) comes with the locale (#170).
+ * One of a locale's search index's two files, as its route writes it: stamped with the dataset
+ * version. Each locale's own: its words with a page, their glosses in its language.
  */
-export async function searchIndexFile(part: 'core' | 'full'): Promise<SearchIndexFile> {
-    return stampedSearchIndex((await pages(DEFAULT_LOCALE).searchIndex())[part]);
+export async function searchIndexFile(part: SearchIndexPart, locale: ServedLocale): Promise<SearchIndexFile> {
+    return stampedSearchIndex((await pages(locale).searchIndex())[part]);
+}
+
+/**
+ * A page in every served locale that has it, this one included, in LOCALES' order: its hreflang
+ * alternates and its language switcher. Asked of each locale's own answer (a word page from its
+ * text, a list page from its words), so two locales' pages name each other or neither: none when
+ * no other locale has the page. A list page is asked at build only, where every page is built.
+ */
+export async function alternatesOf(key: PageKey, locale: ServedLocale): Promise<Alternate[]> {
+    if (SERVED_LOCALES.length === 1) return [];
+    const serving = await Promise.all(SERVED_LOCALES.map(async other => (
+        other === locale || (key.type === 'vocab' ? await entityPages(other).servesWord(key.id) : await pages(other).servesPage(key))
+    )));
+    const found = SERVED_LOCALES.filter((_, at) => serving[at]);
+    return found.length > 1 ? found.map(other => ({ locale: other, path: pathOf(key, other) })) : [];
 }

@@ -4,11 +4,14 @@
 //
 // A query is read every way a learner might have meant it: as written (kanji or kana, katakana
 // and hiragana compared as equal), as romaji converted to kana ("taberu"), as a conjugated form
-// (食べた, through conjugation.ts) and as English against the glosses.
+// (食べた, through conjugation.ts) and against the glosses in the index's language: English in
+// English's index, Chinese in a locale's whose glosses are Chinese (#170), each queried in its
+// own script, so English's index answers a kanji query exactly as it did before there were two.
 
 import { containsWholeWord, readRomajiQuery, toHiragana } from '@gokan/dataset-schema';
 import { deinflect, type WordClass } from './conjugation';
 import { fromColumns, wordClassOfRow } from './searchIndex';
+import type { DatasetLanguage } from './locale';
 import { isCommonRow, readingOfRow } from './searchRow';
 import type { SearchGrammarRow, SearchIndexFile, SearchKanjiRow, SearchWordRow } from './types';
 
@@ -22,9 +25,9 @@ export const TIER = {
     deinflected: 3,
     /** Headword or reading starts with the query; or, for a kanji query, the headword contains it. */
     prefix: 4,
-    /** An English sense equal to the query, ignoring a leading "to" or article. */
+    /** A sense equal to the query: in English ignoring a leading "to" or article, in Chinese one of its comma-separated glosses. */
     sense: 5,
-    /** The query as a whole word in the gloss. */
+    /** The query as a whole word in an English gloss. */
     glossWord: 6,
     /**
      * The reading starts with the romaji's kana, its last syllable possibly unfinished
@@ -57,6 +60,8 @@ interface PreparedGrammar {
 }
 
 export interface PreparedIndex {
+    /** The language of the words' glosses (SearchWordRow's gloss): what a gloss query is read in. */
+    glosses: DatasetLanguage;
     words: PreparedWord[];
     kanji: Map<string, SearchKanjiRow>;
     grammar: PreparedGrammar[];
@@ -99,21 +104,41 @@ const KANJI_ONLY = /^[㐀-鿿々]+$/;
 const KANJI_CHAR = /[㐀-鿿々]/;
 const KANA_ONLY = /^[ぁ-ゖー]+$/;
 
-/** Words from every file, in order (core, then full); the kanji and grammar of whichever carries them. */
-export function prepareIndex(files: SearchIndexFile[]): PreparedIndex {
+/**
+ * A Chinese gloss as compared, after NFKC (as the query is): its glosses, split at the dataset's
+ * separators (，；、 and a closing 。, NFKC turning the full-width comma and semicolon into ASCII),
+ * each without its parenthesised notes ("(行为)过火").
+ */
+function chineseSenses(gloss: string): string[] {
+    return gloss.replace(/\([^)]*\)/g, '').split(/[,;、。]/).map(part => part.trim()).filter(part => part !== '');
+}
+
+/** Whether a query is in the script of the index's glosses: Latin for English, Han for Chinese. */
+function inGlossScript(query: string, glosses: DatasetLanguage): boolean {
+    switch (glosses) {
+        case 'en': return /[a-z]/.test(query);
+        case 'zh-hans': return KANJI_CHAR.test(query);
+    }
+}
+
+/**
+ * Words from every file, in order (core, then full); the kanji and grammar of whichever carries
+ * them. `glosses` is the language the files' glosses are in: English's index, or a locale's.
+ */
+export function prepareIndex(files: SearchIndexFile[], glosses: DatasetLanguage = 'en'): PreparedIndex {
     const words: PreparedWord[] = [];
     const kanji = new Map<string, SearchKanjiRow>();
     const grammar: PreparedGrammar[] = [];
     for (const file of files) {
         for (const row of fromColumns(file.w)) {
-            const gloss = row[3].toLowerCase();
+            const gloss = glosses === 'en' ? row[3].toLowerCase() : row[3].normalize('NFKC').toLowerCase();
             words.push({
                 row,
                 rank: words.length,
                 headword: row[1],
                 reading: toHiragana(readingOfRow(row)),
                 gloss,
-                senses: row[3].split('; ').map(senseKey),
+                senses: glosses === 'en' ? row[3].split('; ').map(senseKey) : chineseSenses(gloss),
                 wordClass: wordClassOfRow(row),
                 jlpt: row[4] > 0,
                 common: isCommonRow(row),
@@ -124,7 +149,7 @@ export function prepareIndex(files: SearchIndexFile[]): PreparedIndex {
             grammar.push({ row, title: grammarKey(row[1]), romaji: grammarKey(row[2]), explanation: row[3].toLowerCase() });
         }
     }
-    return { words, kanji, grammar };
+    return { glosses, words, kanji, grammar };
 }
 
 /** A conjugated form's candidates may name a regular godan rule for 行く or 問う, whose other forms are regular. */
@@ -147,8 +172,11 @@ export function search(index: PreparedIndex, raw: string): SearchResults {
     // What a reading may start with when the romaji stops partway through a syllable ("taber").
     const kanaPrefixes = romaji?.prefixes ?? [];
     const english = /[a-z]/.test(query);
-    const sense = senseKey(query);
+    // A query in the glosses' language: English in English's index, Chinese in Chinese's.
+    const glossQuery = inGlossScript(query, index.glosses);
+    const sense = index.glosses === 'en' ? senseKey(query) : query;
     const wholeWord = english ? (text: string) => containsWholeWord(text, query) : null;
+    const glossWholeWord = index.glosses === 'en' ? wholeWord : null;
     const kanjiOnly = KANJI_ONLY.test(query);
 
     // Candidate dictionary forms, keyed by form, from the query as typed and as romaji read.
@@ -174,12 +202,12 @@ export function search(index: PreparedIndex, raw: string): SearchResults {
             (japanese && (word.headword.startsWith(query) || word.reading.startsWith(queryKana)))
             || (kanjiOnly && word.headword.includes(query))
         ) tier = TIER.prefix;
-        else if (english && word.senses.includes(sense)) tier = TIER.sense;
-        else if (wholeWord?.(word.gloss)) tier = TIER.glossWord;
+        else if (glossQuery && word.senses.includes(sense)) tier = TIER.sense;
+        else if (glossWholeWord?.(word.gloss)) tier = TIER.glossWord;
         else if (kanaPrefixes.some(prefix => word.reading.startsWith(prefix))) tier = TIER.romajiPrefix;
         else if (
             (japanese && (word.headword.includes(query) || word.reading.includes(queryKana)))
-            || (english && word.gloss.includes(query))
+            || (glossQuery && word.gloss.includes(query))
         ) tier = TIER.substring;
         if (tier) hits.push({ word, tier });
     }

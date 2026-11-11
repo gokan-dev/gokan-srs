@@ -3,6 +3,7 @@
 // run time.
 
 import { DATASET_PREFIX } from '@gokan/deploy/published-dataset';
+import { DEFAULT_LOCALE } from '../locale';
 import type { SearchIndexFile } from '../types';
 import { searchIndexPaths } from '../urls';
 
@@ -21,12 +22,12 @@ export function stampedSearchIndex(file: SearchIndexFile): SearchIndexFile {
 }
 
 /**
- * Where a page rendered on request reads: the published dataset and the site's search index, on
+ * Where a page rendered on request reads: the published dataset and English's search index, on
  * `origin`, and the dataset version this server was built for, which the index must carry.
  */
 export function publishedSourceUrls(origin: string): { datasetUrl: (path: string) => string; searchIndexUrls: { core: string; full: string }; datasetVersion: string } {
     const base = origin.replace(/\/$/, '');
-    const { core, full } = searchIndexPaths();
+    const { core, full } = searchIndexPaths(DEFAULT_LOCALE);
     return {
         datasetUrl: path => `${base}${DATASET_PREFIX}${path}?v=${__DATASET_VERSION__}`,
         searchIndexUrls: { core: `${base}${core}`, full: `${base}${full}` },

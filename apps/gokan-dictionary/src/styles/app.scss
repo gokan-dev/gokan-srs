@@ -188,6 +188,22 @@ main {
   }
 }
 
+// The same page in another language, above the breadcrumb, at its end: small and neutral,
+// underlined only on hover (DESIGN_SYSTEM.md section 8); its link a full tap target. On hover it
+// takes `a:hover`'s underline but keeps its colour, since this rule comes after `a:hover` at the
+// same specificity; on focus, the global `:focus-visible` outline. A rule of its own would put the
+// shared stylesheet over its budget.
+.locale-switch {
+  text-align: end;
+  font-size: $text-sm;
+
+  a {
+    display: inline-block;
+    line-height: $target;
+    color: var(--secondary);
+  }
+}
+
 .breadcrumb {
   font-size: $text-sm;
   color: var(--tertiary);
@@ -507,7 +523,9 @@ a.chip {
 
 // -- Word lists: headword | reading | gloss ---------------------------------
 // Rows are kept small: lang="ja" on the link, the headword a bare text cell (an anonymous grid
-// item), the reading a span, the gloss a span marked lang="en". A kanji page lists up to 660.
+// item), the reading a span with no lang, the gloss the one span with a lang (English's "en", a
+// Chinese page's "zh-Hans"): its lang is what marks it the gloss, at no bytes per row, where a
+// class would push a kanji page's 660 rows past its budget. A kanji page lists up to 660.
 
 .entry-list {
   a {
@@ -525,7 +543,7 @@ a.chip {
       color: var(--secondary);
     }
 
-    > [lang="en"] {
+    > [lang] {
       grid-column: 3;
       font-family: $font-sans;
       font-size: $text-sm;

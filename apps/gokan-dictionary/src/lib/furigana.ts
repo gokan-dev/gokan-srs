@@ -18,10 +18,11 @@ export interface SentenceRun {
  * recognised word with a reading gets furigana and a link, except the word whose page this is,
  * which is emphasised instead of linked to itself.
  */
-export function sentenceRuns(sentence: Sentence, options: SegmentInteractiveSentenceOptions = {}): SentenceRun[] {
+export function sentenceRuns(sentence: Sentence, options: SegmentInteractiveSentenceOptions & { unlinked?: ReadonlySet<string> } = {}): SentenceRun[] {
     return segmentInteractiveSentence(sentence, options).map(segment => ({
         parts: segment.type === 'match' ? rubyParts(segment.content, segment.reading) : [{ text: segment.content }],
-        ...(segment.vocabId && !segment.isTarget ? { vocabId: segment.vocabId } : {}),
+        // A word with no page (`unlinked`) keeps its furigana, without a link that would lead nowhere.
+        ...(segment.vocabId && !segment.isTarget && !options.unlinked?.has(segment.vocabId) ? { vocabId: segment.vocabId } : {}),
         emphasized: segment.isTarget || segment.isHighlighted,
     }));
 }

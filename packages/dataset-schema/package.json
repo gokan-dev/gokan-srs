@@ -9,7 +9,8 @@
     ".": "./src/index.ts",
     "./english": "./src/englishView.server.ts",
     "./english-file": "./src/englishFile.ts",
-    "./published-dataset": "./src/publishedDataset.ts"
+    "./published-dataset": "./src/publishedDataset.ts",
+    "./text": "./src/text.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",

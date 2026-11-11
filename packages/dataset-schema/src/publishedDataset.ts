@@ -61,6 +61,12 @@ export interface PublishedDatasetReader {
      * error, never "no text".
      */
     optionalFile<T>(path: string): Promise<T | null>;
+    /**
+     * A published file as it is, not projected into its English shape: a language's text file or
+     * text index (`text/zh-hans/...`), which a reader of that language narrows itself (the
+     * dictionary's Chinese section). Any failure throws, absence included.
+     */
+    publishedFile<T>(path: string): Promise<T>;
 }
 
 /**
@@ -112,5 +118,10 @@ export function publishedDatasetReader({ url, fetch: fetchFile = input => fetch(
     return {
         file: <T>(path: string) => load<T>(path, { allowMissing: false }),
         optionalFile: <T>(path: string) => load<T>(path, { allowMissing: true }),
+        publishedFile: async <T>(path: string) => {
+            const response = await fetchFile(url(path));
+            if (isMissingFile(response)) throw new Error(`Failed to fetch ${url(path)}: not published (${response.status})`);
+            return await readInput(path, response) as T;
+        },
     };
 }

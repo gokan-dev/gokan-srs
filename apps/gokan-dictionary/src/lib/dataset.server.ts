@@ -15,6 +15,7 @@ import type {
     JlptIndex, Kanji, KanjiOrderList, KanjiVocabIndex, Sentence, Vocabulary,
 } from '@gokan/dataset-schema';
 import { DATASET_PATHS } from './datasetPaths';
+import { localeText } from './server/localeText';
 import type { DatasetLanguage } from './locale';
 import { grammarSummaryOf } from './grammarBrowse';
 import type { DictionaryData, GrammarSummary, VocabSummary } from './types';
@@ -70,20 +71,22 @@ export function resolveCompiledDir(): string {
 }
 
 /**
- * Each language's view of a compiled/ directory. The dataset keeps each file's text apart from its
- * core, per language; a view puts them back together, in the shape this app's types describe (see
- * @gokan/dataset-schema/english). English is the one the dataset projects today.
+ * The dictionary's data, read from a compiled/ directory: every file through the English view (the
+ * dataset keeps each file's text apart from its core, per language; the view puts the English back,
+ * in the shape this app's types describe, see @gokan/dataset-schema/english), and for another
+ * `language` its own text files beside them, as published (localeText).
  */
-const VIEWS: Record<DatasetLanguage, typeof englishView> = { en: englishView };
-
-/** The dictionary's data, read from a compiled/ directory through its view in `language`. */
 export function checkoutData(compiledDir: string, language: DatasetLanguage): DictionaryData {
-    const view = VIEWS[language](compiledDir);
+    const view = englishView(compiledDir);
     // The dataset's own build typed each file; the view gives back the shape the types describe.
     const read = <T>(relative: string): T => view.json(relative) as T;
     const exists = (relative: string): boolean => fs.existsSync(path.join(compiledDir, relative));
     // Reads are synchronous here; a throw becomes the promise's rejection, as it would over HTTP.
     const later = <T>(load: () => T): Promise<T> => new Promise(resolve => resolve(load()));
+    const published = <T>(relative: string): Promise<T> => later(() => {
+        const body: unknown = JSON.parse(fs.readFileSync(path.join(compiledDir, relative), 'utf-8'));
+        return body as T;
+    });
 
     const vocabIds = (): string[] => fs.readdirSync(path.join(compiledDir, 'vocab'))
         .filter(name => name.endsWith('.json'))
@@ -127,5 +130,6 @@ export function checkoutData(compiledDir: string, language: DatasetLanguage): Di
         // One file per eligible point: most points (~350/828) have none, the common, permanent
         // case, not an error.
         grammarMinedExamples: id => later(() => (exists(DATASET_PATHS.grammarMinedExamples(id)) ? read<GrammarExample[]>(DATASET_PATHS.grammarMinedExamples(id)) : null)),
+        localeText: language === 'en' ? null : localeText(language, { index: published, file: published, glosses: published, vocab: id => later(() => vocab(id)) }),
     };
 }

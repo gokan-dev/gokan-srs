@@ -294,8 +294,12 @@ gokan-dictionary:
 - Locales: `lib/locale.ts` (`Locale`, the served ones, a page's locale from its optional route
   segment `[[locale=locale]]`; English has none). Every link is built for a locale:
   `localeUrls(locale)` from `lib/urls.ts` (it applies the base path and the locale segment), in a
-  component `pageLocale().urls` (`pages/pageLocale.ts`, set by the root layout). Its English-only
-  path functions are the search script's, `client/` only (enforced).
+  component `pageLocale().urls` (`pages/pageLocale.ts`, set by the root layout). A page in another
+  locale links its own section's pages, and English's for the types it does not serve, marked
+  `hreflang="en"` (`pageLocale().linkLang`, `lib/localeLinks.ts`; checked as it renders, with its
+  English and its catalog's words, `hooks.server.ts`). The search script links through
+  `linkUrls(locale)` too, never `localeUrls` (enforced), and says its words from
+  `lib/messages/search` (one module per locale, apart from the page catalog).
 - Words: every title, description and word of chrome from the locale's catalog, `lib/messages`
   (`Messages`, one module per locale, `en.ts`; a breadcrumb step too, enforced; `messagesFor(locale)`, in a component
   `pageLocale().messages`; a sentence with links is `LinkedText`). A count is `messages.count`.
