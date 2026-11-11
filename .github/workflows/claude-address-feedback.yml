@@ -250,10 +250,11 @@ jobs:
       # A triage brief answered without a push (only the PR text changed, or nothing was left to
       # change) starts no review, so no triage, so no done: a sprint member then waits forever
       # (PR #230, #226). Ask triage for this commit once more; it allows one repeat after a lone
-      # apply (claude-triage.yml, retriage), and ends in done or decide. A dispatch is the one
-      # thing github.token may start.
+      # apply (claude-triage.yml, retriage), and ends in done or decide (a repeat's apply becomes a
+      # decide that offers to stop). A dispatch is the one thing github.token may start.
       - name: Re-triage an apply that pushed nothing
-        if: ${{ success() && startsWith(github.event.comment.body, '<!-- gokan-triage') }}
+        # An apply brief only, by the marker the triage gate counts: a done or decide comment shares the prefix.
+        if: ${{ success() && startsWith(github.event.comment.body, '<!-- gokan-triage sha=') && contains(github.event.comment.body, 'outcome=apply') }}
         env:
           GH_TOKEN: ${{ github.token }}
           BRANCH: ${{ needs.branch.outputs.name }}

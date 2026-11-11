@@ -14,7 +14,9 @@
 #
 # Rounds cannot run forever: the brief never raises again what an earlier triage left out or the
 # human decided, the bar rises after the first round, and after MAX_AUTO_ROUNDS automatic rounds
-# without a word from the human, an `apply` becomes a `decide` that offers to stop.
+# without a word from the human, an `apply` becomes a `decide` that offers to stop; and a commit is
+# triaged at most twice: once, plus one repeat after an apply that pushed nothing, which ends in
+# done or decide (a repeat's apply becomes a decide that offers to stop).
 #
 # Only deterministic steps write the "@claude" that starts the feedback agent: the triage agent
 # has no shell and no network, reads what the steps gathered, and writes its outcome to files.
@@ -122,6 +124,9 @@ jobs:
             [ "$RETRIAGE" = true ] && [ "$triaged" -eq 1 ] && [ "$lone_apply" -eq 1 ] \
               || stop "${sha:0:10} was already triaged."
             echo "Re-triaging ${sha:0:10}: its apply pushed nothing."
+            # What the prompt and the outcome key on: the exception taken, not the input (a retried
+            # feedback run whose first attempt pushed reaches here with retriage set and triaged=0).
+            echo "repeat=true" >> "$GITHUB_OUTPUT"
           fi
 
           # Automatic rounds since the human last spoke: triage `apply` comments after the latest
@@ -248,8 +253,8 @@ jobs:
             In `conversation.md`, this round's reviews are the latest PR review (claude[bot]'s
             "Review of PR" comment and its PR review) and, when the round reached staging, the
             staging review of this commit (the comment starting `<!-- gokan-agent-status -->`).
-            ${{ inputs.staging_review == 'not-needed' && 'This round changed nothing the deployed apps ship (CI, docs or tests only), so it had no staging deploy: the PR review is its only review, and an older staging review belongs to an earlier round.' || 'This round''s changes reached staging, so it has both reviews.' }}
-            ${{ inputs.retriage == 'true' && 'This commit was triaged once already, and the feedback agent answered that apply without pushing (its comment says what it changed, if anything: the PR text, or nothing). Judge whether anything is still left to change: if not, the outcome is done.' || '' }}
+            ${{ inputs.staging_review == 'not-needed' && 'This round changed nothing the deployed apps ship (CI, docs or tests only), so it had no staging deploy: the PR review is its only review, and an older staging review belongs to an earlier round.' || (steps.round.outputs.repeat == 'true' && inputs.staging_review == '') && 'This round''s reviews are the ones the earlier triage of this commit read (its brief is on the PR: the comment starting `<!-- gokan-triage sha=` with this commit). A staging review counts only if it names this commit; an older one belongs to an earlier round.' || 'This round''s changes reached staging, so it has both reviews.' }}
+            ${{ steps.round.outputs.repeat == 'true' && 'This commit was triaged once already, and the feedback agent answered that apply without pushing (its comment says what it changed, if anything: the PR text, or nothing). Judge whether anything is still left to change: if not, the outcome is done.' || '' }}
             The reviewers only report, so every point is yours to sort: triage each point in this
             round's reviews, every unresolved inline comment, and any failing check. Earlier
             rounds are history: comments starting `<!-- gokan-triage` are earlier triages, and
@@ -335,6 +340,7 @@ jobs:
           SHA: ${{ steps.round.outputs.sha }}
           ROUND: ${{ steps.round.outputs.round }}
           AUTO_ROUNDS: ${{ steps.round.outputs.auto_rounds }}
+          REPEAT: ${{ steps.round.outputs.repeat }}
         run: |
           set -euo pipefail
           outcome="$(tr -d '[:space:]' < .triage/out/outcome 2>/dev/null || true)"
@@ -351,6 +357,14 @@ jobs:
           if [ "$outcome" = apply ] && [ "$AUTO_ROUNDS" -ge "$MAX_AUTO_ROUNDS" ]; then
             outcome=decide
             escalated=true
+          fi
+          # A repeat follows an apply that pushed nothing: another apply could push nothing again and,
+          # the commit now triaged twice, stall the PR silently (PR #230). The maintainer is asked.
+          repeat_apply=false
+          if [ "$outcome" = apply ] && [ "$REPEAT" = true ]; then
+            outcome=decide
+            escalated=true
+            repeat_apply=true
           fi
 
           gh label create needs-decision --repo "$GITHUB_REPOSITORY" --force --color FBCA04 \
@@ -382,8 +396,12 @@ jobs:
                 cat "$RUNNER_TEMP/brief.md"
                 ;;
               decide)
-                if [ "$escalated" = true ]; then
+                if [ "$repeat_apply" = true ]; then
+                  echo "@$HUMAN **Your call: keep going?** The fixes for $subject pushed nothing, and a second triage of it still raises the points below. Nothing runs until you answer."
+                elif [ "$escalated" = true ]; then
                   echo "@$HUMAN **Your call: keep going?** $AUTO_ROUNDS automatic rounds have run since you last weighed in, and the reviews of $subject still raise the points below. Nothing runs until you answer."
+                fi
+                if [ "$escalated" = true ]; then
                   echo
                   cat "$RUNNER_TEMP/brief.md"
                   echo
