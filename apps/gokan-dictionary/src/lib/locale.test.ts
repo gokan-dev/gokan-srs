@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_LOCALE, datasetLanguageOf, htmlLang, inEveryLocale, localeOfHtmlLang, isLocaleSegment, localeOfPath, localeOfSegment, localePrefix, SERVED_LOCALES, servedLocalesOf } from './locale';
+import { DEFAULT_LOCALE, datasetLanguageOf, htmlLang, inEveryLocale, localeOfHtmlLang, isLocaleSegment, localeOfPath, localeOfSegment, localePrefix, SERVED_LOCALES, servedLocaleNamed, servedLocalesOf } from './locale';
 import { DICTIONARY_LOCALES } from './site';
 
 // What this run serves is the environment's (CI builds `en zh-hans`, a laptop English alone), so
@@ -40,6 +40,10 @@ describe('locale', () => {
         expect(() => localeOfSegment('en')).toThrow(/not a locale segment/);
         if (servesChinese) expect(localeOfSegment('zh-hans')).toBe('zh-hans');
         else expect(() => localeOfSegment('zh-hans')).toThrow(/not a locale segment/);
+        // By name, English's included (a locale's sitemap), and only a served one.
+        expect(servedLocaleNamed('en')).toBe('en');
+        expect(servedLocaleNamed('zh-hans')).toBe(servesChinese ? 'zh-hans' : undefined);
+        expect(servedLocaleNamed('vocab')).toBeUndefined();
     });
 
     it('reads a path\'s locale off its first segment after the base path, as a route would', () => {

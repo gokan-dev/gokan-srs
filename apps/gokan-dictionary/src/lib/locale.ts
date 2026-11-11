@@ -87,6 +87,11 @@ export function isLocaleSegment(segment: string): boolean {
     return SERVED_LOCALES.some(locale => !isDefaultLocale(locale) && locale === segment);
 }
 
+/** A served locale by its name, English's included (a locale's sitemap, sitemap-en.xml); undefined for any other name. */
+export function servedLocaleNamed(name: string): ServedLocale | undefined {
+    return SERVED_LOCALES.find(locale => locale === name);
+}
+
 /** The locale of a route's optional locale segment: none is English. */
 export function localeOfSegment(segment: string | undefined): ServedLocale {
     if (segment === undefined) return DEFAULT_LOCALE;

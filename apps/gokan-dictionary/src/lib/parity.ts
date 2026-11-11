@@ -17,7 +17,8 @@ const GRAMMAR_BROWSE = new Set(['family', 'families', 'chapters', 'conjugations'
 
 /** `relative` uses forward slashes, as dist/ paths and URLs do. */
 export function outputKindOf(relative: string): OutputKind {
-    if (relative === 'sitemap.xml') return 'sitemap';
+    // The index and each locale's (sitemap-en.xml): lib/sitemap.ts.
+    if (/^sitemap(-[a-z-]+)?\.xml$/.test(relative)) return 'sitemap';
     if (/^data\/search-[a-z]+\.json$/.test(relative)) return 'search index';
     if (!relative.endsWith('.html')) return 'asset';
     const [section, name, ...rest] = relative.split('/');

@@ -43,6 +43,7 @@ describe('outputKindOf', () => {
         expect(outputKindOf('data/search-core.json')).toBe('search index');
         expect(outputKindOf('data/search-full.json')).toBe('search index');
         expect(outputKindOf('sitemap.xml')).toBe('sitemap');
+        expect(outputKindOf('sitemap-zh-hans.xml')).toBe('sitemap');
         expect(outputKindOf('assets/app-1a2b3c.css')).toBe('asset');
         expect(outputKindOf('.vite/manifest.json')).toBe('asset');
     });

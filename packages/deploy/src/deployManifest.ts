@@ -292,8 +292,22 @@ export function changeDates(previous: PreviousDeploy, content: BuildManifest, to
     return dates;
 }
 
-/** Where each site's sitemap is built, dist-relative. Built with no `<lastmod>`: the deploy dates it. */
+/**
+ * Where each site's sitemap is built, dist-relative: a sitemap, or an index of the sitemaps beside
+ * it (the dictionary's, one per locale: sitemap-en.xml). Built with no `<lastmod>`: the deploy dates
+ * every one (`sitemapFilesOf`).
+ */
 export const SITEMAP_FILE = 'sitemap.xml';
+
+/**
+ * The built sitemaps to date, in the order to date them: every sitemap*.xml at the build's root,
+ * SITEMAP_FILE last, since an index's `<lastmod>` for a sitemap it lists is the day that dated
+ * sitemap last changed.
+ */
+export function sitemapFilesOf(files: readonly string[]): string[] {
+    const sitemaps = files.filter(file => /^sitemap(-[a-z0-9-]+)?\.xml$/.test(file));
+    return [...sitemaps.filter(file => file !== SITEMAP_FILE).sort(), ...sitemaps.filter(file => file === SITEMAP_FILE)];
+}
 
 /**
  * The dist file a sitemap URL is served from: a directory URL is its index.html, and a URL with

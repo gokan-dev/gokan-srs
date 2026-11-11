@@ -40,6 +40,7 @@ import {
     firstDifference,
     isIdentical,
     isTextOutput,
+    outputKindOf,
     parityReport,
     parseParityArgs,
     servedPath,
@@ -209,7 +210,7 @@ async function served(origin: string, files: readonly string[]): Promise<{ outpu
             const file = files[next++];
             const response = await fetchPatiently(`${origin}${servedPath(DICTIONARY_BASE_PATH, file)}`);
             const raw = Buffer.from(await response.arrayBuffer());
-            const body = file === 'sitemap.xml' ? undated(raw) : raw;
+            const body = outputKindOf(file) === 'sitemap' ? undated(raw) : raw;
             statuses.set(file, response.status);
             if (response.status !== 200) continue;
             bodies.set(file, body);

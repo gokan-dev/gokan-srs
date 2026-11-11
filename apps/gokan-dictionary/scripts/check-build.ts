@@ -18,6 +18,7 @@ import { misroutedPaths } from '../src/lib/servedPaths';
 import { datasetLanguageOf, htmlLang, localePrefix, SERVED_LOCALES, type ServedLocale } from '../src/lib/locale';
 import { inSection, linkUrls } from '../src/lib/localeLinks';
 import { BASE_PATH, SITE_ORIGIN } from '../src/lib/site';
+import { sitemapProblems as sitemapFileProblems } from '../src/lib/sitemap';
 import { messagesFor } from '../src/lib/messages';
 import { kanaToRomaji, toHiragana } from '@gokan/dataset-schema';
 import type { TextFile } from '@gokan/dataset-schema/text';
@@ -238,6 +239,13 @@ const localeSearches = SERVED_LOCALES.filter(locale => localePrefix(locale) !== 
 const manifest = readJson(path.join('.vite', 'manifest.json')) as Record<string, ViteManifestEntry>;
 const measurements = measure(manifest);
 const over = overBudget(measurements);
+/** Every sitemap the build writes (the index and each locale's, at dist/'s root) is one a search engine reads: none over its URL limit. */
+function sitemapProblems(): string[] {
+    const sitemaps = fs.readdirSync(DIST_DIR).filter(name => /^sitemap(-[a-z-]+)?\.xml$/.test(name));
+    if (sitemaps.length === 0) return ['no sitemap.xml in dist/'];
+    return sitemaps.flatMap(name => sitemapFileProblems(name, fs.readFileSync(path.join(DIST_DIR, name), 'utf-8')));
+}
+
 /** CloudFront routes by a dot in the path (lib/servedPaths.ts): every built path must follow it. */
 function routingProblems(): string[] {
     const files = listFiles(DIST_DIR).filter(file => !file.startsWith('.vite/'));
@@ -340,7 +348,7 @@ async function unmatchedPathProblems(): Promise<string[]> {
     }
 }
 
-const problems = [...over.map(m => `over budget: ${describe(m)}`), ...modeProblems(), ...assetProblems(), ...searchProblems(), ...localeSearches.flatMap(found => found.problems), ...routingProblems(), ...linkProblems(), ...alternatesProblems(), ...sourceNameProblems(), ...(await unmatchedPathProblems())];
+const problems = [...over.map(m => `over budget: ${describe(m)}`), ...modeProblems(), ...assetProblems(), ...searchProblems(), ...localeSearches.flatMap(found => found.problems), ...sitemapProblems(), ...routingProblems(), ...linkProblems(), ...alternatesProblems(), ...sourceNameProblems(), ...(await unmatchedPathProblems())];
 
 // A budget over many pages reports its heaviest.
 const MANY_PAGES: Partial<Record<Measurement['budget'], string>> = { jlptPage: 'JLPT list pages', kanjiOrderPage: 'kanji order pages' };

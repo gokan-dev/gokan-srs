@@ -53,9 +53,9 @@ export function entriesOf<Params extends Record<string, string>>(
     return inEveryLocale(locale => of(pages(locale)));
 }
 
-/** Every indexed page's path, every served locale's in turn: one sitemap for the site. */
-export async function sitemapPaths(): Promise<string[]> {
-    return (await Promise.all(SERVED_LOCALES.map(locale => pages(locale).sitemapPaths()))).flat();
+/** Every indexed page's path in one locale: that locale's sitemap (lib/sitemap.ts, under the index). */
+export async function sitemapPaths(locale: ServedLocale): Promise<string[]> {
+    return pages(locale).sitemapPaths();
 }
 
 /**
