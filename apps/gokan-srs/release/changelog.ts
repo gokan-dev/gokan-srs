@@ -17,6 +17,16 @@ import type { ChangelogEntry } from '../src/models/release.model';
  */
 export const CHANGELOG: readonly ChangelogEntry[] = [
     {
+        version: '1.62.0',
+        date: '2026-11-11',
+        summary: 'Chinese dictionary',
+        changes: [
+            { summary: 'The dictionary has a Simplified Chinese section: about 11,000 words with their meanings from Chinese sources, and their example sentences with a Mandarin translation where one exists. Kanji and grammar pages stay in English for now.', issue: 226 },
+            { summary: 'The Chinese section is written in Chinese throughout, with its own home page and JLPT word lists, and a link at the top of a page switches between its English and Chinese versions.', issue: 227 },
+            { summary: 'Search in the Chinese section finds a word by its kanji, kana, romaji or Chinese meaning.', issue: 228 },
+        ],
+    },
+    {
         version: '1.52.0',
         date: '2026-11-06',
         summary: 'Japanese inside grammar lessons, usage notes and word meanings now always shows in a Japanese font, even on a device with none installed.',

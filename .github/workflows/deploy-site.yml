@@ -72,10 +72,10 @@ on:
         required: false
         default: '2000'
       dictionary_locales:
-        description: 'The locales the dictionary is built and served in, space-separated (VITE_DICTIONARY_LOCALES): "en" (production, until gokan-dataset#53 confirms the Chinese review), "en zh-hans" (staging, #170). The dictionary does not read it yet: the first member of the #170 sprint makes the locales it serves follow it, and a locale it does not know fail the build.'
+        description: 'The locales the dictionary is built and served in, space-separated (VITE_DICTIONARY_LOCALES): "en zh-hans" in production and on staging since 1.62.0 (#170; Chinese public on the provisional review, accepted on purpose, gokan-dataset#53). A locale the dictionary does not know fails the build.'
         type: string
         required: false
-        default: 'en'
+        default: 'en zh-hans'
       invalidate_everything:
         description: '"true" clears the whole distribution with one path (/*) instead of what changed: staging, where a cached page is worth nothing and every path counts against the account''s 1,000 free invalidation paths a month.'
         type: string

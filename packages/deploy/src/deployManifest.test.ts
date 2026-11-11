@@ -22,6 +22,7 @@ import {
     servedFiles,
     serverPages,
     SITES,
+    sitemapFilesOf,
     sitemapUrlFile,
     type PreviousDeploy,
 } from './deployManifest';
@@ -344,6 +345,26 @@ describe('datedSitemap', () => {
     it('refuses a built sitemap that already carries dates', () => {
         expect(() => datedSitemap('srs', '<url><loc>https://gokan-srs.com/</loc><lastmod>2026-03-10</lastmod></url>', { 'index.html': 'x' }))
             .toThrow(/lastmod/);
+    });
+
+    it('dates an index entry by the day the sitemap it lists last changed', () => {
+        const index = `<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <sitemap><loc>https://gokan-srs.com/dictionary/sitemap-en.xml</loc></sitemap>
+  <sitemap><loc>https://gokan-srs.com/dictionary/sitemap-zh-hans.xml</loc></sitemap>
+</sitemapindex>`;
+        expect(datedSitemap('dictionary', index, { 'sitemap-en.xml': '2026-10-12', 'sitemap-zh-hans.xml': '2026-11-11' })).toContain(
+            '<sitemap><loc>https://gokan-srs.com/dictionary/sitemap-en.xml</loc><lastmod>2026-10-12</lastmod></sitemap>\n'
+            + '  <sitemap><loc>https://gokan-srs.com/dictionary/sitemap-zh-hans.xml</loc><lastmod>2026-11-11</lastmod></sitemap>',
+        );
+    });
+});
+
+describe('sitemapFilesOf', () => {
+    it('is every sitemap at the build root, the index last, as it is dated from the others', () => {
+        const files = ['sitemap.xml', 'sitemap-zh-hans.xml', 'index.html', 'sitemap-en.xml', 'vocab/sitemap.xml', 'data/search-core.json'];
+        expect(sitemapFilesOf(files)).toEqual(['sitemap-en.xml', 'sitemap-zh-hans.xml', 'sitemap.xml']);
+        expect(sitemapFilesOf(['index.html', 'sitemap.xml'])).toEqual(['sitemap.xml']);
+        expect(sitemapFilesOf(['index.html'])).toEqual([]);
     });
 });
 

@@ -1,7 +1,8 @@
 // The dictionary's size budgets (docs/DESIGN_SYSTEM.md, Dictionary): what each page type and asset
-// may weigh, checked after every build by scripts/check-build.ts, which fails the build when one
-// is exceeded. A budget is a decision about what the site costs a reader on a phone; raise one
-// deliberately, in the docs, never to make a build pass.
+// may weigh, in every locale (a Chinese word page is a word page, a Chinese JLPT list a JLPT list),
+// checked after every build by scripts/check-build.ts, which fails the build when one is exceeded.
+// A budget is a decision about what the site costs a reader on a phone; raise one deliberately, in
+// the docs, never to make a build pass.
 
 const KB = 1024;
 
@@ -20,8 +21,10 @@ export const BUDGETS = {
     kanjiOrderPage: 150 * KB,
     /** The stylesheet every page loads. */
     sharedStylesheet: 10 * KB,
-    /** The search script every page loads. */
-    searchScript: 10 * KB,
+    /** A locale's own stylesheet, which every page in it loads besides (styles/locales/). */
+    localeStylesheet: 2 * KB,
+    /** The search script every page loads: 10 KB until it carried every locale's words and links (#228, docs/DESIGN_SYSTEM.md). */
+    searchScript: 12 * KB,
     /** The query engine it loads on first focus, with the index. */
     searchEngine: 10 * KB,
     /** search-core.json, gzipped. */

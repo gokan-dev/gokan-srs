@@ -501,6 +501,28 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   `lang="ja"` element, and on a `jp`-class element without it): that attribute is also what sets it in the Japanese face, and what
   stops some devices drawing it with Chinese glyph shapes. Headwords and sentences are
   mincho, readings gothic. Nothing below 12px.
+- **Chinese pages** (`/dictionary/zh-hans/...`, #170): `<html lang="zh-Hans">`, so every word of
+  their chrome is Chinese to a browser and a screen reader, and draws a character Chinese and
+  Japanese share in its Simplified Chinese form; the page's Japanese keeps `lang="ja"`, and
+  with it the Japanese faces (the two forms of 直, 骨 or 今 differ). The Chinese UI face is a
+  system stack, as the Japanese ones are, set on a Chinese page's `:root` by its locale
+  stylesheet (`styles/locales/zh-hans.scss`): sans `Inter, "PingFang SC", "Hiragino Sans GB",
+  "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", system-ui, sans-serif` (Inter
+  for the Latin in it: JLPT, N5, numbers; then macOS and iOS, older macOS, Windows, Android
+  and Linux), titles `"Source Serif 4", "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC",
+  SimSun, serif` (the Latin serif, then each system's Song face). No web font: a CJK face is
+  megabytes, against the 40 KB the one Latin font has. English on a Chinese page (JMdict's
+  meanings, an untranslated sentence, a textbook chip) is marked `lang="en"`.
+- **Language switcher**: on a page that has a counterpart in the other language (a word with no
+  Chinese page has none), one small line above the breadcrumb at its end: the other page,
+  named in its own language (English, 简体中文), a 44px tap target. Neutral text link, no flag:
+  `secondary` at the breadcrumb's size, underlined only on hover (a Chinese breadcrumb's links
+  are underlined at rest; the switcher, on a line of its own, is not).
+- **Links to English from a Chinese page** (a kanji, a grammar point, the dataset, the app):
+  marked for a reader as well as by `hreflang="en"`. In the header, a small tertiary 英文 beside
+  the section's name (12px); in a tile or a sentence, in the catalog's words (英文页面,
+  汉字（英文）); under the Kanji used tiles, one line (汉字页面为英文). A Chinese breadcrumb's
+  links are underlined: its steps are a word or two, so the trail reads as running text.
 - **Shape**: 6px radius for cards, chips, tiles, inputs and buttons; the search field is
   the one pill. No shadow except the search panel. Spacing on the 8px scale. Page
   sections are a heading plus spacing, not boxes; a box is an object (a tile, a kanji).
@@ -523,16 +545,21 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   kanji's book position, a range step's glyph) are at least 44px tall.
 - **Lists**: a word list is three aligned columns, headword | reading | gloss (stacked
   on a phone and in the word page's aside); the reading shows only when it differs from
-  the headword, and a word learned in kana is never listed by its kanji spelling. A long
-  list shows its head and puts the rest in a `<details>` ("All 401 words"): collapsed, but
-  every link stays in the HTML.
+  the headword, and a word learned in kana is never listed by its kanji spelling. The gloss
+  is the row's one span with a `lang` (English's `en`, a Chinese page's `zh-Hans`), which is
+  how the stylesheet puts it in its column in the sans face, in either language, at no bytes
+  per row; a Chinese gloss is cut at about 20 characters, at a 、 or ； when one falls inside
+  (`shortWordTextSummary`). `check:layout` holds the column at 1280px and the own line on a
+  phone. A long list shows its head and puts the rest in a `<details>` ("All 401 words"):
+  collapsed, but every link stays in the HTML.
 - **Furigana toggle**: "Hide furigana" / "Show furigana", in the section header of every
   page with sentences. It sets `furigana-hidden` on `<html>` and remembers the choice in
   `localStorage` (read in a try/catch, shown by default). It lives in the search script
   every page already loads, and stays hidden without JavaScript.
 - **Motion**: transitions are 150ms ease-in-out and none under `prefers-reduced-motion`.
 - **Budgets**, checked after every build by `scripts/check-build.ts`, which fails the
-  build when one is exceeded (`src/lib/budgets.ts`):
+  build when one is exceeded (`src/lib/budgets.ts`), the same in every language (a Chinese
+  word page is held to the word page's):
 
   | Item | Budget |
   | --- | --- |
@@ -542,7 +569,8 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   | Each JLPT list page | 150 KB |
   | Each kanji order page (hub, order, range of 100 steps) | 150 KB |
   | Shared stylesheet (`app.scss`) | 10 KB |
-  | Search script (every page) | 10 KB |
+  | A locale's stylesheet (`styles/locales/`, its pages only) | 2 KB |
+  | Search script (every page) | 12 KB |
   | Query engine (loaded on first focus) | 10 KB |
   | `search-core.json`, gzipped | 300 KB |
   | Web fonts | one woff2, 40 KB |
@@ -550,7 +578,11 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
 
   A budget is a decision about what a page costs a reader on a phone: raise one here,
   deliberately, never to make a build pass. The shared stylesheet is the tightest: a rule
-  used by one page type belongs in that page's stylesheet anyway. Page weight is one half of
+  used by one page type belongs in that page's stylesheet anyway. The search script's was
+  10 KB until it read the page's locale (#228): every served locale's words for it
+  (`lib/messages/search`) and the links of the page's section (`linkUrls`) took it to 11 KB,
+  about 4.6 KB gzipped; its words and links are per locale, so a third locale costs about
+  0.7 KB more. Page weight is one half of
   being found; the other, SEO at 100 on every page type, is held by the Lighthouse check
   (`scripts/check-lighthouse.ts`, in section 9).
 

@@ -29,7 +29,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import {
-    SITEMAP_FILE,
+    sitemapFilesOf,
     SITES,
     changeDates,
     contentHash,
@@ -202,13 +202,15 @@ function main(): void {
     // change it has the same bytes as the deployed one and stays where it is.
     // A dry run dates it in memory only: it touches nothing, so the real run after it (the deploy's
     // pre-flight, deploy-site.yml) still finds the undated build.
-    const sitemapPath = path.join(distDir, SITEMAP_FILE);
-    if (fs.existsSync(sitemapPath)) {
+    // Every sitemap, an index last (sitemapFilesOf): its entries are dated from the sitemaps they
+    // list, so each is dated after them, with their new hashes.
+    for (const file of sitemapFilesOf(files)) {
+        const sitemapPath = path.join(distDir, file);
         const sitemap = datedSitemap(site, fs.readFileSync(sitemapPath, 'utf-8'), changeDates(previous, content, today));
         const bytes = Buffer.from(sitemap, 'utf-8');
         if (!dryRun) fs.writeFileSync(sitemapPath, bytes);
-        built[SITEMAP_FILE] = contentHash(bytes);
-        content[SITEMAP_FILE] = pageContentHash(SITEMAP_FILE, bytes);
+        built[file] = contentHash(bytes);
+        content[file] = pageContentHash(file, bytes);
     }
     const dates = changeDates(previous, content, today);
 

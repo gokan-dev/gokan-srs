@@ -127,6 +127,42 @@ describe('httpData', () => {
     }, 60_000);
 });
 
+describe('httpData in Chinese', () => {
+    /** What a Chinese page reads of the text layer, for the words named. */
+    async function chinese(source: EntityData, words: readonly string[]) {
+        const text = source.localeText;
+        if (text === null) throw new Error('a zh-hans source reads its text layer');
+        return {
+            language: text.language,
+            words: await Promise.all(words.map(id => text.wordText(id))),
+            sentences: await Promise.all(words.map(async id => [...(await text.sentenceTranslations(id))])),
+        };
+    }
+
+    it('reads the text layer as the checkout does, with only shown renderings (fixtures)', async () => {
+        const checkout = checkoutData(FIXTURES, 'zh-hans');
+        const fetch = siteFetch(FIXTURES, await wordsIndex(checkout));
+        const over = httpData({ datasetUrl, searchIndexUrls: SEARCH, datasetVersion: VERSION, language: 'zh-hans', fetch });
+        const read = await chinese(over, ['1589350', '0000000']);
+        expect(read).toEqual(await chinese(checkout, ['1589350', '0000000']));
+        expect(read.words[0]?.equivalents).toEqual([{ text: '想', sources: [{ source: 'jawiktionary', ref: '思う' }] }]);
+        expect(read.words[1]).toBeNull();
+        // English reads no text layer: its values already carry their text.
+        expect(checkoutData(FIXTURES, 'en').localeText).toBeNull();
+    });
+
+    it('reads the text layer as the checkout does, over the real published dataset', async () => {
+        const checkout = checkoutData(COMPILED, 'zh-hans');
+        const fetch = siteFetch(COMPILED, splitSearchIndex([], [], []));
+        const over = httpData({ datasetUrl, searchIndexUrls: SEARCH, datasetVersion: VERSION, language: 'zh-hans', fetch });
+        // The first words with text, a word with a sentence file, and a word with none.
+        const index: unknown = JSON.parse(readFileSync(path.join(COMPILED, 'text', 'zh-hans', 'index', 'entities.json'), 'utf8'));
+        const { vocab, sentences } = index as { vocab: string[]; sentences: string[] };
+        const words = [...vocab.slice(0, 20), sentences[0], '1358280'];
+        expect(await chinese(over, words)).toEqual(await chinese(checkout, words));
+    }, 60_000);
+});
+
 describe('summaries from search rows', () => {
     // Every word and point of the real dataset: the rows a page rendered on request lists other
     // entries from must say exactly what the prerendered pages say.

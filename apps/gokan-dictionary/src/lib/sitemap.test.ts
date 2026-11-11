@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildSitemapXml, buildRobotsTxt, shouldEmitRobotsTxt, sitemapPath } from './sitemap';
+import { buildSitemapIndexXml, buildSitemapXml, buildRobotsTxt, localeSitemapPath, shouldEmitRobotsTxt, SITEMAP_URL_LIMIT, sitemapPath, sitemapProblems } from './sitemap';
 import { absoluteUrl, localeUrls } from './urls';
 import { BASE_PATH } from './site';
 
@@ -26,6 +26,25 @@ describe('buildSitemapXml', () => {
         const xml = buildSitemapXml([urls.homePath()]);
         expect(xml).toContain('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">');
         expect(xml.trim().endsWith('</urlset>')).toBe(true);
+    });
+});
+
+describe('buildSitemapIndexXml', () => {
+    it("lists each locale's sitemap, at the root beside the index, as an absolute URL", () => {
+        const xml = buildSitemapIndexXml([localeSitemapPath('en'), localeSitemapPath('zh-hans')]);
+        expect(xml).toContain('<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">');
+        expect(xml).toContain(`<sitemap><loc>${absoluteUrl(`${BASE_PATH}/sitemap-en.xml`)}</loc></sitemap>`);
+        expect(xml).toContain(`<sitemap><loc>${absoluteUrl(`${BASE_PATH}/sitemap-zh-hans.xml`)}</loc></sitemap>`);
+        expect(xml.trim().endsWith('</sitemapindex>')).toBe(true);
+    });
+});
+
+describe('sitemapProblems', () => {
+    const sitemapOf = (count: number) => buildSitemapXml(Array.from({ length: count }, (_, i) => urls.vocabPath(String(i))));
+
+    it('accepts a sitemap of up to 50,000 URLs, and refuses one over', () => {
+        expect(sitemapProblems('sitemap-en.xml', sitemapOf(SITEMAP_URL_LIMIT))).toEqual([]);
+        expect(sitemapProblems('sitemap.xml', sitemapOf(SITEMAP_URL_LIMIT + 1))).toEqual(['sitemap.xml lists 50,001 URLs, over the 50,000 a sitemap may hold']);
     });
 });
 
