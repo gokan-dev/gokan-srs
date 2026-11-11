@@ -8,7 +8,7 @@
 export type {
     Definition, DefinitionSense, DerivedValue, EntityText, Equivalent, LanguageTag, Rendering, SourceId, SourceRef, TextFile, TextStatus, Translation, Value,
 } from '../../../apps/gokan-srs/dataset/src/models/text.model';
-export type { CompiledEntitiesIndex as TextEntitiesIndex } from '../../../apps/gokan-srs/dataset/src/models/compiled.model';
+export type { CompiledEntitiesIndex as TextEntitiesIndex, CompiledSearchGlosses as TextSearchGlosses } from '../../../apps/gokan-srs/dataset/src/models/compiled.model';
 export { isShown } from '../../../apps/gokan-srs/dataset/src/text/acceptance';
 export { definitionsOf, equivalentsOf, translationRenderingsOf, translationsOf, valueText } from '../../../apps/gokan-srs/dataset/src/text/renderings';
 /* eslint-enable no-restricted-imports */

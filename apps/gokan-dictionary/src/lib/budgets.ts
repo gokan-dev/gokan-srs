@@ -23,8 +23,8 @@ export const BUDGETS = {
     sharedStylesheet: 10 * KB,
     /** A locale's own stylesheet, which every page in it loads besides (styles/locales/). */
     localeStylesheet: 2 * KB,
-    /** The search script every page loads. */
-    searchScript: 10 * KB,
+    /** The search script every page loads: 10 KB until it carried every locale's words and links (#228, docs/DESIGN_SYSTEM.md). */
+    searchScript: 12 * KB,
     /** The query engine it loads on first focus, with the index. */
     searchEngine: 10 * KB,
     /** search-core.json, gzipped. */

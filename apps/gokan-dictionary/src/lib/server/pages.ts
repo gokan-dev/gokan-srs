@@ -520,13 +520,27 @@ export function pagesOf(source: DictionaryData, locale: ServedLocale) {
         };
     }
 
-    /** The search index's two files: every word in frequency order (a row's position is its rank), every kanji and point. */
+    /**
+     * The locale's search index, in two files: every word in frequency order (a row's position is
+     * its rank), every kanji and point. Another locale's holds only the words with a page in it,
+     * each with its gloss in its language (LocaleText.searchGloss), and no kanji or point, which have
+     * no page in it yet (#170).
+     */
     const searchIndex = kept(async (): Promise<{ core: SearchIndexFile; full: SearchIndexFile }> => {
-        const known = await knownVocabIds();
+        const known = text === null ? await knownVocabIds() : new Set(await localeWordIds());
         const wordRows: SearchWordRow[] = [];
         for (const { id } of await frequencyIndex()) {
-            if (known.has(id)) wordRows.push(searchWordRow(await source.vocab(id)));
+            if (!known.has(id)) continue;
+            const row = searchWordRow(await source.vocab(id));
+            if (text === null) {
+                wordRows.push(row);
+                continue;
+            }
+            const gloss = await text.searchGloss(id);
+            if (gloss === null) throw new Error(`[pages] ${id} has a ${locale} page but no gloss in its search index.`);
+            wordRows.push([row[0], row[1], row[2], gloss, row[4], row[5]]);
         }
+        if (text !== null) return splitSearchIndex(wordRows, [], []);
         return splitSearchIndex(wordRows, (await kanjiList()).map(searchKanjiRow), (await pointsInOrder()).map(searchGrammarRow));
     });
 
@@ -536,6 +550,7 @@ export function pagesOf(source: DictionaryData, locale: ServedLocale) {
     const everyPageEntries = {
         home: () => Promise.resolve([{}]),
         vocabIndex: () => Promise.resolve([{}]),
+        search: () => Promise.resolve([{}]),
         vocab: async () => (await vocabIds()).map(id => ({ id })),
         kanji: async () => (await kanjiList()).map(kanji => ({ character: kanji.character })),
         grammar: async () => [...(await grammarPoints()).keys()].map(id => ({ id })),
@@ -628,7 +643,7 @@ export function pagesOf(source: DictionaryData, locale: ServedLocale) {
         kanjiRangePage: englishOnly(kanjiRangePage),
         vocabJlptPage,
         vocabIndexPage,
-        searchPage: englishOnly(searchPage),
+        searchPage,
         homePage,
         searchIndex,
         pageEntries,

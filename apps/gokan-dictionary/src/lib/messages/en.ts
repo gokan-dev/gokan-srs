@@ -117,6 +117,18 @@ export const en: Messages = {
     },
     sources: { zhwiktionary: 'Chinese Wiktionary', jawiktionary: 'Japanese Wiktionary', wikidata: 'Wikidata', wikipedia: 'Wikipedia', 'tatoeba-cmn': 'Tatoeba', gokan: 'Gokan' },
     meaningGroups: { definitions: 'Definitions', equivalents: 'Equivalents', english: 'English meanings' },
+    searchPage: {
+        heading: 'Search',
+        noScript: links => [
+            'Search needs JavaScript. You can still browse the ',
+            { text: 'vocabulary by JLPT level', href: links.vocab },
+            ', the ',
+            { text: 'kanji', href: links.kanji },
+            ' or the ',
+            { text: 'grammar points', href: links.grammar },
+            '.',
+        ],
+    },
     error: {
         heading: status => (status === 404 ? 'Page not found' : 'Page unavailable'),
         explanation: status => (status === 404

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_LOCALE, datasetLanguageOf, htmlLang, inEveryLocale, isLocaleSegment, localeOfPath, localeOfSegment, localePrefix, SERVED_LOCALES, servedLocalesOf } from './locale';
+import { DEFAULT_LOCALE, datasetLanguageOf, htmlLang, inEveryLocale, localeOfHtmlLang, isLocaleSegment, localeOfPath, localeOfSegment, localePrefix, SERVED_LOCALES, servedLocalesOf } from './locale';
 import { DICTIONARY_LOCALES } from './site';
 
 // What this run serves is the environment's (CI builds `en zh-hans`, a laptop English alone), so
@@ -56,6 +56,12 @@ describe('locale', () => {
         expect(htmlLang('zh-hans')).toBe('zh-Hans');
         expect(datasetLanguageOf('en')).toBe('en');
         expect(datasetLanguageOf('zh-hans')).toBe('zh-hans');
+    });
+
+    it('reads a page\'s locale back from its <html lang>, English for any other tag', () => {
+        expect(localeOfHtmlLang(htmlLang('en'))).toBe('en');
+        expect(localeOfHtmlLang(htmlLang('zh-hans'))).toBe('zh-hans');
+        expect(localeOfHtmlLang('fr')).toBe(DEFAULT_LOCALE);
     });
 
     it('gives English entries without a locale segment, another locale\'s with its own', async () => {

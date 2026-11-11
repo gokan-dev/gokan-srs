@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
 // Checks a finished build (dist/), as the last step of `bun run build`: every size budget
 // (src/lib/budgets.ts), no Svelte runtime in any client asset, and the search acceptance queries
-// run against the real built index rather than a fixture. Exits non-zero, failing the build, on
-// any miss. Thin glue over pure, tested modules; verified by running it.
+// run against the real built index of every served locale rather than a fixture. Exits non-zero,
+// failing the build, on any miss. Thin glue over pure, tested modules; verified by running it.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -15,12 +15,16 @@ import { describe, overBudget, percentile, type Measurement } from '../src/lib/b
 import { alternateProblems, brokenLinks } from '../src/lib/builtLinks';
 import { DATASET_PATHS } from '../src/lib/datasetPaths';
 import { misroutedPaths } from '../src/lib/servedPaths';
-import { datasetLanguageOf, htmlLang, localePrefix, SERVED_LOCALES } from '../src/lib/locale';
+import { datasetLanguageOf, htmlLang, localePrefix, SERVED_LOCALES, type ServedLocale } from '../src/lib/locale';
+import { inSection, linkUrls } from '../src/lib/localeLinks';
 import { BASE_PATH, SITE_ORIGIN } from '../src/lib/site';
 import { messagesFor } from '../src/lib/messages';
+import { kanaToRomaji, toHiragana } from '@gokan/dataset-schema';
 import type { TextFile } from '@gokan/dataset-schema/text';
-import { prepareIndex, search, TIER } from '../src/lib/searchQuery';
-import type { SearchIndexFile } from '../src/lib/types';
+import { fromColumns } from '../src/lib/searchIndex';
+import { prepareIndex, search, TIER, type PreparedIndex } from '../src/lib/searchQuery';
+import { readingOfRow } from '../src/lib/searchRow';
+import type { SearchIndexFile, SearchWordRow } from '../src/lib/types';
 
 const APP_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST_DIR = path.join(APP_DIR, 'dist');
@@ -138,9 +142,18 @@ function assetProblems(): string[] {
     return problems;
 }
 
+/** A locale's directory under dist/ (its segment; none for English), as path segments. */
+const localeDir = (locale: ServedLocale) => localePrefix(locale).split('/').filter(Boolean);
+
+/** A locale's built index files, core then full, as its pages' script fetches them (searchIndexPaths). */
+function builtIndexFiles(locale: ServedLocale): SearchIndexFile[] {
+    const dir = path.join('data', ...localeDir(locale));
+    return [readJson(path.join(dir, 'search-core.json')) as SearchIndexFile, readJson(path.join(dir, 'search-full.json')) as SearchIndexFile];
+}
+
 /** The issue's acceptance queries (#118), against the real index: core and full, as a reader gets them. */
 function searchProblems(): string[] {
-    const index = prepareIndex([readJson('data/search-core.json') as SearchIndexFile, readJson('data/search-full.json') as SearchIndexFile]);
+    const index = prepareIndex(builtIndexFiles('en'));
     const headwords = (query: string, count: number) => search(index, query).words.slice(0, count).map(hit => hit.row[1]);
     const problems: string[] = [];
     const expect = (ok: boolean, message: string) => {
@@ -172,6 +185,55 @@ function searchProblems(): string[] {
     expect(kara.some(title => title.replace(/[～〜、。\s]/g, '') === 'から'), `"から": the grammar point から is not among the results (${kara.slice(0, 3).join(', ')})`);
     return problems;
 }
+
+/** How many words of another locale's index its acceptance queries sample, spread over its frequency order. */
+const LOCALE_SEARCH_SAMPLE = 25;
+
+/** A Chinese gloss's first meaning, as the matcher splits it (lib/searchQuery.ts): NFKC, no parenthesised notes, up to its first separator. */
+const firstChineseSense = (gloss: string) => gloss.normalize('NFKC').replace(/\([^)]*\)/g, '').split(/[,;、。]/).map(part => part.trim()).find(part => part !== '') ?? '';
+
+/**
+ * Another locale's search (#228), against its real index: every word in it has a page in the
+ * locale (built in dist/; on request, the sample is asked of the server, unmatchedPathProblems),
+ * and for a sample of its words, the headword, the kana, the romaji and the first meaning in the
+ * locale's language each find the word, linked to its page in the section.
+ */
+function localeSearchProblems(locale: ServedLocale): { problems: string[]; pages: string[] } {
+    const files = builtIndexFiles(locale);
+    const index: PreparedIndex = prepareIndex(files, datasetLanguageOf(locale));
+    const rows: SearchWordRow[] = files.flatMap(file => fromColumns(file.w));
+    const links = linkUrls(locale);
+    const problems: string[] = [];
+    if (rows.length === 0) return { problems: [`the ${locale} search index holds no word`], pages: [] };
+
+    if (ENTITY_PAGES === 'prerendered') {
+        const missing = rows.filter(row => !fs.existsSync(path.join(DIST_DIR, ...localeDir(locale), 'vocab', row[0], 'index.html')));
+        for (const row of missing.slice(0, 5)) problems.push(`the ${locale} search index holds ${row[0]} (${row[1]}), which has no ${locale} page`);
+    }
+
+    const size = Math.min(LOCALE_SEARCH_SAMPLE, rows.length);
+    const sample = Array.from({ length: size }, (_, i) => rows[Math.floor((i * rows.length) / size)]);
+    for (const row of sample) {
+        const href = links.vocabPath(row[0]);
+        if (!inSection(locale, href)) problems.push(`${row[1]} (${row[0]}): a ${locale} result links ${href}, outside its section`);
+        const reading = readingOfRow(row);
+        const queries: [kind: string, query: string, worstTier: number][] = [
+            ['Japanese', row[1], TIER.exact],
+            ['kana', reading, TIER.exact],
+            // Every ん as "n'", which the reader takes as ん whatever follows: kanaToRomaji writes げんいん
+            // "gennin", which it reads as げんにん.
+            ['romaji', toHiragana(reading).split('ん').map(kanaToRomaji).join("n'"), TIER.romaji],
+            [locale, firstChineseSense(row[3]), TIER.sense],
+        ];
+        for (const [kind, query, worstTier] of queries) {
+            const hit = search(index, query).words.find(found => found.row[0] === row[0]);
+            if (!hit || hit.tier > worstTier) problems.push(`${row[1]} (${row[0]}): the ${kind} query "${query}" does not find it in the ${locale} index${hit ? ` (tier ${hit.tier})` : ''}`);
+        }
+    }
+    return { problems: problems.slice(0, 10), pages: sample.map(row => links.vocabPath(row[0])) };
+}
+
+const localeSearches = SERVED_LOCALES.filter(locale => localePrefix(locale) !== '').map(localeSearchProblems);
 
 const manifest = readJson(path.join('.vite', 'manifest.json')) as Record<string, ViteManifestEntry>;
 const measurements = measure(manifest);
@@ -267,13 +329,18 @@ async function unmatchedPathProblems(): Promise<string[]> {
                 else if (!html.includes(`<html lang="${htmlLang(locale)}"`)) problems.push(`${pathname}'s 404 is not a page in ${htmlLang(locale)}`);
             }
         }
+        // The pages the sampled search results link (localeSearchProblems), in either mode.
+        for (const pathname of localeSearches.flatMap(found => found.pages)) {
+            const response = await fetch(`http://127.0.0.1:${site.port}${pathname}`);
+            if (response.status !== 200) problems.push(`${pathname}, a search result, answers ${response.status}`);
+        }
         return problems;
     } finally {
         site.stop();
     }
 }
 
-const problems = [...over.map(m => `over budget: ${describe(m)}`), ...modeProblems(), ...assetProblems(), ...searchProblems(), ...routingProblems(), ...linkProblems(), ...alternatesProblems(), ...sourceNameProblems(), ...(await unmatchedPathProblems())];
+const problems = [...over.map(m => `over budget: ${describe(m)}`), ...modeProblems(), ...assetProblems(), ...searchProblems(), ...localeSearches.flatMap(found => found.problems), ...routingProblems(), ...linkProblems(), ...alternatesProblems(), ...sourceNameProblems(), ...(await unmatchedPathProblems())];
 
 // A budget over many pages reports its heaviest.
 const MANY_PAGES: Partial<Record<Measurement['budget'], string>> = { jlptPage: 'JLPT list pages', kanjiOrderPage: 'kanji order pages' };

@@ -26,6 +26,6 @@ group('overBudget', () => {
 
 group('describe', () => {
     it('reports the size against the budget', () => {
-        expect(describe({ budget: 'searchScript', subject: 'search.js', bytes: 8300 })).toBe('searchScript: search.js 8.1 KB of 10 KB');
+        expect(describe({ budget: 'searchScript', subject: 'search.js', bytes: 8300 })).toBe('searchScript: search.js 8.1 KB of 12 KB');
     });
 });

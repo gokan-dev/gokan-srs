@@ -1,11 +1,11 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
-import type { Definition, DefinitionSense, Equivalent, Rendering, TextEntitiesIndex, TextFile, Value } from '@gokan/dataset-schema/text';
+import type { Definition, DefinitionSense, Equivalent, Rendering, TextEntitiesIndex, TextFile, TextSearchGlosses, Value } from '@gokan/dataset-schema/text';
 import { sentence } from '../../test/fixtures';
 import { checkoutData } from '../dataset.server';
 import { DATASET_PATHS } from '../datasetPaths';
-import { localeText, sentenceTranslationsOf, type WordForms } from './localeText';
+import { glossIsShown, localeText, sentenceTranslationsOf, type WordForms } from './localeText';
 import { pagesOf } from './pages';
 
 const FIXTURES = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '__fixtures__', 'compiled');
@@ -20,8 +20,11 @@ const definition = (id: string, senses: DefinitionSense[]): Definition => (
 
 const forms = (kanji: string, reading: string): WordForms => ({ writtenForm: { kanji, alternatives: [], containedKanji: [] }, reading: { primary: reading, alternatives: [] } });
 
-/** A language's text layer in memory: each word's renderings, its index listing every word given, and the forms of those in `vocab`. */
-function memoryReads(words: Record<string, Rendering[]>, vocab: Record<string, WordForms> = {}) {
+/**
+ * A language's text layer in memory: each word's renderings, its index listing every word given,
+ * the forms of those in `vocab`, and its search glosses.
+ */
+function memoryReads(words: Record<string, Rendering[]>, vocab: Record<string, WordForms> = {}, glosses: TextSearchGlosses = {}) {
     const files = new Map(Object.entries(words).map(([id, renderings]): [string, TextFile] => [
         DATASET_PATHS.text('zh-hans', DATASET_PATHS.vocab(id)),
         { kind: 'vocab', lang: 'zh-hans', entities: { [id]: { renderings } } },
@@ -32,6 +35,7 @@ function memoryReads(words: Record<string, Rendering[]>, vocab: Record<string, W
             const found = files.get(filePath);
             return found ? Promise.resolve(found) : Promise.reject(new Error(`no ${filePath}`));
         }),
+        glosses: vi.fn((_path: string): Promise<TextSearchGlosses> => Promise.resolve(glosses)),
         vocab: vi.fn((id: string): Promise<WordForms> => {
             const found = vocab[id];
             return found ? Promise.resolve(found) : Promise.reject(new Error(`no vocab ${id}`));
@@ -116,6 +120,25 @@ describe('localeText', () => {
         expect(reads.file).toHaveBeenCalledTimes(2);
     });
 
+    it('gives each word with a page its search gloss, only when its page shows that text, else its summary', async () => {
+        const reads = memoryReads({
+            listed: [equivalent('想', 'corroborated'), equivalent('认为', 'reviewed')],
+            rejected: [equivalent('想', 'corroborated'), equivalent('思念', 'rejected')],
+            another: [definition('suru', [{ glosses: ['做'] }, { glosses: ['印刷'], appliesToSpellings: ['刷る'] }])],
+            unlisted: [equivalent('想', 'corroborated')],
+            hidden: [equivalent('思念', 'rejected')],
+        }, { another: forms('為る', 'する') }, { listed: '想，认为', rejected: '思念', another: '印刷', hidden: '思念' });
+        const text = localeText('zh-hans', reads);
+        expect(await text.searchGloss('listed')).toBe('想，认为');
+        // A gloss of a rejected rendering, or of a sense the page drops (another word's), is not the row's.
+        expect(await text.searchGloss('rejected')).toBe('想');
+        expect(await text.searchGloss('another')).toBe('做');
+        expect(await text.searchGloss('unlisted')).toBe('想');
+        // No page, no gloss, whatever the file lists.
+        expect(await text.searchGloss('hidden')).toBeNull();
+        expect(reads.glosses.mock.calls.map(([filePath]) => filePath)).toEqual([DATASET_PATHS.textSearchGlosses('zh-hans')]);
+    });
+
     it('reads no file for a word or sentence set its index does not list', async () => {
         const reads = memoryReads({ shown: [equivalent('b', 'reviewed')] });
         const text = localeText('zh-hans', reads);
@@ -123,6 +146,21 @@ describe('localeText', () => {
         expect((await text.sentenceTranslations('shown')).size).toBe(0);
         expect(reads.index.mock.calls.map(([filePath]) => filePath)).toEqual([DATASET_PATHS.textEntities('zh-hans')]);
         expect(reads.file).not.toHaveBeenCalled();
+    });
+});
+
+describe('glossIsShown', () => {
+    const word = { definitions: [definition('d', [{ glosses: ['想，认为'] }])], equivalents: [{ text: '想', sources: [] }, { text: '思考', sources: [] }] };
+
+    it('accepts one of the word\'s shown glosses, or shown equivalents joined', () => {
+        expect(glossIsShown('想，认为', word)).toBe(true);
+        expect(glossIsShown('想，思考', word)).toBe(true);
+        expect(glossIsShown('思考', word)).toBe(true);
+    });
+
+    it('refuses any text the word\'s page does not show', () => {
+        expect(glossIsShown('认为', word)).toBe(false);
+        expect(glossIsShown('想，思念', word)).toBe(false);
     });
 });
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-    CORE_FREQUENT_WORDS, fromColumns, searchGrammarRow, searchKanjiRow, searchWordRow, splitSearchIndex, toColumns, wordClassOfRow,
+    CORE_FREQUENT_WORDS, fromColumns, isSearchIndexPart, searchGrammarRow, searchKanjiRow, searchWordRow, splitSearchIndex, toColumns, wordClassOfRow,
 } from './searchIndex';
 import { isCommonRow, readingOfRow } from './searchRow';
 import type { SearchWordRow } from './types';
@@ -58,5 +58,11 @@ describe('splitSearchIndex', () => {
         const words = [row('a', 5), row('b', 0)];
         expect(toColumns(words)).toEqual([['a', 'b'], ['a', 'b'], ['a', 'b'], ['', ''], [5, 0], [0, 0]]);
         expect(fromColumns(toColumns(words))).toEqual(words);
+    });
+});
+
+describe('isSearchIndexPart', () => {
+    it('names the two files the index is served as, and nothing else', () => {
+        expect(['core', 'full', 'all', ''].filter(isSearchIndexPart)).toEqual(['core', 'full']);
     });
 });

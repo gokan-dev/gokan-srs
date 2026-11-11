@@ -20,7 +20,9 @@ describe('path builders', () => {
         expect(urls.grammarConjugationsIndexPath()).toBe(`${BASE_PATH}/grammar/conjugations/`);
         expect(urls.homePath()).toBe(`${BASE_PATH}/`);
         expect(urls.grammarFamiliesIndexPath()).toBe(`${BASE_PATH}/grammar/families/`);
-        expect(searchIndexPaths()).toEqual({ core: `${BASE_PATH}/data/search-core.json`, full: `${BASE_PATH}/data/search-full.json` });
+        expect(searchIndexPaths('en')).toEqual({ core: `${BASE_PATH}/data/search-core.json`, full: `${BASE_PATH}/data/search-full.json` });
+        // Another locale's index sits under its segment, with the site's other files, not its pages.
+        expect(searchIndexPaths('zh-hans')).toEqual({ core: `${BASE_PATH}/data/zh-hans/search-core.json`, full: `${BASE_PATH}/data/zh-hans/search-full.json` });
     });
 
     it('numbers JLPT list pages from the second one', () => {

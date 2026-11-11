@@ -22,7 +22,8 @@ function valueImportsOf(entry: string, seen = new Set<string>()): Set<string> {
 
 describe('@gokan/dataset-schema/text', () => {
     it('imports nothing from node:, so it runs where the published dataset is read', () => {
-        const reached = [...valueImportsOf(fileURLToPath(new URL('./text.ts', import.meta.url)))];
+        // With "/" separators, so the suffixes below match on Windows too.
+        const reached = [...valueImportsOf(fileURLToPath(new URL('./text.ts', import.meta.url)))].map(module => module.replaceAll('\\', '/'));
         // The acceptance rule and the accessors are reached, so the walk is following the re-exports.
         expect(reached.some(module => module.endsWith('text/acceptance.ts'))).toBe(true);
         expect(reached.some(module => module.endsWith('text/renderings.ts'))).toBe(true);

@@ -7,16 +7,29 @@
 // romaji table and the conjugation rules: a separate chunk, so a page that is only read pays
 // for neither); after the first query has run the full index follows in the background, and the
 // current query re-runs when it arrives. Most lookups of common words never need the full file.
+//
+// In the page's locale, read off its <html lang>: its own index (a locale's words with a page in
+// it, their glosses in its language), its links (linkUrls: a word's page in its section) and its
+// words (lib/messages/search).
 
+import { datasetLanguageOf, htmlLang, localeOfHtmlLang } from '../lib/locale';
+import { linkUrls } from '../lib/localeLinks';
+import { searchMessagesFor } from '../lib/messages/search';
 import type { PreparedIndex, SearchResults, WordHit } from '../lib/searchQuery';
 import type { SearchGrammarRow, SearchIndexFile, SearchKanjiRow } from '../lib/types';
-import { grammarPath, kanjiPath, searchIndexPaths, searchPath, vocabJlptPath, vocabPath } from '../lib/urls';
+import { searchIndexPaths } from '../lib/urls';
 import { readingOfRow } from '../lib/searchRow';
 
 const PANEL_LIMITS = { words: 8, kanji: 3, grammar: 3 };
 const RESULTS_PAGE_SIZE = 50;
 const DEBOUNCE_MS = 100;
 const FURIGANA_KEY = 'gokan-dictionary:furigana-hidden';
+
+const locale = localeOfHtmlLang(document.documentElement.lang);
+const links = linkUrls(locale);
+const words = searchMessagesFor(locale);
+/** The glosses' language, for their runs: the page's own, as the index is the locale's. */
+const glossLang = htmlLang(locale);
 
 // -- Index ----------------------------------------------------------------------
 
@@ -37,12 +50,12 @@ async function fetchIndex(url: string): Promise<SearchIndexFile> {
 
 function rebuild(): void {
     if (!core || !engine) return;
-    index = engine.prepareIndex(full ? [core, full] : [core]);
+    index = engine.prepareIndex(full ? [core, full] : [core], datasetLanguageOf(locale));
     onIndexChange.forEach(callback => callback());
 }
 
 function loadCore(): Promise<void> {
-    corePromise ??= Promise.all([fetchIndex(searchIndexPaths().core), import('../lib/searchQuery')]).then(([file, module]) => {
+    corePromise ??= Promise.all([fetchIndex(searchIndexPaths(locale).core), import('../lib/searchQuery')]).then(([file, module]) => {
         core = file;
         engine = module;
         rebuild();
@@ -54,7 +67,7 @@ function loadCore(): Promise<void> {
 function loadFullLater(): void {
     if (fullRequested) return;
     fullRequested = true;
-    fetchIndex(searchIndexPaths().full)
+    fetchIndex(searchIndexPaths(locale).full)
         .then(file => {
             full = file;
             rebuild();
@@ -85,7 +98,7 @@ const chip = (level: number) => el('span', { class: 'chip' }, `N${level}`);
 
 /** A word's gloss line; a conjugated query says what it was read as ("from 食べた"). */
 function glossLine(hit: WordHit): HTMLElement {
-    return el('span', { lang: 'en' }, ...(hit.via ? ['from ', ja(hit.via), ' · '] : []), hit.row[3]);
+    return el('span', { lang: glossLang }, ...(hit.via ? [words.fromForm.before, ja(hit.via), words.fromForm.after] : []), hit.row[3]);
 }
 
 /** The reading beside a headword, only when it differs from it. */
@@ -96,11 +109,11 @@ function readingOf(hit: WordHit): string[] {
 
 /** "No results for 'xyz'.", the kana a romaji query was read as, and where to go instead. */
 function noResults(results: SearchResults): HTMLElement {
-    const levels = [5, 4, 3, 2, 1].flatMap(level => [' ', el('a', { href: vocabJlptPath(level) }, `N${level}`)]);
+    const levels = [5, 4, 3, 2, 1].flatMap(level => [' ', el('a', { href: links.vocabJlptPath(level) }, `N${level}`)]);
     return el('span', {},
-        `No results for “${results.query}”. `,
-        ...(results.kana ? ['Searched as ', ja(results.kana), '. '] : []),
-        'Try kana, kanji or English, or browse the JLPT lists:', ...levels);
+        words.noResults(results.query),
+        ...(results.kana ? [words.searchedAs.before, ja(results.kana), words.searchedAs.after] : []),
+        words.tryInstead, ...levels);
 }
 
 function total(results: SearchResults): number {
@@ -170,22 +183,22 @@ function initCombobox(form: HTMLFormElement): void {
         if (!results) return;
 
         optionCount = 0;
-        const words = results.words.slice(0, PANEL_LIMITS.words).map(hit =>
-            option(vocabPath(hit.row[0]), [ja(hit.row[1]), ...readingOf(hit).map(ja), ...(hit.row[4] ? [chip(hit.row[4])] : []), glossLine(hit)]));
+        const wordRows = results.words.slice(0, PANEL_LIMITS.words).map(hit =>
+            option(links.vocabPath(hit.row[0]), [ja(hit.row[1]), ...readingOf(hit).map(ja), ...(hit.row[4] ? [chip(hit.row[4])] : []), glossLine(hit)]));
         const kanji = results.kanji.slice(0, PANEL_LIMITS.kanji).map((row: SearchKanjiRow) =>
-            option(kanjiPath(row[0]), [ja(row[0]), el('span', {}, 'Kanji'), ...(row[1] ? [chip(row[1])] : [])]));
+            option(links.kanjiPath(row[0]), [ja(row[0]), el('span', {}, words.groups.kanji), ...(row[1] ? [chip(row[1])] : [])]));
         const grammar = results.grammar.slice(0, PANEL_LIMITS.grammar).map((row: SearchGrammarRow) =>
-            option(grammarPath(row[0]), [ja(row[1]), el('span', {}, row[2]), chip(row[4]), el('span', {}, row[3])]));
+            option(links.grammarPath(row[0]), [ja(row[1]), el('span', {}, row[2]), chip(row[4]), el('span', {}, row[3])]));
 
         const count = total(results);
         listbox!.replaceChildren(
-            ...group('Words', 'words', words),
-            ...group('Kanji', 'kanji', kanji),
-            ...group('Grammar', 'grammar', grammar),
-            ...(count > 0 ? [option(searchPath(query.trim()), [`See all results for “${query.trim()}”`], ' search-option--all')] : []),
+            ...group(words.groups.words, 'words', wordRows),
+            ...group(words.groups.kanji, 'kanji', kanji),
+            ...group(words.groups.grammar, 'grammar', grammar),
+            ...(count > 0 ? [option(links.searchPath(query.trim()), [words.seeAll(query.trim())], ' search-option--all')] : []),
         );
         message!.replaceChildren(...(count === 0 ? [noResults(results)] : []));
-        status!.textContent = count === 0 ? 'No results' : `${count} result${count === 1 ? '' : 's'}`;
+        status!.textContent = words.status(count);
         setActive(-1);
         open();
     }
@@ -199,7 +212,7 @@ function initCombobox(form: HTMLFormElement): void {
             if (input.value.trim()) render();
             return;
         }
-        message.textContent = 'Loading the dictionary…';
+        message.textContent = words.loading;
         open();
         loadCore()
             .then(() => {
@@ -207,7 +220,7 @@ function initCombobox(form: HTMLFormElement): void {
                 if (!input.value.trim()) close();
             })
             .catch(() => {
-                message.textContent = 'Search is unavailable right now.';
+                message.textContent = words.unavailable;
             });
     });
 
@@ -250,7 +263,7 @@ function initResultsPage(root: HTMLElement): void {
     const input = document.querySelector<HTMLInputElement>('[data-search-input]');
     if (input) input.value = query;
     const title = document.querySelector('[data-search-title]');
-    if (title && query) title.textContent = `Results for “${query}”`;
+    if (title && query) title.textContent = words.resultsFor(query);
     if (query) document.title = `${query}: ${document.title}`;
 
     function section(heading: string, ...content: Node[]): HTMLElement {
@@ -259,7 +272,7 @@ function initResultsPage(root: HTMLElement): void {
 
     function render(): void {
         if (!query) {
-            root.replaceChildren(el('p', { class: 'support' }, 'Type a word, a kanji or a grammar point in the search field.'));
+            root.replaceChildren(el('p', { class: 'support' }, words.emptyQuery));
             return;
         }
         const results = run(query);
@@ -271,30 +284,30 @@ function initResultsPage(root: HTMLElement): void {
 
         const pageCount = Math.ceil(results.words.length / RESULTS_PAGE_SIZE);
         const shown = results.words.slice((page - 1) * RESULTS_PAGE_SIZE, page * RESULTS_PAGE_SIZE);
-        const pager = () => el('nav', { class: 'pager', 'aria-label': 'Result pages' },
+        const pager = () => el('nav', { class: 'pager', 'aria-label': words.resultPages },
             ...Array.from({ length: pageCount }, (_, i) =>
-                el('a', { href: `${searchPath(query)}&p=${i + 1}`, ...(i + 1 === page ? { 'aria-current': 'page' } : {}) }, String(i + 1))));
+                el('a', { href: `${links.searchPath(query)}&p=${i + 1}`, ...(i + 1 === page ? { 'aria-current': 'page' } : {}) }, String(i + 1))));
         const wordList = el('ul', { class: 'entry-list' }, ...shown.map(hit =>
-            el('li', {}, el('a', { href: vocabPath(hit.row[0]), lang: 'ja' }, hit.row[1], ...readingOf(hit).map(reading => el('span', {}, reading)), glossLine(hit)))));
+            el('li', {}, el('a', { href: links.vocabPath(hit.row[0]), lang: 'ja' }, hit.row[1], ...readingOf(hit).map(reading => el('span', {}, reading)), glossLine(hit)))));
 
         root.replaceChildren(
             ...(results.words.length > 0
-                ? [section(`Words (${results.words.length.toLocaleString('en')})`, ...(pageCount > 1 ? [pager()] : []), wordList, ...(pageCount > 1 ? [pager()] : []))]
+                ? [section(words.wordsHeading(results.words.length), ...(pageCount > 1 ? [pager()] : []), wordList, ...(pageCount > 1 ? [pager()] : []))]
                 : []),
             ...(results.kanji.length > 0
-                ? [section('Kanji', el('ul', { class: 'entry-list' }, ...results.kanji.map(row =>
-                    el('li', {}, el('a', { href: kanjiPath(row[0]), lang: 'ja' }, row[0], el('span', { lang: 'en' }, row[1] ? `JLPT N${row[1]}` : 'Outside JLPT'))))))]
+                ? [section(words.groups.kanji, el('ul', { class: 'entry-list' }, ...results.kanji.map(row =>
+                    el('li', {}, el('a', { href: links.kanjiPath(row[0]), lang: 'ja' }, row[0], el('span', { lang: glossLang }, row[1] ? words.kanjiLevel(row[1]) : words.outsideJlpt))))))]
                 : []),
             ...(results.grammar.length > 0
-                ? [section('Grammar', el('ul', { class: 'grammar-list' }, ...results.grammar.map(row =>
-                    el('li', {}, el('a', { href: grammarPath(row[0]) }, ja(row[1]), ...(row[2] ? [el('small', {}, row[2])] : []), el('small', {}, `N${row[4]}`), el('span', {}, row[3]))))))]
+                ? [section(words.groups.grammar, el('ul', { class: 'grammar-list' }, ...results.grammar.map(row =>
+                    el('li', {}, el('a', { href: links.grammarPath(row[0]) }, ja(row[1]), ...(row[2] ? [el('small', {}, row[2])] : []), el('small', {}, `N${row[4]}`), el('span', {}, row[3]))))))]
                 : []),
         );
     }
 
     onIndexChange.push(render);
-    root.replaceChildren(el('p', { class: 'support' }, 'Searching…'));
-    loadCore().catch(() => root.replaceChildren(el('p', { class: 'support' }, 'Search is unavailable right now.')));
+    root.replaceChildren(el('p', { class: 'support' }, words.searching));
+    loadCore().catch(() => root.replaceChildren(el('p', { class: 'support' }, words.unavailable)));
 }
 
 // -- Furigana toggle -------------------------------------------------------------------

@@ -7,10 +7,10 @@
 import type { Sentence, Vocabulary } from '@gokan/dataset-schema';
 import {
     definitionsOf, equivalentsOf, isShown, translationRenderingsOf, valueText,
-    type Definition, type DefinitionSense, type EntityText, type Equivalent, type TextEntitiesIndex, type TextFile, type Translation,
+    type Definition, type DefinitionSense, type EntityText, type Equivalent, type TextEntitiesIndex, type TextFile, type TextSearchGlosses, type Translation,
 } from '@gokan/dataset-schema/text';
 import { DATASET_PATHS } from '../datasetPaths';
-import { shortWordTextSummary } from '../senses';
+import { shortWordTextSummary, wordTextSummary } from '../senses';
 import type { DatasetLanguage } from '../locale';
 import type { LocaleText, SentenceTranslation, WordEquivalent, WordText } from '../types';
 import { kept, keptBy } from './kept';
@@ -21,6 +21,8 @@ export interface TextReads {
     index(path: string): Promise<TextEntitiesIndex>;
     /** One of its text files. */
     file(path: string): Promise<TextFile>;
+    /** Its search glosses (DATASET_PATHS.textSearchGlosses), read at build only, for the search index. */
+    glosses(path: string): Promise<TextSearchGlosses>;
     /** A word's core file (its spellings and readings), read only for a word with a sense restricted to some of its forms. */
     vocab(id: string): Promise<WordForms>;
 }
@@ -74,6 +76,19 @@ export function distinctEquivalents(equivalents: readonly Equivalent[]): WordEqu
     return [...byText.values()];
 }
 
+/**
+ * Whether a search gloss is made of a word's shown text (WordText, filtered here): the whole of one
+ * of its shown definitions' glosses, or each of its parts (the dataset joins equivalents with "，")
+ * one of its shown equivalents. The dataset writes its search glosses from shown renderings only,
+ * but a page drops some of those (another word's senses, ownSenses), and a search row never says
+ * what the word's page does not.
+ */
+export function glossIsShown(gloss: string, word: WordText): boolean {
+    const glosses = new Set(word.definitions.flatMap(definition => definition.senses.flatMap(sense => sense.glosses.map(valueText))));
+    const equivalents = new Set(word.equivalents.map(equivalent => equivalent.text));
+    return glosses.has(gloss) || gloss.split('，').every(part => equivalents.has(part));
+}
+
 export function localeText(language: Exclude<DatasetLanguage, 'en'>, reads: TextReads): LocaleText {
     const index = kept(async () => {
         const entities = await reads.index(DATASET_PATHS.textEntities(language));
@@ -108,9 +123,18 @@ export function localeText(language: Exclude<DatasetLanguage, 'en'>, reads: Text
         return text === null ? null : shortWordTextSummary(text);
     });
 
+    const searchGlosses = kept(async () => reads.glosses(DATASET_PATHS.textSearchGlosses(language)));
+    const searchGloss = async (id: string): Promise<string | null> => {
+        const text = await wordText(id);
+        if (text === null) return null;
+        const listed = (await searchGlosses())[id];
+        return listed !== undefined && glossIsShown(listed, text) ? listed : wordTextSummary(text);
+    };
+
     return {
         language,
         wordText,
+        searchGloss,
         withPages,
         wordIds,
         wordSummary,

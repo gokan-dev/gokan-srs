@@ -61,6 +61,14 @@ export function htmlLang(locale: Locale): string {
     return HTML_LANG[locale];
 }
 
+/**
+ * The locale a page is in, from its <html lang> (htmlLang): what the search script reads, the one
+ * thing every page already says. English for a tag no locale writes.
+ */
+export function localeOfHtmlLang(lang: string): Locale {
+    return LOCALES.find(locale => HTML_LANG[locale] === lang) ?? DEFAULT_LOCALE;
+}
+
 /** English, whose pages have no locale segment. Typed wide, so it reads the same once more locales are served. */
 function isDefaultLocale(locale: Locale): boolean {
     return locale === DEFAULT_LOCALE;

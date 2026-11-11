@@ -66,7 +66,7 @@ export const zhHans: Messages = {
             { text: 'Gokan SRS', href: links.srs },
             `${AFTER_LINK}。`,
         ],
-        search: { label: '搜索词典', placeholder: '搜索：汉字、假名、罗马字或英文', results: '搜索结果' },
+        search: { label: '搜索词典', placeholder: '搜索：汉字、假名、罗马字或中文', results: '搜索结果' },
         hideFurigana: '隐藏注音',
         showFurigana: '显示注音',
         grammarTabs: { label: '浏览语法', level: '按级别', families: '近义语法', curriculum: '课程顺序', conjugations: '活用' },
@@ -160,6 +160,18 @@ export const zhHans: Messages = {
     },
     sources: { zhwiktionary: '中文维基词典', jawiktionary: '日文维基词典', wikidata: '维基数据', wikipedia: '维基百科', 'tatoeba-cmn': 'Tatoeba', gokan: 'Gokan' },
     meaningGroups: { definitions: '中文释义', equivalents: '中文对应词', english: '英文释义' },
+    searchPage: {
+        heading: '搜索',
+        noScript: links => [
+            '搜索需要 JavaScript。仍然可以浏览',
+            { text: '按 JLPT 级别分类的词汇', href: links.vocab },
+            '、',
+            { text: `汉字${AFTER_LINK}`, href: links.kanji },
+            '或',
+            { text: `语法点${AFTER_LINK}`, href: links.grammar },
+            '。',
+        ],
+    },
     error: {
         heading: status => (status === 404 ? '找不到页面' : '页面暂时无法显示'),
         explanation: status => (status === 404
@@ -185,7 +197,7 @@ export const zhHans: Messages = {
             };
         },
         search() {
-            return { title: `搜索 - ${SITE_NAME}`, description: '用汉字、假名、罗马字或英文搜索日语词典。' };
+            return { title: `搜索 - ${SITE_NAME}`, description: '用汉字、假名、罗马字或中文搜索日语词典。' };
         },
         error(status: number) {
             return status === 404
