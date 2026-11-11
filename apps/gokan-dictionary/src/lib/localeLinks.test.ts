@@ -6,10 +6,10 @@ describe('linkUrls', () => {
     it("links a Chinese page's words and lists in Chinese, and the page types Chinese has not yet to English's", () => {
         const urls = linkUrls('zh-hans');
         const [chinese, english] = [localeUrls('zh-hans'), localeUrls('en')];
-        expect([urls.homePath(), urls.vocabIndexPath(), urls.vocabJlptPath(3, 2), urls.vocabPath('1')])
-            .toEqual([chinese.homePath(), chinese.vocabIndexPath(), chinese.vocabJlptPath(3, 2), chinese.vocabPath('1')]);
-        expect([urls.kanjiPath('賢'), urls.kanjiIndexPath(), urls.kanjiOrdersPath(), urls.grammarIndexPath(), urls.grammarPath('n5-001'), urls.searchPath()])
-            .toEqual([english.kanjiPath('賢'), english.kanjiIndexPath(), english.kanjiOrdersPath(), english.grammarIndexPath(), english.grammarPath('n5-001'), english.searchPath()]);
+        expect([urls.homePath(), urls.vocabIndexPath(), urls.vocabJlptPath(3, 2), urls.vocabPath('1'), urls.searchPath(), urls.searchPath('想')])
+            .toEqual([chinese.homePath(), chinese.vocabIndexPath(), chinese.vocabJlptPath(3, 2), chinese.vocabPath('1'), chinese.searchPath(), chinese.searchPath('想')]);
+        expect([urls.kanjiPath('賢'), urls.kanjiIndexPath(), urls.kanjiOrdersPath(), urls.grammarIndexPath(), urls.grammarPath('n5-001')])
+            .toEqual([english.kanjiPath('賢'), english.kanjiIndexPath(), english.kanjiOrdersPath(), english.grammarIndexPath(), english.grammarPath('n5-001')]);
     });
 
     it("gives an English page English's paths", () => {

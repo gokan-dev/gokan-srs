@@ -1,5 +1,5 @@
 // The links a page in one locale writes, to the pages that exist. A locale's section serves some
-// page types (today Chinese's word pages, its home and its vocabulary lists, #170) and links those
+// page types (today Chinese's word pages, its home, its vocabulary lists and its search, #170) and links those
 // in its own language; a page type it does not serve yet (a kanji, a grammar point, a kanji order)
 // is linked at English's page, and that link says so (`linkLang`: hreflang="en", and a mark a
 // reader sees). A word the section has no page for is not linked from it: its page model leaves it
@@ -23,6 +23,8 @@ export function linkUrls(locale: Locale): LocaleUrls {
         vocabIndexPath: () => own.vocabIndexPath(),
         vocabJlptPath: (level, page) => own.vocabJlptPath(level, page),
         vocabPath: id => own.vocabPath(id),
+        // Its search page, over its own index (#228): the search field submits here.
+        searchPath: query => own.searchPath(query),
     };
 }
 

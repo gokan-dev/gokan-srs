@@ -570,7 +570,7 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   | Each kanji order page (hub, order, range of 100 steps) | 150 KB |
   | Shared stylesheet (`app.scss`) | 10 KB |
   | A locale's stylesheet (`styles/locales/`, its pages only) | 2 KB |
-  | Search script (every page) | 10 KB |
+  | Search script (every page) | 12 KB |
   | Query engine (loaded on first focus) | 10 KB |
   | `search-core.json`, gzipped | 300 KB |
   | Web fonts | one woff2, 40 KB |
@@ -578,7 +578,11 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
 
   A budget is a decision about what a page costs a reader on a phone: raise one here,
   deliberately, never to make a build pass. The shared stylesheet is the tightest: a rule
-  used by one page type belongs in that page's stylesheet anyway. Page weight is one half of
+  used by one page type belongs in that page's stylesheet anyway. The search script's was
+  10 KB until it read the page's locale (#228): every served locale's words for it
+  (`lib/messages/search`) and the links of the page's section (`linkUrls`) took it to 11 KB,
+  about 4.6 KB gzipped; its words and links are per locale, so a third locale costs about
+  0.7 KB more. Page weight is one half of
   being found; the other, SEO at 100 on every page type, is held by the Lighthouse check
   (`scripts/check-lighthouse.ts`, in section 9).
 
