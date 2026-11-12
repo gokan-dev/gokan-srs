@@ -1,9 +1,8 @@
 {
-  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "$schema": "https://unpkg.com/knip@6/schema.json",
   "ignoreExportsUsedInFile": true,
   "ignore": [
-    "apps/gokan-srs/dataset/**",
-    ".claude/**"
+    "apps/gokan-srs/dataset/**"
   ],
   "workspaces": {
     ".": {
@@ -44,9 +43,6 @@
       "project": [
         "src/**/*.{ts,svelte}",
         "scripts/**/*.ts"
-      ],
-      "ignoreUnresolved": [
-        "^\\./\\$types$"
       ]
     }
   }

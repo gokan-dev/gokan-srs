@@ -357,7 +357,7 @@ export function calculateMasteryLoops(strength: number): { p1: number; p2: numbe
 
     if (strength <= sMin) return { p1: 0, p2: 0 };
 
-    let p1 = 0;
+    let p1: number;
     if (strength >= sSoft) {
         p1 = 100;
     } else {

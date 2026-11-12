@@ -208,7 +208,7 @@ export async function serveDictionaryOnRequest(port = 0): Promise<{ port: number
             await fetch(`${origin}/search/`);
             break;
         } catch (error) {
-            if (attempt > 100 || child.exitCode !== null) throw new Error(`The dictionary's server did not start at ${origin}: ${String(error)}`);
+            if (attempt > 100 || child.exitCode !== null) throw new Error(`The dictionary's server did not start at ${origin}: ${String(error)}`, { cause: error });
             await new Promise(done => setTimeout(done, 100));
         }
     }

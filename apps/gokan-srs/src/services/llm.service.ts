@@ -116,7 +116,7 @@ Respond ONLY with valid JSON in the following schema:
                 parsed = JSON.parse(textResult);
             } catch (parseError) {
                 console.error("[LLMService] Failed to parse Gemini response", parseError);
-                throw new Error("Failed to parse AI response format.");
+                throw new Error("Failed to parse AI response format.", { cause: parseError });
             }
             if (!isContextVerdict(parsed)) throw new Error("Unexpected AI response format.");
             return { result: parsed.result, reason: parsed.reason };
