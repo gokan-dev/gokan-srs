@@ -109,9 +109,9 @@ summary ("Largest tool results"), which is where a whole read shows.
 
 ## Typing: everything is typed
 
-- TypeScript only. `.ts`, `.tsx`, and `.svelte` with `<script lang="ts">`. The single
-  JavaScript file is `apps/gokan-dictionary/svelte.config.js`, because Svelte's tooling only
-  reads a JS config; it is `// @ts-check`ed. Enforced.
+- TypeScript only. `.ts`, `.tsx`, and `.svelte` with `<script lang="ts">`. There is no
+  JavaScript file: since SvelteKit 3 the dictionary's configuration is in its `vite.config.ts`
+  (`svelte.config.js` is gone). Enforced.
 - No `any`, written or leaked: `no-explicit-any` and every `no-unsafe-*` rule are errors, so an
   untyped value (a raw `JSON.parse`, an untyped library return) cannot flow into typed code.
 - No escape hatches: no `as never`, no `as unknown as`, no `@ts-ignore` / `@ts-nocheck`.

@@ -4,14 +4,19 @@
 // import.meta.env). Both give this function what they read, so pages are rendered under the path
 // they are served under.
 
-import { DICTIONARY_BASE_PATH } from '@gokan/dataset-schema';
+/**
+ * The shared host's prefix, @gokan/dataset-schema's DICTIONARY_BASE_PATH (the test holds the two
+ * equal). Written here because vite.config.ts loads this module under Node, which cannot load
+ * that package's TypeScript.
+ */
+export const DEFAULT_BASE_PATH = '/dictionary';
 
 /**
  * A leading and no trailing slash ("/dictionary"), or "" when served from the root of its own
  * origin. An unset variable is the shared host's prefix.
  */
 export function configuredBasePath(configured: string | undefined): '' | `/${string}` {
-    const raw = configured ?? DICTIONARY_BASE_PATH;
+    const raw = configured ?? DEFAULT_BASE_PATH;
     if (!raw || raw === '/') return '';
     const trimmed = raw.replace(/^\/+/, '').replace(/\/+$/, '');
     return trimmed === '' ? '' : `/${trimmed}`;

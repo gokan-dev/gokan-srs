@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { DICTIONARY_BASE_PATH } from '@gokan/dataset-schema';
-import { configuredBasePath } from './configuredBasePath';
+import { configuredBasePath, DEFAULT_BASE_PATH } from './configuredBasePath';
 
 describe('configuredBasePath', () => {
-    it('is the shared host prefix when nothing is configured', () => {
+    it('is the shared host prefix when nothing is configured, the one both apps link by', () => {
+        expect(DEFAULT_BASE_PATH).toBe(DICTIONARY_BASE_PATH);
         expect(configuredBasePath(undefined)).toBe(DICTIONARY_BASE_PATH);
     });
 

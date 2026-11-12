@@ -38,6 +38,8 @@
     "apps/gokan-dictionary": {
       "entry": [
         "src/client/*.ts",
+        "src/env.ts",
+        "src/params.ts",
         "scripts/*.ts"
       ],
       "project": [
