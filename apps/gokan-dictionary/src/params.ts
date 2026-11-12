@@ -1,6 +1,9 @@
 import { defineParams } from '@sveltejs/kit/params';
-import { isLocaleSegment, servedLocaleNamed } from '#lib/locale.ts';
-import { isSearchIndexPart } from '#lib/searchIndex.ts';
+// Relative, not #lib: SvelteKit loads this file through Vite's module runner, which hands a
+// package subpath import to Node itself, and Node cannot resolve the extensionless imports of
+// the modules behind it.
+import { isLocaleSegment, servedLocaleNamed } from './lib/locale';
+import { isSearchIndexPart } from './lib/searchIndex';
 
 /** The parameter itself when it matches, so a route reads the string its path holds. */
 const when = (matches: (param: string) => boolean) => (param: string): string | undefined => (matches(param) ? param : undefined);
