@@ -159,14 +159,18 @@ export function readRomajiQuery(query: string): RomajiQuery | null {
 }
 
 /**
- * Kana -> the romaji a learner types to produce it on an IME, reusing the table
- * above in reverse (first spelling wins: sha over sya, chi over ti, tsu over tu).
- * Used to measure typos in keystrokes rather than in kana (see
- * gokan-srs's matchAnswer, utils/answerMatching.ts): つま for つむ is one keystroke (tsuma / tsumu), but
- * やむ for つむ is three (yamu / tsumu), though both are one kana apart.
+ * Kana -> romaji, reusing the table above in reverse (first spelling wins: sha over sya, chi
+ * over ti, tsu over tu). Small kana read as their own keystrokes (ぇ -> "xe"), っ doubles the
+ * next consonant, ー is "-", and anything else passes through unchanged.
  *
- * Small kana read as their own keystrokes (ぇ -> "xe"), っ doubles the next
- * consonant, ー is "-", and anything else passes through unchanged.
+ * The package writes romaji by two conventions, which differ only on ん (issue 235), and each
+ * writer names its own:
+ * - `kanaToRomaji`: IME keystrokes, what a learner types to produce the kana. ん is "nn" where
+ *   one n would join what follows (かんい is "kanni", こんな "konnna"). Read back by the IME
+ *   converter (`convertRomajiInput`, `finishRomajiInput`), not by the Hepburn reader.
+ * - `kanaToHepburn`: Hepburn, what a learner reads and searches with. ん before a vowel or y is
+ *   "n'" (かんい is "kan'i"), elsewhere "n" (こんな is "konna"). Read back by `readRomajiQuery`
+ *   and `romajiToHiragana`.
  */
 const KANA_TO_ROMAJI: Record<string, string> = {};
 for (const [romaji, kana] of Object.entries(ROMAJI_MAP)) {
@@ -182,7 +186,24 @@ export function toHiragana(input: string): string {
     return input.replace(/[ァ-ヶ]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60));
 }
 
+/** How ん is written: as typed on an IME, or as Hepburn is read. */
+type NasalSpelling = 'ime' | 'hepburn';
+
+/**
+ * Kana as IME keystrokes. Used to measure typos in keystrokes rather than in kana (see
+ * gokan-srs's matchAnswer, utils/answerMatching.ts): つま for つむ is one keystroke (tsuma /
+ * tsumu), but やむ for つむ is three (yamu / tsumu), though both are one kana apart.
+ */
 export function kanaToRomaji(input: string): string {
+    return spellKana(input, 'ime');
+}
+
+/** Kana as Hepburn romaji, which `readRomajiQuery` reads back as the same kana. */
+export function kanaToHepburn(input: string): string {
+    return spellKana(input, 'hepburn');
+}
+
+function spellKana(input: string, nasal: NasalSpelling): string {
     const s = toHiragana(input);
     let result = '';
     let i = 0;
@@ -195,9 +216,13 @@ export function kanaToRomaji(input: string): string {
             continue;
         }
         if (s[i] === 'ん') {
-            // "nn" where a single n would join what follows (かんい is kan'i, not かに), as an IME is typed.
-            const after = kanaToRomaji(s.slice(i + 1, i + 3))[0] ?? '';
-            result += after !== '' && (VOWELS.has(after) || after === 'y' || after === 'n') ? 'nn' : 'n';
+            // Where a single n would join what follows (かんい is not かに): "nn" as an IME is typed,
+            // before an n too (こんな is konnna); "n'" in Hepburn, where "nn" before a vowel reads as
+            // ん and an n syllable, so an n needs nothing (こんな is konna).
+            const after = spellKana(s.slice(i + 1, i + 3), nasal)[0] ?? '';
+            const joins = VOWELS.has(after) || after === 'y';
+            if (nasal === 'ime') result += joins || after === 'n' ? 'nn' : 'n';
+            else result += joins ? "n'" : 'n';
             i += 1;
             continue;
         }

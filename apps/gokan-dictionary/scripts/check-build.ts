@@ -20,7 +20,7 @@ import { inSection, linkUrls } from '../src/lib/localeLinks';
 import { BASE_PATH, SITE_ORIGIN } from '../src/lib/site';
 import { sitemapProblems as sitemapFileProblems } from '../src/lib/sitemap';
 import { messagesFor } from '../src/lib/messages';
-import { kanaToRomaji, toHiragana } from '@gokan/dataset-schema';
+import { kanaToHepburn } from '@gokan/dataset-schema';
 import type { TextFile } from '@gokan/dataset-schema/text';
 import { fromColumns } from '../src/lib/searchIndex';
 import { prepareIndex, search, TIER, type PreparedIndex } from '../src/lib/searchQuery';
@@ -221,9 +221,9 @@ function localeSearchProblems(locale: ServedLocale): { problems: string[]; pages
         const queries: [kind: string, query: string, worstTier: number][] = [
             ['Japanese', row[1], TIER.exact],
             ['kana', reading, TIER.exact],
-            // Every ん as "n'", which the reader takes as ん whatever follows: kanaToRomaji writes げんいん
-            // "gennin", which it reads as げんにん.
-            ['romaji', toHiragana(reading).split('ん').map(kanaToRomaji).join("n'"), TIER.romaji],
+            // Hepburn, which the search reads back (kanaToRomaji is IME keystrokes: げんいん as "gennin").
+            ['romaji', kanaToHepburn(reading), TIER.romaji],
+
             [locale, firstChineseSense(row[3]), TIER.sense],
         ];
         for (const [kind, query, worstTier] of queries) {

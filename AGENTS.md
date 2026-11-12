@@ -156,8 +156,9 @@ A word's textbook lessons are named through `textbookLessonsLabel`, how common i
 `frequencyBand` (a band and a round "Top 300 words", never a bare rank). A kanji's kun reading is
 shown through `kunReadingLabel` (まな(ぶ), enforced); its learning orders through `KANJI_ORDERS`,
 `kanjiOrder`, `KANJI_BOOKS` and `kanjiBookPositions`, its grade through `kanjiGradeLabel`. Also shared by both apps,
-from the same package: romaji (`romajiToHiragana`, `toHiragana`, `kanaToRomaji`,
-`looksLikeRomaji`), a sentence's linked and highlighted runs (`segmentInteractiveSentence`), a
+from the same package: romaji (`romajiToHiragana` and `readRomajiQuery` read Hepburn; `kanaToHepburn`
+writes it, so they read it back; `kanaToRomaji` writes IME keystrokes, ん as `nn`, for typo distances
+and search keys, never to be read back as Hepburn; `toHiragana`, `looksLikeRomaji`), a sentence's linked and highlighted runs (`segmentInteractiveSentence`), a
 reading split over a word's kanji runs for furigana (`rubyParts`) and a grammar example as a
 `Sentence` (`grammarExampleToSentence`, `patternHighlightRanges`).
 
