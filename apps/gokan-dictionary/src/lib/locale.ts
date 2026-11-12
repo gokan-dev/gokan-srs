@@ -6,34 +6,9 @@
 
 import { withoutBasePath } from './basePath';
 import { DICTIONARY_LOCALES } from './site';
+import { DEFAULT_LOCALE, isLocaleSegmentOf, LOCALES, servedLocaleNamedIn, servedLocalesOf, type Locale, type ServedLocale } from './servedLocales';
 
-export const LOCALES = ['en', 'zh-hans'] as const;
-export type Locale = (typeof LOCALES)[number];
-
-/**
- * A locale pages may be rendered in: every locale has a catalog (lib/messages, typed per locale)
- * and a dataset language, so any of them can be served. Which are is SERVED_LOCALES.
- */
-export type ServedLocale = Locale;
-
-export const DEFAULT_LOCALE = 'en' satisfies Locale;
-
-const isLocale = (name: string): name is Locale => LOCALES.some(locale => locale === name);
-
-/**
- * The locales a build setting names (space-separated, "en zh-hans"), in LOCALES' order. Unset or
- * blank is English alone. A name that is not a locale, or a list without English (whose pages
- * keep the site's URLs, its search index and its sitemap), fails the build: never a silent fall
- * back to English.
- */
-export function servedLocalesOf(setting: string | undefined): readonly ServedLocale[] {
-    const names = (setting ?? '').split(/\s+/).filter(name => name !== '');
-    if (names.length === 0) return [DEFAULT_LOCALE];
-    const unknown = names.filter(name => !isLocale(name));
-    if (unknown.length > 0) throw new Error(`[locale] VITE_DICTIONARY_LOCALES names ${unknown.map(name => `"${name}"`).join(', ')}, not a locale (${LOCALES.join(', ')}).`);
-    if (!names.includes(DEFAULT_LOCALE)) throw new Error(`[locale] VITE_DICTIONARY_LOCALES "${setting}" leaves out ${DEFAULT_LOCALE}: English is always served.`);
-    return LOCALES.filter(locale => names.includes(locale));
-}
+export { DEFAULT_LOCALE, LOCALES, servedLocalesOf, type Locale, type ServedLocale } from './servedLocales';
 
 /**
  * The locales pages are rendered in: the build's setting. Marked pure so a bundle that imports
@@ -84,12 +59,12 @@ export function localePrefix(locale: Locale): string {
  * segment, so one page has one address.
  */
 export function isLocaleSegment(segment: string): boolean {
-    return SERVED_LOCALES.some(locale => !isDefaultLocale(locale) && locale === segment);
+    return isLocaleSegmentOf(SERVED_LOCALES, segment);
 }
 
 /** A served locale by its name, English's included (a locale's sitemap, sitemap-en.xml); undefined for any other name. */
 export function servedLocaleNamed(name: string): ServedLocale | undefined {
-    return SERVED_LOCALES.find(locale => locale === name);
+    return servedLocaleNamedIn(SERVED_LOCALES, name);
 }
 
 /** The locale of a route's optional locale segment: none is English. */
