@@ -2,6 +2,7 @@ import { headwordOf } from "@gokan/dataset-schema";
 import type { Sentence, Vocabulary } from "@gokan/dataset-schema";
 import { CardSection } from "./ui/CardSection";
 import { JlptChip } from "./JlptChip";
+import { DisplayHeadword } from "./DisplayHeadword";
 import { IntroCardShell } from "./IntroCardShell";
 import { WordSentence } from "./WordSentence";
 import { WordReading } from "./WordReading";
@@ -30,8 +31,10 @@ export default function VocabIntroCard({ vocab, sentence, onVocabClick, onLearn,
             <CardSection>
                 <div className="text-center">
                     {/* Its kanji open their cards, as on the word page (a word shown in kana has none). */}
-                    <div lang="ja" data-intro-headword className="text-primary font-mincho leading-none text-kanji flex items-center justify-center">
-                        <HeadwordKanji headword={headword} kanji={vocab.writtenForm.containedKanji} />
+                    <div data-intro-headword>
+                        <DisplayHeadword headword={headword}>
+                            <HeadwordKanji headword={headword} kanji={vocab.writtenForm.containedKanji} />
+                        </DisplayHeadword>
                     </div>
 
                     {/* Its reading and play button, as on the word page, centred under the headword. */}

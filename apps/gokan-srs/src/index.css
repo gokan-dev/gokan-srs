@@ -229,15 +229,27 @@ body {
 }
 
 /* Custom Utility Classes */
+/*
+  A headword at display size (DisplayHeadword): 4rem on a phone, 8rem from md, and smaller when
+  the word would not fit its card on one line. Each Japanese character is one em wide, so the
+  size that fits is the container's width over the character count (--headword-chars); 96cqw
+  leaves room for rounding. Below 1.5rem a very long headword wraps as text instead.
+*/
+.headword-fit {
+  container-type: inline-size;
+  width: 100%;
+}
+
 .text-kanji {
-  font-size: 4rem;
+  --kanji-size: 4rem;
   /* Mobile */
+  font-size: clamp(1.5rem, calc(96cqw / var(--headword-chars, 1)), var(--kanji-size));
   line-height: 1;
 }
 
 @media (min-width: 768px) {
   .text-kanji {
-    font-size: 8rem;
+    --kanji-size: 8rem;
     /* Desktop */
   }
 }

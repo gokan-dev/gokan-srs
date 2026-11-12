@@ -144,6 +144,7 @@ instead of ad hoc size/colour combinations:
 | `type-meta` | sans, `text-xs` (12px), `tertiary` | counts, dates, captions |
 | `type-label` | sans 500, `text-sm`, `secondary`, sentence case | field labels (replaces every uppercase tracked label) |
 | `jp-display` | mincho, `text-6xl` / `md:text-7xl`, `primary` | the headword of a detail page |
+| `text-kanji` (in `DisplayHeadword`) | mincho, 4rem / 8rem from `md`, `primary`, scaled down to fit | the headword of a new word's intro card and of a desktop quiz card |
 | `jp-headword` | mincho, `text-xl`, `primary` | a word or grammar title in a list row |
 
 **Floor**: nothing below 12px, except `em` (relative, used for furigana:
@@ -282,6 +283,12 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
   through `kunReadingLabel` in both apps (enforced, `kun-reading`). Parentheses, not a
   colour: every colour already means something (section 2). A reading beside its headword is
   `secondary`, its On/Kun label a field label.
+- **A session card's headword** at display size is a `DisplayHeadword`: 4rem on a phone, 8rem
+  from `md`, and smaller when the word is too long for its card, so it stays on one line: its
+  size is the card's width over its character count (a Japanese character is one em wide),
+  never under 1.5rem. Its parts are inline text, never flex items, which shrink to one character
+  and stacked a long word's kana (乗り換える, issue 239). `check:layout` holds a five-character
+  headword to one line inside its card at 320px, 375px and 1280px.
 - **Session cards**: every card of a study session (each exercise, both intro cards, the
   chapter review, the kanji unlock) is drawn in `QuizCardFrame`, which owns one width
   (`w-full max-w-2xl`, on the animated wrapper too) and one padding, so a card's size

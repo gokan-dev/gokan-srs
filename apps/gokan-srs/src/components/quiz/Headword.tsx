@@ -1,5 +1,6 @@
 import { headwordOf } from "@gokan/dataset-schema";
 import type { Vocabulary } from "@gokan/dataset-schema";
+import { DisplayHeadword } from "../DisplayHeadword";
 import { Ruby } from "../Ruby";
 
 interface HeadwordProps {
@@ -18,12 +19,16 @@ interface HeadwordProps {
 export function Headword({ vocab, size, onClick, showReading = false }: HeadwordProps) {
     const large = size === 'lg';
     const headword = headwordOf(vocab);
+    const clickable = onClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : '';
+    const text = <Ruby text={headword} reading={showReading ? vocab.reading.primary : null} tone="text-secondary" />;
+    // At display size the headword is scaled to its card's width (DisplayHeadword, issue 239).
+    if (large) return <DisplayHeadword headword={headword} className={clickable} onClick={onClick}>{text}</DisplayHeadword>;
     return (
         <div
-            className={`relative inline-flex items-start leading-none text-primary font-mincho ${large ? 'text-kanji' : 'text-5xl'} ${onClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+            className={`relative inline-flex items-start leading-none text-primary font-mincho text-5xl ${clickable}`}
             onClick={onClick}
         >
-            <span><Ruby text={headword} reading={showReading ? vocab.reading.primary : null} tone="text-secondary" /></span>
+            <span>{text}</span>
         </div>
     );
 }

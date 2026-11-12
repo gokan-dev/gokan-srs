@@ -38,6 +38,8 @@
  *   buttons (the reading's, the sentence's) are 44px tap targets at the first line of what they play,
  *   never dimmed; its readings break only between readings; its sentence is centred on its
  *   translation;
+ * - a long headword's intro card (乗り換える, at 320px, 375px and 1280px) draws the headword on one
+ *   line, inside the card, scaled down rather than wrapped (issue 239);
  * - a due word's page has no Review now;
  * - a sentence word hovered with a mouse at 1280px keeps its hover as its lookup card opens (the
  *   card, growing as its word arrives, never covers it);
@@ -825,6 +827,99 @@ async function checkKanaIntro(chrome: Chrome, app: string, width: number, height
     await tab.close();
 }
 
+/** 乗り換える: five characters, kanji and kana runs alternating, the headword issue 239 was seen on. */
+const LONG_HEADWORD_VOCAB = '1600470';
+
+/**
+ * Puts a word learned from its page back before its introduction (the stored record, readable or
+ * compact), so /quiz opens on its intro card: the one way to an intro for a chosen word, since a
+ * session's own new words come in learning order. Waits for the word's record to be stored.
+ */
+const awaitIntroOf = (vocabId: string) => `(async () => {
+    const key = 'GOKAN_SRS_PROGRESS';
+    const done = request => new Promise((resolve, reject) => { request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
+    for (let attempt = 0; attempt < 50; attempt++) {
+        const db = await done(indexedDB.open('gokan-srs'));
+        const stored = await done(db.transaction('progress').objectStore('progress').get(key));
+        const progress = stored ? JSON.parse(stored) : null;
+        const item = (progress?.q ?? progress?.learningQueue ?? []).find(entry => (entry.i ?? entry.vocabId) === ${JSON.stringify(vocabId)});
+        if (item) {
+            delete item.ia;
+            delete item.introductionAt;
+            await done(db.transaction('progress', 'readwrite').objectStore('progress').put(JSON.stringify(progress), key));
+            db.close();
+            return true;
+        }
+        db.close();
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    return false;
+})()`;
+
+/** The intro's headword: its text, its size, the top of each of its characters, and how far they run past its box. */
+const DISPLAY_HEADWORD = `(() => {
+    const box = document.querySelector('[data-intro-headword]');
+    if (!box) return null;
+    const tops = [];
+    let left = Infinity, right = -Infinity, fontSize = 0;
+    const walker = document.createTreeWalker(box, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        fontSize = parseFloat(getComputedStyle(node.parentElement).fontSize);
+        for (let i = 0; i < node.length; i++) {
+            const range = document.createRange();
+            range.setStart(node, i);
+            range.setEnd(node, i + 1);
+            const rect = range.getBoundingClientRect();
+            tops.push(Math.round(rect.top));
+            left = Math.min(left, rect.left);
+            right = Math.max(right, rect.right);
+        }
+    }
+    const frame = box.getBoundingClientRect();
+    return { text: box.textContent, fontSize, tops, overflow: Math.max(frame.left - left, right - frame.right) };
+})()`;
+
+interface DisplayHeadwordMeasure { text: string; fontSize: number; tops: number[]; overflow: number }
+
+/**
+ * A long headword on its intro card (issue 239: 乗り換える stacked its trailing kana one per
+ * line, over the card's edge): every character on one line, inside the card, the page not
+ * scrolling sideways, and still a display size (well over the reading's). A learner in their
+ * own storage learns the word from its page, and the record is put back before its introduction.
+ */
+async function checkLongHeadwordIntro(chrome: Chrome, app: string, width: number, height: number): Promise<void> {
+    const tab = await chrome.openTab(width, height);
+    const page = `srs /quiz, a long headword's intro (${LONG_HEADWORD_VOCAB})`;
+    try {
+        await tab.goto(`${app}/`, 'I already know some kanji');
+        await tab.click('I already know some kanji');
+        await tab.until(`document.body.innerText.includes('Kanji learning method')`, 'the setup screen');
+        await tab.click('Start learning');
+        await tab.goto(`${app}/vocab/${LONG_HEADWORD_VOCAB}`, 'Learn this word');
+        await tab.click('Learn this word');
+        if (!(await tab.evaluate<boolean>(awaitIntroOf(LONG_HEADWORD_VOCAB)))) {
+            failures.push(`${width}px ${page}: the word was not stored after "Learn this word", so its intro is not measured`);
+            return;
+        }
+        await tab.goto(`${app}/quiz`, width >= DESKTOP.width ? 'I already know this' : 'Skip');
+        await tab.until(`document.querySelector('[data-intro-headword]') !== null`, 'the intro headword', 10000);
+        await measure(tab, page, width);
+        const shown = await tab.evaluate<DisplayHeadwordMeasure | null>(DISPLAY_HEADWORD);
+        if (!shown) {
+            failures.push(`${width}px ${page}: no headword ([data-intro-headword])`);
+            return;
+        }
+        const lines = new Set(shown.tops).size;
+        if ([...shown.text].length < 5) failures.push(`${width}px ${page}: the card shows ${shown.text}, not a headword of five characters or more: pick another word (LONG_HEADWORD_VOCAB)`);
+        if (lines !== 1) failures.push(`${width}px ${page}: ${shown.text} is drawn on ${lines} lines (character tops ${shown.tops.join(', ')}): a headword is scaled to its card, never wrapped (DisplayHeadword)`);
+        if (shown.overflow > 1) failures.push(`${width}px ${page}: ${shown.text} runs ${Math.round(shown.overflow)}px past its card section`);
+        if (shown.fontSize < 32) failures.push(`${width}px ${page}: ${shown.text} is drawn at ${Math.round(shown.fontSize)}px, under a display size (32px)`);
+    } catch (error) {
+        failures.push(`${width}px ${page}: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+        await tab.close();
+    }
+}
 /**
  * A new word's intro opens at its top on a small phone (DESIGN_SYSTEM section 1: the headword
  * first). The mount focus on Learn must not scroll a card taller than the screen down to its
@@ -1155,6 +1250,7 @@ try {
         await checkLocaleSwitch(desktop, `dictionary ${path}`, DESKTOP.width);
     }
     await checkKanaIntro(chrome, `http://127.0.0.1:${srs.port}`, DESKTOP.width, DESKTOP.height);
+    await checkLongHeadwordIntro(chrome, `http://127.0.0.1:${srs.port}`, DESKTOP.width, DESKTOP.height);
     await desktop.goto(`http://127.0.0.1:${srs.port}/vocab/${FURIGANA_VOCAB}`, 'Examples');
     await checkLookupKeepsHover(desktop, `srs /vocab/${FURIGANA_VOCAB}`, DESKTOP.width);
     await desktop.goto(`http://127.0.0.1:${srs.port}/vocab/${MIXUP_WORD}`, 'Dict');
@@ -1215,6 +1311,7 @@ try {
         await checkIntroOpensAtTop(tab, app, width, height);
         await checkIntroCard(tab, app, width, height);
         await checkKanaIntro(chrome, app, width, height);
+        await checkLongHeadwordIntro(chrome, app, width, height);
         await measureFuriganaFixture(tab, `${app}/vocab/${FURIGANA_VOCAB}`, 'Examples', `srs /vocab/${FURIGANA_VOCAB}`, width, `${PLAY_BUTTONS}, ${PAGE_TABS}`);
         await checkSentencePlayButtons(tab, `srs /vocab/${FURIGANA_VOCAB}`, width);
         await checkExamplesUnruled(tab, `srs /vocab/${FURIGANA_VOCAB}`, width);
@@ -1306,4 +1403,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows and word readings unbroken, a word list's gloss in its column (1280px) or on its own line across the row (phones, a word page's aside), a section's source credit set off from what comes before it, the language switcher small and neutral, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button undimmed, its sentence centred on its translation with its button right after it (and at 1280px on the headword), a word learned in kana's intro, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows and word readings unbroken, a word list's gloss in its column (1280px) or on its own line across the row (phones, a word page's aside), a section's source credit set off from what comes before it, the language switcher small and neutral, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button undimmed, its sentence centred on its translation with its button right after it (and at 1280px on the headword), a word learned in kana's intro, a long headword's intro on one line inside its card, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);

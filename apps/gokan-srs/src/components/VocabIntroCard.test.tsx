@@ -169,6 +169,19 @@ describe('VocabIntroCard', () => {
         expect(container.querySelector('[data-intro-headword] [data-lookup-trigger]')).toBeNull();
     });
 
+    it('sizes a long headword by its character count and keeps its parts inline, so no kana run wraps on its own (issue 239)', () => {
+        const norikaeru = vocabulary({ id: 'v-norikaeru', writtenForm: { kanji: '乗り換える', alternatives: [], containedKanji: ['乗', '換'] }, reading: { primary: 'のりかえる', alternatives: [] } });
+        mount(null, norikaeru);
+        const shown = container.querySelector<HTMLElement>('[data-intro-headword] [data-display-headword]');
+        expect(shown?.textContent).toBe('乗り換える');
+        // The size that fits is the card's width over this count (.text-kanji, index.css).
+        expect(shown?.style.getPropertyValue('--headword-chars')).toBe('5');
+        expect(shown?.parentElement?.className).toContain('headword-fit');
+        // Flex items shrink to one character's width, which stacked the trailing kana: none here.
+        const flexed = [shown, shown?.parentElement, shown?.parentElement?.parentElement].filter(el => /(^|\s)(inline-)?flex(\s|$)/.test(el?.className ?? ''));
+        expect(flexed).toEqual([]);
+    });
+
     it("makes each of the headword's kanji a lookup trigger, its card opening the kanji's page", () => {
         mount(null);
         const triggers = [...container.querySelectorAll('[data-intro-headword] [data-lookup-trigger]')];
