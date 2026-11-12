@@ -1,7 +1,7 @@
 import { error } from '@sveltejs/kit';
-import { entriesOf, searchIndexFile } from '$lib/server/dictionary';
-import { localeOfSegment } from '$lib/locale';
-import { isSearchIndexPart, SEARCH_INDEX_PARTS } from '$lib/searchIndex';
+import { entriesOf, searchIndexFile } from '#lib/server/dictionary.ts';
+import { localeOfSegment } from '#lib/locale.ts';
+import { isSearchIndexPart, SEARCH_INDEX_PARTS } from '#lib/searchIndex.ts';
 import type { EntryGenerator, RequestHandler } from './$types';
 
 // An endpoint does not inherit the layout's page options.

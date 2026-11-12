@@ -16,13 +16,7 @@ import { CLASS_SHIFT, classCodeOfRow, FLAG_COMMON, FLAG_USUALLY_KANA } from './s
  */
 export const CORE_FREQUENT_WORDS = 6500;
 
-/** The index's two files (splitSearchIndex), by the name each is served under: search-core.json, search-full.json. */
-export const SEARCH_INDEX_PARTS = ['core', 'full'] as const;
-export type SearchIndexPart = (typeof SEARCH_INDEX_PARTS)[number];
-
-export function isSearchIndexPart(name: string): name is SearchIndexPart {
-    return SEARCH_INDEX_PARTS.some(part => part === name);
-}
+export { isSearchIndexPart, SEARCH_INDEX_PARTS, type SearchIndexPart } from './searchIndexParts';
 
 
 export function searchWordRow(vocab: Vocabulary): SearchWordRow {

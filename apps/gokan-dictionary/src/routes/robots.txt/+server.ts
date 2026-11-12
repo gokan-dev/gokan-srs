@@ -1,5 +1,5 @@
 import { error } from '@sveltejs/kit';
-import { buildRobotsTxt, shouldEmitRobotsTxt } from '$lib/sitemap';
+import { buildRobotsTxt, shouldEmitRobotsTxt } from '#lib/sitemap.ts';
 import type { RequestHandler } from './$types';
 
 // Subfolder mode: gokan-srs's public/robots.txt is the authoritative one for this host and
