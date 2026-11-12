@@ -1,4 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, it, expect, vi } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { checkoutData } from './dataset.server';
@@ -11,6 +13,28 @@ const data: DictionaryData = checkoutData(FIXTURES_DIR, 'en');
 describe('vocabIds', () => {
     it('lists vocab ids from the vocab/ directory, stripping .json', async () => {
         expect(await data.vocabIds()).toEqual(['1589350']);
+    });
+});
+
+describe('vocabIds, whatever order the file system lists the directory in', () => {
+    let dir = '';
+    beforeAll(() => {
+        dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gokan-vocab-ids-'));
+        fs.mkdirSync(path.join(dir, 'vocab'));
+        for (const id of ['2202020', '1000200', '1589350']) fs.writeFileSync(path.join(dir, 'vocab', `${id}.json`), '{}');
+    });
+    afterAll(() => { fs.rmSync(dir, { recursive: true, force: true }); });
+    afterEach(() => { vi.restoreAllMocks(); });
+
+    // Issue 218: two checkouts of one commit listed the same files differently, and sitemap.xml with them.
+    it.each([
+        ['descending', ['2202020.json', '1589350.json', '1000200.json']],
+        ['shuffled', ['1589350.json', '2202020.json', '1000200.json']],
+    ])('lists the ids sorted from a %s listing', async (_order, listing) => {
+        const realReaddir = fs.readdirSync.bind(fs);
+        vi.spyOn(fs, 'readdirSync').mockImplementation(((...args: Parameters<typeof fs.readdirSync>) =>
+            String(args[0]) === path.join(dir, 'vocab') ? listing : realReaddir(...args)) as typeof fs.readdirSync);
+        expect(await checkoutData(dir, 'en').vocabIds()).toEqual(['1000200', '1589350', '2202020']);
     });
 });
 
