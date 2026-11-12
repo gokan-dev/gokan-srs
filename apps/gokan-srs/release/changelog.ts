@@ -17,6 +17,14 @@ import type { ChangelogEntry } from '../src/models/release.model';
  */
 export const CHANGELOG: readonly ChangelogEntry[] = [
     {
+        version: '1.64.0',
+        date: '2026-11-12',
+        summary: 'Long words fit on their card',
+        changes: [
+            { summary: 'A long word on a new word\'s card (乗り換える) is now drawn on one line, scaled to fit the card, where its last kana used to stack one per line.', issue: 239 },
+        ],
+    },
+    {
         version: '1.63.0',
         date: '2026-11-11',
         summary: 'Grammar exercises that ask how a form connects and which form fits',
