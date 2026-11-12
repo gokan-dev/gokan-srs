@@ -1,7 +1,7 @@
 import { error } from '@sveltejs/kit';
-import { SERVED_LOCALES, servedLocaleNamed } from '$lib/locale';
-import { sitemapPaths } from '$lib/server/dictionary';
-import { buildSitemapXml } from '$lib/sitemap';
+import { SERVED_LOCALES, servedLocaleNamed } from '#lib/locale.ts';
+import { sitemapPaths } from '#lib/server/dictionary.ts';
+import { buildSitemapXml } from '#lib/sitemap.ts';
 import type { EntryGenerator, RequestHandler } from './$types';
 
 // An endpoint does not inherit the layout's page options.

@@ -5,16 +5,16 @@
 // words outside its lang, or a link leaving its section unmarked, on every page however it is
 // rendered. A page rendered on request also gets its Cache-Control here, by status.
 
-import { building } from '$app/environment';
-import type { Handle, HandleServerError } from '@sveltejs/kit';
+import { building } from '$app/env';
+import type { Handle, HandleServerError } from '@sveltejs/kit/hooks';
 import { renderedPageCacheControl } from '@gokan/deploy/deploy-manifest';
-import { chineseWithoutLang, englishChromeOn, englishWithoutLang, japaneseWithoutLang, linksLeavingSection, renderDocument, stripHydrationMarkers } from '$lib/documentShell';
-import { localeStylesheetHref, pageScriptHref, pageStylesheetHref, searchScriptHref, stylesheetHref } from '$lib/server/assets';
-import { DEFAULT_LOCALE, htmlLang, localeOfPath, type ServedLocale } from '$lib/locale';
-import { catalogStrings, messagesFor } from '$lib/messages';
-import { localeUrls } from '$lib/urls';
-import { errorDocument } from '$lib/server/pages';
-import { UMAMI_WEBSITE_ID } from '$lib/site';
+import { chineseWithoutLang, englishChromeOn, englishWithoutLang, japaneseWithoutLang, linksLeavingSection, renderDocument, stripHydrationMarkers } from '#lib/documentShell.ts';
+import { localeStylesheetHref, pageScriptHref, pageStylesheetHref, searchScriptHref, stylesheetHref } from '#lib/server/assets.ts';
+import { DEFAULT_LOCALE, htmlLang, localeOfPath, type ServedLocale } from '#lib/locale.ts';
+import { catalogStrings, messagesFor } from '#lib/messages/index.ts';
+import { localeUrls } from '#lib/urls.ts';
+import { errorDocument } from '#lib/server/pages.ts';
+import { UMAMI_WEBSITE_ID } from '#lib/site.ts';
 
 /** Where app.html puts the body: everything before it is SvelteKit's head, which must stay empty. */
 const BODY_MARKER = '<!--gokan:body-->';
@@ -84,9 +84,11 @@ export const handle: Handle = async ({ event, resolve }) => {
  * An error SvelteKit did not expect (a failed dataset read, a path no route matches): the error
  * page gets its document here. A page's own 404 (PageNotFound) already has one (render).
  */
-export const handleError: HandleServerError = ({ event, status, message }) => {
+export const handleError: HandleServerError = ({ event, kind, error }) => {
+    // SvelteKit 3 passes every error here, a page's own 404 included (its document is already
+    // set, and its status and message are kept by returning nothing).
+    const status = kind === 'unknown' ? 500 : error.status;
     // A path no route matched has no params: its locale is read off the path, as the layout does.
     event.locals.document ??= errorDocument(status, event.url.pathname, localeOfPath(event.url.pathname));
-    if (status >= 500) console.error(`[dictionary] ${event.url.pathname}: ${message}`);
-    return { message };
+    if (status >= 500) console.error(`[dictionary] ${event.url.pathname}: ${kind === 'unknown' ? String(error) : error.message}`);
 };

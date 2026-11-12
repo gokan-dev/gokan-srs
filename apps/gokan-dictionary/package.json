@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "imports": {
+    "#lib/*": "./src/lib/*"
+  },
   "scripts": {
     "dev": "bun run build && bun run preview",
     "build": "svelte-kit sync && vite build --config vite.assets.config.ts && vite build && bun scripts/check-build.ts",

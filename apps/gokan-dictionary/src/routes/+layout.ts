@@ -1,4 +1,4 @@
-import { localeOfPath, localeOfSegment } from '$lib/locale';
+import { localeOfPath, localeOfSegment } from '#lib/locale.ts';
 import type { LayoutLoad } from './$types';
 
 // Every page is static HTML with no Svelte runtime (the build checks it): rendered on the

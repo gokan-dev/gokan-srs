@@ -1,5 +1,5 @@
-import type { PageDocument } from '$lib/server/pages';
-import type { Alternate } from '$lib/types';
+import type { PageDocument } from '#lib/server/pages.ts';
+import type { Alternate } from '#lib/types.ts';
 
 declare global {
     namespace App {
