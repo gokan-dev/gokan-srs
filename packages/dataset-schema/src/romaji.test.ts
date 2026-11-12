@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { romajiToHiragana, looksLikeRomaji, kanaToRomaji, romajiReadingPrefixes, normalizeRomajiQuery, readRomajiQuery, convertRomajiInput, finishRomajiInput } from './romaji';
+import { romajiToHiragana, looksLikeRomaji, kanaToRomaji, kanaToHepburn, toHiragana, romajiReadingPrefixes, normalizeRomajiQuery, readRomajiQuery, convertRomajiInput, finishRomajiInput } from './romaji';
 
 /** The field after typing `typed` at the end, one key at a time, as an input event would see it. */
 function typeKeys(typed: string, start = ''): string {
@@ -284,5 +284,37 @@ describe('kanaToRomaji', () => {
         for (const word of ['にほん', 'わたし', 'しゃしん', 'きって']) {
             expect(romajiToHiragana(kanaToRomaji(word))).toBe(word);
         }
+    });
+});
+
+describe('kanaToHepburn', () => {
+    it("spells ん as n' before a vowel or y, and n elsewhere", () => {
+        expect(kanaToHepburn('げんいん')).toBe("gen'in");
+        expect(kanaToHepburn('きんえん')).toBe("kin'en");
+        expect(kanaToHepburn('こんや')).toBe("kon'ya");
+        expect(kanaToHepburn('こんな')).toBe('konna');
+        expect(kanaToHepburn('かんじ')).toBe('kanji');
+        expect(kanaToHepburn('ほん')).toBe('hon');
+    });
+
+    it('spells everything else as kanaToRomaji does', () => {
+        for (const word of ['つむ', 'しゃしん', 'きって', 'まっちゃ', 'こーひー', 'テレビ', 'ふぁいる']) {
+            expect(kanaToHepburn(word)).toBe(kanaToRomaji(word));
+        }
+    });
+
+    // Issue 235: the IME spelling does not survive the Hepburn reader (gennin reads げんにん).
+    it('is read back by readRomajiQuery as the same kana: ん before a vowel, a y, a な-row kana and a consonant', () => {
+        const readings = [
+            'げんいん', 'きんえん', 'かんい', 'たんい', 'はんおん', 'ほんを',
+            'こんや', 'ほんや', 'きんゆう', 'しんよう',
+            'こんな', 'あんない', 'おんな', 'はんにん', 'こんにちは', 'こんにゃく',
+            'かんじ', 'さんぽ', 'しんぶん', 'てんき', 'ほん', 'コンビニ', 'パンや',
+        ];
+        for (const reading of readings) {
+            expect(readRomajiQuery(kanaToHepburn(reading))?.kana, reading).toBe(toHiragana(reading));
+        }
+        // The IME spelling of the same readings is what the reader takes for another word.
+        expect(readRomajiQuery(kanaToRomaji('げんいん'))?.kana).toBe('げんにん');
     });
 });

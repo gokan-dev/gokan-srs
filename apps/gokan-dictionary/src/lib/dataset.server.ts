@@ -88,9 +88,13 @@ export function checkoutData(compiledDir: string, language: DatasetLanguage): Di
         return body as T;
     });
 
+    // Sorted: a directory listing's order is the file system's, and differs between two checkouts
+    // of one commit. The sitemap and the prerender entries list words in this order, so unsorted
+    // the build was not reproducible (issue 218). By code unit, so no locale decides it.
     const vocabIds = (): string[] => fs.readdirSync(path.join(compiledDir, 'vocab'))
         .filter(name => name.endsWith('.json'))
-        .map(name => name.slice(0, -'.json'.length));
+        .map(name => name.slice(0, -'.json'.length))
+        .sort();
     const vocab = (id: string): Vocabulary => read<Vocabulary>(DATASET_PATHS.vocab(id));
 
     // Built once, from every word file, and kept: about 36k small summaries.

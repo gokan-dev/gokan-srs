@@ -17,7 +17,7 @@
   "devDependencies": {
     "@gokan/dataset-schema": "workspace:*",
     "@types/node": "^24.10.1",
-    "typescript": "~5.9.3",
-    "vitest": "^4.0.17"
+    "typescript": "~6.0.3",
+    "vitest": "5.0.5"
   }
 }

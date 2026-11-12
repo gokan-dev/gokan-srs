@@ -22,8 +22,6 @@ const EM_DASH = String.fromCharCode(0x2014);
 /** Files exempt from the text rules: generated, vendored or binary content. */
 const TEXT_EXEMPT = [/^bun\.lock$/, /^ressources\//, /\.(png|jpe?g|gif|ico|webp|woff2?|ttf|otf|pdf|zip)$/i];
 
-/** The one JavaScript file: Svelte's tooling only reads a JS config. */
-const JS_ALLOWED = new Set(['apps/gokan-dictionary/svelte.config.js']);
 
 /** The only files that write colours as values; everything else uses their tokens. */
 const COLOUR_TOKEN_FILES = new Set(['apps/gokan-srs/src/index.css', 'apps/gokan-dictionary/src/styles/app.scss']);
@@ -425,7 +423,7 @@ function check(files: string[]): Violation[] {
         : null;
 
     for (const file of files) {
-        if (/\.(js|jsx|mjs|cjs)$/.test(file) && !JS_ALLOWED.has(file)) {
+        if (/\.(js|jsx|mjs|cjs)$/.test(file)) {
             add({ file, rule: 'typescript-only', message: 'Write TypeScript (.ts/.tsx/.svelte with lang="ts"), never JavaScript.' });
         }
         if (TEXT_EXEMPT.some(re => re.test(file))) continue;

@@ -109,9 +109,9 @@ summary ("Largest tool results"), which is where a whole read shows.
 
 ## Typing: everything is typed
 
-- TypeScript only. `.ts`, `.tsx`, and `.svelte` with `<script lang="ts">`. The single
-  JavaScript file is `apps/gokan-dictionary/svelte.config.js`, because Svelte's tooling only
-  reads a JS config; it is `// @ts-check`ed. Enforced.
+- TypeScript only. `.ts`, `.tsx`, and `.svelte` with `<script lang="ts">`. There is no
+  JavaScript file: since SvelteKit 3 the dictionary's configuration is in its `vite.config.ts`
+  (`svelte.config.js` is gone). Enforced.
 - No `any`, written or leaked: `no-explicit-any` and every `no-unsafe-*` rule are errors, so an
   untyped value (a raw `JSON.parse`, an untyped library return) cannot flow into typed code.
 - No escape hatches: no `as never`, no `as unknown as`, no `@ts-ignore` / `@ts-nocheck`.
@@ -156,8 +156,9 @@ A word's textbook lessons are named through `textbookLessonsLabel`, how common i
 `frequencyBand` (a band and a round "Top 300 words", never a bare rank). A kanji's kun reading is
 shown through `kunReadingLabel` (まな(ぶ), enforced); its learning orders through `KANJI_ORDERS`,
 `kanjiOrder`, `KANJI_BOOKS` and `kanjiBookPositions`, its grade through `kanjiGradeLabel`. Also shared by both apps,
-from the same package: romaji (`romajiToHiragana`, `toHiragana`, `kanaToRomaji`,
-`looksLikeRomaji`), a sentence's linked and highlighted runs (`segmentInteractiveSentence`), a
+from the same package: romaji (`romajiToHiragana` and `readRomajiQuery` read Hepburn; `kanaToHepburn`
+writes it, so they read it back; `kanaToRomaji` writes IME keystrokes, ん as `nn`, for typo distances
+and search keys, never to be read back as Hepburn; `toHiragana`, `looksLikeRomaji`), a sentence's linked and highlighted runs (`segmentInteractiveSentence`), a
 reading split over a word's kanji runs for furigana (`rubyParts`) and a grammar example as a
 `Sentence` (`grammarExampleToSentence`, `patternHighlightRanges`).
 

@@ -1,6 +1,6 @@
-import { entityPages, entriesOf } from '$lib/server/dictionary';
-import { ENTITY_PAGES_PRERENDERED } from '$lib/server/rendering';
-import { render } from '$lib/server/route';
+import { entityPages, entriesOf } from '#lib/server/dictionary.ts';
+import { ENTITY_PAGES_PRERENDERED } from '#lib/server/rendering.ts';
+import { render } from '#lib/server/route.ts';
 import type { EntryGenerator, PageServerLoad } from './$types';
 
 // Prerendered for the static deploy, or rendered on request (lib/server/rendering.ts).

@@ -5,8 +5,8 @@
 // read the dataset's text in its language (datasetLanguageOf). Built on first use, so importing a
 // route resolves no dataset.
 
-import { building } from '$app/environment';
-import { env } from '$env/dynamic/private';
+import { building } from '$app/env';
+import { DATASET_ORIGIN } from '$app/env/private';
 import { checkoutData, resolveCompiledDir } from '../dataset.server';
 import { datasetLanguageOf, DEFAULT_LOCALE, inEveryLocale, SERVED_LOCALES, type ServedLocale } from '../locale';
 import type { SearchIndexPart } from '../searchIndex';
@@ -38,7 +38,7 @@ export function entityPages(locale: ServedLocale): EntityPages {
     if (building) return pages(locale);
     let localePages = onRequest.get(locale);
     if (localePages === undefined) {
-        const origin = env.DATASET_ORIGIN;
+        const origin = DATASET_ORIGIN;
         if (!origin) throw new Error('[dictionary] DATASET_ORIGIN is not set: the origin serving /dataset/ and the search index, e.g. https://gokan-srs.com.');
         localePages = entityPagesOf(httpData({ ...publishedSourceUrls(origin), language: datasetLanguageOf(locale) }), locale);
         onRequest.set(locale, localePages);

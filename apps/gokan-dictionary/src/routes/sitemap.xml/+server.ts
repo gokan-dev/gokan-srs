@@ -1,5 +1,5 @@
-import { SERVED_LOCALES } from '$lib/locale';
-import { buildSitemapIndexXml, localeSitemapPath } from '$lib/sitemap';
+import { SERVED_LOCALES } from '#lib/locale.ts';
+import { buildSitemapIndexXml, localeSitemapPath } from '#lib/sitemap.ts';
 import type { RequestHandler } from './$types';
 
 // An endpoint does not inherit the layout's page options.

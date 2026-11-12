@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "imports": {
+    "#lib/*": "./src/lib/*"
+  },
   "scripts": {
     "dev": "bun run build && bun run preview",
     "build": "svelte-kit sync && vite build --config vite.assets.config.ts && vite build && bun scripts/check-build.ts",
@@ -14,17 +17,17 @@
   },
   "devDependencies": {
     "@gokan/deploy": "workspace:*",
-    "@sveltejs/adapter-node": "5.5.7",
-    "@sveltejs/kit": "2.70.3",
-    "@sveltejs/vite-plugin-svelte": "6.2.4",
+    "@sveltejs/adapter-node": "6.0.1",
+    "@sveltejs/kit": "3.1.1",
+    "@sveltejs/vite-plugin-svelte": "7.3.1",
     "@types/bun": "^1.4.2",
     "@types/node": "^24.10.1",
     "sass": "^1.103.1",
-    "svelte": "^5.0.0",
-    "svelte-check": "^4.0.0",
-    "typescript": "~5.9.3",
-    "vite": "npm:rolldown-vite@7.2.5",
-    "vitest": "^4.0.17"
+    "svelte": "5.57.3",
+    "svelte-check": "4.7.7",
+    "typescript": "~6.0.3",
+    "vite": "8.3.5",
+    "vitest": "5.0.5"
   },
   "dependencies": {
     "@gokan/analytics": "workspace:*",
