@@ -39,6 +39,7 @@ function submitsEmpty(kind: ExerciseKind): boolean {
         case 'meaning':
         case 'production':
         case 'production-cloze':
+        case 'grammar-choice':
         case 'study':
             return false;
     }
@@ -46,7 +47,9 @@ function submitsEmpty(kind: ExerciseKind): boolean {
 
 /** Whether the answer at `index` converts romaji to kana: a Japanese slot, with "Type romaji as kana" on. The one place this is decided. */
 export function slotConvertsRomaji(exercise: Exercise | undefined, index: number, romajiInput: boolean): boolean {
-    return romajiInput && exercise?.slots[index]?.script === 'japanese';
+    const slot = exercise?.slots[index];
+    // A picked answer is never typed, so there is nothing to convert.
+    return romajiInput && slot?.script === 'japanese' && !slot.choices;
 }
 
 /**

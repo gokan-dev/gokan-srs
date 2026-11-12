@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { gradeExercise, gradeSlot, supportCoefficient, SUPPORT_COEFFICIENT_FLOOR, worstOf } from './grading';
-import { markerInflections, meaningSlot, readingSlot, wordSlot } from './slots';
+import { choiceSlot, markerInflections, meaningSlot, readingSlot, textSlot, wordSlot } from './slots';
+import { CONSTANTS } from '../../commons/constants';
 import { vocabExercise } from './builders';
 import type { AnswerSlot, GradedExercise, SynonymCandidate, WordForms } from './types';
 import type { ProductionCue } from '../../utils/synonymContext.utils';
@@ -568,5 +569,55 @@ describe('worstOf and supportCoefficient', () => {
     it('scales from the floor to full by the fraction answered right', () => {
         expect(supportCoefficient([])).toBe(1);
         expect(supportCoefficient(['wrong', 'correct'])).toBe(SUPPORT_COEFFICIENT_FLOOR + (1 - SUPPORT_COEFFICIENT_FLOOR) / 2);
+    });
+});
+
+describe('a text slot: a run of text as the sentence writes it', () => {
+    it('accepts the text and its kana, and names a given word', () => {
+        const slot = textSlot({ surface: '食べないで', reading: 'たべないで', role: 'core', given: '食べる' });
+        expect(slot.accept).toEqual(['食べないで', 'たべないで']);
+        expect(slot.reveal).toBe('食べないで');
+        expect(slot.given).toBe('食べる');
+        expect(grade(slot, 'たべないで').result).toBe('correct');
+    });
+
+    it('accepts the text alone when it has no known kana', () => {
+        expect(textSlot({ surface: 'に先駆けて', reading: null, role: 'core' }).accept).toEqual(['に先駆けて']);
+    });
+});
+
+describe('a slot answered by picking (AnswerSlot.choices)', () => {
+    const slot = choiceSlot({
+        answer: 'ので',
+        distractors: [{ text: 'のに', note: 'attaches as: Verb-casual + のに' }, { text: 'にわたって', note: 'attaches as: Noun + にわたって' }],
+        role: 'core',
+        seed: 'n4-110:test',
+    });
+
+    it('holds the answer among its options, in an order the seed fixes', () => {
+        expect(slot.choices?.map(c => c.text).sort()).toEqual(['にわたって', 'ので', 'のに']);
+        expect(slot.choices?.find(c => c.text === 'ので')?.note).toBeUndefined();
+        const again = choiceSlot({ answer: 'ので', distractors: [{ text: 'にわたって', note: '' }, { text: 'のに', note: '' }], role: 'core', seed: 'n4-110:test' });
+        expect(again.choices?.map(c => c.text)).toEqual(slot.choices?.map(c => c.text));
+    });
+
+    it('grades a pick exactly: a typo away from the answer is another option, not a near miss', () => {
+        expect(grade(slot, 'ので').result).toBe('correct');
+        expect(grade(slot, 'のに').result).toBe('wrong');
+        expect(grade(slot, '').result).toBe('pass');
+    });
+
+    it('earns a reduced gain, and never moves on by itself: the reasons are there to read', () => {
+        const exercise: GradedExercise = { kind: 'grammar-choice', label: 'test point', slots: [slot], cue: {} };
+        const right = gradeExercise(exercise, ['ので'], [0]);
+        expect(right.overall).toBe('correct');
+        expect(right.strengthModifier).toBe(CONSTANTS.srs.choiceStrengthRatio);
+        expect(right.autoAdvance).toBe(false);
+        expect(gradeExercise(exercise, ['のに'], [0]).strengthModifier).toBe(1);
+    });
+
+    it('leaves a typed card at full gain', () => {
+        const typed: GradedExercise = { kind: 'grammar-cloze', label: 'test point', slots: [textSlot({ surface: 'ので', role: 'core' })], cue: {} };
+        expect(gradeExercise(typed, ['ので'], [0]).strengthModifier).toBe(1);
     });
 });

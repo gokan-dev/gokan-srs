@@ -80,6 +80,8 @@ export function grammarExercise(point: Pick<GrammarPoint, 'id' | 'title' | 'exam
     const example = plan.example ?? point.examples[plan.exampleIndex];
     const id = `${point.id}:${plan.exampleIndex}`;
     if (plan.readOnly) return { ...base, kind: 'study', cue: {}, sentence: grammarExampleToSentence(example, id) };
+    // No English in front of the learner: the sentence is read, and the options decide.
+    if (plan.choice) return { ...base, kind: 'grammar-choice', cue: {}, sentence: grammarClozeSentence(example, plan.blankWordSpans, id) };
     return {
         ...base,
         kind: 'grammar-cloze',

@@ -67,12 +67,12 @@ export function GrammarCardHeader({ point, memoryStrength, answered, formalityLe
     );
 }
 
-/** The cue above a sentence: what to do, then the English it starts from. */
-export function SentenceCue({ instruction, english }: { instruction: string; english: string }) {
+/** The cue above a sentence: what to do, then the English it starts from (none while a choice card is unanswered: the sentence is read). */
+export function SentenceCue({ instruction, english }: { instruction: string; english?: string }) {
     return (
         <>
-            <p className="text-center text-sm text-secondary font-gothic mb-1">{instruction}</p>
-            <p className="text-center text-lg text-primary font-serif mb-8">{english}</p>
+            <p className={`text-center text-sm text-secondary font-gothic ${english ? 'mb-1' : 'mb-8'}`}>{instruction}</p>
+            {english && <p className="text-center text-lg text-primary font-serif mb-8">{english}</p>}
         </>
     );
 }

@@ -168,7 +168,10 @@ Four layers, each the only place its question is answered:
 
 - What is asked: an `Exercise` (`kind`, `host`, `slots`, `cue`, and what its card shows), built
   once at load by `vocabExercise` / `grammarExercise` (`builders.ts`). Accept-lists are
-  assembled only by the slot builders (`readingSlot`, `meaningSlot`, `wordSlot` in `slots.ts`).
+  assembled only by the slot builders (`readingSlot`, `meaningSlot`, `wordSlot`, `textSlot`,
+  `choiceSlot` in `slots.ts`). How a slot is answered is data on it too, so any exercise of any
+  activity can use it: `given` (the dictionary form shown beside a blank that asks for a form
+  of it) and `choices` (picked from options, each wrong one with its reason, graded exactly).
 - Grading: `gradeExercise` / `gradeSlot` (`grading.ts`) is the only grader: typos, the kanji
   skeleton, other forms of a word, near-synonyms judged against the cue. A synonym pair is read only
   through `services/exercise/wordRelation.ts` (`relationOf`, `outcomeOf`, `OUTCOME_LOOK`,
@@ -202,7 +205,8 @@ The rest of the study flow:
 - Session flow: `useSessionLifecycle`, `components/SessionProgress.tsx` (counter, ticker, gains),
   the commit pipeline in `quizSelectors.ts` shared by the preview and the session.
 - Card building blocks: `components/quiz/` (`QuizCardFrame`, `QuizMasteryCorner`,
-  `SubmitButton`, `ContinueButton`, `FeedbackNote`, `ClozeBlank`, `ExpandableSenses`,
+  `SubmitButton`, `ContinueButton`, `FeedbackNote`, `ClozeBlank`, `SlotChoices` (the options of
+  a picked slot, the only place a quiz option is drawn), `ExpandableSenses`,
   `Headword`, `quizStyles.ts` for result colours), `hooks/useQuizFocusManagement.ts` for
   keyboard flow, `components/MasteryRing.tsx`.
 

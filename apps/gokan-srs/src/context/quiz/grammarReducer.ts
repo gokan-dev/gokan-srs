@@ -78,6 +78,8 @@ export interface GrammarBlankPlan {
      * engine's pure gradeExercise.
      */
     slots: AnswerSlot[];
+    /** True when the pattern is picked among options rather than typed: the plan's one slot carries the choices. */
+    choice?: boolean;
     /** True when no word in ANY of the point's examples resolved to a vocab id - nothing gradable, rendered as read-only study material instead of a quiz. */
     readOnly: boolean;
     /**

@@ -4,6 +4,8 @@ import { Check } from "lucide-react";
 interface SelectableOptionProps {
     selected: boolean;
     onSelect: () => void;
+    /** Shown but no longer selectable: an answer that has been submitted. */
+    disabled?: boolean;
     className?: string;
     children: ReactNode;
 }
@@ -14,15 +16,16 @@ interface SelectableOptionProps {
  * showed two different "selected" looks, and one of them (a grey tint) read
  * as disabled rather than chosen.
  */
-export function SelectableOption({ selected, onSelect, className = '', children }: SelectableOptionProps) {
+export function SelectableOption({ selected, onSelect, disabled = false, className = '', children }: SelectableOptionProps) {
     return (
         <button
             type="button"
             onClick={onSelect}
+            disabled={disabled}
             aria-pressed={selected}
             className={`
                 relative border rounded-md text-left transition-colors
-                ${selected ? 'border-accent bg-accent/10' : 'border-divider bg-surface hover:border-accent/50'}
+                ${selected ? 'border-accent bg-accent/10' : `border-divider bg-surface ${disabled ? '' : 'hover:border-accent/50'}`}
                 ${className}
             `}
         >

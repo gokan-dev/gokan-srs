@@ -2091,3 +2091,268 @@ describe('cueFormLabel (the conjugation card must not print the ending it asks f
         }
     });
 });
+
+describe('the word a pattern attaches to, asked with it (GrammarExample.host, issue #237)', () => {
+    /** 宿題をしてから遊びます: てから blanks から; the host is し + て, given as する. */
+    function afterDoing(host: GrammarExample['host'] | undefined): GrammarPoint {
+        return makeGrammarPoint({
+            id: 'n5-048',
+            title: '{verb} てから～',
+            formation: 'Verb-て form + から',
+            examples: [{
+                jp: '宿題をしてから遊びます。',
+                romaji: '',
+                en: 'I play after doing my homework.',
+                patternWordIndices: [4],
+                ...(host ? { host } : {}),
+                words: [
+                    { surface: '宿題', vocabId: 'v-shukudai', reading: 'しゅくだい' },
+                    { surface: 'を', vocabId: null },
+                    { surface: 'し', vocabId: null, baseForm: 'する' },
+                    { surface: 'て', vocabId: null },
+                    { surface: 'から', vocabId: null },
+                    { surface: '遊びます', vocabId: null, baseForm: '遊ぶ' },
+                    { surface: '。', vocabId: null },
+                ],
+            }],
+        });
+    }
+    const host = { wordIndices: [2, 3], lemma: 'する', reading: 'して' };
+
+    it('blanks the host together with the marker, as one input that names the word', async () => {
+        const plan = (await computeBlankPlan(afterDoing(host), null, 0))!;
+        expect(plan.blankWordSpans).toEqual([[2, 3, 4]]);
+        expect(plan.slots).toHaveLength(1);
+        expect(plan.slots[0].given).toBe('する');
+        expect(plan.slots[0].role).toBe('core');
+        expect(plan.slots[0].reveal).toBe('してから');
+    });
+
+    it('grades the form with its marker: the marker alone is wrong, another form of the host a near miss', async () => {
+        const plan = (await computeBlankPlan(afterDoing(host), null, 0))!;
+        expect(gradePlan(plan, ['してから']).overall).toBe('correct');
+        expect(gradePlan(plan, ['から']).overall).toBe('wrong');
+        expect(gradePlan(plan, ['するから']).overall).toBe('minor_error');
+        expect(gradePlan(plan, ['したから']).overall).toBe('minor_error');
+        expect(gradePlan(plan, ['してまで']).overall).toBe('wrong');
+    });
+
+    it('keeps to the marker alone when the dataset names no host', async () => {
+        const plan = (await computeBlankPlan(afterDoing(undefined), null, 0))!;
+        expect(plan.blankWordSpans).toEqual([[4]]);
+        expect(plan.slots[0].given).toBeUndefined();
+    });
+
+    it('accepts the host in kana when it is written with a kanji the dataset links to no word', async () => {
+        const point = makeGrammarPoint({
+            examples: [{
+                jp: '食べないで寝た。', romaji: '', en: 'I slept without eating.',
+                patternWordIndices: [2],
+                host: { wordIndices: [0, 1], lemma: '食べる', reading: 'たべない' },
+                words: [
+                    { surface: '食べ', vocabId: null, baseForm: '食べる' },
+                    { surface: 'ない', vocabId: null },
+                    { surface: 'で', vocabId: null },
+                    { surface: '寝た', vocabId: null, baseForm: '寝る' },
+                    { surface: '。', vocabId: null },
+                ],
+            }],
+        });
+        const plan = (await computeBlankPlan(point, null, 0))!;
+        expect(plan.blankWordSpans).toEqual([[0, 1, 2]]);
+        expect(gradePlan(plan, ['食べないで']).overall).toBe('correct');
+        expect(gradePlan(plan, ['たべないで']).overall).toBe('correct');
+    });
+
+    it('never asks for the host a second time as a vocab blank', async () => {
+        const point = afterDoing({ wordIndices: [2, 3], lemma: 'する', reading: 'して' });
+        point.examples[0].words[2] = { surface: 'し', vocabId: 'v-suru', reading: 'し', baseForm: 'する' };
+        vi.spyOn(VocabularyService, 'loadVocab').mockResolvedValue(makeVocab({
+            id: 'v-suru', writtenForm: { kanji: 'する', alternatives: [], containedKanji: [] }, reading: { primary: 'する', alternatives: [] },
+            senses: [{ pos: ['vs-i'], glosses: ['to do'], misc: { rawTags: [] }, related: { compounds: [] } }],
+        }));
+        const progress = makeProgress({ learningQueue: [makeVocabProgress({ vocabId: 'v-suru', introductionAt: past })] });
+        const plan = (await computeBlankPlan(point, progress, 0))!;
+        expect(plan.blankWordSpans).toEqual([[2, 3, 4]]);
+    });
+});
+
+describe('an inflection point asked inside a sentence (issue #236)', () => {
+    const point: GrammarPoint = {
+        id: 'n5-902',
+        title: '{verb} ました',
+        jlptLevel: 5,
+        kind: 'inflection' as const,
+        derives: 'polite past',
+        shortExplanation: '', longExplanation: '', formation: '',
+        examples: [],
+    };
+    const conjugations = {
+        'n5-902': {
+            form: 'masu-past' as const,
+            formLabel: 'polite past',
+            items: [{ vocabId: 'v1', lemma: '飲む', lemmaReading: 'のむ', target: '飲みました', targetReading: 'のみました', wordClass: 'godan' as const }],
+        },
+    };
+    const sentence: GrammarExample = {
+        jp: '昨日、本を読みました。', romaji: '', en: 'I read a book yesterday.',
+        patternWordIndices: [4],
+        host: { wordIndices: [4], lemma: '読む', reading: 'よみました' },
+        words: [
+            { surface: '昨日', vocabId: null },
+            { surface: '、', vocabId: null },
+            { surface: '本', vocabId: null },
+            { surface: 'を', vocabId: null },
+            { surface: '読みました', vocabId: null, baseForm: '読む' },
+            { surface: '。', vocabId: null },
+        ],
+    };
+    const { drillReviewsBeforeSentence } = CONSTANTS.srs.grammar;
+
+    beforeEach(() => {
+        vi.spyOn(GrammarService, 'loadConjugations').mockResolvedValue(conjugations);
+    });
+
+    it('stays on the bare drill for its first reviews, without loading any sentence', async () => {
+        const loadMined = vi.spyOn(GrammarService, 'loadMinedExamples').mockResolvedValue([sentence]);
+        const plan = await computeBlankPlan(point, null, drillReviewsBeforeSentence - 1);
+        expect(plan?.conjugation).toBeDefined();
+        expect(loadMined).not.toHaveBeenCalled();
+    });
+
+    it('then asks for the form in a sentence, the dictionary form given', async () => {
+        vi.spyOn(GrammarService, 'loadMinedExamples').mockResolvedValue([sentence]);
+        const plan = (await computeBlankPlan(point, null, drillReviewsBeforeSentence))!;
+        expect(plan.conjugation).toBeUndefined();
+        expect(plan.example).toEqual(sentence);
+        expect(plan.blankWordSpans).toEqual([[4]]);
+        expect(plan.slots[0].given).toBe('読む');
+        expect(gradePlan(plan, ['読みました']).overall).toBe('correct');
+        expect(gradePlan(plan, ['よみました']).overall).toBe('correct');
+        // The form is the whole question: another form, or the given word copied, is wrong.
+        expect(gradePlan(plan, ['読みます']).overall).toBe('wrong');
+        expect(gradePlan(plan, ['読む']).overall).toBe('wrong');
+    });
+
+    it('grades another form wrong when the word is one the dataset links, too', async () => {
+        const linked = { ...sentence, words: sentence.words.map(w => (w.surface === '読みました' ? { ...w, vocabId: 'v-yomu', reading: 'よみました' } : w)) };
+        vi.spyOn(GrammarService, 'loadMinedExamples').mockResolvedValue([linked]);
+        vi.spyOn(VocabularyService, 'loadVocab').mockResolvedValue(makeVocab({
+            id: 'v-yomu', writtenForm: { kanji: '読む', alternatives: [], containedKanji: ['読'] }, reading: { primary: 'よむ', alternatives: [] },
+            senses: [{ pos: ['v5m'], glosses: ['to read'], misc: { rawTags: [] }, related: { compounds: [] } }],
+        }));
+        const plan = (await computeBlankPlan(point, null, drillReviewsBeforeSentence))!;
+        expect(gradePlan(plan, ['よみました']).overall).toBe('correct');
+        expect(gradePlan(plan, ['読む']).overall).toBe('wrong');
+        expect(gradePlan(plan, ['よんだ']).overall).toBe('wrong');
+    });
+
+    it('goes back to the drill when no sentence names its host', async () => {
+        vi.spyOn(GrammarService, 'loadMinedExamples').mockResolvedValue([{ ...sentence, host: undefined }]);
+        const plan = await computeBlankPlan(point, null, drillReviewsBeforeSentence);
+        expect(plan?.conjugation).toBeDefined();
+    });
+});
+
+describe('a point picked among the forms it is confused with (issue #238)', () => {
+    /** 雨が降ろうと行く: と after a volitional. The siblings attach to a noun or a plain form. */
+    function point(ruledOut: string[] | undefined): GrammarPoint {
+        return makeGrammarPoint({
+            id: 'n1-100',
+            title: '～うと',
+            examples: [{
+                jp: '雨が降ろうと行く。', romaji: '', en: 'I will go even if it rains.',
+                patternWordIndices: [3],
+                ...(ruledOut ? { ruledOut } : {}),
+                words: [
+                    { surface: '雨', vocabId: null },
+                    { surface: 'が', vocabId: null },
+                    { surface: '降ろう', vocabId: null, baseForm: '降る' },
+                    { surface: 'と', vocabId: null },
+                    { surface: '行く', vocabId: null },
+                    { surface: '。', vocabId: null },
+                ],
+            }],
+        });
+    }
+    const sibling = (id: string, marker: string, formation: string): GrammarPoint => makeGrammarPoint({
+        id, title: `～${marker}`, formation,
+        examples: [{
+            jp: `雨${marker}行く。`, romaji: '', en: '', patternWordIndices: [1],
+            words: [{ surface: '雨', vocabId: null }, { surface: marker, vocabId: null }, { surface: '行く', vocabId: null }, { surface: '。', vocabId: null }],
+        }],
+    });
+    const siblings: Record<string, GrammarPoint> = {
+        'n1-101': sibling('n1-101', 'であれ', 'Noun + であれ'),
+        'n1-102': sibling('n1-102', 'にしろ', 'Verb-casual + にしろ'),
+        'n1-103': sibling('n1-103', 'と', 'Noun + と'),
+    };
+    const introduced = (...ids: string[]) => makeProgress({
+        grammarQueue: ids.map(grammarId => grammarProgress({ grammarId, introductionAt: past })),
+    });
+
+    beforeEach(() => {
+        vi.spyOn(GrammarService, 'loadGrammarPoint').mockImplementation(id => Promise.resolve(siblings[id]));
+        vi.spyOn(GrammarService, 'loadMinedExamples').mockResolvedValue(null);
+        vi.spyOn(GrammarService, 'loadVariantGroups').mockResolvedValue({});
+    });
+
+    it('draws on the mined sentences as well as the curated ones', async () => {
+        const mined = { ...point(['n1-101', 'n1-102']).examples[0], jp: '雪が降ろうと行く。' };
+        vi.spyOn(GrammarService, 'loadMinedExamples').mockResolvedValue([mined]);
+        const progress = introduced('n1-101', 'n1-102');
+        const sentences = new Set<string>();
+        for (const reviewCount of [1, 3, 5, 7, 9, 11, 13, 15]) {
+            sentences.add((await computeBlankPlan(point(['n1-101', 'n1-102']), progress, reviewCount))!.example!.jp);
+        }
+        expect(sentences).toEqual(new Set(['雨が降ろうと行く。', '雪が降ろうと行く。']));
+    });
+
+    it('offers the marker among the siblings the sentence rules out, each saying what it attaches to', async () => {
+        const plan = (await computeBlankPlan(point(['n1-101', 'n1-102']), introduced('n1-101', 'n1-102'), 1))!;
+        expect(plan.choice).toBe(true);
+        expect(plan.blankWordSpans).toEqual([[3]]);
+        const [slot] = plan.slots;
+        expect(slot.choices?.map(c => c.text).sort()).toEqual(['であれ', 'と', 'にしろ']);
+        expect(slot.choices?.find(c => c.text === 'と')?.note).toBeUndefined();
+        expect(slot.choices?.find(c => c.text === 'であれ')?.note).toBe('attaches as: Noun + であれ');
+        expect(grammarExercise({ id: 'n1-100', title: '～うと', examples: [] }, plan).kind).toBe('grammar-choice');
+    });
+
+    it('grades a pick exactly: the marker is right, a sibling wrong, nothing picked a pass', async () => {
+        const plan = (await computeBlankPlan(point(['n1-101', 'n1-102']), introduced('n1-101', 'n1-102'), 1))!;
+        expect(gradePlan(plan, ['と']).overall).toBe('correct');
+        expect(gradePlan(plan, ['にしろ']).overall).toBe('wrong');
+        expect(gradePlan(plan, ['']).overall).toBe('pass');
+    });
+
+    it('only offers siblings the learner has been introduced to, and stays typed without enough of them', async () => {
+        const plan = (await computeBlankPlan(point(['n1-101', 'n1-102']), introduced('n1-101'), 1))!;
+        expect(plan.choice).toBeUndefined();
+        expect(plan.slots[0].choices).toBeUndefined();
+    });
+
+    it('never offers a sibling written like the answer', async () => {
+        const plan = (await computeBlankPlan(point(['n1-101', 'n1-103']), introduced('n1-101', 'n1-103'), 1))!;
+        expect(plan.choice).toBeUndefined();
+    });
+
+    it('alternates with the typed card: the first review and every second one after are typed', async () => {
+        const progress = introduced('n1-101', 'n1-102');
+        expect((await computeBlankPlan(point(['n1-101', 'n1-102']), progress, 0))!.choice).toBeUndefined();
+        expect((await computeBlankPlan(point(['n1-101', 'n1-102']), progress, 2))!.choice).toBeUndefined();
+        expect((await computeBlankPlan(point(['n1-101', 'n1-102']), progress, 3))!.choice).toBe(true);
+    });
+
+    it('keeps the options in the same order when the turn is computed again', async () => {
+        const progress = introduced('n1-101', 'n1-102');
+        const first = (await computeBlankPlan(point(['n1-101', 'n1-102']), progress, 1))!;
+        const again = (await computeBlankPlan(point(['n1-101', 'n1-102']), progress, 1))!;
+        expect(again.slots[0].choices).toEqual(first.slots[0].choices);
+    });
+
+    it('stays typed when the sentence rules nothing out', async () => {
+        const plan = (await computeBlankPlan(point(undefined), introduced('n1-101', 'n1-102'), 1))!;
+        expect(plan.choice).toBeUndefined();
+    });
+});

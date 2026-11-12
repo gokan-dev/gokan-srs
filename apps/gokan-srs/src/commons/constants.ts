@@ -54,7 +54,18 @@ export const CONSTANTS = {
         /** Maximum number of reviews per day (Limit removed) */
         maxReviewsPerDay: 999999,
 
+        /**
+         * The share of a typed answer's strength gain that an answer picked from a
+         * list earns (AnswerSlot.choices). Recognising the right form among others is
+         * easier than producing it, so it moves the schedule less.
+         */
+        choiceStrengthRatio: 0.6,
+
         grammar: {
+            /** Options on a grammar choice card: the right form and up to this many it is confused with. */
+            maxChoiceDistractors: 3,
+            /** Fewer wrong options than this and the card is not a choice: one distractor is a coin toss. */
+            minChoiceDistractors: 2,
             /**
              * Ceiling on how many new grammar points one advance introduces - NOT
              * a fixed count like newVocabBatchSize, since GrammarSRSService.getNextCandidates
@@ -62,6 +73,12 @@ export const CONSTANTS = {
              * teachable points remaining than this yields only that remainder.
              */
             newBatchSize: 3,
+            /**
+             * Reviews an inflection point spends on the bare conjugation drill before it
+             * is asked inside a sentence. Forming the word comes first; from then on the
+             * card asks for the form where a sentence needs it.
+             */
+            drillReviewsBeforeSentence: 2,
         },
 
         /**
