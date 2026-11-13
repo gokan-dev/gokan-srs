@@ -11,7 +11,7 @@ import { hashString, pickStable } from '../../utils/deterministicPick';
 import { surfaceReading } from '@gokan/dataset-schema';
 import { indexLearnerVocab, pickMostProductive, scoreGrammarExample, wordRole } from '../../utils/sentenceRanking';
 import { computeSessionState } from './sessionState';
-import { choiceSlot, markerInflections, textSlot, wordSlot } from '../../services/exercise/slots';
+import { choiceSlot, endingSpellings, formSpellings, markerInflections, textSlot, wordSlot } from '../../services/exercise/slots';
 import { synonymsOf } from '../../services/exercise/wordRelation';
 import type { MarkerToken } from '../../services/exercise/slots';
 import { inferredWord, toInflectableWord } from '../../utils/inflection.utils';
@@ -797,18 +797,28 @@ async function patternPlan(
 async function inflectionSentencePlan(point: GrammarPoint, progress: UserProgress | null, reviewCount: number): Promise<GrammarBlankPlan | null> {
     const namesHost = (example: GrammarExample) => !!example.host && example.patternWordIndices.length > 0;
     const plan = await hostedPlan(point, progress, reviewCount, namesHost);
-    return plan && { ...plan, slots: plan.slots.map(formOnly) };
+    if (!plan) return null;
+    const endings = endingSpellings((await GrammarService.loadConjugations())[point.id]?.items ?? []);
+    return { ...plan, slots: plan.slots.map(slot => formOnly(slot, endings)) };
 }
 
 /**
  * On an inflection point the form is the whole question, as on its drill: another
  * form of the given word, the given word itself included, is wrong, where a
- * construction's blank would call it a near miss (the marker being right).
+ * construction's blank would call it a near miss (the marker being right). The form
+ * is still accepted in every spelling its drill accepts (`endings`): the sentence
+ * may write 好きではなかった where the drill teaches 好きじゃなかった.
  */
-function formOnly(slot: AnswerSlot): AnswerSlot {
+function formOnly(slot: AnswerSlot, endings: string[][]): AnswerSlot {
     if (!slot.given) return slot;
-    const { inflections: _inflections, ...rest } = slot;
-    return { ...rest, near: [], ...(slot.word ? { word: { ...slot.word, otherForm: 'off' } } : {}) };
+    const { inflections, ...rest } = slot;
+    const word = inflections?.[0]?.word;
+    return {
+        ...rest,
+        accept: word ? formSpellings(slot.accept, word, endings) : slot.accept,
+        near: [],
+        ...(slot.word ? { word: { ...slot.word, otherForm: 'off' } } : {}),
+    };
 }
 
 /** A sentence that names its host: the most productive one for the learner's vocabulary, else any, rotating on the review count. */

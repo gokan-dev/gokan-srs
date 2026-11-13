@@ -5,7 +5,7 @@
 // exercise, so a production card and a grammar blank asking for the same word
 // accept the same answers, up to their OtherFormGrade.
 import { headwordOf, headwordWithReading } from '@gokan/dataset-schema';
-import type { Vocabulary } from '@gokan/dataset-schema';
+import type { ConjugationDrillItem, Vocabulary } from '@gokan/dataset-schema';
 import { hashString } from '../../utils/deterministicPick';
 import { isFormOfWord, kanaOfSurface, toInflectableWord } from '../../utils/inflection.utils';
 import type { InflectableWord } from '../../utils/inflection.utils';
@@ -221,4 +221,41 @@ export function markerInflections(tokens: MarkerToken[], registerFree: boolean):
             registerFree,
         }];
     });
+}
+
+/**
+ * The endings an inflection point's drill writes more than one way, each group the
+ * spellings of one ending: what an item's answer and its listed alternative differ
+ * by after the stem they share (じゃなかった / ではなかった, せられる / される). An
+ * alternative is paired with the answer in its own script, written or kana.
+ */
+export function endingSpellings(items: Pick<ConjugationDrillItem, 'target' | 'targetReading' | 'alternatives'>[]): string[][] {
+    const groups: string[][] = [];
+    for (const item of items) {
+        for (const alternative of item.alternatives ?? []) {
+            const answer = [item.target, item.targetReading].find(t => t[0] === alternative[0]);
+            if (!answer) continue;
+            let shared = 0;
+            while (shared < answer.length && answer[shared] === alternative[shared]) shared++;
+            const pair = [answer.slice(shared), alternative.slice(shared)];
+            if (shared === 0 || pair.some(ending => ending.length === 0)) continue;
+            const group = groups.find(g => pair.some(ending => g.includes(ending)));
+            if (group) group.push(...pair.filter(ending => !group.includes(ending)));
+            else groups.push(pair);
+        }
+    }
+    return groups;
+}
+
+/**
+ * A form's accepted answers with each ending also in the drill's other spellings of
+ * it (endingSpellings), so a sentence that writes 好きではなかった accepts the
+ * 好きじゃなかった its drill teaches. A respelling is kept only when it is a listed
+ * form of the word: the causative-passive's される is no form of 話す (話さされる).
+ */
+export function formSpellings(accept: string[], word: InflectableWord, endings: string[][]): string[] {
+    const respelt = accept.flatMap(form => endings.flatMap(group => group
+        .filter(ending => form.endsWith(ending))
+        .flatMap(ending => group.filter(other => other !== ending).map(other => form.slice(0, form.length - ending.length) + other))));
+    return unique([...accept, ...respelt.filter(form => isFormOfWord(form, word, { loose: false }))]);
 }
