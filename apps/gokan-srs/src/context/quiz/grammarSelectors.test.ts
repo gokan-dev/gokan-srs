@@ -2310,6 +2310,13 @@ describe('formSpellings', () => {
         expect(formSpellings(['書かせられる'], kaku, endings)).toEqual(['書かせられる', '書かされる']);
     });
 
+    it('chains swaps that respell different parts of the ending (n5-917: じゃ/では and ないです/ありません)', () => {
+        const suki: InflectableWord = { written: ['好き'], readings: ['すき'], classes: ['na-adj'] };
+        const endings = endingSpellings([{ ...item('好きじゃないです', ['好きじゃありません', 'すきじゃありません', '好きではありません', 'すきではありません']), targetReading: 'すきじゃないです' }]);
+        expect(formSpellings(['好きではありません'], suki, endings)).toEqual(expect.arrayContaining(['好きじゃないです', '好きじゃありません']));
+        expect(formSpellings(['好きじゃありません'], suki, endings)).toEqual(expect.arrayContaining(['好きじゃないです', '好きではありません']));
+    });
+
     it('keeps a swapped spelling only when it is a form of the word (話さされる is not)', () => {
         const endings = endingSpellings([item('書かせられる', ['書かされる'])]);
         expect(formSpellings(['話させられる'], hanasu, endings)).toEqual(['話させられる']);

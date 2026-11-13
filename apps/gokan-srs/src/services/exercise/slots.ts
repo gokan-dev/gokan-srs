@@ -250,12 +250,24 @@ export function endingSpellings(items: Pick<ConjugationDrillItem, 'target' | 'ta
 /**
  * A form's accepted answers with each ending also in the drill's other spellings of
  * it (endingSpellings), so a sentence that writes 好きではなかった accepts the
- * 好きじゃなかった its drill teaches. A respelling is kept only when it is a listed
- * form of the word: the causative-passive's される is no form of 話す (話さされる).
+ * 好きじゃなかった its drill teaches. Swaps chain, since two groups can respell
+ * different parts of one ending (n5-917: ではありません to じゃないです, then to
+ * じゃありません). A respelling is kept only when it is a listed form of the word:
+ * the causative-passive's される is no form of 話す (話さされる).
  */
 export function formSpellings(accept: string[], word: InflectableWord, endings: string[][]): string[] {
-    const respelt = accept.flatMap(form => endings.flatMap(group => group
-        .filter(ending => form.endsWith(ending))
-        .flatMap(ending => group.filter(other => other !== ending).map(other => form.slice(0, form.length - ending.length) + other))));
-    return unique([...accept, ...respelt.filter(form => isFormOfWord(form, word, { loose: false }))]);
+    const forms = unique(accept);
+    // Each form is respelt once, and only listed forms join, so this ends.
+    for (let i = 0; i < forms.length; i++) {
+        const form = forms[i];
+        for (const group of endings) {
+            for (const ending of group.filter(e => form.endsWith(e))) {
+                for (const other of group.filter(o => o !== ending)) {
+                    const respelt = form.slice(0, form.length - ending.length) + other;
+                    if (!forms.includes(respelt) && isFormOfWord(respelt, word, { loose: false })) forms.push(respelt);
+                }
+            }
+        }
+    }
+    return forms;
 }
