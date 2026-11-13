@@ -9,6 +9,7 @@
 [![Checks](https://github.com/gokan-dev/gokan-srs/actions/workflows/ci.yml/badge.svg)](https://github.com/gokan-dev/gokan-srs/actions/workflows/ci.yml)
 [![Lighthouse](https://github.com/gokan-dev/gokan-srs/actions/workflows/ci-lighthouse.yml/badge.svg)](https://github.com/gokan-dev/gokan-srs/actions/workflows/ci-lighthouse.yml)
 [![Deploy](https://github.com/gokan-dev/gokan-srs/actions/workflows/deploy.yml/badge.svg)](https://github.com/gokan-dev/gokan-srs/actions/workflows/deploy.yml)
+[![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
 [![Dataset: CC BY-SA 4.0](https://img.shields.io/badge/dataset-CC%20BY--SA%204.0-blue)](https://github.com/gokan-dev/gokan-dataset)
 
 </div>
@@ -149,4 +150,8 @@ Built on other people's work, all of it free:
 - [JLPT_Vocabulary](https://github.com/Bluskyo/JLPT_Vocabulary), sourced from Jonathan Waller's tanos.co.uk
 - [hanabira.org](https://hanabira.org) for grammar points
 
-Licensing for the compiled data is documented in the [dataset repository](https://github.com/gokan-dev/gokan-dataset#license), since each source carries its own terms.
+## License
+
+The code in this repository is licensed under the [GNU Affero General Public License v3.0](LICENSE). You may run, study, modify and share it; if you run a modified version as a public service, you must publish your changes under the same license.
+
+The dataset is a separate work under CC BY-SA 4.0. Licensing for the compiled data is documented in the [dataset repository](https://github.com/gokan-dev/gokan-dataset#license), since each source carries its own terms.
