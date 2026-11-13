@@ -17,6 +17,14 @@ import type { ChangelogEntry } from '../src/models/release.model';
  */
 export const CHANGELOG: readonly ChangelogEntry[] = [
     {
+        version: '1.65.0',
+        date: '2026-11-13',
+        summary: 'じゃ and では both count in a grammar sentence',
+        changes: [
+            { summary: 'When a grammar sentence asks for a form, every spelling its drill accepts now counts: すきじゃなかった is right where the sentence writes 好きではなかった.' },
+        ],
+    },
+    {
         version: '1.64.0',
         date: '2026-11-12',
         summary: 'Long words fit on their card',

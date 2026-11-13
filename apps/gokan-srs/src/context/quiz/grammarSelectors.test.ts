@@ -25,6 +25,8 @@ import { answerSlot, grammarProgress, userProgress, vocabProgress } from '../../
 import { gradeExercise } from '../../services/exercise/grading';
 import { grammarExercise } from '../../services/exercise/builders';
 import type { AnswerSlot } from '../../services/exercise/types';
+import { endingSpellings, formSpellings } from '../../services/exercise/slots';
+import type { InflectableWord } from '../../utils/inflection.utils';
 import type { GrammarBlankPlan } from './grammarReducer';
 import { englishFiles, publishedFiles } from '../../test/datasetFiles';
 
@@ -2251,6 +2253,73 @@ describe('an inflection point asked inside a sentence (issue #236)', () => {
         vi.spyOn(GrammarService, 'loadMinedExamples').mockResolvedValue([{ ...sentence, host: undefined }]);
         const plan = await computeBlankPlan(point, null, drillReviewsBeforeSentence);
         expect(plan?.conjugation).toBeDefined();
+    });
+
+    it('accepts the other spelling the drill lists for the form (reported: すきじゃなかった for 好きではなかった)', async () => {
+        // n5-914's own shape: its drill writes じゃなかった with ではなかった as an
+        // equally correct alternative, and the sentence happens to use the latter.
+        const naPoint: GrammarPoint = { ...point, id: 'n5-914', title: '{na-adjective} じゃなかった', derives: 'past negative' };
+        vi.spyOn(GrammarService, 'loadConjugations').mockResolvedValue({
+            'n5-914': {
+                form: 'na-adj-past-negative',
+                formLabel: 'past negative (じゃなかった)',
+                items: [{
+                    vocabId: 'v-hitsuyou', lemma: '必要', lemmaReading: 'ひつよう', target: '必要じゃなかった', targetReading: 'ひつようじゃなかった',
+                    alternatives: ['必要ではなかった', 'ひつようではなかった'], wordClass: 'na-adjective',
+                }],
+            },
+        });
+        vi.spyOn(GrammarService, 'loadMinedExamples').mockResolvedValue([{
+            jp: '最初彼女はその馬が好きではなかった。', romaji: '', en: "She didn't like the horse at first.",
+            patternWordIndices: [6, 7, 8, 9, 10],
+            host: { wordIndices: [6, 7, 8, 9, 10], lemma: '好き', reading: 'すきではなかった' },
+            words: [
+                { surface: '最初', vocabId: null }, { surface: '彼女', vocabId: null }, { surface: 'は', vocabId: null },
+                { surface: 'その', vocabId: null }, { surface: '馬', vocabId: null }, { surface: 'が', vocabId: null },
+                { surface: '好き', vocabId: 'v-suki', reading: 'すき' },
+                { surface: 'で', vocabId: null, baseForm: 'だ' },
+                { surface: 'は', vocabId: null },
+                { surface: 'なかっ', vocabId: null, reading: 'なかっ', baseForm: 'ない' },
+                { surface: 'た', vocabId: null },
+                { surface: '。', vocabId: null },
+            ],
+        }]);
+        vi.spyOn(VocabularyService, 'loadVocab').mockResolvedValue(makeVocab({
+            id: 'v-suki', writtenForm: { kanji: '好き', alternatives: [], containedKanji: ['好'] }, reading: { primary: 'すき', alternatives: [] },
+            senses: [{ pos: ['adj-na'], glosses: ['liked'], misc: { rawTags: [] }, related: { compounds: [] } }],
+        }));
+        const plan = (await computeBlankPlan(naPoint, null, drillReviewsBeforeSentence))!;
+        expect(plan.conjugation).toBeUndefined();
+        for (const answer of ['好きではなかった', 'すきではなかった', '好きじゃなかった', 'すきじゃなかった']) {
+            expect(gradePlan(plan, [answer]).overall, answer).toBe('correct');
+        }
+        // Still only this form: the polite one, or another tense, is another point's.
+        expect(gradePlan(plan, ['好きじゃありませんでした']).overall).toBe('wrong');
+        expect(gradePlan(plan, ['好きじゃない']).overall).toBe('wrong');
+    });
+});
+
+describe('formSpellings', () => {
+    const item = (target: string, alternatives: string[]) => ({ vocabId: 'v', lemma: '', lemmaReading: '', target, targetReading: '', alternatives, wordClass: 'godan' as const });
+    const hanasu: InflectableWord = { written: ['話す'], readings: ['はなす'], classes: ['godan'] };
+    const kaku: InflectableWord = { written: ['書く'], readings: ['かく'], classes: ['godan'] };
+
+    it('swaps an ending for the drill\'s other spelling of it, both ways', () => {
+        const endings = endingSpellings([item('書かせられる', ['書かされる'])]);
+        expect(formSpellings(['書かされる'], kaku, endings)).toEqual(['書かされる', '書かせられる']);
+        expect(formSpellings(['書かせられる'], kaku, endings)).toEqual(['書かせられる', '書かされる']);
+    });
+
+    it('chains swaps that respell different parts of the ending (n5-917: じゃ/では and ないです/ありません)', () => {
+        const suki: InflectableWord = { written: ['好き'], readings: ['すき'], classes: ['na-adj'] };
+        const endings = endingSpellings([{ ...item('好きじゃないです', ['好きじゃありません', 'すきじゃありません', '好きではありません', 'すきではありません']), targetReading: 'すきじゃないです' }]);
+        expect(formSpellings(['好きではありません'], suki, endings)).toEqual(expect.arrayContaining(['好きじゃないです', '好きじゃありません']));
+        expect(formSpellings(['好きじゃありません'], suki, endings)).toEqual(expect.arrayContaining(['好きじゃないです', '好きではありません']));
+    });
+
+    it('keeps a swapped spelling only when it is a form of the word (話さされる is not)', () => {
+        const endings = endingSpellings([item('書かせられる', ['書かされる'])]);
+        expect(formSpellings(['話させられる'], hanasu, endings)).toEqual(['話させられる']);
     });
 });
 
