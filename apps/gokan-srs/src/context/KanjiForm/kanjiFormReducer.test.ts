@@ -103,6 +103,13 @@ describe('kanjiFormReducer', () => {
         expect(knownPrefix(RTK, knownKanjiOf(state, RTK))).toBe(1);
     });
 
+    it('caps a setup count from a link at the end of the order once its list loads', () => {
+        const state = initialKanjiForm('kklc', 500);
+        expect(countOf(state, KKLC)).toBe(KKLC.length);
+        expect(known(state, KKLC)).toEqual(sorted(...KKLC));
+        expect(knownPrefix(KKLC, knownKanjiOf(state, KKLC))).toBe(KKLC.length);
+    });
+
     it('ignores count changes while the order\'s list is loading', () => {
         const state = initialKanjiForm('kklc', 2);
         expect(kanjiFormReducer(state, { type: 'SET_COUNT', count: 4, list: null })).toBe(state);
