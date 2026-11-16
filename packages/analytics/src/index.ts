@@ -22,3 +22,23 @@ export function analyticsScriptTag(websiteId: string | undefined): string {
     if (!/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id)) throw new Error(`Umami website id "${id}" is not a UUID`);
     return `<script defer src="${UMAMI_SCRIPT_URL}" data-website-id="${id}" data-domains="${PRODUCTION_HOST}"></script>`;
 }
+
+/**
+ * A link from the dictionary into the app's setup (gokan-srs issue #243): `order` and `known`
+ * open onboarding on the visitor's book and count, and `utm_content` names the placement the
+ * link sat in. The dictionary writes these links and the app reads them, so both use these
+ * names and this list: a placement not in it is counted as a direct visit.
+ */
+export const SETUP_LINK_PARAMS = { order: 'order', known: 'known' } as const;
+
+/** The `utm_source` the dictionary's links carry. */
+export const DICTIONARY_SOURCE = 'dictionary';
+
+/** Where on a dictionary page a link into the app sits (its `utm_content`). */
+export const DICTIONARY_PLACEMENTS = ['word', 'kanji', 'range', 'order', 'grammar', 'home', 'footer', 'about'] as const;
+
+export type DictionaryPlacement = (typeof DICTIONARY_PLACEMENTS)[number];
+
+export function isDictionaryPlacement(value: string | null | undefined): value is DictionaryPlacement {
+    return (DICTIONARY_PLACEMENTS as readonly (string | null | undefined)[]).includes(value);
+}
