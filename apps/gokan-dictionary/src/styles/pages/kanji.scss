@@ -50,7 +50,7 @@
   }
 }
 
-// Each course that teaches the kanji, with its number there.
+// Each course that teaches the kanji, with its step there.
 .kanji-courses {
   margin: 0;
   display: grid;
@@ -85,11 +85,13 @@
   }
 
   // On the row's bottom line, so in two columns a book without a subtitle lines its step up with
-  // its neighbour's.
+  // its neighbour's. 44px tall even with no link in it (a book with no range page), so a plain
+  // step keeps the band, and the line, of a linked one.
   dd {
     margin: 0;
     margin-top: auto;
     min-width: 0;
+    min-height: $target;
     display: flex;
     align-items: center;
     font-variant-numeric: tabular-nums;

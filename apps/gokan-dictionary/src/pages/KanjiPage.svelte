@@ -23,6 +23,8 @@
   const level = $derived(kanji.steps.jlpt);
   const kun = $derived(kanji.readings.kun.map(kunReadingLabel));
   const courses = $derived(kanjiBookPositions(kanji));
+  // The line under the heading speaks of linked steps, so it shows only when one is.
+  const anyLinked = $derived(courses.some(({ book, position }) => rangeHref(book, position) !== undefined));
 </script>
 
 <PageLayout trail={[{ label: messages.chrome.sections.kanji, href: urls.kanjiIndexPath() }, { label: kanji.character, jp: true }]} section="kanji" wide>
@@ -78,7 +80,7 @@
   {#if courses.length > 0}
     <section class="section">
       <h2>In kanji courses</h2>
-      <p class="support">A linked step leads to the words you can read at that point in the book.</p>
+      {#if anyLinked}<p class="support">A linked step leads to the words you can read at that point in the book.</p>{/if}
       <dl class="kanji-courses">
         {#each courses as { book, name, label, position } (book)}
           {@const href = rangeHref(book, position)}
