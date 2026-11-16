@@ -553,7 +553,9 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   and its lead line, so two accent-edged boxes never stack and Formation stays first), on the surface with a divider border and a
   3px accent left edge, the accent marking the action. One sentence in body text, then one
   button-styled link (accent fill, `accent-contrast` text, 44px tall), its label short enough
-  for one line at 320px ("Start after step 99"). Never a popup, a dismiss
+  for one line at 320px with a four-digit step ("Start after step 99"; `check:layout` measures
+  it on an English and a Chinese word page). On a Chinese page a step's action carries no
+  （英文）: its sentence says it, right after "Gokan" (Gokan（英文页面）). Never a popup, a dismiss
   button or a carousel. Its rules are the `app-panel` mixin (`_tokens.scss`), included by each
   page sheet that shows it: in `app.scss` they took the shared stylesheet past its 10 KB budget.
 - **Shared between page sheets**: a rule two page types use goes in `app.scss`, unless that

@@ -4,6 +4,15 @@
 
 import { unlockStep, type KanjiOrder, type KanjiOrderList, type KanjiStepIndex } from '@gokan/dataset-schema';
 
+/**
+ * The language of an order's prose name (`searchName`), for a sentence that names it: every one is
+ * English but Maniette's, a French title ("Les Kanjis dans la tête"). The dictionary's prose alone
+ * needs it, so it lives here, not in ORDER_INFO.
+ */
+export function orderNameLang(order: Pick<KanjiOrder, 'id'>): 'en' | 'fr' {
+    return order.id === 'maniette' ? 'fr' : 'en';
+}
+
 /** Steps on one range page. */
 export const KANJI_RANGE_SIZE = 100;
 

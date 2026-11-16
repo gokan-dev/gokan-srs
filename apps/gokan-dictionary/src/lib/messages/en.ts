@@ -5,9 +5,10 @@
 import { headwordOf, secondaryForm } from '@gokan/dataset-schema';
 import type { GrammarChapter, GrammarPoint, Kanji, KanjiOrder, Vocabulary } from '@gokan/dataset-schema';
 import { FORM_LABELS } from '../conjugation';
+import { orderNameLang } from '../kanjiOrders';
 import { quotedGlosses, searchablePattern, sentenceCase, truncate } from '../seo';
 import { SITE_NAME } from '../site';
-import type { CountedNoun, Messages } from './index';
+import type { CountedNoun, LinkedText, Messages } from './index';
 
 const jlptLevel = (level: number) => `N${level}`;
 const jlptLabel = (level: number) => `JLPT ${jlptLevel(level)}`;
@@ -24,16 +25,30 @@ function count(n: number, noun: CountedNoun): string {
     return `${n.toLocaleString('en')} ${noun}${n === 1 ? '' : 's'}`;
 }
 
-/** A range page's heading, and its title without the site name: the two say the same thing. */
 /**
  * An order named in a sentence: its prose name (`searchName`, "Kanji frequency order"), never its
  * short label ("Frequency", "RTK, older editions"), with "the" before a name that is a common noun
- * ("the JLPT kanji order", "the White Rabbit kanji cards") and none before a book's ("KKLC").
+ * ("the JLPT kanji order", "the White Rabbit kanji cards") and none before a book's ("KKLC"). A
+ * name in another language (Maniette's French title) is a run marked with it.
  */
-function orderInProse(order: KanjiOrder): string {
-    return /\b(order|cards)$/.test(order.searchName) ? `the ${order.searchName}` : order.searchName;
+function orderInProse(order: KanjiOrder): LinkedText {
+    const article = /\b(order|cards)$/.test(order.searchName) ? 'the ' : '';
+    const lang = orderNameLang(order);
+    return lang === 'en' ? [`${article}${order.searchName}`] : [article, { text: order.searchName, lang }];
 }
 
+/** A sentence from its runs, the plain ones next to each other joined into one. */
+function sentence(...runs: (string | LinkedText)[]): LinkedText {
+    const joined: LinkedText[number][] = [];
+    for (const run of runs.flat()) {
+        const last = joined.at(-1);
+        if (typeof run === 'string' && typeof last === 'string') joined[joined.length - 1] = last + run;
+        else if (run !== '') joined.push(run);
+    }
+    return joined;
+}
+
+/** A range page's heading, and its title without the site name: the two say the same thing. */
 function kanjiRangeHeading(order: KanjiOrder, range: { first: number; last: number }): string {
     return `${order.searchName} vocabulary: words you can read after kanji ${range.first} to ${range.last}`;
 }
@@ -95,19 +110,19 @@ export const en: Messages = {
     },
     appPanel: {
         word: (word, { order, step }) => ({
-            text: ['You can read ', { text: word, lang: 'ja' }, ` after step ${step} of ${orderInProse(order)}. Gokan teaches words in the order of the kanji you know.`],
+            text: sentence('You can read ', [{ text: word, lang: 'ja' }], ` after step ${step} of `, orderInProse(order), '. Gokan teaches words in the order of the kanji you know.'),
             action: `Start after step ${step}`,
         }),
         kanji: (character, { order, step }, unlocked) => ({
-            text: [{ text: character, lang: 'ja' }, ` is step ${step} of ${orderInProse(order)}. Know this far? Gokan starts you with the ${count(unlocked, 'word')} those kanji unlock.`],
+            text: sentence([{ text: character, lang: 'ja' }], ` is step ${step} of `, orderInProse(order), `. Know this far? Gokan starts you with the ${count(unlocked, 'word')} those kanji unlock.`),
             action: `Start after step ${step}`,
         }),
         range: ({ order, step }, unlocked) => ({
-            text: [`Know ${orderInProse(order)} up to step ${step}? Gokan starts you with the ${count(unlocked, 'word')} those kanji unlock.`],
+            text: sentence('Know ', orderInProse(order), ` up to step ${step}? Gokan starts you with the ${count(unlocked, 'word')} those kanji unlock.`),
             action: `Start after step ${step}`,
         }),
         order: order => ({
-            text: [`Study vocabulary along ${orderInProse(order)}: Gokan teaches each word once you know its kanji.`],
+            text: sentence('Study vocabulary with ', orderInProse(order), ': Gokan teaches each word once you know its kanji.'),
             action: 'Start with this order',
         }),
         grammar: {
@@ -115,7 +130,7 @@ export const en: Messages = {
             action: 'Try Gokan SRS',
         },
         home: {
-            text: ['Gokan SRS teaches Japanese vocabulary in the order of the kanji you know. Tell it your kanji book and how far you are, and it schedules the words you can read, with example sentences, and grammar as fill-in-the-blank practice.'],
+            text: ['Tell Gokan your kanji book and how far you are, and it schedules the words you can read, with example sentences and grammar practice.'],
             action: 'Try Gokan SRS',
         },
         general: {

@@ -1,6 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import { kanjiOrder, orderPositions } from '@gokan/dataset-schema';
-import { anyStepCapped, kanjiOrderStep, kanjiRanges, rangeOfStep, unlockedThrough, wordOrderStep } from './kanjiOrders';
+import { anyStepCapped, kanjiOrderStep, kanjiRanges, orderNameLang, rangeOfStep, unlockedThrough, wordOrderStep } from './kanjiOrders';
+
+describe('orderNameLang', () => {
+    it('reads Maniette\'s title as French, every other order\'s name as English', () => {
+        expect(orderNameLang(kanjiOrder('maniette'))).toBe('fr');
+        expect(orderNameLang(kanjiOrder('kklc'))).toBe('en');
+        expect(orderNameLang(kanjiOrder('jlpt'))).toBe('en');
+    });
+});
 
 describe('rangeOfStep', () => {
     it('puts a step in its range of 100, the last range cut at the order end', () => {

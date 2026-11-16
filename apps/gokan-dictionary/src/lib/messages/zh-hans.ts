@@ -6,6 +6,7 @@
 
 import { headwordOf, secondaryForm } from '@gokan/dataset-schema';
 import type { GrammarChapter, GrammarPoint, Kanji, KanjiOrder, Vocabulary } from '@gokan/dataset-schema';
+import { orderNameLang } from '../kanjiOrders';
 import { searchablePattern, truncate } from '../seo';
 import { wordTextSummary } from '../senses';
 import type { WordText } from '../types';
@@ -97,22 +98,24 @@ export const zhHans: Messages = {
         ],
         appHeading: '用 Gokan SRS 学习',
     },
-    // The app is in English: every action says so (AFTER_LINK), and an order's name is English's, marked.
+    // The app is in English, and every panel says so: a step's panel in its sentence, right after
+    // "Gokan" (ENGLISH_PAGES), so its action fits one line at 320px with a four-digit step; every
+    // other panel on its action (AFTER_LINK). An order's name is English's (Maniette's French), marked.
     appPanel: {
         word: (word, { order, step }) => ({
-            text: ['学完 ', { text: order.searchName, lang: 'en' }, ` 的第 ${step} 步，就能读 `, { text: word, lang: 'ja' }, '。Gokan 按你认识的汉字的顺序教词汇。'],
-            action: `从第 ${step} 步之后开始${AFTER_LINK}`,
+            text: ['学完 ', { text: order.searchName, lang: orderNameLang(order) }, ` 的第 ${step} 步，就能读 `, { text: word, lang: 'ja' }, `。Gokan（${ENGLISH_PAGES}）按你认识的汉字的顺序教词汇。`],
+            action: `从第 ${step} 步之后开始`,
         }),
         kanji: (character, { order, step }, unlocked) => ({
-            text: [{ text: character, lang: 'ja' }, ' 是 ', { text: order.searchName, lang: 'en' }, ` 的第 ${step} 步。已经学到这里了？Gokan 会从这些汉字能读的 ${count(unlocked, 'word')}开始。`],
-            action: `从第 ${step} 步之后开始${AFTER_LINK}`,
+            text: [{ text: character, lang: 'ja' }, ' 是 ', { text: order.searchName, lang: orderNameLang(order) }, ` 的第 ${step} 步。已经学到这里了？Gokan（${ENGLISH_PAGES}）会从这些汉字能读的 ${count(unlocked, 'word')}开始。`],
+            action: `从第 ${step} 步之后开始`,
         }),
         range: ({ order, step }, unlocked) => ({
-            text: ['已经学到 ', { text: order.searchName, lang: 'en' }, ` 的第 ${step} 步了？Gokan 会从这些汉字能读的 ${count(unlocked, 'word')}开始。`],
-            action: `从第 ${step} 步之后开始${AFTER_LINK}`,
+            text: ['已经学到 ', { text: order.searchName, lang: orderNameLang(order) }, ` 的第 ${step} 步了？Gokan（${ENGLISH_PAGES}）会从这些汉字能读的 ${count(unlocked, 'word')}开始。`],
+            action: `从第 ${step} 步之后开始`,
         }),
         order: order => ({
-            text: ['按 ', { text: order.searchName, lang: 'en' }, ' 的顺序学词汇：认识一个词的所有汉字后，Gokan 就教这个词。'],
+            text: ['按 ', { text: order.searchName, lang: orderNameLang(order) }, ' 的顺序学词汇：认识一个词的所有汉字后，Gokan 就教这个词。'],
             action: `开始学习${AFTER_LINK}`,
         }),
         grammar: {
@@ -120,7 +123,7 @@ export const zhHans: Messages = {
             action: `试用 Gokan SRS${AFTER_LINK}`,
         },
         home: {
-            text: ['Gokan SRS 按你认识的汉字的顺序教日语词汇：告诉它你用的汉字教材和学到哪里，它就安排你能读的词，附例句；语法则以填空方式练习。'],
+            text: ['告诉 Gokan 你用的汉字教材和学到哪里，它就安排你能读的词，附例句和语法练习。'],
             action: `试用 Gokan SRS${AFTER_LINK}`,
         },
         general: {
