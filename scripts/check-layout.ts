@@ -1192,17 +1192,37 @@ async function checkSourceCreditGap(tab: Tab, page: string, width: number): Prom
  * The app panel's action is one line at 320px (docs/DESIGN_SYSTEM.md section 8: a label short
  * enough for it), measured where it is longest: a word page whose step has four digits, in English
  * and in Chinese. 蛇口: step 2297 of KKLC. Its Chinese label once carried （英文） and wrapped (#244).
+ * Measured on a copy whose full-width characters are each a 1em box, the advance every CJK font
+ * gives them (a machine with no CJK font, CI's, draws them as narrow boxes, and every label fits),
+ * at its natural width, which must leave one full-width character of the panel's width spare: a
+ * real font's digits and spaces run wider than here, and 「从第 288 步之后开始（英文）」, which fits
+ * the panel measured so, wrapped on staging.
  */
 const PANEL_STEP_WORD = '1323370';
 const PANEL_STEP_PAGES = [`/vocab/${PANEL_STEP_WORD}/`, ...(DICTIONARY_PAGES.some(page => page.path.startsWith('/zh-hans/')) ? [`/zh-hans/vocab/${PANEL_STEP_WORD}/`] : [])];
 async function checkAppPanelAction(tab: Tab, page: string, width: number): Promise<void> {
-    const action = await tab.evaluate<{ text: string; height: number } | null>(`(() => {
+    const action = await tab.evaluate<{ text: string; height: number; width: number; room: number } | null>(`(() => {
         const el = document.querySelector('.app-panel-action');
-        return el ? { text: el.textContent.trim(), height: el.getBoundingClientRect().height } : null;
+        if (!el) return null;
+        const copy = el.cloneNode(false);
+        for (const char of el.textContent) {
+            if (!/[\\u3000-\\u9fff\\uff00-\\uffef]/.test(char)) { copy.append(char); continue; }
+            const box = document.createElement('span');
+            box.style.cssText = 'display: inline-block; width: 1em';
+            copy.append(box);
+        }
+        copy.style.width = 'max-content';
+        el.after(copy);
+        const width = copy.getBoundingClientRect().width;
+        copy.remove();
+        const panel = getComputedStyle(el.parentElement);
+        const room = el.parentElement.clientWidth - parseFloat(panel.paddingLeft) - parseFloat(panel.paddingRight);
+        return { text: el.textContent.trim(), height: el.getBoundingClientRect().height, width, room: room - parseFloat(getComputedStyle(el).fontSize) };
     })()`);
     if (action === null) failures.push(`${width}px ${page}: no app panel action (.app-panel-action)`);
     else if (!/\d{4}/.test(action.text)) failures.push(`${width}px ${page}: the app panel action "${action.text}" names no four-digit step: pick another word (PANEL_STEP_WORD)`);
     else if (action.height > 44.5) failures.push(`${width}px ${page}: the app panel action "${action.text}" is ${Math.round(action.height)}px tall, on two lines: its label must fit one line at 320px`);
+    else if (action.width > action.room) failures.push(`${width}px ${page}: the app panel action "${action.text}" is ${Math.round(action.width)}px wide with its full-width characters at 1em, over the ${Math.round(action.room)}px that leaves one of them spare: it wraps on a phone with a CJK font`);
 }
 
 /**
