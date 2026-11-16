@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { KANJI_ORDERS, kanjiOrder, type GrammarChapter } from '@gokan/dataset-schema';
 import { grammarPoint, kanji, vocabulary } from '../../test/fixtures';
 import { en } from './en';
+import type { LinkedText } from './index';
+import { zhHans } from './zh-hans';
 
 describe('numbers', () => {
     // Written in English whatever the machine building the pages: once read the builder's own
@@ -250,11 +252,36 @@ describe('appPanel', () => {
     it('names the step at which a word becomes readable, the word marked as Japanese', () => {
         const copy = en.appPanel.word('学生', { order: kklc, step: 212 });
         expect(copy.text).toEqual(['You can read ', { text: '学生', lang: 'ja' }, ' after step 212 of KKLC. Gokan teaches words in the order of the kanji you know.']);
-        expect(copy.action).toBe('Start learning at step 212');
+        // The link starts the learner with step 212 known: their first new kanji is the next one.
+        expect(copy.action).toBe('Start after step 212');
     });
 
-    it('counts the words a kanji\'s step and a range unlock', () => {
+    it('counts the words knowing an order up to a kanji\'s step or a range\'s last step unlocks', () => {
         expect(en.appPanel.kanji('学', { order: kklc, step: 212 }, 1450).text.at(-1)).toContain('the 1,450 words those kanji unlock');
-        expect(en.appPanel.range(100, 1, 300).text).toEqual(['Know these 100 kanji? Gokan schedules the 1 word they unlock.']);
+        const range = en.appPanel.range({ order: kanjiOrder('jlpt'), step: 400 }, 4210);
+        expect(range.text).toEqual(['Know the JLPT kanji order up to step 400? Gokan starts you with the 4,210 words those kanji unlock.']);
+        expect(range.action).toBe('Start after step 400');
+    });
+
+    it('names a derived order or a card set with "the", a book without', () => {
+        expect(en.appPanel.word('学生', { order: kanjiOrder('frequency'), step: 412 }).text.at(-1)).toContain('after step 412 of the Kanji frequency order.');
+        expect(en.appPanel.order(kanjiOrder('kanjiFlashcards')).text).toEqual(['Study vocabulary along the White Rabbit kanji cards: Gokan teaches each word once you know its kanji.']);
+        expect(en.appPanel.order(kklc).text[0]).toContain('along KKLC:');
+    });
+});
+
+// Every catalog, every order: the panel's sentences name an order by its prose name (searchName), never
+// its short label ("Frequency", "RTK, older editions"), and a name that reads inside a sentence.
+describe.each([['en', en], ['zh-hans', zhHans]] as const)('%s appPanel, every order', (_locale, messages) => {
+    const proseOf = (copy: { text: LinkedText; action: string }) => [...copy.text.map(part => (typeof part === 'string' ? part : part.text)), copy.action].join('');
+
+    it.each(KANJI_ORDERS.map(order => [order.id, order] as const))('%s', (_id, order) => {
+        const at = { order, step: 7 };
+        const outputs = [messages.appPanel.word('学生', at), messages.appPanel.kanji('学', at, 3), messages.appPanel.range(at, 3), messages.appPanel.order(order)].map(proseOf);
+        expect(order.searchName).not.toContain(',');
+        for (const output of outputs) {
+            expect(output).toContain(order.searchName);
+            if (order.label !== order.searchName) expect(output.replaceAll(order.searchName, '')).not.toContain(order.label);
+        }
     });
 });

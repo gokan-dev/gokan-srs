@@ -25,17 +25,16 @@ export interface PageMeta {
 export type CountedNoun = 'word' | 'stroke' | 'grammar point';
 
 /**
- * Text with links in it, in the catalog's word order: the plain runs, and each link's text and href,
- * and for a link into the app the placement its click is counted under (lib/appLinks.ts).
+ * A catalog's sentence in its own word order: the plain runs, and each marked run's text with its
+ * language when it is not the page's (a Japanese word, an order's English name), its href when it
+ * is a link, and for a link into the app the placement its click is counted under (lib/appLinks.ts).
+ * One type for every such sentence, rendered by pages/LinkedText.svelte.
  */
-export type LinkedText = readonly (string | { text: string; href: string; placement?: DictionaryPlacement })[];
-
-/** Text with runs in another language than the page's, each marked: a Japanese word, an order's English name. */
-export type MarkedText = readonly (string | { text: string; lang: string })[];
+export type LinkedText = readonly (string | { text: string; lang?: string; href?: string; placement?: DictionaryPlacement })[];
 
 /** What the app panel (pages/AppPanel.svelte) says on a page: one sentence, and its one action. */
 export interface PanelCopy {
-    text: MarkedText;
+    text: LinkedText;
     action: string;
 }
 
@@ -112,7 +111,8 @@ export interface Messages {
     appPanel: {
         word: (word: string, at: OrderStep) => PanelCopy;
         kanji: (character: string, at: OrderStep, unlocked: number) => PanelCopy;
-        range: (kanjiCount: number, unlocked: number, last: number) => PanelCopy;
+        /** A range page: knowing the order up to the range's last step, and the words steps 1 to it unlock in all. */
+        range: (through: OrderStep, unlocked: number) => PanelCopy;
         order: (order: KanjiOrder) => PanelCopy;
         grammar: PanelCopy;
         home: PanelCopy;

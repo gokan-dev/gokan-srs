@@ -25,6 +25,15 @@ function count(n: number, noun: CountedNoun): string {
 }
 
 /** A range page's heading, and its title without the site name: the two say the same thing. */
+/**
+ * An order named in a sentence: its prose name (`searchName`, "Kanji frequency order"), never its
+ * short label ("Frequency", "RTK, older editions"), with "the" before a name that is a common noun
+ * ("the JLPT kanji order", "the White Rabbit kanji cards") and none before a book's ("KKLC").
+ */
+function orderInProse(order: KanjiOrder): string {
+    return /\b(order|cards)$/.test(order.searchName) ? `the ${order.searchName}` : order.searchName;
+}
+
 function kanjiRangeHeading(order: KanjiOrder, range: { first: number; last: number }): string {
     return `${order.searchName} vocabulary: words you can read after kanji ${range.first} to ${range.last}`;
 }
@@ -86,20 +95,20 @@ export const en: Messages = {
     },
     appPanel: {
         word: (word, { order, step }) => ({
-            text: ['You can read ', { text: word, lang: 'ja' }, ` after step ${step} of ${order.label}. Gokan teaches words in the order of the kanji you know.`],
-            action: `Start learning at step ${step}`,
+            text: ['You can read ', { text: word, lang: 'ja' }, ` after step ${step} of ${orderInProse(order)}. Gokan teaches words in the order of the kanji you know.`],
+            action: `Start after step ${step}`,
         }),
         kanji: (character, { order, step }, unlocked) => ({
-            text: [{ text: character, lang: 'ja' }, ` is step ${step} of ${order.label}. Know this far? Gokan starts you with the ${count(unlocked, 'word')} those kanji unlock.`],
-            action: `Start learning at step ${step}`,
+            text: [{ text: character, lang: 'ja' }, ` is step ${step} of ${orderInProse(order)}. Know this far? Gokan starts you with the ${count(unlocked, 'word')} those kanji unlock.`],
+            action: `Start after step ${step}`,
         }),
-        range: (kanjiCount, unlocked, last) => ({
-            text: [`Know these ${kanjiCount} kanji? Gokan schedules the ${count(unlocked, 'word')} they unlock.`],
-            action: `Start learning at step ${last}`,
+        range: ({ order, step }, unlocked) => ({
+            text: [`Know ${orderInProse(order)} up to step ${step}? Gokan starts you with the ${count(unlocked, 'word')} those kanji unlock.`],
+            action: `Start after step ${step}`,
         }),
         order: order => ({
-            text: [`Study vocabulary in the order of ${order.label}: Gokan teaches each word once you know its kanji.`],
-            action: `Start with ${order.label}`,
+            text: [`Study vocabulary along ${orderInProse(order)}: Gokan teaches each word once you know its kanji.`],
+            action: 'Start with this order',
         }),
         grammar: {
             text: ['Practice this pattern as fill-in-the-blank on real sentences, on its own review schedule.'],

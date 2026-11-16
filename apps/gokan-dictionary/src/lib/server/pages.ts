@@ -14,7 +14,7 @@ import { conjugationTables } from '../grammarConjugations';
 import { buildFamilyPages } from '../grammarFamilies';
 import { grammarSummaryOf, groupByLevel, inTeachingOrder } from '../grammarBrowse';
 import { buildVariantSiblings } from '../grammarVariants';
-import { kanjiOrderStep, kanjiRanges, unlockedThrough, wordOrderStep, WORDS_PER_KANJI, type KanjiRange } from '../kanjiOrders';
+import { kanjiOrderStep, kanjiRanges, unlockedThrough, wordOrderStep, WORDS_PER_KANJI, type KanjiRange, type OrderStep } from '../kanjiOrders';
 import { JLPT_PAGE_SIZE, paginate } from '../pagination';
 import { searchGrammarRow, searchKanjiRow, searchWordRow, splitSearchIndex } from '../searchIndex';
 import { datasetLanguageOf, DEFAULT_LOCALE, type ServedLocale } from '../locale';
@@ -138,6 +138,21 @@ function pagesInEnglishOnly(locale: ServedLocale) {
         if (locale !== DEFAULT_LOCALE) throw new PageNotFound(`no ${locale} page here yet: only its word pages are served`);
         return build(...args);
     };
+}
+
+/**
+ * How many words a learner reads on knowing an order up to a step (`unlockedThrough`). Every order
+ * has its steps (both are built from KANJI_ORDERS), so a missing one is a broken build, never "0 words".
+ */
+function unlockedAt(steps: ReadonlyMap<KanjiOrderId, { through: readonly number[] }>, { order, step }: OrderStep): number {
+    const through = steps.get(order.id)?.through[step];
+    if (through === undefined) throw new Error(`no step ${step} in the ${order.id} order's word counts`);
+    return through;
+}
+
+/** A kanji's step for the app panel, with what it unlocks; none when it unlocks no word yet, so the panel never says "the 0 words". */
+function withUnlocked(orderStep: OrderStep, unlocked: number): (OrderStep & { unlocked: number }) | null {
+    return unlocked > 0 ? { ...orderStep, unlocked } : null;
 }
 
 /** The indexes an entity page reads, each built on first use and kept for the source. */
@@ -265,7 +280,7 @@ export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes:
                 kanjiWithPages: new Set(byCharacter.keys()),
                 // A kanji page links each book position to its range page, which needs the order's length.
                 orderLengths: new Map(orders.map(({ order, list: orderList }) => [order.id, orderList.length])),
-                orderStep: orderStep && { ...orderStep, unlocked: steps.get(orderStep.order.id)?.through[orderStep.step] ?? 0 },
+                orderStep: orderStep && withUnlocked(orderStep, unlockedAt(steps, orderStep)),
             },
             document: documentOf(urls.kanjiPath(kanji.character), meta.kanji(kanji, words.length), { style: 'kanji' }),
         };
@@ -468,11 +483,12 @@ export function pagesOf(source: DictionaryData, locale: ServedLocale) {
         const { order, ranges } = await rangesOf(orderBySlug(slug).id);
         const range = ranges.find(candidate => kanjiRangeSlug(candidate) === rangeSlug);
         if (range === undefined) throw new PageNotFound(`no range ${rangeSlug} in ${slug}`);
-        const summaryById = await summaries();
+        const [summaryById, steps] = await Promise.all([summaries(), orderSteps()]);
         return {
             props: {
                 order,
                 range: { first: range.first, last: range.last },
+                unlockedThrough: unlockedAt(steps, { order, step: range.last }),
                 steps: range.steps.map(({ step, character, wordIds }) => ({
                     step,
                     character,

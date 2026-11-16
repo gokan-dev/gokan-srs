@@ -58,4 +58,11 @@ describe('zhHans appPanel', () => {
         expect(copy.text).toContainEqual({ text: '学生', lang: 'ja' });
         expect(copy.action.endsWith(`（${zhHans.chrome.inEnglish}）`)).toBe(true);
     });
+
+    it('says a range\'s words cumulatively, as its link starts a learner with every step up to its last', () => {
+        const copy = zhHans.appPanel.range({ order: kanjiOrder('rtkLegacy'), step: 400 }, 4210);
+        expect(copy.text).toContainEqual({ text: 'RTK 1st to 5th editions', lang: 'en' });
+        expect(copy.text.at(-1)).toContain('第 400 步');
+        expect(copy.action.startsWith('从第 400 步之后开始')).toBe(true);
+    });
 });

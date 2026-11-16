@@ -115,6 +115,22 @@ describe('pagesOf: entity pages', () => {
         expect((await pages.kanjiPage('生')).props.orderStep).toMatchObject({ step: 2, unlocked: 2 });
     });
 
+    it('gives a kanji whose step unlocks no word yet no step, so its panel says the general sentence, never "0 words"', async () => {
+        // 学 is step 1 of every order, and no word of the world is made of it alone.
+        const pages = pagesOf(memorySource({ words: [kangaeru], kanji: [kanji()] }).source, 'en');
+        expect((await pages.kanjiPage('学')).props.orderStep).toBeNull();
+    });
+
+    it('gives a range page the words steps 1 to its last unlock in all, what its panel\'s link starts a learner with', async () => {
+        // 101 kanji, one word each: the second range is step 101 alone, its own count 1, the order up to it 101.
+        const characters = Array.from({ length: 101 }, (_, index) => String.fromCodePoint(0x4e00 + index));
+        const words = characters.map((character, index) => vocabulary({ id: String(2000000 + index), writtenForm: { kanji: character, alternatives: [], containedKanji: [character] } }));
+        const pages = pagesOf(memorySource({ words, kanji: characters.map(character => kanji({ character })) }).source, 'en');
+        const { props } = await pages.kanjiRangePage(kanjiOrderSlug('kklc'), '101-101');
+        expect(props.wordCount).toBe(1);
+        expect(props.unlockedThrough).toBe(101);
+    });
+
     it('builds a word page from its source, its related words resolved and an id with no word left out', async () => {
         const pages = pagesOf(memorySource({ words: [omou, kangaeru] }).source, 'en');
         const page = await pages.vocabPage('1281390');

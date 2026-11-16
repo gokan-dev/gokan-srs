@@ -100,19 +100,19 @@ export const zhHans: Messages = {
     // The app is in English: every action says so (AFTER_LINK), and an order's name is English's, marked.
     appPanel: {
         word: (word, { order, step }) => ({
-            text: ['学完 ', { text: order.label, lang: 'en' }, ` 的第 ${step} 步，就能读 `, { text: word, lang: 'ja' }, '。Gokan 按你认识的汉字的顺序教词汇。'],
-            action: `从第 ${step} 步开始学${AFTER_LINK}`,
+            text: ['学完 ', { text: order.searchName, lang: 'en' }, ` 的第 ${step} 步，就能读 `, { text: word, lang: 'ja' }, '。Gokan 按你认识的汉字的顺序教词汇。'],
+            action: `从第 ${step} 步之后开始${AFTER_LINK}`,
         }),
         kanji: (character, { order, step }, unlocked) => ({
-            text: [{ text: character, lang: 'ja' }, ' 是 ', { text: order.label, lang: 'en' }, ` 的第 ${step} 步。已经学到这里了？Gokan 会从这些汉字能读的 ${count(unlocked, 'word')}开始。`],
-            action: `从第 ${step} 步开始学${AFTER_LINK}`,
+            text: [{ text: character, lang: 'ja' }, ' 是 ', { text: order.searchName, lang: 'en' }, ` 的第 ${step} 步。已经学到这里了？Gokan 会从这些汉字能读的 ${count(unlocked, 'word')}开始。`],
+            action: `从第 ${step} 步之后开始${AFTER_LINK}`,
         }),
-        range: (kanjiCount, unlocked, last) => ({
-            text: [`认识这 ${kanjiCount} 个汉字了？Gokan 会安排它们能读的 ${count(unlocked, 'word')}。`],
-            action: `从第 ${last} 步开始学${AFTER_LINK}`,
+        range: ({ order, step }, unlocked) => ({
+            text: ['已经学到 ', { text: order.searchName, lang: 'en' }, ` 的第 ${step} 步了？Gokan 会从这些汉字能读的 ${count(unlocked, 'word')}开始。`],
+            action: `从第 ${step} 步之后开始${AFTER_LINK}`,
         }),
         order: order => ({
-            text: ['按 ', { text: order.label, lang: 'en' }, ' 的顺序学词汇：认识一个词的所有汉字后，Gokan 就教这个词。'],
+            text: ['按 ', { text: order.searchName, lang: 'en' }, ' 的顺序学词汇：认识一个词的所有汉字后，Gokan 就教这个词。'],
             action: `开始学习${AFTER_LINK}`,
         }),
         grammar: {

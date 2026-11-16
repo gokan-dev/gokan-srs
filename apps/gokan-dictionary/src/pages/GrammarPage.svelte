@@ -37,8 +37,6 @@
     </p>
   </header>
 
-  <AppPanel link={appUrl({ placement: 'grammar' })} copy={messages.appPanel.grammar} />
-
   <div class="grammar-body">
     <section class="formation" aria-label="Formation">
       <h2 class="formation-label">Formation</h2>
@@ -46,6 +44,9 @@
     </section>
 
     <p class="lead">{point.shortExplanation}</p>
+
+    <!-- After Formation, not after the header as on other pages: both are accent-edged boxes, and Formation is what a reader comes for. Its lead line sits between the two. -->
+    <AppPanel link={appUrl({ placement: 'grammar' })} copy={messages.appPanel.grammar} />
 
     {#if point.usageNote}
       <section class="section">

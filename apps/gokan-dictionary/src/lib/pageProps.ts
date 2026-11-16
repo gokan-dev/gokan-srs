@@ -76,7 +76,8 @@ export interface KanjiPageProps {
   orderLengths: ReadonlyMap<KanjiOrderId, number>;
   /**
    * The kanji's step in an order (kanjiOrderStep), for the app panel, with how many words a learner
-   * can read on reaching it; none when no order teaches it.
+   * can read on reaching it; none when no order teaches it or its step unlocks no word yet (the panel
+   * then says its general sentence).
    */
   orderStep: (OrderStep & { unlocked: number }) | null;
 }
@@ -105,6 +106,8 @@ export interface KanjiOrderPageProps {
 export interface KanjiRangePageProps {
   order: KanjiOrder;
   range: StepRange;
+  /** The words steps 1 to the range's last unlock in all: what the app panel's link starts a learner with. */
+  unlockedThrough: number;
   /** Each step of the range: its kanji, the head of the words it unlocks, and how many it unlocks. */
   steps: { step: number; character: string; words: VocabSummary[]; total: number }[];
   /** Every word the range unlocks, listed or not. */

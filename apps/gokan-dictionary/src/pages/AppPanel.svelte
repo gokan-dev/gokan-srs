@@ -2,6 +2,7 @@
   import { APP_LINK_EVENT, type AppLink } from '../lib/appLinks';
   import type { PanelCopy } from '../lib/messages';
   import { pageLocale } from './pageLocale';
+  import LinkedText from './LinkedText.svelte';
 
   /**
    * The one place a page presents the SRS app (#244): one sentence about what Gokan would do with
@@ -19,6 +20,6 @@
 </script>
 
 <div class="app-panel">
-  <p>{#each copy.text as part, index (index)}{#if typeof part === 'string'}{part}{:else}<span lang={part.lang}>{part.text}</span>{/if}{/each}</p>
+  <p><LinkedText parts={copy.text} /></p>
   <a class="app-panel-action" href={link.href} hreflang={linkLang(link.href)} data-umami-event={APP_LINK_EVENT} data-umami-event-placement={link.placement}>{copy.action}</a>
 </div>
