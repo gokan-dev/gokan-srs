@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "sideEffects": false,
-  "description": "The Umami visitor-count script tag both apps put in their pages.",
+  "description": "Visitor counts for both apps: the Umami script tag in their pages, and the dictionary-to-app setup link both read (its parameters and placements).",
   "exports": {
     ".": "./src/index.ts"
   },

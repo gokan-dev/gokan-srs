@@ -22,8 +22,12 @@ describe('parseSetupLink', () => {
         }
     });
 
-    it('caps a count at the largest any order holds', () => {
-        expect(parseSetupLink('?known=999999').known).toBe(CONSTANTS.setup.maximumKanjiCount);
+    it('keeps a count above the shortest order, for the kanji form to cap at the chosen one', () => {
+        expect(parseSetupLink('?order=rtk&known=2800').known).toBe(2800);
+        expect(parseSetupLink('?known=99999999999999999999').known).toBe(Number.MAX_SAFE_INTEGER);
+    });
+
+    it('raises a count below the setup minimum to it', () => {
         expect(parseSetupLink('?known=0').known).toBe(CONSTANTS.setup.minimumKanjiCount);
     });
 

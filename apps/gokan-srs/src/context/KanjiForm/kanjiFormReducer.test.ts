@@ -110,6 +110,13 @@ describe('kanjiFormReducer', () => {
         expect(knownPrefix(KKLC, knownKanjiOf(state, KKLC))).toBe(KKLC.length);
     });
 
+    it('keeps a link count above 2,300 when the order is longer', () => {
+        const long = Array.from({ length: 3000 }, (_, i) => String.fromCodePoint(0x4e00 + i));
+        const state = initialKanjiForm('rtk', 2800);
+        expect(countOf(state, long)).toBe(2800);
+        expect(knownKanjiOf(state, long).size).toBe(2800);
+    });
+
     it('ignores count changes while the order\'s list is loading', () => {
         const state = initialKanjiForm('kklc', 2);
         expect(kanjiFormReducer(state, { type: 'SET_COUNT', count: 4, list: null })).toBe(state);

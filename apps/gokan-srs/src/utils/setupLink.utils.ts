@@ -1,3 +1,4 @@
+import { DICTIONARY_SOURCE, isDictionaryPlacement, SETUP_LINK_PARAMS } from '@gokan/analytics';
 import { isKanjiOrderId, type KanjiOrderId } from '@gokan/dataset-schema';
 import { CONSTANTS } from '../commons/constants';
 import type { AnalyticsEvent } from '../services/analytics';
@@ -20,12 +21,7 @@ export interface SetupLink {
 }
 
 /** The query parameters onboarding reads and then removes from the address. */
-const SETUP_PARAMS = ['order', 'known'] as const;
-
-/** The dictionary's link placements (`utm_content`), so a stray value cannot invent a source. */
-const DICTIONARY_PLACEMENTS: ReadonlySet<string> = new Set([
-    'word', 'kanji', 'range', 'order', 'grammar', 'home', 'footer', 'about',
-]);
+const SETUP_PARAMS = [SETUP_LINK_PARAMS.order, SETUP_LINK_PARAMS.known] as const;
 
 const INTEGER = /^\d+$/;
 
@@ -33,18 +29,20 @@ const INTEGER = /^\d+$/;
 export function parseSetupLink(search: string): SetupLink {
     const params = new URLSearchParams(search);
     const link: SetupLink = { source: sourceOf(params) };
-    const order = params.get('order');
+    const order = params.get(SETUP_LINK_PARAMS.order);
     if (isKanjiOrderId(order)) link.order = order;
-    const known = params.get('known')?.trim();
+    const known = params.get(SETUP_LINK_PARAMS.known)?.trim();
+    // No upper bound here: orders differ in length (RTK holds 3,000), and the kanji form caps the
+    // count at the chosen order's once its list loads. Only an absurd value is held to a safe integer.
     if (known && INTEGER.test(known)) {
-        link.known = Math.min(Math.max(Number(known), CONSTANTS.setup.minimumKanjiCount), CONSTANTS.setup.maximumKanjiCount);
+        link.known = Math.min(Math.max(Number(known), CONSTANTS.setup.minimumKanjiCount), Number.MAX_SAFE_INTEGER);
     }
     return link;
 }
 
 function sourceOf(params: URLSearchParams): string {
     const placement = params.get('utm_content');
-    return params.get('utm_source') === 'dictionary' && placement && DICTIONARY_PLACEMENTS.has(placement)
+    return params.get('utm_source') === DICTIONARY_SOURCE && isDictionaryPlacement(placement)
         ? `dictionary-${placement}`
         : 'direct';
 }
