@@ -1255,6 +1255,26 @@ async function checkAppPanelWords(tab: Tab, page: string, width: number): Promis
 }
 
 /**
+ * The home page's app panel sits as close under its heading as every other home section's content
+ * does (docs/DESIGN_SYSTEM.md section 4: heading to content 16px). The panel's own top margin once
+ * outweighed the heading's, so its section alone stood 24px off (#244). Compared with the Browse
+ * section's tiles, the next section with a heading, in each locale's home page.
+ */
+const PANEL_HOME_PAGES = DICTIONARY_PAGES.filter(page => page.path === '/' || page.path === '/zh-hans/');
+async function checkAppPanelHeadingGap(tab: Tab, page: string, width: number): Promise<void> {
+    const gaps = await tab.evaluate<{ panel: number; other: number; heading: string } | null>(`(() => {
+        const sections = [...document.querySelectorAll('section')].filter(section => section.firstElementChild?.tagName === 'H2');
+        const gap = section => { const h2 = section.firstElementChild; return h2.nextElementSibling.getBoundingClientRect().top - h2.getBoundingClientRect().bottom; };
+        const panel = sections.find(section => section.firstElementChild.nextElementSibling?.classList.contains('app-panel'));
+        const other = sections.find(section => section !== panel && section.firstElementChild.nextElementSibling);
+        if (!panel || !other) return null;
+        return { panel: gap(panel), other: gap(other), heading: other.firstElementChild.textContent.trim() };
+    })()`);
+    if (gaps === null) failures.push(`${width}px ${page}: no home section whose heading is followed by the app panel, and another to compare it with`);
+    else if (Math.abs(gaps.panel - gaps.other) > 0.5) failures.push(`${width}px ${page}: the app panel sits ${gaps.panel.toFixed(1)}px under its heading, the ${gaps.heading} section's content ${gaps.other.toFixed(1)}px under its own: heading to content is one gap`);
+}
+
+/**
  * The language switcher is one small neutral line (docs/DESIGN_SYSTEM.md section 8): its link in
  * `secondary`, no larger than the breadcrumb's, so the page head keeps one primary thing. It once
  * drew in the accent at body size (#227). Both of 食べる's pages have a counterpart, so a switcher.
@@ -1466,6 +1486,10 @@ try {
             await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${path}`, 'JLPT');
             await checkAppPanelWords(tab, `dictionary ${path}`, width);
         }
+        for (const home of PANEL_HOME_PAGES) {
+            await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${home.path}`, home.ready);
+            await checkAppPanelHeadingGap(tab, `dictionary ${home.path}`, width);
+        }
         await measureFuriganaFixture(tab, `http://127.0.0.1:${dictionary.port}/dictionary/vocab/${FURIGANA_VOCAB}/`, 'Meanings', `dictionary /vocab/${FURIGANA_VOCAB}/`, width, DICTIONARY_TAP_TARGETS);
         await tab.close();
     }
@@ -1483,4 +1507,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, a kanji's course steps 44px linked or not, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows and word readings unbroken, a word list's gloss in its column (1280px) or on its own line across the row (phones, a word page's aside), a section's source credit set off from what comes before it, the language switcher small and neutral, the app panel's action on one line with a four-digit step and its Japanese words unbroken, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button undimmed, its sentence centred on its translation with its button right after it (and at 1280px on the headword), a word learned in kana's intro, a long headword's intro on one line inside its card, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, a kanji's course steps 44px linked or not, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows and word readings unbroken, a word list's gloss in its column (1280px) or on its own line across the row (phones, a word page's aside), a section's source credit set off from what comes before it, the language switcher small and neutral, the app panel's action on one line with a four-digit step, its Japanese words unbroken and on the home page 16px under its heading, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button undimmed, its sentence centred on its translation with its button right after it (and at 1280px on the headword), a word learned in kana's intro, a long headword's intro on one line inside its card, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);
