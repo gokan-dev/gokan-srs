@@ -548,6 +548,11 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   leads to the words you can read at that point, and the link's accessible name repeats it in
   visually hidden text, ": the words you can read at this step"), then the name
   readings behind a `<details>`.
+- **App panel** (`pages/AppPanel.svelte`, #244): once per page, right after its header (on
+  the home page, a short section under the hero), on the surface with a divider border and a
+  3px accent left edge, the accent marking the action. One sentence in body text, then one
+  button-styled link (accent fill, `accent-contrast` text, 44px tall). Never a popup, a dismiss
+  button or a carousel.
 - **Shared between page sheets**: a rule two page types use goes in `app.scss`, unless that
   breaks its budget; then it is a mixin in `_tokens.scss` (`glyph-tiles`, `entry-gloss`,
   `stacked-entries`) included by each page sheet, so the source stays one copy.
