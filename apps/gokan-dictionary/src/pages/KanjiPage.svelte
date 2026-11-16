@@ -78,11 +78,12 @@
   {#if courses.length > 0}
     <section class="section">
       <h2>In kanji courses</h2>
+      <p class="support">A linked step leads to the words you can read at that point in the book.</p>
       <dl class="kanji-courses">
         {#each courses as { book, name, label, position } (book)}
           {@const href = rangeHref(book, position)}
           <!-- Named as the order pages its link lands on name it, the full title under it (heard after a comma). -->
-          <div><dt>{#if label}{label}<span class="kanji-course-title"><span class="visually-hidden">, </span>{name}</span>{:else}{name}{/if}</dt><dd>{#if href}<a {href}>Step {position.toLocaleString('en')}: the words you can read at this step</a>{:else}#{position.toLocaleString('en')}{/if}</dd></div>
+          <div><dt>{#if label}{label}<span class="kanji-course-title"><span class="visually-hidden">, </span>{name}</span>{:else}{name}{/if}</dt><dd>{#if href}<a {href}>Step {position.toLocaleString('en')}<span class="visually-hidden">: the words you can read at this step</span></a>{:else}Step {position.toLocaleString('en')}{/if}</dd></div>
         {/each}
       </dl>
     </section>

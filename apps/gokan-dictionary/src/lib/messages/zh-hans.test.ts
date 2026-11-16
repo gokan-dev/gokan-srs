@@ -39,6 +39,11 @@ describe('zhHans', () => {
         expect(zhHans.home.tiles.kanji(2136).meta).toBe(`2,136 个汉字 · ${zhHans.chrome.inEnglish}页面`);
     });
 
+    it('names every English-only section the home lede points at, the learning orders too', () => {
+        const englishOnly = zhHans.home.lede.split('。').find(sentence => sentence.includes(zhHans.chrome.inEnglish)) ?? '';
+        for (const section of ['汉字', '语法', '学习顺序']) expect(englishOnly).toContain(section);
+    });
+
     it('says which links lead to an English page', () => {
         const parts = zhHans.error.browse({ vocab: '/v/', kanji: '/k/', grammar: '/g/', home: '/' });
         expect(parts).toContainEqual({ text: '汉字（英文）', href: '/k/' });

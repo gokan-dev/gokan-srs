@@ -77,7 +77,7 @@ export const zhHans: Messages = {
     },
     home: {
         heading: '日语词典',
-        lede: `查日语单词的读音、中文释义和例句，或按汉字教材的进度，看每一步能读的词。汉字和语法页面目前只有${IN_ENGLISH}版。`,
+        lede: `查日语单词的读音、中文释义和例句，或按汉字教材的进度，看每一步能读的词。汉字、语法和学习顺序页面目前只有${IN_ENGLISH}版。`,
         browse: '浏览',
         tiles: {
             vocab: { title: '词汇', meta: '按 JLPT 级别', blurb: '读音、释义、活用和例句。' },

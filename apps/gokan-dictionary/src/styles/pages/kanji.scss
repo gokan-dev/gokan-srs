@@ -84,12 +84,14 @@
     font-size: $text-sm;
   }
 
+  // On the row's bottom line, so in two columns a book without a subtitle lines its step up with
+  // its neighbour's.
   dd {
     margin: 0;
+    margin-top: auto;
     min-width: 0;
     display: flex;
     align-items: center;
-    min-height: $target;
     font-variant-numeric: tabular-nums;
 
     // A book position is its row's one action, so it is a 44px target like a tile or a pager link.

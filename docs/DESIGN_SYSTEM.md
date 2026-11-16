@@ -542,8 +542,10 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
 - **Kanji page**: the glyph, its meanings (`entry-gloss`), its readings labelled On and Kun
   (the okurigana in parentheses, `kunReadingLabel`), the JLPT chip, then one meta line that
   names the level only when there is no chip. Sections: Components, Words, In kanji courses
-  (each book, its step under it as a link that says where it leads, "Step 212: the words you
-  can read at this step", to the range page of that order holding it), then the name
+  (each book, its step under it reading "Step 212" on every row, linked to the range page of
+  that order holding it when the book has one; one secondary line under the heading says each
+  step leads to the words you can read at that point, and the link's accessible name repeats it
+  in visually hidden text, ": the words you can read at this step"), then the name
   readings behind a `<details>`.
 - **Shared between page sheets**: a rule two page types use goes in `app.scss`, unless that
   breaks its budget; then it is a mixin in `_tokens.scss` (`glyph-tiles`, `entry-gloss`,
