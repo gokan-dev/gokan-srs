@@ -167,6 +167,11 @@ $motion: 150ms ease-in-out;
     p {
       margin: 0 0 $space-2;
       max-width: 36rem;
+
+      // A word read in two fragments is not the word: it wraps whole (check:layout).
+      [lang="ja"] {
+        white-space: nowrap;
+      }
     }
   }
 
