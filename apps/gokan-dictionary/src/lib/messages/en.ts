@@ -42,8 +42,9 @@ export const en: Messages = {
         breadcrumb: 'Breadcrumb',
         breadcrumbHome: 'Dictionary',
         crumbs: { kanjiOrders: 'Orders', search: 'Search' },
-        // The line break is the one every page has carried since the footer was written: a change
-        // to it changes all 40k pages, re-uploaded on the next deploy.
+        // The line break is the footer's original source indentation, kept so its output stays as
+        // it was. A change here re-uploads the prerendered list pages; the word, kanji and grammar
+        // pages render on request (#209) and pick it up as CloudFront refreshes them.
         footer: links => [
             'Data from the open, CC BY-SA-licensed ',
             { text: 'gokan-dataset', href: links.dataset },
@@ -63,7 +64,7 @@ export const en: Messages = {
     },
     home: {
         heading: 'Japanese dictionary',
-        lede: 'Look up a word, a kanji or a grammar point, with readings, meanings and example sentences.',
+        lede: 'Look up any word, kanji or grammar point, or see the words each step of your kanji book unlocks.',
         browse: 'Browse',
         tiles: {
             vocab: { title: 'Vocabulary', meta: 'By JLPT level', blurb: 'Readings, meanings, forms and example sentences.' },
@@ -149,8 +150,8 @@ export const en: Messages = {
     meta: {
         home() {
             return {
-                title: `${SITE_NAME} - Japanese Dictionary with Example Sentences`,
-                description: 'Free Japanese dictionary: look up any word, kanji, or grammar point. Readings, English meanings, JLPT levels, and real example sentences with every word linked.',
+                title: `Japanese Dictionary by the Kanji You Know: KKLC, RTK and JLPT - ${SITE_NAME}`,
+                description: 'Free Japanese dictionary that follows your kanji book: the words you can read at each step of KKLC, RTK and more. Readings, English meanings, JLPT levels and example sentences.',
             };
         },
         /** The search results page: kept out of search engines (noindex), but it still needs a title. */

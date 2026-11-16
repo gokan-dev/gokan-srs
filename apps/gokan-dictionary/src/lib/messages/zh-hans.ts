@@ -77,7 +77,7 @@ export const zhHans: Messages = {
     },
     home: {
         heading: '日语词典',
-        lede: `查日语单词的读音、中文释义和例句。汉字和语法页面目前只有${IN_ENGLISH}版。`,
+        lede: `查日语单词的读音、中文释义和例句，或按汉字教材的进度，看每一步能读的词。汉字、语法和学习顺序页面目前只有${IN_ENGLISH}版。`,
         browse: '浏览',
         tiles: {
             vocab: { title: '词汇', meta: '按 JLPT 级别', blurb: '读音、释义、活用和例句。' },
@@ -192,8 +192,8 @@ export const zhHans: Messages = {
     meta: {
         home() {
             return {
-                title: `${SITE_NAME} - 读音、中文释义和例句`,
-                description: '免费日语词典：查日语单词的读音、中文释义、JLPT 级别和真实例句，例句中的每个词都有链接。',
+                title: `按你会的汉字查日语词典：KKLC、RTK 和 JLPT - ${SITE_NAME}`,
+                description: '免费日语词典，跟着你的汉字教材走：KKLC、RTK 等教材每一步能读的词。附读音、中文释义、JLPT 级别和真实例句。',
             };
         },
         search() {

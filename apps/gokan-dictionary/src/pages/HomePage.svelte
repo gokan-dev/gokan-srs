@@ -12,10 +12,12 @@
 
   let { vocabCount, kanjiCount, grammarCount, sentenceCount, featured }: Props = $props();
 
+  // The learning orders first: the words each step of a kanji book unlocks are what no other
+  // dictionary lists, and what a learner following KKLC or RTK comes for.
   const tiles = $derived([
+    { href: urls.kanjiOrdersPath(), ...home.tiles.kanjiOrders },
     { href: urls.vocabIndexPath(), ...home.tiles.vocab },
     { href: urls.kanjiIndexPath(), ...home.tiles.kanji(kanjiCount) },
-    { href: urls.kanjiOrdersPath(), ...home.tiles.kanjiOrders },
     { href: urls.grammarIndexPath(), ...home.tiles.grammar(grammarCount) },
   ]);
 </script>
