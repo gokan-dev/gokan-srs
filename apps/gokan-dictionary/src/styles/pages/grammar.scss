@@ -2,6 +2,8 @@
 
 @use '../tokens' as *;
 
+@include app-panel;
+
 .grammar-body {
   max-width: $measure-text;
 }

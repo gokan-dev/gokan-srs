@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { KANJI_ORDERS, kanjiOrder, type GrammarChapter } from '@gokan/dataset-schema';
-import { grammarPoint, kanji, vocabulary } from '../../test/fixtures';
+import { grammarPoint, kanji, panelCopyPerOrder, vocabulary } from '../../test/fixtures';
 import { en } from './en';
+import type { LinkedText } from './index';
+import { zhHans } from './zh-hans';
 
 describe('numbers', () => {
     // Written in English whatever the machine building the pages: once read the builder's own
@@ -241,5 +243,112 @@ describe('meta.error', () => {
         expect(en.meta.error(404).title).toBe('Page not found - Gokan Dictionary');
         expect(en.meta.error(500).title).toBe('Page unavailable - Gokan Dictionary');
         expect(en.meta.error(503)).toEqual(en.meta.error(500));
+    });
+});
+
+describe('appPanel', () => {
+    const kklc = kanjiOrder('kklc');
+
+    it('names the step at which a word becomes readable, the word marked as Japanese', () => {
+        const copy = en.appPanel.word('学生', { order: kklc, step: 212 });
+        expect(copy.text).toEqual(['You can read ', { text: '学生', lang: 'ja' }, ' after step 212 of KKLC. Gokan teaches words in the order of the kanji you know.']);
+        // The link starts the learner with step 212 known: their first new kanji is the next one.
+        expect(copy.action).toBe('Start after step 212');
+    });
+
+    it('counts the words knowing an order up to a kanji\'s step or a range\'s last step unlocks', () => {
+        expect(en.appPanel.kanji('学', { order: kklc, step: 212 }, 1450).text.at(-1)).toContain('the 1,450 words those kanji unlock');
+        const range = en.appPanel.range({ order: kanjiOrder('jlpt'), step: 400 }, 4210);
+        expect(range.text).toEqual(['Know the JLPT kanji order up to step 400? Gokan starts you with the 4,210 words those kanji unlock.']);
+        expect(range.action).toBe('Start after step 400');
+    });
+
+    it('names a derived order or a card set with "the", a book without', () => {
+        expect(en.appPanel.word('学生', { order: kanjiOrder('frequency'), step: 412 }).text.at(-1)).toContain('after step 412 of the Kanji frequency order.');
+        expect(en.appPanel.order(kanjiOrder('kanjiFlashcards')).text).toEqual(['Study vocabulary with the White Rabbit kanji cards: Gokan teaches each word once you know its kanji.']);
+        expect(en.appPanel.order(kklc).text[0]).toContain('with KKLC:');
+    });
+});
+
+// Every catalog, every order: the panel's sentences name an order by its prose name (searchName), never
+// its short label ("Frequency", "RTK, older editions"), and a name that reads inside a sentence.
+describe.each([['en', en], ['zh-hans', zhHans]] as const)('%s appPanel, every order', (_locale, messages) => {
+    const proseOf = (copy: { text: LinkedText; action: string }) => [...copy.text.map(part => (typeof part === 'string' ? part : part.text)), copy.action].join('');
+
+    it.each(KANJI_ORDERS.map(order => [order.id, order] as const))('%s', (_id, order) => {
+        const at = { order, step: 7 };
+        const outputs = [messages.appPanel.word('学生', at), messages.appPanel.kanji('学', at, 3), messages.appPanel.range(at, 3), messages.appPanel.order(order)].map(proseOf);
+        expect(order.searchName).not.toContain(',');
+        // Maniette's name is a French title: a run marked French, in either catalog.
+        if (order.id === 'maniette') for (const copy of [messages.appPanel.word('学生', at), messages.appPanel.order(order)]) expect(copy.text).toContainEqual({ text: order.searchName, lang: 'fr' });
+        for (const output of outputs) {
+            expect(output).toContain(order.searchName);
+            if (order.label !== order.searchName) expect(output.replaceAll(order.searchName, '')).not.toContain(order.label);
+        }
+    });
+});
+
+// Every order's panel copy, written out once so a reviewer reads all eleven and a change to an
+// article or a name (orderInProse decides "the" from searchName's wording) shows in the diff.
+// A marked run reads {lang:text}.
+describe('appPanel copy per order', () => {
+    it('reads well for every order', () => {
+        expect(panelCopyPerOrder(en)).toMatchInlineSnapshot(`
+          "kklc:
+            You can read {ja:学生} after step 1234 of KKLC. Gokan teaches words in the order of the kanji you know. [Start after step 1234]
+            {ja:学} is step 1234 of KKLC. Know this far? Gokan starts you with the 5,678 words those kanji unlock. [Start after step 1234]
+            Know KKLC up to step 1234? Gokan starts you with the 5,678 words those kanji unlock. [Start after step 1234]
+            Study vocabulary with KKLC: Gokan teaches each word once you know its kanji. [Start with this order]
+          rtk:
+            You can read {ja:学生} after step 1234 of RTK. Gokan teaches words in the order of the kanji you know. [Start after step 1234]
+            {ja:学} is step 1234 of RTK. Know this far? Gokan starts you with the 5,678 words those kanji unlock. [Start after step 1234]
+            Know RTK up to step 1234? Gokan starts you with the 5,678 words those kanji unlock. [Start after step 1234]
+            Study vocabulary with RTK: Gokan teaches each word once you know its kanji. [Start with this order]
+          jlpt:
+            You can read {ja:学生} after step 1234 of the JLPT kanji order. Gokan teaches words in the order of the kanji you know. [Start after step 1234]
+            {ja:学} is step 1234 of the JLPT kanji order. Know this far? Gokan starts you with the 5,678 words those kanji unlock. [Start after step 1234]
+            Know the JLPT kanji order up to step 1234? Gokan starts you with the 5,678 words those kanji unlock. [Start after step 1234]
+            Study vocabulary with the JLPT kanji order: Gokan teaches each word once you know its kanji. [Start with this order]
+          frequency:
+            You can read {ja:学生} after step 1234 of the Kanji frequency order. Gokan teaches words in the order of the kanji you know. [Start after step 1234]
+            {ja:学} is step 1234 of the Kanji frequency order. Know this far? Gokan starts you with the 5,678 words those kanji unlock. [Start after step 1234]
+            Know the Kanji frequency order up to step 1234? Gokan starts you with the 5,678 words those kanji unlock. [Start after step 1234]
+            Study vocabulary with the Kanji frequency order: Gokan teaches each word once you know its kanji. [Start with this order]
+          kanjiKana:
+            You can read {ja:学生} after step 1234 of Kanji & Kana. Gokan teaches words in the order of the kanji you know. [Start after step 1234]
+            {ja:学} is step 1234 of Kanji & Kana. Know this far? Gokan starts you with the 5,678 words those kanji unlock. [Start after step 1234]
+            Know Kanji & Kana up to step 1234? Gokan starts you with the 5,678 words those kanji unlock. [Start after step 1234]
+            Study vocabulary with Kanji & Kana: Gokan teaches each word once you know its kanji. [Start with this order]
+          kanjiInContext:
+            You can read {ja:学生} after step 1234 of Kanji in Context. Gokan teaches words in the order of the kanji you know. [Start after step 1234]
+            {ja:学} is step 1234 of Kanji in Context. Know this far? Gokan starts you with the 5,678 words those kanji unlock. [Start after step 1234]
+            Know Kanji in Context up to step 1234? Gokan starts you with the 5,678 words those kanji unlock. [Start after step 1234]
+            Study vocabulary with Kanji in Context: Gokan teaches each word once you know its kanji. [Start with this order]
+          rtkLegacy:
+            You can read {ja:学生} after step 1234 of RTK 1st to 5th editions. Gokan teaches words in the order of the kanji you know. [Start after step 1234]
+            {ja:学} is step 1234 of RTK 1st to 5th editions. Know this far? Gokan starts you with the 5,678 words those kanji unlock. [Start after step 1234]
+            Know RTK 1st to 5th editions up to step 1234? Gokan starts you with the 5,678 words those kanji unlock. [Start after step 1234]
+            Study vocabulary with RTK 1st to 5th editions: Gokan teaches each word once you know its kanji. [Start with this order]
+          henshall:
+            You can read {ja:学生} after step 1234 of Henshall. Gokan teaches words in the order of the kanji you know. [Start after step 1234]
+            {ja:学} is step 1234 of Henshall. Know this far? Gokan starts you with the 5,678 words those kanji unlock. [Start after step 1234]
+            Know Henshall up to step 1234? Gokan starts you with the 5,678 words those kanji unlock. [Start after step 1234]
+            Study vocabulary with Henshall: Gokan teaches each word once you know its kanji. [Start with this order]
+          kanjiFlashcards:
+            You can read {ja:学生} after step 1234 of the White Rabbit kanji cards. Gokan teaches words in the order of the kanji you know. [Start after step 1234]
+            {ja:学} is step 1234 of the White Rabbit kanji cards. Know this far? Gokan starts you with the 5,678 words those kanji unlock. [Start after step 1234]
+            Know the White Rabbit kanji cards up to step 1234? Gokan starts you with the 5,678 words those kanji unlock. [Start after step 1234]
+            Study vocabulary with the White Rabbit kanji cards: Gokan teaches each word once you know its kanji. [Start with this order]
+          tuttleCards:
+            You can read {ja:学生} after step 1234 of the Tuttle kanji cards. Gokan teaches words in the order of the kanji you know. [Start after step 1234]
+            {ja:学} is step 1234 of the Tuttle kanji cards. Know this far? Gokan starts you with the 5,678 words those kanji unlock. [Start after step 1234]
+            Know the Tuttle kanji cards up to step 1234? Gokan starts you with the 5,678 words those kanji unlock. [Start after step 1234]
+            Study vocabulary with the Tuttle kanji cards: Gokan teaches each word once you know its kanji. [Start with this order]
+          maniette:
+            You can read {ja:学生} after step 1234 of {fr:Les Kanjis dans la tête}. Gokan teaches words in the order of the kanji you know. [Start after step 1234]
+            {ja:学} is step 1234 of {fr:Les Kanjis dans la tête}. Know this far? Gokan starts you with the 5,678 words those kanji unlock. [Start after step 1234]
+            Know {fr:Les Kanjis dans la tête} up to step 1234? Gokan starts you with the 5,678 words those kanji unlock. [Start after step 1234]
+            Study vocabulary with {fr:Les Kanjis dans la tête}: Gokan teaches each word once you know its kanji. [Start with this order]"
+        `);
     });
 });

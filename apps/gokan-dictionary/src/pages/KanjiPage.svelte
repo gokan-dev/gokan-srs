@@ -4,13 +4,15 @@
   import type { KanjiBook } from '@gokan/dataset-schema';
   import { rangeOfStep } from '../lib/kanjiOrders';
   import { pageLocale } from './pageLocale';
+  import { appUrl } from '../lib/appLinks';
+  import AppPanel from './AppPanel.svelte';
   import PageLayout from './PageLayout.svelte';
   import Chip from './Chip.svelte';
   import VocabEntryList from './VocabEntryList.svelte';
 
   const { urls, messages } = pageLocale();
 
-  let { kanji, words, kanjiWithPages, orderLengths }: Props = $props();
+  let { kanji, words, kanjiWithPages, orderLengths, orderStep }: Props = $props();
 
   /** This kanji's step on its range page, with the words it unlocks; none for a book that is not an order (Essential Kanji). */
   function rangeHref(book: KanjiBook, position: number): string | undefined {
@@ -50,6 +52,11 @@
       {#if !level}Outside the JLPT lists<span class="meta-sep" aria-hidden="true">·</span>{/if}{#if kanji.grade !== undefined}{kanjiGradeLabel(kanji.grade)}<span class="meta-sep" aria-hidden="true">·</span>{/if}{kanji.strokeCount} stroke{kanji.strokeCount === 1 ? '' : 's'}{#if kanji.radical}<span class="meta-sep" aria-hidden="true">·</span>Radical <span lang="ja">{kanji.radical.character}</span>{/if}
     </p>
   </header>
+
+  <AppPanel
+    link={appUrl({ placement: 'kanji', order: orderStep?.order.id, known: orderStep?.step })}
+    copy={orderStep ? messages.appPanel.kanji(kanji.character, orderStep, orderStep.unlocked) : messages.appPanel.general}
+  />
 
   {#if kanji.components.length > 0}
     <section class="section">

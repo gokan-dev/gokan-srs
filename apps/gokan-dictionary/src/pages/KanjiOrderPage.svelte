@@ -1,6 +1,8 @@
 <script lang="ts">
   import type { KanjiOrderPageProps as Props } from '../lib/pageProps';
   import { pageLocale } from './pageLocale';
+  import { appUrl } from '../lib/appLinks';
+  import AppPanel from './AppPanel.svelte';
   import PageLayout from './PageLayout.svelte';
 
   const { urls, messages } = pageLocale();
@@ -21,6 +23,8 @@
       usually written in kana, and words with a kanji this order does not teach, are not listed.
     </p>
   </div>
+
+  <AppPanel link={appUrl({ placement: 'order', order: order.id })} copy={messages.appPanel.order(order)} />
 
   <ul class="range-list">
     {#each ranges as range (range.first)}

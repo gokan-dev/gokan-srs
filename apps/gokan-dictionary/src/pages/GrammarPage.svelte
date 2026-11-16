@@ -4,6 +4,8 @@
   import { RELATION_LABELS } from '../lib/grammarVariants';
   import { FORMALITY_LABELS } from '../lib/grammarBrowse';
   import { pageLocale } from './pageLocale';
+  import { appUrl } from '../lib/appLinks';
+  import AppPanel from './AppPanel.svelte';
   import PageLayout from './PageLayout.svelte';
   import Chip from './Chip.svelte';
   import FuriganaToggle from './FuriganaToggle.svelte';
@@ -42,6 +44,9 @@
     </section>
 
     <p class="lead">{point.shortExplanation}</p>
+
+    <!-- After Formation, not after the header as on other pages: both are accent-edged boxes, and Formation is what a reader comes for. Its lead line sits between the two. -->
+    <AppPanel link={appUrl({ placement: 'grammar' })} copy={messages.appPanel.grammar} />
 
     {#if point.usageNote}
       <section class="section">

@@ -2,7 +2,8 @@
  * Shared test fixtures for the dictionary. Tests build dataset objects here rather than
  * declaring their own copy, so a schema change updates one factory (AGENTS.md, No duplication).
  */
-import type { GrammarPoint, Kanji, Sentence, Vocabulary } from '@gokan/dataset-schema';
+import { KANJI_ORDERS, type GrammarPoint, type Kanji, type Sentence, type Vocabulary } from '@gokan/dataset-schema';
+import type { LinkedText, Messages } from '../lib/messages';
 import type { WordText } from '../lib/types';
 
 /** 思う, a common verb with two glosses. */
@@ -83,4 +84,17 @@ export function wordText(overrides: Partial<WordText> = {}): WordText {
         ],
         ...overrides,
     };
+}
+
+/**
+ * A catalog's app panel copy for every kanji order (word, kanji, range, order), one line each,
+ * a marked run written {lang:text}: what the catalog tests snapshot, so all eleven orders are read.
+ */
+export function panelCopyPerOrder(messages: Messages): string {
+    const shown = (text: LinkedText) => text.map(part => (typeof part === 'string' ? part : part.lang ? `{${part.lang}:${part.text}}` : part.text)).join('');
+    return KANJI_ORDERS.map(order => {
+        const at = { order, step: 1234 };
+        const copies = [messages.appPanel.word('学生', at), messages.appPanel.kanji('学', at, 5678), messages.appPanel.range(at, 5678), messages.appPanel.order(order)];
+        return [`${order.id}:`, ...copies.map(copy => `  ${shown(copy.text)} [${copy.action}]`)].join('\n');
+    }).join('\n');
 }

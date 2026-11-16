@@ -2,6 +2,14 @@
 
 @use '../tokens' as *;
 
+@include app-panel;
+
+// Under its section's heading the heading's margin sets the gap, as for every home section's
+// content (check:layout).
+h2 + .app-panel {
+  margin-top: 0;
+}
+
 .home-hero {
   padding: $space-3 0 $space-2;
 

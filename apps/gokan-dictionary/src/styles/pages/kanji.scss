@@ -2,6 +2,8 @@
 
 @use '../tokens' as *;
 
+@include app-panel;
+
 .kanji-glyph {
   font-family: $font-mincho;
   font-size: 4.5rem;

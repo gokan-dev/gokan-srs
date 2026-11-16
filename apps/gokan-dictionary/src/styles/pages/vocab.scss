@@ -6,6 +6,8 @@
 
 @use '../tokens' as *;
 
+@include app-panel;
+
 .entry-word {
   font-family: $font-mincho;
   font-size: clamp(2.5rem, 9vw, 3.5rem);

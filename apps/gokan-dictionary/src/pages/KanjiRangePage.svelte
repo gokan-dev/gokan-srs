@@ -1,16 +1,17 @@
 <script lang="ts">
   import type { KanjiRangePageProps as Props } from '../lib/pageProps';
   import { WORDS_PER_KANJI, anyStepCapped } from '../lib/kanjiOrders';
-  import { SITE_ORIGIN } from '../lib/site';
+  import { appUrl } from '../lib/appLinks';
   import { kanjiRangeSlug, kanjiStepAnchor } from '../lib/urls';
   import { pageLocale } from './pageLocale';
+  import AppPanel from './AppPanel.svelte';
   import PageLayout from './PageLayout.svelte';
   import Pager from './Pager.svelte';
   import VocabEntryList from './VocabEntryList.svelte';
 
   const { urls, messages } = pageLocale();
 
-  let { order, range, steps, wordCount, ranges }: Props = $props();
+  let { order, range, unlockedThrough, steps, wordCount, ranges }: Props = $props();
 
   const current = $derived(ranges.findIndex(other => other.first === range.first) + 1);
   const rangeHref = (page: number) => urls.kanjiRangePath(order.id, ranges[page - 1]);
@@ -29,6 +30,11 @@
       page lists every word that uses it.{:else}Each kanji's own page lists every word that uses it.{/if}
     </p>
   </div>
+
+  <AppPanel
+    link={appUrl({ placement: 'range', order: order.id, known: range.last })}
+    copy={messages.appPanel.range({ order, step: range.last }, unlockedThrough)}
+  />
 
   <section class="section">
     <h2>Kanji</h2>
@@ -59,6 +65,4 @@
 
   <!-- One pager, at the foot: at 320px a long order's ranges fill more than a screen, and the order page lists them too. -->
   <Pager count={ranges.length} current={current} hrefOf={rangeHref} textOf={rangeText} hiddenPrefixOf={rangePrefix} label="Steps" />
-
-  <p class="support"><a href={SITE_ORIGIN + '/'}>Learn these words in Gokan</a>, in the order of your kanji book, with spaced repetition.</p>
 </PageLayout>

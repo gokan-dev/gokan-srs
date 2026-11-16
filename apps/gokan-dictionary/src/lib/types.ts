@@ -190,6 +190,11 @@ export interface EntityData {
     kanjiList(): Promise<Kanji[]>;
     /** Kanji -> the words that contain it, most frequent first. */
     kanjiVocabIndex(): Promise<KanjiVocabIndex>;
+    /**
+     * Every word, most frequent first: the order of the search index, and what a kanji page counts
+     * the words its step of an order unlocks from (`kanjiStepIndex`).
+     */
+    frequencyIndex(): Promise<FrequencyIndex>;
     /** One kanji learning order's kanji, in teaching order: step N is the Nth. */
     kanjiOrder(order: KanjiOrderId): Promise<KanjiOrderList>;
     grammarPoint(id: string): Promise<GrammarPoint>;
@@ -207,7 +212,7 @@ export interface EntityData {
 
 /**
  * What the whole site is built from: EntityData, and the catalogs only list pages and the search
- * index read (every id, the JLPT and frequency orders, the grammar families). The one source of it
+ * index read (every id, the JLPT order, the grammar families). The one source of it
  * is the checkout, through the English view (`checkoutData` in dataset.server.ts), at build: the
  * list pages are prerendered. A source in another language reads the same, plus its text.
  */
@@ -216,8 +221,6 @@ export interface DictionaryData extends EntityData {
     vocabIds(): Promise<string[]>;
     /** JLPT level -> that level's words, frequency-ordered. */
     vocabJlptIndex(): Promise<JlptIndex>;
-    /** Every word, most frequent first: the order of the search index. */
-    frequencyIndex(): Promise<FrequencyIndex>;
     /** Every grammar point id, easiest first (N5 to N1), the SRS's own order. */
     grammarIds(): Promise<string[]>;
     /** Family id -> its contrast lessons and interchangeable note. */

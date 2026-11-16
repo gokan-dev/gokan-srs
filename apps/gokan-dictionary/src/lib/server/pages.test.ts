@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { GrammarPoint, Kanji, KanjiOrderId, Sentence, Vocabulary } from '@gokan/dataset-schema';
+import type { GrammarPoint, Kanji, KanjiOrderId, Sentence, VocabIndexEntry, Vocabulary } from '@gokan/dataset-schema';
 import { grammarPoint, kanji, sentence, vocabulary, wordText } from '../../test/fixtures';
 import type { DictionaryData, LocaleText, WordText } from '../types';
 import { LOCAL_GLOSS_LENGTH, shortWordTextSummary, wordTextSummary } from '../senses';
@@ -58,7 +58,11 @@ function memorySource(world: World): { source: DictionaryData; calls: Map<string
     const count = (name: string) => calls.set(name, (calls.get(name) ?? 0) + 1);
     const byId = new Map(world.words.map(word => [word.id, word]));
     const points = new Map((world.points ?? []).map(point => [point.id, point]));
-    const entry = (id: string) => ({ id, containedKanji: [] });
+    // A word's kanji and whether it is learned in kana, as the frequency index carries them; an id with no word has none.
+    const entry = (id: string): VocabIndexEntry => {
+        const word = byId.get(id);
+        return { id, containedKanji: word?.writtenForm.containedKanji ?? [], ...(word?.usuallyKana ? { usuallyKana: true } : {}) };
+    };
     const ask = <T>(name: string, value: () => T): Promise<T> => {
         count(name);
         return Promise.resolve().then(value);
@@ -98,6 +102,35 @@ const omou = vocabulary();
 const kangaeru = vocabulary({ id: '1281390', writtenForm: { kanji: '考える', alternatives: [], containedKanji: ['考'] }, components: ['1589350', '9999999'] });
 
 describe('pagesOf: entity pages', () => {
+    it('gives a word page and a kanji page their step of an order, for the app panel', async () => {
+        // Every order of the memory source is its kanji list: 学 then 生, so KKLC (the first order) names the step.
+        const sei = kanji({ character: '生' });
+        const gakusei = vocabulary({ id: '1206900', writtenForm: { kanji: '学生', alternatives: [], containedKanji: ['学', '生'] } });
+        const gaku = vocabulary({ id: '1206960', writtenForm: { kanji: '学', alternatives: [], containedKanji: ['学'] } });
+        const pages = pagesOf(memorySource({ words: [gakusei, gaku, kangaeru], kanji: [kanji(), sei] }).source, 'en');
+        expect((await pages.vocabPage('1206900')).props.orderStep).toMatchObject({ order: { id: 'kklc' }, step: 2 });
+        // 考 is in no order: the panel falls back to its general sentence.
+        expect((await pages.vocabPage('1281390')).props.orderStep).toBeNull();
+        expect((await pages.kanjiPage('学')).props.orderStep).toMatchObject({ order: { id: 'kklc' }, step: 1, unlocked: 1 });
+        expect((await pages.kanjiPage('生')).props.orderStep).toMatchObject({ step: 2, unlocked: 2 });
+    });
+
+    it('gives a kanji whose step unlocks no word yet no step, so its panel says the general sentence, never "0 words"', async () => {
+        // 学 is step 1 of every order, and no word of the world is made of it alone.
+        const pages = pagesOf(memorySource({ words: [kangaeru], kanji: [kanji()] }).source, 'en');
+        expect((await pages.kanjiPage('学')).props.orderStep).toBeNull();
+    });
+
+    it('gives a range page the words steps 1 to its last unlock in all, what its panel\'s link starts a learner with', async () => {
+        // 101 kanji, one word each: the second range is step 101 alone, its own count 1, the order up to it 101.
+        const characters = Array.from({ length: 101 }, (_, index) => String.fromCodePoint(0x4e00 + index));
+        const words = characters.map((character, index) => vocabulary({ id: String(2000000 + index), writtenForm: { kanji: character, alternatives: [], containedKanji: [character] } }));
+        const pages = pagesOf(memorySource({ words, kanji: characters.map(character => kanji({ character })) }).source, 'en');
+        const { props } = await pages.kanjiRangePage(kanjiOrderSlug('kklc'), '101-101');
+        expect(props.wordCount).toBe(1);
+        expect(props.unlockedThrough).toBe(101);
+    });
+
     it('builds a word page from its source, its related words resolved and an id with no word left out', async () => {
         const pages = pagesOf(memorySource({ words: [omou, kangaeru] }).source, 'en');
         const page = await pages.vocabPage('1281390');
@@ -306,7 +339,7 @@ describe('pagesOf: a locale other than English', () => {
 
     it('keeps English\'s word page as it was: no text, no translations', async () => {
         const page = await pagesOf(memorySource(world).source, 'en').vocabPage('1589350');
-        expect(Object.keys(page.props).sort()).toEqual(['components', 'parents', 'sentences', 'vocab']);
+        expect(Object.keys(page.props).sort()).toEqual(['components', 'orderStep', 'parents', 'sentences', 'vocab']);
     });
 
     it('refuses a source not read in the locale\'s language', () => {

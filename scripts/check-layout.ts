@@ -47,6 +47,8 @@
  * - a sentence word tapped on a phone opens its lookup card as a bottom sheet that fits the
  *   viewport, with a 44px Close and 44px links (Open word page), and no sideways scroll;
  * - a word page's tabs are 44px tap targets on a phone;
+ * - the dictionary's app panel action is one line, with a four-digit step, in English and Chinese;
+ * - a Japanese word in the app panel's sentence is unbroken (学校, 蛇口), in English and Chinese;
  * - no word in an app sentence has side space (margin or padding): Japanese has no spaces;
  * - example sentences (a word page's Dict tab, a grammar page) are spaced apart, never ruled;
  * - play buttons (a word's reading, a word page's and a grammar page's example sentences) are
@@ -1188,6 +1190,91 @@ async function checkSourceCreditGap(tab: Tab, page: string, width: number): Prom
 }
 
 /**
+ * The app panel's action is one line at 320px (docs/DESIGN_SYSTEM.md section 8: a label short
+ * enough for it), measured where it is longest: a word page whose step has four digits, in English
+ * and in Chinese. 蛇口: step 2297 of KKLC. Its Chinese label once carried （英文） and wrapped (#244).
+ * Measured on a copy whose full-width characters are each a 1em box, the advance every CJK font
+ * gives them (a machine with no CJK font, CI's, draws them as narrow boxes, and every label fits),
+ * at its natural width, which must leave one full-width character of the panel's width spare: a
+ * real font's digits and spaces run wider than here, and 「从第 288 步之后开始（英文）」, which fits
+ * the panel measured so, wrapped on staging.
+ */
+const PANEL_STEP_WORD = '1323370';
+const PANEL_STEP_PAGES = [`/vocab/${PANEL_STEP_WORD}/`, ...(DICTIONARY_PAGES.some(page => page.path.startsWith('/zh-hans/')) ? [`/zh-hans/vocab/${PANEL_STEP_WORD}/`] : [])];
+async function checkAppPanelAction(tab: Tab, page: string, width: number): Promise<void> {
+    const action = await tab.evaluate<{ text: string; height: number; width: number; room: number } | null>(`(() => {
+        const el = document.querySelector('.app-panel-action');
+        if (!el) return null;
+        const copy = el.cloneNode(false);
+        for (const char of el.textContent) {
+            if (!/[\\u3000-\\u9fff\\uff00-\\uffef]/.test(char)) { copy.append(char); continue; }
+            const box = document.createElement('span');
+            box.style.cssText = 'display: inline-block; width: 1em';
+            copy.append(box);
+        }
+        copy.style.width = 'max-content';
+        el.after(copy);
+        const width = copy.getBoundingClientRect().width;
+        copy.remove();
+        const panel = getComputedStyle(el.parentElement);
+        const room = el.parentElement.clientWidth - parseFloat(panel.paddingLeft) - parseFloat(panel.paddingRight);
+        return { text: el.textContent.trim(), height: el.getBoundingClientRect().height, width, room: room - parseFloat(getComputedStyle(el).fontSize) };
+    })()`);
+    if (action === null) failures.push(`${width}px ${page}: no app panel action (.app-panel-action)`);
+    else if (!/\d{4}/.test(action.text)) failures.push(`${width}px ${page}: the app panel action "${action.text}" names no four-digit step: pick another word (PANEL_STEP_WORD)`);
+    else if (action.height > 44.5) failures.push(`${width}px ${page}: the app panel action "${action.text}" is ${Math.round(action.height)}px tall, on two lines: its label must fit one line at 320px`);
+    else if (action.width > action.room) failures.push(`${width}px ${page}: the app panel action "${action.text}" is ${Math.round(action.width)}px wide with its full-width characters at 1em, over the ${Math.round(action.room)}px that leaves one of them spare: it wraps on a phone with a CJK font`);
+}
+
+/**
+ * A Japanese word in the app panel's sentence stays on one line (#244): read as two fragments
+ * (「就能读 学 / 校。」 at 320px), it is not the word. Where a line ends depends on the fonts (CI has
+ * no CJK font, and its Latin falls back), so each word is also laid out alone in a 1px-wide copy of
+ * the sentence, where it stays on one line only if the panel keeps it whole, whatever the fonts.
+ * 学校 broke so on its Chinese page; 蛇口 is the four-digit step.
+ */
+const PANEL_WORD_PAGES = ['1206730', PANEL_STEP_WORD].flatMap(id => PANEL_STEP_PAGES.map(page => page.replace(PANEL_STEP_WORD, id)));
+async function checkAppPanelWords(tab: Tab, page: string, width: number): Promise<void> {
+    const broken = await tab.evaluate<string[] | null>(`(() => {
+        const sentence = document.querySelector('.app-panel p');
+        if (!sentence) return null;
+        const oneLine = el => { const tops = [...el.getClientRects()].filter(r => r.width > 0).map(r => r.top); return tops.every(top => Math.abs(top - tops[0]) < 2); };
+        return [...sentence.querySelectorAll('[lang="ja"]')].filter(el => {
+            const narrow = sentence.cloneNode(false);
+            narrow.style.width = '1px';
+            const word = el.cloneNode(true);
+            narrow.append(word);
+            sentence.after(narrow);
+            const whole = oneLine(el) && oneLine(word);
+            narrow.remove();
+            return !whole;
+        }).map(el => el.textContent);
+    })()`);
+    if (broken === null) failures.push(`${width}px ${page}: no app panel sentence (.app-panel p)`);
+    else for (const word of broken) failures.push(`${width}px ${page}: the app panel's Japanese word ${word} can break across lines (keep it whole: white-space: nowrap)`);
+}
+
+/**
+ * The home page's app panel sits as close under its heading as every other home section's content
+ * does (docs/DESIGN_SYSTEM.md section 4: heading to content 16px). The panel's own top margin once
+ * outweighed the heading's, so its section alone stood 24px off (#244). Compared with the Browse
+ * section's tiles, the next section with a heading, in each locale's home page.
+ */
+const PANEL_HOME_PAGES = DICTIONARY_PAGES.filter(page => page.path === '/' || page.path === '/zh-hans/');
+async function checkAppPanelHeadingGap(tab: Tab, page: string, width: number): Promise<void> {
+    const gaps = await tab.evaluate<{ panel: number; other: number; heading: string } | null>(`(() => {
+        const sections = [...document.querySelectorAll('section')].filter(section => section.firstElementChild?.tagName === 'H2');
+        const gap = section => { const h2 = section.firstElementChild; return h2.nextElementSibling.getBoundingClientRect().top - h2.getBoundingClientRect().bottom; };
+        const panel = sections.find(section => section.firstElementChild.nextElementSibling?.classList.contains('app-panel'));
+        const other = sections.find(section => section !== panel && section.firstElementChild.nextElementSibling);
+        if (!panel || !other) return null;
+        return { panel: gap(panel), other: gap(other), heading: other.firstElementChild.textContent.trim() };
+    })()`);
+    if (gaps === null) failures.push(`${width}px ${page}: no home section whose heading is followed by the app panel, and another to compare it with`);
+    else if (Math.abs(gaps.panel - gaps.other) > 0.5) failures.push(`${width}px ${page}: the app panel sits ${gaps.panel.toFixed(1)}px under its heading, the ${gaps.heading} section's content ${gaps.other.toFixed(1)}px under its own: heading to content is one gap`);
+}
+
+/**
  * The language switcher is one small neutral line (docs/DESIGN_SYSTEM.md section 8): its link in
  * `secondary`, no larger than the breadcrumb's, so the page head keeps one primary thing. It once
  * drew in the accent at body size (#227). Both of 食べる's pages have a counterpart, so a switcher.
@@ -1391,6 +1478,18 @@ try {
             await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${path}`, 'JLPT');
             await checkLocaleSwitch(tab, `dictionary ${path}`, width);
         }
+        for (const path of PANEL_STEP_PAGES) {
+            await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${path}`, 'JLPT');
+            await checkAppPanelAction(tab, `dictionary ${path}`, width);
+        }
+        for (const path of PANEL_WORD_PAGES) {
+            await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${path}`, 'JLPT');
+            await checkAppPanelWords(tab, `dictionary ${path}`, width);
+        }
+        for (const home of PANEL_HOME_PAGES) {
+            await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${home.path}`, home.ready);
+            await checkAppPanelHeadingGap(tab, `dictionary ${home.path}`, width);
+        }
         await measureFuriganaFixture(tab, `http://127.0.0.1:${dictionary.port}/dictionary/vocab/${FURIGANA_VOCAB}/`, 'Meanings', `dictionary /vocab/${FURIGANA_VOCAB}/`, width, DICTIONARY_TAP_TARGETS);
         await tab.close();
     }
@@ -1408,4 +1507,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, a kanji's course steps 44px linked or not, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows and word readings unbroken, a word list's gloss in its column (1280px) or on its own line across the row (phones, a word page's aside), a section's source credit set off from what comes before it, the language switcher small and neutral, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button undimmed, its sentence centred on its translation with its button right after it (and at 1280px on the headword), a word learned in kana's intro, a long headword's intro on one line inside its card, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, a kanji's course steps 44px linked or not, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows and word readings unbroken, a word list's gloss in its column (1280px) or on its own line across the row (phones, a word page's aside), a section's source credit set off from what comes before it, the language switcher small and neutral, the app panel's action on one line with a four-digit step, its Japanese words unbroken and on the home page 16px under its heading, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button undimmed, its sentence centred on its translation with its button right after it (and at 1280px on the headword), a word learned in kana's intro, a long headword's intro on one line inside its card, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);

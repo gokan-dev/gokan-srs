@@ -1,7 +1,8 @@
 <script lang="ts">
   import type { HomePageProps as Props } from '../lib/pageProps';
   import { pageLocale } from './pageLocale';
-  import { SITE_ORIGIN } from '../lib/site';
+  import { appUrl } from '../lib/appLinks';
+  import AppPanel from './AppPanel.svelte';
   import LinkedText from './LinkedText.svelte';
   import PageLayout from './PageLayout.svelte';
   import SearchBox from './SearchBox.svelte';
@@ -31,6 +32,11 @@
   </div>
 
   <section class="section">
+    <h2>{home.appHeading}</h2>
+    <AppPanel link={appUrl({ placement: 'home' })} copy={messages.appPanel.home} />
+  </section>
+
+  <section class="section">
     <h2>{home.browse}</h2>
     <ul class="tiles" style="--tiles: 2">
       {#each tiles as tile (tile.href)}
@@ -56,6 +62,6 @@
 
   <section class="section">
     <h2>{home.about}</h2>
-    <p><LinkedText parts={home.aboutText({ dataset: 'https://github.com/gokan-dev/gokan-dataset', srs: SITE_ORIGIN + '/' })} /></p>
+    <p><LinkedText parts={home.aboutText({ dataset: 'https://github.com/gokan-dev/gokan-dataset', srs: appUrl({ placement: 'about' }) })} /></p>
   </section>
 </PageLayout>
