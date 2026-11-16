@@ -61,13 +61,13 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  // Every row as tall as a linked one, so the two columns stay even.
+  // The book, then its step under it: the step's link names what it leads to, too long to share a
+  // line with the book's title without squeezing both.
   div {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: $space-2;
-    min-height: $target;
+    flex-direction: column;
+    align-items: flex-start;
+    padding-top: $space-1;
     border-bottom: 1px solid var(--divider);
   }
 
@@ -87,11 +87,13 @@
   dd {
     margin: 0;
     min-width: 0;
-    text-align: right;
+    display: flex;
+    align-items: center;
+    min-height: $target;
     font-variant-numeric: tabular-nums;
 
     // A book position is its row's one action, so it is a 44px target like a tile or a pager link.
-    // Padded rather than set in a 44px line: the link names what it leads to, and wraps on a phone.
+    // Padded rather than set in a 44px line, so it wraps as text on a phone.
     a {
       display: inline-block;
       min-height: $target;
