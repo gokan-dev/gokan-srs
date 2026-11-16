@@ -1,0 +1,24 @@
+<script lang="ts">
+  import { APP_LINK_EVENT, type AppLink } from '../lib/appLinks';
+  import type { PanelCopy } from '../lib/messages';
+  import { pageLocale } from './pageLocale';
+
+  /**
+   * The one place a page presents the SRS app (#244): one sentence about what Gokan would do with
+   * what the page is about, and one link into the app's setup. Once per page, right after its
+   * header. Static HTML: the Umami script counts the click from its attributes.
+   */
+  interface Props {
+    link: AppLink;
+    copy: PanelCopy;
+  }
+
+  let { link, copy }: Props = $props();
+
+  const { linkLang } = pageLocale();
+</script>
+
+<div class="app-panel">
+  <p>{#each copy.text as part, index (index)}{#if typeof part === 'string'}{part}{:else}<span lang={part.lang}>{part.text}</span>{/if}{/each}</p>
+  <a class="app-panel-action" href={link.href} hreflang={linkLang(link.href)} data-umami-event={APP_LINK_EVENT} data-umami-event-placement={link.placement}>{copy.action}</a>
+</div>

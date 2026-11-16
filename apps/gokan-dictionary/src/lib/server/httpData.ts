@@ -8,7 +8,7 @@
 
 import { isMissingFile, publishedDatasetReader } from '@gokan/dataset-schema/published-dataset';
 import type {
-    GrammarConjugationIndex, GrammarExample, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex, Kanji, KanjiOrderList, KanjiVocabIndex, Sentence,
+    FrequencyIndex, GrammarConjugationIndex, GrammarExample, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex, Kanji, KanjiOrderList, KanjiVocabIndex, Sentence,
     Vocabulary,
 } from '@gokan/dataset-schema';
 import { DATASET_PATHS } from '../datasetPaths';
@@ -81,6 +81,7 @@ export function httpData({ datasetUrl, searchIndexUrls, datasetVersion, language
 
     const kanjiList = kept(() => file<Kanji[]>(DATASET_PATHS.kanjiList));
     const kanjiVocabIndex = kept(() => file<KanjiVocabIndex>(DATASET_PATHS.kanjiVocabIndex));
+    const frequencyIndex = kept(() => file<FrequencyIndex>(DATASET_PATHS.frequencyIndex));
     const teachingOrder = kept(() => file<GrammarTeachingOrder>(DATASET_PATHS.grammarTeachingOrder));
     const variantGroups = kept(() => file<GrammarVariantGroupIndex>(DATASET_PATHS.grammarVariantGroups));
     const conjugations = kept(() => file<GrammarConjugationIndex>(DATASET_PATHS.grammarConjugations));
@@ -96,6 +97,7 @@ export function httpData({ datasetUrl, searchIndexUrls, datasetVersion, language
             new Map(((await searchIndex()).core.g ?? []).map(row => [row[0], grammarSummaryOfRow(row)]))),
         kanjiList,
         kanjiVocabIndex,
+        frequencyIndex,
         kanjiOrder: order => file<KanjiOrderList>(DATASET_PATHS.kanjiOrder(order)),
         grammarPoint: id => file<GrammarPoint>(DATASET_PATHS.grammarPoint(id)),
         grammarTeachingOrder: teachingOrder,

@@ -63,7 +63,7 @@ export const zhHans: Messages = {
             '数据来自以 CC BY-SA 许可开放的 ',
             { text: 'gokan-dataset', href: links.dataset },
             `${AFTER_LINK}。想用间隔重复记住这些词，可以试试 `,
-            { text: 'Gokan SRS', href: links.srs },
+            { text: 'Gokan SRS', ...links.srs },
             `${AFTER_LINK}。`,
         ],
         search: { label: '搜索词典', placeholder: '搜索：汉字、假名、罗马字或中文', results: '搜索结果' },
@@ -92,9 +92,41 @@ export const zhHans: Messages = {
             '本词典基于以 CC BY-SA 许可开放的 ',
             { text: 'gokan-dataset', href: links.dataset },
             `${AFTER_LINK}：日语词条、英文释义和 JLPT 级别来自 JMdict，例句来自 Tatoeba；中文释义来自中文维基词典，中文对应词来自日文维基词典和维基数据，例句的中文翻译来自 Tatoeba。想记住查过的词，可以用 `,
-            { text: 'Gokan SRS', href: links.srs },
+            { text: 'Gokan SRS', ...links.srs },
             `${AFTER_LINK}按间隔重复学习。`,
         ],
+        appHeading: '用 Gokan SRS 学习',
+    },
+    // The app is in English: every action says so (AFTER_LINK), and an order's name is English's, marked.
+    appPanel: {
+        word: (word, { order, step }) => ({
+            text: ['学完 ', { text: order.label, lang: 'en' }, ` 的第 ${step} 步，就能读 `, { text: word, lang: 'ja' }, '。Gokan 按你认识的汉字的顺序教词汇。'],
+            action: `从第 ${step} 步开始学${AFTER_LINK}`,
+        }),
+        kanji: (character, { order, step }, unlocked) => ({
+            text: [{ text: character, lang: 'ja' }, ' 是 ', { text: order.label, lang: 'en' }, ` 的第 ${step} 步。已经学到这里了？Gokan 会从这些汉字能读的 ${count(unlocked, 'word')}开始。`],
+            action: `从第 ${step} 步开始学${AFTER_LINK}`,
+        }),
+        range: (kanjiCount, unlocked, last) => ({
+            text: [`认识这 ${kanjiCount} 个汉字了？Gokan 会安排它们能读的 ${count(unlocked, 'word')}。`],
+            action: `从第 ${last} 步开始学${AFTER_LINK}`,
+        }),
+        order: order => ({
+            text: ['按 ', { text: order.label, lang: 'en' }, ' 的顺序学词汇：认识一个词的所有汉字后，Gokan 就教这个词。'],
+            action: `开始学习${AFTER_LINK}`,
+        }),
+        grammar: {
+            text: ['在真实例句中以填空方式练习这个句型，按它自己的复习计划安排。'],
+            action: `试用 Gokan SRS${AFTER_LINK}`,
+        },
+        home: {
+            text: ['Gokan SRS 按你认识的汉字的顺序教日语词汇：告诉它你用的汉字教材和学到哪里，它就安排你能读的词，附例句；语法则以填空方式练习。'],
+            action: `试用 Gokan SRS${AFTER_LINK}`,
+        },
+        general: {
+            text: ['Gokan 按你认识的汉字的顺序教日语词汇，并用间隔重复安排复习。'],
+            action: `试用 Gokan SRS${AFTER_LINK}`,
+        },
     },
     vocabIndex: {
         intro: wordCount => `${grouped(wordCount)} 个有中文释义的日语单词，附读音和例句。可以浏览 JLPT 词汇表，或直接搜索。`,

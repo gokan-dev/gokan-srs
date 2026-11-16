@@ -7,7 +7,10 @@
 // locale's language (lib/locale.ts, datasetLanguageOf); this is everything else.
 
 import type { GrammarChapter, GrammarPoint, Kanji, KanjiOrder, Vocabulary } from '@gokan/dataset-schema';
+import type { DictionaryPlacement } from '@gokan/analytics';
+import type { AppLink } from '../appLinks';
 import type { FormLabel } from '../conjugation';
+import type { OrderStep } from '../kanjiOrders';
 import type { ServedLocale } from '../locale';
 import type { GrammarTab, Section, WordText } from '../types';
 import { en } from './en';
@@ -21,8 +24,20 @@ export interface PageMeta {
 /** The things a page counts: a catalog writes each count with its noun ("1 word", "3 strokes"). */
 export type CountedNoun = 'word' | 'stroke' | 'grammar point';
 
-/** Text with links in it, in the catalog's word order: the plain runs, and each link's text and href. */
-export type LinkedText = readonly (string | { text: string; href: string })[];
+/**
+ * Text with links in it, in the catalog's word order: the plain runs, and each link's text and href,
+ * and for a link into the app the placement its click is counted under (lib/appLinks.ts).
+ */
+export type LinkedText = readonly (string | { text: string; href: string; placement?: DictionaryPlacement })[];
+
+/** Text with runs in another language than the page's, each marked: a Japanese word, an order's English name. */
+export type MarkedText = readonly (string | { text: string; lang: string })[];
+
+/** What the app panel (pages/AppPanel.svelte) says on a page: one sentence, and its one action. */
+export interface PanelCopy {
+    text: MarkedText;
+    action: string;
+}
 
 /** The figures the home page counts. */
 export interface SiteCounts {
@@ -60,7 +75,7 @@ export interface Messages {
         breadcrumbHome: string;
         /** Breadcrumb steps no section or grammar tab names. */
         crumbs: { kanjiOrders: string; search: string };
-        footer: (links: { dataset: string; srs: string }) => LinkedText;
+        footer: (links: { dataset: string; srs: AppLink }) => LinkedText;
         search: { label: string; placeholder: string; results: string };
         /** The furigana toggle's two states (client/search.ts reads the second from the button). */
         hideFurigana: string;
@@ -86,7 +101,22 @@ export interface Messages {
         commonWords: string;
         counts: (counts: SiteCounts) => string;
         about: string;
-        aboutText: (links: { dataset: string; srs: string }) => LinkedText;
+        aboutText: (links: { dataset: string; srs: AppLink }) => LinkedText;
+        /** The home page's section on the app, above its panel. */
+        appHeading: string;
+    };
+    /**
+     * The app panel's copy per page type: each sentence uses what only Gokan knows about the page
+     * (the step of a kanji order at which a word becomes readable), `general` where no order does.
+     */
+    appPanel: {
+        word: (word: string, at: OrderStep) => PanelCopy;
+        kanji: (character: string, at: OrderStep, unlocked: number) => PanelCopy;
+        range: (kanjiCount: number, unlocked: number, last: number) => PanelCopy;
+        order: (order: KanjiOrder) => PanelCopy;
+        grammar: PanelCopy;
+        home: PanelCopy;
+        general: PanelCopy;
     };
     vocabIndex: {
         intro: (wordCount: number) => string;

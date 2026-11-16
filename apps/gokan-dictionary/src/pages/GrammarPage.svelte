@@ -4,6 +4,8 @@
   import { RELATION_LABELS } from '../lib/grammarVariants';
   import { FORMALITY_LABELS } from '../lib/grammarBrowse';
   import { pageLocale } from './pageLocale';
+  import { appUrl } from '../lib/appLinks';
+  import AppPanel from './AppPanel.svelte';
   import PageLayout from './PageLayout.svelte';
   import Chip from './Chip.svelte';
   import FuriganaToggle from './FuriganaToggle.svelte';
@@ -34,6 +36,8 @@
       {/if}
     </p>
   </header>
+
+  <AppPanel link={appUrl({ placement: 'grammar' })} copy={messages.appPanel.grammar} />
 
   <div class="grammar-body">
     <section class="formation" aria-label="Formation">

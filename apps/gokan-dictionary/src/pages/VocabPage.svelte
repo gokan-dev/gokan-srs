@@ -9,6 +9,8 @@
   import { sentenceRuns } from '../lib/furigana';
   import { conjugate, wordClassOf } from '../lib/conjugation';
   import { VISIBLE_SENTENCES } from '../lib/sentenceOrder';
+  import { appUrl } from '../lib/appLinks';
+  import AppPanel from './AppPanel.svelte';
   import PageLayout from './PageLayout.svelte';
   import VocabEntryList from './VocabEntryList.svelte';
   import Chip from './Chip.svelte';
@@ -16,7 +18,7 @@
   import FuriganaToggle from './FuriganaToggle.svelte';
   import SentenceText from './SentenceText.svelte';
 
-  let { vocab, components, parents, sentences, text, translations, withoutPage }: Props = $props();
+  let { vocab, orderStep, components, parents, sentences, text, translations, withoutPage }: Props = $props();
 
   // A page in another language links its own words only, and its kanji at English's pages, marked (lib/localeLinks.ts).
   const { urls, messages, linkLang, lang } = pageLocale();
@@ -25,6 +27,8 @@
   const RELATED_VISIBLE = 10;
 
   const headword = $derived(headwordOf(vocab));
+  // Into the app at the step the word comes in at, its own page open once setup is done.
+  const appLink = $derived(appUrl({ placement: 'word', path: `/vocab/${encodeURIComponent(vocab.id)}`, order: orderStep?.order.id, known: orderStep?.step }));
   // The single most important fact on the page, beside the word: a reader who searched for it
   // wants the meaning immediately, not after scrolling to the Meanings section.
   // On a page in another language (text), its own: the first equivalents, else its first definition's first sense.
@@ -131,6 +135,8 @@
       {/if}
     </p>
   </header>
+
+  <AppPanel link={appLink} copy={orderStep ? messages.appPanel.word(headword, orderStep) : messages.appPanel.general} />
 
   <!--
     Two columns on a wide viewport, one on a narrow one, split by importance: the meanings, forms

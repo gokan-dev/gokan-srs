@@ -243,3 +243,18 @@ describe('meta.error', () => {
         expect(en.meta.error(503)).toEqual(en.meta.error(500));
     });
 });
+
+describe('appPanel', () => {
+    const kklc = kanjiOrder('kklc');
+
+    it('names the step at which a word becomes readable, the word marked as Japanese', () => {
+        const copy = en.appPanel.word('学生', { order: kklc, step: 212 });
+        expect(copy.text).toEqual(['You can read ', { text: '学生', lang: 'ja' }, ' after step 212 of KKLC. Gokan teaches words in the order of the kanji you know.']);
+        expect(copy.action).toBe('Start learning at step 212');
+    });
+
+    it('counts the words a kanji\'s step and a range unlock', () => {
+        expect(en.appPanel.kanji('学', { order: kklc, step: 212 }, 1450).text.at(-1)).toContain('the 1,450 words those kanji unlock');
+        expect(en.appPanel.range(100, 1, 300).text).toEqual(['Know these 100 kanji? Gokan schedules the 1 word they unlock.']);
+    });
+});

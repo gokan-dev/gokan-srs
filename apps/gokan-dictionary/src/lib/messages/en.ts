@@ -49,7 +49,7 @@ export const en: Messages = {
             'Data from the open, CC BY-SA-licensed ',
             { text: 'gokan-dataset', href: links.dataset },
             '.\n      To learn these words with spaced repetition, try ',
-            { text: 'Gokan SRS', href: links.srs },
+            { text: 'Gokan SRS', ...links.srs },
             '.',
         ],
         search: { label: 'Search the dictionary', placeholder: 'Search: kanji, kana, romaji or English', results: 'Search results' },
@@ -79,9 +79,40 @@ export const en: Messages = {
             'Built on the open, CC BY-SA-licensed ',
             { text: 'gokan-dataset', href: links.dataset },
             ': JMdict definitions, Tatoeba sentences and JLPT levels. To remember what you look up, learn it with spaced repetition in ',
-            { text: 'Gokan SRS', href: links.srs },
+            { text: 'Gokan SRS', ...links.srs },
             '.',
         ],
+        appHeading: 'Learn with Gokan SRS',
+    },
+    appPanel: {
+        word: (word, { order, step }) => ({
+            text: ['You can read ', { text: word, lang: 'ja' }, ` after step ${step} of ${order.label}. Gokan teaches words in the order of the kanji you know.`],
+            action: `Start learning at step ${step}`,
+        }),
+        kanji: (character, { order, step }, unlocked) => ({
+            text: [{ text: character, lang: 'ja' }, ` is step ${step} of ${order.label}. Know this far? Gokan starts you with the ${count(unlocked, 'word')} those kanji unlock.`],
+            action: `Start learning at step ${step}`,
+        }),
+        range: (kanjiCount, unlocked, last) => ({
+            text: [`Know these ${kanjiCount} kanji? Gokan schedules the ${count(unlocked, 'word')} they unlock.`],
+            action: `Start learning at step ${last}`,
+        }),
+        order: order => ({
+            text: [`Study vocabulary in the order of ${order.label}: Gokan teaches each word once you know its kanji.`],
+            action: `Start with ${order.label}`,
+        }),
+        grammar: {
+            text: ['Practice this pattern as fill-in-the-blank on real sentences, on its own review schedule.'],
+            action: 'Try Gokan SRS',
+        },
+        home: {
+            text: ['Gokan SRS teaches Japanese vocabulary in the order of the kanji you know. Tell it your kanji book and how far you are, and it schedules the words you can read, with example sentences, and grammar as fill-in-the-blank practice.'],
+            action: 'Try Gokan SRS',
+        },
+        general: {
+            text: ['Gokan teaches Japanese vocabulary in the order of the kanji you know, with spaced repetition.'],
+            action: 'Try Gokan SRS',
+        },
     },
     vocabIndex: {
         intro: wordCount => `${wordCount.toLocaleString('en')} words with readings, meanings and example sentences. Browse the JLPT lists, or search for any word.`,

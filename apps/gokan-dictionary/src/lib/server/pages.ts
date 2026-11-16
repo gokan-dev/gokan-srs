@@ -7,14 +7,14 @@
 // rebuild them. Pure of I/O but what the source does: the source is chosen in dictionary.ts, the
 // asset hrefs added by the server hook, so this runs on fixtures in a test.
 
-import { headwordOf, JLPT_LEVELS, KANJI_ORDERS, kanjiStepIndex } from '@gokan/dataset-schema';
+import { headwordOf, JLPT_LEVELS, KANJI_ORDERS, kanjiStepIndex, orderPositions } from '@gokan/dataset-schema';
 import type { GrammarPoint, Kanji, KanjiOrder, KanjiOrderId, KanjiOrderList } from '@gokan/dataset-schema';
 import { buildChapterIndexRows, buildChapterLocatorIndex } from '../grammarChapters';
 import { conjugationTables } from '../grammarConjugations';
 import { buildFamilyPages } from '../grammarFamilies';
 import { grammarSummaryOf, groupByLevel, inTeachingOrder } from '../grammarBrowse';
 import { buildVariantSiblings } from '../grammarVariants';
-import { kanjiRanges, WORDS_PER_KANJI, type KanjiRange } from '../kanjiOrders';
+import { kanjiOrderStep, kanjiRanges, unlockedThrough, wordOrderStep, WORDS_PER_KANJI, type KanjiRange } from '../kanjiOrders';
 import { JLPT_PAGE_SIZE, paginate } from '../pagination';
 import { searchGrammarRow, searchKanjiRow, searchWordRow, splitSearchIndex } from '../searchIndex';
 import { datasetLanguageOf, DEFAULT_LOCALE, type ServedLocale } from '../locale';
@@ -143,13 +143,30 @@ function pagesInEnglishOnly(locale: ServedLocale) {
 /** The indexes an entity page reads, each built on first use and kept for the source. */
 function entityIndexesOf(source: EntityData) {
     const kanjiList = kept(async () => source.kanjiList());
+    const frequencyIndex = kept(async () => source.frequencyIndex());
+    const kanjiOrderLists = kept(async () => Promise.all(KANJI_ORDERS.map(async order => ({ order, list: await source.kanjiOrder(order.id) }))));
+    /** Each order with its kanji by step, KANJI_ORDERS order: where a word page and a kanji page find their step. */
+    const positionedOrders = kept(async () => (await kanjiOrderLists()).map(({ order, list }) => ({ order, list, positions: orderPositions(list) })));
     return {
         summaries: kept(async () => source.wordSummaries()),
         grammarSummaries: kept(async () => source.grammarSummaries()),
         kanjiList,
         kanjiByCharacter: kept(async (): Promise<ReadonlyMap<string, Kanji>> => new Map((await kanjiList()).map(kanji => [kanji.character, kanji]))),
         kanjiVocabIndex: kept(async () => source.kanjiVocabIndex()),
-        kanjiOrderLists: kept(async () => Promise.all(KANJI_ORDERS.map(async order => ({ order, list: await source.kanjiOrder(order.id) })))),
+        frequencyIndex,
+        kanjiOrderLists,
+        positionedOrders,
+        /**
+         * Each order's words by step (kanjiStepIndex: the rule the app's kanji-driven order follows),
+         * and how many words each step brings a learner to in all (unlockedThrough), by order id.
+         */
+        orderSteps: kept(async () => {
+            const frequency = await frequencyIndex();
+            return new Map((await kanjiOrderLists()).map(({ order, list }) => {
+                const unlocked = kanjiStepIndex(frequency, list);
+                return [order.id, { order, list, unlocked, through: unlockedThrough(unlocked, list.length) }];
+            }));
+        }),
         grammarIndexes: kept(async () => {
             const [teachingOrder, variantGroups, conjugationIndex] = await Promise.all([
                 source.grammarTeachingOrder(), source.grammarVariantGroups(), source.grammarConjugations(),
@@ -170,7 +187,7 @@ export type EntityPages = ReturnType<typeof entityPagesOf>;
  * every file: a page rendered on request reads its own entity's files and those indexes only.
  */
 export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes: EntityIndexes = entityIndexesOf(source)) {
-    const { summaries, grammarSummaries, kanjiByCharacter, kanjiVocabIndex, kanjiOrderLists, grammarIndexes } = indexes;
+    const { summaries, grammarSummaries, kanjiByCharacter, kanjiVocabIndex, positionedOrders, orderSteps, grammarIndexes } = indexes;
     const { urls, meta, documentOf } = writtenIn(locale);
 
     const text = localeTextOf(source, locale);
@@ -193,8 +210,8 @@ export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes:
         const summaryById = await summaries();
         if (!summaryById.has(id)) throw new PageNotFound(`no word ${id}`);
         const localized = await wordTextOf(id);
-        const [vocab, allSentences, translations, byCharacter] = await Promise.all([
-            source.vocab(id), source.sentencesFor(id), localized?.text.sentenceTranslations(id), localized ? kanjiByCharacter() : null,
+        const [vocab, allSentences, translations, byCharacter, orders] = await Promise.all([
+            source.vocab(id), source.sentencesFor(id), localized?.text.sentenceTranslations(id), localized ? kanjiByCharacter() : null, positionedOrders(),
         ]);
         const vocabMeta = meta.vocab(vocab, localized?.word);
         const sentences = orderSentences(allSentences ?? [], id, headwordOf(vocab));
@@ -208,6 +225,7 @@ export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes:
         return {
             props: {
                 vocab,
+                orderStep: wordOrderStep({ containedKanji: vocab.writtenForm.containedKanji, usuallyKana: vocab.usuallyKana }, orders),
                 components: await inLanguageOf(linkable(components), text),
                 parents: await inLanguageOf(linkable(parents), text),
                 sentences,
@@ -232,9 +250,12 @@ export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes:
     const englishOnly = pagesInEnglishOnly(locale);
 
     async function kanjiPage(character: string): Promise<Rendered<KanjiPageProps>> {
-        const [byCharacter, kanjiVocab, summaryById, orders] = await Promise.all([kanjiByCharacter(), kanjiVocabIndex(), summaries(), kanjiOrderLists()]);
+        const [byCharacter, kanjiVocab, summaryById, orders, steps] = await Promise.all([
+            kanjiByCharacter(), kanjiVocabIndex(), summaries(), positionedOrders(), orderSteps(),
+        ]);
         const kanji = byCharacter.get(character);
         if (kanji === undefined) throw new PageNotFound(`no kanji ${character}`);
+        const orderStep = kanjiOrderStep(kanji.character, orders);
         // Every word, most frequent first (the index's order); the page collapses all but the first.
         const words = resolveSummaries(kanjiVocab[kanji.character] ?? [], summaryById);
         return {
@@ -244,6 +265,7 @@ export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes:
                 kanjiWithPages: new Set(byCharacter.keys()),
                 // A kanji page links each book position to its range page, which needs the order's length.
                 orderLengths: new Map(orders.map(({ order, list: orderList }) => [order.id, orderList.length])),
+                orderStep: orderStep && { ...orderStep, unlocked: steps.get(orderStep.order.id)?.through[orderStep.step] ?? 0 },
             },
             document: documentOf(urls.kanjiPath(kanji.character), meta.kanji(kanji, words.length), { style: 'kanji' }),
         };
@@ -295,11 +317,10 @@ export function pagesOf(source: DictionaryData, locale: ServedLocale) {
     // -------------------------------------------------------------------------- shared indexes
 
     const indexes = entityIndexesOf(source);
-    const { summaries, kanjiList, kanjiOrderLists, grammarIndexes } = indexes;
+    const { summaries, kanjiList, frequencyIndex, orderSteps, grammarIndexes } = indexes;
     const entityPages = entityPagesOf(source, locale, indexes);
     const vocabIds = kept(async () => source.vocabIds());
     const knownVocabIds = kept(async (): Promise<ReadonlySet<string>> => new Set(await vocabIds()));
-    const frequencyIndex = kept(async () => source.frequencyIndex());
     const contrasts = kept(async () => source.grammarContrasts());
 
     /** Every point by id, loaded in full (766 small files): the list pages show what each says. */
@@ -329,10 +350,7 @@ export function pagesOf(source: DictionaryData, locale: ServedLocale) {
     });
 
     /** One order's ranges of steps, by kanjiStepIndex: the rule the app's kanji-driven order follows. */
-    const orderRanges = kept(async () => {
-        const frequency = await frequencyIndex();
-        return new Map((await kanjiOrderLists()).map(({ order, list }) => [order.id, { order, list, ranges: kanjiRanges(list, kanjiStepIndex(frequency, list)) }]));
-    });
+    const orderRanges = kept(async () => new Map([...(await orderSteps()).values()].map(({ order, list, unlocked }) => [order.id, { order, list, ranges: kanjiRanges(list, unlocked) }])));
 
     /** Every example sentence across the locale's words, for the home page's count. */
     const sentenceCount = kept(async () => {

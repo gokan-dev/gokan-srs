@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { kanjiOrder } from '@gokan/dataset-schema';
 import { vocabulary, wordText } from '../../test/fixtures';
 import { en } from './en';
 import { catalogStrings } from './index';
@@ -24,7 +25,7 @@ describe('zhHans', () => {
 
     it('writes no line break into its text, which would read as a space between two characters', () => {
         // English's footer keeps one, only so its pages stay byte-identical: a copy of it here broke a line after 。.
-        const links = { dataset: '/d/', srs: '/s/', vocab: '/v/', kanji: '/k/', grammar: '/g/', home: '/' };
+        const links = { dataset: '/d/', srs: { href: '/s/', placement: 'footer' as const }, vocab: '/v/', kanji: '/k/', grammar: '/g/', home: '/' };
         const linked = [zhHans.chrome.footer(links), zhHans.home.aboutText(links), zhHans.error.browse(links)]
             .flat().map(part => (typeof part === 'string' ? part : part.text));
         const broken = [...catalogStrings(zhHans), ...linked].filter(text => text.includes('\n'));
@@ -32,7 +33,7 @@ describe('zhHans', () => {
     });
 
     it('marks every link to an English page the same way', () => {
-        const links = { dataset: '/d/', srs: '/s/', vocab: '/v/', kanji: '/k/', grammar: '/g/', home: '/' };
+        const links = { dataset: '/d/', srs: { href: '/s/', placement: 'footer' as const }, vocab: '/v/', kanji: '/k/', grammar: '/g/', home: '/' };
         const marked = (parts: ReturnType<typeof zhHans.chrome.footer>) => parts.filter(part => typeof part === 'string' && part.startsWith(`（${zhHans.chrome.inEnglish}）`)).length;
         expect(marked(zhHans.chrome.footer(links))).toBe(2);
         expect(marked(zhHans.home.aboutText(links))).toBe(2);
@@ -47,5 +48,14 @@ describe('zhHans', () => {
     it('says which links lead to an English page', () => {
         const parts = zhHans.error.browse({ vocab: '/v/', kanji: '/k/', grammar: '/g/', home: '/' });
         expect(parts).toContainEqual({ text: '汉字（英文）', href: '/k/' });
+    });
+});
+
+describe('zhHans appPanel', () => {
+    it('marks an order\'s English name and the word, and says the app is in English', () => {
+        const copy = zhHans.appPanel.word('学生', { order: kanjiOrder('henshall'), step: 40 });
+        expect(copy.text).toContainEqual({ text: 'Henshall', lang: 'en' });
+        expect(copy.text).toContainEqual({ text: '学生', lang: 'ja' });
+        expect(copy.action.endsWith(`（${zhHans.chrome.inEnglish}）`)).toBe(true);
     });
 });

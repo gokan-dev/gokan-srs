@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { SITE_ORIGIN } from '../lib/site';
+  import { appUrl } from '../lib/appLinks';
   import LinkedText from './LinkedText.svelte';
   import { pageLocale } from './pageLocale';
 
@@ -8,6 +8,6 @@
 
 <footer class="site-footer">
   <div class="container container--wide">
-    <p><LinkedText parts={messages.chrome.footer({ dataset: 'https://github.com/gokan-dev/gokan-dataset', srs: SITE_ORIGIN + '/' })} /></p>
+    <p><LinkedText parts={messages.chrome.footer({ dataset: 'https://github.com/gokan-dev/gokan-dataset', srs: appUrl({ placement: 'footer' }) })} /></p>
   </div>
 </footer>

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { anyStepCapped, kanjiRanges, rangeOfStep } from './kanjiOrders';
+import { kanjiOrder, orderPositions } from '@gokan/dataset-schema';
+import { anyStepCapped, kanjiOrderStep, kanjiRanges, rangeOfStep, unlockedThrough, wordOrderStep } from './kanjiOrders';
 
 describe('rangeOfStep', () => {
     it('puts a step in its range of 100, the last range cut at the order end', () => {
@@ -39,5 +40,31 @@ describe('anyStepCapped', () => {
         expect(anyStepCapped([{ words: ['a'], total: 1 }, { words: ['b', 'c'], total: 7 }])).toBe(true);
         expect(anyStepCapped([{ words: ['a'], total: 1 }, { words: [], total: 0 }])).toBe(false);
         expect(anyStepCapped([])).toBe(false);
+    });
+});
+
+describe('wordOrderStep and kanjiOrderStep', () => {
+    const kklc = { order: kanjiOrder('kklc'), positions: orderPositions(['一', '日', '学', '生']) };
+    const rtk = { order: kanjiOrder('rtk'), positions: orderPositions(['海', '一', '日']) };
+    const orders = [kklc, rtk];
+
+    it('names the first order that teaches it, at the step of its last kanji', () => {
+        expect(wordOrderStep({ containedKanji: ['学', '生'] }, orders)).toEqual({ order: kklc.order, step: 4 });
+        expect(wordOrderStep({ containedKanji: ['海', '日'] }, orders)).toEqual({ order: rtk.order, step: 3 });
+        expect(kanjiOrderStep('学', orders)).toEqual({ order: kklc.order, step: 3 });
+        expect(kanjiOrderStep('海', orders)).toEqual({ order: rtk.order, step: 1 });
+    });
+
+    it('is none when no order unlocks it', () => {
+        expect(wordOrderStep({ containedKanji: [] }, orders)).toBeNull();
+        expect(wordOrderStep({ containedKanji: ['日'], usuallyKana: true }, orders)).toBeNull();
+        expect(wordOrderStep({ containedKanji: ['海', '学'] }, orders)).toBeNull();
+        expect(kanjiOrderStep('空', orders)).toBeNull();
+    });
+});
+
+describe('unlockedThrough', () => {
+    it('counts the words every step up to each one unlocks', () => {
+        expect(unlockedThrough({ 2: ['ichinichi', 'nichi'], 4: ['gakusei'] }, 5)).toEqual([0, 0, 2, 2, 3, 3]);
     });
 });

@@ -57,6 +57,7 @@ async function answers(source: EntityData, { words, kanjiOrders, minedFor }: { w
         summaries: [...(await source.wordSummaries())],
         kanji: await source.kanjiList(),
         kanjiVocab: await source.kanjiVocabIndex(),
+        frequency: await source.frequencyIndex(),
         kanjiOrders: await Promise.all(kanjiOrders.map(order => source.kanjiOrder(order))),
         mined: await Promise.all([...minedFor, 'n9-999'].map(id => source.grammarMinedExamples(id))),
     };

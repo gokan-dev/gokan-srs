@@ -2,7 +2,7 @@
 // words each step unlocks. Which words a step unlocks is never decided here: `kanjiStepIndex`
 // (@gokan/dataset-schema) is the rule the app's kanji-driven order follows too.
 
-import type { KanjiOrderList, KanjiStepIndex } from '@gokan/dataset-schema';
+import { unlockStep, type KanjiOrder, type KanjiOrderList, type KanjiStepIndex } from '@gokan/dataset-schema';
 
 /** Steps on one range page. */
 export const KANJI_RANGE_SIZE = 100;
@@ -58,4 +58,48 @@ export function kanjiRanges(order: KanjiOrderList, unlocked: KanjiStepIndex, siz
         ranges.push({ first, last, steps, wordCount: steps.reduce((sum, step) => sum + step.wordIds.length, 0) });
     }
     return ranges;
+}
+
+/** An order, with each of its kanji by step (`orderPositions`). */
+export interface PositionedOrder {
+    order: KanjiOrder;
+    positions: ReadonlyMap<string, number>;
+}
+
+/** Where a word or a kanji sits in an order: the step it comes in at. */
+export interface OrderStep {
+    order: KanjiOrder;
+    step: number;
+}
+
+/**
+ * The step a word comes in at (`unlockStep`), in the first of `orders` that teaches every kanji of
+ * it: given in KANJI_ORDERS order, KKLC (the app's default order) when it can, else the most
+ * followed order that can. None for a word no order unlocks (no kanji, learned in kana).
+ */
+export function wordOrderStep(word: { containedKanji: readonly string[]; usuallyKana?: boolean }, orders: readonly PositionedOrder[]): OrderStep | null {
+    for (const { order, positions } of orders) {
+        const step = unlockStep(word, positions);
+        if (step !== undefined) return { order, step };
+    }
+    return null;
+}
+
+/** A kanji's step in the first of `orders` that teaches it, as `wordOrderStep`; none when no order does. */
+export function kanjiOrderStep(character: string, orders: readonly PositionedOrder[]): OrderStep | null {
+    for (const { order, positions } of orders) {
+        const step = positions.get(character);
+        if (step !== undefined) return { order, step };
+    }
+    return null;
+}
+
+/**
+ * How many words a learner can read on reaching each step: entry N counts the words steps 1 to N
+ * unlock (entry 0 is none), so a kanji page says how many words knowing the order that far gives.
+ */
+export function unlockedThrough(unlocked: KanjiStepIndex, orderLength: number): number[] {
+    const totals = [0];
+    for (let step = 1; step <= orderLength; step++) totals.push(totals[step - 1] + (unlocked[step]?.length ?? 0));
+    return totals;
 }

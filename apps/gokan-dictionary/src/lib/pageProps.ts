@@ -9,7 +9,7 @@ import type { ChapterIndexRow, ChapterLocator } from './grammarChapters';
 import type { FamilyPageData } from './grammarFamilies';
 import type { LevelGroup } from './grammarBrowse';
 import type { VariantSibling } from './grammarVariants';
-import type { KanjiRange, StepRange } from './kanjiOrders';
+import type { KanjiRange, OrderStep, StepRange } from './kanjiOrders';
 import type { GrammarSummary, SentenceTranslation, VocabSummary, WordText } from './types';
 
 /** HomePage.svelte */
@@ -25,6 +25,8 @@ export interface HomePageProps {
 /** VocabPage.svelte */
 export interface VocabPageProps {
   vocab: Vocabulary;
+  /** The step of an order the word comes in at, for the app panel (wordOrderStep); none when no order unlocks it. */
+  orderStep: OrderStep | null;
   components: VocabSummary[];
   parents: VocabSummary[];
   /** Already ordered and capped (lib/sentenceOrder.ts). */
@@ -72,6 +74,11 @@ export interface KanjiPageProps {
   kanjiWithPages: ReadonlySet<string>;
   /** Each learning order's length: a book position links to its range page when the book is an order. */
   orderLengths: ReadonlyMap<KanjiOrderId, number>;
+  /**
+   * The kanji's step in an order (kanjiOrderStep), for the app panel, with how many words a learner
+   * can read on reaching it; none when no order teaches it.
+   */
+  orderStep: (OrderStep & { unlocked: number }) | null;
 }
 
 /** KanjiIndexPage.svelte */
