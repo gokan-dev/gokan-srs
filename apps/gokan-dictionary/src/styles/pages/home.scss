@@ -2,6 +2,8 @@
 
 @use '../tokens' as *;
 
+@include app-panel;
+
 .home-hero {
   padding: $space-3 0 $space-2;
 

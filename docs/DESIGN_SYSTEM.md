@@ -552,10 +552,11 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   the home page, a short section under the hero), on the surface with a divider border and a
   3px accent left edge, the accent marking the action. One sentence in body text, then one
   button-styled link (accent fill, `accent-contrast` text, 44px tall). Never a popup, a dismiss
-  button or a carousel.
+  button or a carousel. Its rules are the `app-panel` mixin (`_tokens.scss`), included by each
+  page sheet that shows it: in `app.scss` they took the shared stylesheet past its 10 KB budget.
 - **Shared between page sheets**: a rule two page types use goes in `app.scss`, unless that
   breaks its budget; then it is a mixin in `_tokens.scss` (`glyph-tiles`, `entry-gloss`,
-  `stacked-entries`) included by each page sheet, so the source stays one copy.
+  `stacked-entries`, `app-panel`) included by each page sheet, so the source stays one copy.
 - **Frame**: "Skip to content" is the first focusable element of every page. The header's
   inner container is the wide measure (960px) on every page, so it lines up with the entry
   pages. Wide screens: one row (logo, nav, search on the right). Phones (below 40rem): at

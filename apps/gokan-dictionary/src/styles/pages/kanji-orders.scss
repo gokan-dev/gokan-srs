@@ -3,6 +3,8 @@
 
 @use '../tokens' as *;
 
+@include app-panel;
+
 // An order's ranges: one row each, the steps, the first kanji, then the counts.
 .range-list {
   @include link-rows;

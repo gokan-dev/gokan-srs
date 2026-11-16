@@ -260,39 +260,6 @@ main {
   color: var(--secondary);
 }
 
-// The app panel (pages/AppPanel.svelte), once per page after its header: a quiet accent edge, as
-// the accent marks an action, and one button-styled link.
-.app-panel {
-  margin: $space-3 0;
-  padding: $space-2;
-  border: 1px solid var(--divider);
-  border-left: 3px solid var(--accent);
-  border-radius: $radius;
-  background-color: var(--surface);
-
-  p {
-    margin: 0 0 $space-2;
-    max-width: 36rem;
-  }
-}
-
-.app-panel-action {
-  display: inline-flex;
-  align-items: center;
-  min-height: $target;
-  padding: 0 $space-2;
-  border-radius: $radius;
-  background-color: var(--accent);
-  color: var(--accent-contrast);
-  font-weight: 600;
-
-  &:hover {
-    background-color: var(--accent-hover);
-    color: var(--accent-contrast);
-    text-decoration: none;
-  }
-}
-
 // -- Header and footer ------------------------------------------------------
 
 .site-header {
