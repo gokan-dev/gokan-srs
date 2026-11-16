@@ -20,6 +20,17 @@ describe('count', () => {
     });
 });
 
+describe('meta.home', () => {
+    // The learning orders are what no other dictionary lists: the home page leads with them, and
+    // still names itself a Japanese dictionary for the searches it already answers.
+    it('leads with the kanji learning orders and keeps "Japanese dictionary"', () => {
+        const { title, description } = en.meta.home();
+        expect(title).toMatch(/^Japanese Dictionary by the Kanji You Know: KKLC, RTK/);
+        expect(description).toContain('Japanese dictionary');
+        expect(description).toContain('KKLC, RTK');
+    });
+});
+
 describe('meta.vocab', () => {
     it('includes the written form, reading, and first gloss', () => {
         const { title, description } = en.meta.vocab(vocabulary());
