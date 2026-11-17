@@ -10,12 +10,17 @@ interface DetailSectionProps {
     className?: string;
     /** An anchor other pages link to (a word's `explore`). */
     id?: string;
+    /**
+     * The heading takes focus from script (`tabIndex={-1}`, out of the Tab order): a link that
+     * scrolls to the section moves keyboard focus with it, so the next Tab continues from there.
+     */
+    focusable?: boolean;
 }
 
 /** One section of a detail page: a heading and its content, not a card. */
-export function DetailSection({ title, count, aside, children, className = '', id }: DetailSectionProps) {
+export function DetailSection({ title, count, aside, children, className = '', id, focusable = false }: DetailSectionProps) {
     const heading = (
-        <h2 className={`type-section ${aside ? '' : 'mb-4'}`}>
+        <h2 className={`type-section ${aside ? '' : 'mb-4'}`} {...(focusable ? { tabIndex: -1 } : {})}>
             {title}
             {count !== undefined && <span className="type-meta ml-2 tabular-nums">{count.toLocaleString('en-US')}</span>}
         </h2>

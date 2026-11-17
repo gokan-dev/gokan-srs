@@ -173,6 +173,9 @@ function WordPage({ vocab, sentences, sentencesSettled, now, onLearn, knownKanji
         if (full) {
             setChosen(tab);
             scrollToSection(tab);
+            // A learner's choice moves keyboard focus with the scroll (a hash's landing does not):
+            // the section's heading, so the next Tab continues in it and its name is announced.
+            document.getElementById(sectionId(tab))?.querySelector<HTMLElement>('h2[tabindex]')?.focus({ preventScroll: true });
             return;
         }
         const row = rowRef.current;
@@ -314,7 +317,7 @@ function WordPage({ vocab, sentences, sentencesSettled, now, onLearn, knownKanji
         );
         return tab === 'dict' || tab === 'study'
             ? <div key={tab} id={sectionId(tab)} className="scroll-mt-6">{panel}</div>
-            : <DetailSection key={tab} id={sectionId(tab)} title={TAB_LABEL[tab]}>{panel}</DetailSection>;
+            : <DetailSection key={tab} id={sectionId(tab)} title={TAB_LABEL[tab]} focusable>{panel}</DetailSection>;
     };
     const [essentials, ...rest] = FULL_MAIN.filter(tab => has[tab]);
     const fullPage = {

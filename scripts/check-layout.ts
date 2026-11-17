@@ -30,7 +30,9 @@
  * - a `#synonyms` link followed inside the app opens a word page on its Synonyms tab;
  * - from 1024px a word page is one full page (issue 256): no tab row, every section in its column
  *   (and Your study once learned), 取る's page within FULL_PAGE_MAX_HEIGHT, a hash (loaded, or
- *   followed inside the app) landing on its section's heading just under the top; at 768px it is
+ *   followed inside the app) landing on its section's heading just under the top, Dict's "Compare
+ *   all N" moving focus into Synonyms, no sideways scroll and nothing overflowing the side column
+ *   (a studied word with mix-ups, 今回's hyphenated kun readings, at 1024px); at 768px it is
  *   still the tab page; crossing 1024px keeps the section in view as the open tab, and back;
  * - a word page's first screen, on a small phone (375x667 and 320x568), holds its headword,
  *   reading and its play button, summary gloss and status line;
@@ -334,6 +336,12 @@ const GRAMMAR_POINT = 'n5-001';
 
 /** A word learned in kana: its header's play button follows the kanji-spelling note, which wraps at 320px. */
 const KANA_WORD = '1000225';
+/**
+ * 今回: 回's kun readings (まわ(る)、-まわ(る)、-まわ(り)) start with a hyphen, before which a line
+ * may not break, so its Kanji readings ran past their column (the Kanji tab at 320px, the full
+ * page's side column at 1024px) until each 、 was followed by a break opportunity.
+ */
+const HYPHEN_KUN_WORD = '1289070';
 
 /** A word page's tabs (components/ui/TabNav.tsx, page tabs): a phone's main way around the page. */
 const PAGE_TABS = '[role="tab"]';
@@ -975,15 +983,50 @@ const FULL_PAGE_MAX_HEIGHT = 3200;
 /** How far under the viewport's top a hash lands its section's heading (`scroll-mt-6`, 24px). */
 const LANDING_MAX = 48;
 
-/** The open word page is one full page: no tab row, each section given present. */
+/**
+ * The open word page is one full page: no tab row, each section given present, and nothing wider
+ * than its place: the page does not scroll sideways, and no text or input in the side column (about
+ * 290px at 1024px) runs past its edge. Text inside a box that clips or scrolls on purpose (`truncate`, a
+ * scrolling row) is left out: its overflow is not a sideways scroll.
+ */
 async function checkFullPage(tab: Tab, page: string, width: number, sections: readonly string[]): Promise<void> {
-    const found = await tab.evaluate<{ tabs: boolean; missing: string[]; height: number }>(`(() => ({
-        tabs: document.querySelector('[data-detail-tabs], [role=tablist]') !== null,
-        missing: ${JSON.stringify(sections)}.filter(s => !document.getElementById('word-section-' + s)),
-        height: document.documentElement.scrollHeight,
-    }))()`);
+    const found = await tab.evaluate<{ tabs: boolean; missing: string[]; height: number; sideways: number; side: boolean; overflowing: string[] }>(`(() => {
+        const describe = el => el.tagName.toLowerCase() + ' "' + el.textContent.trim().slice(0, 30) + '"';
+        const column = document.querySelector('[data-detail-side]');
+        const right = column ? column.getBoundingClientRect().right : 0;
+        const clips = el => getComputedStyle(el).overflowX !== 'visible';
+        // Inside a box that clips or scrolls on purpose: what runs past it is hidden or scrolled, not overflow.
+        const clippedAbove = el => { for (let p = el; p && p !== column; p = p.parentElement) if (clips(p)) return true; return false; };
+        // What the learner reads or types in, not boxes: a list's rows bleed past the column on
+        // purpose (-mx-3, their hover background), which a box's scrollWidth would count.
+        const overflowing = [];
+        if (column) {
+            const walker = document.createTreeWalker(column, NodeFilter.SHOW_TEXT);
+            for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+                if (!node.textContent.trim() || clippedAbove(node.parentElement)) continue;
+                const range = document.createRange();
+                range.selectNodeContents(node);
+                if ([...range.getClientRects()].some(r => r.width > 0 && r.right > right + 1)) overflowing.push(node.parentElement);
+            }
+            for (const el of column.querySelectorAll('input, textarea, select')) {
+                const r = el.getBoundingClientRect();
+                if (r.width > 0 && r.right > right + 1 && !clippedAbove(el.parentElement)) overflowing.push(el);
+            }
+        }
+        return {
+            tabs: document.querySelector('[data-detail-tabs], [role=tablist]') !== null,
+            missing: ${JSON.stringify(sections)}.filter(s => !document.getElementById('word-section-' + s)),
+            height: document.documentElement.scrollHeight,
+            sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+            side: column !== null,
+            overflowing: overflowing.slice(0, 3).map(describe),
+        };
+    })()`);
     if (found.tabs) failures.push(`${width}px ${page}: a tab row on the full page`);
     for (const section of found.missing) failures.push(`${width}px ${page}: no ${section} section on the full page`);
+    if (found.sideways > 1) failures.push(`${width}px ${page}: the full page scrolls sideways by ${found.sideways}px`);
+    if (!found.side) failures.push(`${width}px ${page}: no side column ([data-detail-side]) on the full page`);
+    for (const el of found.overflowing) failures.push(`${width}px ${page}: ${el} overflows the side column`);
     if (page.includes(LONG_SYNONYMS_WORD) && found.height > FULL_PAGE_MAX_HEIGHT) {
         failures.push(`${width}px ${page}: the full page is ${found.height}px tall, over ${FULL_PAGE_MAX_HEIGHT}px: a long section is not capped to its preview`);
     }
@@ -1020,6 +1063,22 @@ async function checkFullPageHashes(tab: Tab, app: string, width: number): Promis
     const clicked = await tab.evaluate<boolean>(`(() => { const b = [...document.querySelectorAll('button')].find(el => /^All [\\d,]+ sentences/.test(el.textContent.trim())); b?.click(); return !!b; })()`);
     if (!clicked) failures.push(`${width}px srs /vocab/${LONG_SYNONYMS_WORD}: no "All N sentences" in Dict`);
     else await checkLanding(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, All N sentences`, width, 'sentence');
+}
+
+/**
+ * Dict's "Compare all N" on the full page moves keyboard focus with its scroll, to the Synonyms
+ * section's heading: with focus left on the link, the next Tab goes back into Dict.
+ */
+async function checkDictLinkFocus(tab: Tab, page: string, width: number): Promise<void> {
+    await tab.evaluate(`scrollTo(0, 0)`);
+    const clicked = await tab.evaluate<boolean>(`(() => { const b = [...document.querySelectorAll('button')].find(el => /^Compare all [\\d,]+/.test(el.textContent.trim())); b?.click(); return !!b; })()`);
+    if (!clicked) {
+        failures.push(`${width}px ${page}: no "Compare all N" in Dict`);
+        return;
+    }
+    await checkLanding(tab, `${page}, Compare all N`, width, 'synonym');
+    const focused = await tab.evaluate<string>(`(() => { const el = document.activeElement; return el && el.closest('#word-section-synonym') ? '' : (el ? el.tagName.toLowerCase() + ' "' + el.textContent.trim().slice(0, 30) + '"' : 'nothing'); })()`);
+    if (focused !== '') failures.push(`${width}px ${page}: "Compare all N" left keyboard focus on ${focused}, not in the Synonyms section`);
 }
 
 /**
@@ -1582,11 +1641,24 @@ try {
     await checkLongHeadwordIntro(chrome, `http://127.0.0.1:${srs.port}`, DESKTOP.width, DESKTOP.height);
     await desktop.goto(`http://127.0.0.1:${srs.port}/vocab/${FURIGANA_VOCAB}`, 'Examples');
     await checkLookupKeepsHover(desktop, `srs /vocab/${FURIGANA_VOCAB}`, DESKTOP.width);
+    // With mix-ups, so Your study's search shows in the side column at 1024px, its narrowest.
+    await desktop.evaluate<void>(SEED_MIXUPS);
     await desktop.goto(`http://127.0.0.1:${srs.port}/vocab/${MIXUP_WORD}`, 'Dict');
     if (await learnOpenWord(desktop, `srs /vocab/${MIXUP_WORD}`, DESKTOP.width)) {
         await checkHeaderStatus(desktop, `srs /vocab/${MIXUP_WORD}, studied`, DESKTOP.width);
         await checkFullPage(desktop, `srs /vocab/${MIXUP_WORD}, studied`, DESKTOP.width, [...FULL_PAGE_SECTIONS, 'study']);
+        await desktop.resize(FULL_PAGE_WIDTH, DESKTOP.height);
+        await desktop.until(`document.body.innerText.includes('Show all mix-ups')`, 'Your mix-ups on the full page');
+        await desktop.click('Show all mix-ups');
+        await checkFullPage(desktop, `srs /vocab/${MIXUP_WORD}, studied, every mix-up`, FULL_PAGE_WIDTH, [...FULL_PAGE_SECTIONS, 'study']);
+        await desktop.resize(DESKTOP.width, DESKTOP.height);
     }
+    await desktop.goto(`http://127.0.0.1:${srs.port}/vocab/${HYPHEN_KUN_WORD}`, 'Dict');
+    await desktop.resize(FULL_PAGE_WIDTH, DESKTOP.height);
+    await desktop.until(`document.querySelector('[data-sentences="settled"]') !== null && document.querySelector('[data-kanji-reading]') !== null`, "the sentences and the Kanji section's readings", 10000);
+    await checkFullPage(desktop, `srs /vocab/${HYPHEN_KUN_WORD}`, FULL_PAGE_WIDTH, FULL_PAGE_SECTIONS);
+    await checkKanjiReadingsUnbroken(desktop, `srs /vocab/${HYPHEN_KUN_WORD}, full page`, FULL_PAGE_WIDTH);
+    await desktop.resize(DESKTOP.width, DESKTOP.height);
     await desktop.goto(`http://127.0.0.1:${srs.port}/vocab/${LONG_SYNONYMS_WORD}`, 'Meanings');
     await desktop.until(`document.querySelector('[data-sentences="settled"]') !== null`, 'the sentences');
     await checkFullPage(desktop, `srs /vocab/${LONG_SYNONYMS_WORD}`, DESKTOP.width, FULL_PAGE_SECTIONS);
@@ -1594,6 +1666,7 @@ try {
     await checkFullPage(desktop, `srs /vocab/${LONG_SYNONYMS_WORD}`, FULL_PAGE_WIDTH, FULL_PAGE_SECTIONS);
     await desktop.resize(DESKTOP.width, DESKTOP.height);
     await checkFullPageHashes(desktop, `http://127.0.0.1:${srs.port}`, DESKTOP.width);
+    await checkDictLinkFocus(desktop, `srs /vocab/${LONG_SYNONYMS_WORD}`, DESKTOP.width);
     await checkCrossing(desktop, `http://127.0.0.1:${srs.port}`);
     await desktop.close();
     for (const { width, height } of SETUP_LINK_SCREENS) await checkSetupLinkCount(chrome, `http://127.0.0.1:${srs.port}`, width, height);
@@ -1665,6 +1738,12 @@ try {
         await openWordTab(tab, `srs /vocab/${FURIGANA_VOCAB}`, width, 'Kanji');
         await tab.until(`document.querySelector('[data-kanji-reading]') !== null`, "the Kanji tab's readings", 10000);
         await checkKanjiReadingsUnbroken(tab, `srs /vocab/${FURIGANA_VOCAB}, kanji tab`, width);
+        // 回's kun readings start with a hyphen: they wrap between readings, inside the screen.
+        await tab.goto(`${app}/vocab/${HYPHEN_KUN_WORD}`, 'Dict');
+        await openWordTab(tab, `srs /vocab/${HYPHEN_KUN_WORD}`, width, 'Kanji');
+        await tab.until(`document.querySelector('[data-kanji-reading]') !== null`, "the Kanji tab's readings", 10000);
+        await measure(tab, `srs /vocab/${HYPHEN_KUN_WORD}, kanji tab`, width);
+        await checkKanjiReadingsUnbroken(tab, `srs /vocab/${HYPHEN_KUN_WORD}, kanji tab`, width);
         await tab.goto(`${app}/grammar/${GRAMMAR_POINT}`, 'Example sentences');
         await measure(tab, `srs /grammar/${GRAMMAR_POINT}`, width, PLAY_BUTTONS);
         await checkSentencePlayButtons(tab, `srs /grammar/${GRAMMAR_POINT}`, width);

@@ -5,6 +5,8 @@
 >
 > It is not auto-loaded into agent context; read it on demand when you need the history behind a decision.
 
+- **[2026-11-17]**:
+  - **Word page full page: the landing hold watches the sections, not the page** (#256, PR #260). A hash's section is held at the top while content above it loads. The first hold observed `document.body`'s size, and `#related` settled 76px under the top: the side column is the shorter of the two, so the Kanji section's kanji arriving grew the side column and pushed Related down while the page's height (set by the main column) did not change, and nothing fired. `holdAtTop` (`VocabDetailScreen.tsx`) observes every `word-section-*` instead. Simplifying it back to the body, or to one column's element, brings the miss back silently on any word whose side column ends above its main column; `check:layout`'s `#related` landing on 取る is what catches it.
 - **[2026-11-11]**:
   - **Grammar exercises: what the choice card may offer, and what was measured on the way** (#236, #237, #238, tracked in #60).
     - **The audit behind it:** of the 741 introduced points, 40 were a bare conjugation drill, 145 blanked a fixed marker while the form it attaches to was already written (ないで asked for で), and 289 more had earlier siblings they were never weighed against. Only 170 had a blank that changed with the sentence.

@@ -229,7 +229,9 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
   related items, the details `Disclosure`), and below `lg` one column in reading order
   (`stacked` when it interleaves the two); or `tabs`: a sticky tab row (`TabNav` page tabs) and
   the panels under it, one column.
-- **Tabs on phones, one full page on desktop** (every detail page, both apps; issue 256). One
+- **Tabs on phones, one full page on desktop** (every tabbed detail page, issue 256: today the
+  SRS word page; the SRS kanji and grammar pages in #169. The static dictionary is not covered: it
+  has no tabbed page and no client runtime, so its detail pages are one page at every width). One
   switch width, **1024px** (Tailwind's `lg`, where the 8/4 grid starts; `useFullDetailPage`):
   below it tabs (tablets too), from it one full page with no tab row. `DetailBody` `tabs` takes the
   full page as one prop, `full` (`main`, `side`): the same panel components, in the same order,
@@ -238,7 +240,8 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
   essentials, the rest, a line between levels only, no cards), and every long section shows a
   short preview with its search and "Show N more" in place, so a learner sees every section and
   what is in it without scrolling indefinitely. A hash lands on its section, its heading just
-  under the viewport's top; crossing 1024px keeps the learner where they were (the open tab's
+  under the viewport's top; a link that scrolls to a section (a word's Dict links) moves keyboard
+  focus to its heading (`DetailSection` `focusable`), a hash landing does not; crossing 1024px keeps the learner where they were (the open tab's
   section in view, and back, the section in view as the open tab). The page is `wide` from
   `lg`, `narrow` below. The 12-column grid exists only in these two components
   (enforced, `detail-layout`).

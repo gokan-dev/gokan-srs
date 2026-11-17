@@ -58,7 +58,7 @@ function Grid({ main, side }: { main: ReactNode; side: ReactNode }) {
     return (
         <div className="grid grid-cols-12 gap-10 items-start">
             <div className="col-span-8 space-y-10 min-w-0">{main}</div>
-            <div className="col-span-4 space-y-10 min-w-0">{side}</div>
+            <div data-detail-side className="col-span-4 space-y-10 min-w-0">{side}</div>
         </div>
     );
 }
