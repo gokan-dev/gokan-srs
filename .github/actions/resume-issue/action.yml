@@ -97,14 +97,22 @@ runs:
 
         # 6. Progress bound: the branch head recorded at the last resume. No advance since => the
         #    agent is not making headway; stop and escalate rather than burn more runs.
+        #    A branch never pushed counts as `none`, the value step 7 records, so a run that keeps
+        #    failing before its first push (setup, auth, a usage limit on turn one) escalates on the
+        #    second resume instead of re-dispatching forever.
         last="$(marker_of resume)"
-        if [ -n "$head" ] && [ "$head" = "$last" ]; then
-          echo "#$ISSUE stalled: no new commits since the last resume (${head:0:10})."
+        if [ "${head:-none}" = "$last" ]; then
+          if [ -n "$head" ]; then
+            where="still at \`${head:0:10}\`"
+          else
+            where="the branch was never pushed"
+          fi
+          echo "#$ISSUE stalled: no progress since the last resume (${head:-branch never pushed})."
           gh label create needs-attention --repo "$REPO" --force --color D93F0B \
             --description "Development is stuck and needs a maintainer to look" >/dev/null
           gh issue edit "$ISSUE" --repo "$REPO" --add-label needs-attention
           { echo "<!-- gokan-notice -->"
-            echo "@$HUMAN \`$branch\` made no progress across a resume (still at \`${head:0:10}\`). Development is paused until someone looks: fix the blocker and remove \`needs-attention\`, or re-run implementation by hand."
+            echo "@$HUMAN \`$branch\` made no progress across a resume (${where}). Development is paused until someone looks: fix the blocker and remove \`needs-attention\`, or re-run implementation by hand."
           } | gh issue comment "$ISSUE" --repo "$REPO" --body-file -
           exit 0
         fi
