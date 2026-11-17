@@ -4,8 +4,8 @@ description: >
   act on it, so a crash, a turn limit or a usage limit never leaves development silently stopped.
   claude-implement-issue.yml already resumes from what it pushed (its deterministic branch, its
   push-before-any-code and its frequent commits); this action is the automatic re-invocation on top.
-  Shared by claude-resume.yml (reactive, on a finished implement run) and claude-sweep.yml
-  (scheduled), so the rule lives in one place.
+  Shared by claude-implement-issue.yml's last job (reactive, as its own run ends) and
+  claude-sweep.yml (scheduled), so the rule lives in one place.
 
   It does nothing when the issue is done (a non-draft PR exists: the review pipeline owns it),
   waiting on a human (needs-precision / needs-attention / pause-automation), or already being
@@ -24,6 +24,12 @@ inputs:
     description: "The maintainer to @mention when escalating. Empty is allowed."
     required: false
     default: ""
+  exclude-run:
+    description: >
+      The id of the implement run calling this from its own last job: still in progress while it
+      asks, so it is not "a run already working". Empty (the sweep) excludes nothing.
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -34,6 +40,7 @@ runs:
         ISSUE: ${{ inputs.issue }}
         REPO: ${{ github.repository }}
         HUMAN: ${{ inputs.human }}
+        EXCLUDE_RUN: ${{ inputs.exclude-run }}
       run: |
         set -euo pipefail
         branch="agent/issue-$ISSUE"
@@ -53,8 +60,11 @@ runs:
 
         # 3. Already working: a run in progress or queued for this issue. Leave it (idempotent
         #    re-entry: the sweeper may fire mid-run). Implement sets its run-name to carry "#N".
-        running="$(gh run list --repo "$REPO" --workflow claude-implement-issue.yml --json status,displayTitle \
-          --jq '.[] | select(.status != "completed") | .displayTitle' || true)"
+        #    The calling run itself (exclude-run) does not count: it is ending.
+        exclude="${EXCLUDE_RUN:-0}"
+        [[ "$exclude" =~ ^[0-9]+$ ]] || exclude=0
+        running="$(gh run list --repo "$REPO" --workflow claude-implement-issue.yml --limit 100 --json databaseId,status,displayTitle \
+          --jq ".[] | select(.status != \"completed\" and .databaseId != $exclude) | .displayTitle" || true)"
         if printf '%s\n' "$running" | grep -qE "#$ISSUE($|[^0-9])"; then
           echo "#$ISSUE already has a run in progress. Leaving it."; exit 0
         fi
