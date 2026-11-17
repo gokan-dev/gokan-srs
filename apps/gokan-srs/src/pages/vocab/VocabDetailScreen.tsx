@@ -65,6 +65,13 @@ const FULL_SYNONYM_GROUPS = 2;
 const FULL_RELATED_ROWS = 5;
 /** A scroll the page makes itself is not the learner's: the section it lands on stays the open one. */
 const OWN_SCROLL_MS = 300;
+/**
+ * How long a hash's section is held at the top while what is above it settles (the Kanji
+ * section's kanji load after the page, pushing Related down), unless the learner scrolls first.
+ */
+const HOLD_LANDING_MS = 1500;
+/** What the learner scrolls with, which ends the hold. */
+const LEARNER_SCROLLS = ['wheel', 'touchstart', 'keydown', 'pointerdown'] as const;
 
 /**
  * A word's page: a header holding what a learner looks the word up for (the word, its reading,
@@ -190,6 +197,7 @@ function WordPage({ vocab, sentences, sentencesSettled, now, onLearn, knownKanji
     const linked = wordTabOfHash(hash);
     const linkedShown = linked !== null && has[linked];
     const landedHash = useRef<string | null>(null);
+    const releaseHold = useRef(() => {});
     const wasFull = useRef(full);
     useLayoutEffect(() => {
         if (wasFull.current === full) return;
@@ -205,7 +213,11 @@ function WordPage({ vocab, sentences, sentencesSettled, now, onLearn, knownKanji
         if (!full || !sentencesSettled || !linkedShown || landedHash.current === hash) return;
         landedHash.current = hash;
         scrollToSection(linked);
+        // Content arriving above it would push it down: land again as the page's height changes.
+        releaseHold.current();
+        releaseHold.current = holdAtTop(() => scrollToSection(linked));
     });
+    useEffect(() => () => releaseHold.current(), []);
     useEffect(() => {
         if (!full) return;
         let frame = 0;
@@ -363,6 +375,27 @@ function TabPanel({ tab, vocab, sentences, wordSynonyms, mixups, studied, now, k
         case 'related': return <RelatedPanel vocab={vocab} {...(preview ? { pageSize: FULL_RELATED_ROWS } : {})} />;
         case 'study': return studied ? <StudyTab vocabId={vocab.id} progress={studied} now={now} mixups={mixups} /> : null;
     }
+}
+
+/**
+ * Keeps a landed section at the top for HOLD_LANDING_MS, landing it again whenever the page's
+ * height changes, until the learner scrolls. Returns its release.
+ */
+function holdAtTop(land: () => void): () => void {
+    const until = performance.now() + HOLD_LANDING_MS;
+    const observer = new ResizeObserver(() => {
+        if (performance.now() < until) land();
+        else release();
+    });
+    const timer = window.setTimeout(() => release(), HOLD_LANDING_MS);
+    function release() {
+        window.clearTimeout(timer);
+        observer.disconnect();
+        for (const event of LEARNER_SCROLLS) window.removeEventListener(event, release);
+    }
+    observer.observe(document.body);
+    for (const event of LEARNER_SCROLLS) window.addEventListener(event, release, { passive: true });
+    return release;
 }
 
 /**

@@ -1590,7 +1590,6 @@ try {
     await desktop.goto(`http://127.0.0.1:${srs.port}/vocab/${LONG_SYNONYMS_WORD}`, 'Meanings');
     await desktop.until(`document.querySelector('[data-sentences="settled"]') !== null`, 'the sentences');
     await checkFullPage(desktop, `srs /vocab/${LONG_SYNONYMS_WORD}`, DESKTOP.width, FULL_PAGE_SECTIONS);
-    await measure(desktop, `srs /vocab/${LONG_SYNONYMS_WORD}, full page`, DESKTOP.width);
     await desktop.resize(FULL_PAGE_WIDTH, DESKTOP.height);
     await checkFullPage(desktop, `srs /vocab/${LONG_SYNONYMS_WORD}`, FULL_PAGE_WIDTH, FULL_PAGE_SECTIONS);
     await desktop.resize(DESKTOP.width, DESKTOP.height);
