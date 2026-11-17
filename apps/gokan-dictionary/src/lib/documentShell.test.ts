@@ -34,6 +34,14 @@ describe('renderDocument', () => {
         expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
     });
 
+    it("sets a page script's class on <html> in the head, before the stylesheets and the body, and none without one", () => {
+        const html = renderDocument({ ...base, prePaintClass: 'tabbed' });
+        const at = html.indexOf("<script>document.documentElement.classList.add('tabbed')</script>");
+        expect(at).toBeGreaterThan(0);
+        expect(at).toBeLessThan(html.indexOf('<link rel="stylesheet"'));
+        expect(renderDocument(base)).not.toContain('classList');
+    });
+
     it('names the page language on <html>', () => {
         expect(renderDocument(base)).toContain('<html lang="en">');
         expect(renderDocument({ ...base, lang: 'zh-Hans' })).toContain('<html lang="zh-Hans">');
