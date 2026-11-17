@@ -4,6 +4,7 @@ import { SRSHistoryGraph, type SRSHistorySeries } from "../SRSHistoryGraph";
 import { ReviewTimeline, type ReviewHistorySource } from "../ReviewTimeline";
 import { addedLine } from "../../utils/learningStatus.utils";
 import { DetailSection } from "./DetailSection";
+import { directionGridColumns } from "./directionGrid";
 
 export interface ProgressDirection {
     key: string;
@@ -49,7 +50,7 @@ export function YourProgress({ directions, introductionAt, totalReviews, series,
     return (
         <DetailSection title="Your study" focusable={focusable} aside={<p className="type-meta">{addedLine(introductionAt, totalReviews)}</p>}>
             {/* One row at every width: below `sm` a column per direction, its status under the ring. */}
-            <ul className={`grid ${GRID_COLUMNS[Math.min(directions.length, 3) - 1]} gap-x-4 gap-y-4 sm:flex sm:flex-wrap sm:gap-x-8`}>
+            <ul className={`grid ${directionGridColumns(directions.length)} gap-x-4 gap-y-4 sm:flex sm:flex-wrap sm:gap-x-8`}>
                 {directions.map(direction => <li key={direction.key} className="min-w-0"><DirectionStatus direction={direction} underOnPhone={directions.length > 1} /></li>)}
             </ul>
             <Disclosure title="Learning curve and review history" className="mt-4">
@@ -61,6 +62,3 @@ export function YourProgress({ directions, introductionAt, totalReviews, series,
         </DetailSection>
     );
 }
-
-/** The phone grid's columns, by how many directions it holds (whole class names, for Tailwind). */
-const GRID_COLUMNS = ['grid-cols-1', 'grid-cols-2', 'grid-cols-3'] as const;
