@@ -179,7 +179,7 @@ function GrammarPage({ point, chapterLocation, mined, examplesSettled, hasVarian
                 return studied ? (
                     <YourProgress
                         focusable={preview}
-                        directions={[{ key: 'grammar', label: 'Mastery', strength: studied.entry.memoryStrength, variant: 'default', status: directionStatus(studied.entry, true, now, state.settings) }]}
+                        directions={[{ key: 'grammar', label: 'Mastery', strength: studied.entry.memoryStrength, variant: 'default', status: directionStatus(studied.entry, true, now, state.settings, true) }]}
                         introductionAt={studied.introductionAt}
                         totalReviews={studied.totalReviews}
                         series={[{ key: 'grammar', label: 'Mastery', entry: studied.entry, color: THEME.mastery.loop1 }]}

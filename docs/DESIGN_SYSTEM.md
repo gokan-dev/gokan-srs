@@ -330,7 +330,8 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
     "Dataset details" at its foot), Examples (`#examples`: the curated examples and the
     corpus's as one searchable list, curated first, 10 at a time, each marked "Curated example"
     or "From the corpus" on its romaji line), Related (`#related`: Similar grammar, Other
-    forms), Study (`#study`, a point in study: the compact Your study, one ring).
+    forms), Study (`#study`, a point in study: the compact Your study, one ring; a due point says its
+    stage in Study, the header says Due now, so the page says it once).
   - Full page: main Point (Formation, the short explanation with the full one in place, When
     to use: no examples, since Examples, the next section, opens with the same two, and its
     "Examples" heading would be the page's second), then under a `divider` line Examples, 5 at

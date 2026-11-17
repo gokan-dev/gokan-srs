@@ -55,7 +55,7 @@
  *   translation;
  * - a long headword's intro card (乗り換える, at 320px, 375px and 1280px) draws the headword on one
  *   line, inside the card, scaled down rather than wrapped (issue 239);
- * - a due word's page has no Review now;
+ * - a due word's page has no Review now; a due grammar point's page says Due now once (its header);
  * - a sentence word hovered with a mouse at 1280px keeps its hover as its lookup card opens (the
  *   card, growing as its word arrives, never covers it);
  * - a sentence word tapped on a phone opens its lookup card as a bottom sheet that fits the
@@ -539,22 +539,33 @@ async function checkStickyTabs(tab: Tab, page: string, width: number, next: stri
     else if (Math.abs(gap) > 2) failures.push(`${width}px ${page}: choosing ${next} with the tab row stuck leaves its panel's top ${Math.round(gap)}px from the row's bottom, not under it`);
 }
 
+/** Where a studied item's due date is stored, as compact and readable keys (progressCompaction's KEY_CODES). */
+interface DueTarget {
+    queue: readonly [string, string];
+    id: readonly [string, string];
+    direction: readonly [string, string];
+}
+const WORD_READING: DueTarget = { queue: ['q', 'learningQueue'], id: ['i', 'vocabId'], direction: ['r', 'reading'] };
+const GRAMMAR_ENTRY: DueTarget = { queue: ['gq', 'grammarQueue'], id: ['gi', 'grammarId'], direction: ['e', 'entry'] };
+
 /**
- * Makes a studied word's reading due an hour ago (the reading's due date, and its introduction,
- * readable or compact), so its page says Due now. Read on the next page load.
+ * Makes a studied item due an hour ago (a word's reading, a grammar point's entry: its due date,
+ * cached next review and introduction, readable or compact), so its page says Due now. Read on the
+ * next page load.
  */
-const makeReadingDue = (vocabId: string) => `(async () => {
+const makeDue = (target: DueTarget, id: string) => `(async () => {
     const key = 'GOKAN_SRS_PROGRESS';
     const done = request => new Promise((resolve, reject) => { request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
     const db = await done(indexedDB.open('gokan-srs'));
     const progress = JSON.parse(await done(db.transaction('progress').objectStore('progress').get(key)));
-    const queue = progress.q ?? progress.learningQueue;
-    const item = queue.find(entry => (entry.i ?? entry.vocabId) === ${JSON.stringify(vocabId)});
+    const queue = progress[${JSON.stringify(target.queue[0])}] ?? progress[${JSON.stringify(target.queue[1])}];
+    const item = queue.find(entry => (entry[${JSON.stringify(target.id[0])}] ?? entry[${JSON.stringify(target.id[1])}]) === ${JSON.stringify(id)});
     const hourAgo = Date.now() - 3600000;
     const asStored = value => typeof value === 'number' ? hourAgo : new Date(hourAgo).toISOString();
-    for (const [at, reading, due] of [['ia', 'r', 'dd'], ['introductionAt', 'reading', 'dueDate']]) {
+    for (const [at, next, direction, due] of [['ia', 'na', ${JSON.stringify(target.direction[0])}, 'dd'], ['introductionAt', 'nextReviewAt', ${JSON.stringify(target.direction[1])}, 'dueDate']]) {
         if (item[at] !== undefined) item[at] = asStored(item[at]);
-        if (item[reading]?.[due] !== undefined) item[reading][due] = asStored(item[reading][due]);
+        if (item[next] !== undefined && item[next] !== null) item[next] = asStored(item[next]);
+        if (item[direction]?.[due] !== undefined) item[direction][due] = asStored(item[direction][due]);
     }
     await done(db.transaction('progress', 'readwrite').objectStore('progress').put(JSON.stringify(progress), key));
     db.close();
@@ -572,7 +583,7 @@ async function checkNoReviewNow(tab: Tab, app: string, width: number, vocabId: s
     const page = `srs /vocab/${vocabId}, due`;
     await tab.goto(`${app}/vocab`, 'Vocabulary');
     await new Promise(resolve => setTimeout(resolve, 1000));
-    await tab.evaluate<void>(makeReadingDue(vocabId));
+    await tab.evaluate<void>(makeDue(WORD_READING, vocabId));
     await tab.goto(`${app}/vocab/${vocabId}`, 'Dict');
     try {
         await tab.until(DUE_SHOWN, "the word's status saying Due now", 10000);
@@ -581,6 +592,42 @@ async function checkNoReviewNow(tab: Tab, app: string, width: number, vocabId: s
         return;
     }
     if (await tab.evaluate<boolean>(REVIEW_NOW_SHOWN)) failures.push(`${width}px ${page}: the page shows Review now`);
+}
+
+const DUE_NOW_COUNT = `(document.body.innerText.match(/Due now/g) ?? []).length`;
+
+/**
+ * A due grammar point's page says Due now once, in its header's status line: its Your study (the
+ * compact one, shared with a word's) says the stage of a due direction instead (DESIGN_SYSTEM
+ * section 5). Learned here through "Learn this grammar point", then made due; on a phone its Study
+ * tab is opened, on the full page Study is in the side column. Run last on a viewport's tab: the
+ * point stays studied.
+ */
+async function checkGrammarDueOnce(tab: Tab, app: string, width: number): Promise<void> {
+    const page = `srs /grammar/${GRAMMAR_POINT}, due`;
+    await tab.goto(`${app}/grammar/${GRAMMAR_POINT}`, 'Formation');
+    if (await tab.evaluate<boolean>(`[...document.querySelectorAll('button')].some(el => el.textContent.trim() === 'Learn this grammar point')`)) {
+        await tab.click('Learn this grammar point');
+        try {
+            await tab.until(`!document.body.innerText.includes('Not in your study yet')`, 'the grammar point in study', 5000);
+        } catch {
+            failures.push(`${width}px ${page}: "Learn this grammar point" did not put the point in study`);
+            return;
+        }
+    }
+    await tab.goto(`${app}/vocab`, 'Vocabulary');
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    await tab.evaluate<void>(makeDue(GRAMMAR_ENTRY, GRAMMAR_POINT));
+    await tab.goto(`${app}/grammar/${GRAMMAR_POINT}`, 'Formation');
+    if (width < FULL_PAGE_WIDTH && !(await openWordTab(tab, page, width, 'Study'))) return;
+    try {
+        await tab.until(`[...document.querySelectorAll('h2, h3')].some(el => el.textContent.trim() === 'Your study') && document.body.innerText.includes('Due now')`, 'Your study on a due grammar point', 10000);
+    } catch {
+        failures.push(`${width}px ${page}: no Your study saying the point is due, with the point made due`);
+        return;
+    }
+    const said = await tab.evaluate<number>(DUE_NOW_COUNT);
+    if (said !== 1) failures.push(`${width}px ${page}: the page says "Due now" ${said} times; the header's status line is the only place that says it (Your study says the stage)`);
 }
 
 const PACING_SLIDER = `[...document.querySelectorAll('input[type=range]')].find(el => (el.getAttribute('aria-valuetext') ?? '').startsWith('Intervals'))`;
@@ -1209,6 +1256,9 @@ async function checkDetailFullPages(tab: Tab, app: string): Promise<void> {
     await checkLanding(tab, 'srs /kanji/一#words', DESKTOP.width, 'words', KANJI_PAGE);
     await tab.goto(`${app}/grammar/${GRAMMAR_POINT}#examples`, 'Formation');
     await checkLanding(tab, `srs /grammar/${GRAMMAR_POINT}#examples`, DESKTOP.width, 'examples', GRAMMAR_PAGE);
+    await tab.resize(FULL_PAGE_WIDTH, DESKTOP.height);
+    await checkGrammarDueOnce(tab, app, FULL_PAGE_WIDTH);
+    await tab.resize(DESKTOP.width, DESKTOP.height);
 }
 
 /**
@@ -1926,6 +1976,7 @@ try {
         await measure(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, related tab`, width);
         await checkSynonymsLink(tab, app, width);
         await checkDetailTabPages(tab, app, width);
+        await checkGrammarDueOnce(tab, app, width);
         // The removed Mix-ups page's path lands on Vocabulary.
         await tab.goto(`${app}/vocab/mixups`, 'Vocabulary');
         await tab.until(`location.pathname.endsWith('/vocab')`, '/vocab/mixups redirecting to /vocab');
@@ -1978,4 +2029,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, a kanji's course steps 44px linked or not, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, the kanji and grammar pages tabbed on a phone and one capped full page from 1024px, furigana over kanji, on one line and apart, Japanese in list rows and word readings unbroken, a word list's gloss in its column (1280px) or on its own line across the row (phones, a word page's aside), a section's source credit set off from what comes before it, the language switcher small and neutral, the app panel's action on one line with a four-digit step, its Japanese words unbroken where they fit and wrapped inside it where they do not, 40px above what follows it on every page type (and under Meanings on a word page) and on the home page 16px under its heading, a kanji's linked course steps underlined, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, setup opened from a dictionary link with its order and count on a 568 or 667px phone's screen, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button undimmed, its sentence centred on its translation with its button right after it (and at 1280px on the headword), a word learned in kana's intro, a long headword's intro on one line inside its card, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, a kanji's course steps 44px linked or not, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, the kanji and grammar pages tabbed on a phone and one capped full page from 1024px, furigana over kanji, on one line and apart, Japanese in list rows and word readings unbroken, a word list's gloss in its column (1280px) or on its own line across the row (phones, a word page's aside), a section's source credit set off from what comes before it, the language switcher small and neutral, the app panel's action on one line with a four-digit step, its Japanese words unbroken where they fit and wrapped inside it where they do not, 40px above what follows it on every page type (and under Meanings on a word page) and on the home page 16px under its heading, a kanji's linked course steps underlined, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, setup opened from a dictionary link with its order and count on a 568 or 667px phone's screen, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button undimmed, its sentence centred on its translation with its button right after it (and at 1280px on the headword), a word learned in kana's intro, a long headword's intro on one line inside its card, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a due grammar point saying Due now once, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);
