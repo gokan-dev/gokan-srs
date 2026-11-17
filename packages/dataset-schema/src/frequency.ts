@@ -1,3 +1,5 @@
+import type { Vocabulary } from './vocabulary';
+
 /** The rank the dataset gives a word outside its frequency list (`frequency.kanjiRank`, `kanaRank`). */
 export const UNRANKED = 999_999;
 
@@ -53,13 +55,29 @@ const SCALES: Record<FrequencyScale, Scale> = {
 export function frequencyBand(rank: number | null | undefined, scale: FrequencyScale = 'words'): FrequencyBand {
     const ranked = rank !== null && rank !== undefined && rank > 0 && rank !== UNRANKED;
     if (!ranked) return { name: 'Rare', bars: 1, reference: 'Not in the frequency list', ranked: false };
-    const { bands, tops } = SCALES[scale];
+    const { bands } = SCALES[scale];
     const index = bands.findIndex(band => rank <= band.upTo);
-    const top = tops.find(n => rank <= n);
+    const top = frequencyTop(rank, scale);
     return {
         name: index === -1 ? 'Rare' : bands[index].name,
         bars: index === -1 ? 1 : FREQUENCY_BARS - index,
-        reference: top === undefined ? `Beyond the top ${tops[tops.length - 1].toLocaleString('en-US')}` : `Top ${top.toLocaleString('en-US')} ${scale}`,
+        reference: top.beyond ? `Beyond the top ${top.top.toLocaleString('en-US')}` : `Top ${top.top.toLocaleString('en-US')} ${scale}`,
         ranked: true,
     };
+}
+
+/**
+ * The round top list a ranked word sits within (264: the top 300), or, past the last, that last
+ * one (`beyond`): the numbers of `FrequencyBand.reference`, for a page that says it in another
+ * language.
+ */
+export function frequencyTop(rank: number, scale: FrequencyScale = 'words'): { top: number; beyond: boolean } {
+    const { tops } = SCALES[scale];
+    const top = tops.find(n => rank <= n);
+    return top === undefined ? { top: tops[tops.length - 1], beyond: true } : { top, beyond: false };
+}
+
+/** The rank a word is met at: a word learned in kana at its kana spelling's, else its kanji spelling's. */
+export function wordFrequencyRank(vocab: Pick<Vocabulary, 'frequency' | 'usuallyKana'>): number {
+    return vocab.usuallyKana ? vocab.frequency.kanaRank ?? vocab.frequency.kanjiRank : vocab.frequency.kanjiRank;
 }
