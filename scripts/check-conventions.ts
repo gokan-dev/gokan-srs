@@ -762,8 +762,9 @@ function check(files: string[]): Violation[] {
             eachLine(text, l => /\bgrid-cols-12\b/.test(l), line =>
                 add({ file, line, rule: 'detail-layout', message: 'The 12-column detail grid lives in DetailHeader and DetailBody (components/detail/); use them.' }));
         }
-        if (DETAIL_SCREEN.test(file) && !(text.includes('<DetailHeader') && text.includes('<DetailBody'))) {
-            add({ file, rule: 'detail-layout', message: 'A detail page is DetailHeader then DetailBody (components/detail/), like the vocab, kanji and grammar pages.' });
+        // DetailTabsBody is DetailBody's tabs, with the tab state's panels and sections.
+        if (DETAIL_SCREEN.test(file) && !(text.includes('<DetailHeader') && /<DetailBody\b|<DetailTabsBody\b/.test(text))) {
+            add({ file, rule: 'detail-layout', message: 'A detail page is DetailHeader then DetailBody or DetailTabsBody (components/detail/), like the vocab, kanji and grammar pages.' });
         }
 
         if (APP_SOURCE.test(file)) {
