@@ -326,6 +326,25 @@ function dispatchedWorkflowRunViolations(): Violation[] {
     return violations;
 }
 
+/**
+ * One switch width for every detail page in both apps: the dictionary's `$bp-detail` equals the
+ * app's `lg` (`--breakpoint-lg`, where its word page turns from tabs into the full page), so a
+ * page cannot be tabs in one app and whole in the other at the same width.
+ */
+const DETAIL_BREAKPOINT_FILES = { dictionary: 'apps/gokan-dictionary/src/styles/_tokens.scss', srs: 'apps/gokan-srs/src/index.css' };
+
+function detailBreakpointViolations(dictionaryTokens: string | null, srsCss: string | null): Violation[] {
+    const dictionary = dictionaryTokens && /^\$bp-detail:\s*([\d.]+rem);/m.exec(dictionaryTokens)?.[1];
+    const srs = srsCss && /^\s*--breakpoint-lg:\s*([\d.]+rem);/m.exec(srsCss)?.[1];
+    if (!dictionary) return [{ file: DETAIL_BREAKPOINT_FILES.dictionary, rule: 'detail-breakpoint', message: 'Declares no `$bp-detail: <n>rem;`, the detail pages\' switch width.' }];
+    if (!srs) return [{ file: DETAIL_BREAKPOINT_FILES.srs, rule: 'detail-breakpoint', message: 'Declares no `--breakpoint-lg: <n>rem;` in its @theme, the word page\'s switch width.' }];
+    return dictionary === srs ? [] : [{
+        file: DETAIL_BREAKPOINT_FILES.dictionary,
+        rule: 'detail-breakpoint',
+        message: `\`$bp-detail\` is ${dictionary}, gokan-srs's \`lg\` ${srs}: a detail page switches from tabs to the full page at one width in both apps.`,
+    }];
+}
+
 /** A workflow's jobs, each with its text and the line its header is on. */
 function workflowJobs(text: string): { name: string; line: number; text: string }[] {
     const start = text.search(/^jobs:\s*$/m);
@@ -836,6 +855,9 @@ function check(files: string[]): Violation[] {
     }
     if (files.some(f => GITHUB_DIR_FILE.test(f))) {
         for (const v of dispatchedWorkflowRunViolations()) add(v);
+    }
+    if (files.some(f => f === DETAIL_BREAKPOINT_FILES.dictionary || f === DETAIL_BREAKPOINT_FILES.srs)) {
+        for (const v of detailBreakpointViolations(read(DETAIL_BREAKPOINT_FILES.dictionary), read(DETAIL_BREAKPOINT_FILES.srs))) add(v);
     }
 
     return violations;
