@@ -33,9 +33,12 @@ interface KanjiKnowledgeEditorProps {
     /** What setup shows between the count and the collapsed grid (the vocabulary order, Start learning). */
     beforeGrid?: ReactNode;
     /**
-     * Setup opened from a link with a count: once the order's list is in, scroll the count into
-     * view (it sits under the method cards, below a phone's first screen, and further down for an
-     * order behind "More methods"). Not focused: a phone would open its keyboard over it.
+     * Setup opened from a link with a count: once the order's list is in, scroll the linked order
+     * and its count into view (the count sits under the method cards, below a phone's first
+     * screen, and further down for an order behind "More methods"). `nearest` brings the count's
+     * bottom to the screen's bottom, so the checked card above it stays on screen whenever the two
+     * fit on one; where they do not (672px from KKLC's card to the count at 320px, on a 568px
+     * screen), the count's label names the order. Not focused: a phone would open its keyboard.
      */
     revealCount?: boolean;
 }
@@ -133,7 +136,11 @@ export function KanjiKnowledgeEditor({
                 <KanjiKnowledgeGrid
                     allKanji={state.allKanji}
                     method={state.kanjiMethod}
-                    toolbar={<KanjiCountStepper step={countStep} onStepChange={onCountStepChange} />}
+                    toolbar={
+                        <div ref={countRef} className="scroll-mb-6">
+                            <KanjiCountStepper step={countStep} onStepChange={onCountStepChange} />
+                        </div>
+                    }
                     followCount
                 />
             )}

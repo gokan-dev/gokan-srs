@@ -1020,7 +1020,10 @@ async function checkSetupReach(tab: Tab, width: number, height: number): Promise
  * in view (initialOnboardingStep, issue 243): the count sits under the method cards, below every
  * phone's first screen, and some 1,500px down for an order behind "More methods", so setup scrolls
  * it into view once the order's list is in. Each link in a fresh learner's own storage, on the
- * smallest phones the count must fit.
+ * smallest phones the count must fit. The linked order's checked card must be on screen too
+ * whenever it fits on one screen with the count (its margin under it included); where it does
+ * not (672px from KKLC's card to the count at 320px, on a 568px screen), the count's label
+ * ("Count in Henshall order") is what names the order, and that label is asserted.
  */
 const SETUP_LINKS: { order: KanjiOrderId; known: number }[] = [{ order: 'kklc', known: 103 }, { order: 'henshall', known: 500 }];
 const SETUP_LINK_SCREENS = [{ width: 320, height: 568 }, { width: 375, height: 667 }];
@@ -1033,16 +1036,23 @@ async function checkSetupLinkCount(chrome: Chrome, app: string, width: number, h
         await tab.until(`document.querySelector('#kanji-count')?.value === ${JSON.stringify(String(known))}`, `the linked count ${known} in setup's count field`, 10000);
         // The scroll runs in the effect after the list's render: let it land.
         await tab.evaluate<void>(`new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
-        const stepper = await tab.evaluate<{ top: number; bottom: number; label: string } | null>(`(() => {
+        const stepper = await tab.evaluate<{ top: number; bottom: number; margin: number; label: string; card: { top: number; bottom: number } | null } | null>(`(() => {
             const section = document.querySelector('#kanji-count')?.closest('section');
             if (!section) return null;
             const r = section.getBoundingClientRect();
-            return { top: r.top, bottom: r.bottom, label: section.querySelector('label')?.textContent.trim() ?? '' };
+            const margin = section.parentElement ? Number.parseFloat(getComputedStyle(section.parentElement).scrollMarginBottom) || 0 : 0;
+            const checked = document.querySelector('button[aria-pressed="true"]');
+            const c = checked?.getBoundingClientRect();
+            return { top: r.top, bottom: r.bottom, margin, label: section.querySelector('label')?.textContent.trim() ?? '', card: c ? { top: c.top, bottom: c.bottom } : null };
         })()`);
         if (stepper === null) failures.push(`${page}: no count stepper on the setup screen`);
         else {
             if (stepper.label !== label) failures.push(`${page}: the count stepper reads "${stepper.label}", not the linked order's "${label}"`);
             if (stepper.top < -0.5 || stepper.bottom > height + 0.5) failures.push(`${page}: the count stepper spans ${Math.round(stepper.top)}px to ${Math.round(stepper.bottom)}px, not inside the ${height}px screen (scroll it into view when a link carries a count)`);
+            if (stepper.card === null) failures.push(`${page}: no checked order card on the setup screen`);
+            else if (stepper.bottom + stepper.margin - stepper.card.top <= height + 0.5 && (stepper.card.top < -0.5 || stepper.card.bottom > height + 0.5)) {
+                failures.push(`${page}: the checked ${kanjiOrder(order).label} card spans ${Math.round(stepper.card.top)}px to ${Math.round(stepper.card.bottom)}px, off the ${height}px screen though it fits on one with the count`);
+            }
         }
         await tab.close();
     }
