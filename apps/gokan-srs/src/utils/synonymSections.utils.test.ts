@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { pairCloseness } from '@gokan/dataset-schema';
 import type { Sense, Vocabulary } from '@gokan/dataset-schema';
 import { closenessOf, listedSynonymsOf } from '../services/exercise/wordRelation';
 import type { ListedSynonym } from '../services/exercise/wordRelation';
@@ -168,5 +169,18 @@ describe('the Synonyms panel and Closest synonyms, on the compiled dataset', () 
 
     it("lists 小さい on 狭い's card under its first sense", () => {
         expect(find('1237680', '1347750')?.section.sense).toBe(0);
+    });
+});
+
+describe("the dictionary's labels agree with grading", () => {
+    it('gives every kind of pair the label closenessOf gives it, in a sense it shares and one it does not', () => {
+        for (const tier of ['interchangeable', 'confusable'] as const) {
+            for (const curated of [false, true]) {
+                for (const shared of [['shine'], [], ['beam']]) {
+                    const word = listed('pair', { tier, curated, shared });
+                    expect(pairCloseness(word, ['to shine']), `${tier} curated=${curated} shared=${shared.join()}`).toBe(closenessOf(word.pair, ['to shine']));
+                }
+            }
+        }
     });
 });
