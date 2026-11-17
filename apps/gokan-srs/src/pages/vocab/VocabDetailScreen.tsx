@@ -6,7 +6,7 @@ import { useQuiz } from "../../context/useQuiz";
 import { VocabularyService } from "../../services/vocabulary.service";
 import { LoadingScreen } from "../../components/LoadingScreen";
 import { JlptChip } from "../../components/JlptChip";
-import { FrequencyMeter } from "../../components/FrequencyMeter";
+import { HowCommon } from "../../components/FrequencyMeter";
 import { vocabNextReviewAt } from "../../services/scheduling";
 import { WordReading } from "../../components/WordReading";
 import { Page } from "../../components/Page";
@@ -218,15 +218,10 @@ function TabPanel({ tab, vocab, sentences, wordSynonyms, mixups, studied, now, k
 function HeaderChips({ vocab }: { vocab: Vocabulary }) {
     // A word learned in kana is met at its kana spelling's rank.
     const rank = vocab.usuallyKana ? vocab.frequency.kanaRank ?? vocab.frequency.kanjiRank : vocab.frequency.kanjiRank;
-    const band = frequencyBand(rank);
-    const title = band.ranked ? `${band.reference}, rank ${rank.toLocaleString('en-US')}` : band.reference;
     return (
         <>
             {vocab.jlptLevel && <JlptChip level={vocab.jlptLevel} />}
-            <span className="inline-flex items-center gap-2 type-support" title={title}>
-                <FrequencyMeter band={band} />
-                {band.name}
-            </span>
+            <HowCommon band={frequencyBand(rank)} rank={rank} />
         </>
     );
 }

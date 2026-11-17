@@ -16,3 +16,17 @@ export function FrequencyMeter({ band }: { band: FrequencyBand }) {
         </span>
     );
 }
+
+/**
+ * How common it is on one line: the meter and the band's name, the round reference ("Top 300
+ * words", "Top 500 kanji") and the exact rank in its title.
+ */
+export function HowCommon({ band, rank }: { band: FrequencyBand; rank: number | null | undefined }) {
+    const title = band.ranked && rank ? `${band.reference}, rank ${rank.toLocaleString('en-US')}` : band.reference;
+    return (
+        <span className="inline-flex items-center gap-2 type-support" title={title}>
+            <FrequencyMeter band={band} />
+            {band.name}
+        </span>
+    );
+}
