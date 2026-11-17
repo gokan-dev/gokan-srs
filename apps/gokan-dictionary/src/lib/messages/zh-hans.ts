@@ -103,11 +103,11 @@ export const zhHans: Messages = {
     // other panel on its action (AFTER_LINK). An order's name is English's (Maniette's French), marked.
     appPanel: {
         word: (word, { order, step }) => ({
-            text: ['学完 ', { text: order.searchName, lang: orderNameLang(order) }, ` 的第 ${step} 步，就能读 `, { text: word, lang: 'ja' }, `。Gokan（${ENGLISH_PAGES}）按你认识的汉字的顺序教词汇。`],
+            text: ['学完 ', { text: order.searchName, lang: orderNameLang(order) }, ` 的第 ${step} 步，就能读`, { text: word, lang: 'ja' }, `。Gokan（${ENGLISH_PAGES}）按你认识的汉字的顺序教词汇。`],
             action: `从第 ${step} 步之后开始`,
         }),
         kanji: (character, { order, step }, unlocked) => ({
-            text: [{ text: character, lang: 'ja' }, ' 是 ', { text: order.searchName, lang: orderNameLang(order) }, ` 的第 ${step} 步。已经学到这里了？Gokan（${ENGLISH_PAGES}）会从这些汉字能读的 ${count(unlocked, 'word')}开始。`],
+            text: [{ text: character, lang: 'ja' }, '是 ', { text: order.searchName, lang: orderNameLang(order) }, ` 的第 ${step} 步。已经学到这里了？Gokan（${ENGLISH_PAGES}）会从这些汉字能读的 ${count(unlocked, 'word')}开始。`],
             action: `从第 ${step} 步之后开始`,
         }),
         range: ({ order, step }) => ({
