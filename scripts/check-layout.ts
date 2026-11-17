@@ -1756,7 +1756,7 @@ async function checkDictionaryWordTabs(tab: Tab, base: string, width: number): P
     const page = `dictionary /vocab/${TABBED_WORD}/`;
     for (const section of WORD_SECTIONS) {
         // A query of its own each time, so the hash is a fresh page's, as a link from elsewhere lands.
-        await tab.goto(`${base}/vocab/${TABBED_WORD}/?landing=${section}${section === 'dict' ? '' : `#${section}`}`, 'Meanings');
+        await tab.goto(`${base}/vocab/${TABBED_WORD}/?landing=${section}${section === 'dict' ? '' : `#${section}`}`, 'How common');
         await tab.until(`document.querySelector('[data-detail-panels][data-tabs-ready]') !== null`, `the tabs script on ${page}`);
         const layout = await tab.evaluate<WordLayout>(WORD_LAYOUT);
         if (!layout.row || layout.role !== 'tablist') failures.push(`${width}px ${page}#${section}: no tab row shown as a tablist below 1024px`);
