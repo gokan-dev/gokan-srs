@@ -110,8 +110,8 @@ export const zhHans: Messages = {
             text: [{ text: character, lang: 'ja' }, ' 是 ', { text: order.searchName, lang: orderNameLang(order) }, ` 的第 ${step} 步。已经学到这里了？Gokan（${ENGLISH_PAGES}）会从这些汉字能读的 ${count(unlocked, 'word')}开始。`],
             action: `从第 ${step} 步之后开始`,
         }),
-        range: ({ order, step }, unlocked) => ({
-            text: ['已经学到 ', { text: order.searchName, lang: orderNameLang(order) }, ` 的第 ${step} 步了？Gokan（${ENGLISH_PAGES}）会从这些汉字能读的 ${count(unlocked, 'word')}开始。`],
+        range: ({ order, step }) => ({
+            text: ['已经学到 ', { text: order.searchName, lang: orderNameLang(order) }, ` 的第 ${step} 步了？Gokan（${ENGLISH_PAGES}）会从这些汉字能读的词开始。`],
             action: `从第 ${step} 步之后开始`,
         }),
         order: order => ({

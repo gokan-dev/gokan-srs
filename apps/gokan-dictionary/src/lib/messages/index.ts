@@ -111,8 +111,11 @@ export interface Messages {
     appPanel: {
         word: (word: string, at: OrderStep) => PanelCopy;
         kanji: (character: string, at: OrderStep, unlocked: number) => PanelCopy;
-        /** A range page: knowing the order up to the range's last step, and the words steps 1 to it unlock in all. */
-        range: (through: OrderStep, unlocked: number) => PanelCopy;
+        /**
+         * A range page: knowing the order up to the range's last step. No word count: the page's
+         * intro has just given it.
+         */
+        range: (through: OrderStep) => PanelCopy;
         order: (order: KanjiOrder) => PanelCopy;
         grammar: PanelCopy;
         home: PanelCopy;

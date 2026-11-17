@@ -65,8 +65,9 @@ describe('zhHans appPanel', () => {
         expect(zhHans.appPanel.order(kanjiOrder('maniette')).text).toContainEqual({ text: 'Les Kanjis dans la tête', lang: 'fr' });
     });
 
-    it('says a range\'s words cumulatively, as its link starts a learner with every step up to its last', () => {
-        const copy = zhHans.appPanel.range({ order: kanjiOrder('rtkLegacy'), step: 400 }, 4210);
+    it('names a range\'s last step and leaves its word count to the page\'s intro', () => {
+        const copy = zhHans.appPanel.range({ order: kanjiOrder('rtkLegacy'), step: 400 });
+        expect(copy.text.at(-1)).not.toMatch(/\d+ 个词/);
         expect(copy.text).toContainEqual({ text: 'RTK 1st to 5th editions', lang: 'en' });
         expect(copy.text.at(-1)).toContain('第 400 步');
         expect(copy.action.startsWith('从第 400 步之后开始')).toBe(true);
@@ -80,57 +81,57 @@ describe('zhHans appPanel copy per order', () => {
           "kklc:
             学完 {en:KKLC} 的第 1234 步，就能读 {ja:学生}。Gokan（英文页面）按你认识的汉字的顺序教词汇。 [从第 1234 步之后开始]
             {ja:学} 是 {en:KKLC} 的第 1234 步。已经学到这里了？Gokan（英文页面）会从这些汉字能读的 5,678 个词开始。 [从第 1234 步之后开始]
-            已经学到 {en:KKLC} 的第 1234 步了？Gokan（英文页面）会从这些汉字能读的 5,678 个词开始。 [从第 1234 步之后开始]
+            已经学到 {en:KKLC} 的第 1234 步了？Gokan（英文页面）会从这些汉字能读的词开始。 [从第 1234 步之后开始]
             按 {en:KKLC} 的顺序学词汇：认识一个词的所有汉字后，Gokan 就教这个词。 [开始学习（英文）]
           rtk:
             学完 {en:RTK} 的第 1234 步，就能读 {ja:学生}。Gokan（英文页面）按你认识的汉字的顺序教词汇。 [从第 1234 步之后开始]
             {ja:学} 是 {en:RTK} 的第 1234 步。已经学到这里了？Gokan（英文页面）会从这些汉字能读的 5,678 个词开始。 [从第 1234 步之后开始]
-            已经学到 {en:RTK} 的第 1234 步了？Gokan（英文页面）会从这些汉字能读的 5,678 个词开始。 [从第 1234 步之后开始]
+            已经学到 {en:RTK} 的第 1234 步了？Gokan（英文页面）会从这些汉字能读的词开始。 [从第 1234 步之后开始]
             按 {en:RTK} 的顺序学词汇：认识一个词的所有汉字后，Gokan 就教这个词。 [开始学习（英文）]
           jlpt:
             学完 {en:JLPT kanji order} 的第 1234 步，就能读 {ja:学生}。Gokan（英文页面）按你认识的汉字的顺序教词汇。 [从第 1234 步之后开始]
             {ja:学} 是 {en:JLPT kanji order} 的第 1234 步。已经学到这里了？Gokan（英文页面）会从这些汉字能读的 5,678 个词开始。 [从第 1234 步之后开始]
-            已经学到 {en:JLPT kanji order} 的第 1234 步了？Gokan（英文页面）会从这些汉字能读的 5,678 个词开始。 [从第 1234 步之后开始]
+            已经学到 {en:JLPT kanji order} 的第 1234 步了？Gokan（英文页面）会从这些汉字能读的词开始。 [从第 1234 步之后开始]
             按 {en:JLPT kanji order} 的顺序学词汇：认识一个词的所有汉字后，Gokan 就教这个词。 [开始学习（英文）]
           frequency:
             学完 {en:Kanji frequency order} 的第 1234 步，就能读 {ja:学生}。Gokan（英文页面）按你认识的汉字的顺序教词汇。 [从第 1234 步之后开始]
             {ja:学} 是 {en:Kanji frequency order} 的第 1234 步。已经学到这里了？Gokan（英文页面）会从这些汉字能读的 5,678 个词开始。 [从第 1234 步之后开始]
-            已经学到 {en:Kanji frequency order} 的第 1234 步了？Gokan（英文页面）会从这些汉字能读的 5,678 个词开始。 [从第 1234 步之后开始]
+            已经学到 {en:Kanji frequency order} 的第 1234 步了？Gokan（英文页面）会从这些汉字能读的词开始。 [从第 1234 步之后开始]
             按 {en:Kanji frequency order} 的顺序学词汇：认识一个词的所有汉字后，Gokan 就教这个词。 [开始学习（英文）]
           kanjiKana:
             学完 {en:Kanji & Kana} 的第 1234 步，就能读 {ja:学生}。Gokan（英文页面）按你认识的汉字的顺序教词汇。 [从第 1234 步之后开始]
             {ja:学} 是 {en:Kanji & Kana} 的第 1234 步。已经学到这里了？Gokan（英文页面）会从这些汉字能读的 5,678 个词开始。 [从第 1234 步之后开始]
-            已经学到 {en:Kanji & Kana} 的第 1234 步了？Gokan（英文页面）会从这些汉字能读的 5,678 个词开始。 [从第 1234 步之后开始]
+            已经学到 {en:Kanji & Kana} 的第 1234 步了？Gokan（英文页面）会从这些汉字能读的词开始。 [从第 1234 步之后开始]
             按 {en:Kanji & Kana} 的顺序学词汇：认识一个词的所有汉字后，Gokan 就教这个词。 [开始学习（英文）]
           kanjiInContext:
             学完 {en:Kanji in Context} 的第 1234 步，就能读 {ja:学生}。Gokan（英文页面）按你认识的汉字的顺序教词汇。 [从第 1234 步之后开始]
             {ja:学} 是 {en:Kanji in Context} 的第 1234 步。已经学到这里了？Gokan（英文页面）会从这些汉字能读的 5,678 个词开始。 [从第 1234 步之后开始]
-            已经学到 {en:Kanji in Context} 的第 1234 步了？Gokan（英文页面）会从这些汉字能读的 5,678 个词开始。 [从第 1234 步之后开始]
+            已经学到 {en:Kanji in Context} 的第 1234 步了？Gokan（英文页面）会从这些汉字能读的词开始。 [从第 1234 步之后开始]
             按 {en:Kanji in Context} 的顺序学词汇：认识一个词的所有汉字后，Gokan 就教这个词。 [开始学习（英文）]
           rtkLegacy:
             学完 {en:RTK 1st to 5th editions} 的第 1234 步，就能读 {ja:学生}。Gokan（英文页面）按你认识的汉字的顺序教词汇。 [从第 1234 步之后开始]
             {ja:学} 是 {en:RTK 1st to 5th editions} 的第 1234 步。已经学到这里了？Gokan（英文页面）会从这些汉字能读的 5,678 个词开始。 [从第 1234 步之后开始]
-            已经学到 {en:RTK 1st to 5th editions} 的第 1234 步了？Gokan（英文页面）会从这些汉字能读的 5,678 个词开始。 [从第 1234 步之后开始]
+            已经学到 {en:RTK 1st to 5th editions} 的第 1234 步了？Gokan（英文页面）会从这些汉字能读的词开始。 [从第 1234 步之后开始]
             按 {en:RTK 1st to 5th editions} 的顺序学词汇：认识一个词的所有汉字后，Gokan 就教这个词。 [开始学习（英文）]
           henshall:
             学完 {en:Henshall} 的第 1234 步，就能读 {ja:学生}。Gokan（英文页面）按你认识的汉字的顺序教词汇。 [从第 1234 步之后开始]
             {ja:学} 是 {en:Henshall} 的第 1234 步。已经学到这里了？Gokan（英文页面）会从这些汉字能读的 5,678 个词开始。 [从第 1234 步之后开始]
-            已经学到 {en:Henshall} 的第 1234 步了？Gokan（英文页面）会从这些汉字能读的 5,678 个词开始。 [从第 1234 步之后开始]
+            已经学到 {en:Henshall} 的第 1234 步了？Gokan（英文页面）会从这些汉字能读的词开始。 [从第 1234 步之后开始]
             按 {en:Henshall} 的顺序学词汇：认识一个词的所有汉字后，Gokan 就教这个词。 [开始学习（英文）]
           kanjiFlashcards:
             学完 {en:White Rabbit kanji cards} 的第 1234 步，就能读 {ja:学生}。Gokan（英文页面）按你认识的汉字的顺序教词汇。 [从第 1234 步之后开始]
             {ja:学} 是 {en:White Rabbit kanji cards} 的第 1234 步。已经学到这里了？Gokan（英文页面）会从这些汉字能读的 5,678 个词开始。 [从第 1234 步之后开始]
-            已经学到 {en:White Rabbit kanji cards} 的第 1234 步了？Gokan（英文页面）会从这些汉字能读的 5,678 个词开始。 [从第 1234 步之后开始]
+            已经学到 {en:White Rabbit kanji cards} 的第 1234 步了？Gokan（英文页面）会从这些汉字能读的词开始。 [从第 1234 步之后开始]
             按 {en:White Rabbit kanji cards} 的顺序学词汇：认识一个词的所有汉字后，Gokan 就教这个词。 [开始学习（英文）]
           tuttleCards:
             学完 {en:Tuttle kanji cards} 的第 1234 步，就能读 {ja:学生}。Gokan（英文页面）按你认识的汉字的顺序教词汇。 [从第 1234 步之后开始]
             {ja:学} 是 {en:Tuttle kanji cards} 的第 1234 步。已经学到这里了？Gokan（英文页面）会从这些汉字能读的 5,678 个词开始。 [从第 1234 步之后开始]
-            已经学到 {en:Tuttle kanji cards} 的第 1234 步了？Gokan（英文页面）会从这些汉字能读的 5,678 个词开始。 [从第 1234 步之后开始]
+            已经学到 {en:Tuttle kanji cards} 的第 1234 步了？Gokan（英文页面）会从这些汉字能读的词开始。 [从第 1234 步之后开始]
             按 {en:Tuttle kanji cards} 的顺序学词汇：认识一个词的所有汉字后，Gokan 就教这个词。 [开始学习（英文）]
           maniette:
             学完 {fr:Les Kanjis dans la tête} 的第 1234 步，就能读 {ja:学生}。Gokan（英文页面）按你认识的汉字的顺序教词汇。 [从第 1234 步之后开始]
             {ja:学} 是 {fr:Les Kanjis dans la tête} 的第 1234 步。已经学到这里了？Gokan（英文页面）会从这些汉字能读的 5,678 个词开始。 [从第 1234 步之后开始]
-            已经学到 {fr:Les Kanjis dans la tête} 的第 1234 步了？Gokan（英文页面）会从这些汉字能读的 5,678 个词开始。 [从第 1234 步之后开始]
+            已经学到 {fr:Les Kanjis dans la tête} 的第 1234 步了？Gokan（英文页面）会从这些汉字能读的词开始。 [从第 1234 步之后开始]
             按 {fr:Les Kanjis dans la tête} 的顺序学词汇：认识一个词的所有汉字后，Gokan 就教这个词。 [开始学习（英文）]"
         `);
     });

@@ -11,7 +11,7 @@
 
   const { urls, messages } = pageLocale();
 
-  let { order, range, unlockedThrough, steps, wordCount, ranges }: Props = $props();
+  let { order, range, steps, wordCount, ranges }: Props = $props();
 
   const current = $derived(ranges.findIndex(other => other.first === range.first) + 1);
   const rangeHref = (page: number) => urls.kanjiRangePath(order.id, ranges[page - 1]);
@@ -33,7 +33,7 @@
 
   <AppPanel
     link={appUrl({ placement: 'range', order: order.id, known: range.last })}
-    copy={messages.appPanel.range({ order, step: range.last }, unlockedThrough)}
+    copy={messages.appPanel.range({ order, step: range.last })}
   />
 
   <section class="section">

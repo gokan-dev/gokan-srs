@@ -26,15 +26,13 @@ function count(n: number, noun: CountedNoun): string {
 }
 
 /**
- * An order named in a sentence: its prose name (`searchName`, "Kanji frequency order"), never its
- * short label ("Frequency", "RTK, older editions"), with "the" before a name that is a common noun
- * ("the JLPT kanji order", "the White Rabbit kanji cards") and none before a book's ("KKLC"). A
+ * An order named in a sentence: its prose name (`proseName`, "the kanji frequency order", "KKLC"),
+ * never its short label ("Frequency") or its search name, which is capitalised for a title. A
  * name in another language (Maniette's French title) is a run marked with it.
  */
 function orderInProse(order: KanjiOrder): LinkedText {
-    const article = /\b(order|cards)$/.test(order.searchName) ? 'the ' : '';
     const lang = orderNameLang(order);
-    return lang === 'en' ? [`${article}${order.searchName}`] : [article, { text: order.searchName, lang }];
+    return lang === 'en' ? [order.proseName] : [{ text: order.proseName, lang }];
 }
 
 /** A sentence from its runs, the plain ones next to each other joined into one. */
@@ -117,8 +115,8 @@ export const en: Messages = {
             text: sentence([{ text: character, lang: 'ja' }], ` is step ${step} of `, orderInProse(order), `. Know this far? Gokan starts you with the ${count(unlocked, 'word')} those kanji unlock.`),
             action: `Start after step ${step}`,
         }),
-        range: ({ order, step }, unlocked) => ({
-            text: sentence('Know ', orderInProse(order), ` up to step ${step}? Gokan starts you with the ${count(unlocked, 'word')} those kanji unlock.`),
+        range: ({ order, step }) => ({
+            text: sentence('Know ', orderInProse(order), ` up to step ${step}? Gokan starts you with the words those kanji unlock.`),
             action: `Start after step ${step}`,
         }),
         order: order => ({

@@ -94,7 +94,7 @@ export function panelCopyPerOrder(messages: Messages): string {
     const shown = (text: LinkedText) => text.map(part => (typeof part === 'string' ? part : part.lang ? `{${part.lang}:${part.text}}` : part.text)).join('');
     return KANJI_ORDERS.map(order => {
         const at = { order, step: 1234 };
-        const copies = [messages.appPanel.word('学生', at), messages.appPanel.kanji('学', at, 5678), messages.appPanel.range(at, 5678), messages.appPanel.order(order)];
+        const copies = [messages.appPanel.word('学生', at), messages.appPanel.kanji('学', at, 5678), messages.appPanel.range(at), messages.appPanel.order(order)];
         return [`${order.id}:`, ...copies.map(copy => `  ${shown(copy.text)} [${copy.action}]`)].join('\n');
     }).join('\n');
 }

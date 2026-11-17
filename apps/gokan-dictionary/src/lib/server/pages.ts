@@ -483,12 +483,11 @@ export function pagesOf(source: DictionaryData, locale: ServedLocale) {
         const { order, ranges } = await rangesOf(orderBySlug(slug).id);
         const range = ranges.find(candidate => kanjiRangeSlug(candidate) === rangeSlug);
         if (range === undefined) throw new PageNotFound(`no range ${rangeSlug} in ${slug}`);
-        const [summaryById, steps] = await Promise.all([summaries(), orderSteps()]);
+        const summaryById = await summaries();
         return {
             props: {
                 order,
                 range: { first: range.first, last: range.last },
-                unlockedThrough: unlockedAt(steps, { order, step: range.last }),
                 steps: range.steps.map(({ step, character, wordIds }) => ({
                     step,
                     character,
