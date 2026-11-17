@@ -161,16 +161,21 @@ $motion: 150ms ease-in-out;
 @mixin app-panel {
   .app-panel {
     @include surface;
-    margin: $space-3 0;
+    // A section's gap below, on every page type: the next element is a section on some, not on
+    // a word page (check:layout).
+    margin: $space-3 0 $space-5;
     border-left: 3px solid var(--accent);
 
     p {
       margin: 0 0 $space-2;
       max-width: 36rem;
 
-      // A word read in two fragments is not the word: it wraps whole (check:layout).
+      // A word read in two fragments is not the word: an atomic box moves to the next line whole,
+      // and wraps inside itself only when wider than the line, never scrolling a phone sideways
+      // as nowrap would (check:layout).
       [lang="ja"] {
-        white-space: nowrap;
+        display: inline-block;
+        max-width: 100%;
       }
     }
   }

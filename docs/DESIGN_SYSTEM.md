@@ -556,7 +556,10 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   for one line at 320px with a four-digit step ("Start after step 99"; `check:layout` measures
   it on an English and a Chinese word page). On a Chinese page a step's action carries no
   （英文）: its sentence says it, right after "Gokan" (Gokan（英文页面）). A Japanese word in the
-  sentence never breaks across lines (`white-space: nowrap`; `check:layout`). Never a popup, a dismiss
+  sentence never breaks across lines where it fits one, and one wider than the line wraps inside
+  the panel rather than scrolling the page (an `inline-block` at `max-width: 100%`, never
+  `nowrap`; `check:layout`, with a long headword). The panel stands 40px (`$space-5`) above what
+  follows it on every page type, a section's gap (`check:layout`, a word and a kanji page). Never a popup, a dismiss
   button or a carousel. Its rules are the `app-panel` mixin (`_tokens.scss`), included by each
   page sheet that shows it: in `app.scss` they took the shared stylesheet past its 10 KB budget.
 - **Shared between page sheets**: a rule two page types use goes in `app.scss`, unless that
