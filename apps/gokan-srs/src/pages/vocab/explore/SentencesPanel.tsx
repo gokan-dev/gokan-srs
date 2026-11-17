@@ -22,20 +22,25 @@ export function SentencesPanel({ vocabId, sentences }: { vocabId: string; senten
         return shortestFirst ? kept.sort((a, b) => a.original.length - b.original.length) : kept;
     }, [sentences, query, shortestFirst]);
 
+    const sortToggle = (
+        <TextButton onClick={() => setShortestFirst(!shortestFirst)} ariaPressed={shortestFirst} className={shortestFirst ? 'font-semibold' : ''}>
+            Shortest first
+        </TextButton>
+    );
+
     return (
         <div>
-            {panel.searchable(sentences.length) && <PanelSearch
-                text={panel.text}
-                onChange={panel.setText}
-                label="Search the sentences"
-                placeholder="Search in English or Japanese"
-                countLine={resultCountLine(matched.length, sentences.length, 'sentence', query)}
-                aside={(
-                    <TextButton onClick={() => setShortestFirst(!shortestFirst)} ariaPressed={shortestFirst} className={shortestFirst ? 'font-semibold' : ''}>
-                        Shortest first
-                    </TextButton>
-                )}
-            />}
+            {panel.searchable(sentences.length)
+                ? <PanelSearch
+                    text={panel.text}
+                    onChange={panel.setText}
+                    label="Search the sentences"
+                    placeholder="Search in English or Japanese"
+                    countLine={resultCountLine(matched.length, sentences.length, 'sentence', query)}
+                    aside={sortToggle}
+                />
+                // Every sentence fits on one page: no search, but the sort still reorders them, at the right as beside the field.
+                : sentences.length > 1 && <div className="flex justify-end mb-4">{sortToggle}</div>}
             <div className="space-y-4">
                 {matched.slice(0, panel.shown()).map(sentence => <WordSentence key={sentence.id} vocabId={vocabId} sentence={sentence} query={query} />)}
             </div>
