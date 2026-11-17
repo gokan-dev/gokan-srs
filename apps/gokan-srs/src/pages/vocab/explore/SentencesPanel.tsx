@@ -3,16 +3,17 @@ import type { Sentence } from "@gokan/dataset-schema";
 import { TextButton } from "../../../components/ui/TextButton";
 import { matchesExploreQuery, resultCountLine } from "../../../utils/exploreSearch.utils";
 import { WordSentence } from "../../../components/WordSentence";
-import { PanelSearch } from "./PanelSearch";
-import { usePanelQuery } from "./usePanelQuery";
+import { PanelSearch } from "../../../components/search/PanelSearch";
+import { ShowMore } from "../../../components/search/ShowMore";
+import { usePagedPanel } from "../../../components/search/usePagedPanel";
 
 const PAGE = 5;
 
 /** Every example sentence of the word, 5 at a time, searchable, in the dataset's order or shortest first. */
 export function SentencesPanel({ vocabId, sentences }: { vocabId: string; sentences: readonly Sentence[] }) {
-    const { text, setText, query } = usePanelQuery();
+    const panel = usePagedPanel(PAGE);
+    const { query } = panel;
     const [shortestFirst, setShortestFirst] = useState(false);
-    const [shown, setShown] = useState(PAGE);
 
     const matched = useMemo(() => {
         const kept = query
@@ -23,9 +24,9 @@ export function SentencesPanel({ vocabId, sentences }: { vocabId: string; senten
 
     return (
         <div>
-            <PanelSearch
-                text={text}
-                onChange={value => { setText(value); setShown(PAGE); }}
+            {panel.searchable(sentences.length) && <PanelSearch
+                text={panel.text}
+                onChange={panel.setText}
                 label="Search the sentences"
                 placeholder="Search in English or Japanese"
                 countLine={resultCountLine(matched.length, sentences.length, 'sentence', query)}
@@ -34,15 +35,11 @@ export function SentencesPanel({ vocabId, sentences }: { vocabId: string; senten
                         Shortest first
                     </TextButton>
                 )}
-            />
+            />}
             <div className="space-y-4">
-                {matched.slice(0, shown).map(sentence => <WordSentence key={sentence.id} vocabId={vocabId} sentence={sentence} query={query} />)}
+                {matched.slice(0, panel.shown()).map(sentence => <WordSentence key={sentence.id} vocabId={vocabId} sentence={sentence} query={query} />)}
             </div>
-            {matched.length > shown && (
-                <TextButton onClick={() => setShown(shown + PAGE)} className="mt-4">
-                    Show {Math.min(PAGE, matched.length - shown)} more
-                </TextButton>
-            )}
+            <ShowMore panel={panel} total={matched.length} className="mt-4" />
         </div>
     );
 }

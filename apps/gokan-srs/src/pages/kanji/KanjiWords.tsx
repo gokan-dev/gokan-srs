@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { headwordOf } from "@gokan/dataset-schema";
 import type { Vocabulary } from "@gokan/dataset-schema";
 import { JlptChip } from "../../components/JlptChip";
@@ -6,23 +6,25 @@ import { SecondaryForm } from "../../components/SecondaryForm";
 import { WordStudyStatus } from "../../components/WordStudyStatus";
 import { ListRow } from "../../components/ui/ListRow";
 import { Marked } from "../../components/ui/Marked";
-import { TextButton } from "../../components/ui/TextButton";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { VocabularyService } from "../../services/vocabulary.service";
 import { englishRanges, resultCountLine, type ExploreQuery } from "../../utils/exploreSearch.utils";
 import { vocabPath } from "../../utils/navigation.utils";
-import { PanelSearch } from "../vocab/explore/PanelSearch";
-import { useIndexSearch } from "../vocab/explore/useIndexSearch";
-import { usePanelQuery } from "../vocab/explore/usePanelQuery";
+import { PanelSearch } from "../../components/search/PanelSearch";
+import { useIndexSearch } from "../../components/search/useIndexSearch";
+import { ShowMore } from "../../components/search/ShowMore";
+import { usePagedPanel } from "../../components/search/usePagedPanel";
 
 /** A kanji's Words tab, 20 at a time (一 has 660 words). */
 const PAGE = 20;
 
 /**
  * Word rows, in the order given, each a word's headword, its other form and first meaning, with
- * the learner's status (or Learn) at its right. Only these words' files load.
+ * the learner's status (or Learn) at its right. Only these words' files load. `compact` (a column
+ * about 300px wide, the full page's side) leaves out the JLPT chip: `sm:` keys on the viewport,
+ * not the column, so it would crowd the gloss there.
  */
-export function KanjiWordRows({ ids, query = null }: { ids: readonly string[]; query?: ExploreQuery | null }) {
+export function KanjiWordRows({ ids, query = null, compact = false }: { ids: readonly string[]; query?: ExploreQuery | null; compact?: boolean }) {
     const key = ids.join(',');
     const vocabs: Vocabulary[] = useAsyncData(key, () => VocabularyService.loadVocabs(ids), { keepPrevious: true }).data ?? [];
     const byId = new Map(vocabs.map(v => [v.id, v]));
@@ -39,7 +41,7 @@ export function KanjiWordRows({ ids, query = null }: { ids: readonly string[]; q
                         lookup={{ kind: 'word', vocabId: v.id }}
                         trailing={
                             <div className="flex items-center gap-3">
-                                {v.jlptLevel && <span className="hidden sm:inline-flex"><JlptChip level={v.jlptLevel} /></span>}
+                                {v.jlptLevel && !compact && <span className="hidden sm:inline-flex"><JlptChip level={v.jlptLevel} /></span>}
                                 <WordStudyStatus vocabId={v.id} />
                             </div>
                         }
@@ -64,31 +66,26 @@ interface KanjiWordsPanelProps {
     label: string;
     /** How many show at first and per "Show N more" (a full page's section shows fewer). */
     pageSize?: number;
+    /** In the full page's side column: no JLPT chip, so the gloss keeps its width. */
+    compact?: boolean;
 }
 
 /** Words using a kanji, searchable in English or Japanese, `pageSize` at a time. */
-export function KanjiWordsPanel({ ids, label, pageSize = PAGE }: KanjiWordsPanelProps) {
-    const { text, setText, query } = usePanelQuery();
-    const [shown, setShown] = useState(pageSize);
-    const { keep, searching } = useIndexSearch(query);
+export function KanjiWordsPanel({ ids, label, pageSize = PAGE, compact = false }: KanjiWordsPanelProps) {
+    const panel = usePagedPanel(pageSize);
+    const { keep, searching } = useIndexSearch(panel.query);
     const matched = useMemo(() => keep(ids), [keep, ids]);
-    const more = matched.length - shown;
     return (
         <div>
-            {/* A list that fits on one page needs no search (a learner's two words with the kanji). */}
-            {ids.length > pageSize && <PanelSearch
-                text={text}
-                onChange={value => { setText(value); setShown(pageSize); }}
+            {panel.searchable(ids.length) && <PanelSearch
+                text={panel.text}
+                onChange={panel.setText}
                 label={label}
                 placeholder="Search in English or Japanese"
-                countLine={searching ? 'Searching…' : resultCountLine(matched.length, ids.length, 'word', query)}
+                countLine={searching ? 'Searching…' : resultCountLine(matched.length, ids.length, 'word', panel.query)}
             />}
-            <KanjiWordRows ids={matched.slice(0, shown)} query={query} />
-            {more > 0 && (
-                <TextButton onClick={() => setShown(shown + pageSize)} className="mt-4">
-                    Show {Math.min(pageSize, more).toLocaleString('en-US')} more
-                </TextButton>
-            )}
+            <KanjiWordRows ids={matched.slice(0, panel.shown())} query={panel.query} compact={compact} />
+            <ShowMore panel={panel} total={matched.length} className="mt-4" />
         </div>
     );
 }

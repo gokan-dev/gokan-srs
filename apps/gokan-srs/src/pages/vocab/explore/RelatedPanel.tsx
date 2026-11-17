@@ -1,16 +1,16 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { headwordOf } from "@gokan/dataset-schema";
 import type { Vocabulary } from "@gokan/dataset-schema";
 import { RelatedEntryList, type RelatedEntry, type RelatedSection } from "../../../components/RelatedEntriesCard";
 import { SecondaryForm } from "../../../components/SecondaryForm";
 import { Marked } from "../../../components/ui/Marked";
-import { TextButton } from "../../../components/ui/TextButton";
 import { useAsyncData } from "../../../hooks/useAsyncData";
 import { VocabularyService } from "../../../services/vocabulary.service";
 import { englishRanges, resultCountLine, type ExploreQuery } from "../../../utils/exploreSearch.utils";
-import { PanelSearch } from "./PanelSearch";
-import { useIndexSearch } from "./useIndexSearch";
-import { usePanelQuery } from "./usePanelQuery";
+import { PanelSearch } from "../../../components/search/PanelSearch";
+import { useIndexSearch } from "../../../components/search/useIndexSearch";
+import { ShowMore } from "../../../components/search/ShowMore";
+import { usePagedPanel } from "../../../components/search/usePagedPanel";
 import { relatedCount } from "./counts";
 import { vocabPath } from "../../../utils/navigation.utils";
 
@@ -36,8 +36,8 @@ function toEntry(v: Vocabulary, query: ExploreQuery | null): RelatedEntry {
  * search index (`useIndexSearch`), not every word.
  */
 export function RelatedPanel({ vocab, pageSize = PAGE }: { vocab: Vocabulary; pageSize?: number }) {
-    const { text, setText, query } = usePanelQuery();
-    const [limits, setLimits] = useState({ built: pageSize, used: pageSize });
+    const panel = usePagedPanel(pageSize);
+    const { query } = panel;
 
     const { keep, searching } = useIndexSearch(query);
     const groups = useMemo(() => [
@@ -45,14 +45,13 @@ export function RelatedPanel({ vocab, pageSize = PAGE }: { vocab: Vocabulary; pa
         { key: 'used' as const, label: 'Used in', ids: keep(vocab.parents ?? []) },
     ], [vocab, keep]);
 
-    const displayed = groups.map(g => g.ids.slice(0, limits[g.key]));
+    const displayed = groups.map(g => g.ids.slice(0, panel.shown(g.key)));
     const ids = displayed.flat();
     const loaded = useAsyncData(ids.join(','), () => VocabularyService.loadVocabs(ids), { keepPrevious: true }).data ?? [];
     const loadedById = new Map(loaded.map(v => [v.id, v]));
 
     const sections: RelatedSection[] = groups.flatMap((group, i) => {
         if (group.ids.length === 0) return [];
-        const more = group.ids.length - limits[group.key];
         return [{
             label: group.label,
             count: group.ids.length,
@@ -60,26 +59,21 @@ export function RelatedPanel({ vocab, pageSize = PAGE }: { vocab: Vocabulary; pa
                 const v = loadedById.get(id);
                 return v ? [toEntry(v, query)] : [];
             }),
-            ...(more > 0 ? {
-                footer: (
-                    <TextButton onClick={() => setLimits({ ...limits, [group.key]: limits[group.key] + pageSize })}>
-                        Show {Math.min(pageSize, more)} more
-                    </TextButton>
-                ),
-            } : {}),
+            ...(panel.more(group.ids.length, group.key) > 0 ? { footer: <ShowMore panel={panel} total={group.ids.length} group={group.key} /> } : {}),
         }];
     });
 
     const matched = groups.reduce((n, g) => n + g.ids.length, 0);
     return (
         <div>
-            <PanelSearch
-                text={text}
-                onChange={value => { setText(value); setLimits({ built: pageSize, used: pageSize }); }}
+            {/* Each group is paged on its own: the search is there when either runs past a page. */}
+            {panel.searchable(Math.max(vocab.components?.length ?? 0, vocab.parents?.length ?? 0)) && <PanelSearch
+                text={panel.text}
+                onChange={panel.setText}
                 label="Search the related words"
                 placeholder="Search in English or Japanese"
                 countLine={searching ? 'Searching…' : resultCountLine(matched, relatedCount(vocab), 'related word', query)}
-            />
+            />}
             <RelatedEntryList sections={sections} />
         </div>
     );

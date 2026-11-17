@@ -3,8 +3,8 @@ import { DetailSection } from "../../components/detail/DetailSection";
 import type { MixupRecord } from "../../models/mixup.model";
 import type { VocabProgress } from "../../models/vocabulary.model";
 import { matchesExploreQuery, resultCountLine } from "../../utils/exploreSearch.utils";
-import { PanelSearch } from "./explore/PanelSearch";
-import { usePanelQuery } from "./explore/usePanelQuery";
+import { PanelSearch } from "../../components/search/PanelSearch";
+import { usePanelQuery } from "../../components/search/usePanelQuery";
 import { YourMixups } from "./YourMixups";
 import { YourStudy } from "./YourStudy";
 

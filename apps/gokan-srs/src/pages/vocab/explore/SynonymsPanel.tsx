@@ -12,8 +12,8 @@ import { englishRanges, matchesExploreQuery, resultCountLine, type ExploreQuery 
 import { mixedUpLabel } from "../../../utils/mixups.utils";
 import { senseNumbers } from "../../../utils/senses.utils";
 import { filterSynonymSections, GROUP_ROWS, sectionGlossLine, GROUPS_AT_ONCE, shownGroups, synonymCount, type SynonymSection } from "../../../utils/synonymSections.utils";
-import { PanelSearch } from "./PanelSearch";
-import { usePanelQuery } from "./usePanelQuery";
+import { PanelSearch } from "../../../components/search/PanelSearch";
+import { usePanelQuery } from "../../../components/search/usePanelQuery";
 import { vocabPath } from "../../../utils/navigation.utils";
 
 /** How close two words are, as a neutral chip told apart by its sign and its word, never a colour. */

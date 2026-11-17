@@ -1,15 +1,15 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import type { GrammarExample } from "@gokan/dataset-schema";
 import { InteractiveSentence } from "../../components/InteractiveSentence";
 import { SentenceWithPlay } from "../../components/PlayButton";
 import { Marked } from "../../components/ui/Marked";
-import { TextButton } from "../../components/ui/TextButton";
 import { grammarExampleToSentence, patternHighlightRanges } from "@gokan/dataset-schema";
 import { englishRanges, matchesExploreQuery, resultCountLine, type ExploreQuery } from "../../utils/exploreSearch.utils";
 import { vocabPath } from "../../utils/navigation.utils";
-import { PanelSearch } from "../vocab/explore/PanelSearch";
-import { usePanelQuery } from "../vocab/explore/usePanelQuery";
+import { PanelSearch } from "../../components/search/PanelSearch";
+import { ShowMore } from "../../components/search/ShowMore";
+import { usePagedPanel } from "../../components/search/usePagedPanel";
 
 /** Where an example comes from: written for the point, or found in the sentence corpus (the review pool). */
 export type ExampleSource = 'curated' | 'corpus';
@@ -60,28 +60,23 @@ export function GrammarExampleList({ examples, query = null }: { examples: reado
 
 /** Every example of a point, curated and from the corpus, searchable in English or Japanese, `pageSize` at a time. */
 export function GrammarExamplesPanel({ examples, pageSize = PAGE }: { examples: readonly ListedExample[]; pageSize?: number }) {
-    const { text, setText, query } = usePanelQuery();
-    const [shown, setShown] = useState(pageSize);
+    const panel = usePagedPanel(pageSize);
+    const { query } = panel;
     const matched = useMemo(
         () => (query ? examples.filter(({ example }) => matchesExploreQuery(query, { english: [example.en], japanese: [example.jp] })) : examples),
         [examples, query],
     );
-    const more = matched.length - shown;
     return (
         <div>
-            <PanelSearch
-                text={text}
-                onChange={value => { setText(value); setShown(pageSize); }}
+            {panel.searchable(examples.length) && <PanelSearch
+                text={panel.text}
+                onChange={panel.setText}
                 label="Search the examples"
                 placeholder="Search in English or Japanese"
                 countLine={resultCountLine(matched.length, examples.length, 'example', query)}
-            />
-            <GrammarExampleList examples={matched.slice(0, shown)} query={query} />
-            {more > 0 && (
-                <TextButton onClick={() => setShown(shown + pageSize)} className="mt-4">
-                    Show {Math.min(pageSize, more)} more
-                </TextButton>
-            )}
+            />}
+            <GrammarExampleList examples={matched.slice(0, panel.shown())} query={query} />
+            <ShowMore panel={panel} total={matched.length} className="mt-4" />
         </div>
     );
 }

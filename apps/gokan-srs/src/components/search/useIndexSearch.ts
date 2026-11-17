@@ -1,9 +1,9 @@
 import { useMemo } from "react";
 import { searchHeadword, searchSecondaryForm } from "@gokan/dataset-schema";
 import type { SearchIndexEntry } from "@gokan/dataset-schema";
-import { useAsyncData } from "../../../hooks/useAsyncData";
-import { VocabularyService } from "../../../services/vocabulary.service";
-import { matchesExploreQuery, type ExploreQuery } from "../../../utils/exploreSearch.utils";
+import { useAsyncData } from "../../hooks/useAsyncData";
+import { VocabularyService } from "../../services/vocabulary.service";
+import { matchesExploreQuery, type ExploreQuery } from "../../utils/exploreSearch.utils";
 
 function matchesEntry(query: ExploreQuery, entry: SearchIndexEntry | undefined): boolean {
     return entry !== undefined && matchesExploreQuery(query, { english: [entry.m], japanese: [entry.w, entry.r, searchHeadword(entry), searchSecondaryForm(entry)] });

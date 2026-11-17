@@ -262,6 +262,12 @@ gokan-srs, everything else:
   tap: `useLookup`, `LookupText`, `LookupLink`, `HeadwordKanji`; the only popover, enforced), `components/ui/TabNav.tsx` (every
   tab row: route tabs, or a page's own tabs as ARIA tabs), `components/ui/SearchField.tsx`, `components/ui/Marked.tsx`
   (a search's matches, from `utils/exploreSearch.utils.ts`).
+- A panel's search, on any page (a word's Sentences and Related, a kanji's Words, a grammar point's
+  Examples): `components/search/` (`PanelSearch` the field and its count line, `usePanelQuery` its
+  query, `useIndexSearch` word ids searched through the search index, `usePagedPanel` a list shown
+  a page at a time with its search, the field only past one page, and `ShowMore` its "Show N
+  more"). A page folder never imports from another's: what two pages share lives here, in
+  `components/`, `hooks/` or `utils/` (enforced: `cross-page-import`).
 - A word's page: its tabs (`utils/wordTabs.utils.ts`: their hashes, and `initialWordTab`, which
   one opens), Dict (`pages/vocab/DictTab.tsx`), the Sentences, Synonyms and Related panels in
   `pages/vocab/explore/` (one search each, `utils/exploreSearch.utils.ts`), Kanji
