@@ -548,6 +548,14 @@ a.chip {
       font-family: $font-sans;
       font-size: $text-sm;
     }
+
+    // A row's note under its gloss (a synonym's "= Interchangeable"), quieter than it.
+    > small {
+      grid-column: 3;
+      font-family: $font-sans;
+      font-size: $text-sm;
+      color: var(--tertiary);
+    }
   }
 
   @include narrow {

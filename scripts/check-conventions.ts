@@ -384,6 +384,15 @@ const BOXED_GLYPH_FILES = new Set(['apps/gokan-srs/src/components/KanjiTile.tsx'
  */
 const SYNONYM_DATA = /\bVocabSynonym\b|\.synonyms\b|'synonyms'/;
 const SYNONYM_READER = 'apps/gokan-srs/src/services/exercise/wordRelation.ts';
+/**
+ * Outside the app, the package and the dictionary read them only through
+ * packages/dataset-schema/src/synonyms.ts (synonymEntriesOf, pairCloseness, held equal to the app's
+ * closenessOf by its test); vocabulary.ts declares the field. The same pattern, less a catalog's
+ * own words (a section's or a tab's name, `words.sections.synonyms`) and a tab's id.
+ */
+const SHARED_SYNONYM_SOURCE = /^(packages\/[^/]+\/src\/.*\.ts|apps\/gokan-dictionary\/(src|scripts)\/.*\.(ts|svelte))$/;
+const SHARED_SYNONYM_DATA = /\bVocabSynonym\b|(?<!\b(?:sections|search|tabs))\.synonyms\b|(?<!id: )'synonyms'/;
+const SHARED_SYNONYM_READERS = new Set(['packages/dataset-schema/src/synonyms.ts', 'packages/dataset-schema/src/vocabulary.ts']);
 
 /**
  * A stored due date is read only where scheduling is decided: the effective due date under the
@@ -765,6 +774,10 @@ function check(files: string[]): Violation[] {
         if (GOKAN_SRS_SOURCE.test(file) && file !== SYNONYM_READER && !/\.test\.tsx?$/.test(file)) {
             eachLine(text, l => SYNONYM_DATA.test(l) && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
                 add({ file, line, rule: 'one-synonym-reader', message: 'Reads the dataset\'s synonym pairs. Go through services/exercise/wordRelation.ts (relationOf, synonymsOf, listedSynonymsOf), so a page and grading read a pair the same way.' }));
+        }
+        if (SHARED_SYNONYM_SOURCE.test(file) && !SHARED_SYNONYM_READERS.has(file) && !/\.test\.ts$/.test(file)) {
+            eachLine(text, l => SHARED_SYNONYM_DATA.test(l) && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
+                add({ file, line, rule: 'one-synonym-reader', message: 'Reads the dataset\'s synonym pairs. Go through @gokan/dataset-schema\'s synonyms.ts (synonymEntriesOf, synonymSections, pairCloseness), held equal to the app\'s grading by its test, so the dictionary and the app read a pair the same way.' }));
         }
 
         if (GOKAN_SRS_SOURCE.test(file) && !DUE_DATE_READERS.has(file) && !/\.test\.tsx?$/.test(file)) {

@@ -56,8 +56,11 @@ export interface SynonymEntry {
     curated: boolean;
 }
 
+/** A word as its synonyms are read from it: only through synonymEntriesOf. */
+export type WithSynonyms = Pick<Vocabulary, 'synonyms'>;
+
 /** Every synonym of the word, as a page lists them. */
-export function synonymEntriesOf(vocab: Pick<Vocabulary, 'synonyms'>): SynonymEntry[] {
+export function synonymEntriesOf(vocab: WithSynonyms): SynonymEntry[] {
     return (vocab.synonyms ?? []).map(entry => ({
         vocabId: entry.id,
         forms: synonymFormsOf(entry),

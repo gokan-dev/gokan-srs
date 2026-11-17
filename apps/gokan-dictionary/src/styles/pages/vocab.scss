@@ -89,6 +89,7 @@
   // A field like the site search's, but not its pill: the search field is the site's one pill.
   input {
     border-radius: $radius;
+    font-family: $font-sans;
   }
 
   .meta:empty {

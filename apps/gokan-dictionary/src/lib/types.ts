@@ -48,6 +48,11 @@ export interface VocabSummary {
      * it in place of English's. Never in the summaries index; added by the page that lists the word.
      */
     localGloss?: string;
+    /**
+     * A note after the gloss, in the page's language, that a section search does not read (a synonym's
+     * "= Interchangeable"). Never in the summaries index; added by the page that lists the word.
+     */
+    note?: string;
 }
 
 /**

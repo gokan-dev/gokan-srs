@@ -63,6 +63,10 @@
   const band = $derived(frequencyBand(rank));
   const shownGroups = $derived(synonyms.groups.slice(0, PREVIEW_MEANINGS));
   const moreGroups = $derived(synonyms.groups.slice(PREVIEW_MEANINGS));
+  // A section's search only past one page, as the app's (usePagedPanel): when it ships more rows than it shows before "Show N more".
+  const searchSentences = $derived(moreSentences.length > 0);
+  const searchSynonyms = $derived(moreGroups.length > 0 || shownGroups.some(group => group.words.length > PREVIEW_ROWS));
+  const searchRelated = $derived(components.length > RELATED_VISIBLE || parents.length > RELATED_VISIBLE);
 
   /**
    * The sections, in the app word page's names and order. Below 1024px each is a tab
@@ -78,13 +82,17 @@
   ]);
 
   /**
-   * A synonym as a word list row: its label (= Interchangeable) in the gloss's column, in the page's
-   * language, so the rows look and link as every other list of words.
+   * A synonym as a word list row: the meanings the two words share as its gloss (English's, as the
+   * app's description), which a search reads, and its label (= Interchangeable) as the row's note,
+   * in the page's language, which a search does not.
    */
-  const synonymEntries = (group: SynonymGroup): VocabSummary[] => group.words.map(word => {
-    const label = `${CLOSENESS_LABEL[word.closeness].sign} ${words.closeness[word.closeness]}`;
-    return { id: word.id, word: word.word, ...(word.reading ? { reading: word.reading } : {}), ...(text ? { localGloss: label } : { gloss: label }) };
-  });
+  const synonymEntries = (group: SynonymGroup): VocabSummary[] => group.words.map(word => ({
+    id: word.id,
+    word: word.word,
+    ...(word.reading ? { reading: word.reading } : {}),
+    gloss: word.shared,
+    note: `${CLOSENESS_LABEL[word.closeness].sign} ${words.closeness[word.closeness]}`,
+  }));
   const linkedKanji = $derived(vocab.writtenForm.containedKanji.filter(character => !kanjiWithoutPage.has(character)));
 
   /**
@@ -102,10 +110,17 @@
     ...sourceNames([...text.definitions.map(definition => definition.source.source), ...text.equivalents.flatMap(equivalent => equivalent.sources.map(source => source.source))]),
     ...(meanings.visible.length > 0 ? [words.englishMeaningsSource] : []),
   ]) : null);
-  const sentencesCredit = $derived(translations ? words.credit([...new Set([
+  // A block of sentences names the sources of the ones it shows: Tatoeba's, then each translation's.
+  const sentencesCreditOf = (list: readonly Sentence[]) => (translations ? words.credit([...new Set([
     words.sentencesSource,
-    ...sourceNames(Object.values(translations).flatMap(translation => (translation.lang === 'en' ? [] : [translation.source.source]))),
+    ...sourceNames(list.flatMap(sentence => {
+      const translation = translations[sentence.id];
+      return translation && translation.lang !== 'en' ? [translation.source.source] : [];
+    })),
   ])]) : null);
+  const sentencesCredit = $derived(sentencesCreditOf(sentences));
+  // Dict's Examples are Tatoeba's too, shown on their own in a tab below 1024px: they carry their credit.
+  const examplesCredit = $derived(sentencesCreditOf(examples));
 </script>
 
 {#snippet senseList(views: SenseView[])}
@@ -148,7 +163,7 @@
 {#snippet sectionSearch(label: string)}
   <!-- Shown by client/detailTabs.ts: without it a section lists what it ships. -->
   <div class="section-search" data-section-search hidden>
-    <label><span class="visually-hidden">{label}</span><input class="search-input" type="search" autocomplete="off" spellcheck="false" /></label>
+    <label><span class="visually-hidden">{label}</span><input class="search-input" type="search" placeholder={words.search.placeholder} autocomplete="off" spellcheck="false" /></label>
     <p class="meta" aria-live="polite" data-section-count></p>
   </div>
 {/snippet}
@@ -243,6 +258,7 @@
               <FuriganaToggle />
             </div>
             {@render sentenceList(examples)}
+            {#if examplesCredit}<p class="meta source-credit">{examplesCredit}</p>{/if}
           </section>
         {/if}
 
@@ -261,7 +277,7 @@
             <h2>{words.sections.sentences}</h2>
             <FuriganaToggle />
           </div>
-          {@render sectionSearch(words.search.sentences)}
+          {#if searchSentences}{@render sectionSearch(words.search.sentences)}{/if}
           {@render sentenceList(shownSentences)}
           {#if moreSentences.length > 0}
             <details class="disclosure">
@@ -276,7 +292,7 @@
       {#if synonyms.groups.length > 0}
         <section id="synonyms" class="section detail-panel" data-section-searchable>
           <h2>{words.sections.synonyms}</h2>
-          {@render sectionSearch(words.search.synonyms)}
+          {#if searchSynonyms}{@render sectionSearch(words.search.synonyms)}{/if}
           {#each shownGroups as group (group.number)}{@render synonymGroup(group, PREVIEW_ROWS)}{/each}
           {#if moreGroups.length > 0}
             <details class="disclosure">
@@ -313,7 +329,7 @@
         {#if hasMadeOfOrUsedIn}
           <section id="related" class="section detail-panel" data-section-searchable>
             <h2>{words.sections.related}</h2>
-            {@render sectionSearch(words.search.related)}
+            {#if searchRelated}{@render sectionSearch(words.search.related)}{/if}
             {#if components.length > 0}
               <div data-search-group>
                 <h3 class="related-title">{words.sections.madeOf}</h3>

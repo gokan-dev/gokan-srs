@@ -3,7 +3,7 @@
 // `pairCloseness`, and cut to what the page ships. Built at render by lib/server/pages.ts.
 
 import { closestSynonyms, headwordOf, pairCloseness, sectionGlossLine, synonymEntriesOf, synonymSections } from '@gokan/dataset-schema';
-import type { Closeness, SynonymEntry, Vocabulary } from '@gokan/dataset-schema';
+import type { Closeness, SynonymEntry, Vocabulary, WithSynonyms } from '@gokan/dataset-schema';
 
 /**
  * What the page ships, at most: each meaning's best this many, and this many in all. 取る has 322
@@ -23,6 +23,8 @@ export interface SynonymRow {
     word: string;
     /** The kana reading, only when it differs from the headword, as a word list row shows it. */
     reading?: string;
+    /** The meanings the two words share, as the app's row shows them ("to shine, to gleam"): what a search reads. */
+    shared: string;
     closeness: Closeness;
 }
 
@@ -47,14 +49,14 @@ export interface WordSynonyms {
 function rowOf(entry: SynonymEntry, glosses: readonly string[]): SynonymRow {
     const word = headwordOf(entry.forms);
     const reading = entry.forms.reading.primary;
-    return { id: entry.vocabId, word, ...(reading !== word ? { reading } : {}), closeness: pairCloseness(entry, glosses) };
+    return { id: entry.vocabId, word, ...(reading !== word ? { reading } : {}), shared: entry.shared.join(', '), closeness: pairCloseness(entry, glosses) };
 }
 
 /**
  * The word's synonyms, grouped by meaning as the app groups them, only the words `hasPage` says
  * the page can link (a page in another language links its own words only).
  */
-export function wordSynonyms(vocab: Pick<Vocabulary, 'senses' | 'synonyms'>, hasPage: (id: string) => boolean): WordSynonyms {
+export function wordSynonyms(vocab: Pick<Vocabulary, 'senses'> & WithSynonyms, hasPage: (id: string) => boolean): WordSynonyms {
     const sections = synonymSections(vocab.senses, synonymEntriesOf(vocab).filter(entry => hasPage(entry.vocabId)));
     const total = sections.reduce((n, section) => n + section.words.length, 0);
     let budget = SHIPPED_SYNONYMS;

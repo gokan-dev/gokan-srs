@@ -14,7 +14,7 @@ const kagayaku = (synonyms: VocabSynonym[]) => vocabulary({
 const everyWord = () => true;
 
 describe('wordSynonyms', () => {
-    it('groups by meaning, as the app does, each word named and labelled', () => {
+    it('groups by meaning, as the app does, each word named, labelled and carrying the meanings it shares', () => {
         const { groups, total, left } = wordSynonyms(kagayaku([
             pair('hikaru', { relation: 'interchangeable', shared: ['shine', 'gleam'] }),
             pair('kirameku', { shared: ['gleam', 'beam'] }),
@@ -22,10 +22,10 @@ describe('wordSynonyms', () => {
         ]), everyWord);
         expect(groups).toEqual([
             { number: 1, glosses: 'to shine, to sparkle', words: [
-                { id: 'hikaru', word: 'hikaru字', reading: 'hikaruよみ', closeness: 'interchangeable' },
-                { id: 'koko', word: 'ここ', closeness: 'close' },
+                { id: 'hikaru', word: 'hikaru字', reading: 'hikaruよみ', shared: 'shine, gleam', closeness: 'interchangeable' },
+                { id: 'koko', word: 'ここ', shared: 'shine', closeness: 'close' },
             ] },
-            { number: 2, glosses: 'to be bright, to beam', words: [{ id: 'kirameku', word: 'kirameku字', reading: 'kiramekuよみ', closeness: 'close' }] },
+            { number: 2, glosses: 'to be bright, to beam', words: [{ id: 'kirameku', word: 'kirameku字', reading: 'kiramekuよみ', shared: 'gleam, beam', closeness: 'close' }] },
         ]);
         expect([total, left]).toEqual([3, 0]);
     });
@@ -50,7 +50,7 @@ describe('wordSynonyms', () => {
 
     it("gives Dict the first meaning's closest words, never a pair not interchangeable", () => {
         const { closest } = wordSynonyms(kagayaku([pair('curated', { curated: true }), pair('close'), pair('other', { shared: ['beam'] })]), everyWord);
-        expect(closest).toEqual({ number: 1, glosses: 'to shine, to sparkle', words: [{ id: 'close', word: 'close字', reading: 'closeよみ', closeness: 'close' }] });
+        expect(closest).toEqual({ number: 1, glosses: 'to shine, to sparkle', words: [{ id: 'close', word: 'close字', reading: 'closeよみ', shared: 'shine', closeness: 'close' }] });
         expect(wordSynonyms(vocabulary(), everyWord)).toEqual({ groups: [], closest: null, total: 0, left: 0 });
     });
 });

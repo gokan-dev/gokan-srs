@@ -96,14 +96,25 @@ function initTabs(): void {
     });
     media.addEventListener('change', apply);
     apply();
+    // Landing on a section's hash in tabs: the browser scrolls that section to the top, past the word
+    // and the tab row. The page top instead, as the app's tab landing: the word, the tabs, the section.
+    // Again at load, where the browser scrolls to the fragment once more.
+    if (media.matches && location.hash) {
+        const toTop = (): void => window.scrollTo(0, 0);
+        toTop();
+        if (document.readyState !== 'complete') window.addEventListener('load', toTop, { once: true });
+    }
 }
 
-/** An element's text without its furigana: a sentence's ruby readings are not part of what it says. */
+/**
+ * An element's text without its furigana or a row's note: a sentence's ruby readings are not part
+ * of what it says, and a word row's `small` (a synonym's "= Interchangeable") is not what it means.
+ */
 function textOf(element: Element): string {
     let text = '';
     const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-        if (!node.parentElement?.closest('rt')) text += node.nodeValue ?? '';
+        if (!node.parentElement?.closest('rt, small')) text += node.nodeValue ?? '';
     }
     return text;
 }

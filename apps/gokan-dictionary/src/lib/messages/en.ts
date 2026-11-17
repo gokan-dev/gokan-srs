@@ -177,7 +177,7 @@ export const en: Messages = {
             reference: top => (top === null ? 'Not in the frequency list' : top.beyond ? `Beyond the top ${top.top.toLocaleString('en')}` : `Top ${top.top.toLocaleString('en')} words`),
         },
         textbooks: 'Textbooks',
-        search: { sentences: 'Search sentences', synonyms: 'Search synonyms', related: 'Search related words' },
+        search: { placeholder: 'Search in English or Japanese', sentences: 'Search sentences', synonyms: 'Search synonyms', related: 'Search related words' },
         forms: { plain: 'Plain', polite: 'Polite', present: 'Present', negative: 'Negative', past: 'Past', pastNegative: 'Past negative', labels: FORM_LABELS },
         kanjiInEnglish: 'Kanji pages are in English.',
         credit: sourceNames => `Sources: ${sourceNames.join(', ')}`,

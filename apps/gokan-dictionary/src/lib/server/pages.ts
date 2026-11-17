@@ -7,7 +7,7 @@
 // rebuild them. Pure of I/O but what the source does: the source is chosen in dictionary.ts, the
 // asset hrefs added by the server hook, so this runs on fixtures in a test.
 
-import { headwordOf, JLPT_LEVELS, KANJI_ORDERS, kanjiStepIndex, orderPositions } from '@gokan/dataset-schema';
+import { headwordOf, JLPT_LEVELS, KANJI_ORDERS, kanjiStepIndex, orderPositions, synonymEntriesOf } from '@gokan/dataset-schema';
 import type { GrammarPoint, Kanji, KanjiOrder, KanjiOrderId, KanjiOrderList } from '@gokan/dataset-schema';
 import { buildChapterIndexRows, buildChapterLocatorIndex } from '../grammarChapters';
 import { conjugationTables } from '../grammarConjugations';
@@ -236,7 +236,7 @@ export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes:
         const sentenceWords = [...new Set(sentences.flatMap(sentence => Object.keys(sentence.matches ?? {})))];
         // A page in another language links only the words with a page in it (lib/localeLinks.ts):
         // its lists leave the others out, its sentences show them unlinked.
-        const synonymIds = (vocab.synonyms ?? []).map(synonym => synonym.id).filter(other => summaryById.has(other));
+        const synonymIds = synonymEntriesOf(vocab).map(synonym => synonym.vocabId).filter(other => summaryById.has(other));
         const inLocale = localized ? new Set(await localized.text.withPages([...new Set([...components, ...parents].map(word => word.id).concat(sentenceWords.filter(other => summaryById.has(other)), synonymIds))])) : null;
         const linkable = (words: VocabSummary[]) => (inLocale ? words.filter(word => inLocale.has(word.id)) : words);
         return {

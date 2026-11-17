@@ -167,8 +167,8 @@ export interface Messages {
         /** The header's facts: how common the word is (the band's name and its round top), its textbook lessons. */
         howCommon: { label: string; bands: Record<FrequencyBandName, string>; reference: (top: { top: number; beyond: boolean } | null) => string };
         textbooks: string;
-        /** A section's search field's hidden label. */
-        search: { sentences: string; synonyms: string; related: string };
+        /** A section's search field: its placeholder (the app's PanelSearch's), and each section's hidden label. */
+        search: { placeholder: string; sentences: string; synonyms: string; related: string };
         /** The Forms table: its columns, its rows, and every other form's name. */
         forms: { plain: string; polite: string; present: string; negative: string; past: string; pastNegative: string; labels: Record<FormLabel, string> };
         /** Under the Kanji used tiles, on a page in another language: their pages are in English. */

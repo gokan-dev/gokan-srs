@@ -144,7 +144,8 @@ $motion: 150ms ease-in-out;
   a {
     grid-template-columns: auto minmax(0, 1fr);
 
-    > [lang] {
+    > [lang],
+    > small {
       grid-column: 1 / -1;
     }
   }
