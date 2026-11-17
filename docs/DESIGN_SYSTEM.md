@@ -601,6 +601,43 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   sections are a heading plus spacing, not boxes; a box is an object (a tile, a kanji).
   A glyph tile is a box only when it is a link (the `glyph-tiles` mixin: a kanji
   component with a page is boxed, 氵 is plain), as in the app.
+- **Word page** (`pages/VocabPage.svelte`, #168): the app word page's shape, so the two read as
+  one product. Header: the headword, its readings, the summary gloss, the JLPT chip (and "Also
+  written"), then a facts row (`.entry-facts`, a small tertiary label over each value): How common
+  (the four-bar meter, neutral like the app's `FrequencyMeter`, the band's name and "Top 300 words",
+  `frequencyBand` and `frequencyTop` over `wordFrequencyRank`, shared with the app) and Textbooks
+  (`textbookLessonsLabel`). No "Common word" chip: the band says it. Sections, in the app's names
+  and order: **Dict** (Meanings, its first 3 and "Show all N meanings" in place, rare ones in their
+  own disclosure; the app panel; Examples, 2 sentences; Closest synonyms, up to 5 from the first
+  meaning, never a ≠ pair, "For meaning 1 · ..." under them), **Sentences** (5, then "Show N more"),
+  **Synonyms**, **Forms** (the dictionary's own), **Kanji**, **Related** (Made of, Used in, 5 rows each
+  then "Show N more"). Synonyms are grouped by meaning (`synonymSections`, shared with the app, with
+  no learner layer), each group titled "For meaning 2 · to pass, to hand", its rows word list rows
+  whose gloss column holds the pair's label in the app's sign and words (= Interchangeable,
+  ≈ Close in this sense, ≠ Not interchangeable; `pairCloseness`, `CLOSENESS_LABEL`): neutral, told
+  apart by sign and word, never by colour. 2 groups of 3 rows show, then "Show N more meanings"; each
+  synonym links to its page. The page ships at most 8 words a meaning and 32 in all
+  (`lib/synonyms.ts`), and says how many it leaves out.
+  - **From 1024px** (`$bp-detail`, the app's `lg`: check:conventions holds them equal): one full page,
+    Dict, Sentences, Synonyms and Forms in the main column, Kanji and Related in the aside, each long
+    section capped as above in a native `<details>` holding the rest of what the page ships.
+  - **Below 1024px**: a tab row under the header (Dict, Sentences, Synonyms, Forms, Kanji, Related,
+    each only when it has content), one section at a time, 44px tabs in a row that scrolls sideways
+    inside itself; Dict has no hash, the others the app's (`#sentences`, `#synonyms`, `#forms`,
+    `#kanji`, `#related`), so a link means the same in both. `check:layout` measures it at 320 and
+    375px (every hash landing on its section alone) and the full page at 1280px.
+  - **Detail tabs, shared** (`client/detailTabs.ts`, the `detail-tabs` mixin in `_tokens.scss`):
+    written for any detail page (the kanji and grammar pages adopt it in their own issue). The HTML is
+    the full page, every section in order with its heading; with no script a phone gets the stacked
+    page. A few inline bytes in the head set `tabbed` on `<html>` before first paint, so the row is
+    drawn from the start and, until the script runs, CSS shows only the hash's section (`:target`),
+    else the default one (`data-default-panel`): nothing shifts. The script makes the row a
+    `role="tablist"` (arrow keys, Home, End, the hash replaced as a tab is chosen) and reads the
+    width off the stylesheet (`--detail-query`, from `$bp-detail`) through `matchMedia`, so crossing
+    it switches back and forth. Sentences, Synonyms and Related each get a search field (44px,
+    16px text, a hidden label) and a count line while filtering, with the app's matching
+    (`readExploreQuery`, `matchesExploreQuery`, shared from `@gokan/dataset-schema`: English from the
+    start of a word, Japanese anywhere, kana folded); the field stays hidden without the script.
 - **Kanji page**: the glyph, its meanings (`entry-gloss`), its readings labelled On and Kun
   (the okurigana in parentheses, `kunReadingLabel`), the JLPT chip, then one meta line that
   names the level only when there is no chip. Sections: Components, Words, In kanji courses
@@ -669,6 +706,7 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   | A locale's stylesheet (`styles/locales/`, its pages only) | 2 KB |
   | Search script (every page) | 12 KB |
   | Query engine (loaded on first focus) | 10 KB |
+  | Detail tabs script (word pages), with its shared chunks | 8 KB |
   | `search-core.json`, gzipped | 300 KB |
   | Web fonts | one woff2, 40 KB |
   | Svelte client runtime | none |
@@ -679,7 +717,10 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   10 KB until it read the page's locale (#228): every served locale's words for it
   (`lib/messages/search`) and the links of the page's section (`linkUrls`) took it to 11 KB,
   about 4.6 KB gzipped; its words and links are per locale, so a third locale costs about
-  0.7 KB more. Page weight is one half of
+  0.7 KB more. A script is measured with the chunks it imports statically: since #168 the
+  detail tabs script and the search engine share the kana folding (`romaji`), and the search
+  script and the detail script the locale reading, each a chunk of its own (7.4 KB for the
+  detail script with both, 11.4 KB for the search script, 9.9 KB for the engine). Page weight is one half of
   being found; the other, SEO at 100 on every page type, is held by the Lighthouse check
   (`scripts/check-lighthouse.ts`, in section 9).
 
@@ -697,6 +738,8 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
 - `kun-reading`: a kun reading is rendered through `kunReadingLabel`, in both apps.
 - `glyph-tile`: a boxed mincho glyph (`font-mincho text-2xl` with a border) only in
   `KanjiTile` (and the known-kanji grid's toggle buttons).
+- `detail-breakpoint`: the dictionary's `$bp-detail` equals gokan-srs's `--breakpoint-lg`, the
+  one width where every detail page turns from tabs into the full page.
 - `detail-layout`: `grid-cols-12` only in `DetailHeader` and `DetailBody`, and every
   `*DetailScreen` uses both.
 - `one-ruby`: a `<ruby>` in the app only in `components/Ruby.tsx`.
