@@ -34,11 +34,17 @@ function matchesSynonym(query: ExploreQuery, synonym: ListedSynonym): boolean {
 /**
  * Every synonym of the word, grouped by the meaning it shares (synonymSections, as it is), each
  * row labelled by how close the two words are, as grading reads the pair (closenessOf). Three
- * rows a group and four groups at a time; a search keeps the grouping and every group that matches.
+ * rows a group and four groups at a time (`groupsAtOnce`, fewer as a full page's section); a search
+ * keeps the grouping and every group that matches.
  */
-export function SynonymsPanel({ vocab, sections, mixedUp }: { vocab: Vocabulary; sections: SynonymSection[]; mixedUp: ReadonlyMap<string, number> }) {
+export function SynonymsPanel({ vocab, sections, mixedUp, groupsAtOnce = GROUPS_AT_ONCE }: {
+    vocab: Vocabulary;
+    sections: SynonymSection[];
+    mixedUp: ReadonlyMap<string, number>;
+    groupsAtOnce?: number;
+}) {
     const { text, setText, query } = usePanelQuery();
-    const [groupsShown, setGroupsShown] = useState(GROUPS_AT_ONCE);
+    const [groupsShown, setGroupsShown] = useState(groupsAtOnce);
     const [openGroups, setOpenGroups] = useState<ReadonlySet<number>>(new Set());
     const numbers = useMemo(() => senseNumbers(vocab.senses), [vocab.senses]);
     const total = synonymCount(sections);
@@ -98,8 +104,8 @@ export function SynonymsPanel({ vocab, sections, mixedUp }: { vocab: Vocabulary;
             />
             <RelatedEntryList sections={groups} wrapDescription groupHeadings />
             {hidden > 0 && (
-                <TextButton onClick={() => setGroupsShown(groupsShown + GROUPS_AT_ONCE)} className="mt-4">
-                    Show {Math.min(GROUPS_AT_ONCE, hidden)} more meaning{Math.min(GROUPS_AT_ONCE, hidden) === 1 ? '' : 's'}
+                <TextButton onClick={() => setGroupsShown(groupsShown + groupsAtOnce)} className="mt-4">
+                    Show {Math.min(groupsAtOnce, hidden)} more meaning{Math.min(groupsAtOnce, hidden) === 1 ? '' : 's'}
                 </TextButton>
             )}
         </div>

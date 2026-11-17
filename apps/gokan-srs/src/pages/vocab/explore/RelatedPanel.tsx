@@ -33,13 +33,14 @@ function toEntry(v: Vocabulary, query: ExploreQuery | null): RelatedEntry {
 }
 
 /**
- * The words this one is built from and those it is used in, 10 at a time a group. A word can
+ * The words this one is built from and those it is used in, 10 at a time a group (`pageSize`,
+ * fewer as a full page's section). A word can
  * be in hundreds (639 at most), so a row's file loads only when shown, and a search reads the
  * search index (one file, shared with the header's search), not every word.
  */
-export function RelatedPanel({ vocab }: { vocab: Vocabulary }) {
+export function RelatedPanel({ vocab, pageSize = PAGE }: { vocab: Vocabulary; pageSize?: number }) {
     const { text, setText, query } = usePanelQuery();
-    const [limits, setLimits] = useState({ built: PAGE, used: PAGE });
+    const [limits, setLimits] = useState({ built: pageSize, used: pageSize });
 
     const index = useAsyncData(query ? 'search-index' : null, () => VocabularyService.loadSearchIndex(), { keepPrevious: true }).data;
     const byId = useMemo(() => new Map((index ?? []).map(e => [e.id, e])), [index]);
@@ -71,8 +72,8 @@ export function RelatedPanel({ vocab }: { vocab: Vocabulary }) {
             }),
             ...(more > 0 ? {
                 footer: (
-                    <TextButton onClick={() => setLimits({ ...limits, [group.key]: limits[group.key] + PAGE })}>
-                        Show {Math.min(PAGE, more)} more
+                    <TextButton onClick={() => setLimits({ ...limits, [group.key]: limits[group.key] + pageSize })}>
+                        Show {Math.min(pageSize, more)} more
                     </TextButton>
                 ),
             } : {}),
@@ -84,7 +85,7 @@ export function RelatedPanel({ vocab }: { vocab: Vocabulary }) {
         <div>
             <PanelSearch
                 text={text}
-                onChange={value => { setText(value); setLimits({ built: PAGE, used: PAGE }); }}
+                onChange={value => { setText(value); setLimits({ built: pageSize, used: pageSize }); }}
                 label="Search the related words"
                 placeholder="Search in English or Japanese"
                 countLine={searching ? 'Searching…' : resultCountLine(matched, relatedCount(vocab), 'related word', query)}

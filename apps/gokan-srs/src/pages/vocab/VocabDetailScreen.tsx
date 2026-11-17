@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { frequencyBand, headwordOf, summaryGloss, textbookLessonsLabel } from "@gokan/dataset-schema";
 import type { Sentence, Vocabulary } from "@gokan/dataset-schema";
@@ -13,7 +13,8 @@ import { Page, PAGE_BLEED_INSET } from "../../components/Page";
 import { DetailErrorScreen } from "../../components/detail/DetailErrorScreen";
 import { DetailBody } from "../../components/detail/DetailBody";
 import { DetailHeader } from "../../components/detail/DetailHeader";
-import { DetailField } from "../../components/detail/DetailSection";
+import { DetailField, DetailSection } from "../../components/detail/DetailSection";
+import { useFullDetailPage } from "../../components/detail/useFullDetailPage";
 import { HeadwordKanji } from "../../components/lookup/HeadwordKanji";
 import { LearnStatus } from "../../components/detail/LearnStatus";
 import { TabNav, type PageTab } from "../../components/ui/TabNav";
@@ -23,7 +24,7 @@ import { usePersistedControlsSnapshot, writePersistedControls } from "../../hook
 import { statusReviewPhrase, vocabLearningStatus } from "../../utils/learningStatus.utils";
 import { mixupsAsked } from "../../utils/mixups.utils";
 import { synonymCount } from "../../utils/synonymSections.utils";
-import { initialWordTab, WORD_TAB_STORAGE_KEY, WORD_TABS, wordTabHash, type WordTab } from "../../utils/wordTabs.utils";
+import { initialWordTab, WORD_TAB_STORAGE_KEY, WORD_TABS, wordTabHash, wordTabOfHash, type WordTab } from "../../utils/wordTabs.utils";
 import { relatedCount } from "./explore/counts";
 import { RelatedPanel } from "./explore/RelatedPanel";
 import { SentencesPanel } from "./explore/SentencesPanel";
@@ -45,12 +46,39 @@ const TAB_LABEL: Record<WordTab, string> = {
 /** A tab's panel id, which its tab button controls, and the button's id, which labels the panel. */
 const panelId = (tab: WordTab) => `word-panel-${tab}`;
 const tabId = (tab: WordTab) => `word-tab-${tab}`;
+/** A tab's section on the full page, which a hash or a Dict link scrolls to. */
+const sectionId = (tab: WordTab) => `word-section-${tab}`;
 
 /**
- * A word's page, one narrow column at every width: a header holding what a learner looks the word
- * up for (the word, its reading, one line of meaning, how common it is, its status), then one row
- * of tabs (Dict, Sentences, Synonyms, Kanji, Related, Study, each only when it has content), one
- * open at a time (DESIGN_SYSTEM section 5, Word page).
+ * The full page's columns, each in order: the subject's content in the main one, the learner's
+ * data and the word's parts and relatives in the side one.
+ */
+const FULL_MAIN: readonly WordTab[] = ['dict', 'sentence', 'synonym'];
+const FULL_SIDE: readonly WordTab[] = ['study', 'kanji', 'related'];
+
+/**
+ * A long panel's first page as a full page's section, lower than in its tab so 取る (1,030
+ * sentences, 439 synonyms) stays a page a learner can take in (DESIGN_SYSTEM section 5, Word
+ * page). Sentences keep their tab's 5.
+ */
+const FULL_SYNONYM_GROUPS = 2;
+const FULL_RELATED_ROWS = 5;
+/** A scroll the page makes itself is not the learner's: the section it lands on stays the open one. */
+const OWN_SCROLL_MS = 300;
+/**
+ * How long a hash's section is held at the top while what is above it settles (the Kanji
+ * section's kanji load after the page, pushing Related down), unless the learner scrolls first.
+ */
+const HOLD_LANDING_MS = 1500;
+/** What the learner scrolls with, which ends the hold. */
+const LEARNER_SCROLLS = ['wheel', 'touchstart', 'keydown', 'pointerdown'] as const;
+
+/**
+ * A word's page: a header holding what a learner looks the word up for (the word, its reading,
+ * one line of meaning, how common it is, its status), then below `lg` one narrow column under a
+ * row of tabs (Dict, Sentences, Synonyms, Kanji, Related, Study, each only when it has content),
+ * one open at a time, and from `lg` the same panels as one full page on the 8/4 grid (DESIGN_SYSTEM
+ * section 5, Word page).
  */
 export default function VocabDetailScreen() {
     const { vocabId } = useParams<{ vocabId: string }>();
@@ -108,6 +136,7 @@ function WordPage({ vocab, sentences, sentencesSettled, now, onLearn, knownKanji
         study: studied !== null,
     };
     const available = WORD_TABS.filter(tab => has[tab]);
+    const full = useFullDetailPage();
 
     // The open tab: the one chosen on this page, else the hash's, the remembered one or Dict.
     // Derived on every render, so a tab whose content arrives late (Sentences) opens once it has.
@@ -132,7 +161,23 @@ function WordPage({ vocab, sentences, sentencesSettled, now, onLearn, knownKanji
         scrollPanelToTop();
     }, [open]);
 
+    // On the full page a tab is a section: choosing one (a Dict link) scrolls to it, its heading
+    // just under the viewport's top (`scroll-mt-6`), and leaves the URL as it is.
+    const ownScrollAt = useRef(0);
+    const scrollToSection = (tab: WordTab) => {
+        ownScrollAt.current = performance.now();
+        document.getElementById(sectionId(tab))?.scrollIntoView({ block: 'start' });
+    };
+
     const choose = (tab: WordTab) => {
+        if (full) {
+            setChosen(tab);
+            scrollToSection(tab);
+            // A learner's choice moves keyboard focus with the scroll (a hash's landing does not):
+            // the section's heading, so the next Tab continues in it and its name is announced.
+            document.getElementById(sectionId(tab))?.querySelector<HTMLElement>('h2[tabindex]')?.focus({ preventScroll: true });
+            return;
+        }
         const row = rowRef.current;
         // Stuck: the row sits at the viewport's top while the page has scrolled past its place.
         const stuck = row !== null && row.getBoundingClientRect().top <= 0 && window.scrollY > 0;
@@ -147,12 +192,61 @@ function WordPage({ vocab, sentences, sentencesSettled, now, onLearn, knownKanji
         void navigate({ pathname, hash: wordTabHash(tab) }, { replace: true });
     };
 
+    // A hash lands on its section on the full page once the sentences, which come before the
+    // synonyms, have settled (so the section is where it stays), once per hash. Crossing `lg`
+    // keeps the learner where they were: the open tab's section comes into view, and back, the
+    // section in view opens as the tab (the full page's scroll and resize keep `chosen` on it,
+    // ahead of the frame's switch, which waits out the resize).
+    const linked = wordTabOfHash(hash);
+    const linkedShown = linked !== null && has[linked];
+    const landedHash = useRef<string | null>(null);
+    const releaseHold = useRef(() => {});
+    const wasFull = useRef(full);
+    useLayoutEffect(() => {
+        if (wasFull.current === full) return;
+        wasFull.current = full;
+        landedHash.current = hash;
+        if (full) {
+            if (open !== 'dict') scrollToSection(open);
+        } else if (open !== 'dict' || window.scrollY > 0) {
+            scrollPanelToTop();
+        }
+    });
+    useLayoutEffect(() => {
+        if (!full || !sentencesSettled || !linkedShown || landedHash.current === hash) return;
+        landedHash.current = hash;
+        scrollToSection(linked);
+        // Content arriving above it would push it down: land again as a section's height changes.
+        releaseHold.current();
+        releaseHold.current = holdAtTop(() => scrollToSection(linked));
+    });
+    useEffect(() => () => releaseHold.current(), []);
+    useEffect(() => {
+        if (!full) return;
+        let frame = 0;
+        const track = () => {
+            cancelAnimationFrame(frame);
+            frame = requestAnimationFrame(() => {
+                if (performance.now() - ownScrollAt.current < OWN_SCROLL_MS) return;
+                const inView = sectionInView();
+                if (inView) setChosen(inView);
+            });
+        };
+        window.addEventListener('scroll', track, { passive: true });
+        window.addEventListener('resize', track);
+        return () => {
+            cancelAnimationFrame(frame);
+            window.removeEventListener('scroll', track);
+            window.removeEventListener('resize', track);
+        };
+    }, [full]);
+
     const status = vocabLearningStatus(progress, settings);
 
     const header = (
         <DetailHeader
             parentPath="/vocab"
-            layout="column"
+            layout={full ? 'grid' : 'column'}
             title={<span className="jp-display"><HeadwordKanji headword={headwordOf(vocab)} kanji={vocab.writtenForm.containedKanji} /></span>}
             chips={<HeaderChips vocab={vocab} />}
             facts={headerFacts(vocab)}
@@ -205,12 +299,45 @@ function WordPage({ vocab, sentences, sentencesSettled, now, onLearn, knownKanji
         </div>
     ));
 
+    // The full page: the same panels, each a section, Dict's own headings and Study's as they are.
+    const section = (tab: WordTab) => {
+        const panel = (
+            <TabPanel
+                tab={tab}
+                vocab={vocab}
+                sentences={sentences}
+                wordSynonyms={wordSynonyms}
+                mixups={mixups}
+                studied={studied}
+                now={now}
+                knownKanji={knownKanji}
+                onChoose={choose}
+                preview
+            />
+        );
+        return tab === 'dict' || tab === 'study'
+            ? <div key={tab} id={sectionId(tab)} className="scroll-mt-6">{panel}</div>
+            : <DetailSection key={tab} id={sectionId(tab)} title={TAB_LABEL[tab]} focusable>{panel}</DetailSection>;
+    };
+    const [essentials, ...rest] = FULL_MAIN.filter(tab => has[tab]);
+    const fullPage = {
+        // Dict is the essentials; a line sets the rest of the subject's content apart from it.
+        main: (
+            <>
+                {section(essentials)}
+                {rest.length > 0 && <div className="border-t border-divider pt-10 space-y-10">{rest.map(section)}</div>}
+            </>
+        ),
+        side: <>{FULL_SIDE.filter(tab => has[tab]).map(section)}</>,
+    };
+
     const tabs: PageTab<WordTab>[] = available.map(tab => ({ key: tab, label: TAB_LABEL[tab], id: tabId(tab), controls: panelId(tab) }));
 
     return (
-        <Page width="narrow" data={{ 'data-sentences': sentencesSettled ? 'settled' : 'loading' }}>
+        <Page width={full ? 'wide' : 'narrow'} data={{ 'data-sentences': sentencesSettled ? 'settled' : 'loading' }}>
             {header}
             <DetailBody
+                full={fullPage}
                 tabsRef={rowRef}
                 tabs={<TabNav label="About this word" tabs={tabs} selected={open} onSelect={choose} className={PAGE_BLEED_INSET} />}
                 panels={panels}
@@ -229,9 +356,11 @@ interface TabPanelProps {
     now: number;
     knownKanji: ReadonlySet<string> | undefined;
     onChoose: (tab: WordTab) => void;
+    /** A section of the full page: its first page is a preview (FULL_SYNONYM_GROUPS, FULL_RELATED_ROWS). */
+    preview?: boolean;
 }
 
-function TabPanel({ tab, vocab, sentences, wordSynonyms, mixups, studied, now, knownKanji, onChoose }: TabPanelProps) {
+function TabPanel({ tab, vocab, sentences, wordSynonyms, mixups, studied, now, knownKanji, onChoose, preview = false }: TabPanelProps) {
     switch (tab) {
         case 'dict':
             return (
@@ -244,11 +373,55 @@ function TabPanel({ tab, vocab, sentences, wordSynonyms, mixups, studied, now, k
                 />
             );
         case 'sentence': return <SentencesPanel vocabId={vocab.id} sentences={sentences} />;
-        case 'synonym': return <SynonymsPanel vocab={vocab} sections={wordSynonyms.sections} mixedUp={wordSynonyms.mixedUp} />;
+        case 'synonym': return <SynonymsPanel vocab={vocab} sections={wordSynonyms.sections} mixedUp={wordSynonyms.mixedUp} {...(preview ? { groupsAtOnce: FULL_SYNONYM_GROUPS } : {})} />;
         case 'kanji': return <KanjiTab glyphs={vocab.writtenForm.containedKanji} knownKanji={knownKanji} />;
-        case 'related': return <RelatedPanel vocab={vocab} />;
+        case 'related': return <RelatedPanel vocab={vocab} {...(preview ? { pageSize: FULL_RELATED_ROWS } : {})} />;
         case 'study': return studied ? <StudyTab vocabId={vocab.id} progress={studied} now={now} mixups={mixups} /> : null;
     }
+}
+
+/**
+ * Keeps a landed section at the top for HOLD_LANDING_MS, landing it again whenever a section's
+ * height changes, until the learner scrolls. The sections, not the page: the side column is the
+ * shorter one, so its Kanji growing pushes Related down without changing the page's height.
+ * Returns its release.
+ */
+function holdAtTop(land: () => void): () => void {
+    const until = performance.now() + HOLD_LANDING_MS;
+    const observer = new ResizeObserver(() => {
+        if (performance.now() < until) land();
+        else release();
+    });
+    const timer = window.setTimeout(() => release(), HOLD_LANDING_MS);
+    function release() {
+        window.clearTimeout(timer);
+        observer.disconnect();
+        for (const event of LEARNER_SCROLLS) window.removeEventListener(event, release);
+    }
+    for (const tab of [...FULL_MAIN, ...FULL_SIDE]) {
+        const el = document.getElementById(sectionId(tab));
+        if (el) observer.observe(el);
+    }
+    for (const event of LEARNER_SCROLLS) window.addEventListener(event, release, { passive: true });
+    return release;
+}
+
+/**
+ * The full page's section in view, which opens as the tab when the page crosses below `lg`: the
+ * one under a line a third of the way down the viewport, the main column's ahead of the side's,
+ * else the last one whose top has passed that line (the page's end), else Dict.
+ */
+function sectionInView(): WordTab | null {
+    const line = window.innerHeight / 3;
+    const placed = [...FULL_MAIN, ...FULL_SIDE].flatMap(tab => {
+        const el = document.getElementById(sectionId(tab));
+        return el ? [{ tab, rect: el.getBoundingClientRect() }] : [];
+    });
+    if (placed.length === 0) return null;
+    const under = placed.find(({ rect }) => rect.top <= line && rect.bottom > line);
+    if (under) return under.tab;
+    const passed = placed.filter(({ rect }) => rect.top <= line).sort((a, b) => b.rect.top - a.rect.top)[0];
+    return passed?.tab ?? 'dict';
 }
 
 /** The JLPT chip, then how common the word is on one line: the four bars and the band, the round reference and exact rank in its title. */
