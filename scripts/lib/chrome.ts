@@ -25,7 +25,9 @@ const CHROME_CANDIDATES = [
 ];
 
 /** The keys `press` knows, with their virtual key codes. */
-const KEY_CODES = { Tab: 9, ArrowLeft: 37, ArrowRight: 39 } as const;
+const KEY_CODES = { Tab: 9, Enter: 13, ArrowLeft: 37, ArrowRight: 39 } as const;
+/** The text a key types: without it Chrome sends no keypress, and Enter does not activate a button. */
+const KEY_TEXT: Partial<Record<KeyName, string>> = { Enter: '\r' };
 export type KeyName = keyof typeof KEY_CODES;
 
 interface Message { id?: number; result?: unknown; error?: { message: string } }
@@ -166,7 +168,8 @@ export async function launchChrome(): Promise<Chrome> {
         };
         const press = async (key: KeyName, settleMs = 300): Promise<void> => {
             const event = { key, code: key, windowsVirtualKeyCode: KEY_CODES[key], nativeVirtualKeyCode: KEY_CODES[key] };
-            await send('Input.dispatchKeyEvent', { type: 'keyDown', ...event }, sessionId);
+            const text = KEY_TEXT[key];
+            await send('Input.dispatchKeyEvent', { type: 'keyDown', ...event, ...(text ? { text } : {}) }, sessionId);
             await send('Input.dispatchKeyEvent', { type: 'keyUp', ...event }, sessionId);
             if (settleMs > 0) await sleep(settleMs);
         };

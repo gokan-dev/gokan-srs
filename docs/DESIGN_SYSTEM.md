@@ -241,7 +241,7 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
   short preview with its search and "Show N more" in place, so a learner sees every section and
   what is in it without scrolling indefinitely. A hash lands on its section, its heading just
   under the viewport's top; a link that scrolls to a section (a word's Dict links) moves keyboard
-  focus to its heading (`DetailSection` `focusable`), a hash landing does not; crossing 1024px keeps the learner where they were (the open tab's
+  focus to its heading (`DetailSection` `focusable`), which draws the accent focus ring, a hash landing does not; crossing 1024px keeps the learner where they were (the open tab's
   section in view, and back, the section in view as the open tab). The page is `wide` from
   `lg`, `narrow` below. The 12-column grid exists only in these two components
   (enforced, `detail-layout`).

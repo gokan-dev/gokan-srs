@@ -31,7 +31,7 @@
  * - from 1024px a word page is one full page (issue 256): no tab row, every section in its column
  *   (and Your study once learned), 取る's page within FULL_PAGE_MAX_HEIGHT, a hash (loaded, or
  *   followed inside the app) landing on its section's heading just under the top, Dict's "Compare
- *   all N" moving focus into Synonyms, no sideways scroll and nothing overflowing the side column
+ *   all N" pressed with Enter moving focus into Synonyms with the accent ring, no sideways scroll and nothing overflowing the side column
  *   (a studied word with mix-ups, 今回's hyphenated kun readings, at 1024px); at 768px it is
  *   still the tab page; crossing 1024px keeps the section in view as the open tab, and back;
  * - a word page's first screen, on a small phone (375x667 and 320x568), holds its headword,
@@ -1067,18 +1067,28 @@ async function checkFullPageHashes(tab: Tab, app: string, width: number): Promis
 
 /**
  * Dict's "Compare all N" on the full page moves keyboard focus with its scroll, to the Synonyms
- * section's heading: with focus left on the link, the next Tab goes back into Dict.
+ * section's heading: with focus left on the link, the next Tab goes back into Dict. It is pressed
+ * with Enter, as a keyboard does, so the heading is `:focus-visible` and must draw the app's accent
+ * ring (a box-shadow) rather than the browser's default outline.
  */
 async function checkDictLinkFocus(tab: Tab, page: string, width: number): Promise<void> {
     await tab.evaluate(`scrollTo(0, 0)`);
-    const clicked = await tab.evaluate<boolean>(`(() => { const b = [...document.querySelectorAll('button')].find(el => /^Compare all [\\d,]+/.test(el.textContent.trim())); b?.click(); return !!b; })()`);
-    if (!clicked) {
+    const found = await tab.evaluate<boolean>(`(() => { const b = [...document.querySelectorAll('button')].find(el => /^Compare all [\\d,]+/.test(el.textContent.trim())); b?.focus({ preventScroll: true }); return !!b && document.activeElement === b; })()`);
+    if (!found) {
         failures.push(`${width}px ${page}: no "Compare all N" in Dict`);
         return;
     }
+    await tab.press('Enter', 0);
     await checkLanding(tab, `${page}, Compare all N`, width, 'synonym');
     const focused = await tab.evaluate<string>(`(() => { const el = document.activeElement; return el && el.closest('#word-section-synonym') ? '' : (el ? el.tagName.toLowerCase() + ' "' + el.textContent.trim().slice(0, 30) + '"' : 'nothing'); })()`);
-    if (focused !== '') failures.push(`${width}px ${page}: "Compare all N" left keyboard focus on ${focused}, not in the Synonyms section`);
+    if (focused !== '') {
+        failures.push(`${width}px ${page}: "Compare all N" left keyboard focus on ${focused}, not in the Synonyms section`);
+        return;
+    }
+    const ring = await tab.evaluate<{ visible: boolean; outline: string; shadow: string }>(`(() => { const el = document.activeElement; const style = getComputedStyle(el); return { visible: el.matches(':focus-visible'), outline: style.outlineStyle, shadow: style.boxShadow }; })()`);
+    if (!ring.visible) failures.push(`${width}px ${page}: the Synonyms heading focused from the keyboard is not :focus-visible`);
+    if (ring.outline !== 'none') failures.push(`${width}px ${page}: the focused Synonyms heading draws the browser's outline (${ring.outline}), not the app's ring`);
+    if (ring.shadow === 'none') failures.push(`${width}px ${page}: the focused Synonyms heading draws no focus ring`);
 }
 
 /**
