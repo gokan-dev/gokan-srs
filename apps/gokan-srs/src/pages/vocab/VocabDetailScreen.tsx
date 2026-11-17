@@ -213,7 +213,7 @@ function WordPage({ vocab, sentences, sentencesSettled, now, onLearn, knownKanji
         if (!full || !sentencesSettled || !linkedShown || landedHash.current === hash) return;
         landedHash.current = hash;
         scrollToSection(linked);
-        // Content arriving above it would push it down: land again as the page's height changes.
+        // Content arriving above it would push it down: land again as a section's height changes.
         releaseHold.current();
         releaseHold.current = holdAtTop(() => scrollToSection(linked));
     });
@@ -378,8 +378,10 @@ function TabPanel({ tab, vocab, sentences, wordSynonyms, mixups, studied, now, k
 }
 
 /**
- * Keeps a landed section at the top for HOLD_LANDING_MS, landing it again whenever the page's
- * height changes, until the learner scrolls. Returns its release.
+ * Keeps a landed section at the top for HOLD_LANDING_MS, landing it again whenever a section's
+ * height changes, until the learner scrolls. The sections, not the page: the side column is the
+ * shorter one, so its Kanji growing pushes Related down without changing the page's height.
+ * Returns its release.
  */
 function holdAtTop(land: () => void): () => void {
     const until = performance.now() + HOLD_LANDING_MS;
@@ -393,7 +395,10 @@ function holdAtTop(land: () => void): () => void {
         observer.disconnect();
         for (const event of LEARNER_SCROLLS) window.removeEventListener(event, release);
     }
-    observer.observe(document.body);
+    for (const tab of [...FULL_MAIN, ...FULL_SIDE]) {
+        const el = document.getElementById(sectionId(tab));
+        if (el) observer.observe(el);
+    }
     for (const event of LEARNER_SCROLLS) window.addEventListener(event, release, { passive: true });
     return release;
 }
