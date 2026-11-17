@@ -37,4 +37,12 @@ describe('frequencyBand', () => {
         expect(frequencyBand(UNRANKED).ranked).toBe(false);
         expect(frequencyBand(undefined).ranked).toBe(false);
     });
+
+    it('ranks kanji on their own scale', () => {
+        expect(frequencyBand(264, 'kanji')).toEqual({ name: 'Very common', bars: 4, reference: 'Top 300 kanji', ranked: true });
+        expect(frequencyBand(501, 'kanji').name).toBe('Common');
+        expect(frequencyBand(1_001, 'kanji').name).toBe('Less common');
+        expect(frequencyBand(2_001, 'kanji')).toEqual({ name: 'Rare', bars: 1, reference: 'Top 2,500 kanji', ranked: true });
+        expect(frequencyBand(undefined, 'kanji').ranked).toBe(false);
+    });
 });

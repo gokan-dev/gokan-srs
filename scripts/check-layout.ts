@@ -34,6 +34,10 @@
  *   all N" pressed with Enter moving focus into Synonyms with the accent ring, no sideways scroll and nothing overflowing the side column
  *   (a studied word with mix-ups, 今回's hyphenated kun readings, at 1024px); at 768px it is
  *   still the tab page; crossing 1024px keeps the section in view as the open tab, and back;
+ * - the kanji (一, 学, 取) and grammar (a construction, an inflection) pages likewise (issue 169):
+ *   at 1280px and 1024px one full page, no tab row, every section, their long lists capped
+ *   (KANJI_PAGE, GRAMMAR_PAGE), a hash landing on its section; on a phone a tab row running to the
+ *   screen's edge and sticking from their longest tab;
  * - a word page's first screen, on a small phone (375x667 and 320x568), holds its headword,
  *   reading and its play button, summary gloss and status line;
  * - a word page's tab row sticks to the top once scrolled to, with no sideways page scroll at
@@ -51,7 +55,7 @@
  *   translation;
  * - a long headword's intro card (乗り換える, at 320px, 375px and 1280px) draws the headword on one
  *   line, inside the card, scaled down rather than wrapped (issue 239);
- * - a due word's page has no Review now;
+ * - a due word's page has no Review now; a due grammar point's page says Due now once (its header);
  * - a sentence word hovered with a mouse at 1280px keeps its hover as its lookup card opens (the
  *   card, growing as its word arrives, never covers it);
  * - a sentence word tapped on a phone opens its lookup card as a bottom sheet that fits the
@@ -535,22 +539,33 @@ async function checkStickyTabs(tab: Tab, page: string, width: number, next: stri
     else if (Math.abs(gap) > 2) failures.push(`${width}px ${page}: choosing ${next} with the tab row stuck leaves its panel's top ${Math.round(gap)}px from the row's bottom, not under it`);
 }
 
+/** Where a studied item's due date is stored, as compact and readable keys (progressCompaction's KEY_CODES). */
+interface DueTarget {
+    queue: readonly [string, string];
+    id: readonly [string, string];
+    direction: readonly [string, string];
+}
+const WORD_READING: DueTarget = { queue: ['q', 'learningQueue'], id: ['i', 'vocabId'], direction: ['r', 'reading'] };
+const GRAMMAR_ENTRY: DueTarget = { queue: ['gq', 'grammarQueue'], id: ['gi', 'grammarId'], direction: ['e', 'entry'] };
+
 /**
- * Makes a studied word's reading due an hour ago (the reading's due date, and its introduction,
- * readable or compact), so its page says Due now. Read on the next page load.
+ * Makes a studied item due an hour ago (a word's reading, a grammar point's entry: its due date,
+ * cached next review and introduction, readable or compact), so its page says Due now. Read on the
+ * next page load.
  */
-const makeReadingDue = (vocabId: string) => `(async () => {
+const makeDue = (target: DueTarget, id: string) => `(async () => {
     const key = 'GOKAN_SRS_PROGRESS';
     const done = request => new Promise((resolve, reject) => { request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error); });
     const db = await done(indexedDB.open('gokan-srs'));
     const progress = JSON.parse(await done(db.transaction('progress').objectStore('progress').get(key)));
-    const queue = progress.q ?? progress.learningQueue;
-    const item = queue.find(entry => (entry.i ?? entry.vocabId) === ${JSON.stringify(vocabId)});
+    const queue = progress[${JSON.stringify(target.queue[0])}] ?? progress[${JSON.stringify(target.queue[1])}];
+    const item = queue.find(entry => (entry[${JSON.stringify(target.id[0])}] ?? entry[${JSON.stringify(target.id[1])}]) === ${JSON.stringify(id)});
     const hourAgo = Date.now() - 3600000;
     const asStored = value => typeof value === 'number' ? hourAgo : new Date(hourAgo).toISOString();
-    for (const [at, reading, due] of [['ia', 'r', 'dd'], ['introductionAt', 'reading', 'dueDate']]) {
+    for (const [at, next, direction, due] of [['ia', 'na', ${JSON.stringify(target.direction[0])}, 'dd'], ['introductionAt', 'nextReviewAt', ${JSON.stringify(target.direction[1])}, 'dueDate']]) {
         if (item[at] !== undefined) item[at] = asStored(item[at]);
-        if (item[reading]?.[due] !== undefined) item[reading][due] = asStored(item[reading][due]);
+        if (item[next] !== undefined && item[next] !== null) item[next] = asStored(item[next]);
+        if (item[direction]?.[due] !== undefined) item[direction][due] = asStored(item[direction][due]);
     }
     await done(db.transaction('progress', 'readwrite').objectStore('progress').put(JSON.stringify(progress), key));
     db.close();
@@ -568,7 +583,7 @@ async function checkNoReviewNow(tab: Tab, app: string, width: number, vocabId: s
     const page = `srs /vocab/${vocabId}, due`;
     await tab.goto(`${app}/vocab`, 'Vocabulary');
     await new Promise(resolve => setTimeout(resolve, 1000));
-    await tab.evaluate<void>(makeReadingDue(vocabId));
+    await tab.evaluate<void>(makeDue(WORD_READING, vocabId));
     await tab.goto(`${app}/vocab/${vocabId}`, 'Dict');
     try {
         await tab.until(DUE_SHOWN, "the word's status saying Due now", 10000);
@@ -577,6 +592,42 @@ async function checkNoReviewNow(tab: Tab, app: string, width: number, vocabId: s
         return;
     }
     if (await tab.evaluate<boolean>(REVIEW_NOW_SHOWN)) failures.push(`${width}px ${page}: the page shows Review now`);
+}
+
+const DUE_NOW_COUNT = `(document.body.innerText.match(/Due now/g) ?? []).length`;
+
+/**
+ * A due grammar point's page says Due now once, in its header's status line: its Your study (the
+ * compact one, shared with a word's) says the stage of a due direction instead (DESIGN_SYSTEM
+ * section 5). Learned here through "Learn this grammar point", then made due; on a phone its Study
+ * tab is opened, on the full page Study is in the side column. Run last on a viewport's tab: the
+ * point stays studied.
+ */
+async function checkGrammarDueOnce(tab: Tab, app: string, width: number): Promise<void> {
+    const page = `srs /grammar/${GRAMMAR_POINT}, due`;
+    await tab.goto(`${app}/grammar/${GRAMMAR_POINT}`, 'Formation');
+    if (await tab.evaluate<boolean>(`[...document.querySelectorAll('button')].some(el => el.textContent.trim() === 'Learn this grammar point')`)) {
+        await tab.click('Learn this grammar point');
+        try {
+            await tab.until(`!document.body.innerText.includes('Not in your study yet')`, 'the grammar point in study', 5000);
+        } catch {
+            failures.push(`${width}px ${page}: "Learn this grammar point" did not put the point in study`);
+            return;
+        }
+    }
+    await tab.goto(`${app}/vocab`, 'Vocabulary');
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    await tab.evaluate<void>(makeDue(GRAMMAR_ENTRY, GRAMMAR_POINT));
+    await tab.goto(`${app}/grammar/${GRAMMAR_POINT}`, 'Formation');
+    if (width < FULL_PAGE_WIDTH && !(await openWordTab(tab, page, width, 'Study'))) return;
+    try {
+        await tab.until(`[...document.querySelectorAll('h2, h3')].some(el => el.textContent.trim() === 'Your study') && document.body.innerText.includes('Due now')`, 'Your study on a due grammar point', 10000);
+    } catch {
+        failures.push(`${width}px ${page}: no Your study saying the point is due, with the point made due`);
+        return;
+    }
+    const said = await tab.evaluate<number>(DUE_NOW_COUNT);
+    if (said !== 1) failures.push(`${width}px ${page}: the page says "Due now" ${said} times; the header's status line is the only place that says it (Your study says the stage)`);
 }
 
 const PACING_SLIDER = `[...document.querySelectorAll('input[type=range]')].find(el => (el.getAttribute('aria-valuetext') ?? '').startsWith('Intervals'))`;
@@ -984,13 +1035,44 @@ const FULL_PAGE_MAX_HEIGHT = 3200;
 const LANDING_MAX = 48;
 
 /**
+ * A tabbed detail page (issue 169: the word's, the kanji's and the grammar point's): its ids'
+ * prefix (`kanji-section-words`), what marks it settled (the content before its sections loaded),
+ * and how tall its full page may be with every long section capped to its preview.
+ */
+interface DetailPageKind {
+    prefix: string;
+    settled: string;
+    maxHeight?: number;
+    /**
+     * Its main column shows each word row and example sentence once (DESIGN_SYSTEM section 5, "never
+     * a second copy of any panel"): a tab's preview of another tab is left out of the full page,
+     * where that tab is the next section. Not a word page's: its Dict names two examples and its
+     * closest synonyms on purpose, as the summary of the sections below.
+     */
+    onceEach?: boolean;
+}
+const WORD_PAGE: DetailPageKind = { prefix: 'word', settled: '[data-sentences="settled"]' };
+/**
+ * 一 at 1280px, the kanji with the most words (660): measured at 1654px (Kanji without its 5 common
+ * words, which Words opens with, then Words 10 of 660). Its Words tab's 20 would add ~630px.
+ */
+const KANJI_PAGE: DetailPageKind = { prefix: 'kanji', settled: '[data-words="settled"]', maxHeight: 2100, onceEach: true };
+/**
+ * n5-001 (が いちばん) at 1280px, 26 examples: measured at 1616px (Point with its full explanation
+ * and no examples, then Examples 5 of 26). Its Examples tab's 10 would add ~470px.
+ */
+const GRAMMAR_PAGE: DetailPageKind = { prefix: 'grammar', settled: '[data-examples="settled"]', maxHeight: 2000, onceEach: true };
+const KANJI_FULL_SECTIONS = ['kanji', 'words'];
+const GRAMMAR_FULL_SECTIONS = ['point', 'examples', 'related'];
+
+/**
  * The open word page is one full page: no tab row, each section given present, and nothing wider
  * than its place: the page does not scroll sideways, and no text or input in the side column (about
  * 290px at 1024px) runs past its edge. Text inside a box that clips or scrolls on purpose (`truncate`, a
  * scrolling row) is left out: its overflow is not a sideways scroll.
  */
-async function checkFullPage(tab: Tab, page: string, width: number, sections: readonly string[]): Promise<void> {
-    const found = await tab.evaluate<{ tabs: boolean; missing: string[]; height: number; sideways: number; side: boolean; overflowing: string[] }>(`(() => {
+async function checkFullPage(tab: Tab, page: string, width: number, sections: readonly string[], kind = WORD_PAGE): Promise<void> {
+    const found = await tab.evaluate<{ tabs: boolean; missing: string[]; height: number; sideways: number; side: boolean; overflowing: string[]; sameHeadings: string[]; repeated: string[] }>(`(() => {
         const describe = el => el.tagName.toLowerCase() + ' "' + el.textContent.trim().slice(0, 30) + '"';
         const column = document.querySelector('[data-detail-side]');
         const right = column ? column.getBoundingClientRect().right : 0;
@@ -1013,9 +1095,22 @@ async function checkFullPage(tab: Tab, page: string, width: number, sections: re
                 if (r.width > 0 && r.right > right + 1 && !clippedAbove(el.parentElement)) overflowing.push(el);
             }
         }
+        // Each section heading once: two alike ("Examples" twice) are one panel shown twice, and
+        // confuse a screen reader's list of headings.
+        const headings = [...document.querySelectorAll('main h2')].map(h => h.textContent.trim()).filter(Boolean);
+        const sameHeadings = [...new Set(headings.filter((h, i) => headings.indexOf(h) !== i))];
+        // A word row (its link) or an example sentence shown twice in the main column.
+        const mainColumn = column ? column.previousElementSibling : null;
+        const items = ${kind.onceEach === true} && mainColumn ? [
+            ...[...mainColumn.querySelectorAll('[data-list-row] > a')].map(a => 'row ' + a.getAttribute('href')),
+            ...[...mainColumn.querySelectorAll('[data-example-sentence]')].map(e => 'sentence "' + e.textContent.trim().slice(0, 20) + '"'),
+        ] : [];
+        const repeated = [...new Set(items.filter((item, i) => items.indexOf(item) !== i))];
         return {
+            sameHeadings,
+            repeated: repeated.slice(0, 3),
             tabs: document.querySelector('[data-detail-tabs], [role=tablist]') !== null,
-            missing: ${JSON.stringify(sections)}.filter(s => !document.getElementById('word-section-' + s)),
+            missing: ${JSON.stringify(sections)}.filter(s => !document.getElementById('${kind.prefix}-section-' + s)),
             height: document.documentElement.scrollHeight,
             sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth,
             side: column !== null,
@@ -1027,22 +1122,43 @@ async function checkFullPage(tab: Tab, page: string, width: number, sections: re
     if (found.sideways > 1) failures.push(`${width}px ${page}: the full page scrolls sideways by ${found.sideways}px`);
     if (!found.side) failures.push(`${width}px ${page}: no side column ([data-detail-side]) on the full page`);
     for (const el of found.overflowing) failures.push(`${width}px ${page}: ${el} overflows the side column`);
+    for (const heading of found.sameHeadings) failures.push(`${width}px ${page}: two "${heading}" headings on the full page: a tab's preview of a section shown above that section`);
+    for (const item of found.repeated) failures.push(`${width}px ${page}: the ${item} twice in the main column: a tab's preview of a section shown above that section`);
     if (page.includes(LONG_SYNONYMS_WORD) && found.height > FULL_PAGE_MAX_HEIGHT) {
         failures.push(`${width}px ${page}: the full page is ${found.height}px tall, over ${FULL_PAGE_MAX_HEIGHT}px: a long section is not capped to its preview`);
+    }
+    if (kind.maxHeight !== undefined && found.height > kind.maxHeight) {
+        failures.push(`${width}px ${page}: the full page is ${found.height}px tall, over ${kind.maxHeight}px: a long section is not capped to its preview`);
     }
 }
 
 /** The section's heading top, from the viewport's top, once it has landed (null: no section). */
-const SECTION_TOP = (section: string) => `(() => { const el = document.getElementById('word-section-${section}'); return el ? el.getBoundingClientRect().top : null; })()`;
-async function checkLanding(tab: Tab, page: string, width: number, section: string): Promise<void> {
+const SECTION_TOP = (section: string, prefix: string) => `(() => { const el = document.getElementById('${prefix}-section-${section}'); return el ? el.getBoundingClientRect().top : null; })()`;
+/**
+ * Landed: the section's heading at the top or, for a short last section (a grammar point's 5
+ * examples under 800px of viewport), the page scrolled to its end with the whole section in view,
+ * as far up as any scroll can bring it.
+ */
+const LANDED = (section: string, prefix: string) => `(() => {
+    const el = document.getElementById('${prefix}-section-${section}');
+    if (!el) return false;
+    const r = el.getBoundingClientRect();
+    if (r.top < 0) return false;
+    if (r.top <= ${LANDING_MAX}) return true;
+    const atEnd = scrollY + innerHeight >= document.documentElement.scrollHeight - 1;
+    return atEnd && r.bottom <= innerHeight + 1;
+})()`;
+async function checkLanding(tab: Tab, page: string, width: number, section: string, kind = WORD_PAGE): Promise<void> {
+    const top = SECTION_TOP(section, kind.prefix);
+    const landedCheck = LANDED(section, kind.prefix);
     try {
-        await tab.until(`document.querySelector('[data-sentences="settled"]') !== null && (${SECTION_TOP(section)} ?? -1) >= 0 && ${SECTION_TOP(section)} <= ${LANDING_MAX}`, `the ${section} section at the top`, 10000);
+        await tab.until(`document.querySelector(${JSON.stringify(kind.settled)}) !== null && ${landedCheck}`, `the ${section} section at the top`, 10000);
         await new Promise(resolve => setTimeout(resolve, 1000));
-        const top = await tab.evaluate<number | null>(SECTION_TOP(section));
-        if (top === null || top < 0 || top > LANDING_MAX) failures.push(`${width}px ${page}: the ${section} section moved off the top once settled (${top}px)`);
+        const landed = await tab.evaluate<number | null>(top);
+        if (!await tab.evaluate<boolean>(landedCheck)) failures.push(`${width}px ${page}: the ${section} section moved off the top once settled (${landed}px)`);
     } catch {
-        const top = await tab.evaluate<number | null>(SECTION_TOP(section));
-        failures.push(`${width}px ${page}: did not land on its ${section} section (its top at ${top}px)`);
+        const landed = await tab.evaluate<number | null>(top);
+        failures.push(`${width}px ${page}: did not land on its ${section} section (its top at ${landed}px)`);
     }
 }
 
@@ -1109,6 +1225,66 @@ async function checkCrossing(tab: Tab, app: string): Promise<void> {
     }
     await tab.resize(DESKTOP.width, DESKTOP.height);
     await checkLanding(tab, `${page}, back at 1280px`, DESKTOP.width, 'synonym');
+}
+
+/** The kanji with the most words (660), a common one and one more (issue 169's pages). */
+const DETAIL_KANJI = ['一', '学', '取'];
+/** A construction with curated and corpus examples, and an inflection with only a few. */
+const DETAIL_GRAMMAR = [GRAMMAR_POINT, 'n5-016'];
+
+/**
+ * The kanji and grammar pages from 1024px (issue 169): one full page, no tab row, each section
+ * there and its long lists capped (KANJI_PAGE, GRAMMAR_PAGE), at 1280px and 1024px; a hash
+ * landing on its section.
+ */
+async function checkDetailFullPages(tab: Tab, app: string): Promise<void> {
+    for (const width of [DESKTOP.width, FULL_PAGE_WIDTH]) {
+        await tab.resize(width, DESKTOP.height);
+        for (const glyph of DETAIL_KANJI) {
+            await tab.goto(`${app}/kanji/${encodeURIComponent(glyph)}`, 'Meanings');
+            await tab.until(`document.querySelector(${JSON.stringify(KANJI_PAGE.settled)}) !== null && document.body.innerText.includes('Show 10 more')`, `the Words section on /kanji/${glyph}`, 10000);
+            await checkFullPage(tab, `srs /kanji/${glyph}`, width, KANJI_FULL_SECTIONS, KANJI_PAGE);
+        }
+        for (const id of DETAIL_GRAMMAR) {
+            await tab.goto(`${app}/grammar/${id}`, 'Formation');
+            await tab.until(`document.querySelector(${JSON.stringify(GRAMMAR_PAGE.settled)}) !== null`, `the examples on /grammar/${id}`, 10000);
+            await checkFullPage(tab, `srs /grammar/${id}`, width, id === GRAMMAR_POINT ? GRAMMAR_FULL_SECTIONS : ['point', 'examples'], GRAMMAR_PAGE);
+        }
+    }
+    await tab.resize(DESKTOP.width, DESKTOP.height);
+    await tab.goto(`${app}/kanji/${encodeURIComponent('一')}#words`, 'Meanings');
+    await checkLanding(tab, 'srs /kanji/一#words', DESKTOP.width, 'words', KANJI_PAGE);
+    await tab.goto(`${app}/grammar/${GRAMMAR_POINT}#examples`, 'Formation');
+    await checkLanding(tab, `srs /grammar/${GRAMMAR_POINT}#examples`, DESKTOP.width, 'examples', GRAMMAR_PAGE);
+    await tab.resize(FULL_PAGE_WIDTH, DESKTOP.height);
+    await checkGrammarDueOnce(tab, app, FULL_PAGE_WIDTH);
+    await tab.resize(DESKTOP.width, DESKTOP.height);
+}
+
+/**
+ * The kanji and grammar pages on a phone (issue 169): a tab row, running to the screen's edge,
+ * and sticking once scrolled to, from their longest tab (Words, Examples) back to the first.
+ */
+async function checkDetailTabPages(tab: Tab, app: string, width: number): Promise<void> {
+    for (const glyph of DETAIL_KANJI) {
+        const page = `srs /kanji/${glyph}`;
+        await tab.goto(`${app}/kanji/${encodeURIComponent(glyph)}`, 'Meanings');
+        await measure(tab, page, width, PAGE_TABS);
+        await checkTabRowBleed(tab, page, width);
+        if (!(await openWordTab(tab, page, width, 'Words'))) continue;
+        await tab.until(`document.body.innerText.includes('Show 20 more')`, `the Words tab on ${page}`, 10000);
+        await measure(tab, `${page}, words tab`, width);
+        await checkStickyTabs(tab, page, width, 'Kanji');
+    }
+    for (const id of DETAIL_GRAMMAR) {
+        const page = `srs /grammar/${id}`;
+        await tab.goto(`${app}/grammar/${id}`, 'Formation');
+        await measure(tab, page, width, PAGE_TABS);
+        await checkTabRowBleed(tab, page, width);
+        if (!(await openWordTab(tab, page, width, 'Examples'))) continue;
+        await measure(tab, `${page}, examples tab`, width, PLAY_BUTTONS);
+        await checkStickyTabs(tab, page, width, 'Point');
+    }
 }
 
 /**
@@ -1678,6 +1854,7 @@ try {
     await checkFullPageHashes(desktop, `http://127.0.0.1:${srs.port}`, DESKTOP.width);
     await checkDictLinkFocus(desktop, `srs /vocab/${LONG_SYNONYMS_WORD}`, DESKTOP.width);
     await checkCrossing(desktop, `http://127.0.0.1:${srs.port}`);
+    await checkDetailFullPages(desktop, `http://127.0.0.1:${srs.port}`);
     await desktop.close();
     for (const { width, height } of SETUP_LINK_SCREENS) await checkSetupLinkCount(chrome, `http://127.0.0.1:${srs.port}`, width, height);
     for (const { width, height } of VIEWPORTS) {
@@ -1754,7 +1931,7 @@ try {
         await tab.until(`document.querySelector('[data-kanji-reading]') !== null`, "the Kanji tab's readings", 10000);
         await measure(tab, `srs /vocab/${HYPHEN_KUN_WORD}, kanji tab`, width);
         await checkKanjiReadingsUnbroken(tab, `srs /vocab/${HYPHEN_KUN_WORD}, kanji tab`, width);
-        await tab.goto(`${app}/grammar/${GRAMMAR_POINT}`, 'Example sentences');
+        await tab.goto(`${app}/grammar/${GRAMMAR_POINT}`, 'Formation');
         await measure(tab, `srs /grammar/${GRAMMAR_POINT}`, width, PLAY_BUTTONS);
         await checkSentencePlayButtons(tab, `srs /grammar/${GRAMMAR_POINT}`, width);
         await checkExamplesUnruled(tab, `srs /grammar/${GRAMMAR_POINT}`, width);
@@ -1798,6 +1975,8 @@ try {
         await tab.until(`document.body.innerText.includes('Used in')`, 'the Related tab');
         await measure(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, related tab`, width);
         await checkSynonymsLink(tab, app, width);
+        await checkDetailTabPages(tab, app, width);
+        await checkGrammarDueOnce(tab, app, width);
         // The removed Mix-ups page's path lands on Vocabulary.
         await tab.goto(`${app}/vocab/mixups`, 'Vocabulary');
         await tab.until(`location.pathname.endsWith('/vocab')`, '/vocab/mixups redirecting to /vocab');
@@ -1850,4 +2029,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, a kanji's course steps 44px linked or not, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows and word readings unbroken, a word list's gloss in its column (1280px) or on its own line across the row (phones, a word page's aside), a section's source credit set off from what comes before it, the language switcher small and neutral, the app panel's action on one line with a four-digit step, its Japanese words unbroken where they fit and wrapped inside it where they do not, 40px above what follows it on every page type (and under Meanings on a word page) and on the home page 16px under its heading, a kanji's linked course steps underlined, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, setup opened from a dictionary link with its order and count on a 568 or 667px phone's screen, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button undimmed, its sentence centred on its translation with its button right after it (and at 1280px on the headword), a word learned in kana's intro, a long headword's intro on one line inside its card, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, a kanji's course steps 44px linked or not, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, the kanji and grammar pages tabbed on a phone and one capped full page from 1024px, furigana over kanji, on one line and apart, Japanese in list rows and word readings unbroken, a word list's gloss in its column (1280px) or on its own line across the row (phones, a word page's aside), a section's source credit set off from what comes before it, the language switcher small and neutral, the app panel's action on one line with a four-digit step, its Japanese words unbroken where they fit and wrapped inside it where they do not, 40px above what follows it on every page type (and under Meanings on a word page) and on the home page 16px under its heading, a kanji's linked course steps underlined, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, setup opened from a dictionary link with its order and count on a 568 or 667px phone's screen, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button undimmed, its sentence centred on its translation with its button right after it (and at 1280px on the headword), a word learned in kana's intro, a long headword's intro on one line inside its card, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a due grammar point saying Due now once, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);

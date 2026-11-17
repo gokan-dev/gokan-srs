@@ -8,7 +8,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { basename, dirname, join } from 'node:path';
+import { basename, dirname, join, posix } from 'node:path';
 
 interface Violation {
     file: string;
@@ -120,6 +120,31 @@ const REMOVED_SYNC_STEP_ALLOWED = new Set(['.gitignore', 'apps/gokan-srs/vite.co
 const UI_SOURCE = /^apps\/(gokan-srs|gokan-dictionary)\/src\/.*\.(tsx|svelte)$/;
 const RENDERED_KANJI_SPELLING = /\{[^{}]*\bwrittenForm\.kanji\b[^{}]*\}/;
 const KANJI_SPELLING_NOTE = 'apps/gokan-srs/src/components/KanjiSpellingNote.tsx';
+/**
+ * A page folder imports nothing from another page folder: what two pages share is a building block
+ * in `components/`, `hooks/` or `utils/` (AGENTS.md, shared building blocks), where the next page
+ * finds it, and moving a page never breaks another. The pairs below are the exercise engine's
+ * seams, there before the rule: the activities' prompts and formatting the one `ExerciseCard`
+ * picks, the screens that host it, and the hub's quiz settings and listening helpers.
+ */
+const SRS_PAGES = 'apps/gokan-srs/src/pages/';
+const MODULE_IMPORT = /\bfrom\s+['"](\.{1,2}\/[^'"]+)['"]|\bimport\(\s*['"](\.{1,2}\/[^'"]+)['"]/g;
+const CROSS_PAGE_ALLOWED = new Set([
+    'exercise/ExerciseCard.tsx -> quiz/quizFormatting',
+    'exercise/ExerciseCard.tsx -> quiz/VocabPrompts',
+    'exercise/ExerciseCard.tsx -> grammar/GrammarPrompts',
+    'grammar/GrammarScreen.tsx -> exercise/ExerciseCard',
+    'quiz/VocabQuizScreen.tsx -> exercise/ExerciseCard',
+    'main/MainScreen.tsx -> settings/sections/VocabQuizSettings',
+    'main/MainScreen.tsx -> settings/sections/GrammarQuizSettings',
+    'main/MainScreen.tsx -> listening/listeningShared',
+]);
+/** The page folder of a path under SRS_PAGES (`kanji` for pages/kanji/KanjiWords.tsx), null for a file directly in it. */
+function pageFolderOf(path: string): string | null {
+    if (!path.startsWith(SRS_PAGES)) return null;
+    const parts = path.slice(SRS_PAGES.length).split('/');
+    return parts.length > 1 ? parts[0] : null;
+}
 /** A word's reading rendered as text, as the form beside its headword. */
 const RENDERED_READING = />\{[\w.?]*\breading\.primary\}</;
 /** What makes a rendered reading safe on a line or the two before it: a guard on a word learned in kana. */
@@ -587,6 +612,22 @@ function check(files: string[]): Violation[] {
                 add({ file, line, rule: 'removed-sync-step', message: 'Names the dataset sync step removed in #211 (sync-dataset, sync:dataset, dataset:sync, public/data/compiled). The app reads the published dataset at /dataset/ (services/http.ts); describe that, or record the history in docs/MODIFICATION_LOG.md.' }));
         }
 
+        const importerPage = pageFolderOf(file);
+        if (importerPage !== null && /\.tsx?$/.test(file)) {
+            for (const match of text.matchAll(MODULE_IMPORT)) {
+                const target = posix.normalize(posix.join(posix.dirname(file), match[1] ?? match[2]));
+                const targetPage = pageFolderOf(target);
+                if (targetPage === null || targetPage === importerPage) continue;
+                if (CROSS_PAGE_ALLOWED.has(`${file.slice(SRS_PAGES.length)} -> ${target.slice(SRS_PAGES.length)}`)) continue;
+                add({
+                    file,
+                    line: text.slice(0, match.index).split('\n').length,
+                    rule: 'cross-page-import',
+                    message: `pages/${importerPage}/ imports from pages/${targetPage}/. What two pages share is a building block: move it to components/, hooks/ or utils/ and list it in AGENTS.md.`,
+                });
+            }
+        }
+
         if (UI_SOURCE.test(file) && file !== KANJI_SPELLING_NOTE) {
             eachLine(text, l => RENDERED_KANJI_SPELLING.test(l), line =>
                 add({ file, line, rule: 'headword', message: 'Renders writtenForm.kanji. Name the word with headwordOf/secondaryForm (@gokan/dataset-schema): a word learned in kana is shown in kana.' }));
@@ -762,8 +803,9 @@ function check(files: string[]): Violation[] {
             eachLine(text, l => /\bgrid-cols-12\b/.test(l), line =>
                 add({ file, line, rule: 'detail-layout', message: 'The 12-column detail grid lives in DetailHeader and DetailBody (components/detail/); use them.' }));
         }
-        if (DETAIL_SCREEN.test(file) && !(text.includes('<DetailHeader') && text.includes('<DetailBody'))) {
-            add({ file, rule: 'detail-layout', message: 'A detail page is DetailHeader then DetailBody (components/detail/), like the vocab, kanji and grammar pages.' });
+        // DetailTabsBody is DetailBody's tabs, with the tab state's panels and sections.
+        if (DETAIL_SCREEN.test(file) && !(text.includes('<DetailHeader') && /<DetailBody\b|<DetailTabsBody\b/.test(text))) {
+            add({ file, rule: 'detail-layout', message: 'A detail page is DetailHeader then DetailBody or DetailTabsBody (components/detail/), like the vocab, kanji and grammar pages.' });
         }
 
         if (APP_SOURCE.test(file)) {

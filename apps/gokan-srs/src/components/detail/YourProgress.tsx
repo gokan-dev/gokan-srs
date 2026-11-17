@@ -4,6 +4,7 @@ import { SRSHistoryGraph, type SRSHistorySeries } from "../SRSHistoryGraph";
 import { ReviewTimeline, type ReviewHistorySource } from "../ReviewTimeline";
 import { addedLine } from "../../utils/learningStatus.utils";
 import { DetailSection } from "./DetailSection";
+import { directionGridColumns } from "./directionGrid";
 
 export interface ProgressDirection {
     key: string;
@@ -20,6 +21,7 @@ interface YourProgressProps {
     totalReviews: number;
     series: SRSHistorySeries[];
     history: ReviewHistorySource[];
+    focusable?: boolean;
 }
 
 /**
@@ -39,26 +41,23 @@ export function DirectionStatus({ direction, underOnPhone = false }: { direction
 }
 
 /**
- * "Your progress" on a word's or a grammar point's page: one row per direction
- * with its ring, its value and when it is next reviewed, when it was added and
- * how often reviewed, the learning curve, and the review log behind a
- * disclosure. The only place a detail page shows rings (a word's page: its Your study): the
- * header does not.
+ * "Your study" on a word's or a grammar point's page: a ring and its status for each direction on
+ * one row, when it was added and how often reviewed on the heading's line, and the learning curve
+ * and review log behind one disclosure. The only place a detail page shows rings: the header does
+ * not. `focusable`: its heading takes focus when a link scrolls to it (a full page's section).
  */
-export function YourProgress({ directions, introductionAt, totalReviews, series, history }: YourProgressProps) {
+export function YourProgress({ directions, introductionAt, totalReviews, series, history, focusable = false }: YourProgressProps) {
     return (
-        <DetailSection title="Your progress">
-            <ul className="space-y-3">
-                {directions.map(direction => (
-                    <li key={direction.key}><DirectionStatus direction={direction} /></li>
-                ))}
+        <DetailSection title="Your study" focusable={focusable} aside={<p className="type-meta">{addedLine(introductionAt, totalReviews)}</p>}>
+            {/* One row at every width: below `sm` a column per direction, its status under the ring. */}
+            <ul className={`grid ${directionGridColumns(directions.length)} gap-x-4 gap-y-4 sm:flex sm:flex-wrap sm:gap-x-8`}>
+                {directions.map(direction => <li key={direction.key} className="min-w-0"><DirectionStatus direction={direction} underOnPhone={directions.length > 1} /></li>)}
             </ul>
-            <p className="type-meta mt-4">{addedLine(introductionAt, totalReviews)}</p>
-            <div className="mt-6">
-                <SRSHistoryGraph series={series} introDate={introductionAt} />
-            </div>
-            <Disclosure title="Review history" className="mt-4">
-                <ReviewTimeline sources={history} />
+            <Disclosure title="Learning curve and review history" className="mt-4">
+                <div className="space-y-6">
+                    <SRSHistoryGraph introDate={introductionAt} series={series} />
+                    <ReviewTimeline sources={history} />
+                </div>
             </Disclosure>
         </DetailSection>
     );

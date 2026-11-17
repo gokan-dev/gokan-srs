@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { GrammarService } from './grammar.service';
-import type { GrammarExample } from '@gokan/dataset-schema';
+import type { GrammarExample, GrammarVariantGroupIndex } from '@gokan/dataset-schema';
 import { datasetPathOf, emptyEnglishText, englishFiles, publishedFetch } from '../test/datasetFiles';
+import { grammarPoint } from '../test/fixtures';
 
 function makeExample(overrides: Partial<GrammarExample> = {}): GrammarExample {
     return {
@@ -130,5 +131,37 @@ describe('GrammarService index loaders', () => {
         const conjugations = await GrammarService.loadConjugations();
         expect(conjugations).toEqual(await english(files, 'grammar/conjugations.json'));
         expect(Object.keys(conjugations)).toEqual(['n5-te']);
+    });
+});
+
+describe('GrammarService.variantsOf', () => {
+    const groups: GrammarVariantGroupIndex = {
+        'n5-dewa': [
+            { id: 'n5-dewa', relation: 'canonical', title: 'n5-dewa' },
+            { id: 'n5-ja', relation: 'contraction', title: 'n5-ja' },
+            { id: 'n5-missing', relation: 'politeness', title: 'n5-missing' },
+        ],
+        'n5-alone': [
+            { id: 'n5-alone', relation: 'canonical', title: 'n5-alone' },
+            { id: 'n5-gone', relation: 'contraction', title: 'n5-gone' },
+        ],
+    };
+    const stubPoints = (present: readonly string[]) => {
+        vi.spyOn(GrammarService, 'loadVariantGroups').mockResolvedValue(groups);
+        vi.spyOn(GrammarService, 'loadGrammarPoint').mockImplementation(id => present.includes(id)
+            ? Promise.resolve(grammarPoint({ id }))
+            : Promise.reject(new Error(`no file for ${id}`)));
+    };
+
+    it('lists the other members whose point loads, each with its relation, from a canonical or a variant', async () => {
+        stubPoints(['n5-dewa', 'n5-ja']);
+        expect((await GrammarService.variantsOf({ id: 'n5-dewa' })).map(v => [v.point.id, v.relation])).toEqual([['n5-ja', 'contraction']]);
+        expect((await GrammarService.variantsOf({ id: 'n5-ja', variantOf: 'n5-dewa' })).map(v => [v.point.id, v.relation])).toEqual([['n5-dewa', 'canonical']]);
+    });
+
+    it('is empty when the only other member has no point file, so the page has no Related tab for it', async () => {
+        stubPoints(['n5-alone']);
+        expect(await GrammarService.variantsOf({ id: 'n5-alone' })).toEqual([]);
+        expect(await GrammarService.variantsOf({ id: 'n5-none' })).toEqual([]);
     });
 });
