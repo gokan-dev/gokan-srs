@@ -1065,13 +1065,28 @@ async function checkFullPage(tab: Tab, page: string, width: number, sections: re
 
 /** The section's heading top, from the viewport's top, once it has landed (null: no section). */
 const SECTION_TOP = (section: string, prefix: string) => `(() => { const el = document.getElementById('${prefix}-section-${section}'); return el ? el.getBoundingClientRect().top : null; })()`;
+/**
+ * Landed: the section's heading at the top or, for a short last section (a grammar point's 5
+ * examples under 800px of viewport), the page scrolled to its end with the whole section in view,
+ * as far up as any scroll can bring it.
+ */
+const LANDED = (section: string, prefix: string) => `(() => {
+    const el = document.getElementById('${prefix}-section-${section}');
+    if (!el) return false;
+    const r = el.getBoundingClientRect();
+    if (r.top < 0) return false;
+    if (r.top <= ${LANDING_MAX}) return true;
+    const atEnd = scrollY + innerHeight >= document.documentElement.scrollHeight - 1;
+    return atEnd && r.bottom <= innerHeight + 1;
+})()`;
 async function checkLanding(tab: Tab, page: string, width: number, section: string, kind = WORD_PAGE): Promise<void> {
     const top = SECTION_TOP(section, kind.prefix);
+    const landedCheck = LANDED(section, kind.prefix);
     try {
-        await tab.until(`document.querySelector(${JSON.stringify(kind.settled)}) !== null && (${top} ?? -1) >= 0 && ${top} <= ${LANDING_MAX}`, `the ${section} section at the top`, 10000);
+        await tab.until(`document.querySelector(${JSON.stringify(kind.settled)}) !== null && ${landedCheck}`, `the ${section} section at the top`, 10000);
         await new Promise(resolve => setTimeout(resolve, 1000));
         const landed = await tab.evaluate<number | null>(top);
-        if (landed === null || landed < 0 || landed > LANDING_MAX) failures.push(`${width}px ${page}: the ${section} section moved off the top once settled (${landed}px)`);
+        if (!await tab.evaluate<boolean>(landedCheck)) failures.push(`${width}px ${page}: the ${section} section moved off the top once settled (${landed}px)`);
     } catch {
         const landed = await tab.evaluate<number | null>(top);
         failures.push(`${width}px ${page}: did not land on its ${section} section (its top at ${landed}px)`);
