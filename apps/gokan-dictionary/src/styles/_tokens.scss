@@ -154,6 +154,51 @@ $motion: 150ms ease-in-out;
   margin: $space-2 0 0;
 }
 
+/// The app panel (pages/AppPanel.svelte), once per page after what the reader came for: a quiet accent edge, as
+/// the accent marks an action, and one button-styled link. A mixin each page sheet with a panel
+/// includes (vocab, kanji, grammar, kanji-orders, home) rather than an app.scss rule, so the
+/// stylesheet every page loads stays within its budget.
+@mixin app-panel {
+  .app-panel {
+    @include surface;
+    // A section's gap below, on every page type: the next element is a section on some, not on
+    // a word page (check:layout).
+    margin: $space-3 0 $space-5;
+    border-left: 3px solid var(--accent);
+
+    p {
+      margin: 0 0 $space-2;
+      max-width: 36rem;
+
+      // A word read in two fragments is not the word: an atomic box moves to the next line whole,
+      // and wraps inside itself only when wider than the line, never scrolling a phone sideways
+      // as nowrap would (check:layout).
+      [lang="ja"] {
+        display: inline-block;
+        max-width: 100%;
+      }
+    }
+  }
+
+  .app-panel-action {
+    display: inline-flex;
+    align-items: center;
+    min-height: $target;
+    // Room above and below a label that wraps on a narrow phone.
+    padding: $space-1 $space-2;
+    border-radius: $radius;
+    background-color: var(--accent);
+    color: var(--accent-contrast);
+    font-weight: 600;
+
+    &:hover {
+      background-color: var(--accent-hover);
+      color: var(--accent-contrast);
+      text-decoration: none;
+    }
+  }
+}
+
 /// One glyph per tile (a word's kanji, a kanji's components). Only a glyph with a page is a box and a
 /// link; one with none (氵) is drawn plain at the same size, so nothing unclickable looks clickable.
 @mixin glyph-tiles {

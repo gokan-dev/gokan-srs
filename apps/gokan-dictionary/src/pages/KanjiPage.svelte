@@ -4,13 +4,15 @@
   import type { KanjiBook } from '@gokan/dataset-schema';
   import { rangeOfStep } from '../lib/kanjiOrders';
   import { pageLocale } from './pageLocale';
+  import { appUrl } from '../lib/appLinks';
+  import AppPanel from './AppPanel.svelte';
   import PageLayout from './PageLayout.svelte';
   import Chip from './Chip.svelte';
   import VocabEntryList from './VocabEntryList.svelte';
 
   const { urls, messages } = pageLocale();
 
-  let { kanji, words, kanjiWithPages, orderLengths }: Props = $props();
+  let { kanji, words, kanjiWithPages, orderLengths, orderStep }: Props = $props();
 
   /** This kanji's step on its range page, with the words it unlocks; none for a book that is not an order (Essential Kanji). */
   function rangeHref(book: KanjiBook, position: number): string | undefined {
@@ -23,6 +25,8 @@
   const level = $derived(kanji.steps.jlpt);
   const kun = $derived(kanji.readings.kun.map(kunReadingLabel));
   const courses = $derived(kanjiBookPositions(kanji));
+  // The line under the heading speaks of linked steps, so it shows only when one is.
+  const anyLinked = $derived(courses.some(({ book, position }) => rangeHref(book, position) !== undefined));
 </script>
 
 <PageLayout trail={[{ label: messages.chrome.sections.kanji, href: urls.kanjiIndexPath() }, { label: kanji.character, jp: true }]} section="kanji" wide>
@@ -48,6 +52,11 @@
       {#if !level}Outside the JLPT lists<span class="meta-sep" aria-hidden="true">·</span>{/if}{#if kanji.grade !== undefined}{kanjiGradeLabel(kanji.grade)}<span class="meta-sep" aria-hidden="true">·</span>{/if}{kanji.strokeCount} stroke{kanji.strokeCount === 1 ? '' : 's'}{#if kanji.radical}<span class="meta-sep" aria-hidden="true">·</span>Radical <span lang="ja">{kanji.radical.character}</span>{/if}
     </p>
   </header>
+
+  <AppPanel
+    link={appUrl({ placement: 'kanji', order: orderStep?.order.id, known: orderStep?.step })}
+    copy={orderStep ? messages.appPanel.kanji(kanji.character, orderStep, orderStep.unlocked) : messages.appPanel.general}
+  />
 
   {#if kanji.components.length > 0}
     <section class="section">
@@ -78,11 +87,12 @@
   {#if courses.length > 0}
     <section class="section">
       <h2>In kanji courses</h2>
+      {#if anyLinked}<p class="support">A linked step leads to the words you can read at that point in the book.</p>{/if}
       <dl class="kanji-courses">
         {#each courses as { book, name, label, position } (book)}
           {@const href = rangeHref(book, position)}
           <!-- Named as the order pages its link lands on name it, the full title under it (heard after a comma). -->
-          <div><dt>{#if label}{label}<span class="kanji-course-title"><span class="visually-hidden">, </span>{name}</span>{:else}{name}{/if}</dt><dd>{#if href}<a {href}>#{position.toLocaleString('en')}</a>{:else}#{position.toLocaleString('en')}{/if}</dd></div>
+          <div><dt>{#if label}{label}<span class="kanji-course-title"><span class="visually-hidden">, </span>{name}</span>{:else}{name}{/if}</dt><dd>{#if href}<a {href}>Step {position.toLocaleString('en')}<span class="visually-hidden">: the words you can read at this step</span></a>{:else}Step {position.toLocaleString('en')}{/if}</dd></div>
         {/each}
       </dl>
     </section>

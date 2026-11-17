@@ -16,6 +16,7 @@ import { PageRenderedSignal } from './components/PageRenderedSignal';
 import { RouteSeo } from './components/RouteSeo';
 import { UpdateBanner } from './components/UpdateBanner';
 import { isAboutPath, isWhatsNewPath } from './utils/seo.utils';
+import type { SetupLink } from './utils/setupLink.utils';
 
 // Lazy Load Pages
 // Note: Adapting named exports to default exports for lazy loading where necessary
@@ -38,14 +39,18 @@ const ListeningLibraryScreen = lazy(() => import('./pages/listening/ListeningLib
 const ListeningTitleScreen = lazy(() => import('./pages/listening/ListeningTitleScreen').then(module => ({ default: module.ListeningTitleScreen })));
 
 /** Every screen of the app, each route declaring what search engines should do with it. */
-export const App: React.FC = () => (
+export const App: React.FC<{ setupLink: SetupLink }> = ({ setupLink }) => (
     <>
         <RouteSeo />
-        <AppScreens />
+        <AppScreens setupLink={setupLink} />
     </>
 );
 
-const AppScreens: React.FC = () => {
+/**
+ * `setupLink` is what the address the app opened on said about setup (main.tsx): only onboarding
+ * reads it, so a learner who already finished setup is never changed by such a link.
+ */
+const AppScreens: React.FC<{ setupLink: SetupLink }> = ({ setupLink }) => {
     const { state, actions, isSetupComplete } = useQuiz();
     const { isInitialLoadComplete, isDownloading } = useGoogleDrive();
     const navigate = useNavigate();
@@ -85,8 +90,10 @@ const AppScreens: React.FC = () => {
     // which About links to, reads no progress either.
     const whatsNew = isWhatsNewPath(location.pathname);
     if (!isSetupComplete && !isAboutPath(location.pathname) && !whatsNew) {
-        return <KanjiFormProvider initialState={{}}>
-            <OnboardingFlow onComplete={actions.setupComplete} />
+        // The route is left as it is, so a word or kanji page linked from the dictionary opens
+        // once setup completes.
+        return <KanjiFormProvider initialState={{ kanjiMethod: setupLink.order, kanjiCount: setupLink.known }}>
+            <OnboardingFlow link={setupLink} onComplete={actions.setupComplete} />
         </KanjiFormProvider>
     }
 

@@ -6,22 +6,44 @@ import type { FrequencyIndex, KanjiOrderList } from './indexes';
  */
 export type KanjiStepIndex = Record<number, string[]>;
 
+/** Each kanji of an order by its step (1-based), for `unlockStep`. */
+export function orderPositions(order: KanjiOrderList): ReadonlyMap<string, number> {
+    return new Map(order.map((kanji, index) => [kanji, index + 1]));
+}
+
+/** What `unlockStep` reads of a word: a frequency entry, or a word's written form with its flag. */
+export interface UnlockableWord {
+    containedKanji: readonly string[];
+    usuallyKana?: boolean;
+}
+
 /**
- * A word comes in at the step of its last kanji in the order, the rule the dataset applies to
- * KKLC. A word with a kanji the order does not teach, with no kanji, or learned in kana is never
- * unlocked: the kanji-driven order leaves it to the others. Within a step, most frequent first.
- * One copy for both apps, so the dictionary's order pages and the app's kanji-driven order can
- * never disagree about which words a step unlocks.
+ * The step of an order at which a word comes in: the step of its last kanji, the rule the dataset
+ * applies to KKLC. None for a word with a kanji the order does not teach, with no kanji, or learned
+ * in kana: the kanji-driven order leaves it to the others.
+ */
+export function unlockStep(word: UnlockableWord, positions: ReadonlyMap<string, number>): number | undefined {
+    if (word.usuallyKana || word.containedKanji.length === 0) return undefined;
+    let last = 0;
+    for (const kanji of word.containedKanji) {
+        const step = positions.get(kanji);
+        if (step === undefined) return undefined;
+        last = Math.max(last, step);
+    }
+    return last;
+}
+
+/**
+ * The words each step of an order unlocks (`unlockStep`), within a step most frequent first. One
+ * copy for both apps, so the dictionary's order pages and the app's kanji-driven order can never
+ * disagree about which words a step unlocks.
  */
 export function kanjiStepIndex(frequency: FrequencyIndex, order: KanjiOrderList): KanjiStepIndex {
-    const position = new Map(order.map((kanji, index) => [kanji, index + 1]));
+    const positions = orderPositions(order);
     const index: KanjiStepIndex = {};
     for (const entry of frequency) {
-        if (entry.usuallyKana || entry.containedKanji.length === 0) continue;
-        const steps = entry.containedKanji.map(kanji => position.get(kanji));
-        if (steps.some(step => step === undefined)) continue;
-        const step = Math.max(...steps.map(step => step ?? 0));
-        (index[step] ??= []).push(entry.id);
+        const step = unlockStep(entry, positions);
+        if (step !== undefined) (index[step] ??= []).push(entry.id);
     }
     return index;
 }

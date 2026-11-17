@@ -2,6 +2,8 @@
 
 @use '../tokens' as *;
 
+@include app-panel;
+
 .kanji-glyph {
   font-family: $font-mincho;
   font-size: 4.5rem;
@@ -50,7 +52,7 @@
   }
 }
 
-// Each course that teaches the kanji, with its number there.
+// Each course that teaches the kanji, with its step there.
 .kanji-courses {
   margin: 0;
   display: grid;
@@ -61,13 +63,13 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  // Every row as tall as a linked one, so the two columns stay even.
+  // The book, then its step under it: the step's link names what it leads to, too long to share a
+  // line with the book's title without squeezing both.
   div {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: $space-2;
-    min-height: $target;
+    flex-direction: column;
+    align-items: flex-start;
+    padding-top: $space-1;
     border-bottom: 1px solid var(--divider);
   }
 
@@ -84,15 +86,29 @@
     font-size: $text-sm;
   }
 
+  // On the row's bottom line, so in two columns a book without a subtitle lines its step up with
+  // its neighbour's. 44px tall even with no link in it (a book with no range page), so a plain
+  // step keeps the band, and the line, of a linked one.
   dd {
     margin: 0;
+    margin-top: auto;
+    min-width: 0;
+    min-height: $target;
+    display: flex;
+    align-items: center;
     font-variant-numeric: tabular-nums;
 
     // A book position is its row's one action, so it is a 44px target like a tile or a pager link.
+    // Padded rather than set in a 44px line, so it wraps as text on a phone.
+    // Underlined at rest, as a link in running text: a plain "Step 66" (no range page) sits
+    // among linked ones, and the accent alone is too close to the ink to tell them apart
+    // (check:layout).
     a {
       display: inline-block;
       min-height: $target;
-      line-height: $target;
+      padding-block: calc((#{$target} - 1lh) / 2);
+      text-decoration: underline;
+      text-underline-offset: 0.15em;
     }
   }
 }

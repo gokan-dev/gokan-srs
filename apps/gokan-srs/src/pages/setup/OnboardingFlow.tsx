@@ -3,25 +3,37 @@ import type { SetupValues } from "../../models/state.model";
 import { DEFAULT_SETTINGS } from "../../models/user.model";
 import { WelcomeScreen } from "./WelcomeScreen";
 import { SetupScreen } from "./SetupScreen";
+import { trackEvent } from "../../services/analytics";
+import { initialOnboardingStep, setupCompletedEvent, type OnboardingStep, type SetupLink } from "../../utils/setupLink.utils";
 
 interface OnboardingFlowProps {
+    /** The link that opened the app: its order and count are the kanji form's, its source the event's. */
+    link: SetupLink;
     onComplete: (values: SetupValues) => void;
 }
 
-export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
-    const [step, setStep] = useState<'welcome' | 'setup'>('welcome');
+export function OnboardingFlow({ link, onComplete }: OnboardingFlowProps) {
+    const [firstStep] = useState<OnboardingStep>(() => initialOnboardingStep(link));
+    const [step, setStep] = useState<OnboardingStep>(firstStep);
+
+    // Either path saves a setup; a Drive restore does not, and sends nothing.
+    const complete = (values: SetupValues) => {
+        trackEvent(setupCompletedEvent(link));
+        onComplete(values);
+    };
 
     const handleSelectBeginner = () => {
         // Fast-track for complete beginners
         const values: SetupValues = {
             kanjiKnowledge: {
-                method: 'kklc', // Default to KKLC to learn kanji in order
+                // KKLC to learn kanji in order, unless the link named the visitor's own book.
+                method: link.order ?? 'kklc',
                 step: 0,
                 kanjiSet: new Set(),
             },
             settings: { ...DEFAULT_SETTINGS, preferredLearningOrder: 'kanji_coverage' },
         };
-        onComplete(values);
+        complete(values);
     };
 
     if (step === 'welcome') {
@@ -35,7 +47,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
     if (step === 'setup') {
         return (
-            <SetupScreen onComplete={onComplete} />
+            <SetupScreen onComplete={complete} opensFirst={firstStep === 'setup'} />
         );
     }
 

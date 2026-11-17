@@ -1,7 +1,8 @@
 <script lang="ts">
   import type { HomePageProps as Props } from '../lib/pageProps';
   import { pageLocale } from './pageLocale';
-  import { SITE_ORIGIN } from '../lib/site';
+  import { appUrl } from '../lib/appLinks';
+  import AppPanel from './AppPanel.svelte';
   import LinkedText from './LinkedText.svelte';
   import PageLayout from './PageLayout.svelte';
   import SearchBox from './SearchBox.svelte';
@@ -12,10 +13,12 @@
 
   let { vocabCount, kanjiCount, grammarCount, sentenceCount, featured }: Props = $props();
 
+  // The learning orders first: the words each step of a kanji book unlocks are what no other
+  // dictionary lists, and what a learner following KKLC or RTK comes for.
   const tiles = $derived([
+    { href: urls.kanjiOrdersPath(), ...home.tiles.kanjiOrders },
     { href: urls.vocabIndexPath(), ...home.tiles.vocab },
     { href: urls.kanjiIndexPath(), ...home.tiles.kanji(kanjiCount) },
-    { href: urls.kanjiOrdersPath(), ...home.tiles.kanjiOrders },
     { href: urls.grammarIndexPath(), ...home.tiles.grammar(grammarCount) },
   ]);
 </script>
@@ -27,6 +30,11 @@
     <p class="home-lede">{home.lede}</p>
     <SearchBox hero />
   </div>
+
+  <section class="section">
+    <h2>{home.appHeading}</h2>
+    <AppPanel link={appUrl({ placement: 'home' })} copy={messages.appPanel.home} />
+  </section>
 
   <section class="section">
     <h2>{home.browse}</h2>
@@ -54,6 +62,6 @@
 
   <section class="section">
     <h2>{home.about}</h2>
-    <p><LinkedText parts={home.aboutText({ dataset: 'https://github.com/gokan-dev/gokan-dataset', srs: SITE_ORIGIN + '/' })} /></p>
+    <p><LinkedText parts={home.aboutText({ dataset: 'https://github.com/gokan-dev/gokan-dataset', srs: appUrl({ placement: 'about' }) })} /></p>
   </section>
 </PageLayout>

@@ -1,3 +1,4 @@
+import { appVocabPath } from '@gokan/analytics';
 import { wordTabHash, type WordTab } from './wordTabs.utils';
 
 /** A destination in the app's navigation (desktop header, mobile tab bar, More sheet). */
@@ -51,7 +52,7 @@ export function isMoreActive(pathname: string): boolean {
 
 /** A word's page, open on one of its tabs (Dict, which has no hash, by default). */
 export function vocabPath(vocabId: string, tab: WordTab = 'dict'): string {
-    return `/vocab/${encodeURIComponent(vocabId)}${wordTabHash(tab)}`;
+    return `${appVocabPath(vocabId)}${wordTabHash(tab)}`;
 }
 
 /**

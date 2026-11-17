@@ -9,9 +9,12 @@ import { App } from './App';
 import { ResponsiveProvider } from "./context/Responsive/ResponsiveProvider";
 import { BrowserRouter } from "react-router-dom";
 import { installChunkLoadGuard } from "./services/chunkLoadGuard";
+import { takeSetupLink } from "./services/setupLink";
 
 // Before the first lazy page loads, so a tab left open across a deploy recovers on its own.
 installChunkLoadGuard();
+// Before the router reads the address, so it never sees the parameters it no longer carries.
+const setupLink = takeSetupLink();
 
 createRoot(document.getElementById('root')!).render(
     <StrictMode>
@@ -24,7 +27,7 @@ createRoot(document.getElementById('root')!).render(
                     <BrowserRouter>
                         <ResponsiveProvider>
                             <QuizProvider>
-                                <App />
+                                <App setupLink={setupLink} />
                             </QuizProvider>
                         </ResponsiveProvider>
                     </BrowserRouter>

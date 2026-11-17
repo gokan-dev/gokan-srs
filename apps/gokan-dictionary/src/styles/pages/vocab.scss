@@ -6,6 +6,14 @@
 
 @use '../tokens' as *;
 
+@include app-panel;
+
+// After Meanings here, a section with no bottom margin, not under a header whose margin the
+// panel's own top one collapses into: a section's 40px above as below (check:layout).
+.entry-main > .app-panel {
+  margin-top: $space-5;
+}
+
 .entry-word {
   font-family: $font-mincho;
   font-size: clamp(2.5rem, 9vw, 3.5rem);

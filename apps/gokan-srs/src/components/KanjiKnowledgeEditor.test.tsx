@@ -1,5 +1,8 @@
+// @vitest-environment happy-dom
+import { act } from 'react';
+import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { KanjiFormContextValue } from '../context/KanjiForm/KanjiFormContext';
 import { SetupScreen } from '../pages/setup/SetupScreen';
 import { KanjiKnowledgeEditor } from './KanjiKnowledgeEditor';
@@ -45,6 +48,24 @@ describe('KanjiKnowledgeEditor', () => {
         expect(html).not.toContain('Done marking');
         expect(html).toMatch(/aria-expanded="false"[^>]*>.*Mark individual kanji/);
         expect(html.indexOf('between')).toBeLessThan(html.indexOf('Mark individual kanji'));
+    });
+});
+
+describe('KanjiKnowledgeEditor revealCount', () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    afterEach(() => { vi.restoreAllMocks(); document.body.innerHTML = ''; });
+
+    // Not only setup's collapsed grid: any caller asking for the count gets it scrolled to.
+    it.each([{ collapseGrid: false }, { collapseGrid: true }])('scrolls the count into view once the list is in (%o)', ({ collapseGrid }) => {
+        const scrolled = vi.fn();
+        vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(scrolled);
+        const container = document.createElement('div');
+        document.body.append(container);
+        const root = createRoot(container);
+        act(() => root.render(<KanjiKnowledgeEditor revealCount collapseGrid={collapseGrid} />));
+        act(() => root.render(<KanjiKnowledgeEditor revealCount collapseGrid={collapseGrid} />));
+        expect(scrolled).toHaveBeenCalledTimes(1);
+        act(() => root.unmount());
     });
 });
 

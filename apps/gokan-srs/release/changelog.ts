@@ -17,6 +17,16 @@ import type { ChangelogEntry } from '../src/models/release.model';
  */
 export const CHANGELOG: readonly ChangelogEntry[] = [
     {
+        version: '1.66.0',
+        date: '2026-11-17',
+        summary: 'Start studying from the dictionary',
+        changes: [
+            { summary: 'A link from the dictionary to Gokan now opens setup on the kanji book and the number of kanji you were reading, ready to confirm.', issue: 243 },
+            { summary: 'Every dictionary page now says in one line what Gokan would do with what you are reading, such as the kanji step at which a word becomes readable, and its link opens setup at that step.', issue: 244 },
+            { summary: 'The dictionary home page now leads with the kanji learning orders, and a kanji page now says that each course step leads to the words you can read at that step.', issue: 245 },
+        ],
+    },
+    {
         version: '1.65.0',
         date: '2026-11-13',
         summary: 'じゃ and では both count in a grammar sentence',
