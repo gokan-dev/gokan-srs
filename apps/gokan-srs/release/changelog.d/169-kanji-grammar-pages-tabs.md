@@ -1,0 +1,1 @@
+Kanji and grammar pages now work like word pages: on a phone their content is in tabs, with every word using a kanji and every example of a grammar point searchable, and on a wide screen each is one page with its key facts in the header.

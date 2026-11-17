@@ -223,14 +223,15 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
   line, the next review after the `StatusDot` label ("● Learning · Due now"), and never
   repeats the status word: a mastered item with nothing scheduled shows only
   "● Mastered" (`statusReviewPhrase`). The kanji header keeps Known / Not known. No mastery rings: those, with their values, are only in "Your
-  progress" ("Your study" on a word's page).
+  study" (`YourProgress`, a word's page and a grammar point's).
 - **`DetailBody`**: the body under every `DetailHeader`. Either from `lg` the same 12-column
   grid, `main` (8: the subject's content, meanings first) and `side` (4: the learner's data,
   related items, the details `Disclosure`), and below `lg` one column in reading order
   (`stacked` when it interleaves the two); or `tabs`: a sticky tab row (`TabNav` page tabs) and
   the panels under it, one column.
-- **Tabs on phones, one full page on desktop** (every tabbed detail page, issue 256: today the
-  SRS word page; the SRS kanji and grammar pages in #169. The static dictionary is not covered: it
+- **Tabs on phones, one full page on desktop** (every tabbed detail page, issue 256: the SRS
+  word, kanji and grammar pages, one tab state, `useDetailTabs`, and one body, `DetailTabsBody`,
+  since #169. The static dictionary is not covered: it
   has no tabbed page and no client runtime, so its detail pages are one page at every width). One
   switch width, **1024px** (Tailwind's `lg`, where the 8/4 grid starts; `useFullDetailPage`):
   below it tabs (tablets too), from it one full page with no tab row. `DetailBody` `tabs` takes the
@@ -304,10 +305,36 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
     each ring; a due direction says its stage, not "Due now"; "Added ... · N reviews" on the
     heading's line; the learning curve and review log under one collapsed `Disclosure`), then
     Your mix-ups when there are any, with its search.
-- **Kanji page**: the header is the glyph, its readings labelled On and Kun, and neutral
-  chips (JLPT, and the kanji's number in the learner's own method, "RTK #346"). Main:
-  Meanings, then the words using it. Side: Components (with "8 strokes · Radical 子") and
-  Dictionary details (school grade, newspaper rank, name readings, every book's number).
+- **Kanji page** (`pages/kanji/KanjiDetailScreen.tsx`, issue 169): the word page's two
+  arrangements, `narrow` with tabs below 1024px, `wide` and one full page from it.
+  - Header: the glyph, its readings labelled On and Kun, neutral chips (JLPT, and the kanji's
+    number in the learner's own method, "RTK #346"), then the facts row: How common (the
+    `FrequencyMeter` and the band, on the kanji scale: the newspaper list's 2,500, "Top 500 kanji"
+    in its `title`), School grade, Strokes, Radical; then Known / Not known and its button.
+  - Tabs: Kanji (Meanings, Components as `KanjiTile`s, Common words: the 5 most common, the
+    learner's studied ones first, and "All N words →", which opens Words; under a `divider`
+    line at its foot, Details folded), Words (`#words`: every word, searchable, 20 at a time),
+    Study (`#study`, when the learner studies words with the kanji: "Your words with 学", their
+    counts by status, the same list; a kanji only marked known has none: Known is in the header).
+  - Full page: main Kanji, then under a `divider` line Words, 10 at a time; side Study, then
+    Details unfolded (readings in names, the Kangxi radical's number, every other book's
+    number). 一 (660 words) is about 2,100px tall at 1280px (`check:layout` holds it under 2,500px).
+- **Grammar page** (`pages/grammar/GrammarDetailScreen.tsx`, issue 169): the same two arrangements.
+  - Header: the title, its romaji, the JLPT chip, then the facts row: Formality, Position (the
+    chapter, "Chapter 18, point 3 of 5", a link to it), Kind (construction, inflection,
+    lexical); then the status line or "Learn this grammar point".
+  - Tabs: Point (Formation; the short explanation and "Read the full explanation" in place;
+    When to use; 2 examples and "All N examples →", which opens Examples; the id in a folded
+    "Dataset details" at its foot), Examples (`#examples`: the curated examples and the
+    corpus's as one searchable list, curated first, 10 at a time, each marked "Curated example"
+    or "From the corpus" on its romaji line), Related (`#related`: Similar grammar, Other
+    forms), Study (`#study`, a point in study: the compact Your study, one ring).
+  - Full page: main Point, then under a `divider` line Examples, 5 at a time; side Study, then
+    Related. The point with the most curated and corpus examples measured, n5-001, is about
+    1,900px tall at 1280px (`check:layout` holds it under 2,250px).
+  - The Formation box stays, the one boxed block on these pages: it is an object, a pattern to
+    copy (principle 5), not a card around a section, so the "no cards" direction does not
+    reach it.
 - **Readings**: on in katakana, kun in hiragana with the okurigana in parentheses, まな(ぶ),
   through `kunReadingLabel` in both apps (enforced, `kun-reading`). Parentheses, not a
   colour: every colour already means something (section 2). A reading beside its headword is
