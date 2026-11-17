@@ -100,6 +100,9 @@ runs:
         #    A branch never pushed counts as `none`, the value step 7 records, so a run that keeps
         #    failing before its first push (setup, auth, a usage limit on turn one) escalates on the
         #    second resume instead of re-dispatching forever.
+        #    Known race, left open: a sweep landing in the seconds between a resume's marker and its
+        #    dispatched run appearing in `gh run list` sees head == last and escalates wrongly. That
+        #    needs a sweep within seconds of a resume, and costs one `needs-attention` removal.
         last="$(marker_of resume)"
         if [ "${head:-none}" = "$last" ]; then
           if [ -n "$head" ]; then
