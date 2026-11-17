@@ -316,9 +316,11 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
     line at its foot, Details folded), Words (`#words`: every word, searchable, 20 at a time),
     Study (`#study`, when the learner studies words with the kanji: "Your words with 学", their
     counts by status, the same list; a kanji only marked known has none: Known is in the header).
-  - Full page: main Kanji, then under a `divider` line Words, 10 at a time; side Study, then
-    Details unfolded (readings in names, the Kangxi radical's number, every other book's
-    number). 一 (660 words) is about 2,100px tall at 1280px (`check:layout` holds it under 2,500px).
+  - Full page: main Kanji (Meanings, Components: no Common words, since Words, the next
+    section, opens with the same rows; the full page never shows a tab's preview of a section
+    above that section), then under a `divider` line Words, 10 at a time; side Study (5 at a
+    time, without the JLPT chip: the column is about 300px wide at 1024px), then Details
+    unfolded (readings in names, the Kangxi radical's number, every other book's number). 一 (660 words) is about 1,650px tall at 1280px (`check:layout` holds it under 2,100px).
 - **Grammar page** (`pages/grammar/GrammarDetailScreen.tsx`, issue 169): the same two arrangements.
   - Header: the title, its romaji, the JLPT chip, then the facts row: Formality, Position (the
     chapter, "Chapter 18, point 3 of 5", a link to it), Kind (construction, inflection,
@@ -329,9 +331,12 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
     corpus's as one searchable list, curated first, 10 at a time, each marked "Curated example"
     or "From the corpus" on its romaji line), Related (`#related`: Similar grammar, Other
     forms), Study (`#study`, a point in study: the compact Your study, one ring).
-  - Full page: main Point, then under a `divider` line Examples, 5 at a time; side Study, then
-    Related. The point with the most curated and corpus examples measured, n5-001, is about
-    1,900px tall at 1280px (`check:layout` holds it under 2,250px).
+  - Full page: main Point (Formation, the short explanation with the full one in place, When
+    to use: no examples, since Examples, the next section, opens with the same two, and its
+    "Examples" heading would be the page's second), then under a `divider` line Examples, 5 at
+    a time; side Study, then Related, then "Dataset details" folded (at the foot of Point it
+    would sit between two lines). The point with the most curated and corpus examples measured, n5-001, is about
+    1,600px tall at 1280px (`check:layout` holds it under 2,000px).
   - The Formation box stays, the one boxed block on these pages: it is an object, a pattern to
     copy (principle 5), not a card around a section, so the "no cards" direction does not
     reach it.

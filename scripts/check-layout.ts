@@ -996,18 +996,25 @@ interface DetailPageKind {
     prefix: string;
     settled: string;
     maxHeight?: number;
+    /**
+     * Its main column shows each word row and example sentence once (DESIGN_SYSTEM section 5, "never
+     * a second copy of any panel"): a tab's preview of another tab is left out of the full page,
+     * where that tab is the next section. Not a word page's: its Dict names two examples and its
+     * closest synonyms on purpose, as the summary of the sections below.
+     */
+    onceEach?: boolean;
 }
 const WORD_PAGE: DetailPageKind = { prefix: 'word', settled: '[data-sentences="settled"]' };
 /**
- * 一 at 1280px, the kanji with the most words (660): measured at 2062px (header 390, Kanji 660 with
- * 5 common words, Words 10 of 660 in 830). Its Words tab's 20 would add ~630px.
+ * 一 at 1280px, the kanji with the most words (660): measured at 1654px (Kanji without its 5 common
+ * words, which Words opens with, then Words 10 of 660). Its Words tab's 20 would add ~630px.
  */
-const KANJI_PAGE: DetailPageKind = { prefix: 'kanji', settled: '[data-words="settled"]', maxHeight: 2500 };
+const KANJI_PAGE: DetailPageKind = { prefix: 'kanji', settled: '[data-words="settled"]', maxHeight: 2100, onceEach: true };
 /**
- * n5-001 (が いちばん) at 1280px, 26 examples: measured at 1881px (Point with 2 examples 690,
- * Examples 5 of 26 in 640). Its Examples tab's 10 would add ~470px.
+ * n5-001 (が いちばん) at 1280px, 26 examples: measured at 1616px (Point with its full explanation
+ * and no examples, then Examples 5 of 26). Its Examples tab's 10 would add ~470px.
  */
-const GRAMMAR_PAGE: DetailPageKind = { prefix: 'grammar', settled: '[data-examples="settled"]', maxHeight: 2250 };
+const GRAMMAR_PAGE: DetailPageKind = { prefix: 'grammar', settled: '[data-examples="settled"]', maxHeight: 2000, onceEach: true };
 const KANJI_FULL_SECTIONS = ['kanji', 'words'];
 const GRAMMAR_FULL_SECTIONS = ['point', 'examples', 'related'];
 
@@ -1018,7 +1025,7 @@ const GRAMMAR_FULL_SECTIONS = ['point', 'examples', 'related'];
  * scrolling row) is left out: its overflow is not a sideways scroll.
  */
 async function checkFullPage(tab: Tab, page: string, width: number, sections: readonly string[], kind = WORD_PAGE): Promise<void> {
-    const found = await tab.evaluate<{ tabs: boolean; missing: string[]; height: number; sideways: number; side: boolean; overflowing: string[] }>(`(() => {
+    const found = await tab.evaluate<{ tabs: boolean; missing: string[]; height: number; sideways: number; side: boolean; overflowing: string[]; sameHeadings: string[]; repeated: string[] }>(`(() => {
         const describe = el => el.tagName.toLowerCase() + ' "' + el.textContent.trim().slice(0, 30) + '"';
         const column = document.querySelector('[data-detail-side]');
         const right = column ? column.getBoundingClientRect().right : 0;
@@ -1041,7 +1048,20 @@ async function checkFullPage(tab: Tab, page: string, width: number, sections: re
                 if (r.width > 0 && r.right > right + 1 && !clippedAbove(el.parentElement)) overflowing.push(el);
             }
         }
+        // Each section heading once: two alike ("Examples" twice) are one panel shown twice, and
+        // confuse a screen reader's list of headings.
+        const headings = [...document.querySelectorAll('main h2')].map(h => h.textContent.trim()).filter(Boolean);
+        const sameHeadings = [...new Set(headings.filter((h, i) => headings.indexOf(h) !== i))];
+        // A word row (its link) or an example sentence shown twice in the main column.
+        const mainColumn = column ? column.previousElementSibling : null;
+        const items = ${kind.onceEach === true} && mainColumn ? [
+            ...[...mainColumn.querySelectorAll('[data-list-row] > a')].map(a => 'row ' + a.getAttribute('href')),
+            ...[...mainColumn.querySelectorAll('[data-example-sentence]')].map(e => 'sentence "' + e.textContent.trim().slice(0, 20) + '"'),
+        ] : [];
+        const repeated = [...new Set(items.filter((item, i) => items.indexOf(item) !== i))];
         return {
+            sameHeadings,
+            repeated: repeated.slice(0, 3),
             tabs: document.querySelector('[data-detail-tabs], [role=tablist]') !== null,
             missing: ${JSON.stringify(sections)}.filter(s => !document.getElementById('${kind.prefix}-section-' + s)),
             height: document.documentElement.scrollHeight,
@@ -1055,6 +1075,8 @@ async function checkFullPage(tab: Tab, page: string, width: number, sections: re
     if (found.sideways > 1) failures.push(`${width}px ${page}: the full page scrolls sideways by ${found.sideways}px`);
     if (!found.side) failures.push(`${width}px ${page}: no side column ([data-detail-side]) on the full page`);
     for (const el of found.overflowing) failures.push(`${width}px ${page}: ${el} overflows the side column`);
+    for (const heading of found.sameHeadings) failures.push(`${width}px ${page}: two "${heading}" headings on the full page: a tab's preview of a section shown above that section`);
+    for (const item of found.repeated) failures.push(`${width}px ${page}: the ${item} twice in the main column: a tab's preview of a section shown above that section`);
     if (page.includes(LONG_SYNONYMS_WORD) && found.height > FULL_PAGE_MAX_HEIGHT) {
         failures.push(`${width}px ${page}: the full page is ${found.height}px tall, over ${FULL_PAGE_MAX_HEIGHT}px: a long section is not capped to its preview`);
     }

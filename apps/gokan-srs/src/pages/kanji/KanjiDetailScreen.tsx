@@ -39,7 +39,7 @@ const TAB_LABEL: Record<KanjiTab, string> = {
 const FULL_MAIN: readonly KanjiTab[] = ['kanji', 'words'];
 const FULL_SIDE: readonly KanjiTab[] = ['study'];
 
-/** The first tab's words: the most common, the learner's own first. */
+/** The first tab's words below `lg`: the most common, the learner's own first (the full page has Words, and the learner's own beside it). */
 const COMMON_WORDS = 5;
 /** A full page's previews (DESIGN_SYSTEM section 5, Kanji page): its tabs show 20 at a time. */
 const FULL_WORD_ROWS = 10;
@@ -153,7 +153,8 @@ function KanjiPage({ kanji, vocabIds, wordsSettled }: KanjiPageProps) {
                                 </ul>
                             </DetailSection>
                         )}
-                        {commonIds.length > 0 && (
+                        {/* The tab's preview of Words; the full page has Words itself right below, so not twice. */}
+                        {!preview && commonIds.length > 0 && (
                             <DetailSection
                                 title="Common words"
                                 aside={vocabIds.length > COMMON_WORDS
@@ -176,7 +177,7 @@ function KanjiPage({ kanji, vocabIds, wordsSettled }: KanjiPageProps) {
             case 'study':
                 return (
                     <DetailSection title={<>Your words with {glyph}</>} focusable={preview} aside={<p className="type-meta">{statusCounts(studiedIds.map(id => vocabLearningStatus(progressById.get(id), settings)))}</p>}>
-                        <KanjiWordsPanel ids={studiedIds} label={`Search your words with ${kanji.character}`} {...(preview ? { pageSize: FULL_STUDY_ROWS } : {})} />
+                        <KanjiWordsPanel ids={studiedIds} label={`Search your words with ${kanji.character}`} {...(preview ? { pageSize: FULL_STUDY_ROWS, compact: true } : {})} />
                     </DetailSection>
                 );
         }

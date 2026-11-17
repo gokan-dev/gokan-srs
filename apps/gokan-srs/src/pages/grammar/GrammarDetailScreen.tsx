@@ -38,7 +38,7 @@ const TAB_LABEL: Record<GrammarTab, string> = {
 const FULL_MAIN: readonly GrammarTab[] = ['point', 'examples'];
 const FULL_SIDE: readonly GrammarTab[] = ['study', 'related'];
 
-/** The Point tab's examples, before "All N examples". */
+/** The Point tab's examples, before "All N examples" (below `lg`: the full page has Examples itself). */
 const POINT_EXAMPLES = 2;
 /** The Examples section's first page on the full page (its tab: 10). */
 const FULL_EXAMPLES = 5;
@@ -83,10 +83,8 @@ export default function GrammarDetailScreen() {
     // here as full sentences. null while loading or when there is none.
     const minedLoad = useAsyncData(grammarId ?? null, () => GrammarService.loadMinedExamples(grammarId ?? ''));
     // The other forms of the same point (its variant group), for whether Related has content.
-    const hasVariants = useAsyncData(point?.id ?? null, async () => {
-        const group = (await GrammarService.loadVariantGroups())[point?.variantOf ?? point?.id ?? ''];
-        return (group ?? []).some(m => m.id !== point?.id);
-    }).data ?? false;
+    // The same list its Other forms card shows, so Related never opens on an empty card.
+    const hasVariants = useAsyncData(point?.id ?? null, async () => point ? (await GrammarService.variantsOf(point)).length > 0 : false).data ?? false;
 
     if (pointLoad.status === 'error') return <DetailErrorScreen message="Could not load this grammar point." />;
     if (!point) return <LoadingScreen />;
@@ -167,7 +165,7 @@ function GrammarPage({ point, chapterLocation, mined, examplesSettled, hasVarian
     const render = (tab: GrammarTab, preview: boolean): ReactNode => {
         switch (tab) {
             case 'point':
-                return <PointPanel point={point} examples={examples} onAllExamples={() => tabs.choose('examples')} />;
+                return <PointPanel point={point} examples={examples} full={preview} onAllExamples={() => tabs.choose('examples')} />;
             case 'examples':
                 return <GrammarExamplesPanel examples={examples} {...(preview ? { pageSize: FULL_EXAMPLES } : {})} />;
             case 'related':
@@ -202,16 +200,19 @@ function GrammarPage({ point, chapterLocation, mined, examplesSettled, hasVarian
                 side={FULL_SIDE}
                 ownHeadings={['point', 'related', 'study']}
                 render={render}
+                sideFoot={<DatasetDetails point={point} />}
             />
         </Page>
     );
 }
 
 /**
- * The Point tab, what a learner opens a point for: its formation, the short explanation (the full
- * one in place on request), when to use it and two examples, then its id folded at the foot.
+ * The Point tab, what a learner opens a point for: its formation, the short explanation, when to
+ * use it. Below `lg` (a tab) the full explanation shows on request, then two examples and the id
+ * folded at the foot; on the full page (`full`) the full explanation is in place, Examples is the
+ * next section rather than a preview of it, and the id folds in the side column.
  */
-function PointPanel({ point, examples, onAllExamples }: { point: GrammarPoint; examples: readonly ListedExample[]; onAllExamples: () => void }) {
+function PointPanel({ point, examples, full, onAllExamples }: { point: GrammarPoint; examples: readonly ListedExample[]; full: boolean; onAllExamples: () => void }) {
     const [fullExplanation, setFullExplanation] = useState(false);
     return (
         <div className="space-y-10">
@@ -223,7 +224,7 @@ function PointPanel({ point, examples, onAllExamples }: { point: GrammarPoint; e
             </DetailSection>
             <DetailSection title="Explanation">
                 <p className="font-sans text-lg text-primary leading-relaxed">{point.shortExplanation}</p>
-                {point.longExplanation && (fullExplanation
+                {point.longExplanation && (full || fullExplanation
                     ? <p className="type-body mt-3">{point.longExplanation}</p>
                     : <TextButton onClick={() => setFullExplanation(true)} className="mt-3">Read the full explanation</TextButton>)}
             </DetailSection>
@@ -233,7 +234,7 @@ function PointPanel({ point, examples, onAllExamples }: { point: GrammarPoint; e
                 </DetailSection>
             )}
             {/* An inflection point has no curated examples: its corpus ones, or nothing rather than an empty section. */}
-            {examples.length > 0 && (
+            {!full && examples.length > 0 && (
                 <DetailSection
                     title="Examples"
                     aside={examples.length > POINT_EXAMPLES
@@ -243,9 +244,16 @@ function PointPanel({ point, examples, onAllExamples }: { point: GrammarPoint; e
                     <GrammarExampleList examples={examples.slice(0, POINT_EXAMPLES)} />
                 </DetailSection>
             )}
-            <Disclosure title="Dataset details" className="border-t border-divider pt-4">
-                <dl><DetailField label="Id">{point.id}</DetailField></dl>
-            </Disclosure>
+            {!full && <DatasetDetails point={point} className="border-t border-divider pt-4" />}
         </div>
+    );
+}
+
+/** The point's id, folded: at the Point tab's foot below `lg`, at the side column's on the full page. */
+function DatasetDetails({ point, className = '' }: { point: GrammarPoint; className?: string }) {
+    return (
+        <Disclosure title="Dataset details" className={className}>
+            <dl><DetailField label="Id">{point.id}</DetailField></dl>
+        </Disclosure>
     );
 }
