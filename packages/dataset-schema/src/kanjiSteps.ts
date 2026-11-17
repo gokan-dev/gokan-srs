@@ -11,12 +11,18 @@ export function orderPositions(order: KanjiOrderList): ReadonlyMap<string, numbe
     return new Map(order.map((kanji, index) => [kanji, index + 1]));
 }
 
+/** What `unlockStep` reads of a word: a frequency entry, or a word's written form with its flag. */
+export interface UnlockableWord {
+    containedKanji: readonly string[];
+    usuallyKana?: boolean;
+}
+
 /**
  * The step of an order at which a word comes in: the step of its last kanji, the rule the dataset
  * applies to KKLC. None for a word with a kanji the order does not teach, with no kanji, or learned
  * in kana: the kanji-driven order leaves it to the others.
  */
-export function unlockStep(word: { containedKanji: readonly string[]; usuallyKana?: boolean }, positions: ReadonlyMap<string, number>): number | undefined {
+export function unlockStep(word: UnlockableWord, positions: ReadonlyMap<string, number>): number | undefined {
     if (word.usuallyKana || word.containedKanji.length === 0) return undefined;
     let last = 0;
     for (const kanji of word.containedKanji) {

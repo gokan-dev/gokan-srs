@@ -5,7 +5,7 @@
 // Umami script every production page already loads, with no script of ours: static attributes, so
 // pages stay byte-identical between builds).
 
-import { DICTIONARY_SOURCE, SETUP_LINK_PARAMS, type DictionaryPlacement } from '@gokan/analytics';
+import { appVocabPath, DICTIONARY_SOURCE, SETUP_LINK_PARAMS, type DictionaryPlacement } from '@gokan/analytics';
 import type { KanjiOrderId } from '@gokan/dataset-schema';
 import { SITE_ORIGIN } from './site';
 
@@ -20,8 +20,12 @@ export interface AppLink {
 
 export interface AppLinkTarget {
     placement: DictionaryPlacement;
-    /** The app's page to open once setup is done (`/vocab/1358280`): the app's root without one. */
-    path?: string;
+    /**
+     * The word whose app page opens once setup is done (`/vocab/1358280`, through the shared
+     * `appVocabPath`): the app's root without one. An id, never a path, so no page writes the
+     * app's route by hand.
+     */
+    vocabId?: string;
     /** The kanji order onboarding opens on. */
     order?: KanjiOrderId;
     /** How many kanji of that order onboarding starts the visitor knowing. */
@@ -29,8 +33,8 @@ export interface AppLinkTarget {
 }
 
 /** The link into the app for a placement, with the setup it opens on. */
-export function appUrl({ placement, path = '/', order, known }: AppLinkTarget): AppLink {
-    const url = new URL(path, SITE_ORIGIN);
+export function appUrl({ placement, vocabId, order, known }: AppLinkTarget): AppLink {
+    const url = new URL(vocabId === undefined ? '/' : appVocabPath(vocabId), SITE_ORIGIN);
     if (order !== undefined) url.searchParams.set(SETUP_LINK_PARAMS.order, order);
     if (known !== undefined) url.searchParams.set(SETUP_LINK_PARAMS.known, String(known));
     url.searchParams.set('utm_source', DICTIONARY_SOURCE);

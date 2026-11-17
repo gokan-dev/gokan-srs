@@ -28,7 +28,7 @@
 
   const headword = $derived(headwordOf(vocab));
   // Into the app at the step the word comes in at, its own page open once setup is done.
-  const appLink = $derived(appUrl({ placement: 'word', path: `/vocab/${encodeURIComponent(vocab.id)}`, order: orderStep?.order.id, known: orderStep?.step }));
+  const appLink = $derived(appUrl({ placement: 'word', vocabId: vocab.id, order: orderStep?.order.id, known: orderStep?.step }));
   // The single most important fact on the page, beside the word: a reader who searched for it
   // wants the meaning immediately, not after scrolling to the Meanings section.
   // On a page in another language (text), its own: the first equivalents, else its first definition's first sense.

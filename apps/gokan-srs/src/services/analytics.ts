@@ -4,6 +4,8 @@
  * the people who actually study from everyone who opens the app.
  */
 
+import type { SetupSource } from '@gokan/analytics';
+
 /** What the dashboard can report, beyond page views. */
 export type AnalyticsEvent =
     /** A vocab or grammar session began: a learner, not just a visitor. */
@@ -13,7 +15,7 @@ export type AnalyticsEvent =
      * (`utm_content`, utils/setupLink.utils.ts), or `direct`: followed by `session_started`, a
      * funnel per placement.
      */
-    | { name: 'setup_completed'; data: { source: string } };
+    | { name: 'setup_completed'; data: { source: SetupSource } };
 
 interface UmamiTracker {
     track(name: string, data: Record<string, string>): void;

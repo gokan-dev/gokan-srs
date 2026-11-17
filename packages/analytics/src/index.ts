@@ -39,6 +39,20 @@ export const DICTIONARY_PLACEMENTS = ['word', 'kanji', 'range', 'order', 'gramma
 
 export type DictionaryPlacement = (typeof DICTIONARY_PLACEMENTS)[number];
 
+/**
+ * Where `setup_completed` says a learner came from: a dictionary placement's link, or anything
+ * else (a typed address, a search result, a link not in the list).
+ */
+export type SetupSource = `dictionary-${DictionaryPlacement}` | 'direct';
+
+/**
+ * The app's page for a word. The app's `vocabPath` builds on it and the dictionary's word pages
+ * link through it, so a change to the route moves both.
+ */
+export function appVocabPath(vocabId: string): string {
+    return `/vocab/${encodeURIComponent(vocabId)}`;
+}
+
 export function isDictionaryPlacement(value: string | null | undefined): value is DictionaryPlacement {
     return (DICTIONARY_PLACEMENTS as readonly (string | null | undefined)[]).includes(value);
 }

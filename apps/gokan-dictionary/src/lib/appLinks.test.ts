@@ -18,7 +18,7 @@ describe('appUrl', () => {
     });
 
     it('opens an app page once setup is done', () => {
-        expect(appUrl({ placement: 'word', path: '/vocab/1358280', order: 'kklc', known: 212 }).href)
+        expect(appUrl({ placement: 'word', vocabId: '1358280', order: 'kklc', known: 212 }).href)
             .toBe(`${SITE_ORIGIN}/vocab/1358280?order=kklc&known=212&utm_source=dictionary&utm_content=word`);
     });
 });

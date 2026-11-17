@@ -2,7 +2,7 @@
 // words each step unlocks. Which words a step unlocks is never decided here: `kanjiStepIndex`
 // (@gokan/dataset-schema) is the rule the app's kanji-driven order follows too.
 
-import { unlockStep, type KanjiOrder, type KanjiOrderList, type KanjiStepIndex } from '@gokan/dataset-schema';
+import { unlockStep, type KanjiOrder, type KanjiOrderList, type KanjiStepIndex, type UnlockableWord } from '@gokan/dataset-schema';
 
 /**
  * The language of an order's prose name (`searchName`), for a sentence that names it: every one is
@@ -86,7 +86,7 @@ export interface OrderStep {
  * it: given in KANJI_ORDERS order, KKLC (the app's default order) when it can, else the most
  * followed order that can. None for a word no order unlocks (no kanji, learned in kana).
  */
-export function wordOrderStep(word: { containedKanji: readonly string[]; usuallyKana?: boolean }, orders: readonly PositionedOrder[]): OrderStep | null {
+export function wordOrderStep(word: UnlockableWord, orders: readonly PositionedOrder[]): OrderStep | null {
     for (const { order, positions } of orders) {
         const step = unlockStep(word, positions);
         if (step !== undefined) return { order, step };

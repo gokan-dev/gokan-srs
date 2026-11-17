@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { analyticsScriptTag, DICTIONARY_PLACEMENTS, isDictionaryPlacement } from './index';
+import { analyticsScriptTag, appVocabPath, DICTIONARY_PLACEMENTS, isDictionaryPlacement } from './index';
 
 describe('analyticsScriptTag', () => {
     it('is empty when the build has no website id', () => {
@@ -31,5 +31,12 @@ describe('DICTIONARY_PLACEMENTS', () => {
         expect(isDictionaryPlacement('sidebar')).toBe(false);
         expect(isDictionaryPlacement('')).toBe(false);
         expect(isDictionaryPlacement(null)).toBe(false);
+    });
+});
+
+describe('appVocabPath', () => {
+    it('is the app\'s word route, the id encoded', () => {
+        expect(appVocabPath('1358280')).toBe('/vocab/1358280');
+        expect(appVocabPath('a/b c')).toBe('/vocab/a%2Fb%20c');
     });
 });
