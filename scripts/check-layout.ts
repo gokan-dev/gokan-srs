@@ -984,12 +984,36 @@ const FULL_PAGE_MAX_HEIGHT = 3200;
 const LANDING_MAX = 48;
 
 /**
+ * A tabbed detail page (issue 169: the word's, the kanji's and the grammar point's): its ids'
+ * prefix (`kanji-section-words`), what marks it settled (the content before its sections loaded),
+ * and how tall its full page may be with every long section capped to its preview.
+ */
+interface DetailPageKind {
+    prefix: string;
+    settled: string;
+    maxHeight?: number;
+}
+const WORD_PAGE: DetailPageKind = { prefix: 'word', settled: '[data-sentences="settled"]' };
+/**
+ * 一 at 1280px, the kanji with the most words (660): measured at 2062px (header 390, Kanji 660 with
+ * 5 common words, Words 10 of 660 in 830). Its Words tab's 20 would add ~630px.
+ */
+const KANJI_PAGE: DetailPageKind = { prefix: 'kanji', settled: '[data-words="settled"]', maxHeight: 2500 };
+/**
+ * n5-001 (が いちばん) at 1280px, 26 examples: measured at 1881px (Point with 2 examples 690,
+ * Examples 5 of 26 in 640). Its Examples tab's 10 would add ~470px.
+ */
+const GRAMMAR_PAGE: DetailPageKind = { prefix: 'grammar', settled: '[data-examples="settled"]', maxHeight: 2250 };
+const KANJI_FULL_SECTIONS = ['kanji', 'words'];
+const GRAMMAR_FULL_SECTIONS = ['point', 'examples', 'related'];
+
+/**
  * The open word page is one full page: no tab row, each section given present, and nothing wider
  * than its place: the page does not scroll sideways, and no text or input in the side column (about
  * 290px at 1024px) runs past its edge. Text inside a box that clips or scrolls on purpose (`truncate`, a
  * scrolling row) is left out: its overflow is not a sideways scroll.
  */
-async function checkFullPage(tab: Tab, page: string, width: number, sections: readonly string[]): Promise<void> {
+async function checkFullPage(tab: Tab, page: string, width: number, sections: readonly string[], kind = WORD_PAGE): Promise<void> {
     const found = await tab.evaluate<{ tabs: boolean; missing: string[]; height: number; sideways: number; side: boolean; overflowing: string[] }>(`(() => {
         const describe = el => el.tagName.toLowerCase() + ' "' + el.textContent.trim().slice(0, 30) + '"';
         const column = document.querySelector('[data-detail-side]');
@@ -1015,7 +1039,7 @@ async function checkFullPage(tab: Tab, page: string, width: number, sections: re
         }
         return {
             tabs: document.querySelector('[data-detail-tabs], [role=tablist]') !== null,
-            missing: ${JSON.stringify(sections)}.filter(s => !document.getElementById('word-section-' + s)),
+            missing: ${JSON.stringify(sections)}.filter(s => !document.getElementById('${kind.prefix}-section-' + s)),
             height: document.documentElement.scrollHeight,
             sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth,
             side: column !== null,
@@ -1030,19 +1054,23 @@ async function checkFullPage(tab: Tab, page: string, width: number, sections: re
     if (page.includes(LONG_SYNONYMS_WORD) && found.height > FULL_PAGE_MAX_HEIGHT) {
         failures.push(`${width}px ${page}: the full page is ${found.height}px tall, over ${FULL_PAGE_MAX_HEIGHT}px: a long section is not capped to its preview`);
     }
+    if (kind.maxHeight !== undefined && found.height > kind.maxHeight) {
+        failures.push(`${width}px ${page}: the full page is ${found.height}px tall, over ${kind.maxHeight}px: a long section is not capped to its preview`);
+    }
 }
 
 /** The section's heading top, from the viewport's top, once it has landed (null: no section). */
-const SECTION_TOP = (section: string) => `(() => { const el = document.getElementById('word-section-${section}'); return el ? el.getBoundingClientRect().top : null; })()`;
-async function checkLanding(tab: Tab, page: string, width: number, section: string): Promise<void> {
+const SECTION_TOP = (section: string, prefix: string) => `(() => { const el = document.getElementById('${prefix}-section-${section}'); return el ? el.getBoundingClientRect().top : null; })()`;
+async function checkLanding(tab: Tab, page: string, width: number, section: string, kind = WORD_PAGE): Promise<void> {
+    const top = SECTION_TOP(section, kind.prefix);
     try {
-        await tab.until(`document.querySelector('[data-sentences="settled"]') !== null && (${SECTION_TOP(section)} ?? -1) >= 0 && ${SECTION_TOP(section)} <= ${LANDING_MAX}`, `the ${section} section at the top`, 10000);
+        await tab.until(`document.querySelector(${JSON.stringify(kind.settled)}) !== null && (${top} ?? -1) >= 0 && ${top} <= ${LANDING_MAX}`, `the ${section} section at the top`, 10000);
         await new Promise(resolve => setTimeout(resolve, 1000));
-        const top = await tab.evaluate<number | null>(SECTION_TOP(section));
-        if (top === null || top < 0 || top > LANDING_MAX) failures.push(`${width}px ${page}: the ${section} section moved off the top once settled (${top}px)`);
+        const landed = await tab.evaluate<number | null>(top);
+        if (landed === null || landed < 0 || landed > LANDING_MAX) failures.push(`${width}px ${page}: the ${section} section moved off the top once settled (${landed}px)`);
     } catch {
-        const top = await tab.evaluate<number | null>(SECTION_TOP(section));
-        failures.push(`${width}px ${page}: did not land on its ${section} section (its top at ${top}px)`);
+        const landed = await tab.evaluate<number | null>(top);
+        failures.push(`${width}px ${page}: did not land on its ${section} section (its top at ${landed}px)`);
     }
 }
 
@@ -1109,6 +1137,63 @@ async function checkCrossing(tab: Tab, app: string): Promise<void> {
     }
     await tab.resize(DESKTOP.width, DESKTOP.height);
     await checkLanding(tab, `${page}, back at 1280px`, DESKTOP.width, 'synonym');
+}
+
+/** The kanji with the most words (660), a common one and one more (issue 169's pages). */
+const DETAIL_KANJI = ['一', '学', '取'];
+/** A construction with curated and corpus examples, and an inflection with only a few. */
+const DETAIL_GRAMMAR = [GRAMMAR_POINT, 'n5-016'];
+
+/**
+ * The kanji and grammar pages from 1024px (issue 169): one full page, no tab row, each section
+ * there and its long lists capped (KANJI_PAGE, GRAMMAR_PAGE), at 1280px and 1024px; a hash
+ * landing on its section.
+ */
+async function checkDetailFullPages(tab: Tab, app: string): Promise<void> {
+    for (const width of [DESKTOP.width, FULL_PAGE_WIDTH]) {
+        await tab.resize(width, DESKTOP.height);
+        for (const glyph of DETAIL_KANJI) {
+            await tab.goto(`${app}/kanji/${encodeURIComponent(glyph)}`, 'Meanings');
+            await tab.until(`document.querySelector(${JSON.stringify(KANJI_PAGE.settled)}) !== null && document.body.innerText.includes('Show 10 more')`, `the Words section on /kanji/${glyph}`, 10000);
+            await checkFullPage(tab, `srs /kanji/${glyph}`, width, KANJI_FULL_SECTIONS, KANJI_PAGE);
+        }
+        for (const id of DETAIL_GRAMMAR) {
+            await tab.goto(`${app}/grammar/${id}`, 'Formation');
+            await tab.until(`document.querySelector(${JSON.stringify(GRAMMAR_PAGE.settled)}) !== null`, `the examples on /grammar/${id}`, 10000);
+            await checkFullPage(tab, `srs /grammar/${id}`, width, id === GRAMMAR_POINT ? GRAMMAR_FULL_SECTIONS : ['point', 'examples'], GRAMMAR_PAGE);
+        }
+    }
+    await tab.resize(DESKTOP.width, DESKTOP.height);
+    await tab.goto(`${app}/kanji/${encodeURIComponent('一')}#words`, 'Meanings');
+    await checkLanding(tab, 'srs /kanji/一#words', DESKTOP.width, 'words', KANJI_PAGE);
+    await tab.goto(`${app}/grammar/${GRAMMAR_POINT}#examples`, 'Formation');
+    await checkLanding(tab, `srs /grammar/${GRAMMAR_POINT}#examples`, DESKTOP.width, 'examples', GRAMMAR_PAGE);
+}
+
+/**
+ * The kanji and grammar pages on a phone (issue 169): a tab row, running to the screen's edge,
+ * and sticking once scrolled to, from their longest tab (Words, Examples) back to the first.
+ */
+async function checkDetailTabPages(tab: Tab, app: string, width: number): Promise<void> {
+    for (const glyph of DETAIL_KANJI) {
+        const page = `srs /kanji/${glyph}`;
+        await tab.goto(`${app}/kanji/${encodeURIComponent(glyph)}`, 'Meanings');
+        await measure(tab, page, width, PAGE_TABS);
+        await checkTabRowBleed(tab, page, width);
+        if (!(await openWordTab(tab, page, width, 'Words'))) continue;
+        await tab.until(`document.body.innerText.includes('Show 20 more')`, `the Words tab on ${page}`, 10000);
+        await measure(tab, `${page}, words tab`, width);
+        await checkStickyTabs(tab, page, width, 'Kanji');
+    }
+    for (const id of DETAIL_GRAMMAR) {
+        const page = `srs /grammar/${id}`;
+        await tab.goto(`${app}/grammar/${id}`, 'Formation');
+        await measure(tab, page, width, PAGE_TABS);
+        await checkTabRowBleed(tab, page, width);
+        if (!(await openWordTab(tab, page, width, 'Examples'))) continue;
+        await measure(tab, `${page}, examples tab`, width, PLAY_BUTTONS);
+        await checkStickyTabs(tab, page, width, 'Point');
+    }
 }
 
 /**
@@ -1678,6 +1763,7 @@ try {
     await checkFullPageHashes(desktop, `http://127.0.0.1:${srs.port}`, DESKTOP.width);
     await checkDictLinkFocus(desktop, `srs /vocab/${LONG_SYNONYMS_WORD}`, DESKTOP.width);
     await checkCrossing(desktop, `http://127.0.0.1:${srs.port}`);
+    await checkDetailFullPages(desktop, `http://127.0.0.1:${srs.port}`);
     await desktop.close();
     for (const { width, height } of SETUP_LINK_SCREENS) await checkSetupLinkCount(chrome, `http://127.0.0.1:${srs.port}`, width, height);
     for (const { width, height } of VIEWPORTS) {
@@ -1754,7 +1840,7 @@ try {
         await tab.until(`document.querySelector('[data-kanji-reading]') !== null`, "the Kanji tab's readings", 10000);
         await measure(tab, `srs /vocab/${HYPHEN_KUN_WORD}, kanji tab`, width);
         await checkKanjiReadingsUnbroken(tab, `srs /vocab/${HYPHEN_KUN_WORD}, kanji tab`, width);
-        await tab.goto(`${app}/grammar/${GRAMMAR_POINT}`, 'Example sentences');
+        await tab.goto(`${app}/grammar/${GRAMMAR_POINT}`, 'Formation');
         await measure(tab, `srs /grammar/${GRAMMAR_POINT}`, width, PLAY_BUTTONS);
         await checkSentencePlayButtons(tab, `srs /grammar/${GRAMMAR_POINT}`, width);
         await checkExamplesUnruled(tab, `srs /grammar/${GRAMMAR_POINT}`, width);
@@ -1798,6 +1884,7 @@ try {
         await tab.until(`document.body.innerText.includes('Used in')`, 'the Related tab');
         await measure(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, related tab`, width);
         await checkSynonymsLink(tab, app, width);
+        await checkDetailTabPages(tab, app, width);
         // The removed Mix-ups page's path lands on Vocabulary.
         await tab.goto(`${app}/vocab/mixups`, 'Vocabulary');
         await tab.until(`location.pathname.endsWith('/vocab')`, '/vocab/mixups redirecting to /vocab');

@@ -75,13 +75,14 @@ export function KanjiWordsPanel({ ids, label, pageSize = PAGE }: KanjiWordsPanel
     const more = matched.length - shown;
     return (
         <div>
-            <PanelSearch
+            {/* A list that fits on one page needs no search (a learner's two words with the kanji). */}
+            {ids.length > pageSize && <PanelSearch
                 text={text}
                 onChange={value => { setText(value); setShown(pageSize); }}
                 label={label}
                 placeholder="Search in English or Japanese"
                 countLine={searching ? 'Searching…' : resultCountLine(matched.length, ids.length, 'word', query)}
-            />
+            />}
             <KanjiWordRows ids={matched.slice(0, shown)} query={query} />
             {more > 0 && (
                 <TextButton onClick={() => setShown(shown + pageSize)} className="mt-4">
