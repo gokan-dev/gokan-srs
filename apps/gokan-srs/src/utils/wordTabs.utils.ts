@@ -19,9 +19,6 @@ export const WORD_TAB_SET = detailTabSet(
 export const WORD_TABS = WORD_TAB_SET.tabs;
 export type WordTab = typeof WORD_TABS[number];
 
-/** The session-storage key the last chosen tab is remembered under, across words (`usePersistedControls`). */
-export const WORD_TAB_STORAGE_KEY = WORD_TAB_SET.storageKey;
-
 /** A tab's URL hash: none for Dict, the page's default; `#synonyms` for Synonyms (a quiz's "Compare synonyms"). */
 export const wordTabHash = WORD_TAB_SET.hashOf;
 

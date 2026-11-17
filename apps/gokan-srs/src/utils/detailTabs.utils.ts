@@ -42,7 +42,6 @@ export function detailTabSet<T extends string>(tabs: readonly [T, ...T[]], hashe
 
 /** A kanji's page: the kanji in brief, every word using it, the learner's words with it. */
 export const KANJI_TABS = detailTabSet(['kanji', 'words', 'study'], { kanji: '', words: '#words', study: '#study' }, 'gokan.kanjiPage.tab');
-export type KanjiTab = typeof KANJI_TABS.tabs[number];
 
 /** A grammar point's page: the point in brief, every example, its related points, the learner's study. */
 export const GRAMMAR_TABS = detailTabSet(
@@ -50,4 +49,3 @@ export const GRAMMAR_TABS = detailTabSet(
     { point: '', examples: '#examples', related: '#related', study: '#study' },
     'gokan.grammarPage.tab',
 );
-export type GrammarTab = typeof GRAMMAR_TABS.tabs[number];
