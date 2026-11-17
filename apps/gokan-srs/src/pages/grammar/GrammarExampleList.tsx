@@ -50,7 +50,7 @@ export function GrammarExampleList({ examples, query = null }: { examples: reado
                             />
                         </div>
                     </SentenceWithPlay>
-                    <p className="type-meta mt-1">{example.romaji} · {SOURCE_LABEL[source]}</p>
+                    <p className="type-meta mt-1">{[example.romaji, SOURCE_LABEL[source]].filter(Boolean).join(' · ')}</p>
                     <p className="type-support"><Marked text={example.en} ranges={englishRanges(query, example.en)} /></p>
                 </div>
             ))}
