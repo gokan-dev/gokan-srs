@@ -1,12 +1,17 @@
 # Scheduled backstop for auto-resume. Every hour it looks at the issues under active development
 # (open, labeled `ready-for-dev`, which implement only clears when it opens the PR) and, for any
 # whose run is not currently working and that is not done or waiting on a human, re-dispatches
-# implementation. This catches what the reactive path (claude-resume.yml) cannot: a run that never
-# started, a dropped completion event, and - the one that matters for usage limits - a branch that
-# could not continue earlier but can now that the limit has reset.
+# implementation. This catches what the reactive path (the `resume` job at the end of
+# claude-implement-issue.yml) cannot: a run that never started, a run whose last job never ran, and,
+# the one that matters for usage limits, a branch that could not continue earlier but can now that
+# the limit has reset. GitHub drops scheduled runs under load (none ran for ten hours on 2026-11-16),
+# so this is a backstop only, never the path a stopped run relies on.
 #
 # The per-issue decision and the progress bound live in the shared composite action
-# (.github/actions/resume-issue), the same one claude-resume.yml uses.
+# (.github/actions/resume-issue), the same one the implement workflow's `resume` job uses. There is
+# no `workflow_run` listener on implement any more (claude-resume.yml): it never saw a dispatched
+# run, and for a label-started one it fired after the `resume` job had already recorded its marker,
+# so a dispatched run not yet listed would have read as "no progress" and escalated wrongly.
 name: "Agent: sweep stalled implementations"
 
 on:

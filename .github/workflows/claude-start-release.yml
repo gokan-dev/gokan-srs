@@ -8,7 +8,7 @@
 # opens for the maintainer. So the maintainer approves once per release, not once per feature.
 #
 # Everything here is keyed off git + the tracker's checkboxes + labels, so a re-run is idempotent
-# and a member's own resume (claude-resume.yml / claude-sweep.yml) is unaffected.
+# and a member's own resume (claude-implement-issue.yml's `resume` job / claude-sweep.yml) is unaffected.
 name: "Agent: start/advance release"
 
 on:

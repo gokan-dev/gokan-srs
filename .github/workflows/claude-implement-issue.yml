@@ -3,15 +3,17 @@
 # only exists while GitHub is delivering the `issues: labeled` event, so it does
 # no work when there is nothing labeled.
 name: "Agent: implement issue"
-# Carries the issue number so claude-resume.yml can find it on a finished run, and so a dispatched
-# resume/sprint run is legible in the Actions list.
-run-name: "Agent: implement issue #${{ github.event.issue.number || inputs.issue }}"
+# Carries the issue number so the resume-issue action can tell a run of this issue is in progress,
+# and so a dispatched resume/sprint run is legible in the Actions list. A run for any other label
+# does nothing (the job's `if`), so it carries no "#N": the action would read it, queued behind the
+# real run, as "a run in progress" and stand down instead of resuming.
+run-name: "${{ github.event_name == 'issues' && github.event.label.name != 'ready-for-dev' && 'Agent: implement issue (not ready-for-dev, nothing to do)' || format('Agent: implement issue #{0}', github.event.issue.number || inputs.issue) }}"
 
 on:
   issues:
     types: [labeled]
-  # Re-invoked to continue an interrupted run (claude-resume.yml / claude-sweep.yml, via the
-  # resume-issue action) and to start a sprint member against a release branch
+  # Re-invoked to continue an interrupted run (this workflow's `resume` job / claude-sweep.yml, via
+  # the resume-issue action) and to start a sprint member against a release branch
   # (claude-start-release.yml). `base` is the branch the work is cut from and the PR targets;
   # it defaults to `main`, which is the single-issue flow, so the label trigger is unchanged.
   workflow_dispatch:
@@ -24,9 +26,11 @@ on:
         required: false
         default: main
 
-# Prevent two runs racing on the same issue (e.g. label removed + re-added).
+# Prevent two runs racing on the same issue (e.g. label removed + re-added). A run for another label
+# does nothing, so it stays out of the group: pending there, it would replace a run the `resume` job
+# just dispatched (a group keeps one pending run).
 concurrency:
-  group: claude-issue-${{ github.event.issue.number || inputs.issue }}
+  group: ${{ github.event_name == 'issues' && github.event.label.name != 'ready-for-dev' && format('claude-issue-noop-{0}', github.run_id) || format('claude-issue-{0}', github.event.issue.number || inputs.issue) }}
   cancel-in-progress: false
 
 jobs:
@@ -197,3 +201,41 @@ jobs:
         continue-on-error: true
         run: |
           if [ -f scripts/agent-usage.ts ]; then bun scripts/agent-usage.ts >> "$GITHUB_STEP_SUMMARY"; fi
+
+  # The fast auto-resume: a run that stopped short of a PR (turn limit, usage limit, a crash, a
+  # timeout, or an agent that ended "success" having pushed nothing) re-dispatches itself, bounded by
+  # progress, through the shared resume-issue action. It lives here, not on a `workflow_run` of this
+  # workflow, because GitHub creates no `workflow_run` event for a run started with GITHUB_TOKEN, and
+  # every dispatch of this workflow (each sprint member, each resume) uses it: such a listener saw
+  # only label-started runs, and the rest waited for claude-sweep.yml (#245, 90 minutes). Enforced
+  # by the `workflow-run-of-dispatched` conventions rule.
+  #
+  # No deadlock: this job takes neither lock. The run it dispatches waits on the workflow-level
+  # `claude-issue-<n>` group only until this job ends (seconds), and its implement job takes the
+  # branch lock the finished implement job already released. The action skips this run itself
+  # (`exclude-run`) when it asks whether a run of the issue is in progress.
+  resume:
+    needs: implement
+    # Whatever the implement job's outcome, except a run cancelled by hand: that is left to the
+    # hourly sweep, and `pause-automation` on the issue is how to stop it for good. Not when the job
+    # never ran (a label other than ready-for-dev).
+    if: ${{ !cancelled() && needs.implement.result != 'skipped' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read        # check out the local composite action
+      issues: write         # markers, the escalation label and comment
+      pull-requests: read   # the done-signal (an open non-draft PR)
+      actions: write        # re-dispatch this workflow
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resume or escalate
+        uses: ./.github/actions/resume-issue
+        with:
+          issue: ${{ github.event.issue.number || inputs.issue }}
+          # github.token: a workflow_dispatch IS an exception to the "GITHUB_TOKEN does not start
+          # workflows" rule, and the PAT has no Actions permission.
+          token: ${{ github.token }}
+          human: ${{ vars.AGENT_HUMAN }}
+          exclude-run: ${{ github.run_id }}

@@ -71,9 +71,12 @@ summary ("Largest tool results"), which is where a whole read shows.
   than once per feature. Triage (`claude-triage.yml`) asks the maintainer only for choices that are
   costly to reverse or change scope; a reversible choice with a clear recommendation is applied and
   noted under "Decided by default". An interrupted run (crash, turn limit, usage limit) resumes
-  itself from the commits it pushed: `claude-resume.yml` reacts to a finished run, `claude-sweep.yml`
-  sweeps hourly, both through `.github/actions/resume-issue`, bounded by progress and escalating with
-  `needs-attention` when a branch stops advancing. `pause-automation` on an issue opts it out. The
+  itself from the commits it pushed: the implement workflow's own last job (`resume`) decides as the
+  run ends, `claude-sweep.yml` sweeps hourly as a backstop, both through
+  `.github/actions/resume-issue`, bounded by progress and escalating with `needs-attention` when a
+  branch stops advancing. `pause-automation` on an issue opts it out. Nothing reacts through
+  `workflow_run` to a workflow we dispatch: GitHub creates no such event for a run started with
+  `GITHUB_TOKEN`, which every dispatch uses (enforced: `workflow-run-of-dispatched`). The
   review-side agents (review, staging review, triage, address-feedback, fix-ci, the release
   pre-flight, on-demand) are not dispatched per issue, so `claude-retry.yml` re-runs any of their
   runs that failed recently (a usage limit, a transient error), capped by attempt count.

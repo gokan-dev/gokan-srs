@@ -255,6 +255,52 @@ function deployedLocaleViolations(): Violation[] {
     return wrong;
 }
 
+/**
+ * GitHub creates no `workflow_run` event for a run started with GITHUB_TOKEN, and every
+ * `gh workflow run` here uses it (the agent PAT has no Actions permission). So a workflow listening
+ * to `workflow_run` of one this repository dispatches never sees the dispatched runs: the auto-resume
+ * listened to "Agent: implement issue" and missed every release member after the first and every
+ * resumed run, leaving a stopped run for the hourly sweep, which GitHub drops under load (#245).
+ * React from inside the dispatched workflow instead (a final job), as claude-implement-issue.yml does.
+ */
+const GITHUB_DIR_FILE = /^\.github\/(workflows\/[^/]+\.ya?ml|actions\/.+\.ya?ml)$/;
+const WORKFLOW_NAME = /^name:\s*(?:"([^"]+)"|'([^']+)'|(.+?))\s*$/m;
+const DISPATCH = /\bgh workflow run\s+([\w.-]+\.ya?ml)\b/g;
+const WORKFLOW_RUN_LIST = /^ {2}workflow_run:\s*\n\s+workflows:\s*(\[[^\]\n]*\]|(?:\n\s+-\s*.+)+)/m;
+
+/** Listeners on `workflow_run` of a workflow some step here dispatches, each where it listens. */
+function dispatchedWorkflowRunViolations(): Violation[] {
+    const fileList = (dir: string, nested: boolean): string[] => existsSync(dir)
+        ? readdirSync(dir, { recursive: nested, encoding: 'utf8' }).map(f => `${dir}/${f.replaceAll('\\', '/')}`).filter(f => /\.ya?ml$/.test(f))
+        : [];
+    const workflows = fileList('.github/workflows', false);
+    const sources = [...workflows, ...fileList('.github/actions', true)].map(file => ({ file, text: readFileSync(file, 'utf8') }));
+    const dispatched = new Set(sources.flatMap(({ text }) => [...text.matchAll(DISPATCH)].map(m => m[1])));
+    const fileOf = new Map(sources.filter(({ file }) => workflows.includes(file)).flatMap(({ file, text }) => {
+        const m = WORKFLOW_NAME.exec(text);
+        return m ? [[m[1] ?? m[2] ?? m[3], basename(file)] as const] : [];
+    }));
+    const violations: Violation[] = [];
+    for (const { file, text } of sources) {
+        const listen = WORKFLOW_RUN_LIST.exec(text);
+        if (!listen) continue;
+        const names = listen[1].startsWith('[')
+            ? listen[1].slice(1, -1).split(',')
+            : listen[1].split('\n').filter(l => l.trim()).map(l => l.replace(/^\s*-\s*/, '').replace(/\s+#.*$/, ''));
+        for (const name of names.map(n => n.trim().replace(/^(["'])(.*)\1$/, '$2'))) {
+            const target = fileOf.get(name);
+            if (target === undefined || !dispatched.has(target)) continue;
+            violations.push({
+                file,
+                line: text.slice(0, listen.index).split('\n').length,
+                rule: 'workflow-run-of-dispatched',
+                message: `Listens to \`workflow_run\` of "${name}", which \`gh workflow run ${target}\` dispatches with GITHUB_TOKEN: GitHub creates no workflow_run event for those runs, so this never sees them. React from inside ${target} (a final job with \`needs\` and \`if: always()\`).`,
+            });
+        }
+    }
+    return violations;
+}
+
 /** A workflow's jobs, each with its text and the line its header is on. */
 function workflowJobs(text: string): { name: string; line: number; text: string }[] {
     const start = text.search(/^jobs:\s*$/m);
@@ -745,6 +791,9 @@ function check(files: string[]): Violation[] {
     if (!existsSync('AGENTS.md')) add({ file: 'AGENTS.md', rule: 'one-conventions-file', message: 'Missing.' });
     if (files.some(f => f === DEPLOY_SITE || f === DEPLOY_STAGING || f === CHECK_DEPLOYED || f === REVIEW_STAGING)) {
         for (const v of deployedLocaleViolations()) add(v);
+    }
+    if (files.some(f => GITHUB_DIR_FILE.test(f))) {
+        for (const v of dispatchedWorkflowRunViolations()) add(v);
     }
 
     return violations;
