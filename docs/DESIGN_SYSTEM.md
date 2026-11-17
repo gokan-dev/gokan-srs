@@ -543,7 +543,8 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   (the okurigana in parentheses, `kunReadingLabel`), the JLPT chip, then one meta line that
   names the level only when there is no chip. Sections: Components, Words, In kanji courses
   (each book, its step under it reading "Step 212" on every row, linked to the range page of
-  that order holding it when the book has one, each step a 44px band linked or not; one
+  that order holding it when the book has one, a linked step underlined at rest so it is not told
+  from a plain one by colour alone (`check:layout`), each step a 44px band linked or not; one
   secondary line under the heading, shown only when a step is linked, says each linked step
   leads to the words you can read at that point, and the link's accessible name repeats it in
   visually hidden text, ": the words you can read at this step"), then the name
@@ -562,7 +563,9 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   sentence never breaks across lines where it fits one, and one wider than the line wraps inside
   the panel rather than scrolling the page (an `inline-block` at `max-width: 100%`, never
   `nowrap`; `check:layout`, with a long headword). The panel stands 40px (`$space-5`) above what
-  follows it on every page type, a section's gap (`check:layout`, a word and a kanji page). Never a popup, a dismiss
+  follows it on every page type, a section's gap, and on a word page 40px under Meanings too
+  (`.entry-main > .app-panel`; elsewhere the header's own margin sets the gap above;
+  `check:layout`, a word, kanji, order, range and grammar page). Never a popup, a dismiss
   button or a carousel. Its rules are the `app-panel` mixin (`_tokens.scss`), included by each
   page sheet that shows it: in `app.scss` they took the shared stylesheet past its 10 KB budget.
 - **Shared between page sheets**: a rule two page types use goes in `app.scss`, unless that

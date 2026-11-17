@@ -21,6 +21,10 @@
  *   the top at 320px, 375px and 1280px, not under the kanji grid (issue #158); with the grid
  *   opened, "Done marking" sits within a screen of the page's end and brings Start learning back
  *   into view;
+ * - setup opened from a dictionary link with a count (`?order=kklc&known=103`, `henshall` behind
+ *   "More methods") shows the linked count and order with the count stepper inside a 320x568 and
+ *   a 375x667 screen;
+ * - a kanji page's linked course steps are underlined at rest, not told apart by colour alone;
  * - furigana sits over kanji only, never over kana, no ruby (a run of kanji with its reading)
  *   breaks across lines, and no two readings on a line touch (word pages' example sentences, in each app);
  * - a `#synonyms` link followed inside the app opens a word page on its Synonyms tab;
@@ -70,7 +74,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { KANJI_CHARS } from '@gokan/dataset-schema';
+import { KANJI_CHARS, kanjiOrder, type KanjiOrderId } from '@gokan/dataset-schema';
 import { buildMissing, dictionaryPages, listeningTitlesToMark, serve, serveProduction, srsFile, srsRoutes, srsVersion } from './lib/builtSite';
 import { launchChrome, type Chrome, type Tab } from './lib/chrome';
 
@@ -1012,6 +1016,39 @@ async function checkSetupReach(tab: Tab, width: number, height: number): Promise
 }
 
 /**
+ * A dictionary link with a count ("Start after step 103") opens setup with that order and count
+ * in view (initialOnboardingStep, issue 243): the count sits under the method cards, below every
+ * phone's first screen, and some 1,500px down for an order behind "More methods", so setup scrolls
+ * it into view once the order's list is in. Each link in a fresh learner's own storage, on the
+ * smallest phones the count must fit.
+ */
+const SETUP_LINKS: { order: KanjiOrderId; known: number }[] = [{ order: 'kklc', known: 103 }, { order: 'henshall', known: 500 }];
+const SETUP_LINK_SCREENS = [{ width: 320, height: 568 }, { width: 375, height: 667 }];
+async function checkSetupLinkCount(chrome: Chrome, app: string, width: number, height: number): Promise<void> {
+    for (const { order, known } of SETUP_LINKS) {
+        const tab = await chrome.openTab(width, height);
+        const page = `${width}x${height} srs /?order=${order}&known=${known}`;
+        const label = `Count in ${kanjiOrder(order).label} order`;
+        await tab.goto(`${app}/?order=${order}&known=${known}&utm_source=dictionary&utm_content=word`, label);
+        await tab.until(`document.querySelector('#kanji-count')?.value === ${JSON.stringify(String(known))}`, `the linked count ${known} in setup's count field`, 10000);
+        // The scroll runs in the effect after the list's render: let it land.
+        await tab.evaluate<void>(`new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`);
+        const stepper = await tab.evaluate<{ top: number; bottom: number; label: string } | null>(`(() => {
+            const section = document.querySelector('#kanji-count')?.closest('section');
+            if (!section) return null;
+            const r = section.getBoundingClientRect();
+            return { top: r.top, bottom: r.bottom, label: section.querySelector('label')?.textContent.trim() ?? '' };
+        })()`);
+        if (stepper === null) failures.push(`${page}: no count stepper on the setup screen`);
+        else {
+            if (stepper.label !== label) failures.push(`${page}: the count stepper reads "${stepper.label}", not the linked order's "${label}"`);
+            if (stepper.top < -0.5 || stepper.bottom > height + 0.5) failures.push(`${page}: the count stepper spans ${Math.round(stepper.top)}px to ${Math.round(stepper.bottom)}px, not inside the ${height}px screen (scroll it into view when a link carries a count)`);
+        }
+        await tab.close();
+    }
+}
+
+/**
  * With setup's grid open, Start learning is the whole grid above: "Done marking" must sit at the
  * grid's end (within one screen of the page's bottom), and clicking it from there must put the
  * button back on screen.
@@ -1304,18 +1341,53 @@ async function checkAppPanelWords(tab: Tab, page: string, width: number): Promis
 /**
  * The app panel stands a section's gap (40px, docs/DESIGN_SYSTEM.md section 4) above what follows
  * it on every page type: on a word page it once sat 24px over the Meanings, 40px over a kanji
- * page's next section.
+ * page's next section. On a word page it follows Meanings, a section, and stands 40px under it
+ * too (`above`): its top margin was set to collapse into a header's, and left it 24px under.
+ * Elsewhere it follows the page's header, whose own margin sets the gap above.
  */
-const PANEL_GAP_PAGES = [{ path: '/vocab/1206730/', ready: 'Meanings' }, { path: `/kanji/${encodeURIComponent('学')}/`, ready: 'In kanji courses' }];
-async function checkAppPanelGapBelow(tab: Tab, page: string, width: number): Promise<void> {
-    const gap = await tab.evaluate<number | null>(`(() => {
+const GRAMMAR_SAMPLE_PAGE = DICTIONARY_PAGES.find(page => /^\/grammar\/n\d-[^/]+\/$/.test(page.path));
+const PANEL_GAP_PAGES: { path: string; ready: string; above?: boolean }[] = [
+    { path: '/vocab/1206730/', ready: 'Meanings', above: true },
+    { path: `/kanji/${encodeURIComponent('学')}/`, ready: 'In kanji courses' },
+    { path: '/kanji/orders/kklc/', ready: 'Steps 1 to 100' },
+    { path: '/kanji/orders/kklc/1-100/', ready: 'Words by step' },
+    ...(GRAMMAR_SAMPLE_PAGE ? [GRAMMAR_SAMPLE_PAGE] : []),
+];
+async function checkAppPanelGaps(tab: Tab, page: string, width: number, above: boolean): Promise<void> {
+    const gaps = await tab.evaluate<{ below: number | null; above: number | null } | null>(`(() => {
         const panel = document.querySelector('.app-panel');
-        const next = panel?.nextElementSibling;
-        if (!panel || !next) return null;
-        return next.getBoundingClientRect().top - panel.getBoundingClientRect().bottom;
+        if (!panel) return null;
+        const box = panel.getBoundingClientRect();
+        const next = panel.nextElementSibling;
+        const previous = panel.previousElementSibling;
+        return {
+            below: next ? next.getBoundingClientRect().top - box.bottom : null,
+            above: previous ? box.top - previous.getBoundingClientRect().bottom : null,
+        };
     })()`);
-    if (gap === null) failures.push(`${width}px ${page}: no app panel with content after it`);
-    else if (Math.abs(gap - 40) > 0.5) failures.push(`${width}px ${page}: the app panel sits ${gap.toFixed(1)}px above what follows it, not a section's 40px`);
+    if (gaps === null) {
+        failures.push(`${width}px ${page}: no app panel`);
+        return;
+    }
+    if (gaps.below === null) failures.push(`${width}px ${page}: no content after the app panel`);
+    else if (Math.abs(gaps.below - 40) > 0.5) failures.push(`${width}px ${page}: the app panel sits ${gaps.below.toFixed(1)}px above what follows it, not a section's 40px`);
+    if (!above) return;
+    if (gaps.above === null) failures.push(`${width}px ${page}: nothing before the app panel`);
+    else if (Math.abs(gaps.above - 40) > 0.5) failures.push(`${width}px ${page}: the app panel sits ${gaps.above.toFixed(1)}px under what comes before it, not a section's 40px`);
+}
+
+/**
+ * A kanji's linked course step is underlined at rest (docs/DESIGN_SYSTEM.md sections 2 and 8):
+ * a plain "Step 66" (a book with no range page) sits among linked ones, and the accent alone was
+ * too close to the ink to tell them apart. 学 has both.
+ */
+async function checkCourseStepLinks(tab: Tab, page: string, width: number): Promise<void> {
+    const steps = await tab.evaluate<{ linked: number; plain: string[] }>(`(() => {
+        const links = [...document.querySelectorAll('.kanji-courses dd a')];
+        return { linked: links.length, plain: links.filter(a => !getComputedStyle(a).textDecorationLine.includes('underline')).map(a => a.textContent.trim()) };
+    })()`);
+    if (steps.linked === 0) failures.push(`${width}px ${page}: no linked course step (.kanji-courses dd a) to check`);
+    for (const step of steps.plain) failures.push(`${width}px ${page}: the linked course step "${step}" is not underlined, so only its colour tells it from a plain step`);
 }
 
 /**
@@ -1414,6 +1486,7 @@ try {
     // The same tabs at every width.
     await openWordTab(desktop, `srs /vocab/${MIXUP_WORD}`, DESKTOP.width, 'Synonyms');
     await desktop.close();
+    for (const { width, height } of SETUP_LINK_SCREENS) await checkSetupLinkCount(chrome, `http://127.0.0.1:${srs.port}`, width, height);
     for (const { width, height } of VIEWPORTS) {
         const tab = await chrome.openTab(width, height);
         const app = `http://127.0.0.1:${srs.port}`;
@@ -1552,9 +1625,10 @@ try {
             await measure(tab, `dictionary ${path}`, width, DICTIONARY_TAP_TARGETS);
             await checkAppPanelWords(tab, `dictionary ${path}`, width);
         }
-        for (const { path, ready } of PANEL_GAP_PAGES) {
+        for (const { path, ready, above = false } of PANEL_GAP_PAGES) {
             await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${path}`, ready);
-            await checkAppPanelGapBelow(tab, `dictionary ${path}`, width);
+            await checkAppPanelGaps(tab, `dictionary ${path}`, width, above);
+            if (path.startsWith('/kanji/') && !path.startsWith('/kanji/orders/')) await checkCourseStepLinks(tab, `dictionary ${path}`, width);
         }
         for (const home of PANEL_HOME_PAGES) {
             await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${home.path}`, home.ready);
@@ -1577,4 +1651,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, a kanji's course steps 44px linked or not, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows and word readings unbroken, a word list's gloss in its column (1280px) or on its own line across the row (phones, a word page's aside), a section's source credit set off from what comes before it, the language switcher small and neutral, the app panel's action on one line with a four-digit step, its Japanese words unbroken where they fit and wrapped inside it where they do not, 40px above what follows it and on the home page 16px under its heading, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button undimmed, its sentence centred on its translation with its button right after it (and at 1280px on the headword), a word learned in kana's intro, a long headword's intro on one line inside its card, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, a kanji's course steps 44px linked or not, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, furigana over kanji, on one line and apart, Japanese in list rows and word readings unbroken, a word list's gloss in its column (1280px) or on its own line across the row (phones, a word page's aside), a section's source credit set off from what comes before it, the language switcher small and neutral, the app panel's action on one line with a four-digit step, its Japanese words unbroken where they fit and wrapped inside it where they do not, 40px above what follows it on every page type (and under Meanings on a word page) and on the home page 16px under its heading, a kanji's linked course steps underlined, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, setup opened from a dictionary link with its order and count on a 568 or 667px phone's screen, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button undimmed, its sentence centred on its translation with its button right after it (and at 1280px on the headword), a word learned in kana's intro, a long headword's intro on one line inside its card, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);
