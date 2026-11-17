@@ -217,8 +217,9 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
   actions area. From `lg` the header uses the body's grid (12 columns, 8/4, `gap-10`), so
   the actions start on the side column's left edge, left-aligned and top-aligned with the
   headword; below `lg` they follow the readings. A page whose body is one column (`DetailBody`
-  `tabs`, a word's page) passes `layout="column"`: there is no side column to line up with,
-  so the actions follow the facts at every width and the status has the full width. The actions hold only the status or, before the item is studied, the one primary "Learn this ..." button. The status is one
+  `tabs` below `lg`, a word's page) passes `layout="column"`: there is no side column to line up
+  with, so the actions follow the facts and the status has the full width; from `lg`, where the
+  same page is one full page on the grid, it passes `grid`. The actions hold only the status or, before the item is studied, the one primary "Learn this ..." button. The status is one
   line, the next review after the `StatusDot` label ("● Learning · Due now"), and never
   repeats the status word: a mastered item with nothing scheduled shows only
   "● Mastered" (`statusReviewPhrase`). The kanji header keeps Known / Not known. No mastery rings: those, with their values, are only in "Your
@@ -226,12 +227,37 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
 - **`DetailBody`**: the body under every `DetailHeader`. Either from `lg` the same 12-column
   grid, `main` (8: the subject's content, meanings first) and `side` (4: the learner's data,
   related items, the details `Disclosure`), and below `lg` one column in reading order
-  (`stacked` when it interleaves the two); or `tabs`, one column at every width: a sticky tab
-  row (`TabNav` page tabs) and the panels under it (a word's page). The 12-column grid exists only in these two components
+  (`stacked` when it interleaves the two); or `tabs`: a sticky tab row (`TabNav` page tabs) and
+  the panels under it, one column.
+- **Tabs on phones, one full page on desktop** (every detail page, both apps; issue 256). One
+  switch width, **1024px** (Tailwind's `lg`, where the 8/4 grid starts; `useFullDetailPage`):
+  below it tabs (tablets too), from it one full page with no tab row. `DetailBody` `tabs` takes the
+  full page as one prop, `full` (`main`, `side`): the same panel components, in the same order,
+  stacked as sections on the grid under a `divider` line, never a second copy of any panel. The
+  full page is not everything at once: it keeps the page's levels (the header with its facts, the
+  essentials, the rest, a line between levels only, no cards), and every long section shows a
+  short preview with its search and "Show N more" in place, so a learner sees every section and
+  what is in it without scrolling indefinitely. A hash lands on its section, its heading just
+  under the viewport's top; crossing 1024px keeps the learner where they were (the open tab's
+  section in view, and back, the section in view as the open tab). The page is `wide` from
+  `lg`, `narrow` below. The 12-column grid exists only in these two components
   (enforced, `detail-layout`).
-- **Word page** (`pages/vocab/VocabDetailScreen.tsx`): `Page width="narrow"` at every width,
-  one column: a header holding what a learner looks the word up for, then one row of tabs
-  (`DetailBody` `tabs`), one tab open at a time. The same tabs at every width.
+- **Word page** (`pages/vocab/VocabDetailScreen.tsx`): below 1024px `Page width="narrow"`, one
+  column: a header holding what a learner looks the word up for, then one row of tabs
+  (`DetailBody` `tabs`), one tab open at a time (320, 375 and 768px alike). From 1024px
+  `Page width="wide"`, the same header, then the full page (`DetailBody` `full`), no tab row:
+  - Main (8): Dict as in its tab (Meanings, Examples, Closest synonyms, its merged entries), then
+    under a `divider` line Sentences and Synonyms, each a `type-section` heading (`DetailSection`)
+    and its panel. Side (4): Study (Your study, Your mix-ups) for a word in study, Kanji, Related.
+  - Previews, chosen on 取る, 輝く and 今 at 1280px: Sentences its tab's first 5 and "Show 5
+    more"; Synonyms 2 meaning groups of 3 rows (its tab: 4), then "Show N more meanings"; Related
+    5 rows a list (its tab: 10), each "Show N more" in place. 取る is about 2,600px tall at 1280px
+    (`check:layout` holds it under 3,200px).
+  - The hashes (`#sentences`, `#synonyms`, `#kanji`, `#related`, `#study`) land on their section,
+    loaded or followed inside the app, once the sentences have settled; Dict's "All N sentences →"
+    and "Compare all N →" scroll to their section and leave the URL as it is. The section in view
+    (the one under a line a third of the way down, the main column's first) is kept as the open
+    tab, so crossing below 1024px opens it.
   - Header, top to bottom: the headword, its spellings and reading (the kana note for a word
     learned in kana, "Also:" readings), the reading followed by its `PlayButton` (the pitch
     accent will join them); the summary gloss (`summaryGloss`, one

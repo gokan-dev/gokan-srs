@@ -28,6 +28,10 @@
  * - furigana sits over kanji only, never over kana, no ruby (a run of kanji with its reading)
  *   breaks across lines, and no two readings on a line touch (word pages' example sentences, in each app);
  * - a `#synonyms` link followed inside the app opens a word page on its Synonyms tab;
+ * - from 1024px a word page is one full page (issue 256): no tab row, every section in its column
+ *   (and Your study once learned), 取る's page within FULL_PAGE_MAX_HEIGHT, a hash (loaded, or
+ *   followed inside the app) landing on its section's heading just under the top; at 768px it is
+ *   still the tab page; crossing 1024px keeps the section in view as the open tab, and back;
  * - a word page's first screen, on a small phone (375x667 and 320x568), holds its headword,
  *   reading and its play button, summary gloss and status line;
  * - a word page's tab row sticks to the top once scrolled to, with no sideways page scroll at
@@ -954,6 +958,90 @@ async function checkIntroOpensAtTop(tab: Tab, app: string, width: number, restor
     await tab.resize(width, restoreHeight);
 }
 
+/** Where a word page becomes one full page, without tabs (useFullDetailPage, Tailwind's `lg`). */
+const FULL_PAGE_WIDTH = 1024;
+/**
+ * The full page's sections (VocabDetailScreen, `word-section-*`): main column, then side. Every
+ * word measured here has all of them but Study, which shows once the word is learned.
+ */
+const FULL_PAGE_SECTIONS = ['dict', 'sentence', 'synonym', 'kanji', 'related'];
+/**
+ * 取る at 1280px: the longest synonyms and among the most sentences, every long section capped to
+ * its preview. Measured at 2634px (header 430, Dict 720, Sentences 5 of 1,030 in 620, Synonyms 2
+ * groups of 3 in 560); the bound leaves about a fifth for a gloss or a sentence that wraps one more
+ * line, and fails long before a section shows all its rows (Synonyms' four groups add ~550px).
+ */
+const FULL_PAGE_MAX_HEIGHT = 3200;
+/** How far under the viewport's top a hash lands its section's heading (`scroll-mt-6`, 24px). */
+const LANDING_MAX = 48;
+
+/** The open word page is one full page: no tab row, each section given present. */
+async function checkFullPage(tab: Tab, page: string, width: number, sections: readonly string[]): Promise<void> {
+    const found = await tab.evaluate<{ tabs: boolean; missing: string[]; height: number }>(`(() => ({
+        tabs: document.querySelector('[data-detail-tabs], [role=tablist]') !== null,
+        missing: ${JSON.stringify(sections)}.filter(s => !document.getElementById('word-section-' + s)),
+        height: document.documentElement.scrollHeight,
+    }))()`);
+    if (found.tabs) failures.push(`${width}px ${page}: a tab row on the full page`);
+    for (const section of found.missing) failures.push(`${width}px ${page}: no ${section} section on the full page`);
+    if (page.includes(LONG_SYNONYMS_WORD) && found.height > FULL_PAGE_MAX_HEIGHT) {
+        failures.push(`${width}px ${page}: the full page is ${found.height}px tall, over ${FULL_PAGE_MAX_HEIGHT}px: a long section is not capped to its preview`);
+    }
+}
+
+/** The section's heading top, from the viewport's top, once it has landed (null: no section). */
+const SECTION_TOP = (section: string) => `(() => { const el = document.getElementById('word-section-${section}'); return el ? el.getBoundingClientRect().top : null; })()`;
+async function checkLanding(tab: Tab, page: string, width: number, section: string): Promise<void> {
+    try {
+        await tab.until(`document.querySelector('[data-sentences="settled"]') !== null && (${SECTION_TOP(section)} ?? -1) >= 0 && ${SECTION_TOP(section)} <= ${LANDING_MAX}`, `the ${section} section at the top`, 10000);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        const top = await tab.evaluate<number | null>(SECTION_TOP(section));
+        if (top === null || top < 0 || top > LANDING_MAX) failures.push(`${width}px ${page}: the ${section} section moved off the top once settled (${top}px)`);
+    } catch {
+        const top = await tab.evaluate<number | null>(SECTION_TOP(section));
+        failures.push(`${width}px ${page}: did not land on its ${section} section (its top at ${top}px)`);
+    }
+}
+
+/**
+ * The full page's hashes: `#synonyms` loaded, then followed inside the app (as the quiz's "Compare
+ * synonyms" does), and `#related` from the side column, each landing on its section's heading.
+ */
+async function checkFullPageHashes(tab: Tab, app: string, width: number): Promise<void> {
+    await tab.goto(`${app}/vocab/${SYNONYMS_LINK_WORD}#synonyms`, 'Meanings');
+    await checkLanding(tab, `srs /vocab/${SYNONYMS_LINK_WORD}#synonyms, loaded`, width, 'synonym');
+    await tab.goto(`${app}/vocab`, 'Vocabulary');
+    await tab.evaluate(`(() => { history.pushState({}, '', '/vocab/${SYNONYMS_LINK_WORD}#synonyms'); dispatchEvent(new PopStateEvent('popstate')); })()`);
+    await checkLanding(tab, `srs /vocab/${SYNONYMS_LINK_WORD}#synonyms, followed`, width, 'synonym');
+    await tab.goto(`${app}/vocab/${LONG_SYNONYMS_WORD}#related`, 'Meanings');
+    await checkLanding(tab, `srs /vocab/${LONG_SYNONYMS_WORD}#related`, width, 'related');
+    // Dict's "All N sentences" scrolls to Sentences rather than opening a tab.
+    await tab.evaluate(`scrollTo(0, 0)`);
+    const clicked = await tab.evaluate<boolean>(`(() => { const b = [...document.querySelectorAll('button')].find(el => /^All [\\d,]+ sentences/.test(el.textContent.trim())); b?.click(); return !!b; })()`);
+    if (!clicked) failures.push(`${width}px srs /vocab/${LONG_SYNONYMS_WORD}: no "All N sentences" in Dict`);
+    else await checkLanding(tab, `srs /vocab/${LONG_SYNONYMS_WORD}, All N sentences`, width, 'sentence');
+}
+
+/**
+ * Crossing 1024px keeps the learner where they were: 取る's Synonyms section in view at 1280px is
+ * the open tab at 768px, and back at 1280px its section is in view again. At 768px the page is
+ * the tab page.
+ */
+async function checkCrossing(tab: Tab, app: string): Promise<void> {
+    const page = `srs /vocab/${LONG_SYNONYMS_WORD}`;
+    await tab.goto(`${app}/vocab/${LONG_SYNONYMS_WORD}#synonyms`, 'Meanings');
+    await checkLanding(tab, `${page}#synonyms`, DESKTOP.width, 'synonym');
+    await tab.resize(768, DESKTOP.height);
+    try {
+        await tab.until(`document.getElementById('word-tab-synonym')?.getAttribute('aria-selected') === 'true'`, 'the Synonyms tab open at 768px', 5000);
+    } catch {
+        const open = await tab.evaluate<string | null>(`document.querySelector('[role=tab][aria-selected="true"]')?.textContent.trim() ?? null`);
+        failures.push(`768px ${page}: crossing below 1024px from the Synonyms section opened ${open === null ? 'no tab row' : `the ${open} tab`}, not Synonyms`);
+    }
+    await tab.resize(DESKTOP.width, DESKTOP.height);
+    await checkLanding(tab, `${page}, back at 1280px`, DESKTOP.width, 'synonym');
+}
+
 /**
  * Learns the word on the open page, through its "Learn this word", and opens its Study tab. A
  * page without the button is a failure: the steps after it must measure a studied word.
@@ -966,8 +1054,11 @@ async function learnOpenWord(tab: Tab, page: string, width: number): Promise<boo
     }
     await tab.click('Learn this word');
     try {
-        await tab.until(`[...document.querySelectorAll('[role=tab]')].some(el => el.textContent.trim() === 'Study')`, 'the Study tab', 5000);
-        await openWordTab(tab, page, width, 'Study');
+        // The full page (from 1024px) has no tabs: Your study is a section of it.
+        if (width < FULL_PAGE_WIDTH) {
+            await tab.until(`[...document.querySelectorAll('[role=tab]')].some(el => el.textContent.trim() === 'Study')`, 'the Study tab', 5000);
+            await openWordTab(tab, page, width, 'Study');
+        }
         await tab.until(`[...document.querySelectorAll('h2, h3')].some(el => el.textContent.trim() === 'Your study')`, 'Your study', 5000);
     } catch {
         failures.push(`${width}px ${page}: "Learn this word" did not bring up the Study tab and Your study`);
@@ -1492,9 +1583,19 @@ try {
     await desktop.goto(`http://127.0.0.1:${srs.port}/vocab/${FURIGANA_VOCAB}`, 'Examples');
     await checkLookupKeepsHover(desktop, `srs /vocab/${FURIGANA_VOCAB}`, DESKTOP.width);
     await desktop.goto(`http://127.0.0.1:${srs.port}/vocab/${MIXUP_WORD}`, 'Dict');
-    if (await learnOpenWord(desktop, `srs /vocab/${MIXUP_WORD}`, DESKTOP.width)) await checkHeaderStatus(desktop, `srs /vocab/${MIXUP_WORD}, studied`, DESKTOP.width);
-    // The same tabs at every width.
-    await openWordTab(desktop, `srs /vocab/${MIXUP_WORD}`, DESKTOP.width, 'Synonyms');
+    if (await learnOpenWord(desktop, `srs /vocab/${MIXUP_WORD}`, DESKTOP.width)) {
+        await checkHeaderStatus(desktop, `srs /vocab/${MIXUP_WORD}, studied`, DESKTOP.width);
+        await checkFullPage(desktop, `srs /vocab/${MIXUP_WORD}, studied`, DESKTOP.width, [...FULL_PAGE_SECTIONS, 'study']);
+    }
+    await desktop.goto(`http://127.0.0.1:${srs.port}/vocab/${LONG_SYNONYMS_WORD}`, 'Meanings');
+    await desktop.until(`document.querySelector('[data-sentences="settled"]') !== null`, 'the sentences');
+    await checkFullPage(desktop, `srs /vocab/${LONG_SYNONYMS_WORD}`, DESKTOP.width, FULL_PAGE_SECTIONS);
+    await measure(desktop, `srs /vocab/${LONG_SYNONYMS_WORD}, full page`, DESKTOP.width);
+    await desktop.resize(FULL_PAGE_WIDTH, DESKTOP.height);
+    await checkFullPage(desktop, `srs /vocab/${LONG_SYNONYMS_WORD}`, FULL_PAGE_WIDTH, FULL_PAGE_SECTIONS);
+    await desktop.resize(DESKTOP.width, DESKTOP.height);
+    await checkFullPageHashes(desktop, `http://127.0.0.1:${srs.port}`, DESKTOP.width);
+    await checkCrossing(desktop, `http://127.0.0.1:${srs.port}`);
     await desktop.close();
     for (const { width, height } of SETUP_LINK_SCREENS) await checkSetupLinkCount(chrome, `http://127.0.0.1:${srs.port}`, width, height);
     for (const { width, height } of VIEWPORTS) {

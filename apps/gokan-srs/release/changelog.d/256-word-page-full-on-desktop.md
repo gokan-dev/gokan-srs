@@ -1,0 +1,1 @@
+On a wide screen, a word's page is now one page instead of tabs: its sentences, synonyms, kanji and related words follow its meanings, each as a short section you can open further, while phones and tablets keep the tabs.
