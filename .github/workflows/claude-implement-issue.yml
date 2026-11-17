@@ -216,8 +216,10 @@ jobs:
   # (`exclude-run`) when it asks whether a run of the issue is in progress.
   resume:
     needs: implement
-    # Whatever the implement job's outcome; not when it never ran (a label other than ready-for-dev).
-    if: ${{ always() && needs.implement.result != 'skipped' }}
+    # Whatever the implement job's outcome, except a run cancelled by hand: that is left to the
+    # hourly sweep, and `pause-automation` on the issue is how to stop it for good. Not when the job
+    # never ran (a label other than ready-for-dev).
+    if: ${{ !cancelled() && needs.implement.result != 'skipped' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read        # check out the local composite action
