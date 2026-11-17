@@ -9,7 +9,7 @@ import { building } from '$app/env';
 import type { Handle, HandleServerError } from '@sveltejs/kit/hooks';
 import { renderedPageCacheControl } from '@gokan/deploy/deploy-manifest';
 import { chineseWithoutLang, englishChromeOn, englishWithoutLang, japaneseWithoutLang, linksLeavingSection, renderDocument, stripHydrationMarkers } from '#lib/documentShell.ts';
-import { localeStylesheetHref, pageScriptHref, pageStylesheetHref, searchScriptHref, stylesheetHref } from '#lib/server/assets.ts';
+import { localeStylesheetHref, PRE_PAINT_CLASS, pageScriptHref, pageStylesheetHref, searchScriptHref, stylesheetHref } from '#lib/server/assets.ts';
 import { DEFAULT_LOCALE, htmlLang, localeOfPath, type ServedLocale } from '#lib/locale.ts';
 import { catalogStrings, messagesFor } from '#lib/messages/index.ts';
 import { localeUrls } from '#lib/urls.ts';
@@ -52,6 +52,7 @@ export function documentOf(rendered: string, locals: App.Locals, pathname: strin
         ...(alternates.length > 0 ? { alternates: [...alternates.map(alternate => ({ hreflang: htmlLang(alternate.locale), path: alternate.path })), ...(english ? [{ hreflang: 'x-default', path: english.path }] : [])] } : {}),
         ...(style ? { pageStylesheetHref: pageStylesheetHref(style) } : {}),
         ...(script ? { extraScriptHref: pageScriptHref(script) } : {}),
+        ...(script && PRE_PAINT_CLASS[script] ? { prePaintClass: PRE_PAINT_CLASS[script] } : {}),
         // Stripped before trimming: SvelteKit's root component leaves a space beside its markers.
         bodyHtml: stripHydrationMarkers(rendered.slice(at + BODY_MARKER.length)).trim(),
         stylesheetHref: stylesheetHref(),

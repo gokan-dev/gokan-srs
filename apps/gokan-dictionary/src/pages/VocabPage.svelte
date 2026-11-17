@@ -210,7 +210,7 @@
 
   <div class="entry-layout" data-detail-panels>
     <div class="entry-main">
-      <div id="dict" class="detail-panel">
+      <div id="dict" class="detail-panel" data-default-panel>
         <section class="section">
           <h2>{words.sections.meanings}</h2>
           {#if text}

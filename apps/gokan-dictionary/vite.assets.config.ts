@@ -10,8 +10,8 @@ const activeDeprecations = Object.keys(deprecations)
   .filter(deprecation => deprecation.status === 'active')
 
 // The browser-facing assets the pages link, built before SvelteKit renders a page: the
-// stylesheets, and the two plain TypeScript scripts (the site-wide search and the grammar index's
-// filter). Each is an explicit input so Vite content-hashes and manifests it; SvelteKit's server
+// stylesheets, and the plain TypeScript scripts (the site-wide search, the grammar index's filter
+// and a detail page's tabs). Each is an explicit input so Vite content-hashes and manifests it; SvelteKit's server
 // reads that manifest (src/lib/server/assets.ts). Its own build, apart from SvelteKit's, so no
 // page ever loads a Svelte runtime: with no Svelte plugin here, a .svelte import reaching a
 // client script fails the build instead of shipping one to the browser.
@@ -52,6 +52,7 @@ export default defineConfig({
         stylesZhHans: entry('./src/styles/locales/zh-hans.scss'),
         search: entry('./src/client/search.ts'),
         grammarFilter: entry('./src/client/grammarFilter.ts'),
+        detailTabs: entry('./src/client/detailTabs.ts'),
       },
     },
   },

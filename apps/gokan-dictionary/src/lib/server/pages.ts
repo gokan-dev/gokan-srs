@@ -260,6 +260,7 @@ export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes:
             document: documentOf(urls.vocabPath(id), vocabMeta, {
                 key: { type: 'vocab', id },
                 style: 'vocab',
+                script: 'detailTabs',
                 structuredData: { '@context': 'https://schema.org', '@type': 'DefinedTerm', name: headwordOf(vocab), description: vocabMeta.description },
             }),
         };
