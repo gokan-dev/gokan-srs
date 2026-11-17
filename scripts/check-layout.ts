@@ -1229,6 +1229,21 @@ async function checkAppPanelAction(tab: Tab, page: string, width: number): Promi
 }
 
 /**
+ * On a word page the app panel comes after the Meanings section, never above it (#244): a reader
+ * came for the definition, and on a phone a panel under the header pushed it below the fold.
+ */
+async function checkAppPanelAfterMeanings(tab: Tab, page: string, width: number): Promise<void> {
+    const found = await tab.evaluate<{ panel: number; meanings: number } | null>(`(() => {
+        const panel = document.querySelector('.app-panel');
+        const meanings = document.querySelector('.entry-main > .section');
+        if (!panel || !meanings) return null;
+        return { panel: panel.getBoundingClientRect().top, meanings: meanings.getBoundingClientRect().bottom };
+    })()`);
+    if (found === null) failures.push(`${width}px ${page}: no app panel, or no Meanings section (.entry-main > .section)`);
+    else if (found.panel < found.meanings) failures.push(`${width}px ${page}: the app panel starts at ${Math.round(found.panel)}px, above the end of Meanings (${Math.round(found.meanings)}px): it goes after the meanings`);
+}
+
+/**
  * A Japanese word in the app panel's sentence stays on one line when it fits one (#244): read as
  * two fragments (「就能读 学 / 校。」 at 320px), it is not the word. And one wider than the line
  * wraps inside the panel rather than running out of it: kept on one line at any cost
@@ -1530,6 +1545,7 @@ try {
         for (const path of PANEL_STEP_PAGES) {
             await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${path}`, 'JLPT');
             await checkAppPanelAction(tab, `dictionary ${path}`, width);
+            await checkAppPanelAfterMeanings(tab, `dictionary ${path}`, width);
         }
         for (const { path, ready } of PANEL_WORD_PAGES) {
             await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${path}`, ready);

@@ -154,7 +154,7 @@ $motion: 150ms ease-in-out;
   margin: $space-2 0 0;
 }
 
-/// The app panel (pages/AppPanel.svelte), once per page after its header: a quiet accent edge, as
+/// The app panel (pages/AppPanel.svelte), once per page after what the reader came for: a quiet accent edge, as
 /// the accent marks an action, and one button-styled link. A mixin each page sheet with a panel
 /// includes (vocab, kanji, grammar, kanji-orders, home) rather than an app.scss rule, so the
 /// stylesheet every page loads stays within its budget.

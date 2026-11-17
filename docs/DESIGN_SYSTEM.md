@@ -548,9 +548,12 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   leads to the words you can read at that point, and the link's accessible name repeats it in
   visually hidden text, ": the words you can read at this step"), then the name
   readings behind a `<details>`.
-- **App panel** (`pages/AppPanel.svelte`, #244): once per page, right after its header (on
-  the home page, a short section under the hero; on a grammar page after the Formation block
-  and its lead line, so two accent-edged boxes never stack and Formation stays first), on the surface with a divider border and a
+- **App panel** (`pages/AppPanel.svelte`, #244): once per page, after what the reader came
+  for, never above it: right after the header where the header holds it (a kanji's meanings and
+  readings); on a word page after the Meanings section, so the definition comes first, on a
+  phone most of all (`check:layout`); on the home page, a short section under the hero; on a
+  grammar page after the Formation block and its lead line, so two accent-edged boxes never stack
+  and Formation stays first. On the surface with a divider border and a
   3px accent left edge, the accent marking the action. One sentence in body text, then one
   button-styled link (accent fill, `accent-contrast` text, 44px tall), its label short enough
   for one line at 320px with a four-digit step ("Start after step 99"; `check:layout` measures

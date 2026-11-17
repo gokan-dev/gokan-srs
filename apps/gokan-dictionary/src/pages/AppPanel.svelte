@@ -6,8 +6,9 @@
 
   /**
    * The one place a page presents the SRS app (#244): one sentence about what Gokan would do with
-   * what the page is about, and one link into the app's setup. Once per page, right after its
-   * header. Static HTML: the Umami script counts the click from its attributes.
+   * what the page is about, and one link into the app's setup. Once per page, after what the reader
+   * came for: its header, or on a word page its Meanings (docs/DESIGN_SYSTEM.md). Static HTML: the
+   * Umami script counts the click from its attributes.
    */
   interface Props {
     link: AppLink;

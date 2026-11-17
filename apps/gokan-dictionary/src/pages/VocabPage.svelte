@@ -136,8 +136,6 @@
     </p>
   </header>
 
-  <AppPanel link={appLink} copy={orderStep ? messages.appPanel.word(headword, orderStep) : messages.appPanel.general} />
-
   <!--
     Two columns on a wide viewport, one on a narrow one, split by importance: the meanings, forms
     and sentences are what the page is for and stay in the main column; the relationship lists
@@ -166,6 +164,9 @@
         {/if}
         {#if meaningsCredit}<p class="meta source-credit">{meaningsCredit}</p>{/if}
       </section>
+
+      <!-- After the meanings, never above them: a reader came for the definition, on a phone most of all. -->
+      <AppPanel link={appLink} copy={orderStep ? messages.appPanel.word(headword, orderStep) : messages.appPanel.general} />
 
       {#if wordClass}
         <section class="section">
