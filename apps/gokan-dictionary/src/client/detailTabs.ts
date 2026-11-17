@@ -98,11 +98,21 @@ function initTabs(): void {
     apply();
     // Landing on a section's hash in tabs: the browser scrolls that section to the top, past the word
     // and the tab row. The page top instead, as the app's tab landing: the word, the tabs, the section.
-    // Again at load, where the browser scrolls to the fragment once more.
+    // Chrome scrolls to the fragment again after load (check:layout saw it), so every scroll is undone
+    // until the reader's first input, or a second after load.
     if (media.matches && location.hash) {
-        const toTop = (): void => window.scrollTo(0, 0);
+        const toTop = (): void => { if (window.scrollY !== 0) window.scrollTo(0, 0); };
+        const inputs = ['pointerdown', 'keydown', 'wheel', 'touchstart'];
+        const stop = (): void => {
+            window.removeEventListener('scroll', toTop);
+            for (const name of inputs) window.removeEventListener(name, stop, true);
+        };
         toTop();
-        if (document.readyState !== 'complete') window.addEventListener('load', toTop, { once: true });
+        window.addEventListener('scroll', toTop);
+        for (const name of inputs) window.addEventListener(name, stop, { capture: true, passive: true });
+        const settle = (): void => { setTimeout(stop, 1000); };
+        if (document.readyState === 'complete') settle();
+        else window.addEventListener('load', settle, { once: true });
     }
 }
 

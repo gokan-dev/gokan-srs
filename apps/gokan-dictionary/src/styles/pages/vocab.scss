@@ -78,6 +78,19 @@
   margin-top: $space-4;
 }
 
+// A synonym row's note under its gloss ("= Interchangeable"), quieter than it: only a word page's
+// rows have one (VocabEntryList.svelte), so here rather than in app.scss.
+.entry-list a > small {
+  grid-column: 3;
+  font-family: $font-sans;
+  font-size: $text-sm;
+  color: var(--tertiary);
+
+  @include narrow {
+    grid-column: 1 / -1;
+  }
+}
+
 // A section's search (client/detailTabs.ts shows it): the field, then its count line while it filters.
 .section-search {
   margin-bottom: $space-2;
