@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CONSTANTS } from '../commons/constants';
-import { parseSetupLink, setupCompletedEvent, withoutSetupParams } from './setupLink.utils';
+import { initialOnboardingStep, parseSetupLink, setupCompletedEvent, withoutSetupParams } from './setupLink.utils';
 
 describe('parseSetupLink', () => {
     it('reads the order and the count a range page links with', () => {
@@ -61,5 +61,16 @@ describe('setupCompletedEvent', () => {
             .toEqual({ name: 'setup_completed', data: { source: 'dictionary-word' } });
         expect(setupCompletedEvent(parseSetupLink('?order=rtk&known=500')))
             .toEqual({ name: 'setup_completed', data: { source: 'direct' } });
+    });
+});
+
+describe('initialOnboardingStep', () => {
+    it('opens on setup for a link with a kanji count, so the count it carries is in view', () => {
+        expect(initialOnboardingStep(parseSetupLink('?order=kklc&known=103&utm_source=dictionary&utm_content=word'))).toBe('setup');
+    });
+
+    it('keeps the welcome for an order alone and for a direct visit', () => {
+        expect(initialOnboardingStep(parseSetupLink('?order=kklc&utm_source=dictionary&utm_content=order'))).toBe('welcome');
+        expect(initialOnboardingStep(parseSetupLink(''))).toBe('welcome');
     });
 });

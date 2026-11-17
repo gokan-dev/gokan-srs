@@ -1,4 +1,4 @@
-import { DICTIONARY_SOURCE, isDictionaryPlacement, SETUP_LINK_PARAMS } from '@gokan/analytics';
+import { DICTIONARY_SOURCE, isDictionaryPlacement, SETUP_LINK_PARAMS, type SetupSource } from '@gokan/analytics';
 import { isKanjiOrderId, type KanjiOrderId } from '@gokan/dataset-schema';
 import { CONSTANTS } from '../commons/constants';
 import type { AnalyticsEvent } from '../services/analytics';
@@ -17,7 +17,7 @@ export interface SetupLink {
      */
     known?: number;
     /** Where the visitor came from, for `setup_completed`: `dictionary-<placement>`, or `direct`. */
-    source: string;
+    source: SetupSource;
 }
 
 /** The query parameters onboarding reads and then removes from the address. */
@@ -40,7 +40,7 @@ export function parseSetupLink(search: string): SetupLink {
     return link;
 }
 
-function sourceOf(params: URLSearchParams): string {
+function sourceOf(params: URLSearchParams): SetupSource {
     const placement = params.get('utm_content');
     return params.get('utm_source') === DICTIONARY_SOURCE && isDictionaryPlacement(placement)
         ? `dictionary-${placement}`
@@ -56,6 +56,18 @@ export function withoutSetupParams(search: string): string {
     for (const name of SETUP_PARAMS) params.delete(name);
     const rest = params.toString();
     return rest ? `?${rest}` : '';
+}
+
+/** The first screen of onboarding: the welcome, or straight to setup. */
+export type OnboardingStep = 'welcome' | 'setup';
+
+/**
+ * A link that carries a kanji count ("Start after step 103") opens on setup, the order and count
+ * filled in and in view: the welcome mentions neither, and its "I'm just starting out" would drop
+ * the count the visitor just chose. An order alone, or a direct visit, opens on the welcome.
+ */
+export function initialOnboardingStep(link: SetupLink): OnboardingStep {
+    return link.known === undefined ? 'welcome' : 'setup';
 }
 
 /** The event Start learning sends: one per setup, with where the visitor came from. */

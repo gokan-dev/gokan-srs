@@ -4,7 +4,7 @@ import { DEFAULT_SETTINGS } from "../../models/user.model";
 import { WelcomeScreen } from "./WelcomeScreen";
 import { SetupScreen } from "./SetupScreen";
 import { trackEvent } from "../../services/analytics";
-import { setupCompletedEvent, type SetupLink } from "../../utils/setupLink.utils";
+import { initialOnboardingStep, setupCompletedEvent, type OnboardingStep, type SetupLink } from "../../utils/setupLink.utils";
 
 interface OnboardingFlowProps {
     /** The link that opened the app: its order and count are the kanji form's, its source the event's. */
@@ -13,7 +13,7 @@ interface OnboardingFlowProps {
 }
 
 export function OnboardingFlow({ link, onComplete }: OnboardingFlowProps) {
-    const [step, setStep] = useState<'welcome' | 'setup'>('welcome');
+    const [step, setStep] = useState<OnboardingStep>(() => initialOnboardingStep(link));
 
     // Either path saves a setup; a Drive restore does not, and sends nothing.
     const complete = (values: SetupValues) => {
