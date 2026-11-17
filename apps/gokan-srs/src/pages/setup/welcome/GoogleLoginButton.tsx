@@ -46,3 +46,16 @@ export function GoogleLoginButton() {
         </button>
     );
 }
+
+/**
+ * The restore's question and its action, as a run of small print: the Welcome hero's, and setup's
+ * when a dictionary link opened it first (a visitor on a new device never sees the Welcome then).
+ */
+export function RestorePrompt() {
+    return (
+        <>
+            Used Gokan on another device?{" "}
+            <GoogleLoginButton />
+        </>
+    );
+}

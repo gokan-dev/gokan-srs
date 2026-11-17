@@ -32,6 +32,12 @@ interface KanjiKnowledgeEditorProps {
     collapseGrid?: boolean;
     /** What setup shows between the count and the collapsed grid (the vocabulary order, Start learning). */
     beforeGrid?: ReactNode;
+    /**
+     * Setup opened from a link with a count: once the order's list is in, scroll the count into
+     * view (it sits under the method cards, below a phone's first screen, and further down for an
+     * order behind "More methods"). Not focused: a phone would open its keyboard over it.
+     */
+    revealCount?: boolean;
 }
 
 export function KanjiKnowledgeEditor({
@@ -40,10 +46,21 @@ export function KanjiKnowledgeEditor({
     onCountStepChange,
     collapseGrid = false,
     beforeGrid,
+    revealCount = false,
 }: KanjiKnowledgeEditorProps) {
     const { state, setKanjiMethod } = useKanjiForm();
     const [gridOpen, setGridOpen] = useState(false);
     const gridDisclosureRef = useRef<HTMLDivElement>(null);
+    const countRef = useRef<HTMLDivElement>(null);
+    const revealed = useRef(false);
+
+    // Once: a later switch of method or count is the learner's own and keeps their scroll.
+    const listLoaded = !state.loading && state.allKanji.length > 0;
+    useEffect(() => {
+        if (!revealCount || !listLoaded || revealed.current) return;
+        revealed.current = true;
+        countRef.current?.scrollIntoView({ block: 'nearest' });
+    }, [revealCount, listLoaded]);
 
     // The open grid runs to 20,000px on a phone with Start learning above it: closing it from its
     // end and bringing its title to the bottom of the screen puts the button back in view
@@ -94,11 +111,14 @@ export function KanjiKnowledgeEditor({
 
             {collapseGrid ? (
                 <>
-                    <KanjiCountStepper
-                        step={countStep}
-                        onStepChange={onCountStepChange}
-                        knownReadout={<KnownInOrder allKanji={state.allKanji} method={state.kanjiMethod} />}
-                    />
+                    {/* A margin under it when scrolled to: off the screen's very edge, and in view if a line settles after. */}
+                    <div ref={countRef} className="scroll-mb-6">
+                        <KanjiCountStepper
+                            step={countStep}
+                            onStepChange={onCountStepChange}
+                            knownReadout={<KnownInOrder allKanji={state.allKanji} method={state.kanjiMethod} />}
+                        />
+                    </div>
                     {beforeGrid}
                     <div ref={gridDisclosureRef}>
                         <Disclosure title="Mark individual kanji" open={gridOpen} onOpenChange={setGridOpen}>

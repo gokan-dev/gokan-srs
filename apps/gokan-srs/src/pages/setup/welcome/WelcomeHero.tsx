@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Button } from "../../../components/ui/Button";
-import { GoogleLoginButton } from "./GoogleLoginButton";
+import { RestorePrompt } from "./GoogleLoginButton";
 import { ForwardArrow, WelcomeWrap } from "./WelcomeSection";
 
 const NAV_LINK = "text-sm text-secondary transition-colors duration-200 hover:text-primary";
@@ -51,8 +51,8 @@ export function WelcomeHero({ onSelectBeginner, onSelectLearner }: WelcomeHeroPr
                         </Button>
                     </div>
                     <p className="type-support mt-5">
-                        It's free, and you don't need an account. Used Gokan on another device?{" "}
-                        <GoogleLoginButton />
+                        It's free, and you don't need an account.{" "}
+                        <RestorePrompt />
                     </p>
                 </div>
 

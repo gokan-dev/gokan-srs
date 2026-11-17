@@ -13,7 +13,8 @@ interface OnboardingFlowProps {
 }
 
 export function OnboardingFlow({ link, onComplete }: OnboardingFlowProps) {
-    const [step, setStep] = useState<OnboardingStep>(() => initialOnboardingStep(link));
+    const [firstStep] = useState<OnboardingStep>(() => initialOnboardingStep(link));
+    const [step, setStep] = useState<OnboardingStep>(firstStep);
 
     // Either path saves a setup; a Drive restore does not, and sends nothing.
     const complete = (values: SetupValues) => {
@@ -46,7 +47,7 @@ export function OnboardingFlow({ link, onComplete }: OnboardingFlowProps) {
 
     if (step === 'setup') {
         return (
-            <SetupScreen onComplete={complete} />
+            <SetupScreen onComplete={complete} opensFirst={firstStep === 'setup'} />
         );
     }
 

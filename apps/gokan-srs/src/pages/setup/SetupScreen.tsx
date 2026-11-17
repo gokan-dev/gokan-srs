@@ -8,8 +8,20 @@ import { KanjiKnowledgeEditor } from "../../components/KanjiKnowledgeEditor";
 import { useKanjiForm } from "../../context/KanjiForm/useKanjiForm";
 import { Button } from "../../components/ui/Button";
 import { Loader } from "../../components/Loader";
+import { RestorePrompt } from "./welcome/GoogleLoginButton";
 
-export function SetupScreen({ onComplete }: { onComplete: (values: SetupValues) => void }) {
+interface SetupScreenProps {
+    onComplete: (values: SetupValues) => void;
+    /**
+     * Setup is onboarding's first screen: a dictionary link with a count opened it
+     * (`initialOnboardingStep`). The Welcome, and its Drive restore, were skipped, so the restore
+     * sits under Start learning (below the count, never pushing it down), and the count the link
+     * filled in is scrolled into view.
+     */
+    opensFirst?: boolean;
+}
+
+export function SetupScreen({ onComplete, opensFirst = false }: SetupScreenProps) {
     const { state } = useKanjiForm();
 
     const [learningOrder, setLearningOrder] = useState<LearningOrder>('kanji_coverage');
@@ -47,18 +59,26 @@ export function SetupScreen({ onComplete }: { onComplete: (values: SetupValues) 
                 {/* The decisions first, the fine-tuning last: the grid is a closed disclosure under Start learning. */}
                 <KanjiKnowledgeEditor
                     collapseGrid
+                    revealCount={opensFirst}
                     beforeGrid={
                         <>
                             <LearningOrderPicker value={learningOrder} onChange={setLearningOrder} />
 
-                            <Button
-                                variant="primary"
-                                onClick={handleSubmit}
-                                disabled={state.loading}
-                                className="w-full py-4 text-lg font-serif h-14"
-                            >
-                                Start learning
-                            </Button>
+                            <div className="space-y-4">
+                                <Button
+                                    variant="primary"
+                                    onClick={handleSubmit}
+                                    disabled={state.loading}
+                                    className="w-full py-4 text-lg font-serif h-14"
+                                >
+                                    Start learning
+                                </Button>
+                                {opensFirst && (
+                                    <p className="type-support text-center">
+                                        <RestorePrompt />
+                                    </p>
+                                )}
+                            </div>
                         </>
                     }
                 />
