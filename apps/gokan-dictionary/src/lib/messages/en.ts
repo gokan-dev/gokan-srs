@@ -2,7 +2,7 @@
 // tabs, the error page) and of its titles and descriptions. The site's first locale; another is
 // one more module like this one, held to the same Messages type (./index.ts).
 
-import { headwordOf, secondaryForm } from '@gokan/dataset-schema';
+import { CLOSENESS_LABEL, headwordOf, secondaryForm } from '@gokan/dataset-schema';
 import type { GrammarChapter, GrammarPoint, Kanji, KanjiOrder, Vocabulary } from '@gokan/dataset-schema';
 import { FORM_LABELS } from '../conjugation';
 import { orderNameLang } from '../kanjiOrders';
@@ -158,11 +158,26 @@ export const en: Messages = {
         usuallyKana: 'Usually written in kana. Kanji spelling',
         alsoRead: 'also',
         alsoWritten: 'Also written',
-        commonWord: 'Common word',
-        sections: { meanings: 'Meanings', forms: 'Forms', sentences: 'Example sentences', kanji: 'Kanji used', madeOf: 'Made of', usedIn: 'Used in' },
-        allMeanings: n => `All ${n} meanings`,
+        sections: {
+            meanings: 'Meanings', examples: 'Examples', closestSynonyms: 'Closest synonyms', sentences: 'Sentences', synonyms: 'Synonyms',
+            forms: 'Forms', kanji: 'Kanji', related: 'Related', madeOf: 'Made of', usedIn: 'Used in',
+        },
+        tabs: { label: 'Sections', dict: 'Dict', sentences: 'Sentences', synonyms: 'Synonyms', forms: 'Forms', kanji: 'Kanji', related: 'Related' },
+        showAllMeanings: n => `Show all ${n} meanings`,
         rareMeanings: n => `Rare and archaic meanings (${n})`,
-        moreExamples: n => `More examples (${n})`,
+        showMore: n => `Show ${n.toLocaleString('en')} more`,
+        showMoreMeanings: n => `Show ${n} more ${n === 1 ? 'meaning' : 'meanings'}`,
+        forMeaning: n => `For meaning ${n}`,
+        synonymsNotListed: n => `${count(n, 'synonym')} more, less close, not listed here.`,
+        // The app's own words (CLOSENESS_LABEL), so the two products label a pair alike.
+        closeness: { interchangeable: CLOSENESS_LABEL.interchangeable.label, close: CLOSENESS_LABEL.close.label, distinct: CLOSENESS_LABEL.distinct.label },
+        howCommon: {
+            label: 'How common',
+            bands: { 'Very common': 'Very common', Common: 'Common', 'Less common': 'Less common', Rare: 'Rare' },
+            reference: top => (top === null ? 'Not in the frequency list' : top.beyond ? `Beyond the top ${top.top.toLocaleString('en')}` : `Top ${top.top.toLocaleString('en')} words`),
+        },
+        textbooks: 'Textbooks',
+        search: { sentences: 'Search sentences', synonyms: 'Search synonyms', related: 'Search related words' },
         forms: { plain: 'Plain', polite: 'Polite', present: 'Present', negative: 'Negative', past: 'Past', pastNegative: 'Past negative', labels: FORM_LABELS },
         kanjiInEnglish: 'Kanji pages are in English.',
         credit: sourceNames => `Sources: ${sourceNames.join(', ')}`,

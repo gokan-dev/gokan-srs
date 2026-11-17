@@ -20,6 +20,7 @@ import { searchGrammarRow, searchKanjiRow, searchWordRow, splitSearchIndex } fro
 import { datasetLanguageOf, DEFAULT_LOCALE, type ServedLocale } from '../locale';
 import { messagesFor, type PageMeta } from '../messages';
 import { orderSentences } from '../sentenceOrder';
+import { wordSynonyms } from '../synonyms';
 import type { Alternate, DictionaryData, EntityData, GrammarSummary, LocaleText, PageKey, SearchIndexFile, SearchWordRow, VocabSummary, WordText } from '../types';
 import { kanjiOrderSlug, kanjiRangeSlug, localeUrls } from '../urls';
 import type { PageScript, PageStyle } from './assets';
@@ -235,7 +236,8 @@ export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes:
         const sentenceWords = [...new Set(sentences.flatMap(sentence => Object.keys(sentence.matches ?? {})))];
         // A page in another language links only the words with a page in it (lib/localeLinks.ts):
         // its lists leave the others out, its sentences show them unlinked.
-        const inLocale = localized ? new Set(await localized.text.withPages([...new Set([...components, ...parents].map(word => word.id).concat(sentenceWords.filter(other => summaryById.has(other))))])) : null;
+        const synonymIds = (vocab.synonyms ?? []).map(synonym => synonym.id).filter(other => summaryById.has(other));
+        const inLocale = localized ? new Set(await localized.text.withPages([...new Set([...components, ...parents].map(word => word.id).concat(sentenceWords.filter(other => summaryById.has(other)), synonymIds))])) : null;
         const linkable = (words: VocabSummary[]) => (inLocale ? words.filter(word => inLocale.has(word.id)) : words);
         return {
             props: {
@@ -244,6 +246,7 @@ export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes:
                 components: await inLanguageOf(linkable(components), text),
                 parents: await inLanguageOf(linkable(parents), text),
                 sentences,
+                synonyms: wordSynonyms(vocab, other => (inLocale ? inLocale.has(other) : summaryById.has(other))),
                 // English's props stay as they were: only a page in another language carries its text.
                 ...(localized && translations && inLocale ? {
                     text: localized.word,

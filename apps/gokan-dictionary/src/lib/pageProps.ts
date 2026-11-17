@@ -10,6 +10,7 @@ import type { FamilyPageData } from './grammarFamilies';
 import type { LevelGroup } from './grammarBrowse';
 import type { VariantSibling } from './grammarVariants';
 import type { KanjiRange, OrderStep, StepRange } from './kanjiOrders';
+import type { WordSynonyms } from './synonyms';
 import type { GrammarSummary, SentenceTranslation, VocabSummary, WordText } from './types';
 
 /** HomePage.svelte */
@@ -31,6 +32,8 @@ export interface VocabPageProps {
   parents: VocabSummary[];
   /** Already ordered and capped (lib/sentenceOrder.ts). */
   sentences: Sentence[];
+  /** Grouped by meaning, capped, only the words the page can link (lib/synonyms.ts). */
+  synonyms: WordSynonyms;
   /** On a page in another language: the word's text in it (shown renderings only). English's page has none. */
   text?: WordText;
   /** On a page in another language: each sentence's translation, by sentence id. */

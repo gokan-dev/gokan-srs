@@ -25,9 +25,11 @@
     stacked?: boolean;
     /** Leave the gloss out of the rows in the disclosure: headword and reading only. */
     briefRest?: boolean;
+    /** The disclosure's summary, given how many rows it holds; "All N words" when omitted. */
+    more?: (hidden: number) => string;
   }
 
-  let { entries, visible, stacked = false, briefRest = false }: Props = $props();
+  let { entries, visible, stacked = false, briefRest = false, more }: Props = $props();
 
   const shown = $derived(visible === undefined ? entries : entries.slice(0, visible));
   const rest = $derived(visible === undefined ? [] : entries.slice(visible));
@@ -44,7 +46,7 @@
 {@render rows(shown, false)}
 {#if rest.length > 0}
   <details class="disclosure">
-    <summary>{messages.chrome.allWords(entries.length)}</summary>
+    <summary>{more ? more(rest.length) : messages.chrome.allWords(entries.length)}</summary>
     {@render rows(rest, briefRest)}
   </details>
 {/if}

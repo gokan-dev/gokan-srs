@@ -6,7 +6,7 @@
 // Text the dataset holds (meanings, explanations, examples) is the dataset's, read in the
 // locale's language (lib/locale.ts, datasetLanguageOf); this is everything else.
 
-import type { GrammarChapter, GrammarPoint, Kanji, KanjiOrder, Vocabulary } from '@gokan/dataset-schema';
+import type { Closeness, FrequencyBandName, GrammarChapter, GrammarPoint, Kanji, KanjiOrder, Vocabulary } from '@gokan/dataset-schema';
 import type { DictionaryPlacement } from '@gokan/analytics';
 import type { AppLink } from '../appLinks';
 import type { FormLabel } from '../conjugation';
@@ -22,7 +22,7 @@ export interface PageMeta {
 }
 
 /** The things a page counts: a catalog writes each count with its noun ("1 word", "3 strokes"). */
-export type CountedNoun = 'word' | 'stroke' | 'grammar point';
+export type CountedNoun = 'word' | 'stroke' | 'grammar point' | 'synonym';
 
 /**
  * A catalog's sentence in its own word order: the plain runs, and each marked run's text with its
@@ -145,11 +145,30 @@ export interface Messages {
         /** Before the other readings, and before the other spellings. */
         alsoRead: string;
         alsoWritten: string;
-        commonWord: string;
-        sections: { meanings: string; forms: string; sentences: string; kanji: string; madeOf: string; usedIn: string };
-        allMeanings: (n: number) => string;
+        sections: {
+            meanings: string; examples: string; closestSynonyms: string; sentences: string; synonyms: string;
+            forms: string; kanji: string; related: string; madeOf: string; usedIn: string;
+        };
+        /** Below 1024px, the tab row's accessible name and each tab's, in the app's words and order. */
+        tabs: { label: string; dict: string; sentences: string; synonyms: string; forms: string; kanji: string; related: string };
+        /** Meanings past the first three, in place. */
+        showAllMeanings: (n: number) => string;
         rareMeanings: (n: number) => string;
-        moreExamples: (n: number) => string;
+        /** A capped list's disclosure: the rest of what the page ships. */
+        showMore: (n: number) => string;
+        /** The Synonyms section's meaning groups past the first two. */
+        showMoreMeanings: (n: number) => string;
+        /** A synonym group's title, before its glosses: "For meaning 1". */
+        forMeaning: (n: number) => string;
+        /** Under the Synonyms section when the page ships fewer than the word has. */
+        synonymsNotListed: (n: number) => string;
+        /** A synonym's label, beside its sign (= ≈ ≠): how close it is in the meaning it is listed under. */
+        closeness: Record<Closeness, string>;
+        /** The header's facts: how common the word is (the band's name and its round top), its textbook lessons. */
+        howCommon: { label: string; bands: Record<FrequencyBandName, string>; reference: (top: { top: number; beyond: boolean } | null) => string };
+        textbooks: string;
+        /** A section's search field's hidden label. */
+        search: { sentences: string; synonyms: string; related: string };
         /** The Forms table: its columns, its rows, and every other form's name. */
         forms: { plain: string; polite: string; present: string; negative: string; past: string; pastNegative: string; labels: Record<FormLabel, string> };
         /** Under the Kanji used tiles, on a page in another language: their pages are in English. */
