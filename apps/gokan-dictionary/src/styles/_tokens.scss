@@ -32,7 +32,7 @@ $space-6: 3rem;
 $bp-narrow: 40rem;
 /// Point at which a wide page's lists split into columns.
 $bp-wide: 56rem;
-/// Every detail page's switch (a word's, in time a kanji's and a grammar point's): below it a row
+/// Every detail page's switch (a word's, a kanji's and a grammar point's): below it a row
 /// of tabs, one section at a time; from it the full page. Equal to gokan-srs's `lg`, where its word
 /// page makes the same switch: check:conventions holds the two equal (`detail-breakpoint`).
 $bp-detail: 64rem;
