@@ -155,10 +155,12 @@ export interface Messages {
     /** A kanji page's words. */
     kanji: {
         /**
-         * The Words section's search field: its hidden label, and its placeholder, which says English
-         * reaches only the rows that ship a gloss (the first `englishRows`: the 80 KB budget).
+         * The Words section's search field: its hidden label, its placeholder (short, to fit a 320px
+         * phone, so it names no language), and the line under it that says English reaches only the
+         * rows that ship a gloss (the first `englishRows`: the 80 KB budget). A line, not the
+         * placeholder: it shows at every width, and still after the reader types.
          */
-        wordsSearch: { label: string; placeholder: (englishRows: number) => string };
+        wordsSearch: { label: string; placeholder: string; note: (englishRows: number) => string };
     };
     /** A grammar point page's words. */
     grammar: {
@@ -194,8 +196,9 @@ export interface Messages {
         howCommon: { label: string; bands: Record<FrequencyBandName, string>; reference: (top: { top: number; beyond: boolean } | null) => string };
         textbooks: string;
         /**
-         * A section's search field: its placeholder (the app's PanelSearch's), per section since each
-         * says only the languages its rows are searched in, and each section's hidden label.
+         * A section's search field: its placeholder, per section since each says only the languages
+         * its rows are searched in (short enough to show whole at 320px: check:layout), and each
+         * section's hidden label.
          */
         search: { placeholders: { sentences: string; synonyms: string; related: string }; sentences: string; synonyms: string; related: string };
         /** The Forms table: its columns, its rows, and every other form's name. */

@@ -149,8 +149,8 @@
     {#if words.length > 0}
       <section id="words" class="section detail-panel" data-section-searchable>
         <h2>Words with <span lang="ja">{kanji.character}</span></h2>
-        <!-- Past the first rows only the headword and reading ship (the budget): the placeholder says English reaches the first rows alone. -->
-        {#if words.length > WORDS_VISIBLE}<SectionSearch label={messages.kanji.wordsSearch.label} placeholder={messages.kanji.wordsSearch.placeholder(WORDS_VISIBLE)} />{/if}
+        <!-- Past the first rows only the headword and reading ship (the budget): the line under the field says English reaches the first rows alone. -->
+        {#if words.length > WORDS_VISIBLE}<SectionSearch label={messages.kanji.wordsSearch.label} placeholder={messages.kanji.wordsSearch.placeholder} note={messages.kanji.wordsSearch.note(WORDS_VISIBLE)} />{/if}
         <VocabEntryList entries={words} visible={WORDS_VISIBLE} briefRest />
       </section>
     {/if}

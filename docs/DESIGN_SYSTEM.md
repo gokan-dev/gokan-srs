@@ -656,14 +656,16 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
     width off the stylesheet (`--detail-query`, from `$bp-detail`) through `matchMedia`, so crossing
     it switches back and forth. A word's Sentences, Synonyms and Related, a kanji's Words and a
     grammar point's Examples each get a search field (44px,
-    16px text, a hidden label, the app's placeholder in `font-sans`, per section since each names
-    only the languages its rows are searched in: on a Chinese page Synonyms says English or
-    Japanese, its rows' meanings being English) only when the section has more than a reader takes
+    16px text, a hidden label, a placeholder in `font-sans` short enough to show whole in the field
+    at 320px ("English or Japanese": `check:layout` measures every one on a word, a kanji and a
+    grammar page), per section since each names only the languages its rows are searched in: on a
+    Chinese page Synonyms says English or Japanese, its rows' meanings being English) only when the section has more than a reader takes
     in at a glance, each page's threshold in its bullet: a word's sections past one page, as the
     app's `usePagedPanel` (more rows than it shows before "Show N more"); a kanji's Words past its
     first 30 rows, English reaching those 30 alone (the rest ship headword and reading only, the
-  80 KB budget: their glosses would add about 27 KB to 一), which its placeholder says ("Search in
-  Japanese, or English in the first 30"); a grammar point's Examples past 5 curated examples, or with any from the corpus
+  80 KB budget: their glosses would add about 27 KB to 一), which a static `meta` line under the
+  field says ("English searches the first 30 words.", from the catalog), above the count line:
+  a placeholder that long is cut off on a phone and goes once the reader types; a grammar point's Examples past 5 curated examples, or with any from the corpus
     (folded out of sight, nothing paged). A count
     line shows while filtering, with the app's matching
     (`readExploreQuery`, `matchesExploreQuery`, shared from `@gokan/dataset-schema`: English from the
@@ -686,7 +688,7 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   read at this step"; then Details folded under a divider line: readings in names, the Kangxi
   radical's number) and **Words** (`#words`: 30 rows with their gloss, the rest headword and
   reading only in "All N words"; searchable past the first 30, in Japanese across every row and in
-  English across the 30 with a gloss, as its placeholder says). A kanji no word uses has no Words
+  English across the 30 with a gloss, as the line under its field says). A kanji no word uses has no Words
   section and no tab row; its Kanji section keeps a Common words section, a heading with the
   section's gap and one line ("No word in this dictionary uses this kanji yet."), shown at every
   width, so no words reads as a fact, not a list that failed to show.

@@ -62,7 +62,7 @@ describe('VocabPage', () => {
 
     it("says each section search's languages: on a Chinese page, Synonyms (English meanings, Japanese words) does not claim Chinese", () => {
         const placeholders = (locale: ServedLocale) => Array.from(html(locale, props(12, locale !== 'en')).matchAll(/data-section-search=[^]*?placeholder="([^"]*)"/g), match => match[1]);
-        expect(placeholders('en')).toEqual(Array(3).fill('Search in English or Japanese'));
+        expect(placeholders('en')).toEqual(Array(3).fill('English or Japanese'));
         expect(placeholders('zh-hans')).toEqual(['用中文、英文或日文搜索', '用英文或日文搜索', '用中文、英文或日文搜索']);
     });
 

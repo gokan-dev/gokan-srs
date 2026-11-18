@@ -162,11 +162,11 @@ export const en: Messages = {
         words: 'Words', point: 'Point', examples: 'Examples',
     },
     kanji: {
-        wordsSearch: { label: 'Search the words', placeholder: englishRows => `Search in Japanese, or English in the first ${englishRows.toLocaleString('en')}` },
+        wordsSearch: { label: 'Search the words', placeholder: 'Search the words', note: englishRows => `English searches the first ${englishRows.toLocaleString('en')} words.` },
     },
     grammar: {
         allExamples: n => `All ${n.toLocaleString('en')} examples`,
-        examplesSearch: { label: 'Search the examples', placeholder: 'Search in English or Japanese' },
+        examplesSearch: { label: 'Search the examples', placeholder: 'English or Japanese' },
     },
     vocab: {
         usuallyKana: 'Usually written in kana. Kanji spelling',
@@ -191,7 +191,7 @@ export const en: Messages = {
         },
         textbooks: 'Textbooks',
         search: {
-            placeholders: { sentences: 'Search in English or Japanese', synonyms: 'Search in English or Japanese', related: 'Search in English or Japanese' },
+            placeholders: { sentences: 'English or Japanese', synonyms: 'English or Japanese', related: 'English or Japanese' },
             sentences: 'Search sentences', synonyms: 'Search synonyms', related: 'Search related words',
         },
         forms: { plain: 'Plain', polite: 'Polite', present: 'Present', negative: 'Negative', past: 'Past', pastNegative: 'Past negative', labels: FORM_LABELS },

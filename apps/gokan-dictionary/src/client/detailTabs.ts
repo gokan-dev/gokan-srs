@@ -23,20 +23,23 @@ const locale = localeOfHtmlLang(document.documentElement.lang);
 const words = sectionSearchMessagesFor(locale);
 const englishPage = locale === DEFAULT_LOCALE;
 
+// The query the stylesheet shows the tabs under, quoted as a CSS string: read once, followed by the
+// tabs and by each section's search (which rows the arrangement draws). No row, no tabs: one page.
+const tabRow = document.querySelector<HTMLElement>('[data-detail-tabs]');
+const query = tabRow ? getComputedStyle(tabRow).getPropertyValue('--detail-query').trim().replace(/^["']|["']$/g, '') : '';
+const media = query ? matchMedia(query) : null;
+
 function initTabs(): void {
-    const row = document.querySelector<HTMLElement>('[data-detail-tabs]');
     const container = document.querySelector<HTMLElement>('[data-detail-panels]');
-    if (!row || !container) return;
+    if (!tabRow || !container || !media) return;
+    const row = tabRow;
+    const tabs = media;
     const entries = Array.from(row.querySelectorAll<HTMLAnchorElement>('a[data-tab]')).flatMap(tab => {
         const panel = tab.dataset.tab ? document.getElementById(tab.dataset.tab) : null;
         return panel ? [{ tab, panel, id: panel.id }] : [];
     });
     if (entries.length === 0) return;
     const first = entries[0].id;
-    // The query the stylesheet shows the tabs under, quoted as a CSS string.
-    const query = getComputedStyle(row).getPropertyValue('--detail-query').trim().replace(/^["']|["']$/g, '');
-    if (query === '') return;
-    const media = window.matchMedia(query);
     const ofHash = (): string => {
         const id = decodeURIComponent(location.hash.slice(1));
         return entries.some(entry => entry.id === id) ? id : first;
@@ -44,9 +47,9 @@ function initTabs(): void {
     let open = ofHash();
 
     function apply(): void {
-        const tabbed = media.matches;
-        if (tabbed) row!.setAttribute('role', 'tablist');
-        else row!.removeAttribute('role');
+        const tabbed = tabs.matches;
+        if (tabbed) row.setAttribute('role', 'tablist');
+        else row.removeAttribute('role');
         for (const { tab, panel, id } of entries) {
             tab.id = `tab-${id}`;
             if (tabbed) {
@@ -79,24 +82,24 @@ function initTabs(): void {
 
     for (const { tab, id } of entries) {
         tab.addEventListener('click', event => {
-            if (!media.matches) return;
+            if (!tabs.matches) return;
             event.preventDefault();
             select(id, false);
         });
     }
     row.addEventListener('keydown', event => {
-        if (!media.matches) return;
+        if (!tabs.matches) return;
         const at = entries.findIndex(entry => entry.id === open);
         const to = { ArrowRight: at + 1, ArrowLeft: at - 1, Home: 0, End: entries.length - 1 }[event.key];
         if (to === undefined) return;
         event.preventDefault();
         select(entries[(to + entries.length) % entries.length].id, true);
     });
-    window.addEventListener('hashchange', () => {
+    addEventListener('hashchange', () => {
         open = ofHash();
         apply();
     });
-    media.addEventListener('change', apply);
+    tabs.addEventListener('change', apply);
     apply();
     // Landing on a section's hash in tabs: the browser scrolls that section to the top, past the word
     // and the tab row. The page top instead, as the app's tab landing: the word, the tabs, the section.
@@ -104,7 +107,7 @@ function initTabs(): void {
     // until the reader's first input, or a second after load. Only on a fresh navigation: a chosen tab
     // writes its hash, so a reload or Back to the page has one too, and keeps the scroll it restores.
     const navigation = performance.getEntriesByType('navigation')[0];
-    if (media.matches && location.hash && navigation instanceof PerformanceNavigationTiming && navigation.type === 'navigate') {
+    if (tabs.matches && location.hash && navigation instanceof PerformanceNavigationTiming && navigation.type === 'navigate') {
         // scrollTo(0, 0) at the top fires no scroll event, so it needs no guard.
         const toTop = (): void => { scrollTo(0, 0); };
         const inputs = ['pointerdown', 'keydown', 'wheel', 'touchstart'];
@@ -149,7 +152,7 @@ function rowText(row: HTMLElement): { english: string[]; japanese: string[] } {
             // A word row's link holds its gloss too: that is matched on its own line.
             const clone = element.cloneNode(true);
             if (!(clone instanceof Element)) return '';
-            for (const inner of Array.from(clone.querySelectorAll(ENGLISH))) inner.remove();
+            for (const inner of clone.querySelectorAll(ENGLISH)) inner.remove();
             return textOf(clone);
         }),
     };
@@ -169,10 +172,12 @@ function initSectionSearch(section: HTMLElement): void {
         const query = readExploreQuery(input!.value);
         let shown = 0;
         let total = 0;
+        // Decided by the arrangement, not by measuring a row: a row in a tab not open measures 0 too.
+        const full = !media?.matches;
         for (const { row, text } of rows) {
             // A tab-only row the full page does not draw (a word's Examples in its Sentences) is neither searched nor counted.
             row.hidden = false;
-            if (row.matches('.detail-preview') && !row.offsetHeight) continue;
+            if (full && row.matches('.detail-preview')) continue;
             total += 1;
             const match = query === null || matchesExploreQuery(query, text);
             row.hidden = !match;
@@ -192,8 +197,10 @@ function initSectionSearch(section: HTMLElement): void {
 
     for (const details of disclosures) details.addEventListener('toggle', () => { if (!input.value.trim()) wasOpen.set(details, details.open); });
     input.addEventListener('input', apply);
+    // Crossing the detail width changes which rows are drawn: a query typed on the full page then holds in tabs.
+    document.addEventListener('detail-tabs-change', apply);
     field.hidden = false;
 }
 
 initTabs();
-for (const section of Array.from(document.querySelectorAll<HTMLElement>('[data-section-searchable]'))) initSectionSearch(section);
+for (const section of document.querySelectorAll<HTMLElement>('[data-section-searchable]')) initSectionSearch(section);

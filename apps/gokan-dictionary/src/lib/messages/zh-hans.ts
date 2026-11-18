@@ -158,7 +158,7 @@ export const zhHans: Messages = {
         words: '词语', point: '要点', examples: '例句',
     },
     kanji: {
-        wordsSearch: { label: '搜索词语', placeholder: englishRows => `用日文搜索，英文仅限前 ${grouped(englishRows)} 个` },
+        wordsSearch: { label: '搜索词语', placeholder: '搜索词语', note: englishRows => `英文只搜索前 ${grouped(englishRows)} 个词。` },
     },
     grammar: {
         allExamples: n => `全部 ${grouped(n)} 个例句`,
