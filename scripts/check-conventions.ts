@@ -66,6 +66,13 @@ const AGENT_STUB_CONTENT = '@AGENTS.md';
  */
 const DATASET_URL_SOURCE = /^apps\/gokan-srs\/src\/.*\.tsx?$/;
 const DATASET_URL_HELPER = 'apps/gokan-srs/src/services/http.ts';
+/**
+ * A clip is served at one path on the shared host, for both apps: one builder names it
+ * (`audioUrl`, `@gokan/dataset-schema`), so the app and the dictionary cannot ask for a clip at
+ * two different addresses (#255).
+ */
+const AUDIO_URL_SOURCE = /^(apps\/gokan-srs\/src|apps\/gokan-dictionary\/src|packages\/[^/]+\/src)\/.*\.(tsx?|svelte)$/;
+const AUDIO_URL_HELPER = 'packages/dataset-schema/src/audio.ts';
 
 /**
  * A dataset file in its English shape is built from its published inputs in one place, the
@@ -599,8 +606,11 @@ function check(files: string[]): Violation[] {
         if (DATASET_URL_SOURCE.test(file) && file !== DATASET_URL_HELPER && !/\.test\.tsx?$/.test(file)) {
             eachLine(text, l => l.includes('/dataset/') && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
                 add({ file, line, rule: 'dataset-url', message: 'Build dataset URLs with datasetUrl() (services/http.ts); it adds the dataset version browsers cache by.' }));
+        }
+
+        if (AUDIO_URL_SOURCE.test(file) && file !== AUDIO_URL_HELPER && !/\.test\.tsx?$/.test(file)) {
             eachLine(text, l => l.includes('/audio/') && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
-                add({ file, line, rule: 'audio-url', message: 'Build audio clip URLs with audioUrl() (services/http.ts), the one place that knows where clips are served.' }));
+                add({ file, line, rule: 'audio-url', message: 'Build audio clip URLs with audioUrl() (@gokan/dataset-schema, audio.ts), the one place both apps learn where clips are served.' }));
         }
 
         if (DICTIONARY_SOURCE.test(file) && file !== DICTIONARY_DATA_HOLDER && !file.endsWith('.test.ts')) {

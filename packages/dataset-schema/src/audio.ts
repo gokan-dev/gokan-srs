@@ -24,3 +24,14 @@ export interface AudioIndex {
     extension: string;
     contentType: string;
 }
+
+/**
+ * URL of a word's or sentence's clip read aloud, e.g. `audioUrl('0123456789abcdef', 'opus')`,
+ * the extension from `index/audio.json`. Every clip URL in both apps is built here (enforced by
+ * the conventions check, `audio-url`). A clip's name is its content key, so a changed clip is a
+ * new URL: unlike a dataset file it needs no `?v=`. It is a path from the host's root: the
+ * dictionary, served at `/dictionary/` on the app's host, plays the same files as the app.
+ */
+export function audioUrl(clip: string, extension: string): string {
+    return `/audio/${clip}.${extension}`;
+}
