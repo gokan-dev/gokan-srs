@@ -22,19 +22,33 @@ const showPlaying = () => {
 showPlaying();
 player.subscribe(showPlaying);
 
+// The button pressed, not only its clip: the same sentence can show in two sections (Dict's Examples
+// and Sentences), and the clip ends with the one that started it.
+let pressed: HTMLButtonElement | null = null;
+
 document.addEventListener('click', event => {
     const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('button[data-clip]') : null;
     const url = button?.dataset.clip;
+    if (!url) return;
+    pressed = button;
     // The URL is the page's own, so it is always built: `toggle` never rejects here.
-    if (url) void player.toggle(url);
+    void player.toggle(url);
 });
 
-// A clip does not outlive its button: a tab switch that hides it stops it, as leaving the page does.
-window.addEventListener('hashchange', () => {
+// A clip does not outlive its button: whatever hides it stops it, as leaving the page does. A tab
+// chosen (the tab script writes its hash with replaceState, so it says so itself), a hash typed or
+// stepped to, a disclosure closed (`toggle` does not bubble, so captured), a section search
+// filtering its row out (its own listener, on the field, runs first).
+const stopIfHidden = () => {
     const playing = player.playing();
-    const button = buttons().find(candidate => candidate.dataset.clip === playing);
-    if (playing !== null && (button === undefined || button.getClientRects().length === 0)) player.stopIf(playing);
-});
+    // A closed disclosure's content keeps its boxes (content-visibility), so it is asked for by name.
+    const hidden = pressed === null || pressed.getClientRects().length === 0 || pressed.closest('details:not([open])') !== null;
+    if (playing !== null && hidden) player.stopIf(playing);
+};
+document.addEventListener('detail-tabs-change', stopIfHidden);
+window.addEventListener('hashchange', stopIfHidden);
+document.addEventListener('toggle', stopIfHidden, true);
+document.addEventListener('input', stopIfHidden);
 window.addEventListener('pagehide', () => {
     const playing = player.playing();
     if (playing !== null) player.stopIf(playing);

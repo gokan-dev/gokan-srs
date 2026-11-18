@@ -1892,6 +1892,56 @@ async function checkDictionaryPlayButtons(tab: Tab, base: string, width: number)
 }
 
 /**
+ * A clip does not outlive its button (the app's rule): below the detail width, a sentence playing in
+ * Sentences stops when the Dict tab is tapped (the tab script writes its hash with replaceState, so
+ * no hashchange), and a corpus example playing stops when its disclosure closes. `Audio` is a fake
+ * that plays at once, so the check needs no clip served and no sound.
+ */
+const FAKE_AUDIO = `void (window.Audio = function () { return { play: () => Promise.resolve(), pause() {}, addEventListener() {} }; })`;
+const PRESSED_PLAY = `document.querySelectorAll('button.play[aria-pressed="true"]').length`;
+const settlePlayer = () => new Promise(resolve => setTimeout(resolve, 200));
+async function checkDictionaryPlayStops(tab: Tab, base: string, width: number): Promise<void> {
+    const word = `dictionary /vocab/${TABBED_WORD}/`;
+    await tab.goto(`${base}/vocab/${TABBED_WORD}/#sentences`, 'How common');
+    await tab.until(`document.documentElement.classList.contains('playable') && document.querySelector('[data-detail-panels][data-tabs-ready]') !== null`, `the player and the tabs on ${word}`);
+    await tab.evaluate<void>(FAKE_AUDIO);
+    const pressed = await tab.evaluate<boolean>(`(() => {
+        const button = [...document.querySelectorAll('#sentences button.play')].find(el => el.getClientRects().length > 0);
+        if (!button) return false;
+        button.click();
+        return true;
+    })()`);
+    if (!pressed) failures.push(`${width}px ${word}#sentences: no play button shown in Sentences to press`);
+    else {
+        await settlePlayer();
+        if (await tab.evaluate<number>(PRESSED_PLAY) === 0) failures.push(`${width}px ${word}#sentences: a pressed play button does not show aria-pressed="true"`);
+        await tab.evaluate<void>(`document.querySelector('[data-detail-tabs] a[data-tab]').click()`);
+        await settlePlayer();
+        if (await tab.evaluate<number>(PRESSED_PLAY) !== 0) failures.push(`${width}px ${word}: the sentence playing in Sentences keeps playing after the Dict tab is tapped`);
+    }
+    const grammar = `dictionary /grammar/${GRAMMAR_POINT}/`;
+    await tab.goto(`${base}/grammar/${GRAMMAR_POINT}/#examples`, 'Grammar');
+    await tab.until(`document.documentElement.classList.contains('playable') && document.querySelector('[data-detail-panels][data-tabs-ready]') !== null`, `the player and the tabs on ${grammar}`);
+    await tab.evaluate<void>(FAKE_AUDIO);
+    const corpus = await tab.evaluate<boolean>(`(() => {
+        const details = document.querySelector('#examples details');
+        if (!details) return false;
+        details.open = true;
+        const button = [...details.querySelectorAll('button.play')].find(el => el.getClientRects().length > 0);
+        if (!button) return false;
+        button.click();
+        return true;
+    })()`);
+    if (!corpus) failures.push(`${width}px ${grammar}#examples: no corpus example with a play button to press`);
+    else {
+        await settlePlayer();
+        await tab.evaluate<void>(`void (document.querySelector('#examples details').open = false)`);
+        await settlePlayer();
+        if (await tab.evaluate<number>(PRESSED_PLAY) !== 0) failures.push(`${width}px ${grammar}#examples: the corpus example playing keeps playing after its disclosure closes`);
+    }
+}
+
+/**
  * The dictionary's kanji and grammar pages as the app's (issue 257), through the word page's tab
  * script: below 1024px a row of tabs named and ordered as the app's (Kanji, Words; Point, Examples,
  * Related), each hash landing on its section alone with its tabs 44px tall, the first tab's preview
@@ -2256,6 +2306,7 @@ try {
         await checkDictionaryWordTabs(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
         await checkDictionaryDetailTabs(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
         await checkDictionaryPlayButtons(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
+        await checkDictionaryPlayStops(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
         await measureFuriganaFixture(tab, `http://127.0.0.1:${dictionary.port}/dictionary/vocab/${FURIGANA_VOCAB}/`, 'Meanings', `dictionary /vocab/${FURIGANA_VOCAB}/`, width, DICTIONARY_TAP_TARGETS);
         await tab.close();
     }
@@ -2273,4 +2324,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, a kanji's course steps 44px linked or not, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, the dictionary's word page tabbed as the app's on a phone (each hash landing on its section alone, at the page top, a reload keeping its scroll, its synonym search reading meanings, not labels) and one full page at 1280px, the kanji and grammar pages tabbed on a phone and one capped full page from 1024px, in the app and in the dictionary (its Words and Examples searched by their English), furigana over kanji, on one line and apart, Japanese in list rows and word readings unbroken, a word list's gloss in its column (1280px) or on its own line across the row (phones, a word page's aside), a section's source credit set off from what comes before it, the language switcher small and neutral, the app panel's action on one line with a four-digit step, its Japanese words unbroken where they fit and wrapped inside it where they do not, 40px above what follows it on every page type (and under Meanings on a word page) and on the home page 16px under its heading, a kanji's linked course steps underlined, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, setup opened from a dictionary link with its order and count on a 568 or 667px phone's screen, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button undimmed, its sentence centred on its translation with its button right after it (and at 1280px on the headword), a word learned in kana's intro, a long headword's intro on one line inside its card, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play (in the dictionary too, named, 44px, with its player, none on a kanji page), its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a due grammar point saying Due now once, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, a kanji's course steps 44px linked or not, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, the dictionary's word page tabbed as the app's on a phone (each hash landing on its section alone, at the page top, a reload keeping its scroll, its synonym search reading meanings, not labels) and one full page at 1280px, the kanji and grammar pages tabbed on a phone and one capped full page from 1024px, in the app and in the dictionary (its Words and Examples searched by their English), furigana over kanji, on one line and apart, Japanese in list rows and word readings unbroken, a word list's gloss in its column (1280px) or on its own line across the row (phones, a word page's aside), a section's source credit set off from what comes before it, the language switcher small and neutral, the app panel's action on one line with a four-digit step, its Japanese words unbroken where they fit and wrapped inside it where they do not, 40px above what follows it on every page type (and under Meanings on a word page) and on the home page 16px under its heading, a kanji's linked course steps underlined, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, setup opened from a dictionary link with its order and count on a 568 or 667px phone's screen, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button undimmed, its sentence centred on its translation with its button right after it (and at 1280px on the headword), a word learned in kana's intro, a long headword's intro on one line inside its card, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play (in the dictionary too, named, 44px, with its player, none on a kanji page, a clip stopped when a tab or a closed disclosure hides its button), its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a due grammar point saying Due now once, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);
