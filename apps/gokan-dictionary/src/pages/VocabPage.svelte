@@ -179,7 +179,7 @@
       <!-- Learned in kana (ここ): the headword already is the reading, so name the kanji spelling. -->
       <p class="entry-sub">{words.usuallyKana} <span lang="ja">{secondaryForm(vocab)}</span><PlayButton audio={vocab.audio} {voice} label={messages.chrome.play(headword)} /></p>
     {:else}
-      <p class="entry-sub" lang="ja">{vocab.reading.primary}{#if vocab.reading.alternatives.length > 0}<span class="meta" {lang}> · {words.alsoRead} <span lang="ja">{vocab.reading.alternatives.join('、')}</span></span>{/if}<PlayButton audio={vocab.audio} {voice} label={messages.chrome.play(headword)} /></p>
+      <p class="entry-sub" lang="ja">{vocab.reading.primary}<PlayButton audio={vocab.audio} {voice} label={messages.chrome.play(headword)} />{#if vocab.reading.alternatives.length > 0}<span class="meta" {lang}> · {words.alsoRead} <span lang="ja">{vocab.reading.alternatives.join('、')}</span></span>{/if}</p>
     {/if}
 
     {#if summary}<p class="entry-gloss" lang={text ? langOnChinesePage(summary) : undefined}>{summary}</p>{/if}

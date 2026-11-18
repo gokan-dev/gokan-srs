@@ -21,6 +21,13 @@ export default defineConfig({
   // Relative asset URLs inside the CSS (the web font) and between scripts, so the build works
   // under any BASE_PATH (/dictionary on the shared host, '' on a subdomain).
   base: './',
+  // `bun run dev` previews dist/ with this config. Clips are not in the dataset checkout (Git LFS
+  // pointers only), so it plays staging's, as the app's dev server does (docs/ARCHITECTURE.md, Audio).
+  preview: {
+    proxy: {
+      '/audio/': { target: 'https://staging.gokan-srs.com', changeOrigin: true },
+    },
+  },
   css: {
     preprocessorOptions: {
       // A deprecation fails the build instead of warning: a warning scrolls past in CI (slash
