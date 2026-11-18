@@ -65,6 +65,8 @@ function initTabs(): void {
         }
         // From here on the panels' hidden attributes say what is shown, not the stylesheet's :target.
         container!.dataset.tabsReady = '';
+        // Whatever this hid, the player stops a clip whose button went with it (client/player.ts).
+        document.dispatchEvent(new Event('detail-tabs-change'));
     }
 
     function select(id: string, focus: boolean): void {

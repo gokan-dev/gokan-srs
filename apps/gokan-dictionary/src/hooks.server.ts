@@ -10,7 +10,7 @@ import { building } from '$app/env';
 import type { Handle, HandleServerError } from '@sveltejs/kit/hooks';
 import { renderedPageCacheControl } from '@gokan/deploy/deploy-manifest';
 import { chineseWithoutLang, englishChromeOn, englishWithoutLang, japaneseWithoutLang, latinInJapaneseRows, linksLeavingSection, renderDocument, stripHydrationMarkers } from '#lib/documentShell.ts';
-import { localeStylesheetHref, PRE_PAINT_CLASS, pageScriptHref, pageStylesheetHref, searchScriptHref, stylesheetHref } from '#lib/server/assets.ts';
+import { localeStylesheetHref, PLAYER_PRE_PAINT_CLASS, PRE_PAINT_CLASS, pageScriptHref, pageStylesheetHref, playerScriptHref, searchScriptHref, stylesheetHref } from '#lib/server/assets.ts';
 import { DEFAULT_LOCALE, htmlLang, localeOfPath, type ServedLocale } from '#lib/locale.ts';
 import { catalogStrings, messagesFor } from '#lib/messages/index.ts';
 import { localeUrls } from '#lib/urls.ts';
@@ -44,7 +44,7 @@ export function documentOf(rendered: string, locals: App.Locals, pathname: strin
     const head = rendered.slice(0, at).trim();
     if (head !== '') throw new Error(`[shell] ${pathname}: SvelteKit wrote ${head.slice(0, 200)} into the head, which the document shell would drop.`);
 
-    const { locale, style, script, key: _key, alternates = [], ...shell } = document;
+    const { locale, style, script, player, key: _key, alternates = [], ...shell } = document;
     const english = alternates.find(alternate => alternate.locale === DEFAULT_LOCALE);
     const html = renderDocument({
         ...shell,
@@ -53,7 +53,8 @@ export function documentOf(rendered: string, locals: App.Locals, pathname: strin
         ...(alternates.length > 0 ? { alternates: [...alternates.map(alternate => ({ hreflang: htmlLang(alternate.locale), path: alternate.path })), ...(english ? [{ hreflang: 'x-default', path: english.path }] : [])] } : {}),
         ...(style ? { pageStylesheetHref: pageStylesheetHref(style) } : {}),
         ...(script ? { extraScriptHref: pageScriptHref(script) } : {}),
-        ...(script && PRE_PAINT_CLASS[script] ? { prePaintClass: PRE_PAINT_CLASS[script] } : {}),
+        ...(player ? { playerScriptHref: playerScriptHref() } : {}),
+        prePaintClasses: [...(script && PRE_PAINT_CLASS[script] ? [PRE_PAINT_CLASS[script]] : []), ...(player ? [PLAYER_PRE_PAINT_CLASS] : [])],
         // Stripped before trimming: SvelteKit's root component leaves a space beside its markers.
         bodyHtml: stripHydrationMarkers(rendered.slice(at + BODY_MARKER.length)).trim(),
         stylesheetHref: stylesheetHref(),

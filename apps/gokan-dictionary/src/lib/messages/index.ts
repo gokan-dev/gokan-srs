@@ -79,6 +79,11 @@ export interface Messages {
         /** The furigana toggle's two states (client/search.ts reads the second from the button). */
         hideFurigana: string;
         showFurigana: string;
+        /** A play button's accessible name: a word's, "Play 食べる"; a sentence's, `playSentence`. */
+        play: (word: string) => string;
+        playSentence: string;
+        /** The credit the voice's terms require, on a page that plays its clips: "Audio: VOICEVOX:冥鳴ひまり". */
+        voiceCredit: (credit: { text: string; href: string }) => LinkedText;
         grammarTabs: { label: string } & Record<GrammarTab, string>;
         /**
          * The mark on a link from a page in another language to a page served in English only (a

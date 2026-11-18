@@ -408,6 +408,77 @@ $motion: 150ms ease-in-out;
   }
 }
 
+/// Play buttons (word and grammar pages): a clip read aloud (pages/PlayButton.svelte,
+/// client/player.ts), included by the two sheets of the pages that have them, so no other page
+/// carries its icons. Accent, since it is an action; 44px on every width, its negative margins
+/// keeping the line it ends at its own height. Shown only under the player's pre-paint class
+/// (`playable`), so a page with no script shows no inert button. The icon is a mask over the
+/// button's colour: the speaker at rest, a stop square while it plays, each written once.
+@mixin play-buttons {
+  .play {
+    --play-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M11 4.7a.7.7 0 0 0-1.2-.5L6.4 7.6a1.4 1.4 0 0 1-1 .4H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.4a1.4 1.4 0 0 1 1 .4l3.4 3.4a.7.7 0 0 0 1.2-.5zM16 9a5 5 0 0 1 0 6m3.4 3.4a9 9 0 0 0 0-12.8'/></svg>");
+
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: $target;
+    height: $target;
+    margin-block: -0.5rem;
+    padding: 0;
+    vertical-align: middle;
+    color: var(--accent);
+    background: none;
+    border: 0;
+    border-radius: $radius;
+    cursor: pointer;
+    transition: color $motion;
+
+    &::before {
+      content: "";
+      width: 1.25rem;
+      height: 1.25rem;
+      background-color: currentColor;
+      -webkit-mask: var(--play-icon) center / contain no-repeat;
+      mask: var(--play-icon) center / contain no-repeat;
+    }
+
+    &[aria-pressed="true"] {
+      --play-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect x='4' y='4' width='16' height='16' rx='2'/></svg>");
+    }
+
+    &:hover {
+      color: var(--accent-hover);
+    }
+  }
+
+  .playable .play {
+    display: inline-flex;
+  }
+
+  // The word's button a gap from its reading (or its kanji-spelling note), as the app's header.
+  .entry-sub > .play {
+    margin-inline-start: $space-half;
+  }
+
+  // A sentence and its button, a right-hand column at the sentence's first line (its 42px line
+  // box centres the 44px button), never wrapping onto a line of its own.
+  .play-row {
+    display: flex;
+    align-items: flex-start;
+    gap: $space-half;
+
+    > .sentence-jp {
+      flex: 1;
+      min-width: 0;
+    }
+
+    > .play {
+      flex-shrink: 0;
+      margin: 0 0 -0.5rem;
+    }
+  }
+}
+
 @mixin narrow {
   @media (max-width: #{$bp-narrow - 0.01rem}) {
     @content;

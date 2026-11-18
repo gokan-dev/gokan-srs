@@ -83,5 +83,9 @@ export const PRE_PAINT_CLASS: Partial<Record<PageScript, string>> = { detailTabs
 export const pageStylesheetHref = (style: PageStyle): string => asset(PAGE_STYLES[style]);
 export const pageScriptHref = (script: PageScript): string => asset(PAGE_SCRIPTS[script]);
 export const stylesheetHref = (): string => asset('src/styles/app.scss');
+/** The player's pre-paint class: a play button shows only under it, so a page with no script shows no inert button. */
+export const PLAYER_PRE_PAINT_CLASS = 'playable';
+/** Linked from the pages with a play button only (PageDocument `player`): the clip player. */
+export const playerScriptHref = (): string => asset('src/client/player.ts');
 /** Linked from every page: the header's search field and the furigana toggle live there. */
 export const searchScriptHref = (): string => asset('src/client/search.ts');

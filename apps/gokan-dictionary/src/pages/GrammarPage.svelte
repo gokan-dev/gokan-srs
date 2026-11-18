@@ -16,7 +16,7 @@
 
   const { urls, messages } = pageLocale();
 
-  let { point, related, chapterLocator, variants, conjugation, minedExamples, minedExamplesTotalCount }: Props = $props();
+  let { point, related, chapterLocator, variants, conjugation, minedExamples, minedExamplesTotalCount, voice }: Props = $props();
 
   /** The Point tab's preview of Examples, as the app's. */
   const POINT_EXAMPLES = 2;
@@ -46,7 +46,7 @@
   ]);
 </script>
 
-<PageLayout trail={[{ label: messages.chrome.sections.grammar, href: urls.grammarIndexPath() }, { label: point.title, jp: true }]} section="grammar" wide>
+<PageLayout trail={[{ label: messages.chrome.sections.grammar, href: urls.grammarIndexPath() }, { label: point.title, jp: true }]} section="grammar" wide {voice}>
   <header class="entry-head">
     <h1 lang="ja">{point.title}</h1>
     {#if point.romaji}<p class="entry-sub">{point.romaji}</p>{/if}
@@ -98,7 +98,7 @@
             <h2>Examples</h2>
             {#if allExampleCount > POINT_EXAMPLES}<a href="#examples">All {allExampleCount.toLocaleString('en')} examples →</a>{/if}
           </div>
-          <GrammarExamples examples={[...point.examples, ...minedExamples].slice(0, POINT_EXAMPLES)} idPrefix="preview-" />
+          <GrammarExamples examples={[...point.examples, ...minedExamples].slice(0, POINT_EXAMPLES)} idPrefix="preview-" {voice} />
         </section>
       {/if}
     </div>
@@ -110,11 +110,11 @@
           <FuriganaToggle />
         </div>
         {#if point.examples.length > EXAMPLES_VISIBLE || minedExamples.length > 0}<SectionSearch label="Search the examples" placeholder="Search in English or Japanese" />{/if}
-        {#if point.examples.length > 0}<GrammarExamples examples={point.examples} idPrefix="example-" />{/if}
+        {#if point.examples.length > 0}<GrammarExamples examples={point.examples} idPrefix="example-" {voice} />{/if}
         {#if minedExamples.length > 0}
           <details class="disclosure">
             <summary>Corpus examples ({minedExamplesTotalCount.toLocaleString('en')})</summary>
-            <GrammarExamples examples={minedExamples} idPrefix="corpus-" />
+            <GrammarExamples examples={minedExamples} idPrefix="corpus-" {voice} />
             {#if minedExamplesTotalCount > minedExamples.length}
               <p class="meta">Showing {minedExamples.length} of {minedExamplesTotalCount.toLocaleString('en')} corpus examples.</p>
             {/if}

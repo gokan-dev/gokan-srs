@@ -77,6 +77,9 @@ export const en: Messages = {
         search: { label: 'Search the dictionary', placeholder: 'Search: kanji, kana, romaji or English', results: 'Search results' },
         hideFurigana: 'Hide furigana',
         showFurigana: 'Show furigana',
+        play: word => `Play ${word}`,
+        playSentence: 'Play sentence',
+        voiceCredit: credit => ['Audio: ', { text: credit.text, lang: 'ja', href: credit.href }, '.'],
         grammarTabs: { label: 'Browse grammar', level: 'By level', families: 'Families', curriculum: 'Curriculum', conjugations: 'Conjugations' },
         // Never shown: every page an English page links is in English.
         inEnglish: 'In English',

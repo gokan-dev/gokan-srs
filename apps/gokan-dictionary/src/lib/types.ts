@@ -4,7 +4,7 @@
 // full dataset object.
 
 import type {
-    FrequencyIndex, GrammarConjugationIndex, GrammarContrastIndex, GrammarExample, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex,
+    AudioIndex, FrequencyIndex, GrammarConjugationIndex, GrammarContrastIndex, GrammarExample, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex,
     JlptIndex, Kanji, KanjiOrderId, KanjiOrderList, KanjiVocabIndex, Sentence, Vocabulary,
 } from '@gokan/dataset-schema';
 import type { Definition, SourceRef, Translation } from '@gokan/dataset-schema/text';
@@ -211,6 +211,11 @@ export interface EntityData {
     grammarConjugations(): Promise<GrammarConjugationIndex>;
     /** A point's corpus-mined examples, or null for a point with none (most of them). */
     grammarMinedExamples(id: string): Promise<GrammarExample[] | null>;
+    /**
+     * The voice clips are read in (`index/audio.json`): their extension, for a play button's URL,
+     * and the credit the voice's terms require. Null for a dataset with no clip, which writes none.
+     */
+    audioIndex(): Promise<AudioIndex | null>;
     /** The text layer in the source's language, or null for English, whose text the values above already carry. */
     localeText: LocaleText | null;
 }

@@ -162,7 +162,8 @@ shown through `kunReadingLabel` (まな(ぶ), enforced); its learning orders thr
 from the same package: romaji (`romajiToHiragana` and `readRomajiQuery` read Hepburn; `kanaToHepburn`
 writes it, so they read it back; `kanaToRomaji` writes IME keystrokes, ん as `nn`, for typo distances
 and search keys, never to be read back as Hepburn; `toHiragana`, `looksLikeRomaji`), a sentence's linked and highlighted runs (`segmentInteractiveSentence`), a
-reading split over a word's kanji runs for furigana (`rubyParts`) and a grammar example as a
+reading split over a word's kanji runs for furigana (`rubyParts`), a clip's URL (`audioUrl`, enforced),
+the one-clip-at-a-time player both apps' play buttons run on (`createClipPlayer`) and a grammar example as a
 `Sentence` (`grammarExampleToSentence`, `patternHighlightRanges`).
 
 gokan-srs, quizzes. **Every quiz is an exercise, and every exercise runs on one engine
