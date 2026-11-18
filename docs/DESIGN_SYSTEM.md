@@ -675,14 +675,15 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   read at this step"; then Details folded under a divider line: readings in names, the Kangxi
   radical's number) and **Words** (`#words`: 30 rows with their gloss, the rest headword and
   reading only in "All N words", searchable past the first 30). A kanji no word uses has no Words
-  section and no tab row; its Kanji section says so where Common words would be ("No word in this
-  dictionary uses this kanji yet."), so no words reads as a fact, not a list that failed to show.
+  section and no tab row; its Kanji section keeps a Common words section, a heading with the
+  section's gap and one line ("No word in this dictionary uses this kanji yet."), shown at every
+  width, so no words reads as a fact, not a list that failed to show.
 - **Grammar page** (`pages/GrammarPage.svelte`, #257): the app grammar page's sections in its
   order. Header as before: the title, its romaji, the JLPT and formality chips, the chapter.
   **Point** (Formation, the one boxed block; the short explanation as the lead, the long one in
   place under it, "Read the full explanation"; the app panel; When to use; 2 examples, curated
   first, then the corpus's for a point with none curated, and "All N examples →" to Examples, in
-  tabs only), **Examples** (`#examples`: every curated example, then the
+  tabs only; N counts every corpus example, as "Corpus examples (N)" does, not only the 25 shipped), **Examples** (`#examples`: every curated example, then the
   corpus's in "Corpus examples (N)", searchable when there are more than 5 or any from the corpus),
   **Related** (`#related`: Conjugation, Other forms, the family's points).
 - **Kanji and grammar pages, both arrangements**: below 1024px the tab row (Kanji, Words; Point,

@@ -14,11 +14,11 @@ const example = (i: number): GrammarExample => ({ jp: `例${i}`, romaji: `rei ${
 function kanjiProps(words: number): KanjiPageProps {
     return { kanji: kanji(), words: Array.from({ length: words }, (_, i) => word(`${i + 1}`)), kanjiWithPages: new Set(['学', '子']), orderLengths: new Map(), orderStep: null };
 }
-function grammarProps(examples: number, mined: number, related = true): GrammarPageProps {
+function grammarProps(examples: number, mined: number, related = true, minedTotal = mined): GrammarPageProps {
     return {
         point: grammarPoint({ examples: Array.from({ length: examples }, (_, i) => example(i)) }),
         related: [], chapterLocator: null, variants: related ? [{ id: 'n2-170', title: '～を問わない', relation: 'negation', jlptLevel: 2 }] : [], conjugation: null,
-        minedExamples: Array.from({ length: mined }, (_, i) => example(100 + i)), minedExamplesTotalCount: mined,
+        minedExamples: Array.from({ length: mined }, (_, i) => example(100 + i)), minedExamplesTotalCount: minedTotal,
     };
 }
 
@@ -51,7 +51,7 @@ describe('KanjiPage', () => {
         expect(body).toContain('Kangxi radical');
         expect(tabsOf(body)).toEqual([]);
         expect(body).not.toContain('detail-preview');
-        expect(body).toContain('<p class="support">No word in this dictionary uses this kanji yet.</p>');
+        expect(body).toMatch(/<section class="section"><div class="section-head"><h2>Common words<\/h2><\/div> <p class="support">No word in this dictionary uses this kanji yet\.<\/p><\/section>/);
         expect(kanjiHtml(kanjiProps(1))).not.toContain('No word in this dictionary');
     });
 
@@ -87,6 +87,13 @@ describe('GrammarPage', () => {
         expect(preview.match(/<li>/g)?.length).toBe(2);
         expect(preview).toContain('Example 100.');
         expect(preview).toContain('href="#examples">All 3 examples →');
+    });
+
+    it('counts every corpus example in "All N examples", not only the rows the page ships', () => {
+        const body = grammarHtml(grammarProps(5, 25, true, 412));
+        const preview = body.slice(body.indexOf('detail-preview'), body.indexOf('id="examples"'));
+        expect(preview).toContain('href="#examples">All 417 examples →');
+        expect(body).toContain('Corpus examples (412)');
     });
 
     it('keeps the full explanation in place under the short one', () => {

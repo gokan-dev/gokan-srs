@@ -29,7 +29,10 @@
   const hasLongExplanation = $derived(
     point.longExplanation.trim() !== '' && point.longExplanation.trim() !== point.shortExplanation.trim(),
   );
+  /** The rows this page ships: what makes Examples a tab, a preview and searchable. */
   const exampleCount = $derived(point.examples.length + minedExamples.length);
+  /** Every example, the corpus counted in full as its disclosure counts it: what "All N examples" says. */
+  const allExampleCount = $derived(point.examples.length + minedExamplesTotalCount);
   const hasRelated = $derived(conjugation !== null || variants.length > 0 || related.length > 0);
 
   /**
@@ -93,7 +96,7 @@
         <section class="section detail-preview">
           <div class="section-head">
             <h2>Examples</h2>
-            {#if exampleCount > POINT_EXAMPLES}<a href="#examples">All {exampleCount} examples →</a>{/if}
+            {#if allExampleCount > POINT_EXAMPLES}<a href="#examples">All {allExampleCount.toLocaleString('en')} examples →</a>{/if}
           </div>
           <GrammarExamples examples={[...point.examples, ...minedExamples].slice(0, POINT_EXAMPLES)} idPrefix="preview-" />
         </section>

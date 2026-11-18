@@ -114,8 +114,13 @@
           <VocabEntryList entries={words.slice(0, COMMON_WORDS)} />
         </section>
       {:else}
-        <!-- No Words tab to point to: said here, so no words reads as a fact, not a list that failed to show. -->
-        <p class="support">No word in this dictionary uses this kanji yet.</p>
+        <!-- No Words tab to point to: said as the section where the words would be, so no words reads as a fact, not a list that failed to show. Not a preview: there is no Words section for it to give way to. -->
+        <section class="section">
+          <div class="section-head">
+            <h2>Common words</h2>
+          </div>
+          <p class="support">No word in this dictionary uses this kanji yet.</p>
+        </section>
       {/if}
 
       {#if courses.length > 0}
