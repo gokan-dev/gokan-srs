@@ -1,13 +1,13 @@
 import { useMemo, useState } from "react";
 import { headwordOf, secondaryForm } from "@gokan/dataset-schema";
-import type { Vocabulary } from "@gokan/dataset-schema";
+import type { Closeness, Vocabulary } from "@gokan/dataset-schema";
 import { RelatedEntryList, type RelatedSection } from "../../../components/RelatedEntriesCard";
 import { SecondaryForm } from "../../../components/SecondaryForm";
 import { TagChip } from "../../../components/TagChip";
 import { Marked } from "../../../components/ui/Marked";
 import { TextButton } from "../../../components/ui/TextButton";
 import { CLOSENESS_LABEL, closenessOf } from "../../../services/exercise/wordRelation";
-import type { Closeness, ListedSynonym } from "../../../services/exercise/wordRelation";
+import type { ListedSynonym } from "../../../services/exercise/wordRelation";
 import { englishRanges, matchesExploreQuery, resultCountLine, type ExploreQuery } from "../../../utils/exploreSearch.utils";
 import { mixedUpLabel } from "../../../utils/mixups.utils";
 import { senseNumbers } from "../../../utils/senses.utils";

@@ -31,8 +31,14 @@ export interface DocumentShellOptions {
     pageStylesheetHref?: string;
     /** Absolute href to the built search script, linked from every page (the header owns the box). */
     scriptHref?: string;
-    /** A second module script, used only by the grammar index for its filter. */
+    /** A second module script: the grammar index's filter, a detail page's tabs. */
     extraScriptHref?: string;
+    /**
+     * A class set on <html> by a few inline bytes in the head, before the body paints: says the
+     * page's script is there, so the stylesheet lays the page out as the script will (a detail
+     * page's tab row) and nothing shifts when it runs.
+     */
+    prePaintClass?: string;
     /** Keep the page out of search engines (the /search/ results page). */
     noindex?: boolean;
     /** Optional schema.org JSON-LD object, serialized verbatim into a <script type="application/ld+json">. */
@@ -189,6 +195,24 @@ export function englishWithoutLang(html: string): string[] {
     return found;
 }
 
+/**
+ * A word row's English or Chinese read as Japanese: a text run with Latin letters and no Japanese
+ * character, in an element of a word list (`.entry-list`) that carries no lang of its own, whose
+ * nearest lang is the row link's "ja" (a gloss or a note left unmarked, which a screen reader
+ * voices in Japanese). Scoped to the rows: elsewhere romaji and Latin in Japanese text (a sentence's
+ * "CD") stand under lang="ja" by right, and so may a headword, which is the link's own text.
+ */
+export function latinInJapaneseRows(html: string): string[] {
+    const found: string[] = [];
+    walkBody(html, {
+        text: (text, at) => {
+            if (JAPANESE_TEXT.test(text) || !/[A-Za-z]/.test(text)) return;
+            if (at.within('entry-list') && at.ownLang === null && at.lang === 'ja') found.push(text.trim());
+        },
+    });
+    return found;
+}
+
 /** The attributes whose values a reader is told: an accessible name, a field's hint. */
 const READ_ATTRIBUTES = /\s(?:aria-label|placeholder|title)="([^"]*)"/g;
 
@@ -278,7 +302,7 @@ ${(options.alternates ?? []).map(alternate => `<link rel="alternate" hreflang="$
 <meta property="og:description" content="${description}" />
 <meta property="og:url" content="${canonical}" />
 <meta name="twitter:card" content="summary" />
-<link rel="stylesheet" href="${options.stylesheetHref}" />
+${options.prePaintClass ? `<script>document.documentElement.classList.add('${options.prePaintClass}')</script>\n` : ''}<link rel="stylesheet" href="${options.stylesheetHref}" />
 ${options.localeStylesheetHref ? `<link rel="stylesheet" href="${options.localeStylesheetHref}" />\n` : ''}${options.pageStylesheetHref ? `<link rel="stylesheet" href="${options.pageStylesheetHref}" />\n` : ''}${options.scriptHref ? `<script type="module" src="${options.scriptHref}"></script>\n` : ''}${options.extraScriptHref ? `<script type="module" src="${options.extraScriptHref}"></script>\n` : ''}${options.structuredData ? `<script type="application/ld+json">${JSON.stringify(options.structuredData)}</script>\n` : ''}${analyticsScriptTag(options.analyticsWebsiteId)}</head>
 <body>
 ${stripHydrationMarkers(options.bodyHtml)}

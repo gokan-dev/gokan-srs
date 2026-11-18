@@ -34,6 +34,12 @@
  *   all N" pressed with Enter moving focus into Synonyms with the accent ring, no sideways scroll and nothing overflowing the side column
  *   (a studied word with mix-ups, 今回's hyphenated kun readings, at 1024px); at 768px it is
  *   still the tab page; crossing 1024px keeps the section in view as the open tab, and back;
+ * - a dictionary word page (取る) as the app's (issue 168): at 320 and 375px a tablist of the app's
+ *   sections (Dict, Sentences, Synonyms, Forms, Kanji, Related), 44px tabs, one section shown, a
+ *   hash loaded opening its own at the page top with the tab row in view, no sideways scroll, its
+ *   Synonyms search finding a synonym's meaning and never its closeness label, a Chinese page's
+ *   source credits each measured in its own tab; at 1280px one full page, no tab row, every
+ *   section, Kanji in the aside;
  * - the kanji (一, 学, 取) and grammar (a construction, an inflection) pages likewise (issue 169):
  *   at 1280px and 1024px one full page, no tab row, every section, their long lists capped
  *   (KANJI_PAGE, GRAMMAR_PAGE), a hash landing on its section; on a phone a tab row running to the
@@ -198,7 +204,7 @@ const MEASURE = (deviceWidth: number, tapTargets: string) => `(() => {
     return problems;
 })()`;
 
-const DICTIONARY_TAP_TARGETS = '.site-nav a, .pager a, summary, .kanji-tiles a, .range-list a, .kanji-courses a, .range-step h3 a, button.button';
+const DICTIONARY_TAP_TARGETS = '.site-nav a, .pager a, .detail-tabs a, summary, .kanji-tiles a, .range-list a, .kanji-courses a, .range-step h3 a, button.button';
 
 const failures: string[] = [];
 let checked = 0;
@@ -1558,20 +1564,32 @@ async function checkEntryGlossColumn(tab: Tab, page: string, width: number, stac
  * A section's source credit (a Chinese word page's 来源：...) is set off from what comes before it,
  * at least 8px (docs/DESIGN_SYSTEM.md section 4), so it reads as a note on the whole section and not
  * as part of its last meaning or disclosure. It once sat flush under them (#227). 食べる credits
- * both its meanings and its sentences.
+ * its meanings, its Examples (Tatoeba's, in Dict) and its sentences. On a phone each tab is
+ * measured open, landed on by its hash (Dict has none): a credit in a hidden tab has no box, and
+ * the check once counted 1 of 2 there. Every credit is still required, so one lost fails.
  */
 const SOURCE_CREDIT_WORD = '1358280';
 const SOURCE_CREDIT_PAGES = DICTIONARY_PAGES.some(page => page.path.startsWith('/zh-hans/')) ? [`/zh-hans/vocab/${SOURCE_CREDIT_WORD}/`] : [];
-async function checkSourceCreditGap(tab: Tab, page: string, width: number): Promise<void> {
-    const credits = await tab.evaluate<{ credit: string; gap: number }[]>(`[...document.querySelectorAll('.source-credit')]
-        .filter(el => el.getBoundingClientRect().height > 0 && el.previousElementSibling)
-        .map(el => ({ credit: el.textContent.slice(0, 20), gap: el.getBoundingClientRect().top - el.previousElementSibling.getBoundingClientRect().bottom }))`);
-    if (credits.length < 2) {
-        failures.push(`${width}px ${page}: ${credits.length} source credits to measure, expected the meanings' and the sentences'`);
-        return;
+const SOURCE_CREDIT_TABS = [
+    { section: 'dict', credits: ["the meanings'", "the examples'"] },
+    { section: 'sentences', credits: ["the sentences'"] },
+];
+async function checkSourceCreditGap(tab: Tab, base: string, path: string, width: number, tabbed: boolean): Promise<void> {
+    const landings = tabbed ? SOURCE_CREDIT_TABS : [{ section: 'dict', credits: SOURCE_CREDIT_TABS.flatMap(landing => landing.credits) }];
+    for (const { section, credits: expected } of landings) {
+        const page = `dictionary ${path}${tabbed && section !== 'dict' ? `#${section}` : ''}`;
+        await tab.goto(`${base}${path}?landing=${section}${section === 'dict' ? '' : `#${section}`}`, '来源');
+        await tab.until(`document.querySelector('[data-detail-panels][data-tabs-ready]') !== null`, `the tabs script on ${page}`);
+        const credits = await tab.evaluate<{ credit: string; gap: number }[]>(`[...document.querySelectorAll('.source-credit')]
+            .filter(el => el.getBoundingClientRect().height > 0 && el.previousElementSibling)
+            .map(el => ({ credit: el.textContent.slice(0, 20), gap: el.getBoundingClientRect().top - el.previousElementSibling.getBoundingClientRect().bottom }))`);
+        if (credits.length < expected.length) {
+            failures.push(`${width}px ${page}: ${credits.length} source credits to measure, expected ${expected.join(' and ')}`);
+            continue;
+        }
+        const flush = credits.filter(credit => credit.gap < 8 - 0.5);
+        if (flush.length > 0) failures.push(`${width}px ${page}: a source credit sits under 8px below the element before it: ${flush.map(credit => `${credit.credit} (${credit.gap.toFixed(1)}px)`).join(', ')}`);
     }
-    const flush = credits.filter(credit => credit.gap < 8 - 0.5);
-    if (flush.length > 0) failures.push(`${width}px ${page}: a source credit sits under 8px below the element before it: ${flush.map(credit => `${credit.credit} (${credit.gap.toFixed(1)}px)`).join(', ')}`);
 }
 
 /**
@@ -1618,11 +1636,11 @@ async function checkAppPanelAction(tab: Tab, page: string, width: number): Promi
 async function checkAppPanelAfterMeanings(tab: Tab, page: string, width: number): Promise<void> {
     const found = await tab.evaluate<{ panel: number; meanings: number } | null>(`(() => {
         const panel = document.querySelector('.app-panel');
-        const meanings = document.querySelector('.entry-main > .section');
+        const meanings = document.querySelector('#dict > .section');
         if (!panel || !meanings) return null;
         return { panel: panel.getBoundingClientRect().top, meanings: meanings.getBoundingClientRect().bottom };
     })()`);
-    if (found === null) failures.push(`${width}px ${page}: no app panel, or no Meanings section (.entry-main > .section)`);
+    if (found === null) failures.push(`${width}px ${page}: no app panel, or no Meanings section (#dict > .section)`);
     else if (found.panel < found.meanings) failures.push(`${width}px ${page}: the app panel starts at ${Math.round(found.panel)}px, above the end of Meanings (${Math.round(found.meanings)}px): it goes after the meanings`);
 }
 
@@ -1723,6 +1741,112 @@ async function checkAppPanelGaps(tab: Tab, page: string, width: number, above: b
 }
 
 /**
+ * A dictionary word page as the app's (issue 168): below 1024px a row of tabs named and ordered as
+ * the app's, one section shown at a time, the first Dict, a hash (#sentences, #synonyms, ...)
+ * opening its own on load, each laid out within the screen with its tabs 44px tall; from 1024px
+ * one full page, no tab row, every section shown, Kanji and Related beside the main column.
+ * 取る has every section.
+ */
+const TABBED_WORD = '1326980';
+const WORD_SECTIONS = ['dict', 'sentences', 'synonyms', 'forms', 'kanji', 'related'];
+const WORD_LAYOUT = `(() => {
+    const shown = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
+    const row = document.querySelector('.detail-tabs');
+    const tabs = row ? [...row.querySelectorAll('a')] : [];
+    const panels = [...document.querySelectorAll('.detail-panel')];
+    const box = id => { const el = document.getElementById(id); return el && shown(el) ? el.getBoundingClientRect() : null; };
+    return {
+        row: !!row && shown(row),
+        role: row ? row.getAttribute('role') : null,
+        tabs: tabs.map(a => a.dataset.tab),
+        selected: tabs.filter(a => a.getAttribute('aria-selected') === 'true').map(a => a.dataset.tab),
+        shown: panels.filter(shown).map(el => el.id),
+        dictLeft: box('dict')?.left ?? null,
+        kanjiLeft: box('kanji')?.left ?? null,
+        scrollY: window.scrollY,
+        rowTop: row ? row.getBoundingClientRect().top : null,
+        viewHeight: window.innerHeight,
+    };
+})()`;
+interface WordLayout { row: boolean; role: string | null; tabs: string[]; selected: string[]; shown: string[]; dictLeft: number | null; kanjiLeft: number | null; scrollY: number; rowTop: number | null; viewHeight: number }
+
+/**
+ * The Synonyms section's search reads a synonym's meanings, never its closeness label: "inter" or
+ * "close" once matched every row (its "= Interchangeable" sat in the gloss's column) and a meaning
+ * none. Typed into 取る#synonyms: the first row's first shared meaning, then "interchangeable".
+ */
+async function checkSynonymSearch(tab: Tab, page: string, width: number): Promise<void> {
+    const shown = (query: string) => tab.evaluate<number | null>(`(() => {
+        const section = document.getElementById('synonyms');
+        const input = section?.querySelector('[data-section-search] input');
+        if (!input) return null;
+        input.value = ${JSON.stringify(query)};
+        input.dispatchEvent(new Event('input'));
+        return [...section.querySelectorAll('.entry-list > li')].filter(li => li.closest('[hidden]') === null).length;
+    })()`);
+    const meaning = await tab.evaluate<string>(`(document.querySelector('#synonyms .entry-list > li [lang="en"]')?.textContent ?? '').split(', ')[0]`);
+    if (meaning === '') {
+        failures.push(`${width}px ${page}: no synonym row with a shared meaning to search for`);
+        return;
+    }
+    const forMeaning = await shown(meaning);
+    const forLabel = await shown('interchangeable');
+    await shown('');
+    if (forMeaning === null) failures.push(`${width}px ${page}: no search field in Synonyms`);
+    else if (forMeaning === 0) failures.push(`${width}px ${page}: searching Synonyms for "${meaning}", a listed synonym's meaning, shows no row`);
+    if (forLabel !== null && forLabel > 0) failures.push(`${width}px ${page}: searching Synonyms for "interchangeable" shows ${forLabel} rows: the search reads the closeness label`);
+}
+async function checkDictionaryWordTabs(tab: Tab, base: string, width: number): Promise<void> {
+    const page = `dictionary /vocab/${TABBED_WORD}/`;
+    for (const section of WORD_SECTIONS) {
+        // A query of its own each time, so the hash is a fresh page's, as a link from elsewhere lands.
+        await tab.goto(`${base}/vocab/${TABBED_WORD}/?landing=${section}${section === 'dict' ? '' : `#${section}`}`, 'How common');
+        await tab.until(`document.querySelector('[data-detail-panels][data-tabs-ready]') !== null && document.readyState === 'complete'`, `the tabs script on ${page}`);
+        const layout = await tab.evaluate<WordLayout>(WORD_LAYOUT);
+        if (!layout.row || layout.role !== 'tablist') failures.push(`${width}px ${page}#${section}: no tab row shown as a tablist below 1024px`);
+        // A hash landing opens at the page top, as the app's: the word, then the tabs, never scrolled past both.
+        if (layout.scrollY !== 0 || layout.rowTop === null || layout.rowTop < 0 || layout.rowTop >= layout.viewHeight) failures.push(`${width}px ${page}#${section}: lands scrolled to ${Math.round(layout.scrollY)}px, the tab row's top at ${layout.rowTop === null ? 'none' : Math.round(layout.rowTop)}px: not the page top with the tab row in view`);
+        if (section === 'synonyms') await checkSynonymSearch(tab, `${page}#synonyms`, width);
+        if (layout.tabs.join() !== WORD_SECTIONS.join()) failures.push(`${width}px ${page}: tabs ${layout.tabs.join(', ')}, not the app's ${WORD_SECTIONS.join(', ')}`);
+        if (layout.shown.join() !== section || layout.selected.join() !== section) failures.push(`${width}px ${page}#${section}: shows ${layout.shown.join(', ') || 'nothing'} with ${layout.selected.join(', ') || 'no tab'} selected, not ${section} alone`);
+        await measure(tab, `${page}#${section}`, width, DICTIONARY_TAP_TARGETS);
+    }
+    if (width === 320) await checkTabReloadKeepsScroll(tab, base, width);
+}
+
+/**
+ * A reload keeps where the reader was: choosing a tab writes its hash, so a reload halfway down
+ * #sentences is a hash in the URL as a landing is, and the landing's lock to the page top once
+ * undid the browser's restored scroll. The lock is for a fresh navigation only.
+ */
+async function checkTabReloadKeepsScroll(tab: Tab, base: string, width: number): Promise<void> {
+    const page = `dictionary /vocab/${TABBED_WORD}/#sentences`;
+    await tab.goto(`${base}/vocab/${TABBED_WORD}/?landing=reload#sentences`, 'How common');
+    await tab.until(`document.querySelector('[data-detail-panels][data-tabs-ready]') !== null`, `the tabs script on ${page}`);
+    // Past the landing's lock (a second after load), then down the open section.
+    await new Promise(resolve => setTimeout(resolve, 1300));
+    const before = await tab.evaluate<number>('(window.scrollTo(0, 400), window.scrollY)');
+    if (before <= 0) {
+        failures.push(`${width}px ${page}: the page does not scroll, so a reload's restored scroll cannot be checked`);
+        return;
+    }
+    await tab.reload('How common');
+    await new Promise(resolve => setTimeout(resolve, 700));
+    const after = await tab.evaluate<number>('window.scrollY');
+    if (after <= 0) failures.push(`${width}px ${page}: scrolled ${before}px down then reloaded, it opens at the page top: the landing's lock undid the browser's restored scroll`);
+}
+async function checkDictionaryWordFullPage(tab: Tab, base: string, width: number): Promise<void> {
+    const page = `dictionary /vocab/${TABBED_WORD}/`;
+    await tab.goto(`${base}/vocab/${TABBED_WORD}/`, 'Meanings');
+    await tab.until(`document.querySelector('[data-detail-panels][data-tabs-ready]') !== null`, `the tabs script on ${page}`);
+    const layout = await tab.evaluate<WordLayout>(WORD_LAYOUT);
+    if (layout.row) failures.push(`${width}px ${page}: a tab row on the full page`);
+    if (layout.shown.join() !== WORD_SECTIONS.join()) failures.push(`${width}px ${page}: the full page shows ${layout.shown.join(', ')}, not every section (${WORD_SECTIONS.join(', ')})`);
+    if (layout.dictLeft === null || layout.kanjiLeft === null || layout.kanjiLeft <= layout.dictLeft) failures.push(`${width}px ${page}: Kanji is not in the aside, beside the main column`);
+    await measure(tab, page, width, DICTIONARY_TAP_TARGETS);
+}
+
+/**
  * A kanji's linked course step is underlined at rest (docs/DESIGN_SYSTEM.md sections 2 and 8):
  * a plain "Step 66" (a book with no range page) sits among linked ones, and the accent alone was
  * too close to the ink to tell them apart. 学 has both.
@@ -1815,10 +1939,8 @@ try {
         await desktop.goto(`http://127.0.0.1:${dictionary.port}/dictionary${path}`, 'JLPT');
         await checkEntryGlossColumn(desktop, `dictionary ${path}, its aside`, DESKTOP.width, true, '.entry-list--stacked');
     }
-    for (const path of SOURCE_CREDIT_PAGES) {
-        await desktop.goto(`http://127.0.0.1:${dictionary.port}/dictionary${path}`, '来源');
-        await checkSourceCreditGap(desktop, `dictionary ${path}`, DESKTOP.width);
-    }
+    for (const path of SOURCE_CREDIT_PAGES) await checkSourceCreditGap(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`, path, DESKTOP.width, false);
+    await checkDictionaryWordFullPage(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`, DESKTOP.width);
     for (const path of SWITCHER_PAGES) {
         await desktop.goto(`http://127.0.0.1:${dictionary.port}/dictionary${path}`, 'JLPT');
         await checkLocaleSwitch(desktop, `dictionary ${path}`, DESKTOP.width);
@@ -1985,10 +2107,7 @@ try {
             await measure(tab, `dictionary ${page.path}`, width, DICTIONARY_TAP_TARGETS);
             if (DICTIONARY_LIST_PAGES.includes(page.path)) await checkEntryGlossColumn(tab, `dictionary ${page.path}`, width, true);
         }
-        for (const path of SOURCE_CREDIT_PAGES) {
-            await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${path}`, '来源');
-            await checkSourceCreditGap(tab, `dictionary ${path}`, width);
-        }
+        for (const path of SOURCE_CREDIT_PAGES) await checkSourceCreditGap(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, path, width, true);
         for (const path of SWITCHER_PAGES) {
             await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${path}`, 'JLPT');
             await checkLocaleSwitch(tab, `dictionary ${path}`, width);
@@ -2012,6 +2131,7 @@ try {
             await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${home.path}`, home.ready);
             await checkAppPanelHeadingGap(tab, `dictionary ${home.path}`, width);
         }
+        await checkDictionaryWordTabs(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
         await measureFuriganaFixture(tab, `http://127.0.0.1:${dictionary.port}/dictionary/vocab/${FURIGANA_VOCAB}/`, 'Meanings', `dictionary /vocab/${FURIGANA_VOCAB}/`, width, DICTIONARY_TAP_TARGETS);
         await tab.close();
     }
@@ -2029,4 +2149,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, a kanji's course steps 44px linked or not, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, the kanji and grammar pages tabbed on a phone and one capped full page from 1024px, furigana over kanji, on one line and apart, Japanese in list rows and word readings unbroken, a word list's gloss in its column (1280px) or on its own line across the row (phones, a word page's aside), a section's source credit set off from what comes before it, the language switcher small and neutral, the app panel's action on one line with a four-digit step, its Japanese words unbroken where they fit and wrapped inside it where they do not, 40px above what follows it on every page type (and under Meanings on a word page) and on the home page 16px under its heading, a kanji's linked course steps underlined, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, setup opened from a dictionary link with its order and count on a 568 or 667px phone's screen, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button undimmed, its sentence centred on its translation with its button right after it (and at 1280px on the headword), a word learned in kana's intro, a long headword's intro on one line inside its card, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a due grammar point saying Due now once, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, a kanji's course steps 44px linked or not, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, the dictionary's word page tabbed as the app's on a phone (each hash landing on its section alone, at the page top, a reload keeping its scroll, its synonym search reading meanings, not labels) and one full page at 1280px, the kanji and grammar pages tabbed on a phone and one capped full page from 1024px, furigana over kanji, on one line and apart, Japanese in list rows and word readings unbroken, a word list's gloss in its column (1280px) or on its own line across the row (phones, a word page's aside), a section's source credit set off from what comes before it, the language switcher small and neutral, the app panel's action on one line with a four-digit step, its Japanese words unbroken where they fit and wrapped inside it where they do not, 40px above what follows it on every page type (and under Meanings on a word page) and on the home page 16px under its heading, a kanji's linked course steps underlined, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, setup opened from a dictionary link with its order and count on a 568 or 667px phone's screen, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button undimmed, its sentence centred on its translation with its button right after it (and at 1280px on the headword), a word learned in kana's intro, a long headword's intro on one line inside its card, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play, its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a due grammar point saying Due now once, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);

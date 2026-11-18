@@ -1,6 +1,6 @@
 import { useMemo, type ReactNode } from "react";
 import { useParams } from "react-router-dom";
-import { frequencyBand, headwordOf, summaryGloss, textbookLessonsLabel } from "@gokan/dataset-schema";
+import { frequencyBand, wordFrequencyRank, headwordOf, summaryGloss, textbookLessonsLabel } from "@gokan/dataset-schema";
 import type { Sentence, Vocabulary } from "@gokan/dataset-schema";
 import { useQuiz } from "../../context/useQuiz";
 import { VocabularyService } from "../../services/vocabulary.service";
@@ -216,8 +216,7 @@ function TabPanel({ tab, vocab, sentences, wordSynonyms, mixups, studied, now, k
 
 /** The JLPT chip, then how common the word is on one line: the four bars and the band, the round reference and exact rank in its title. */
 function HeaderChips({ vocab }: { vocab: Vocabulary }) {
-    // A word learned in kana is met at its kana spelling's rank.
-    const rank = vocab.usuallyKana ? vocab.frequency.kanaRank ?? vocab.frequency.kanjiRank : vocab.frequency.kanjiRank;
+    const rank = wordFrequencyRank(vocab);
     return (
         <>
             {vocab.jlptLevel && <JlptChip level={vocab.jlptLevel} />}

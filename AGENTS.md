@@ -181,7 +181,10 @@ Four layers, each the only place its question is answered:
   through `services/exercise/wordRelation.ts` (`relationOf`, `outcomeOf`, `OUTCOME_LOOK`,
   `listedSynonymsOf`, `closenessOf`): grading, the cards, the ticker and a word page's Synonyms
   card agree on a pair's tier
-  (enforced: `VocabSynonym` / `.synonyms` nowhere else). Its primitives
+  (enforced: `VocabSynonym` / `.synonyms` nowhere else). Outside the app, the package and the dictionary
+  read a pair only through `@gokan/dataset-schema`'s `synonyms.ts` (`synonymEntriesOf`, `synonymSections`,
+  `pairCloseness`), whose `pairCloseness` an app test holds equal to `closenessOf` for every kind of pair
+  (enforced, the same rule). Its primitives
   (`matchAnswer`, `matchBest` from `utils/answerMatching.ts`, `isFormOfWord` from
   `utils/inflection.utils.ts`, the synonym helpers) are imported only by the engine (enforced).
 - SRS effects: `effectsOf` decides what an answer does (`review`, `retry`, `reinforce`,

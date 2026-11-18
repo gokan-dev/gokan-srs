@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { chineseWithoutLang, englishChromeOn, englishWithoutLang, escapeHtml, japaneseWithoutLang, langOf, langOnChinesePage, linksLeavingSection, renderDocument, stripHydrationMarkers } from './documentShell';
+import { chineseWithoutLang, englishChromeOn, englishWithoutLang, escapeHtml, japaneseWithoutLang, latinInJapaneseRows, langOf, langOnChinesePage, linksLeavingSection, renderDocument, stripHydrationMarkers } from './documentShell';
 import { absoluteUrl, localeUrls } from './urls';
 
 describe('escapeHtml', () => {
@@ -32,6 +32,14 @@ describe('renderDocument', () => {
         const html = renderDocument({ ...base, title: '<script>alert(1)</script>' });
         expect(html).not.toContain('<script>alert(1)</script>');
         expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+    });
+
+    it("sets a page script's class on <html> in the head, before the stylesheets and the body, and none without one", () => {
+        const html = renderDocument({ ...base, prePaintClass: 'tabbed' });
+        const at = html.indexOf("<script>document.documentElement.classList.add('tabbed')</script>");
+        expect(at).toBeGreaterThan(0);
+        expect(at).toBeLessThan(html.indexOf('<link rel="stylesheet"'));
+        expect(renderDocument(base)).not.toContain('classList');
     });
 
     it('names the page language on <html>', () => {
@@ -200,6 +208,19 @@ describe('englishWithoutLang', () => {
 
     it("leaves an English page's body alone", () => {
         expect(englishWithoutLang('<html lang="en"><body><ol class="sense-list"><li>wise</li></ol></body></html>')).toEqual([]);
+    });
+});
+
+describe('latinInJapaneseRows', () => {
+    const english = (body: string) => `<html lang="en"><body>${body}</body></html>`;
+
+    it("finds a word row's English left to inherit the link's lang=\"ja\"", () => {
+        expect(latinInJapaneseRows(english('<ul class="entry-list"><li><a lang="ja">思う<span lang="en">think</span><small>≈ Close in this sense</small></a></li></ul>'))).toEqual(['≈ Close in this sense']);
+    });
+
+    it('accepts marked English, a Latin headword, and Latin under lang="ja" outside word rows', () => {
+        expect(latinInJapaneseRows(english('<ul class="entry-list"><li><a lang="ja">CD<span>シーディー</span><span lang="en">CD</span><small lang="en">= Interchangeable</small></a></li></ul>'))).toEqual([]);
+        expect(latinInJapaneseRows(english('<p lang="ja"><span>CDを買った。</span><span>romaji</span></p>'))).toEqual([]);
     });
 });
 

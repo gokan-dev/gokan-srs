@@ -18,7 +18,7 @@ describe('meaningsOf', () => {
         expect(visible[0]).toEqual({ number: 1, pos: 'Suffix', glosses: 'honourable', labels: ['Honorific'] });
     });
 
-    it('shows the first five common senses, the rest behind a disclosure, rare ones last', () => {
+    it('shows the first three common senses (as the app does), the rest behind a disclosure, rare ones last', () => {
         const senses = [
             sense(['archaic one'], ['n'], ['arch']),
             ...Array.from({ length: 7 }, (_, i) => sense([`common ${i + 1}`])),
@@ -26,8 +26,8 @@ describe('meaningsOf', () => {
         ];
         const { visible, more, rare } = meaningsOf(senses);
         expect(visible).toHaveLength(VISIBLE_SENSES);
-        expect(visible.map(v => v.glosses)).toEqual(['common 1', 'common 2', 'common 3', 'common 4', 'common 5']);
-        expect(more.map(v => [v.number, v.glosses])).toEqual([[6, 'common 6'], [7, 'common 7']]);
+        expect(visible.map(v => v.glosses)).toEqual(['common 1', 'common 2', 'common 3']);
+        expect(more.map(v => [v.number, v.glosses])).toEqual([[4, 'common 4'], [5, 'common 5'], [6, 'common 6'], [7, 'common 7']]);
         expect(rare.map(v => [v.number, v.glosses])).toEqual([[8, 'archaic one'], [9, 'dated one']]);
     });
 

@@ -329,7 +329,17 @@ describe('pagesOf: a locale other than English', () => {
 
     it('keeps English\'s word page as it was: no text, no translations', async () => {
         const page = await pagesOf(memorySource(world).source, 'en').vocabPage('1589350');
-        expect(Object.keys(page.props).sort()).toEqual(['components', 'orderStep', 'parents', 'sentences', 'vocab']);
+        expect(Object.keys(page.props).sort()).toEqual(['components', 'orderStep', 'parents', 'sentences', 'synonyms', 'vocab']);
+    });
+
+    it('lists only the synonyms with a page: every word in English, a word with Chinese text in Chinese', async () => {
+        const synonym = (id: string) => ({ id, relation: 'confusable' as const, shared: ['think'], w: ['考える'], r: ['かんがえる'], f: 50 });
+        const thinker = vocabulary({ id: '1589350', synonyms: [synonym('1281390'), synonym('9999999')] });
+        const synonymWorld: World = { ...world, words: [thinker, kangaeru] };
+        const ids = (page: { props: { synonyms: { groups: { words: { id: string }[] }[] } } }) => page.props.synonyms.groups.flatMap(group => group.words.map(word => word.id));
+        expect(ids(await pagesOf(memorySource(synonymWorld).source, 'en').vocabPage('1589350'))).toEqual(['1281390']);
+        expect(ids(await pagesOf(memorySource(synonymWorld).source, 'zh-hans').vocabPage('1589350'))).toEqual([]);
+        expect(ids(await pagesOf(memorySource({ ...synonymWorld, chinese: ['1589350', '1281390'] }).source, 'zh-hans').vocabPage('1589350'))).toEqual(['1281390']);
     });
 
     it('refuses a source not read in the locale\'s language', () => {

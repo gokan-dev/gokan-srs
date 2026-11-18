@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { frequencyBand, UNRANKED } from './frequency';
+import { frequencyBand, frequencyTop, UNRANKED, wordFrequencyRank } from './frequency';
 
 describe('frequencyBand', () => {
     it('names the band at each edge', () => {
@@ -44,5 +44,19 @@ describe('frequencyBand', () => {
         expect(frequencyBand(1_001, 'kanji').name).toBe('Less common');
         expect(frequencyBand(2_001, 'kanji')).toEqual({ name: 'Rare', bars: 1, reference: 'Top 2,500 kanji', ranked: true });
         expect(frequencyBand(undefined, 'kanji').ranked).toBe(false);
+    });
+});
+
+describe('frequencyTop and wordFrequencyRank', () => {
+    it('gives the round top a rank sits within, or the last one past it', () => {
+        expect(frequencyTop(264)).toEqual({ top: 300, beyond: false });
+        expect(frequencyTop(60_000)).toEqual({ top: 50_000, beyond: true });
+        expect(frequencyTop(2_001, 'kanji')).toEqual({ top: 2_500, beyond: false });
+    });
+
+    it('meets a word learned in kana at its kana spelling', () => {
+        expect(wordFrequencyRank({ frequency: { kanjiRank: 9_000, kanaRank: 40 } })).toBe(9_000);
+        expect(wordFrequencyRank({ frequency: { kanjiRank: 9_000, kanaRank: 40 }, usuallyKana: true })).toBe(40);
+        expect(wordFrequencyRank({ frequency: { kanjiRank: 9_000 }, usuallyKana: true })).toBe(9_000);
     });
 });

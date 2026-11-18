@@ -1,3 +1,4 @@
+import { normalizeGloss } from '@gokan/dataset-schema';
 import type { Sense } from '@gokan/dataset-schema';
 import type { ProductionCloze } from './productionCloze.utils';
 
@@ -31,20 +32,8 @@ export function productionCueOf(senses: Pick<Sense, 'glosses'>[], cloze: Product
     return { glosses: glossPromptLines(senses).flat() };
 }
 
-/**
- * The dataset's gloss normalization (gokan-dataset scripts/build-synonyms.ts),
- * mirrored so a printed gloss compares equal to the `shared` entries built from it:
- * lowercase, parentheticals and a leading "to"/article dropped, punctuation stripped.
- */
-export function normalizeGloss(gloss: string): string {
-    return gloss
-        .toLowerCase()
-        .replace(/\([^)]*\)/g, ' ')
-        .replace(/^\s*(to|a|an|the)\s+/, '')
-        .replace(/[.,;:!?"']/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-}
+/** The dataset's gloss normalization, shared with the word pages' synonym sections (`synonyms.ts` in @gokan/dataset-schema). */
+export { normalizeGloss } from '@gokan/dataset-schema';
 
 /** A word of an English text, lowercased, with where it sits in the original text. */
 interface Token { word: string; start: number; end: number }

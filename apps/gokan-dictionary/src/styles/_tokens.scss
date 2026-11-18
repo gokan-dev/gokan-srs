@@ -30,8 +30,12 @@ $space-6: 3rem;
 // -- Breakpoints ------------------------------------------------------------
 /// Phones end here: below it the header takes two rows and the search panel the whole screen.
 $bp-narrow: 40rem;
-/// Point at which the vocab entry page splits into two columns.
+/// Point at which a wide page's lists split into columns.
 $bp-wide: 56rem;
+/// Every detail page's switch (a word's, in time a kanji's and a grammar point's): below it a row
+/// of tabs, one section at a time; from it the full page. Equal to gokan-srs's `lg`, where its word
+/// page makes the same switch: check:conventions holds the two equal (`detail-breakpoint`).
+$bp-detail: 64rem;
 
 // -- Shape --------------------------------------------------------------------
 /// Every card, chip, tile, input and button (DESIGN_SYSTEM.md: rounded-md).
@@ -228,6 +232,85 @@ $motion: 150ms ease-in-out;
 @mixin wide {
   @media (min-width: $bp-wide) {
     @content;
+  }
+}
+
+@mixin detail-full {
+  @media (min-width: $bp-detail) {
+    @content;
+  }
+}
+
+@mixin detail-tabbed {
+  @media (max-width: #{$bp-detail - 0.01rem}) {
+    @content;
+  }
+}
+
+/// A detail page's tab row and panels (client/detailTabs.ts), included by each detail page's sheet.
+/// Without the head's `tabbed` class (no script) the row is not drawn and every section shows: the
+/// stacked page. With it, below $bp-detail, the row shows from the first paint, and until the script
+/// has run the stylesheet shows the hash's section (`:target`), else the default one (`data-default-panel`); the script then
+/// owns the panels through `hidden` (`data-tabs-ready`). The script reads the width off
+/// `--detail-query`, so it is written once, here.
+@mixin detail-tabs {
+  .detail-tabs {
+    --detail-query: "#{'(max-width: ' + ($bp-detail - 0.01rem) + ')'}";
+
+    display: none;
+  }
+
+  .detail-panel[hidden] {
+    display: none;
+  }
+
+  @include detail-tabbed {
+    .tabbed .detail-tabs {
+      display: flex;
+      gap: 0 $space-2;
+      margin: (-$space-2) 0 $space-4;
+      overflow-x: auto;
+      scrollbar-width: none;
+      border-bottom: 1px solid var(--divider);
+
+      a {
+        display: inline-flex;
+        flex: none;
+        align-items: center;
+        min-height: $target;
+        color: var(--secondary);
+        border-bottom: 2px solid transparent;
+
+        &:hover,
+        &[aria-selected="true"] {
+          color: var(--accent);
+          text-decoration: none;
+        }
+
+        &[aria-selected="true"] {
+          border-bottom-color: var(--accent);
+        }
+      }
+    }
+
+    .tabbed [data-detail-panels]:not([data-tabs-ready]) .detail-panel {
+      display: none;
+    }
+
+    .tabbed [data-detail-panels]:not([data-tabs-ready]) .detail-panel:target,
+    .tabbed [data-detail-panels]:not([data-tabs-ready]):not(:has(.detail-panel:target)) .detail-panel[data-default-panel] {
+      display: block;
+    }
+
+    // One section at a time, in one column: its own top, not a section's or a column's gap
+    // under one hidden above it.
+    .tabbed [data-detail-panels] {
+      display: block;
+    }
+
+    .tabbed .detail-panel {
+      margin-top: 0;
+    }
   }
 }
 

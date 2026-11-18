@@ -8,8 +8,8 @@ import { valueText } from '@gokan/dataset-schema/text';
 import { truncate } from './seo';
 import type { WordText } from './types';
 
-/** Senses shown before the "All N meanings" disclosure. */
-export const VISIBLE_SENSES = 5;
+/** Senses shown before the "Show all N meanings" disclosure: three, as on the app's word page. */
+export const VISIBLE_SENSES = 3;
 
 export interface SenseView {
     /** 1-based, continuous across the visible, more and rare lists. */

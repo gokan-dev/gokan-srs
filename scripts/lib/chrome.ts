@@ -36,6 +36,8 @@ export interface Tab {
     evaluate<T>(expression: string): Promise<T>;
     until(condition: string, what: string, timeout?: number): Promise<void>;
     goto(url: string, readyText: string): Promise<void>;
+    /** Reloads the page as the browser's reload does (its scroll restored), then waits for `readyText`. */
+    reload(readyText: string): Promise<void>;
     /** Clicks the first button, summary or link whose text starts with `text`. */
     click(text: string): Promise<void>;
     /** Sets the viewport, keeping the page and its storage (a smaller phone's first screen). */
@@ -149,6 +151,13 @@ export async function launchChrome(): Promise<Chrome> {
             await until(`document.readyState === 'complete' && document.body.innerText.includes(${JSON.stringify(readyText)})`, `"${readyText}" on ${url}`);
             await sleep(300);
         };
+        const reload = async (readyText: string): Promise<void> => {
+            // A mark on the old document, so the wait is for the new one, not the page being left.
+            await evaluate<void>('void (window.__gokanReloading = true)');
+            await send('Page.reload', {}, sessionId);
+            await until(`window.__gokanReloading === undefined && document.readyState === 'complete' && document.body.innerText.includes(${JSON.stringify(readyText)})`, `"${readyText}" after a reload`);
+            await sleep(300);
+        };
         const click = async (text: string): Promise<void> => {
             const clicked = await evaluate<boolean>(`(() => {
                 const el = [...document.querySelectorAll('button, summary, a')].find(e => e.textContent.trim().startsWith(${JSON.stringify(text)}));
@@ -177,7 +186,7 @@ export async function launchChrome(): Promise<Chrome> {
             if (context) await send('Target.disposeBrowserContext', { browserContextId: context });
             else await send('Target.closeTarget', { targetId });
         };
-        return { evaluate, until, goto, click, resize, mouseMove, press, close };
+        return { evaluate, until, goto, reload, click, resize, mouseMove, press, close };
     }
 
     async function kill(): Promise<void> {

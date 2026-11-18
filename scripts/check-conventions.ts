@@ -326,6 +326,25 @@ function dispatchedWorkflowRunViolations(): Violation[] {
     return violations;
 }
 
+/**
+ * One switch width for every detail page in both apps: the dictionary's `$bp-detail` equals the
+ * app's `lg` (`--breakpoint-lg`, where its word page turns from tabs into the full page), so a
+ * page cannot be tabs in one app and whole in the other at the same width.
+ */
+const DETAIL_BREAKPOINT_FILES = { dictionary: 'apps/gokan-dictionary/src/styles/_tokens.scss', srs: 'apps/gokan-srs/src/index.css' };
+
+function detailBreakpointViolations(dictionaryTokens: string | null, srsCss: string | null): Violation[] {
+    const dictionary = dictionaryTokens && /^\$bp-detail:\s*([\d.]+rem);/m.exec(dictionaryTokens)?.[1];
+    const srs = srsCss && /^\s*--breakpoint-lg:\s*([\d.]+rem);/m.exec(srsCss)?.[1];
+    if (!dictionary) return [{ file: DETAIL_BREAKPOINT_FILES.dictionary, rule: 'detail-breakpoint', message: 'Declares no `$bp-detail: <n>rem;`, the detail pages\' switch width.' }];
+    if (!srs) return [{ file: DETAIL_BREAKPOINT_FILES.srs, rule: 'detail-breakpoint', message: 'Declares no `--breakpoint-lg: <n>rem;` in its @theme, the word page\'s switch width.' }];
+    return dictionary === srs ? [] : [{
+        file: DETAIL_BREAKPOINT_FILES.dictionary,
+        rule: 'detail-breakpoint',
+        message: `\`$bp-detail\` is ${dictionary}, gokan-srs's \`lg\` ${srs}: a detail page switches from tabs to the full page at one width in both apps.`,
+    }];
+}
+
 /** A workflow's jobs, each with its text and the line its header is on. */
 function workflowJobs(text: string): { name: string; line: number; text: string }[] {
     const start = text.search(/^jobs:\s*$/m);
@@ -365,6 +384,15 @@ const BOXED_GLYPH_FILES = new Set(['apps/gokan-srs/src/components/KanjiTile.tsx'
  */
 const SYNONYM_DATA = /\bVocabSynonym\b|\.synonyms\b|'synonyms'/;
 const SYNONYM_READER = 'apps/gokan-srs/src/services/exercise/wordRelation.ts';
+/**
+ * Outside the app, the package and the dictionary read them only through
+ * packages/dataset-schema/src/synonyms.ts (synonymEntriesOf, pairCloseness, held equal to the app's
+ * closenessOf by its test); vocabulary.ts declares the field. The same pattern, less a catalog's
+ * own words (a section's or a tab's name or its search's placeholder, `words.sections.synonyms`) and a tab's id.
+ */
+const SHARED_SYNONYM_SOURCE = /^(packages\/[^/]+\/src\/.*\.ts|apps\/gokan-dictionary\/(src|scripts)\/.*\.(ts|svelte))$/;
+const SHARED_SYNONYM_DATA = /\bVocabSynonym\b|(?<!\b(?:sections|search|placeholders|tabs))\.synonyms\b|(?<!id: )'synonyms'/;
+const SHARED_SYNONYM_READERS = new Set(['packages/dataset-schema/src/synonyms.ts', 'packages/dataset-schema/src/vocabulary.ts']);
 
 /**
  * A stored due date is read only where scheduling is decided: the effective due date under the
@@ -747,6 +775,10 @@ function check(files: string[]): Violation[] {
             eachLine(text, l => SYNONYM_DATA.test(l) && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
                 add({ file, line, rule: 'one-synonym-reader', message: 'Reads the dataset\'s synonym pairs. Go through services/exercise/wordRelation.ts (relationOf, synonymsOf, listedSynonymsOf), so a page and grading read a pair the same way.' }));
         }
+        if (SHARED_SYNONYM_SOURCE.test(file) && !SHARED_SYNONYM_READERS.has(file) && !/\.test\.ts$/.test(file)) {
+            eachLine(text, l => SHARED_SYNONYM_DATA.test(l) && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
+                add({ file, line, rule: 'one-synonym-reader', message: 'Reads the dataset\'s synonym pairs. Go through @gokan/dataset-schema\'s synonyms.ts (synonymEntriesOf, synonymSections, pairCloseness), held equal to the app\'s grading by its test, so the dictionary and the app read a pair the same way.' }));
+        }
 
         if (GOKAN_SRS_SOURCE.test(file) && !DUE_DATE_READERS.has(file) && !/\.test\.tsx?$/.test(file)) {
             eachLine(text, l => DUE_DATE_READ.test(l) && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
@@ -836,6 +868,9 @@ function check(files: string[]): Violation[] {
     }
     if (files.some(f => GITHUB_DIR_FILE.test(f))) {
         for (const v of dispatchedWorkflowRunViolations()) add(v);
+    }
+    if (files.some(f => f === DETAIL_BREAKPOINT_FILES.dictionary || f === DETAIL_BREAKPOINT_FILES.srs)) {
+        for (const v of detailBreakpointViolations(read(DETAIL_BREAKPOINT_FILES.dictionary), read(DETAIL_BREAKPOINT_FILES.srs))) add(v);
     }
 
     return violations;

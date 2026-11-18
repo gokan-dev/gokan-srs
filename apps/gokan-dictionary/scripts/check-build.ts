@@ -43,6 +43,7 @@ const ENTITY_PAGES = process.env.DICTIONARY_ENTITY_PAGES === 'on-request' ? 'on-
 interface ViteManifestEntry {
     file: string;
     dynamicImports?: string[];
+    imports?: string[];
 }
 
 const sizeOf = (relative: string) => fs.statSync(path.join(DIST_DIR, relative)).size;
@@ -104,11 +105,22 @@ function measure(manifest: Record<string, ViteManifestEntry>): Measurement[] {
     for (const [source, { file }] of Object.entries(manifest).filter(([source]) => source.startsWith('src/styles/locales/'))) {
         measurements.push({ budget: 'localeStylesheet', subject: `${file} (${source})`, bytes: sizeOf(file) });
     }
+    // A script with the chunks it imports statically: the bundler moves a module two scripts share
+    // (the search engine's romaji and the detail script's kana folding) into a chunk of its own,
+    // which each still downloads.
+    const withImports = (entry: ViteManifestEntry, seen = new Set<string>()): number => {
+        if (seen.has(entry.file)) return 0;
+        seen.add(entry.file);
+        return sizeOf(entry.file) + (entry.imports ?? []).reduce((sum, chunk) => sum + withImports(manifest[chunk], seen), 0);
+    };
     const searchEntry = manifest['src/client/search.ts'];
-    measurements.push({ budget: 'searchScript', subject: searchEntry.file, bytes: sizeOf(searchEntry.file) });
+    measurements.push({ budget: 'searchScript', subject: searchEntry.file, bytes: withImports(searchEntry) });
     for (const chunk of searchEntry.dynamicImports ?? []) {
-        measurements.push({ budget: 'searchEngine', subject: manifest[chunk].file, bytes: sizeOf(manifest[chunk].file) });
+        measurements.push({ budget: 'searchEngine', subject: manifest[chunk].file, bytes: withImports(manifest[chunk], new Set([searchEntry.file, ...(searchEntry.imports ?? []).map(shared => manifest[shared].file)])) });
     }
+
+    const detailEntry = manifest['src/client/detailTabs.ts'];
+    measurements.push({ budget: 'detailScript', subject: detailEntry.file, bytes: withImports(detailEntry) });
 
     const core = fs.readFileSync(path.join(DIST_DIR, 'data', 'search-core.json'));
     measurements.push({ budget: 'searchCoreGzip', subject: 'data/search-core.json', bytes: gzipSync(core, { level: 9 }).length });
