@@ -2,6 +2,7 @@
   import { grammarExampleToSentence, patternHighlightRanges } from '@gokan/dataset-schema';
   import type { GrammarExample } from '@gokan/dataset-schema';
   import { sentenceRuns } from '../lib/furigana';
+  import type { PageVoice } from '../lib/pageProps';
   import SentenceText from './SentenceText.svelte';
 
   /**
@@ -14,15 +15,17 @@
     examples: GrammarExample[];
     /** Distinguishes two lists on one page, so sentence ids stay unique. */
     idPrefix: string;
+    /** The voice of the page's clips: an example with one has a play button. */
+    voice: PageVoice;
   }
 
-  let { examples, idPrefix }: Props = $props();
+  let { examples, idPrefix, voice }: Props = $props();
 </script>
 
 <ul class="sentence-list">
   {#each examples as example, index (index)}
     <li>
-      <SentenceText runs={sentenceRuns(grammarExampleToSentence(example, `${idPrefix}${index}`), { highlightRanges: patternHighlightRanges(example) })} />
+      <SentenceText runs={sentenceRuns(grammarExampleToSentence(example, `${idPrefix}${index}`), { highlightRanges: patternHighlightRanges(example) })} audio={example.audio} {voice} />
       <p class="sentence-en">{example.en}</p>
       {#if example.romaji}<p class="sentence-romaji">{example.romaji}</p>{/if}
     </li>

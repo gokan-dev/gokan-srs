@@ -11,7 +11,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { englishView } from '@gokan/dataset-schema/english';
 import type {
-    FrequencyIndex, GrammarConjugationIndex, GrammarContrastIndex, GrammarExample, GrammarJlptIndex, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex,
+    AudioIndex, FrequencyIndex, GrammarConjugationIndex, GrammarContrastIndex, GrammarExample, GrammarJlptIndex, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex,
     JlptIndex, Kanji, KanjiOrderList, KanjiVocabIndex, Sentence, Vocabulary,
 } from '@gokan/dataset-schema';
 import { DATASET_PATHS } from './datasetPaths';
@@ -134,6 +134,7 @@ export function checkoutData(compiledDir: string, language: DatasetLanguage): Di
         // One file per eligible point: most points (~350/828) have none, the common, permanent
         // case, not an error.
         grammarMinedExamples: id => later(() => (exists(DATASET_PATHS.grammarMinedExamples(id)) ? read<GrammarExample[]>(DATASET_PATHS.grammarMinedExamples(id)) : null)),
+        audioIndex: () => later(() => (exists(DATASET_PATHS.audioIndex) ? read<AudioIndex>(DATASET_PATHS.audioIndex) : null)),
         localeText: language === 'en' ? null : localeText(language, { index: published, file: published, glosses: published, vocab: id => later(() => vocab(id)) }),
     };
 }

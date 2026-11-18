@@ -128,6 +128,8 @@ function measure(manifest: Record<string, ViteManifestEntry>): Measurement[] {
 
     const detailEntry = manifest['src/client/detailTabs.ts'];
     measurements.push({ budget: 'detailScript', subject: detailEntry.file, bytes: withImports(detailEntry) });
+    const playerEntry = manifest['src/client/player.ts'];
+    measurements.push({ budget: 'playerScript', subject: playerEntry.file, bytes: withImports(playerEntry) });
 
     const core = fs.readFileSync(path.join(DIST_DIR, 'data', 'search-core.json'));
     measurements.push({ budget: 'searchCoreGzip', subject: 'data/search-core.json', bytes: gzipSync(core, { level: 9 }).length });

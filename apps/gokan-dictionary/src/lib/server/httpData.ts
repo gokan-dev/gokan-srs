@@ -8,7 +8,7 @@
 
 import { isMissingFile, publishedDatasetReader } from '@gokan/dataset-schema/published-dataset';
 import type {
-    FrequencyIndex, GrammarConjugationIndex, GrammarExample, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex, Kanji, KanjiOrderList, KanjiVocabIndex, Sentence,
+    AudioIndex, FrequencyIndex, GrammarConjugationIndex, GrammarExample, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex, Kanji, KanjiOrderList, KanjiVocabIndex, Sentence,
     Vocabulary,
 } from '@gokan/dataset-schema';
 import { DATASET_PATHS } from '../datasetPaths';
@@ -85,6 +85,7 @@ export function httpData({ datasetUrl, searchIndexUrls, datasetVersion, language
     const teachingOrder = kept(() => file<GrammarTeachingOrder>(DATASET_PATHS.grammarTeachingOrder));
     const variantGroups = kept(() => file<GrammarVariantGroupIndex>(DATASET_PATHS.grammarVariantGroups));
     const conjugations = kept(() => file<GrammarConjugationIndex>(DATASET_PATHS.grammarConjugations));
+    const audioIndex = kept(() => dataset.optionalFile<AudioIndex>(DATASET_PATHS.audioIndex));
 
     return {
         vocab: id => file<Vocabulary>(DATASET_PATHS.vocab(id)),
@@ -104,6 +105,7 @@ export function httpData({ datasetUrl, searchIndexUrls, datasetVersion, language
         grammarVariantGroups: variantGroups,
         grammarConjugations: conjugations,
         grammarMinedExamples: id => dataset.optionalFile<GrammarExample[]>(DATASET_PATHS.grammarMinedExamples(id)),
+        audioIndex,
         localeText: language === 'en' ? null : localeText(language, { index: path => dataset.publishedFile(path), file: path => dataset.publishedFile(path), glosses: path => dataset.publishedFile(path), vocab: id => file<Vocabulary>(DATASET_PATHS.vocab(id)) }),
     };
 }

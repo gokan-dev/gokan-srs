@@ -18,7 +18,7 @@ function grammarProps(examples: number, mined: number, related = true, minedTota
     return {
         point: grammarPoint({ examples: Array.from({ length: examples }, (_, i) => example(i)) }),
         related: [], chapterLocator: null, variants: related ? [{ id: 'n2-170', title: '～を問わない', relation: 'negation', jlptLevel: 2 }] : [], conjugation: null,
-        minedExamples: Array.from({ length: mined }, (_, i) => example(100 + i)), minedExamplesTotalCount: minedTotal,
+        minedExamples: Array.from({ length: mined }, (_, i) => example(100 + i)), minedExamplesTotalCount: minedTotal, voice: null,
     };
 }
 
@@ -102,5 +102,21 @@ describe('GrammarPage', () => {
         const body = grammarHtml(grammarProps(1, 0));
         expect(body.indexOf('Read the full explanation')).toBeGreaterThan(body.indexOf('class="lead"'));
         expect(body.indexOf('Read the full explanation')).toBeLessThan(body.indexOf('app-panel'));
+    });
+});
+
+describe('GrammarPage play buttons', () => {
+    const voice = { extension: 'opus', credit: 'VOICEVOX:冥鳴ひまり', termsUrl: 'https://voice.test/terms' };
+
+    it('plays each example with a clip, curated or from the corpus, beside its first line; one without has none', () => {
+        const props = grammarProps(2, 1);
+        props.point.examples[0] = { ...props.point.examples[0], audio: { clip: 'cccccccccccccccc' } };
+        props.minedExamples[0] = { ...props.minedExamples[0], audio: { clip: 'dddddddddddddddd' } };
+        const body = grammarHtml({ ...props, voice });
+        const clips = Array.from(body.matchAll(/<div class="play-row"><p class="sentence-jp" lang="ja">.*?<\/p><button type="button" class="play" data-clip="([^"]*)" aria-label="Play sentence"/g), match => match[1]);
+        // The Point tab's preview (the first two examples) and the Examples tab both list the first.
+        expect(clips).toEqual(['/audio/cccccccccccccccc.opus', '/audio/cccccccccccccccc.opus', '/audio/dddddddddddddddd.opus']);
+        expect(body).toContain('VOICEVOX:冥鳴ひまり');
+        expect(grammarHtml(grammarProps(2, 1))).not.toContain('class="play');
     });
 });

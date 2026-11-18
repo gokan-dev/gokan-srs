@@ -22,8 +22,9 @@
   import HowCommon from './HowCommon.svelte';
   import SectionSearch from './SectionSearch.svelte';
   import SentenceText from './SentenceText.svelte';
+  import PlayButton from './PlayButton.svelte';
 
-  let { vocab, orderStep, components, parents, sentences, synonyms, text, translations, withoutPage }: Props = $props();
+  let { vocab, orderStep, components, parents, sentences, synonyms, text, translations, withoutPage, voice }: Props = $props();
 
   // A page in another language links its own words only, and its kanji at English's pages, marked (lib/localeLinks.ts).
   const { urls, messages, linkLang, lang } = pageLocale();
@@ -154,7 +155,7 @@
     {#each list as sentence (sentence.id)}
       {@const translation = translations?.[sentence.id]}
       <li>
-        <SentenceText runs={sentenceRuns(sentence, { targetVocabId: vocab.id, unlinked })} />
+        <SentenceText runs={sentenceRuns(sentence, { targetVocabId: vocab.id, unlinked })} audio={sentence.audio} {voice} />
         {#if translations}
           {#if translation}<p class="sentence-en" lang={translation.lang === 'en' ? 'en' : undefined}>{translation.text}</p>{/if}
         {:else if sentence.en[0]}<p class="sentence-en">{sentence.en[0].text}</p>{/if}
@@ -170,15 +171,15 @@
   </div>
 {/snippet}
 
-<PageLayout trail={[{ label: messages.chrome.sections.vocab, href: urls.vocabIndexPath() }, { label: headword, jp: true }]} section="vocab" wide>
+<PageLayout trail={[{ label: messages.chrome.sections.vocab, href: urls.vocabIndexPath() }, { label: headword, jp: true }]} section="vocab" wide {voice}>
   <header class="entry-head">
     <h1 class="entry-word" lang="ja">{headword}</h1>
 
     {#if vocab.usuallyKana}
       <!-- Learned in kana (ここ): the headword already is the reading, so name the kanji spelling. -->
-      <p class="entry-sub">{words.usuallyKana} <span lang="ja">{secondaryForm(vocab)}</span></p>
+      <p class="entry-sub">{words.usuallyKana} <span lang="ja">{secondaryForm(vocab)}</span><PlayButton audio={vocab.audio} {voice} label={messages.chrome.play(headword)} /></p>
     {:else}
-      <p class="entry-sub" lang="ja">{vocab.reading.primary}{#if vocab.reading.alternatives.length > 0}<span class="meta" {lang}> · {words.alsoRead} <span lang="ja">{vocab.reading.alternatives.join('、')}</span></span>{/if}</p>
+      <p class="entry-sub" lang="ja">{vocab.reading.primary}{#if vocab.reading.alternatives.length > 0}<span class="meta" {lang}> · {words.alsoRead} <span lang="ja">{vocab.reading.alternatives.join('、')}</span></span>{/if}<PlayButton audio={vocab.audio} {voice} label={messages.chrome.play(headword)} /></p>
     {/if}
 
     {#if summary}<p class="entry-gloss" lang={text ? langOnChinesePage(summary) : undefined}>{summary}</p>{/if}

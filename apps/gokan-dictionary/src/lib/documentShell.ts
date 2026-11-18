@@ -33,12 +33,14 @@ export interface DocumentShellOptions {
     scriptHref?: string;
     /** A second module script: the grammar index's filter, a detail page's tabs. */
     extraScriptHref?: string;
+    /** The clip player (client/player.ts), on a page with a play button only. */
+    playerScriptHref?: string;
     /**
-     * A class set on <html> by a few inline bytes in the head, before the body paints: says the
-     * page's script is there, so the stylesheet lays the page out as the script will (a detail
-     * page's tab row) and nothing shifts when it runs.
+     * Classes set on <html> by a few inline bytes in the head, before the body paints: each says a
+     * page script is there, so the stylesheet lays the page out as the script will (a detail page's
+     * tab row; its play buttons, shown only when the player can run them) and nothing shifts when it runs.
      */
-    prePaintClass?: string;
+    prePaintClasses?: readonly string[];
     /** Keep the page out of search engines (the /search/ results page). */
     noindex?: boolean;
     /** Optional schema.org JSON-LD object, serialized verbatim into a <script type="application/ld+json">. */
@@ -302,8 +304,8 @@ ${(options.alternates ?? []).map(alternate => `<link rel="alternate" hreflang="$
 <meta property="og:description" content="${description}" />
 <meta property="og:url" content="${canonical}" />
 <meta name="twitter:card" content="summary" />
-${options.prePaintClass ? `<script>document.documentElement.classList.add('${options.prePaintClass}')</script>\n` : ''}<link rel="stylesheet" href="${options.stylesheetHref}" />
-${options.localeStylesheetHref ? `<link rel="stylesheet" href="${options.localeStylesheetHref}" />\n` : ''}${options.pageStylesheetHref ? `<link rel="stylesheet" href="${options.pageStylesheetHref}" />\n` : ''}${options.scriptHref ? `<script type="module" src="${options.scriptHref}"></script>\n` : ''}${options.extraScriptHref ? `<script type="module" src="${options.extraScriptHref}"></script>\n` : ''}${options.structuredData ? `<script type="application/ld+json">${JSON.stringify(options.structuredData)}</script>\n` : ''}${analyticsScriptTag(options.analyticsWebsiteId)}</head>
+${options.prePaintClasses?.length ? `<script>document.documentElement.classList.add(${options.prePaintClasses.map(name => `'${name}'`).join(', ')})</script>\n` : ''}<link rel="stylesheet" href="${options.stylesheetHref}" />
+${options.localeStylesheetHref ? `<link rel="stylesheet" href="${options.localeStylesheetHref}" />\n` : ''}${options.pageStylesheetHref ? `<link rel="stylesheet" href="${options.pageStylesheetHref}" />\n` : ''}${options.scriptHref ? `<script type="module" src="${options.scriptHref}"></script>\n` : ''}${options.extraScriptHref ? `<script type="module" src="${options.extraScriptHref}"></script>\n` : ''}${options.playerScriptHref ? `<script type="module" src="${options.playerScriptHref}"></script>\n` : ''}${options.structuredData ? `<script type="application/ld+json">${JSON.stringify(options.structuredData)}</script>\n` : ''}${analyticsScriptTag(options.analyticsWebsiteId)}</head>
 <body>
 ${stripHydrationMarkers(options.bodyHtml)}
 </body>
