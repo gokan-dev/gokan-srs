@@ -25,11 +25,19 @@ export function KanjiReadings({ kanji, size }: KanjiReadingsProps) {
             {rows.map(row => (
                 <div key={row.label} className="flex items-baseline gap-3">
                     <dt className="type-label w-8 shrink-0">{row.label}</dt>
-                    <dd className={`min-w-0 font-gothic text-secondary ${size === 'large' ? 'text-2xl' : 'text-base'}`} lang="ja">{row.readings.map((reading, i) => i < row.readings.length - 1
-                        ? <Fragment key={reading}><span data-kanji-reading className="whitespace-nowrap">{reading}、</span><wbr /></Fragment>
-                        : <span key={reading} data-kanji-reading className="whitespace-nowrap">{reading}</span>)}</dd>
+                    <dd className={`min-w-0 font-gothic text-secondary ${size === 'large' ? 'text-2xl' : 'text-base'}`} lang="ja"><ReadingList readings={row.readings} /></dd>
                 </div>
             ))}
         </dl>
     );
+}
+
+/**
+ * A list of readings, each unbreakable with its 、 and a `<wbr />` after it (see KanjiReadings): a
+ * line breaks only between readings. Also a kanji's readings in names (its Details).
+ */
+export function ReadingList({ readings }: { readings: readonly string[] }) {
+    return readings.map((reading, i) => i < readings.length - 1
+        ? <Fragment key={reading}><span data-kanji-reading className="whitespace-nowrap">{reading}、</span><wbr /></Fragment>
+        : <span key={reading} data-kanji-reading className="whitespace-nowrap">{reading}</span>);
 }

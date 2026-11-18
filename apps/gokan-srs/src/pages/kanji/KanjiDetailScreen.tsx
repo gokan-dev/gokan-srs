@@ -4,7 +4,7 @@ import type { Kanji } from "@gokan/dataset-schema";
 import { frequencyBand, kanjiBookPositions, kanjiGradeLabel, kanjiOrder } from "@gokan/dataset-schema";
 import { JlptChip } from "../../components/JlptChip";
 import { HowCommon } from "../../components/FrequencyMeter";
-import { KanjiReadings } from "../../components/KanjiReadings";
+import { KanjiReadings, ReadingList } from "../../components/KanjiReadings";
 import { Chip } from "../../components/ui/Chip";
 import { KanjiTile } from "../../components/KanjiTile";
 import { StatusDot } from "../../components/StatusDot";
@@ -236,7 +236,7 @@ function detailFields(kanji: Kanji, method: KanjiLearningMethod | undefined): Re
     return (
         <>
             {kanji.readings.nanori.length > 0 && (
-                <DetailField label="Readings in names"><span className="font-gothic">{kanji.readings.nanori.join('、')}</span></DetailField>
+                <DetailField label="Readings in names"><span className="font-gothic" lang="ja" data-kanji-nanori><ReadingList readings={kanji.readings.nanori} /></span></DetailField>
             )}
             {kanji.radical && <DetailField label="Kangxi radical">No. {kanji.radical.number}</DetailField>}
             {books.map(({ book, name, position }) => (
