@@ -11,7 +11,7 @@ import type { ListedSynonym } from "../../../services/exercise/wordRelation";
 import { englishRanges, matchesExploreQuery, resultCountLine, type ExploreQuery } from "../../../utils/exploreSearch.utils";
 import { mixedUpLabel } from "../../../utils/mixups.utils";
 import { senseNumbers } from "../../../utils/senses.utils";
-import { filterSynonymSections, GROUP_ROWS, sectionGlossLine, GROUPS_AT_ONCE, shownGroups, synonymCount, type SynonymSection } from "../../../utils/synonymSections.utils";
+import { filterSynonymSections, GROUP_ROWS, sectionGlossLine, GROUPS_AT_ONCE, shownGroups, synonymCount, synonymsSearchable, type SynonymSection } from "../../../utils/synonymSections.utils";
 import { PanelSearch } from "../../../components/search/PanelSearch";
 import { usePanelQuery } from "../../../components/search/usePanelQuery";
 import { vocabPath } from "../../../utils/navigation.utils";
@@ -95,13 +95,16 @@ export function SynonymsPanel({ vocab, sections, mixedUp, groupsAtOnce = GROUPS_
             <p className="type-support mb-4">
                 Never penalized on a <span lang="ja" className="font-mincho">{headword}</span> card; = and ≈ are accepted when they fit its meaning.
             </p>
-            <PanelSearch
-                text={text}
-                onChange={value => { setText(value); setOpenGroups(new Set()); }}
-                label="Search the synonyms"
-                placeholder="Search in English or Japanese"
-                countLine={resultCountLine(synonymCount(matched), total, 'synonym', query)}
-            />
+            {/* Only past one page, as every panel's search and the dictionary's Synonyms (synonymsSearchable). */}
+            {synonymsSearchable(sections, groupsAtOnce) && (
+                <PanelSearch
+                    text={text}
+                    onChange={value => { setText(value); setOpenGroups(new Set()); }}
+                    label="Search the synonyms"
+                    placeholder="Search in English or Japanese"
+                    countLine={resultCountLine(synonymCount(matched), total, 'synonym', query)}
+                />
+            )}
             <RelatedEntryList sections={groups} wrapDescription groupHeadings />
             {hidden > 0 && (
                 <TextButton onClick={() => setGroupsShown(groupsShown + groupsAtOnce)} className="mt-4">

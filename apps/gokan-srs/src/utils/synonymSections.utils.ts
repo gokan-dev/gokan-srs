@@ -9,10 +9,10 @@ import type { ListedSynonym } from '../services/exercise/wordRelation';
  * first section's best few, and every section in its Explore panel, a few rows each until asked
  * for more.
  */
-export { CLOSEST_SYNONYMS, FREQUENT_WORDS, closestSynonyms, filterSynonymSections, sectionGlossLine, synonymCount } from '@gokan/dataset-schema';
+export { CLOSEST_SYNONYMS, FREQUENT_WORDS, closestSynonyms, filterSynonymSections, sectionGlossLine, synonymCount, synonymsSearchable } from '@gokan/dataset-schema';
 
-/** The Explore Synonyms panel: rows per group before "Show all", and groups shown at a time. */
-export const GROUP_ROWS = 3;
+/** The Explore Synonyms panel: rows per group before "Show all" (the dictionary's too), and groups shown at a time. */
+export { SYNONYM_GROUP_ROWS as GROUP_ROWS } from '@gokan/dataset-schema';
 export const GROUPS_AT_ONCE = 4;
 
 export type SynonymSection = SenseSynonyms<ListedSynonym>;

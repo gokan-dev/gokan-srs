@@ -2,7 +2,7 @@
 // shared `synonymSections` (@gokan/dataset-schema) with no learner layer, labelled by the shared
 // `pairCloseness`, and cut to what the page ships. Built at render by lib/server/pages.ts.
 
-import { closestSynonyms, headwordOf, pairCloseness, sectionGlossLine, synonymEntriesOf, synonymSections } from '@gokan/dataset-schema';
+import { SYNONYM_GROUP_ROWS, closestSynonyms, headwordOf, pairCloseness, sectionGlossLine, synonymEntriesOf, synonymSections } from '@gokan/dataset-schema';
 import type { Closeness, SynonymEntry, Vocabulary, WithSynonyms } from '@gokan/dataset-schema';
 
 /**
@@ -15,7 +15,7 @@ export const SYNONYMS_PER_MEANING = 8;
 export const SHIPPED_SYNONYMS = 32;
 /** From 1024px, the Synonyms section's first meanings and rows; the rest under "Show N more". The app's full page shows the same. */
 export const PREVIEW_MEANINGS = 2;
-export const PREVIEW_ROWS = 3;
+export const PREVIEW_ROWS = SYNONYM_GROUP_ROWS;
 
 export interface SynonymRow {
     id: string;

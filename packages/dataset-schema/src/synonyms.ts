@@ -176,6 +176,19 @@ export function synonymCount(sections: readonly Pick<SenseSynonyms<SectionedSyno
     return sections.reduce((n, s) => n + s.words.length, 0);
 }
 
+/** A Synonyms section's rows per meaning before "Show all", in both apps. */
+export const SYNONYM_GROUP_ROWS = 3;
+
+/**
+ * Whether a Synonyms section needs its search field: only past one page, as every searchable
+ * section (a word's Sentences and Related, a kanji's Words): when it lists more meanings than it
+ * shows at once (`groupsAtOnce`), or a meaning more rows than SYNONYM_GROUP_ROWS. Both apps ask
+ * this, so a word with two synonyms has no field over its two rows in either.
+ */
+export function synonymsSearchable(sections: readonly { words: readonly unknown[] }[], groupsAtOnce: number): boolean {
+    return sections.length > groupsAtOnce || sections.some(section => section.words.length > SYNONYM_GROUP_ROWS);
+}
+
 /** Only the words a search keeps, each section in place; a section left empty goes. */
 export function filterSynonymSections<T extends SectionedSynonym>(sections: readonly SenseSynonyms<T>[], keep: (synonym: T) => boolean): SenseSynonyms<T>[] {
     return sections.flatMap(section => {

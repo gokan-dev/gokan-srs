@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CLOSENESS_LABEL, FREQUENT_WORDS, normalizeGloss, pairCloseness, synonymEntriesOf, synonymSections, type SectionedSynonym } from './synonyms';
+import { CLOSENESS_LABEL, FREQUENT_WORDS, SYNONYM_GROUP_ROWS, normalizeGloss, pairCloseness, synonymEntriesOf, synonymSections, synonymsSearchable, type SectionedSynonym } from './synonyms';
 import type { Sense } from './vocabulary';
 
 const sense = (glosses: string[], misc: Partial<Sense['misc']> = {}): Pick<Sense, 'glosses' | 'misc'> => ({ glosses, misc: { rawTags: [], ...misc } });
@@ -70,5 +70,19 @@ describe('pairCloseness', () => {
 
     it('labels each closeness by a sign and a word', () => {
         expect(Object.values(CLOSENESS_LABEL).map(l => `${l.sign} ${l.label}`)).toEqual(['= Interchangeable', '≈ Close in this sense', '≠ Not interchangeable']);
+    });
+});
+
+describe('synonymsSearchable', () => {
+    const group = (rows: number) => ({ words: Array.from({ length: rows }, (_, i) => i) });
+
+    it('has no field while every meaning and every row fits on the first page', () => {
+        expect(synonymsSearchable([group(2)], 4)).toBe(false);
+        expect(synonymsSearchable([group(SYNONYM_GROUP_ROWS), group(1)], 2)).toBe(false);
+    });
+
+    it('has one past the meanings shown at once, or past a meaning\'s first rows', () => {
+        expect(synonymsSearchable([group(1), group(1), group(1)], 2)).toBe(true);
+        expect(synonymsSearchable([group(SYNONYM_GROUP_ROWS + 1)], 4)).toBe(true);
     });
 });
