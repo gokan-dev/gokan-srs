@@ -269,6 +269,13 @@ $motion: 150ms ease-in-out;
   // and never its preview above it.
   .detail-preview {
     display: none;
+
+    // "All 660 words →", which opens the section it previews: a 44px target beside the heading.
+    .section-head > a {
+      display: inline-flex;
+      align-items: center;
+      min-height: $target;
+    }
   }
 
   @include detail-tabbed {
