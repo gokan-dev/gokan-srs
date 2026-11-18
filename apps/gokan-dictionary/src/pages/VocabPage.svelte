@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { VocabPageProps as Props } from '../lib/pageProps';
-  import { CLOSENESS_LABEL, FREQUENCY_BARS, frequencyBand, frequencyTop, headwordOf, secondaryForm, summaryGloss, textbookLessonsLabel, wordFrequencyRank } from '@gokan/dataset-schema';
+  import { CLOSENESS_LABEL, frequencyBand, frequencyTop, headwordOf, secondaryForm, summaryGloss, textbookLessonsLabel, wordFrequencyRank } from '@gokan/dataset-schema';
   import type { Sentence } from '@gokan/dataset-schema';
   import { valueText, type DefinitionSense } from '@gokan/dataset-schema/text';
   import { pageLocale } from './pageLocale';
@@ -18,6 +18,8 @@
   import Chip from './Chip.svelte';
   import ConjugationForms from './ConjugationForms.svelte';
   import FuriganaToggle from './FuriganaToggle.svelte';
+  import HowCommon from './HowCommon.svelte';
+  import SectionSearch from './SectionSearch.svelte';
   import SentenceText from './SentenceText.svelte';
 
   let { vocab, orderStep, components, parents, sentences, synonyms, text, translations, withoutPage }: Props = $props();
@@ -160,14 +162,6 @@
   </ul>
 {/snippet}
 
-{#snippet sectionSearch(label: string, placeholder: string)}
-  <!-- Shown by client/detailTabs.ts: without it a section lists what it ships. -->
-  <div class="section-search" data-section-search hidden>
-    <label><span class="visually-hidden">{label}</span><input class="search-input" type="search" {placeholder} autocomplete="off" spellcheck="false" /></label>
-    <p class="meta" aria-live="polite" data-section-count></p>
-  </div>
-{/snippet}
-
 {#snippet synonymGroup(group: SynonymGroup, rows: number | undefined)}
   <div class="synonym-group" data-search-group>
     <h3 class="synonym-group-title">{words.forMeaning(group.number)} · <span lang={englishLang}>{group.glosses}</span></h3>
@@ -199,13 +193,7 @@
 
     <!-- The facts row, as the app's header: how common the word is in words (its band says "common"), and where textbooks teach it. -->
     <dl class="entry-facts">
-      <div>
-        <dt>{words.howCommon.label}</dt>
-        <dd>
-          <span class="frequency-meter" aria-hidden="true">{#each Array.from({ length: FREQUENCY_BARS }, (_, bar) => bar) as bar (bar)}<span class:on={bar < band.bars}></span>{/each}</span>
-          {words.howCommon.bands[band.name]} · <span class="meta">{words.howCommon.reference(band.ranked && rank ? frequencyTop(rank) : null)}</span>
-        </dd>
-      </div>
+      <HowCommon label={words.howCommon.label} bars={band.bars} band={words.howCommon.bands[band.name]} reference={words.howCommon.reference(band.ranked && rank ? frequencyTop(rank) : null)} />
       {#if vocab.textbooks?.length}
         <!-- A textbook's name is English's (Genki L3), marked so on a page in another language. -->
         <div><dt>{words.textbooks}</dt><dd lang={text ? 'en' : undefined}>{textbookLessonsLabel(vocab.textbooks)}</dd></div>
@@ -277,7 +265,7 @@
             <h2>{words.sections.sentences}</h2>
             <FuriganaToggle />
           </div>
-          {#if searchSentences}{@render sectionSearch(words.search.sentences, words.search.placeholders.sentences)}{/if}
+          {#if searchSentences}<SectionSearch label={words.search.sentences} placeholder={words.search.placeholders.sentences} />{/if}
           {@render sentenceList(shownSentences)}
           {#if moreSentences.length > 0}
             <details class="disclosure">
@@ -292,7 +280,7 @@
       {#if synonyms.groups.length > 0}
         <section id="synonyms" class="section detail-panel" data-section-searchable>
           <h2>{words.sections.synonyms}</h2>
-          {#if searchSynonyms}{@render sectionSearch(words.search.synonyms, words.search.placeholders.synonyms)}{/if}
+          {#if searchSynonyms}<SectionSearch label={words.search.synonyms} placeholder={words.search.placeholders.synonyms} />{/if}
           {#each shownGroups as group (group.number)}{@render synonymGroup(group, PREVIEW_ROWS)}{/each}
           {#if moreGroups.length > 0}
             <details class="disclosure">
@@ -329,7 +317,7 @@
         {#if hasMadeOfOrUsedIn}
           <section id="related" class="section detail-panel" data-section-searchable>
             <h2>{words.sections.related}</h2>
-            {#if searchRelated}{@render sectionSearch(words.search.related, words.search.placeholders.related)}{/if}
+            {#if searchRelated}<SectionSearch label={words.search.related} placeholder={words.search.placeholders.related} />{/if}
             {#if components.length > 0}
               <div data-search-group>
                 <h3 class="related-title">{words.sections.madeOf}</h3>

@@ -9,57 +9,13 @@
 
 @include app-panel;
 @include detail-tabs;
+@include entry-facts;
+@include section-search;
 
 // After Meanings here, a section with no bottom margin, not under a header whose margin the
 // panel's own top one collapses into: a section's 40px above as below (check:layout).
 .detail-panel > .app-panel {
   margin-top: $space-5;
-}
-
-// The header's facts, as the app's: a small label over each value, side by side.
-.entry-facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: $space-1 $space-4;
-  margin: $space-2 0 0;
-
-  dt {
-    color: var(--tertiary);
-    font-size: $text-sm;
-  }
-
-  dd {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0 $space-1;
-    margin: 0;
-  }
-}
-
-// How common, as four signal bars: neutral, a fact about the word, never accent. The band's name
-// beside it says it in words, so the bars are hidden from screen readers.
-.frequency-meter {
-  display: inline-flex;
-  align-items: flex-end;
-  gap: 2px;
-  height: 14px;
-
-  > span {
-    width: 4px;
-    border-radius: 1px;
-    background-color: var(--divider);
-
-    &.on {
-      background-color: var(--secondary);
-    }
-
-    @for $bar from 1 through 4 {
-      &:nth-child(#{$bar}) {
-        height: 2px + 3px * $bar;
-      }
-    }
-  }
 }
 
 // A synonym group's title ("For meaning 1 · to shine, to sparkle") and a Related list's: a group
@@ -88,25 +44,6 @@
 
   @include narrow {
     grid-column: 1 / -1;
-  }
-}
-
-// A section's search (client/detailTabs.ts shows it): the field, then its count line while it filters.
-.section-search {
-  margin-bottom: $space-2;
-
-  label {
-    display: block;
-  }
-
-  // A field like the site search's, but not its pill: the search field is the site's one pill.
-  input {
-    border-radius: $radius;
-    font-family: $font-sans;
-  }
-
-  .meta:empty {
-    display: none;
   }
 }
 
