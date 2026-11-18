@@ -286,7 +286,7 @@ export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes:
                 orderLengths: new Map(orders.map(({ order, list: orderList }) => [order.id, orderList.length])),
                 orderStep: orderStep && withUnlocked(orderStep, unlockedAt(steps, orderStep)),
             },
-            document: documentOf(urls.kanjiPath(kanji.character), meta.kanji(kanji, words.length), { style: 'kanji' }),
+            document: documentOf(urls.kanjiPath(kanji.character), meta.kanji(kanji, words.length), { style: 'kanji', script: 'detailTabs' }),
         };
     }
 
@@ -311,6 +311,7 @@ export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes:
             },
             document: documentOf(urls.grammarPath(id), meta.grammar(point), {
                 style: 'grammar',
+                script: 'detailTabs',
                 structuredData: {
                     '@context': 'https://schema.org',
                     '@type': 'DefinedTerm',

@@ -1,8 +1,14 @@
 // Grammar point page (GrammarPage.svelte) only.
+//
+// The app grammar page's sections in its order: below $bp-detail a row of tabs (Point, Examples,
+// Related), one section at a time (the detail-tabs mixin, client/detailTabs.ts); from it the full
+// page, stacked at the text measure.
 
 @use '../tokens' as *;
 
 @include app-panel;
+@include detail-tabs;
+@include section-search;
 
 .grammar-body {
   max-width: $measure-text;
@@ -33,6 +39,15 @@
 
 .lead {
   font-size: $text-lg;
+}
+
+// The full explanation, in place under the short one.
+.explanation {
+  margin-top: (-$space-1);
+
+  p {
+    margin-top: 0;
+  }
 }
 
 // Conjugation reference table (kind: 'inflection' points only).

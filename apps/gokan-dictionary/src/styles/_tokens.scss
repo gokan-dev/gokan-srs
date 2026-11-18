@@ -32,7 +32,7 @@ $space-6: 3rem;
 $bp-narrow: 40rem;
 /// Point at which a wide page's lists split into columns.
 $bp-wide: 56rem;
-/// Every detail page's switch (a word's, in time a kanji's and a grammar point's): below it a row
+/// Every detail page's switch (a word's, a kanji's and a grammar point's): below it a row
 /// of tabs, one section at a time; from it the full page. Equal to gokan-srs's `lg`, where its word
 /// page makes the same switch: check:conventions holds the two equal (`detail-breakpoint`).
 $bp-detail: 64rem;
@@ -264,6 +264,20 @@ $motion: 150ms ease-in-out;
     display: none;
   }
 
+  // A tab's preview of the next section (a kanji's Common words, a grammar point's two examples):
+  // only in tabs. The full page, and a phone with no script, show that section itself right below,
+  // and never its preview above it.
+  .detail-preview {
+    display: none;
+
+    // "All 660 words →", which opens the section it previews: a 44px target beside the heading.
+    .section-head > a {
+      display: inline-flex;
+      align-items: center;
+      min-height: $target;
+    }
+  }
+
   @include detail-tabbed {
     .tabbed .detail-tabs {
       display: flex;
@@ -310,6 +324,86 @@ $motion: 150ms ease-in-out;
 
     .tabbed .detail-panel {
       margin-top: 0;
+    }
+
+    .tabbed .detail-preview {
+      display: block;
+    }
+  }
+}
+
+/// A detail page header's facts, as the app's (a small label over each value, side by side), with
+/// the How common meter: a word's and a kanji's pages.
+// A fact's label over its value: the header's facts row and a kanji's Details.
+@mixin fact-label {
+  color: var(--tertiary);
+  font-size: $text-sm;
+}
+
+@mixin entry-facts {
+  .entry-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: $space-1 $space-4;
+    margin: $space-2 0 0;
+
+    dt {
+      @include fact-label;
+    }
+
+    dd {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0 $space-1;
+      margin: 0;
+    }
+  }
+
+  // How common, as four signal bars: neutral, a fact about the subject, never accent. The band's name
+  // beside it says it in words, so the bars are hidden from screen readers.
+  .frequency-meter {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 14px;
+
+    > span {
+      width: 4px;
+      border-radius: 1px;
+      background-color: var(--divider);
+
+      &.on {
+        background-color: var(--secondary);
+      }
+
+      @for $bar from 1 through 4 {
+        &:nth-child(#{$bar}) {
+          height: 2px + 3px * $bar;
+        }
+      }
+    }
+  }
+}
+
+/// A detail page section's search (client/detailTabs.ts shows it): the field, then its count line
+/// while it filters.
+@mixin section-search {
+  .section-search {
+    margin-bottom: $space-2;
+
+    label {
+      display: block;
+    }
+
+    // A field like the site search's, but not its pill: the search field is the site's one pill.
+    input {
+      border-radius: $radius;
+      font-family: $font-sans;
+    }
+
+    .meta:empty {
+      display: none;
     }
   }
 }

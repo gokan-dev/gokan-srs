@@ -1,5 +1,5 @@
 // A detail page's tabs and section search, in plain TypeScript (no framework runtime on any page).
-// Written for any detail page: the word page today, the kanji and grammar pages in their own issue.
+// Shared by every detail page: a word's, a kanji's and a grammar point's.
 //
 // The page's HTML is the full page: every section, in order, with its heading. Below the detail
 // width this turns the sections into ARIA tabs, one shown at a time, the URL's hash naming the open

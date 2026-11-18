@@ -1,22 +1,20 @@
 // Kanji entry page (KanjiPage.svelte) only.
+//
+// The app kanji page's sections in its order: below $bp-detail a row of tabs (Kanji, Words), one
+// section at a time (the detail-tabs mixin, client/detailTabs.ts); from it the full page, stacked.
 
 @use '../tokens' as *;
 
 @include app-panel;
+@include detail-tabs;
+@include entry-facts;
+@include section-search;
 
 .kanji-glyph {
   font-family: $font-mincho;
   font-size: 4.5rem;
   font-weight: 400;
   line-height: 1.1;
-}
-
-.entry-head .meta {
-  margin: $space-1 0 0;
-}
-
-.meta-sep {
-  margin: 0 0.5em;
 }
 
 .entry-gloss {
@@ -50,6 +48,11 @@
     color: var(--secondary);
     font-size: $text-lg;
   }
+}
+
+// A reading never breaks inside itself (と/り): the list breaks after a 、, between readings.
+.kanji-reading {
+  white-space: nowrap;
 }
 
 // Each course that teaches the kanji, with its step there.
@@ -124,5 +127,29 @@
 
   a {
     grid-template-columns: auto minmax(0, 1fr);
+  }
+}
+
+// The Kanji section's folded Details, under a line at its foot, as the app's: a label over each
+// value, as the header's facts.
+.kanji-details {
+  margin-top: $space-5;
+  padding-top: $space-1;
+  border-top: 1px solid var(--divider);
+}
+
+.kanji-details dl {
+  margin: $space-2 0 0;
+
+  div + div {
+    margin-top: $space-2;
+  }
+
+  dt {
+    @include fact-label;
+  }
+
+  dd {
+    margin: 0;
   }
 }
