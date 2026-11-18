@@ -613,9 +613,11 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   **Synonyms**, **Forms** (the dictionary's own), **Kanji**, **Related** (Made of, Used in, 5 rows each
   then "Show N more"). Synonyms are grouped by meaning (`synonymSections`, shared with the app, with
   no learner layer), each group titled "For meaning 2 · to pass, to hand", its rows word list rows
-  whose gloss column holds the pair's label in the app's sign and words (= Interchangeable,
-  ≈ Close in this sense, ≠ Not interchangeable; `pairCloseness`, `CLOSENESS_LABEL`): neutral, told
-  apart by sign and word, never by colour. 2 groups of 3 rows show, then "Show N more meanings"; each
+  whose gloss column holds the meanings the two words share (the app row's description, what the
+  section search reads), then under it, in a `small`, the pair's label in the app's sign and words
+  (= Interchangeable, ≈ Close in this sense, ≠ Not interchangeable; `pairCloseness`,
+  `CLOSENESS_LABEL`), which the search does not read: neutral, told apart by sign and word, never
+  by colour. 2 groups of 3 rows show, then "Show N more meanings"; each
   synonym links to its page. The page ships at most 8 words a meaning and 32 in all
   (`lib/synonyms.ts`), and says how many it leaves out.
   - **From 1024px** (`$bp-detail`, the app's `lg`: check:conventions holds them equal): one full page,
@@ -625,7 +627,10 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
     each only when it has content), one section at a time, 44px tabs in a row that scrolls sideways
     inside itself; Dict has no hash, the others the app's (`#sentences`, `#synonyms`, `#forms`,
     `#kanji`, `#related`), so a link means the same in both. `check:layout` measures it at 320 and
-    375px (every hash landing on its section alone) and the full page at 1280px.
+    375px (every hash landing on its section alone, at the page top with the tab row in view: the
+    script undoes the browser's fragment scroll, which Chrome repeats after load, until the
+    reader's first input) and the full page at 1280px. Dict's Examples carry their own source
+    credit, as Sentences does: below 1024px each shows alone.
   - **Detail tabs, shared** (`client/detailTabs.ts`, the `detail-tabs` mixin in `_tokens.scss`):
     written for any detail page (the kanji and grammar pages adopt it in their own issue). The HTML is
     the full page, every section in order with its heading; with no script a phone gets the stacked
@@ -635,7 +640,9 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
     `role="tablist"` (arrow keys, Home, End, the hash replaced as a tab is chosen) and reads the
     width off the stylesheet (`--detail-query`, from `$bp-detail`) through `matchMedia`, so crossing
     it switches back and forth. Sentences, Synonyms and Related each get a search field (44px,
-    16px text, a hidden label) and a count line while filtering, with the app's matching
+    16px text, a hidden label, the app's placeholder in `font-sans`) only past one page, as the app's
+    `usePagedPanel`: when the section ships more rows than it shows before "Show N more". A count
+    line shows while filtering, with the app's matching
     (`readExploreQuery`, `matchesExploreQuery`, shared from `@gokan/dataset-schema`: English from the
     start of a word, Japanese anywhere, kana folded); the field stays hidden without the script.
 - **Kanji page**: the glyph, its meanings (`entry-gloss`), its readings labelled On and Kun
@@ -719,7 +726,7 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   about 4.6 KB gzipped; its words and links are per locale, so a third locale costs about
   0.7 KB more. A script is measured with the chunks it imports statically: since #168 the
   detail tabs script and the search engine share the kana folding (`romaji`), and the search
-  script and the detail script the locale reading, each a chunk of its own (7.4 KB for the
+  script and the detail script the locale reading, each a chunk of its own (7.9 KB for the
   detail script with both, 11.4 KB for the search script, 9.9 KB for the engine). Page weight is one half of
   being found; the other, SEO at 100 on every page type, is held by the Lighthouse check
   (`scripts/check-lighthouse.ts`, in section 9).
