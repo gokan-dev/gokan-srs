@@ -72,17 +72,19 @@ describe('VocabPage', () => {
                 voice,
             };
         }
-        const buttons = (body: string) => Array.from(body.matchAll(/<button type="button" class="play" data-clip="([^"]*)" aria-label="([^"]*)" aria-pressed="false" lang="([^"]*)"><\/button>/g), match => match.slice(1));
+        // Nothing the page implies (lib/budgets.ts): no type, no aria-pressed (the player sets it), lang only inside Japanese.
+        const buttons = (body: string) => Array.from(body.matchAll(/<button class="play" data-clip="([^"]*)" aria-label="([^"]*)"(?: lang="([^"]*)")?><\/button>/g), match => match.slice(1));
 
-        it("plays the word after its reading, and each sentence with a clip, by the clip's URL, in the page's language", () => {
+        it("plays the word after its reading, and each sentence with a clip, by the clip's URL, named in the page's language", () => {
             const body = html('en', withClips());
             const reading = /<p class="entry-sub" lang="ja">(.*?)<\/p>/.exec(body)?.[1] ?? '';
             expect(buttons(reading)).toEqual([['/audio/aaaaaaaaaaaaaaaa.opus', 'Play 思う', 'en']]);
             // Dict's Examples and Sentences show the same first sentence: each gives it its button, the second none.
-            expect(buttons(sectionOf(body, 'sentences', 'synonyms')).map(([url, label]) => [url, label])).toEqual([['/audio/bbbbbbbbbbbbbbbb.opus', 'Play sentence']]);
+            expect(buttons(sectionOf(body, 'sentences', 'synonyms'))).toEqual([['/audio/bbbbbbbbbbbbbbbb.opus', 'Play sentence', undefined]]);
             expect(buttons(sectionOf(body, 'dict', 'sentences'))).toHaveLength(1);
             const chinese = { ...props(0, true), vocab: withClips().vocab, sentences: withClips().sentences, voice };
-            expect(buttons(html('zh-hans', chinese)).map(([, label, lang]) => [label, lang])).toEqual([['播放思う', 'zh-Hans'], ['播放例句', 'zh-Hans'], ['播放例句', 'zh-Hans']]);
+            // A sentence's button sits outside its lang="ja" paragraph, so it inherits the page's language.
+            expect(buttons(html('zh-hans', chinese)).map(([, label, lang]) => [label, lang])).toEqual([['播放思う', 'zh-Hans'], ['播放例句', undefined], ['播放例句', undefined]]);
         });
 
         it('credits the voice in the footer, from the index, linked to its terms', () => {

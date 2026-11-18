@@ -13,10 +13,14 @@ const player = createClipPlayer({ urlOf: url => Promise.resolve(url), open: url 
 
 const buttons = (): HTMLButtonElement[] => Array.from(document.querySelectorAll<HTMLButtonElement>('button[data-clip]'));
 
-player.subscribe(() => {
+// The markup leaves `aria-pressed` out (bytes on every sentence of a budgeted page): it is set here, as
+// the player starts, which is also when the buttons first show.
+const showPlaying = () => {
     const playing = player.playing();
     for (const button of buttons()) button.setAttribute('aria-pressed', String(button.dataset.clip === playing));
-});
+};
+showPlaying();
+player.subscribe(showPlaying);
 
 document.addEventListener('click', event => {
     const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('button[data-clip]') : null;

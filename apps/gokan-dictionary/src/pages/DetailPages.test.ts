@@ -113,7 +113,7 @@ describe('GrammarPage play buttons', () => {
         props.point.examples[0] = { ...props.point.examples[0], audio: { clip: 'cccccccccccccccc' } };
         props.minedExamples[0] = { ...props.minedExamples[0], audio: { clip: 'dddddddddddddddd' } };
         const body = grammarHtml({ ...props, voice });
-        const clips = Array.from(body.matchAll(/<div class="play-row"><p class="sentence-jp" lang="ja">.*?<\/p><button type="button" class="play" data-clip="([^"]*)" aria-label="Play sentence"/g), match => match[1]);
+        const clips = Array.from(body.matchAll(/<div class="play-row"><p class="sentence-jp" lang="ja">.*?<\/p><button class="play" data-clip="([^"]*)" aria-label="Play sentence"/g), match => match[1]);
         // The Point tab's preview (the first two examples) and the Examples tab both list the first.
         expect(clips).toEqual(['/audio/cccccccccccccccc.opus', '/audio/cccccccccccccccc.opus', '/audio/dddddddddddddddd.opus']);
         expect(body).toContain('VOICEVOX:冥鳴ひまり');
