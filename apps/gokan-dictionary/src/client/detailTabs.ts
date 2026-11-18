@@ -99,20 +99,22 @@ function initTabs(): void {
     // Landing on a section's hash in tabs: the browser scrolls that section to the top, past the word
     // and the tab row. The page top instead, as the app's tab landing: the word, the tabs, the section.
     // Chrome scrolls to the fragment again after load (check:layout saw it), so every scroll is undone
-    // until the reader's first input, or a second after load.
-    if (media.matches && location.hash) {
-        const toTop = (): void => { if (window.scrollY !== 0) window.scrollTo(0, 0); };
+    // until the reader's first input, or a second after load. Only on a fresh navigation: a chosen tab
+    // writes its hash, so a reload or Back to the page has one too, and keeps the scroll it restores.
+    const navigation = performance.getEntriesByType('navigation')[0];
+    if (media.matches && location.hash && navigation instanceof PerformanceNavigationTiming && navigation.type === 'navigate') {
+        // scrollTo(0, 0) at the top fires no scroll event, so it needs no guard.
+        const toTop = (): void => { scrollTo(0, 0); };
         const inputs = ['pointerdown', 'keydown', 'wheel', 'touchstart'];
         const stop = (): void => {
-            window.removeEventListener('scroll', toTop);
-            for (const name of inputs) window.removeEventListener(name, stop, true);
+            removeEventListener('scroll', toTop);
+            for (const name of inputs) removeEventListener(name, stop, true);
         };
         toTop();
-        window.addEventListener('scroll', toTop);
-        for (const name of inputs) window.addEventListener(name, stop, { capture: true, passive: true });
-        const settle = (): void => { setTimeout(stop, 1000); };
-        if (document.readyState === 'complete') settle();
-        else window.addEventListener('load', settle, { once: true });
+        addEventListener('scroll', toTop);
+        for (const name of inputs) addEventListener(name, stop, true);
+        // A module script runs before load, so load is still to come.
+        addEventListener('load', () => { setTimeout(stop, 1000); }, { once: true });
     }
 }
 

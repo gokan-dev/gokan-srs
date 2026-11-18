@@ -616,7 +616,9 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   whose gloss column holds the meanings the two words share (the app row's description, what the
   section search reads), then under it, in a `small`, the pair's label in the app's sign and words
   (= Interchangeable, ≈ Close in this sense, ≠ Not interchangeable; `pairCloseness`,
-  `CLOSENESS_LABEL`), which the search does not read: neutral, told apart by sign and word, never
+  `CLOSENESS_LABEL`), which the search does not read, marked with the page's lang (inside the
+  row's `lang="ja"` link it would read as Japanese otherwise; prerender refuses a word row's
+  English left unmarked there, `latinInJapaneseRows`): neutral, told apart by sign and word, never
   by colour. 2 groups of 3 rows show, then "Show N more meanings"; each
   synonym links to its page. The page ships at most 8 words a meaning and 32 in all
   (`lib/synonyms.ts`), and says how many it leaves out.
@@ -629,7 +631,9 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
     `#kanji`, `#related`), so a link means the same in both. `check:layout` measures it at 320 and
     375px (every hash landing on its section alone, at the page top with the tab row in view: the
     script undoes the browser's fragment scroll, which Chrome repeats after load, until the
-    reader's first input) and the full page at 1280px. Dict's Examples carry their own source
+    reader's first input, on a fresh navigation only: a reload or Back keeps the scroll the browser
+    restores, which `check:layout` reloads 取る#sentences scrolled down to see) and the full page at
+    1280px. Dict's Examples carry their own source
     credit, as Sentences does: below 1024px each shows alone.
   - **Detail tabs, shared** (`client/detailTabs.ts`, the `detail-tabs` mixin in `_tokens.scss`):
     written for any detail page (the kanji and grammar pages adopt it in their own issue). The HTML is
@@ -640,7 +644,9 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
     `role="tablist"` (arrow keys, Home, End, the hash replaced as a tab is chosen) and reads the
     width off the stylesheet (`--detail-query`, from `$bp-detail`) through `matchMedia`, so crossing
     it switches back and forth. Sentences, Synonyms and Related each get a search field (44px,
-    16px text, a hidden label, the app's placeholder in `font-sans`) only past one page, as the app's
+    16px text, a hidden label, the app's placeholder in `font-sans`, per section since each names
+    only the languages its rows are searched in: on a Chinese page Synonyms says English or
+    Japanese, its rows' meanings being English) only past one page, as the app's
     `usePagedPanel`: when the section ships more rows than it shows before "Show N more". A count
     line shows while filtering, with the app's matching
     (`readExploreQuery`, `matchesExploreQuery`, shared from `@gokan/dataset-schema`: English from the
