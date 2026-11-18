@@ -1,14 +1,15 @@
 // Every page's document: SvelteKit renders the page's body (app.html holds nothing else), and
 // this wraps it in the document its load chose (renderDocument), with the built assets' hrefs and
 // its alternates in the other locales, then refuses a page with Japanese text not marked
-// lang="ja", and a page in another language with English unmarked, English's chrome, its own
-// words outside its lang, or a link leaving its section unmarked, on every page however it is
-// rendered. A page rendered on request also gets its Cache-Control here, by status.
+// lang="ja" or a word row's English left under its lang="ja", and a page in another language
+// with English unmarked, English's chrome, its own words outside its lang, or a link leaving its
+// section unmarked, on every page however it is rendered. A page rendered on request also gets
+// its Cache-Control here, by status.
 
 import { building } from '$app/env';
 import type { Handle, HandleServerError } from '@sveltejs/kit/hooks';
 import { renderedPageCacheControl } from '@gokan/deploy/deploy-manifest';
-import { chineseWithoutLang, englishChromeOn, englishWithoutLang, japaneseWithoutLang, linksLeavingSection, renderDocument, stripHydrationMarkers } from '#lib/documentShell.ts';
+import { chineseWithoutLang, englishChromeOn, englishWithoutLang, japaneseWithoutLang, latinInJapaneseRows, linksLeavingSection, renderDocument, stripHydrationMarkers } from '#lib/documentShell.ts';
 import { localeStylesheetHref, PRE_PAINT_CLASS, pageScriptHref, pageStylesheetHref, searchScriptHref, stylesheetHref } from '#lib/server/assets.ts';
 import { DEFAULT_LOCALE, htmlLang, localeOfPath, type ServedLocale } from '#lib/locale.ts';
 import { catalogStrings, messagesFor } from '#lib/messages/index.ts';
@@ -62,6 +63,8 @@ export function documentOf(rendered: string, locals: App.Locals, pathname: strin
     });
     const unmarked = japaneseWithoutLang(html);
     if (unmarked.length > 0) throw new Error(`[shell] ${shell.canonicalPath} has Japanese text not marked lang="ja", e.g. ${unmarked[0]}`);
+    const latin = latinInJapaneseRows(html);
+    if (latin.length > 0) throw new Error(`[shell] ${shell.canonicalPath} has a word row's text read as Japanese, not marked with its own lang, e.g. ${latin[0]}`);
     const problems = localeProblems(html, locale);
     if (problems.length > 0) throw new Error(`[shell] ${shell.canonicalPath} has ${problems[0]}${problems.length > 1 ? ` (and ${problems.length - 1} more)` : ''}`);
     return html;

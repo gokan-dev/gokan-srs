@@ -42,6 +42,12 @@ describe('VocabPage', () => {
         }
     });
 
+    it("says each section search's languages: on a Chinese page, Synonyms (English meanings, Japanese words) does not claim Chinese", () => {
+        const placeholders = (locale: ServedLocale) => Array.from(html(locale, props(12, locale !== 'en')).matchAll(/data-section-search=[^]*?placeholder="([^"]*)"/g), match => match[1]);
+        expect(placeholders('en')).toEqual(Array(3).fill('Search in English or Japanese'));
+        expect(placeholders('zh-hans')).toEqual(['用中文、英文或日文搜索', '用英文或日文搜索', '用中文、英文或日文搜索']);
+    });
+
     it("credits the Tatoeba sentences Dict's Examples show, in Dict, as Sentences credits its own", () => {
         const body = html('zh-hans', props(3, true));
         expect(sectionOf(body, 'dict', 'sentences')).toContain('source-credit');
@@ -50,6 +56,6 @@ describe('VocabPage', () => {
 
     it("gives a synonym row its shared meanings as its gloss and its closeness as a note a search does not read", () => {
         const row = /<li><a [^>]*>100字<span>100よみ<\/span>(.*?)<\/a><\/li>/.exec(html('en', props(1)))?.[1];
-        expect(row).toBe('<span lang="en">think</span><small>≈ Close in this sense</small>');
+        expect(row).toBe('<span lang="en">think</span><small lang="en">≈ Close in this sense</small>');
     });
 });

@@ -195,6 +195,24 @@ export function englishWithoutLang(html: string): string[] {
     return found;
 }
 
+/**
+ * A word row's English or Chinese read as Japanese: a text run with Latin letters and no Japanese
+ * character, in an element of a word list (`.entry-list`) that carries no lang of its own, whose
+ * nearest lang is the row link's "ja" (a gloss or a note left unmarked, which a screen reader
+ * voices in Japanese). Scoped to the rows: elsewhere romaji and Latin in Japanese text (a sentence's
+ * "CD") stand under lang="ja" by right, and so may a headword, which is the link's own text.
+ */
+export function latinInJapaneseRows(html: string): string[] {
+    const found: string[] = [];
+    walkBody(html, {
+        text: (text, at) => {
+            if (JAPANESE_TEXT.test(text) || !/[A-Za-z]/.test(text)) return;
+            if (at.within('entry-list') && at.ownLang === null && at.lang === 'ja') found.push(text.trim());
+        },
+    });
+    return found;
+}
+
 /** The attributes whose values a reader is told: an accessible name, a field's hint. */
 const READ_ATTRIBUTES = /\s(?:aria-label|placeholder|title)="([^"]*)"/g;
 

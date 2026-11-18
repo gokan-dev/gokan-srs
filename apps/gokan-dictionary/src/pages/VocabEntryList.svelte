@@ -2,11 +2,8 @@
   import type { VocabSummary } from '../lib/types';
   import { langOnChinesePage } from '../lib/documentShell';
   import { pageLocale } from './pageLocale';
-  import { DEFAULT_LOCALE } from '../lib/locale';
 
-  const { locale, urls, messages, lang } = pageLocale();
-  // A row's note is in the page's language: marked only where that is not the document's own.
-  const noteLang = locale === DEFAULT_LOCALE ? undefined : lang;
+  const { urls, messages, lang } = pageLocale();
 
   /**
    * Words as three aligned columns, headword | reading | gloss, each row linking to the word.
@@ -19,7 +16,8 @@
    * page lists up to 660 words within its 80 KB budget. The gloss is the one span with a lang,
    * which is how the stylesheet finds its column (app.scss, .entry-list): the reading has none. On a page in another language a row's
    * gloss is the word's in it (localGloss), marked with the page's lang inside the Japanese link.
-   * A row's note (a synonym's closeness) is a `small` under the gloss, which client/detailTabs.ts does not search.
+   * A row's note (a synonym's closeness) is a `small` under the gloss, which client/detailTabs.ts does not search,
+   * always marked with the page's lang: it sits inside the Japanese link, whose lang it would inherit otherwise.
    */
   interface Props {
     entries: VocabSummary[];
@@ -42,7 +40,7 @@
 {#snippet rows(words: VocabSummary[], brief: boolean)}
   <ul class="entry-list" class:entry-list--stacked={stacked} class:entry-list--brief={brief}>
     {#each words as word (word.id)}
-      <li><a href={urls.vocabPath(word.id)} lang="ja">{word.word}{#if word.reading}<span>{word.reading}</span>{/if}{#if !brief}{#if word.localGloss}<span lang={langOnChinesePage(word.localGloss) ?? lang}>{word.localGloss}</span>{:else}<span lang="en">{word.gloss ?? ''}</span>{/if}{#if word.note}<small lang={noteLang}>{word.note}</small>{/if}{/if}</a></li>
+      <li><a href={urls.vocabPath(word.id)} lang="ja">{word.word}{#if word.reading}<span>{word.reading}</span>{/if}{#if !brief}{#if word.localGloss}<span lang={langOnChinesePage(word.localGloss) ?? lang}>{word.localGloss}</span>{:else}<span lang="en">{word.gloss ?? ''}</span>{/if}{#if word.note}<small lang={lang}>{word.note}</small>{/if}{/if}</a></li>
     {/each}
   </ul>
 {/snippet}
