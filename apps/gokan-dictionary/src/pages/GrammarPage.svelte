@@ -113,10 +113,10 @@
         {#if point.examples.length > 0}<GrammarExamples examples={point.examples} idPrefix="example-" />{/if}
         {#if minedExamples.length > 0}
           <details class="disclosure">
-            <summary>Corpus examples ({minedExamplesTotalCount})</summary>
+            <summary>Corpus examples ({minedExamplesTotalCount.toLocaleString('en')})</summary>
             <GrammarExamples examples={minedExamples} idPrefix="corpus-" />
             {#if minedExamplesTotalCount > minedExamples.length}
-              <p class="meta">Showing {minedExamples.length} of {minedExamplesTotalCount} corpus examples.</p>
+              <p class="meta">Showing {minedExamples.length} of {minedExamplesTotalCount.toLocaleString('en')} corpus examples.</p>
             {/if}
           </details>
         {/if}

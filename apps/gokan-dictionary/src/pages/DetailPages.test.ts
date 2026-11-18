@@ -90,10 +90,12 @@ describe('GrammarPage', () => {
     });
 
     it('counts every corpus example in "All N examples", not only the rows the page ships', () => {
-        const body = grammarHtml(grammarProps(5, 25, true, 412));
+        const body = grammarHtml(grammarProps(5, 25, true, 1412));
         const preview = body.slice(body.indexOf('detail-preview'), body.indexOf('id="examples"'));
-        expect(preview).toContain('href="#examples">All 417 examples →');
-        expect(body).toContain('Corpus examples (412)');
+        expect(preview).toContain('href="#examples">All 1,417 examples →');
+        // The same count, written the same way, one tap later.
+        expect(body).toContain('Corpus examples (1,412)');
+        expect(body).toContain('Showing 25 of 1,412 corpus examples.');
     });
 
     it('keeps the full explanation in place under the short one', () => {
