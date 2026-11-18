@@ -694,6 +694,16 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   previews. `check:layout` measures 一, 学, 取, n5-001 and n5-016 tabbed at 320 and 375px (every
   hash landing on its section alone, at the page top) and whole at 1024 and 1280px, and searches
   一's Words and n5-001's Examples by their first row's English.
+- **Play buttons** (`pages/PlayButton.svelte`, #255): the app's `PlayButton` in the dictionary's
+  terms. An accent icon button (a speaker, a stop square while it plays), no border or fill, 44px
+  at every width with negative block margins so the line it ends keeps its height. A word's follows
+  its reading in the header (a word learned in kana: its kanji-spelling note); a sentence's is a
+  right-hand column at its first line, the sentence never wrapping under it (`.play-row`). Only
+  items with a clip have one, never a disabled one, and none shows without script (the `playable`
+  pre-paint class). Its name is the catalog's ("Play 取る", "Play sentence"; 播放…, 播放例句), in
+  the page's language. A page with buttons credits the voice in its footer, one line, the credit in
+  Japanese linked to the voice's terms. Rules: the `play-buttons` mixin, in the word and grammar
+  sheets (`check:layout`: named, 44px, at the first line, at 320, 375 and 1280px).
 - **App panel** (`pages/AppPanel.svelte`, #244): once per page, after what the reader came
   for, never above it: right after the header where the header holds it (a kanji's meanings and
   readings); on a word page after the Meanings section, so the definition comes first, on a
@@ -715,7 +725,7 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   page sheet that shows it: in `app.scss` they took the shared stylesheet past its 10 KB budget.
 - **Shared between page sheets**: a rule two page types use goes in `app.scss`, unless that
   breaks its budget; then it is a mixin in `_tokens.scss` (`glyph-tiles`, `entry-gloss`,
-  `stacked-entries`, `app-panel`) included by each page sheet, so the source stays one copy.
+  `stacked-entries`, `app-panel`, `play-buttons`) included by each page sheet, so the source stays one copy.
 - **Frame**: "Skip to content" is the first focusable element of every page. The header's
   inner container is the wide measure (960px) on every page, so it lines up with the entry
   pages. Wide screens: one row (logo, nav, search on the right). Phones (below 40rem): at
