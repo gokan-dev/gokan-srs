@@ -1847,6 +1847,79 @@ async function checkDictionaryWordFullPage(tab: Tab, base: string, width: number
 }
 
 /**
+ * The dictionary's kanji and grammar pages as the app's (issue 257), through the word page's tab
+ * script: below 1024px a row of tabs named and ordered as the app's (Kanji, Words; Point, Examples,
+ * Related), each hash landing on its section alone with its tabs 44px tall, the first tab's preview
+ * of the next section shown there; from 1024px one full page, no tab row, every section shown and
+ * no preview (the section itself follows). A searchable section finds a row by its own English.
+ */
+const DICTIONARY_DETAIL_PAGES: { path: string; ready: string; sections: string[]; searched?: string }[] = [
+    ...DETAIL_KANJI.map(glyph => ({ path: `/kanji/${encodeURIComponent(glyph)}/`, ready: 'Strokes', sections: ['kanji', 'words'], ...(glyph === '一' ? { searched: 'words' } : {}) })),
+    ...DETAIL_GRAMMAR.map(id => ({ path: `/grammar/${id}/`, ready: 'Formation', sections: ['point', 'examples', 'related'], ...(id === GRAMMAR_POINT ? { searched: 'examples' } : {}) })),
+];
+const DETAIL_PREVIEWS_SHOWN = `[...document.querySelectorAll('.detail-preview')].filter(el => el.getBoundingClientRect().height > 0).length`;
+async function checkDictionaryDetailTabs(tab: Tab, base: string, width: number): Promise<void> {
+    for (const { path, ready, sections, searched } of DICTIONARY_DETAIL_PAGES) {
+        const page = `dictionary ${path}`;
+        for (const section of sections) {
+            const first = section === sections[0];
+            await tab.goto(`${base}${path}?landing=${section}${first ? '' : `#${section}`}`, ready);
+            await tab.until(`document.querySelector('[data-detail-panels][data-tabs-ready]') !== null && document.readyState === 'complete'`, `the tabs script on ${page}`);
+            const layout = await tab.evaluate<WordLayout>(WORD_LAYOUT);
+            if (!layout.row || layout.role !== 'tablist') failures.push(`${width}px ${page}#${section}: no tab row shown as a tablist below 1024px`);
+            if (layout.scrollY !== 0 || layout.rowTop === null || layout.rowTop < 0 || layout.rowTop >= layout.viewHeight) failures.push(`${width}px ${page}#${section}: lands scrolled to ${Math.round(layout.scrollY)}px, the tab row's top at ${layout.rowTop === null ? 'none' : Math.round(layout.rowTop)}px: not the page top with the tab row in view`);
+            if (layout.tabs.join() !== sections.join()) failures.push(`${width}px ${page}: tabs ${layout.tabs.join(', ')}, not the app's ${sections.join(', ')}`);
+            if (layout.shown.join() !== section || layout.selected.join() !== section) failures.push(`${width}px ${page}#${section}: shows ${layout.shown.join(', ') || 'nothing'} with ${layout.selected.join(', ') || 'no tab'} selected, not ${section} alone`);
+            if (first && await tab.evaluate<number>(DETAIL_PREVIEWS_SHOWN) === 0) failures.push(`${width}px ${page}: the ${section} tab shows no preview of the next section`);
+            if (section === searched) await checkSectionSearch(tab, `${page}#${section}`, width, section);
+            await measure(tab, `${page}#${section}`, width, DICTIONARY_TAP_TARGETS);
+        }
+    }
+}
+
+/** A section's search finds a row by its first row's English (a gloss, a translation), and not every row. */
+async function checkSectionSearch(tab: Tab, page: string, width: number, section: string): Promise<void> {
+    const shown = (query: string) => tab.evaluate<{ shown: number; total: number } | null>(`(() => {
+        const section = document.getElementById(${JSON.stringify(section)});
+        const input = section?.querySelector('[data-section-search] input');
+        if (!input) return null;
+        input.value = ${JSON.stringify(query)};
+        input.dispatchEvent(new Event('input'));
+        const rows = [...section.querySelectorAll('.entry-list > li, .sentence-list > li')];
+        return { shown: rows.filter(li => li.closest('[hidden]') === null).length, total: rows.length };
+    })()`);
+    const english = await tab.evaluate<string>(`(() => {
+        const row = document.querySelector(${JSON.stringify(`#${section} .entry-list > li [lang="en"], #${section} .sentence-list > li .sentence-en`)});
+        return (row?.textContent ?? '').split(/[^A-Za-z]+/).filter(word => word.length > 3)[0] ?? '';
+    })()`);
+    if (english === '') {
+        failures.push(`${width}px ${page}: no row with English to search for`);
+        return;
+    }
+    const found = await shown(english);
+    await shown('');
+    if (found === null) failures.push(`${width}px ${page}: no search field in the section`);
+    else if (found.shown === 0 || found.shown === found.total) failures.push(`${width}px ${page}: searching for "${english}", its first row's English, shows ${found.shown} of ${found.total} rows`);
+}
+async function checkDictionaryDetailFullPages(tab: Tab, base: string): Promise<void> {
+    for (const width of [DESKTOP.width, FULL_PAGE_WIDTH]) {
+        await tab.resize(width, DESKTOP.height);
+        for (const { path, ready, sections } of DICTIONARY_DETAIL_PAGES) {
+            const page = `dictionary ${path}`;
+            await tab.goto(`${base}${path}`, ready);
+            await tab.until(`document.querySelector('[data-detail-panels][data-tabs-ready]') !== null`, `the tabs script on ${page}`);
+            const layout = await tab.evaluate<WordLayout>(WORD_LAYOUT);
+            if (layout.row) failures.push(`${width}px ${page}: a tab row on the full page`);
+            if (layout.shown.join() !== sections.join()) failures.push(`${width}px ${page}: the full page shows ${layout.shown.join(', ')}, not every section (${sections.join(', ')})`);
+            const previews = await tab.evaluate<number>(DETAIL_PREVIEWS_SHOWN);
+            if (previews > 0) failures.push(`${width}px ${page}: the full page shows ${previews} tab preview(s) above the section they preview`);
+            await measure(tab, page, width, DICTIONARY_TAP_TARGETS);
+        }
+    }
+    await tab.resize(DESKTOP.width, DESKTOP.height);
+}
+
+/**
  * A kanji's linked course step is underlined at rest (docs/DESIGN_SYSTEM.md sections 2 and 8):
  * a plain "Step 66" (a book with no range page) sits among linked ones, and the accent alone was
  * too close to the ink to tell them apart. 学 has both.
@@ -1941,6 +2014,7 @@ try {
     }
     for (const path of SOURCE_CREDIT_PAGES) await checkSourceCreditGap(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`, path, DESKTOP.width, false);
     await checkDictionaryWordFullPage(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`, DESKTOP.width);
+    await checkDictionaryDetailFullPages(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`);
     for (const path of SWITCHER_PAGES) {
         await desktop.goto(`http://127.0.0.1:${dictionary.port}/dictionary${path}`, 'JLPT');
         await checkLocaleSwitch(desktop, `dictionary ${path}`, DESKTOP.width);
@@ -2132,6 +2206,7 @@ try {
             await checkAppPanelHeadingGap(tab, `dictionary ${home.path}`, width);
         }
         await checkDictionaryWordTabs(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
+        await checkDictionaryDetailTabs(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
         await measureFuriganaFixture(tab, `http://127.0.0.1:${dictionary.port}/dictionary/vocab/${FURIGANA_VOCAB}/`, 'Meanings', `dictionary /vocab/${FURIGANA_VOCAB}/`, width, DICTIONARY_TAP_TARGETS);
         await tab.close();
     }
