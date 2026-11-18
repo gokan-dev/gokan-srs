@@ -143,6 +143,29 @@ export interface Messages {
         otherLevels: string;
         otherLevelsLead: string;
     };
+    /**
+     * A detail page's tab row below 1024px (pages/DetailTabs.svelte): its accessible name and each
+     * section's tab, in the app's words: a word's (Dict to Related), a kanji's (Kanji, Words), a
+     * grammar point's (Point, Examples, Related).
+     */
+    detailTabs: {
+        label: string; dict: string; sentences: string; synonyms: string; forms: string; kanji: string; related: string;
+        words: string; point: string; examples: string;
+    };
+    /** A kanji page's words. */
+    kanji: {
+        /**
+         * The Words section's search field: its hidden label, and its placeholder, which says English
+         * reaches only the rows that ship a gloss (the first `englishRows`: the 80 KB budget).
+         */
+        wordsSearch: { label: string; placeholder: (englishRows: number) => string };
+    };
+    /** A grammar point page's words. */
+    grammar: {
+        /** The Point tab's link to Examples: "All 1,417 examples". */
+        allExamples: (n: number) => string;
+        examplesSearch: { label: string; placeholder: string };
+    };
     /** A word page's words. */
     vocab: {
         /** Before the kanji spelling of a word learned in kana. */
@@ -154,8 +177,6 @@ export interface Messages {
             meanings: string; examples: string; closestSynonyms: string; sentences: string; synonyms: string;
             forms: string; kanji: string; related: string; madeOf: string; usedIn: string;
         };
-        /** Below 1024px, the tab row's accessible name and each tab's, in the app's words and order. */
-        tabs: { label: string; dict: string; sentences: string; synonyms: string; forms: string; kanji: string; related: string };
         /** Meanings past the first three, in place. */
         showAllMeanings: (n: number) => string;
         rareMeanings: (n: number) => string;

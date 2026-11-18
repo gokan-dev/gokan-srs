@@ -152,6 +152,18 @@ export const zhHans: Messages = {
         otherLevels: '其他级别',
         otherLevelsLead: '其他级别：',
     },
+    // The kanji and grammar pages are served in English only for now (#170): their words are ready for when they are.
+    detailTabs: {
+        label: '词条内容', dict: '释义', sentences: '例句', synonyms: '近义词', forms: '活用', kanji: '汉字', related: '相关词',
+        words: '词语', point: '要点', examples: '例句',
+    },
+    kanji: {
+        wordsSearch: { label: '搜索词语', placeholder: englishRows => `用日文搜索，英文仅限前 ${grouped(englishRows)} 个` },
+    },
+    grammar: {
+        allExamples: n => `全部 ${grouped(n)} 个例句`,
+        examplesSearch: { label: '搜索例句', placeholder: '用英文或日文搜索' },
+    },
     vocab: {
         usuallyKana: '通常写作假名。汉字写法',
         alsoRead: '又读',
@@ -160,7 +172,6 @@ export const zhHans: Messages = {
             meanings: '词义', examples: '典型例句', closestSynonyms: '最接近的近义词', sentences: '例句', synonyms: '近义词',
             forms: '活用', kanji: '汉字', related: '相关词', madeOf: '构成', usedIn: '用于',
         },
-        tabs: { label: '词条内容', dict: '释义', sentences: '例句', synonyms: '近义词', forms: '活用', kanji: '汉字', related: '相关词' },
         showAllMeanings: n => `显示全部 ${n} 个英文释义`,
         rareMeanings: n => `罕用和古旧释义（${n}）`,
         showMore: n => `再显示 ${grouped(n)} 个`,

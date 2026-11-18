@@ -34,6 +34,23 @@ const html = (locale: ServedLocale, pageProps: VocabPageProps) => render(Localiz
 const sectionOf = (body: string, id: string, next: string) => body.slice(body.indexOf(`id="${id}"`), body.indexOf(`id="${next}"`));
 
 describe('VocabPage', () => {
+    it('shows each sentence once on the full page, with one furigana toggle: Sentences starts after the Examples it ships, those rows tab-only', () => {
+        const toggles = (body: string) => body.match(/<button class="button" type="button" data-furigana-toggle/g)?.length;
+        const fullPageToggles = (body: string) => toggles(body.replace(/<span class="detail-preview"><button[^>]*data-furigana-toggle[^>]*>[^<]*<\/button><\/span>/g, ''));
+        const many = html('en', props(12));
+        const examples = /<section class="[^"]*"><div class="section-head"><h2>Examples<\/h2>.*?<\/section>/s.exec(many)?.[0] ?? '';
+        expect(examples).toMatch(/<section class="section"><div class="section-head"><h2>Examples<\/h2>/);
+        expect(examples.match(/<li>/g)?.length).toBe(2);
+        const rows = Array.from(sectionOf(many, 'sentences', 'synonyms').matchAll(/<li( class="detail-preview")?>/g), match => match[1] !== undefined);
+        expect(rows.slice(0, 3)).toEqual([true, true, false]);
+        expect([toggles(many), fullPageToggles(many)]).toEqual([2, 1]);
+        // Nothing in Sentences past them: Sentences lists them, and Examples is the tab-only one.
+        const few = html('en', props(2));
+        expect(few).toMatch(/<section class="section detail-preview"><div class="section-head"><h2>Examples<\/h2>/);
+        expect(sectionOf(few, 'sentences', 'synonyms')).not.toContain('detail-preview');
+        expect(fullPageToggles(few)).toBe(1);
+    });
+
     it('shows a section search only past one page, as the app does, with a placeholder in each locale', () => {
         for (const locale of ['en', 'zh-hans'] as const) {
             expect(html(locale, props(3, locale !== 'en'))).not.toContain('data-section-search=');

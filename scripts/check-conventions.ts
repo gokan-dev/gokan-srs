@@ -104,6 +104,11 @@ const DICTIONARY_PAGE_COMPONENT = /^apps\/gokan-dictionary\/src\/pages\/[^/]+\.s
 // one component writes it, so the word, kanji and grammar pages cannot drift apart.
 const DETAIL_TABS_ROW = /\bdata-detail-tabs\b/;
 const DETAIL_TABS_COMPONENT = 'apps/gokan-dictionary/src/pages/DetailTabs.svelte';
+// The catalog's word page words (messages.vocab) are the word page's: a kanji or grammar page that
+// borrowed them (its tab labels) would change with the word page's catalog. Shared chrome lives in
+// chrome or detailTabs; each page type's own words in its own key.
+const VOCAB_MESSAGES = /\bmessages\.vocab\b(?!Index|Jlpt)|\.messages\.vocab\b(?!Index|Jlpt)|\{[^}]*\bvocab\b[^}]*\}\s*=\s*(?:pageLocale\(\)\.)?messages\b/;
+const WORD_PAGE_COMPONENTS = new Set(['apps/gokan-dictionary/src/pages/VocabPage.svelte', 'apps/gokan-dictionary/src/pages/ConjugationForms.svelte']);
 const BREADCRUMB_TRAIL = /trail=\{\[([\s\S]*?)\]\}/g;
 // A quoted label, or a backtick one with nothing interpolated (`Orders`). The templated steps
 // (`Chapter ${n}`, `JLPT N${level}`, `Page ${page}`, a kanji range) wait for #170's catalog phrases.
@@ -399,10 +404,11 @@ const SYNONYM_READER = 'apps/gokan-srs/src/services/exercise/wordRelation.ts';
  * Outside the app, the package and the dictionary read them only through
  * packages/dataset-schema/src/synonyms.ts (synonymEntriesOf, pairCloseness, held equal to the app's
  * closenessOf by its test); vocabulary.ts declares the field. The same pattern, less a catalog's
- * own words (a section's or a tab's name or its search's placeholder, `words.sections.synonyms`) and a tab's id.
+ * own words (a section's or a tab's name or its search's placeholder, `words.sections.synonyms`,
+ * `messages.detailTabs.synonyms`) and a tab's id.
  */
 const SHARED_SYNONYM_SOURCE = /^(packages\/[^/]+\/src\/.*\.ts|apps\/gokan-dictionary\/(src|scripts)\/.*\.(ts|svelte))$/;
-const SHARED_SYNONYM_DATA = /\bVocabSynonym\b|(?<!\b(?:sections|search|placeholders|tabs))\.synonyms\b|(?<!id: )'synonyms'/;
+const SHARED_SYNONYM_DATA = /\bVocabSynonym\b|(?<!\b(?:sections|search|placeholders|tabs|detailTabs))\.synonyms\b|(?<!id: )'synonyms'/;
 const SHARED_SYNONYM_READERS = new Set(['packages/dataset-schema/src/synonyms.ts', 'packages/dataset-schema/src/vocabulary.ts']);
 
 /**
@@ -634,6 +640,11 @@ function check(files: string[]): Violation[] {
         if (/^apps\/gokan-dictionary\/src\/.*\.svelte$/.test(file) && file !== DETAIL_TABS_COMPONENT) {
             eachLine(text, l => DETAIL_TABS_ROW.test(l), line =>
                 add({ file, line, rule: 'one-detail-tabs', message: 'Writes a detail page\'s tab row. Use DetailTabs (pages/DetailTabs.svelte), the one row client/detailTabs.ts reads, so every detail page\'s tabs stay alike.' }));
+        }
+
+        if (DICTIONARY_PAGE_COMPONENT.test(file) && !WORD_PAGE_COMPONENTS.has(file)) {
+            eachLine(text, l => VOCAB_MESSAGES.test(l), line =>
+                add({ file, line, rule: 'word-page-messages', message: 'Reads the word page\'s catalog words (messages.vocab) outside the word page. Take a tab label from messages.detailTabs, and a page\'s own words from its own key (messages.kanji, messages.grammar).' }));
         }
 
         if (DICTIONARY_PAGE_COMPONENT.test(file)) {

@@ -387,6 +387,25 @@ async function checkKanjiReadingsUnbroken(tab: Tab, page: string, width: number)
     for (const text of result.broken) failures.push(`${width}px ${page}: a kanji reading breaks across lines: ${text}`);
 }
 
+/**
+ * A kanji's readings in names (its Details, in the full page's narrow side column) stay whole as its
+ * On and Kun do: each its own unbreakable reading (KanjiReadings' ReadingList), so てん never reads
+ * て / ん. Checked on a kanji with names readings (一), where the column is narrowest.
+ */
+async function checkNameReadingsUnbroken(tab: Tab, page: string, width: number): Promise<void> {
+    const result = await tab.evaluate<{ list: boolean; readings: number; whole: number; broken: string[] }>(`(() => {
+        const list = [...document.querySelectorAll('dt')].find(el => el.textContent.trim() === 'Readings in names');
+        const field = list ? list.parentElement : null;
+        const spans = field ? [...field.querySelectorAll('[data-kanji-reading]')] : [];
+        const text = field ? (field.querySelector('dd') ?? field).textContent : '';
+        const broken = spans.filter(el => { const tops = [...el.getClientRects()].filter(r => r.width > 0).map(r => r.top); return tops.some(top => Math.abs(top - tops[0]) >= 2); });
+        return { list: field !== null, readings: text.split('、').filter(Boolean).length, whole: spans.length, broken: broken.slice(0, 3).map(el => el.textContent.trim()) };
+    })()`);
+    if (!result.list) failures.push(`${width}px ${page}: no "Readings in names" shown to check`);
+    else if (result.whole === 0 || result.whole !== result.readings) failures.push(`${width}px ${page}: the readings in names are not each a whole reading (${result.whole} of ${result.readings} in a [data-kanji-reading]), so a line may break inside one`);
+    for (const text of result.broken) failures.push(`${width}px ${page}: a reading in names breaks across lines: ${text}`);
+}
+
 /** At least one sentence on the page carries a play button, named for what it plays. */
 async function checkSentencePlayButtons(tab: Tab, page: string, width: number): Promise<void> {
     const named = await tab.evaluate<number>(`[...document.querySelectorAll('[data-play-row] [data-sentence]')].map(el => el.closest('[data-play-row]').querySelector(':scope > [data-play-button]')).filter(el => el && el.getAttribute('aria-label') === 'Play sentence' && el.getBoundingClientRect().width > 0).length`);
@@ -1253,6 +1272,7 @@ async function checkDetailFullPages(tab: Tab, app: string): Promise<void> {
             await tab.goto(`${app}/kanji/${encodeURIComponent(glyph)}`, 'Meanings');
             await tab.until(`document.querySelector(${JSON.stringify(KANJI_PAGE.settled)}) !== null && document.body.innerText.includes('Show 10 more')`, `the Words section on /kanji/${glyph}`, 10000);
             await checkFullPage(tab, `srs /kanji/${glyph}`, width, KANJI_FULL_SECTIONS, KANJI_PAGE);
+            if (glyph === '一') await checkNameReadingsUnbroken(tab, `srs /kanji/${glyph}, full page`, width);
         }
         for (const id of DETAIL_GRAMMAR) {
             await tab.goto(`${app}/grammar/${id}`, 'Formation');
@@ -1846,6 +1866,20 @@ async function checkDictionaryWordFullPage(tab: Tab, base: string, width: number
     if (layout.row) failures.push(`${width}px ${page}: a tab row on the full page`);
     if (layout.shown.join() !== WORD_SECTIONS.join()) failures.push(`${width}px ${page}: the full page shows ${layout.shown.join(', ')}, not every section (${WORD_SECTIONS.join(', ')})`);
     if (layout.dictLeft === null || layout.kanjiLeft === null || layout.kanjiLeft <= layout.dictLeft) failures.push(`${width}px ${page}: Kanji is not in the aside, beside the main column`);
+    // One furigana toggle for the page (they flip one setting), and each sentence once: Dict's
+    // Examples are Sentences' first rows, which the full page does not draw twice.
+    const once = await tab.evaluate<{ toggles: number; repeated: string[] }>(`(() => {
+        const drawn = el => el.getClientRects().length > 0;
+        const textOf = el => { const copy = el.cloneNode(true); copy.querySelectorAll('rt').forEach(rt => rt.remove()); return copy.textContent.trim(); };
+        const sentencesIn = id => [...document.querySelectorAll('#' + id + ' .sentence-list > li')].filter(drawn).map(li => textOf(li.querySelector('.sentence-jp') ?? li));
+        const sentences = new Set(sentencesIn('sentences'));
+        return {
+            toggles: [...document.querySelectorAll('[data-furigana-toggle]')].filter(drawn).length,
+            repeated: sentencesIn('dict').filter(text => sentences.has(text)).slice(0, 3),
+        };
+    })()`);
+    if (once.toggles !== 1) failures.push(`${width}px ${page}: the full page shows ${once.toggles} furigana toggles, not one`);
+    for (const text of once.repeated) failures.push(`${width}px ${page}: the full page shows a sentence in both Examples and Sentences: ${text}`);
     await measure(tab, page, width, DICTIONARY_TAP_TARGETS);
 }
 
@@ -2106,7 +2140,11 @@ try {
         await checkEntryGlossColumn(desktop, `dictionary ${path}, its aside`, DESKTOP.width, true, '.entry-list--stacked');
     }
     for (const path of SOURCE_CREDIT_PAGES) await checkSourceCreditGap(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`, path, DESKTOP.width, false);
-    await checkDictionaryWordFullPage(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`, DESKTOP.width);
+    for (const width of [DESKTOP.width, FULL_PAGE_WIDTH]) {
+        await desktop.resize(width, DESKTOP.height);
+        await checkDictionaryWordFullPage(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
+    }
+    await desktop.resize(DESKTOP.width, DESKTOP.height);
     await checkDictionaryDetailFullPages(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`);
     await checkDictionaryPlayButtons(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`, DESKTOP.width);
     for (const path of SWITCHER_PAGES) {

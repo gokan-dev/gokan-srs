@@ -36,13 +36,10 @@
   const band = $derived(frequencyBand(kanji.newspaperFrequency, 'kanji'));
   const hasDetails = $derived(kanji.readings.nanori.length > 0 || kanji.radical !== undefined);
 
-  /**
-   * The sections, in the app kanji page's names and order (DetailTabs). Words has no catalog
-   * label yet: the kanji pages are English only, as their headings are.
-   */
+  /** The sections, in the app kanji page's names and order (DetailTabs). */
   const tabs = $derived([
-    { id: 'kanji', label: messages.vocab.tabs.kanji },
-    ...(words.length > 0 ? [{ id: 'words', label: 'Words' }] : []),
+    { id: 'kanji', label: messages.detailTabs.kanji },
+    ...(words.length > 0 ? [{ id: 'words', label: messages.detailTabs.words }] : []),
   ]);
 </script>
 
@@ -78,7 +75,7 @@
   </header>
 
   <!-- From 1024px the full page: Kanji, then Words. -->
-  <DetailTabs {tabs} label={messages.vocab.tabs.label} />
+  <DetailTabs {tabs} label={messages.detailTabs.label} />
 
   <div data-detail-panels>
     <div id="kanji" class="detail-panel" data-default-panel>
@@ -109,7 +106,7 @@
         <section class="section detail-preview">
           <div class="section-head">
             <h2>Common words</h2>
-            {#if words.length > COMMON_WORDS}<a href="#words">All {words.length.toLocaleString('en')} words →</a>{/if}
+            {#if words.length > COMMON_WORDS}<a href="#words">{messages.chrome.allWords(words.length)} →</a>{/if}
           </div>
           <VocabEntryList entries={words.slice(0, COMMON_WORDS)} />
         </section>
@@ -152,7 +149,8 @@
     {#if words.length > 0}
       <section id="words" class="section detail-panel" data-section-searchable>
         <h2>Words with <span lang="ja">{kanji.character}</span></h2>
-        {#if words.length > WORDS_VISIBLE}<SectionSearch label="Search the words" placeholder="Search in English or Japanese" />{/if}
+        <!-- Past the first rows only the headword and reading ship (the budget): the placeholder says English reaches the first rows alone. -->
+        {#if words.length > WORDS_VISIBLE}<SectionSearch label={messages.kanji.wordsSearch.label} placeholder={messages.kanji.wordsSearch.placeholder(WORDS_VISIBLE)} />{/if}
         <VocabEntryList entries={words} visible={WORDS_VISIBLE} briefRest />
       </section>
     {/if}

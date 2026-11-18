@@ -35,14 +35,11 @@
   const allExampleCount = $derived(point.examples.length + minedExamplesTotalCount);
   const hasRelated = $derived(conjugation !== null || variants.length > 0 || related.length > 0);
 
-  /**
-   * The sections, in the app grammar page's names and order (DetailTabs). Point and Examples have
-   * no catalog label yet: the grammar pages are English only, as their headings are.
-   */
+  /** The sections, in the app grammar page's names and order (DetailTabs). */
   const tabs = $derived([
-    { id: 'point', label: 'Point' },
-    ...(exampleCount > 0 ? [{ id: 'examples', label: 'Examples' }] : []),
-    ...(hasRelated ? [{ id: 'related', label: messages.vocab.tabs.related }] : []),
+    { id: 'point', label: messages.detailTabs.point },
+    ...(exampleCount > 0 ? [{ id: 'examples', label: messages.detailTabs.examples }] : []),
+    ...(hasRelated ? [{ id: 'related', label: messages.detailTabs.related }] : []),
   ]);
 </script>
 
@@ -63,7 +60,7 @@
   </header>
 
   <!-- From 1024px the full page: Point, Examples, Related. -->
-  <DetailTabs {tabs} label={messages.vocab.tabs.label} />
+  <DetailTabs {tabs} label={messages.detailTabs.label} />
 
   <div class="grammar-body" data-detail-panels>
     <div id="point" class="detail-panel" data-default-panel>
@@ -96,7 +93,7 @@
         <section class="section detail-preview">
           <div class="section-head">
             <h2>Examples</h2>
-            {#if allExampleCount > POINT_EXAMPLES}<a href="#examples">All {allExampleCount.toLocaleString('en')} examples →</a>{/if}
+            {#if allExampleCount > POINT_EXAMPLES}<a href="#examples">{messages.grammar.allExamples(allExampleCount)} →</a>{/if}
           </div>
           <GrammarExamples examples={[...point.examples, ...minedExamples].slice(0, POINT_EXAMPLES)} idPrefix="preview-" {voice} />
         </section>
@@ -109,7 +106,7 @@
           <h2>Examples</h2>
           <FuriganaToggle />
         </div>
-        {#if point.examples.length > EXAMPLES_VISIBLE || minedExamples.length > 0}<SectionSearch label="Search the examples" placeholder="Search in English or Japanese" />{/if}
+        {#if point.examples.length > EXAMPLES_VISIBLE || minedExamples.length > 0}<SectionSearch label={messages.grammar.examplesSearch.label} placeholder={messages.grammar.examplesSearch.placeholder} />{/if}
         {#if point.examples.length > 0}<GrammarExamples examples={point.examples} idPrefix="example-" {voice} />{/if}
         {#if minedExamples.length > 0}
           <details class="disclosure">

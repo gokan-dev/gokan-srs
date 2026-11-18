@@ -231,8 +231,8 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
   the panels under it, one column.
 - **Tabs on phones, one full page on desktop** (every tabbed detail page, issue 256: the SRS
   word, kanji and grammar pages, one tab state, `useDetailTabs`, and one body, `DetailTabsBody`,
-  since #169. The static dictionary is not covered: it
-  has no tabbed page and no client runtime, so its detail pages are one page at every width). One
+  since #169. The static dictionary switches the same way at `$bp-detail`, with its own plain-TS
+  script, `client/detailTabs.ts`: "Detail tabs, shared", section 8). One
   switch width, **1024px** (Tailwind's `lg`, where the 8/4 grid starts; `useFullDetailPage`):
   below it tabs (tablets too), from it one full page with no tab row. `DetailBody` `tabs` takes the
   full page as one prop, `full` (`main`, `side`): the same panel components, in the same order,
@@ -344,7 +344,10 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
 - **Readings**: on in katakana, kun in hiragana with the okurigana in parentheses, まな(ぶ),
   through `kunReadingLabel` in both apps (enforced, `kun-reading`). Parentheses, not a
   colour: every colour already means something (section 2). A reading beside its headword is
-  `secondary`, its On/Kun label a field label.
+  `secondary`, its On/Kun label a field label. A list of readings (On, Kun, and a kanji's
+  readings in names in its Details) keeps each reading whole on its line and breaks only after a
+  、 (`ReadingList` in `KanjiReadings.tsx`; `check:layout` on the kanji full page's side column at
+  1024 and 1280px, where てん once broke as て / ん).
 - **A session card's headword** at display size is a `DisplayHeadword`: 4rem on a phone, 8rem
   from `md`, and smaller when the word is too long for its card, so it stays on one line: its
   size is the card's width over its character count (a Japanese character is one em wide),
@@ -635,6 +638,12 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
     restores, which `check:layout` reloads 取る#sentences scrolled down to see) and the full page at
     1280px. Dict's Examples carry their own source
     credit, as Sentences does: below 1024px each shows alone.
+  - **Each sentence once, one furigana toggle** (from 1024px): Examples is Sentences' first 2, so
+    the full page starts Sentences after them (those rows tab-only, `detail-preview`, neither
+    searched nor counted there); a word with no sentence past them keeps them in Sentences, its
+    Examples tab-only instead. Sentences stays one ordered list in tabs. Examples' furigana toggle
+    is tab-only too, so the full page has Sentences' alone. `check:layout` holds both at 1024 and
+    1280px on 取る.
   - **Detail tabs, shared** (`client/detailTabs.ts`, the `detail-tabs` mixin in `_tokens.scss`,
     the row drawn only by `pages/DetailTabs.svelte`, its label from the catalog, no row for one
     section: `check:conventions`, `one-detail-tabs`):
@@ -652,7 +661,9 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
     Japanese, its rows' meanings being English) only when the section has more than a reader takes
     in at a glance, each page's threshold in its bullet: a word's sections past one page, as the
     app's `usePagedPanel` (more rows than it shows before "Show N more"); a kanji's Words past its
-    first 30 rows; a grammar point's Examples past 5 curated examples, or with any from the corpus
+    first 30 rows, English reaching those 30 alone (the rest ship headword and reading only, the
+  80 KB budget: their glosses would add about 27 KB to 一), which its placeholder says ("Search in
+  Japanese, or English in the first 30"); a grammar point's Examples past 5 curated examples, or with any from the corpus
     (folded out of sight, nothing paged). A count
     line shows while filtering, with the app's matching
     (`readExploreQuery`, `matchesExploreQuery`, shared from `@gokan/dataset-schema`: English from the
@@ -674,7 +685,8 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   point, and the link's accessible name repeats it in visually hidden text, ": the words you can
   read at this step"; then Details folded under a divider line: readings in names, the Kangxi
   radical's number) and **Words** (`#words`: 30 rows with their gloss, the rest headword and
-  reading only in "All N words", searchable past the first 30). A kanji no word uses has no Words
+  reading only in "All N words"; searchable past the first 30, in Japanese across every row and in
+  English across the 30 with a gloss, as its placeholder says). A kanji no word uses has no Words
   section and no tab row; its Kanji section keeps a Common words section, a heading with the
   section's gap and one line ("No word in this dictionary uses this kanji yet."), shown at every
   width, so no words reads as a fact, not a list that failed to show.

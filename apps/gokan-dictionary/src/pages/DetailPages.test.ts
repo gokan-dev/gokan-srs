@@ -45,6 +45,19 @@ describe('KanjiPage', () => {
         expect(kanjiHtml(kanjiProps(10))).not.toContain('data-section-search=');
     });
 
+    it("searches every row it counts in Japanese, and says English reaches only the rows that ship a gloss", () => {
+        // Past the first rows a row ships its headword and reading alone (the 80 KB budget: 一 lists
+        // 660 words), and client/detailTabs.ts reads English only from a row's [lang="en"].
+        const words = kanjiHtml(kanjiProps(40)).split('id="words"')[1];
+        const rows = words.match(/<li>.*?<\/li>/g) ?? [];
+        const english = rows.filter(row => row.includes('lang="en"')).length;
+        expect(rows.length).toBe(40);
+        expect(rows.every(row => row.includes('lang="ja"'))).toBe(true);
+        expect(english).toBeLessThan(rows.length);
+        const placeholder = /<input[^>]*placeholder="([^"]*)"/.exec(words)?.[1];
+        expect(placeholder).toBe(`Search in Japanese, or English in the first ${english}`);
+    });
+
     it('folds the readings in names and the radical number into Details, and leaves a kanji with no word without a tab row, saying it has none', () => {
         const body = kanjiHtml(kanjiProps(0));
         expect(body).toContain('<summary>Details</summary>');

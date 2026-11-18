@@ -19,6 +19,18 @@
   margin-top: $space-5;
 }
 
+// Sentences' rows that Examples already shows are tab-only (VocabPage.svelte): where they are not
+// drawn, the first row drawn sits at the list's top, not a row's gap below rows that are not there.
+.sentence-list > .detail-preview + li:not(.detail-preview) {
+  margin-top: 0;
+}
+
+@include detail-tabbed {
+  .tabbed .sentence-list > .detail-preview + li {
+    margin-top: $space-3;
+  }
+}
+
 // A synonym group's title ("For meaning 1 · to shine, to sparkle") and a Related list's: a group
 // title over its rows, 32px apart, as the app's.
 .synonym-group-title,

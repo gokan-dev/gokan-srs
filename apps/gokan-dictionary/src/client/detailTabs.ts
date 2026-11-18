@@ -168,7 +168,12 @@ function initSectionSearch(section: HTMLElement): void {
     function apply(): void {
         const query = readExploreQuery(input!.value);
         let shown = 0;
+        let total = 0;
         for (const { row, text } of rows) {
+            // A tab-only row the full page does not draw (a word's Examples in its Sentences) is neither searched nor counted.
+            row.hidden = false;
+            if (row.matches('.detail-preview') && !row.offsetHeight) continue;
+            total += 1;
             const match = query === null || matchesExploreQuery(query, text);
             row.hidden = !match;
             if (match) shown += 1;
@@ -182,7 +187,7 @@ function initSectionSearch(section: HTMLElement): void {
             if (query !== null) details.hidden = !details.querySelector('li:not([hidden])');
             else details.hidden = false;
         }
-        count!.textContent = query === null ? '' : words.matches(shown, rows.length, query.text);
+        count!.textContent = query === null ? '' : words.matches(shown, total, query.text);
     }
 
     for (const details of disclosures) details.addEventListener('toggle', () => { if (!input.value.trim()) wasOpen.set(details, details.open); });

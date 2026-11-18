@@ -157,6 +157,17 @@ export const en: Messages = {
         otherLevels: 'Other levels',
         otherLevelsLead: 'Other levels:',
     },
+    detailTabs: {
+        label: 'Sections', dict: 'Dict', sentences: 'Sentences', synonyms: 'Synonyms', forms: 'Forms', kanji: 'Kanji', related: 'Related',
+        words: 'Words', point: 'Point', examples: 'Examples',
+    },
+    kanji: {
+        wordsSearch: { label: 'Search the words', placeholder: englishRows => `Search in Japanese, or English in the first ${englishRows.toLocaleString('en')}` },
+    },
+    grammar: {
+        allExamples: n => `All ${n.toLocaleString('en')} examples`,
+        examplesSearch: { label: 'Search the examples', placeholder: 'Search in English or Japanese' },
+    },
     vocab: {
         usuallyKana: 'Usually written in kana. Kanji spelling',
         alsoRead: 'also',
@@ -165,7 +176,6 @@ export const en: Messages = {
             meanings: 'Meanings', examples: 'Examples', closestSynonyms: 'Closest synonyms', sentences: 'Sentences', synonyms: 'Synonyms',
             forms: 'Forms', kanji: 'Kanji', related: 'Related', madeOf: 'Made of', usedIn: 'Used in',
         },
-        tabs: { label: 'Sections', dict: 'Dict', sentences: 'Sentences', synonyms: 'Synonyms', forms: 'Forms', kanji: 'Kanji', related: 'Related' },
         showAllMeanings: n => `Show all ${n} meanings`,
         rareMeanings: n => `Rare and archaic meanings (${n})`,
         showMore: n => `Show ${n.toLocaleString('en')} more`,

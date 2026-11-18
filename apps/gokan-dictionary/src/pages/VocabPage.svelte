@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { VocabPageProps as Props } from '../lib/pageProps';
-  import { CLOSENESS_LABEL, frequencyBand, frequencyTop, headwordOf, secondaryForm, summaryGloss, textbookLessonsLabel, wordFrequencyRank } from '@gokan/dataset-schema';
+  import { CLOSENESS_LABEL, frequencyBand, synonymsSearchable, frequencyTop, headwordOf, secondaryForm, summaryGloss, textbookLessonsLabel, wordFrequencyRank } from '@gokan/dataset-schema';
   import type { Sentence } from '@gokan/dataset-schema';
   import { valueText, type DefinitionSense } from '@gokan/dataset-schema/text';
   import { pageLocale } from './pageLocale';
@@ -58,6 +58,13 @@
   });
   const examples = $derived(sentences.slice(0, DICT_EXAMPLES));
   const shownSentences = $derived(sentences.slice(0, VISIBLE_SENTENCES));
+  /**
+   * On the full page each sentence shows once: Examples is the first DICT_EXAMPLES of Sentences, so
+   * Sentences starts after them there, those rows tab-only (`detail-preview`); a word with no
+   * sentence past them keeps them in Sentences, and its Examples is tab-only instead. Either way
+   * Sentences is one ordered list in tabs, and the full page has one furigana toggle, Sentences'.
+   */
+  const examplesTabOnly = $derived(sentences.length <= DICT_EXAMPLES);
   const moreSentences = $derived(sentences.slice(VISIBLE_SENTENCES));
   const unlinked = $derived(new Set(withoutPage?.words));
   const kanjiWithoutPage = $derived(new Set(withoutPage?.kanji));
@@ -69,7 +76,7 @@
   const moreGroups = $derived(synonyms.groups.slice(PREVIEW_MEANINGS));
   // A section's search only past one page, as the app's (usePagedPanel): when it ships more rows than it shows before "Show N more".
   const searchSentences = $derived(moreSentences.length > 0);
-  const searchSynonyms = $derived(moreGroups.length > 0 || shownGroups.some(group => group.words.length > PREVIEW_ROWS));
+  const searchSynonyms = $derived(synonymsSearchable(synonyms.groups, PREVIEW_MEANINGS));
   const searchRelated = $derived(components.length > RELATED_VISIBLE || parents.length > RELATED_VISIBLE);
 
   /**
@@ -77,12 +84,12 @@
    * (client/detailTabs.ts); its id is the URL hash the app uses for it, Dict's none.
    */
   const tabs = $derived([
-    { id: 'dict', label: words.tabs.dict },
-    ...(sentences.length > 0 ? [{ id: 'sentences', label: words.tabs.sentences }] : []),
-    ...(synonyms.groups.length > 0 ? [{ id: 'synonyms', label: words.tabs.synonyms }] : []),
-    ...(wordClass ? [{ id: 'forms', label: words.tabs.forms }] : []),
-    ...(hasKanji ? [{ id: 'kanji', label: words.tabs.kanji }] : []),
-    ...(hasMadeOfOrUsedIn ? [{ id: 'related', label: words.tabs.related }] : []),
+    { id: 'dict', label: messages.detailTabs.dict },
+    ...(sentences.length > 0 ? [{ id: 'sentences', label: messages.detailTabs.sentences }] : []),
+    ...(synonyms.groups.length > 0 ? [{ id: 'synonyms', label: messages.detailTabs.synonyms }] : []),
+    ...(wordClass ? [{ id: 'forms', label: messages.detailTabs.forms }] : []),
+    ...(hasKanji ? [{ id: 'kanji', label: messages.detailTabs.kanji }] : []),
+    ...(hasMadeOfOrUsedIn ? [{ id: 'related', label: messages.detailTabs.related }] : []),
   ]);
 
   /**
@@ -150,11 +157,11 @@
   </ol>
 {/snippet}
 
-{#snippet sentenceList(list: Sentence[])}
+{#snippet sentenceList(list: Sentence[], tabOnly = 0)}
   <ul class="sentence-list">
-    {#each list as sentence (sentence.id)}
+    {#each list as sentence, index (sentence.id)}
       {@const translation = translations?.[sentence.id]}
-      <li>
+      <li class={index < tabOnly ? 'detail-preview' : undefined}>
         <SentenceText runs={sentenceRuns(sentence, { targetVocabId: vocab.id, unlinked })} audio={sentence.audio} {voice} />
         {#if translations}
           {#if translation}<p class="sentence-en" lang={translation.lang === 'en' ? 'en' : undefined}>{translation.text}</p>{/if}
@@ -207,7 +214,7 @@
     From 1024px the full page: Dict, Sentences, Synonyms and Forms in the main column, the
     navigation aids (Kanji, Related) aside.
   -->
-  <DetailTabs {tabs} label={words.tabs.label} />
+  <DetailTabs {tabs} label={messages.detailTabs.label} />
 
   <div class="entry-layout" data-detail-panels>
     <div class="entry-main">
@@ -238,10 +245,11 @@
         <AppPanel link={appLink} copy={orderStep ? messages.appPanel.word(headword, orderStep) : messages.appPanel.general} />
 
         {#if examples.length > 0}
-          <section class="section">
+          <section class="section" class:detail-preview={examplesTabOnly}>
             <div class="section-head">
               <h2>{words.sections.examples}</h2>
-              <FuriganaToggle />
+              <!-- In its tab only: the full page has Sentences' toggle, one for the page. -->
+              <span class="detail-preview"><FuriganaToggle /></span>
             </div>
             {@render sentenceList(examples)}
             {#if examplesCredit}<p class="meta source-credit">{examplesCredit}</p>{/if}
@@ -264,7 +272,7 @@
             <FuriganaToggle />
           </div>
           {#if searchSentences}<SectionSearch label={words.search.sentences} placeholder={words.search.placeholders.sentences} />{/if}
-          {@render sentenceList(shownSentences)}
+          {@render sentenceList(shownSentences, examplesTabOnly ? 0 : examples.length)}
           {#if moreSentences.length > 0}
             <details class="disclosure">
               <summary>{words.showMore(moreSentences.length)}</summary>
