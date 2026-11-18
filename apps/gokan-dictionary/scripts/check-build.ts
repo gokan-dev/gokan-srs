@@ -81,6 +81,13 @@ function measure(manifest: Record<string, ViteManifestEntry>): Measurement[] {
         measurements.push({ budget: 'kanjiPageMax', subject: `kanji/${heaviest.character}`, bytes: heaviest.bytes });
     }
 
+    // A grammar point is named by its level and number (n5-088); the other directories are browse pages.
+    const pointSizes = (ENTITY_PAGES === 'prerendered' ? subdirectories('grammar').filter(name => /^n[1-5]-\d+$/.test(name)) : []).map(id => ({ id, bytes: sizeOf(pageOf('grammar', id)) }));
+    if (pointSizes.length > 0) {
+        const heaviest = pointSizes.reduce((a, b) => (b.bytes > a.bytes ? b : a));
+        measurements.push({ budget: 'grammarPageMax', subject: `grammar/${heaviest.id}`, bytes: heaviest.bytes });
+    }
+
     measurements.push({ budget: 'grammarIndex', subject: 'grammar/', bytes: sizeOf(pageOf('grammar')) });
 
     // Every locale's JLPT lists: English's, and Chinese's when the build serves it.
