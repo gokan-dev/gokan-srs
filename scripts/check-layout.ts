@@ -1900,30 +1900,33 @@ async function checkDictionaryPlayButtons(tab: Tab, base: string, width: number)
 const FAKE_AUDIO = `void (window.Audio = function () { return { play: () => Promise.resolve(), pause() {}, addEventListener() {} }; })`;
 const PRESSED_PLAY = `document.querySelectorAll('button.play[aria-pressed="true"]').length`;
 const settlePlayer = () => new Promise(resolve => setTimeout(resolve, 200));
+/** Presses a button (`press` returns false when there is none), expects it playing, hides it, expects none playing. */
+async function pressThenHide(tab: Tab, where: string, press: string, hide: string, hidden: string): Promise<void> {
+    await tab.evaluate<void>(FAKE_AUDIO);
+    if (!await tab.evaluate<boolean>(press)) {
+        failures.push(`${where}: no play button shown to press`);
+        return;
+    }
+    await settlePlayer();
+    if (await tab.evaluate<number>(PRESSED_PLAY) === 0) failures.push(`${where}: a pressed play button does not show aria-pressed="true"`);
+    await tab.evaluate<void>(hide);
+    await settlePlayer();
+    if (await tab.evaluate<number>(PRESSED_PLAY) !== 0) failures.push(`${where}: the clip keeps playing after ${hidden}`);
+}
 async function checkDictionaryPlayStops(tab: Tab, base: string, width: number): Promise<void> {
     const word = `dictionary /vocab/${TABBED_WORD}/`;
     await tab.goto(`${base}/vocab/${TABBED_WORD}/#sentences`, 'How common');
     await tab.until(`document.documentElement.classList.contains('playable') && document.querySelector('[data-detail-panels][data-tabs-ready]') !== null`, `the player and the tabs on ${word}`);
-    await tab.evaluate<void>(FAKE_AUDIO);
-    const pressed = await tab.evaluate<boolean>(`(() => {
+    await pressThenHide(tab, `${width}px ${word}#sentences`, `(() => {
         const button = [...document.querySelectorAll('#sentences button.play')].find(el => el.getClientRects().length > 0);
         if (!button) return false;
         button.click();
         return true;
-    })()`);
-    if (!pressed) failures.push(`${width}px ${word}#sentences: no play button shown in Sentences to press`);
-    else {
-        await settlePlayer();
-        if (await tab.evaluate<number>(PRESSED_PLAY) === 0) failures.push(`${width}px ${word}#sentences: a pressed play button does not show aria-pressed="true"`);
-        await tab.evaluate<void>(`document.querySelector('[data-detail-tabs] a[data-tab]').click()`);
-        await settlePlayer();
-        if (await tab.evaluate<number>(PRESSED_PLAY) !== 0) failures.push(`${width}px ${word}: the sentence playing in Sentences keeps playing after the Dict tab is tapped`);
-    }
+    })()`, `document.querySelector('[data-detail-tabs] a[data-tab]').click()`, 'the Dict tab is tapped');
     const grammar = `dictionary /grammar/${GRAMMAR_POINT}/`;
     await tab.goto(`${base}/grammar/${GRAMMAR_POINT}/#examples`, 'Grammar');
     await tab.until(`document.documentElement.classList.contains('playable') && document.querySelector('[data-detail-panels][data-tabs-ready]') !== null`, `the player and the tabs on ${grammar}`);
-    await tab.evaluate<void>(FAKE_AUDIO);
-    const corpus = await tab.evaluate<boolean>(`(() => {
+    await pressThenHide(tab, `${width}px ${grammar}#examples (corpus)`, `(() => {
         const details = document.querySelector('#examples details');
         if (!details) return false;
         details.open = true;
@@ -1931,14 +1934,7 @@ async function checkDictionaryPlayStops(tab: Tab, base: string, width: number): 
         if (!button) return false;
         button.click();
         return true;
-    })()`);
-    if (!corpus) failures.push(`${width}px ${grammar}#examples: no corpus example with a play button to press`);
-    else {
-        await settlePlayer();
-        await tab.evaluate<void>(`void (document.querySelector('#examples details').open = false)`);
-        await settlePlayer();
-        if (await tab.evaluate<number>(PRESSED_PLAY) !== 0) failures.push(`${width}px ${grammar}#examples: the corpus example playing keeps playing after its disclosure closes`);
-    }
+    })()`, `void (document.querySelector('#examples details').open = false)`, 'its disclosure closes');
 }
 
 /**
