@@ -388,10 +388,10 @@ const SYNONYM_READER = 'apps/gokan-srs/src/services/exercise/wordRelation.ts';
  * Outside the app, the package and the dictionary read them only through
  * packages/dataset-schema/src/synonyms.ts (synonymEntriesOf, pairCloseness, held equal to the app's
  * closenessOf by its test); vocabulary.ts declares the field. The same pattern, less a catalog's
- * own words (a section's or a tab's name, `words.sections.synonyms`) and a tab's id.
+ * own words (a section's or a tab's name or its search's placeholder, `words.sections.synonyms`) and a tab's id.
  */
 const SHARED_SYNONYM_SOURCE = /^(packages\/[^/]+\/src\/.*\.ts|apps\/gokan-dictionary\/(src|scripts)\/.*\.(ts|svelte))$/;
-const SHARED_SYNONYM_DATA = /\bVocabSynonym\b|(?<!\b(?:sections|search|tabs))\.synonyms\b|(?<!id: )'synonyms'/;
+const SHARED_SYNONYM_DATA = /\bVocabSynonym\b|(?<!\b(?:sections|search|placeholders|tabs))\.synonyms\b|(?<!id: )'synonyms'/;
 const SHARED_SYNONYM_READERS = new Set(['packages/dataset-schema/src/synonyms.ts', 'packages/dataset-schema/src/vocabulary.ts']);
 
 /**

@@ -160,10 +160,10 @@
   </ul>
 {/snippet}
 
-{#snippet sectionSearch(label: string)}
+{#snippet sectionSearch(label: string, placeholder: string)}
   <!-- Shown by client/detailTabs.ts: without it a section lists what it ships. -->
   <div class="section-search" data-section-search hidden>
-    <label><span class="visually-hidden">{label}</span><input class="search-input" type="search" placeholder={words.search.placeholder} autocomplete="off" spellcheck="false" /></label>
+    <label><span class="visually-hidden">{label}</span><input class="search-input" type="search" {placeholder} autocomplete="off" spellcheck="false" /></label>
     <p class="meta" aria-live="polite" data-section-count></p>
   </div>
 {/snippet}
@@ -277,7 +277,7 @@
             <h2>{words.sections.sentences}</h2>
             <FuriganaToggle />
           </div>
-          {#if searchSentences}{@render sectionSearch(words.search.sentences)}{/if}
+          {#if searchSentences}{@render sectionSearch(words.search.sentences, words.search.placeholders.sentences)}{/if}
           {@render sentenceList(shownSentences)}
           {#if moreSentences.length > 0}
             <details class="disclosure">
@@ -292,7 +292,7 @@
       {#if synonyms.groups.length > 0}
         <section id="synonyms" class="section detail-panel" data-section-searchable>
           <h2>{words.sections.synonyms}</h2>
-          {#if searchSynonyms}{@render sectionSearch(words.search.synonyms)}{/if}
+          {#if searchSynonyms}{@render sectionSearch(words.search.synonyms, words.search.placeholders.synonyms)}{/if}
           {#each shownGroups as group (group.number)}{@render synonymGroup(group, PREVIEW_ROWS)}{/each}
           {#if moreGroups.length > 0}
             <details class="disclosure">
@@ -329,7 +329,7 @@
         {#if hasMadeOfOrUsedIn}
           <section id="related" class="section detail-panel" data-section-searchable>
             <h2>{words.sections.related}</h2>
-            {#if searchRelated}{@render sectionSearch(words.search.related)}{/if}
+            {#if searchRelated}{@render sectionSearch(words.search.related, words.search.placeholders.related)}{/if}
             {#if components.length > 0}
               <div data-search-group>
                 <h3 class="related-title">{words.sections.madeOf}</h3>

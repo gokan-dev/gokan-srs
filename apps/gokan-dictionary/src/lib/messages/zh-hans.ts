@@ -171,7 +171,11 @@ export const zhHans: Messages = {
             reference: top => (top === null ? '不在词频表中' : top.beyond ? `前 ${grouped(top.top)} 名以外` : `前 ${grouped(top.top)} 个词`),
         },
         textbooks: '教材',
-        search: { placeholder: '用中文、英文或日文搜索', sentences: '搜索例句', synonyms: '搜索近义词', related: '搜索相关词' },
+        search: {
+            // A synonym row's text is its English shared meanings and its Japanese: no Chinese to match.
+            placeholders: { sentences: '用中文、英文或日文搜索', synonyms: '用英文或日文搜索', related: '用中文、英文或日文搜索' },
+            sentences: '搜索例句', synonyms: '搜索近义词', related: '搜索相关词',
+        },
         forms: {
             plain: '简体',
             polite: '敬体',
