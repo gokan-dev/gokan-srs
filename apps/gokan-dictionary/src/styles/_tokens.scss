@@ -455,6 +455,11 @@ $motion: 150ms ease-in-out;
     display: inline-flex;
   }
 
+  // The word's button a gap from its reading (or its kanji-spelling note), as the app's header.
+  .entry-sub > .play {
+    margin-inline-start: $space-half;
+  }
+
   // A sentence and its button, a right-hand column at the sentence's first line (its 42px line
   // box centres the 44px button), never wrapping onto a line of its own.
   .play-row {
