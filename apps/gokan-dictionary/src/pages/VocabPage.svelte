@@ -16,6 +16,7 @@
   import PageLayout from './PageLayout.svelte';
   import VocabEntryList from './VocabEntryList.svelte';
   import Chip from './Chip.svelte';
+  import DetailTabs from './DetailTabs.svelte';
   import ConjugationForms from './ConjugationForms.svelte';
   import FuriganaToggle from './FuriganaToggle.svelte';
   import HowCommon from './HowCommon.svelte';
@@ -202,14 +203,10 @@
   </header>
 
   <!--
-    Below 1024px a row of tabs, one section at a time (client/detailTabs.ts; until it runs, and
-    with no script at all, the hash's section by CSS, or the whole page without a class the head
-    sets). From 1024px the full page: Dict, Sentences, Synonyms and Forms in the main column, the
+    From 1024px the full page: Dict, Sentences, Synonyms and Forms in the main column, the
     navigation aids (Kanji, Related) aside.
   -->
-  <nav class="detail-tabs" data-detail-tabs aria-label={words.tabs.label}>
-    {#each tabs as tab (tab.id)}<a href="#{tab.id}" data-tab={tab.id}>{tab.label}</a>{/each}
-  </nav>
+  <DetailTabs {tabs} label={words.tabs.label} />
 
   <div class="entry-layout" data-detail-panels>
     <div class="entry-main">

@@ -1871,6 +1871,8 @@ async function checkDictionaryDetailTabs(tab: Tab, base: string, width: number):
             if (layout.tabs.join() !== sections.join()) failures.push(`${width}px ${page}: tabs ${layout.tabs.join(', ')}, not the app's ${sections.join(', ')}`);
             if (layout.shown.join() !== section || layout.selected.join() !== section) failures.push(`${width}px ${page}#${section}: shows ${layout.shown.join(', ') || 'nothing'} with ${layout.selected.join(', ') || 'no tab'} selected, not ${section} alone`);
             if (first && await tab.evaluate<number>(DETAIL_PREVIEWS_SHOWN) === 0) failures.push(`${width}px ${page}: the ${section} tab shows no preview of the next section`);
+            // A kanji's readings each whole on one line, as the app's (取's Kun list runs over two lines on a phone).
+            if (first && path.startsWith('/kanji/')) await checkKanjiReadingsUnbroken(tab, page, width);
             if (section === searched) await checkSectionSearch(tab, `${page}#${section}`, width, section);
             await measure(tab, `${page}#${section}`, width, DICTIONARY_TAP_TARGETS);
         }

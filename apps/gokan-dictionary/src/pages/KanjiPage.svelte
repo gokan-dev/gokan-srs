@@ -8,6 +8,7 @@
   import AppPanel from './AppPanel.svelte';
   import PageLayout from './PageLayout.svelte';
   import Chip from './Chip.svelte';
+  import DetailTabs from './DetailTabs.svelte';
   import HowCommon from './HowCommon.svelte';
   import SectionSearch from './SectionSearch.svelte';
   import VocabEntryList from './VocabEntryList.svelte';
@@ -36,14 +37,17 @@
   const hasDetails = $derived(kanji.readings.nanori.length > 0 || kanji.radical !== undefined);
 
   /**
-   * The sections, in the app kanji page's names and order. Below 1024px each is a tab
-   * (client/detailTabs.ts); its id is the URL hash the app uses for it, Kanji's none.
+   * The sections, in the app kanji page's names and order (DetailTabs). Words has no catalog
+   * label yet: the kanji pages are English only, as their headings are.
    */
   const tabs = $derived([
-    { id: 'kanji', label: 'Kanji' },
+    { id: 'kanji', label: messages.vocab.tabs.kanji },
     ...(words.length > 0 ? [{ id: 'words', label: 'Words' }] : []),
   ]);
 </script>
+
+<!-- Each reading whole on its line, as the app's (KanjiReadings): a list breaks only after a 、, between readings. -->
+{#snippet readingList(readings: string[])}{#each readings as reading, index (index)}{index > 0 ? '、' : ''}<span class="kanji-reading" data-kanji-reading>{reading}</span>{/each}{/snippet}
 
 <PageLayout trail={[{ label: messages.chrome.sections.kanji, href: urls.kanjiIndexPath() }, { label: kanji.character, jp: true }]} section="kanji" wide>
   <header class="entry-head">
@@ -53,11 +57,11 @@
     {#if kanji.readings.on.length > 0 || kun.length > 0}
       <dl class="kanji-readings">
         {#if kanji.readings.on.length > 0}
-          <div><dt>On</dt><dd lang="ja">{kanji.readings.on.join('、')}</dd></div>
+          <div><dt>On</dt><dd lang="ja">{@render readingList(kanji.readings.on)}</dd></div>
         {/if}
         {#if kun.length > 0}
           <!-- The okurigana in parentheses: まな(ぶ) is read まなぶ, written 学ぶ. -->
-          <div><dt>Kun</dt><dd lang="ja">{kun.join('、')}</dd></div>
+          <div><dt>Kun</dt><dd lang="ja">{@render readingList(kun)}</dd></div>
         {/if}
       </dl>
     {/if}
@@ -73,16 +77,8 @@
     </dl>
   </header>
 
-  <!--
-    Below 1024px a row of tabs, one section at a time (client/detailTabs.ts; until it runs, and
-    with no script at all, the hash's section by CSS, or the whole page without a class the head
-    sets). From 1024px the full page: Kanji, then Words.
-  -->
-  {#if tabs.length > 1}
-    <nav class="detail-tabs" data-detail-tabs aria-label="Sections">
-      {#each tabs as tab (tab.id)}<a href="#{tab.id}" data-tab={tab.id}>{tab.label}</a>{/each}
-    </nav>
-  {/if}
+  <!-- From 1024px the full page: Kanji, then Words. -->
+  <DetailTabs {tabs} label={messages.vocab.tabs.label} />
 
   <div data-detail-panels>
     <div id="kanji" class="detail-panel" data-default-panel>
@@ -117,6 +113,9 @@
           </div>
           <VocabEntryList entries={words.slice(0, COMMON_WORDS)} />
         </section>
+      {:else}
+        <!-- No Words tab to point to: said here, so no words reads as a fact, not a list that failed to show. -->
+        <p class="support">No word in this dictionary uses this kanji yet.</p>
       {/if}
 
       {#if courses.length > 0}

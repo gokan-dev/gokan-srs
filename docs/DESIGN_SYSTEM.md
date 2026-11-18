@@ -635,7 +635,9 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
     restores, which `check:layout` reloads 取る#sentences scrolled down to see) and the full page at
     1280px. Dict's Examples carry their own source
     credit, as Sentences does: below 1024px each shows alone.
-  - **Detail tabs, shared** (`client/detailTabs.ts`, the `detail-tabs` mixin in `_tokens.scss`):
+  - **Detail tabs, shared** (`client/detailTabs.ts`, the `detail-tabs` mixin in `_tokens.scss`,
+    the row drawn only by `pages/DetailTabs.svelte`, its label from the catalog, no row for one
+    section: `check:conventions`, `one-detail-tabs`):
     shared by the word, kanji and grammar pages (#257). The HTML is
     the full page, every section in order with its heading; with no script a phone gets the stacked
     page. A few inline bytes in the head set `tabbed` on `<html>` before first paint, so the row is
@@ -643,17 +645,23 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
     else the default one (`data-default-panel`): nothing shifts. The script makes the row a
     `role="tablist"` (arrow keys, Home, End, the hash replaced as a tab is chosen) and reads the
     width off the stylesheet (`--detail-query`, from `$bp-detail`) through `matchMedia`, so crossing
-    it switches back and forth. Sentences, Synonyms and Related each get a search field (44px,
+    it switches back and forth. A word's Sentences, Synonyms and Related, a kanji's Words and a
+    grammar point's Examples each get a search field (44px,
     16px text, a hidden label, the app's placeholder in `font-sans`, per section since each names
     only the languages its rows are searched in: on a Chinese page Synonyms says English or
-    Japanese, its rows' meanings being English) only past one page, as the app's
-    `usePagedPanel`: when the section ships more rows than it shows before "Show N more". A count
+    Japanese, its rows' meanings being English) only when the section has more than a reader takes
+    in at a glance, each page's threshold in its bullet: a word's sections past one page, as the
+    app's `usePagedPanel` (more rows than it shows before "Show N more"); a kanji's Words past its
+    first 30 rows; a grammar point's Examples past 5 curated examples, or with any from the corpus
+    (folded out of sight, nothing paged). A count
     line shows while filtering, with the app's matching
     (`readExploreQuery`, `matchesExploreQuery`, shared from `@gokan/dataset-schema`: English from the
     start of a word, Japanese anywhere, kana folded); the field stays hidden without the script.
 - **Kanji page** (`pages/KanjiPage.svelte`, #257): the app kanji page's shape, through the word
   page's tab script and breakpoint. Header: the glyph, its meanings (`entry-gloss`), its readings
-  labelled On and Kun (the okurigana in parentheses, `kunReadingLabel`), the JLPT chip ("Outside
+  labelled On and Kun (the okurigana in parentheses, `kunReadingLabel`; each reading whole on its
+  line, the list breaking only after a 、, as the app's: `check:layout` on 一, 学 and 取 at 320 and
+  375px), the JLPT chip ("Outside
   the JLPT lists" in its place when it has no level), then the facts row (`.entry-facts`, the
   `entry-facts` mixin, shared with the word page): How common (the four-bar meter and the band on
   the kanji scale, "Top 100 kanji", as the app's), School grade, Strokes, Radical. Sections, in the
@@ -666,12 +674,15 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   point, and the link's accessible name repeats it in visually hidden text, ": the words you can
   read at this step"; then Details folded under a divider line: readings in names, the Kangxi
   radical's number) and **Words** (`#words`: 30 rows with their gloss, the rest headword and
-  reading only in "All N words", searchable past the first 30).
+  reading only in "All N words", searchable past the first 30). A kanji no word uses has no Words
+  section and no tab row; its Kanji section says so where Common words would be ("No word in this
+  dictionary uses this kanji yet."), so no words reads as a fact, not a list that failed to show.
 - **Grammar page** (`pages/GrammarPage.svelte`, #257): the app grammar page's sections in its
   order. Header as before: the title, its romaji, the JLPT and formality chips, the chapter.
   **Point** (Formation, the one boxed block; the short explanation as the lead, the long one in
-  place under it, "Read the full explanation"; the app panel; When to use; 2 examples and "All N
-  examples →" to Examples, in tabs only), **Examples** (`#examples`: every curated example, then the
+  place under it, "Read the full explanation"; the app panel; When to use; 2 examples, curated
+  first, then the corpus's for a point with none curated, and "All N examples →" to Examples, in
+  tabs only), **Examples** (`#examples`: every curated example, then the
   corpus's in "Corpus examples (N)", searchable when there are more than 5 or any from the corpus),
   **Related** (`#related`: Conjugation, Other forms, the family's points).
 - **Kanji and grammar pages, both arrangements**: below 1024px the tab row (Kanji, Words; Point,

@@ -93,6 +93,10 @@ const DICTIONARY_CLIENT = /^apps\/gokan-dictionary\/src\/client\//;
 // A breadcrumb is chrome: its steps come from the locale's catalog (lib/messages), as its home
 // step does, or a translated page's trail would continue in English after its first step.
 const DICTIONARY_PAGE_COMPONENT = /^apps\/gokan-dictionary\/src\/pages\/[^/]+\.svelte$/;
+// A detail page's tab row is the contract with client/detailTabs.ts (data-detail-tabs, data-tab):
+// one component writes it, so the word, kanji and grammar pages cannot drift apart.
+const DETAIL_TABS_ROW = /\bdata-detail-tabs\b/;
+const DETAIL_TABS_COMPONENT = 'apps/gokan-dictionary/src/pages/DetailTabs.svelte';
 const BREADCRUMB_TRAIL = /trail=\{\[([\s\S]*?)\]\}/g;
 // A quoted label, or a backtick one with nothing interpolated (`Orders`). The templated steps
 // (`Chapter ${n}`, `JLPT N${level}`, `Page ${page}`, a kanji range) wait for #170's catalog phrases.
@@ -615,6 +619,11 @@ function check(files: string[]): Violation[] {
                     message: 'The search script links through linkUrls(locale) (lib/localeLinks.ts): localeUrls would link a page its section does not serve.',
                 });
             }
+        }
+
+        if (/^apps\/gokan-dictionary\/src\/.*\.svelte$/.test(file) && file !== DETAIL_TABS_COMPONENT) {
+            eachLine(text, l => DETAIL_TABS_ROW.test(l), line =>
+                add({ file, line, rule: 'one-detail-tabs', message: 'Writes a detail page\'s tab row. Use DetailTabs (pages/DetailTabs.svelte), the one row client/detailTabs.ts reads, so every detail page\'s tabs stay alike.' }));
         }
 
         if (DICTIONARY_PAGE_COMPONENT.test(file)) {

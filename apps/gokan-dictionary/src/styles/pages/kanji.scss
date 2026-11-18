@@ -50,6 +50,11 @@
   }
 }
 
+// A reading never breaks inside itself (と/り): the list breaks after a 、, between readings.
+.kanji-reading {
+  white-space: nowrap;
+}
+
 // Each course that teaches the kanji, with its step there.
 .kanji-courses {
   margin: 0;
@@ -141,8 +146,7 @@
   }
 
   dt {
-    color: var(--tertiary);
-    font-size: $text-sm;
+    @include fact-label;
   }
 
   dd {

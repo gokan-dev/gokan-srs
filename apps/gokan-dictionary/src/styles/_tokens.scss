@@ -334,6 +334,12 @@ $motion: 150ms ease-in-out;
 
 /// A detail page header's facts, as the app's (a small label over each value, side by side), with
 /// the How common meter: a word's and a kanji's pages.
+// A fact's label over its value: the header's facts row and a kanji's Details.
+@mixin fact-label {
+  color: var(--tertiary);
+  font-size: $text-sm;
+}
+
 @mixin entry-facts {
   .entry-facts {
     display: flex;
@@ -342,8 +348,7 @@ $motion: 150ms ease-in-out;
     margin: $space-2 0 0;
 
     dt {
-      color: var(--tertiary);
-      font-size: $text-sm;
+      @include fact-label;
     }
 
     dd {

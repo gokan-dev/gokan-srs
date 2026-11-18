@@ -8,6 +8,7 @@
   import AppPanel from './AppPanel.svelte';
   import PageLayout from './PageLayout.svelte';
   import Chip from './Chip.svelte';
+  import DetailTabs from './DetailTabs.svelte';
   import FuriganaToggle from './FuriganaToggle.svelte';
   import GrammarExamples from './GrammarExamples.svelte';
   import GrammarList from './GrammarList.svelte';
@@ -19,7 +20,10 @@
 
   /** The Point tab's preview of Examples, as the app's. */
   const POINT_EXAMPLES = 2;
-  /** Curated examples past this many make Examples searchable, as past one page in the app. */
+  /**
+   * Examples is searchable past this many curated examples, or as soon as it has any corpus example
+   * (folded in a disclosure, so its rows are out of sight). Nothing is paged: every row ships.
+   */
   const EXAMPLES_VISIBLE = 5;
 
   const hasLongExplanation = $derived(
@@ -29,13 +33,13 @@
   const hasRelated = $derived(conjugation !== null || variants.length > 0 || related.length > 0);
 
   /**
-   * The sections, in the app grammar page's names and order. Below 1024px each is a tab
-   * (client/detailTabs.ts); its id is the URL hash the app uses for it, Point's none.
+   * The sections, in the app grammar page's names and order (DetailTabs). Point and Examples have
+   * no catalog label yet: the grammar pages are English only, as their headings are.
    */
   const tabs = $derived([
     { id: 'point', label: 'Point' },
     ...(exampleCount > 0 ? [{ id: 'examples', label: 'Examples' }] : []),
-    ...(hasRelated ? [{ id: 'related', label: 'Related' }] : []),
+    ...(hasRelated ? [{ id: 'related', label: messages.vocab.tabs.related }] : []),
   ]);
 </script>
 
@@ -55,16 +59,8 @@
     </p>
   </header>
 
-  <!--
-    Below 1024px a row of tabs, one section at a time (client/detailTabs.ts; until it runs, and
-    with no script at all, the hash's section by CSS, or the whole page without a class the head
-    sets). From 1024px the full page: Point, Examples, Related.
-  -->
-  {#if tabs.length > 1}
-    <nav class="detail-tabs" data-detail-tabs aria-label="Sections">
-      {#each tabs as tab (tab.id)}<a href="#{tab.id}" data-tab={tab.id}>{tab.label}</a>{/each}
-    </nav>
-  {/if}
+  <!-- From 1024px the full page: Point, Examples, Related. -->
+  <DetailTabs {tabs} label={messages.vocab.tabs.label} />
 
   <div class="grammar-body" data-detail-panels>
     <div id="point" class="detail-panel" data-default-panel>
@@ -92,14 +88,14 @@
         </section>
       {/if}
 
-      {#if point.examples.length > 0}
-        <!-- The tab's preview of Examples; the full page has Examples itself below, so not twice. -->
+      {#if exampleCount > 0}
+        <!-- The tab's preview of Examples, curated first, then the corpus; the full page has Examples itself below, so not twice. -->
         <section class="section detail-preview">
           <div class="section-head">
             <h2>Examples</h2>
             {#if exampleCount > POINT_EXAMPLES}<a href="#examples">All {exampleCount} examples →</a>{/if}
           </div>
-          <GrammarExamples examples={point.examples.slice(0, POINT_EXAMPLES)} idPrefix="preview-" />
+          <GrammarExamples examples={[...point.examples, ...minedExamples].slice(0, POINT_EXAMPLES)} idPrefix="preview-" />
         </section>
       {/if}
     </div>

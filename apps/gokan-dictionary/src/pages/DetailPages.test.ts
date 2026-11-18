@@ -45,12 +45,14 @@ describe('KanjiPage', () => {
         expect(kanjiHtml(kanjiProps(10))).not.toContain('data-section-search=');
     });
 
-    it('folds the readings in names and the radical number into Details, and leaves a kanji with no word without a tab row', () => {
+    it('folds the readings in names and the radical number into Details, and leaves a kanji with no word without a tab row, saying it has none', () => {
         const body = kanjiHtml(kanjiProps(0));
         expect(body).toContain('<summary>Details</summary>');
         expect(body).toContain('Kangxi radical');
         expect(tabsOf(body)).toEqual([]);
         expect(body).not.toContain('detail-preview');
+        expect(body).toContain('<p class="support">No word in this dictionary uses this kanji yet.</p>');
+        expect(kanjiHtml(kanjiProps(1))).not.toContain('No word in this dictionary');
     });
 
     it('states how common, the school grade, the strokes and the radical in the facts row', () => {
@@ -77,6 +79,14 @@ describe('GrammarPage', () => {
         expect(examples.match(/<li>/g)?.length).toBe(5);
         expect(examples).toContain('data-section-search=');
         expect(grammarHtml(grammarProps(3, 0))).not.toContain('data-section-search=');
+    });
+
+    it('previews a point with only corpus examples in Point too, linking to Examples', () => {
+        const body = grammarHtml(grammarProps(0, 3));
+        const preview = body.slice(body.indexOf('detail-preview'), body.indexOf('id="examples"'));
+        expect(preview.match(/<li>/g)?.length).toBe(2);
+        expect(preview).toContain('Example 100.');
+        expect(preview).toContain('href="#examples">All 3 examples →');
     });
 
     it('keeps the full explanation in place under the short one', () => {
