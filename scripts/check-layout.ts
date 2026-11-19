@@ -458,7 +458,7 @@ async function checkPitchAccentUnpunctuated(tab: Tab, page: string, width: numbe
         const found = [];
         for (let node = walker.nextNode(); node; node = walker.nextNode()) {
             const text = node.textContent.trim();
-            if (!text || node.parentElement.closest('[data-pitch-reading], button')) continue;
+            if (!text || node.parentElement.closest('[data-pitch-reading], button, .sr-only, .visually-hidden')) continue;
             const range = document.createRange();
             range.selectNodeContents(node);
             if ([...range.getClientRects()].some(r => r.width > 1 && r.height > 1)) found.push(text);
