@@ -49,6 +49,7 @@ function WordCardBody({ vocabId, onNavigate }: BodyProps & { vocabId: string }) 
     if (load.status !== 'ready') return <CardSkeleton variant="line" />;
 
     const vocab = load.data;
+    const play = (className?: string) => <PlayButton audio={vocab.audio} label={`Play ${headwordOf(vocab)}`} className={className} />;
     // The page's order (organizeSenses): the senses a learner meets first, archaic and rare ones
     // only for a word that has nothing else.
     const { common, rare } = organizeSenses(vocab.senses);
@@ -63,8 +64,11 @@ function WordCardBody({ vocabId, onNavigate }: BodyProps & { vocabId: string }) 
                 {/* The reading with its pitch accent stands in for the plain reading; a word learned
                     in kana keeps its kanji spelling, then the reading drawn so. */}
                 {(vocab.usuallyKana || !accent) && <SecondaryForm vocab={vocab} truncate={false} />}
-                {accent && <PitchAccent accent={accent} className="font-gothic text-sm text-secondary" />}
-                <PlayButton audio={vocab.audio} label={`Play ${headwordOf(vocab)}`} />
+                {/* With its pitch accent the button follows the first pattern, as on the page, so a
+                    second one wraps after it rather than pushing it onto a row of its own. */}
+                {accent
+                    ? <PitchAccent accent={accent} play={play('ml-1')} className="font-gothic text-sm text-secondary" />
+                    : play()}
             </div>
             <ol className="space-y-0.5">
                 {senses.map(({ sense, posLabel }, i) => (

@@ -38,8 +38,8 @@ function ReadingWithDots({ reading, downstep, room = '0px', children }: { readin
 
 /**
  * A word's primary reading with its pitch accent drawn over it (issue 176), in place of the plain
- * reading: the most usual pattern on the reading itself, any other after a 、 as the reading again,
- * smaller (never under 12px). Screen readers get the reading once and the patterns in words. A play
+ * reading: the most usual pattern on the reading itself, any other as the reading again, smaller
+ * (never under 12px), with no mark between them: a later pattern that wraps would open its line with it. Screen readers get the reading once and the patterns in words. A play
  * button (`play`, given an `ml-1` for the row's 0.5rem) follows the first pattern, which leaves it room on its line; a further pattern
  * follows the button, wrapping to the next line when it does not fit, so the button never drops
  * under its reading. Never on a quiz card: in a reading quiz it would hint at the answer.
@@ -57,12 +57,8 @@ export function PitchAccent({ accent, play, className = '' }: { accent: Accent; 
             {/* Its own flex item, right after the reading (check:layout measures it from there). */}
             {play}
             {others.map(downstep => (
-                <span key={downstep} aria-hidden="true" className="inline-flex items-end whitespace-nowrap">
-                    {/* Pulled toward the pattern before it, so the 、 belongs to it rather than floating between. */}
-                    <span lang="ja" className="-ms-[0.25em] text-tertiary">、</span>
-                    <span style={{ fontSize: `max(0.75rem, ${PITCH_OTHER_SCALE}em)` }}>
-                        <ReadingWithDots reading={accent.reading} downstep={downstep} />
-                    </span>
+                <span key={downstep} aria-hidden="true" style={{ fontSize: `max(0.75rem, ${PITCH_OTHER_SCALE}em)` }}>
+                    <ReadingWithDots reading={accent.reading} downstep={downstep} />
                 </span>
             ))}
         </span>

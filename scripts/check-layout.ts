@@ -447,6 +447,28 @@ async function checkPlayButtonsOnFirstLine(tab: Tab, page: string, width: number
 }
 
 /**
+ * A word's pitch accent shows nothing between its patterns but the readings and the play button:
+ * a later pattern that wraps would otherwise open its line with that mark (a 、 there breaks
+ * Japanese line-breaking rules). Any visible text outside a reading and a button fails, on 現在進行形
+ * (two patterns, the second wrapping at 320px) in both apps. Hidden screen-reader words are skipped.
+ */
+async function checkPitchAccentUnpunctuated(tab: Tab, page: string, width: number): Promise<void> {
+    const strays = await tab.evaluate<string[]>(`[...document.querySelectorAll('[data-pitch-accent], .pa')].flatMap(root => {
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        const found = [];
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            const text = node.textContent.trim();
+            if (!text || node.parentElement.closest('[data-pitch-reading], button')) continue;
+            const range = document.createRange();
+            range.selectNodeContents(node);
+            if ([...range.getClientRects()].some(r => r.width > 1 && r.height > 1)) found.push(text);
+        }
+        return found;
+    })`);
+    for (const stray of strays) failures.push(`${width}px ${page}: text between pitch accent patterns ("${stray}"), which can open a wrapped line`);
+}
+
+/**
  * A word page on a small phone shows, without scrolling, what a learner looks it up for: the
  * headword, its reading, the summary gloss and the status line (Learn this word, or the status).
  */
@@ -1998,6 +2020,7 @@ async function checkDictionaryPlayButtons(tab: Tab, base: string, width: number)
         if (sentences && shown.sentences === 0) failures.push(`${width}px ${page}: no sentence in the open tab has a "Play sentence" button`);
         if (shown.unnamed > 0) failures.push(`${width}px ${page}: ${shown.unnamed} play buttons without a name or a clip URL under /audio/`);
         await checkPlayButtonsOnFirstLine(tab, page, width, DICTIONARY_PLAY_BUTTONS);
+        await checkPitchAccentUnpunctuated(tab, page, width);
         await measure(tab, page, width, DICTIONARY_TAP_TARGETS);
     }
     // A page that plays nothing links no player and shows no button: the kanji page.
@@ -2351,11 +2374,13 @@ try {
         for (const word of LONG_PITCH_WORDS) {
             await tab.goto(`${app}/vocab/${word}`, 'Dict');
             await checkPlayButtonsOnFirstLine(tab, `srs /vocab/${word}`, width);
+            await checkPitchAccentUnpunctuated(tab, `srs /vocab/${word}`, width);
+            // The longest reading, one pattern: its header still fits a small phone's first screen,
+            // measured on its own page. Not 現在進行形: its second pattern takes a line of its own
+            // after the button at 320px (the layout chosen on PR 267), which puts its status line
+            // 13px below a 568px screen.
+            if (word === LONG_PITCH_WORDS[0]) await checkWordFirstScreen(tab, `srs /vocab/${word}`, width, height);
         }
-        // The longest reading, one pattern: its header still fits a small phone's first screen. Not
-        // 現在進行形: its second pattern takes a line of its own after the button at 320px (the
-        // layout chosen on PR 267), which puts its status line 13px below a 568px screen.
-        await checkWordFirstScreen(tab, `srs /vocab/${LONG_PITCH_WORDS[0]}`, width, height);
         await tab.evaluate<void>(SEED_MIXUPS);
         await tab.goto(`${app}/vocab/${MIXUP_WORD}`, 'Dict');
         // Learned here, so Your study's phone grid and the mix-ups under it are measured on a word that has them.

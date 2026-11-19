@@ -12,6 +12,10 @@ let settings: UserSettings | null = null;
 vi.mock('../../context/useQuiz', () => ({
     useQuiz: () => ({ state: { progress: null, settings, session: null, grammarSession: null }, actions: {} }),
 }));
+// The real button subscribes to the clip player, which a static render has no snapshot of.
+vi.mock('../PlayButton', () => ({
+    PlayButton: ({ label, className = '' }: { label: string; className?: string }) => <button aria-label={label} className={className} />,
+}));
 vi.mock('../../hooks/useAsyncData', () => ({
     useAsyncData: () => ({ status: 'ready', data: loaded, error: undefined }),
 }));
@@ -58,6 +62,14 @@ describe('LookupCardBody, the word card', () => {
             expect(html).toContain('data-pitch-accent');
             expect(html).toContain('Pitch accent: drop after mora 2');
             expect(html.match(/>はし</g)).toHaveLength(1);
+        });
+
+        it('puts the play button right after the first pattern, so a second one wraps after it', () => {
+            settings = null;
+            const html = render({ ...hashi(), audio: { clip: 'clip-hashi' }, pitchAccent: [{ reading: 'はし', downsteps: [2, 0], source: 'wiktionary' }] });
+            const group = /<span data-pitch-accent[\s\S]*$/.exec(html)?.[0] ?? '';
+            // The first pattern closes (its reading, then its screen-reader words), then the button.
+            expect(group).toMatch(/data-pitch-reading[^>]*>はし<\/span><span class="sr-only">[^<]*<\/span><\/span><button[^>]*aria-label="Play 橋"/);
         });
 
         it('keeps the kanji spelling of a word learned in kana, then its reading with the pattern', () => {

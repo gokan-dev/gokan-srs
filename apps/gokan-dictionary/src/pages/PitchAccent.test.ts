@@ -30,7 +30,7 @@ describe('PitchAccent', () => {
     it("puts the reading's play button right after the first pattern, a further one after it", () => {
         const head = /<p class="entry-sub"[^>]*>.*?<\/p>/s.exec(wordPage())?.[0] ?? '';
         expect(head).toContain('class="pa pa-b"');
-        expect(head).toMatch(/data-pitch-reading[^>]*>あのひと<\/span><span class="visually-hidden">[^<]*<\/span><\/span><button class="play"[^>]*><\/button><span class="pa-o" aria-hidden="true">/);
+        expect(head).toMatch(/data-pitch-reading[^>]*>あのひと<\/span><span class="visually-hidden">[^<]*<\/span><\/span><button class="play"[^>]*><\/button><span aria-hidden="true"><span class="pr pr-other"/);
     });
 });
 

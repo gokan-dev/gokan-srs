@@ -138,22 +138,10 @@ $pitch-button-room: $target + $space-half;
   font-size: min(1em, calc((100vw - #{$pitch-gutters + $pitch-button-room}) / var(--w)));
 }
 
-// A further pattern, after the button: its 、 and the reading again, smaller (never under 12px),
-// one unit that wraps whole.
-.pa-o {
-  display: inline-flex;
-  align-items: flex-end;
-  white-space: nowrap;
-}
-
+// A further pattern, after the button: the reading again, smaller (never under 12px), with no
+// mark before it, which a wrap would leave opening a line.
 .pr-other {
   font-size: max(0.75rem, min(0.75em, calc((100vw - #{$pitch-gutters}) / var(--w))));
-}
-
-// Pulled toward the pattern before it, so it belongs to it rather than floating between.
-.pa-sep {
-  margin-inline-start: -0.25em;
-  color: var(--tertiary);
 }
 
 .entry-layout {
