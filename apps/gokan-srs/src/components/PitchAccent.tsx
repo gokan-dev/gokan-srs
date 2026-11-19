@@ -1,29 +1,29 @@
 import { Fragment } from "react";
-import { pitchGraph, type PitchAccent as Accent } from "@gokan/dataset-schema";
+import { pitchPaths, type PitchAccent as Accent } from "@gokan/dataset-schema";
 import { pitchAccentLabel } from "../utils/pitchAccent.utils";
 
 /**
- * A reading with one pattern drawn over it (`pitchGraph`, in em of the reading's font, so each dot
+ * A reading with one pattern drawn over it (`pitchPaths`, in em of the reading's font, so each dot
  * sits over its kana at any size): a dot per mora and a hollow one, one em past the end, for the
  * particle after the word. The text cannot wrap without leaving its dots, so a reading too long
  * for the screen is set smaller to fit it instead. Dots and lines in the reading's own ink.
  */
 function ReadingWithDots({ reading, downstep }: { reading: string; downstep: number }) {
-    const g = pitchGraph(reading, downstep);
+    // The same three elements as the dictionary's (pitchPaths): one line, the dots as round caps
+    // of zero-length strokes (as wide as the particle's ring), the particle's ring.
+    const p = pitchPaths(reading, downstep);
     return (
         <span
             className="relative inline-block whitespace-nowrap"
-            // 0.65em on the right: room for the particle's dot, centred half an em past the reading.
-            // 2rem: the page's side gutters, so the reading and its particle fit the screen's width.
-            style={{ paddingTop: `${g.height}em`, paddingRight: '0.65em', fontSize: `min(1em, calc((100vw - 2rem) / ${g.width}))` }}
+            // 0.56em on top, the graph's height; 0.65em on the right, room for the particle's dot,
+            // centred half an em past the reading. 2rem: the page's side gutters, so the reading and
+            // its particle fit the screen's width.
+            style={{ paddingTop: '0.56em', paddingRight: '0.65em', fontSize: `min(1em, calc((100vw - 2rem) / ${p.width}))` }}
         >
-            <svg aria-hidden="true" className="absolute left-0 top-0 overflow-visible" width={`${g.width}em`} height={`${g.height}em`} viewBox={`0 0 ${g.width} ${g.height}`}>
-                {g.segments.map((s, i) => (
-                    <line key={i} x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2} className="stroke-current" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
-                ))}
-                {g.points.map((p, i) => (
-                    <circle key={i} cx={p.x} cy={p.y} r={g.radius} strokeWidth={1.5} vectorEffect="non-scaling-stroke" className={p.particle ? 'stroke-current fill-none' : 'fill-current'} />
-                ))}
+            <svg aria-hidden="true" className="absolute left-0 top-0 overflow-visible fill-none stroke-current" width={`${p.width}em`} height="0.56em" viewBox={`0 0 ${p.width} .56`}>
+                <path d={p.line} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+                <path d={p.dots} strokeWidth={0.24} strokeLinecap="round" />
+                <circle cx={p.particle.cx} cy={p.particle.cy} r={p.radius} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
             </svg>
             {/* What a play button beside it is held to (check:layout): the text's line, not the dots above it. */}
             <span lang="ja" data-pitch-reading>{reading}</span>

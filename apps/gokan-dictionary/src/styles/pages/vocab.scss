@@ -79,23 +79,25 @@
   font-family: $font-gothic;
 }
 
-// The reading with its pitch accent drawn over it (PitchAccent.svelte): dots and lines in the
-// reading's own ink, a fact about the word; the particle after it hollow. Each dot is placed in em
-// of the reading's font (pitchGraph), so the reading never wraps and never changes font features;
-// one too long for the screen is set smaller instead (2rem: the page's side gutters).
-.pitch-accent {
+// The reading with its pitch accent drawn over it (PitchAccent.svelte, short class names: it is on
+// every word page, under a size budget). Dots and line in the reading's own ink, a fact about the
+// word; the particle after it hollow. Each dot is placed in em of the reading's font (pitchPaths),
+// so the reading never wraps and never changes font features; one too long for the screen is set
+// smaller instead (2rem: the page's side gutters). --w is the graph's width in em.
+.pa {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: flex-end;
   gap: 0 $space-half;
 }
 
-.pitch-reading {
+.pr {
   position: relative;
   display: inline-block;
-  // 0.65em on the right: room for the particle's dot, centred half an em past the reading.
-  padding: var(--pitch-height) 0.65em 0 0;
-  font-size: min(1em, calc((100vw - 2rem) / var(--pitch-width)));
+  // 0.56em on top, the graph's height (pitchPaths' viewBox); 0.65em on the right, room for the
+  // particle's dot, centred half an em past the reading.
+  padding: 0.56em 0.65em 0 0;
+  font-size: min(1em, calc((100vw - 2rem) / var(--w)));
   font-feature-settings: normal;
   letter-spacing: 0;
   white-space: nowrap;
@@ -104,31 +106,34 @@
     position: absolute;
     top: 0;
     left: 0;
+    width: calc(var(--w) * 1em);
+    height: 0.56em;
     overflow: visible;
+    fill: none;
+    stroke: currentColor;
   }
 
-  line,
+  // The line and the particle's ring: 1.5px at any size.
+  path,
   circle {
-    stroke: currentColor;
     stroke-width: 1.5;
     vector-effect: non-scaling-stroke;
   }
 
-  circle {
-    fill: currentColor;
-
-    &.particle {
-      fill: none;
-    }
+  // The dots: zero-length strokes whose round caps are the dots, as wide as the particle's ring.
+  .pd {
+    stroke-width: 0.24;
+    stroke-linecap: round;
+    vector-effect: none;
   }
 }
 
 // A second pattern, as the reading again, smaller.
-.pitch-reading-other {
-  font-size: min(0.75em, calc((100vw - 2rem) / var(--pitch-width)));
+.pr-other {
+  font-size: min(0.75em, calc((100vw - 2rem) / var(--w)));
 }
 
-.pitch-accent-sep {
+.pa-sep {
   color: var(--tertiary);
 }
 

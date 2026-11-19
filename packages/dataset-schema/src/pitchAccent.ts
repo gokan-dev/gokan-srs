@@ -108,3 +108,33 @@ export function pitchGraph(reading: string, downstep: number): PitchGraph {
     });
     return { width: x + 1, height: HEIGHT, points, segments, radius: RADIUS };
 }
+
+/** A number as short as SVG reads it: `0.44` as `.44`, `-0.32` as `-.32`. */
+const short = (n: number) => String(round(n)).replace(/^(-?)0\./, '$1.');
+
+/**
+ * A pitch graph as the fewest bytes of SVG: the dictionary puts one on each of its 35,000 word
+ * pages, held to a size budget (lib/budgets.ts), and one element per segment and dot cost 0.8 KB.
+ * `line` is one path through every dot, ending at the particle's edge; `dots` draws every mora's
+ * dot as a zero-length stroke with round caps (so its stroke width is the dot's diameter,
+ * `2 * radius`); `particle` is the hollow dot's centre. Coordinates are relative after the first.
+ */
+export interface PitchPaths {
+    width: number;
+    line: string;
+    dots: string;
+    particle: { cx: string; cy: string };
+    radius: string;
+}
+
+export function pitchPaths(reading: string, downstep: number): PitchPaths {
+    const g = pitchGraph(reading, downstep);
+    const morae = g.points.filter(p => !p.particle);
+    const particle = g.points[g.points.length - 1] ?? { x: 0, y: 0 };
+    const relative = (from: { x: number; y: number }, to: { x: number; y: number }) => `${short(to.x - from.x)} ${short(to.y - from.y)}`;
+    const ends = [...g.segments.map(s => ({ x: s.x2, y: s.y2 }))];
+    const first = morae[0] ?? particle;
+    const line = `M${short(first.x)} ${short(first.y)}l${ends.map((p, i) => relative(i === 0 ? first : ends[i - 1] ?? first, p)).join(' ')}`;
+    const dots = `M${short(first.x)} ${short(first.y)}h0${morae.slice(1).map((p, i) => `m${relative(morae[i] ?? first, p)}h0`).join('')}`;
+    return { width: g.width, line, dots, particle: { cx: short(particle.x), cy: short(particle.y) }, radius: short(g.radius) };
+}

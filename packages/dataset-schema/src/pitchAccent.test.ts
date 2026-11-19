@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { moraeOf, pitchAccentKind, pitchContour, pitchGraph, primaryPitchAccent } from './pitchAccent';
+import { moraeOf, pitchAccentKind, pitchContour, pitchGraph, pitchPaths, primaryPitchAccent } from './pitchAccent';
 
 const highs = (reading: string, downstep: number) => {
     const c = pitchContour(reading, downstep);
@@ -58,6 +58,24 @@ describe('pitchGraph', () => {
         const particle = g.points[2];
         expect(last?.x2).toBeCloseTo((particle?.x ?? 0) - g.radius, 2);
         expect(last?.y2).toBe(particle?.y);
+    });
+});
+
+describe('pitchPaths', () => {
+    it('writes the graph as one line, one path of dots and the particle, in the fewest bytes', () => {
+        // 端 (はし, heiban): は low at .5em, し high at 1.5em, the particle high at 2.5em; the line
+        // stops at the particle's edge (2.38em), its dot drawn hollow apart.
+        expect(pitchPaths('はし', 0)).toEqual({
+            width: 3,
+            line: 'M.5 .44l1 -.32 .88 0',
+            dots: 'M.5 .44h0m1 -.32h0',
+            particle: { cx: '2.5', cy: '.12' },
+            radius: '.12',
+        });
+    });
+
+    it('steps by each mora\'s width, a small kana joined to its mora', () => {
+        expect(pitchPaths('きょう', 1).dots).toBe('M1 .12h0m1.5 .32h0');
     });
 });
 
