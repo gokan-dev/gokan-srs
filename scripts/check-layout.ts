@@ -504,8 +504,8 @@ async function checkPitchButtonFollowsFirst(tab: Tab, page: string, width: numbe
  * edge: the space before a later pattern is the row's gap, which a wrap drops, never a margin,
  * which a wrap keeps (an 8px indent per wrapped line, on PR 267's rc.6). Graphs inside a play
  * button are skipped. A wrap is told from where a pattern starts, never from its height: the row
- * aligns its patterns' baselines, so a smaller later pattern on the first's line starts lower, and
- * its top is a fraction of a pixel from the first graph's bottom (PR 267's rc.7). At 320px a word
+ * aligns its patterns' bottoms, so a smaller later pattern on the first's line starts lower, its
+ * graph's top within 2px of the first graph's bottom (PR 267's rc.7). At 320px a word
  * with several patterns must wrap, so the check cannot pass by measuring nothing.
  */
 async function checkPitchPatternsFlush(tab: Tab, page: string, width: number): Promise<void> {
