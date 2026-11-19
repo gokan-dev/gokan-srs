@@ -234,7 +234,7 @@ export function SettingsScreen({
                 <SettingToggle
                     className="mt-6"
                     label="Show pitch accent"
-                    description="Where a word's pitch rises and falls, beside its reading on its page and its card. Never on a quiz card."
+                    description="Dots over a word's reading showing where its pitch is high and low, on its page and on the card that opens when you tap the word. Never on a quiz card."
                     checked={settings.showPitchAccent}
                     onChange={(checked) => onUpdateSettings({ ...settings, showPitchAccent: checked })}
                 />

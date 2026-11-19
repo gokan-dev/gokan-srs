@@ -21,7 +21,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
         date: '2026-11-19',
         summary: 'Pitch accent',
         changes: [
-            { summary: 'A word now shows its pitch accent over its reading, on its page, on its card and in the dictionary: where the pitch is high or low, and whether a particle after it stays high. You can turn it off in Settings.', issue: 176 },
+            { summary: 'A word now shows its pitch accent over its reading, on its page, on the card that opens when you tap the word and in the dictionary: where the pitch is high or low, and whether a particle after it stays high. You can turn it off in Settings.', issue: 176 },
         ],
     },
     {

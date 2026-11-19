@@ -225,8 +225,8 @@ export interface UserSettings {
      */
     romajiInput: boolean;
     /**
-     * "Show pitch accent": a word's pitch accent beside its reading on its page and its
-     * card (components/PitchAccent.tsx). On by default; off shows it nowhere in the app.
+     * "Show pitch accent": a word's pitch accent drawn over its reading, on its page and on the
+     * card that opens when the word is tapped (components/PitchAccent.tsx). On by default; off shows it nowhere in the app.
      */
     showPitchAccent: boolean;
 }
