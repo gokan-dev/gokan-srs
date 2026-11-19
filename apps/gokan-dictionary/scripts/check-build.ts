@@ -149,17 +149,22 @@ function modeProblems(): string[] {
     return problems;
 }
 
-/** Problems other than sizes: a second web font, or a Svelte runtime reaching the browser. */
+/**
+ * Problems other than sizes: a second web font, a Svelte runtime reaching the browser, or the
+ * site's origin in a client script. No script reads the origin, so one that carries it is longer
+ * on staging (a longer origin) than in CI, where its budget is measured: 1.67.0's detail script
+ * passed CI and failed the staging deploy by 2 bytes.
+ */
 function assetProblems(): string[] {
     const problems: string[] = [];
     const assets = fs.readdirSync(path.join(DIST_DIR, 'assets'));
     const fonts = assets.filter(name => /\.(woff2?|ttf|otf)$/.test(name));
     if (fonts.length !== 1) problems.push(`expected one web font, found ${fonts.length}: ${fonts.join(', ')}`);
     for (const script of assets.filter(name => name.endsWith('.js'))) {
+        const source = fs.readFileSync(path.join(DIST_DIR, 'assets', script), 'utf-8');
         // Every Svelte client runtime build links its error codes to svelte.dev/e/.
-        if (fs.readFileSync(path.join(DIST_DIR, 'assets', script), 'utf-8').includes('svelte.dev/e/')) {
-            problems.push(`assets/${script} contains the Svelte client runtime`);
-        }
+        if (source.includes('svelte.dev/e/')) problems.push(`assets/${script} contains the Svelte client runtime`);
+        if (source.includes(SITE_ORIGIN)) problems.push(`assets/${script} contains the site origin (${SITE_ORIGIN}), so its size depends on the environment`);
     }
     return problems;
 }

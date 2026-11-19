@@ -19,8 +19,14 @@ function trimTrailingSlash(value: string): string {
     return value.endsWith('/') ? value.slice(0, -1) : value;
 }
 
-/** Scheme + host only, no path and no trailing slash, e.g. "https://gokan-srs.com". */
-export const SITE_ORIGIN = trimTrailingSlash(
+/**
+ * Scheme + host only, no path and no trailing slash, e.g. "https://gokan-srs.com".
+ *
+ * The call is marked pure so a client script that reaches this module without reading the origin
+ * (the detail tabs, through lib/locale.ts) drops it: otherwise every such script carries the
+ * environment's origin, and is longer on staging than in CI, which measures it (lib/budgets.ts).
+ */
+export const SITE_ORIGIN = /* @__PURE__ */ trimTrailingSlash(
     import.meta.env.VITE_SITE_ORIGIN || 'https://gokan-srs.com',
 );
 
