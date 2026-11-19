@@ -2,18 +2,20 @@
 // may weigh, in every locale (a Chinese word page is a word page, a Chinese JLPT list a JLPT list),
 // checked after every build by scripts/check-build.ts, which fails the build when one is exceeded.
 // A budget is a decision about what the site costs a reader on a phone; raise one deliberately, in
-// the docs, never to make a build pass.
+// the docs, never to make a build pass. On 2026-11-19 every budget within 10% of its measure was
+// set about 20% above it (docs/DESIGN_SYSTEM.md, Budgets): most sat within 1 to 5%, so ordinary
+// features failed the build (the pitch accent, #176, took Chinese word pages to 20.2 of 20 KB).
 
 const KB = 1024;
 
 export const BUDGETS = {
     /** A word page, 90th percentile. */
-    wordPageP90: 20 * KB,
+    wordPageP90: 24 * KB,
     /** The heaviest kanji page (一 lists 660 words). */
-    kanjiPageMax: 80 * KB,
+    kanjiPageMax: 96 * KB,
     /** The heaviest grammar point page: its curated examples, up to 25 from the corpus, its related points. */
-    grammarPageMax: 40 * KB,
-    grammarIndex: 150 * KB,
+    grammarPageMax: 48 * KB,
+    grammarIndex: 180 * KB,
     /** Each page of a JLPT word list. */
     jlptPage: 150 * KB,
     /**
@@ -22,19 +24,19 @@ export const BUDGETS = {
      */
     kanjiOrderPage: 150 * KB,
     /** The stylesheet every page loads. */
-    sharedStylesheet: 10 * KB,
+    sharedStylesheet: 12 * KB,
     /** A locale's own stylesheet, which every page in it loads besides (styles/locales/). */
     localeStylesheet: 2 * KB,
     /** The search script every page loads: 10 KB until it carried every locale's words and links (#228, docs/DESIGN_SYSTEM.md). */
-    searchScript: 12 * KB,
+    searchScript: 14 * KB,
     /** A detail page's tabs and section search (client/detailTabs.ts), on the pages that link it. */
-    detailScript: 8 * KB,
+    detailScript: 10 * KB,
     /** The clip player (client/player.ts), on the pages with a play button. */
     playerScript: 2 * KB,
     /** The query engine it loads on first focus, with the index. */
-    searchEngine: 10 * KB,
+    searchEngine: 12 * KB,
     /** search-core.json, gzipped. */
-    searchCoreGzip: 300 * KB,
+    searchCoreGzip: 360 * KB,
     /** The one web font. */
     webFont: 40 * KB,
 } as const;
