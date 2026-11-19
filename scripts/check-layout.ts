@@ -503,19 +503,24 @@ async function checkPitchButtonFollowsFirst(tab: Tab, page: string, width: numbe
  * A pattern that opens a line below the first starts flush with it, under the reading's left
  * edge: the space before a later pattern is the row's gap, which a wrap drops, never a margin,
  * which a wrap keeps (an 8px indent per wrapped line, on PR 267's rc.6). Graphs inside a play
- * button are skipped. At 320px a word with several patterns must wrap, so the check cannot pass by
- * measuring nothing.
+ * button are skipped. A wrap is told from where a pattern starts, never from its height: the row
+ * aligns its patterns' baselines, so a smaller later pattern on the first's line starts lower, and
+ * its top is a fraction of a pixel from the first graph's bottom (PR 267's rc.7). At 320px a word
+ * with several patterns must wrap, so the check cannot pass by measuring nothing.
  */
 async function checkPitchPatternsFlush(tab: Tab, page: string, width: number): Promise<void> {
     const result = await tab.evaluate<{ wrapped: number; strays: string[] }>(`(() => {
         let wrapped = 0;
         const strays = [...document.querySelectorAll('[data-pitch-accent], .pa')].flatMap(root => {
-            const svgs = [...root.querySelectorAll('svg')].filter(svg => svg.closest('button') === null).map(svg => svg.getBoundingClientRect());
+            // Each pattern's box (the graph's parent, the reading's text with the particle's room),
+            // not its graph: the graph is laid out at 1em a kana, so it overhangs a narrower font.
+            const svgs = [...root.querySelectorAll('svg')].filter(svg => svg.closest('button') === null).map(svg => (svg.parentElement ?? svg).getBoundingClientRect());
             const first = svgs[0];
             if (!first || first.width === 0) return [];
             return svgs.slice(1).flatMap((svg, i) => {
-                // Only the pattern that opens a line (below the one before it): the rest follow on it.
-                if (svg.top < svgs[i].bottom) return [];
+                // Only the pattern that opens a line: one that follows on a line starts past the
+                // previous box's right edge (the row's gap after it), one that wraps starts left of it.
+                if (svg.left >= svgs[i].right) return [];
                 wrapped++;
                 const off = Math.round(svg.left - first.left);
                 return Math.abs(svg.left - first.left) <= 1 ? [] : ['pattern ' + (i + 2) + ' starts ' + off + 'px from the first'];
