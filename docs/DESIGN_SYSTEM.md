@@ -264,9 +264,13 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
     tab, so crossing below 1024px opens it.
   - Header, top to bottom: the headword, its spellings and reading (the kana note for a word
     learned in kana, "Also:" readings), the reading followed by its `PlayButton`: with its
-    pitch accent the button follows the first pattern, any other after it, past a gap wider than
-    the one before the button (so the button reads as the first's, and two contours never read as
-    one line), with no 、 between them (a wrap would leave it opening a line), wrapping after the button, and a long reading is set smaller to leave the button room on its line; the summary gloss (`summaryGloss`, one
+    pitch accent the button follows the first pattern, any other after it, past the row's 16px
+    gap, wider than the 8px (4px in the dictionary) the button is pulled back to after the reading
+    (so the button reads as the first's, and two contours never read as one line). The space is
+    the gap, never a margin on the later pattern, and there is no 、 between them: a wrap drops a
+    gap, so a pattern wrapping after the button starts flush under the first, where a margin would
+    indent it and a 、 would open its line. A long reading is set smaller to leave the button room
+    on its line; the summary gloss (`summaryGloss`, one
     `type-body` line of the first four distinct common glosses); one chips row, the JLPT chip,
     How common on one line (the `FrequencyMeter` and the band's name, the round "Top 300 words"
     and the exact rank in its `title`); under it the facts row (`DetailHeader` `facts`), KKLC step

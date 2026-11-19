@@ -94,7 +94,9 @@ $pitch-button-room: $target + $space-half;
   display: inline-flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: 0 $space-half;
+  // 16px between patterns, as a gap rather than a margin: a gap goes at a wrap, so a later
+  // pattern that wraps starts flush under the first.
+  column-gap: $space-2;
 }
 
 .pr {
@@ -133,16 +135,20 @@ $pitch-button-room: $target + $space-half;
   }
 }
 
-// The first pattern with the play button after it: it leaves the button room on its line.
+// The first pattern with the play button after it: it leaves the button room on its line, and
+// the button is pulled back to $space-half after it (never opening a line, so never misaligned).
 .pa-b > .pr:first-child {
   font-size: min(1em, calc((100vw - #{$pitch-gutters + $pitch-button-room}) / var(--w)));
+
+  + .play {
+    margin-inline-start: -($space-2 - $space-half);
+  }
 }
 
-// A further pattern, after the button: the reading again, smaller (never under 12px), after a
-// gap wider than the one before the button (so two contours never read as one line), with no
-// mark before it, which a wrap would leave opening a line.
+// A further pattern, after the button: the reading again, smaller (never under 12px), after the
+// row's gap, wider than the one before the button (so two contours never read as one line), with
+// no margin and no mark before it, which a wrap would leave indenting or opening a line.
 .pr-other {
-  margin-inline-start: $space-1;
   font-size: max(0.75rem, min(0.75em, calc((100vw - #{$pitch-gutters}) / var(--w))));
 }
 

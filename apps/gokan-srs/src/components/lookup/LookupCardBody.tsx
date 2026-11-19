@@ -68,7 +68,7 @@ function WordCardBody({ vocabId, onNavigate }: BodyProps & { vocabId: string }) 
                     second one wraps after it rather than pushing it onto a row of its own. Only with a clip:
                     without one there is no button to leave room for. */}
                 {accent
-                    ? <PitchAccent accent={accent} play={vocab.audio ? play('ml-1') : undefined} className="font-gothic text-sm text-secondary" />
+                    ? <PitchAccent accent={accent} play={vocab.audio ? play('-ml-2') : undefined} className="font-gothic text-sm text-secondary" />
                     : play()}
             </div>
             <ol className="space-y-0.5">

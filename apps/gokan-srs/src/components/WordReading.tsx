@@ -63,7 +63,7 @@ export function WordReading({ vocab, variant, className = '' }: WordReadingProps
             {pitch ? (
                 // The button inside, after the first pattern: a second one wraps after it, never pushing it down.
                 // Only with a clip: PlayButton draws nothing without one, and its room would shrink the reading for nothing.
-                <PitchAccent accent={pitch} play={vocab.audio ? playButton('ml-1') : undefined} className="text-secondary" />
+                <PitchAccent accent={pitch} play={vocab.audio ? playButton('-ml-2') : undefined} className="text-secondary" />
             ) : (
                 /* A long list wraps beside the button, which stays at its first line, and only between
                    readings: each one is a unit (アー / ル is no reading). inline-block, not nowrap, so a

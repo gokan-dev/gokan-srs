@@ -357,12 +357,14 @@ const KANA_WORD = '1000225';
  */
 const HYPHEN_KUN_WORD = '1289070';
 /**
- * Long readings with their pitch accent, whose play button must stay on the reading's line (the
- * fit leaves the button room, and a second pattern wraps after it): 中華人民共和国, the longest
- * reading (14 kana, one pattern), and 現在進行形 (10 kana, two patterns, which as one item ran
- * past a 320px phone and pushed the button under it).
+ * Readings with their pitch accent, whose play button must stay on the reading's line (the fit
+ * leaves the button room, and a further pattern wraps after it): 中華人民共和国, the longest reading
+ * (14 kana, one pattern), 現在進行形 (10 kana, two patterns, which as one item ran past a 320px phone
+ * and pushed the button under it) and 辛うじて (four patterns, wrapping onto two lines at 320px).
  */
-const LONG_PITCH_WORDS = ['1423580', '2145250'];
+const PITCH_WORDS = ['1423580', '2145250', '1365870'];
+/** The words of PITCH_WORDS with more than one pattern: a play button between them, a pattern that wraps. */
+const MULTI_PITCH_WORDS = PITCH_WORDS.slice(1);
 
 /** A word page's tabs (components/ui/TabNav.tsx, page tabs): a phone's main way around the page. */
 const PAGE_TABS = '[role="tab"]';
@@ -470,10 +472,11 @@ async function checkPitchAccentUnpunctuated(tab: Tab, page: string, width: numbe
 
 /**
  * A play button between two patterns reads as the first one's (it plays the reading it follows):
- * when the second pattern shares the button's line, it starts further from the button's centre
- * than the first pattern's particle ring ends before it. Measured from the centre, so the button's
- * icon size cancels out. On 現在進行形 (two patterns) in both apps, at every width it is checked at;
- * the case with no button between them is held by the apps' unit tests.
+ * when the second pattern shares the button's line, it starts clearly further from the button's
+ * centre (by 6px or more) than the first pattern's particle ring ends before it. Measured from the
+ * centre, so the button's icon size cancels out. On the words with several patterns in both apps,
+ * at every width it is checked at; the case with no button between them is held by the apps' unit
+ * tests.
  */
 async function checkPitchButtonFollowsFirst(tab: Tab, page: string, width: number): Promise<void> {
     const result = await tab.evaluate<{ found: boolean; strays: string[] }>(`(() => {
@@ -488,12 +491,40 @@ async function checkPitchButtonFollowsFirst(tab: Tab, page: string, width: numbe
             if (next.left < centre) return [];
             const before = Math.round(centre - ring.right);
             const after = Math.round(next.left - centre);
-            return after > before ? [] : ['the button is ' + before + 'px from the first pattern and ' + after + 'px from the second'];
+            return after - before >= 6 ? [] : ['the button is ' + before + 'px from the first pattern and ' + after + 'px from the second (6px more after it, at least)'];
         });
         return { found: roots.length > 0, strays };
     })()`);
     if (!result.found) failures.push(`${width}px ${page}: no pitch accent with two patterns and a play button to check`);
     for (const stray of result.strays) failures.push(`${width}px ${page}: the play button reads as the second pitch pattern's: ${stray}`);
+}
+
+/**
+ * A pattern that opens a line below the first starts flush with it, under the reading's left
+ * edge: the space before a later pattern is the row's gap, which a wrap drops, never a margin,
+ * which a wrap keeps (an 8px indent per wrapped line, on PR 267's rc.6). Graphs inside a play
+ * button are skipped. At 320px a word with several patterns must wrap, so the check cannot pass by
+ * measuring nothing.
+ */
+async function checkPitchPatternsFlush(tab: Tab, page: string, width: number): Promise<void> {
+    const result = await tab.evaluate<{ wrapped: number; strays: string[] }>(`(() => {
+        let wrapped = 0;
+        const strays = [...document.querySelectorAll('[data-pitch-accent], .pa')].flatMap(root => {
+            const svgs = [...root.querySelectorAll('svg')].filter(svg => svg.closest('button') === null).map(svg => svg.getBoundingClientRect());
+            const first = svgs[0];
+            if (!first || first.width === 0) return [];
+            return svgs.slice(1).flatMap((svg, i) => {
+                // Only the pattern that opens a line (below the one before it): the rest follow on it.
+                if (svg.top < svgs[i].bottom) return [];
+                wrapped++;
+                const off = Math.round(svg.left - first.left);
+                return Math.abs(svg.left - first.left) <= 1 ? [] : ['pattern ' + (i + 2) + ' starts ' + off + 'px from the first'];
+            });
+        });
+        return { wrapped, strays };
+    })()`);
+    if (width === 320 && result.wrapped === 0) failures.push(`${width}px ${page}: no pitch pattern wrapped onto a line of its own to check`);
+    for (const stray of result.strays) failures.push(`${width}px ${page}: a wrapped pitch pattern is not flush with the first: ${stray}`);
 }
 
 /**
@@ -2025,7 +2056,7 @@ async function checkDictionaryPlayButtons(tab: Tab, base: string, width: number)
     const pages = [
         { path: `/vocab/${TABBED_WORD}/`, ready: 'How common', reading: 'Play 取る', sentences: true },
         { path: `/vocab/${KANA_WORD}/`, ready: 'How common', reading: 'Play ', sentences: false },
-        ...LONG_PITCH_WORDS.map(word => ({ path: `/vocab/${word}/`, ready: 'Meanings', reading: 'Play ', sentences: false })),
+        ...PITCH_WORDS.map(word => ({ path: `/vocab/${word}/`, ready: 'Meanings', reading: 'Play ', sentences: false })),
         { path: `/grammar/${GRAMMAR_POINT}/`, ready: 'Grammar', reading: null, sentences: true },
     ];
     for (const { path, ready, reading, sentences } of pages) {
@@ -2049,7 +2080,10 @@ async function checkDictionaryPlayButtons(tab: Tab, base: string, width: number)
         if (shown.unnamed > 0) failures.push(`${width}px ${page}: ${shown.unnamed} play buttons without a name or a clip URL under /audio/`);
         await checkPlayButtonsOnFirstLine(tab, page, width, DICTIONARY_PLAY_BUTTONS);
         await checkPitchAccentUnpunctuated(tab, page, width);
-        if (path === `/vocab/${LONG_PITCH_WORDS[1]}/`) await checkPitchButtonFollowsFirst(tab, page, width);
+        if (MULTI_PITCH_WORDS.some(word => path === `/vocab/${word}/`)) {
+            await checkPitchButtonFollowsFirst(tab, page, width);
+            await checkPitchPatternsFlush(tab, page, width);
+        }
         await measure(tab, page, width, DICTIONARY_TAP_TARGETS);
     }
     // A page that plays nothing links no player and shows no button: the kanji page.
@@ -2286,9 +2320,11 @@ try {
         await desktop.goto(`http://127.0.0.1:${dictionary.port}/dictionary${path}`, 'JLPT');
         await checkLocaleSwitch(desktop, `dictionary ${path}`, DESKTOP.width);
     }
-    // 現在進行形's two patterns share the button's line at 1280px: the button reads as the first's.
-    await desktop.goto(`http://127.0.0.1:${srs.port}/vocab/${LONG_PITCH_WORDS[1]}`, 'Dict');
-    await checkPitchButtonFollowsFirst(desktop, `srs /vocab/${LONG_PITCH_WORDS[1]}`, DESKTOP.width);
+    // At 1280px the patterns share the button's line: the button reads as the first's.
+    for (const word of MULTI_PITCH_WORDS) {
+        await desktop.goto(`http://127.0.0.1:${srs.port}/vocab/${word}`, 'Dict');
+        await checkPitchButtonFollowsFirst(desktop, `srs /vocab/${word}`, DESKTOP.width);
+    }
     await checkKanaIntro(chrome, `http://127.0.0.1:${srs.port}`, DESKTOP.width, DESKTOP.height);
     await checkLongHeadwordIntro(chrome, `http://127.0.0.1:${srs.port}`, DESKTOP.width, DESKTOP.height);
     await desktop.goto(`http://127.0.0.1:${srs.port}/vocab/${FURIGANA_VOCAB}`, 'Examples');
@@ -2403,16 +2439,19 @@ try {
         await checkExamplesUnruled(tab, `srs /grammar/${GRAMMAR_POINT}`, width);
         await tab.goto(`${app}/vocab/${KANA_WORD}`, 'Usually written in kana');
         await checkPlayButtonsOnFirstLine(tab, `srs /vocab/${KANA_WORD}`, width);
-        for (const word of LONG_PITCH_WORDS) {
+        for (const word of PITCH_WORDS) {
             await tab.goto(`${app}/vocab/${word}`, 'Dict');
             await checkPlayButtonsOnFirstLine(tab, `srs /vocab/${word}`, width);
             await checkPitchAccentUnpunctuated(tab, `srs /vocab/${word}`, width);
-            if (word === LONG_PITCH_WORDS[1]) await checkPitchButtonFollowsFirst(tab, `srs /vocab/${word}`, width);
+            if (MULTI_PITCH_WORDS.includes(word)) {
+                await checkPitchButtonFollowsFirst(tab, `srs /vocab/${word}`, width);
+                await checkPitchPatternsFlush(tab, `srs /vocab/${word}`, width);
+            }
             // The longest reading, one pattern: its header still fits a small phone's first screen,
-            // measured on its own page. Not 現在進行形: its second pattern takes a line of its own
-            // after the button at 320px (the layout chosen on PR 267), which puts its status line
-            // 13px below a 568px screen.
-            if (word === LONG_PITCH_WORDS[0]) await checkWordFirstScreen(tab, `srs /vocab/${word}`, width, height);
+            // measured on its own page. Not the words with several patterns: 現在進行形's second
+            // takes a line of its own after the button at 320px (the layout chosen on PR 267),
+            // which puts its status line 13px below a 568px screen.
+            if (word === PITCH_WORDS[0]) await checkWordFirstScreen(tab, `srs /vocab/${word}`, width, height);
         }
         await tab.evaluate<void>(SEED_MIXUPS);
         await tab.goto(`${app}/vocab/${MIXUP_WORD}`, 'Dict');

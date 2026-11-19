@@ -56,7 +56,12 @@ describe('vocab.scss', () => {
         expect(value(/\.pr-other \{[^}]*?min\(([\d.]+)em/)).toBe(PITCH_OTHER_SCALE);
     });
 
-    it('starts a later pattern after a gap of its own, so two contours never read as one line', () => {
-        expect(scss).toMatch(/\.pr-other \{[^}]*?margin-inline-start: \$space-1;/);
+    it("starts a later pattern after the row's gap, with no margin a wrap would keep", () => {
+        expect(scss).toMatch(/\.pa \{[^}]*?column-gap: \$space-2;/);
+        expect(scss).not.toMatch(/\.pr-other \{[^}]*?margin/);
+    });
+
+    it('pulls the play button back to the space before it, inside the row gap', () => {
+        expect(scss).toMatch(/\.pa-b > \.pr:first-child \{[\s\S]*?\n {2}\+ \.play \{\s*margin-inline-start: -\(\$space-2 - \$space-half\);/);
     });
 });

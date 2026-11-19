@@ -80,11 +80,19 @@ describe('LookupCardBody, the word card', () => {
             expect(html).not.toContain('3.25rem');
         });
 
-        it('starts a later pattern after a gap of its own, with no button between them', () => {
+        it("starts a later pattern after the row's gap, with no margin a wrap would keep", () => {
             settings = null;
             const { audio: _none, ...silent } = hashi();
             const html = render({ ...silent, pitchAccent: [{ reading: 'はし', downsteps: [2, 0], source: 'wiktionary' }] });
-            expect(html).toMatch(/<span aria-hidden="true" class="ms-2"/);
+            expect(html).toMatch(/<span data-pitch-accent="true" class="[^"]*\bgap-x-4\b/);
+            expect(html).toMatch(/<span aria-hidden="true" style="font-size:max\(0\.75rem/);
+            expect(html).not.toMatch(/<span aria-hidden="true" class="[^"]*\bm[sl]-/);
+        });
+
+        it('pulls the play button back to 0.5rem after the reading, inside the 16px row gap', () => {
+            settings = null;
+            const html = render({ ...hashi(), audio: { clip: 'clip-hashi' } });
+            expect(html).toMatch(/<button aria-label="Play 橋" class="-ml-2"/);
         });
 
         it('keeps the kanji spelling of a word learned in kana, then its reading with the pattern', () => {

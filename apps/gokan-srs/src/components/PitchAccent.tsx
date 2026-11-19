@@ -3,7 +3,7 @@ import { PITCH_LINE_PX, PITCH_OTHER_SCALE, pitchAccentLabel, pitchPaths, type Pi
 
 /** The page's side gutters (Page.tsx's px-4, BottomSheet's p-4): what the reading fits within. */
 const GUTTERS = '2rem';
-/** A play button after the reading: its 44px tap box (PlayButton) and the 0.5rem before it. */
+/** A play button after the reading: its 44px tap box (PlayButton) and the 0.5rem before it (the row's gap less its `-ml-2`). */
 const BUTTON_ROOM = '3.25rem';
 
 /**
@@ -39,20 +39,21 @@ function ReadingWithDots({ reading, downstep, room = '0px', children }: { readin
 /**
  * A word's primary reading with its pitch accent drawn over it (issue 176), in place of the plain
  * reading: the most usual pattern on the reading itself, any other as the reading again, smaller
- * (never under 12px), after a gap wider than the one before a play button (`ms-2` on the row's
- * gap), so two contours never read as one line and the button reads as the first pattern's. No mark
- * between them: a later pattern that wraps would open its line with it. Screen readers get the
- * reading once and the patterns in words. A play
- * button (`play`, given an `ml-1` for the row's 0.5rem) follows the first pattern, which leaves it room on its line; a further pattern
- * follows the button, wrapping to the next line when it does not fit, so the button never drops
- * under its reading. Never on a quiz card: in a reading quiz it would hint at the answer.
+ * (never under 12px), after the row's 16px gap, wider than the 0.5rem before a play button, so two
+ * contours never read as one line and the button reads as the first pattern's. The space is the
+ * row's gap, never a margin on the later pattern: a gap goes at a wrap, so a wrapped pattern starts
+ * flush under the first. No mark between them either: it would open a wrapped line. Screen readers
+ * get the reading once and the patterns in words. A play button (`play`, given a `-ml-2` that pulls
+ * it back to 0.5rem after the reading) follows the first pattern, which leaves it room on its line;
+ * a further pattern follows the button, wrapping to the next line when it does not fit, so the
+ * button never drops under its reading. Never on a quiz card: in a reading quiz it would hint at the answer.
  * `usePitchAccent` says whether to draw it.
  */
 export function PitchAccent({ accent, play, className = '' }: { accent: Accent; play?: ReactNode; className?: string }) {
     const [first, ...others] = accent.downsteps;
     if (first === undefined) return null;
     return (
-        <span data-pitch-accent className={`inline-flex flex-wrap items-end gap-x-1 min-w-0 ${className}`}>
+        <span data-pitch-accent className={`inline-flex flex-wrap items-end gap-x-4 min-w-0 ${className}`}>
             <ReadingWithDots reading={accent.reading} downstep={first} room={play ? BUTTON_ROOM : undefined}>
                 {/* Inside the first pattern, so the button after it follows the reading itself. */}
                 <span className="sr-only">{pitchAccentLabel(accent.downsteps)}</span>
@@ -60,7 +61,7 @@ export function PitchAccent({ accent, play, className = '' }: { accent: Accent; 
             {/* Its own flex item, right after the reading (check:layout measures it from there). */}
             {play}
             {others.map(downstep => (
-                <span key={downstep} aria-hidden="true" className="ms-2" style={{ fontSize: `max(0.75rem, ${PITCH_OTHER_SCALE}em)` }}>
+                <span key={downstep} aria-hidden="true" style={{ fontSize: `max(0.75rem, ${PITCH_OTHER_SCALE}em)` }}>
                     <ReadingWithDots reading={accent.reading} downstep={downstep} />
                 </span>
             ))}
