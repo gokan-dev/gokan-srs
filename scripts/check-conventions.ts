@@ -50,6 +50,15 @@ const SERIF_BODY_TEXT = /\bfont-serif\b(?=.*(?<![\w:-])text-(?:(?:xs|sm|base)\b|
 const UNTYPED_DT = /<dt\b(?![^>]*className=[^>]*\btype-[a-z])/;
 const LOCALE_DATE_TIME = /\.toLocaleDateString\(|\.toLocaleTimeString\(|\bdateStyle\s*:|\btimeStyle\s*:/;
 const TIME_UTILS_FILE = 'apps/gokan-srs/src/utils/time.utils.ts';
+/**
+ * A size budget's figure lives in lib/budgets.ts and docs/DESIGN_SYSTEM.md's Budgets table only:
+ * a comment or a doc that writes "the 80 KB budget" goes stale on the next raise, and a later
+ * change sizes itself against the old limit. Name the budget (`BUDGETS.kanjiPageMax`) instead.
+ * Past-tense history (docs/MODIFICATION_LOG.md, DESIGN_SYSTEM's own prose) is out of scope.
+ */
+const BUDGET_FIGURE = /\b\d+(?:\.\d+)? KB(?: gzip)? budget\b/;
+const BUDGET_FIGURE_SCOPE = /^((apps\/[\w-]+|packages\/[\w-]+)\/src\/.+|docs\/ARCHITECTURE\.md)$/;
+const BUDGETS_FILE = 'apps/gokan-dictionary/src/lib/budgets.ts';
 const GOKAN_SRS_SOURCE = /^apps\/gokan-srs\/src\/.*\.tsx?$/;
 
 /** Pure-logic directories: every module has a colocated test. */
@@ -607,6 +616,11 @@ function check(files: string[]): Violation[] {
         if (GOKAN_SRS_SOURCE.test(file) && file !== TIME_UTILS_FILE) {
             eachLine(text, l => LOCALE_DATE_TIME.test(l) && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
                 add({ file, line, rule: 'date-formatting', message: 'toLocaleDateString/toLocaleTimeString/dateStyle/timeStyle belong only in utils/time.utils.ts; use its formatters.' }));
+        }
+
+        if (BUDGET_FIGURE_SCOPE.test(file) && file !== BUDGETS_FILE) {
+            eachLine(text, l => BUDGET_FIGURE.test(l), line =>
+                add({ file, line, rule: 'budget-figure', message: 'A size budget written as its figure goes stale on the next raise. Name the budget (BUDGETS.wordPageP90, "the kanji page budget"); its figure lives only in lib/budgets.ts and docs/DESIGN_SYSTEM.md\'s Budgets table.' }));
         }
 
         if (DATASET_URL_SOURCE.test(file) && file !== DATASET_URL_HELPER && !/\.test\.tsx?$/.test(file)) {

@@ -157,7 +157,7 @@ export interface Messages {
         /**
          * The Words section's search field: its hidden label, its placeholder (short, to fit a 320px
          * phone, so it names no language), and the line under it that says English reaches only the
-         * rows that ship a gloss (the first `englishRows`: the 80 KB budget). A line, not the
+         * rows that ship a gloss (the first `englishRows`: the kanji page budget). A line, not the
          * placeholder: it shows at every width, and still after the reader types.
          */
         wordsSearch: { label: string; placeholder: string; note: (englishRows: number) => string };

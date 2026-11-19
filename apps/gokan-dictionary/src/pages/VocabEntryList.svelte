@@ -13,7 +13,7 @@
    * in the HTML (crawlable, no script), just collapsed.
    *
    * A row is kept small (lang on the link, the headword a bare text cell, no classes): a kanji
-   * page lists up to 660 words within its 80 KB budget. The gloss is the one span with a lang,
+   * page lists up to 660 words within its budget (BUDGETS.kanjiPageMax). The gloss is the one span with a lang,
    * which is how the stylesheet finds its column (app.scss, .entry-list): the reading has none. On a page in another language a row's
    * gloss is the word's in it (localGloss), marked with the page's lang inside the Japanese link.
    * A row's note (a synonym's closeness) is a `small` under the gloss, which client/detailTabs.ts does not search,

@@ -24,7 +24,7 @@
     return length === undefined ? undefined : urls.kanjiStepPath(book, rangeOfStep(position, length), position);
   }
 
-  /** The Words section's rows with their gloss; the rest, headword and reading only, in a disclosure (the 80 KB budget: 一 lists 660 words). */
+  /** The Words section's rows with their gloss; the rest, headword and reading only, in a disclosure (the kanji page budget, BUDGETS.kanjiPageMax: 一 lists 660 words). */
   const WORDS_VISIBLE = 30;
   /** The Kanji tab's preview of Words, as the app's: the most common. */
   const COMMON_WORDS = 5;
