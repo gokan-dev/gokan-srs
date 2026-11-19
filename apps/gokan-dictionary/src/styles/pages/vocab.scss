@@ -83,7 +83,13 @@
 // every word page, under a size budget). Dots and line in the reading's own ink, a fact about the
 // word; the particle after it hollow. Each dot is placed in em of the reading's font (pitchPaths),
 // so the reading never wraps and never changes font features; one too long for the screen is set
-// smaller instead (2rem: the page's side gutters). --w is the graph's width in em.
+// smaller instead, within the page's side gutters (.container) and, before the reading's play
+// button (.pa-b), the button's tap box and gap. --w is the graph's width in em. The sizes below
+// are pitchPaths' (height, padRight, dot), PITCH_LINE_PX and PITCH_OTHER_SCALE, written out for
+// bytes and held equal to them by pages/PitchAccent.test.ts.
+$pitch-gutters: 2 * $space-2;
+$pitch-button-room: $target + $space-half;
+
 .pa {
   display: inline-flex;
   flex-wrap: wrap;
@@ -94,10 +100,9 @@
 .pr {
   position: relative;
   display: inline-block;
-  // 0.56em on top, the graph's height (pitchPaths' viewBox); 0.65em on the right, room for the
-  // particle's dot, centred half an em past the reading.
+  // The graph's height on top; on the right, room for the particle's ring, half an em past the reading.
   padding: 0.56em 0.65em 0 0;
-  font-size: min(1em, calc((100vw - 2rem) / var(--w)));
+  font-size: min(1em, calc((100vw - #{$pitch-gutters}) / var(--w)));
   font-feature-settings: normal;
   letter-spacing: 0;
   white-space: nowrap;
@@ -120,20 +125,34 @@
     vector-effect: non-scaling-stroke;
   }
 
-  // The dots: zero-length strokes whose round caps are the dots, as wide as the particle's ring.
+  // The dots: zero-length strokes whose round caps are the dots, a little wider than the ring.
   .pd {
-    stroke-width: 0.24;
+    stroke-width: 0.3;
     stroke-linecap: round;
     vector-effect: none;
   }
 }
 
-// A second pattern, as the reading again, smaller.
-.pr-other {
-  font-size: min(0.75em, calc((100vw - 2rem) / var(--w)));
+// The first pattern with the play button after it: it leaves the button room on its line.
+.pa-b > .pr:first-child {
+  font-size: min(1em, calc((100vw - #{$pitch-gutters + $pitch-button-room}) / var(--w)));
 }
 
+// A further pattern, after the button: its 、 and the reading again, smaller (never under 12px),
+// one unit that wraps whole.
+.pa-o {
+  display: inline-flex;
+  align-items: flex-end;
+  white-space: nowrap;
+}
+
+.pr-other {
+  font-size: max(0.75rem, min(0.75em, calc((100vw - #{$pitch-gutters}) / var(--w))));
+}
+
+// Pulled toward the pattern before it, so it belongs to it rather than floating between.
 .pa-sep {
+  margin-inline-start: -0.25em;
   color: var(--tertiary);
 }
 

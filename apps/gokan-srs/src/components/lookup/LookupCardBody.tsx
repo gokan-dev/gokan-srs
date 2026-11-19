@@ -63,7 +63,7 @@ function WordCardBody({ vocabId, onNavigate }: BodyProps & { vocabId: string }) 
                 {/* The reading with its pitch accent stands in for the plain reading; a word learned
                     in kana keeps its kanji spelling, then the reading drawn so. */}
                 {(vocab.usuallyKana || !accent) && <SecondaryForm vocab={vocab} truncate={false} />}
-                {accent && <PitchAccent accent={accent} className="font-gothic text-base text-secondary" />}
+                {accent && <PitchAccent accent={accent} className="font-gothic text-sm text-secondary" />}
                 <PlayButton audio={vocab.audio} label={`Play ${headwordOf(vocab)}`} />
             </div>
             <ol className="space-y-0.5">

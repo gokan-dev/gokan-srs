@@ -1,7 +1,9 @@
 // Pitch accent as both apps draw it (gokan-srs issue 176): a dot over each mora of the reading,
 // high or low, joined by a line, with a hollow dot for the particle after the word, since only the
-// particle tells heiban (端, it stays high) from odaka (橋, it drops). Each app draws `pitchGraph`'s
-// points over its own reading text and words `downstep` in its own language; nothing here is copy.
+// particle tells heiban (端, it stays high) from odaka (橋, it drops). Each app draws `pitchPaths`
+// over its own reading text (`pitchGraph` is its layout step, internal to this module), with the
+// sizes `pitchPaths` gives it. The one piece of copy is `pitchAccentLabel`, the English words a
+// screen reader hears in both apps; another language's catalog says it in its own.
 
 import type { PitchAccent, Vocabulary } from './vocabulary';
 
@@ -51,7 +53,6 @@ export function primaryPitchAccent(vocab: Pick<Vocabulary, 'reading' | 'pitchAcc
     return vocab.pitchAccent?.find(a => a.reading === vocab.reading.primary);
 }
 
-/** One point of a pitch graph, in its own units (an SVG viewBox). */
 /** One point of a pitch graph, in em of the reading it is drawn over (an SVG viewBox). */
 export interface PitchGraphPoint {
     x: number;
@@ -84,6 +85,34 @@ const HIGH_Y = 0.12;
 const LOW_Y = 0.44;
 const HEIGHT = 0.56;
 const RADIUS = 0.12;
+/**
+ * A mora's dot, as the width of a round-capped zero-length stroke: a little wider than the
+ * particle's ring (2 * RADIUS, plus its 1.5px line), so a high or low dot stands out from the line
+ * it sits on even at the smallest size it is drawn (12px, a second pattern on the word card).
+ */
+const DOT = 2 * RADIUS + 0.06;
+/**
+ * The room after the reading for the particle's ring: centred half an em past the reading's end,
+ * its radius and its line's width beyond that (a few hundredths of an em at any size it is drawn).
+ */
+const PARTICLE_ROOM = 0.5 + RADIUS + 0.03;
+/** The line and the particle's ring, in px at any size (a non-scaling stroke). */
+export const PITCH_LINE_PX = 1.5;
+/** A second pattern, drawn as the reading again at this many em of the first (never under 12px). */
+export const PITCH_OTHER_SCALE = 0.75;
+
+/** "heiban", "drop after mora 2": one pattern in words, for screen readers. */
+function downstepLabel(downstep: number): string {
+    return downstep === 0 ? 'heiban' : `drop after mora ${downstep}`;
+}
+
+/**
+ * A reading's patterns in English words, most usual first, as a screen reader hears them in both
+ * apps: "Pitch accent: drop after mora 4, or drop after mora 3".
+ */
+export function pitchAccentLabel(downsteps: readonly number[]): string {
+    return `Pitch accent: ${downsteps.map(downstepLabel).join(', or ')}`;
+}
 
 /** Three decimals of an em: the dictionary's pages are byte-reproducible, so no float noise reaches its markup. */
 const round = (n: number) => Math.round(n * 1000) / 1000;
@@ -116,8 +145,8 @@ const short = (n: number) => String(round(n)).replace(/^(-?)0\./, '$1.');
  * A pitch graph as the fewest bytes of SVG: the dictionary puts one on each of its 35,000 word
  * pages, held to a size budget (lib/budgets.ts), and one element per segment and dot cost 0.8 KB.
  * `line` is one path through every dot, ending at the particle's edge; `dots` draws every mora's
- * dot as a zero-length stroke with round caps (so its stroke width is the dot's diameter,
- * `2 * radius`); `particle` is the hollow dot's centre. Coordinates are relative after the first.
+ * dot as a zero-length stroke with round caps (so its stroke width, `dot`, is the dot's
+ * diameter); `particle` is the hollow dot's centre. Coordinates are relative after the first.
  */
 export interface PitchPaths {
     width: number;
@@ -125,16 +154,33 @@ export interface PitchPaths {
     dots: string;
     particle: { cx: string; cy: string };
     radius: string;
+    /** The graph's height in em, drawn above the reading: its top padding and its viewBox's height. */
+    height: string;
+    /** A mora dot's width (the dots' stroke width, in em). */
+    dot: string;
+    /** The room in em after the reading for the particle's ring (its right padding). */
+    padRight: string;
 }
 
 export function pitchPaths(reading: string, downstep: number): PitchPaths {
     const g = pitchGraph(reading, downstep);
     const morae = g.points.filter(p => !p.particle);
+    // pitchGraph always ends with the particle, after at least one mora: the fallbacks below exist
+    // only for noUncheckedIndexedAccess and never apply.
     const particle = g.points[g.points.length - 1] ?? { x: 0, y: 0 };
     const relative = (from: { x: number; y: number }, to: { x: number; y: number }) => `${short(to.x - from.x)} ${short(to.y - from.y)}`;
-    const ends = [...g.segments.map(s => ({ x: s.x2, y: s.y2 }))];
+    const ends = g.segments.map(s => ({ x: s.x2, y: s.y2 }));
     const first = morae[0] ?? particle;
     const line = `M${short(first.x)} ${short(first.y)}l${ends.map((p, i) => relative(i === 0 ? first : ends[i - 1] ?? first, p)).join(' ')}`;
     const dots = `M${short(first.x)} ${short(first.y)}h0${morae.slice(1).map((p, i) => `m${relative(morae[i] ?? first, p)}h0`).join('')}`;
-    return { width: g.width, line, dots, particle: { cx: short(particle.x), cy: short(particle.y) }, radius: short(g.radius) };
+    return {
+        width: g.width,
+        line,
+        dots,
+        particle: { cx: short(particle.x), cy: short(particle.y) },
+        radius: short(g.radius),
+        height: short(g.height),
+        dot: short(DOT),
+        padRight: short(PARTICLE_ROOM),
+    };
 }

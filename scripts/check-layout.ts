@@ -356,6 +356,13 @@ const KANA_WORD = '1000225';
  * page's side column at 1024px) until each 、 was followed by a break opportunity.
  */
 const HYPHEN_KUN_WORD = '1289070';
+/**
+ * Long readings with their pitch accent, whose play button must stay on the reading's line (the
+ * fit leaves the button room, and a second pattern wraps after it): 中華人民共和国, the longest
+ * reading (14 kana, one pattern), and 現在進行形 (10 kana, two patterns, which as one item ran
+ * past a 320px phone and pushed the button under it).
+ */
+const LONG_PITCH_WORDS = ['1423580', '2145250'];
 
 /** A word page's tabs (components/ui/TabNav.tsx, page tabs): a phone's main way around the page. */
 const PAGE_TABS = '[role="tab"]';
@@ -1968,6 +1975,7 @@ async function checkDictionaryPlayButtons(tab: Tab, base: string, width: number)
     const pages = [
         { path: `/vocab/${TABBED_WORD}/`, ready: 'How common', reading: 'Play 取る', sentences: true },
         { path: `/vocab/${KANA_WORD}/`, ready: 'How common', reading: 'Play ', sentences: false },
+        ...LONG_PITCH_WORDS.map(word => ({ path: `/vocab/${word}/`, ready: 'Meanings', reading: 'Play ', sentences: false })),
         { path: `/grammar/${GRAMMAR_POINT}/`, ready: 'Grammar', reading: null, sentences: true },
     ];
     for (const { path, ready, reading, sentences } of pages) {
@@ -2340,6 +2348,14 @@ try {
         await checkExamplesUnruled(tab, `srs /grammar/${GRAMMAR_POINT}`, width);
         await tab.goto(`${app}/vocab/${KANA_WORD}`, 'Usually written in kana');
         await checkPlayButtonsOnFirstLine(tab, `srs /vocab/${KANA_WORD}`, width);
+        for (const word of LONG_PITCH_WORDS) {
+            await tab.goto(`${app}/vocab/${word}`, 'Dict');
+            await checkPlayButtonsOnFirstLine(tab, `srs /vocab/${word}`, width);
+        }
+        // The longest reading, one pattern: its header still fits a small phone's first screen. Not
+        // 現在進行形: its second pattern takes a line of its own after the button at 320px (the
+        // layout chosen on PR 267), which puts its status line 13px below a 568px screen.
+        await checkWordFirstScreen(tab, `srs /vocab/${LONG_PITCH_WORDS[0]}`, width, height);
         await tab.evaluate<void>(SEED_MIXUPS);
         await tab.goto(`${app}/vocab/${MIXUP_WORD}`, 'Dict');
         // Learned here, so Your study's phone grid and the mix-ups under it are measured on a word that has them.

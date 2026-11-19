@@ -84,7 +84,7 @@ export interface Vocabulary {
 
     /**
      * Its Tokyo pitch accent, one entry per reading a source covers, in its reading order.
-     * Absent when no source covers any of its readings. Drawn through `pitchGraph` (pitchAccent.ts).
+     * Absent when no source covers any of its readings. Drawn through `pitchPaths` (pitchAccent.ts).
      */
     pitchAccent?: PitchAccent[];
 }

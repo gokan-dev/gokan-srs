@@ -28,7 +28,8 @@ export function WordReading({ vocab, variant, className = '' }: WordReadingProps
     const intro = variant === 'intro';
     const accent = usePitchAccent(vocab);
     const pitch = intro ? undefined : accent;
-    const play = <PlayButton audio={vocab.audio} label={`Play ${headwordOf(vocab)}`} />;
+    const playButton = (className?: string) => <PlayButton audio={vocab.audio} label={`Play ${headwordOf(vocab)}`} className={className} />;
+    const play = playButton();
     const spacer = intro && vocab.audio ? <PlaySpacer /> : null;
     const row = intro ? 'justify-center items-start' : '';
 
@@ -60,7 +61,8 @@ export function WordReading({ vocab, variant, className = '' }: WordReadingProps
         <div data-word-reading className={`flex gap-x-2 font-gothic ${intro ? `${row} text-base` : `flex-wrap ${pitch ? 'items-end' : 'items-center'} text-2xl`} ${className}`}>
             {spacer}
             {pitch ? (
-                <PitchAccent accent={pitch} className="text-secondary" />
+                // The button inside, after the first pattern: a second one wraps after it, never pushing it down.
+                <PitchAccent accent={pitch} play={playButton('ml-1')} className="text-secondary" />
             ) : (
                 /* A long list wraps beside the button, which stays at its first line, and only between
                    readings: each one is a unit (アー / ル is no reading). inline-block, not nowrap, so a
@@ -75,7 +77,7 @@ export function WordReading({ vocab, variant, className = '' }: WordReadingProps
                     ))}
                 </span>
             )}
-            {play}
+            {!pitch && play}
         </div>
     );
 }

@@ -173,8 +173,9 @@ and search keys, never to be read back as Hepburn; `toHiragana`, `looksLikeRomaj
 reading split over a word's kanji runs for furigana (`rubyParts`), a clip's URL (`audioUrl`, enforced),
 the one-clip-at-a-time player both apps' play buttons run on (`createClipPlayer`), a grammar example as a
 `Sentence` (`grammarExampleToSentence`, `patternHighlightRanges`) and a word's pitch accent
-(`primaryPitchAccent`, `moraeOf`, `pitchContour`, laid out once by `pitchGraph` and drawn by
-gokan-srs's `components/PitchAccent.tsx` and the dictionary's `pages/PitchAccent.svelte`).
+(`primaryPitchAccent`, `moraeOf`, `pitchContour`, its English screen-reader words `pitchAccentLabel`,
+drawn from `pitchPaths`, with the sizes it gives, by gokan-srs's `components/PitchAccent.tsx` and the
+dictionary's `pages/PitchAccent.svelte`).
 
 gokan-srs, quizzes. **Every quiz is an exercise, and every exercise runs on one engine
 (`services/exercise/`, see the Exercise engine section of docs/ARCHITECTURE.md).** An activity

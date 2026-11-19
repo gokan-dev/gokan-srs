@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { moraeOf, pitchAccentKind, pitchContour, pitchGraph, pitchPaths, primaryPitchAccent } from './pitchAccent';
+import { moraeOf, pitchAccentKind, pitchAccentLabel, pitchContour, pitchGraph, pitchPaths, primaryPitchAccent } from './pitchAccent';
 
 const highs = (reading: string, downstep: number) => {
     const c = pitchContour(reading, downstep);
@@ -71,11 +71,22 @@ describe('pitchPaths', () => {
             dots: 'M.5 .44h0m1 -.32h0',
             particle: { cx: '2.5', cy: '.12' },
             radius: '.12',
+            height: '.56',
+            dot: '.3',
+            padRight: '.65',
         });
     });
 
     it('steps by each mora\'s width, a small kana joined to its mora', () => {
         expect(pitchPaths('きょう', 1).dots).toBe('M1 .12h0m1.5 .32h0');
+    });
+});
+
+describe('pitchAccentLabel', () => {
+    it('names heiban and says where any other pattern drops, most usual first', () => {
+        expect(pitchAccentLabel([0])).toBe('Pitch accent: heiban');
+        expect(pitchAccentLabel([2])).toBe('Pitch accent: drop after mora 2');
+        expect(pitchAccentLabel([4, 3])).toBe('Pitch accent: drop after mora 4, or drop after mora 3');
     });
 });
 

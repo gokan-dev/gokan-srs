@@ -2,7 +2,7 @@
 // tabs, the error page) and of its titles and descriptions. The site's first locale; another is
 // one more module like this one, held to the same Messages type (./index.ts).
 
-import { CLOSENESS_LABEL, headwordOf, secondaryForm } from '@gokan/dataset-schema';
+import { CLOSENESS_LABEL, headwordOf, pitchAccentLabel, secondaryForm } from '@gokan/dataset-schema';
 import type { GrammarChapter, GrammarPoint, Kanji, KanjiOrder, Vocabulary } from '@gokan/dataset-schema';
 import { FORM_LABELS } from '../conjugation';
 import { orderNameLang } from '../kanjiOrders';
@@ -172,7 +172,8 @@ export const en: Messages = {
         usuallyKana: 'Usually written in kana. Kanji spelling',
         alsoRead: 'also',
         alsoWritten: 'Also written',
-        pitchAccent: downsteps => `Pitch accent: ${downsteps.map(d => (d === 0 ? 'heiban' : `drop after mora ${d}`)).join(', or ')}`,
+        // The words the app's screen readers say too (@gokan/dataset-schema), so the two never drift.
+        pitchAccent: pitchAccentLabel,
         sections: {
             meanings: 'Meanings', examples: 'Examples', closestSynonyms: 'Closest synonyms', sentences: 'Sentences', synonyms: 'Synonyms',
             forms: 'Forms', kanji: 'Kanji', related: 'Related', madeOf: 'Made of', usedIn: 'Used in',

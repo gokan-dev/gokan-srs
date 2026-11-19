@@ -1,0 +1,52 @@
+import { readFileSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
+import { render } from 'svelte/server';
+import { PITCH_LINE_PX, PITCH_OTHER_SCALE, pitchPaths } from '@gokan/dataset-schema';
+import type { VocabPageProps } from '../lib/pageProps';
+import { wordSynonyms } from '../lib/synonyms';
+import { vocabulary } from '../test/fixtures';
+import Localized from '../test/Localized.svelte';
+import PitchAccent from './PitchAccent.svelte';
+import VocabPage from './VocabPage.svelte';
+
+const accent = { reading: 'あのひと', downsteps: [2, 0], source: 'wiktionary' as const };
+const markup = () => render(PitchAccent, { props: { accent, label: 'Pitch accent' } }).body.replace(/<!--.*?-->/g, '');
+const wordPage = () => {
+    const vocab = vocabulary({ reading: { primary: 'あのひと', alternatives: [] }, pitchAccent: [accent], audio: { clip: 'v/1' } });
+    const props: VocabPageProps = {
+        vocab, orderStep: null, components: [], parents: [], sentences: [], synonyms: wordSynonyms(vocab, () => true),
+        voice: { extension: 'mp3', credit: 'VOICEVOX', termsUrl: 'https://example.org/terms' },
+    };
+    return render(Localized<VocabPageProps>, { props: { locale: 'en', page: VocabPage, props } }).body.replace(/<!--.*?-->/g, '');
+};
+
+describe('PitchAccent', () => {
+    it('hides every graph from screen readers, which hear the reading once and the label', () => {
+        const svgs = markup().match(/<svg[^>]*>/g) ?? [];
+        expect(svgs).toHaveLength(2);
+        for (const svg of svgs) expect(svg).toContain('aria-hidden="true"');
+    });
+
+    it("puts the reading's play button right after the first pattern, a further one after it", () => {
+        const head = /<p class="entry-sub"[^>]*>.*?<\/p>/s.exec(wordPage())?.[0] ?? '';
+        expect(head).toContain('class="pa pa-b"');
+        expect(head).toMatch(/data-pitch-reading[^>]*>あのひと<\/span><span class="visually-hidden">[^<]*<\/span><\/span><button class="play"[^>]*><\/button><span class="pa-o" aria-hidden="true">/);
+    });
+});
+
+describe('vocab.scss', () => {
+    // The stylesheet writes pitchPaths' sizes out for bytes: a change to the package's geometry
+    // fails here rather than clipping or misaligning the dots on 35,000 pages.
+    const scss = readFileSync(new URL('../styles/pages/vocab.scss', import.meta.url), 'utf8');
+    const p = pitchPaths('はし', 0);
+    const value = (pattern: RegExp) => Number(pattern.exec(scss)?.[1]);
+
+    it("draws the pitch graph at the package's sizes", () => {
+        expect(value(/\.pr \{[^}]*?padding: ([\d.]+)em/)).toBe(Number(p.height));
+        expect(value(/\.pr \{[^}]*?padding: [\d.]+em ([\d.]+)em/)).toBe(Number(p.padRight));
+        expect(value(/svg \{[^}]*?height: ([\d.]+)em/)).toBe(Number(p.height));
+        expect(value(/\.pd \{[^}]*?stroke-width: ([\d.]+)/)).toBe(Number(p.dot));
+        expect(value(/circle \{[^}]*?stroke-width: ([\d.]+)/)).toBe(PITCH_LINE_PX);
+        expect(value(/\.pr-other \{[^}]*?min\(([\d.]+)em/)).toBe(PITCH_OTHER_SCALE);
+    });
+});

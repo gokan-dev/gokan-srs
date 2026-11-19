@@ -190,7 +190,9 @@
       <!-- Learned in kana (ここ): the headword already is the reading, so name the kanji spelling. -->
       <p class="entry-sub">{words.usuallyKana} <span lang="ja">{secondaryForm(vocab)}</span><PlayButton audio={vocab.audio} {voice} label={messages.chrome.play(headword)} /></p>
     {:else}
-      <p class="entry-sub" lang="ja">{#if pitch}<PitchAccent accent={pitch} label={words.pitchAccent(pitch.downsteps)} />{:else}{vocab.reading.primary}{/if}<PlayButton audio={vocab.audio} {voice} label={messages.chrome.play(headword)} inJapanese />{#if vocab.reading.alternatives.length > 0}<span class="meta" {lang}> · {words.alsoRead} <span lang="ja">{vocab.reading.alternatives.join('、')}</span></span>{/if}</p>
+      <!-- With its pitch accent, the button goes inside, after the first pattern: a second one wraps after it, never pushing it down. -->
+      {#snippet play()}<PlayButton audio={vocab.audio} {voice} label={messages.chrome.play(headword)} inJapanese />{/snippet}
+      <p class="entry-sub" lang="ja">{#if pitch}<PitchAccent accent={pitch} label={words.pitchAccent(pitch.downsteps)}>{@render play()}</PitchAccent>{:else}{vocab.reading.primary}{@render play()}{/if}{#if vocab.reading.alternatives.length > 0}<span class="meta" {lang}> · {words.alsoRead} <span lang="ja">{vocab.reading.alternatives.join('、')}</span></span>{/if}</p>
     {/if}
 
     {#if vocab.usuallyKana && pitch}<p class="entry-sub entry-pitch"><PitchAccent accent={pitch} label={words.pitchAccent(pitch.downsteps)} /></p>{/if}

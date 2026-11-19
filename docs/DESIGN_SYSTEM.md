@@ -263,8 +263,9 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
     (the one under a line a third of the way down, the main column's first) is kept as the open
     tab, so crossing below 1024px opens it.
   - Header, top to bottom: the headword, its spellings and reading (the kana note for a word
-    learned in kana, "Also:" readings), the reading followed by its `PlayButton` (the pitch
-    accent will join them); the summary gloss (`summaryGloss`, one
+    learned in kana, "Also:" readings), the reading followed by its `PlayButton`: with its
+    pitch accent the button follows the first pattern, any other after it, wrapping after the
+    button, and a long reading is set smaller to leave the button room on its line; the summary gloss (`summaryGloss`, one
     `type-body` line of the first four distinct common glosses); one chips row, the JLPT chip,
     How common on one line (the `FrequencyMeter` and the band's name, the round "Top 300 words"
     and the exact rank in its `title`); under it the facts row (`DetailHeader` `facts`), KKLC step
@@ -486,7 +487,8 @@ Defined once, in `components/` or `components/ui/`, never copied:
   is about), every linking `KanjiTile` (not the one beside its own `KanjiSummary`), each kanji
   of a word page's headword and of a new word's intro card's, `WordTile`, synonym, related and mix-up rows, the vocabulary list
   and a kanji's word list. One card, two bodies: the **word card** (headword, its
-  `SecondaryForm` and `PlayButton`, the first two meanings, `StatusDot`, "Learn this word" for
+  `SecondaryForm` (or its reading with its pitch accent, at the same `text-sm`, a second pattern
+  at 12px) and `PlayButton`, the first two meanings, `StatusDot`, "Learn this word" for
   a word not in study, never mid-session, and "Open word page") and the **kanji card** (`KanjiSummary` and
   "Open kanji page"). With a mouse it is a popover (`rounded-md`, divider border, `bg-surface`,
   `shadow-lg`, 288px wide), above its trigger and clamped into the viewport, pinned by the edge
@@ -789,9 +791,11 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   of 10 KB, the detail script at 7.9 of 8, the query engine at 9.9 of 10, Chinese word pages at
   19.8 of 20), so ordinary features failed the build, the pitch accent (#176) among them at
   20.2 KB on Chinese word pages after its markup was cut to three SVG elements. The headroom
-  is for features, not drift: a change that spends it says what for. Those with ample room
-  (JLPT lists, kanji orders, a locale's stylesheet, the player, the font) are unchanged. The shared stylesheet is the tightest: a rule
-  used by one page type belongs in that page's stylesheet anyway. The search script's was
+  is for features, not drift: a change that spends it says what for (not mechanised: a
+  reviewer compares `check-build`'s report before and after the change). Those with ample room
+  (JLPT lists, kanji orders, a locale's stylesheet, the player, the font) are unchanged. The
+  shared stylesheet is still the tightest after the raise (10 of 12 KB): a rule used by one
+  page type belongs in that page's stylesheet anyway. The search script's was
   10 KB until it read the page's locale (#228): every served locale's words for it
   (`lib/messages/search`) and the links of the page's section (`linkUrls`) took it to 11 KB,
   about 4.6 KB gzipped; its words and links are per locale, so a third locale costs about
