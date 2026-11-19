@@ -11,8 +11,8 @@ import VocabPage from './VocabPage.svelte';
 
 const accent = { reading: 'あのひと', downsteps: [2, 0], source: 'wiktionary' as const };
 const markup = () => render(PitchAccent, { props: { accent, label: 'Pitch accent' } }).body.replace(/<!--.*?-->/g, '');
-const wordPage = () => {
-    const vocab = vocabulary({ reading: { primary: 'あのひと', alternatives: [] }, pitchAccent: [accent], audio: { clip: 'v/1' } });
+const wordPage = (audio: boolean = true) => {
+    const vocab = vocabulary({ reading: { primary: 'あのひと', alternatives: [] }, pitchAccent: [accent], ...(audio ? { audio: { clip: 'v/1' } } : {}) });
     const props: VocabPageProps = {
         vocab, orderStep: null, components: [], parents: [], sentences: [], synonyms: wordSynonyms(vocab, () => true),
         voice: { extension: 'mp3', credit: 'VOICEVOX', termsUrl: 'https://example.org/terms' },
@@ -32,6 +32,12 @@ describe('PitchAccent', () => {
         expect(head).toContain('class="pa pa-b"');
         expect(head).toMatch(/data-pitch-reading[^>]*>あのひと<\/span><span class="visually-hidden">[^<]*<\/span><\/span><button class="play"[^>]*><\/button><span aria-hidden="true"><span class="pr pr-other"/);
     });
+
+    it('leaves no room for a play button when the word has no clip', () => {
+        const head = /<p class="entry-sub"[^>]*>.*?<\/p>/s.exec(wordPage(false))?.[0] ?? '';
+        expect(head).toContain('class="pa"');
+        expect(head).not.toContain('<button');
+    });
 });
 
 describe('vocab.scss', () => {
@@ -48,5 +54,9 @@ describe('vocab.scss', () => {
         expect(value(/\.pd \{[^}]*?stroke-width: ([\d.]+)/)).toBe(Number(p.dot));
         expect(value(/circle \{[^}]*?stroke-width: ([\d.]+)/)).toBe(PITCH_LINE_PX);
         expect(value(/\.pr-other \{[^}]*?min\(([\d.]+)em/)).toBe(PITCH_OTHER_SCALE);
+    });
+
+    it('starts a later pattern after a gap of its own, so two contours never read as one line', () => {
+        expect(scss).toMatch(/\.pr-other \{[^}]*?margin-inline-start: \$space-1;/);
     });
 });

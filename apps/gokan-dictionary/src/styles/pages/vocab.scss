@@ -138,9 +138,11 @@ $pitch-button-room: $target + $space-half;
   font-size: min(1em, calc((100vw - #{$pitch-gutters + $pitch-button-room}) / var(--w)));
 }
 
-// A further pattern, after the button: the reading again, smaller (never under 12px), with no
+// A further pattern, after the button: the reading again, smaller (never under 12px), after a
+// gap wider than the one before the button (so two contours never read as one line), with no
 // mark before it, which a wrap would leave opening a line.
 .pr-other {
+  margin-inline-start: $space-1;
   font-size: max(0.75rem, min(0.75em, calc((100vw - #{$pitch-gutters}) / var(--w))));
 }
 

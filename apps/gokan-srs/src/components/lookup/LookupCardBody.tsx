@@ -65,9 +65,10 @@ function WordCardBody({ vocabId, onNavigate }: BodyProps & { vocabId: string }) 
                     in kana keeps its kanji spelling, then the reading drawn so. */}
                 {(vocab.usuallyKana || !accent) && <SecondaryForm vocab={vocab} truncate={false} />}
                 {/* With its pitch accent the button follows the first pattern, as on the page, so a
-                    second one wraps after it rather than pushing it onto a row of its own. */}
+                    second one wraps after it rather than pushing it onto a row of its own. Only with a clip:
+                    without one there is no button to leave room for. */}
                 {accent
-                    ? <PitchAccent accent={accent} play={play('ml-1')} className="font-gothic text-sm text-secondary" />
+                    ? <PitchAccent accent={accent} play={vocab.audio ? play('ml-1') : undefined} className="font-gothic text-sm text-secondary" />
                     : play()}
             </div>
             <ol className="space-y-0.5">

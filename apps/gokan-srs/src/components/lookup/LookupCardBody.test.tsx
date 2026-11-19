@@ -72,6 +72,21 @@ describe('LookupCardBody, the word card', () => {
             expect(group).toMatch(/data-pitch-reading[^>]*>はし<\/span><span class="sr-only">[^<]*<\/span><\/span><button[^>]*aria-label="Play 橋"/);
         });
 
+        it('leaves no room for a play button when the word has no clip', () => {
+            settings = null;
+            const { audio: _none, ...silent } = hashi();
+            const html = render(silent);
+            expect(html).not.toContain('aria-label="Play 橋"');
+            expect(html).not.toContain('3.25rem');
+        });
+
+        it('starts a later pattern after a gap of its own, with no button between them', () => {
+            settings = null;
+            const { audio: _none, ...silent } = hashi();
+            const html = render({ ...silent, pitchAccent: [{ reading: 'はし', downsteps: [2, 0], source: 'wiktionary' }] });
+            expect(html).toMatch(/<span aria-hidden="true" class="ms-2"/);
+        });
+
         it('keeps the kanji spelling of a word learned in kana, then its reading with the pattern', () => {
             settings = null;
             const html = render({

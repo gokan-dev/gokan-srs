@@ -469,6 +469,34 @@ async function checkPitchAccentUnpunctuated(tab: Tab, page: string, width: numbe
 }
 
 /**
+ * A play button between two patterns reads as the first one's (it plays the reading it follows):
+ * when the second pattern shares the button's line, it starts further from the button's centre
+ * than the first pattern's particle ring ends before it. Measured from the centre, so the button's
+ * icon size cancels out. On 現在進行形 (two patterns) in both apps, at every width it is checked at;
+ * the case with no button between them is held by the apps' unit tests.
+ */
+async function checkPitchButtonFollowsFirst(tab: Tab, page: string, width: number): Promise<void> {
+    const result = await tab.evaluate<{ found: boolean; strays: string[] }>(`(() => {
+        const roots = [...document.querySelectorAll('[data-pitch-accent], .pa')].filter(root => root.querySelectorAll('svg').length > 1 && root.querySelector('button'));
+        const strays = roots.flatMap(root => {
+            const svgs = [...root.querySelectorAll('svg')].filter(svg => svg.closest('button') === null);
+            const ring = svgs[0].querySelector('circle').getBoundingClientRect();
+            const box = root.querySelector('button').getBoundingClientRect();
+            const centre = (box.left + box.right) / 2;
+            const next = svgs[1].getBoundingClientRect();
+            // Wrapped onto a line of its own: nothing beside the button to be mistaken for.
+            if (next.left < centre) return [];
+            const before = Math.round(centre - ring.right);
+            const after = Math.round(next.left - centre);
+            return after > before ? [] : ['the button is ' + before + 'px from the first pattern and ' + after + 'px from the second'];
+        });
+        return { found: roots.length > 0, strays };
+    })()`);
+    if (!result.found) failures.push(`${width}px ${page}: no pitch accent with two patterns and a play button to check`);
+    for (const stray of result.strays) failures.push(`${width}px ${page}: the play button reads as the second pitch pattern's: ${stray}`);
+}
+
+/**
  * A word page on a small phone shows, without scrolling, what a learner looks it up for: the
  * headword, its reading, the summary gloss and the status line (Learn this word, or the status).
  */
@@ -2021,6 +2049,7 @@ async function checkDictionaryPlayButtons(tab: Tab, base: string, width: number)
         if (shown.unnamed > 0) failures.push(`${width}px ${page}: ${shown.unnamed} play buttons without a name or a clip URL under /audio/`);
         await checkPlayButtonsOnFirstLine(tab, page, width, DICTIONARY_PLAY_BUTTONS);
         await checkPitchAccentUnpunctuated(tab, page, width);
+        if (path === `/vocab/${LONG_PITCH_WORDS[1]}/`) await checkPitchButtonFollowsFirst(tab, page, width);
         await measure(tab, page, width, DICTIONARY_TAP_TARGETS);
     }
     // A page that plays nothing links no player and shows no button: the kanji page.
@@ -2257,6 +2286,9 @@ try {
         await desktop.goto(`http://127.0.0.1:${dictionary.port}/dictionary${path}`, 'JLPT');
         await checkLocaleSwitch(desktop, `dictionary ${path}`, DESKTOP.width);
     }
+    // 現在進行形's two patterns share the button's line at 1280px: the button reads as the first's.
+    await desktop.goto(`http://127.0.0.1:${srs.port}/vocab/${LONG_PITCH_WORDS[1]}`, 'Dict');
+    await checkPitchButtonFollowsFirst(desktop, `srs /vocab/${LONG_PITCH_WORDS[1]}`, DESKTOP.width);
     await checkKanaIntro(chrome, `http://127.0.0.1:${srs.port}`, DESKTOP.width, DESKTOP.height);
     await checkLongHeadwordIntro(chrome, `http://127.0.0.1:${srs.port}`, DESKTOP.width, DESKTOP.height);
     await desktop.goto(`http://127.0.0.1:${srs.port}/vocab/${FURIGANA_VOCAB}`, 'Examples');
@@ -2375,6 +2407,7 @@ try {
             await tab.goto(`${app}/vocab/${word}`, 'Dict');
             await checkPlayButtonsOnFirstLine(tab, `srs /vocab/${word}`, width);
             await checkPitchAccentUnpunctuated(tab, `srs /vocab/${word}`, width);
+            if (word === LONG_PITCH_WORDS[1]) await checkPitchButtonFollowsFirst(tab, `srs /vocab/${word}`, width);
             // The longest reading, one pattern: its header still fits a small phone's first screen,
             // measured on its own page. Not 現在進行形: its second pattern takes a line of its own
             // after the button at 320px (the layout chosen on PR 267), which puts its status line
