@@ -8,7 +8,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
-import { basename, dirname, join } from 'node:path';
+import { basename, dirname, join, posix } from 'node:path';
 
 interface Violation {
     file: string;
@@ -66,6 +66,13 @@ const AGENT_STUB_CONTENT = '@AGENTS.md';
  */
 const DATASET_URL_SOURCE = /^apps\/gokan-srs\/src\/.*\.tsx?$/;
 const DATASET_URL_HELPER = 'apps/gokan-srs/src/services/http.ts';
+/**
+ * A clip is served at one path on the shared host, for both apps: one builder names it
+ * (`audioUrl`, `@gokan/dataset-schema`), so the app and the dictionary cannot ask for a clip at
+ * two different addresses (#255).
+ */
+const AUDIO_URL_SOURCE = /^(apps\/gokan-srs\/src|apps\/gokan-dictionary\/src|packages\/[^/]+\/src)\/.*\.(tsx?|svelte)$/;
+const AUDIO_URL_HELPER = 'packages/dataset-schema/src/audio.ts';
 
 /**
  * A dataset file in its English shape is built from its published inputs in one place, the
@@ -93,6 +100,15 @@ const DICTIONARY_CLIENT = /^apps\/gokan-dictionary\/src\/client\//;
 // A breadcrumb is chrome: its steps come from the locale's catalog (lib/messages), as its home
 // step does, or a translated page's trail would continue in English after its first step.
 const DICTIONARY_PAGE_COMPONENT = /^apps\/gokan-dictionary\/src\/pages\/[^/]+\.svelte$/;
+// A detail page's tab row is the contract with client/detailTabs.ts (data-detail-tabs, data-tab):
+// one component writes it, so the word, kanji and grammar pages cannot drift apart.
+const DETAIL_TABS_ROW = /\bdata-detail-tabs\b/;
+const DETAIL_TABS_COMPONENT = 'apps/gokan-dictionary/src/pages/DetailTabs.svelte';
+// The catalog's word page words (messages.vocab) are the word page's: a kanji or grammar page that
+// borrowed them (its tab labels) would change with the word page's catalog. Shared chrome lives in
+// chrome or detailTabs; each page type's own words in its own key.
+const VOCAB_MESSAGES = /\bmessages\.vocab\b(?!Index|Jlpt)|\.messages\.vocab\b(?!Index|Jlpt)|\{[^}]*\bvocab\b[^}]*\}\s*=\s*(?:pageLocale\(\)\.)?messages\b/;
+const WORD_PAGE_COMPONENTS = new Set(['apps/gokan-dictionary/src/pages/VocabPage.svelte', 'apps/gokan-dictionary/src/pages/ConjugationForms.svelte']);
 const BREADCRUMB_TRAIL = /trail=\{\[([\s\S]*?)\]\}/g;
 // A quoted label, or a backtick one with nothing interpolated (`Orders`). The templated steps
 // (`Chapter ${n}`, `JLPT N${level}`, `Page ${page}`, a kanji range) wait for #170's catalog phrases.
@@ -120,6 +136,31 @@ const REMOVED_SYNC_STEP_ALLOWED = new Set(['.gitignore', 'apps/gokan-srs/vite.co
 const UI_SOURCE = /^apps\/(gokan-srs|gokan-dictionary)\/src\/.*\.(tsx|svelte)$/;
 const RENDERED_KANJI_SPELLING = /\{[^{}]*\bwrittenForm\.kanji\b[^{}]*\}/;
 const KANJI_SPELLING_NOTE = 'apps/gokan-srs/src/components/KanjiSpellingNote.tsx';
+/**
+ * A page folder imports nothing from another page folder: what two pages share is a building block
+ * in `components/`, `hooks/` or `utils/` (AGENTS.md, shared building blocks), where the next page
+ * finds it, and moving a page never breaks another. The pairs below are the exercise engine's
+ * seams, there before the rule: the activities' prompts and formatting the one `ExerciseCard`
+ * picks, the screens that host it, and the hub's quiz settings and listening helpers.
+ */
+const SRS_PAGES = 'apps/gokan-srs/src/pages/';
+const MODULE_IMPORT = /\bfrom\s+['"](\.{1,2}\/[^'"]+)['"]|\bimport\(\s*['"](\.{1,2}\/[^'"]+)['"]/g;
+const CROSS_PAGE_ALLOWED = new Set([
+    'exercise/ExerciseCard.tsx -> quiz/quizFormatting',
+    'exercise/ExerciseCard.tsx -> quiz/VocabPrompts',
+    'exercise/ExerciseCard.tsx -> grammar/GrammarPrompts',
+    'grammar/GrammarScreen.tsx -> exercise/ExerciseCard',
+    'quiz/VocabQuizScreen.tsx -> exercise/ExerciseCard',
+    'main/MainScreen.tsx -> settings/sections/VocabQuizSettings',
+    'main/MainScreen.tsx -> settings/sections/GrammarQuizSettings',
+    'main/MainScreen.tsx -> listening/listeningShared',
+]);
+/** The page folder of a path under SRS_PAGES (`kanji` for pages/kanji/KanjiWords.tsx), null for a file directly in it. */
+function pageFolderOf(path: string): string | null {
+    if (!path.startsWith(SRS_PAGES)) return null;
+    const parts = path.slice(SRS_PAGES.length).split('/');
+    return parts.length > 1 ? parts[0] : null;
+}
 /** A word's reading rendered as text, as the form beside its headword. */
 const RENDERED_READING = />\{[\w.?]*\breading\.primary\}</;
 /** What makes a rendered reading safe on a line or the two before it: a guard on a word learned in kana. */
@@ -301,6 +342,25 @@ function dispatchedWorkflowRunViolations(): Violation[] {
     return violations;
 }
 
+/**
+ * One switch width for every detail page in both apps: the dictionary's `$bp-detail` equals the
+ * app's `lg` (`--breakpoint-lg`, where its word page turns from tabs into the full page), so a
+ * page cannot be tabs in one app and whole in the other at the same width.
+ */
+const DETAIL_BREAKPOINT_FILES = { dictionary: 'apps/gokan-dictionary/src/styles/_tokens.scss', srs: 'apps/gokan-srs/src/index.css' };
+
+function detailBreakpointViolations(dictionaryTokens: string | null, srsCss: string | null): Violation[] {
+    const dictionary = dictionaryTokens && /^\$bp-detail:\s*([\d.]+rem);/m.exec(dictionaryTokens)?.[1];
+    const srs = srsCss && /^\s*--breakpoint-lg:\s*([\d.]+rem);/m.exec(srsCss)?.[1];
+    if (!dictionary) return [{ file: DETAIL_BREAKPOINT_FILES.dictionary, rule: 'detail-breakpoint', message: 'Declares no `$bp-detail: <n>rem;`, the detail pages\' switch width.' }];
+    if (!srs) return [{ file: DETAIL_BREAKPOINT_FILES.srs, rule: 'detail-breakpoint', message: 'Declares no `--breakpoint-lg: <n>rem;` in its @theme, the word page\'s switch width.' }];
+    return dictionary === srs ? [] : [{
+        file: DETAIL_BREAKPOINT_FILES.dictionary,
+        rule: 'detail-breakpoint',
+        message: `\`$bp-detail\` is ${dictionary}, gokan-srs's \`lg\` ${srs}: a detail page switches from tabs to the full page at one width in both apps.`,
+    }];
+}
+
 /** A workflow's jobs, each with its text and the line its header is on. */
 function workflowJobs(text: string): { name: string; line: number; text: string }[] {
     const start = text.search(/^jobs:\s*$/m);
@@ -340,6 +400,16 @@ const BOXED_GLYPH_FILES = new Set(['apps/gokan-srs/src/components/KanjiTile.tsx'
  */
 const SYNONYM_DATA = /\bVocabSynonym\b|\.synonyms\b|'synonyms'/;
 const SYNONYM_READER = 'apps/gokan-srs/src/services/exercise/wordRelation.ts';
+/**
+ * Outside the app, the package and the dictionary read them only through
+ * packages/dataset-schema/src/synonyms.ts (synonymEntriesOf, pairCloseness, held equal to the app's
+ * closenessOf by its test); vocabulary.ts declares the field. The same pattern, less a catalog's
+ * own words (a section's or a tab's name or its search's placeholder, `words.sections.synonyms`,
+ * `messages.detailTabs.synonyms`) and a tab's id.
+ */
+const SHARED_SYNONYM_SOURCE = /^(packages\/[^/]+\/src\/.*\.ts|apps\/gokan-dictionary\/(src|scripts)\/.*\.(ts|svelte))$/;
+const SHARED_SYNONYM_DATA = /\bVocabSynonym\b|(?<!\b(?:sections|search|placeholders|tabs|detailTabs))\.synonyms\b|(?<!id: )'synonyms'/;
+const SHARED_SYNONYM_READERS = new Set(['packages/dataset-schema/src/synonyms.ts', 'packages/dataset-schema/src/vocabulary.ts']);
 
 /**
  * A stored due date is read only where scheduling is decided: the effective due date under the
@@ -542,8 +612,11 @@ function check(files: string[]): Violation[] {
         if (DATASET_URL_SOURCE.test(file) && file !== DATASET_URL_HELPER && !/\.test\.tsx?$/.test(file)) {
             eachLine(text, l => l.includes('/dataset/') && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
                 add({ file, line, rule: 'dataset-url', message: 'Build dataset URLs with datasetUrl() (services/http.ts); it adds the dataset version browsers cache by.' }));
+        }
+
+        if (AUDIO_URL_SOURCE.test(file) && file !== AUDIO_URL_HELPER && !/\.test\.tsx?$/.test(file)) {
             eachLine(text, l => l.includes('/audio/') && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
-                add({ file, line, rule: 'audio-url', message: 'Build audio clip URLs with audioUrl() (services/http.ts), the one place that knows where clips are served.' }));
+                add({ file, line, rule: 'audio-url', message: 'Build audio clip URLs with audioUrl() (@gokan/dataset-schema, audio.ts), the one place both apps learn where clips are served.' }));
         }
 
         if (DICTIONARY_SOURCE.test(file) && file !== DICTIONARY_DATA_HOLDER && !file.endsWith('.test.ts')) {
@@ -562,6 +635,16 @@ function check(files: string[]): Violation[] {
                     message: 'The search script links through linkUrls(locale) (lib/localeLinks.ts): localeUrls would link a page its section does not serve.',
                 });
             }
+        }
+
+        if (/^apps\/gokan-dictionary\/src\/.*\.svelte$/.test(file) && file !== DETAIL_TABS_COMPONENT) {
+            eachLine(text, l => DETAIL_TABS_ROW.test(l), line =>
+                add({ file, line, rule: 'one-detail-tabs', message: 'Writes a detail page\'s tab row. Use DetailTabs (pages/DetailTabs.svelte), the one row client/detailTabs.ts reads, so every detail page\'s tabs stay alike.' }));
+        }
+
+        if (DICTIONARY_PAGE_COMPONENT.test(file) && !WORD_PAGE_COMPONENTS.has(file)) {
+            eachLine(text, l => VOCAB_MESSAGES.test(l), line =>
+                add({ file, line, rule: 'word-page-messages', message: 'Reads the word page\'s catalog words (messages.vocab) outside the word page. Take a tab label from messages.detailTabs, and a page\'s own words from its own key (messages.kanji, messages.grammar).' }));
         }
 
         if (DICTIONARY_PAGE_COMPONENT.test(file)) {
@@ -585,6 +668,22 @@ function check(files: string[]): Violation[] {
         if (REMOVED_SYNC_STEP_SCOPE.test(file) && !REMOVED_SYNC_STEP_ALLOWED.has(file) && !/\.test\.tsx?$/.test(file)) {
             eachLine(text, l => REMOVED_SYNC_STEP.test(l), line =>
                 add({ file, line, rule: 'removed-sync-step', message: 'Names the dataset sync step removed in #211 (sync-dataset, sync:dataset, dataset:sync, public/data/compiled). The app reads the published dataset at /dataset/ (services/http.ts); describe that, or record the history in docs/MODIFICATION_LOG.md.' }));
+        }
+
+        const importerPage = pageFolderOf(file);
+        if (importerPage !== null && /\.tsx?$/.test(file)) {
+            for (const match of text.matchAll(MODULE_IMPORT)) {
+                const target = posix.normalize(posix.join(posix.dirname(file), match[1] ?? match[2]));
+                const targetPage = pageFolderOf(target);
+                if (targetPage === null || targetPage === importerPage) continue;
+                if (CROSS_PAGE_ALLOWED.has(`${file.slice(SRS_PAGES.length)} -> ${target.slice(SRS_PAGES.length)}`)) continue;
+                add({
+                    file,
+                    line: text.slice(0, match.index).split('\n').length,
+                    rule: 'cross-page-import',
+                    message: `pages/${importerPage}/ imports from pages/${targetPage}/. What two pages share is a building block: move it to components/, hooks/ or utils/ and list it in AGENTS.md.`,
+                });
+            }
         }
 
         if (UI_SOURCE.test(file) && file !== KANJI_SPELLING_NOTE) {
@@ -706,6 +805,10 @@ function check(files: string[]): Violation[] {
             eachLine(text, l => SYNONYM_DATA.test(l) && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
                 add({ file, line, rule: 'one-synonym-reader', message: 'Reads the dataset\'s synonym pairs. Go through services/exercise/wordRelation.ts (relationOf, synonymsOf, listedSynonymsOf), so a page and grading read a pair the same way.' }));
         }
+        if (SHARED_SYNONYM_SOURCE.test(file) && !SHARED_SYNONYM_READERS.has(file) && !/\.test\.ts$/.test(file)) {
+            eachLine(text, l => SHARED_SYNONYM_DATA.test(l) && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
+                add({ file, line, rule: 'one-synonym-reader', message: 'Reads the dataset\'s synonym pairs. Go through @gokan/dataset-schema\'s synonyms.ts (synonymEntriesOf, synonymSections, pairCloseness), held equal to the app\'s grading by its test, so the dictionary and the app read a pair the same way.' }));
+        }
 
         if (GOKAN_SRS_SOURCE.test(file) && !DUE_DATE_READERS.has(file) && !/\.test\.tsx?$/.test(file)) {
             eachLine(text, l => DUE_DATE_READ.test(l) && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
@@ -762,8 +865,9 @@ function check(files: string[]): Violation[] {
             eachLine(text, l => /\bgrid-cols-12\b/.test(l), line =>
                 add({ file, line, rule: 'detail-layout', message: 'The 12-column detail grid lives in DetailHeader and DetailBody (components/detail/); use them.' }));
         }
-        if (DETAIL_SCREEN.test(file) && !(text.includes('<DetailHeader') && text.includes('<DetailBody'))) {
-            add({ file, rule: 'detail-layout', message: 'A detail page is DetailHeader then DetailBody (components/detail/), like the vocab, kanji and grammar pages.' });
+        // DetailTabsBody is DetailBody's tabs, with the tab state's panels and sections.
+        if (DETAIL_SCREEN.test(file) && !(text.includes('<DetailHeader') && /<DetailBody\b|<DetailTabsBody\b/.test(text))) {
+            add({ file, rule: 'detail-layout', message: 'A detail page is DetailHeader then DetailBody or DetailTabsBody (components/detail/), like the vocab, kanji and grammar pages.' });
         }
 
         if (APP_SOURCE.test(file)) {
@@ -794,6 +898,9 @@ function check(files: string[]): Violation[] {
     }
     if (files.some(f => GITHUB_DIR_FILE.test(f))) {
         for (const v of dispatchedWorkflowRunViolations()) add(v);
+    }
+    if (files.some(f => f === DETAIL_BREAKPOINT_FILES.dictionary || f === DETAIL_BREAKPOINT_FILES.srs)) {
+        for (const v of detailBreakpointViolations(read(DETAIL_BREAKPOINT_FILES.dictionary), read(DETAIL_BREAKPOINT_FILES.srs))) add(v);
     }
 
     return violations;

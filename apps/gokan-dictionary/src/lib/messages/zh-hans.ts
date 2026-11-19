@@ -32,7 +32,7 @@ const ENGLISH_PAGES = `${IN_ENGLISH}页面`;
 /** Numbers grouped as in English (35,872), whatever the machine building the pages. */
 const grouped = (n: number) => n.toLocaleString('en');
 
-const COUNTER: Record<CountedNoun, string> = { word: '个词', stroke: '画', 'grammar point': '个语法点' };
+const COUNTER: Record<CountedNoun, string> = { word: '个词', stroke: '画', 'grammar point': '个语法点', synonym: '个近义词' };
 
 function count(n: number, noun: CountedNoun): string {
     return `${grouped(n)} ${COUNTER[noun]}`;
@@ -70,6 +70,9 @@ export const zhHans: Messages = {
         search: { label: '搜索词典', placeholder: '搜索：汉字、假名、罗马字或中文', results: '搜索结果' },
         hideFurigana: '隐藏注音',
         showFurigana: '显示注音',
+        play: word => `播放${word}`,
+        playSentence: '播放例句',
+        voiceCredit: credit => ['语音：', { text: credit.text, lang: 'ja', href: credit.href }, '。'],
         grammarTabs: { label: '浏览语法', level: '按级别', families: '近义语法', curriculum: '课程顺序', conjugations: '活用' },
         inEnglish: IN_ENGLISH,
         languages: '语言',
@@ -149,15 +152,44 @@ export const zhHans: Messages = {
         otherLevels: '其他级别',
         otherLevelsLead: '其他级别：',
     },
+    // The kanji and grammar pages are served in English only for now (#170): their words are ready for when they are.
+    detailTabs: {
+        label: '词条内容', dict: '释义', sentences: '例句', synonyms: '近义词', forms: '活用', kanji: '汉字', related: '相关词',
+        words: '词语', point: '要点', examples: '例句',
+    },
+    kanji: {
+        wordsSearch: { label: '搜索词语', placeholder: '搜索词语', note: englishRows => `英文只搜索前 ${grouped(englishRows)} 个词。` },
+    },
+    grammar: {
+        allExamples: n => `全部 ${grouped(n)} 个例句`,
+        examplesSearch: { label: '搜索例句', placeholder: '用英文或日文搜索' },
+    },
     vocab: {
         usuallyKana: '通常写作假名。汉字写法',
         alsoRead: '又读',
         alsoWritten: '也写作',
-        commonWord: '常用词',
-        sections: { meanings: '词义', forms: '活用', sentences: '例句', kanji: '所用汉字', madeOf: '构成', usedIn: '用于' },
-        allMeanings: n => `全部 ${n} 个英文释义`,
+        sections: {
+            meanings: '词义', examples: '典型例句', closestSynonyms: '最接近的近义词', sentences: '例句', synonyms: '近义词',
+            forms: '活用', kanji: '汉字', related: '相关词', madeOf: '构成', usedIn: '用于',
+        },
+        showAllMeanings: n => `显示全部 ${n} 个英文释义`,
         rareMeanings: n => `罕用和古旧释义（${n}）`,
-        moreExamples: n => `更多例句（${n}）`,
+        showMore: n => `再显示 ${grouped(n)} 个`,
+        showMoreMeanings: n => `再显示 ${n} 个词义`,
+        forMeaning: n => `词义 ${n}`,
+        synonymsNotListed: n => `另有 ${count(n, 'synonym')}，较不接近，此处未列出。`,
+        closeness: { interchangeable: '可以互换', close: '在此义上相近', distinct: '不可互换' },
+        howCommon: {
+            label: '常用程度',
+            bands: { 'Very common': '非常常用', Common: '常用', 'Less common': '较少用', Rare: '罕用' },
+            reference: top => (top === null ? '不在词频表中' : top.beyond ? `前 ${grouped(top.top)} 名以外` : `前 ${grouped(top.top)} 个词`),
+        },
+        textbooks: '教材',
+        search: {
+            // A synonym row's text is its English shared meanings and its Japanese: no Chinese to match.
+            placeholders: { sentences: '用中文、英文或日文搜索', synonyms: '用英文或日文搜索', related: '用中文、英文或日文搜索' },
+            sentences: '搜索例句', synonyms: '搜索近义词', related: '搜索相关词',
+        },
         forms: {
             plain: '简体',
             polite: '敬体',

@@ -217,21 +217,51 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
   actions area. From `lg` the header uses the body's grid (12 columns, 8/4, `gap-10`), so
   the actions start on the side column's left edge, left-aligned and top-aligned with the
   headword; below `lg` they follow the readings. A page whose body is one column (`DetailBody`
-  `tabs`, a word's page) passes `layout="column"`: there is no side column to line up with,
-  so the actions follow the facts at every width and the status has the full width. The actions hold only the status or, before the item is studied, the one primary "Learn this ..." button. The status is one
+  `tabs` below `lg`, a word's page) passes `layout="column"`: there is no side column to line up
+  with, so the actions follow the facts and the status has the full width; from `lg`, where the
+  same page is one full page on the grid, it passes `grid`. The actions hold only the status or, before the item is studied, the one primary "Learn this ..." button. The status is one
   line, the next review after the `StatusDot` label ("● Learning · Due now"), and never
   repeats the status word: a mastered item with nothing scheduled shows only
   "● Mastered" (`statusReviewPhrase`). The kanji header keeps Known / Not known. No mastery rings: those, with their values, are only in "Your
-  progress" ("Your study" on a word's page).
+  study" (`YourProgress`, a word's page and a grammar point's).
 - **`DetailBody`**: the body under every `DetailHeader`. Either from `lg` the same 12-column
   grid, `main` (8: the subject's content, meanings first) and `side` (4: the learner's data,
   related items, the details `Disclosure`), and below `lg` one column in reading order
-  (`stacked` when it interleaves the two); or `tabs`, one column at every width: a sticky tab
-  row (`TabNav` page tabs) and the panels under it (a word's page). The 12-column grid exists only in these two components
+  (`stacked` when it interleaves the two); or `tabs`: a sticky tab row (`TabNav` page tabs) and
+  the panels under it, one column.
+- **Tabs on phones, one full page on desktop** (every tabbed detail page, issue 256: the SRS
+  word, kanji and grammar pages, one tab state, `useDetailTabs`, and one body, `DetailTabsBody`,
+  since #169. The static dictionary switches the same way at `$bp-detail`, with its own plain-TS
+  script, `client/detailTabs.ts`: "Detail tabs, shared", section 8). One
+  switch width, **1024px** (Tailwind's `lg`, where the 8/4 grid starts; `useFullDetailPage`):
+  below it tabs (tablets too), from it one full page with no tab row. `DetailBody` `tabs` takes the
+  full page as one prop, `full` (`main`, `side`): the same panel components, in the same order,
+  stacked as sections on the grid under a `divider` line, never a second copy of any panel. The
+  full page is not everything at once: it keeps the page's levels (the header with its facts, the
+  essentials, the rest, a line between levels only, no cards), and every long section shows a
+  short preview with its search and "Show N more" in place, so a learner sees every section and
+  what is in it without scrolling indefinitely. A hash lands on its section, its heading just
+  under the viewport's top; a link that scrolls to a section (a word's Dict links) moves keyboard
+  focus to its heading (`DetailSection` `focusable`), which draws the accent focus ring, a hash landing does not; crossing 1024px keeps the learner where they were (the open tab's
+  section in view, and back, the section in view as the open tab). The page is `wide` from
+  `lg`, `narrow` below. The 12-column grid exists only in these two components
   (enforced, `detail-layout`).
-- **Word page** (`pages/vocab/VocabDetailScreen.tsx`): `Page width="narrow"` at every width,
-  one column: a header holding what a learner looks the word up for, then one row of tabs
-  (`DetailBody` `tabs`), one tab open at a time. The same tabs at every width.
+- **Word page** (`pages/vocab/VocabDetailScreen.tsx`): below 1024px `Page width="narrow"`, one
+  column: a header holding what a learner looks the word up for, then one row of tabs
+  (`DetailBody` `tabs`), one tab open at a time (320, 375 and 768px alike). From 1024px
+  `Page width="wide"`, the same header, then the full page (`DetailBody` `full`), no tab row:
+  - Main (8): Dict as in its tab (Meanings, Examples, Closest synonyms, its merged entries), then
+    under a `divider` line Sentences and Synonyms, each a `type-section` heading (`DetailSection`)
+    and its panel. Side (4): Study (Your study, Your mix-ups) for a word in study, Kanji, Related.
+  - Previews, chosen on 取る, 輝く and 今 at 1280px: Sentences its tab's first 5 and "Show 5
+    more"; Synonyms 2 meaning groups of 3 rows (its tab: 4), then "Show N more meanings"; Related
+    5 rows a list (its tab: 10), each "Show N more" in place. 取る is about 2,600px tall at 1280px
+    (`check:layout` holds it under 3,200px).
+  - The hashes (`#sentences`, `#synonyms`, `#kanji`, `#related`, `#study`) land on their section,
+    loaded or followed inside the app, once the sentences have settled; Dict's "All N sentences →"
+    and "Compare all N →" scroll to their section and leave the URL as it is. The section in view
+    (the one under a line a third of the way down, the main column's first) is kept as the open
+    tab, so crossing below 1024px opens it.
   - Header, top to bottom: the headword, its spellings and reading (the kana note for a word
     learned in kana, "Also:" readings), the reading followed by its `PlayButton` (the pitch
     accent will join them); the summary gloss (`summaryGloss`, one
@@ -275,14 +305,49 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
     each ring; a due direction says its stage, not "Due now"; "Added ... · N reviews" on the
     heading's line; the learning curve and review log under one collapsed `Disclosure`), then
     Your mix-ups when there are any, with its search.
-- **Kanji page**: the header is the glyph, its readings labelled On and Kun, and neutral
-  chips (JLPT, and the kanji's number in the learner's own method, "RTK #346"). Main:
-  Meanings, then the words using it. Side: Components (with "8 strokes · Radical 子") and
-  Dictionary details (school grade, newspaper rank, name readings, every book's number).
+- **Kanji page** (`pages/kanji/KanjiDetailScreen.tsx`, issue 169): the word page's two
+  arrangements, `narrow` with tabs below 1024px, `wide` and one full page from it.
+  - Header: the glyph, its readings labelled On and Kun, neutral chips (JLPT, and the kanji's
+    number in the learner's own method, "RTK #346"), then the facts row: How common (the
+    `FrequencyMeter` and the band, on the kanji scale: the newspaper list's 2,500, "Top 500 kanji"
+    in its `title`), School grade, Strokes, Radical; then Known / Not known and its button.
+  - Tabs: Kanji (Meanings, Components as `KanjiTile`s, Common words: the 5 most common, the
+    learner's studied ones first, and "All N words →", which opens Words; under a `divider`
+    line at its foot, Details folded), Words (`#words`: every word, searchable, 20 at a time),
+    Study (`#study`, when the learner studies words with the kanji: "Your words with 学", their
+    counts by status, the same list; a kanji only marked known has none: Known is in the header).
+  - Full page: main Kanji (Meanings, Components: no Common words, since Words, the next
+    section, opens with the same rows; the full page never shows a tab's preview of a section
+    above that section), then under a `divider` line Words, 10 at a time; side Study (5 at a
+    time, without the JLPT chip: the column is about 300px wide at 1024px), then Details
+    unfolded (readings in names, the Kangxi radical's number, every other book's number). 一 (660 words) is about 1,650px tall at 1280px (`check:layout` holds it under 2,100px).
+- **Grammar page** (`pages/grammar/GrammarDetailScreen.tsx`, issue 169): the same two arrangements.
+  - Header: the title, its romaji, the JLPT chip, then the facts row: Formality, Position (the
+    chapter, "Chapter 18, point 3 of 5", a link to it), Kind (construction, inflection,
+    lexical); then the status line or "Learn this grammar point".
+  - Tabs: Point (Formation; the short explanation and "Read the full explanation" in place;
+    When to use; 2 examples and "All N examples →", which opens Examples; the id in a folded
+    "Dataset details" at its foot), Examples (`#examples`: the curated examples and the
+    corpus's as one searchable list, curated first, 10 at a time, each marked "Curated example"
+    or "From the corpus" on its romaji line), Related (`#related`: Similar grammar, Other
+    forms), Study (`#study`, a point in study: the compact Your study, one ring; a due point says its
+    stage in Study, the header says Due now, so the page says it once).
+  - Full page: main Point (Formation, the short explanation with the full one in place, When
+    to use: no examples, since Examples, the next section, opens with the same two, and its
+    "Examples" heading would be the page's second), then under a `divider` line Examples, 5 at
+    a time; side Study, then Related, then "Dataset details" folded (at the foot of Point it
+    would sit between two lines). The point with the most curated and corpus examples measured, n5-001, is about
+    1,600px tall at 1280px (`check:layout` holds it under 2,000px).
+  - The Formation box stays, the one boxed block on these pages: it is an object, a pattern to
+    copy (principle 5), not a card around a section, so the "no cards" direction does not
+    reach it.
 - **Readings**: on in katakana, kun in hiragana with the okurigana in parentheses, まな(ぶ),
   through `kunReadingLabel` in both apps (enforced, `kun-reading`). Parentheses, not a
   colour: every colour already means something (section 2). A reading beside its headword is
-  `secondary`, its On/Kun label a field label.
+  `secondary`, its On/Kun label a field label. A list of readings (On, Kun, and a kanji's
+  readings in names in its Details) keeps each reading whole on its line and breaks only after a
+  、 (`ReadingList` in `KanjiReadings.tsx`; `check:layout` on the kanji full page's side column at
+  1024 and 1280px, where てん once broke as て / ん).
 - **A session card's headword** at display size is a `DisplayHeadword`: 4rem on a phone, 8rem
   from `md`, and smaller when the word is too long for its card, so it stays on one line: its
   size is the card's width over its character count (a Japanese character is one em wide),
@@ -539,16 +604,120 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   sections are a heading plus spacing, not boxes; a box is an object (a tile, a kanji).
   A glyph tile is a box only when it is a link (the `glyph-tiles` mixin: a kanji
   component with a page is boxed, 氵 is plain), as in the app.
-- **Kanji page**: the glyph, its meanings (`entry-gloss`), its readings labelled On and Kun
-  (the okurigana in parentheses, `kunReadingLabel`), the JLPT chip, then one meta line that
-  names the level only when there is no chip. Sections: Components, Words, In kanji courses
-  (each book, its step under it reading "Step 212" on every row, linked to the range page of
-  that order holding it when the book has one, a linked step underlined at rest so it is not told
-  from a plain one by colour alone (`check:layout`), each step a 44px band linked or not; one
-  secondary line under the heading, shown only when a step is linked, says each linked step
-  leads to the words you can read at that point, and the link's accessible name repeats it in
-  visually hidden text, ": the words you can read at this step"), then the name
-  readings behind a `<details>`.
+- **Word page** (`pages/VocabPage.svelte`, #168): the app word page's shape, so the two read as
+  one product. Header: the headword, its readings, the summary gloss, the JLPT chip (and "Also
+  written"), then a facts row (`.entry-facts`, a small tertiary label over each value): How common
+  (the four-bar meter, neutral like the app's `FrequencyMeter`, the band's name and "Top 300 words",
+  `frequencyBand` and `frequencyTop` over `wordFrequencyRank`, shared with the app) and Textbooks
+  (`textbookLessonsLabel`). No "Common word" chip: the band says it. Sections, in the app's names
+  and order: **Dict** (Meanings, its first 3 and "Show all N meanings" in place, rare ones in their
+  own disclosure; the app panel; Examples, 2 sentences; Closest synonyms, up to 5 from the first
+  meaning, never a ≠ pair, "For meaning 1 · ..." under them), **Sentences** (5, then "Show N more"),
+  **Synonyms**, **Forms** (the dictionary's own), **Kanji**, **Related** (Made of, Used in, 5 rows each
+  then "Show N more"). Synonyms are grouped by meaning (`synonymSections`, shared with the app, with
+  no learner layer), each group titled "For meaning 2 · to pass, to hand", its rows word list rows
+  whose gloss column holds the meanings the two words share (the app row's description, what the
+  section search reads), then under it, in a `small`, the pair's label in the app's sign and words
+  (= Interchangeable, ≈ Close in this sense, ≠ Not interchangeable; `pairCloseness`,
+  `CLOSENESS_LABEL`), which the search does not read, marked with the page's lang (inside the
+  row's `lang="ja"` link it would read as Japanese otherwise; prerender refuses a word row's
+  English left unmarked there, `latinInJapaneseRows`): neutral, told apart by sign and word, never
+  by colour. 2 groups of 3 rows show, then "Show N more meanings"; each
+  synonym links to its page. The page ships at most 8 words a meaning and 32 in all
+  (`lib/synonyms.ts`), and says how many it leaves out.
+  - **From 1024px** (`$bp-detail`, the app's `lg`: check:conventions holds them equal): one full page,
+    Dict, Sentences, Synonyms and Forms in the main column, Kanji and Related in the aside, each long
+    section capped as above in a native `<details>` holding the rest of what the page ships.
+  - **Below 1024px**: a tab row under the header (Dict, Sentences, Synonyms, Forms, Kanji, Related,
+    each only when it has content), one section at a time, 44px tabs in a row that scrolls sideways
+    inside itself; Dict has no hash, the others the app's (`#sentences`, `#synonyms`, `#forms`,
+    `#kanji`, `#related`), so a link means the same in both. `check:layout` measures it at 320 and
+    375px (every hash landing on its section alone, at the page top with the tab row in view: the
+    script undoes the browser's fragment scroll, which Chrome repeats after load, until the
+    reader's first input, on a fresh navigation only: a reload or Back keeps the scroll the browser
+    restores, which `check:layout` reloads 取る#sentences scrolled down to see) and the full page at
+    1280px. Dict's Examples carry their own source
+    credit, as Sentences does: below 1024px each shows alone.
+  - **Each sentence once, one furigana toggle** (from 1024px): Examples is Sentences' first 2, so
+    the full page starts Sentences after them (those rows tab-only, `detail-preview`, neither
+    searched nor counted there); a word with no sentence past them keeps them in Sentences, its
+    Examples tab-only instead. Sentences stays one ordered list in tabs. Examples' furigana toggle
+    is tab-only too, so the full page has Sentences' alone. `check:layout` holds both at 1024 and
+    1280px on 取る.
+  - **Detail tabs, shared** (`client/detailTabs.ts`, the `detail-tabs` mixin in `_tokens.scss`,
+    the row drawn only by `pages/DetailTabs.svelte`, its label from the catalog, no row for one
+    section: `check:conventions`, `one-detail-tabs`):
+    shared by the word, kanji and grammar pages (#257). The HTML is
+    the full page, every section in order with its heading; with no script a phone gets the stacked
+    page. A few inline bytes in the head set `tabbed` on `<html>` before first paint, so the row is
+    drawn from the start and, until the script runs, CSS shows only the hash's section (`:target`),
+    else the default one (`data-default-panel`): nothing shifts. The script makes the row a
+    `role="tablist"` (arrow keys, Home, End, the hash replaced as a tab is chosen) and reads the
+    width off the stylesheet (`--detail-query`, from `$bp-detail`) through `matchMedia`, so crossing
+    it switches back and forth. A word's Sentences, Synonyms and Related, a kanji's Words and a
+    grammar point's Examples each get a search field (44px,
+    16px text, a hidden label, a placeholder in `font-sans` short enough to show whole in the field
+    at 320px ("English or Japanese": `check:layout` measures every one on a word, a kanji and a
+    grammar page), per section since each names only the languages its rows are searched in: on a
+    Chinese page Synonyms says English or Japanese, its rows' meanings being English) only when the section has more than a reader takes
+    in at a glance, each page's threshold in its bullet: a word's sections past one page, as the
+    app's `usePagedPanel` (more rows than it shows before "Show N more"); a kanji's Words past its
+    first 30 rows, English reaching those 30 alone (the rest ship headword and reading only, the
+  80 KB budget: their glosses would add about 27 KB to 一), which a static `meta` line under the
+  field says ("English searches the first 30 words.", from the catalog), above the count line:
+  a placeholder that long is cut off on a phone and goes once the reader types; a grammar point's Examples past 5 curated examples, or with any from the corpus
+    (folded out of sight, nothing paged). A count
+    line shows while filtering, with the app's matching
+    (`readExploreQuery`, `matchesExploreQuery`, shared from `@gokan/dataset-schema`: English from the
+    start of a word, Japanese anywhere, kana folded); the field stays hidden without the script.
+- **Kanji page** (`pages/KanjiPage.svelte`, #257): the app kanji page's shape, through the word
+  page's tab script and breakpoint. Header: the glyph, its meanings (`entry-gloss`), its readings
+  labelled On and Kun (the okurigana in parentheses, `kunReadingLabel`; each reading whole on its
+  line, the list breaking only after a 、, as the app's: `check:layout` on 一, 学 and 取 at 320 and
+  375px), the JLPT chip ("Outside
+  the JLPT lists" in its place when it has no level), then the facts row (`.entry-facts`, the
+  `entry-facts` mixin, shared with the word page): How common (the four-bar meter and the band on
+  the kanji scale, "Top 100 kanji", as the app's), School grade, Strokes, Radical. Sections, in the
+  app's names and order: **Kanji** (the app panel; Components; Common words, the 5 most common and
+  "All N words →" to Words, in tabs only; In kanji courses: each book, its step under it reading
+  "Step 212" on every row, linked to the range page of that order holding it when the book has
+  one, a linked step underlined at rest so it is not told from a plain one by colour alone
+  (`check:layout`), each step a 44px band linked or not; one secondary line under the heading,
+  shown only when a step is linked, says each linked step leads to the words you can read at that
+  point, and the link's accessible name repeats it in visually hidden text, ": the words you can
+  read at this step"; then Details folded under a divider line: readings in names, the Kangxi
+  radical's number) and **Words** (`#words`: 30 rows with their gloss, the rest headword and
+  reading only in "All N words"; searchable past the first 30, in Japanese across every row and in
+  English across the 30 with a gloss, as the line under its field says). A kanji no word uses has no Words
+  section and no tab row; its Kanji section keeps a Common words section, a heading with the
+  section's gap and one line ("No word in this dictionary uses this kanji yet."), shown at every
+  width, so no words reads as a fact, not a list that failed to show.
+- **Grammar page** (`pages/GrammarPage.svelte`, #257): the app grammar page's sections in its
+  order. Header as before: the title, its romaji, the JLPT and formality chips, the chapter.
+  **Point** (Formation, the one boxed block; the short explanation as the lead, the long one in
+  place under it, "Read the full explanation"; the app panel; When to use; 2 examples, curated
+  first, then the corpus's for a point with none curated, and "All N examples →" to Examples, in
+  tabs only; N counts every corpus example, as "Corpus examples (N)" does, not only the 25 shipped), **Examples** (`#examples`: every curated example, then the
+  corpus's in "Corpus examples (N)", searchable when there are more than 5 or any from the corpus),
+  **Related** (`#related`: Conjugation, Other forms, the family's points).
+- **Kanji and grammar pages, both arrangements**: below 1024px the tab row (Kanji, Words; Point,
+  Examples, Related; each only when it has content, no row when only the first has), one section at
+  a time, the first tab with no hash; from 1024px, and with no script at any width, one full page,
+  every section stacked in order. A first tab's preview of the next section (`.detail-preview`, the
+  `detail-tabs` mixin) shows only in tabs: the full page never shows a preview above the section it
+  previews. `check:layout` measures 一, 学, 取, n5-001 and n5-016 tabbed at 320 and 375px (every
+  hash landing on its section alone, at the page top) and whole at 1024 and 1280px, and searches
+  一's Words and n5-001's Examples by their first row's English.
+- **Play buttons** (`pages/PlayButton.svelte`, #255): the app's `PlayButton` in the dictionary's
+  terms. An accent icon button (a speaker, a stop square while it plays), no border or fill, 44px
+  at every width with negative block margins so the line it ends keeps its height. A word's follows
+  its reading in the header (a word learned in kana: its kanji-spelling note); a sentence's is a
+  right-hand column at its first line, the sentence never wrapping under it (`.play-row`). Only
+  items with a clip have one, never a disabled one, and none shows without script (the `playable`
+  pre-paint class). Its name is the catalog's ("Play 取る", "Play sentence"; 播放…, 播放例句), in
+  the page's language. A page with buttons credits the voice in its footer, one line, the credit in
+  Japanese linked to the voice's terms. Rules: the `play-buttons` mixin, in the word and grammar
+  sheets (`check:layout`: named, 44px, at the first line, at 320, 375 and 1280px).
 - **App panel** (`pages/AppPanel.svelte`, #244): once per page, after what the reader came
   for, never above it: right after the header where the header holds it (a kanji's meanings and
   readings); on a word page after the Meanings section, so the definition comes first, on a
@@ -570,7 +739,7 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   page sheet that shows it: in `app.scss` they took the shared stylesheet past its 10 KB budget.
 - **Shared between page sheets**: a rule two page types use goes in `app.scss`, unless that
   breaks its budget; then it is a mixin in `_tokens.scss` (`glyph-tiles`, `entry-gloss`,
-  `stacked-entries`, `app-panel`) included by each page sheet, so the source stays one copy.
+  `stacked-entries`, `app-panel`, `play-buttons`) included by each page sheet, so the source stays one copy.
 - **Frame**: "Skip to content" is the first focusable element of every page. The header's
   inner container is the wide measure (960px) on every page, so it lines up with the entry
   pages. Wide screens: one row (logo, nav, search on the right). Phones (below 40rem): at
@@ -600,6 +769,7 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   | --- | --- |
   | Word page HTML, 90th percentile | 20 KB |
   | Kanji page HTML, the heaviest | 80 KB |
+  | Grammar point page HTML, the heaviest | 40 KB |
   | `/grammar/` HTML | 150 KB |
   | Each JLPT list page | 150 KB |
   | Each kanji order page (hub, order, range of 100 steps) | 150 KB |
@@ -607,6 +777,7 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   | A locale's stylesheet (`styles/locales/`, its pages only) | 2 KB |
   | Search script (every page) | 12 KB |
   | Query engine (loaded on first focus) | 10 KB |
+  | Detail tabs script (word, kanji and grammar pages), with its shared chunks | 8 KB |
   | `search-core.json`, gzipped | 300 KB |
   | Web fonts | one woff2, 40 KB |
   | Svelte client runtime | none |
@@ -617,7 +788,10 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   10 KB until it read the page's locale (#228): every served locale's words for it
   (`lib/messages/search`) and the links of the page's section (`linkUrls`) took it to 11 KB,
   about 4.6 KB gzipped; its words and links are per locale, so a third locale costs about
-  0.7 KB more. Page weight is one half of
+  0.7 KB more. A script is measured with the chunks it imports statically: since #168 the
+  detail tabs script and the search engine share the kana folding (`romaji`), and the search
+  script and the detail script the locale reading, each a chunk of its own (7.9 KB for the
+  detail script with both, 11.4 KB for the search script, 9.9 KB for the engine). Page weight is one half of
   being found; the other, SEO at 100 on every page type, is held by the Lighthouse check
   (`scripts/check-lighthouse.ts`, in section 9).
 
@@ -635,6 +809,8 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
 - `kun-reading`: a kun reading is rendered through `kunReadingLabel`, in both apps.
 - `glyph-tile`: a boxed mincho glyph (`font-mincho text-2xl` with a border) only in
   `KanjiTile` (and the known-kanji grid's toggle buttons).
+- `detail-breakpoint`: the dictionary's `$bp-detail` equals gokan-srs's `--breakpoint-lg`, the
+  one width where every detail page turns from tabs into the full page.
 - `detail-layout`: `grid-cols-12` only in `DetailHeader` and `DetailBody`, and every
   `*DetailScreen` uses both.
 - `one-ruby`: a `<ruby>` in the app only in `components/Ruby.tsx`.

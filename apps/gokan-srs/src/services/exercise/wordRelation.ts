@@ -5,7 +5,8 @@
 // its tier says how close they are out of context. Grading, effects, the cards, the
 // ticker and a word page's Synonyms card all read it through here, so the label a
 // page shows cannot disagree with grading.
-import type { SynonymRelation, Vocabulary, VocabSynonym } from '@gokan/dataset-schema';
+import { synonymEntriesOf, synonymFormsOf } from '@gokan/dataset-schema';
+import type { Closeness, SynonymEntry, SynonymRelation, Vocabulary, VocabSynonym } from '@gokan/dataset-schema';
 import type { AnswerResult } from '../../utils/answerMatching';
 import { sharedMeaningInCue } from '../../utils/synonymContext.utils';
 import type { ProductionCue } from '../../utils/synonymContext.utils';
@@ -93,19 +94,16 @@ export function synonymNote(outcome: SynonymOutcome, typed: string, tested: stri
  * matching a wrong answer against hundreds of pairs needs no vocab-file fetch.
  */
 function candidateOf(entry: VocabSynonym): SynonymCandidate {
-    const { w, r, pos } = entry;
+    const { pos } = entry;
     return {
         vocabId: entry.id,
         relation: entry.relation,
         shared: entry.shared,
         curated: entry.curated,
         vocab: {
-            writtenForm: { kanji: w[0] ?? r[0], alternatives: w.slice(1), containedKanji: [] },
-            reading: { primary: r[0], alternatives: r.slice(1) },
+            ...synonymFormsOf(entry),
             // Only pos is read, by the inflection generator (wordClassesOf).
             senses: pos ? [{ pos, glosses: [], misc: { rawTags: [] }, related: { compounds: [] } }] : [],
-            // So the feedback names a word learned in kana by its kana (headwordOf).
-            ...(entry.u ? { usuallyKana: true as const } : {}),
         },
     };
 }
@@ -115,38 +113,16 @@ export function synonymsOf(vocab: Pick<Vocabulary, 'synonyms'>): SynonymCandidat
     return (vocab.synonyms ?? []).map(candidateOf);
 }
 
-/** A word's synonym as its page lists it: the other word's forms, what they share, how frequent it is. */
-export interface ListedSynonym {
-    vocabId: string;
-    /** Enough to name the word (headwordOf, SecondaryForm) without loading its file. */
-    forms: Pick<Vocabulary, 'writtenForm' | 'reading' | 'usuallyKana'>;
-    /** The normalized meanings both words carry. */
-    shared: string[];
-    /** The other word's frequency rank (1 is the most frequent), or null when unranked. */
-    rank: number | null;
-    tier: SynonymRelation;
-    curated: boolean;
+/** A word's synonym as its page lists it (`SynonymEntry`, shared with the dictionary), with the pair grading reads. */
+export interface ListedSynonym extends SynonymEntry {
     pair: WordPair;
 }
 
 /** Every synonym of the word, as its page lists them. */
 export function listedSynonymsOf(vocab: Pick<Vocabulary, 'synonyms'>): ListedSynonym[] {
-    return (vocab.synonyms ?? []).map(entry => {
-        const { vocab: forms, ...pair } = candidateOf(entry);
-        return {
-            vocabId: entry.id,
-            forms,
-            shared: entry.shared ?? [],
-            rank: entry.f ?? null,
-            tier: entry.relation,
-            curated: entry.curated === true,
-            pair,
-        };
-    });
+    const entries = synonymEntriesOf(vocab);
+    return (vocab.synonyms ?? []).map((entry, index) => ({ ...entries[index], pair: { relation: entry.relation, shared: entry.shared, curated: entry.curated } }));
 }
-
-/** How close two words are, as a word page labels the pair. */
-export type Closeness = 'interchangeable' | 'close' | 'distinct';
 
 /**
  * The pair's label, from outcomeOf: read in the sense the page lists it under (its
@@ -159,12 +135,8 @@ export function closenessOf(pair: WordPair, senseGlosses: string[]): Closeness {
     return outcomeOf(relationOf(pair, {})) === 'minor_error' ? 'interchangeable' : 'close';
 }
 
-/** Each label is told apart by its sign and its word, never by a colour (docs/DESIGN_SYSTEM.md). */
-export const CLOSENESS_LABEL: Record<Closeness, { sign: string; label: string }> = {
-    interchangeable: { sign: '=', label: 'Interchangeable' },
-    close: { sign: '≈', label: 'Close in this sense' },
-    distinct: { sign: '≠', label: 'Not interchangeable' },
-};
+/** The labels are shared with the dictionary (`synonyms.ts` in @gokan/dataset-schema). */
+export { CLOSENESS_LABEL } from '@gokan/dataset-schema';
 
 /** Entries whose shared meaning the cue uses come first, so when an answer is only a typo of several of them, the one this card means wins. */
 export function orderSynonymsForCue<T extends WordPair>(entries: T[], cue: ProductionCue): T[] {

@@ -1,8 +1,8 @@
 import { StatusDot } from "../../components/StatusDot";
 import { useQuiz } from "../../context/useQuiz";
 import { grammarLearningStatus } from "../../utils/learningStatus.utils";
-import type { GrammarPoint, GrammarVariantGroupIndex } from "@gokan/dataset-schema";
-import { GrammarService } from "../../services/grammar.service";
+import type { GrammarPoint } from "@gokan/dataset-schema";
+import { GrammarService, type GrammarVariant } from "../../services/grammar.service";
 import { RelatedEntriesCard, type RelatedEntry } from "../../components/RelatedEntriesCard";
 import { useAsyncData } from "../../hooks/useAsyncData";
 
@@ -23,11 +23,6 @@ const RELATION_LABELS: Record<string, string> = {
     "particle+politeness": "Particle + politeness",
 };
 
-interface VariantRow {
-    point: GrammarPoint;
-    relation: GrammarVariantGroupIndex[string][number]['relation'];
-}
-
 /**
  * Surfaces a grammar point's realization variants: the other surface forms of
  * the SAME point, which are studied together on the canonical's single card and
@@ -40,21 +35,7 @@ interface VariantRow {
  */
 export function GrammarVariantsCard({ point }: Props) {
     const { state } = useQuiz();
-    // A variant points at its canonical; a canonical heads its own group.
-    const canonicalId = point.variantOf ?? point.id;
-
-    const rows: VariantRow[] = useAsyncData(`:${point.id}`, async () => {
-        const group = (await GrammarService.loadVariantGroups())[canonicalId];
-        if (!group) return [];
-        // Every OTHER member of the group - the current point is the page you are on.
-        const others = group.filter(m => m.id !== point.id);
-        const relationOf = new Map(others.map(m => [m.id, m.relation]));
-        const points = await GrammarService.loadGrammarPoints(others.map(m => m.id));
-        return points.flatMap(p => {
-            const relation = relationOf.get(p.id);
-            return relation ? [{ point: p, relation }] : [];
-        });
-    }).data ?? [];
+    const rows: GrammarVariant[] = useAsyncData(`:${point.id}`, () => GrammarService.variantsOf(point)).data ?? [];
 
     if (rows.length === 0) {
         return null;

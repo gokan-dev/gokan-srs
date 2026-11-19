@@ -11,6 +11,8 @@ export const BUDGETS = {
     wordPageP90: 20 * KB,
     /** The heaviest kanji page (一 lists 660 words). */
     kanjiPageMax: 80 * KB,
+    /** The heaviest grammar point page: its curated examples, up to 25 from the corpus, its related points. */
+    grammarPageMax: 40 * KB,
     grammarIndex: 150 * KB,
     /** Each page of a JLPT word list. */
     jlptPage: 150 * KB,
@@ -25,6 +27,10 @@ export const BUDGETS = {
     localeStylesheet: 2 * KB,
     /** The search script every page loads: 10 KB until it carried every locale's words and links (#228, docs/DESIGN_SYSTEM.md). */
     searchScript: 12 * KB,
+    /** A detail page's tabs and section search (client/detailTabs.ts), on the pages that link it. */
+    detailScript: 8 * KB,
+    /** The clip player (client/player.ts), on the pages with a play button. */
+    playerScript: 2 * KB,
     /** The query engine it loads on first focus, with the index. */
     searchEngine: 10 * KB,
     /** search-core.json, gzipped. */

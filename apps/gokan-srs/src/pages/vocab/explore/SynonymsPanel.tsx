@@ -1,19 +1,19 @@
 import { useMemo, useState } from "react";
 import { headwordOf, secondaryForm } from "@gokan/dataset-schema";
-import type { Vocabulary } from "@gokan/dataset-schema";
+import type { Closeness, Vocabulary } from "@gokan/dataset-schema";
 import { RelatedEntryList, type RelatedSection } from "../../../components/RelatedEntriesCard";
 import { SecondaryForm } from "../../../components/SecondaryForm";
 import { TagChip } from "../../../components/TagChip";
 import { Marked } from "../../../components/ui/Marked";
 import { TextButton } from "../../../components/ui/TextButton";
 import { CLOSENESS_LABEL, closenessOf } from "../../../services/exercise/wordRelation";
-import type { Closeness, ListedSynonym } from "../../../services/exercise/wordRelation";
+import type { ListedSynonym } from "../../../services/exercise/wordRelation";
 import { englishRanges, matchesExploreQuery, resultCountLine, type ExploreQuery } from "../../../utils/exploreSearch.utils";
 import { mixedUpLabel } from "../../../utils/mixups.utils";
 import { senseNumbers } from "../../../utils/senses.utils";
-import { filterSynonymSections, GROUP_ROWS, sectionGlossLine, GROUPS_AT_ONCE, shownGroups, synonymCount, type SynonymSection } from "../../../utils/synonymSections.utils";
-import { PanelSearch } from "./PanelSearch";
-import { usePanelQuery } from "./usePanelQuery";
+import { filterSynonymSections, GROUP_ROWS, sectionGlossLine, GROUPS_AT_ONCE, shownGroups, synonymCount, synonymsSearchable, type SynonymSection } from "../../../utils/synonymSections.utils";
+import { PanelSearch } from "../../../components/search/PanelSearch";
+import { usePanelQuery } from "../../../components/search/usePanelQuery";
 import { vocabPath } from "../../../utils/navigation.utils";
 
 /** How close two words are, as a neutral chip told apart by its sign and its word, never a colour. */
@@ -34,11 +34,17 @@ function matchesSynonym(query: ExploreQuery, synonym: ListedSynonym): boolean {
 /**
  * Every synonym of the word, grouped by the meaning it shares (synonymSections, as it is), each
  * row labelled by how close the two words are, as grading reads the pair (closenessOf). Three
- * rows a group and four groups at a time; a search keeps the grouping and every group that matches.
+ * rows a group and four groups at a time (`groupsAtOnce`, fewer as a full page's section); a search
+ * keeps the grouping and every group that matches.
  */
-export function SynonymsPanel({ vocab, sections, mixedUp }: { vocab: Vocabulary; sections: SynonymSection[]; mixedUp: ReadonlyMap<string, number> }) {
+export function SynonymsPanel({ vocab, sections, mixedUp, groupsAtOnce = GROUPS_AT_ONCE }: {
+    vocab: Vocabulary;
+    sections: SynonymSection[];
+    mixedUp: ReadonlyMap<string, number>;
+    groupsAtOnce?: number;
+}) {
     const { text, setText, query } = usePanelQuery();
-    const [groupsShown, setGroupsShown] = useState(GROUPS_AT_ONCE);
+    const [groupsShown, setGroupsShown] = useState(groupsAtOnce);
     const [openGroups, setOpenGroups] = useState<ReadonlySet<number>>(new Set());
     const numbers = useMemo(() => senseNumbers(vocab.senses), [vocab.senses]);
     const total = synonymCount(sections);
@@ -89,17 +95,20 @@ export function SynonymsPanel({ vocab, sections, mixedUp }: { vocab: Vocabulary;
             <p className="type-support mb-4">
                 Never penalized on a <span lang="ja" className="font-mincho">{headword}</span> card; = and ≈ are accepted when they fit its meaning.
             </p>
-            <PanelSearch
-                text={text}
-                onChange={value => { setText(value); setOpenGroups(new Set()); }}
-                label="Search the synonyms"
-                placeholder="Search in English or Japanese"
-                countLine={resultCountLine(synonymCount(matched), total, 'synonym', query)}
-            />
+            {/* Only past one page, as every panel's search and the dictionary's Synonyms (synonymsSearchable). */}
+            {synonymsSearchable(sections, groupsAtOnce) && (
+                <PanelSearch
+                    text={text}
+                    onChange={value => { setText(value); setOpenGroups(new Set()); }}
+                    label="Search the synonyms"
+                    placeholder="Search in English or Japanese"
+                    countLine={resultCountLine(synonymCount(matched), total, 'synonym', query)}
+                />
+            )}
             <RelatedEntryList sections={groups} wrapDescription groupHeadings />
             {hidden > 0 && (
-                <TextButton onClick={() => setGroupsShown(groupsShown + GROUPS_AT_ONCE)} className="mt-4">
-                    Show {Math.min(GROUPS_AT_ONCE, hidden)} more meaning{Math.min(GROUPS_AT_ONCE, hidden) === 1 ? '' : 's'}
+                <TextButton onClick={() => setGroupsShown(groupsShown + groupsAtOnce)} className="mt-4">
+                    Show {Math.min(groupsAtOnce, hidden)} more meaning{Math.min(groupsAtOnce, hidden) === 1 ? '' : 's'}
                 </TextButton>
             )}
         </div>

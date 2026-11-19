@@ -6,7 +6,7 @@
 // Text the dataset holds (meanings, explanations, examples) is the dataset's, read in the
 // locale's language (lib/locale.ts, datasetLanguageOf); this is everything else.
 
-import type { GrammarChapter, GrammarPoint, Kanji, KanjiOrder, Vocabulary } from '@gokan/dataset-schema';
+import type { Closeness, FrequencyBandName, GrammarChapter, GrammarPoint, Kanji, KanjiOrder, Vocabulary } from '@gokan/dataset-schema';
 import type { DictionaryPlacement } from '@gokan/analytics';
 import type { AppLink } from '../appLinks';
 import type { FormLabel } from '../conjugation';
@@ -22,7 +22,7 @@ export interface PageMeta {
 }
 
 /** The things a page counts: a catalog writes each count with its noun ("1 word", "3 strokes"). */
-export type CountedNoun = 'word' | 'stroke' | 'grammar point';
+export type CountedNoun = 'word' | 'stroke' | 'grammar point' | 'synonym';
 
 /**
  * A catalog's sentence in its own word order: the plain runs, and each marked run's text with its
@@ -79,6 +79,11 @@ export interface Messages {
         /** The furigana toggle's two states (client/search.ts reads the second from the button). */
         hideFurigana: string;
         showFurigana: string;
+        /** A play button's accessible name: a word's, "Play 食べる"; a sentence's, `playSentence`. */
+        play: (word: string) => string;
+        playSentence: string;
+        /** The credit the voice's terms require, on a page that plays its clips: "Audio: VOICEVOX:冥鳴ひまり". */
+        voiceCredit: (credit: { text: string; href: string }) => LinkedText;
         grammarTabs: { label: string } & Record<GrammarTab, string>;
         /**
          * The mark on a link from a page in another language to a page served in English only (a
@@ -138,6 +143,31 @@ export interface Messages {
         otherLevels: string;
         otherLevelsLead: string;
     };
+    /**
+     * A detail page's tab row below 1024px (pages/DetailTabs.svelte): its accessible name and each
+     * section's tab, in the app's words: a word's (Dict to Related), a kanji's (Kanji, Words), a
+     * grammar point's (Point, Examples, Related).
+     */
+    detailTabs: {
+        label: string; dict: string; sentences: string; synonyms: string; forms: string; kanji: string; related: string;
+        words: string; point: string; examples: string;
+    };
+    /** A kanji page's words. */
+    kanji: {
+        /**
+         * The Words section's search field: its hidden label, its placeholder (short, to fit a 320px
+         * phone, so it names no language), and the line under it that says English reaches only the
+         * rows that ship a gloss (the first `englishRows`: the 80 KB budget). A line, not the
+         * placeholder: it shows at every width, and still after the reader types.
+         */
+        wordsSearch: { label: string; placeholder: string; note: (englishRows: number) => string };
+    };
+    /** A grammar point page's words. */
+    grammar: {
+        /** The Point tab's link to Examples: "All 1,417 examples". */
+        allExamples: (n: number) => string;
+        examplesSearch: { label: string; placeholder: string };
+    };
     /** A word page's words. */
     vocab: {
         /** Before the kanji spelling of a word learned in kana. */
@@ -145,11 +175,32 @@ export interface Messages {
         /** Before the other readings, and before the other spellings. */
         alsoRead: string;
         alsoWritten: string;
-        commonWord: string;
-        sections: { meanings: string; forms: string; sentences: string; kanji: string; madeOf: string; usedIn: string };
-        allMeanings: (n: number) => string;
+        sections: {
+            meanings: string; examples: string; closestSynonyms: string; sentences: string; synonyms: string;
+            forms: string; kanji: string; related: string; madeOf: string; usedIn: string;
+        };
+        /** Meanings past the first three, in place. */
+        showAllMeanings: (n: number) => string;
         rareMeanings: (n: number) => string;
-        moreExamples: (n: number) => string;
+        /** A capped list's disclosure: the rest of what the page ships. */
+        showMore: (n: number) => string;
+        /** The Synonyms section's meaning groups past the first two. */
+        showMoreMeanings: (n: number) => string;
+        /** A synonym group's title, before its glosses: "For meaning 1". */
+        forMeaning: (n: number) => string;
+        /** Under the Synonyms section when the page ships fewer than the word has. */
+        synonymsNotListed: (n: number) => string;
+        /** A synonym's label, beside its sign (= ≈ ≠): how close it is in the meaning it is listed under. */
+        closeness: Record<Closeness, string>;
+        /** The header's facts: how common the word is (the band's name and its round top), its textbook lessons. */
+        howCommon: { label: string; bands: Record<FrequencyBandName, string>; reference: (top: { top: number; beyond: boolean } | null) => string };
+        textbooks: string;
+        /**
+         * A section's search field: its placeholder, per section since each says only the languages
+         * its rows are searched in (short enough to show whole at 320px: check:layout), and each
+         * section's hidden label.
+         */
+        search: { placeholders: { sentences: string; synonyms: string; related: string }; sentences: string; synonyms: string; related: string };
         /** The Forms table: its columns, its rows, and every other form's name. */
         forms: { plain: string; polite: string; present: string; negative: string; past: string; pastNegative: string; labels: Record<FormLabel, string> };
         /** Under the Kanji used tiles, on a page in another language: their pages are in English. */

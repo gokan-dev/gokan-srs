@@ -1,17 +1,63 @@
 // Vocab entry page (VocabPage.svelte) only.
 //
-// The layout splits by importance rather than convenience: the meanings, forms and example
-// sentences are what the page is for and stay in the primary column, while the relationship
-// lists are navigation aids and move to the aside.
+// The app word page's sections in its order. Below $bp-detail a row of tabs, one section at a time
+// (the detail-tabs mixin, client/detailTabs.ts); from it the full page, split by importance: Dict,
+// Sentences, Synonyms and Forms are what the page is for and stay in the primary column, while
+// Kanji and Related are navigation aids and move to the aside.
 
 @use '../tokens' as *;
 
 @include app-panel;
+@include detail-tabs;
+@include play-buttons;
+@include entry-facts;
+@include section-search;
 
 // After Meanings here, a section with no bottom margin, not under a header whose margin the
 // panel's own top one collapses into: a section's 40px above as below (check:layout).
-.entry-main > .app-panel {
+.detail-panel > .app-panel {
   margin-top: $space-5;
+}
+
+// Sentences' rows that Examples already shows are tab-only (VocabPage.svelte): where they are not
+// drawn, the first row drawn sits at the list's top, not a row's gap below rows that are not there.
+.sentence-list > .detail-preview + li:not(.detail-preview) {
+  margin-top: 0;
+}
+
+@include detail-tabbed {
+  .tabbed .sentence-list > .detail-preview + li {
+    margin-top: $space-3;
+  }
+}
+
+// A synonym group's title ("For meaning 1 · to shine, to sparkle") and a Related list's: a group
+// title over its rows, 32px apart, as the app's.
+.synonym-group-title,
+.related-title {
+  margin: 0 0 $space-1;
+  font-family: $font-sans;
+  font-size: $text-base;
+  font-weight: 600;
+}
+
+.synonym-group + .synonym-group,
+.disclosure .synonym-group,
+[data-search-group] + [data-search-group] {
+  margin-top: $space-4;
+}
+
+// A synonym row's note under its gloss ("= Interchangeable"), quieter than it: only a word page's
+// rows have one (VocabEntryList.svelte), so here rather than in app.scss.
+.entry-list a > small {
+  grid-column: 3;
+  font-family: $font-sans;
+  font-size: $text-sm;
+  color: var(--tertiary);
+
+  @include narrow {
+    grid-column: 1 / -1;
+  }
 }
 
 .entry-word {
@@ -31,7 +77,7 @@
   gap: $space-5;
   align-items: start;
 
-  @include wide {
+  @include detail-full {
     grid-template-columns: minmax(0, 1.9fr) minmax(14rem, 1fr);
   }
 }

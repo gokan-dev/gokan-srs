@@ -30,8 +30,12 @@ $space-6: 3rem;
 // -- Breakpoints ------------------------------------------------------------
 /// Phones end here: below it the header takes two rows and the search panel the whole screen.
 $bp-narrow: 40rem;
-/// Point at which the vocab entry page splits into two columns.
+/// Point at which a wide page's lists split into columns.
 $bp-wide: 56rem;
+/// Every detail page's switch (a word's, a kanji's and a grammar point's): below it a row
+/// of tabs, one section at a time; from it the full page. Equal to gokan-srs's `lg`, where its word
+/// page makes the same switch: check:conventions holds the two equal (`detail-breakpoint`).
+$bp-detail: 64rem;
 
 // -- Shape --------------------------------------------------------------------
 /// Every card, chip, tile, input and button (DESIGN_SYSTEM.md: rounded-md).
@@ -228,6 +232,250 @@ $motion: 150ms ease-in-out;
 @mixin wide {
   @media (min-width: $bp-wide) {
     @content;
+  }
+}
+
+@mixin detail-full {
+  @media (min-width: $bp-detail) {
+    @content;
+  }
+}
+
+@mixin detail-tabbed {
+  @media (max-width: #{$bp-detail - 0.01rem}) {
+    @content;
+  }
+}
+
+/// A detail page's tab row and panels (client/detailTabs.ts), included by each detail page's sheet.
+/// Without the head's `tabbed` class (no script) the row is not drawn and every section shows: the
+/// stacked page. With it, below $bp-detail, the row shows from the first paint, and until the script
+/// has run the stylesheet shows the hash's section (`:target`), else the default one (`data-default-panel`); the script then
+/// owns the panels through `hidden` (`data-tabs-ready`). The script reads the width off
+/// `--detail-query`, so it is written once, here.
+@mixin detail-tabs {
+  .detail-tabs {
+    --detail-query: "#{'(max-width: ' + ($bp-detail - 0.01rem) + ')'}";
+
+    display: none;
+  }
+
+  .detail-panel[hidden] {
+    display: none;
+  }
+
+  // A tab's preview of the next section (a kanji's Common words, a grammar point's two examples):
+  // only in tabs. The full page, and a phone with no script, show that section itself right below,
+  // and never its preview above it.
+  .detail-preview {
+    display: none;
+
+    // "All 660 words →", which opens the section it previews: a 44px target beside the heading.
+    .section-head > a {
+      display: inline-flex;
+      align-items: center;
+      min-height: $target;
+    }
+  }
+
+  @include detail-tabbed {
+    .tabbed .detail-tabs {
+      display: flex;
+      gap: 0 $space-2;
+      margin: (-$space-2) 0 $space-4;
+      overflow-x: auto;
+      scrollbar-width: none;
+      border-bottom: 1px solid var(--divider);
+
+      a {
+        display: inline-flex;
+        flex: none;
+        align-items: center;
+        min-height: $target;
+        color: var(--secondary);
+        border-bottom: 2px solid transparent;
+
+        &:hover,
+        &[aria-selected="true"] {
+          color: var(--accent);
+          text-decoration: none;
+        }
+
+        &[aria-selected="true"] {
+          border-bottom-color: var(--accent);
+        }
+      }
+    }
+
+    .tabbed [data-detail-panels]:not([data-tabs-ready]) .detail-panel {
+      display: none;
+    }
+
+    .tabbed [data-detail-panels]:not([data-tabs-ready]) .detail-panel:target,
+    .tabbed [data-detail-panels]:not([data-tabs-ready]):not(:has(.detail-panel:target)) .detail-panel[data-default-panel] {
+      display: block;
+    }
+
+    // One section at a time, in one column: its own top, not a section's or a column's gap
+    // under one hidden above it.
+    .tabbed [data-detail-panels] {
+      display: block;
+    }
+
+    .tabbed .detail-panel {
+      margin-top: 0;
+    }
+
+    .tabbed .detail-preview {
+      display: block;
+    }
+  }
+}
+
+/// A detail page header's facts, as the app's (a small label over each value, side by side), with
+/// the How common meter: a word's and a kanji's pages.
+// A fact's label over its value: the header's facts row and a kanji's Details.
+@mixin fact-label {
+  color: var(--tertiary);
+  font-size: $text-sm;
+}
+
+@mixin entry-facts {
+  .entry-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: $space-1 $space-4;
+    margin: $space-2 0 0;
+
+    dt {
+      @include fact-label;
+    }
+
+    dd {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0 $space-1;
+      margin: 0;
+    }
+  }
+
+  // How common, as four signal bars: neutral, a fact about the subject, never accent. The band's name
+  // beside it says it in words, so the bars are hidden from screen readers.
+  .frequency-meter {
+    display: inline-flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 14px;
+
+    > span {
+      width: 4px;
+      border-radius: 1px;
+      background-color: var(--divider);
+
+      &.on {
+        background-color: var(--secondary);
+      }
+
+      @for $bar from 1 through 4 {
+        &:nth-child(#{$bar}) {
+          height: 2px + 3px * $bar;
+        }
+      }
+    }
+  }
+}
+
+/// A detail page section's search (client/detailTabs.ts shows it): the field, then its count line
+/// while it filters.
+@mixin section-search {
+  .section-search {
+    margin-bottom: $space-2;
+
+    label {
+      display: block;
+    }
+
+    // A field like the site search's, but not its pill: the search field is the site's one pill.
+    input {
+      border-radius: $radius;
+      font-family: $font-sans;
+    }
+
+    .meta:empty {
+      display: none;
+    }
+  }
+}
+
+/// Play buttons (word and grammar pages): a clip read aloud (pages/PlayButton.svelte,
+/// client/player.ts), included by the two sheets of the pages that have them, so no other page
+/// carries its icons. Accent, since it is an action; 44px on every width, its negative margins
+/// keeping the line it ends at its own height. Shown only under the player's pre-paint class
+/// (`playable`), so a page with no script shows no inert button. The icon is a mask over the
+/// button's colour: the speaker at rest, a stop square while it plays, each written once.
+@mixin play-buttons {
+  .play {
+    --play-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M11 4.7a.7.7 0 0 0-1.2-.5L6.4 7.6a1.4 1.4 0 0 1-1 .4H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.4a1.4 1.4 0 0 1 1 .4l3.4 3.4a.7.7 0 0 0 1.2-.5zM16 9a5 5 0 0 1 0 6m3.4 3.4a9 9 0 0 0 0-12.8'/></svg>");
+
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: $target;
+    height: $target;
+    margin-block: -0.5rem;
+    padding: 0;
+    vertical-align: middle;
+    color: var(--accent);
+    background: none;
+    border: 0;
+    border-radius: $radius;
+    cursor: pointer;
+    transition: color $motion;
+
+    &::before {
+      content: "";
+      width: 1.25rem;
+      height: 1.25rem;
+      background-color: currentColor;
+      -webkit-mask: var(--play-icon) center / contain no-repeat;
+      mask: var(--play-icon) center / contain no-repeat;
+    }
+
+    &[aria-pressed="true"] {
+      --play-icon: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect x='4' y='4' width='16' height='16' rx='2'/></svg>");
+    }
+
+    &:hover {
+      color: var(--accent-hover);
+    }
+  }
+
+  .playable .play {
+    display: inline-flex;
+  }
+
+  // The word's button a gap from its reading (or its kanji-spelling note), as the app's header.
+  .entry-sub > .play {
+    margin-inline-start: $space-half;
+  }
+
+  // A sentence and its button, a right-hand column at the sentence's first line (its 42px line
+  // box centres the 44px button), never wrapping onto a line of its own.
+  .play-row {
+    display: flex;
+    align-items: flex-start;
+    gap: $space-half;
+
+    > .sentence-jp {
+      flex: 1;
+      min-width: 0;
+    }
+
+    > .play {
+      flex-shrink: 0;
+      margin: 0 0 -0.5rem;
+    }
   }
 }
 

@@ -10,8 +10,8 @@ const activeDeprecations = Object.keys(deprecations)
   .filter(deprecation => deprecation.status === 'active')
 
 // The browser-facing assets the pages link, built before SvelteKit renders a page: the
-// stylesheets, and the two plain TypeScript scripts (the site-wide search and the grammar index's
-// filter). Each is an explicit input so Vite content-hashes and manifests it; SvelteKit's server
+// stylesheets, and the plain TypeScript scripts (the site-wide search, the grammar index's filter,
+// a detail page's tabs and the clip player). Each is an explicit input so Vite content-hashes and manifests it; SvelteKit's server
 // reads that manifest (src/lib/server/assets.ts). Its own build, apart from SvelteKit's, so no
 // page ever loads a Svelte runtime: with no Svelte plugin here, a .svelte import reaching a
 // client script fails the build instead of shipping one to the browser.
@@ -21,6 +21,13 @@ export default defineConfig({
   // Relative asset URLs inside the CSS (the web font) and between scripts, so the build works
   // under any BASE_PATH (/dictionary on the shared host, '' on a subdomain).
   base: './',
+  // `bun run dev` previews dist/ with this config. Clips are not in the dataset checkout (Git LFS
+  // pointers only), so it plays staging's, as the app's dev server does (docs/ARCHITECTURE.md, Audio).
+  preview: {
+    proxy: {
+      '/audio/': { target: 'https://staging.gokan-srs.com', changeOrigin: true },
+    },
+  },
   css: {
     preprocessorOptions: {
       // A deprecation fails the build instead of warning: a warning scrolls past in CI (slash
@@ -52,6 +59,8 @@ export default defineConfig({
         stylesZhHans: entry('./src/styles/locales/zh-hans.scss'),
         search: entry('./src/client/search.ts'),
         grammarFilter: entry('./src/client/grammarFilter.ts'),
+        detailTabs: entry('./src/client/detailTabs.ts'),
+        player: entry('./src/client/player.ts'),
       },
     },
   },

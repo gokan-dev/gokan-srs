@@ -2,6 +2,12 @@ import type { GrammarAliasIndex, GrammarBrowseIndex, GrammarChapter, GrammarConj
 import type { GrammarContrastForFocus, GrammarInterchangeableForPoint } from '../models/grammar.model';
 import { fetchDatasetFile, fetchOptionalDatasetFile, RequestCache, sharedRequest } from './http';
 
+/** Another form of a grammar point, and how it relates to the canonical. */
+export interface GrammarVariant {
+    point: GrammarPoint;
+    relation: GrammarVariantGroupIndex[string][number]['relation'];
+}
+
 /**
  * The teaching order, failing (so the cache drops it and a later call retries) when the file
  * is empty: loadTeachingOrder turns any failure into its JLPT fallback.
@@ -253,6 +259,24 @@ export class GrammarService {
 
     static loadGrammarPoint(id: string): Promise<GrammarPoint> {
         return this.points.get(id);
+    }
+
+    /**
+     * The other forms of a point (its variant group, the point itself left out), each with its
+     * relation, in the group's order: only the members whose point file loads. The one answer to
+     * "what are this point's other forms", for its Other forms card and whether its page has a
+     * Related tab, so the tab never opens on a card with nothing to show.
+     */
+    static async variantsOf(point: Pick<GrammarPoint, 'id' | 'variantOf'>): Promise<GrammarVariant[]> {
+        // A variant points at its canonical; a canonical heads its own group.
+        const group = (await this.loadVariantGroups())[point.variantOf ?? point.id] ?? [];
+        const others = group.filter(m => m.id !== point.id);
+        const relationOf = new Map(others.map(m => [m.id, m.relation]));
+        const points = await this.loadGrammarPoints(others.map(m => m.id));
+        return points.flatMap(p => {
+            const relation = relationOf.get(p.id);
+            return relation ? [{ point: p, relation }] : [];
+        });
     }
 
     /** Several points at once, in the order asked, skipping any that fail to load (see VocabularyService.loadVocabs). */

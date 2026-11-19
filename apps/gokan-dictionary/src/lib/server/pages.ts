@@ -7,8 +7,8 @@
 // rebuild them. Pure of I/O but what the source does: the source is chosen in dictionary.ts, the
 // asset hrefs added by the server hook, so this runs on fixtures in a test.
 
-import { headwordOf, JLPT_LEVELS, KANJI_ORDERS, kanjiStepIndex, orderPositions } from '@gokan/dataset-schema';
-import type { GrammarPoint, Kanji, KanjiOrder, KanjiOrderId, KanjiOrderList } from '@gokan/dataset-schema';
+import { headwordOf, JLPT_LEVELS, KANJI_ORDERS, kanjiStepIndex, orderPositions, synonymEntriesOf } from '@gokan/dataset-schema';
+import type { AudioRef, GrammarPoint, Kanji, KanjiOrder, KanjiOrderId, KanjiOrderList } from '@gokan/dataset-schema';
 import { buildChapterIndexRows, buildChapterLocatorIndex } from '../grammarChapters';
 import { conjugationTables } from '../grammarConjugations';
 import { buildFamilyPages } from '../grammarFamilies';
@@ -20,13 +20,14 @@ import { searchGrammarRow, searchKanjiRow, searchWordRow, splitSearchIndex } fro
 import { datasetLanguageOf, DEFAULT_LOCALE, type ServedLocale } from '../locale';
 import { messagesFor, type PageMeta } from '../messages';
 import { orderSentences } from '../sentenceOrder';
+import { wordSynonyms } from '../synonyms';
 import type { Alternate, DictionaryData, EntityData, GrammarSummary, LocaleText, PageKey, SearchIndexFile, SearchWordRow, VocabSummary, WordText } from '../types';
 import { kanjiOrderSlug, kanjiRangeSlug, localeUrls } from '../urls';
 import type { PageScript, PageStyle } from './assets';
 import { kept } from './kept';
 import { sentenceTranslationsOf } from './localeText';
 import type {
-    GrammarChapterPageProps, GrammarChaptersIndexPageProps, GrammarConjugationsIndexPageProps, GrammarFamiliesIndexPageProps, GrammarFamilyPageProps, GrammarIndexPageProps, GrammarPageProps, HomePageProps, KanjiIndexPageProps, KanjiOrderPageProps, KanjiOrdersPageProps, KanjiPageProps, KanjiRangePageProps, VocabIndexPageProps, VocabJlptPageProps, VocabPageProps,
+    GrammarChapterPageProps, GrammarChaptersIndexPageProps, GrammarConjugationsIndexPageProps, GrammarFamiliesIndexPageProps, GrammarFamilyPageProps, GrammarIndexPageProps, GrammarPageProps, HomePageProps, KanjiIndexPageProps, KanjiOrderPageProps, KanjiOrdersPageProps, KanjiPageProps, KanjiRangePageProps, PageVoice, VocabIndexPageProps, VocabJlptPageProps, VocabPageProps,
 } from '../pageProps';
 
 // Pools go up to 60 sentences across 477 points (see gokan-dataset's Corpus-mined sentences
@@ -56,6 +57,8 @@ export interface PageDocument {
     canonicalPath: string;
     style?: PageStyle;
     script?: PageScript;
+    /** The page has a play button: it links the player script (client/player.ts) too. */
+    player?: boolean;
     structuredData?: object;
     noindex?: boolean;
 }
@@ -94,7 +97,7 @@ function writtenIn(locale: ServedLocale) {
     return {
         urls: localeUrls(locale),
         meta: messagesFor(locale).meta,
-        documentOf: (canonicalPath: string, meta: PageMeta, options: Pick<PageDocument, 'key' | 'style' | 'script' | 'structuredData' | 'noindex'> = {}): PageDocument => (
+        documentOf: (canonicalPath: string, meta: PageMeta, options: Pick<PageDocument, 'key' | 'style' | 'script' | 'player' | 'structuredData' | 'noindex'> = {}): PageDocument => (
             { locale, title: meta.title, description: meta.description, canonicalPath, ...options }
         ),
     };
@@ -182,6 +185,7 @@ function entityIndexesOf(source: EntityData) {
                 return [order.id, { order, list, unlocked, through: unlockedThrough(unlocked, list.length) }];
             }));
         }),
+        audioIndex: kept(async () => source.audioIndex()),
         grammarIndexes: kept(async () => {
             const [teachingOrder, variantGroups, conjugationIndex] = await Promise.all([
                 source.grammarTeachingOrder(), source.grammarVariantGroups(), source.grammarConjugations(),
@@ -202,7 +206,16 @@ export type EntityPages = ReturnType<typeof entityPagesOf>;
  * every file: a page rendered on request reads its own entity's files and those indexes only.
  */
 export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes: EntityIndexes = entityIndexesOf(source)) {
-    const { summaries, grammarSummaries, kanjiByCharacter, kanjiVocabIndex, positionedOrders, orderSteps, grammarIndexes } = indexes;
+    const { summaries, grammarSummaries, kanjiByCharacter, kanjiVocabIndex, positionedOrders, orderSteps, grammarIndexes, audioIndex } = indexes;
+
+    /** The voice of a page whose items are `items`: none when no item has a clip (PageVoice). */
+    async function voiceOf(items: readonly { audio?: AudioRef }[]): Promise<PageVoice> {
+        if (!items.some(item => item.audio)) return null;
+        const index = await audioIndex();
+        // A dataset lists a clip only with its index (docs/ARCHITECTURE.md, Audio): a clip without one is a broken dataset.
+        if (index === null) throw new Error('[pages] an item lists a clip, but the dataset has no index/audio.json');
+        return { extension: index.extension, credit: index.credit, termsUrl: index.termsUrl };
+    }
     const { urls, meta, documentOf } = writtenIn(locale);
 
     const text = localeTextOf(source, locale);
@@ -235,8 +248,10 @@ export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes:
         const sentenceWords = [...new Set(sentences.flatMap(sentence => Object.keys(sentence.matches ?? {})))];
         // A page in another language links only the words with a page in it (lib/localeLinks.ts):
         // its lists leave the others out, its sentences show them unlinked.
-        const inLocale = localized ? new Set(await localized.text.withPages([...new Set([...components, ...parents].map(word => word.id).concat(sentenceWords.filter(other => summaryById.has(other))))])) : null;
+        const synonymIds = synonymEntriesOf(vocab).map(synonym => synonym.vocabId).filter(other => summaryById.has(other));
+        const inLocale = localized ? new Set(await localized.text.withPages([...new Set([...components, ...parents].map(word => word.id).concat(sentenceWords.filter(other => summaryById.has(other)), synonymIds))])) : null;
         const linkable = (words: VocabSummary[]) => (inLocale ? words.filter(word => inLocale.has(word.id)) : words);
+        const voice = await voiceOf([vocab, ...sentences]);
         return {
             props: {
                 vocab,
@@ -244,6 +259,8 @@ export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes:
                 components: await inLanguageOf(linkable(components), text),
                 parents: await inLanguageOf(linkable(parents), text),
                 sentences,
+                synonyms: wordSynonyms(vocab, other => (inLocale ? inLocale.has(other) : summaryById.has(other))),
+                voice,
                 // English's props stay as they were: only a page in another language carries its text.
                 ...(localized && translations && inLocale ? {
                     text: localized.word,
@@ -257,6 +274,8 @@ export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes:
             document: documentOf(urls.vocabPath(id), vocabMeta, {
                 key: { type: 'vocab', id },
                 style: 'vocab',
+                script: 'detailTabs',
+                player: voice !== null,
                 structuredData: { '@context': 'https://schema.org', '@type': 'DefinedTerm', name: headwordOf(vocab), description: vocabMeta.description },
             }),
         };
@@ -282,7 +301,7 @@ export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes:
                 orderLengths: new Map(orders.map(({ order, list: orderList }) => [order.id, orderList.length])),
                 orderStep: orderStep && withUnlocked(orderStep, unlockedAt(steps, orderStep)),
             },
-            document: documentOf(urls.kanjiPath(kanji.character), meta.kanji(kanji, words.length), { style: 'kanji' }),
+            document: documentOf(urls.kanjiPath(kanji.character), meta.kanji(kanji, words.length), { style: 'kanji', script: 'detailTabs' }),
         };
     }
 
@@ -293,6 +312,8 @@ export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes:
             source.grammarPoint(id), grammarIndexes(), source.grammarMinedExamples(id),
         ]);
         const minedExamplesPool = minedExamples ?? [];
+        const shownMined = minedExamplesPool.slice(0, MAX_MINED_EXAMPLES);
+        const voice = await voiceOf([...point.examples, ...shownMined]);
         return {
             props: {
                 point,
@@ -302,11 +323,14 @@ export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes:
                 chapterLocator: chapterLocatorIndex.get(id) ?? null,
                 variants: buildVariantSiblings(point, variantGroups, summaryById),
                 conjugation: conjugationIndex[id] ?? null,
-                minedExamples: minedExamplesPool.slice(0, MAX_MINED_EXAMPLES),
+                minedExamples: shownMined,
                 minedExamplesTotalCount: minedExamplesPool.length,
+                voice,
             },
             document: documentOf(urls.grammarPath(id), meta.grammar(point), {
                 style: 'grammar',
+                script: 'detailTabs',
+                player: voice !== null,
                 structuredData: {
                     '@context': 'https://schema.org',
                     '@type': 'DefinedTerm',

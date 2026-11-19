@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { SearchField } from "../../../components/ui/SearchField";
+import { SearchField } from "../ui/SearchField";
 
 interface PanelSearchProps {
     text: string;

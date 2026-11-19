@@ -3,14 +3,22 @@
 // component, so the builders are typed by them: a .svelte import reaches a .ts file's linting as
 // an untyped module.
 
-import type { GrammarConjugationIndex, GrammarExample, GrammarPoint, Kanji, KanjiOrder, KanjiOrderId, Sentence, Vocabulary } from '@gokan/dataset-schema';
+import type { AudioIndex, GrammarConjugationIndex, GrammarExample, GrammarPoint, Kanji, KanjiOrder, KanjiOrderId, Sentence, Vocabulary } from '@gokan/dataset-schema';
 import type { ConjugationTable } from './grammarConjugations';
 import type { ChapterIndexRow, ChapterLocator } from './grammarChapters';
 import type { FamilyPageData } from './grammarFamilies';
 import type { LevelGroup } from './grammarBrowse';
 import type { VariantSibling } from './grammarVariants';
 import type { KanjiRange, OrderStep, StepRange } from './kanjiOrders';
+import type { WordSynonyms } from './synonyms';
 import type { GrammarSummary, SentenceTranslation, VocabSummary, WordText } from './types';
+
+/**
+ * The voice a detail page's clips are read in (index/audio.json): the extension its play buttons'
+ * URLs end in, and the credit its footer shows. Null on a page that plays nothing (no item of it
+ * has a clip, or the dataset has none), which then has no button, no credit and no player script.
+ */
+export type PageVoice = Pick<AudioIndex, 'extension' | 'credit' | 'termsUrl'> | null;
 
 /** HomePage.svelte */
 export interface HomePageProps {
@@ -31,6 +39,8 @@ export interface VocabPageProps {
   parents: VocabSummary[];
   /** Already ordered and capped (lib/sentenceOrder.ts). */
   sentences: Sentence[];
+  /** Grouped by meaning, capped, only the words the page can link (lib/synonyms.ts). */
+  synonyms: WordSynonyms;
   /** On a page in another language: the word's text in it (shown renderings only). English's page has none. */
   text?: WordText;
   /** On a page in another language: each sentence's translation, by sentence id. */
@@ -42,6 +52,7 @@ export interface VocabPageProps {
    * change of its own.
    */
   withoutPage?: { words: string[]; kanji: string[] };
+  voice: PageVoice;
 }
 
 /** VocabIndexPage.svelte */
@@ -128,6 +139,7 @@ export interface GrammarPageProps {
   minedExamples: GrammarExample[];
   /** The pool's true size before the cap. */
   minedExamplesTotalCount: number;
+  voice: PageVoice;
 }
 
 /** GrammarIndexPage.svelte */

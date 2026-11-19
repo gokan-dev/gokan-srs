@@ -162,7 +162,8 @@ shown through `kunReadingLabel` (まな(ぶ), enforced); its learning orders thr
 from the same package: romaji (`romajiToHiragana` and `readRomajiQuery` read Hepburn; `kanaToHepburn`
 writes it, so they read it back; `kanaToRomaji` writes IME keystrokes, ん as `nn`, for typo distances
 and search keys, never to be read back as Hepburn; `toHiragana`, `looksLikeRomaji`), a sentence's linked and highlighted runs (`segmentInteractiveSentence`), a
-reading split over a word's kanji runs for furigana (`rubyParts`) and a grammar example as a
+reading split over a word's kanji runs for furigana (`rubyParts`), a clip's URL (`audioUrl`, enforced),
+the one-clip-at-a-time player both apps' play buttons run on (`createClipPlayer`) and a grammar example as a
 `Sentence` (`grammarExampleToSentence`, `patternHighlightRanges`).
 
 gokan-srs, quizzes. **Every quiz is an exercise, and every exercise runs on one engine
@@ -181,7 +182,10 @@ Four layers, each the only place its question is answered:
   through `services/exercise/wordRelation.ts` (`relationOf`, `outcomeOf`, `OUTCOME_LOOK`,
   `listedSynonymsOf`, `closenessOf`): grading, the cards, the ticker and a word page's Synonyms
   card agree on a pair's tier
-  (enforced: `VocabSynonym` / `.synonyms` nowhere else). Its primitives
+  (enforced: `VocabSynonym` / `.synonyms` nowhere else). Outside the app, the package and the dictionary
+  read a pair only through `@gokan/dataset-schema`'s `synonyms.ts` (`synonymEntriesOf`, `synonymSections`,
+  `pairCloseness`), whose `pairCloseness` an app test holds equal to `closenessOf` for every kind of pair
+  (enforced, the same rule). Its primitives
   (`matchAnswer`, `matchBest` from `utils/answerMatching.ts`, `isFormOfWord` from
   `utils/inflection.utils.ts`, the synonym helpers) are imported only by the engine (enforced).
 - SRS effects: `effectsOf` decides what an answer does (`review`, `retry`, `reinforce`,
@@ -232,10 +236,12 @@ gokan-srs, everything else:
   grammar point), `components/ui/Pagination.tsx`, `pages/stats/components/CoverageChart.tsx` and
   `utils/coverage.utils.ts`, `utils/activity.utils.ts`, `utils/winRate.utils.ts`.
 - Detail pages: `components/detail/` (`DetailHeader` the subject and its main action,
-  `DetailBody` the 8/4 body under it, or one column under a sticky tab row, `tabs` (a word's page), `LearnStatus`,
+  `DetailBody` the 8/4 body under it, or one column under a sticky tab row, `tabs`; a tabbed page (a
+  word's, a kanji's, a grammar point's) through `useDetailTabs` (its tab state, tabs from
+  `utils/detailTabs.utils.ts`) and `DetailTabsBody` (its tab row, panels and full page), `LearnStatus`,
   `DetailSection`, `DetailField` (a labelled value; `compact`, a header's facts row, as a word's
-  KKLC step and Textbooks), `YourProgress` (a grammar point's) and its `DirectionStatus`, shared with a
-  word's Your study, `DetailErrorScreen`), `components/RelatedEntriesCard.tsx` (its rows alone:
+  KKLC step and Textbooks), `YourProgress` (the compact Your study, a word's and a grammar point's)
+  and its `DirectionStatus`, `DetailErrorScreen`), `components/RelatedEntriesCard.tsx` (its rows alone:
   `RelatedEntryList`), `components/SRSHistoryGraph.tsx`, `components/KanjiTile.tsx` (a glyph:
   boxed only when it links), `components/WordTile.tsx` (a word as a boxed link),
   `components/FrequencyMeter.tsx`,
@@ -260,6 +266,12 @@ gokan-srs, everything else:
   tap: `useLookup`, `LookupText`, `LookupLink`, `HeadwordKanji`; the only popover, enforced), `components/ui/TabNav.tsx` (every
   tab row: route tabs, or a page's own tabs as ARIA tabs), `components/ui/SearchField.tsx`, `components/ui/Marked.tsx`
   (a search's matches, from `utils/exploreSearch.utils.ts`).
+- A panel's search, on any page (a word's Sentences and Related, a kanji's Words, a grammar point's
+  Examples): `components/search/` (`PanelSearch` the field and its count line, `usePanelQuery` its
+  query, `useIndexSearch` word ids searched through the search index, `usePagedPanel` a list shown
+  a page at a time with its search, the field only past one page, and `ShowMore` its "Show N
+  more"). A page folder never imports from another's: what two pages share lives here, in
+  `components/`, `hooks/` or `utils/` (enforced: `cross-page-import`).
 - A word's page: its tabs (`utils/wordTabs.utils.ts`: their hashes, and `initialWordTab`, which
   one opens), Dict (`pages/vocab/DictTab.tsx`), the Sentences, Synonyms and Related panels in
   `pages/vocab/explore/` (one search each, `utils/exploreSearch.utils.ts`), Kanji

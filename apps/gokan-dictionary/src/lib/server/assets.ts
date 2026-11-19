@@ -1,4 +1,4 @@
-// The browser-facing assets every page links (the stylesheets and the two plain TypeScript
+// The browser-facing assets every page links (the stylesheets and the plain TypeScript
 // scripts), resolved through the asset build's manifest (vite.assets.config.ts), since Vite
 // content-hashes their names. That build runs before SvelteKit's, so the manifest is bundled
 // into the server here rather than read from disk at run time: the server then carries what its
@@ -66,15 +66,26 @@ const LOCALE_STYLES: Record<Exclude<ServedLocale, typeof DEFAULT_LOCALE>, string
 
 export const localeStylesheetHref = (locale: ServedLocale): string | undefined => (locale === DEFAULT_LOCALE ? undefined : asset(LOCALE_STYLES[locale]));
 
-/** A second script, beside the search one every page links: only the grammar index's filter. */
+/** A second script, beside the search one every page links: the grammar index's filter, a detail page's tabs. */
 const PAGE_SCRIPTS = {
     grammarFilter: 'src/client/grammarFilter.ts',
+    detailTabs: 'src/client/detailTabs.ts',
 } as const;
 
 export type PageScript = keyof typeof PAGE_SCRIPTS;
 
+/**
+ * The class a page script's stylesheet waits for, set before first paint (DocumentShellOptions):
+ * the detail tabs' row is laid out from it (styles/_tokens.scss, detail-tabs).
+ */
+export const PRE_PAINT_CLASS: Partial<Record<PageScript, string>> = { detailTabs: 'tabbed' };
+
 export const pageStylesheetHref = (style: PageStyle): string => asset(PAGE_STYLES[style]);
 export const pageScriptHref = (script: PageScript): string => asset(PAGE_SCRIPTS[script]);
 export const stylesheetHref = (): string => asset('src/styles/app.scss');
+/** The player's pre-paint class: a play button shows only under it, so a page with no script shows no inert button. */
+export const PLAYER_PRE_PAINT_CLASS = 'playable';
+/** Linked from the pages with a play button only (PageDocument `player`): the clip player. */
+export const playerScriptHref = (): string => asset('src/client/player.ts');
 /** Linked from every page: the header's search field and the furigana toggle live there. */
 export const searchScriptHref = (): string => asset('src/client/search.ts');

@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
-import { audioUrl, datasetUrl, fetchDatasetFile, fetchOptionalDatasetFile, RequestCache } from './http';
+import { datasetUrl, fetchDatasetFile, fetchOptionalDatasetFile, RequestCache } from './http';
 import { datasetPathOf, englishFiles, publishedFetch, publishedFiles } from '../test/datasetFiles';
 
 // Two grammar points and the slot labels both declare, as published.
@@ -9,13 +9,6 @@ describe('datasetUrl', () => {
     it('versions every dataset request with the dataset commit', () => {
         // Without the version, a browser keeps answering this URL from a cached older dataset.
         expect(datasetUrl('vocab/1002120.json')).toMatch(/^\/dataset\/vocab\/1002120\.json\?v=[0-9a-f]{12}$/);
-    });
-});
-
-describe('audioUrl', () => {
-    it('names a clip by its content key and extension, with no dataset version', () => {
-        // A clip's key changes with its content, so a version would only stop browsers sharing a cached clip across datasets.
-        expect(audioUrl('0123456789abcdef', 'opus')).toBe('/audio/0123456789abcdef.opus');
     });
 });
 

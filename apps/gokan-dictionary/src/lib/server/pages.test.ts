@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { GrammarPoint, Kanji, KanjiOrderId, Sentence, VocabIndexEntry, Vocabulary } from '@gokan/dataset-schema';
+import type { AudioIndex, GrammarPoint, Kanji, KanjiOrderId, Sentence, VocabIndexEntry, Vocabulary } from '@gokan/dataset-schema';
 import { grammarPoint, kanji, sentence, vocabulary, wordText } from '../../test/fixtures';
 import type { DictionaryData, LocaleText, WordText } from '../types';
 import { LOCAL_GLOSS_LENGTH, shortWordTextSummary, wordTextSummary } from '../senses';
@@ -23,6 +23,8 @@ interface World {
     chinese?: string[];
     /** A Chinese word's own text, in place of the equivalent 想. */
     chineseTexts?: Record<string, WordText>;
+    /** index/audio.json; none by default, as a dataset with no clip. */
+    audio?: AudioIndex;
 }
 
 /**
@@ -93,6 +95,7 @@ function memorySource(world: World): { source: DictionaryData; calls: Map<string
         grammarVariantGroups: () => ask('grammarVariantGroups', () => ({})),
         grammarConjugations: () => ask('grammarConjugations', () => ({})),
         grammarMinedExamples: _id => ask('grammarMinedExamples', () => null),
+        audioIndex: () => ask('audioIndex', () => world.audio ?? null),
         localeText: world.chinese ? chineseText(world.chinese, world.chineseTexts) : null,
     };
     return { source, calls };
@@ -102,6 +105,42 @@ const omou = vocabulary();
 const kangaeru = vocabulary({ id: '1281390', writtenForm: { kanji: '考える', alternatives: [], containedKanji: ['考'] }, components: ['1589350', '9999999'] });
 
 describe('pagesOf: entity pages', () => {
+    describe('the voice of a page that plays clips', () => {
+        const voice: AudioIndex = { engine: 'voicevox', engineVersion: '0.26.0', voice: '冥鳴ひまり', style: 'ノーマル', credit: 'VOICEVOX:冥鳴ひまり', termsUrl: 'https://voice.test/terms', extension: 'opus', contentType: 'audio/ogg' };
+        const spoken = vocabulary({ audio: { clip: 'aaaaaaaaaaaaaaaa' } });
+
+        it('gives a page with a clip the voice and the player, reading the index once for every page', async () => {
+            const { source, calls } = memorySource({ words: [spoken, kangaeru], sentences: { '1281390': [sentence({ audio: { clip: 'bbbbbbbbbbbbbbbb' } })] }, audio: voice });
+            const pages = pagesOf(source, 'en');
+            const [own, bySentence] = await Promise.all([pages.vocabPage('1589350'), pages.vocabPage('1281390')]);
+            expect(own.props.voice).toEqual({ extension: 'opus', credit: 'VOICEVOX:冥鳴ひまり', termsUrl: 'https://voice.test/terms' });
+            expect(bySentence.props.voice).toEqual(own.props.voice);
+            expect(own.document.player).toBe(true);
+            expect(calls.get('audioIndex')).toBe(1);
+        });
+
+        it('gives a page that plays nothing no voice and no player, without reading the index', async () => {
+            const { source, calls } = memorySource({ words: [omou], audio: voice });
+            const page = await pagesOf(source, 'en').vocabPage('1589350');
+            expect(page.props.voice).toBeNull();
+            expect(page.document.player).toBe(false);
+            expect(calls.get('audioIndex')).toBeUndefined();
+        });
+
+        it('fails a page whose item lists a clip in a dataset with no index/audio.json', async () => {
+            await expect(pagesOf(memorySource({ words: [spoken] }).source, 'en').vocabPage('1589350')).rejects.toThrow(/no index\/audio\.json/);
+        });
+
+        it("gives a grammar page the voice when one of its shown examples has a clip", async () => {
+            const point = grammarPoint();
+            const examples = [{ ...point.examples[0] ?? { jp: '例', romaji: 'rei', en: 'Example.', words: [], patternWordIndices: [] }, audio: { clip: 'cccccccccccccccc' } }];
+            const { source } = memorySource({ words: [omou], points: [{ ...point, examples }], audio: voice });
+            const page = await pagesOf(source, 'en').grammarPage(point.id);
+            expect(page.props.voice?.extension).toBe('opus');
+            expect(page.document.player).toBe(true);
+        });
+    });
+
     it('gives a word page and a kanji page their step of an order, for the app panel', async () => {
         // Every order of the memory source is its kanji list: 学 then 生, so KKLC (the first order) names the step.
         const sei = kanji({ character: '生' });
@@ -329,7 +368,17 @@ describe('pagesOf: a locale other than English', () => {
 
     it('keeps English\'s word page as it was: no text, no translations', async () => {
         const page = await pagesOf(memorySource(world).source, 'en').vocabPage('1589350');
-        expect(Object.keys(page.props).sort()).toEqual(['components', 'orderStep', 'parents', 'sentences', 'vocab']);
+        expect(Object.keys(page.props).sort()).toEqual(['components', 'orderStep', 'parents', 'sentences', 'synonyms', 'vocab', 'voice']);
+    });
+
+    it('lists only the synonyms with a page: every word in English, a word with Chinese text in Chinese', async () => {
+        const synonym = (id: string) => ({ id, relation: 'confusable' as const, shared: ['think'], w: ['考える'], r: ['かんがえる'], f: 50 });
+        const thinker = vocabulary({ id: '1589350', synonyms: [synonym('1281390'), synonym('9999999')] });
+        const synonymWorld: World = { ...world, words: [thinker, kangaeru] };
+        const ids = (page: { props: { synonyms: { groups: { words: { id: string }[] }[] } } }) => page.props.synonyms.groups.flatMap(group => group.words.map(word => word.id));
+        expect(ids(await pagesOf(memorySource(synonymWorld).source, 'en').vocabPage('1589350'))).toEqual(['1281390']);
+        expect(ids(await pagesOf(memorySource(synonymWorld).source, 'zh-hans').vocabPage('1589350'))).toEqual([]);
+        expect(ids(await pagesOf(memorySource({ ...synonymWorld, chinese: ['1589350', '1281390'] }).source, 'zh-hans').vocabPage('1589350'))).toEqual(['1281390']);
     });
 
     it('refuses a source not read in the locale\'s language', () => {

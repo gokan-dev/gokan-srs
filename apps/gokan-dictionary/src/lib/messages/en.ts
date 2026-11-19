@@ -2,7 +2,7 @@
 // tabs, the error page) and of its titles and descriptions. The site's first locale; another is
 // one more module like this one, held to the same Messages type (./index.ts).
 
-import { headwordOf, secondaryForm } from '@gokan/dataset-schema';
+import { CLOSENESS_LABEL, headwordOf, secondaryForm } from '@gokan/dataset-schema';
 import type { GrammarChapter, GrammarPoint, Kanji, KanjiOrder, Vocabulary } from '@gokan/dataset-schema';
 import { FORM_LABELS } from '../conjugation';
 import { orderNameLang } from '../kanjiOrders';
@@ -77,6 +77,9 @@ export const en: Messages = {
         search: { label: 'Search the dictionary', placeholder: 'Search: kanji, kana, romaji or English', results: 'Search results' },
         hideFurigana: 'Hide furigana',
         showFurigana: 'Show furigana',
+        play: word => `Play ${word}`,
+        playSentence: 'Play sentence',
+        voiceCredit: credit => ['Audio: ', { text: credit.text, lang: 'ja', href: credit.href }, '.'],
         grammarTabs: { label: 'Browse grammar', level: 'By level', families: 'Families', curriculum: 'Curriculum', conjugations: 'Conjugations' },
         // Never shown: every page an English page links is in English.
         inEnglish: 'In English',
@@ -154,15 +157,43 @@ export const en: Messages = {
         otherLevels: 'Other levels',
         otherLevelsLead: 'Other levels:',
     },
+    detailTabs: {
+        label: 'Sections', dict: 'Dict', sentences: 'Sentences', synonyms: 'Synonyms', forms: 'Forms', kanji: 'Kanji', related: 'Related',
+        words: 'Words', point: 'Point', examples: 'Examples',
+    },
+    kanji: {
+        wordsSearch: { label: 'Search the words', placeholder: 'Search the words', note: englishRows => `English searches the first ${englishRows.toLocaleString('en')} words.` },
+    },
+    grammar: {
+        allExamples: n => `All ${n.toLocaleString('en')} examples`,
+        examplesSearch: { label: 'Search the examples', placeholder: 'English or Japanese' },
+    },
     vocab: {
         usuallyKana: 'Usually written in kana. Kanji spelling',
         alsoRead: 'also',
         alsoWritten: 'Also written',
-        commonWord: 'Common word',
-        sections: { meanings: 'Meanings', forms: 'Forms', sentences: 'Example sentences', kanji: 'Kanji used', madeOf: 'Made of', usedIn: 'Used in' },
-        allMeanings: n => `All ${n} meanings`,
+        sections: {
+            meanings: 'Meanings', examples: 'Examples', closestSynonyms: 'Closest synonyms', sentences: 'Sentences', synonyms: 'Synonyms',
+            forms: 'Forms', kanji: 'Kanji', related: 'Related', madeOf: 'Made of', usedIn: 'Used in',
+        },
+        showAllMeanings: n => `Show all ${n} meanings`,
         rareMeanings: n => `Rare and archaic meanings (${n})`,
-        moreExamples: n => `More examples (${n})`,
+        showMore: n => `Show ${n.toLocaleString('en')} more`,
+        showMoreMeanings: n => `Show ${n} more ${n === 1 ? 'meaning' : 'meanings'}`,
+        forMeaning: n => `For meaning ${n}`,
+        synonymsNotListed: n => `${count(n, 'synonym')} more, less close, not listed here.`,
+        // The app's own words (CLOSENESS_LABEL), so the two products label a pair alike.
+        closeness: { interchangeable: CLOSENESS_LABEL.interchangeable.label, close: CLOSENESS_LABEL.close.label, distinct: CLOSENESS_LABEL.distinct.label },
+        howCommon: {
+            label: 'How common',
+            bands: { 'Very common': 'Very common', Common: 'Common', 'Less common': 'Less common', Rare: 'Rare' },
+            reference: top => (top === null ? 'Not in the frequency list' : top.beyond ? `Beyond the top ${top.top.toLocaleString('en')}` : `Top ${top.top.toLocaleString('en')} words`),
+        },
+        textbooks: 'Textbooks',
+        search: {
+            placeholders: { sentences: 'English or Japanese', synonyms: 'English or Japanese', related: 'English or Japanese' },
+            sentences: 'Search sentences', synonyms: 'Search synonyms', related: 'Search related words',
+        },
         forms: { plain: 'Plain', polite: 'Polite', present: 'Present', negative: 'Negative', past: 'Past', pastNegative: 'Past negative', labels: FORM_LABELS },
         kanjiInEnglish: 'Kanji pages are in English.',
         credit: sourceNames => `Sources: ${sourceNames.join(', ')}`,

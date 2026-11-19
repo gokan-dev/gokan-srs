@@ -17,6 +17,18 @@ import type { ChangelogEntry } from '../src/models/release.model';
  */
 export const CHANGELOG: readonly ChangelogEntry[] = [
     {
+        version: '1.67.0',
+        date: '2026-11-18',
+        summary: 'Detail pages, tabs on phones and one page on desktop',
+        changes: [
+            { summary: 'In the dictionary, a word\'s page now lists its synonyms, grouped by meaning as in the app, and follows the app\'s sections: tabs on a phone, one full page on a wide screen.', issue: 168 },
+            { summary: 'Kanji and grammar pages now work like word pages: on a phone their content is in tabs, with every word using a kanji and every example of a grammar point searchable, and on a wide screen each is one page with its key facts in the header.', issue: 169 },
+            { summary: 'In the dictionary, a word and its example sentences, and a grammar point\'s examples, now have a play button to hear them read aloud, as in the app.', issue: 255 },
+            { summary: 'On a wide screen, a word\'s page is now one page instead of tabs: its sentences, synonyms, kanji and related words follow its meanings, each as a short section you can open further, while phones and tablets keep the tabs.', issue: 256 },
+            { summary: 'In the dictionary, a kanji\'s page and a grammar point\'s page now follow the app\'s sections too: tabs on a phone, one full page on a wide screen.', issue: 257 },
+        ],
+    },
+    {
         version: '1.66.0',
         date: '2026-11-17',
         summary: 'Start studying from the dictionary',

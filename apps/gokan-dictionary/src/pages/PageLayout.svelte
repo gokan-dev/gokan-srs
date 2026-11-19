@@ -11,6 +11,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import { htmlLang, LOCALE_NAMES } from '../lib/locale';
+  import type { PageVoice } from '../lib/pageProps';
   import type { Section } from '../lib/types';
   import { pageLocale } from './pageLocale';
   import SiteHeader from './SiteHeader.svelte';
@@ -31,10 +32,12 @@
     wide?: boolean;
     /** False on the home page, whose hero is the search field: one search field on screen. */
     headerSearch?: boolean;
+    /** The voice of the page's clips, which the footer credits: a page that plays none has none. */
+    voice?: PageVoice;
     children: Snippet;
   }
 
-  let { trail, section, wide = false, headerSearch = true, children }: Props = $props();
+  let { trail, section, wide = false, headerSearch = true, voice = null, children }: Props = $props();
 </script>
 
 <a class="skip-link" href="#content">{messages.chrome.skipLink}</a>
@@ -56,4 +59,4 @@
   </div>
 </main>
 
-<SiteFooter />
+<SiteFooter {voice} />

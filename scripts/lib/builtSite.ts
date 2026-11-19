@@ -252,7 +252,7 @@ export async function dictionaryPages(): Promise<{ path: string; ready: string }
         { path: '/vocab/jlpt-n5/', ready: 'N5' },
         { path: '/kanji/', ready: 'Kanji' },
         { path: `/kanji/${encodeURIComponent('学')}/`, ready: 'In kanji courses' },
-        { path: `/kanji/${encodeURIComponent('一')}/`, ready: 'Words with' },
+        { path: `/kanji/${encodeURIComponent('一')}/`, ready: 'Strokes' },
         { path: '/kanji/orders/', ready: 'Vocabulary by kanji learning order' },
         { path: '/kanji/orders/kklc/', ready: 'Steps 1 to 100' },
         // The heaviest range page (check-build): the most words to lay out.

@@ -60,6 +60,7 @@ async function answers(source: EntityData, { words, kanjiOrders, minedFor }: { w
         frequency: await source.frequencyIndex(),
         kanjiOrders: await Promise.all(kanjiOrders.map(order => source.kanjiOrder(order))),
         mined: await Promise.all([...minedFor, 'n9-999'].map(id => source.grammarMinedExamples(id))),
+        audio: await source.audioIndex(),
     };
 }
 
@@ -123,6 +124,7 @@ describe('httpData', () => {
             variants: await source.grammarVariantGroups(),
             conjugations: await source.grammarConjugations(),
             mined: await Promise.all(ids.map(id => source.grammarMinedExamples(id))),
+            audio: await source.audioIndex(),
         });
         expect(await grammar(over)).toEqual(await grammar(checkout));
     }, 60_000);

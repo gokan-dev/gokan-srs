@@ -25,7 +25,9 @@ const CHROME_CANDIDATES = [
 ];
 
 /** The keys `press` knows, with their virtual key codes. */
-const KEY_CODES = { Tab: 9, ArrowLeft: 37, ArrowRight: 39 } as const;
+const KEY_CODES = { Tab: 9, Enter: 13, ArrowLeft: 37, ArrowRight: 39 } as const;
+/** The text a key types: without it Chrome sends no keypress, and Enter does not activate a button. */
+const KEY_TEXT: Partial<Record<KeyName, string>> = { Enter: '\r' };
 export type KeyName = keyof typeof KEY_CODES;
 
 interface Message { id?: number; result?: unknown; error?: { message: string } }
@@ -34,6 +36,8 @@ export interface Tab {
     evaluate<T>(expression: string): Promise<T>;
     until(condition: string, what: string, timeout?: number): Promise<void>;
     goto(url: string, readyText: string): Promise<void>;
+    /** Reloads the page as the browser's reload does (its scroll restored), then waits for `readyText`. */
+    reload(readyText: string): Promise<void>;
     /** Clicks the first button, summary or link whose text starts with `text`. */
     click(text: string): Promise<void>;
     /** Sets the viewport, keeping the page and its storage (a smaller phone's first screen). */
@@ -147,6 +151,13 @@ export async function launchChrome(): Promise<Chrome> {
             await until(`document.readyState === 'complete' && document.body.innerText.includes(${JSON.stringify(readyText)})`, `"${readyText}" on ${url}`);
             await sleep(300);
         };
+        const reload = async (readyText: string): Promise<void> => {
+            // A mark on the old document, so the wait is for the new one, not the page being left.
+            await evaluate<void>('void (window.__gokanReloading = true)');
+            await send('Page.reload', {}, sessionId);
+            await until(`window.__gokanReloading === undefined && document.readyState === 'complete' && document.body.innerText.includes(${JSON.stringify(readyText)})`, `"${readyText}" after a reload`);
+            await sleep(300);
+        };
         const click = async (text: string): Promise<void> => {
             const clicked = await evaluate<boolean>(`(() => {
                 const el = [...document.querySelectorAll('button, summary, a')].find(e => e.textContent.trim().startsWith(${JSON.stringify(text)}));
@@ -166,7 +177,8 @@ export async function launchChrome(): Promise<Chrome> {
         };
         const press = async (key: KeyName, settleMs = 300): Promise<void> => {
             const event = { key, code: key, windowsVirtualKeyCode: KEY_CODES[key], nativeVirtualKeyCode: KEY_CODES[key] };
-            await send('Input.dispatchKeyEvent', { type: 'keyDown', ...event }, sessionId);
+            const text = KEY_TEXT[key];
+            await send('Input.dispatchKeyEvent', { type: 'keyDown', ...event, ...(text ? { text } : {}) }, sessionId);
             await send('Input.dispatchKeyEvent', { type: 'keyUp', ...event }, sessionId);
             if (settleMs > 0) await sleep(settleMs);
         };
@@ -174,7 +186,7 @@ export async function launchChrome(): Promise<Chrome> {
             if (context) await send('Target.disposeBrowserContext', { browserContextId: context });
             else await send('Target.closeTarget', { targetId });
         };
-        return { evaluate, until, goto, click, resize, mouseMove, press, close };
+        return { evaluate, until, goto, reload, click, resize, mouseMove, press, close };
     }
 
     async function kill(): Promise<void> {

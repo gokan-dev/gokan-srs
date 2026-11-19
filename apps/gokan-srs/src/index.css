@@ -5,6 +5,11 @@
 @source "../index.html";
 
 @theme {
+  /*
+    Tailwind's own `lg`, written out: the word page's switch from tabs to the full page, which the
+    dictionary's `$bp-detail` (styles/_tokens.scss) equals (check:conventions, detail-breakpoint).
+  */
+  --breakpoint-lg: 64rem;
   --color-background: var(--background);
   --color-feedback-background: var(--feedback-background);
   --color-surface: var(--surface);

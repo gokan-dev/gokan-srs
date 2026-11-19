@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { kunReadingLabel, type Kanji } from "@gokan/dataset-schema";
 
 interface KanjiReadingsProps {
@@ -9,7 +10,9 @@ interface KanjiReadingsProps {
 /**
  * On and kun readings, each under its field label, the okurigana in parentheses: まな(ぶ). Each
  * reading is unbreakable with its 、, so a line breaks only between readings and never starts
- * with a comma: ショ / ウ would read as two readings.
+ * with a comma: ショ / ウ would read as two readings. A `<wbr />` after each 、 is where the line
+ * may break: without it a reading starting with a hyphen (-まわ(り)) cannot start a line (UAX #14
+ * forbids a break before a hyphen-minus), and the row runs past its column.
  */
 export function KanjiReadings({ kanji, size }: KanjiReadingsProps) {
     const rows = [
@@ -22,9 +25,19 @@ export function KanjiReadings({ kanji, size }: KanjiReadingsProps) {
             {rows.map(row => (
                 <div key={row.label} className="flex items-baseline gap-3">
                     <dt className="type-label w-8 shrink-0">{row.label}</dt>
-                    <dd className={`min-w-0 font-gothic text-secondary ${size === 'large' ? 'text-2xl' : 'text-base'}`} lang="ja">{row.readings.map((reading, i) => <span key={reading} data-kanji-reading className="whitespace-nowrap">{reading}{i < row.readings.length - 1 ? '、' : ''}</span>)}</dd>
+                    <dd className={`min-w-0 font-gothic text-secondary ${size === 'large' ? 'text-2xl' : 'text-base'}`} lang="ja"><ReadingList readings={row.readings} /></dd>
                 </div>
             ))}
         </dl>
     );
+}
+
+/**
+ * A list of readings, each unbreakable with its 、 and a `<wbr />` after it (see KanjiReadings): a
+ * line breaks only between readings. Also a kanji's readings in names (its Details).
+ */
+export function ReadingList({ readings }: { readings: readonly string[] }) {
+    return readings.map((reading, i) => i < readings.length - 1
+        ? <Fragment key={reading}><span data-kanji-reading className="whitespace-nowrap">{reading}、</span><wbr /></Fragment>
+        : <span key={reading} data-kanji-reading className="whitespace-nowrap">{reading}</span>);
 }

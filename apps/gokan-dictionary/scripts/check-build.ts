@@ -43,6 +43,7 @@ const ENTITY_PAGES = process.env.DICTIONARY_ENTITY_PAGES === 'on-request' ? 'on-
 interface ViteManifestEntry {
     file: string;
     dynamicImports?: string[];
+    imports?: string[];
 }
 
 const sizeOf = (relative: string) => fs.statSync(path.join(DIST_DIR, relative)).size;
@@ -80,6 +81,13 @@ function measure(manifest: Record<string, ViteManifestEntry>): Measurement[] {
         measurements.push({ budget: 'kanjiPageMax', subject: `kanji/${heaviest.character}`, bytes: heaviest.bytes });
     }
 
+    // A grammar point is named by its level and number (n5-088); the other directories are browse pages.
+    const pointSizes = (ENTITY_PAGES === 'prerendered' ? subdirectories('grammar').filter(name => /^n[1-5]-\d+$/.test(name)) : []).map(id => ({ id, bytes: sizeOf(pageOf('grammar', id)) }));
+    if (pointSizes.length > 0) {
+        const heaviest = pointSizes.reduce((a, b) => (b.bytes > a.bytes ? b : a));
+        measurements.push({ budget: 'grammarPageMax', subject: `grammar/${heaviest.id}`, bytes: heaviest.bytes });
+    }
+
     measurements.push({ budget: 'grammarIndex', subject: 'grammar/', bytes: sizeOf(pageOf('grammar')) });
 
     // Every locale's JLPT lists: English's, and Chinese's when the build serves it.
@@ -104,11 +112,24 @@ function measure(manifest: Record<string, ViteManifestEntry>): Measurement[] {
     for (const [source, { file }] of Object.entries(manifest).filter(([source]) => source.startsWith('src/styles/locales/'))) {
         measurements.push({ budget: 'localeStylesheet', subject: `${file} (${source})`, bytes: sizeOf(file) });
     }
+    // A script with the chunks it imports statically: the bundler moves a module two scripts share
+    // (the search engine's romaji and the detail script's kana folding) into a chunk of its own,
+    // which each still downloads.
+    const withImports = (entry: ViteManifestEntry, seen = new Set<string>()): number => {
+        if (seen.has(entry.file)) return 0;
+        seen.add(entry.file);
+        return sizeOf(entry.file) + (entry.imports ?? []).reduce((sum, chunk) => sum + withImports(manifest[chunk], seen), 0);
+    };
     const searchEntry = manifest['src/client/search.ts'];
-    measurements.push({ budget: 'searchScript', subject: searchEntry.file, bytes: sizeOf(searchEntry.file) });
+    measurements.push({ budget: 'searchScript', subject: searchEntry.file, bytes: withImports(searchEntry) });
     for (const chunk of searchEntry.dynamicImports ?? []) {
-        measurements.push({ budget: 'searchEngine', subject: manifest[chunk].file, bytes: sizeOf(manifest[chunk].file) });
+        measurements.push({ budget: 'searchEngine', subject: manifest[chunk].file, bytes: withImports(manifest[chunk], new Set([searchEntry.file, ...(searchEntry.imports ?? []).map(shared => manifest[shared].file)])) });
     }
+
+    const detailEntry = manifest['src/client/detailTabs.ts'];
+    measurements.push({ budget: 'detailScript', subject: detailEntry.file, bytes: withImports(detailEntry) });
+    const playerEntry = manifest['src/client/player.ts'];
+    measurements.push({ budget: 'playerScript', subject: playerEntry.file, bytes: withImports(playerEntry) });
 
     const core = fs.readFileSync(path.join(DIST_DIR, 'data', 'search-core.json'));
     measurements.push({ budget: 'searchCoreGzip', subject: 'data/search-core.json', bytes: gzipSync(core, { level: 9 }).length });
@@ -128,17 +149,22 @@ function modeProblems(): string[] {
     return problems;
 }
 
-/** Problems other than sizes: a second web font, or a Svelte runtime reaching the browser. */
+/**
+ * Problems other than sizes: a second web font, a Svelte runtime reaching the browser, or the
+ * site's origin in a client script. No script reads the origin, so one that carries it is longer
+ * on staging (a longer origin) than in CI, where its budget is measured: 1.67.0's detail script
+ * passed CI and failed the staging deploy by 2 bytes.
+ */
 function assetProblems(): string[] {
     const problems: string[] = [];
     const assets = fs.readdirSync(path.join(DIST_DIR, 'assets'));
     const fonts = assets.filter(name => /\.(woff2?|ttf|otf)$/.test(name));
     if (fonts.length !== 1) problems.push(`expected one web font, found ${fonts.length}: ${fonts.join(', ')}`);
     for (const script of assets.filter(name => name.endsWith('.js'))) {
+        const source = fs.readFileSync(path.join(DIST_DIR, 'assets', script), 'utf-8');
         // Every Svelte client runtime build links its error codes to svelte.dev/e/.
-        if (fs.readFileSync(path.join(DIST_DIR, 'assets', script), 'utf-8').includes('svelte.dev/e/')) {
-            problems.push(`assets/${script} contains the Svelte client runtime`);
-        }
+        if (source.includes('svelte.dev/e/')) problems.push(`assets/${script} contains the Svelte client runtime`);
+        if (source.includes(SITE_ORIGIN)) problems.push(`assets/${script} contains the site origin (${SITE_ORIGIN}), so its size depends on the environment`);
     }
     return problems;
 }
