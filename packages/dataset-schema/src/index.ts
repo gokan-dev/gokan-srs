@@ -27,3 +27,4 @@ export * from './frequency';
 export * from './senses';
 export * from './synonyms';
 export * from './sectionSearch';
+export * from './pitchAccent';

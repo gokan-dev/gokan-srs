@@ -17,6 +17,14 @@ import type { ChangelogEntry } from '../src/models/release.model';
  */
 export const CHANGELOG: readonly ChangelogEntry[] = [
     {
+        version: '1.68.0',
+        date: '2026-11-19',
+        summary: 'Pitch accent',
+        changes: [
+            { summary: 'A word now shows its pitch accent over its reading, on its page, on its card and in the dictionary: where the pitch is high or low, and whether a particle after it stays high. You can turn it off in Settings.', issue: 176 },
+        ],
+    },
+    {
         version: '1.67.0',
         date: '2026-11-18',
         summary: 'Detail pages, tabs on phones and one page on desktop',

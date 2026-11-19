@@ -175,6 +175,8 @@ export interface Messages {
         /** Before the other readings, and before the other spellings. */
         alsoRead: string;
         alsoWritten: string;
+        /** A word's pitch accent, for screen readers: its patterns, most usual first (0 heiban, n a drop after mora n). */
+        pitchAccent: (downsteps: number[]) => string;
         sections: {
             meanings: string; examples: string; closestSynonyms: string; sentences: string; synonyms: string;
             forms: string; kanji: string; related: string; madeOf: string; usedIn: string;

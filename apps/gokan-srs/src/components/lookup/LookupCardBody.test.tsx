@@ -1,14 +1,16 @@
 import type { Vocabulary } from '@gokan/dataset-schema';
+import type { UserSettings } from '../../models/user.model';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
-import { vocabulary } from '../../test/fixtures';
+import { userSettings, vocabulary } from '../../test/fixtures';
 import { LookupCardBody } from './LookupCardBody';
 
 let loaded: Vocabulary = vocabulary();
+let settings: UserSettings | null = null;
 
 vi.mock('../../context/useQuiz', () => ({
-    useQuiz: () => ({ state: { progress: null, settings: null, session: null, grammarSession: null }, actions: {} }),
+    useQuiz: () => ({ state: { progress: null, settings, session: null, grammarSession: null }, actions: {} }),
 }));
 vi.mock('../../hooks/useAsyncData', () => ({
     useAsyncData: () => ({ status: 'ready', data: loaded, error: undefined }),
@@ -42,5 +44,48 @@ describe('LookupCardBody, the word card', () => {
         }));
         expect(html).toContain('an old word');
         expect(html).toContain('Noun');
+    });
+    describe('pitch accent', () => {
+        const hashi = (): Vocabulary => vocabulary({
+            writtenForm: { kanji: '橋', alternatives: [], containedKanji: ['橋'] },
+            reading: { primary: 'はし', alternatives: [] },
+            pitchAccent: [{ reading: 'はし', downsteps: [2], source: 'wiktionary' }],
+        });
+
+        it('draws the pattern over the reading, in place of the plain reading, named for screen readers', () => {
+            settings = null;
+            const html = render(hashi());
+            expect(html).toContain('data-pitch-accent');
+            expect(html).toContain('Pitch accent: drop after mora 2');
+            expect(html.match(/>はし</g)).toHaveLength(1);
+        });
+
+        it('keeps the kanji spelling of a word learned in kana, then its reading with the pattern', () => {
+            settings = null;
+            const html = render({
+                ...hashi(),
+                writtenForm: { kanji: '此処', alternatives: [], containedKanji: ['此', '処'] },
+                reading: { primary: 'ここ', alternatives: [] },
+                usuallyKana: true,
+                pitchAccent: [{ reading: 'ここ', downsteps: [0], source: 'wiktionary' }],
+            });
+            expect(html).toContain('>此処<');
+            expect(html).toContain('Pitch accent: heiban');
+        });
+
+        it('draws every pattern of a word with several', () => {
+            settings = null;
+            const html = render({ ...hashi(), pitchAccent: [{ reading: 'はし', downsteps: [2, 0], source: 'wiktionary' }] });
+            expect(html.match(/<svg/g)).toHaveLength(2);
+            expect(html).toContain('Pitch accent: drop after mora 2, or heiban');
+        });
+
+        it('shows nothing when the learner turned it off, or the dataset has none', () => {
+            settings = userSettings({ showPitchAccent: false });
+            expect(render(hashi())).not.toContain('data-pitch-accent');
+            settings = null;
+            const { pitchAccent: _none, ...bare } = hashi();
+            expect(render(bare)).not.toContain('data-pitch-accent');
+        });
     });
 });

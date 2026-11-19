@@ -103,7 +103,7 @@ export const en: Messages = {
         aboutText: links => [
             'Built on the open, CC BY-SA-licensed ',
             { text: 'gokan-dataset', href: links.dataset },
-            ': JMdict definitions, Tatoeba sentences and JLPT levels. To remember what you look up, learn it with spaced repetition in ',
+            ': JMdict definitions, Tatoeba sentences, JLPT levels, and pitch accents from Wiktionary and UniDic. To remember what you look up, learn it with spaced repetition in ',
             { text: 'Gokan SRS', ...links.srs },
             '.',
         ],
@@ -172,6 +172,7 @@ export const en: Messages = {
         usuallyKana: 'Usually written in kana. Kanji spelling',
         alsoRead: 'also',
         alsoWritten: 'Also written',
+        pitchAccent: downsteps => `Pitch accent: ${downsteps.map(d => (d === 0 ? 'heiban' : `drop after mora ${d}`)).join(', or ')}`,
         sections: {
             meanings: 'Meanings', examples: 'Examples', closestSynonyms: 'Closest synonyms', sentences: 'Sentences', synonyms: 'Synonyms',
             forms: 'Forms', kanji: 'Kanji', related: 'Related', madeOf: 'Made of', usedIn: 'Used in',

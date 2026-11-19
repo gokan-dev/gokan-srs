@@ -224,6 +224,11 @@ export interface UserSettings {
      * whose kana pass through; off leaves every answer as typed.
      */
     romajiInput: boolean;
+    /**
+     * "Show pitch accent": a word's pitch accent beside its reading on its page and its
+     * card (components/PitchAccent.tsx). On by default; off shows it nowhere in the app.
+     */
+    showPitchAccent: boolean;
 }
 
 export const DEFAULT_SETTINGS: UserSettings = {
@@ -244,6 +249,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
     ignoreKnownKanjiRequirement: false,
     kanjiCountStep: 10,
     romajiInput: true,
+    showPitchAccent: true,
 };
 
 /** Every quiz type at level 1 with an empty window: where calibration starts. */

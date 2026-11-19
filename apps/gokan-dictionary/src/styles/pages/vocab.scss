@@ -71,6 +71,67 @@
   @include entry-gloss;
 }
 
+// A word learned in kana: its reading with its pitch accent on a line of its own, under the note
+// naming its kanji spelling, at the reading's size.
+.entry-pitch {
+  margin: $space-1 0 0;
+  color: var(--secondary);
+  font-family: $font-gothic;
+}
+
+// The reading with its pitch accent drawn over it (PitchAccent.svelte): dots and lines in the
+// reading's own ink, a fact about the word; the particle after it hollow. Each dot is placed in em
+// of the reading's font (pitchGraph), so the reading never wraps and never changes font features;
+// one too long for the screen is set smaller instead (2rem: the page's side gutters).
+.pitch-accent {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0 $space-half;
+}
+
+.pitch-reading {
+  position: relative;
+  display: inline-block;
+  // 0.65em on the right: room for the particle's dot, centred half an em past the reading.
+  padding: var(--pitch-height) 0.65em 0 0;
+  font-size: min(1em, calc((100vw - 2rem) / var(--pitch-width)));
+  font-feature-settings: normal;
+  letter-spacing: 0;
+  white-space: nowrap;
+
+  svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    overflow: visible;
+  }
+
+  line,
+  circle {
+    stroke: currentColor;
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+  }
+
+  circle {
+    fill: currentColor;
+
+    &.particle {
+      fill: none;
+    }
+  }
+}
+
+// A second pattern, as the reading again, smaller.
+.pitch-reading-other {
+  font-size: min(0.75em, calc((100vw - 2rem) / var(--pitch-width)));
+}
+
+.pitch-accent-sep {
+  color: var(--tertiary);
+}
+
 .entry-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);

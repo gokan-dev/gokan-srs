@@ -358,3 +358,11 @@ describe('appPanel copy per order', () => {
         `);
     });
 });
+
+describe('pitch accent', () => {
+    it('names heiban and where any other pattern drops, most usual first', () => {
+        expect(en.vocab.pitchAccent([0])).toBe('Pitch accent: heiban');
+        expect(en.vocab.pitchAccent([2, 0])).toBe('Pitch accent: drop after mora 2, or heiban');
+        expect(zhHans.vocab.pitchAccent([2, 0])).toBe('音调：第2拍后下降，或平板型');
+    });
+});

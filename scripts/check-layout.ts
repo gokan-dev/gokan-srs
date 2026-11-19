@@ -340,6 +340,8 @@ const FIRST_SCREEN_PARTS = [
     ['status line', '[data-word-status]'],
     // Every word in the dataset has a clip, so its play button follows the reading (issue 178).
     ['reading\'s play button', '[data-word-reading] [data-play-button]'],
+    // Each word measured here has one (issue 176), and its graph widens the reading line.
+    ['pitch accent', '[data-word-reading] [data-pitch-accent]'],
 ] as const;
 /** Play buttons (components/PlayButton.tsx): a 44px tap target on a phone, measured by measure(). */
 const PLAY_BUTTONS = '[data-play-button]';
@@ -417,18 +419,21 @@ async function checkSentencePlayButtons(tab: Tab, page: string, width: number): 
  * Every play button on the page sits at the first line of what it plays (the element before it:
  * the sentence, the reading, the kana note): its centre within the upper three quarters of that
  * first line. A button wrapped alone onto a line below the sentence, or centred between a
- * wrapped note's two lines, reads as a control of its own.
+ * wrapped note's two lines, reads as a control of its own. A reading drawn with its pitch accent
+ * is measured from its text (`data-pitch-reading`), not from the dots drawn above it.
  */
 async function checkPlayButtonsOnFirstLine(tab: Tab, page: string, width: number, buttons = PLAY_BUTTONS): Promise<void> {
     const strays = await tab.evaluate<string[]>(`[...document.querySelectorAll(${JSON.stringify(buttons)})].filter(el => el.getBoundingClientRect().width > 0).flatMap(el => {
         // Inline after a line's text (the dictionary's reading), the line it ends is its parent.
         const before = el.previousElementSibling ?? (el.parentElement.firstChild !== el ? el.parentElement : null);
         if (!before) return [el.getAttribute('aria-label') + ': nothing before it to follow'];
-        // A sentence's line is its own (leading-loose), not its wrapper's.
-        const style = getComputedStyle(before.querySelector('[data-sentence]') ?? before);
+        // A sentence's line is its own (leading-loose), not its wrapper's; a reading's with its
+        // pitch accent starts at its text, under the dots.
+        const pitchReading = before.querySelector('[data-pitch-reading]');
+        const style = getComputedStyle(before.querySelector('[data-sentence]') ?? pitchReading ?? before);
         const line = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.2;
         const button = el.getBoundingClientRect();
-        const below = (button.top + button.bottom) / 2 - before.getBoundingClientRect().top;
+        const below = (button.top + button.bottom) / 2 - (pitchReading ?? before).getBoundingClientRect().top;
         return below < line * 0.75 ? [] : [el.getAttribute('aria-label') + ' centred ' + Math.round(below) + 'px below the top of what it plays (its first line is ' + Math.round(line) + 'px)'];
     })`);
     for (const stray of strays) failures.push(`${width}px ${page}: play button off the first line: ${stray}`);

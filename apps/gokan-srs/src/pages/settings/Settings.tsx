@@ -231,6 +231,13 @@ export function SettingsScreen({
                         </SelectableOption>
                     ))}
                 </div>
+                <SettingToggle
+                    className="mt-6"
+                    label="Show pitch accent"
+                    description="Where a word's pitch rises and falls, beside its reading on its page and its card. Never on a quiz card."
+                    checked={settings.showPitchAccent}
+                    onChange={(checked) => onUpdateSettings({ ...settings, showPitchAccent: checked })}
+                />
             </SettingsSection>
 
             <SettingsSection title="Typing answers" description="How Japanese answers are typed, in every activity.">
