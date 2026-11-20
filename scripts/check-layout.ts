@@ -2097,6 +2097,50 @@ async function checkHeaderSearch(tab: Tab, page: string, width: number, site: 's
     await measure(tab, `${page}, searching ${SEARCH_QUERY}`, width, site === 'dictionary' ? '.search-option' : '');
     const outside = await tab.evaluate<number>(`[...document.querySelectorAll('${listbox} [role="option"]')].filter(el => { const r = el.getBoundingClientRect(); return r.height > 0 && (r.left < -1 || r.right > ${width} + 1); }).length`);
     if (outside > 0) failures.push(`${where}: ${outside} result rows reach past the screen's edge`);
+    if (site === 'dictionary' && page.includes('/zh-hans/')) await checkSearchOptionLang(tab, where, listbox);
+}
+
+/**
+ * On a Chinese page, the panel's English (a grammar point's explanation, a kanji's meaning) and
+ * romaji are marked as such, not left to inherit the page's zh-Hans: a grammar option once wrote
+ * both as bare spans. A run of two Latin letters is what is looked for, so a chip's N5 is not.
+ */
+async function checkSearchOptionLang(tab: Tab, where: string, listbox: string): Promise<void> {
+    const unmarked = await tab.evaluate<string[]>(`(() => {
+        const found = [];
+        for (const option of document.querySelectorAll('${listbox} .search-option')) {
+            const walker = document.createTreeWalker(option, NodeFilter.SHOW_TEXT);
+            for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+                if (!/[A-Za-z]{2}/.test(node.textContent)) continue;
+                const lang = node.parentElement.closest('[lang]')?.getAttribute('lang') ?? '';
+                if (!lang.startsWith('en') && lang !== 'ja-Latn') found.push(node.textContent.slice(0, 30));
+            }
+        }
+        return found;
+    })()`);
+    if (unmarked.length > 0) failures.push(`${where}: Latin text in the results not marked lang="en" or "ja-Latn": ${unmarked.slice(0, 3).join(' | ')}`);
+}
+
+/**
+ * The /search/ page's kanji rows (#264): glyph | meaning | level on one line, as in the header
+ * panel. They once stacked meaning and level in the word list's gloss column (both are spans with a
+ * lang, which .entry-list puts there), leaving the middle column empty. sui finds a page of kanji by
+ * their on reading (水, 推, 睡...).
+ */
+const SEARCH_PAGE_KANJI_QUERY = 'sui';
+async function checkSearchPageKanjiRows(tab: Tab, base: string, width: number): Promise<void> {
+    const page = `dictionary /search/?q=${SEARCH_PAGE_KANJI_QUERY}`;
+    await tab.goto(`${base}/search/?q=${SEARCH_PAGE_KANJI_QUERY}`, 'JLPT N');
+    await measure(tab, page, width, DICTIONARY_TAP_TARGETS);
+    const rows = await tab.evaluate<{ row: string; meaningTop: number; levelTop: number; meaningRight: number; levelLeft: number }[]>(`[...document.querySelectorAll('[data-search-page] ul > li > a[href*="/kanji/"]')]
+        .filter(a => a.getBoundingClientRect().width > 0 && a.querySelectorAll(':scope > span').length >= 2)
+        .map(a => { const spans = a.querySelectorAll(':scope > span'); const meaning = spans[0].getBoundingClientRect(); const level = spans[spans.length - 1].getBoundingClientRect(); return { row: a.textContent.slice(0, 20), meaningTop: meaning.top, levelTop: level.top, meaningRight: meaning.right, levelLeft: level.left }; })`);
+    if (rows.length === 0) {
+        failures.push(`${width}px ${page}: no kanji rows to measure`);
+        return;
+    }
+    const stacked = rows.filter(row => Math.abs(row.meaningTop - row.levelTop) > 2 || row.meaningRight > row.levelLeft + 1);
+    if (stacked.length > 0) failures.push(`${width}px ${page}: a kanji row's meaning and level are not side by side on one line: ${stacked.slice(0, 3).map(row => row.row).join(', ')}`);
 }
 
 /** The dictionary's play buttons (pages/PlayButton.svelte), shown once the player's pre-paint class is set. */
@@ -2368,6 +2412,7 @@ try {
         await checkDictionaryWordFullPage(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
     }
     await checkSearchAcrossDetailWidth(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`);
+    await checkSearchPageKanjiRows(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`, DESKTOP.width);
     await desktop.resize(DESKTOP.width, DESKTOP.height);
     await checkDictionaryDetailFullPages(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`);
     await checkDictionaryPlayButtons(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`, DESKTOP.width);
@@ -2557,6 +2602,7 @@ try {
             await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${path}`, 'JLPT');
             await checkHeaderSearch(tab, `dictionary ${path}`, width, 'dictionary');
         }
+        await checkSearchPageKanjiRows(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
         for (const page of DICTIONARY_PAGES) {
             await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${page.path}`, page.ready);
             await measure(tab, `dictionary ${page.path}`, width, DICTIONARY_TAP_TARGETS);

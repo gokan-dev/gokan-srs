@@ -558,6 +558,16 @@ a.chip {
   }
 }
 
+// The /search/ page's kanji: glyph | meaning | level on one line at every width, as in the header
+// panel. Both cells are spans with a lang, which the rule above sends to the gloss column.
+.entry-list--kanji a {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+
+  > [lang] {
+    grid-column: auto;
+  }
+}
+
 // A collapsed remainder ("All 401 words", "More examples (8)"): every link stays in the HTML.
 .disclosure {
   margin-top: $space-2;
