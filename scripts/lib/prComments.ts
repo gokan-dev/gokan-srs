@@ -1,6 +1,7 @@
 // A PR's conversation as the agent workflows read it: the gokan markers their deterministic steps write
 // at the top of a comment, and who spoke. Shared by the fix-CI gate and the triage gate, so both read a
 // comment the same way. Pure: the scripts fetch the comments, this sorts them.
+import { isRecord } from './actions';
 
 export interface PrComment {
     /** GitHub's `user.type`: `User` for a person (or a member's token), `Bot` for an app or GITHUB_TOKEN. */
@@ -49,8 +50,6 @@ export const isReset = (event: CommentEvent): boolean =>
 
 /** The triage outcomes that start a round without the maintainer: a brief handed straight to the feedback agent. */
 export const isAutomaticRound = (outcome: string): boolean => outcome === 'apply' || outcome === 'finish';
-
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
 
 /** `gh api --paginate .../comments --jq '.[] | {type: .user.type, body}'` output (one JSON object a line), narrowed once. */
 export function parseCommentLines(text: string): PrComment[] {

@@ -6,11 +6,13 @@
 // (polish). The outcome follows from the sections:
 //   - decide: a point is the maintainer's call.
 //   - apply:  a defect to fix: a new round (rc, staging review, triage).
-//   - finish: in round 1, only reversible defaults are left. They are applied, and the PR is done once
-//             CI and the PR review pass on that push, with no staging round after it.
+//   - finish: in round 1, only reversible defaults are left. They are applied as the PR's last round,
+//             with no staging round after it: the triage of that push (`finishing`) waits for CI, then
+//             sorts its PR review with the round 2+ bar, so it ends in done, apply or decide.
 //   - done:   nothing to change.
-// From round 2 on, polish starts no round: polish points, and defaults with no defect beside them, are
-// left on the PR (and the release tracker) for one final pass, and a round of only those is done.
+// From round 2 on, and on a finish's push, polish starts no round: polish points, and defaults with no
+// defect beside them, are left on the PR (and the release tracker) for one final pass, and a round of
+// only those is done.
 import { triageMarker } from './prComments';
 import type { Repeat } from './triageRound';
 
@@ -45,6 +47,9 @@ const SECTION_KEYS: SectionKey[] = ['apply', 'defaults', 'yourCall', 'notInChang
 
 const POINT = /^### (\d+)\.\s+(.*)$/;
 const KIND = /\s*\((polish|defect)\)\s*$/i;
+// A marker elsewhere in the heading sets no kind (the point stays a defect, the safe default), but is
+// still dropped from the title: renderPoints writes the kind back, and two would read as a contradiction.
+const ANY_KIND = /\s*\((?:polish|defect)\)/gi;
 
 function parsePoints(section: string, text: string): BriefPoint[] {
     const points: BriefPoint[] = [];
@@ -55,7 +60,7 @@ function parsePoints(section: string, text: string): BriefPoint[] {
             const kind = KIND.exec(point[2]);
             points.push({
                 number: Number(point[1]),
-                title: point[2].replace(KIND, '').trim(),
+                title: point[2].replace(ANY_KIND, '').trim(),
                 polish: kind?.[1].toLowerCase() === 'polish',
                 text: '',
             });
@@ -95,6 +100,8 @@ export interface OutcomeInput {
     autoRounds: number;
     maxAutoRounds: number;
     repeat: Repeat | null;
+    /** This commit is the push of a finish brief: its review is sorted with the round 2+ bar. */
+    finishing: boolean;
 }
 
 export interface Resolution {
@@ -107,8 +114,9 @@ export interface Resolution {
     deferred: BriefPoint[];
 }
 
-export function resolveOutcome({ brief, round, autoRounds, maxAutoRounds, repeat }: OutcomeInput): Resolution {
-    const late = round >= 2;
+export function resolveOutcome({ brief, round, autoRounds, maxAutoRounds, repeat, finishing }: OutcomeInput): Resolution {
+    // A finish's push is never finished again: the defaults were its round.
+    const late = round >= 2 || finishing;
     const defects = late ? brief.apply.filter(point => !point.polish) : brief.apply;
     const polish = late ? brief.apply.filter(point => point.polish) : [];
     const handed = (apply: BriefPoint[], defaults: BriefPoint[]): Brief => ({ ...brief, apply, defaults });
@@ -189,7 +197,7 @@ export function triageComment(input: CommentInput): string {
         case 'finish':
             lines.push(
                 `@claude please apply this triage of the reviews of ${subject} to this branch: only reversible defaults are left, so this is the last round.`,
-                'Once CI and the PR review pass on the push, the PR is done without another staging round.',
+                'Once CI passes on the push, triage of its PR review ends the PR without another staging round.',
                 '',
                 brief,
             );
@@ -237,12 +245,6 @@ function sendFooter(escalated: boolean): string[] {
         '',
         '- [ ] **Send my choices to the agent**',
     ];
-}
-
-/** The done comment of a finish's push: CI and the PR review passed, so the defaults round ends the PR. */
-export function finishedComment({ sha, tag, human, onRelease }: { sha: string; tag: string; human: string; onRelease: boolean }): string {
-    const what = `The last triage's defaults are applied, and CI and the PR review passed on ${subjectOf(sha, tag)}.`;
-    return `${triageMarker(sha, 'done')}\n${doneLine(human, onRelease, what)}\n`;
 }
 
 /** The release tracker's record of what one member left for the release PR's final pass. */

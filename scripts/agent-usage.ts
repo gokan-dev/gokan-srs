@@ -10,10 +10,12 @@
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { isRecord } from './lib/actions';
 
 type Json = Record<string, unknown>;
 
-const isRecord = (value: unknown): value is Json => typeof value === 'object' && value !== null && !Array.isArray(value);
+// The execution file's messages and their parts are objects, never arrays.
+const isJsonObject = (value: unknown): value is Json => isRecord(value) && !Array.isArray(value);
 const num = (value: unknown): number => (typeof value === 'number' && Number.isFinite(value) ? value : 0);
 const str = (value: unknown): string => (typeof value === 'string' ? value : '');
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
@@ -26,13 +28,13 @@ if (!existsSync(file)) {
     process.exit(0);
 }
 const parsed: unknown = JSON.parse(readFileSync(file, 'utf8'));
-const messages = Array.isArray(parsed) ? parsed.filter(isRecord) : [];
+const messages = Array.isArray(parsed) ? parsed.filter(isJsonObject) : [];
 
 /** The text a tool result put into the context, whichever shape its content has. */
 function resultChars(content: unknown): number {
     if (typeof content === 'string') return content.length;
     if (!Array.isArray(content)) return 0;
-    return content.filter(isRecord).reduce((sum, part) => sum + str(part.text).length, 0);
+    return content.filter(isJsonObject).reduce((sum, part) => sum + str(part.text).length, 0);
 }
 
 /** What a tool call targeted: the file for file tools, the command's first words for Bash. */
@@ -49,10 +51,10 @@ let turnUsage = { input: 0, cacheWrite: 0, cacheRead: 0, output: 0 };
 let result: Json | undefined;
 
 for (const message of messages) {
-    const body = isRecord(message.message) ? message.message : {};
-    const content = Array.isArray(body.content) ? body.content.filter(isRecord) : [];
+    const body = isJsonObject(message.message) ? message.message : {};
+    const content = Array.isArray(body.content) ? body.content.filter(isJsonObject) : [];
     if (message.type === 'assistant') {
-        const usage = isRecord(body.usage) ? body.usage : {};
+        const usage = isJsonObject(body.usage) ? body.usage : {};
         turnUsage = {
             input: turnUsage.input + num(usage.input_tokens),
             cacheWrite: turnUsage.cacheWrite + num(usage.cache_creation_input_tokens),
@@ -62,7 +64,7 @@ for (const message of messages) {
         for (const part of content) {
             if (part.type === 'tool_use') {
                 const name = str(part.name);
-                calls.set(str(part.id), { name, target: target(name, isRecord(part.input) ? part.input : {}) });
+                calls.set(str(part.id), { name, target: target(name, isJsonObject(part.input) ? part.input : {}) });
             }
         }
     } else if (message.type === 'user') {
@@ -80,7 +82,7 @@ for (const message of messages) {
 
 // The result message holds the run's own totals; a run cut off before it falls back to the sum of
 // the per-turn usage.
-const usage = result && isRecord(result.usage) ? result.usage : undefined;
+const usage = result && isJsonObject(result.usage) ? result.usage : undefined;
 const split = usage
     ? {
         input: num(usage.input_tokens),
@@ -105,11 +107,11 @@ const lines = [
     `| Output | ${fmt(split.output)} |`,
 ];
 
-const models = result && isRecord(result.modelUsage) ? Object.entries(result.modelUsage) : [];
-const priced = models.filter(([, m]) => isRecord(m) && num(m.costUSD) > 0);
+const models = result && isJsonObject(result.modelUsage) ? Object.entries(result.modelUsage) : [];
+const priced = models.filter(([, m]) => isJsonObject(m) && num(m.costUSD) > 0);
 if (priced.length > 1) {
     lines.push('', '| Model | Cost |', '|---|---:|');
-    for (const [model, m] of priced) lines.push(`| ${model} | $${num(isRecord(m) ? m.costUSD : 0).toFixed(2)} |`);
+    for (const [model, m] of priced) lines.push(`| ${model} | $${num(isJsonObject(m) ? m.costUSD : 0).toFixed(2)} |`);
 }
 
 const top = [...totals.values()].sort((a, b) => b.chars - a.chars).slice(0, 12);

@@ -19,8 +19,8 @@ export type RoundGate =
         repeat: Repeat | null;
         /**
          * The last triage handed its defaults over as the PR's final round (`finish`): this commit is
-         * that round's push (or a fix of it), so the PR is done once CI and the PR review pass, with no
-         * agent and no staging round.
+         * that round's push (or a fix of it). Triage waits for CI on it, then sorts its PR review with
+         * the round 2+ bar (resolveOutcome's `finishing`), with no staging round.
          */
         finishing: boolean;
         /** Automatic rounds since the maintainer last spoke. */

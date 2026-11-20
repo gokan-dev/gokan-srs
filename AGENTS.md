@@ -76,12 +76,15 @@ summary ("Largest tool results"), which is where a whole read shows.
   costly to reverse or change scope; a reversible choice with a clear recommendation is applied and
   noted under "Decided by default". The workflow, not the agent, decides from the brief's sections
   (`scripts/lib/triageOutcome.ts`): a round 1 that leaves only defaults is `finish` (they are
-  applied, and the PR is done once CI and the PR review pass, with no staging round), and from round
-  2 on polish starts no round: it is left on the PR and the release tracker for one final pass. Every
+  applied with no staging round; triage of that push waits for CI, then sorts its PR review with the
+  round 2+ bar), and from round 2 on polish starts no round: it is left on the PR and the release
+  tracker for one final pass. Every
   answer to a triage that pushes nothing (a brief, or a decision such as "stop") goes back to triage,
   so it ends in done or decide. Fix CI (`claude-fix-ci.yml`) acts on agent commits too, bounded by a
-  count (`scripts/lib/fixCiGate.ts`: one attempt a commit, three in a row before the maintainer is
-  asked), and only a failed run takes the branch lock. An interrupted run (crash, turn limit, usage limit) resumes
+  count (`scripts/lib/fixCiGate.ts`: one attempt a commit, three in a row with no done or decide
+  triage, decision or word from the maintainer before they are asked), and only a failed run takes
+  the branch lock. The agents' CI wait is the default branch's `scripts/ci-wait.ts`, run from a
+  worktree, so a branch cut before it verifies the same way. An interrupted run (crash, turn limit, usage limit) resumes
   itself from the commits it pushed: the implement workflow's own last job (`resume`) decides as the
   run ends, `claude-sweep.yml` sweeps hourly as a backstop, both through
   `.github/actions/resume-issue`, bounded by progress and escalating with `needs-attention` when a

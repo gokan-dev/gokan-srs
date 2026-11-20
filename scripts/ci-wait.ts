@@ -8,6 +8,7 @@
 import { execFileSync } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { parseArgs } from 'node:util';
+import { gh } from './lib/actions';
 import { type CiRun, RUN_FIELDS, cleanLogLine, failedRuns, latestCiRuns, parseRuns, runLine, verdict } from './lib/ciRuns';
 
 const POLL_MS = 20_000;
@@ -22,7 +23,6 @@ const { values } = parseArgs({
     },
 });
 
-const gh = (args: string[]): string => execFileSync('gh', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 // GitHub matches the full sha only, so a short one is resolved here.
 const sha = execFileSync('git', ['rev-parse', '--verify', `${values.sha ?? 'HEAD'}^{commit}`], { encoding: 'utf8' }).trim();
 const deadline = Date.now() + Number(values.timeout) * 60_000;

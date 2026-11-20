@@ -1,32 +1,20 @@
 /**
- * The deterministic half of claude-triage.yml: `bun scripts/triage.ts round|outcome|finished`. Each
+ * The deterministic half of claude-triage.yml: `bun scripts/triage.ts round|outcome`. Each
  * command reads files and the environment the workflow prepared and writes its answer to
  * $GITHUB_OUTPUT (and the comments to post to $RUNNER_TEMP); the workflow's own steps call `gh`.
  *
  *   round     Whether this commit is triaged, and as what (scripts/lib/triageRound.ts).
  *             Reads COMMENTS_FILE (the PR's comments, one JSON object a line), SHA, RETRIAGE.
  *   outcome   The outcome from the agent's brief (scripts/lib/triageOutcome.ts). Reads BRIEF_FILE,
- *             ROUND, AUTO_ROUNDS, MAX_AUTO_ROUNDS, REPEAT, SHA, TAG, HUMAN, BASE, PR. Writes body.md,
- *             and final-pass.md when points wait for the release PR's final pass.
- *   finished  The done comment of a finish's push. Reads SHA, TAG, HUMAN, BASE. Writes body.md.
+ *             ROUND, AUTO_ROUNDS, MAX_AUTO_ROUNDS, REPEAT, FINISHING, SHA, TAG, HUMAN, BASE, PR. Writes
+ *             body.md, and final-pass.md when points wait for the release PR's final pass.
  */
-import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { env, output } from './lib/actions';
 import { parseCommentLines } from './lib/prComments';
 import { type Repeat, decideRound } from './lib/triageRound';
-import { finishedComment, parseBrief, resolveOutcome, trackerNote, triageComment } from './lib/triageOutcome';
-
-function env(name: string): string {
-    const value = process.env[name];
-    if (value === undefined) throw new Error(`${name} is not set`);
-    return value;
-}
-
-function output(name: string, value: string | number | boolean): void {
-    const file = process.env.GITHUB_OUTPUT;
-    if (file) appendFileSync(file, `${name}=${value}\n`);
-    console.log(`${name}=${value}`);
-}
+import { parseBrief, resolveOutcome, trackerNote, triageComment } from './lib/triageOutcome';
 
 const write = (name: string, text: string): void => writeFileSync(join(env('RUNNER_TEMP'), name), text);
 
@@ -61,6 +49,7 @@ switch (command) {
             autoRounds,
             maxAutoRounds,
             repeat,
+            finishing: process.env.FINISHING === 'true',
         });
         const onRelease = env('BASE').startsWith('release/');
         write('body.md', triageComment({ resolution, sha: env('SHA'), tag: process.env.TAG ?? '', human: env('HUMAN'), autoRounds, maxAutoRounds, repeat, onRelease }));
@@ -69,11 +58,6 @@ switch (command) {
         output('deferred', resolution.deferred.length);
         break;
     }
-    case 'finished':
-        write('body.md', finishedComment({ sha: env('SHA'), tag: process.env.TAG ?? '', human: env('HUMAN'), onRelease: env('BASE').startsWith('release/') }));
-        output('outcome', 'done');
-        output('deferred', 0);
-        break;
     default:
-        throw new Error(`Unknown command: ${command ?? '(none)'}. Use round, outcome or finished.`);
+        throw new Error(`Unknown command: ${command ?? '(none)'}. Use round or outcome.`);
 }

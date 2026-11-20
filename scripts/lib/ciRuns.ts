@@ -1,5 +1,6 @@
 // What CI said about one commit, read from `gh run list --json` (scripts/ci-wait.ts). Pure, so the
 // waiting script is only I/O: which runs count, whether they are done, and what they concluded.
+import { isRecord } from './actions';
 
 /** The `gh run list` fields ci-wait asks for. */
 export const RUN_FIELDS = 'databaseId,workflowName,event,status,conclusion,headSha,url,createdAt';
@@ -24,7 +25,6 @@ const PASSING = new Set(['success', 'skipped', 'neutral']);
 
 export type Verdict = 'pending' | 'passed' | 'failed';
 
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
 const str = (value: unknown): string => (typeof value === 'string' ? value : '');
 
 /** `gh run list --json` output, narrowed once; rows without an id or workflow are dropped. */

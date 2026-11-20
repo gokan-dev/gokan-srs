@@ -11,22 +11,14 @@
  * RUN_HEAD_BRANCH, RUN_HEAD_SHA, RUN_URL, DEFAULT_BRANCH, AGENT_HUMAN, and GitHub's GITHUB_REPOSITORY,
  * GITHUB_RUN_ID, GITHUB_SERVER_URL.
  */
-import { execFileSync } from 'node:child_process';
-import { appendFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
+import { env, gh, isRecord, output } from './lib/actions';
 import { MAX_FIX_STREAK, decideFixCi } from './lib/fixCiGate';
 import { type PrComment, fixCiMarker, fixCiStopMarker, parseCommentLines } from './lib/prComments';
 
 const { values } = parseArgs({ options: { mode: { type: 'string', default: 'check' } } });
 if (values.mode !== 'check' && values.mode !== 'claim') throw new Error(`--mode is check or claim, not ${values.mode}`);
 
-function env(name: string): string {
-    const value = process.env[name];
-    if (value === undefined) throw new Error(`${name} is not set`);
-    return value;
-}
-
-const gh = (args: string[]): string => execFileSync('gh', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 const repository = env('GITHUB_REPOSITORY');
 const run = {
     id: Number(env('RUN_ID')),
@@ -37,8 +29,6 @@ const run = {
     headSha: env('RUN_HEAD_SHA'),
 };
 const fixRunId = Number(env('GITHUB_RUN_ID'));
-
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
 
 interface OpenPr { number: number; isDraft: boolean; author: string }
 
@@ -73,12 +63,8 @@ const decision = decideFixCi({
     fixRunId,
 });
 
-const output = (line: string): void => {
-    const file = process.env.GITHUB_OUTPUT;
-    if (file) appendFileSync(file, `${line}\n`);
-};
-output(`decision=${decision.kind}`);
-output(`pr=${decision.kind === 'skip' ? '' : decision.pr}`);
+output('decision', decision.kind);
+output('pr', decision.kind === 'skip' ? '' : decision.pr);
 
 const sha = run.headSha.slice(0, 10);
 const thisRun = `${env('GITHUB_SERVER_URL')}/${repository}/actions/runs/${fixRunId}`;

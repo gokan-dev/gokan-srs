@@ -61,6 +61,14 @@ const BUDGET_FIGURE_SCOPE = /^((apps\/[\w-]+|packages\/[\w-]+)\/src\/.+|docs\/AR
 const BUDGETS_FILE = 'apps/gokan-dictionary/src/lib/budgets.ts';
 const GOKAN_SRS_SOURCE = /^apps\/gokan-srs\/src\/.*\.tsx?$/;
 
+/**
+ * The pipeline scripts' small helpers (isRecord, env, output, gh) live in one module; a second
+ * `isRecord` under scripts/ is the copy that started three of them (PR #273).
+ */
+const SCRIPTS_SOURCE = /^scripts\/.*\.ts$/;
+const SCRIPTS_HELPERS = 'scripts/lib/actions.ts';
+const LOCAL_IS_RECORD = /^(?:export\s+)?(?:const|function)\s+isRecord\b/;
+
 /** Pure-logic directories: every module has a colocated test. */
 const TESTED_DIRS = ['apps/gokan-srs/src/utils', 'apps/gokan-dictionary/src/lib', 'packages/deploy/src'];
 /** Modules with no logic to test: constants and type declarations only. */
@@ -611,6 +619,11 @@ function check(files: string[]): Violation[] {
         if (GOKAN_SRS_SOURCE.test(file) && file !== TIME_UTILS_FILE) {
             eachLine(text, l => LOCALE_DATE_TIME.test(l) && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
                 add({ file, line, rule: 'date-formatting', message: 'toLocaleDateString/toLocaleTimeString/dateStyle/timeStyle belong only in utils/time.utils.ts; use its formatters.' }));
+        }
+
+        if (SCRIPTS_SOURCE.test(file) && file !== SCRIPTS_HELPERS) {
+            eachLine(text, l => LOCAL_IS_RECORD.test(l), line =>
+                add({ file, line, rule: 'scripts-helpers', message: 'isRecord (and env, output, gh) come from scripts/lib/actions.ts: import it, do not declare another. A narrower guard takes another name.' }));
         }
 
         if (BUDGET_FIGURE_SCOPE.test(file) && file !== BUDGETS_FILE) {

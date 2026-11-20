@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { type OutcomeInput, FINAL_PASS_HEADING, finishedComment, parseBrief, renderBrief, resolveOutcome, trackerNote, triageComment } from './triageOutcome';
+import { type OutcomeInput, FINAL_PASS_HEADING, parseBrief, renderBrief, resolveOutcome, trackerNote, triageComment } from './triageOutcome';
 
 const SHA = 'a'.repeat(40);
 
@@ -31,7 +31,7 @@ A stored shape is costly to change.
 `;
 
 function resolve(markdown: string, overrides: Partial<OutcomeInput> = {}) {
-    return resolveOutcome({ brief: parseBrief(markdown), round: 1, autoRounds: 0, maxAutoRounds: 2, repeat: null, ...overrides });
+    return resolveOutcome({ brief: parseBrief(markdown), round: 1, autoRounds: 0, maxAutoRounds: 2, repeat: null, finishing: false, ...overrides });
 }
 
 describe('parseBrief', () => {
@@ -47,6 +47,12 @@ describe('parseBrief', () => {
         const brief = parseBrief('The reviews found nothing. @Claude was not needed.\n');
         expect(brief.summary).toBe('The reviews found nothing. Claude was not needed.');
         expect(brief.apply).toEqual([]);
+    });
+
+    it('drops a kind marker written inside the heading, so the posted brief does not carry two', () => {
+        const brief = parseBrief('## Apply\n### 1. Share the helper (polish): two copies\nIn a.ts.\n');
+        expect(brief.apply[0]).toMatchObject({ title: 'Share the helper: two copies', polish: false });
+        expect(renderBrief(brief, [])).toContain('### 1. Share the helper: two copies (defect)\n');
     });
 
     it('refuses an unknown section or a section without points', () => {
@@ -88,6 +94,15 @@ describe('resolveOutcome', () => {
         const r = resolve(DEFAULTS_ONLY, { repeat: 'finish' });
         expect(r.outcome).toBe('done');
         expect(r.deferred.map(p => p.number)).toEqual([1]);
+    });
+
+    it('sorts the review of a finish\'s push with the round 2+ bar, and never finishes it again', () => {
+        // A regression in how the defaults were applied is a defect: another round, not done.
+        expect(resolve(BRIEF, { round: 2, finishing: true })).toMatchObject({ outcome: 'apply' });
+        expect(resolve(BRIEF.replace('(defect)', '(polish)'), { round: 2, finishing: true })).toMatchObject({ outcome: 'done' });
+        // The round number alone would not hold it: a finishing round is late whatever its count.
+        expect(resolve(DEFAULTS_ONLY, { finishing: true }).outcome).toBe('done');
+        expect(resolve(YOUR_CALL, { round: 2, finishing: true }).outcome).toBe('decide');
     });
 
     it('asks when a point is the maintainer\'s call, whatever else is there', () => {
@@ -136,12 +151,7 @@ describe('triageComment', () => {
     });
 });
 
-describe('the finish and the tracker', () => {
-    it('marks the finished push done', () => {
-        expect(finishedComment({ sha: SHA, tag: 'v1.68.0-rc.2', human: 'maintainer', onRelease: false }))
-            .toMatch(new RegExp(`^<!-- gokan-triage sha=${SHA} outcome=done -->\n@maintainer \\*\\*Ready to merge`));
-    });
-
+describe('the tracker', () => {
     it('records the deferred points on the release tracker', () => {
         const note = trackerNote(263, resolve(BRIEF, { round: 2 }).deferred);
         expect(note).toContain('<!-- gokan-final-pass pr=263 -->');
