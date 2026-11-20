@@ -8,7 +8,7 @@
 import { execFileSync } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { parseArgs } from 'node:util';
-import { type CiRun, RUN_FIELDS, failedJobLogs, failedRuns, latestCiRuns, parseRuns, parseTimeoutMinutes, runLine, verdict } from './lib/ciRuns';
+import { type CiRun, RUN_FIELDS, failedJobLogs, failedRuns, latestCiRuns, parseRuns, parseTimeoutMinutes, runLine, settled, verdict } from './lib/ciRuns';
 
 const POLL_MS = 20_000;
 // GitHub creates a push's runs within seconds; past this, the commit was not pushed or nothing matched.
@@ -43,22 +43,21 @@ try {
 const deadline = Date.now() + timeoutMinutes * 60_000;
 const started = Date.now();
 
-// A network hiccup is not CI's answer: keep the last runs seen and ask again, up to this many times in a row.
+// A network hiccup is not CI's answer: the caller keeps the runs it has and asks again, up to this many times in a row.
 const MAX_FETCH_FAILURES = 5;
 let fetchFailures = 0;
-let lastRuns: CiRun[] = [];
-
-function fetchRuns(): CiRun[] {
+/** The commit's runs, or undefined when GitHub could not be read this time. */
+function fetchRuns(): CiRun[] | undefined {
     try {
         const json: unknown = JSON.parse(gh(['run', 'list', '--commit', sha, '--limit', '100', '--json', RUN_FIELDS]));
-        lastRuns = latestCiRuns(parseRuns(json), sha);
         fetchFailures = 0;
+        return latestCiRuns(parseRuns(json), sha);
     } catch (error) {
         fetchFailures += 1;
         console.error(`Could not read CI's runs (${fetchFailures} of ${MAX_FETCH_FAILURES}): ${firstLine(error)}`);
         if (fetchFailures >= MAX_FETCH_FAILURES) process.exit(2);
+        return undefined;
     }
-    return lastRuns;
 }
 
 function report(runs: CiRun[]): void {
@@ -66,7 +65,7 @@ function report(runs: CiRun[]): void {
 }
 
 console.log(`Waiting for CI on ${sha.slice(0, 10)}...`);
-let runs = fetchRuns();
+let runs = fetchRuns() ?? [];
 let lastSeen = '';
 for (;;) {
     const state = verdict(runs);
@@ -80,8 +79,8 @@ for (;;) {
         // One more look: a workflow that starts a little late must not be missed.
         await sleep(POLL_MS);
         const again = fetchRuns();
-        if (again.length === runs.length && verdict(again) === state) break;
-        runs = again;
+        if (settled(runs, again)) break;
+        runs = again ?? runs;
         continue;
     }
     if (runs.length === 0 && Date.now() - started > APPEAR_MS) {
@@ -93,7 +92,7 @@ for (;;) {
         process.exit(2);
     }
     await sleep(POLL_MS);
-    runs = fetchRuns();
+    runs = fetchRuns() ?? runs;
 }
 
 const failed = failedRuns(runs);

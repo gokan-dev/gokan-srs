@@ -46,7 +46,8 @@ summary ("Largest tool results"), which is where a whole read shows.
   and exits non-zero on a failure. Locally, run only the narrow command that covers what you are
   changing while iterating (one workspace's tests, `bun run typecheck`, `bun run lint`, one check);
   never the full suite or a production build as a gate. No local hook runs them either (no
-  pre-push hook). Not mechanised for local runs; agent prompts say the same.
+  pre-push hook). Not mechanised for local runs; the implement prompt says the same (the fix-CI and
+  address-feedback prompts follow in a later change).
 - A bug fix comes with a test that fails without the fix.
 - A convention lives in `bun run check`, not only in prose. When review (human or agent) finds a
   rule this file states that the gate did not catch, the same change adds the check that would

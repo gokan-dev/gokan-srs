@@ -69,6 +69,13 @@ export function verdict(runs: CiRun[]): Verdict {
     return runs.every(run => PASSING.has(run.conclusion)) ? 'passed' : 'failed';
 }
 
+/**
+ * Whether the one more look after a finished verdict confirms it: the same runs, the same verdict. A look that
+ * failed (`undefined`) confirms nothing, or a network error would stop the wait before a late workflow shows.
+ */
+export const settled = (runs: CiRun[], again: CiRun[] | undefined): boolean =>
+    again !== undefined && again.length === runs.length && verdict(again) === verdict(runs);
+
 export const failedRuns = (runs: CiRun[]): CiRun[] =>
     runs.filter(run => run.status === 'completed' && !PASSING.has(run.conclusion));
 

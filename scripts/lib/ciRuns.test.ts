@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { type CiRun, cleanLogLine, failedJobLogs, failedRuns, latestCiRuns, parseRuns, parseTimeoutMinutes, runLine, verdict } from './ciRuns';
+import { type CiRun, cleanLogLine, failedJobLogs, failedRuns, latestCiRuns, parseRuns, parseTimeoutMinutes, runLine, settled, verdict } from './ciRuns';
 
 const SHA = 'abc123';
 
@@ -70,6 +70,20 @@ describe('verdict', () => {
         expect(verdict([run({}), run({ id: 2, workflow: 'CI: site', conclusion: 'failure' })])).toBe('failed');
         expect(verdict([run({ conclusion: 'cancelled' })])).toBe('failed');
         expect(failedRuns([run({}), run({ id: 2, conclusion: 'timed_out' })]).map(r => r.id)).toEqual([2]);
+    });
+});
+
+describe('settled', () => {
+    const runs = [run({}), run({ id: 2, workflow: 'CI: site' })];
+    it('is not settled when the second look failed', () => {
+        expect(settled(runs, undefined)).toBe(false);
+    });
+    it('is settled by the same runs with the same verdict', () => {
+        expect(settled(runs, [run({}), run({ id: 2, workflow: 'CI: site' })])).toBe(true);
+    });
+    it('is not settled when a run appeared late or the verdict moved', () => {
+        expect(settled(runs, [...runs, run({ id: 3, workflow: 'CI: layout', status: 'in_progress', conclusion: '' })])).toBe(false);
+        expect(settled(runs, [run({}), run({ id: 2, workflow: 'CI: site', conclusion: 'failure' })])).toBe(false);
     });
 });
 
