@@ -5,6 +5,8 @@
  * - no page scrolls sideways;
  * - no text below the 12px floor (furigana, in `rt`, and SVG chart labels excepted);
  * - every text input is at least 16px, or iOS zooms into it on focus;
+ * - the header search's grouped results (Words, Kanji, Grammar) in each app, with the panel open,
+ *   hold the same rules, the dictionary's options 44px tall;
  * - the dictionary's nav links, pager links, toggles, tiles, disclosure summaries and single links
  *   in a row (a kanji's book position, a range step's glyph) are at least 44px tall;
  * - a kanji's course step (`.kanji-courses dd`) is 44px tall even when it is not a link;
@@ -2049,6 +2051,54 @@ async function checkSearchAcrossDetailWidth(tab: Tab, base: string): Promise<voi
     await tab.resize(DESKTOP.width, DESKTOP.height);
 }
 
+/**
+ * The header search's grouped results (#264): a query finding words, kanji and grammar points
+ * (から: words starting with it, the kanji 空 by its kun reading, the point から) shows its three
+ * groups, measured like a page (no sideways scroll, the 12px floor, the 16px field) with the panel
+ * open. In the dictionary each option is a 44px tap target. Typed as a learner types, through the
+ * field's own value setter, so React's controlled input and the dictionary's script both see it.
+ */
+const SEARCH_QUERY = 'から';
+/** A word page in each locale: Chinese's index carries the kanji and points too, linked at English's pages. */
+const HEADER_SEARCH_PAGES = [`/vocab/${SOURCE_CREDIT_WORD}/`, ...(DICTIONARY_PAGES.some(page => page.path.startsWith('/zh-hans/')) ? [`/zh-hans/vocab/${SOURCE_CREDIT_WORD}/`] : [])];
+const TYPE_SEARCH = (field: string) => `(() => {
+    const input = document.querySelector(${JSON.stringify(field)});
+    if (!input) return false;
+    input.focus();
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, ${JSON.stringify(SEARCH_QUERY)});
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    return true;
+})()`;
+const SEARCH_GROUPS = (listbox: string) => `[...document.querySelectorAll('${listbox} [role="group"]')].filter(el => el.getBoundingClientRect().height > 0).length`;
+async function checkHeaderSearch(tab: Tab, page: string, width: number, site: 'srs' | 'dictionary'): Promise<void> {
+    const where = `${width}px ${page}, searching ${SEARCH_QUERY}`;
+    if (site === 'srs') {
+        // On a phone the header shows the search as an icon, which opens the field over the header.
+        await tab.evaluate<void>(`document.querySelector('button[aria-label="Search words, kanji and grammar"]')?.click()`);
+        await tab.until(`document.querySelector('input[role="combobox"]') !== null`, `the search field on ${page}`, 5000);
+    }
+    const field = site === 'srs' ? 'input[role="combobox"]' : '[data-search-input]';
+    const listbox = site === 'srs' ? '#header-search-results' : '[data-search-results]';
+    if (site === 'dictionary') {
+        // The index loads on first focus; the query is typed once it has.
+        await tab.evaluate<void>(`document.querySelector('[data-search-input]')?.focus()`);
+        await tab.until(`document.querySelector('[data-search-message]')?.textContent === ''`, `the search index on ${page}`, 20000);
+    }
+    if (!await tab.evaluate<boolean>(TYPE_SEARCH(field))) {
+        failures.push(`${where}: no search field`);
+        return;
+    }
+    try {
+        await tab.until(`${SEARCH_GROUPS(listbox)} === 3`, `three result groups on ${page}`, 20000);
+    } catch {
+        failures.push(`${where}: the results do not show Words, Kanji and Grammar (${await tab.evaluate<number>(SEARCH_GROUPS(listbox))} groups)`);
+        return;
+    }
+    await measure(tab, `${page}, searching ${SEARCH_QUERY}`, width, site === 'dictionary' ? '.search-option' : '');
+    const outside = await tab.evaluate<number>(`[...document.querySelectorAll('${listbox} [role="option"]')].filter(el => { const r = el.getBoundingClientRect(); return r.height > 0 && (r.left < -1 || r.right > ${width} + 1); }).length`);
+    if (outside > 0) failures.push(`${where}: ${outside} result rows reach past the screen's edge`);
+}
+
 /** The dictionary's play buttons (pages/PlayButton.svelte), shown once the player's pre-paint class is set. */
 const DICTIONARY_PLAY_BUTTONS = 'button.play';
 /**
@@ -2498,9 +2548,15 @@ try {
         await checkSynonymsLink(tab, app, width);
         await checkDetailTabPages(tab, app, width);
         await checkGrammarDueOnce(tab, app, width);
+        await tab.goto(`${app}/vocab`, 'Vocabulary');
+        await checkHeaderSearch(tab, 'srs /vocab', width, 'srs');
         // The removed Mix-ups page's path lands on Vocabulary.
         await tab.goto(`${app}/vocab/mixups`, 'Vocabulary');
         await tab.until(`location.pathname.endsWith('/vocab')`, '/vocab/mixups redirecting to /vocab');
+        for (const path of HEADER_SEARCH_PAGES) {
+            await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${path}`, 'JLPT');
+            await checkHeaderSearch(tab, `dictionary ${path}`, width, 'dictionary');
+        }
         for (const page of DICTIONARY_PAGES) {
             await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${page.path}`, page.ready);
             await measure(tab, `dictionary ${page.path}`, width, DICTIONARY_TAP_TARGETS);
