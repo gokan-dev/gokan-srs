@@ -171,6 +171,15 @@ jobs:
     needs: review
     if: ${{ !cancelled() && needs.review.outputs.reviewed == 'true' }}
     runs-on: ubuntu-latest
+    # One rc family at a time: a release's members build in parallel and share one family
+    # (vX.Y.Z-rc.N), and two PRs against main each take the next minor, so two rounds ending together
+    # would compute the same next tag. The job starts (and so checks out the tags) only once the
+    # round before it has pushed its own. The push below also retries with the next number, for a
+    # tag pushed by hand meanwhile.
+    concurrency:
+      group: rc-tag-${{ startsWith(github.event.pull_request.base.ref, 'release/') && github.event.pull_request.base.ref || 'main' }}
+      cancel-in-progress: false
+      queue: max
     permissions:
       contents: read        # the tag is pushed with AGENT_GITHUB_TOKEN, so that it deploys
       actions: write        # dispatch claude-triage.yml
@@ -265,20 +274,39 @@ jobs:
             exit 0
           fi
 
-          if [ -n "$release_version" ]; then
-            # The next rc in the release's shared family, across every member.
-            highest="$(git tag --list "v$release_version-rc.*" --sort=-v:refname | sed -n 1p)"
-            next="v$release_version-rc.$([ -n "$highest" ] && echo "$(( ${highest##*-rc.} + 1 ))" || echo 1)"
-          elif [ -n "$last" ]; then
-            next="${last%-rc.*}-rc.$(( ${last##*-rc.} + 1 ))"
-          else
-            # A new main PR's first rc is a new minor: v1.30.0-rc.3 is followed by v1.31.0-rc.1.
-            highest="$(git tag --list 'v*.*.*-rc.*' --sort=-v:refname | sed -n 1p)"
-            IFS=. read -r major minor _ <<<"${highest#v}"
-            next="v$major.$((minor + 1)).0-rc.1"
-          fi
+          # The next rc, counted from the highest tag in its family (not from this branch's own
+          # last one), so a tag another PR took meanwhile is stepped over on a retry.
+          next_rc() {
+            local family highest
+            if [ -n "$release_version" ]; then
+              # The release's shared family, across every member.
+              family="v$release_version"
+            elif [ -n "$last" ]; then
+              family="${last%-rc.*}"
+            else
+              # A new main PR's first rc is a new minor: v1.30.0-rc.3 is followed by v1.31.0-rc.1.
+              highest="$(git tag --list 'v*.*.*-rc.*' --sort=-v:refname | sed -n 1p)"
+              IFS=. read -r major minor _ <<<"${highest#v}"
+              echo "v$major.$((minor + 1)).0-rc.1"
+              return
+            fi
+            highest="$(git tag --list "$family-rc.*" --sort=-v:refname | sed -n 1p)"
+            echo "$family-rc.$([ -n "$highest" ] && echo "$(( ${highest##*-rc.} + 1 ))" || echo 1)"
+          }
           [ -n "$AGENT_GITHUB_TOKEN" ] || { echo "::error::AGENT_GITHUB_TOKEN is not set: an rc tag pushed without it would not deploy."; exit 1; }
-          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-            tag -a "$next" -m "Staging round for PR #$PR" "$SHA"
-          git push "https://x-access-token:$AGENT_GITHUB_TOKEN@github.com/$GITHUB_REPOSITORY.git" "refs/tags/$next"
-          echo "Tagged $next on $SHA" >> "$GITHUB_STEP_SUMMARY"
+          remote="https://x-access-token:$AGENT_GITHUB_TOKEN@github.com/$GITHUB_REPOSITORY.git"
+          for attempt in 1 2 3 4 5; do
+            next="$(next_rc)"
+            git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              tag -a "$next" -m "Staging round for PR #$PR" "$SHA"
+            # A tag is never overwritten: a push of a name someone else took is refused.
+            if git push "$remote" "refs/tags/$next"; then
+              echo "Tagged $next on $SHA" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            echo "::warning::$next was taken meanwhile (attempt $attempt): taking the next number."
+            git tag -d "$next" >/dev/null
+            git fetch --force --tags "$remote"
+          done
+          echo "::error::Could not push an rc tag for $SHA after 5 attempts."
+          exit 1
