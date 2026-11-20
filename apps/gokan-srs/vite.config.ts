@@ -10,6 +10,8 @@ import { fileURLToPath } from 'node:url';
 import type { Connect, Plugin } from 'vite';
 import { analyticsScriptTag } from '@gokan/analytics';
 import { publishedDatasetFile } from '@gokan/deploy/published-dataset';
+import { searchGrammarRow, searchKanjiRow, type GrammarBrowseIndex, type Kanji } from '@gokan/dataset-schema';
+import { englishView } from '@gokan/dataset-schema/english';
 import { CHANGELOG } from './release/changelog';
 import { changelogProblems } from './src/utils/changelog.utils';
 import type { LiveVersion } from './src/models/release.model';
@@ -54,6 +56,25 @@ const datasetPlugin: Plugin = {
     name: 'gokan-dataset',
     configureServer: server => { server.middlewares.use(serveDataset); },
     configurePreviewServer: server => { server.middlewares.use(serveDataset); },
+};
+
+// The header search's kanji and grammar rows (src/services/search.service.ts), in the row format
+// the dictionary's index uses (@gokan/dataset-schema's searchRows.ts): written from the dataset
+// checkout as a module of the build, so they ship content-hashed and load only with the first
+// search, about 120 KB gzipped where kanji.json and its English text are 460 KB. Read when the
+// module is first imported, not at startup: most dev sessions and test runs never search.
+const SEARCH_ENTRIES_ID = 'virtual:gokan-search-entries';
+const searchEntriesPlugin: Plugin = {
+    name: 'gokan-search-entries',
+    resolveId: id => (id === SEARCH_ENTRIES_ID ? `\0${SEARCH_ENTRIES_ID}` : null),
+    load(id) {
+        if (id !== `\0${SEARCH_ENTRIES_ID}`) return null;
+        const view = englishView(compiledDir);
+        // The dataset's own build typed each file; the English view gives back the shape the types describe.
+        const kanji = (view.json('kanji.json') as Kanji[]).map(searchKanjiRow);
+        const grammar = (view.json('grammar/index/browse.json') as GrammarBrowseIndex).points.map(searchGrammarRow);
+        return `export const kanji = ${JSON.stringify(kanji)};\nexport const grammar = ${JSON.stringify(grammar)};\n`;
+    },
 };
 
 // index/audio.json names the voice clips are read in, and the dataset writes it only once a clip
@@ -104,6 +125,7 @@ export default defineConfig({
         tailwindcss(),
         releasePlugin,
         datasetPlugin,
+        searchEntriesPlugin,
         {
             name: 'gokan-analytics',
             transformIndexHtml: (html: string) => html.replace('</head>', `${analyticsTag}</head>`),

@@ -63,6 +63,11 @@ export function kanjiPath(glyph: string): string {
     return `/kanji/${glyph}`;
 }
 
+/** A grammar point's page. */
+export function grammarPath(grammarId: string): string {
+    return `/grammar/${grammarId}`;
+}
+
 /** A word's Synonyms tab (a quiz's synonym note, "Compare synonyms", links there). */
 export function synonymsPath(vocabId: string): string {
     return vocabPath(vocabId, 'synonym');

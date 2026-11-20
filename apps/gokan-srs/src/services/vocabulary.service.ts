@@ -2,7 +2,6 @@ import type {
     FrequencyIndex, JlptIndex, KKLCIndex, Kanji, KanjiOrderId, KanjiOrderList, KanjiStepIndex, KanjiVocabIndex, SearchIndex, Sentence, Vocabulary,
 } from '@gokan/dataset-schema';
 import { kanjiStepIndex } from '@gokan/dataset-schema';
-import { rankVocabSearch } from '../utils/vocabSearch.utils';
 import { fetchDatasetFile, fetchOptionalDatasetFile, RequestCache, sharedRequest } from './http';
 
 /**
@@ -126,11 +125,6 @@ export class VocabularyService {
             console.error("Failed to load search index", e);
             return null;
         }
-    }
-
-    static async searchVocab(query: string): Promise<SearchIndex> {
-        const index = await this.loadSearchIndex();
-        return index ? rankVocabSearch(index, query) : [];
     }
 
     /** One kanji from its own file (about 1 KB, where kanji.json is every kanji); null when the dataset has no such kanji. */
