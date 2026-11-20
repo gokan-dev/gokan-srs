@@ -94,7 +94,10 @@ summary ("Largest tool results"), which is where a whole read shows.
   `.github/actions/resume-issue`, bounded by progress and escalating with `needs-attention` when a
   branch stops advancing. `pause-automation` on an issue opts it out. Nothing reacts through
   `workflow_run` to a workflow we dispatch: GitHub creates no such event for a run started with
-  `GITHUB_TOKEN`, which every dispatch uses (enforced: `workflow-run-of-dispatched`). The
+  `GITHUB_TOKEN`, which every dispatch uses (enforced: `workflow-run-of-dispatched`). A
+  `workflow_run` listener watches only existing workflow names, each running on an event it
+  accepts (for fix-ci, `BRANCH_CI_EVENTS`), so renaming a CI workflow or changing its triggers is
+  checked against them (enforced: `workflow-run-listener`). The
   review-side agents (review, staging review, triage, address-feedback, fix-ci, the release
   pre-flight, on-demand) are not dispatched per issue, so `claude-retry.yml` re-runs any of their
   runs that failed recently (a usage limit, a transient error), capped by attempt count.

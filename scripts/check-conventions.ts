@@ -9,6 +9,8 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { basename, dirname, join, posix } from 'node:path';
+import { BRANCH_CI_EVENTS } from './lib/fixCiGate';
+import { missedEvents, workflowEvents } from './lib/workflowYaml';
 
 interface Violation {
     file: string;
@@ -359,20 +361,12 @@ function pipelineCommandViolations(): Violation[] {
  * A listener also goes silent when what it listens to moves: #271 took `pull_request` off every CI
  * workflow while claude-fix-ci.yml still required `workflow_run.event == 'pull_request'` and watched
  * "Deploy: production", which no longer ran on a PR branch, so CI auto-fix would never have fired
- * again and nothing would have said so. Every watched name is an existing workflow's `name:`, and an
- * event a listener tests for is in the `on:` of every workflow it watches.
+ * again and nothing would have said so. Every watched name is an existing workflow's `name:`, and
+ * every watched workflow runs on at least one event the listener accepts: those its `if:` tests, and
+ * for claude-fix-ci.yml, which tests none since its gate moved into a script, the gate's own list.
  */
 const WORKFLOW_RUN_EVENT_TEST = /workflow_run\.event\s*==\s*['"]([\w-]+)['"]/g;
-const ON_INLINE = /^on:[ \t]*(\S.*?)\s*$/m;
-const ON_BLOCK = /^on:[ \t]*\n((?:(?:[ \t]+.*|[ \t]*#.*)?\n)*)/m;
-
-/** The events in a workflow's top-level `on:`: a block of keys, a list, or one event. */
-function workflowEvents(text: string): Set<string> {
-    const inline = ON_INLINE.exec(text);
-    if (inline && !inline[1].startsWith('#')) return new Set(inline[1].replace(/^\[|\]$/g, '').split(',').map(e => e.trim()).filter(Boolean));
-    const block = ON_BLOCK.exec(text);
-    return new Set(block ? [...block[1].matchAll(/^ {2}([\w-]+):/gm)].map(m => m[1]) : []);
-}
+const LISTENER_EVENTS: Record<string, readonly string[]> = { 'claude-fix-ci.yml': BRANCH_CI_EVENTS };
 
 /**
  * Each `workflow_run` listener, each where it listens: a watched workflow some step here dispatches
@@ -396,16 +390,16 @@ function dispatchedWorkflowRunViolations(): Violation[] {
             ? listen[1].slice(1, -1).split(',')
             : listen[1].split('\n').filter(l => l.trim()).map(l => l.replace(/^\s*-\s*/, '').replace(/\s+#.*$/, '')))
             .map(n => n.trim().replace(/^(["'])(.*)\1$/, '$2'));
-        const tested = new Set([...text.matchAll(WORKFLOW_RUN_EVENT_TEST)].map(m => m[1]));
+        const accepted = new Set([...(LISTENER_EVENTS[basename(file)] ?? []), ...[...text.matchAll(WORKFLOW_RUN_EVENT_TEST)].map(m => m[1])]);
         for (const name of names) {
             const target = byName.get(name);
             if (target === undefined) {
                 violations.push({ file, line, rule: 'workflow-run-listener', message: `Listens to \`workflow_run\` of "${name}", but no workflow in .github/workflows has that \`name:\`, so this never fires for it. Watch an existing workflow's exact name (${[...byName.keys()].filter(n => n.startsWith('CI:')).join(', ')}...).` });
                 continue;
             }
-            for (const event of tested) {
-                if (target.events.has(event)) continue;
-                violations.push({ file, line, rule: 'workflow-run-listener', message: `Tests \`workflow_run.event == '${event}'\`, but "${name}" (${target.file}) never runs on \`${event}\` (its \`on:\` has ${[...target.events].join(', ') || 'nothing'}), so this never fires for it. Test an event it runs on, or stop watching it.` });
+            const missed = missedEvents(accepted, target.events);
+            if (missed !== null) {
+                violations.push({ file, line, rule: 'workflow-run-listener', message: `Watches "${name}" (${target.file}), which ${missed}, so this never fires for it. Run it on an event the listener accepts, or stop watching it.` });
             }
             if (!dispatched.has(target.file)) continue;
             violations.push({

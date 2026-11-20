@@ -105,7 +105,9 @@ jobs:
         run: |
           set -euo pipefail
           # Two open PRs from one branch leave the base a guess: refused, naming them, never picked.
-          prs="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number,baseRefName --jq '.[] | "\(.number) \(.baseRefName)"')"
+          # --head matches the branch name only, so a fork's PR from a branch of the same name is
+          # left out: this run is for the branch of this repository.
+          prs="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number,baseRefName,isCrossRepository --jq '.[] | select(.isCrossRepository | not) | "\(.number) \(.baseRefName)"')"
           count="$(printf '%s' "$prs" | grep -c . || true)"
           if [ "$count" -gt 1 ]; then
             echo "::error::$BRANCH has $count open PRs ($(printf '%s' "$prs" | awk '{printf "%s#%s into %s", (NR>1?", ":""), $1, $2}')): close all but one, so check:parity knows which base to compare with."
