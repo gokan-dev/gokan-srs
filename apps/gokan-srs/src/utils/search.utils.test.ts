@@ -6,7 +6,7 @@ import { matchesVocabQuery, prepareAppSearch, searchApp } from './search.utils';
 
 /** The words the header search shows for `query`, as it ranked them before kanji and grammar were searched. */
 const rankVocabSearch = (index: SearchIndex, query: string, limit = 50) =>
-    searchApp(prepareAppSearch(index), query, { words: limit, kanji: 0, grammar: 0 }).words.map(hit => hit.row);
+    searchApp(prepareAppSearch(index), query, { words: limit, wordsBeforeOthers: limit, kanji: 0, grammar: 0 }).words.map(hit => hit.row);
 
 // In search.json's order (kanji spelling): compounds containing する come before 為る.
 const index = [
@@ -156,6 +156,22 @@ describe('the header search over kanji and grammar', () => {
     });
 
     it('caps each group', () => {
-        expect(searchApp(index, 'すい', { words: 1, kanji: 1, grammar: 1 }).kanji).toEqual([kanji[0]]);
+        expect(searchApp(index, 'すい', { words: 1, wordsBeforeOthers: 1, kanji: 1, grammar: 1 }).kanji).toEqual([kanji[0]]);
+    });
+
+    it('shows fewer words when kanji or grammar follow them, all of them when nothing does', () => {
+        const waters = prepareAppSearch(
+            [searchIndexEntry({ id: 'mizu', w: '水', r: 'みず', m: 'water' }), searchIndexEntry({ id: 'oyu', w: '湯', r: 'ゆ', m: 'hot water' })],
+            kanji,
+        );
+        const limits = { words: 2, wordsBeforeOthers: 1, kanji: 5, grammar: 5 };
+        const shown = (query: string, at = limits) => searchApp(waters, query, at).words.map(hit => hit.row.id);
+        // water: words first, the kanji 水 below them.
+        expect(shown('water')).toEqual(['mizu']);
+        // 水: the kanji come first, so the words are last and keep their full cap.
+        expect(shown('水')).toEqual(['mizu']);
+        expect(searchApp(waters, '水', limits).groups[0]).toBe('kanji');
+        // With no kanji shown, nothing follows the words.
+        expect(shown('water', { ...limits, kanji: 0 })).toEqual(['mizu', 'oyu']);
     });
 });

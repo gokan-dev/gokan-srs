@@ -1,12 +1,21 @@
 import type { PreparedSearch, SearchGrammarRow, SearchIndex, SearchIndexEntry, SearchKanjiRow, SearchQuery, SearchResults, SearchWordInput, Vocabulary } from '@gokan/dataset-schema';
 import { grammarRowInput, kanjiRowInput, matchesSearchWord, prepareSearch, runSearch } from '@gokan/dataset-schema';
 
+/** How many hits of each group the header search shows, at most. */
+export interface SearchLimits {
+    /** Words when no other group follows them. */
+    words: number;
+    /** Words when kanji or grammar are shown below them: a phone's panel has no height cap, so past 8 rows it never reached them (the dictionary panel's cap). */
+    wordsBeforeOthers: number;
+    kanji: number;
+    grammar: number;
+}
+
 /**
- * How many hits of each group the header search shows. Words were 50 when they were all it showed;
- * after 50 rows a phone never reached the kanji and grammar below them, so 20, and a few of each of
- * the others (a kanji's reading matches dozens: すい is 20 kanji).
+ * Words were 50 when they were all it showed; 20 when they are alone, 8 above another group, and a
+ * few of each of the others (a kanji's reading matches dozens: すい is 20 kanji).
  */
-export const SEARCH_LIMITS = { words: 20, kanji: 5, grammar: 5 } as const;
+export const SEARCH_LIMITS: SearchLimits = { words: 20, wordsBeforeOthers: 8, kanji: 5, grammar: 5 };
 
 export type AppSearchIndex = PreparedSearch<SearchIndexEntry, SearchKanjiRow, SearchGrammarRow>;
 export type AppSearchResults = SearchResults<SearchIndexEntry, SearchKanjiRow, SearchGrammarRow>;
@@ -27,13 +36,19 @@ export function prepareAppSearch(words: SearchIndex, kanji: readonly SearchKanji
 }
 
 /** The header search's hits for `query`, each group best first and capped at `limits`, with the order to show the groups in. */
-export function searchApp(index: AppSearchIndex, query: string, limits: { words: number; kanji: number; grammar: number } = SEARCH_LIMITS): AppSearchResults {
+export function searchApp(index: AppSearchIndex, query: string, limits: SearchLimits = SEARCH_LIMITS): AppSearchResults {
     const results = runSearch(index, query);
+    const kanji = results.kanji.slice(0, limits.kanji);
+    const grammar = results.grammar.slice(0, limits.grammar);
+    const shown = { kanji: kanji.length, grammar: grammar.length };
+    const othersFollow = results.groups
+        .slice(results.groups.indexOf('words') + 1)
+        .some(group => group !== 'words' && shown[group] > 0);
     return {
         ...results,
-        words: results.words.slice(0, limits.words),
-        kanji: results.kanji.slice(0, limits.kanji),
-        grammar: results.grammar.slice(0, limits.grammar),
+        words: results.words.slice(0, othersFollow ? limits.wordsBeforeOthers : limits.words),
+        kanji,
+        grammar,
     };
 }
 
