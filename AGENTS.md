@@ -127,15 +127,32 @@ summary ("Largest tool results"), which is where a whole read shows.
   change could silently undo.
 - Line endings are LF everywhere (`.gitattributes`).
 - Dataset changes belong in the `gokan-dataset` repo: commit and push inside the submodule
-  first, then commit the new pointer here.
-- **Never run the dataset's full `bun run build` by reflex.** It deletes and rewrites about
-  160k small files (`build/assembled/`, then all of `compiled/`) and runs every stage, grammar
-  mining included: over 30 minutes on a Windows machine. Run the narrowest stage that covers the
-  change (a vocab field: its own step, then `build:layout`; a schema type: `build:schemas` and
-  `check:schemas`), and leave the apps' builds and full test runs to this repo's CI on a pushed
-  branch (gokan-dataset has no CI yet, so its compiled output is still built by hand, narrowly).
-  A full build is for a change that touches every stage, and says so before it starts. Not mechanised (a hook cannot
-  tell which stages a change needs); a reviewer checks that a dataset PR names the stages it ran.
+  first, then, once its CI has committed `compiled/`, commit the new pointer here (at the bot's
+  commit, below).
+- **Never build the dataset locally: its CI does.** Push the change (sources, scripts, types,
+  `data/audio/` (the clips and `clips.json`)) to a gokan-dataset branch. Its Build workflow builds incrementally
+  (each stage is skipped while its inputs are unchanged), runs the tests, and commits `compiled/`
+  and the generated docs back to the branch as a bot commit (`github-actions[bot]`, "Build
+  compiled/ from <sha>"). On main it also checks that a full rebuild from the raw sources is
+  byte-identical. Wait for the Build run of the commit you pushed (keyed to its sha, not the
+  newest run on the branch, which right after a push is often the previous push's), pull the bot
+  commit "Build compiled/ from <your pushed sha>" before pushing again, and point this repo's
+  submodule only at it (or, when the run for that same sha passed and made no commit, since
+  nothing in `compiled/` changed, at the pushed commit itself). A local build reads about 400 MB of LFS sources and rewrites about 160k files in
+  `build/`: over an hour on a Windows machine. What stays local writes inputs, never
+  `compiled/`: fetching sources (`fetch:media`, `fetch:covers`) and making audio clips
+  (`build:audio`, which needs the engine; CI attaches them). The dataset's `check:schemas` reads
+  only the committed `compiled/` and still runs locally (its `check:layout` compares against
+  `build/`, so it runs in its CI). A pointer is valid when a Build run that passed exists for the
+  pointer's sha and made no commit (no bot commit "Build compiled/ from <that sha>" exists in the
+  dataset repo), or the pointer is a bot commit "Build compiled/ from <sha>" whose named sha has
+  a passing Build run (the bot pushes with `GITHUB_TOKEN`, so its own commit starts no Build run:
+  that is why the bot-commit case checks the sha it names). Not mechanised yet: a CI step here,
+  when the submodule pointer moves, could check that condition through
+  `gh api repos/gokan-dev/gokan-dataset/commits/<sha>/check-runs`, against the pointer's sha or
+  the sha its bot commit names, and, for a pointer that is not a bot commit, find that no commit
+  names its sha (`git log --all --grep "Build compiled/ from <sha>"` over the dataset's history).
+  Until then a reviewer checks the same condition on a pointer bump.
 
 ## Writing rules
 

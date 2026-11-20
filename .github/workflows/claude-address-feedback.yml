@@ -187,6 +187,20 @@ jobs:
             echo "::warning::gokan-dataset refused AGENT_GITHUB_TOKEN for a push: the agent cannot push dataset changes."
           fi
 
+      # The prompt has the agent wait for gokan-dataset's Build run (`gh run list`, `gh run watch`)
+      # before it points the submodule at the bot's commit. gokan-dataset is public, so any token
+      # reads its runs; the agent's own App token is minted inside the action, so this asks with the
+      # job's token, which reads a public repo the same way. A refusal (the repo made private, a
+      # rate limit) shows in the run summary instead of as an agent that cannot tell "passed, no
+      # commit" from "still running".
+      - name: Check the dataset's Build runs are readable
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh run list --repo gokan-dev/gokan-dataset -L1 > /dev/null; then
+            echo "::warning::gokan-dataset's Actions runs are not readable: the agent cannot wait for a dataset Build run."
+          fi
+
       - name: Run Claude
         id: claude
         uses: anthropics/claude-code-action@v1
@@ -224,14 +238,28 @@ jobs:
             so it works on any branch) waits for CI on your head commit and prints what failed: fix
             it and push again until it passes. Never finish on a head CI has not passed.
 
-            Never end the session while a command you started is still running: a
-            dataset rebuild takes minutes, so run it in the foreground with a long
-            timeout, or start it in the background and poll it until it exits. When the
-            session ends, the runner and everything not pushed are gone. Commit each
-            change as it is done. A dataset change is committed and pushed in the
-            submodule first (its branch on gokan-dataset, named like this one), and only
-            then is the new pointer committed here: never point at a dataset commit that
-            is not on the remote.
+            Never end the session while a command you started is still running: run it in
+            the foreground with a long timeout, or start it in the background and poll it
+            until it exits. When the session ends, the runner and everything not pushed are
+            gone. Commit each change as it is done.
+
+            Never build the dataset here: its own CI does. A dataset change (sources,
+            scripts, types) is committed and pushed in the submodule first, to its branch on
+            gokan-dataset (named like this one). That push starts the dataset's Build
+            workflow, which builds it, runs its tests and commits `compiled/` back to the
+            branch as a bot commit, "Build compiled/ from <sha>". Wait for the run of the
+            commit you pushed, found by its sha (`gh run list --repo gokan-dev/gokan-dataset
+            --workflow Build --commit <full pushed sha>`: a short sha matches nothing, asked again until it appears, then `gh
+            run watch <id> --repo gokan-dev/gokan-dataset --exit-status`), never the newest
+            run on the branch, which right after a push is often the previous push's. Then
+            pull the branch inside the submodule and commit the pointer here, at the bot
+            commit "Build compiled/ from <your pushed sha>" (at your own pushed commit only
+            when that same run passed and made no commit, since nothing in `compiled/`
+            changed). Only the run of your last pushed sha counts: a run of an earlier sha
+            is never waited on or fixed, whatever it ends in (`cancelled`, or a failed push
+            of its bot commit). A failed Build run of your last sha is fixed and pushed
+            again, like a red CI. Never point at a dataset commit that is
+            not on the remote, nor at one whose `compiled/` the dataset's CI did not build.
 
             Before you finish, sync with the PR's base branch `${{ needs.branch.outputs.base }}` so the
             branch is deployable against the current state of the repo: `git fetch origin
@@ -243,9 +271,11 @@ jobs:
             origin main && git -C apps/gokan-srs/dataset log HEAD..origin/main --oneline`.
             If that shows anything relevant to this PR's changes, bring it in. When this
             PR has its own dataset branch (the pointer holds commits that are not on the
-            dataset's `main`), merge `origin/main` into that branch inside the submodule,
-            push it, and commit the new pointer: checking out `origin/main` would drop
-            this PR's dataset commits. Otherwise bump the pointer (`git -C
+            dataset's `main`), merge `origin/main` into that branch inside the submodule
+            (a conflict in `compiled/` can take either side: the dataset's CI rewrites
+            it), push it, wait for its Build run and point at its bot commit as above:
+            checking out `origin/main` would drop this PR's dataset commits. Otherwise
+            bump the pointer (`git -C
             apps/gokan-srs/dataset checkout origin/main && git add
             apps/gokan-srs/dataset`) and commit it. After any merge/bump, push and run the CI
             wait again.
