@@ -88,9 +88,9 @@ function groupedOptions(results: AppSearchResults): { group: SearchGroup; option
             path: grammarPath(row[0]),
             main: (
                 <>
-                    {/* A title is the pattern itself: it wraps rather than lose its end in a narrow panel. */}
-                    <span className="font-mincho text-primary text-lg min-w-0 break-words">{row[1]}</span>
-                    {row[2] && <span className="type-meta truncate">{row[2]}</span>}
+                    {/* A title is the pattern itself: it keeps its width and the romaji beside it truncates first; it wraps only when it is wider than the whole row. */}
+                    <span className="font-mincho text-primary text-lg shrink-0 max-w-full break-words">{row[1]}</span>
+                    {row[2] && <span className="type-meta min-w-0 truncate">{row[2]}</span>}
                 </>
             ),
             support: row[3],

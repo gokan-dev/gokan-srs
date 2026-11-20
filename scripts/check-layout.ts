@@ -2061,11 +2061,11 @@ async function checkSearchAcrossDetailWidth(tab: Tab, base: string): Promise<voi
 const SEARCH_QUERY = 'から';
 /** A word page in each locale: Chinese's index carries the kanji and points too, linked at English's pages. */
 const HEADER_SEARCH_PAGES = [`/vocab/${SOURCE_CREDIT_WORD}/`, ...(DICTIONARY_PAGES.some(page => page.path.startsWith('/zh-hans/')) ? [`/zh-hans/vocab/${SOURCE_CREDIT_WORD}/`] : [])];
-const TYPE_SEARCH = (field: string) => `(() => {
+const TYPE_SEARCH = (field: string, query = SEARCH_QUERY) => `(() => {
     const input = document.querySelector(${JSON.stringify(field)});
     if (!input) return false;
     input.focus();
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, ${JSON.stringify(SEARCH_QUERY)});
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, ${JSON.stringify(query)});
     input.dispatchEvent(new Event('input', { bubbles: true }));
     return true;
 })()`;
@@ -2098,6 +2098,53 @@ async function checkHeaderSearch(tab: Tab, page: string, width: number, site: 's
     const outside = await tab.evaluate<number>(`[...document.querySelectorAll('${listbox} [role="option"]')].filter(el => { const r = el.getBoundingClientRect(); return r.height > 0 && (r.left < -1 || r.right > ${width} + 1); }).length`);
     if (outside > 0) failures.push(`${where}: ${outside} result rows reach past the screen's edge`);
     if (site === 'dictionary' && page.includes('/zh-hans/')) await checkSearchOptionLang(tab, where, listbox);
+}
+
+/**
+ * The app's grammar options (#264): a title is the row's content, so it keeps its width and the
+ * romaji beside it truncates first; it wraps only when it is wider than the whole row. It once
+ * shrank first and broke inside the pattern (〜から〜にかけ / て, Noun から / Noun まで) while its
+ * romaji kept its width. A title whose natural width fits its line must render on one line.
+ */
+const GRAMMAR_TITLE_QUERIES = [SEARCH_QUERY, 'te kara'];
+const GRAMMAR_TITLES = `[...document.querySelectorAll('#header-search-results [aria-labelledby="header-search-group-grammar"] [role="option"] > div:first-child > div:first-child > span:first-child')]`;
+async function checkGrammarTitlesOneLine(tab: Tab, page: string, width: number): Promise<void> {
+    await tab.evaluate<void>(`document.querySelector('button[aria-label="Search words, kanji and grammar"]')?.click()`);
+    await tab.until(`document.querySelector('input[role="combobox"]') !== null`, `the search field on ${page}`, 5000);
+    let previous = '';
+    for (const query of GRAMMAR_TITLE_QUERIES) {
+        const where = `${width}px ${page}, searching ${query}`;
+        if (!await tab.evaluate<boolean>(TYPE_SEARCH('input[role="combobox"]', query))) {
+            failures.push(`${where}: no search field`);
+            return;
+        }
+        try {
+            await tab.until(`${GRAMMAR_TITLES}.some(el => el.getBoundingClientRect().height > 0)`, `grammar results on ${page}`, 20000);
+        } catch {
+            failures.push(`${where}: no grammar results to measure`);
+            continue;
+        }
+        // The previous query's rows stay shown until the new search lands (keepPrevious).
+        try {
+            await tab.until(`${GRAMMAR_TITLES}.map(el => el.textContent).join('|') !== ${JSON.stringify(previous)}`, `new grammar results on ${page}`, 3000);
+        } catch {
+            // The same titles for both queries, or already shown: measure what is there.
+        }
+        previous = await tab.evaluate<string>(`${GRAMMAR_TITLES}.map(el => el.textContent).join('|')`);
+        const wrapped = await tab.evaluate<string[]>(`${GRAMMAR_TITLES}.filter(title => {
+            const style = getComputedStyle(title);
+            const probe = document.createElement('span');
+            probe.textContent = title.textContent;
+            probe.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap';
+            probe.style.font = style.font;
+            document.body.appendChild(probe);
+            const natural = probe.getBoundingClientRect().width;
+            probe.remove();
+            const line = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.6;
+            return natural <= title.parentElement.clientWidth && title.getBoundingClientRect().height > line * 1.5;
+        }).map(title => title.textContent)`);
+        if (wrapped.length > 0) failures.push(`${where}: a grammar title that fits its row wraps (its romaji should truncate first): ${wrapped.slice(0, 3).join(' | ')}`);
+    }
 }
 
 /**
@@ -2399,6 +2446,8 @@ try {
     // A studied word's header at 1280px, where the narrow page leaves the header its one column.
     await desktop.click('Start learning');
     await checkIntroDesktop(desktop, `http://127.0.0.1:${srs.port}`);
+    await desktop.goto(`http://127.0.0.1:${srs.port}/vocab`, 'Vocabulary');
+    await checkGrammarTitlesOneLine(desktop, 'srs /vocab', DESKTOP.width);
     for (const path of DICTIONARY_LIST_PAGES) {
         await desktop.goto(`http://127.0.0.1:${dictionary.port}/dictionary${path}`, 'N5');
         await checkEntryGlossColumn(desktop, `dictionary ${path}`, DESKTOP.width, false);
@@ -2596,6 +2645,7 @@ try {
         await checkGrammarDueOnce(tab, app, width);
         await tab.goto(`${app}/vocab`, 'Vocabulary');
         await checkHeaderSearch(tab, 'srs /vocab', width, 'srs');
+        await checkGrammarTitlesOneLine(tab, 'srs /vocab', width);
         // The removed Mix-ups page's path lands on Vocabulary.
         await tab.goto(`${app}/vocab/mixups`, 'Vocabulary');
         await tab.until(`location.pathname.endsWith('/vocab')`, '/vocab/mixups redirecting to /vocab');
