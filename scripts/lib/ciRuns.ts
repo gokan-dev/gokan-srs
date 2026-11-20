@@ -47,15 +47,20 @@ export function parseRuns(json: unknown): CiRun[] {
     });
 }
 
-/** The latest run of each verification workflow on `sha`: a re-run or a later attempt replaces an earlier one. */
+/**
+ * The latest run of each verification workflow and event on `sha`: a re-run or a later attempt replaces an
+ * earlier one. Keyed by event too, because an open PR's commit has a `push` run and a `pull_request` run of
+ * each workflow (the second tests the merge with the base), and one passing must not hide the other failing.
+ */
 export function latestCiRuns(runs: CiRun[], sha: string): CiRun[] {
     const latest = new Map<string, CiRun>();
     for (const run of runs) {
         if (run.headSha !== sha || !isVerification(run)) continue;
-        const seen = latest.get(run.workflow);
-        if (!seen || run.id > seen.id) latest.set(run.workflow, run);
+        const key = `${run.workflow}\0${run.event}`;
+        const seen = latest.get(key);
+        if (!seen || run.id > seen.id) latest.set(key, run);
     }
-    return [...latest.values()].sort((a, b) => a.workflow.localeCompare(b.workflow));
+    return [...latest.values()].sort((a, b) => a.workflow.localeCompare(b.workflow) || a.event.localeCompare(b.event));
 }
 
 /** Pending while any run is unfinished or none has started; passed only when every run passed. */
@@ -78,6 +83,33 @@ export function cleanLogLine(line: string): string {
     return text.replace(TIMESTAMP, '').replace(ANSI, '');
 }
 
-/** "CI: checks: success" or "CI: site: in_progress", one per run. */
+/** "CI: checks (push): success" or "CI: site (pull_request): in_progress", one per run. */
 export const runLine = (run: CiRun): string =>
-    `${run.workflow}: ${run.status === 'completed' ? run.conclusion : run.status}`;
+    `${run.workflow} (${run.event}): ${run.status === 'completed' ? run.conclusion : run.status}`;
+
+/** `--timeout`'s minutes, or undefined when it is not a finite number above 0 (`Number('1h')` is NaN: no deadline). */
+export function parseTimeoutMinutes(value: string): number | undefined {
+    const minutes = Number(value);
+    return value.trim() !== '' && Number.isFinite(minutes) && minutes > 0 ? minutes : undefined;
+}
+
+export interface JobLog {
+    job: string;
+    lines: string[];
+}
+
+/**
+ * `gh run view --log-failed` output split by job (its first tab-separated field), each cut to its last
+ * `tail` lines, cleaned: the combined log's tail alone would show only the last failed job.
+ */
+export function failedJobLogs(log: string, tail: number): JobLog[] {
+    const jobs = new Map<string, string[]>();
+    for (const line of log.trimEnd().split('\n')) {
+        if (line === '') continue;
+        const job = line.includes('\t') ? line.slice(0, line.indexOf('\t')) : '';
+        const lines = jobs.get(job) ?? [];
+        lines.push(line);
+        jobs.set(job, lines);
+    }
+    return [...jobs].map(([job, lines]) => ({ job, lines: lines.slice(-tail).map(cleanLogLine) }));
+}
