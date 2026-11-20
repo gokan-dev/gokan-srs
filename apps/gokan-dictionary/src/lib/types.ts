@@ -5,7 +5,7 @@
 
 import type {
     AudioIndex, FrequencyIndex, GrammarConjugationIndex, GrammarContrastIndex, GrammarExample, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex,
-    JlptIndex, Kanji, KanjiOrderId, KanjiOrderList, KanjiVocabIndex, Sentence, Vocabulary,
+    JlptIndex, Kanji, KanjiOrderId, KanjiOrderList, KanjiVocabIndex, SearchGrammarRow, Sentence, Vocabulary,
 } from '@gokan/dataset-schema';
 import type { Definition, SourceRef, Translation } from '@gokan/dataset-schema/text';
 import type { DatasetLanguage, ServedLocale } from './locale';
@@ -78,11 +78,8 @@ export interface GrammarSummary {
  */
 export type SearchWordRow = [id: string, headword: string, secondary: string, gloss: string, jlpt: number, flags: number];
 
-/** One kanji: the character, JLPT level (0 for none) and frequency rank (0 for none). */
-export type SearchKanjiRow = [character: string, jlpt: number, frequency: number];
-
-/** One grammar point, in teaching order: id, title, romaji ('' for none), short explanation, JLPT level. */
-export type SearchGrammarRow = [id: string, title: string, romaji: string, explanation: string, jlpt: number];
+// A kanji's and a grammar point's rows are the shared format gokan-srs's search reads too.
+export type { SearchGrammarRow, SearchKanjiRow } from '@gokan/dataset-schema';
 
 /**
  * The words of an index file, one array per field (id, headword, secondary form, gloss, JLPT
@@ -92,6 +89,13 @@ export type SearchGrammarRow = [id: string, title: string, romaji: string, expla
 export type SearchWordColumns = [ids: string[], headwords: string[], secondary: string[], glosses: string[], jlpt: number[], flags: number[]];
 
 /**
+ * The kanji of an index file (SearchKanjiRow, the shared row), one array per field like the words:
+ * by column the core file is 12 KB smaller gzipped than by row, which keeps it in its budget with
+ * every kanji's meanings and readings (#264).
+ */
+export type SearchKanjiColumns = [characters: string[], jlpt: number[], frequency: number[], meanings: string[], readings: string[]];
+
+/**
  * A search index file. `search-core.json` carries every JLPT word, the most frequent words, every
  * kanji and every grammar point; `search-full.json` only the remaining words. Read after the core,
  * the full file's rows rank after it, which is their place anyway: each is rarer than every
@@ -99,7 +103,7 @@ export type SearchWordColumns = [ids: string[], headwords: string[], secondary: 
  */
 export interface SearchIndexFile {
     w: SearchWordColumns;
-    k?: SearchKanjiRow[];
+    k?: SearchKanjiColumns;
     g?: SearchGrammarRow[];
     /**
      * The dataset version the index was built from, written into both files by their routes

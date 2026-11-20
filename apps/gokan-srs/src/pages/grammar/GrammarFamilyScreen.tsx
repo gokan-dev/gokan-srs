@@ -8,6 +8,7 @@ import { useIntroducedGrammarIds } from "../../hooks/useIntroducedGrammarIds";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { Page } from "../../components/Page";
 import { PageHeader } from "../../components/PageHeader";
+import { grammarPath } from "../../utils/navigation.utils";
 
 type FamilyEntry = GrammarContrastIndex[string];
 
@@ -110,7 +111,7 @@ function PointChips({ ids, members, knownIds }: { ids: string[]; members: Map<st
                 return (
                     <Link
                         key={id}
-                        to={`/grammar/${id}`}
+                        to={grammarPath(id)}
                         className="inline-flex items-center gap-2 rounded-md border border-divider px-2 py-1 hover:border-accent transition-colors"
                     >
                         <span className="font-mincho text-primary">{p.title}</span>

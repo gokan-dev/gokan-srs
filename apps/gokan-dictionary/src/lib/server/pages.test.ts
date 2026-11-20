@@ -319,9 +319,10 @@ describe('pagesOf: a locale other than English', () => {
         const { core, full } = await pages.searchIndex();
         expect(core.w[0]).toEqual(['1281390', '1589350']);
         expect(core.w[3]).toEqual(['考虑', wordTextSummary(texts['1589350'])]);
-        // Kanji and grammar have no Chinese page yet: Chinese's index finds words only.
-        expect(core.k).toEqual([]);
-        expect(core.g).toEqual([]);
+        // Kanji and grammar have no Chinese page yet: Chinese's index finds them, in English, linked at their English pages.
+        expect(core.k?.[0]).toEqual(['学']);
+        expect(core.k?.[3]).toEqual([kanji().meanings.join('; ')]);
+        expect(core.g?.map(row => row[0])).toEqual(['n2-169']);
         expect(full.w[0]).toEqual([]);
         // A word without a Chinese page is never in it.
         const fewer = await pagesOf(memorySource({ ...world, chinese: ['1589350'] }).source, 'zh-hans').searchIndex();

@@ -9,6 +9,7 @@ import { GrammarChapterLessonCard } from "./GrammarChapterLessonCard";
 import { useIntroducedGrammarIds } from "../../hooks/useIntroducedGrammarIds";
 import { useNow } from "../../hooks/useNow";
 import { formatMinutes, minutesUntil } from "../../utils/time.utils";
+import { grammarPath } from "../../utils/navigation.utils";
 
 /**
  * Route /grammar - the Grammar activity, alongside the vocab quiz on /quiz.
@@ -99,7 +100,7 @@ export function GrammarScreen({ onVocabClick }: GrammarScreenProps) {
 
             const history: SessionHistoryEntry[] = state.grammarSessionHistory.map((item, index) => ({
                 key: `${item.grammarId}-${index}`,
-                href: `/grammar/${item.grammarId}`,
+                href: grammarPath(item.grammarId),
                 label: item.title,
                 result: item.result,
                 delta: item.delta,

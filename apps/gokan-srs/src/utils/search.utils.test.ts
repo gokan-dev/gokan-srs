@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { readSearchQuery } from '@gokan/dataset-schema';
+import type { SearchGrammarRow, SearchIndex, SearchKanjiRow } from '@gokan/dataset-schema';
 import { searchIndexEntry, vocabulary } from '../test/fixtures';
-import { matchesVocabQuery, rankVocabSearch, readVocabQuery } from './vocabSearch.utils';
+import { matchesVocabQuery, prepareAppSearch, searchApp } from './search.utils';
+
+/** The words the header search shows for `query`, as it ranked them before kanji and grammar were searched. */
+const rankVocabSearch = (index: SearchIndex, query: string, limit = 50) =>
+    searchApp(prepareAppSearch(index), query, { words: limit, wordsBeforeOthers: limit, kanji: 0, grammar: 0 }).words.map(hit => hit.row);
 
 // In search.json's order (kanji spelling): compounds containing する come before 為る.
 const index = [
@@ -40,12 +46,14 @@ describe('rankVocabSearch', () => {
         expect(ids('to ')).toEqual(['kigasuru', 'aisuru', 'kosuru', 'suru-rub', 'suru-print', 'suru']);
     });
 
-    it('puts Japanese matches before gloss matches and caps the list', () => {
+    it('reads a Japanese query against Japanese only, and caps the list', () => {
+        // A Japanese query is not matched against English glosses (the dictionary never did), so
+        // a gloss that happens to quote する no longer follows the words.
         const mixed = [
             searchIndexEntry({ id: 'gloss', w: '話', r: 'はなし', m: 'talk about する' }),
             searchIndexEntry({ id: 'word', w: '気がする', r: 'きがする', m: 'to have a feeling' }),
         ];
-        expect(rankVocabSearch(mixed, 'する').map(entry => entry.id)).toEqual(['word', 'gloss']);
+        expect(rankVocabSearch(mixed, 'する').map(entry => entry.id)).toEqual(['word']);
         expect(rankVocabSearch(index, 'する', 2).map(entry => entry.id)).toEqual(['suru', 'suru-rub']);
     });
 
@@ -113,7 +121,7 @@ describe('matchesVocabQuery', () => {
         senses: [{ pos: ['v1'], misc: { rawTags: [] }, glosses: ['to eat'], related: { compounds: [] } }],
     });
     const matches = (query: string) => {
-        const read = readVocabQuery(query);
+        const read = readSearchQuery(query);
         return read !== null && matchesVocabQuery(taberu, read);
     };
 
@@ -123,5 +131,47 @@ describe('matchesVocabQuery', () => {
 
     it('drops a word the query does not reach', () => {
         expect(['tabo', 'drink', '飲'].map(matches)).toEqual([false, false, false]);
+    });
+});
+
+describe('the header search over kanji and grammar', () => {
+    const words = [searchIndexEntry({ id: 'mizu', w: '水', r: 'みず', m: 'water' }), searchIndexEntry({ id: 'suiyoubi', w: '水曜日', r: 'すいようび', m: 'Wednesday' })];
+    const kanji: SearchKanjiRow[] = [['水', 5, 9201, 'water', 'スイ みず みず-'], ['吹', 3, 1200, 'blow; breathe', 'スイ ふ.く']];
+    const grammar: SearchGrammarRow[] = [['n5-048', 'Verb てから～', '〜te kara', "Express a sequence of actions or events; 'after'.", 5]];
+    const index = prepareAppSearch(words, kanji, grammar);
+
+    it('finds the kanji 水 by its character, meaning and readings', () => {
+        for (const query of ['水', 'water', 'みず', 'すい', 'sui', 'mizu']) expect(searchApp(index, query).kanji[0]?.[0]).toBe('水');
+        expect(searchApp(index, 'mizu').words.map(hit => hit.row.id)).toEqual(['mizu']);
+    });
+
+    it('finds a grammar point by its title, its romaji and its kana', () => {
+        for (const query of ['てから', 'te kara', 'tekara']) expect(searchApp(index, query).grammar.map(row => row[0])).toEqual(['n5-048']);
+    });
+
+    it('shows kanji first for one kanji, grammar first for a title, words first otherwise', () => {
+        expect(searchApp(index, '水').groups[0]).toBe('kanji');
+        expect(searchApp(index, 'てから').groups[0]).toBe('grammar');
+        expect(searchApp(index, 'water').groups[0]).toBe('words');
+    });
+
+    it('caps each group', () => {
+        expect(searchApp(index, 'すい', { words: 1, wordsBeforeOthers: 1, kanji: 1, grammar: 1 }).kanji).toEqual([kanji[0]]);
+    });
+
+    it('shows fewer words when kanji or grammar follow them, all of them when nothing does', () => {
+        const waters = prepareAppSearch(
+            [searchIndexEntry({ id: 'mizu', w: '水', r: 'みず', m: 'water' }), searchIndexEntry({ id: 'oyu', w: '湯', r: 'ゆ', m: 'hot water' })],
+            kanji,
+        );
+        const limits = { words: 2, wordsBeforeOthers: 1, kanji: 5, grammar: 5 };
+        const shown = (query: string, at = limits) => searchApp(waters, query, at).words.map(hit => hit.row.id);
+        // water: words first, the kanji 水 below them.
+        expect(shown('water')).toEqual(['mizu']);
+        // 水: the kanji come first, so the words are last and keep their full cap.
+        expect(shown('水')).toEqual(['mizu']);
+        expect(searchApp(waters, '水', limits).groups[0]).toBe('kanji');
+        // With no kanji shown, nothing follows the words.
+        expect(shown('water', { ...limits, kanji: 0 })).toEqual(['mizu', 'oyu']);
     });
 });

@@ -5,6 +5,7 @@ import type { GrammarPoint } from "@gokan/dataset-schema";
 import { GrammarService, type GrammarVariant } from "../../services/grammar.service";
 import { RelatedEntriesCard, type RelatedEntry } from "../../components/RelatedEntriesCard";
 import { useAsyncData } from "../../hooks/useAsyncData";
+import { grammarPath } from "../../utils/navigation.utils";
 
 interface Props {
     point: GrammarPoint;
@@ -43,7 +44,7 @@ export function GrammarVariantsCard({ point }: Props) {
 
     const entries: RelatedEntry[] = rows.map(({ point: p, relation }) => ({
         key: p.id,
-        to: `/grammar/${p.id}`,
+        to: grammarPath(p.id),
         primary: p.title,
         secondary: <span className="type-meta whitespace-nowrap">{RELATION_LABELS[relation] ?? relation}</span>,
         // A realization is studied on its canonical's card: the canonical carries the status.

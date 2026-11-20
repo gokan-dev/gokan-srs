@@ -7,7 +7,7 @@ import { HowCommon } from "../../components/FrequencyMeter";
 import { KanjiReadings, ReadingList } from "../../components/KanjiReadings";
 import { Chip } from "../../components/ui/Chip";
 import { KanjiTile } from "../../components/KanjiTile";
-import { StatusDot } from "../../components/StatusDot";
+import { KanjiKnownStatus } from "../../components/KanjiKnownStatus";
 import { useQuiz } from "../../context/useQuiz";
 import { VocabularyService } from "../../services/vocabulary.service";
 import { LoadingScreen } from "../../components/LoadingScreen";
@@ -118,7 +118,7 @@ function KanjiPage({ kanji, vocabIds, wordsSettled }: KanjiPageProps) {
             facts={<KanjiFacts kanji={kanji} />}
             actions={
                 <div className="flex flex-col items-start gap-2">
-                    <StatusDot status={isKnown ? 'mastered' : 'new'} label={isKnown ? 'Known' : 'Not known yet'} />
+                    <KanjiKnownStatus known={isKnown} />
                     <Button variant="secondary" onClick={toggleKnown}>
                         {isKnown ? 'Mark as not known' : 'Mark as known'}
                     </Button>
