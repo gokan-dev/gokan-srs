@@ -39,6 +39,7 @@ function submitsEmpty(kind: ExerciseKind): boolean {
         case 'meaning':
         case 'production':
         case 'production-cloze':
+        case 'listening-cloze':
         case 'grammar-choice':
         case 'study':
             return false;

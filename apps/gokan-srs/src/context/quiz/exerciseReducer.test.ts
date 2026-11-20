@@ -150,7 +150,7 @@ describe('exerciseReducer (via quizReducer)', () => {
 
         it('names the tested word in the ticker, crediting the near-synonym typed', () => {
             const retry: Effect = { kind: 'retry', item: { kind: 'vocab', vocabId: 'v1', quizType: 'production', quizMode: 'base' }, label: '狭い', result: 'correct', neutral: false };
-            const credit: Effect = { kind: 'reinforce', vocabId: 'v2', label: '小さい', result: 'correct' };
+            const credit: Effect = { kind: 'reinforce', vocabId: 'v2', label: '小さい', result: 'correct', direction: 'production' };
 
             const next = continueWith({ ...initialState, progress: studying('v1', 'v2') }, 'vocab', [retry, credit]);
 
@@ -214,7 +214,7 @@ describe('exerciseReducer (via quizReducer)', () => {
         });
 
         it('prepends the answer to the ticker, with the vocab it credited', () => {
-            const next = continueWith({ ...initialState, progress: studying('v-sushi') }, 'grammar', [grammarReview, { kind: 'reinforce', vocabId: 'v-sushi', label: '寿司', result: 'correct' }]);
+            const next = continueWith({ ...initialState, progress: studying('v-sushi') }, 'grammar', [grammarReview, { kind: 'reinforce', vocabId: 'v-sushi', label: '寿司', result: 'correct', direction: 'production' }]);
 
             expect(next.grammarSessionHistory[0]).toMatchObject({ grammarId: 'n5-001', title: 'A が いちばん～', result: 'correct' });
             expect(next.grammarSessionHistory[0].vocabBreakdown?.[0].label).toBe('寿司');

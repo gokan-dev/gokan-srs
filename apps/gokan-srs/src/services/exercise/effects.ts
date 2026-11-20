@@ -32,12 +32,20 @@ export type Effect =
      * `result` reads as.
      */
     | { kind: 'retry'; item: HostItem; label: string; result: AnswerResult; neutral: boolean }
-    /** Indirect production credit to a word met on another card. */
-    | { kind: 'reinforce'; vocabId: string; label: string; result: AnswerResult }
+    /**
+     * A discounted credit to one direction of a word: production, for a word met on another
+     * card (a grammar blank, a synonym typed); reading, for the listening cloze's own word.
+     * `asked` is set when it is the card's own answer (the listening cloze), which the session
+     * ticker then lists as the item answered.
+     */
+    | { kind: 'reinforce'; vocabId: string; label: string; result: AnswerResult; direction: ReinforcedDirection; asked?: HostItem }
     /** Nothing was asked (the study card): only push the due date out. */
     | { kind: 'defer'; item: HostItem }
     /** Another word was produced than the one asked: remembered in `UserProgress.mixups`, dated when written. */
     | { kind: 'mixup'; mixup: Omit<MixupRecord, 'date'> };
+
+/** The directions a reinforcement credits. */
+export type ReinforcedDirection = Extract<QuizType, 'reading' | 'production'>;
 
 export interface AnswerContext {
     /** Frozen at submit, before any AI check and before the learner reads the feedback. */
@@ -66,12 +74,13 @@ export interface AnswerContext {
 export function effectsOf(exercise: AnsweredExercise, grade: ExerciseGrade, { latencyMs, hintLevels, answers }: AnswerContext): Effect[] {
     const { host: item, label, cue } = exercise;
     if (exercise.kind === 'study') return [{ kind: 'defer', item }];
+    if (exercise.kind === 'listening-cloze') return listeningEffects(item, label, grade.overall);
 
     const askedWord = item.kind === 'vocab' ? item.vocabId : null;
     let producedAnotherWord = false;
     const credits = new Map<string, Effect>();
     const credit = (vocabId: string, creditLabel: string, result: AnswerResult) => {
-        if (!credits.has(vocabId)) credits.set(vocabId, { kind: 'reinforce', vocabId, label: creditLabel, result });
+        if (!credits.has(vocabId)) credits.set(vocabId, { kind: 'reinforce', vocabId, label: creditLabel, result, direction: 'production' });
     };
 
     const mixups: Effect[] = [];
@@ -97,6 +106,21 @@ export function effectsOf(exercise: AnsweredExercise, grade: ExerciseGrade, { la
         ? { kind: 'retry', item, label, result: grade.overall, neutral: undecided }
         : { kind: 'review', item, label, result: grade.overall, strengthModifier: grade.strengthModifier, latencyMs, blankCount: exercise.slots.length };
     return [asked, ...credits.values(), ...mixups];
+}
+
+/**
+ * The listening cloze's effects (issue #165). It stands in for a reading review but is not
+ * one: the word heard right reinforces its reading entry (discounted, never `review`), which
+ * moves that entry's due date; a miss is retried, so the reading card comes back this session
+ * with no penalty for a sound not caught. No mix-up: nothing was produced from a meaning, and
+ * a word misheard is not a word confused.
+ */
+function listeningEffects(item: HostItem, label: string, result: AnswerResult): Effect[] {
+    if (item.kind !== 'vocab') return [{ kind: 'retry', item, label, result, neutral: false }];
+    if (result === 'correct' || result === 'minor_error') {
+        return [{ kind: 'reinforce', vocabId: item.vocabId, label, result, direction: 'reading', asked: item }];
+    }
+    return [{ kind: 'retry', item, label, result, neutral: false }];
 }
 
 /**
@@ -160,7 +184,9 @@ function inRetry(progress: UserProgress, item: HostItem): boolean {
  *
  * Indirect credit (`reinforce`):
  * - goes to the PRODUCTION entry: filling a blank or typing a word from an English
- *   cue is English in, Japanese out, which is production's definition exactly;
+ *   cue is English in, Japanese out, which is production's definition exactly. The
+ *   one exception is the listening cloze's own answer, which goes to the READING entry
+ *   (the word's sound) and is the card's record in the ticker;
  * - is discounted (SRSService.applyProductionReinforcement), since the conditions
  *   are easier than a production card's own, and latency is neutralised;
  * - skips a word the learner is not studying, and is a no-op when production
@@ -242,16 +268,29 @@ export function applyEffects(
                 break;
             }
             case 'reinforce': {
-                if (retrying || !productionEnabled) break;
+                // Its own answer (the listening cloze) is never in retry: selectNextView serves a
+                // reading retry as the plain reading card.
+                if (!effect.asked && retrying) break;
+                if (effect.direction === 'production' && !productionEnabled) break;
                 const target = learningQueue.find(v => v.vocabId === effect.vocabId);
                 if (!target) break;
-                const updated = SRSService.applyProductionReinforcement(
-                    target, effect.result, now, meaningEnabled, productionEnabled,
-                    growthLevelOf(calibration, 'production'), frequencyModifier
-                );
+                const updated = effect.direction === 'reading'
+                    ? SRSService.applyReadingReinforcement(
+                        target, effect.result, now, meaningEnabled, productionEnabled,
+                        growthLevelOf(calibration, 'reading'), frequencyModifier
+                    )
+                    : SRSService.applyProductionReinforcement(
+                        target, effect.result, now, meaningEnabled, productionEnabled,
+                        growthLevelOf(calibration, 'production'), frequencyModifier
+                    );
                 learningQueue = learningQueue.map(v => (v.vocabId === effect.vocabId ? updated : v));
-                const delta = calculateMasteryPercentage(strengthOf(updated, 'production')) - calculateMasteryPercentage(strengthOf(target, 'production'));
-                if (delta !== 0) credited.push({ label: effect.label, delta });
+                const delta = calculateMasteryPercentage(strengthOf(updated, effect.direction)) - calculateMasteryPercentage(strengthOf(target, effect.direction));
+                if (effect.asked) {
+                    vocabAnswers += 1;
+                    record = { item: effect.asked, label: effect.label, result: effect.result, shown: effect.result, delta, vocabDelta: 0, vocabBreakdown: [] };
+                } else if (delta !== 0) {
+                    credited.push({ label: effect.label, delta });
+                }
                 break;
             }
             case 'mixup':

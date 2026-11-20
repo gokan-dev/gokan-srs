@@ -171,7 +171,7 @@ export const CONSTANTS = {
         listening: {
             /**
              * The share of reading reviews served as a listening cloze when the setting is on, picked by
-             * a hash of the word and its review count (quizSelectors.ts, listeningModeOf), so a card
+             * a hash of the word and its review count (quizSelectors.ts, isListeningTurn), so a card
              * does not change while it is up and the same word is not always heard.
              */
             share: 0.3,

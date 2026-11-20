@@ -4,6 +4,7 @@ import type { UserSettings } from '../../models/user.model';
 import { getNextVocabToStudy, isMeaningActionable, isProductionActionable, isReadingActionable } from '../../utils/srs.utils';
 import type { QuizType } from '../../utils/srs.utils';
 import { CONSTANTS } from '../../commons/constants';
+import { hashString } from '../../utils/deterministicPick';
 import type { PendingQuizItem, QuizState, TaskKey } from './quizReducer';
 import { awaitsIntro } from './cardSentences';
 import { taskKey } from './quizReducer';
@@ -56,9 +57,14 @@ export function selectNextView(
 
     // An intro candidate is loaded to show its intro card; its quiz type is the one it
     // will first be asked in, which for a word learned in kana is not reading.
+    const next = introCandidates.length > 0
+        ? null
+        : getNextVocabToStudy(progress?.learningQueue, settings ?? undefined, now, preferredType, committed);
     const queueItem: PendingQuizItem | null = introCandidates.length > 0
         ? { vocabId: introCandidates[0].id, quizType: introQuizType(introCandidates[0], settings ?? undefined) ?? 'meaning', quizMode: 'base' }
-        : getNextVocabToStudy(progress?.learningQueue, settings ?? undefined, now, preferredType, committed);
+        : next && next.quizType === 'reading' && isListeningTurn(next.vocab, settings)
+            ? { ...next, quizMode: 'listening' }
+            : next;
 
     const { sessionState, nextReviewAt } = computeSessionState<VocabProgress, SessionState>(
         progress && settings ? progress.learningQueue : undefined,
@@ -93,6 +99,22 @@ export function selectNextView(
     }
 
     return { queueItem, sessionState, nextReviewAt, shouldShowIntro };
+}
+
+/**
+ * Whether a reading review is served as the listening cloze (issue #165): only with the setting
+ * on, a share of them (`CONSTANTS.srs.listening.share`), never a retry (that is the reading card
+ * again, whose answer clears it) and never a word's first reading review (it is heard on its
+ * intro, and is read once before it is listened for). Picked by a hash of the word and its
+ * reading review count, so the card is stable while it is up and moves on with each review.
+ * The loader falls back to the reading card when the word has no sentence with a clip.
+ */
+export function isListeningTurn(vocab: VocabProgress, settings: Pick<UserSettings, 'enableListeningCloze'> | null | undefined): boolean {
+    if (settings?.enableListeningCloze !== true) return false;
+    if (vocab.needsRetry?.reading) return false;
+    const reviews = vocab.reading.history.length;
+    if (reviews === 0) return false;
+    return hashString(`listening:${vocab.vocabId}:${reviews}`) % 100 < CONSTANTS.srs.listening.share * 100;
 }
 
 export interface NextSessionPreview {

@@ -235,7 +235,7 @@ describe('effectsOf', () => {
 describe('applyEffects', () => {
     const review = (result: AnswerResult): Effect =>
         ({ kind: 'review', item: semaiItem, label: '狭い', result, strengthModifier: 1, latencyMs: 4000, blankCount: 1 });
-    const reinforce = (vocabId: string, result: 'correct' | 'minor_error' = 'correct'): Effect => ({ kind: 'reinforce', vocabId, label: vocabId, result });
+    const reinforce = (vocabId: string, result: 'correct' | 'minor_error' = 'correct'): Effect => ({ kind: 'reinforce', vocabId, label: vocabId, result, direction: 'production' });
     const retry: Effect = { kind: 'retry', item: semaiItem, label: '狭い', result: 'correct', neutral: false };
 
     it('reviews the asked word, counts the answer and records its mastery change', () => {

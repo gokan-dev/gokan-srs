@@ -23,7 +23,21 @@ function clozeOccurrence(vocab: Vocabulary, cloze: ProductionCloze): Occurrence 
     return { surface, reading: cloze.blankReading, inflected: !dictionary.includes(surface) };
 }
 
-/** What the vocab loader fetched for the card: the meaning card's context sentence, the production cloze's sentence. */
+/**
+ * The listening cloze's slot: the word as heard. Its readings (a sound is typed in kana, or as
+ * romaji converted to kana) and its written forms, so 先生 typed in kanji is right too, with the
+ * blank's own form as the sentence says it, any form of the word right as on the production
+ * cloze. No near-synonyms: what was heard is a sound, and another word for the same meaning
+ * is not what was said.
+ */
+function listeningSlot(vocab: Vocabulary, cloze: ProductionCloze) {
+    return wordSlot(vocab, { vocabId: vocab.id, occurrence: clozeOccurrence(vocab, cloze), otherForm: 'correct', role: 'core', candidates: [] });
+}
+
+/**
+ * What the vocab loader fetched for the card: the meaning card's context sentence, the production
+ * cloze's sentence, or the listening cloze's (a reading item in `listening` mode: one with a clip).
+ */
 export interface VocabCardData {
     sentence: Sentence | null;
     cloze: ProductionCloze | null;
@@ -31,7 +45,8 @@ export interface VocabCardData {
 
 /**
  * The exercise for one direction of a word.
- * - reading: the readings only, since reading means sounding out the written form;
+ * - reading: the readings only, since reading means sounding out the written form; in
+ *   `listening` mode, the listening cloze when the sentence picked has a clip (issue #165);
  * - meaning: every gloss, in context when a sentence was found;
  * - production: the sentence cloze when a usable sentence was found, the gloss
  *   prompt otherwise. Both test whether the learner can produce the word, not its
@@ -42,8 +57,20 @@ export function vocabExercise(vocab: Vocabulary, item: { quizType: QuizType; qui
     const host: HostItem = { kind: 'vocab', vocabId: vocab.id, quizType: item.quizType, quizMode: item.quizMode };
     const label = headwordOf(vocab);
     switch (item.quizType) {
-        case 'reading':
-            return { kind: 'reading', host, label, slots: [readingSlot(vocab)], cue: {} };
+        case 'reading': {
+            // The listening cloze when its sentence has a clip; the reading card otherwise, as an
+            // ordinary reading review (its mode back to `base`).
+            const audio = item.quizMode === 'listening' ? cloze?.sentence.audio : undefined;
+            if (cloze && audio) {
+                return {
+                    kind: 'listening-cloze', host, label, cloze, audio, sentence: productionClozeSentence(cloze),
+                    slots: [listeningSlot(vocab, cloze)],
+                    // Nothing in English is in front of the learner: the sound is the cue.
+                    cue: {},
+                };
+            }
+            return { kind: 'reading', host: { ...host, quizMode: 'base' }, label, slots: [readingSlot(vocab)], cue: {} };
+        }
         case 'meaning':
             return {
                 kind: 'meaning', host, label, sentence, contextRequested: item.quizMode === 'context',
