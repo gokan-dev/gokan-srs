@@ -75,6 +75,27 @@ describe('createClipPlayer', () => {
         warn.mockRestore();
     });
 
+    it('says how each start ended', async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        expect(await setup().player.toggle('a')).toBe('played');
+        const blocked = Object.assign(new Error('autoplay'), { name: 'NotAllowedError' });
+        expect(await setup(() => Promise.reject(blocked)).player.toggle('a')).toBe('blocked');
+        expect(await setup(() => Promise.reject(new Error('network'))).player.toggle('a')).toBe('failed');
+        const { player } = setup();
+        await player.toggle('a');
+        expect(await player.toggle('a')).toBe('stopped');
+        warn.mockRestore();
+    });
+
+    it('play restarts the clip already playing instead of stopping it', async () => {
+        const { player, opened } = setup();
+        await player.play('a');
+        expect(await player.play('a')).toBe('played');
+        expect(opened).toHaveLength(2);
+        expect(opened[0].paused).toBe(true);
+        expect(player.playing()).toBe('a');
+    });
+
     it('rejects, at rest, when the clip URL cannot be built', async () => {
         const player = createClipPlayer({ urlOf: () => Promise.reject(new Error('no index')), open: url => new FakeClip(url) });
         await expect(player.toggle('a')).rejects.toThrow('no index');
