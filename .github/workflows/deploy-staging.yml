@@ -6,6 +6,12 @@
 # The build itself lives in the shared deploy-site.yml, so staging and production cannot drift.
 # Staging exists largely to exercise dataset changes before they reach production, and building
 # both apps from one checkout here is what makes that check meaningful.
+#
+# The rendered review of what was deployed (claude-review-staging.yml) is this run's second job,
+# not a listener: there is one staging site, and a release's members now build in parallel, so a
+# deploy and the review of it hold the site together. The workflow-level group below queues every
+# other deploy (and its review) until this run has finished: no member's deploy lands while another
+# member's pages are being reviewed.
 
 name: "Deploy: staging"
 
@@ -22,6 +28,12 @@ on:
         description: 'Branch, tag, or SHA to build and deploy to staging'
         required: true
         default: 'main'
+
+# The staging site's lock: one deploy-and-review at a time, the rest waiting in order (none dropped).
+concurrency:
+  group: staging-site
+  cancel-in-progress: false
+  queue: max
 
 jobs:
   deploy-staging:
@@ -53,3 +65,18 @@ jobs:
       cloudfront_distribution_id: ${{ secrets.STAGING_CLOUDFRONT_DISTRIBUTION_ID }}
       audio_aws_access_key_id: ${{ secrets.AUDIO_AWS_ACCESS_KEY_ID }}
       audio_aws_secret_access_key: ${{ secrets.AUDIO_AWS_SECRET_ACCESS_KEY }}
+
+  # Only a successful deploy is reviewed: a failed one left staging serving something else.
+  review:
+    name: Review staging
+    needs: deploy-staging
+    uses: ./.github/workflows/claude-review-staging.yml
+    with:
+      ref: ${{ github.event.inputs.ref || github.ref_name }}
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: write
+    secrets: inherit

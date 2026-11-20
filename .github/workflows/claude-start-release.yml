@@ -1,14 +1,22 @@
 # The sprint / release orchestrator (optional; the single-issue flow does not touch it). A release
 # is a tracking issue: its title carries the version and headline ("Release 1.45.0: Detail pages")
 # and its body is an ordered task list of member issues ("- [ ] #172"). Labeling that issue
-# `release-ready` cuts a `release/X.Y.Z` branch and starts the members one at a time against it,
-# each running the normal per-issue round (implement, review, triage, correct) with the release
-# branch as its base. Members auto-merge into the release branch on `agent-done`; when the last one
-# merges, the fragments assemble into one changelog entry and a single `release/X.Y.Z -> main` PR
-# opens for the maintainer. So the maintainer approves once per release, not once per feature.
+# `release-ready` cuts a `release/X.Y.Z` branch and builds the members against it, each running the
+# normal per-issue round (implement, review, triage, correct) with the release branch as its base.
+# Independent members build at once: the pre-flight writes which members wait for which (same files
+# or area, or one builds on another), and every member whose waits are merged and that is not
+# already in flight (`in-progress`) is dispatched. Triage merges a member into the release branch
+# when its round ends `done`; the others still in flight are then synced with the release branch
+# (a new round, CI included), so what merges next was tested against what merged before. When the
+# last one merges, the fragments assemble into one changelog entry and a single
+# `release/X.Y.Z -> main` PR opens for the maintainer. So the maintainer approves once per
+# release, not once per feature.
 #
 # Everything here is keyed off git + the tracker's checkboxes + labels, so a re-run is idempotent
-# and a member's own resume (claude-implement-issue.yml's `resume` job / claude-sweep.yml) is unaffected.
+# and a member's own resume (claude-implement-issue.yml's `resume` job / claude-sweep.yml) is
+# unaffected. Every job that reads and rewrites the tracker holds its lock,
+# `release-tracker-release/X.Y.Z`, so two merges landing together cannot lose a tick or start one
+# member twice.
 name: "Agent: start/advance release"
 
 on:
@@ -41,6 +49,8 @@ jobs:
       id-token: write
     outputs:
       ready: ${{ steps.verdict.outputs.ready }}
+      version: ${{ steps.gather.outputs.version }}
+      order: ${{ steps.order.outputs.order }}
     env:
       TRACKER: ${{ github.event.issue.number }}
       TITLE: ${{ github.event.issue.title }}
@@ -50,10 +60,15 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Gather the member issues
+        id: gather
         run: |
           set -euo pipefail
-          members="$(printf '%s' "$BODY" | grep -oE '^- \[[ x]\] #[0-9]+' | grep -oE '[0-9]+' || true)"
+          version="$(printf '%s' "$TITLE" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)"
+          [ -n "$version" ] || { echo "::error::Tracker title has no X.Y.Z version: '$TITLE'"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          members="$(printf '%s' "$BODY" | grep -oE '^- \[[ xX]\] #[0-9]+' | grep -oE '[0-9]+' || true)"
           [ -n "$members" ] || { echo "::error::Tracker #$TRACKER has no '- [ ] #NNN' member list."; exit 1; }
+          echo "members=$(printf '%s' "$members" | tr '\n' ' ')" >> "$GITHUB_OUTPUT"
           mkdir -p .preflight/context .preflight/out
           for m in $members; do
             gh issue view "$m" --repo "$REPO" --json number,title,body > ".preflight/context/issue-$m.json"
@@ -113,6 +128,18 @@ jobs:
 
             Write `.preflight/out/ready`: exactly `true` when NO member has a gap, `false` otherwise.
 
+            Write `.preflight/out/order.json`: which members must wait for which, so the independent
+            ones are built at the same time. A JSON object with one key per member (its number, as a
+            string) whose value lists the members it must wait for until they are merged, e.g.
+            `{"170": [], "172": [170], "173": []}`. A member waits for another when both change the
+            same files or area (two branches editing one component, screen, workflow or data file
+            would conflict or contradict each other), or when it builds on the other (uses what the
+            other adds, or the issue says it follows it). Members with no such link wait for none. When
+            you are unsure whether two members touch the same area, make the later one in the task
+            list wait: a needless wait costs time, a missed one costs a conflict. List every member,
+            name only members of this release, and make no cycle. An invalid file makes the release
+            build its members one at a time.
+
             Read only, change nothing, and never write the string `@claude` (it starts other agents).
           claude_args: "--model claude-opus-5-5 --max-turns 120 --allowedTools Read,Glob,Grep,Write"
 
@@ -121,6 +148,18 @@ jobs:
         continue-on-error: true
         run: |
           if [ -f scripts/agent-usage.ts ]; then bun scripts/agent-usage.ts >> "$GITHUB_STEP_SUMMARY"; fi
+
+      # The agent's order, checked (every member listed, only members named, no cycle); a missing or
+      # invalid one is the serial order, with each reason as a warning on the run.
+      - name: Validate the build order
+        id: order
+        env:
+          MEMBERS: ${{ steps.gather.outputs.members }}
+        run: |
+          set -euo pipefail
+          order="$(bun packages/deploy/scripts/release-order.ts validate --members "$MEMBERS" --file .preflight/out/order.json)"
+          echo "order=$order" >> "$GITHUB_OUTPUT"
+          { echo "### Build order"; bun packages/deploy/scripts/release-order.ts describe --members "$MEMBERS" --order "$order"; } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Gate on the verdict
         id: verdict
@@ -144,33 +183,60 @@ jobs:
           } | gh issue comment "$TRACKER" --repo "$REPO" --body-file -
           gh issue edit "$TRACKER" --repo "$REPO" --add-label needs-precision --remove-label release-ready
 
-  # 1. Cut the release branch and start the first member (only once pre-flight is clear).
+  # 1. Cut the release branch and start every member that waits for none (only once pre-flight is
+  #    clear).
   start:
     needs: preflight
     if: needs.preflight.outputs.ready == 'true'
     runs-on: ubuntu-latest
+    # The tracker lock (see the header): a merge's advance cannot read the task list mid-start.
+    concurrency:
+      group: release-tracker-release/${{ needs.preflight.outputs.version }}
+      cancel-in-progress: false
+      queue: max
     permissions:
       contents: write
       issues: write
       actions: write
     env:
       TRACKER: ${{ github.event.issue.number }}
-      TITLE: ${{ github.event.issue.title }}
-      BODY: ${{ github.event.issue.body }}
+      VERSION: ${{ needs.preflight.outputs.version }}
+      ORDER: ${{ needs.preflight.outputs.order }}
     steps:
-      - name: Cut the release branch and start the first member
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Bun from GitHub Releases + an Actions cache, NOT bun.sh (whose `latest` download 403s
+      # intermittently and takes every workflow down). Inline (not a local action) so it does not
+      # depend on which branch the agent checks out mid-run.
+      - name: Cache Bun
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/bin
+          key: bun-${{ runner.os }}-${{ runner.arch }}-v1
+      - name: Setup Bun
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          version="$(printf '%s' "$TITLE" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
-          [ -n "$version" ] || { echo "::error::Tracker title has no X.Y.Z version: '$TITLE'"; exit 1; }
-          branch="release/$version"
+          BIN="$HOME/.bun/bin"
+          echo "$BIN" >> "$GITHUB_PATH"
+          if [ -x "$BIN/bun" ]; then "$BIN/bun" --version; exit 0; fi
+          v="$(gh api repos/oven-sh/bun/releases/latest --jq .tag_name | sed -E 's/^bun-v//')"
+          mkdir -p "$BIN"
+          curl -fsSL --retry 5 --retry-all-errors \
+            "https://github.com/oven-sh/bun/releases/download/bun-v$v/bun-linux-x64.zip" -o "$RUNNER_TEMP/bun.zip"
+          unzip -q "$RUNNER_TEMP/bun.zip" -d "$RUNNER_TEMP/bun-dl"
+          mv "$RUNNER_TEMP/bun-dl/bun-linux-x64/bun" "$BIN/bun"
+          chmod +x "$BIN/bun"
+          "$BIN/bun" --version
 
-          # The members, in task-list order. The first `- [ ] #N` is where we start.
-          members="$(printf '%s' "$BODY" | grep -oE '^- \[[ x]\] #[0-9]+' | grep -oE '[0-9]+' || true)"
-          [ -n "$members" ] || { echo "::error::Tracker #$TRACKER has no '- [ ] #NNN' member list."; exit 1; }
-          first="$(printf '%s' "$BODY" | grep -oE '^- \[ \] #[0-9]+' | grep -oE '[0-9]+' | head -1 || true)"
-
-          for l in release release-ready needs-attention pause-automation; do
+      - name: Cut the release branch and record the build order
+        run: |
+          set -euo pipefail
+          branch="release/$VERSION"
+          for l in release release-ready in-progress needs-attention pause-automation; do
             gh label create "$l" --repo "$REPO" --force >/dev/null 2>&1 || true
           done
           gh issue edit "$TRACKER" --repo "$REPO" --add-label release --remove-label release-ready >/dev/null
@@ -182,27 +248,37 @@ jobs:
             echo "Cut $branch from main ($main_sha)."
           fi
 
-          if [ -z "$first" ]; then
-            echo "No unchecked members: nothing to start."
-            exit 0
-          fi
-
-          # Tell the member its base (so a resume before the PR exists targets the release branch),
-          # mark it active for the sweeper, and dispatch its implementation.
-          echo "<!-- gokan-base ref=$branch -->" | gh issue comment "$first" --repo "$REPO" --body-file -
-          gh issue edit "$first" --repo "$REPO" --add-label ready-for-dev >/dev/null
-          # Delete any stale leftover branch so implement cuts a fresh one from the release branch
-          # rather than "continuing" from an unrelated old base. Safe: a member being started for the
-          # first time has no in-flight work (a resume never comes through here, so none is lost).
-          gh api -X DELETE "repos/$REPO/git/refs/heads/agent/issue-$first" >/dev/null 2>&1 || true
-          gh workflow run claude-implement-issue.yml --repo "$REPO" -f issue="$first" -f base="$branch"
-
-          { echo "<!-- gokan-release version=$version -->"
-            echo "@$HUMAN Started release **$version** on \`$branch\`. Building #$first first; the rest follow one at a time as each merges. I will open one \`$branch -> main\` PR when the last lands."
+          # The order, where advance reads it back (the newest such comment by this workflow), and
+          # in words for the maintainer.
+          members="$(printf '%s' "$ORDER" | jq -r 'keys_unsorted | join(" ")')"
+          { echo "<!-- gokan-release-order $ORDER -->"
+            echo "**Build order** for release **$VERSION** (a member starts once the ones it waits for are merged):"
+            echo
+            bun packages/deploy/scripts/release-order.ts describe --members "$members" --order "$ORDER"
           } | gh issue comment "$TRACKER" --repo "$REPO" --body-file -
 
-  # 2. A member merged into a release branch: tick it off, start the next member, or (when none are
-  #    left) assemble the changelog and open the release PR.
+      - name: Start the members that wait for none
+        id: members
+        uses: ./.github/actions/start-release-members
+        with:
+          tracker: ${{ env.TRACKER }}
+          branch: release/${{ env.VERSION }}
+
+      - name: Tell the maintainer
+        env:
+          STARTED: ${{ steps.members.outputs.started }}
+        run: |
+          set -euo pipefail
+          if [ -z "$STARTED" ]; then
+            echo "No member to start (all merged, or all already in flight)."
+            exit 0
+          fi
+          { echo "<!-- gokan-release version=$VERSION -->"
+            echo "@$HUMAN Started release **$VERSION** on \`release/$VERSION\`. Building $(printf '#%s ' $STARTED)now; each other member starts once the ones it waits for are merged. I will open one \`release/$VERSION -> main\` PR when the last lands."
+          } | gh issue comment "$TRACKER" --repo "$REPO" --body-file -
+
+  # 2. A member merged into a release branch: tick it off, start every member that was waiting only
+  #    for it, or (when none are left) assemble the changelog and open the release PR.
   advance:
     if: >
       github.event_name == 'pull_request' &&
@@ -210,6 +286,12 @@ jobs:
       github.event.pull_request.merged == true &&
       startsWith(github.event.pull_request.base.ref, 'release/')
     runs-on: ubuntu-latest
+    # The tracker lock (see the header): two members merged together tick one after the other, each
+    # reading the task list the other wrote.
+    concurrency:
+      group: release-tracker-${{ github.event.pull_request.base.ref }}
+      cancel-in-progress: false
+      queue: max
     permissions:
       contents: write
       issues: write
@@ -219,41 +301,153 @@ jobs:
       BRANCH: ${{ github.event.pull_request.base.ref }}
       HEAD_REF: ${{ github.event.pull_request.head.ref }}
     outputs:
-      finish: ${{ steps.advance.outputs.finish }}
-      version: ${{ steps.advance.outputs.version }}
-      tracker: ${{ steps.advance.outputs.tracker }}
+      finish: ${{ steps.next.outputs.finish }}
+      version: ${{ steps.tick.outputs.version }}
+      tracker: ${{ steps.tick.outputs.tracker }}
+      sync: ${{ steps.members.outputs.in_flight }}
     steps:
-      - name: Tick the member and start the next
-        id: advance
+      # The release branch: a merged PR's own merge ref may be gone already.
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+
+      # Bun from GitHub Releases + an Actions cache, NOT bun.sh (whose `latest` download 403s
+      # intermittently and takes every workflow down). Inline (not a local action) so it does not
+      # depend on which branch the agent checks out mid-run.
+      - name: Cache Bun
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/bin
+          key: bun-${{ runner.os }}-${{ runner.arch }}-v1
+      - name: Setup Bun
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BIN="$HOME/.bun/bin"
+          echo "$BIN" >> "$GITHUB_PATH"
+          if [ -x "$BIN/bun" ]; then "$BIN/bun" --version; exit 0; fi
+          v="$(gh api repos/oven-sh/bun/releases/latest --jq .tag_name | sed -E 's/^bun-v//')"
+          mkdir -p "$BIN"
+          curl -fsSL --retry 5 --retry-all-errors \
+            "https://github.com/oven-sh/bun/releases/download/bun-v$v/bun-linux-x64.zip" -o "$RUNNER_TEMP/bun.zip"
+          unzip -q "$RUNNER_TEMP/bun.zip" -d "$RUNNER_TEMP/bun-dl"
+          mv "$RUNNER_TEMP/bun-dl/bun-linux-x64/bun" "$BIN/bun"
+          chmod +x "$BIN/bun"
+          "$BIN/bun" --version
+
+      - name: Tick the member
+        id: tick
         run: |
           set -euo pipefail
           version="${BRANCH#release/}"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           member="$(printf '%s' "$HEAD_REF" | grep -oE '[0-9]+$' || true)"
+          echo "member=$member" >> "$GITHUB_OUTPUT"
 
           tracker="$(gh issue list --repo "$REPO" --state open --label release --json number,title \
             | jq -r --arg v "$version" '.[] | select(.title | contains($v)) | .number' | head -1)"
           [ -n "$tracker" ] || { echo "::error::No open release tracker for $version."; exit 1; }
           echo "tracker=$tracker" >> "$GITHUB_OUTPUT"
 
-          body="$(gh issue view "$tracker" --repo "$REPO" --json body --jq .body)"
+          # Read under the tracker lock, so this edit is made on the list the last advance wrote.
           if [ -n "$member" ]; then
+            body="$(gh issue view "$tracker" --repo "$REPO" --json body --jq .body)"
             body="$(printf '%s' "$body" | sed -E "s/- \[ \] #$member\\b/- [x] #$member/")"
             printf '%s' "$body" | gh issue edit "$tracker" --repo "$REPO" --body-file -
-            gh issue edit "$member" --repo "$REPO" --remove-label ready-for-dev >/dev/null 2>&1 || true
+            gh issue edit "$member" --repo "$REPO" --remove-label ready-for-dev --remove-label in-progress >/dev/null 2>&1 || true
           fi
 
-          next="$(printf '%s' "$body" | grep -oE '^- \[ \] #[0-9]+' | grep -oE '[0-9]+' | head -1 || true)"
-          if [ -n "$next" ]; then
-            echo "<!-- gokan-base ref=$BRANCH -->" | gh issue comment "$next" --repo "$REPO" --body-file -
-            gh issue edit "$next" --repo "$REPO" --add-label ready-for-dev >/dev/null
-            # Fresh branch from the release branch (see the start job): drop any stale leftover first.
-            gh api -X DELETE "repos/$REPO/git/refs/heads/agent/issue-$next" >/dev/null 2>&1 || true
-            gh workflow run claude-implement-issue.yml --repo "$REPO" -f issue="$next" -f base="$BRANCH"
-            gh issue comment "$tracker" --repo "$REPO" --body "Member #${member:-?} merged; building #$next next."
-            echo "finish=false" >> "$GITHUB_OUTPUT"
-          else
+      - name: Start the members whose waits are now merged
+        id: members
+        uses: ./.github/actions/start-release-members
+        with:
+          tracker: ${{ steps.tick.outputs.tracker }}
+          branch: ${{ env.BRANCH }}
+
+      - name: Report, or finish
+        id: next
+        env:
+          TRACKER: ${{ steps.tick.outputs.tracker }}
+          MEMBER: ${{ steps.tick.outputs.member }}
+          STARTED: ${{ steps.members.outputs.started }}
+          REMAINING: ${{ steps.members.outputs.remaining }}
+        run: |
+          set -euo pipefail
+          if [ -z "$(printf '%s' "$REMAINING" | tr -d ' ')" ]; then
             echo "finish=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "finish=false" >> "$GITHUB_OUTPUT"
+          if [ -n "$STARTED" ]; then
+            gh issue comment "$TRACKER" --repo "$REPO" --body "Member #${MEMBER:-?} merged; building $(printf '#%s ' $STARTED)next."
+          else
+            gh issue comment "$TRACKER" --repo "$REPO" --body "Member #${MEMBER:-?} merged; still in flight: $(printf '#%s ' $REMAINING)."
+          fi
+
+  # 2b. The members still in flight now lag the release branch: merge it into each one's branch, under
+  #     that branch's lock (an agent at work there finishes first), with the PAT so the push starts CI
+  #     and a new review round. A member is merged only by triage's `done`, after a round, so what
+  #     merges next was reviewed and checked against what merged before. A branch already up to date
+  #     (or not cut yet: it will be cut from the new tip) is left alone. A conflict is left to the
+  #     maintainer: the pre-flight's order is meant to keep members that touch the same files apart.
+  sync:
+    needs: advance
+    if: needs.advance.outputs.sync != '' && needs.advance.outputs.sync != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        member: ${{ fromJSON(needs.advance.outputs.sync) }}
+    concurrency:
+      group: agent-branch-agent/issue-${{ matrix.member }}
+      cancel-in-progress: false
+      queue: max
+    permissions:
+      contents: read
+      issues: write
+    env:
+      BRANCH: ${{ github.event.pull_request.base.ref }}
+      MEMBER: ${{ matrix.member }}
+      AGENT_GITHUB_TOKEN: ${{ secrets.AGENT_GITHUB_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+          fetch-depth: 0
+          # The push authenticates with the PAT alone (a GITHUB_TOKEN push starts no CI or review).
+          persist-credentials: false
+
+      - name: Merge the release branch into the member's branch
+        run: |
+          set -euo pipefail
+          [ -n "$AGENT_GITHUB_TOKEN" ] || { echo "::error::AGENT_GITHUB_TOKEN is not set: a sync pushed without it would start no round."; exit 1; }
+          remote="https://x-access-token:$AGENT_GITHUB_TOKEN@github.com/$REPO.git"
+          head="agent/issue-$MEMBER"
+          git fetch "$remote" "+refs/heads/$BRANCH:refs/remotes/origin/$BRANCH"
+          if ! git fetch "$remote" "+refs/heads/$head:refs/remotes/origin/$head" 2>/dev/null; then
+            echo "#$MEMBER has no branch yet: it will be cut from the current $BRANCH."
+            exit 0
+          fi
+          if git merge-base --is-ancestor "origin/$BRANCH" "origin/$head"; then
+            echo "$head already holds $BRANCH."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$head" "origin/$head"
+          if git merge --no-edit -m "Merge $BRANCH into $head: sync with the members merged since" "origin/$BRANCH"; then
+            git push --no-verify "$remote" "HEAD:refs/heads/$head"
+            echo "Synced $head with $BRANCH." >> "$GITHUB_STEP_SUMMARY"
+          else
+            git merge --abort
+            gh label create needs-attention --repo "$REPO" --force >/dev/null 2>&1 || true
+            gh issue edit "$MEMBER" --repo "$REPO" --add-label needs-attention >/dev/null
+            gh issue comment "$MEMBER" --repo "$REPO" --body "<!-- gokan-notice -->
+          @$HUMAN \`$head\` conflicts with \`$BRANCH\` after another member merged. Merge \`$BRANCH\` into it and resolve the conflicts, then remove \`needs-attention\`: until then this member is not synced and should not merge."
           fi
 
   # 3. Last member merged: fold the fragments into one entry and open the single release PR.

@@ -63,12 +63,18 @@ summary ("Largest tool results"), which is where a whole read shows.
   an ordered `- [ ] #nnn` task list); labeling it `release-ready` (`claude-start-release.yml`) first
   runs a pre-flight that reads every member and asks the maintainer, in one round, about every
   load-bearing decision the issues leave open (the sprint starts only once nothing is pending, so a
-  precision question never stalls it mid-flight), then cuts
-  `release/X.Y.Z` and builds its members one at a time against that branch (each the same
-  implement/review/triage/correct round, now base-aware: every workflow diffs and syncs against the
-  PR's base, not a hardcoded `main`), auto-merges them on `agent-done`, and opens one
-  `release/X.Y.Z -> main` PR when the last lands, so the maintainer approves once per release rather
-  than once per feature. Triage (`claude-triage.yml`) asks the maintainer only for choices that are
+  precision question never stalls it mid-flight) and writes which members wait for which (same
+  files or area, or one builds on another; checked by `packages/deploy/src/releaseOrder.ts`, serial
+  when invalid), then cuts `release/X.Y.Z` and builds against that branch, at once, every member whose
+  waits are merged and that is not in flight (`in-progress`) (each the same
+  implement/review/triage/correct round, base-aware: every workflow diffs and syncs against the
+  PR's base, not a hardcoded `main`). Triage merges a member into the release branch directly when
+  its round ends `done` (no `agent-done` on a release); each merge ticks the tracker (under a
+  per-release lock), starts the members it unblocks and syncs those in flight with the release
+  branch (a new round), and the last one opens one `release/X.Y.Z -> main` PR, so the maintainer
+  approves once per release rather than once per feature. Parallel members share the one staging
+  site through a queue: a deploy and its rendered review hold it together (`deploy-staging.yml`'s
+  `staging-site` group), and rc numbers are taken under a per-release lock. Triage (`claude-triage.yml`) asks the maintainer only for choices that are
   costly to reverse or change scope; a reversible choice with a clear recommendation is applied and
   noted under "Decided by default". An interrupted run (crash, turn limit, usage limit) resumes
   itself from the commits it pushed: the implement workflow's own last job (`resume`) decides as the

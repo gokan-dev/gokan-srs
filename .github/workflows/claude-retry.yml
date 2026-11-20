@@ -36,7 +36,10 @@ jobs:
           set -euo pipefail
           # The Claude-agent workflows this covers. `implement` is deliberately absent: claude-sweep
           # re-dispatches it (a ready-for-dev issue), so retrying it here too would double up.
-          workflows="claude-review.yml claude-review-staging.yml claude-triage.yml claude-address-feedback.yml claude-fix-ci.yml claude-start-release.yml claude.yml"
+          # The staging review runs inside deploy-staging.yml's run (under its staging lock), so that
+          # run is retried whole: re-running only the review would look at whatever another member
+          # deployed since.
+          workflows="claude-review.yml deploy-staging.yml claude-triage.yml claude-address-feedback.yml claude-fix-ci.yml claude-start-release.yml claude.yml"
           since="$(date -u -d '3 hours ago' +%Y-%m-%dT%H:%M:%SZ)"
           retried=0
           for wf in $workflows; do
@@ -45,8 +48,10 @@ jobs:
             ids="$(gh run list --repo "$REPO" --workflow "$wf" --status failure --limit 25 \
               --json databaseId,attempt,createdAt \
               --jq "[.[] | select(.createdAt > \"$since\" and (.attempt < $MAX_ATTEMPTS))] | .[].databaseId" 2>/dev/null || true)"
+            scope="--failed"
+            [ "$wf" = deploy-staging.yml ] && scope=""
             for id in $ids; do
-              if gh run rerun "$id" --repo "$REPO" --failed 2>/dev/null; then
+              if gh run rerun "$id" --repo "$REPO" $scope 2>/dev/null; then
                 echo "Re-ran $wf run $id."
                 retried=$((retried + 1))
               fi
