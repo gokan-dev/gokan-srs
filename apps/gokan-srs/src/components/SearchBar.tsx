@@ -11,6 +11,7 @@ import { useResponsive } from '../context/Responsive/useResponsive';
 import { useQuiz } from '../context/useQuiz';
 import { WordStudyStatus } from './WordStudyStatus';
 import { StatusDot } from './StatusDot';
+import { KanjiKnownStatus } from './KanjiKnownStatus';
 import { grammarPath, kanjiPath, vocabPath } from '../utils/navigation.utils';
 import { grammarLearningStatus } from '../utils/learningStatus.utils';
 import type { AppSearchResults } from '../utils/search.utils';
@@ -49,8 +50,7 @@ function KanjiStudyStatus({ character }: { character: string }) {
     const { state } = useQuiz();
     const knowledge = state.progress?.kanjiKnowledge;
     if (!knowledge) return null;
-    const known = knowledge.kanjiSet.has(character);
-    return <StatusDot status={known ? 'mastered' : 'new'} label={known ? 'Known' : 'Not known yet'} />;
+    return <KanjiKnownStatus known={knowledge.kanjiSet.has(character)} />;
 }
 
 /** A grammar point's learning status (New, Learning, Mastered). Nothing before setup. */
@@ -89,7 +89,7 @@ function groupedOptions(results: AppSearchResults): { group: SearchGroup; option
             main: (
                 <>
                     {/* A title is the pattern itself: it wraps rather than lose its end in a narrow panel. */}
-                    <span className="jp-headword min-w-0 break-words">{row[1]}</span>
+                    <span className="font-mincho text-primary text-lg min-w-0 break-words">{row[1]}</span>
                     {row[2] && <span className="type-meta truncate">{row[2]}</span>}
                 </>
             ),

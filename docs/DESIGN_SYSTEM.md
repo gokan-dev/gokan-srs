@@ -595,7 +595,9 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   and Linux), titles `"Source Serif 4", "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC",
   SimSun, serif` (the Latin serif, then each system's Song face). No web font: a CJK face is
   megabytes, against the 40 KB the one Latin font has. English on a Chinese page (JMdict's
-  meanings, an untranslated sentence, a textbook chip) is marked `lang="en"`.
+  meanings, an untranslated sentence, a textbook chip, a kanji's meaning or a grammar point's
+  explanation in search) is marked `lang="en"`, and a grammar point's romaji `lang="ja-Latn"`
+  (check:layout reads the zh-hans search panel for Latin text marked neither).
 - **Language switcher**: on a page that has a counterpart in the other language (a word with no
   Chinese page has none), one small line above the breadcrumb at its end: the other page,
   named in its own language (English, 简体中文), a 44px tap target. Neutral text link, no flag:
