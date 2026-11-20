@@ -5,8 +5,9 @@ agent (Claude, Gemini, Codex, CI agents) reads the same conventions. Follow ever
 from the first line you write: they are not style preferences to apply after review. Each one
 exists because the problem it prevents has already happened in this codebase.
 
-Most rules are enforced by `bun run check`, which runs on every commit (git hook), after every
-file edit (Claude Code hook) and in CI. A red check is never fixed by relaxing a rule,
+Most rules are enforced by `bun run check`, which runs in CI on every push. Its fast part
+(conventions and ESLint) also runs on the changed files after every file edit (Claude Code hook)
+and on the staged files at every commit (git hook). A red check is never fixed by relaxing a rule,
 disabling a lint, or adding an exemption: fix the code, or change the convention here
 deliberately and say so in the PR.
 
@@ -35,12 +36,18 @@ summary ("Largest tool results"), which is where a whole read shows.
 ## Workflow
 
 - Install: `git submodule update --init --recursive`, then `bun install` at the root.
-- Before every commit: `bun run check`. It runs lint (both apps, one config), typecheck (both
-  apps and the scripts), tests (both apps), the conventions check and the duplicate check.
-  Faster partial runs while iterating: `bun run lint`, `bun run typecheck`, `bun run test`,
-  `bun run check:conventions`, `bun run check:duplicates`. After a UI change, also build both
-  apps and run `bun run check:layout` and `bun run check:lighthouse` (SEO held at 100 on every
-  dictionary page; CI runs both on every change to `apps/` or `packages/`).
+- **CI is where a change is verified, for people and agents alike.** `CI: checks` (the full gate,
+  `bun run check`: conventions, lint, typecheck, tests, duplicates, unused code) runs on every
+  push; the builds and the browser checks (`check:layout`, `check:lighthouse`, SEO held at 100 on
+  every dictionary page, `check:parity`) run on every push that touches what they cover (path
+  filters), PR or not, the same way every time. A green run on a docs-only push says nothing about
+  layout or Lighthouse on that head. Push the branch,
+  then `bun run ci:wait`: it waits for that commit's "CI: ..." runs, prints the failed jobs' logs
+  and exits non-zero on a failure. Locally, run only the narrow command that covers what you are
+  changing while iterating (one workspace's tests, `bun run typecheck`, `bun run lint`, one check);
+  never the full suite or a production build as a gate. No local hook runs them either (no
+  pre-push hook). Not mechanised for local runs; the implement prompt says the same (the fix-CI and
+  address-feedback prompts follow in a later change).
 - A bug fix comes with a test that fails without the fix.
 - A convention lives in `bun run check`, not only in prose. When review (human or agent) finds a
   rule this file states that the gate did not catch, the same change adds the check that would
@@ -49,8 +56,8 @@ summary ("Largest tool results"), which is where a whole read shows.
   not. A rule that genuinely cannot be mechanised says so, and names what a reviewer must look at.
 - Review your own diff before you hand it off. Before opening a PR or tagging a release
   candidate, read the whole diff against this file and, for any UI change, docs/DESIGN_SYSTEM.md:
-  run `/code-review` (or an equivalent pass over the diff) and, for UI, build both apps and look
-  at the result at 320px, 375px and 1280px, light and dark. Unreviewed work is not handed off
+  run `/code-review` (or an equivalent pass over the diff) and, for UI, look at the result (a dev
+  server, or the rc on staging) at 320px, 375px and 1280px, light and dark. Unreviewed work is not handed off
   faster: it moves the same review onto the next reader plus a round trip.
 - **Two agents never work on one branch at once.** Every agent job in `.github/workflows/` that
   can push queues on its branch's lock: job-level `concurrency` with
