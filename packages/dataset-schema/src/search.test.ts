@@ -69,6 +69,18 @@ describe('words, in an index not in frequency order', () => {
         ]);
     });
 
+    it('ranks compounds with the words starting with the kanji in an index in frequency order', () => {
+        // 先生 is more frequent than 生地: frequency, not prefix-ness, orders them.
+        const index = prepareSearch<string, string, string>({ words: [
+            word({ id: 'sensei', written: '先生', reading: 'せんせい', gloss: 'teacher' }),
+            word({ id: 'kiji', written: '生地', reading: 'きじ', gloss: 'cloth' }),
+            word({ id: 'sei', written: '生', reading: 'せい', gloss: 'life' }),
+        ] }, { frequencyOrdered: true });
+        expect(runSearch(index, '生').words).toEqual([
+            { row: 'sei', tier: WORD_TIER.exact }, { row: 'sensei', tier: WORD_TIER.prefix }, { row: 'kiji', tier: WORD_TIER.prefix },
+        ]);
+    });
+
     it('keeps a word while its romaji is typed partway through a syllable', () => {
         const index = prepareSearch<string, string, string>({ words: [
             word({ id: 'tabemono', written: '食べ物', reading: 'たべもの', gloss: 'food' }),

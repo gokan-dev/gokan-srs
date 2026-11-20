@@ -25,7 +25,11 @@ export const WORD_TIER = {
     deinflected: 3,
     /** A written form or the reading starts with the query. */
     prefix: 4,
-    /** For a query of kanji only, a written form that contains it (生 in 先生). */
+    /**
+     * For a query of kanji only, a written form that contains it (生 in 先生). In an index in
+     * frequency order these rank with the prefix tier instead: there frequency is the better
+     * signal, and 先生 and 学生 belong among the first words for 生, ahead of rare 生- words.
+     */
     compound: 5,
     /** A sense equal to the query: in English ignoring a leading "to" or article, in Chinese one of its comma-separated glosses. */
     sense: 6,
@@ -341,9 +345,11 @@ interface WordContext<C extends string> {
     /** Candidate dictionary forms, keyed by form, from the query as typed and as romaji read. */
     deinflected: Map<string, C[]>;
     deinflector: Deinflector<C> | null;
+    /** The tier a compound containing a kanji-only query earns (see WORD_TIER.compound). */
+    compoundTier: number;
 }
 
-function wordContext<C extends string>(query: SearchQuery, glosses: SearchGlossLanguage, deinflector: Deinflector<C> | null): WordContext<C> {
+function wordContext<C extends string>(query: SearchQuery, glosses: SearchGlossLanguage, deinflector: Deinflector<C> | null, frequencyOrdered: boolean): WordContext<C> {
     const deinflected = new Map<string, C[]>();
     if (deinflector) {
         const { text, typedKana, japanese, romajiKana } = query;
@@ -363,6 +369,7 @@ function wordContext<C extends string>(query: SearchQuery, glosses: SearchGlossL
         glossWholeWord: glosses === 'en' && query.latin,
         deinflected,
         deinflector,
+        compoundTier: frequencyOrdered ? WORD_TIER.prefix : WORD_TIER.compound,
     };
 }
 
@@ -395,7 +402,7 @@ function matchWord<W, C extends string>(word: PreparedWord<W, C>, context: WordC
     }
     if (kanjiOnly) {
         const containing = forms.filter(form => form.includes(text));
-        if (containing.length > 0) return match(WORD_TIER.compound, containing);
+        if (containing.length > 0) return match(context.compoundTier, containing);
     }
     if (context.glossQuery && word.senses.includes(context.sense)) return { tier: WORD_TIER.sense, length: 0 };
     if (context.glossWholeWord && containsWholeWord(word.gloss, text)) return { tier: WORD_TIER.glossWord, length: 0 };
@@ -421,11 +428,11 @@ function isShownAs<W, C extends string>(word: PreparedWord<W, C>, query: SearchQ
  */
 export function matchesSearchWord<W, C extends string = string>(word: SearchWordInput<W, C>, query: SearchQuery, options: SearchOptions<C> = {}): boolean {
     const glosses = options.glosses ?? 'en';
-    return matchWord(prepareWord(word, 0, glosses), wordContext(query, glosses, options.deinflector ?? null)) !== null;
+    return matchWord(prepareWord(word, 0, glosses), wordContext(query, glosses, options.deinflector ?? null, options.frequencyOrdered ?? false)) !== null;
 }
 
 function searchWords<W, K, G, C extends string>(index: PreparedSearch<W, K, G, C>, query: SearchQuery, raw: string): WordHit<W>[] {
-    const context = wordContext(query, index.glosses, index.deinflector);
+    const context = wordContext(query, index.glosses, index.deinflector, index.frequencyOrdered);
     const hits: { word: PreparedWord<W, C>; shown: boolean; match: WordMatch }[] = [];
     for (const word of index.words) {
         const match = matchWord(word, context);
