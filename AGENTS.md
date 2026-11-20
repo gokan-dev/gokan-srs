@@ -119,14 +119,16 @@ summary ("Largest tool results"), which is where a whole read shows.
 - Line endings are LF everywhere (`.gitattributes`).
 - Dataset changes belong in the `gokan-dataset` repo: commit and push inside the submodule
   first, then commit the new pointer here.
-- **Never run the dataset's full `bun run build` by reflex.** It deletes and rewrites about
-  160k small files (`build/assembled/`, then all of `compiled/`) and runs every stage, grammar
-  mining included: over 30 minutes on a Windows machine. Run the narrowest stage that covers the
-  change (a vocab field: its own step, then `build:layout`; a schema type: `build:schemas` and
-  `check:schemas`), and leave the apps' builds and full test runs to this repo's CI on a pushed
-  branch (gokan-dataset has no CI yet, so its compiled output is still built by hand, narrowly).
-  A full build is for a change that touches every stage, and says so before it starts. Not mechanised (a hook cannot
-  tell which stages a change needs); a reviewer checks that a dataset PR names the stages it ran.
+- **Never build the dataset locally: its CI does.** Push the change (sources, scripts, types) to
+  a gokan-dataset branch. Its Build workflow builds incrementally (each stage is skipped while
+  its inputs are unchanged), runs the tests, and commits `compiled/` and the generated docs back
+  to the branch as a bot commit. On main it also checks that a full rebuild from the raw sources
+  is byte-identical. Pull that commit before pushing again, and point this repo's submodule only
+  at a commit whose `compiled/` the dataset's CI built. A local build reads about 400 MB of LFS
+  sources and rewrites about 160k files in `build/`: over an hour on a Windows machine. Checks
+  that only read the committed `compiled/` (`check:schemas`, `check:layout`) still run locally,
+  as do this repo's own builds and tests. Not mechanised (a hook cannot tell a local build from
+  CI's); a reviewer checks that a pointer bump names a dataset commit whose Build run passed.
 
 ## Writing rules
 
