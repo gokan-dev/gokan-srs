@@ -187,6 +187,20 @@ jobs:
             echo "::warning::gokan-dataset refused AGENT_GITHUB_TOKEN for a push: the agent cannot push dataset changes."
           fi
 
+      # The prompt has the agent wait for gokan-dataset's Build run (`gh run list`, `gh run watch`)
+      # before it points the submodule at the bot's commit. gokan-dataset is public, so any token
+      # reads its runs; the agent's own App token is minted inside the action, so this asks with the
+      # job's token, which reads a public repo the same way. A refusal (the repo made private, a
+      # rate limit) shows in the run summary instead of as an agent that cannot tell "passed, no
+      # commit" from "still running".
+      - name: Check the dataset's Build runs are readable
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh run list --repo gokan-dev/gokan-dataset -L1 > /dev/null; then
+            echo "::warning::gokan-dataset's Actions runs are not readable: the agent cannot wait for a dataset Build run."
+          fi
+
       - name: Run Claude
         id: claude
         uses: anthropics/claude-code-action@v1

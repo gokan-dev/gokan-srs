@@ -52,7 +52,7 @@ bun run dev
 
 The dataset is not built here. The `gokan-dataset` repo's own CI builds it on every push and commits `compiled/` back to the branch; this app reads the committed `compiled/` in the `dataset` submodule, and a pointer bump points at that bot commit (see [Dataset Consumption](../../docs/ARCHITECTURE.md#dataset-consumption)).
 
-`build:data`, `build:kanji`, `build:jlpt` and `build:jpdb` remain only for debugging one stage from the monorepo. They need the submodule's own one-time `bun install` first (it's outside the root workspace glob, so the root `bun install` doesn't cover it):
+`build:kanji`, `build:jlpt` and `build:jpdb` remain only for debugging one stage from the monorepo. `build:data` is the dataset's full build, which runs only in the dataset's CI: never run it here to produce a `compiled/` to commit. The single-stage scripts need the submodule's own one-time `bun install` first (it's outside the root workspace glob, so the root `bun install` doesn't cover it):
 
 ```bash
 bun install --cwd apps/gokan-srs/dataset

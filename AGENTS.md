@@ -132,7 +132,7 @@ summary ("Largest tool results"), which is where a whole read shows.
   `compiled/`: fetching sources (`fetch:media`, `fetch:covers`) and making audio clips
   (`build:audio`, which needs the engine; CI attaches them). The dataset's `check:schemas` reads
   only the committed `compiled/` and still runs locally (its `check:layout` compares against
-  `build/`, so it runs in its CI), as do this repo's own builds and tests. Not mechanised yet: a
+  `build/`, so it runs in its CI). Not mechanised yet: a
   CI step here, when the submodule pointer moves, could check that the last commit touching
   `compiled/` at the pointer is the dataset's build bot and that no later commit touches its
   sources, scripts or `data/`. Until then a reviewer checks that a pointer bump names a commit
