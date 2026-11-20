@@ -6,7 +6,7 @@ import { CONSTANTS } from '../commons/constants';
 import { VocabularyService } from './vocabulary.service';
 import type { KanjiKnowledge, UserSettings } from '../models/user.model';
 import { introQuizType, isVocabFullyMastered, vocabNextReviewAt, newSRSEntry, isProductionActivated } from './scheduling';
-import type { QuizType } from '../utils/srs.utils';
+import type { QuizMode, QuizType } from '../utils/srs.utils';
 import { collectJlptCandidates, countJlptCandidates } from './jlptWalk';
 import type { AnswerResult } from '../utils/answerMatching';
 import { orderIncludesUsuallyKana, usuallyKanaPacer, type UsuallyKanaPacer } from '../utils/usuallyKana.utils';
@@ -90,7 +90,7 @@ export class SRSService {
     static applyAnswer(
         vocab: VocabProgress,
         quizType: QuizType,
-        quizMode: 'base' | 'context' | undefined,
+        quizMode: QuizMode | undefined,
         result: AnswerResult,
         latencyMs: number,
         now: Date,
@@ -304,18 +304,35 @@ export class SRSService {
             seeded, 'production', 'base', result, neutralLatency, now, growthLevel, frequencyModifier,
             meaningQuizEnabled, productionQuizEnabled, strengthRatio
         );
+        return { ...updated, production: updated.production && tagLastLogAsReinforcement(updated.production) };
+    }
 
-        // Tag the log this credit wrote, so the calibration's replay of the review
-        // logs does not count it as a production review.
-        const history = updated.production?.history ?? [];
-        if (!updated.production || history.length === 0) return updated;
-        return {
-            ...updated,
-            production: {
-                ...updated.production,
-                history: [...history.slice(0, -1), { ...history[history.length - 1], source: 'reinforcement' as const }],
-            },
-        };
+    /**
+     * Credits one word's READING entry for its listening cloze (issue #165): the word heard in
+     * a sentence and typed. Reading is the direction it trains (the sound of the word, typed in
+     * kana or as written), but with the sentence on screen around the blank, so the credit is
+     * discounted like production's and the log tagged `reinforcement`, which the calibration
+     * replay leaves out. It moves the reading entry's due date like any answer, so the review
+     * it stood in for is done. Latency is neutralised: a clip plays before the learner can type.
+     *
+     * Called only by the exercise engine's `reinforce` effect (services/exercise/effects.ts).
+     */
+    static applyReadingReinforcement(
+        vocab: VocabProgress,
+        result: AnswerResult,
+        now: Date,
+        meaningQuizEnabled: boolean,
+        productionQuizEnabled: boolean,
+        growthLevel: number = 1.0,
+        frequencyModifier: number = 1.0,
+        strengthRatio: number = CONSTANTS.srs.listening.reinforcementStrengthRatio
+    ): VocabProgress {
+        const neutralLatency = CONSTANTS.srs.quizProperties.reading.expectedLatency;
+        const { updated } = this.applyAnswer(
+            vocab, 'reading', 'base', result, neutralLatency, now, growthLevel, frequencyModifier,
+            meaningQuizEnabled, productionQuizEnabled, strengthRatio
+        );
+        return { ...updated, reading: tagLastLogAsReinforcement(updated.reading) };
     }
 
     /* =======================
@@ -811,4 +828,14 @@ export class SRSService {
 
     // Per-quiz-type calibration (the old single "adaptive" level) lives in
     // services/calibration.ts.
+}
+
+/**
+ * Tags the log a reinforcement just wrote, so the calibration's replay of the review logs does
+ * not count it as a scheduled review of that direction.
+ */
+function tagLastLogAsReinforcement(entry: SRSEntry): SRSEntry {
+    const history = entry.history;
+    if (history.length === 0) return entry;
+    return { ...entry, history: [...history.slice(0, -1), { ...history[history.length - 1], source: 'reinforcement' as const }] };
 }

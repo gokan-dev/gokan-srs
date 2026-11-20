@@ -1,13 +1,15 @@
-import type { Vocabulary } from "@gokan/dataset-schema";
+import { useEffect, useEffectEvent, useState } from "react";
+import type { ClipOutcome, Vocabulary } from "@gokan/dataset-schema";
 import { useQuiz } from "../../context/useQuiz";
 import type { ExerciseTurnApi } from "../../context/quiz/useExerciseTurn";
-import type { SlotGrade } from "../../services/exercise/types";
+import type { Exercise, SlotGrade } from "../../services/exercise/types";
+import { useClip } from "../../hooks/useClip";
 import { CONSTANTS } from "../../commons/constants";
 import { SingleAnswerCard } from "../../components/quiz/SingleAnswerCard";
 import { SentenceClozeCard } from "../../components/quiz/SentenceClozeCard";
 import { StudyCard } from "../../components/quiz/StudyCard";
 import { formatReadingList } from "../quiz/quizFormatting";
-import { MeaningPrompt, ProductionClozeHeader, ProductionPrompt, ReadingPrompt } from "../quiz/VocabPrompts";
+import { ListeningClozeHeader, MeaningPrompt, ProductionClozeHeader, ProductionPrompt, ReadingPrompt } from "../quiz/VocabPrompts";
 import { ConjugationAnswer, ConjugationPrompt, GrammarCardHeader, SentenceCue } from "../grammar/GrammarPrompts";
 
 /**
@@ -107,6 +109,21 @@ export function ExerciseCard({ api, onVocabClick }: ExerciseCardProps) {
                 />
             );
 
+        case 'listening-cloze':
+            if (!vocab) return null;
+            return (
+                <ListeningCloze
+                    // A new card is a new clip, even on the same sentence (another word of it): it
+                    // plays on show again, says "Play" again, and the fallback does not carry over.
+                    key={`${vocab.id}:${exercise.sentence.sentence.id}`}
+                    api={api}
+                    vocab={vocab}
+                    exercise={exercise}
+                    memoryStrength={currentProgress?.reading.memoryStrength ?? 0}
+                    onVocabClick={onVocabClick}
+                />
+            );
+
         case 'grammar-cloze':
             if (!point) return null;
             return (
@@ -197,4 +214,63 @@ export function ExerciseCard({ api, onVocabClick }: ExerciseCardProps) {
                 />
             );
     }
+}
+
+interface ListeningClozeProps {
+    api: ExerciseTurnApi;
+    vocab: Vocabulary;
+    exercise: Extract<Exercise, { kind: 'listening-cloze' }>;
+    memoryStrength: number;
+    onVocabClick: (vocabId: string) => void;
+}
+
+/**
+ * The listening cloze on the sentence cloze card (issue #165): its sentence plays once on show,
+ * replays on its control or the replay key, and, when it cannot be heard (the clip failed, or the
+ * learner asked for the text, which stops it), shows its translation, so the card is answered as
+ * the production cloze is rather than blocking the session; that answer credits nothing
+ * (`turn.unheard`, effects.ts). A clip blocked from playing by itself (autoplay) is not a failure:
+ * the control is there to press. A right answer shows the word as written, with its reading.
+ */
+function ListeningCloze({ api, vocab, exercise, memoryStrength, onVocabClick }: ListeningClozeProps) {
+    const control = useClip(exercise.audio.clip);
+    // `played` resolves when playback starts: the clip counts as heard once that play has ended
+    // (played through, or stopped), so the control says "Play" for the whole first play.
+    const [started, setStarted] = useState(false);
+    const [heard, setHeard] = useState(false);
+    if (started && !control.playing && !heard) setHeard(true);
+    const unheard = api.turn?.unheard === true;
+    const onOutcome = (outcome: ClipOutcome) => {
+        if (outcome === 'played') setStarted(true);
+        else if (outcome === 'failed') api.markUnheard();
+    };
+
+    const playOnShow = useEffectEvent(() => { void control.play().then(onOutcome); });
+    useEffect(() => playOnShow(), []);
+
+    return (
+        <SentenceClozeCard
+            api={api}
+            sentence={exercise.sentence}
+            header={(
+                <ListeningClozeHeader
+                    vocab={vocab}
+                    sentence={exercise.cloze.sentence}
+                    memoryStrength={memoryStrength}
+                    control={control}
+                    heard={heard}
+                    answered={!!api.turn?.feedback}
+                    unheard={unheard}
+                    onUnheard={() => {
+                        control.stop();
+                        api.markUnheard();
+                    }}
+                    onOutcome={onOutcome}
+                />
+            )}
+            onVocabClick={onVocabClick}
+            onReplay={() => void control.play().then(onOutcome)}
+            revealWhenRight
+        />
+    );
 }

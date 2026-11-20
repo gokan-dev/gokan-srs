@@ -1,0 +1,1 @@
+A new listening quiz, off by default: turn on Listening quizzes in Settings and some reading reviews play an example sentence aloud, with the word you are reviewing left blank for you to type what you heard.

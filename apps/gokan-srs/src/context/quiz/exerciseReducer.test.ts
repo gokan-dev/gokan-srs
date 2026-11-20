@@ -5,6 +5,7 @@ import type { ExerciseFeedback, ExerciseHost } from './exerciseReducer';
 import { DEFAULT_SETTINGS } from '../../models/user.model';
 import { grammarExercise, vocabExercise } from '../../services/exercise/builders';
 import type { Effect } from '../../services/exercise/effects';
+import { gradeExercise } from '../../services/exercise/grading';
 import type { HostItem } from '../../services/exercise/types';
 import type { AnswerResult } from '../../utils/answerMatching';
 import { answerSlot, grammarExample, grammarPoint, grammarProgress, userProgress, vocabProgress, vocabulary } from '../../test/fixtures';
@@ -150,7 +151,7 @@ describe('exerciseReducer (via quizReducer)', () => {
 
         it('names the tested word in the ticker, crediting the near-synonym typed', () => {
             const retry: Effect = { kind: 'retry', item: { kind: 'vocab', vocabId: 'v1', quizType: 'production', quizMode: 'base' }, label: '狭い', result: 'correct', neutral: false };
-            const credit: Effect = { kind: 'reinforce', vocabId: 'v2', label: '小さい', result: 'correct' };
+            const credit: Effect = { kind: 'reinforce', vocabId: 'v2', label: '小さい', result: 'correct', direction: 'production' };
 
             const next = continueWith({ ...initialState, progress: studying('v1', 'v2') }, 'vocab', [retry, credit]);
 
@@ -214,7 +215,7 @@ describe('exerciseReducer (via quizReducer)', () => {
         });
 
         it('prepends the answer to the ticker, with the vocab it credited', () => {
-            const next = continueWith({ ...initialState, progress: studying('v-sushi') }, 'grammar', [grammarReview, { kind: 'reinforce', vocabId: 'v-sushi', label: '寿司', result: 'correct' }]);
+            const next = continueWith({ ...initialState, progress: studying('v-sushi') }, 'grammar', [grammarReview, { kind: 'reinforce', vocabId: 'v-sushi', label: '寿司', result: 'correct', direction: 'production' }]);
 
             expect(next.grammarSessionHistory[0]).toMatchObject({ grammarId: 'n5-001', title: 'A が いちばん～', result: 'correct' });
             expect(next.grammarSessionHistory[0].vocabBreakdown?.[0].label).toBe('寿司');
@@ -245,6 +246,42 @@ describe('exerciseReducer (via quizReducer)', () => {
 
             expect(state.grammarSessionHistory).toHaveLength(50);
             expect(state.grammarSessionGains.net).toBeCloseTo(total, 6);
+        });
+    });
+
+    describe('the listening cloze not answered by ear (issue #165)', () => {
+        const reask: Effect = { kind: 'reask', item: { kind: 'vocab', vocabId: 'v1', quizType: 'reading', quizMode: 'listening' }, label: '日本', result: 'wrong' };
+
+        it('marks the word to be read as written, once, and lists the answer with no change', () => {
+            const once = continueWith({ ...initialState, progress: studying('v1') }, 'vocab', [reask]);
+            expect(once.readAsWritten).toEqual(['v1']);
+            expect(once.sessionHistory[0]).toMatchObject({ vocabId: 'v1', result: 'wrong', delta: 0 });
+            expect(once.progress!.learningQueue[0].reading).toEqual(studying('v1').learningQueue[0].reading);
+            expect(continueWith(once, 'vocab', [reask]).readAsWritten).toEqual(['v1']);
+        });
+
+        it('holds the word back until its plain reading card is answered, and keeps it read as written', () => {
+            const missed = continueWith({ ...initialState, progress: studying('v1') }, 'vocab', [reask]);
+            expect(missed.heldBack).toEqual(['v1']);
+            const elsewhere = continueWith(missed, 'vocab', [{ kind: 'defer', item: { kind: 'vocab', vocabId: 'v1', quizType: 'meaning', quizMode: 'base' } }]);
+            expect(elsewhere.heldBack).toEqual(['v1']);
+            const read = continueWith(missed, 'vocab', [{ kind: 'retry', item: { kind: 'vocab', vocabId: 'v1', quizType: 'reading', quizMode: 'base' }, label: '日本', result: 'wrong', neutral: false }]);
+            expect(read.heldBack).toEqual([]);
+            expect(read.readAsWritten).toEqual(['v1']);
+        });
+
+        it('forgets the mark when a new session starts', () => {
+            const marked = continueWith({ ...initialState, progress: studying('v1') }, 'vocab', [reask]);
+            const started = quizReducer(marked, { type: 'SESSION_START', payload: { taskKeys: [] } });
+            expect(started.readAsWritten).toEqual([]);
+            expect(started.heldBack).toEqual([]);
+        });
+
+        it('sets the turn unheard only before its answer', () => {
+            const shown = withVocabCard();
+            expect(quizReducer(shown, { type: 'EXERCISE_UNHEARD', host: 'vocab' }).turns.vocab?.unheard).toBe(true);
+            const answered = quizReducer(shown, { type: 'EXERCISE_SUBMITTED', host: 'vocab', feedback: { grade: gradeExercise(readingCard(), ['にほん'], [0]), effects: [] } });
+            expect(quizReducer(answered, { type: 'EXERCISE_UNHEARD', host: 'vocab' }).turns.vocab?.unheard).toBeUndefined();
         });
     });
 });

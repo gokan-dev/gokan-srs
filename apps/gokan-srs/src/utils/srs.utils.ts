@@ -20,7 +20,12 @@ import { pickStable as pickStableGeneric } from "./deterministicPick";
  * 'production' English prompt, Japanese reading answer (production)
  */
 export type QuizType = 'reading' | 'meaning' | 'production';
-export type QuizMode = 'base' | 'context';
+/**
+ * How a direction is asked. `context`: meaning in an example sentence. `listening`: a reading
+ * review served as the listening cloze (the sentence heard, the word typed), which reinforces
+ * the reading entry rather than reviewing it (services/exercise/effects.ts).
+ */
+export type QuizMode = 'base' | 'context' | 'listening';
 
 /**
  * A task key uniquely identifies one quiz to answer: `${vocabId}:${quizType}`.
