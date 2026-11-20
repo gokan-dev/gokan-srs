@@ -8,8 +8,8 @@
 # both apps from one checkout here is what makes that check meaningful.
 #
 # The rendered review of what was deployed (claude-review-staging.yml) is dispatched and awaited by
-# this run's second job, not a listener: there is one staging site, and a release's members now build in parallel, so a
-# deploy and the review of it hold the site together. The workflow-level group below queues every
+# this run's second job, not a listener: there is one staging site, and a release's members now
+# build in parallel, so a deploy and the review of it hold the site together. The workflow-level group below queues every
 # other deploy (and its review) until this run has finished: no member's deploy lands while another
 # member's pages are being reviewed.
 
