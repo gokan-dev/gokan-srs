@@ -27,6 +27,11 @@ interface SentenceClozeCardProps {
     onVocabClick?: (vocabId: string) => void;
     /** Replays the card's clip on the replay key (the listening cloze; useQuizFocusManagement). */
     onReplay?: () => void;
+    /**
+     * Also shows the written form beside a blank answered right (the listening cloze, typed by
+     * sound, often in kana): the word is the subject, and it was never shown written.
+     */
+    revealWhenRight?: boolean;
 }
 
 /**
@@ -35,9 +40,10 @@ interface SentenceClozeCardProps {
  * slot, typed or, for a slot with choices, picked from the options under it. The
  * text between the blanks renders through InteractiveSentence like every other
  * sentence in the app: a gloss on hover, a click to the word's page, furigana once
- * answered. A missed blank reveals the right form beside it, linked to its word.
+ * answered. A missed blank reveals the right form beside it, linked to its word
+ * (with `revealWhenRight`, a blank answered right too).
  */
-export function SentenceClozeCard({ api, sentence, header, feedbackExtra, onVocabClick, onReplay }: SentenceClozeCardProps) {
+export function SentenceClozeCard({ api, sentence, header, feedbackExtra, onVocabClick, onReplay, revealWhenRight = false }: SentenceClozeCardProps) {
     const { turn } = api;
     const feedback = turn?.feedback ?? null;
 
@@ -97,8 +103,8 @@ export function SentenceClozeCard({ api, sentence, header, feedbackExtra, onVoca
                                 onHint={() => api.revealHint(part.index)}
                                 gloss={slot?.gloss ?? ''}
                                 given={slot?.given}
-                                // On anything short of the word itself, strictly right.
-                                reveal={slot && grade && (grade.result !== 'correct' || grade.synonym) && (
+                                // On anything short of the word itself, strictly right (with revealWhenRight, any answer not already written as it).
+                                reveal={slot && grade && ((revealWhenRight && turn.answers[part.index] !== slot.reveal) || grade.result !== 'correct' || grade.synonym) && (
                                     <RevealedForm
                                         slot={slot}
                                         reading={slot.reveal === part.surface ? part.reading : undefined}

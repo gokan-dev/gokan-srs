@@ -226,14 +226,19 @@ interface ListeningClozeProps {
 /**
  * The listening cloze on the sentence cloze card (issue #165): its sentence plays once on show,
  * replays on its control or the replay key, and, when it cannot be heard (the clip failed, or the
- * learner asked for the text), shows its translation, so the card is answered as the production
- * cloze is rather than blocking the session. A clip blocked from playing by itself (autoplay) is
- * not a failure: the control is there to press.
+ * learner asked for the text, which stops it), shows its translation, so the card is answered as
+ * the production cloze is rather than blocking the session; that answer credits nothing
+ * (`turn.unheard`, effects.ts). A clip blocked from playing by itself (autoplay) is not a failure:
+ * the control is there to press. A right answer shows the word as written, with its reading.
  */
 function ListeningCloze({ api, vocab, exercise, memoryStrength, onVocabClick }: ListeningClozeProps) {
     const control = useClip(exercise.audio.clip);
-    const [unheard, setUnheard] = useState(false);
-    const onOutcome = (outcome: ClipOutcome) => { if (outcome === 'failed') setUnheard(true); };
+    const [heard, setHeard] = useState(false);
+    const unheard = api.turn?.unheard === true;
+    const onOutcome = (outcome: ClipOutcome) => {
+        if (outcome === 'played') setHeard(true);
+        else if (outcome === 'failed') api.markUnheard();
+    };
 
     const playOnShow = useEffectEvent(() => { void control.play().then(onOutcome); });
     useEffect(() => playOnShow(), []);
@@ -248,14 +253,19 @@ function ListeningCloze({ api, vocab, exercise, memoryStrength, onVocabClick }: 
                     sentence={exercise.cloze.sentence}
                     memoryStrength={memoryStrength}
                     control={control}
+                    heard={heard}
                     answered={!!api.turn?.feedback}
                     unheard={unheard}
-                    onUnheard={() => setUnheard(true)}
+                    onUnheard={() => {
+                        control.stop();
+                        api.markUnheard();
+                    }}
                     onOutcome={onOutcome}
                 />
             )}
             onVocabClick={onVocabClick}
             onReplay={() => void control.play().then(onOutcome)}
+            revealWhenRight
         />
     );
 }

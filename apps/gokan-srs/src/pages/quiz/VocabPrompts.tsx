@@ -125,7 +125,7 @@ export function MeaningPrompt({ vocab, answered, memoryStrength, onOpenWord, sen
                 {/* Context mode is authoritative: a failed sentence load is said, never
                     silently downgraded to the word alone. */}
                 {contextRequested && !sentence && (
-                    <p className="text-xs text-secondary/70 mt-2 font-gothic italic">
+                    <p className="text-xs text-secondary/70 mt-2 font-sans italic">
                         Context sentence unavailable, showing the standard quiz instead.
                     </p>
                 )}
@@ -288,7 +288,7 @@ export function ProductionClozeHeader({ vocab, sentence, memoryStrength }: { voc
                 </div>
             )}
 
-            <p className="text-center text-sm text-secondary font-gothic mb-1">
+            <p className="text-center text-sm text-secondary font-sans mb-1">
                 Fill in the blank
                 {!cueEmphasis.inline && cueEmphasis.labelGlosses.length > 0 && (
                     <span className="text-accent font-semibold"> · {cueEmphasis.labelGlosses.join(' / ')}</span>
@@ -315,6 +315,8 @@ interface ListeningClozeHeaderProps {
     memoryStrength: number;
     /** The sentence's clip, played once on show by the card. */
     control: ClipControl;
+    /** True once the clip has played at least once (the control then reads "Play again"). */
+    heard: boolean;
     /** True once the card is answered: the translation comes with the feedback. */
     answered: boolean;
     /**
@@ -322,7 +324,7 @@ interface ListeningClozeHeaderProps {
      * the translation shows at once, and the card is answered as the production cloze is.
      */
     unheard: boolean;
-    /** Shows the translation instead of the sound (muted, or nowhere to listen). */
+    /** Shows the translation instead of the sound (muted, or nowhere to listen), and stops the clip. */
     onUnheard: () => void;
     /** Told how a press's start ended, so a clip that cannot play has the card fall back. */
     onOutcome: (outcome: ClipOutcome) => void;
@@ -333,7 +335,7 @@ interface ListeningClozeHeaderProps {
  * sentence plays once on show; replayed by the control or its key) and, once answered or when the
  * sentence cannot be heard, its translation. Before that no English shows: the sound is the cue.
  */
-export function ListeningClozeHeader({ vocab, sentence, memoryStrength, control, answered, unheard, onUnheard, onOutcome }: ListeningClozeHeaderProps) {
+export function ListeningClozeHeader({ vocab, sentence, memoryStrength, control, heard, answered, unheard, onUnheard, onOutcome }: ListeningClozeHeaderProps) {
     const english = sentence.en[0]?.text;
     return (
         <>
@@ -345,11 +347,11 @@ export function ListeningClozeHeader({ vocab, sentence, memoryStrength, control,
                 </div>
             )}
 
-            <p className="text-center text-sm text-secondary font-gothic mb-3">
-                {unheard && !answered ? 'Fill in the blank' : 'Type the word you hear'}
+            <p className="text-center text-sm text-secondary font-sans mb-3">
+                {unheard ? 'Fill in the blank' : 'Type the word you hear'}
             </p>
             <div className="flex justify-center mb-3">
-                <PlayControl control={control} label={control.playing ? 'Stop' : 'Play again'} shortcut={REPLAY_SHORTCUT} onOutcome={onOutcome} />
+                <PlayControl control={control} heard={heard} shortcut={REPLAY_SHORTCUT} onOutcome={onOutcome} />
             </div>
 
             {answered || unheard ? (

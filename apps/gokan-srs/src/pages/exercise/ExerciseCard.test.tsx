@@ -1,9 +1,14 @@
+// @vitest-environment happy-dom
+import { act, useState } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { headwordOf } from '@gokan/dataset-schema';
+import { MotionGlobalConfig } from 'framer-motion';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ExerciseTurnApi } from '../../context/quiz/useExerciseTurn';
-import { newTurn } from '../../context/quiz/exerciseReducer';
+import { newTurn, type ExerciseTurn } from '../../context/quiz/exerciseReducer';
+import { clipPlayer } from '../../services/clipPlayer';
 import { vocabExercise } from '../../services/exercise/builders';
 import type { Exercise } from '../../services/exercise/types';
 import { CONSTANTS } from '../../commons/constants';
@@ -19,6 +24,30 @@ vi.mock('../../context/useQuiz', () => ({
 }));
 vi.mock('../../context/Responsive/useResponsive', () => ({ useResponsive: () => ({ isMobile: false }) }));
 
+/** How the fake clip's next start ends: it plays (and keeps playing until stopped), or autoplay blocks it. */
+const clip = vi.hoisted(() => {
+    const state: { next: 'played' | 'blocked' } = { next: 'played' };
+    return state;
+});
+vi.mock('../../services/clipPlayer', async () => {
+    const { createClipPlayer } = await import('@gokan/dataset-schema');
+    const blocked = () => Object.assign(new Error('autoplay'), { name: 'NotAllowedError' });
+    return {
+        clipPlayer: createClipPlayer({
+            urlOf: c => Promise.resolve(`/audio/${c}.opus`),
+            open: () => ({
+                play: () => (clip.next === 'blocked' ? Promise.reject(blocked()) : Promise.resolve()),
+                pause: () => undefined,
+                addEventListener: () => undefined,
+            }),
+        }),
+    };
+});
+
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+// The card frame's entrance has nothing to test, and happy-dom cancels it mid-way.
+MotionGlobalConfig.skipAnimations = true;
+
 const reading = vocabExercise(vocab, { quizType: 'reading', quizMode: 'base' }, { sentence: null, cloze: null });
 const conjugation: Exercise = {
     host: { kind: 'grammar', grammarId: point.id },
@@ -29,19 +58,24 @@ const conjugation: Exercise = {
     prompt: { lemma: '食べる', lemmaReading: 'たべる', formLabel: 'て-form', wordClass: 'ichidan', target: '食べて', targetReading: 'たべて' },
 };
 
-/** The card, rendered with "Type romaji as kana" on or off, answered or not. */
-function cardOf(exercise: Exercise, romajiInput: boolean, turn = newTurn(exercise)): string {
-    const api: ExerciseTurnApi = {
+/** A card's turn API over `turn`, with "Type romaji as kana" on or off; only `markUnheard` does anything. */
+function apiOf(turn: ExerciseTurn, romajiInput: boolean, markUnheard: () => void = () => undefined): ExerciseTurnApi {
+    return {
         turn,
         setAnswer: () => undefined,
         revealHint: () => undefined,
         submit: () => undefined,
+        markUnheard,
         continueToNext: () => undefined,
         canSubmit: false,
         convertsRomaji: () => romajiInput,
         showContinue: false,
     };
-    return renderToStaticMarkup(<MemoryRouter><ExerciseCard api={api} onVocabClick={() => undefined} /></MemoryRouter>);
+}
+
+/** The card, rendered with "Type romaji as kana" on or off, answered or not. */
+function cardOf(exercise: Exercise, romajiInput: boolean, turn = newTurn(exercise)): string {
+    return renderToStaticMarkup(<MemoryRouter><ExerciseCard api={apiOf(turn, romajiInput)} onVocabClick={() => undefined} /></MemoryRouter>);
 }
 
 /** The card's answer field. */
@@ -106,11 +140,108 @@ describe('the listening cloze card', () => {
         expect(html).toContain('Show the translation');
     });
 
+    /** The card answered with `typed`, graded. */
+    const answeredWith = (typed: string, turn: ExerciseTurn = newTurn(listening)): ExerciseTurn =>
+        ({ ...turn, answers: [typed], feedback: { grade: gradeExercise(listening, [typed], [0]), effects: [] } });
+
     it('shows the translation with the feedback', () => {
-        const turn = newTurn(listening);
-        const grade = gradeExercise(listening, [vocab.reading.primary], [0]);
-        const html = cardOf(listening, true, { ...turn, answers: [vocab.reading.primary], feedback: { grade, effects: [] } });
+        const html = cardOf(listening, true, answeredWith(vocab.reading.primary));
         expect(html).toContain('There is one.');
         expect(html).not.toContain('Show the translation');
+    });
+
+    it('shows the word as written, with its reading, beside a right answer typed in kana', () => {
+        const html = cardOf(listening, true, answeredWith(vocab.reading.primary));
+        expect(gradeExercise(listening, [vocab.reading.primary], [0]).overall).toBe('correct');
+        const reveal = /<button[^>]*title="Open the page for [^"]*"[^>]*>(.*?)<\/button>/.exec(html)?.[1] ?? '';
+        expect(reveal).toContain('<ruby');
+        expect(reveal.replace(/<rt[^>]*>.*?<\/rt>|<[^>]+>/g, '')).toBe(written);
+        expect([...reveal.matchAll(/<rt[^>]*>(.*?)<\/rt>/g)].map(m => m[1]).join('')).toBe(vocab.reading.primary);
+    });
+
+    it('adds nothing beside a right answer typed as written', () => {
+        expect(cardOf(listening, true, answeredWith(written))).not.toContain('Open the page for');
+    });
+
+    describe('in the page', () => {
+        let container: HTMLDivElement;
+        let root: Root;
+        /** The turn as the reducer would hold it: `markUnheard` sets `unheard`, `answer` grades. */
+        let answer: (typed: string) => void = () => undefined;
+
+        function Harness() {
+            const [turn, setTurn] = useState<ExerciseTurn>(newTurn(listening));
+            answer = typed => setTurn(t => answeredWith(typed, t));
+            const api = apiOf(turn, true, () => setTurn(t => ({ ...t, unheard: true })));
+            return <MemoryRouter><ExerciseCard api={api} onVocabClick={() => undefined} /></MemoryRouter>;
+        }
+
+        /** Runs `step`, then lets the clip's start (its URL, then its playback) settle. */
+        const settled = (step: () => void) => act(async () => {
+            step();
+            await new Promise(resolve => setTimeout(resolve, 0));
+        });
+
+        /** Renders the card, its clip's start on show ending as `onShow`. */
+        async function show(onShow: 'played' | 'blocked') {
+            clip.next = onShow;
+            await settled(() => root.render(<Harness />));
+        }
+
+        const control = () => container.querySelector<HTMLButtonElement>('[data-play-control]')!;
+        const textButton = () => [...container.querySelectorAll('button')].find(b => b.textContent.includes('Show the translation'));
+        const instruction = () => [...container.querySelectorAll('p')].find(p => /Fill in the blank|Type the word you hear/.test(p.textContent))?.textContent;
+        /** The control's accessible name: its visible words, without the unseen ones that hold its width. */
+        const nameOf = (button: HTMLButtonElement) =>
+            [...button.querySelectorAll('span')].filter(s => s.getAttribute('aria-hidden') !== 'true' && s.children.length === 0).map(s => s.textContent).join('');
+
+        beforeEach(() => {
+            container = document.createElement('div');
+            document.body.appendChild(container);
+            root = createRoot(container);
+        });
+
+        afterEach(() => {
+            act(() => root.unmount());
+            container.remove();
+            clipPlayer.stopIf('clip-1');
+        });
+
+        it('says "Play" for a clip autoplay blocked, then "Play again" whether playing or not, with aria-pressed telling which', async () => {
+            await show('blocked');
+            expect(nameOf(control())).toBe('Play');
+            expect(control().getAttribute('aria-pressed')).toBe('false');
+            expect(control().textContent).not.toContain('Stop');
+
+            clip.next = 'played';
+            await settled(() => control().click());
+            expect(nameOf(control())).toBe('Play again');
+            expect(control().getAttribute('aria-pressed')).toBe('true');
+
+            await settled(() => control().click());
+            expect(nameOf(control())).toBe('Play again');
+            expect(control().getAttribute('aria-pressed')).toBe('false');
+        });
+
+        it('keeps the same width for both labels: the longer one is always laid out', async () => {
+            await show('blocked');
+            const hidden = control().querySelector('[aria-hidden="true"].invisible');
+            expect(hidden?.textContent).toBe('Play again');
+        });
+
+        it('stops the clip on "Show the translation", and keeps "Fill in the blank" once answered', async () => {
+            await show('played');
+            expect(clipPlayer.playing()).toBe('clip-1');
+            expect(control().getAttribute('aria-pressed')).toBe('true');
+
+            await settled(() => textButton()?.click());
+            expect(clipPlayer.playing()).toBeNull();
+            expect(control().getAttribute('aria-pressed')).toBe('false');
+            expect(instruction()).toBe('Fill in the blank');
+            expect(container.textContent).toContain('There is one.');
+
+            await settled(() => answer(vocab.reading.primary));
+            expect(instruction()).toBe('Fill in the blank');
+        });
     });
 });

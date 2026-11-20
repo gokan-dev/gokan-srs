@@ -70,22 +70,32 @@ function ClipButton({ clip, label, className }: { clip: string; label: string; c
     );
 }
 
+/** The play control's words: "Play" until the clip has been heard once, "Play again" after. */
+const PLAY_LABEL = 'Play';
+const REPLAY_LABEL = 'Play again';
+
 /**
- * A play control that stands on its own, with its words: the listening cloze's "Play again", and
- * any place a clip is the subject rather than a line's companion. A secondary `Button` (44px tall
- * at every width), the speaker in accent (a stop square while it plays) before its text.
- * A press replays the clip from its start (`ClipControl.play`), or stops it while it plays.
- * `shortcut` names a key that does the same, for `aria-keyshortcuts` and its title.
+ * A play control that stands on its own, with its words: the listening cloze's, and any place a
+ * clip is the subject rather than a line's companion. A secondary `Button` (44px tall at every
+ * width), the speaker in accent (a filled stop square while it plays) before its text. Its words
+ * never say "Stop": they read "Play" until the clip has been heard (`heard`, an outcome `played`
+ * seen), then "Play again"; whether it is playing is told only by the icon and `aria-pressed`, so
+ * its accessible name and its state never contradict. It is as wide as its longest words, so it
+ * never moves as they change. A press replays the clip from its start, or stops it while it
+ * plays. `shortcut` names a key that does the same, for `aria-keyshortcuts` and its title. Its
+ * host places it.
  */
-export function PlayControl({ control, label, shortcut, onOutcome }: {
+export function PlayControl({ control, heard, shortcut, onOutcome }: {
     control: ClipControl;
-    label: string;
+    /** True once the clip has played at least once: the words become "Play again". */
+    heard: boolean;
     shortcut?: string;
     /** Told how a press's start ended: a clip that cannot play has its card fall back. */
     onOutcome?: (outcome: ClipOutcome) => void;
 }) {
     const { playing } = control;
     const Icon = playing ? Square : Volume2;
+    const label = heard ? REPLAY_LABEL : PLAY_LABEL;
     return (
         <button
             type="button"
@@ -94,10 +104,14 @@ export function PlayControl({ control, label, shortcut, onOutcome }: {
             aria-keyshortcuts={shortcut}
             title={shortcut ? `${label} (${shortcut})` : undefined}
             data-play-control
-            className={buttonClassName('secondary', 'md', 'inline-flex gap-2 mx-auto focus:outline-none focus-visible:ring-2 focus-visible:ring-accent')}
+            className={buttonClassName('secondary', 'md', 'inline-flex gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent')}
         >
             <Icon size={20} aria-hidden="true" className="shrink-0 text-accent" fill={playing ? 'currentColor' : 'none'} />
-            {label}
+            {/* The longest words, unseen, hold the width (left out of the accessible name: hidden). */}
+            <span className="grid text-left">
+                <span className="col-start-1 row-start-1">{label}</span>
+                <span aria-hidden="true" className="invisible col-start-1 row-start-1">{REPLAY_LABEL}</span>
+            </span>
         </button>
     );
 }

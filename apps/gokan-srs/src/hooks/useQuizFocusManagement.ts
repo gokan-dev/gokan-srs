@@ -32,6 +32,18 @@ export function isReplayKey(event: Pick<KeyboardEvent, 'altKey' | 'ctrlKey' | 'm
 }
 
 /**
+ * True when a replay key press is the card's: not already handled, and from inside the card (its
+ * `root`) or from nowhere in particular (the page itself). A press in a lookup card, a sheet or a
+ * menu opened over the card belongs to that overlay.
+ */
+export function isCardReplay(event: KeyboardEvent, root: Element | null): boolean {
+    if (!isReplayKey(event) || event.defaultPrevented) return false;
+    const { target } = event;
+    if (!root || !(target instanceof Node)) return true;
+    return root.contains(target) || target === document.body || target === document.documentElement;
+}
+
+/**
  * Single owner of "what should be focused and when" for a quiz card, shared
  * by every card shell (SingleAnswerCard, SentenceClozeCard, StudyCard):
  * focus the first input on a fresh question (or when feedback clears for a
@@ -55,7 +67,8 @@ export function useQuizFocusManagement(
     useEffect(() => {
         if (!replays) return;
         const onKeyDown = (event: KeyboardEvent) => {
-            if (!isReplayKey(event)) return;
+            // The card's root: the form its first answer field is in.
+            if (!isCardReplay(event, firstInputRef.current?.closest('form') ?? null)) return;
             event.preventDefault();
             replay();
         };

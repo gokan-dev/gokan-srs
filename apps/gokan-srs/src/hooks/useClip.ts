@@ -10,6 +10,8 @@ export interface ClipControl {
     toggle: () => Promise<ClipOutcome>;
     /** Plays it from its start, whatever is playing (a replay, a card that plays on show). */
     play: () => Promise<ClipOutcome>;
+    /** Stops it if it is the one playing; never starts it. */
+    stop: () => void;
 }
 
 /**
@@ -28,5 +30,10 @@ export function useClip(clip: string): ClipControl {
         actions.dataLoadFailed('The audio index could not be loaded. The application data may be corrupted. Please reload or contact support.');
         return 'failed';
     });
-    return { playing, toggle: () => run(c => clipPlayer.toggle(c)), play: () => run(c => clipPlayer.play(c)) };
+    return {
+        playing,
+        toggle: () => run(c => clipPlayer.toggle(c)),
+        play: () => run(c => clipPlayer.play(c)),
+        stop: () => clipPlayer.stopIf(clip),
+    };
 }
