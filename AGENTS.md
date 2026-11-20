@@ -36,15 +36,18 @@ summary ("Largest tool results"), which is where a whole read shows.
 ## Workflow
 
 - Install: `git submodule update --init --recursive`, then `bun install` at the root.
-- **CI is where a change is verified, for people and agents alike.** The full gate (`bun run
-  check`: conventions, lint, typecheck, tests, duplicates, unused code), the builds and the
-  browser checks (`check:layout`, `check:lighthouse`, SEO held at 100 on every dictionary page,
-  `check:parity`) run on every pushed branch, PR or not, the same way every time. Push the branch,
+- **CI is where a change is verified, for people and agents alike.** `CI: checks` (the full gate,
+  `bun run check`: conventions, lint, typecheck, tests, duplicates, unused code) runs on every
+  push; the builds and the browser checks (`check:layout`, `check:lighthouse`, SEO held at 100 on
+  every dictionary page, `check:parity`) run on every push that touches what they cover (path
+  filters), PR or not, the same way every time. A green run on a docs-only push says nothing about
+  layout or Lighthouse on that head. Push the branch,
   then `bun run ci:wait`: it waits for that commit's "CI: ..." runs, prints the failed jobs' logs
   and exits non-zero on a failure. Locally, run only the narrow command that covers what you are
   changing while iterating (one workspace's tests, `bun run typecheck`, `bun run lint`, one check);
   never the full suite or a production build as a gate. No local hook runs them either (no
-  pre-push hook). Not mechanised for local runs; agent prompts say the same.
+  pre-push hook). Not mechanised for local runs; the implement prompt says the same (the fix-CI and
+  address-feedback prompts follow in a later change).
 - A bug fix comes with a test that fails without the fix.
 - A convention lives in `bun run check`, not only in prose. When review (human or agent) finds a
   rule this file states that the gate did not catch, the same change adds the check that would
