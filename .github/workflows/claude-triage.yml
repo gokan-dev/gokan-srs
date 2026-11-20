@@ -3,23 +3,28 @@
 # A round is one pushed commit, reviewed. The reviewers only report, so every point comes here.
 # claude-review.yml dispatches this workflow when the PR review is in and the round's changes ship
 # nothing (no staging deploy), and claude-review-staging.yml does when the rendered review of the
-# round's rc is in. The triage job reads the round's reviews (and every earlier triage and decision
-# on the PR) and ends in exactly one outcome:
-#   - done:   nothing left to change. Labels the PR `agent-done` and mentions the human.
-#   - apply:  every point to act on has one obvious resolution. Posts the brief as a request to
+# round's rc is in. The triage agent reads the round's reviews (and every earlier triage and decision
+# on the PR) and writes a brief; the workflow decides from the brief's sections (scripts/triage.ts,
+# its rules in scripts/lib/, with tests) exactly one outcome:
+#   - done:   nothing left to change. Labels the PR `agent-done` and mentions the human (a sprint
+#             member is merged into its release instead).
+#   - apply:  a defect to fix, each with one obvious resolution. Posts the brief as a request to
 #             claude-address-feedback.yml, which fixes and pushes: a new round.
+#   - finish: round 1 left only reversible defaults. The feedback agent applies them, and triage of
+#             that push ends the PR once CI and the PR review pass on it: no agent, no staging round.
 #   - decide: at least one point needs the human's choice. Posts the brief with the options as
 #             checkboxes, labels the PR `needs-decision` and mentions the human.
 # The relay job then hands the answer (a ticked Send box, or any reply) to the feedback agent.
 #
 # Rounds cannot run forever: the brief never raises again what an earlier triage left out or the
-# human decided, the bar rises after the first round, and after MAX_AUTO_ROUNDS automatic rounds
+# human decided; from round 2 on, polish and lone defaults start no round (they are left on the PR,
+# and a sprint's release tracker, for one final pass); after MAX_AUTO_ROUNDS automatic rounds
 # without a word from the human, an `apply` becomes a `decide` that offers to stop; and a commit is
-# triaged at most twice: once, plus one repeat after an apply that pushed nothing, which ends in
-# done or decide (a repeat's apply becomes a decide that offers to stop).
+# triaged once, plus one repeat after an answer that pushed nothing (an apply or finish brief, or a
+# decision), which ends in done or decide.
 #
 # Only deterministic steps write the "@claude" that starts the feedback agent: the triage agent
-# has no shell and no network, reads what the steps gathered, and writes its outcome to files.
+# has no shell and no network, reads what the steps gathered, and writes its brief to a file.
 name: "Agent: triage reviews"
 
 on:
@@ -38,7 +43,7 @@ on:
         description: 'Set by the staging review: its run URL'
         required: false
       retriage:
-        description: 'Set by claude-address-feedback.yml: "true" when the apply it answered pushed nothing, so this commit gets one more triage (to end in done or decide) instead of the round stalling'
+        description: 'Set by claude-address-feedback.yml: "true" when the brief or decision it answered pushed nothing, so this commit gets one more triage (to end in done or decide) instead of the round stalling'
         required: false
   issue_comment:
     types: [created, edited]
@@ -55,8 +60,8 @@ jobs:
     concurrency:
       group: claude-triage-${{ inputs.branch }}
       cancel-in-progress: true
-    # Up to 45 minutes waiting for the PR review, then the agent.
-    timeout-minutes: 90
+    # Up to 45 minutes waiting for the PR review, then the agent (or, finishing, up to 45 for CI).
+    timeout-minutes: 120
     permissions:
       contents: read
       pull-requests: write  # labels, the outcome comment
@@ -77,6 +82,39 @@ jobs:
         with:
           ref: ${{ inputs.branch }}
           fetch-depth: 0
+
+      # The gate and the outcome are scripts/triage.ts, run from the default branch (where this
+      # workflow comes from): a PR branch cut before them has none. Its own worktree, outside the
+      # checkout, so nothing of it is in the PR's tree.
+      - name: Checkout the triage scripts
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          git worktree add --detach "$RUNNER_TEMP/pipeline" "origin/$DEFAULT_BRANCH"
+          echo "PIPELINE=$RUNNER_TEMP/pipeline/scripts" >> "$GITHUB_ENV"
+
+      - name: Cache Bun
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/bin
+          key: bun-${{ runner.os }}-${{ runner.arch }}-v1
+      - name: Setup Bun
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BIN="$HOME/.bun/bin"
+          echo "$BIN" >> "$GITHUB_PATH"
+          if [ -x "$BIN/bun" ]; then "$BIN/bun" --version; exit 0; fi
+          v="$(gh api repos/oven-sh/bun/releases/latest --jq .tag_name | sed -E 's/^bun-v//')"
+          mkdir -p "$BIN"
+          curl -fsSL --retry 5 --retry-all-errors \
+            "https://github.com/oven-sh/bun/releases/download/bun-v$v/bun-linux-x64.zip" -o "$RUNNER_TEMP/bun.zip"
+          unzip -q "$RUNNER_TEMP/bun.zip" -d "$RUNNER_TEMP/bun-dl"
+          mv "$RUNNER_TEMP/bun-dl/bun-linux-x64/bun" "$BIN/bun"
+          chmod +x "$BIN/bun"
+          "$BIN/bun" --version
 
       - name: Find the round
         id: round
@@ -111,43 +149,22 @@ jobs:
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
           echo "tag=$(git tag --points-at "$sha" --list 'v*-rc.*' --sort=-v:refname | sed -n 1p)" >> "$GITHUB_OUTPUT"
 
-          comments="$RUNNER_TEMP/comments.jsonl"
+          # Whether this commit is triaged, and as what: once, but for the one repeat after an answer
+          # that pushed nothing (retriage); a round of its own, or the end of a finish
+          # (scripts/lib/triageRound.ts, with tests). Writes gate, repeat, finishing, auto_rounds, round.
+          export COMMENTS_FILE="$RUNNER_TEMP/comments.jsonl" SHA="$sha"
           gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$pr/comments" \
-            --jq '.[] | {type: .user.type, body}' > "$comments"
-          # Once per commit, but for one repeat: an apply whose fixes pushed nothing (only the PR
-          # text changed, or nothing was left) starts no new round, so the feedback workflow asks
-          # for this commit again (retriage). Allowed once, and only after a lone apply, so a
-          # triage still never loops on a commit.
-          triaged="$(jq -s --arg m "<!-- gokan-triage sha=$sha " '[.[] | select(.body | contains($m))] | length' "$comments")"
-          if [ "$triaged" -gt 0 ]; then
-            lone_apply="$(jq -s --arg m "<!-- gokan-triage sha=$sha outcome=apply" '[.[] | select(.body | contains($m))] | length' "$comments")"
-            [ "$RETRIAGE" = true ] && [ "$triaged" -eq 1 ] && [ "$lone_apply" -eq 1 ] \
-              || stop "${sha:0:10} was already triaged."
-            echo "Re-triaging ${sha:0:10}: its apply pushed nothing."
-            # What the prompt and the outcome key on: the exception taken, not the input (a retried
-            # feedback run whose first attempt pushed reaches here with retriage set and triaged=0).
-            echo "repeat=true" >> "$GITHUB_OUTPUT"
-          fi
-
-          # Automatic rounds since the human last spoke: triage `apply` comments after the latest
-          # human comment, decision or non-automatic triage. Comments with any other gokan marker
-          # (the staging reviewer's status) and bot comments are neither.
-          auto="$(jq -s '[.[] |
-              if (.body | test("<!-- gokan-triage sha=[^>]*outcome=apply")) then "auto"
-              elif (.body | test("<!-- gokan-(triage sha=|decision)")) then "human"
-              elif .type == "User" and (.body | contains("<!-- gokan-") | not) then "human"
-              else empty end]
-            | .[((rindex("human") // -1) + 1):] | length' "$comments")"
-          rounds="$(jq -s '[.[] | select(.body | test("<!-- gokan-triage sha="))] | length' "$comments")"
-          echo "auto_rounds=$auto" >> "$GITHUB_OUTPUT"
-          echo "round=$((rounds + 1))" >> "$GITHUB_OUTPUT"
+            --jq '.[] | {type: .user.type, body}' > "$COMMENTS_FILE"
+          bun "$PIPELINE/triage.ts" round
+          [ "$(sed -n 's/^gate=//p' "$GITHUB_OUTPUT" | tail -1)" = triage ] || stop "Not triaged."
+          finishing="$(sed -n 's/^finishing=//p' "$GITHUB_OUTPUT" | tail -1)"
 
           # The PR review of this commit: done when the review workflow dispatched this run, still
           # possibly running when a hand-tagged rc's staging review did. Waited for, not assumed.
           deadline=$((SECONDS + 45 * 60))
           while :; do
-            read -r total pending < <(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/claude-review.yml/runs?head_sha=$sha" \
-              --jq '[.workflow_runs[].status] | "\(length) \(map(select(. != "completed")) | length)"')
+            read -r total pending failed < <(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/claude-review.yml/runs?head_sha=$sha" \
+              --jq '[.workflow_runs[]] | "\(length) \(map(select(.status != "completed")) | length) \(map(select(.status == "completed" and .conclusion != "success")) | length)"')
             if [ "$total" -gt 0 ] && [ "$pending" -eq 0 ]; then break; fi
             if [ "$SECONDS" -ge "$deadline" ]; then
               echo "::error::The PR review of $sha did not finish within 45 minutes."
@@ -155,6 +172,24 @@ jobs:
             fi
             sleep 60
           done
+
+          # The push of a finish brief: the PR is done once the PR review and CI pass on it, with no
+          # agent and no staging round. A red CI is the fix-CI agent's; triage of its push ends the PR.
+          if [ "$finishing" = true ]; then
+            if [ "$failed" -gt 0 ]; then
+              echo "::error::The PR review of $sha did not succeed: re-run it, then this triage."
+              exit 1
+            fi
+            set +e
+            bun "$PIPELINE/ci-wait.ts" --sha "$sha" --timeout 45
+            ci=$?
+            set -e
+            case "$ci" in
+              0) ;;
+              1) stop "CI failed on ${sha:0:10}: the fix-CI agent takes it, and triage of its push ends the PR." ;;
+              *) echo "::error::CI on $sha could not be read, or did not finish within 45 minutes."; exit 1 ;;
+            esac
+          fi
           echo "ready=true" >> "$GITHUB_OUTPUT"
 
       - name: Tell the human the staging review did not finish
@@ -173,7 +208,7 @@ jobs:
       # Everything the agent reads, in the workspace (it has no shell and no network). Nothing here
       # is committed: this job never pushes.
       - name: Gather the round
-        if: steps.round.outputs.ready == 'true'
+        if: steps.round.outputs.ready == 'true' && steps.round.outputs.finishing != 'true'
         env:
           PR: ${{ steps.round.outputs.pr }}
           HEAD: ${{ steps.round.outputs.sha }}
@@ -200,35 +235,9 @@ jobs:
           git log --format='%h %an: %s' "origin/$BASE..$HEAD" > "$ctx/commits.txt"
           git diff "origin/$BASE...$HEAD" > "$ctx/diff.patch"
 
-      # For the usage report after the agent; the agent itself has no shell.
-      - name: Cache Bun
-        if: steps.round.outputs.ready == 'true'
-        uses: actions/cache@v4
-        with:
-          path: ~/.bun/bin
-          key: bun-${{ runner.os }}-${{ runner.arch }}-v1
-      - name: Setup Bun
-        if: steps.round.outputs.ready == 'true'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          BIN="$HOME/.bun/bin"
-          echo "$BIN" >> "$GITHUB_PATH"
-          if [ -x "$BIN/bun" ]; then "$BIN/bun" --version; exit 0; fi
-          v="$(gh api repos/oven-sh/bun/releases/latest --jq .tag_name | sed -E 's/^bun-v//')"
-          mkdir -p "$BIN"
-          curl -fsSL --retry 5 --retry-all-errors \
-            "https://github.com/oven-sh/bun/releases/download/bun-v$v/bun-linux-x64.zip" -o "$RUNNER_TEMP/bun.zip"
-          unzip -q "$RUNNER_TEMP/bun.zip" -d "$RUNNER_TEMP/bun-dl"
-          mv "$RUNNER_TEMP/bun-dl/bun-linux-x64/bun" "$BIN/bun"
-          chmod +x "$BIN/bun"
-          "$BIN/bun" --version
-
       - name: Run Claude
         id: claude
-        if: steps.round.outputs.ready == 'true'
+        if: steps.round.outputs.ready == 'true' && steps.round.outputs.finishing != 'true'
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -240,9 +249,9 @@ jobs:
             #${{ steps.round.outputs.pr }} (branch `${{ inputs.branch }}`, commit
             `${{ steps.round.outputs.sha }}`). You decide
             what happens next, so that the maintainer is asked only for choices that are theirs.
-            You do not change code, and you post nothing: you write two files, and the workflow acts
-            on them. AGENTS.md is already in your context (CLAUDE.md imports it): its rules decide
-            what is a defect.
+            You do not change code, and you post nothing: you write the brief, and the workflow
+            decides from its sections what happens next and acts on it. AGENTS.md is already in your
+            context (CLAUDE.md imports it): its rules decide what is a defect.
 
             What you have, in `.triage/context/`:
               - `pr.json`, and `issue-<n>.json` for the issue the PR closes: the scope.
@@ -253,8 +262,8 @@ jobs:
             In `conversation.md`, this round's reviews are the latest PR review (claude[bot]'s
             "Review of PR" comment and its PR review) and, when the round reached staging, the
             staging review of this commit (the comment starting `<!-- gokan-agent-status -->`).
-            ${{ inputs.staging_review == 'not-needed' && 'This round changed nothing the deployed apps ship (CI, docs or tests only), so it had no staging deploy: the PR review is its only review, and an older staging review belongs to an earlier round.' || (steps.round.outputs.repeat == 'true' && inputs.staging_review == '') && 'This round''s reviews are the ones the earlier triage of this commit read (its brief is on the PR: the comment starting `<!-- gokan-triage sha=` with this commit). A staging review counts only if it names this commit; an older one belongs to an earlier round.' || 'This round''s changes reached staging, so it has both reviews.' }}
-            ${{ steps.round.outputs.repeat == 'true' && 'This commit was triaged once already, and the feedback agent answered that apply without pushing (its comment says what it changed, if anything: the PR text, or nothing). Judge whether anything is still left to change: if not, the outcome is done.' || '' }}
+            ${{ inputs.staging_review == 'not-needed' && 'This round changed nothing the deployed apps ship (CI, docs or tests only), so it had no staging deploy: the PR review is its only review, and an older staging review belongs to an earlier round.' || (steps.round.outputs.repeat != '' && inputs.staging_review == '') && 'This round''s reviews are the ones the earlier triage of this commit read (its brief is on the PR: the comment starting `<!-- gokan-triage sha=` with this commit). A staging review counts only if it names this commit; an older one belongs to an earlier round.' || 'This round''s changes reached staging, so it has both reviews.' }}
+            ${{ steps.round.outputs.repeat == 'decision' && 'This commit was triaged already, the maintainer answered that brief (the `<!-- gokan-decision -->` relay and the options ticked on the brief), and the feedback agent pushed nothing. If the maintainer chose to stop, or nothing is left to change, the brief is only a summary line (and "Not in this change"): the PR is done.' || steps.round.outputs.repeat != '' && 'This commit was triaged once already, and the feedback agent answered that brief without pushing (its comment says what it changed, if anything: the PR text, or nothing). Judge whether anything is still left to change: if not, the brief is only a summary line (and "Not in this change").' || '' }}
             The reviewers only report, so every point is yours to sort: triage each point in this
             round's reviews, every unresolved inline comment, and any failing check. Earlier
             rounds are history: comments starting `<!-- gokan-triage` are earlier triages, and
@@ -285,21 +294,23 @@ jobs:
                 beyond this PR's purpose, a preference no rule backs, a "consider" with no concrete
                 harm, or something the review itself judged fine.
             Never raise again a point an earlier triage put under "Not in this change" or one the
-            maintainer decided: their decision stands. This is round ${{ steps.round.outputs.round }};
-            from round 2 on, Apply and Your call hold only real defects, or points about what the
-            previous round changed: polish goes under "Not in this change". A round that only
-            produces polish is a done round.
+            maintainer decided: their decision stands.
 
-            Write `.triage/out/outcome`: one word. `done` when Apply, Decided by default and Your
-            call are all empty, `decide` when Your call has a point, `apply` otherwise (there is
-            something to change or a default to record, but nothing to ask).
+            Mark every Apply point `(defect)` or `(polish)` at the end of its heading. A defect is
+            wrong as it stands: a broken rule, a bug, a missing test, a stale doc, a failing check,
+            a regression in what the previous round changed. Polish would be better but is not
+            wrong: wording, formatting, a nicer structure. This is round ${{ steps.round.outputs.round }}.
+            The workflow decides from the sections, so mark them honestly: from round 2 on, polish
+            and defaults start no round (they are left on the PR for one final pass, and a round of
+            only those ends the PR), and in round 1 a brief of only "Decided by default" points is
+            applied as the PR's last round, with no staging round after it.
 
             Write `.triage/out/brief.md`, the brief the feedback agent and the maintainer read.
             Markdown, sections in this order, an empty one left out, points numbered across the
             whole brief so an answer can say "2B":
 
               ## Apply
-              ### 1. <what changes, in a few words>
+              ### 1. <what changes, in a few words> (defect)
               <the change, where (file:line), why (the rule or the finding), and the test that goes
               with it: precise enough to act on without opening the reviews.>
 
@@ -316,9 +327,9 @@ jobs:
               ## Not in this change
               - <the point, in one line>: <why it stays out>.
 
-            For `done`, the brief is one line saying what the reviews found, then "Not in this
-            change" if it has anything. Write as AGENTS.md says: neutral and direct, no em dash. Never
-            write the string `@claude`, and never mention anyone.
+            When nothing is left to change, the brief is one line saying what the reviews found, then
+            "Not in this change" if it has anything. Write as AGENTS.md says: neutral and direct, no em
+            dash. Never write the string `@claude`, and never mention anyone.
           claude_args: "--model claude-opus-5-5 --max-turns 80 --allowedTools Read,Glob,Grep,Write"
 
       # Where this run's tokens went (scripts/agent-usage.ts), also when the agent failed. A branch
@@ -329,10 +340,14 @@ jobs:
         run: |
           if [ -f scripts/agent-usage.ts ]; then bun scripts/agent-usage.ts >> "$GITHUB_STEP_SUMMARY"; fi
 
-      - name: Post the outcome
+      # What happens next follows from the brief's sections, not from the agent's word for it
+      # (scripts/lib/triageOutcome.ts, with tests): decide, apply, finish (round 1, only defaults
+      # left: the last round) or done; from round 2 on, polish and lone defaults are left for one
+      # final pass instead of starting a round. A finish's push skips the agent: it is done.
+      - name: Decide the outcome
+        id: outcome
         if: steps.round.outputs.ready == 'true'
         env:
-          AGENT_GITHUB_TOKEN: ${{ secrets.AGENT_GITHUB_TOKEN }}
           PR: ${{ steps.round.outputs.pr }}
           HUMAN: ${{ steps.round.outputs.human }}
           BASE: ${{ steps.round.outputs.base }}
@@ -341,32 +356,29 @@ jobs:
           ROUND: ${{ steps.round.outputs.round }}
           AUTO_ROUNDS: ${{ steps.round.outputs.auto_rounds }}
           REPEAT: ${{ steps.round.outputs.repeat }}
+          FINISHING: ${{ steps.round.outputs.finishing }}
+          BRIEF_FILE: .triage/out/brief.md
         run: |
           set -euo pipefail
-          outcome="$(tr -d '[:space:]' < .triage/out/outcome 2>/dev/null || true)"
-          case "$outcome" in
-            done|apply|decide) ;;
-            *) echo "::error::The triage wrote no valid outcome: '$outcome'."; exit 1 ;;
-          esac
-          [ -s .triage/out/brief.md ] || { echo "::error::The triage wrote no brief."; exit 1; }
-          # This step is the only place the mention that starts the feedback agent is written (GitHub
-          # matches it in any case).
-          sed 's/@claude/Claude/gI' .triage/out/brief.md > "$RUNNER_TEMP/brief.md"
-
-          escalated=false
-          if [ "$outcome" = apply ] && [ "$AUTO_ROUNDS" -ge "$MAX_AUTO_ROUNDS" ]; then
-            outcome=decide
-            escalated=true
-          fi
-          # A repeat follows an apply that pushed nothing: another apply could push nothing again and,
-          # the commit now triaged twice, stall the PR silently (PR #230). The maintainer is asked.
-          repeat_apply=false
-          if [ "$outcome" = apply ] && [ "$REPEAT" = true ]; then
-            outcome=decide
-            escalated=true
-            repeat_apply=true
+          if [ "$FINISHING" = true ]; then
+            bun "$PIPELINE/triage.ts" finished
+          else
+            [ -s "$BRIEF_FILE" ] || { echo "::error::The triage wrote no brief."; exit 1; }
+            bun "$PIPELINE/triage.ts" outcome
           fi
 
+      - name: Post the outcome
+        if: steps.round.outputs.ready == 'true'
+        env:
+          AGENT_GITHUB_TOKEN: ${{ secrets.AGENT_GITHUB_TOKEN }}
+          PR: ${{ steps.round.outputs.pr }}
+          HUMAN: ${{ steps.round.outputs.human }}
+          BASE: ${{ steps.round.outputs.base }}
+          ROUND: ${{ steps.round.outputs.round }}
+          OUTCOME: ${{ steps.outcome.outputs.outcome }}
+        run: |
+          set -euo pipefail
+          body="$RUNNER_TEMP/body.md"
           gh label create needs-decision --repo "$GITHUB_REPOSITORY" --force --color FBCA04 \
             --description "The agents wait for a maintainer's choice"
           gh label create agent-done --repo "$GITHUB_REPOSITORY" --force --color 0E8A16 \
@@ -375,62 +387,18 @@ jobs:
             --description "Review rounds are not triaged on this PR"
           gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --remove-label needs-decision --remove-label agent-done || true
 
-          body="$RUNNER_TEMP/body.md"
-          if [ -n "$TAG" ]; then
-            subject="\`$TAG\` ([staging](https://staging.gokan-srs.com))"
-          else
-            subject="\`${SHA:0:10}\`"
-          fi
-          {
-            echo "<!-- gokan-triage sha=$SHA outcome=$outcome -->"
-            case "$outcome" in
-              done)
-                echo "@$HUMAN **Ready to merge.** The reviews of $subject leave nothing to change."
-                echo
-                cat "$RUNNER_TEMP/brief.md"
-                ;;
-              apply)
-                echo "@claude please apply this triage of the reviews of $subject to this branch."
-                echo "Automatic round $((AUTO_ROUNDS + 1)) of $MAX_AUTO_ROUNDS; after that, a maintainer is asked first."
-                echo
-                cat "$RUNNER_TEMP/brief.md"
-                ;;
-              decide)
-                if [ "$repeat_apply" = true ]; then
-                  echo "@$HUMAN **Your call: keep going?** The fixes for $subject pushed nothing, and a second triage of it still raises the points below. Nothing runs until you answer."
-                elif [ "$escalated" = true ]; then
-                  echo "@$HUMAN **Your call: keep going?** $AUTO_ROUNDS automatic rounds have run since you last weighed in, and the reviews of $subject still raise the points below. Nothing runs until you answer."
-                fi
-                if [ "$escalated" = true ]; then
-                  echo
-                  cat "$RUNNER_TEMP/brief.md"
-                  echo
-                  echo "## Keep going?"
-                  echo "- [ ] **A**: Apply the points above (one more round)."
-                  echo "- [ ] **B**: Stop here: the PR is done as it is."
-                else
-                  echo "@$HUMAN **Your call** on the reviews of $subject. Nothing runs until you answer."
-                  echo
-                  cat "$RUNNER_TEMP/brief.md"
-                fi
-                echo
-                echo "---"
-                echo "Tick one option per question, then tick **Send** below, or reply on this PR: a reply sends too, with any note in it (for example \`2B, keep the label short\`)."
-                [ "$escalated" = true ] || echo "The points under Apply go ahead with your answer."
-                echo
-                echo "- [ ] **Send my choices to the agent**"
-                ;;
-            esac
-          } > "$body"
-
-          case "$outcome" in
-            apply)
+          case "$OUTCOME" in
+            apply|finish)
               # The PAT posts as a member, which is what starts claude-address-feedback.yml; a
-              # GITHUB_TOKEN comment starts no workflow.
+              # GITHUB_TOKEN comment starts no workflow. This step is the only place the mention
+              # that starts the feedback agent is written (the brief's own are defused).
               [ -n "$AGENT_GITHUB_TOKEN" ] || { echo "::error::AGENT_GITHUB_TOKEN is not set: the brief cannot reach the feedback agent."; exit 1; }
               GH_TOKEN="$AGENT_GITHUB_TOKEN" gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file "$body"
               ;;
             done)
+              # Posted on every PR, a sprint member's too (it mentions nobody there): the marker is what
+              # the gates read, and the brief keeps what was left for the final pass.
+              gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file "$body"
               if [[ "$BASE" == release/* ]]; then
                 # A sprint member: merge it into the release branch so claude-start-release.yml's
                 # advance starts the next one. With the PAT, so that merge triggers advance (a
@@ -445,7 +413,6 @@ jobs:
               @$HUMAN This member is done but could not be merged into \`$BASE\` automatically. Merge it to let the release continue."
                 fi
               else
-                gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file "$body"
                 gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --add-label agent-done
               fi
               ;;
@@ -453,8 +420,22 @@ jobs:
               gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file "$body"
               gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --add-label needs-decision
               ;;
+            *) echo "::error::No outcome was decided: '$OUTCOME'."; exit 1 ;;
           esac
-          echo "Round $ROUND of PR #$PR: $outcome" >> "$GITHUB_STEP_SUMMARY"
+
+          # A sprint member's points left for the final pass go on the release tracker too (the
+          # `Release X.Y.Z: ...` issue), where the release PR's pass reads them all at once.
+          if [ -s "$RUNNER_TEMP/final-pass.md" ] && [[ "$BASE" == release/* ]]; then
+            version="${BASE#release/}"
+            tracker="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "\"Release $version:\" in:title" \
+              --json number,title --jq "[.[] | select(.title | startswith(\"Release $version:\"))][0].number // empty")"
+            if [ -n "$tracker" ]; then
+              gh issue comment "$tracker" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/final-pass.md"
+            else
+              echo "::warning::No open tracker titled \"Release $version: ...\": the final-pass points stay on PR #$PR only."
+            fi
+          fi
+          echo "Round $ROUND of PR #$PR: $OUTCOME" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Tell the human the triage failed
         if: failure() && steps.round.outputs.pr != ''
