@@ -62,6 +62,11 @@ describe('vocabExercise, the listening cloze (issue #165)', () => {
         expect(gradeOf('学生')).toBe('wrong');
     });
 
+    it('waits on its feedback even when strictly right: the sentence is read and translated there', () => {
+        const exercise = listeningCard([withSensei('heard', '先生はとても優しい人です。', 'c0ffee')]);
+        expect(gradeExercise(exercise, ['せんせい'], [0]).autoAdvance).toBe(false);
+    });
+
     it('accepts the inflected form the sentence says, as the production cloze does', () => {
         const taberu = vocabulary({
             id: 'v2',
