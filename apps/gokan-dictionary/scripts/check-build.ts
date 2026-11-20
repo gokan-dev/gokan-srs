@@ -210,6 +210,20 @@ function searchProblems(): string[] {
     // The point's title is "～から、～": its placeholders and punctuation are not part of the pattern.
     const kara = search(index, 'から').grammar.map(row => row[1]);
     expect(kara.some(title => title.replace(/[～〜、。\s]/g, '') === 'から'), `"から": the grammar point から is not among the results (${kara.slice(0, 3).join(', ')})`);
+    // A kanji by its character, meaning and readings, first among the kanji (#264).
+    for (const query of ['水', 'water', 'みず', 'すい', 'スイ', 'sui', 'mizu']) {
+        const kanji = search(index, query).kanji.map(row => row[0]);
+        expect(kanji[0] === '水', `"${query}": the kanji 水 is not the first kanji (${kanji.slice(0, 3).join(', ')})`);
+    }
+    expect(search(index, '水').groups[0] === 'kanji', '"水": the kanji are not shown first');
+    expect(headwords('mizu', 1)[0] === '水', `"mizu": the word 水 not first (${headwords('mizu', 3).join(', ')})`);
+    // A grammar point by its title, its romaji with or without spaces, and words of its title in romaji.
+    for (const query of ['てから', 'te kara', 'tekara']) {
+        const grammar = search(index, query).grammar.map(row => row[1]);
+        expect(grammar.some(title => title.includes('てから') && !title.includes('でない') && !title.includes('という')), `"${query}": the point てから is not among the results (${grammar.slice(0, 3).join(', ')})`);
+    }
+    const teForm = search(index, 'te form').grammar.map(row => row[1]);
+    expect(teForm.some(title => title.includes('て-form')), `"te form": no て-form point among the results (${teForm.slice(0, 3).join(', ')})`);
     return problems;
 }
 
@@ -257,6 +271,9 @@ function localeSearchProblems(locale: ServedLocale): { problems: string[]; pages
             if (!hit || hit.tier > worstTier) problems.push(`${row[1]} (${row[0]}): the ${kind} query "${query}" does not find it in the ${locale} index${hit ? ` (tier ${hit.tier})` : ''}`);
         }
     }
+    // Kanji are matched by their English meanings in every locale: the dataset has no other yet (#264).
+    const water = search(index, 'water').kanji.map(row => row[0]);
+    if (water[0] !== '水') problems.push(`"water" does not find the kanji 水 first in the ${locale} index (${water.slice(0, 3).join(', ')})`);
     return { problems: problems.slice(0, 10), pages: sample.map(row => links.vocabPath(row[0])) };
 }
 
