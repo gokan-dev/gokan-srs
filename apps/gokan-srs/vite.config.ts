@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, runnerImport, type Connect, type Plugin } from 'vite'
 import { configDefaults } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
@@ -7,11 +7,8 @@ import { datasetVersion as pinnedDatasetVersion } from '@gokan/deploy/dataset-ve
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Connect, Plugin } from 'vite';
 import { analyticsScriptTag } from '@gokan/analytics';
 import { publishedDatasetFile } from '@gokan/deploy/published-dataset';
-import { searchGrammarRow, searchKanjiRow, type GrammarBrowseIndex, type Kanji } from '@gokan/dataset-schema';
-import { englishView } from '@gokan/dataset-schema/english';
 import { CHANGELOG } from './release/changelog';
 import { changelogProblems } from './src/utils/changelog.utils';
 import type { LiveVersion } from './src/models/release.model';
@@ -62,18 +59,18 @@ const datasetPlugin: Plugin = {
 // the dictionary's index uses (@gokan/dataset-schema's searchRows.ts): written from the dataset
 // checkout as a module of the build, so they ship content-hashed and load only with the first
 // search, about 120 KB gzipped where kanji.json and its English text are 460 KB. Read when the
-// module is first imported, not at startup: most dev sessions and test runs never search.
+// module is first imported, not at startup: most dev sessions and test runs never search. Its
+// writer (scripts/searchEntries.ts) is loaded through Vite: Node alone does not resolve the
+// workspace packages' TypeScript imports.
 const SEARCH_ENTRIES_ID = 'virtual:gokan-search-entries';
 const searchEntriesPlugin: Plugin = {
     name: 'gokan-search-entries',
     resolveId: id => (id === SEARCH_ENTRIES_ID ? `\0${SEARCH_ENTRIES_ID}` : null),
-    load(id) {
+    async load(id) {
         if (id !== `\0${SEARCH_ENTRIES_ID}`) return null;
-        const view = englishView(compiledDir);
-        // The dataset's own build typed each file; the English view gives back the shape the types describe.
-        const kanji = (view.json('kanji.json') as Kanji[]).map(searchKanjiRow);
-        const grammar = (view.json('grammar/index/browse.json') as GrammarBrowseIndex).points.map(searchGrammarRow);
-        return `export const kanji = ${JSON.stringify(kanji)};\nexport const grammar = ${JSON.stringify(grammar)};\n`;
+        const writer = fileURLToPath(new URL('./scripts/searchEntries.ts', import.meta.url));
+        const { module } = await runnerImport<typeof import('./scripts/searchEntries')>(writer, { configFile: false, logLevel: 'error' });
+        return module.searchEntriesModule(compiledDir);
     },
 };
 
