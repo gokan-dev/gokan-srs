@@ -50,11 +50,13 @@ bun install
 bun run dev
 ```
 
-To rebuild the vocabulary dataset from raw sources, the `dataset` submodule needs its own one-time `bun install` first (it's outside the root workspace glob, so the root `bun install` doesn't cover it):
+The dataset is not built here. The `gokan-dataset` repo's own CI builds it on every push and commits `compiled/` back to the branch; this app reads the committed `compiled/` in the `dataset` submodule, and a pointer bump points at that bot commit (see [Dataset Consumption](../../docs/ARCHITECTURE.md#dataset-consumption)).
+
+`build:data`, `build:kanji`, `build:jlpt` and `build:jpdb` remain only for debugging one stage from the monorepo. They need the submodule's own one-time `bun install` first (it's outside the root workspace glob, so the root `bun install` doesn't cover it):
 
 ```bash
 bun install --cwd apps/gokan-srs/dataset
-bun run --cwd apps/gokan-srs build:data
+bun run --cwd apps/gokan-srs build:kanji
 ```
 
 Tests:
