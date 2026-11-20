@@ -417,7 +417,7 @@ gokan-dictionary:
 - Mobile: inputs are `text-base` on phones (smaller makes iOS zoom), page roots are `w-full`,
   flex/grid children that truncate need `min-w-0`. `bun run check:layout` measures both
   production builds in Chrome at 320px and 375px (sideways scroll, the 12px floor, 16px
-  inputs, the dictionary's 44px tap targets) and CI runs it (`ci-layout.yml`); a new page type
+  inputs, the dictionary's 44px tap targets) and CI runs it (`ci-site.yml`); a new page type
   or main route goes in its lists.
 - **UI work follows docs/DESIGN_SYSTEM.md, from the first line.** Before writing a screen,
   read the sections for what it touches and reuse its components (a detail page is

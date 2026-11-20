@@ -16,15 +16,8 @@ on:
       - 'bun.lock'
       - '.github/workflows/deploy.yml'
       - '.github/workflows/deploy-site.yml'
-  pull_request:
-    paths:
-      - 'apps/gokan-srs/**'
-      - 'apps/gokan-dictionary/**'
-      - 'packages/**'
-      - 'package.json'
-      - 'bun.lock'
-      - '.github/workflows/deploy.yml'
-      - '.github/workflows/deploy-site.yml'
+  # No pull_request trigger: its Checks job ran `bun run check` a second (and, with both events,
+  # a fourth) time on every PR push, beside "CI: checks". A branch is checked by ci.yml.
   workflow_dispatch: # Allow manual trigger from GitHub UI
 
 jobs:
@@ -87,7 +80,8 @@ jobs:
     needs: test # Only deploy if every check passes
     # A push to main, or a dispatch on main: the dictionary's cutover deploy (#209) and its
     # rollback are a change of Actions variables, not of code, so they deploy with no commit.
-    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+    # A dispatch on another ref runs the checks alone.
+    if: github.ref == 'refs/heads/main'
     uses: ./.github/workflows/deploy-site.yml
     with:
       environment_name: production
