@@ -9,6 +9,8 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { basename, dirname, join, posix } from 'node:path';
+import { BRANCH_CI_EVENTS } from './lib/fixCiGate';
+import { missedEvents, strandedListenerKeys, workflowEvents } from './lib/workflowYaml';
 
 interface Violation {
     file: string;
@@ -319,7 +321,8 @@ function deployedLocaleViolations(): Violation[] {
 const GITHUB_DIR_FILE = /^\.github\/(workflows\/[^/]+\.ya?ml|actions\/.+\.ya?ml)$/;
 const WORKFLOW_NAME = /^name:\s*(?:"([^"]+)"|'([^']+)'|(.+?))\s*$/m;
 const DISPATCH = /\bgh workflow run\s+([\w.-]+\.ya?ml)\b/g;
-const WORKFLOW_RUN_LIST = /^ {2}workflow_run:\s*\n\s+workflows:\s*(\[[^\]\n]*\]|(?:\n\s+-\s*.+)+)/m;
+/** Comment lines allowed before `workflows:`: claude-fix-ci.yml has them, and without this the rule never read it. */
+const WORKFLOW_RUN_LIST = /^ {2}workflow_run:[ \t]*\n(?:[ \t]*#.*\n)*\s+workflows:\s*(\[[^\]\n]*\]|(?:\n\s+-\s*.+)+)/m;
 
 const yamlFiles = (dir: string, nested: boolean): string[] => existsSync(dir)
     ? readdirSync(dir, { recursive: nested, encoding: 'utf8' }).map(f => `${dir}/${f.replaceAll('\\', '/')}`).filter(f => /\.ya?ml$/.test(f))
@@ -354,30 +357,61 @@ function pipelineCommandViolations(): Violation[] {
     return violations;
 }
 
-/** Listeners on `workflow_run` of a workflow some step here dispatches, each where it listens. */
+/**
+ * A listener also goes silent when what it listens to moves: #271 took `pull_request` off every CI
+ * workflow while claude-fix-ci.yml still required `workflow_run.event == 'pull_request'` and watched
+ * "Deploy: production", which no longer ran on a PR branch, so CI auto-fix would never have fired
+ * again and nothing would have said so. Every watched name is an existing workflow's `name:`, and
+ * every watched workflow runs on at least one event the listener accepts: those its `if:` tests, and
+ * for claude-fix-ci.yml, which tests none since its gate moved into a script, the gate's own list.
+ */
+const WORKFLOW_RUN_EVENT_TEST = /workflow_run\.event\s*==\s*['"]([\w-]+)['"]/g;
+const LISTENER_EVENTS: Record<string, readonly string[]> = { 'claude-fix-ci.yml': BRANCH_CI_EVENTS };
+
+/**
+ * Each `workflow_run` listener, each where it listens: a watched workflow some step here dispatches
+ * (no event reaches it), a watched name no workflow has, and an event it tests for that a watched
+ * workflow never runs on.
+ */
 function dispatchedWorkflowRunViolations(): Violation[] {
     const workflows = yamlFiles('.github/workflows', false);
     const sources = [...workflows, ...yamlFiles('.github/actions', true)].map(file => ({ file, text: readFileSync(file, 'utf8') }));
     const dispatched = new Set(sources.flatMap(({ text }) => [...text.matchAll(DISPATCH)].map(m => m[1])));
-    const fileOf = new Map(sources.filter(({ file }) => workflows.includes(file)).flatMap(({ file, text }) => {
+    const byName = new Map(sources.filter(({ file }) => workflows.includes(file)).flatMap(({ file, text }) => {
         const m = WORKFLOW_NAME.exec(text);
-        return m ? [[m[1] ?? m[2] ?? m[3], basename(file)] as const] : [];
+        return m ? [[m[1] ?? m[2] ?? m[3], { file: basename(file), events: workflowEvents(text) }] as const] : [];
     }));
     const violations: Violation[] = [];
+    const conventions = 'scripts/check-conventions.ts';
+    const listenerEventsLine = readFileSync(conventions, 'utf8').split('\n').findIndex(l => l.startsWith('const LISTENER_EVENTS')) + 1;
+    for (const key of strandedListenerKeys(Object.keys(LISTENER_EVENTS), workflows.map(f => basename(f)))) {
+        violations.push({ file: conventions, line: listenerEventsLine, rule: 'workflow-run-listener', message: `LISTENER_EVENTS ties a gate's event list to "${key}", a listener that no longer exists in .github/workflows, so its events are checked against nothing and the listener that replaced it passes every watched workflow. Rename the key with the file.` });
+    }
     for (const { file, text } of sources) {
         const listen = WORKFLOW_RUN_LIST.exec(text);
         if (!listen) continue;
-        const names = listen[1].startsWith('[')
+        const line = text.slice(0, listen.index).split('\n').length;
+        const names = (listen[1].startsWith('[')
             ? listen[1].slice(1, -1).split(',')
-            : listen[1].split('\n').filter(l => l.trim()).map(l => l.replace(/^\s*-\s*/, '').replace(/\s+#.*$/, ''));
-        for (const name of names.map(n => n.trim().replace(/^(["'])(.*)\1$/, '$2'))) {
-            const target = fileOf.get(name);
-            if (target === undefined || !dispatched.has(target)) continue;
+            : listen[1].split('\n').filter(l => l.trim()).map(l => l.replace(/^\s*-\s*/, '').replace(/\s+#.*$/, '')))
+            .map(n => n.trim().replace(/^(["'])(.*)\1$/, '$2'));
+        const accepted = new Set([...(LISTENER_EVENTS[basename(file)] ?? []), ...[...text.matchAll(WORKFLOW_RUN_EVENT_TEST)].map(m => m[1])]);
+        for (const name of names) {
+            const target = byName.get(name);
+            if (target === undefined) {
+                violations.push({ file, line, rule: 'workflow-run-listener', message: `Listens to \`workflow_run\` of "${name}", but no workflow in .github/workflows has that \`name:\`, so this never fires for it. Watch an existing workflow's exact name (${[...byName.keys()].filter(n => n.startsWith('CI:')).join(', ')}...).` });
+                continue;
+            }
+            const missed = missedEvents(accepted, target.events);
+            if (missed !== null) {
+                violations.push({ file, line, rule: 'workflow-run-listener', message: `Watches "${name}" (${target.file}), which ${missed}, so this never fires for it. Run it on an event the listener accepts, or stop watching it.` });
+            }
+            if (!dispatched.has(target.file)) continue;
             violations.push({
                 file,
-                line: text.slice(0, listen.index).split('\n').length,
+                line,
                 rule: 'workflow-run-of-dispatched',
-                message: `Listens to \`workflow_run\` of "${name}", which \`gh workflow run ${target}\` dispatches with GITHUB_TOKEN: GitHub creates no workflow_run event for those runs, so this never sees them. React from inside ${target} (a final job with \`needs\` and \`if: always()\`).`,
+                message: `Listens to \`workflow_run\` of "${name}", which \`gh workflow run ${target.file}\` dispatches with GITHUB_TOKEN: GitHub creates no workflow_run event for those runs, so this never sees them. React from inside ${target.file} (a final job with \`needs\` and \`if: always()\`).`,
             });
         }
     }
