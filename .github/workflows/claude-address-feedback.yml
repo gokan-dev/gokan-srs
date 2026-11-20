@@ -247,11 +247,15 @@ jobs:
             scripts, types) is committed and pushed in the submodule first, to its branch on
             gokan-dataset (named like this one). That push starts the dataset's Build
             workflow, which builds it, runs its tests and commits `compiled/` back to the
-            branch as a bot commit, "Build compiled/ from <sha>". Wait for that run to end
-            (`gh run list --repo gokan-dev/gokan-dataset --branch <branch>`, then `gh run
-            watch`), pull the branch inside the submodule, and only then commit the pointer
-            here, at the bot's commit (at your own pushed commit only when the run passed and
-            made no commit, since nothing in `compiled/` changed). A failed Build run is
+            branch as a bot commit, "Build compiled/ from <sha>". Wait for the run of the
+            commit you pushed, found by its sha (`gh run list --repo gokan-dev/gokan-dataset
+            --workflow Build --commit <full pushed sha>`: a short sha matches nothing, asked again until it appears, then `gh
+            run watch <id> --repo gokan-dev/gokan-dataset --exit-status`), never the newest
+            run on the branch, which right after a push is often the previous push's. Then
+            pull the branch inside the submodule and commit the pointer here, at the bot
+            commit "Build compiled/ from <your pushed sha>" (at your own pushed commit only
+            when that same run passed and made no commit, since nothing in `compiled/`
+            changed). A failed Build run is
             fixed and pushed again, like a red CI. Never point at a dataset commit that is
             not on the remote, nor at one whose `compiled/` the dataset's CI did not build.
 
