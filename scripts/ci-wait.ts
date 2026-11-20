@@ -3,7 +3,7 @@
  * CI is the one place the full gate runs (AGENTS.md, Workflow), for people and agents alike: push the
  * branch, then run this instead of `bun run check` and the builds locally. It prints one line per "CI: ..."
  * workflow, the tail of every failed job's log, and exits 0 only when every run passed (1 on a failure,
- * 2 when no CI run appears or the wait times out). Needs `gh`, signed in.
+ * 2 when no CI run appears, the wait times out or GitHub stays unreachable). Needs `gh`, signed in.
  */
 import { execFileSync } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -28,9 +28,22 @@ const sha = execFileSync('git', ['rev-parse', '--verify', `${values.sha ?? 'HEAD
 const deadline = Date.now() + Number(values.timeout) * 60_000;
 const started = Date.now();
 
+// A network hiccup is not CI's answer: keep the last runs seen and ask again, up to this many times in a row.
+const MAX_FETCH_FAILURES = 5;
+let fetchFailures = 0;
+let lastRuns: CiRun[] = [];
+
 function fetchRuns(): CiRun[] {
-    const json: unknown = JSON.parse(gh(['run', 'list', '--commit', sha, '--limit', '100', '--json', RUN_FIELDS]));
-    return latestCiRuns(parseRuns(json), sha);
+    try {
+        const json: unknown = JSON.parse(gh(['run', 'list', '--commit', sha, '--limit', '100', '--json', RUN_FIELDS]));
+        lastRuns = latestCiRuns(parseRuns(json), sha);
+        fetchFailures = 0;
+    } catch (error) {
+        fetchFailures += 1;
+        console.error(`Could not read CI's runs (${fetchFailures} of ${MAX_FETCH_FAILURES}): ${error instanceof Error ? error.message.split('\n')[0] : String(error)}`);
+        if (fetchFailures >= MAX_FETCH_FAILURES) process.exit(2);
+    }
+    return lastRuns;
 }
 
 function report(runs: CiRun[]): void {
