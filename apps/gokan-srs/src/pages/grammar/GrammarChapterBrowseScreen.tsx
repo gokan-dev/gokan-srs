@@ -12,6 +12,7 @@ import { ListRow } from "../../components/ui/ListRow";
 import { grammarLearningStatus } from "../../utils/learningStatus.utils";
 import { groupChaptersByLevel } from "../../utils/chapterProgress.utils";
 import { GrammarHomeHeader } from "./GrammarHomeHeader";
+import { grammarPath } from "../../utils/navigation.utils";
 
 /**
  * Route /grammar/chapters, the Grammar home's Curriculum tab (issue #58): every
@@ -176,7 +177,7 @@ export function GrammarChapterBrowseScreen() {
                                         {isOpen && (
                                             <div className="pb-3 grid gap-1 sm:grid-cols-2">
                                                 {chapter.points.map(id => (
-                                                    <ListRow key={id} to={`/grammar/${id}`} className="py-1.5">
+                                                    <ListRow key={id} to={grammarPath(id)} className="py-1.5">
                                                         <span className="flex items-center gap-2 min-w-0">
                                                             <StatusDot
                                                                 status={grammarLearningStatus(grammarQueue.find(item => item.grammarId === id))}

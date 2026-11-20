@@ -517,8 +517,8 @@ const SRS_COMPONENT = /^apps\/gokan-srs\/src\/components\/.*\.tsx?$/;
 const IMPORT_FROM_PAGES = /\bfrom\s+['"](\.\.\/)+pages\/|\bimport\(\s*['"](\.\.\/)+pages\//;
 /** A raw part-of-speech code (`v5r`, `adj-i`): a sense's labels come from utils/senses.utils.ts (organizeSenses). */
 const RAW_POS = /\.pos\[/;
-/** A word's or a kanji's page path, built by hand: vocabPath and kanjiPath (utils/navigation.utils.ts) build them. */
-const HAND_BUILT_ENTRY_PATH = /`\/(?:vocab|kanji)\/\$\{/;
+/** A word's, a kanji's or a grammar point's page path, built by hand: vocabPath, kanjiPath and grammarPath (utils/navigation.utils.ts) build them. */
+const HAND_BUILT_ENTRY_PATH = /`\/(?:vocab|kanji|grammar)\/\$\{/;
 /** The path builders, and the app-route-to-dictionary-page table (the dictionary's URLs, not the app's routes). */
 const ENTRY_PATH_FILES = new Set(['apps/gokan-srs/src/utils/navigation.utils.ts', 'apps/gokan-srs/src/utils/seo.utils.ts']);
 
@@ -907,7 +907,7 @@ function check(files: string[]): Violation[] {
 
         if (GOKAN_SRS_SOURCE.test(file) && !ENTRY_PATH_FILES.has(file) && !/\.test\.tsx?$/.test(file)) {
             eachLine(text, l => HAND_BUILT_ENTRY_PATH.test(l), line =>
-                add({ file, line, rule: 'entry-paths', message: 'Builds a word or kanji path by hand. Use vocabPath / kanjiPath (utils/navigation.utils.ts), so every link to an entry is one URL.' }));
+                add({ file, line, rule: 'entry-paths', message: 'Builds a word, kanji or grammar point path by hand. Use vocabPath / kanjiPath / grammarPath (utils/navigation.utils.ts), so every link to an entry is one URL.' }));
         }
 
         if (GOKAN_SRS_SOURCE.test(file) && file !== WORD_READING_COMPONENT && !/\.test\.tsx?$/.test(file)) {
