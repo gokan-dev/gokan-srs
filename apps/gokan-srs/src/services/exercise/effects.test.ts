@@ -5,10 +5,11 @@ import { gradeExercise, SUPPORT_COEFFICIENT_FLOOR } from './grading';
 import { meaningSlot, wordSlot } from './slots';
 import type { AnswerSlot, Exercise, HostItem, SynonymCandidate, WordForms } from './types';
 import { SRSService } from '../srs.service';
+import { productionClozeSentence } from '../../utils/clozeSentence.utils';
 import type { AnswerResult } from '../../utils/answerMatching';
 import { CONSTANTS } from '../../commons/constants';
 import type { VocabProgress } from '../../models/vocabulary.model';
-import { answerSlot, grammarProgress, mixupRecord, srsEntry, userProgress, userSettings, vocabProgress } from '../../test/fixtures';
+import { answerSlot, grammarProgress, mixupRecord, sentence, srsEntry, userProgress, userSettings, vocabProgress } from '../../test/fixtures';
 
 const now = new Date('2026-06-10T00:00:00Z');
 const settings = userSettings({ enableMeaningQuiz: true, enableProductionQuiz: true });
@@ -55,7 +56,7 @@ describe('effectsOf', () => {
     it('retries the asked word and credits the one typed when a synonym answers the card', () => {
         expect(srsEffects(semaiCard('Japan is a small country.'), ['小さい'])).toEqual([
             { kind: 'retry', item: semaiItem, label: '狭い', result: 'correct', neutral: false },
-            { kind: 'reinforce', vocabId: 'chiisai', label: '小さい', result: 'correct' },
+            { kind: 'reinforce', vocabId: 'chiisai', label: '小さい', result: 'correct', direction: 'production' },
         ]);
     });
 
@@ -71,7 +72,7 @@ describe('effectsOf', () => {
         })] };
         expect(srsEffects(card, ['小さい'])).toEqual([
             { kind: 'retry', item: semaiItem, label: '狭い', result: 'minor_error', neutral: false },
-            { kind: 'reinforce', vocabId: 'chiisai', label: '小さい', result: 'minor_error' },
+            { kind: 'reinforce', vocabId: 'chiisai', label: '小さい', result: 'minor_error', direction: 'production' },
         ]);
     });
 
@@ -101,7 +102,7 @@ describe('effectsOf', () => {
             const effects = srsEffects({ ...card([pattern, semaiBlank]), cue: { sentence: 'Japan is a small country.' } }, ['が', '小さい']);
 
             expect(effects.map(e => e.kind)).toEqual(['review', 'reinforce']);
-            expect(effects[1]).toEqual({ kind: 'reinforce', vocabId: 'chiisai', label: '小さい', result: 'correct' });
+            expect(effects[1]).toEqual({ kind: 'reinforce', vocabId: 'chiisai', label: '小さい', result: 'correct', direction: 'production' });
             // Answered right, so the vocab blank does not discount the point's reward.
             const [asked] = effects;
             expect(asked.kind === 'review' && asked.strengthModifier).toBe(1);
@@ -338,5 +339,62 @@ describe('applyEffects', () => {
         expect(next.grammarQueue[0].entry.memoryStrength).toBe(42);
         expect(next.grammarQueue[0].entry.dueDate!.getTime()).toBeGreaterThan(now.getTime());
         expect(record).toBeNull();
+    });
+});
+
+describe('the listening cloze (issue #165)', () => {
+    const heardSentence = sentence({ id: 's', original: '先生です。' });
+    const item: HostItem = { kind: 'vocab', vocabId: 'sensei', quizType: 'reading', quizMode: 'listening' };
+    const cloze = { sentence: heardSentence, blankStart: 0, blankLength: 2 };
+    const card: Exercise = {
+        kind: 'listening-cloze',
+        host: item,
+        label: '先生',
+        slots: [wordSlot(forms('先生', 'せんせい'), { vocabId: 'sensei', otherForm: 'correct', role: 'core', candidates: [] })],
+        cue: {},
+        cloze,
+        sentence: productionClozeSentence(cloze),
+        audio: { clip: 'c0ffee' },
+    };
+
+    it('reinforces the reading entry of the word heard, never reviews it', () => {
+        for (const typed of ['せんせい', '先生', 'センセイ']) {
+            const effects = answer(card, [typed]);
+            expect(effects.some(e => e.kind === 'review')).toBe(false);
+            expect(effects).toEqual([expect.objectContaining({ kind: 'reinforce', vocabId: 'sensei', direction: 'reading', asked: item })]);
+        }
+    });
+
+    it('retries the reading on a miss, with no mix-up remembered', () => {
+        for (const typed of ['がくせい', 'pass']) {
+            const effects = answer(card, [typed]);
+            expect(effects).toEqual([expect.objectContaining({ kind: 'retry', item })]);
+        }
+    });
+
+    it('moves the reading entry, tagged so calibration skips it, and lists it as the answer in the ticker', () => {
+        const progress = userProgress({ learningQueue: [word('sensei')] });
+        const { progress: next, record } = applyEffects(progress, answer(card, ['せんせい']), { now, settings });
+        const [heard] = next.learningQueue;
+
+        expect(heard.reading.memoryStrength).toBeGreaterThan(100);
+        expect(heard.reading.dueDate!.getTime()).toBeGreaterThan(now.getTime());
+        expect(heard.reading.history.at(-1)?.source).toBe('reinforcement');
+        expect(heard.production!.memoryStrength).toBe(100);
+        expect(heard.meaning.memoryStrength).toBe(100);
+        expect(next.calibration!.reading.history).toHaveLength(0);
+        expect(next.stats.totalReviews).toBe(1);
+        expect(record).toMatchObject({ item, label: '先生', result: 'correct', shown: 'correct', vocabDelta: 0 });
+        expect(record!.delta).toBeGreaterThan(0);
+    });
+
+    it('credits less than a reading review would, and still with production quizzes off', () => {
+        const queue = [word('sensei')];
+        const full = SRSService.applyAnswer(queue[0], 'reading', 'base', 'correct', CONSTANTS.srs.quizProperties.reading.expectedLatency, now).updated;
+        for (const s of [settings, userSettings({ enableProductionQuiz: false })]) {
+            const heard = applyEffects(userProgress({ learningQueue: queue }), answer(card, ['せんせい']), { now, settings: s }).progress.learningQueue[0];
+            expect(heard.reading.memoryStrength).toBeGreaterThan(100);
+            expect(heard.reading.memoryStrength).toBeLessThan(full.reading.memoryStrength);
+        }
     });
 });

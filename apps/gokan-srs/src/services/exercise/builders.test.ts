@@ -17,7 +17,7 @@ const sensei = vocabulary({
 const withSensei = (id: string, original: string, clip?: string) => sentence({
     id,
     original,
-    en: [{ text: 'The teacher is kind.' }],
+    en: [{ id: 'en', text: 'The teacher is kind.' }],
     matches: { v1: [{ start: original.indexOf('先生'), length: 2, reading: 'せんせい' }] },
     ...(clip ? { audio: { clip } } : {}),
 });
