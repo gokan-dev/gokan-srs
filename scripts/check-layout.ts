@@ -2103,7 +2103,8 @@ async function checkHeaderSearch(tab: Tab, page: string, width: number, site: 's
 /**
  * On a Chinese page, the panel's English (a grammar point's explanation, a kanji's meaning) and
  * romaji are marked as such, not left to inherit the page's zh-Hans: a grammar option once wrote
- * both as bare spans. A run of two Latin letters is what is looked for, so a chip's N5 is not.
+ * both as bare spans. A run of two Latin letters is what is looked for, so a chip's N5 is not; Latin
+ * inside Japanese (a grammar title's placeholders, Noun から Noun まで) is the title's own and stays ja.
  */
 async function checkSearchOptionLang(tab: Tab, where: string, listbox: string): Promise<void> {
     const unmarked = await tab.evaluate<string[]>(`(() => {
@@ -2113,12 +2114,12 @@ async function checkSearchOptionLang(tab: Tab, where: string, listbox: string): 
             for (let node = walker.nextNode(); node; node = walker.nextNode()) {
                 if (!/[A-Za-z]{2}/.test(node.textContent)) continue;
                 const lang = node.parentElement.closest('[lang]')?.getAttribute('lang') ?? '';
-                if (!lang.startsWith('en') && lang !== 'ja-Latn') found.push(node.textContent.slice(0, 30));
+                if (lang.toLowerCase().startsWith('zh')) found.push(node.textContent.slice(0, 30));
             }
         }
         return found;
     })()`);
-    if (unmarked.length > 0) failures.push(`${where}: Latin text in the results not marked lang="en" or "ja-Latn": ${unmarked.slice(0, 3).join(' | ')}`);
+    if (unmarked.length > 0) failures.push(`${where}: Latin text in the results left in the page's zh-Hans (mark it lang="en" or "ja-Latn"): ${unmarked.slice(0, 3).join(' | ')}`);
 }
 
 /**
