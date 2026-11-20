@@ -5,7 +5,7 @@
 
 import type {
     AudioIndex, FrequencyIndex, GrammarConjugationIndex, GrammarContrastIndex, GrammarExample, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex,
-    JlptIndex, Kanji, KanjiOrderId, KanjiOrderList, KanjiVocabIndex, Sentence, Vocabulary,
+    JlptIndex, Kanji, KanjiOrderId, KanjiOrderList, KanjiVocabIndex, SearchGrammarRow, SearchKanjiRow, Sentence, Vocabulary,
 } from '@gokan/dataset-schema';
 import type { Definition, SourceRef, Translation } from '@gokan/dataset-schema/text';
 import type { DatasetLanguage, ServedLocale } from './locale';
@@ -78,11 +78,8 @@ export interface GrammarSummary {
  */
 export type SearchWordRow = [id: string, headword: string, secondary: string, gloss: string, jlpt: number, flags: number];
 
-/** One kanji: the character, JLPT level (0 for none) and frequency rank (0 for none). */
-export type SearchKanjiRow = [character: string, jlpt: number, frequency: number];
-
-/** One grammar point, in teaching order: id, title, romaji ('' for none), short explanation, JLPT level. */
-export type SearchGrammarRow = [id: string, title: string, romaji: string, explanation: string, jlpt: number];
+// A kanji's and a grammar point's rows are the shared format gokan-srs's search reads too.
+export type { SearchGrammarRow, SearchKanjiRow } from '@gokan/dataset-schema';
 
 /**
  * The words of an index file, one array per field (id, headword, secondary form, gloss, JLPT

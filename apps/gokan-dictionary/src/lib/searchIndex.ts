@@ -4,10 +4,10 @@
 // The format is documented on SearchWordRow and SearchIndexFile (types.ts).
 
 import { headwordOf, secondaryForm } from '@gokan/dataset-schema';
-import type { GrammarPoint, Kanji, Vocabulary } from '@gokan/dataset-schema';
+import type { Vocabulary } from '@gokan/dataset-schema';
 import { WORD_CLASSES, wordClassOf, type WordClass } from './conjugation';
 import type { SearchGrammarRow, SearchIndexFile, SearchKanjiRow, SearchWordColumns, SearchWordRow } from './types';
-import { SHORT_GLOSS_LENGTH, shortGloss, truncateAtWord } from './vocabSummary';
+import { shortGloss } from './vocabSummary';
 import { CLASS_SHIFT, classCodeOfRow, FLAG_COMMON, FLAG_USUALLY_KANA } from './searchRow';
 
 /**
@@ -17,7 +17,8 @@ import { CLASS_SHIFT, classCodeOfRow, FLAG_COMMON, FLAG_USUALLY_KANA } from './s
 export const CORE_FREQUENT_WORDS = 6500;
 
 export { isSearchIndexPart, SEARCH_INDEX_PARTS, type SearchIndexPart } from './searchIndexParts';
-
+// The kanji and grammar rows are the shared format (@gokan/dataset-schema), gokan-srs's too.
+export { searchGrammarRow, searchKanjiRow } from '@gokan/dataset-schema';
 
 export function searchWordRow(vocab: Vocabulary): SearchWordRow {
     const wordClass = wordClassOf(vocab.senses.flatMap(sense => sense.pos));
@@ -30,14 +31,6 @@ export function searchWordRow(vocab: Vocabulary): SearchWordRow {
 export function wordClassOfRow(row: SearchWordRow): WordClass | null {
     const code = classCodeOfRow(row);
     return code > 0 ? WORD_CLASSES[code - 1] : null;
-}
-
-export function searchKanjiRow(kanji: Kanji): SearchKanjiRow {
-    return [kanji.character, kanji.steps.jlpt ?? 0, kanji.frequency ?? 0];
-}
-
-export function searchGrammarRow(point: GrammarPoint): SearchGrammarRow {
-    return [point.id, point.title, point.romaji ?? '', truncateAtWord(point.shortExplanation, SHORT_GLOSS_LENGTH), point.jlptLevel];
 }
 
 /** Rows to the columnar file layout (SearchWordColumns). */

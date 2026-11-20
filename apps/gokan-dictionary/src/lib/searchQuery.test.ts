@@ -142,7 +142,7 @@ describe('search', () => {
     });
 
     it('returns nothing for a blank query', () => {
-        expect(search(INDEX, '   ')).toEqual({ query: '', kana: null, words: [], kanji: [], grammar: [] });
+        expect(search(INDEX, '   ')).toEqual({ query: '', kana: null, words: [], kanji: [], grammar: [], groups: ['words', 'kanji', 'grammar'] });
     });
 });
 

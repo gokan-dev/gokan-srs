@@ -15,7 +15,7 @@
 import { datasetLanguageOf, htmlLang, localeOfHtmlLang } from '../lib/locale';
 import { linkUrls } from '../lib/localeLinks';
 import { searchMessagesFor } from '../lib/messages/search';
-import type { PreparedIndex, SearchResults, WordHit } from '../lib/searchQuery';
+import type { PreparedIndex, IndexResults, IndexWordHit } from '../lib/searchQuery';
 import type { SearchGrammarRow, SearchIndexFile, SearchKanjiRow } from '../lib/types';
 import { searchIndexPaths } from '../lib/urls';
 import { readingOfRow } from '../lib/searchRow';
@@ -77,7 +77,7 @@ function loadFullLater(): void {
         });
 }
 
-function run(query: string): SearchResults | null {
+function run(query: string): IndexResults | null {
     if (!index || !engine) return null;
     const results = engine.search(index, query);
     if (results.query) loadFullLater();
@@ -97,18 +97,18 @@ const ja = (text: string) => el('span', { lang: 'ja' }, text);
 const chip = (level: number) => el('span', { class: 'chip' }, `N${level}`);
 
 /** A word's gloss line; a conjugated query says what it was read as ("from 食べた"). */
-function glossLine(hit: WordHit): HTMLElement {
+function glossLine(hit: IndexWordHit): HTMLElement {
     return el('span', { lang: glossLang }, ...(hit.via ? [words.fromForm.before, ja(hit.via), words.fromForm.after] : []), hit.row[3]);
 }
 
 /** The reading beside a headword, only when it differs from it. */
-function readingOf(hit: WordHit): string[] {
+function readingOf(hit: IndexWordHit): string[] {
     const reading = readingOfRow(hit.row);
     return reading !== hit.row[1] ? [reading] : [];
 }
 
 /** "No results for 'xyz'.", the kana a romaji query was read as, and where to go instead. */
-function noResults(results: SearchResults): HTMLElement {
+function noResults(results: IndexResults): HTMLElement {
     const levels = [5, 4, 3, 2, 1].flatMap(level => [' ', el('a', { href: links.vocabJlptPath(level) }, `N${level}`)]);
     return el('span', {},
         words.noResults(results.query),
@@ -116,7 +116,7 @@ function noResults(results: SearchResults): HTMLElement {
         words.tryInstead, ...levels);
 }
 
-function total(results: SearchResults): number {
+function total(results: IndexResults): number {
     return results.words.length + results.kanji.length + results.grammar.length;
 }
 

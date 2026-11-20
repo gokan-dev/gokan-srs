@@ -32,8 +32,14 @@ describe('searchWordRow', () => {
 
 describe('searchKanjiRow and searchGrammarRow', () => {
     it('packs a kanji, 0 standing for a missing level or rank', () => {
-        expect(searchKanjiRow(kanji())).toEqual(['学', 5, 63]);
-        expect(searchKanjiRow(kanji({ steps: {}, frequency: undefined }))).toEqual(['学', 0, 0]);
+        const [character, jlpt, frequency] = searchKanjiRow(kanji());
+        expect([character, jlpt, frequency]).toEqual(['学', 5, 63]);
+        expect(searchKanjiRow(kanji({ steps: {}, frequency: undefined })).slice(0, 3)).toEqual(['学', 0, 0]);
+    });
+
+    it('packs a kanji\'s meanings and readings, for its search by meaning and reading', () => {
+        const row = searchKanjiRow(kanji({ meanings: ['study', 'learning'], readings: { on: ['ガク'], kun: ['まな.ぶ'], nanori: ['たか'] } }));
+        expect(row.slice(3)).toEqual(['study; learning', 'ガク まな.ぶ']);
     });
 
     it('packs a grammar point', () => {

@@ -44,7 +44,7 @@ const isWordColumns = (value: unknown): value is SearchWordColumns => {
     if (!isArrayOf(ids, isString)) return false;
     return columns.every((column, i) => (i < 4 ? isArrayOf(column, isString) : isArrayOf(column, isNumber)) && Array.isArray(column) && column.length === ids.length);
 };
-const isKanjiRow = isTuple<SearchKanjiRow>(isString, isNumber, isNumber);
+const isKanjiRow = isTuple<SearchKanjiRow>(isString, isNumber, isNumber, isString, isString);
 const isGrammarRow = isTuple<SearchGrammarRow>(isString, isString, isString, isString, isNumber);
 
 /**

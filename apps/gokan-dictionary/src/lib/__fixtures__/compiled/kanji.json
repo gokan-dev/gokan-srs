@@ -1,4 +1,4 @@
 [
-  { "character": "思", "steps": { "kklc": 1 }, "frequency": 500 },
-  { "character": "日", "steps": { "kklc": 2, "jlpt": 5 }, "frequency": 1 }
+  { "character": "思", "steps": { "kklc": 1 }, "frequency": 500, "readings": { "on": ["シ"], "kun": ["おも.う"], "nanori": [] } },
+  { "character": "日", "steps": { "kklc": 2, "jlpt": 5 }, "frequency": 1, "readings": { "on": ["ニチ", "ジツ"], "kun": ["ひ", "-び", "-か"], "nanori": [] } }
 ]
