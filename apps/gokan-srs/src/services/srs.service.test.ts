@@ -1052,6 +1052,21 @@ describe('Production quiz (English meaning -> Japanese reading)', () => {
         });
     });
 
+    describe('applyReadingReinforcement (the listening cloze, issue #165)', () => {
+        it('credits the reading entry, discounted, tagged as reinforcement, and moves its due date', () => {
+            const base = vocabWith({ reading: { ...DEFAULT_VOCABULARY_PROGRESS.reading, memoryStrength: 200, dueDate: mockNow } });
+            const neutral = CONSTANTS.srs.quizProperties.reading.expectedLatency;
+            const reinforced = SRSService.applyReadingReinforcement(base, 'correct', mockNow, true, true);
+            const full = SRSService.applyAnswer(base, 'reading', 'base', 'correct', neutral, mockNow).updated;
+
+            expect(reinforced.reading.memoryStrength).toBeGreaterThan(200);
+            expect(reinforced.reading.memoryStrength).toBeLessThan(full.reading.memoryStrength);
+            expect(reinforced.reading.dueDate!.getTime()).toBeGreaterThan(mockNow.getTime());
+            expect(reinforced.reading.history.at(-1)?.source).toBe('reinforcement');
+            expect(reinforced.meaning).toEqual(base.meaning);
+        });
+    });
+
     describe('intro choice', () => {
         it('schedules production behind reading and meaning on Learn', () => {
             const created = SRSService.createVocabProgress({ id: 'v1' });
