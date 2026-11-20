@@ -810,7 +810,7 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   detail script with both, 11.4 KB for the search script, 9.9 KB for the engine). The engine's
   went from 12 to 17 KB when it became the matcher both apps share and learned kanji and
   grammar (#264): the package's `search.ts` (meanings, on and kun readings, grammar titles read
-  in romaji through `kanaToHepburn`) took it to 14.6 KB with its romaji chunk. It loads once, on
+  in romaji through `kanaToHepburn`) took it to 14.2 KB with its romaji chunk. It loads once, on
   first focus, beside a core index about 25 times its size. Page weight is one half of
   being found; the other, SEO at 100 on every page type, is held by the Lighthouse check
   (`scripts/check-lighthouse.ts`, in section 9).
