@@ -1,0 +1,73 @@
+# Starts every member of a release that can start now: not merged (unticked on the tracker), not
+# already in flight (no `in-progress` label), and every member it waits for merged, by the order the
+# pre-flight wrote (a `<!-- gokan-release-order {...} -->` comment on the tracker; the serial order
+# when there is none or it no longer fits the task list). Shared by claude-start-release.yml's
+# `start` and `advance`, which both hold the release's tracker lock while this runs, so two merges
+# never start the same member twice. Needs the repository checked out and Bun on the PATH.
+name: Start release members
+description: Dispatch every release member whose waits are merged and that is not already in flight.
+
+inputs:
+  tracker:
+    description: The release's tracking issue.
+    required: true
+  branch:
+    description: The release branch, `release/X.Y.Z`.
+    required: true
+
+outputs:
+  started:
+    description: The members started by this call, space-separated.
+    value: ${{ steps.start.outputs.started }}
+  in_flight:
+    description: The members already in flight before this call, as a JSON array.
+    value: ${{ steps.start.outputs.in_flight }}
+  remaining:
+    description: The members not merged yet, space-separated.
+    value: ${{ steps.start.outputs.remaining }}
+
+runs:
+  using: composite
+  steps:
+    - name: Start the members that can start
+      id: start
+      shell: bash
+      env:
+        TRACKER: ${{ inputs.tracker }}
+        BRANCH: ${{ inputs.branch }}
+      run: |
+        set -euo pipefail
+        body="$(gh issue view "$TRACKER" --repo "$REPO" --json body --jq .body)"
+        ids() { grep -oE "^- \\[$1\\] #[0-9]+" | grep -oE '[0-9]+' | tr '\n' ' ' || true; }
+        members="$(printf '%s' "$body" | ids '[ xX]')"
+        merged="$(printf '%s' "$body" | ids '[xX]')"
+        remaining="$(printf '%s' "$body" | ids ' ')"
+        echo "remaining=$remaining" >> "$GITHUB_OUTPUT"
+
+        # The newest order this workflow posted (a comment by anyone else is not trusted).
+        order="$(gh issue view "$TRACKER" --repo "$REPO" --json comments --jq \
+          '[.comments[] | select(.author.login | test("github-actions")) | .body
+            | capture("<!-- gokan-release-order (?<o>\\{[^\\n]*?\\}) -->") | .o] | last // ""')"
+
+        in_flight=""
+        for m in $remaining; do
+          if gh issue view "$m" --repo "$REPO" --json labels --jq '.labels[].name' | grep -qx in-progress; then
+            in_flight="$in_flight $m"
+          fi
+        done
+        echo "in_flight=$(printf '%s\n' $in_flight | jq -R 'select(length > 0) | tonumber' | jq -sc .)" >> "$GITHUB_OUTPUT"
+
+        start="$(bun packages/deploy/scripts/release-order.ts start \
+          --members "$members" --order "$order" --merged "$merged" --in-flight "$in_flight")"
+        for m in $start; do
+          # Tell the member its base (so a resume before the PR exists targets the release branch),
+          # mark it in flight (for this action) and active (for the sweeper), and dispatch it.
+          echo "<!-- gokan-base ref=$BRANCH -->" | gh issue comment "$m" --repo "$REPO" --body-file -
+          gh issue edit "$m" --repo "$REPO" --add-label ready-for-dev --add-label in-progress >/dev/null
+          # Delete any stale leftover branch so implement cuts a fresh one from the release branch
+          # rather than "continuing" from an unrelated old base. Safe: a member that is not in
+          # flight has no work under way (a resume never comes through here, so none is lost).
+          gh api -X DELETE "repos/$REPO/git/refs/heads/agent/issue-$m" >/dev/null 2>&1 || true
+          gh workflow run claude-implement-issue.yml --repo "$REPO" -f issue="$m" -f base="$BRANCH"
+        done
+        echo "started=$start" >> "$GITHUB_OUTPUT"
