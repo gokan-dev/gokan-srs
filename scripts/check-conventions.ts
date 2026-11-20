@@ -61,6 +61,14 @@ const BUDGET_FIGURE_SCOPE = /^((apps\/[\w-]+|packages\/[\w-]+)\/src\/.+|docs\/AR
 const BUDGETS_FILE = 'apps/gokan-dictionary/src/lib/budgets.ts';
 const GOKAN_SRS_SOURCE = /^apps\/gokan-srs\/src\/.*\.tsx?$/;
 
+/**
+ * The pipeline scripts' small helpers (isRecord, env, output, gh) live in one module; a second
+ * `isRecord` under scripts/ is the copy that started three of them (PR #273).
+ */
+const SCRIPTS_SOURCE = /^scripts\/.*\.ts$/;
+const SCRIPTS_HELPERS = 'scripts/lib/actions.ts';
+const LOCAL_IS_RECORD = /^(?:export\s+)?(?:const|function)\s+isRecord\b/;
+
 /** Pure-logic directories: every module has a colocated test. */
 const TESTED_DIRS = ['apps/gokan-srs/src/utils', 'apps/gokan-dictionary/src/lib', 'packages/deploy/src'];
 /** Modules with no logic to test: constants and type declarations only. */
@@ -313,13 +321,43 @@ const WORKFLOW_NAME = /^name:\s*(?:"([^"]+)"|'([^']+)'|(.+?))\s*$/m;
 const DISPATCH = /\bgh workflow run\s+([\w.-]+\.ya?ml)\b/g;
 const WORKFLOW_RUN_LIST = /^ {2}workflow_run:\s*\n\s+workflows:\s*(\[[^\]\n]*\]|(?:\n\s+-\s*.+)+)/m;
 
+const yamlFiles = (dir: string, nested: boolean): string[] => existsSync(dir)
+    ? readdirSync(dir, { recursive: nested, encoding: 'utf8' }).map(f => `${dir}/${f.replaceAll('\\', '/')}`).filter(f => /\.ya?ml$/.test(f))
+    : [];
+
+/**
+ * The workflows run the pipeline scripts from the default branch, so a workflow and a script can
+ * change in separate pushes: PR #273's triage workflow called `triage.ts finished` after the script
+ * dropped it, which would have failed every finish's triage once merged. Every command a workflow
+ * passes is a case of the script's switch. And the agents verify with the default branch's
+ * `scripts/ci-wait.ts`, never `bun run ci:wait`, which a branch cut before the script lacks.
+ */
+const TRIAGE_SCRIPT = 'scripts/triage.ts';
+const TRIAGE_COMMAND = /\bbun\s+"?\$(?:\{PIPELINE\}|PIPELINE)\/triage\.ts"?\s+([\w-]+)/g;
+const SCRIPT_CASE = /^\s*case\s+'([\w-]+)':/gm;
+/** Across a prompt's line wrap too. */
+const BRANCH_CI_WAIT = /\bbun\s+run\s+ci:wait\b/g;
+
+function pipelineCommandViolations(): Violation[] {
+    const commands = new Set([...(existsSync(TRIAGE_SCRIPT) ? readFileSync(TRIAGE_SCRIPT, 'utf8') : '').matchAll(SCRIPT_CASE)].map(m => m[1]));
+    const violations: Violation[] = [];
+    for (const file of yamlFiles('.github/workflows', false)) {
+        const text = readFileSync(file, 'utf8');
+        const lineOf = (index: number) => text.slice(0, index).split('\n').length;
+        for (const m of text.matchAll(TRIAGE_COMMAND)) {
+            if (commands.has(m[1])) continue;
+            violations.push({ file, line: lineOf(m.index), rule: 'pipeline-command', message: `Runs \`triage.ts ${m[1]}\`, which is not a case of ${TRIAGE_SCRIPT}'s switch (${[...commands].join(', ')}): it throws "Unknown command" once both are on the default branch.` });
+        }
+        for (const m of text.matchAll(BRANCH_CI_WAIT))
+            violations.push({ file, line: lineOf(m.index), rule: 'pipeline-command', message: 'An agent waits for CI with the default branch\'s copy (`bun ${{ runner.temp }}/pipeline/scripts/ci-wait.ts`, from a worktree of it), never `bun run ci:wait`: a branch cut before scripts/ci-wait.ts has none.' });
+    }
+    return violations;
+}
+
 /** Listeners on `workflow_run` of a workflow some step here dispatches, each where it listens. */
 function dispatchedWorkflowRunViolations(): Violation[] {
-    const fileList = (dir: string, nested: boolean): string[] => existsSync(dir)
-        ? readdirSync(dir, { recursive: nested, encoding: 'utf8' }).map(f => `${dir}/${f.replaceAll('\\', '/')}`).filter(f => /\.ya?ml$/.test(f))
-        : [];
-    const workflows = fileList('.github/workflows', false);
-    const sources = [...workflows, ...fileList('.github/actions', true)].map(file => ({ file, text: readFileSync(file, 'utf8') }));
+    const workflows = yamlFiles('.github/workflows', false);
+    const sources = [...workflows, ...yamlFiles('.github/actions', true)].map(file => ({ file, text: readFileSync(file, 'utf8') }));
     const dispatched = new Set(sources.flatMap(({ text }) => [...text.matchAll(DISPATCH)].map(m => m[1])));
     const fileOf = new Map(sources.filter(({ file }) => workflows.includes(file)).flatMap(({ file, text }) => {
         const m = WORKFLOW_NAME.exec(text);
@@ -613,6 +651,11 @@ function check(files: string[]): Violation[] {
                 add({ file, line, rule: 'date-formatting', message: 'toLocaleDateString/toLocaleTimeString/dateStyle/timeStyle belong only in utils/time.utils.ts; use its formatters.' }));
         }
 
+        if (SCRIPTS_SOURCE.test(file) && file !== SCRIPTS_HELPERS) {
+            eachLine(text, l => LOCAL_IS_RECORD.test(l), line =>
+                add({ file, line, rule: 'scripts-helpers', message: 'isRecord (and env, output, gh) come from scripts/lib/actions.ts: import it, do not declare another. A narrower guard takes another name.' }));
+        }
+
         if (BUDGET_FIGURE_SCOPE.test(file) && file !== BUDGETS_FILE) {
             eachLine(text, l => BUDGET_FIGURE.test(l), line =>
                 add({ file, line, rule: 'budget-figure', message: 'A size budget written as its figure goes stale on the next raise. Name the budget (BUDGETS.wordPageP90, "the kanji page budget"); its figure lives only in lib/budgets.ts and docs/DESIGN_SYSTEM.md\'s Budgets table.' }));
@@ -903,6 +946,9 @@ function check(files: string[]): Violation[] {
     }
     if (files.some(f => GITHUB_DIR_FILE.test(f))) {
         for (const v of dispatchedWorkflowRunViolations()) add(v);
+    }
+    if (files.some(f => GITHUB_DIR_FILE.test(f) || f === TRIAGE_SCRIPT)) {
+        for (const v of pipelineCommandViolations()) add(v);
     }
     if (files.some(f => f === DETAIL_BREAKPOINT_FILES.dictionary || f === DETAIL_BREAKPOINT_FILES.srs)) {
         for (const v of detailBreakpointViolations(read(DETAIL_BREAKPOINT_FILES.dictionary), read(DETAIL_BREAKPOINT_FILES.srs))) add(v);

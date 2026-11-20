@@ -8,6 +8,7 @@
 import { execFileSync } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { parseArgs } from 'node:util';
+import { gh } from './lib/actions';
 import { type CiRun, RUN_FIELDS, failedJobLogs, failedRuns, latestCiRuns, parseRuns, parseTimeoutMinutes, runLine, settled, verdict } from './lib/ciRuns';
 
 const POLL_MS = 20_000;
@@ -22,7 +23,6 @@ const { values } = parseArgs({
     },
 });
 
-const gh = (args: string[]): string => execFileSync('gh', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 const firstLine = (error: unknown): string => (error instanceof Error ? error.message.split('\n')[0] ?? '' : String(error));
 
 const timeoutMinutes = parseTimeoutMinutes(values.timeout);
