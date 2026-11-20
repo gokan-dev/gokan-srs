@@ -92,7 +92,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-      actions: read         # bun run ci:wait reads CI's runs on the pushed head
+      actions: read         # the CI wait reads CI's runs on the pushed head
       id-token: write       # OIDC exchange for the Claude GitHub App installation token
     steps:
       - name: Checkout the gate
@@ -143,6 +143,14 @@ jobs:
         if: steps.claim.outputs.decision == 'fix'
         run: bun install
 
+      # The CI wait the prompt names, from the default branch, outside the checkout: a branch cut
+      # before scripts/ci-wait.ts has none, and every branch verifies the same way.
+      - name: Checkout the CI wait
+        if: steps.claim.outputs.decision == 'fix'
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: git worktree add --detach "$RUNNER_TEMP/pipeline" "origin/$DEFAULT_BRANCH"
+
       - name: Run Claude
         id: claude
         if: steps.claim.outputs.decision == 'fix'
@@ -156,14 +164,15 @@ jobs:
             (workflow "${{ github.event.workflow_run.name }}", run ${{ github.event.workflow_run.html_url }},
             commit `${{ github.event.workflow_run.head_sha }}`).
 
-            Start with `bun run ci:wait`: it waits for every CI workflow on this commit and prints each
-            failed job's log. Fix every failure it shows in one push: no other fix run starts on this commit.
+            Start with the CI wait, `bun ${{ runner.temp }}/pipeline/scripts/ci-wait.ts` (the default
+            branch's copy, so it works on any branch): it waits for every CI workflow on this commit and
+            prints each failed job's log. Fix every failure it shows in one push: no other fix run starts on this commit.
             Fix the root cause, not the symptom, and follow AGENTS.md: fix the code, never relax a rule or
             add an exemption.
 
             While iterating, run only the narrow command that covers the failure (the one workspace's tests,
             `bun run typecheck`, `bun run lint`, the one check script), never the whole `bun run check` or a
-            production build: CI is the gate. Push to the same branch, then `bun run ci:wait` again on the new
+            production build: CI is the gate. Push to the same branch, then the CI wait again on the new
             head; repeat until it passes. Never end the session while a command you started is still
             running.
 

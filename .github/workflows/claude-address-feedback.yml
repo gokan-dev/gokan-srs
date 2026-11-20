@@ -99,7 +99,7 @@ jobs:
       pull-requests: write
       issues: write          # required for track_progress's tracking comment
       id-token: write       # OIDC exchange for the Claude GitHub App installation token
-      actions: write        # dispatch claude-triage.yml after an answer (and read CI's runs for bun run ci:wait)
+      actions: write        # dispatch claude-triage.yml after an answer (and read CI's runs for the CI wait)
     steps:
       # The branch head before the agent runs: an answered triage brief that leaves it where it was
       # pushed nothing, and starts no new round (below).
@@ -144,6 +144,13 @@ jobs:
 
       - name: Install dependencies
         run: bun install
+
+      # The CI wait the prompt names, from the default branch, outside the checkout: a branch cut
+      # before scripts/ci-wait.ts has none, and every branch verifies the same way.
+      - name: Checkout the CI wait
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: git worktree add --detach "$RUNNER_TEMP/pipeline" "origin/$DEFAULT_BRANCH"
 
       # Feedback on a dataset change is pushed to gokan-dataset first (AGENTS.md), but this job's
       # tokens reach gokan-srs only: the checkout leaves the submodule on GITHUB_TOKEN, and the
@@ -212,9 +219,10 @@ jobs:
 
             Verify on CI, not locally: while iterating, run only the narrow command that covers
             what you changed (one workspace's tests, `bun run typecheck`, `bun run lint`, one check
-            script), never the whole `bun run check` or a production build. After pushing, `bun run
-            ci:wait` waits for CI on your head commit and prints what failed: fix it and push again
-            until it passes. Never finish on a head CI has not passed.
+            script), never the whole `bun run check` or a production build. After pushing, the CI
+            wait (`bun ${{ runner.temp }}/pipeline/scripts/ci-wait.ts`, the default branch's copy,
+            so it works on any branch) waits for CI on your head commit and prints what failed: fix
+            it and push again until it passes. Never finish on a head CI has not passed.
 
             Never end the session while a command you started is still running: a
             dataset rebuild takes minutes, so run it in the foreground with a long
@@ -239,8 +247,8 @@ jobs:
             push it, and commit the new pointer: checking out `origin/main` would drop
             this PR's dataset commits. Otherwise bump the pointer (`git -C
             apps/gokan-srs/dataset checkout origin/main && git add
-            apps/gokan-srs/dataset`) and commit it. After any merge/bump, push and `bun run
-            ci:wait` again.
+            apps/gokan-srs/dataset`) and commit it. After any merge/bump, push and run the CI
+            wait again.
 
             Do not tag. When the PR review of your final push is in, the review workflow
             tags an rc for staging itself if the change reaches the deployed apps.
@@ -260,8 +268,9 @@ jobs:
       #     left), and a decision that pushed nothing (stop, or nothing to change): triage of the same
       #     commit once more with `retriage`, which claude-triage.yml allows once for each, and which
       #     ends in done or decide (scripts/lib/triageRound.ts);
-      #   - a finish brief's push: triage of the new head now, which ends the PR once CI and the PR
-      #     review pass, without waiting for a staging round.
+      #   - a finish brief's push: triage of the new head now, without waiting for a staging round
+      #     (`staging_review=not-needed`): it waits for CI, then sorts the PR review of the push with
+      #     the round 2+ bar, so it ends in done, apply or decide.
       # Whether the agent applied every point cannot be told reliably from its own report (a free-form
       # checklist), so a push that left points out is triaged like any other. A dispatch is the one
       # thing github.token may start.
@@ -285,8 +294,8 @@ jobs:
             echo "Nothing pushed: asked triage for ${BEFORE:0:10} again."
           elif [ "$FINISH" = true ]; then
             gh workflow run claude-triage.yml --repo "$GITHUB_REPOSITORY" --ref main \
-              -f branch="$BRANCH" -f sha="$after"
-            echo "Pushed the defaults as ${after:0:10}: triage ends the PR once CI and the PR review pass."
+              -f branch="$BRANCH" -f sha="$after" -f staging_review=not-needed
+            echo "Pushed the defaults as ${after:0:10}: triage sorts its PR review once CI passes."
           else
             echo "Pushed ${after:0:10}: its review starts the next round."
           fi

@@ -84,7 +84,8 @@ summary ("Largest tool results"), which is where a whole read shows.
   count (`scripts/lib/fixCiGate.ts`: one attempt a commit, three in a row with no done or decide
   triage, decision or word from the maintainer before they are asked), and only a failed run takes
   the branch lock. The agents' CI wait is the default branch's `scripts/ci-wait.ts`, run from a
-  worktree, so a branch cut before it verifies the same way. An interrupted run (crash, turn limit, usage limit) resumes
+  worktree, so a branch cut before it verifies the same way (enforced, with every `triage.ts`
+  command a workflow runs: `pipeline-command`). An interrupted run (crash, turn limit, usage limit) resumes
   itself from the commits it pushed: the implement workflow's own last job (`resume`) decides as the
   run ends, `claude-sweep.yml` sweeps hourly as a backstop, both through
   `.github/actions/resume-issue`, bounded by progress and escalating with `needs-attention` when a

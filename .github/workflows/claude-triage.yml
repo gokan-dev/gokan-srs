@@ -11,7 +11,8 @@
 #   - apply:  a defect to fix, each with one obvious resolution. Posts the brief as a request to
 #             claude-address-feedback.yml, which fixes and pushes: a new round.
 #   - finish: round 1 left only reversible defaults. The feedback agent applies them, and triage of
-#             that push ends the PR once CI and the PR review pass on it: no agent, no staging round.
+#             that push waits for CI, then sorts its PR review with the round 2+ bar (no staging
+#             round): done, apply or decide, never another finish.
 #   - decide: at least one point needs the human's choice. Posts the brief with the options as
 #             checkboxes, labels the PR `needs-decision` and mentions the human.
 # The relay job then hands the answer (a ticked Send box, or any reply) to the feedback agent.
@@ -60,7 +61,7 @@ jobs:
     concurrency:
       group: claude-triage-${{ inputs.branch }}
       cancel-in-progress: true
-    # Up to 45 minutes waiting for the PR review, then the agent (or, finishing, up to 45 for CI).
+    # Up to 45 minutes waiting for the PR review (and, finishing, up to 45 for CI), then the agent.
     timeout-minutes: 120
     permissions:
       contents: read
@@ -173,8 +174,10 @@ jobs:
             sleep 60
           done
 
-          # The push of a finish brief: the PR is done once the PR review and CI pass on it, with no
-          # agent and no staging round. A red CI is the fix-CI agent's; triage of its push ends the PR.
+          # The push of a finish brief has no staging round, so CI is waited for here: a red CI is the
+          # fix-CI agent's, and triage of its push takes the finish on. The PR review is still sorted
+          # by the agent below, with the round 2+ bar: the reviewer only reports, so a run that
+          # succeeded can still hold a regression in how the defaults were applied.
           if [ "$finishing" = true ]; then
             if [ "$failed" -gt 0 ]; then
               echo "::error::The PR review of $sha did not succeed: re-run it, then this triage."
@@ -186,7 +189,7 @@ jobs:
             set -e
             case "$ci" in
               0) ;;
-              1) stop "CI failed on ${sha:0:10}: the fix-CI agent takes it, and triage of its push ends the PR." ;;
+              1) stop "CI failed on ${sha:0:10}: the fix-CI agent takes it, and triage of its push takes the finish on." ;;
               *) echo "::error::CI on $sha could not be read, or did not finish within 45 minutes."; exit 1 ;;
             esac
           fi
@@ -208,7 +211,7 @@ jobs:
       # Everything the agent reads, in the workspace (it has no shell and no network). Nothing here
       # is committed: this job never pushes.
       - name: Gather the round
-        if: steps.round.outputs.ready == 'true' && steps.round.outputs.finishing != 'true'
+        if: steps.round.outputs.ready == 'true'
         env:
           PR: ${{ steps.round.outputs.pr }}
           HEAD: ${{ steps.round.outputs.sha }}
@@ -237,7 +240,7 @@ jobs:
 
       - name: Run Claude
         id: claude
-        if: steps.round.outputs.ready == 'true' && steps.round.outputs.finishing != 'true'
+        if: steps.round.outputs.ready == 'true'
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -303,7 +306,9 @@ jobs:
             The workflow decides from the sections, so mark them honestly: from round 2 on, polish
             and defaults start no round (they are left on the PR for one final pass, and a round of
             only those ends the PR), and in round 1 a brief of only "Decided by default" points is
-            applied as the PR's last round, with no staging round after it.
+            applied as the PR's last round, with no staging round after it (the triage of that push
+            sorts its PR review with the round 2+ bar).
+            ${{ steps.round.outputs.finishing == 'true' && 'This commit is that last push: the feedback agent applied the previous triage''s "Decided by default" points (its brief is the latest comment starting `<!-- gokan-triage sha=` with `outcome=finish`), and CI passed on it. Only a defect in what that push changed (a default applied wrongly, a regression it caused) goes under Apply or Your call; everything else is polish for the final pass, and nothing an earlier triage already sorted is raised again.' || '' }}
 
             Write `.triage/out/brief.md`, the brief the feedback agent and the maintainer read.
             Markdown, sections in this order, an empty one left out, points numbered across the
@@ -342,8 +347,8 @@ jobs:
 
       # What happens next follows from the brief's sections, not from the agent's word for it
       # (scripts/lib/triageOutcome.ts, with tests): decide, apply, finish (round 1, only defaults
-      # left: the last round) or done; from round 2 on, polish and lone defaults are left for one
-      # final pass instead of starting a round. A finish's push skips the agent: it is done.
+      # left: the last round) or done; from round 2 on, and on a finish's push (FINISHING), polish and
+      # lone defaults are left for one final pass instead of starting a round.
       - name: Decide the outcome
         id: outcome
         if: steps.round.outputs.ready == 'true'
@@ -360,12 +365,8 @@ jobs:
           BRIEF_FILE: .triage/out/brief.md
         run: |
           set -euo pipefail
-          if [ "$FINISHING" = true ]; then
-            bun "$PIPELINE/triage.ts" finished
-          else
-            [ -s "$BRIEF_FILE" ] || { echo "::error::The triage wrote no brief."; exit 1; }
-            bun "$PIPELINE/triage.ts" outcome
-          fi
+          [ -s "$BRIEF_FILE" ] || { echo "::error::The triage wrote no brief."; exit 1; }
+          bun "$PIPELINE/triage.ts" outcome
 
       - name: Post the outcome
         if: steps.round.outputs.ready == 'true'

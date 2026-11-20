@@ -321,13 +321,43 @@ const WORKFLOW_NAME = /^name:\s*(?:"([^"]+)"|'([^']+)'|(.+?))\s*$/m;
 const DISPATCH = /\bgh workflow run\s+([\w.-]+\.ya?ml)\b/g;
 const WORKFLOW_RUN_LIST = /^ {2}workflow_run:\s*\n\s+workflows:\s*(\[[^\]\n]*\]|(?:\n\s+-\s*.+)+)/m;
 
+const yamlFiles = (dir: string, nested: boolean): string[] => existsSync(dir)
+    ? readdirSync(dir, { recursive: nested, encoding: 'utf8' }).map(f => `${dir}/${f.replaceAll('\\', '/')}`).filter(f => /\.ya?ml$/.test(f))
+    : [];
+
+/**
+ * The workflows run the pipeline scripts from the default branch, so a workflow and a script can
+ * change in separate pushes: PR #273's triage workflow called `triage.ts finished` after the script
+ * dropped it, which would have failed every finish's triage once merged. Every command a workflow
+ * passes is a case of the script's switch. And the agents verify with the default branch's
+ * `scripts/ci-wait.ts`, never `bun run ci:wait`, which a branch cut before the script lacks.
+ */
+const TRIAGE_SCRIPT = 'scripts/triage.ts';
+const TRIAGE_COMMAND = /\bbun\s+"?\$(?:\{PIPELINE\}|PIPELINE)\/triage\.ts"?\s+([\w-]+)/g;
+const SCRIPT_CASE = /^\s*case\s+'([\w-]+)':/gm;
+/** Across a prompt's line wrap too. */
+const BRANCH_CI_WAIT = /\bbun\s+run\s+ci:wait\b/g;
+
+function pipelineCommandViolations(): Violation[] {
+    const commands = new Set([...(existsSync(TRIAGE_SCRIPT) ? readFileSync(TRIAGE_SCRIPT, 'utf8') : '').matchAll(SCRIPT_CASE)].map(m => m[1]));
+    const violations: Violation[] = [];
+    for (const file of yamlFiles('.github/workflows', false)) {
+        const text = readFileSync(file, 'utf8');
+        const lineOf = (index: number) => text.slice(0, index).split('\n').length;
+        for (const m of text.matchAll(TRIAGE_COMMAND)) {
+            if (commands.has(m[1])) continue;
+            violations.push({ file, line: lineOf(m.index), rule: 'pipeline-command', message: `Runs \`triage.ts ${m[1]}\`, which is not a case of ${TRIAGE_SCRIPT}'s switch (${[...commands].join(', ')}): it throws "Unknown command" once both are on the default branch.` });
+        }
+        for (const m of text.matchAll(BRANCH_CI_WAIT))
+            violations.push({ file, line: lineOf(m.index), rule: 'pipeline-command', message: 'An agent waits for CI with the default branch\'s copy (`bun ${{ runner.temp }}/pipeline/scripts/ci-wait.ts`, from a worktree of it), never `bun run ci:wait`: a branch cut before scripts/ci-wait.ts has none.' });
+    }
+    return violations;
+}
+
 /** Listeners on `workflow_run` of a workflow some step here dispatches, each where it listens. */
 function dispatchedWorkflowRunViolations(): Violation[] {
-    const fileList = (dir: string, nested: boolean): string[] => existsSync(dir)
-        ? readdirSync(dir, { recursive: nested, encoding: 'utf8' }).map(f => `${dir}/${f.replaceAll('\\', '/')}`).filter(f => /\.ya?ml$/.test(f))
-        : [];
-    const workflows = fileList('.github/workflows', false);
-    const sources = [...workflows, ...fileList('.github/actions', true)].map(file => ({ file, text: readFileSync(file, 'utf8') }));
+    const workflows = yamlFiles('.github/workflows', false);
+    const sources = [...workflows, ...yamlFiles('.github/actions', true)].map(file => ({ file, text: readFileSync(file, 'utf8') }));
     const dispatched = new Set(sources.flatMap(({ text }) => [...text.matchAll(DISPATCH)].map(m => m[1])));
     const fileOf = new Map(sources.filter(({ file }) => workflows.includes(file)).flatMap(({ file, text }) => {
         const m = WORKFLOW_NAME.exec(text);
@@ -916,6 +946,9 @@ function check(files: string[]): Violation[] {
     }
     if (files.some(f => GITHUB_DIR_FILE.test(f))) {
         for (const v of dispatchedWorkflowRunViolations()) add(v);
+    }
+    if (files.some(f => GITHUB_DIR_FILE.test(f) || f === TRIAGE_SCRIPT)) {
+        for (const v of pipelineCommandViolations()) add(v);
     }
     if (files.some(f => f === DETAIL_BREAKPOINT_FILES.dictionary || f === DETAIL_BREAKPOINT_FILES.srs)) {
         for (const v of detailBreakpointViolations(read(DETAIL_BREAKPOINT_FILES.dictionary), read(DETAIL_BREAKPOINT_FILES.srs))) add(v);
