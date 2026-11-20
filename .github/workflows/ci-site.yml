@@ -1,0 +1,247 @@
+# Both production builds, made once per commit, then measured in headless Chrome by the checks a
+# static check cannot do. The runner image ships Google Chrome.
+#
+# - Layout at phone widths (scripts/check-layout.ts): at 320 and 375px no page scrolls sideways,
+#   no text is below 12px, every input is 16px (iOS zoom), the dictionary's tap targets are 44px.
+# - Lighthouse, SEO at 100 (scripts/check-lighthouse.ts): both builds served locally the way
+#   CloudFront serves them, brotli included. The gate the dictionary exists for: SEO at 100 on every
+#   page type, on mobile and desktop. Accessibility and best practices are held at a floor;
+#   performance is recorded, not gated (it moves between runs; the SRS pages take a median of 3). A
+#   local build is deterministic, so this runs per commit: SEO, accessibility and best practices are
+#   the same markup here as on the CDN.
+#
+# One workflow, not one per check: each used to build both apps itself, the same build twice per
+# commit. The build job hands its output to both checks as an artifact.
+
+name: "CI: site"
+
+on:
+  push:
+    branches: ['**']   # not rc tags: their commit was checked on its branch (see ci.yml)
+    paths:
+      - 'apps/**'
+      - 'packages/**'
+      - 'scripts/check-layout.ts'
+      - 'scripts/check-lighthouse.ts'
+      - 'scripts/lib/**'
+      - 'package.json'
+      - 'bun.lock'
+      - '.github/workflows/ci-site.yml'
+  # Push only, never also pull_request (see ci.yml).
+  workflow_dispatch:
+
+# A newer push cancels the older run, except on main and release branches (see ci.yml).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/heads/release/') }}
+
+permissions:
+  contents: read
+
+# Every job's env carries every locale, staging's included (#170): the build serves them, and the
+# checks read the same list (SERVED_LOCALES) to know which pages to measure.
+jobs:
+  build:
+    name: Build both apps
+    runs-on: ubuntu-latest
+    env:
+      VITE_DICTIONARY_LOCALES: en zh-hans
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Both apps build from the compiled dataset.
+          submodules: true
+
+      # Bun from GitHub Releases + an Actions cache, NOT bun.sh (whose `latest` download 403s
+      # intermittently and takes every workflow down). Inline (not a local action) so it does not
+      # depend on which branch the agent checks out mid-run.
+      - name: Cache Bun
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/bin
+          key: bun-${{ runner.os }}-${{ runner.arch }}-v1
+      - name: Setup Bun
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BIN="$HOME/.bun/bin"
+          echo "$BIN" >> "$GITHUB_PATH"
+          if [ -x "$BIN/bun" ]; then "$BIN/bun" --version; exit 0; fi
+          v="$(gh api repos/oven-sh/bun/releases/latest --jq .tag_name | sed -E 's/^bun-v//')"
+          mkdir -p "$BIN"
+          curl -fsSL --retry 5 --retry-all-errors \
+            "https://github.com/oven-sh/bun/releases/download/bun-v$v/bun-linux-x64.zip" -o "$RUNNER_TEMP/bun.zip"
+          unzip -q "$RUNNER_TEMP/bun.zip" -d "$RUNNER_TEMP/bun-dl"
+          mv "$RUNNER_TEMP/bun-dl/bun-linux-x64/bun" "$BIN/bun"
+          chmod +x "$BIN/bun"
+          "$BIN/bun" --version
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build the SRS app
+        run: bun run --cwd apps/gokan-srs build
+
+      # On request, as production will serve it (#206): the list pages static, the word, kanji and
+      # grammar point pages rendered by the dictionary's server (scripts/lib/builtSite.ts starts it
+      # behind the static files, as CloudFront puts the function behind S3).
+      - name: Build the dictionary
+        run: bun run --cwd apps/gokan-dictionary build:on-request
+
+      # What scripts/lib/builtSite.ts serves: the SRS's dist/, the dictionary's dist/ (its static
+      # files) and build/ (its server). Stored under their common folder, apps/, so a job that
+      # downloads into apps/ has them where a local build puts them.
+      - name: Keep the builds
+        uses: actions/upload-artifact@v4
+        with:
+          name: site-builds
+          path: |
+            apps/gokan-srs/dist/
+            apps/gokan-dictionary/dist/
+            apps/gokan-dictionary/build/
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 1
+
+  layout:
+    name: Layout at phone widths
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      VITE_DICTIONARY_LOCALES: en zh-hans
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # The checks serve the dataset from the checkout and read it for their page lists.
+          submodules: true
+
+      # Bun as in the build job (see there).
+      - name: Cache Bun
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/bin
+          key: bun-${{ runner.os }}-${{ runner.arch }}-v1
+      - name: Setup Bun
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BIN="$HOME/.bun/bin"
+          echo "$BIN" >> "$GITHUB_PATH"
+          if [ -x "$BIN/bun" ]; then "$BIN/bun" --version; exit 0; fi
+          v="$(gh api repos/oven-sh/bun/releases/latest --jq .tag_name | sed -E 's/^bun-v//')"
+          mkdir -p "$BIN"
+          curl -fsSL --retry 5 --retry-all-errors \
+            "https://github.com/oven-sh/bun/releases/download/bun-v$v/bun-linux-x64.zip" -o "$RUNNER_TEMP/bun.zip"
+          unzip -q "$RUNNER_TEMP/bun.zip" -d "$RUNNER_TEMP/bun-dl"
+          mv "$RUNNER_TEMP/bun-dl/bun-linux-x64/bun" "$BIN/bun"
+          chmod +x "$BIN/bun"
+          "$BIN/bun" --version
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      # The dictionary's server imports its dependencies from node_modules.
+      - name: Install dependencies
+        run: bun install
+
+      - name: Fetch the builds
+        uses: actions/download-artifact@v4
+        with:
+          name: site-builds
+          path: apps/
+
+      - name: Check layout
+        run: bun run check:layout
+
+  lighthouse:
+    name: Lighthouse, SEO at 100
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      VITE_DICTIONARY_LOCALES: en zh-hans
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # The checks serve the dataset from the checkout and read it for their page lists.
+          submodules: true
+
+      # Bun as in the build job (see there).
+      - name: Cache Bun
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/bin
+          key: bun-${{ runner.os }}-${{ runner.arch }}-v1
+      - name: Setup Bun
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          BIN="$HOME/.bun/bin"
+          echo "$BIN" >> "$GITHUB_PATH"
+          if [ -x "$BIN/bun" ]; then "$BIN/bun" --version; exit 0; fi
+          v="$(gh api repos/oven-sh/bun/releases/latest --jq .tag_name | sed -E 's/^bun-v//')"
+          mkdir -p "$BIN"
+          curl -fsSL --retry 5 --retry-all-errors \
+            "https://github.com/oven-sh/bun/releases/download/bun-v$v/bun-linux-x64.zip" -o "$RUNNER_TEMP/bun.zip"
+          unzip -q "$RUNNER_TEMP/bun.zip" -d "$RUNNER_TEMP/bun-dl"
+          mv "$RUNNER_TEMP/bun-dl/bun-linux-x64/bun" "$BIN/bun"
+          chmod +x "$BIN/bun"
+          "$BIN/bun" --version
+
+      # Lighthouse is a pinned devDependency run under Node, so the job needs Node on PATH.
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Fetch the builds
+        uses: actions/download-artifact@v4
+        with:
+          name: site-builds
+          path: apps/
+
+      - name: Lighthouse
+        run: bun run check:lighthouse
+
+      - name: Keep the reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-report
+          path: lighthouse-report/
+          if-no-files-found: ignore

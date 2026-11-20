@@ -9,6 +9,8 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { basename, dirname, join, posix } from 'node:path';
+import { BRANCH_CI_EVENTS } from './lib/fixCiGate';
+import { missedEvents, strandedListenerKeys, workflowEvents } from './lib/workflowYaml';
 
 interface Violation {
     file: string;
@@ -60,6 +62,14 @@ const BUDGET_FIGURE = /\b\d+(?:\.\d+)? KB(?: gzip)? budget\b/;
 const BUDGET_FIGURE_SCOPE = /^((apps\/[\w-]+|packages\/[\w-]+)\/src\/.+|docs\/ARCHITECTURE\.md)$/;
 const BUDGETS_FILE = 'apps/gokan-dictionary/src/lib/budgets.ts';
 const GOKAN_SRS_SOURCE = /^apps\/gokan-srs\/src\/.*\.tsx?$/;
+
+/**
+ * The pipeline scripts' small helpers (isRecord, env, output, gh) live in one module; a second
+ * `isRecord` under scripts/ is the copy that started three of them (PR #273).
+ */
+const SCRIPTS_SOURCE = /^scripts\/.*\.ts$/;
+const SCRIPTS_HELPERS = 'scripts/lib/actions.ts';
+const LOCAL_IS_RECORD = /^(?:export\s+)?(?:const|function)\s+isRecord\b/;
 
 /** Pure-logic directories: every module has a colocated test. */
 const TESTED_DIRS = ['apps/gokan-srs/src/utils', 'apps/gokan-dictionary/src/lib', 'packages/deploy/src'];
@@ -201,11 +211,6 @@ const SETTING_SOURCES = /--setting-sources[= ]+([\w,]+)/g;
 // a prompt or a step name that mentions it, and not `check:layout` and its siblings.
 const RUNS_CHECK = /^\s*(?:-\s+)?(?:run:\s+)?bun run check\s*(?:$|&&|;|#)/m;
 const SUBMODULE_CHECKOUT = /^\s+submodules:\s*['"]?(?:true|recursive)\b/m;
-// `bun install` sets core.hooksPath (the root package's prepare script), so in that job a plain
-// `git commit` or `git push` runs the hooks, each `bun run check`: the same rule as above, reached
-// implicitly. A command line only: an agent's prompt telling it to push is not one.
-const RUNS_INSTALL = /^\s*(?:-\s+)?(?:run:\s+)?bun install\b/m;
-const HOOKED_GIT = /^\s*(?:-\s+)?(?:run:\s+)?git (?:commit|push)\b(?!.*--no-verify)/;
 const JOB_HEADER = /^ {2}([\w-]+):\s*$/gm;
 
 /**
@@ -309,35 +314,97 @@ function deployedLocaleViolations(): Violation[] {
 const GITHUB_DIR_FILE = /^\.github\/(workflows\/[^/]+\.ya?ml|actions\/.+\.ya?ml)$/;
 const WORKFLOW_NAME = /^name:\s*(?:"([^"]+)"|'([^']+)'|(.+?))\s*$/m;
 const DISPATCH = /\bgh workflow run\s+([\w.-]+\.ya?ml)\b/g;
-const WORKFLOW_RUN_LIST = /^ {2}workflow_run:\s*\n\s+workflows:\s*(\[[^\]\n]*\]|(?:\n\s+-\s*.+)+)/m;
+/** Comment lines allowed before `workflows:`: claude-fix-ci.yml has them, and without this the rule never read it. */
+const WORKFLOW_RUN_LIST = /^ {2}workflow_run:[ \t]*\n(?:[ \t]*#.*\n)*\s+workflows:\s*(\[[^\]\n]*\]|(?:\n\s+-\s*.+)+)/m;
 
-/** Listeners on `workflow_run` of a workflow some step here dispatches, each where it listens. */
+const yamlFiles = (dir: string, nested: boolean): string[] => existsSync(dir)
+    ? readdirSync(dir, { recursive: nested, encoding: 'utf8' }).map(f => `${dir}/${f.replaceAll('\\', '/')}`).filter(f => /\.ya?ml$/.test(f))
+    : [];
+
+/**
+ * The workflows run the pipeline scripts from the default branch, so a workflow and a script can
+ * change in separate pushes: PR #273's triage workflow called `triage.ts finished` after the script
+ * dropped it, which would have failed every finish's triage once merged. Every command a workflow
+ * passes is a case of the script's switch. And the agents verify with the default branch's
+ * `scripts/ci-wait.ts`, never `bun run ci:wait`, which a branch cut before the script lacks.
+ */
+const TRIAGE_SCRIPT = 'scripts/triage.ts';
+const TRIAGE_COMMAND = /\bbun\s+"?\$(?:\{PIPELINE\}|PIPELINE)\/triage\.ts"?\s+([\w-]+)/g;
+const SCRIPT_CASE = /^\s*case\s+'([\w-]+)':/gm;
+/** Across a prompt's line wrap too. */
+const BRANCH_CI_WAIT = /\bbun\s+run\s+ci:wait\b/g;
+
+function pipelineCommandViolations(): Violation[] {
+    const commands = new Set([...(existsSync(TRIAGE_SCRIPT) ? readFileSync(TRIAGE_SCRIPT, 'utf8') : '').matchAll(SCRIPT_CASE)].map(m => m[1]));
+    const violations: Violation[] = [];
+    for (const file of yamlFiles('.github/workflows', false)) {
+        const text = readFileSync(file, 'utf8');
+        const lineOf = (index: number) => text.slice(0, index).split('\n').length;
+        for (const m of text.matchAll(TRIAGE_COMMAND)) {
+            if (commands.has(m[1])) continue;
+            violations.push({ file, line: lineOf(m.index), rule: 'pipeline-command', message: `Runs \`triage.ts ${m[1]}\`, which is not a case of ${TRIAGE_SCRIPT}'s switch (${[...commands].join(', ')}): it throws "Unknown command" once both are on the default branch.` });
+        }
+        for (const m of text.matchAll(BRANCH_CI_WAIT))
+            violations.push({ file, line: lineOf(m.index), rule: 'pipeline-command', message: 'An agent waits for CI with the default branch\'s copy (`bun ${{ runner.temp }}/pipeline/scripts/ci-wait.ts`, from a worktree of it), never `bun run ci:wait`: a branch cut before scripts/ci-wait.ts has none.' });
+    }
+    return violations;
+}
+
+/**
+ * A listener also goes silent when what it listens to moves: #271 took `pull_request` off every CI
+ * workflow while claude-fix-ci.yml still required `workflow_run.event == 'pull_request'` and watched
+ * "Deploy: production", which no longer ran on a PR branch, so CI auto-fix would never have fired
+ * again and nothing would have said so. Every watched name is an existing workflow's `name:`, and
+ * every watched workflow runs on at least one event the listener accepts: those its `if:` tests, and
+ * for claude-fix-ci.yml, which tests none since its gate moved into a script, the gate's own list.
+ */
+const WORKFLOW_RUN_EVENT_TEST = /workflow_run\.event\s*==\s*['"]([\w-]+)['"]/g;
+const LISTENER_EVENTS: Record<string, readonly string[]> = { 'claude-fix-ci.yml': BRANCH_CI_EVENTS };
+
+/**
+ * Each `workflow_run` listener, each where it listens: a watched workflow some step here dispatches
+ * (no event reaches it), a watched name no workflow has, and an event it tests for that a watched
+ * workflow never runs on.
+ */
 function dispatchedWorkflowRunViolations(): Violation[] {
-    const fileList = (dir: string, nested: boolean): string[] => existsSync(dir)
-        ? readdirSync(dir, { recursive: nested, encoding: 'utf8' }).map(f => `${dir}/${f.replaceAll('\\', '/')}`).filter(f => /\.ya?ml$/.test(f))
-        : [];
-    const workflows = fileList('.github/workflows', false);
-    const sources = [...workflows, ...fileList('.github/actions', true)].map(file => ({ file, text: readFileSync(file, 'utf8') }));
+    const workflows = yamlFiles('.github/workflows', false);
+    const sources = [...workflows, ...yamlFiles('.github/actions', true)].map(file => ({ file, text: readFileSync(file, 'utf8') }));
     const dispatched = new Set(sources.flatMap(({ text }) => [...text.matchAll(DISPATCH)].map(m => m[1])));
-    const fileOf = new Map(sources.filter(({ file }) => workflows.includes(file)).flatMap(({ file, text }) => {
+    const byName = new Map(sources.filter(({ file }) => workflows.includes(file)).flatMap(({ file, text }) => {
         const m = WORKFLOW_NAME.exec(text);
-        return m ? [[m[1] ?? m[2] ?? m[3], basename(file)] as const] : [];
+        return m ? [[m[1] ?? m[2] ?? m[3], { file: basename(file), events: workflowEvents(text) }] as const] : [];
     }));
     const violations: Violation[] = [];
+    const conventions = 'scripts/check-conventions.ts';
+    const listenerEventsLine = readFileSync(conventions, 'utf8').split('\n').findIndex(l => l.startsWith('const LISTENER_EVENTS')) + 1;
+    for (const key of strandedListenerKeys(Object.keys(LISTENER_EVENTS), workflows.map(f => basename(f)))) {
+        violations.push({ file: conventions, line: listenerEventsLine, rule: 'workflow-run-listener', message: `LISTENER_EVENTS ties a gate's event list to "${key}", a listener that no longer exists in .github/workflows, so its events are checked against nothing and the listener that replaced it passes every watched workflow. Rename the key with the file.` });
+    }
     for (const { file, text } of sources) {
         const listen = WORKFLOW_RUN_LIST.exec(text);
         if (!listen) continue;
-        const names = listen[1].startsWith('[')
+        const line = text.slice(0, listen.index).split('\n').length;
+        const names = (listen[1].startsWith('[')
             ? listen[1].slice(1, -1).split(',')
-            : listen[1].split('\n').filter(l => l.trim()).map(l => l.replace(/^\s*-\s*/, '').replace(/\s+#.*$/, ''));
-        for (const name of names.map(n => n.trim().replace(/^(["'])(.*)\1$/, '$2'))) {
-            const target = fileOf.get(name);
-            if (target === undefined || !dispatched.has(target)) continue;
+            : listen[1].split('\n').filter(l => l.trim()).map(l => l.replace(/^\s*-\s*/, '').replace(/\s+#.*$/, '')))
+            .map(n => n.trim().replace(/^(["'])(.*)\1$/, '$2'));
+        const accepted = new Set([...(LISTENER_EVENTS[basename(file)] ?? []), ...[...text.matchAll(WORKFLOW_RUN_EVENT_TEST)].map(m => m[1])]);
+        for (const name of names) {
+            const target = byName.get(name);
+            if (target === undefined) {
+                violations.push({ file, line, rule: 'workflow-run-listener', message: `Listens to \`workflow_run\` of "${name}", but no workflow in .github/workflows has that \`name:\`, so this never fires for it. Watch an existing workflow's exact name (${[...byName.keys()].filter(n => n.startsWith('CI:')).join(', ')}...).` });
+                continue;
+            }
+            const missed = missedEvents(accepted, target.events);
+            if (missed !== null) {
+                violations.push({ file, line, rule: 'workflow-run-listener', message: `Watches "${name}" (${target.file}), which ${missed}, so this never fires for it. Run it on an event the listener accepts, or stop watching it.` });
+            }
+            if (!dispatched.has(target.file)) continue;
             violations.push({
                 file,
-                line: text.slice(0, listen.index).split('\n').length,
+                line,
                 rule: 'workflow-run-of-dispatched',
-                message: `Listens to \`workflow_run\` of "${name}", which \`gh workflow run ${target}\` dispatches with GITHUB_TOKEN: GitHub creates no workflow_run event for those runs, so this never sees them. React from inside ${target} (a final job with \`needs\` and \`if: always()\`).`,
+                message: `Listens to \`workflow_run\` of "${name}", which \`gh workflow run ${target.file}\` dispatches with GITHUB_TOKEN: GitHub creates no workflow_run event for those runs, so this never sees them. React from inside ${target.file} (a final job with \`needs\` and \`if: always()\`).`,
             });
         }
     }
@@ -611,6 +678,11 @@ function check(files: string[]): Violation[] {
                 add({ file, line, rule: 'date-formatting', message: 'toLocaleDateString/toLocaleTimeString/dateStyle/timeStyle belong only in utils/time.utils.ts; use its formatters.' }));
         }
 
+        if (SCRIPTS_SOURCE.test(file) && file !== SCRIPTS_HELPERS) {
+            eachLine(text, l => LOCAL_IS_RECORD.test(l), line =>
+                add({ file, line, rule: 'scripts-helpers', message: 'isRecord (and env, output, gh) come from scripts/lib/actions.ts: import it, do not declare another. A narrower guard takes another name.' }));
+        }
+
         if (BUDGET_FIGURE_SCOPE.test(file) && file !== BUDGETS_FILE) {
             eachLine(text, l => BUDGET_FIGURE.test(l), line =>
                 add({ file, line, rule: 'budget-figure', message: 'A size budget written as its figure goes stale on the next raise. Name the budget (BUDGETS.wordPageP90, "the kanji page budget"); its figure lives only in lib/budgets.ts and docs/DESIGN_SYSTEM.md\'s Budgets table.' }));
@@ -733,10 +805,6 @@ function check(files: string[]): Violation[] {
             for (const job of workflowJobs(text)) {
                 if (RUNS_CHECK.test(job.text) && !SUBMODULE_CHECKOUT.test(job.text)) {
                     add({ file, line: job.line, rule: 'check-with-dataset', message: `Job \`${job.name}\` runs \`bun run check\` without the dataset: its real-dataset suites fail when the compiled dataset is missing. Give its actions/checkout \`with: submodules: true\`.` });
-                }
-                if (RUNS_INSTALL.test(job.text) && !SUBMODULE_CHECKOUT.test(job.text)) {
-                    eachLine(job.text, l => HOOKED_GIT.test(l), offset =>
-                        add({ file, line: job.line + offset - 1, rule: 'check-with-dataset', message: `Job \`${job.name}\` installs dependencies, which sets the git hooks, then commits or pushes without \`--no-verify\`: the hook runs \`bun run check\` without the dataset and fails. Pass \`--no-verify\` (the PR's CI checks it), or check out with \`submodules: true\`.` }));
                 }
                 const code = job.text.split('\n').filter(l => !/^\s*#/.test(l)).join('\n');
                 const header = job.text.split(/^ {4}steps:/m)[0];
@@ -905,6 +973,9 @@ function check(files: string[]): Violation[] {
     }
     if (files.some(f => GITHUB_DIR_FILE.test(f))) {
         for (const v of dispatchedWorkflowRunViolations()) add(v);
+    }
+    if (files.some(f => GITHUB_DIR_FILE.test(f) || f === TRIAGE_SCRIPT)) {
+        for (const v of pipelineCommandViolations()) add(v);
     }
     if (files.some(f => f === DETAIL_BREAKPOINT_FILES.dictionary || f === DETAIL_BREAKPOINT_FILES.srs)) {
         for (const v of detailBreakpointViolations(read(DETAIL_BREAKPOINT_FILES.dictionary), read(DETAIL_BREAKPOINT_FILES.srs))) add(v);

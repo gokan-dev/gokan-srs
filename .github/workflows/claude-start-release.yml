@@ -522,11 +522,10 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # --no-verify on both: bun install set core.hooksPath, so a plain commit fires the
-          # pre-commit hook and a plain push the pre-push hook (each `bun run check`), whose tests
-          # need the dataset submodule this minimal checkout does not have. This commit only
-          # assembles the changelog; the release -> main PR gets full CI, so the hooks here are
-          # both wrong and impossible to satisfy (1.66.0's finish failed on the push).
+          # --no-verify on the commit skips the pre-commit hook (bun install set core.hooksPath:
+          # conventions and ESLint on the staged files), which a commit that only assembles the
+          # changelog in this minimal checkout does not need; the release -> main PR gets full CI.
+          # On the push it is a no-op now that there is no pre-push hook.
           git commit --no-verify -am "Release $VERSION: assemble the changelog from the sprint's fragments"
           git push --no-verify origin "HEAD:release/$VERSION"
 

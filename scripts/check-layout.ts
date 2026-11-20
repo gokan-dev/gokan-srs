@@ -84,7 +84,7 @@
  *
  * Usage: build both apps (`bun run --cwd apps/gokan-srs build`, `bun run --cwd
  * apps/gokan-dictionary build`), then `bun run check:layout`. Needs Chrome or Chromium: found at
- * the usual paths, or named by CHROME_PATH. Run by CI (.github/workflows/ci-layout.yml).
+ * the usual paths, or named by CHROME_PATH. Run by CI (.github/workflows/ci-site.yml), on the builds its build job made.
  *
  * Chrome is driven over the DevTools protocol with Bun's own WebSocket: Playwright's transports
  * do not work under Bun on Windows, and this needs nothing installed.

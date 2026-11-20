@@ -24,7 +24,7 @@
  * `bun run check:lighthouse`. Needs Chrome (found like scripts/lib/chrome.ts) and runs Lighthouse
  * (the pinned devDependency) under `node`, so Node must be on PATH. LH_RUNS (runs for every page),
  * LH_FORM_FACTORS and LH_ONLY (a label substring) tune a local run. Run by CI
- * (.github/workflows/ci-lighthouse.yml), which keeps the reports.
+ * (.github/workflows/ci-site.yml), on the builds its build job made, and keeps the reports.
  */
 import { spawn } from 'node:child_process';
 import { mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';

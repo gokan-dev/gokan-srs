@@ -7,7 +7,7 @@
 [Use the app](https://gokan-srs.com) &nbsp;&middot;&nbsp; [Browse the dictionary](https://gokan-srs.com/dictionary/) &nbsp;&middot;&nbsp; [Open dataset](https://github.com/gokan-dev/gokan-dataset)
 
 [![Checks](https://github.com/gokan-dev/gokan-srs/actions/workflows/ci.yml/badge.svg)](https://github.com/gokan-dev/gokan-srs/actions/workflows/ci.yml)
-[![Lighthouse](https://github.com/gokan-dev/gokan-srs/actions/workflows/ci-lighthouse.yml/badge.svg)](https://github.com/gokan-dev/gokan-srs/actions/workflows/ci-lighthouse.yml)
+[![Layout and Lighthouse](https://github.com/gokan-dev/gokan-srs/actions/workflows/ci-site.yml/badge.svg)](https://github.com/gokan-dev/gokan-srs/actions/workflows/ci-site.yml)
 [![Deploy](https://github.com/gokan-dev/gokan-srs/actions/workflows/deploy.yml/badge.svg)](https://github.com/gokan-dev/gokan-srs/actions/workflows/deploy.yml)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
 [![Dataset: CC BY-SA 4.0](https://img.shields.io/badge/dataset-CC%20BY--SA%204.0-blue)](https://github.com/gokan-dev/gokan-dataset)
@@ -107,12 +107,12 @@ The dataset lives in its own repository and the build reads from it, so if you a
 
 ```bash
 bun run dev              # the SRS app
-bun run check            # every project check: conventions, lint, typecheck, tests, duplicates, unused code
+bun run ci:wait          # after a push: wait for CI on that commit and print what failed
 bun run dictionary:dev   # the dictionary
 bun run dictionary:build # generate all ~38,900 static pages
 ```
 
-Anything else scopes to one workspace with `--cwd`, for example `bun run --cwd apps/gokan-dictionary test`. `bun install` also installs the git hooks (conventions and lint before each commit, `bun run check` before each push).
+CI verifies every pushed branch, PR or not: every push runs every project check (`bun run check`: conventions, lint, typecheck, tests, duplicates, unused code); the builds and the browser checks run on the pushes that touch what they cover (path filters). Push, then `bun run ci:wait`; locally, run only the narrow command for what you are changing, scoped to one workspace with `--cwd`, for example `bun run --cwd apps/gokan-dictionary test`. `bun install` also installs one git hook: conventions and lint on the staged files before each commit.
 
 ## How it is put together
 

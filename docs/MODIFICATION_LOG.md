@@ -5,6 +5,8 @@
 >
 > It is not auto-loaded into agent context; read it on demand when you need the history behind a decision.
 
+- **[2026-11-20]**:
+  - **No hook needs the dataset, so the `--no-verify` rule is gone** (PR #270). `check-conventions` required `--no-verify` on a `git commit` or `git push` after `bun install` in a workflow job, because the hooks ran `bun run check`, whose tests need the dataset submodule a minimal checkout lacks (1.66.0's release finish failed on its push). With no pre-push hook, and the pre-commit hook running only conventions and ESLint on the staged files, no hook needs the dataset: the rule was removed and `--no-verify` in workflows is optional. Bring it back only if a hook runs the tests or the builds again.
 - **[2026-11-17]**:
   - **Dictionary word page: synonyms, and the app's tabs on a phone; what the page ships, measured** (#168).
     - **Measured on the full English build** (35,872 word pages): before, word pages weighed 12.1 KB at the 90th percentile (取る 20.0 KB, 今 23.4 KB, 輝く 12.6 KB); after, 16.8 KB (取る 28.8 KB, 今 30.1 KB, 輝く 17.8 KB), against the 20 KB budget. The extra is the synonyms, the Dict section's 2 examples (repeated in Sentences, as on the app's full page) and the tab row.
