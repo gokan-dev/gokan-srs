@@ -1,10 +1,12 @@
 # Reviews the RENDERED site after a staging deploy succeeds: the things a diff cannot show.
 # Both of the ways a change reaches staging (claude-review.yml's `round` job tagging an rc when a
 # round ships something, and a human/local agent tagging a branch directly) end in a `*-rc*` tag
-# push that runs "Deploy: staging", which calls this as its second job, so it nets BOTH paths with
-# no extra discipline on either. Called, not a `workflow_run` listener: the call runs inside the
-# deploy's run and so under its `staging-site` lock, and staging cannot be redeployed for another
-# member while this review looks at it.
+# push that runs "Deploy: staging", whose second job dispatches this and waits for it, so it nets
+# BOTH paths with no extra discipline on either. Dispatched and awaited, not a `workflow_run`
+# listener: the deploy's run stays open, holding its `staging-site` lock, until this has finished,
+# so staging cannot be redeployed for another member while this review looks at it. Not a called
+# workflow either: that would carry the deploy's `push` event, which claude-code-action refuses.
+# This takes no staging lock of its own (its caller holds it; taking it here would deadlock).
 #
 # It resolves the deployed commit to its open PR and, if there is none (the local-tag-direct
 # path often skips the PR), opens a DRAFT PR so the review always has a home. Then it looks at
@@ -18,12 +20,18 @@
 # The reviewer reports and never pushes: every point goes to claude-triage.yml, which the `triage`
 # job at the end hands the round to.
 name: "Agent: review staging"
+# Ends with the caller's marker, which deploy-staging.yml's wait looks for to find this run.
+run-name: "Agent: review staging ${{ inputs.ref }} [${{ inputs.caller }}]"
 
 on:
-  workflow_call:
+  workflow_dispatch:
     inputs:
       ref:
         description: 'The deployed ref: the rc tag, or the branch, tag or SHA deployed by hand.'
+        required: true
+        type: string
+      caller:
+        description: 'The deploy run waiting for this review (run id and attempt).'
         required: true
         type: string
 
@@ -136,10 +144,10 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.AGENT_GITHUB_TOKEN }}
-          # A deploy an agent started (an rc tagged through the app) has claude[bot] as its
-          # actor, and the action refuses a run a bot started unless it is listed. No loop: this
-          # review never pushes.
-          allowed_bots: claude
+          # The deploy's wait dispatches this with GITHUB_TOKEN (github-actions as its actor), and
+          # a deploy an agent started (an rc tagged through the app) has claude[bot]; the action
+          # refuses a run a bot started unless it is listed. No loop: this review never pushes.
+          allowed_bots: "github-actions,claude"
           prompt: |
             A staging deploy just succeeded for commit `${{ needs.target.outputs.sha }}`
             (ref `${{ inputs.ref }}`). Staging is live at

@@ -7,8 +7,8 @@
 # Staging exists largely to exercise dataset changes before they reach production, and building
 # both apps from one checkout here is what makes that check meaningful.
 #
-# The rendered review of what was deployed (claude-review-staging.yml) is this run's second job,
-# not a listener: there is one staging site, and a release's members now build in parallel, so a
+# The rendered review of what was deployed (claude-review-staging.yml) is dispatched and awaited by
+# this run's second job, not a listener: there is one staging site, and a release's members now build in parallel, so a
 # deploy and the review of it hold the site together. The workflow-level group below queues every
 # other deploy (and its review) until this run has finished: no member's deploy lands while another
 # member's pages are being reviewed.
@@ -67,16 +67,49 @@ jobs:
       audio_aws_secret_access_key: ${{ secrets.AUDIO_AWS_SECRET_ACCESS_KEY }}
 
   # Only a successful deploy is reviewed: a failed one left staging serving something else.
+  # Dispatched and waited for, not called: a called workflow sees this run's event, and
+  # claude-code-action refuses a `push` (the rc tag). The wait keeps this run, and so the
+  # staging-site lock, open until the review has finished; a failed review fails this run, which
+  # claude-retry.yml re-runs whole (deploy, then a fresh review).
   review:
     name: Review staging
     needs: deploy-staging
-    uses: ./.github/workflows/claude-review-staging.yml
-    with:
-      ref: ${{ github.event.inputs.ref || github.ref_name }}
+    runs-on: ubuntu-latest
+    # The review's own limit (45 minutes) plus its wait for the branch lock.
+    timeout-minutes: 90
     permissions:
-      contents: read
-      pull-requests: write
-      issues: write
-      id-token: write
-      actions: write
-    secrets: inherit
+      actions: write   # dispatch the review, and cancel it if this wait is cancelled
+    env:
+      GH_TOKEN: ${{ github.token }}
+      # The run-name marker the dispatched run carries, so this wait finds its own review.
+      CALLER: ${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Start the review
+        id: start
+        env:
+          REF: ${{ github.event.inputs.ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+          # From this run's own workflow files (the tag for a tag push, main for a dispatch), so
+          # the review matches the deploy that ran.
+          gh workflow run claude-review-staging.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME" \
+            -f ref="$REF" -f caller="$CALLER"
+          for _ in $(seq 1 30); do
+            sleep 10
+            id="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow claude-review-staging.yml \
+              --event workflow_dispatch --limit 20 --json databaseId,displayTitle \
+              --jq "[.[] | select(.displayTitle | endswith(\"[$CALLER]\"))][0].databaseId // empty")"
+            if [ -n "$id" ]; then
+              echo "id=$id" >> "$GITHUB_OUTPUT"
+              echo "Review run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$id"
+              exit 0
+            fi
+          done
+          echo "::error::The dispatched staging review did not appear within 5 minutes."
+          exit 1
+      - name: Wait for the review
+        run: gh run watch "${{ steps.start.outputs.id }}" --repo "$GITHUB_REPOSITORY" --interval 30 --exit-status > /dev/null
+      # A review left running after its wait ends would look at staging without holding it.
+      - name: Stop the review with its wait
+        if: ${{ !success() && steps.start.outputs.id != '' }}
+        run: gh run cancel "${{ steps.start.outputs.id }}" --repo "$GITHUB_REPOSITORY" || true
