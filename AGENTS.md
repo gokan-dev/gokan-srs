@@ -137,12 +137,13 @@ summary ("Largest tool results"), which is where a whole read shows.
   `compiled/`: fetching sources (`fetch:media`, `fetch:covers`) and making audio clips
   (`build:audio`, which needs the engine; CI attaches them). The dataset's `check:schemas` reads
   only the committed `compiled/` and still runs locally (its `check:layout` compares against
-  `build/`, so it runs in its CI). Not mechanised yet: a
-  CI step here, when the submodule pointer moves, could check that the last commit touching
-  `compiled/` at the pointer is the dataset's build bot and that no later commit touches its
-  sources, scripts or `data/`. Until then a reviewer checks that a pointer bump names a commit
-  made by the dataset's build bot, from a Build run that passed (the bot pushes with
-  `GITHUB_TOKEN`, so its own commit starts no Build run).
+  `build/`, so it runs in its CI). A pointer is valid when a Build run that passed exists for the
+  pointer's sha, or the pointer is a bot commit "Build compiled/ from <sha>" whose named sha has
+  a passing Build run (the bot pushes with `GITHUB_TOKEN`, so its own commit starts no Build run:
+  that is why the bot-commit case checks the sha it names). Not mechanised yet: a CI step here,
+  when the submodule pointer moves, could check that condition through
+  `gh api repos/gokan-dev/gokan-dataset/commits/<sha>/check-runs`, against the pointer's sha or
+  the sha its bot commit names. Until then a reviewer checks the same condition on a pointer bump.
 
 ## Writing rules
 
