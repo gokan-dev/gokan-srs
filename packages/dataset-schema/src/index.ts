@@ -27,3 +27,6 @@ export * from './frequency';
 export * from './senses';
 export * from './synonyms';
 export * from './sectionSearch';
+// Not pitchGraph: it is pitchPaths' layout step, and the apps draw pitchPaths.
+export { moraeOf, pitchContour, pitchAccentKind, primaryPitchAccent, pitchAccentLabel, pitchPaths, PITCH_LINE_PX, PITCH_OTHER_SCALE } from './pitchAccent';
+export type { PitchContour, PitchAccentKind, PitchPaths } from './pitchAccent';

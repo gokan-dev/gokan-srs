@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { VocabPageProps as Props } from '../lib/pageProps';
-  import { CLOSENESS_LABEL, frequencyBand, synonymsSearchable, frequencyTop, headwordOf, secondaryForm, summaryGloss, textbookLessonsLabel, wordFrequencyRank } from '@gokan/dataset-schema';
+  import { CLOSENESS_LABEL, frequencyBand, synonymsSearchable, frequencyTop, headwordOf, primaryPitchAccent, secondaryForm, summaryGloss, textbookLessonsLabel, wordFrequencyRank } from '@gokan/dataset-schema';
   import type { Sentence } from '@gokan/dataset-schema';
   import { valueText, type DefinitionSense } from '@gokan/dataset-schema/text';
   import { pageLocale } from './pageLocale';
@@ -14,6 +14,7 @@
   import { appUrl } from '../lib/appLinks';
   import AppPanel from './AppPanel.svelte';
   import PageLayout from './PageLayout.svelte';
+  import PitchAccent from './PitchAccent.svelte';
   import VocabEntryList from './VocabEntryList.svelte';
   import Chip from './Chip.svelte';
   import DetailTabs from './DetailTabs.svelte';
@@ -36,6 +37,9 @@
   const DICT_EXAMPLES = 2;
 
   const headword = $derived(headwordOf(vocab));
+  // The primary reading's pitch accent, drawn over the reading when the dataset has one (always on
+  // here); a word learned in kana gets its reading so drawn on a line under the kanji-spelling note.
+  const pitch = $derived(primaryPitchAccent(vocab));
   // Into the app at the step the word comes in at, its own page open once setup is done.
   const appLink = $derived(appUrl({ placement: 'word', vocabId: vocab.id, order: orderStep?.order.id, known: orderStep?.step }));
   // The single most important fact on the page, beside the word: a reader who searched for it
@@ -186,8 +190,12 @@
       <!-- Learned in kana (ここ): the headword already is the reading, so name the kanji spelling. -->
       <p class="entry-sub">{words.usuallyKana} <span lang="ja">{secondaryForm(vocab)}</span><PlayButton audio={vocab.audio} {voice} label={messages.chrome.play(headword)} /></p>
     {:else}
-      <p class="entry-sub" lang="ja">{vocab.reading.primary}<PlayButton audio={vocab.audio} {voice} label={messages.chrome.play(headword)} inJapanese />{#if vocab.reading.alternatives.length > 0}<span class="meta" {lang}> · {words.alsoRead} <span lang="ja">{vocab.reading.alternatives.join('、')}</span></span>{/if}</p>
+      <!-- With its pitch accent, the button goes inside, after the first pattern: a second one wraps after it, never pushing it down. Without a clip, no button and no room left for one (pa-b). -->
+      {#snippet play()}<PlayButton audio={vocab.audio} {voice} label={messages.chrome.play(headword)} inJapanese />{/snippet}
+      <p class="entry-sub" lang="ja">{#if pitch && vocab.audio && voice}<PitchAccent accent={pitch} label={words.pitchAccent(pitch.downsteps)}>{@render play()}</PitchAccent>{:else if pitch}<PitchAccent accent={pitch} label={words.pitchAccent(pitch.downsteps)} />{:else}{vocab.reading.primary}{@render play()}{/if}{#if vocab.reading.alternatives.length > 0}<span class="meta" {lang}> · {words.alsoRead} <span lang="ja">{vocab.reading.alternatives.join('、')}</span></span>{/if}</p>
     {/if}
+
+    {#if vocab.usuallyKana && pitch}<p class="entry-sub entry-pitch"><PitchAccent accent={pitch} label={words.pitchAccent(pitch.downsteps)} /></p>{/if}
 
     {#if summary}<p class="entry-gloss" lang={text ? langOnChinesePage(summary) : undefined}>{summary}</p>{/if}
 

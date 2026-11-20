@@ -9,6 +9,11 @@ describe('parseStoredSettings', () => {
         expect(parseStoredSettings(JSON.stringify({ romajiInput: false }), DEFAULT_SETTINGS).romajiInput).toBe(false);
     });
 
+    it('turns "Show pitch accent" on for settings stored before it, and keeps a stored choice', () => {
+        expect(parseStoredSettings('{}', DEFAULT_SETTINGS).showPitchAccent).toBe(true);
+        expect(parseStoredSettings(JSON.stringify({ showPitchAccent: false }), DEFAULT_SETTINGS).showPitchAccent).toBe(false);
+    });
+
     it('loads settings stored with the retired answerColors key', () => {
         const stored = JSON.stringify({ preferredLearningOrder: 'kklc', learningFrequency: 'low', answerColors: 'colorblind' });
         expect(parseStoredSettings(stored, DEFAULT_SETTINGS)).toMatchObject({

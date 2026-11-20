@@ -157,7 +157,7 @@ export interface Messages {
         /**
          * The Words section's search field: its hidden label, its placeholder (short, to fit a 320px
          * phone, so it names no language), and the line under it that says English reaches only the
-         * rows that ship a gloss (the first `englishRows`: the 80 KB budget). A line, not the
+         * rows that ship a gloss (the first `englishRows`: the kanji page budget). A line, not the
          * placeholder: it shows at every width, and still after the reader types.
          */
         wordsSearch: { label: string; placeholder: string; note: (englishRows: number) => string };
@@ -175,6 +175,8 @@ export interface Messages {
         /** Before the other readings, and before the other spellings. */
         alsoRead: string;
         alsoWritten: string;
+        /** A word's pitch accent, for screen readers: its patterns, most usual first (0 heiban, n a drop after mora n). */
+        pitchAccent: (downsteps: number[]) => string;
         sections: {
             meanings: string; examples: string; closestSynonyms: string; sentences: string; synonyms: string;
             forms: string; kanji: string; related: string; madeOf: string; usedIn: string;

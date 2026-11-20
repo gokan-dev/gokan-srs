@@ -2,7 +2,7 @@
 // tabs, the error page) and of its titles and descriptions. The site's first locale; another is
 // one more module like this one, held to the same Messages type (./index.ts).
 
-import { CLOSENESS_LABEL, headwordOf, secondaryForm } from '@gokan/dataset-schema';
+import { CLOSENESS_LABEL, headwordOf, pitchAccentLabel, secondaryForm } from '@gokan/dataset-schema';
 import type { GrammarChapter, GrammarPoint, Kanji, KanjiOrder, Vocabulary } from '@gokan/dataset-schema';
 import { FORM_LABELS } from '../conjugation';
 import { orderNameLang } from '../kanjiOrders';
@@ -103,7 +103,7 @@ export const en: Messages = {
         aboutText: links => [
             'Built on the open, CC BY-SA-licensed ',
             { text: 'gokan-dataset', href: links.dataset },
-            ': JMdict definitions, Tatoeba sentences and JLPT levels. To remember what you look up, learn it with spaced repetition in ',
+            ': JMdict definitions, Tatoeba sentences, JLPT levels, and pitch accents from Wiktionary and UniDic. To remember what you look up, learn it with spaced repetition in ',
             { text: 'Gokan SRS', ...links.srs },
             '.',
         ],
@@ -172,6 +172,8 @@ export const en: Messages = {
         usuallyKana: 'Usually written in kana. Kanji spelling',
         alsoRead: 'also',
         alsoWritten: 'Also written',
+        // The words the app's screen readers say too (@gokan/dataset-schema), so the two never drift.
+        pitchAccent: pitchAccentLabel,
         sections: {
             meanings: 'Meanings', examples: 'Examples', closestSynonyms: 'Closest synonyms', sentences: 'Sentences', synonyms: 'Synonyms',
             forms: 'Forms', kanji: 'Kanji', related: 'Related', madeOf: 'Made of', usedIn: 'Used in',

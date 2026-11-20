@@ -46,7 +46,7 @@ describe('KanjiPage', () => {
     });
 
     it("searches every row it counts in Japanese, and says under the field that English reaches only the rows that ship a gloss", () => {
-        // Past the first rows a row ships its headword and reading alone (the 80 KB budget: 一 lists
+        // Past the first rows a row ships its headword and reading alone (the kanji page budget: 一 lists
         // 660 words), and client/detailTabs.ts reads English only from a row's [lang="en"].
         const words = kanjiHtml(kanjiProps(40)).split('id="words"')[1];
         const rows = words.match(/<li>.*?<\/li>/g) ?? [];

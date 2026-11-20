@@ -71,6 +71,87 @@
   @include entry-gloss;
 }
 
+// A word learned in kana: its reading with its pitch accent on a line of its own, under the note
+// naming its kanji spelling, at the reading's size.
+.entry-pitch {
+  margin: $space-1 0 0;
+  color: var(--secondary);
+  font-family: $font-gothic;
+}
+
+// The reading with its pitch accent drawn over it (PitchAccent.svelte, short class names: it is on
+// every word page, under a size budget). Dots and line in the reading's own ink, a fact about the
+// word; the particle after it hollow. Each dot is placed in em of the reading's font (pitchPaths),
+// so the reading never wraps and never changes font features; one too long for the screen is set
+// smaller instead, within the page's side gutters (.container) and, before the reading's play
+// button (.pa-b), the button's tap box and gap. --w is the graph's width in em. The sizes below
+// are pitchPaths' (height, padRight, dot), PITCH_LINE_PX and PITCH_OTHER_SCALE, written out for
+// bytes and held equal to them by pages/PitchAccent.test.ts.
+$pitch-gutters: 2 * $space-2;
+$pitch-button-room: $target + $space-half;
+
+.pa {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  // 16px between patterns, as a gap rather than a margin: a gap goes at a wrap, so a later
+  // pattern that wraps starts flush under the first.
+  column-gap: $space-2;
+}
+
+.pr {
+  position: relative;
+  display: inline-block;
+  // The graph's height on top; on the right, room for the particle's ring, half an em past the reading.
+  padding: 0.56em 0.65em 0 0;
+  font-size: min(1em, calc((100vw - #{$pitch-gutters}) / var(--w)));
+  font-feature-settings: normal;
+  letter-spacing: 0;
+  white-space: nowrap;
+
+  svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: calc(var(--w) * 1em);
+    height: 0.56em;
+    overflow: visible;
+    fill: none;
+    stroke: currentColor;
+  }
+
+  // The line and the particle's ring: 1.5px at any size.
+  path,
+  circle {
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+  }
+
+  // The dots: zero-length strokes whose round caps are the dots, a little wider than the ring.
+  .pd {
+    stroke-width: 0.3;
+    stroke-linecap: round;
+    vector-effect: none;
+  }
+}
+
+// The first pattern with the play button after it: it leaves the button room on its line, and
+// the button is pulled back to $space-half after it (never opening a line, so never misaligned).
+.pa-b > .pr:first-child {
+  font-size: min(1em, calc((100vw - #{$pitch-gutters + $pitch-button-room}) / var(--w)));
+
+  + .play {
+    margin-inline-start: -($space-2 - $space-half);
+  }
+}
+
+// A further pattern, after the button: the reading again, smaller (never under 12px), after the
+// row's gap, wider than the one before the button (so two contours never read as one line), with
+// no margin and no mark before it, which a wrap would leave indenting or opening a line.
+.pr-other {
+  font-size: max(0.75rem, min(0.75em, calc((100vw - #{$pitch-gutters}) / var(--w))));
+}
+
 .entry-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);

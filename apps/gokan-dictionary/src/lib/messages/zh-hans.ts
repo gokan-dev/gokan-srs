@@ -95,7 +95,7 @@ export const zhHans: Messages = {
         aboutText: links => [
             '本词典基于以 CC BY-SA 许可开放的 ',
             { text: 'gokan-dataset', href: links.dataset },
-            `${AFTER_LINK}：日语词条、英文释义和 JLPT 级别来自 JMdict，例句来自 Tatoeba；中文释义来自中文维基词典，中文对应词来自日文维基词典和维基数据，例句的中文翻译来自 Tatoeba。想记住查过的词，可以用 `,
+            `${AFTER_LINK}：日语词条、英文释义和 JLPT 级别来自 JMdict，例句来自 Tatoeba；中文释义来自中文维基词典，中文对应词来自日文维基词典和维基数据，例句的中文翻译来自 Tatoeba；音调来自英文维基词典和 UniDic。想记住查过的词，可以用 `,
             { text: 'Gokan SRS', ...links.srs },
             `${AFTER_LINK}按间隔重复学习。`,
         ],
@@ -168,6 +168,7 @@ export const zhHans: Messages = {
         usuallyKana: '通常写作假名。汉字写法',
         alsoRead: '又读',
         alsoWritten: '也写作',
+        pitchAccent: downsteps => `音调：${downsteps.map(d => (d === 0 ? '平板型' : `第${d}拍后下降`)).join('，或')}`,
         sections: {
             meanings: '词义', examples: '典型例句', closestSynonyms: '最接近的近义词', sentences: '例句', synonyms: '近义词',
             forms: '活用', kanji: '汉字', related: '相关词', madeOf: '构成', usedIn: '用于',

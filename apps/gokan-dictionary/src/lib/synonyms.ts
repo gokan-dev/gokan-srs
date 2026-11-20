@@ -9,7 +9,7 @@ import type { Closeness, SynonymEntry, Vocabulary, WithSynonyms } from '@gokan/d
  * What the page ships, at most: each meaning's best this many, and this many in all. 取る has 322
  * synonyms among the 10,000 most frequent words, the 99th percentile 69 and the 90th 23; a row is
  * about 110 bytes, so the cap holds the heaviest pages to about 4 KB of synonyms against the word
- * page's 20 KB budget (docs/MODIFICATION_LOG.md). The rest is counted, never dropped silently.
+ * page budget (BUDGETS.wordPageP90) (docs/MODIFICATION_LOG.md). The rest is counted, never dropped silently.
  */
 export const SYNONYMS_PER_MEANING = 8;
 export const SHIPPED_SYNONYMS = 32;

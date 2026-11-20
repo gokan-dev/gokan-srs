@@ -89,6 +89,27 @@ export function AboutScreen() {
                         </a>
                         , used under its Creative Commons license.
                     </p>
+                    <p className="type-body mt-3">
+                        Pitch accents are from{" "}
+                        <a
+                            href="https://en.wiktionary.org"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-accent underline"
+                        >
+                            Wiktionary
+                        </a>
+                        {" "}(CC BY-SA 4.0), and, for words it does not cover,{" "}
+                        <a
+                            href="https://clrd.ninjal.ac.jp/unidic/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-accent underline"
+                        >
+                            UniDic
+                        </a>
+                        {" "}by NINJAL (BSD license).
+                    </p>
                     {audio && <VoiceCredit audio={audio} />}
                 </section>
 

@@ -35,9 +35,12 @@ export const DATASET_PREFIX = '/dataset/';
  * The file of compiled/ a request for `pathname` (decoded, without its query) reads, as the
  * published dataset answers it, or null when it is not a published file. What a local server
  * stands in for: gokan-srs's dev and preview servers, and the servers the browser checks run.
+ * compiled/ holds JSON only, and only JSON is claimed: Vite's dev server serves the dataset's own
+ * source modules under /dataset/ too (`src/layout/englishFile.ts`, which @gokan/dataset-schema
+ * re-exports), and answering those as missing data files kept the app from starting.
  */
 export function publishedDatasetFile(pathname: string): string | null {
-    if (!pathname.startsWith(DATASET_PREFIX)) return null;
+    if (!pathname.startsWith(DATASET_PREFIX) || !pathname.endsWith('.json')) return null;
     const file = pathname.slice(DATASET_PREFIX.length);
     if (file.split('/').some(part => part === '' || part === '.' || part === '..')) return null;
     return isPublishedDatasetFile(file) ? file : null;

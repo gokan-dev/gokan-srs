@@ -101,6 +101,14 @@ summary ("Largest tool results"), which is where a whole read shows.
 - Line endings are LF everywhere (`.gitattributes`).
 - Dataset changes belong in the `gokan-dataset` repo: commit and push inside the submodule
   first, then commit the new pointer here.
+- **Never run the dataset's full `bun run build` by reflex.** It deletes and rewrites about
+  160k small files (`build/assembled/`, then all of `compiled/`) and runs every stage, grammar
+  mining included: over 30 minutes on a Windows machine. Run the narrowest stage that covers the
+  change (a vocab field: its own step, then `build:layout`; a schema type: `build:schemas` and
+  `check:schemas`), and leave the apps' builds and full test runs to this repo's CI on a pushed
+  branch (gokan-dataset has no CI yet, so its compiled output is still built by hand, narrowly).
+  A full build is for a change that touches every stage, and says so before it starts. Not mechanised (a hook cannot
+  tell which stages a change needs); a reviewer checks that a dataset PR names the stages it ran.
 
 ## Writing rules
 
@@ -163,8 +171,11 @@ from the same package: romaji (`romajiToHiragana` and `readRomajiQuery` read Hep
 writes it, so they read it back; `kanaToRomaji` writes IME keystrokes, ん as `nn`, for typo distances
 and search keys, never to be read back as Hepburn; `toHiragana`, `looksLikeRomaji`), a sentence's linked and highlighted runs (`segmentInteractiveSentence`), a
 reading split over a word's kanji runs for furigana (`rubyParts`), a clip's URL (`audioUrl`, enforced),
-the one-clip-at-a-time player both apps' play buttons run on (`createClipPlayer`) and a grammar example as a
-`Sentence` (`grammarExampleToSentence`, `patternHighlightRanges`).
+the one-clip-at-a-time player both apps' play buttons run on (`createClipPlayer`), a grammar example as a
+`Sentence` (`grammarExampleToSentence`, `patternHighlightRanges`) and a word's pitch accent
+(`primaryPitchAccent`, `moraeOf`, `pitchContour`, its English screen-reader words `pitchAccentLabel`,
+drawn from `pitchPaths`, with the sizes it gives, by gokan-srs's `components/PitchAccent.tsx` and the
+dictionary's `pages/PitchAccent.svelte`).
 
 gokan-srs, quizzes. **Every quiz is an exercise, and every exercise runs on one engine
 (`services/exercise/`, see the Exercise engine section of docs/ARCHITECTURE.md).** An activity

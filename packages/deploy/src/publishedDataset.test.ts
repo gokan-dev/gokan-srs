@@ -40,6 +40,13 @@ describe('publishedDatasetFile', () => {
         expect(publishedDatasetFile('/dataset/merged_vocabs.log')).toBeNull();
     });
 
+    it('leaves the dataset\'s source modules to the dev server, which serves them under /dataset/ too', () => {
+        // @gokan/dataset-schema re-exports the dataset's src/layout/englishFile.ts: claimed as a data
+        // file, it answered 404 and the app never started in dev.
+        expect(publishedDatasetFile('/dataset/src/layout/englishFile.ts')).toBeNull();
+        expect(publishedDatasetFile('/dataset/src/models/vocabulary.model.ts')).toBeNull();
+    });
+
     it('never leaves compiled/', () => {
         expect(publishedDatasetFile('/dataset/../package.json')).toBeNull();
         expect(publishedDatasetFile('/dataset/vocab/../../x.json')).toBeNull();

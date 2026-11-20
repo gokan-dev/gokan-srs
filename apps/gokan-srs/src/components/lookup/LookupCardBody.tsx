@@ -8,6 +8,8 @@ import { kanjiPath, vocabPath } from "../../utils/navigation.utils";
 import { organizeSenses } from "../../utils/senses.utils";
 import { CardSkeleton } from "../CardSkeleton";
 import { KanjiSummary } from "../KanjiSummary";
+import { usePitchAccent } from "../../hooks/usePitchAccent";
+import { PitchAccent } from "../PitchAccent";
 import { PlayButton } from "../PlayButton";
 import { SecondaryForm } from "../SecondaryForm";
 import { WordStudyStatus } from "../WordStudyStatus";
@@ -32,6 +34,9 @@ export function LookupCardBody({ target, onNavigate }: BodyProps & { target: Loo
     }
 }
 
+/** Before the word loads: no reading, so no pitch accent (the hook runs on every render). */
+const NO_WORD = { reading: { primary: '', alternatives: [] } };
+
 /**
  * A word in brief: its headword and reading, its first meanings, where it is in the learner's
  * study and its page. A word not in study can be learned from here, exactly as from its page,
@@ -39,10 +44,12 @@ export function LookupCardBody({ target, onNavigate }: BodyProps & { target: Loo
  */
 function WordCardBody({ vocabId, onNavigate }: BodyProps & { vocabId: string }) {
     const load = useAsyncData(vocabId, () => VocabularyService.loadVocab(vocabId));
+    const accent = usePitchAccent(load.status === 'ready' ? load.data : NO_WORD);
     if (load.status === 'error') return <p className="type-support text-error">Could not load this word.</p>;
     if (load.status !== 'ready') return <CardSkeleton variant="line" />;
 
     const vocab = load.data;
+    const play = (className?: string) => <PlayButton audio={vocab.audio} label={`Play ${headwordOf(vocab)}`} className={className} />;
     // The page's order (organizeSenses): the senses a learner meets first, archaic and rare ones
     // only for a word that has nothing else.
     const { common, rare } = organizeSenses(vocab.senses);
@@ -52,11 +59,17 @@ function WordCardBody({ vocabId, onNavigate }: BodyProps & { vocabId: string }) 
 
     return (
         <div className="space-y-2 min-w-0" data-lookup-word>
-            {/* The pitch accent (issue 176) will follow the reading, before the play button. */}
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
                 <span lang="ja" className="font-mincho text-2xl text-primary">{headwordOf(vocab)}</span>
-                <SecondaryForm vocab={vocab} truncate={false} />
-                <PlayButton audio={vocab.audio} label={`Play ${headwordOf(vocab)}`} />
+                {/* The reading with its pitch accent stands in for the plain reading; a word learned
+                    in kana keeps its kanji spelling, then the reading drawn so. */}
+                {(vocab.usuallyKana || !accent) && <SecondaryForm vocab={vocab} truncate={false} />}
+                {/* With its pitch accent the button follows the first pattern, as on the page, so a
+                    second one wraps after it rather than pushing it onto a row of its own. Only with a clip:
+                    without one there is no button to leave room for. */}
+                {accent
+                    ? <PitchAccent accent={accent} play={vocab.audio ? play('-ml-2') : undefined} className="font-gothic text-sm text-secondary" />
+                    : play()}
             </div>
             <ol className="space-y-0.5">
                 {senses.map(({ sense, posLabel }, i) => (
