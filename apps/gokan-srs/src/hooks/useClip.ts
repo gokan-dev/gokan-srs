@@ -19,7 +19,7 @@ export interface ClipControl {
  */
 export function useClip(clip: string): ClipControl {
     const { actions } = useQuiz();
-    const playing = useSyncExternalStore(clipPlayer.subscribe, clipPlayer.playing) === clip;
+    const playing = useSyncExternalStore(clipPlayer.subscribe, clipPlayer.playing, clipPlayer.playing) === clip;
     // A clip does not outlive its control: leaving the page stops it.
     useEffect(() => () => clipPlayer.stopIf(clip), [clip]);
 
