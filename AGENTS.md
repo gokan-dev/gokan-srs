@@ -125,9 +125,11 @@ summary ("Largest tool results"), which is where a whole read shows.
   (each stage is skipped while its inputs are unchanged), runs the tests, and commits `compiled/`
   and the generated docs back to the branch as a bot commit (`github-actions[bot]`, "Build
   compiled/ from <sha>"). On main it also checks that a full rebuild from the raw sources is
-  byte-identical. Pull that commit before pushing again, and point this repo's submodule only at
-  it (or, when the build changed nothing in `compiled/` and made no commit, at the pushed commit
-  itself). A local build reads about 400 MB of LFS sources and rewrites about 160k files in
+  byte-identical. Wait for the Build run of the commit you pushed (keyed to its sha, not the
+  newest run on the branch, which right after a push is often the previous push's), pull the bot
+  commit "Build compiled/ from <your pushed sha>" before pushing again, and point this repo's
+  submodule only at it (or, when the run for that same sha passed and made no commit, since
+  nothing in `compiled/` changed, at the pushed commit itself). A local build reads about 400 MB of LFS sources and rewrites about 160k files in
   `build/`: over an hour on a Windows machine. What stays local writes inputs, never
   `compiled/`: fetching sources (`fetch:media`, `fetch:covers`) and making audio clips
   (`build:audio`, which needs the engine; CI attaches them). The dataset's `check:schemas` reads
