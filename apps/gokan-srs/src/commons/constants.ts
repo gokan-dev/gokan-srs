@@ -167,6 +167,22 @@ export const CONSTANTS = {
             reinforcementStrengthRatio: 0.5,
         },
 
+        /** The listening cloze (issue #165): a reading review served as a sentence heard, the word typed. */
+        listening: {
+            /**
+             * The share of reading reviews served as a listening cloze when the setting is on, picked by
+             * a hash of the word and its review count (quizSelectors.ts, listeningModeOf), so a card
+             * does not change while it is up and the same word is not always heard.
+             */
+            share: 0.3,
+            /**
+             * Fraction of a normal reading gain a listening cloze earns on the reading entry. It trains
+             * the word's sound, but the sentence around the blank narrows what fits, and the written
+             * form is accepted too: right direction, easier conditions.
+             */
+            reinforcementStrengthRatio: 0.5,
+        },
+
         /**
          * The review-pacing slider: a hard multiplier on every interval
          * (strength x lnTarget x modifier). Calibration still governs on top of
