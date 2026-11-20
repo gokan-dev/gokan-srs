@@ -4,8 +4,8 @@
 // and the build-time acceptance check (scripts/check-build.ts), so all three rank the same way.
 // Nothing is ranked here: what matches, and in which order, is the package's.
 
-import { kanjiRowMeanings, normalizeQuery, prepareSearch, runSearch, WORD_TIER } from '@gokan/dataset-schema';
-import type { Deinflector, PreparedSearch, SearchGrammarInput, SearchKanjiInput, SearchResults, SearchWordInput, WordHit } from '@gokan/dataset-schema';
+import { grammarRowInput, kanjiRowInput, normalizeQuery, prepareSearch, runSearch, WORD_TIER } from '@gokan/dataset-schema';
+import type { Deinflector, PreparedSearch, SearchResults, SearchWordInput, WordHit } from '@gokan/dataset-schema';
 import { deinflect, type WordClass } from './conjugation';
 import { fromColumns, kanjiFromColumns, wordClassOfRow } from './searchIndex';
 import type { DatasetLanguage } from './locale';
@@ -43,12 +43,6 @@ function wordInput(row: SearchWordRow): SearchWordInput<SearchWordRow, WordClass
     };
 }
 
-function kanjiInput(row: SearchKanjiRow): SearchKanjiInput<SearchKanjiRow> {
-    return { row, character: row[0], meanings: kanjiRowMeanings(row), readings: row[4] ? row[4].split(' ') : [], jlpt: row[1], frequency: row[2] };
-}
-
-const grammarInput = (row: SearchGrammarRow): SearchGrammarInput<SearchGrammarRow> => ({ row, title: row[1], romaji: row[2], explanation: row[3] });
-
 /**
  * Words from every file, in order (core, then full: frequency order); the kanji and grammar of
  * whichever carries them. `glosses` is the language the files' word glosses are in: English's
@@ -57,8 +51,8 @@ const grammarInput = (row: SearchGrammarRow): SearchGrammarInput<SearchGrammarRo
 export function prepareIndex(files: SearchIndexFile[], glosses: DatasetLanguage = 'en'): PreparedIndex {
     return prepareSearch({
         words: files.flatMap(file => fromColumns(file.w).map(wordInput)),
-        kanji: files.flatMap(file => (file.k ? kanjiFromColumns(file.k) : []).map(kanjiInput)),
-        grammar: files.flatMap(file => (file.g ?? []).map(grammarInput)),
+        kanji: files.flatMap(file => (file.k ? kanjiFromColumns(file.k) : []).map(kanjiRowInput)),
+        grammar: files.flatMap(file => (file.g ?? []).map(grammarRowInput)),
     }, { glosses, frequencyOrdered: true, deinflector: DEINFLECTOR });
 }
 

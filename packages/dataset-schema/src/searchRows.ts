@@ -4,6 +4,7 @@
 
 import type { GrammarPoint } from './grammar';
 import type { Kanji } from './kanji';
+import type { SearchGrammarInput, SearchKanjiInput } from './search';
 
 /**
  * One kanji: the character, JLPT level (0 for none), frequency rank (0 for none), its English
@@ -45,3 +46,13 @@ export function searchGrammarRow(point: Pick<GrammarPoint, 'id' | 'title' | 'rom
 
 /** A kanji row's meanings, the main one first. */
 export const kanjiRowMeanings = (row: SearchKanjiRow): string[] => (row[3] ? row[3].split('; ') : []);
+
+/** A kanji row as the matcher reads it. */
+export function kanjiRowInput(row: SearchKanjiRow): SearchKanjiInput<SearchKanjiRow> {
+    return { row, character: row[0], meanings: kanjiRowMeanings(row), readings: row[4] ? row[4].split(' ') : [], jlpt: row[1], frequency: row[2] };
+}
+
+/** A grammar row as the matcher reads it. */
+export function grammarRowInput(row: SearchGrammarRow): SearchGrammarInput<SearchGrammarRow> {
+    return { row, title: row[1], romaji: row[2], explanation: row[3] };
+}
