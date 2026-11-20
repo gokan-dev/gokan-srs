@@ -770,4 +770,22 @@ describe('the listening cloze in selectNextView (issue #165)', () => {
         const picks = new Set(Array.from({ length: 20 }, (_, n) => isListeningTurn(dueAfter('same', n), on)));
         expect(picks).toEqual(new Set([true, false]));
     });
+
+    it('serves a word missed by ear this session as the plain reading card, never listening again', () => {
+        const heard = words.find(w => isListeningTurn(w, on))!;
+        expect(isListeningTurn(heard, on, [heard.vocabId])).toBe(false);
+        const state: QuizState = { ...initialState, progress: makeProgress([heard]), settings: on, readAsWritten: [heard.vocabId] };
+        expect(selectNextView(state, false, now).queueItem).toMatchObject({ vocab: { vocabId: heard.vocabId }, quizType: 'reading', quizMode: 'base' });
+    });
+
+    it('asks it later in the session rather than on the very next card, once its answer was shown', () => {
+        const heard = words.find(w => isListeningTurn(w, on))!;
+        const other = words.find(w => w.vocabId !== heard.vocabId)!;
+        const session = { committed: [taskKey(heard.vocabId, 'reading'), taskKey(other.vocabId, 'reading')] };
+        const state: QuizState = { ...initialState, progress: makeProgress([heard, other]), settings: on, session, readAsWritten: [heard.vocabId] };
+        expect(selectNextView(state, false, now).queueItem).toMatchObject({ vocab: { vocabId: other.vocabId } });
+
+        const alone: QuizState = { ...state, progress: makeProgress([heard]), session: { committed: [taskKey(heard.vocabId, 'reading')] } };
+        expect(selectNextView(alone, false, now).queueItem).toMatchObject({ vocab: { vocabId: heard.vocabId }, quizMode: 'base' });
+    });
 });

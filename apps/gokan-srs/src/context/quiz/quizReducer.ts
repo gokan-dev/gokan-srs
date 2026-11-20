@@ -113,6 +113,12 @@ interface QuizStateBase {
     session: SessionTracking | null;
     /** Cumulative knowledge points earned this session - see SessionGains. */
     sessionGains: SessionGains;
+    /**
+     * Words whose listening cloze was not answered by ear this session (missed, or read from its
+     * translation: the `reask` effect). Their reading is asked next as the plain reading card,
+     * never listening again until a new session (selectNextView). Session-local, never stored.
+     */
+    readAsWritten: string[];
     fatalError: string | null;
 }
 
@@ -186,6 +192,7 @@ export const initialState: QuizState = {
     sessionHistory: [],
     session: null,
     sessionGains: ZERO_SESSION_GAINS,
+    readAsWritten: [],
     fatalError: null,
 };
 
@@ -374,6 +381,7 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
                 // only this session's answers.
                 sessionHistory: [],
                 sessionGains: ZERO_SESSION_GAINS,
+                readAsWritten: [],
             };
 
         case 'SESSION_END':

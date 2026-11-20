@@ -15,6 +15,8 @@ export interface ExerciseTurnApi {
     /** One hint level more; `full` reveals the answer straight away. */
     revealHint: (index: number, full?: boolean) => void;
     submit: () => void;
+    /** The card's sound cannot be heard (the listening cloze): its text shows, and its answer credits nothing. */
+    markUnheard: () => void;
     continueToNext: () => void;
     canSubmit: boolean;
     /** Whether the answer at `index` converts romaji to kana as it is typed: a Japanese slot, with the setting on. */
@@ -114,7 +116,7 @@ export function useExerciseTurn({ host, turn, dispatch, active, loading, romajiI
         });
         let grade = gradeExercise(turn.exercise, answers, turn.hintLevels);
         if (refine) grade = await refine(turn.exercise, grade, answers, () => dispatch({ type: 'EXERCISE_EVALUATING', host }));
-        const effects = effectsOf(turn.exercise, grade, { latencyMs, hintLevels: turn.hintLevels, answers });
+        const effects = effectsOf(turn.exercise, grade, { latencyMs, hintLevels: turn.hintLevels, answers, unheard: turn.unheard === true });
         dispatch({ type: 'EXERCISE_SUBMITTED', host, feedback: { grade, effects } });
     };
 
@@ -131,6 +133,7 @@ export function useExerciseTurn({ host, turn, dispatch, active, loading, romajiI
         setAnswer: (index, value) => dispatch({ type: 'EXERCISE_SET_ANSWER', host, index, value }),
         revealHint: (index, full) => dispatch({ type: 'EXERCISE_REVEAL_HINT', host, index, ...(full ? { full } : {}) }),
         submit: () => void submit(),
+        markUnheard: () => dispatch({ type: 'EXERCISE_UNHEARD', host }),
         continueToNext,
         canSubmit: !!turn && !turn.feedback && !turn.isEvaluating && !loading
             && turn.exercise.slots.length > 0

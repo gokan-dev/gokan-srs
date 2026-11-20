@@ -27,6 +27,11 @@ export interface ExerciseTurn {
     feedback: ExerciseFeedback | null;
     /** True while an answer is being checked asynchronously (the AI meaning check). */
     isEvaluating: boolean;
+    /**
+     * The listening cloze cannot be heard (its clip failed, or the learner asked for the text):
+     * it shows its translation, and its answer credits nothing (AnswerContext.unheard).
+     */
+    unheard?: true;
 }
 
 export interface ExerciseTurnsState {
@@ -53,6 +58,8 @@ export type ExerciseAction =
     /** One hint level more, or straight to the answer with `full` (a card whose only hint is the answer). */
     | { type: 'EXERCISE_REVEAL_HINT'; host: ExerciseHost; index: number; full?: boolean }
     | { type: 'EXERCISE_EVALUATING'; host: ExerciseHost }
+    /** The card's sound cannot be heard: its text is shown instead (the listening cloze). Only before the answer. */
+    | { type: 'EXERCISE_UNHEARD'; host: ExerciseHost }
     | { type: 'EXERCISE_SUBMITTED'; host: ExerciseHost; feedback: ExerciseFeedback }
     /** Writes the answer's effects to the CURRENT progress, so a Drive reconcile landing between submit and Continue is kept. `now` comes from the caller. */
     | { type: 'EXERCISE_CONTINUE'; host: ExerciseHost; effects: Effect[]; now: Date };
@@ -93,13 +100,21 @@ export function exerciseReducer(state: QuizState, action: ExerciseAction): QuizS
         case 'EXERCISE_EVALUATING':
             return turn ? withTurn(state, action.host, { ...turn, isEvaluating: true }) : state;
 
+        case 'EXERCISE_UNHEARD':
+            return turn && !turn.feedback && !turn.unheard ? withTurn(state, action.host, { ...turn, unheard: true }) : state;
+
         case 'EXERCISE_SUBMITTED':
             return turn ? withTurn(state, action.host, { ...turn, feedback: action.feedback, isEvaluating: false }) : state;
 
         case 'EXERCISE_CONTINUE': {
             if (!state.progress) return state;
             const { progress, record } = applyEffects(state.progress, action.effects, { now: action.now, settings: state.settings });
-            const next = { ...withTurn(state, action.host, turn && clearedTurn(turn)), progress };
+            const reasked = action.effects.flatMap(e => (e.kind === 'reask' && !state.readAsWritten.includes(e.item.vocabId) ? [e.item.vocabId] : []));
+            const next = {
+                ...withTurn(state, action.host, turn && clearedTurn(turn)),
+                progress,
+                ...(reasked.length > 0 ? { readAsWritten: [...state.readAsWritten, ...reasked] } : {}),
+            };
             if (!record) return next;
 
             const credit = record.vocabDelta > 0 ? { vocabDelta: record.vocabDelta, vocabBreakdown: record.vocabBreakdown } : {};

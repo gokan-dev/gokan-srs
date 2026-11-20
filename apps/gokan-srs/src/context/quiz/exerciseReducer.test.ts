@@ -5,6 +5,7 @@ import type { ExerciseFeedback, ExerciseHost } from './exerciseReducer';
 import { DEFAULT_SETTINGS } from '../../models/user.model';
 import { grammarExercise, vocabExercise } from '../../services/exercise/builders';
 import type { Effect } from '../../services/exercise/effects';
+import { gradeExercise } from '../../services/exercise/grading';
 import type { HostItem } from '../../services/exercise/types';
 import type { AnswerResult } from '../../utils/answerMatching';
 import { answerSlot, grammarExample, grammarPoint, grammarProgress, userProgress, vocabProgress, vocabulary } from '../../test/fixtures';
@@ -245,6 +246,30 @@ describe('exerciseReducer (via quizReducer)', () => {
 
             expect(state.grammarSessionHistory).toHaveLength(50);
             expect(state.grammarSessionGains.net).toBeCloseTo(total, 6);
+        });
+    });
+
+    describe('the listening cloze not answered by ear (issue #165)', () => {
+        const reask: Effect = { kind: 'reask', item: { kind: 'vocab', vocabId: 'v1', quizType: 'reading', quizMode: 'listening' }, label: '日本', result: 'wrong' };
+
+        it('marks the word to be read as written, once, and lists the answer with no change', () => {
+            const once = continueWith({ ...initialState, progress: studying('v1') }, 'vocab', [reask]);
+            expect(once.readAsWritten).toEqual(['v1']);
+            expect(once.sessionHistory[0]).toMatchObject({ vocabId: 'v1', result: 'wrong', delta: 0 });
+            expect(once.progress!.learningQueue[0].reading).toEqual(studying('v1').learningQueue[0].reading);
+            expect(continueWith(once, 'vocab', [reask]).readAsWritten).toEqual(['v1']);
+        });
+
+        it('forgets the mark when a new session starts', () => {
+            const marked = continueWith({ ...initialState, progress: studying('v1') }, 'vocab', [reask]);
+            expect(quizReducer(marked, { type: 'SESSION_START', payload: { taskKeys: [] } }).readAsWritten).toEqual([]);
+        });
+
+        it('sets the turn unheard only before its answer', () => {
+            const shown = withVocabCard();
+            expect(quizReducer(shown, { type: 'EXERCISE_UNHEARD', host: 'vocab' }).turns.vocab?.unheard).toBe(true);
+            const answered = quizReducer(shown, { type: 'EXERCISE_SUBMITTED', host: 'vocab', feedback: { grade: gradeExercise(readingCard(), ['にほん'], [0]), effects: [] } });
+            expect(quizReducer(answered, { type: 'EXERCISE_UNHEARD', host: 'vocab' }).turns.vocab?.unheard).toBeUndefined();
         });
     });
 });

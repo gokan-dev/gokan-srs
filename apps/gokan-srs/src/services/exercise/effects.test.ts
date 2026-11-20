@@ -9,7 +9,7 @@ import { productionClozeSentence } from '../../utils/clozeSentence.utils';
 import type { AnswerResult } from '../../utils/answerMatching';
 import { CONSTANTS } from '../../commons/constants';
 import type { VocabProgress } from '../../models/vocabulary.model';
-import { answerSlot, grammarProgress, mixupRecord, sentence, srsEntry, userProgress, userSettings, vocabProgress } from '../../test/fixtures';
+import { answerSlot, grammarProgress, mixupRecord, reviewLog, sentence, srsEntry, userProgress, userSettings, vocabProgress } from '../../test/fixtures';
 
 const now = new Date('2026-06-10T00:00:00Z');
 const settings = userSettings({ enableMeaningQuiz: true, enableProductionQuiz: true });
@@ -365,11 +365,49 @@ describe('the listening cloze (issue #165)', () => {
         }
     });
 
-    it('retries the reading on a miss, with no mix-up remembered', () => {
+    it('asks the reading again as written on a miss, with no retry and no mix-up remembered', () => {
         for (const typed of ['がくせい', 'pass']) {
             const effects = answer(card, [typed]);
-            expect(effects).toEqual([expect.objectContaining({ kind: 'retry', item })]);
+            expect(effects).toEqual([expect.objectContaining({ kind: 'reask', item })]);
         }
+    });
+
+    /** The word with its reading due now, after one reading review. */
+    const dueSensei = () => word('sensei', { reading: srsEntry({ memoryStrength: 400, interval: 6, dueDate: now, history: [reviewLog()] }) });
+
+    it('writes nothing to the word on a miss: the reading stays due, no retry flag, the ticker lists the miss', () => {
+        const before = dueSensei();
+        const { progress: next, record } = applyEffects(userProgress({ learningQueue: [before] }), answer(card, ['がくせい']), { now, settings });
+        const [after] = next.learningQueue;
+
+        expect(after.reading).toEqual(before.reading);
+        expect(after.needsRetry?.reading).toBeFalsy();
+        expect(after.meaning).toEqual(before.meaning);
+        expect(after.production).toEqual(before.production);
+        expect(record).toMatchObject({ item, label: '先生', result: 'wrong', shown: 'wrong', delta: 0 });
+    });
+
+    it('lets the plain reading card that follows a miss decide: a wrong answer there is a lapse', () => {
+        const before = dueSensei();
+        const missed = applyEffects(userProgress({ learningQueue: [before] }), answer(card, ['がくせい']), { now, settings }).progress;
+        const readingItem: HostItem = { kind: 'vocab', vocabId: 'sensei', quizType: 'reading', quizMode: 'base' };
+        const wrong: Effect = { kind: 'review', item: readingItem, label: '先生', result: 'wrong', strengthModifier: 1, latencyMs: 4000, blankCount: 1 };
+        const [after] = applyEffects(missed, [wrong], { now, settings }).progress.learningQueue;
+
+        expect(after.reading.history).toHaveLength(before.reading.history.length + 1);
+        expect(after.reading.history.at(-1)?.result).toBe('wrong');
+        expect(after.reading.memoryStrength).toBeLessThan(before.reading.memoryStrength);
+    });
+
+    it('credits nothing when answered from its translation, right or wrong', () => {
+        const unheardAnswer = (typed: string) => effectsOf(card, gradeExercise(card, [typed], [0]), { latencyMs: 4000, hintLevels: [0], answers: [typed], unheard: true });
+        for (const typed of ['せんせい', 'がくせい']) {
+            expect(unheardAnswer(typed)).toEqual([expect.objectContaining({ kind: 'reask', item })]);
+        }
+        const before = dueSensei();
+        const { progress: next, record } = applyEffects(userProgress({ learningQueue: [before] }), unheardAnswer('せんせい'), { now, settings });
+        expect(next.learningQueue[0].reading).toEqual(before.reading);
+        expect(record).toMatchObject({ item, result: 'correct', delta: 0 });
     });
 
     it('moves the reading entry, tagged so calibration skips it, and lists it as the answer in the ticker', () => {

@@ -39,7 +39,7 @@ export interface NextViewResult {
 }
 
 export function selectNextView(
-    state: Pick<QuizState, 'progress' | 'settings' | 'introCandidates' | 'currentVocab' | 'currentQuizItem' | 'nextKanjiToLearn' | 'session'>,
+    state: Pick<QuizState, 'progress' | 'settings' | 'introCandidates' | 'currentVocab' | 'currentQuizItem' | 'nextKanjiToLearn' | 'session' | 'readAsWritten'>,
     hasMoreLearnable: boolean,
     now: Date
 ): NextViewResult {
@@ -57,12 +57,18 @@ export function selectNextView(
 
     // An intro candidate is loaded to show its intro card; its quiz type is the one it
     // will first be asked in, which for a word learned in kana is not reading.
-    const next = introCandidates.length > 0
-        ? null
-        : getNextVocabToStudy(progress?.learningQueue, settings ?? undefined, now, preferredType, committed);
+    const { readAsWritten } = state;
+    const pick = (allowed: ReadonlySet<TaskKey> | undefined) =>
+        getNextVocabToStudy(progress?.learningQueue, settings ?? undefined, now, preferredType, allowed);
+    // A word missed by ear is asked as written later in the session, not on the very next card,
+    // just after its answer was shown: the plain reading card would not test anything then.
+    const later = committed && readAsWritten.length > 0
+        ? new Set([...committed].filter(key => !readAsWritten.some(id => key === taskKey(id, 'reading'))))
+        : undefined;
+    const next = introCandidates.length > 0 ? null : (later && pick(later)) ?? pick(committed);
     const queueItem: PendingQuizItem | null = introCandidates.length > 0
         ? { vocabId: introCandidates[0].id, quizType: introQuizType(introCandidates[0], settings ?? undefined) ?? 'meaning', quizMode: 'base' }
-        : next && next.quizType === 'reading' && isListeningTurn(next.vocab, settings)
+        : next && next.quizType === 'reading' && isListeningTurn(next.vocab, settings, readAsWritten)
             ? { ...next, quizMode: 'listening' }
             : next;
 
@@ -103,15 +109,20 @@ export function selectNextView(
 
 /**
  * Whether a reading review is served as the listening cloze (issue #165): only with the setting
- * on, a share of them (`CONSTANTS.srs.listening.share`), and never a retry (that is the reading
- * card again: the word missed by ear is asked as written).
+ * on, a share of them (`CONSTANTS.srs.listening.share`), never a retry, and never a word whose
+ * listening cloze was not answered by ear this session (`readAsWritten`): that word is asked as
+ * written, the plain reading card, an ordinary review.
  * Picked by a hash of the word and its reading review count, so the card is stable while it is
  * up and the pick moves on with each review. The loader falls back to the reading card when the
  * word has no sentence with a clip.
  */
-export function isListeningTurn(vocab: VocabProgress, settings: Pick<UserSettings, 'enableListeningCloze'> | null | undefined): boolean {
+export function isListeningTurn(
+    vocab: VocabProgress,
+    settings: Pick<UserSettings, 'enableListeningCloze'> | null | undefined,
+    readAsWritten: readonly string[] = []
+): boolean {
     if (settings?.enableListeningCloze !== true) return false;
-    if (vocab.needsRetry?.reading) return false;
+    if (vocab.needsRetry?.reading || readAsWritten.includes(vocab.vocabId)) return false;
     return hashString(`listening:${vocab.vocabId}:${vocab.reading.history.length}`) % 100 < CONSTANTS.srs.listening.share * 100;
 }
 

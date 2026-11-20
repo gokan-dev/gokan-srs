@@ -34,13 +34,20 @@ export type Effect =
     | { kind: 'retry'; item: HostItem; label: string; result: AnswerResult; neutral: boolean }
     /**
      * A discounted credit to one direction of a word: production, for a word met on another
-     * card (a grammar blank, a synonym typed); reading, for the listening cloze's own word.
+     * card (a grammar blank, a synonym typed); reading, for the listening cloze's own word heard.
      * `asked` is set when it is the card's own answer (the listening cloze), which the session
      * ticker then lists as the item answered.
      */
     | { kind: 'reinforce'; vocabId: string; label: string; result: AnswerResult; direction: ReinforcedDirection; asked?: HostItem }
     /** Nothing was asked (the study card): only push the due date out. */
     | { kind: 'defer'; item: HostItem }
+    /**
+     * The listening cloze not answered by ear (missed, or read from its translation): nothing is
+     * written to the word's SRS entries, and the word's reading is asked again this session as the
+     * plain reading card, an ordinary review (the reducer's `readAsWritten`, read by selectNextView).
+     * The ticker lists the answer, with no change.
+     */
+    | { kind: 'reask'; item: Extract<HostItem, { kind: 'vocab' }>; label: string; result: AnswerResult }
     /** Another word was produced than the one asked: remembered in `UserProgress.mixups`, dated when written. */
     | { kind: 'mixup'; mixup: Omit<MixupRecord, 'date'> };
 
@@ -53,6 +60,11 @@ export interface AnswerContext {
     hintLevels: number[];
     /** The answers as typed, one per slot: a wrong one grading did not identify is remembered as typed. */
     answers: string[];
+    /**
+     * The listening cloze was answered without its sound (the clip failed, or the learner asked
+     * for the translation): it was read, not heard, so it credits nothing (`reask`).
+     */
+    unheard?: boolean;
 }
 
 /**
@@ -71,10 +83,10 @@ export interface AnswerContext {
  *   (whatever it earned), or a wrong answer it did not. It names the other word
  *   only when the answer was that word (SynonymAnswer.match).
  */
-export function effectsOf(exercise: AnsweredExercise, grade: ExerciseGrade, { latencyMs, hintLevels, answers }: AnswerContext): Effect[] {
+export function effectsOf(exercise: AnsweredExercise, grade: ExerciseGrade, { latencyMs, hintLevels, answers, unheard = false }: AnswerContext): Effect[] {
     const { host: item, label, cue } = exercise;
     if (exercise.kind === 'study') return [{ kind: 'defer', item }];
-    if (exercise.kind === 'listening-cloze') return listeningEffects(item, label, grade.overall);
+    if (exercise.kind === 'listening-cloze') return listeningEffects(item, label, grade.overall, unheard);
 
     const askedWord = item.kind === 'vocab' ? item.vocabId : null;
     let producedAnotherWord = false;
@@ -110,17 +122,23 @@ export function effectsOf(exercise: AnsweredExercise, grade: ExerciseGrade, { la
 
 /**
  * The listening cloze's effects (issue #165). It stands in for a reading review but is not
- * one: the word heard right reinforces its reading entry (discounted, never `review`), which
- * moves that entry's due date; a miss is retried, so the reading card comes back this session
- * with no penalty for a sound not caught. No mix-up: nothing was produced from a meaning, and
- * a word misheard is not a word confused.
+ * one, and never produces a `review`:
+ * - the word heard right reinforces its reading entry (discounted), which moves that entry's
+ *   due date, so the review it stood in for is done;
+ * - a miss writes nothing (`reask`): no penalty for a sound not caught, and no retry, which
+ *   would push the reading entry out a full interval with no lapse. The word's reading stays
+ *   due and comes back this session as the plain reading card, an ordinary review: that card
+ *   decides, and a miss there takes the lapse;
+ * - answered without its sound (`unheard`: the clip failed, or the translation was asked for),
+ *   right or wrong, it was read, not heard: the same `reask`, so it credits nothing.
+ * No mix-up: nothing was produced from a meaning, and a word misheard is not a word confused.
  */
-function listeningEffects(item: HostItem, label: string, result: AnswerResult): Effect[] {
+function listeningEffects(item: HostItem, label: string, result: AnswerResult, unheard: boolean): Effect[] {
     if (item.kind !== 'vocab') return [{ kind: 'retry', item, label, result, neutral: false }];
-    if (result === 'correct' || result === 'minor_error') {
+    if (!unheard && (result === 'correct' || result === 'minor_error')) {
         return [{ kind: 'reinforce', vocabId: item.vocabId, label, result, direction: 'reading', asked: item }];
     }
-    return [{ kind: 'retry', item, label, result, neutral: false }];
+    return [{ kind: 'reask', item, label, result }];
 }
 
 /**
@@ -293,6 +311,11 @@ export function applyEffects(
                 }
                 break;
             }
+            case 'reask':
+                // Nothing written: the answer is counted and listed, the word's entries untouched.
+                vocabAnswers += 1;
+                record = { item: effect.item, label: effect.label, result: effect.result, shown: effect.result, delta: 0, vocabDelta: 0, vocabBreakdown: [] };
+                break;
             case 'mixup':
                 mixups.push({ ...effect.mixup, date: now.getTime() });
                 break;
