@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { missedEvents, workflowEvents } from './workflowYaml';
+import { missedEvents, strandedListenerKeys, workflowEvents } from './workflowYaml';
 
 const events = (text: string) => [...workflowEvents(text)];
 
@@ -53,5 +53,15 @@ describe('missedEvents', () => {
 
     it('passes when the listener accepts any event', () => {
         expect(missedEvents(new Set(), new Set(['schedule']))).toBeNull();
+    });
+});
+
+describe('strandedListenerKeys', () => {
+    it('passes keys that name a workflow file', () => {
+        expect(strandedListenerKeys(['claude-fix-ci.yml'], ['ci.yml', 'claude-fix-ci.yml'])).toEqual([]);
+    });
+
+    it('names a key whose listener file is gone', () => {
+        expect(strandedListenerKeys(['agent-fix-ci.yml'], ['ci.yml', 'claude-fix-ci.yml'])).toEqual(['agent-fix-ci.yml']);
     });
 });

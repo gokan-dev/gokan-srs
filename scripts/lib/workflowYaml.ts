@@ -20,3 +20,12 @@ export function missedEvents(accepted: ReadonlySet<string>, runsOn: ReadonlySet<
     if (accepted.size === 0 || [...accepted].some(event => runsOn.has(event))) return null;
     return `runs on none of ${[...accepted].join(', ')} (its \`on:\` has ${[...runsOn].join(', ') || 'nothing'})`;
 }
+
+/**
+ * The listener file names an event list is declared for that no workflow file has: a list keyed by
+ * a renamed listener checks its events against nothing, and the rule would pass everything.
+ */
+export function strandedListenerKeys(declared: Iterable<string>, workflowFiles: Iterable<string>): string[] {
+    const files = new Set(workflowFiles);
+    return [...declared].filter(key => !files.has(key));
+}

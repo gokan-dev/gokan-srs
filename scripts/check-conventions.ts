@@ -10,7 +10,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { basename, dirname, join, posix } from 'node:path';
 import { BRANCH_CI_EVENTS } from './lib/fixCiGate';
-import { missedEvents, workflowEvents } from './lib/workflowYaml';
+import { missedEvents, strandedListenerKeys, workflowEvents } from './lib/workflowYaml';
 
 interface Violation {
     file: string;
@@ -382,6 +382,11 @@ function dispatchedWorkflowRunViolations(): Violation[] {
         return m ? [[m[1] ?? m[2] ?? m[3], { file: basename(file), events: workflowEvents(text) }] as const] : [];
     }));
     const violations: Violation[] = [];
+    const conventions = 'scripts/check-conventions.ts';
+    const listenerEventsLine = readFileSync(conventions, 'utf8').split('\n').findIndex(l => l.startsWith('const LISTENER_EVENTS')) + 1;
+    for (const key of strandedListenerKeys(Object.keys(LISTENER_EVENTS), workflows.map(f => basename(f)))) {
+        violations.push({ file: conventions, line: listenerEventsLine, rule: 'workflow-run-listener', message: `LISTENER_EVENTS ties a gate's event list to "${key}", a listener that no longer exists in .github/workflows, so its events are checked against nothing and the listener that replaced it passes every watched workflow. Rename the key with the file.` });
+    }
     for (const { file, text } of sources) {
         const listen = WORKFLOW_RUN_LIST.exec(text);
         if (!listen) continue;
