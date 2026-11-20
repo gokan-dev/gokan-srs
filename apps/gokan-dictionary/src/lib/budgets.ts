@@ -33,8 +33,8 @@ export const BUDGETS = {
     detailScript: 10 * KB,
     /** The clip player (client/player.ts), on the pages with a play button. */
     playerScript: 2 * KB,
-    /** The query engine it loads on first focus, with the index. */
-    searchEngine: 12 * KB,
+    /** The query engine it loads on first focus, with the index: the matcher both apps share (#264, docs/DESIGN_SYSTEM.md). */
+    searchEngine: 17 * KB,
     /** search-core.json, gzipped. */
     searchCoreGzip: 360 * KB,
     /** The one web font. */
