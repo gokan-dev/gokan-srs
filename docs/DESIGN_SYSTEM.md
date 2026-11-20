@@ -528,7 +528,7 @@ Defined once, in `components/` or `components/ui/`, never copied:
   every clip is in one voice, credited on About.
 - **`PlayControl`** (`PlayButton.tsx`): a clip that is the subject of what is on screen rather than
   a line's companion, first the listening cloze's sentence. A secondary `Button` (44px tall at every
-  width) with its words after the speaker in accent: "Play" until the clip has played once (`heard`),
+  width) with its words after the speaker in accent: "Play" until the clip has played once (`heard`: its first play has played through, or been stopped),
   then "Play again". Its words never say "Stop": playing shows only as the icon (a filled square) and
   `aria-pressed`, so the accessible name and the state never contradict. It is as wide as "Play
   again" whatever it reads (the longer words laid out unseen), so it never moves. Its host places it

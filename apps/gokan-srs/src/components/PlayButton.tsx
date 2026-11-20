@@ -78,16 +78,17 @@ const REPLAY_LABEL = 'Play again';
  * A play control that stands on its own, with its words: the listening cloze's, and any place a
  * clip is the subject rather than a line's companion. A secondary `Button` (44px tall at every
  * width), the speaker in accent (a filled stop square while it plays) before its text. Its words
- * never say "Stop": they read "Play" until the clip has been heard (`heard`, an outcome `played`
- * seen), then "Play again"; whether it is playing is told only by the icon and `aria-pressed`, so
- * its accessible name and its state never contradict. It is as wide as its longest words, so it
+ * never say "Stop": they read "Play" until the clip has been heard (`heard`: a first play, started
+ * with an outcome `played`, has played through or been stopped), then "Play again"; whether it
+ * is playing is told only by the icon and `aria-pressed`, so its accessible name and its state
+ * never contradict. It is as wide as its longest words, so it
  * never moves as they change. A press replays the clip from its start, or stops it while it
  * plays. `shortcut` names a key that does the same, for `aria-keyshortcuts` and its title. Its
  * host places it.
  */
 export function PlayControl({ control, heard, shortcut, onOutcome }: {
     control: ClipControl;
-    /** True once the clip has played at least once: the words become "Play again". */
+    /** True once the clip has played at least once (played through, or been stopped): the words become "Play again". */
     heard: boolean;
     shortcut?: string;
     /** Told how a press's start ended: a clip that cannot play has its card fall back. */

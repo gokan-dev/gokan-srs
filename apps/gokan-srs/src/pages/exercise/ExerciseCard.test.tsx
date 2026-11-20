@@ -19,8 +19,11 @@ import { ExerciseCard } from './ExerciseCard';
 const vocab = vocabulary();
 const point = grammarPoint();
 
+/** The word the card is about (the quiz's current word); a test may switch it. */
+let currentVocab = vocab;
+
 vi.mock('../../context/useQuiz', () => ({
-    useQuiz: () => ({ state: { currentVocab: vocab, currentGrammarPoint: point }, currentProgress: null, currentGrammarProgress: null }),
+    useQuiz: () => ({ state: { currentVocab, currentGrammarPoint: point }, currentProgress: null, currentGrammarProgress: null }),
 }));
 vi.mock('../../context/Responsive/useResponsive', () => ({ useResponsive: () => ({ isMobile: false }) }));
 
@@ -205,9 +208,10 @@ describe('the listening cloze card', () => {
             act(() => root.unmount());
             container.remove();
             clipPlayer.stopIf('clip-1');
+            currentVocab = vocab;
         });
 
-        it('says "Play" for a clip autoplay blocked, then "Play again" whether playing or not, with aria-pressed telling which', async () => {
+        it('says "Play" for a clip autoplay blocked and through its first play, then "Play again", with aria-pressed telling which', async () => {
             await show('blocked');
             expect(nameOf(control())).toBe('Play');
             expect(control().getAttribute('aria-pressed')).toBe('false');
@@ -215,12 +219,44 @@ describe('the listening cloze card', () => {
 
             clip.next = 'played';
             await settled(() => control().click());
-            expect(nameOf(control())).toBe('Play again');
+            expect(nameOf(control())).toBe('Play');
             expect(control().getAttribute('aria-pressed')).toBe('true');
 
             await settled(() => control().click());
             expect(nameOf(control())).toBe('Play again');
             expect(control().getAttribute('aria-pressed')).toBe('false');
+
+            await settled(() => control().click());
+            expect(nameOf(control())).toBe('Play again');
+            expect(control().getAttribute('aria-pressed')).toBe('true');
+        });
+
+        it('says "Play" while the clip played on show is still playing, and "Play again" once it ends', async () => {
+            await show('played');
+            expect(clipPlayer.playing()).toBe('clip-1');
+            expect(nameOf(control())).toBe('Play');
+
+            await settled(() => clipPlayer.stopIf('clip-1'));
+            expect(nameOf(control())).toBe('Play again');
+        });
+
+        it('plays again, and says "Play" again, on the next word asked from the same sentence', async () => {
+            const other = vocabulary({ id: 'other' });
+            const shared = sentence({ ...heard, matches: { ...heard.matches, [other.id]: heard.matches?.[vocab.id] ?? [] } });
+            const cloze = { sentence: shared, blankStart: 0, blankLength: written.length, blankReading: vocab.reading.primary };
+            const cardFor = (word: typeof vocab) => {
+                const exercise = vocabExercise(word, { quizType: 'reading', quizMode: 'listening' }, { sentence: null, cloze });
+                return <MemoryRouter><ExerciseCard api={apiOf(newTurn(exercise), true)} onVocabClick={() => undefined} /></MemoryRouter>;
+            };
+            clip.next = 'played';
+            await settled(() => root.render(cardFor(vocab)));
+            await settled(() => clipPlayer.stopIf('clip-1'));
+            expect(nameOf(control())).toBe('Play again');
+
+            currentVocab = other;
+            await settled(() => root.render(cardFor(other)));
+            expect(clipPlayer.playing()).toBe('clip-1');
+            expect(nameOf(control())).toBe('Play');
         });
 
         it('keeps the same width for both labels: the longer one is always laid out', async () => {

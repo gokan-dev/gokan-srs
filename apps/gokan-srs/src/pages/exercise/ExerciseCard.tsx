@@ -113,8 +113,9 @@ export function ExerciseCard({ api, onVocabClick }: ExerciseCardProps) {
             if (!vocab) return null;
             return (
                 <ListeningCloze
-                    // A new card is a new clip: the fallback does not carry over.
-                    key={exercise.sentence.sentence.id}
+                    // A new card is a new clip, even on the same sentence (another word of it): it
+                    // plays on show again, says "Play" again, and the fallback does not carry over.
+                    key={`${vocab.id}:${exercise.sentence.sentence.id}`}
                     api={api}
                     vocab={vocab}
                     exercise={exercise}
@@ -233,10 +234,14 @@ interface ListeningClozeProps {
  */
 function ListeningCloze({ api, vocab, exercise, memoryStrength, onVocabClick }: ListeningClozeProps) {
     const control = useClip(exercise.audio.clip);
+    // `played` resolves when playback starts: the clip counts as heard once that play has ended
+    // (played through, or stopped), so the control says "Play" for the whole first play.
+    const [started, setStarted] = useState(false);
     const [heard, setHeard] = useState(false);
+    if (started && !control.playing && !heard) setHeard(true);
     const unheard = api.turn?.unheard === true;
     const onOutcome = (outcome: ClipOutcome) => {
-        if (outcome === 'played') setHeard(true);
+        if (outcome === 'played') setStarted(true);
         else if (outcome === 'failed') api.markUnheard();
     };
 
