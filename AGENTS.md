@@ -121,7 +121,7 @@ summary ("Largest tool results"), which is where a whole read shows.
   first, then, once its CI has committed `compiled/`, commit the new pointer here (at the bot's
   commit, below).
 - **Never build the dataset locally: its CI does.** Push the change (sources, scripts, types,
-  `data/audio/clips.json`) to a gokan-dataset branch. Its Build workflow builds incrementally
+  `data/audio/` (the clips and `clips.json`)) to a gokan-dataset branch. Its Build workflow builds incrementally
   (each stage is skipped while its inputs are unchanged), runs the tests, and commits `compiled/`
   and the generated docs back to the branch as a bot commit (`github-actions[bot]`, "Build
   compiled/ from <sha>"). On main it also checks that a full rebuild from the raw sources is

@@ -255,10 +255,10 @@ jobs:
             pull the branch inside the submodule and commit the pointer here, at the bot
             commit "Build compiled/ from <your pushed sha>" (at your own pushed commit only
             when that same run passed and made no commit, since nothing in `compiled/`
-            changed). Wait on the run of your last push: the Build cancels a branch's
-            running build when a later push arrives, and a run that ends `cancelled`
-            because a later push superseded it is not a failure. A failed Build run is
-            fixed and pushed again, like a red CI. Never point at a dataset commit that is
+            changed). Only the run of your last pushed sha counts: a run of an earlier sha
+            is never waited on or fixed, whatever it ends in (`cancelled`, or a failed push
+            of its bot commit). A failed Build run of your last sha is fixed and pushed
+            again, like a red CI. Never point at a dataset commit that is
             not on the remote, nor at one whose `compiled/` the dataset's CI did not build.
 
             Before you finish, sync with the PR's base branch `${{ needs.branch.outputs.base }}` so the
