@@ -196,7 +196,10 @@ jobs:
             the previous push's. Then pull the branch inside the submodule and commit the pointer
             here, at the bot commit "Build compiled/ from <your pushed sha>" (at your own pushed
             commit only when that same run passed and made no commit, since nothing in `compiled/`
-            changed). A failed Build run is fixed and pushed again, like a red CI. Never point at a
+            changed). Wait on the run of your last push: the Build cancels a branch's running build
+            when a later push arrives, and a run that ends `cancelled` because a later push
+            superseded it is not a failure. A failed Build run is fixed and pushed again, like a red
+            CI. Never point at a
             dataset commit that is not on the remote, nor at one whose `compiled/` the dataset's CI
             did not build.
 
