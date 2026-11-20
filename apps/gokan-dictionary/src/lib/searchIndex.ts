@@ -6,15 +6,16 @@
 import { headwordOf, secondaryForm } from '@gokan/dataset-schema';
 import type { Vocabulary } from '@gokan/dataset-schema';
 import { WORD_CLASSES, wordClassOf, type WordClass } from './conjugation';
-import type { SearchGrammarRow, SearchIndexFile, SearchKanjiRow, SearchWordColumns, SearchWordRow } from './types';
+import type { SearchGrammarRow, SearchIndexFile, SearchKanjiColumns, SearchKanjiRow, SearchWordColumns, SearchWordRow } from './types';
 import { shortGloss } from './vocabSummary';
 import { CLASS_SHIFT, classCodeOfRow, FLAG_COMMON, FLAG_USUALLY_KANA } from './searchRow';
 
 /**
  * Words in the core file beyond the JLPT lists: the most frequent ones. As many as fit the core's
- * budget (BUDGETS.searchCoreGzip, checked by scripts/check-build.ts) with every JLPT word, kanji and grammar point.
+ * budget (BUDGETS.searchCoreGzip, checked by scripts/check-build.ts) with every JLPT word, kanji and grammar point:
+ * 6500 until every kanji carried its meanings and readings (#264), 5500 since (351 of 360 KB).
  */
-export const CORE_FREQUENT_WORDS = 6500;
+export const CORE_FREQUENT_WORDS = 5500;
 
 export { isSearchIndexPart, SEARCH_INDEX_PARTS, type SearchIndexPart } from './searchIndexParts';
 // The kanji and grammar rows are the shared format (@gokan/dataset-schema), gokan-srs's too.
@@ -52,6 +53,24 @@ export function fromColumns([ids, headwords, secondary, glosses, jlpt, flags]: S
     return ids.map((id, i) => [id, headwords[i], secondary[i], glosses[i], jlpt[i], flags[i]]);
 }
 
+/** Kanji rows to the columnar file layout (SearchKanjiColumns). */
+export function kanjiToColumns(rows: SearchKanjiRow[]): SearchKanjiColumns {
+    const columns: SearchKanjiColumns = [[], [], [], [], []];
+    for (const [character, jlpt, frequency, meanings, readings] of rows) {
+        columns[0].push(character);
+        columns[1].push(jlpt);
+        columns[2].push(frequency);
+        columns[3].push(meanings);
+        columns[4].push(readings);
+    }
+    return columns;
+}
+
+/** The kanji's columnar file layout back to rows. */
+export function kanjiFromColumns([characters, jlpt, frequency, meanings, readings]: SearchKanjiColumns): SearchKanjiRow[] {
+    return characters.map((character, i) => [character, jlpt[i], frequency[i], meanings[i], readings[i]]);
+}
+
 /**
  * Splits the index in two so most lookups never download the long tail: the core carries every
  * JLPT word, the CORE_FREQUENT_WORDS most frequent words, every kanji and every grammar point;
@@ -65,5 +84,5 @@ export function splitSearchIndex(
     const core: SearchWordRow[] = [];
     const rest: SearchWordRow[] = [];
     words.forEach((row, rank) => (row[4] > 0 || rank < CORE_FREQUENT_WORDS ? core : rest).push(row));
-    return { core: { w: toColumns(core), k: kanji, g: grammar }, full: { w: toColumns(rest) } };
+    return { core: { w: toColumns(core), k: kanjiToColumns(kanji), g: grammar }, full: { w: toColumns(rest) } };
 }

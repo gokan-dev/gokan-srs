@@ -15,7 +15,7 @@ import { DATASET_PATHS } from '../datasetPaths';
 import type { DatasetLanguage } from '../locale';
 import { grammarSummaryOfRow } from '../grammarBrowse';
 import { fromColumns } from '../searchIndex';
-import type { EntityData, GrammarSummary, SearchGrammarRow, SearchIndexFile, SearchKanjiRow, SearchWordColumns, VocabSummary } from '../types';
+import type { EntityData, GrammarSummary, SearchGrammarRow, SearchIndexFile, SearchKanjiColumns, SearchWordColumns, VocabSummary } from '../types';
 import { vocabSummaryOfRow } from '../vocabSummary';
 import { kept } from './kept';
 import { localeText } from './localeText';
@@ -44,7 +44,13 @@ const isWordColumns = (value: unknown): value is SearchWordColumns => {
     if (!isArrayOf(ids, isString)) return false;
     return columns.every((column, i) => (i < 4 ? isArrayOf(column, isString) : isArrayOf(column, isNumber)) && Array.isArray(column) && column.length === ids.length);
 };
-const isKanjiRow = isTuple<SearchKanjiRow>(isString, isNumber, isNumber, isString, isString);
+const isKanjiColumns = (value: unknown): value is SearchKanjiColumns => {
+    if (!Array.isArray(value) || value.length !== 5) return false;
+    const columns: unknown[] = value;
+    const [characters] = columns;
+    if (!isArrayOf(characters, isString)) return false;
+    return columns.every((column, i) => (i === 1 || i === 2 ? isArrayOf(column, isNumber) : isArrayOf(column, isString)) && Array.isArray(column) && column.length === characters.length);
+};
 const isGrammarRow = isTuple<SearchGrammarRow>(isString, isString, isString, isString, isNumber);
 
 /**
@@ -57,7 +63,7 @@ export function parseSearchIndexFile(body: unknown, url: string, datasetVersion:
     const { w, k, g, datasetVersion: version }: Record<string, unknown> = { ...body };
     if (version !== datasetVersion) throw new Error(`${url} is of dataset ${String(version)}, this server of ${datasetVersion}.`);
     if (!isWordColumns(w)) throw new Error(`${url}: its words (w) are not six equal columns.`);
-    if (k !== undefined && !isArrayOf(k, isKanjiRow)) throw new Error(`${url}: its kanji rows (k) are malformed.`);
+    if (k !== undefined && !isKanjiColumns(k)) throw new Error(`${url}: its kanji (k) are not five equal columns.`);
     if (g !== undefined && !isArrayOf(g, isGrammarRow)) throw new Error(`${url}: its grammar rows (g) are malformed.`);
     return { w, ...(k ? { k } : {}), ...(g ? { g } : {}), datasetVersion };
 }

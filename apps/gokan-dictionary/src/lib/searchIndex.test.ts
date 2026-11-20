@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-    CORE_FREQUENT_WORDS, fromColumns, isSearchIndexPart, searchGrammarRow, searchKanjiRow, searchWordRow, splitSearchIndex, toColumns, wordClassOfRow,
+    CORE_FREQUENT_WORDS, fromColumns, isSearchIndexPart, kanjiFromColumns, kanjiToColumns, searchGrammarRow, searchKanjiRow, searchWordRow, splitSearchIndex, toColumns, wordClassOfRow,
 } from './searchIndex';
 import { isCommonRow, readingOfRow } from './searchRow';
-import type { SearchWordRow } from './types';
+import type { SearchKanjiRow, SearchWordRow } from './types';
 import { grammarPoint, kanji, vocabulary } from '../test/fixtures';
 
 describe('searchWordRow', () => {
@@ -64,6 +64,12 @@ describe('splitSearchIndex', () => {
         const words = [row('a', 5), row('b', 0)];
         expect(toColumns(words)).toEqual([['a', 'b'], ['a', 'b'], ['a', 'b'], ['', ''], [5, 0], [0, 0]]);
         expect(fromColumns(toColumns(words))).toEqual(words);
+    });
+
+    it('stores kanji column by column, and reads them back', () => {
+        const rows: SearchKanjiRow[] = [['水', 5, 9201, 'water', 'スイ みず'], ['瑞', 0, 0, '', '']];
+        expect(kanjiToColumns(rows)).toEqual([['水', '瑞'], [5, 0], [9201, 0], ['water', ''], ['スイ みず', '']]);
+        expect(kanjiFromColumns(kanjiToColumns(rows))).toEqual(rows);
     });
 });
 

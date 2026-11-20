@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeQuery, prepareIndex, search, TIER } from './searchQuery';
-import { searchGrammarRow, searchKanjiRow, searchWordRow, toColumns } from './searchIndex';
+import { kanjiToColumns, searchGrammarRow, searchKanjiRow, searchWordRow, toColumns } from './searchIndex';
 import type { SearchWordRow } from './types';
 import { grammarPoint, kanji, vocabulary } from '../test/fixtures';
 
@@ -35,7 +35,7 @@ const WORDS: SearchWordRow[] = [
 ];
 
 const INDEX = prepareIndex([
-    { w: toColumns(WORDS.slice(0, 6)), k: [searchKanjiRow(kanji({ character: '生' })), searchKanjiRow(kanji({ character: '食' }))], g: [
+    { w: toColumns(WORDS.slice(0, 6)), k: kanjiToColumns([searchKanjiRow(kanji({ character: '生' })), searchKanjiRow(kanji({ character: '食' }))]), g: [
         searchGrammarRow(grammarPoint({ id: 'g-kara', title: 'から', romaji: 'kara' })),
         searchGrammarRow(grammarPoint({ id: 'g-tekara', title: '～てから', romaji: '~te kara', shortExplanation: 'After doing something.' })),
     ] },

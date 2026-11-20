@@ -7,7 +7,7 @@
 import { kanjiRowMeanings, normalizeQuery, prepareSearch, runSearch, WORD_TIER } from '@gokan/dataset-schema';
 import type { Deinflector, PreparedSearch, SearchGrammarInput, SearchKanjiInput, SearchResults, SearchWordInput, WordHit } from '@gokan/dataset-schema';
 import { deinflect, type WordClass } from './conjugation';
-import { fromColumns, wordClassOfRow } from './searchIndex';
+import { fromColumns, kanjiFromColumns, wordClassOfRow } from './searchIndex';
 import type { DatasetLanguage } from './locale';
 import { FLAG_USUALLY_KANA, isCommonRow, readingOfRow } from './searchRow';
 import type { SearchGrammarRow, SearchIndexFile, SearchKanjiRow, SearchWordRow } from './types';
@@ -57,7 +57,7 @@ const grammarInput = (row: SearchGrammarRow): SearchGrammarInput<SearchGrammarRo
 export function prepareIndex(files: SearchIndexFile[], glosses: DatasetLanguage = 'en'): PreparedIndex {
     return prepareSearch({
         words: files.flatMap(file => fromColumns(file.w).map(wordInput)),
-        kanji: files.flatMap(file => (file.k ?? []).map(kanjiInput)),
+        kanji: files.flatMap(file => (file.k ? kanjiFromColumns(file.k) : []).map(kanjiInput)),
         grammar: files.flatMap(file => (file.g ?? []).map(grammarInput)),
     }, { glosses, frequencyOrdered: true, deinflector: DEINFLECTOR });
 }
