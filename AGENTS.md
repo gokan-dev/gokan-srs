@@ -118,17 +118,26 @@ summary ("Largest tool results"), which is where a whole read shows.
   change could silently undo.
 - Line endings are LF everywhere (`.gitattributes`).
 - Dataset changes belong in the `gokan-dataset` repo: commit and push inside the submodule
-  first, then commit the new pointer here.
-- **Never build the dataset locally: its CI does.** Push the change (sources, scripts, types) to
-  a gokan-dataset branch. Its Build workflow builds incrementally (each stage is skipped while
-  its inputs are unchanged), runs the tests, and commits `compiled/` and the generated docs back
-  to the branch as a bot commit. On main it also checks that a full rebuild from the raw sources
-  is byte-identical. Pull that commit before pushing again, and point this repo's submodule only
-  at a commit whose `compiled/` the dataset's CI built. A local build reads about 400 MB of LFS
-  sources and rewrites about 160k files in `build/`: over an hour on a Windows machine. Checks
-  that only read the committed `compiled/` (`check:schemas`, `check:layout`) still run locally,
-  as do this repo's own builds and tests. Not mechanised (a hook cannot tell a local build from
-  CI's); a reviewer checks that a pointer bump names a dataset commit whose Build run passed.
+  first, then, once its CI has committed `compiled/`, commit the new pointer here (at the bot's
+  commit, below).
+- **Never build the dataset locally: its CI does.** Push the change (sources, scripts, types,
+  `data/audio/clips.json`) to a gokan-dataset branch. Its Build workflow builds incrementally
+  (each stage is skipped while its inputs are unchanged), runs the tests, and commits `compiled/`
+  and the generated docs back to the branch as a bot commit (`github-actions[bot]`, "Build
+  compiled/ from <sha>"). On main it also checks that a full rebuild from the raw sources is
+  byte-identical. Pull that commit before pushing again, and point this repo's submodule only at
+  it (or, when the build changed nothing in `compiled/` and made no commit, at the pushed commit
+  itself). A local build reads about 400 MB of LFS sources and rewrites about 160k files in
+  `build/`: over an hour on a Windows machine. What stays local writes inputs, never
+  `compiled/`: fetching sources (`fetch:media`, `fetch:covers`) and making audio clips
+  (`build:audio`, which needs the engine; CI attaches them). The dataset's `check:schemas` reads
+  only the committed `compiled/` and still runs locally (its `check:layout` compares against
+  `build/`, so it runs in its CI), as do this repo's own builds and tests. Not mechanised yet: a
+  CI step here, when the submodule pointer moves, could check that the last commit touching
+  `compiled/` at the pointer is the dataset's build bot and that no later commit touches its
+  sources, scripts or `data/`. Until then a reviewer checks that a pointer bump names a commit
+  made by the dataset's build bot, from a Build run that passed (the bot pushes with
+  `GITHUB_TOKEN`, so its own commit starts no Build run).
 
 ## Writing rules
 
