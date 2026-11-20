@@ -838,7 +838,7 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   lookup card, never a second popover.
 
 **Layout, in a browser** (`scripts/check-layout.ts`, `bun run check:layout`, run by CI in
-`.github/workflows/ci-layout.yml` on both production builds): at 320 and 375px, on the
+`.github/workflows/ci-site.yml` on both production builds, built once for it and Lighthouse): at 320 and 375px, on the
 app's onboarding and main routes and the dictionary's page types, no page scrolls
 sideways, no text is below 12px (furigana in `rt` and SVG chart labels excepted), every
 input is at least 16px (smaller makes iOS zoom), the dictionary's nav links, pager links,
@@ -857,7 +857,7 @@ word page) 44px. A new page
 type or main route is added to its lists.
 
 **Lighthouse, SEO at 100** (`scripts/check-lighthouse.ts`, `bun run check:lighthouse`, run by
-CI in `.github/workflows/ci-lighthouse.yml` on both production builds): one representative page
+CI in `.github/workflows/ci-site.yml` on both production builds): one representative page
 per dictionary type and the SRS welcome page, plus the SRS hub and anime list reached with
 onboarding seeded, on mobile and desktop. SEO must be 100 on every dictionary page and the SRS
 welcome, failing the job below it, because a crawlable dictionary is the point. The dictionary

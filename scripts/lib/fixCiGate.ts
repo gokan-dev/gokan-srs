@@ -6,6 +6,12 @@
 // MAX_FIX_STREAK attempts in a row on a PR before the maintainer is asked.
 import { type PrComment, classifyComment, isReset } from './prComments';
 
+/**
+ * The events a branch's CI runs on, the only runs the agent acts on. The conventions check
+ * (`workflow-run-listener`) holds every workflow claude-fix-ci.yml watches to run on one of them.
+ */
+export const BRANCH_CI_EVENTS: readonly string[] = ['push', 'pull_request'];
+
 /** Attempts in a row on one PR, with no triage, decision or word from the maintainer between them. */
 export const MAX_FIX_STREAK = 3;
 
@@ -39,7 +45,7 @@ export function decideFixCi(input: FixCiInput): FixCiDecision {
     const { run } = input;
     const skip = (reason: string): FixCiDecision => ({ kind: 'skip', reason });
     if (run.conclusion !== 'failure') return skip(`The run ended ${run.conclusion || 'without a conclusion'}, not in a failure.`);
-    if (run.event !== 'push' && run.event !== 'pull_request') return skip(`A ${run.event} run is not a branch's CI.`);
+    if (!BRANCH_CI_EVENTS.includes(run.event)) return skip(`A ${run.event} run is not a branch's CI.`);
     // On a public repository a fork's failing PR must never drive an agent with secrets in scope.
     if (run.headRepository !== input.repository) return skip(`The run is from ${run.headRepository}, a fork.`);
     if (run.headBranch === input.defaultBranch) return skip(`${run.headBranch} is the default branch: no PR to fix.`);

@@ -1,6 +1,10 @@
-# The project rules, on every push and pull request: `bun run check` runs the conventions
-# check, lint, typecheck, tests, the duplicate check and the unused-code check (AGENTS.md).
+# The project rules, on every push to a branch: `bun run check` runs the conventions check,
+# lint, typecheck, tests, the duplicate check and the unused-code check (AGENTS.md).
 # No path filter on purpose: the conventions cover docs, workflows and config too.
+#
+# Every CI workflow runs on `push` alone, never also on `pull_request`: with both, each push to a
+# PR branch ran every check twice on the same commit. A push already covers a PR (its checks are
+# the head commit's) and a branch pushed with no PR, which is how a change is validated.
 
 name: "CI: checks"
 
@@ -10,8 +14,13 @@ on:
     # branch had already passed: twice the runs, and a second chance for a flaky runner to show a
     # red check on the PR (Lighthouse on v1.25.0-rc.2). Deploy: staging builds the tag itself.
     branches: ['**']
-  pull_request:
   workflow_dispatch:
+
+# A newer push to a branch cancels its older run, whose result no one reads. Never on main or a
+# release branch: every commit there is one that ships, and its result is kept.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/heads/release/') }}
 
 jobs:
   check:

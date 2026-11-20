@@ -5,8 +5,8 @@
 // (src/lib/parity.ts). Issue #199's steps run it with `--expect identical`; elsewhere it reports.
 //
 // Usage: bun run check:parity [--base <ref> | --against-server] [--no-build] [--expect identical]
-//   --base       default origin/main; CI passes HEAD^1, a pull request's base tip (see
-//                .github/workflows/ci-gokan-dictionary.yml)
+//   --base       default origin/main; CI passes the branch's merge-base with its PR's base
+//                branch, or main (see .github/workflows/ci-gokan-dictionary.yml)
 //   --no-build   compare HEAD's existing dist/ (CI builds it in the step before)
 //   --expect identical   exit 1 on any difference, a renamed asset reference included
 //   --against-server     compare HEAD's static build (every page prerendered) with what HEAD's
