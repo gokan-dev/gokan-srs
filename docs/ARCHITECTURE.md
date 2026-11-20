@@ -1300,7 +1300,7 @@ bun run --cwd apps/gokan-dictionary test # Run gokan-dictionary tests
 
 ### Continuous integration
 
-CI is where a change is verified, the same way every time: push a branch (with or without a PR) and read its runs. Every CI workflow runs on `push` to any branch (never on a tag: an rc tag's commit was checked on its branch) and on `workflow_dispatch`, never also on `pull_request`, which ran every check twice per PR push. Each commit runs each workflow once:
+CI is where a change is verified, the same way every time: push a branch (with or without a PR) and read its runs. Every CI workflow runs on `push` to any branch (never on a tag: an rc tag's commit was checked on its branch) and on `workflow_dispatch`, never also on `pull_request`, which ran every check twice per PR push. A PR from a fork therefore runs no CI here, its pushes happening in the fork: a deliberate choice, since changes come from branches of this repository. Each commit runs each workflow once:
 
 - **CI: checks** (`ci.yml`): `bun run check`, on every push.
 - **CI: gokan-dictionary** (`ci-gokan-dictionary.yml`): the dictionary's build, `check:parity` against the branch's merge-base (see gokan-dictionary, Tests) and the on-request parity check, on a change to the dictionary, `packages/` or the dataset pointer.

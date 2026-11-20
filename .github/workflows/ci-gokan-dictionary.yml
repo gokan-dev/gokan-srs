@@ -104,12 +104,22 @@ jobs:
           BRANCH: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          base="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json baseRefName --jq '.[0].baseRefName // empty')"
-          base="${base:-main}"
+          # Two open PRs from one branch leave the base a guess: refused, naming them, never picked.
+          prs="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --state open --json number,baseRefName --jq '.[] | "\(.number) \(.baseRefName)"')"
+          count="$(printf '%s' "$prs" | grep -c . || true)"
+          if [ "$count" -gt 1 ]; then
+            echo "::error::$BRANCH has $count open PRs ($(printf '%s' "$prs" | awk '{printf "%s#%s into %s", (NR>1?", ":""), $1, $2}')): close all but one, so check:parity knows which base to compare with."
+            exit 1
+          fi
+          base="$(printf '%s' "$prs" | awk '{print $2}')"
+          # Said first, so a sprint member's first push (before its PR to release/X.Y.Z exists) is
+          # not read as owning the earlier members' page changes.
+          base_note=""
+          if [ -z "$base" ]; then base=main; base_note=" (no open PR yet)"; fi
           # By commit, not by name: a release branch's slash would need encoding in the API path.
           tip="$(git ls-remote --exit-code origin "refs/heads/$base" | cut -f1)"
           read -r merge_base ahead < <(gh api "repos/$GITHUB_REPOSITORY/compare/${tip}...${GITHUB_SHA}" --jq '"\(.merge_base_commit.sha) \(.ahead_by)"')
-          echo "Base branch: $base, merge-base $merge_base, $ahead commit(s) ahead." >> "$GITHUB_STEP_SUMMARY"
+          echo "Base branch: $base$base_note, merge-base $merge_base, $ahead commit(s) ahead." >> "$GITHUB_STEP_SUMMARY"
           if [ "$ahead" -eq 0 ]; then
             echo "Nothing of its own to compare: check:parity skipped." >> "$GITHUB_STEP_SUMMARY"
             exit 0
