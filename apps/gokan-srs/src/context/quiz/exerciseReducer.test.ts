@@ -260,9 +260,21 @@ describe('exerciseReducer (via quizReducer)', () => {
             expect(continueWith(once, 'vocab', [reask]).readAsWritten).toEqual(['v1']);
         });
 
+        it('holds the word back until its plain reading card is answered, and keeps it read as written', () => {
+            const missed = continueWith({ ...initialState, progress: studying('v1') }, 'vocab', [reask]);
+            expect(missed.heldBack).toEqual(['v1']);
+            const elsewhere = continueWith(missed, 'vocab', [{ kind: 'defer', item: { kind: 'vocab', vocabId: 'v1', quizType: 'meaning', quizMode: 'base' } }]);
+            expect(elsewhere.heldBack).toEqual(['v1']);
+            const read = continueWith(missed, 'vocab', [{ kind: 'retry', item: { kind: 'vocab', vocabId: 'v1', quizType: 'reading', quizMode: 'base' }, label: '日本', result: 'wrong', neutral: false }]);
+            expect(read.heldBack).toEqual([]);
+            expect(read.readAsWritten).toEqual(['v1']);
+        });
+
         it('forgets the mark when a new session starts', () => {
             const marked = continueWith({ ...initialState, progress: studying('v1') }, 'vocab', [reask]);
-            expect(quizReducer(marked, { type: 'SESSION_START', payload: { taskKeys: [] } }).readAsWritten).toEqual([]);
+            const started = quizReducer(marked, { type: 'SESSION_START', payload: { taskKeys: [] } });
+            expect(started.readAsWritten).toEqual([]);
+            expect(started.heldBack).toEqual([]);
         });
 
         it('sets the turn unheard only before its answer', () => {

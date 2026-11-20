@@ -39,7 +39,7 @@ export interface NextViewResult {
 }
 
 export function selectNextView(
-    state: Pick<QuizState, 'progress' | 'settings' | 'introCandidates' | 'currentVocab' | 'currentQuizItem' | 'nextKanjiToLearn' | 'session' | 'readAsWritten'>,
+    state: Pick<QuizState, 'progress' | 'settings' | 'introCandidates' | 'currentVocab' | 'currentQuizItem' | 'nextKanjiToLearn' | 'session' | 'readAsWritten' | 'heldBack'>,
     hasMoreLearnable: boolean,
     now: Date
 ): NextViewResult {
@@ -57,13 +57,14 @@ export function selectNextView(
 
     // An intro candidate is loaded to show its intro card; its quiz type is the one it
     // will first be asked in, which for a word learned in kana is not reading.
-    const { readAsWritten } = state;
+    const { readAsWritten, heldBack } = state;
     const pick = (allowed: ReadonlySet<TaskKey> | undefined) =>
         getNextVocabToStudy(progress?.learningQueue, settings ?? undefined, now, preferredType, allowed);
-    // A word missed by ear is asked as written later in the session, not on the very next card,
-    // just after its answer was shown: the plain reading card would not test anything then.
-    const later = committed && readAsWritten.length > 0
-        ? new Set([...committed].filter(key => !readAsWritten.some(id => key === taskKey(id, 'reading'))))
+    // A word just missed by ear is not asked on the very next card, just after its answer was
+    // shown: the plain reading card would not test anything then. It is held back only until that
+    // card is answered (`heldBack`), so a retry of it keeps the usual spacing.
+    const later = committed && heldBack.length > 0
+        ? new Set([...committed].filter(key => !heldBack.some(id => key === taskKey(id, 'reading'))))
         : undefined;
     const next = introCandidates.length > 0 ? null : (later && pick(later)) ?? pick(committed);
     const queueItem: PendingQuizItem | null = introCandidates.length > 0

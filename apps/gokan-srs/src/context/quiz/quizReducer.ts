@@ -119,6 +119,12 @@ interface QuizStateBase {
      * never listening again until a new session (selectNextView). Session-local, never stored.
      */
     readAsWritten: string[];
+    /**
+     * Words just missed by ear whose plain reading card has not been answered yet: held back from
+     * the very next card (selectNextView), released once that card is answered. Session-local,
+     * never stored.
+     */
+    heldBack: string[];
     fatalError: string | null;
 }
 
@@ -193,6 +199,7 @@ export const initialState: QuizState = {
     session: null,
     sessionGains: ZERO_SESSION_GAINS,
     readAsWritten: [],
+    heldBack: [],
     fatalError: null,
 };
 
@@ -382,6 +389,7 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
                 sessionHistory: [],
                 sessionGains: ZERO_SESSION_GAINS,
                 readAsWritten: [],
+                heldBack: [],
             };
 
         case 'SESSION_END':

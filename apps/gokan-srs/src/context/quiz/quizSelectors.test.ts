@@ -782,10 +782,24 @@ describe('the listening cloze in selectNextView (issue #165)', () => {
         const heard = words.find(w => isListeningTurn(w, on))!;
         const other = words.find(w => w.vocabId !== heard.vocabId)!;
         const session = { committed: [taskKey(heard.vocabId, 'reading'), taskKey(other.vocabId, 'reading')] };
-        const state: QuizState = { ...initialState, progress: makeProgress([heard, other]), settings: on, session, readAsWritten: [heard.vocabId] };
+        const state: QuizState = { ...initialState, progress: makeProgress([heard, other]), settings: on, session, readAsWritten: [heard.vocabId], heldBack: [heard.vocabId] };
         expect(selectNextView(state, false, now).queueItem).toMatchObject({ vocab: { vocabId: other.vocabId } });
 
         const alone: QuizState = { ...state, progress: makeProgress([heard]), session: { committed: [taskKey(heard.vocabId, 'reading')] } };
         expect(selectNextView(alone, false, now).queueItem).toMatchObject({ vocab: { vocabId: heard.vocabId }, quizMode: 'base' });
+    });
+
+    it('keeps the usual retry order once its plain reading card was answered', () => {
+        // A pair the stable order serves retry-first, so being pushed behind the other word shows.
+        const retried = words.map(w => ({ ...w, needsRetry: { reading: true } }));
+        const pair = retried.flatMap(r => words.filter(o => o.vocabId !== r.vocabId).map(o => [r, o] as const)).find(([r, o]) => {
+            const session = { committed: [taskKey(r.vocabId, 'reading'), taskKey(o.vocabId, 'reading')] };
+            const state: QuizState = { ...initialState, progress: makeProgress([r, o]), settings: on, session };
+            return selectNextView(state, false, now).queueItem?.vocab?.vocabId === r.vocabId;
+        })!;
+        const [retry, other] = pair;
+        const session = { committed: [taskKey(retry.vocabId, 'reading'), taskKey(other.vocabId, 'reading')] };
+        const state: QuizState = { ...initialState, progress: makeProgress([retry, other]), settings: on, session, readAsWritten: [retry.vocabId] };
+        expect(selectNextView(state, false, now).queueItem).toMatchObject({ vocab: { vocabId: retry.vocabId }, quizMode: 'base' });
     });
 });

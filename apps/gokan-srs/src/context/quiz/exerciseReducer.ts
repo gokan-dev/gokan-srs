@@ -109,11 +109,18 @@ export function exerciseReducer(state: QuizState, action: ExerciseAction): QuizS
         case 'EXERCISE_CONTINUE': {
             if (!state.progress) return state;
             const { progress, record } = applyEffects(state.progress, action.effects, { now: action.now, settings: state.settings });
-            const reasked = action.effects.flatMap(e => (e.kind === 'reask' && !state.readAsWritten.includes(e.item.vocabId) ? [e.item.vocabId] : []));
+            const reasked = action.effects.flatMap(e => (e.kind === 'reask' ? [e.item.vocabId] : []));
+            // The plain reading card of a held word was answered: it goes back into the normal order.
+            const readAgain = action.effects.flatMap(e =>
+                (e.kind === 'review' || e.kind === 'retry' || e.kind === 'defer') && e.item.kind === 'vocab' && e.item.quizType === 'reading' ? [e.item.vocabId] : []
+            );
+            const newlyRead = reasked.filter(id => !state.readAsWritten.includes(id));
+            const heldBack = [...state.heldBack.filter(id => !readAgain.includes(id)), ...reasked.filter(id => !state.heldBack.includes(id))];
             const next = {
                 ...withTurn(state, action.host, turn && clearedTurn(turn)),
                 progress,
-                ...(reasked.length > 0 ? { readAsWritten: [...state.readAsWritten, ...reasked] } : {}),
+                ...(newlyRead.length > 0 ? { readAsWritten: [...state.readAsWritten, ...newlyRead] } : {}),
+                ...(heldBack.length !== state.heldBack.length || heldBack.some((id, i) => id !== state.heldBack[i]) ? { heldBack } : {}),
             };
             if (!record) return next;
 
