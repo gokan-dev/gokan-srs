@@ -2,10 +2,11 @@ import type { PreparedSearch, SearchGrammarRow, SearchIndex, SearchIndexEntry, S
 import { grammarRowInput, kanjiRowInput, matchesSearchWord, prepareSearch, runSearch } from '@gokan/dataset-schema';
 
 /**
- * How many hits of each group the header search shows: words as many as before kanji and grammar
- * were searched, a few of each of the others (a kanji's reading matches dozens: すい is 20 kanji).
+ * How many hits of each group the header search shows. Words were 50 when they were all it showed;
+ * after 50 rows a phone never reached the kanji and grammar below them, so 20, and a few of each of
+ * the others (a kanji's reading matches dozens: すい is 20 kanji).
  */
-export const SEARCH_LIMITS = { words: 50, kanji: 6, grammar: 6 } as const;
+export const SEARCH_LIMITS = { words: 20, kanji: 5, grammar: 5 } as const;
 
 export type AppSearchIndex = PreparedSearch<SearchIndexEntry, SearchKanjiRow, SearchGrammarRow>;
 export type AppSearchResults = SearchResults<SearchIndexEntry, SearchKanjiRow, SearchGrammarRow>;

@@ -88,7 +88,8 @@ function groupedOptions(results: AppSearchResults): { group: SearchGroup; option
             path: grammarPath(row[0]),
             main: (
                 <>
-                    <span className="jp-headword truncate">{row[1]}</span>
+                    {/* A title is the pattern itself: it wraps rather than lose its end in a narrow panel. */}
+                    <span className="jp-headword min-w-0 break-words">{row[1]}</span>
                     {row[2] && <span className="type-meta truncate">{row[2]}</span>}
                 </>
             ),
