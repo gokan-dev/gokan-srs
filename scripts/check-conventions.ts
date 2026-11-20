@@ -201,11 +201,6 @@ const SETTING_SOURCES = /--setting-sources[= ]+([\w,]+)/g;
 // a prompt or a step name that mentions it, and not `check:layout` and its siblings.
 const RUNS_CHECK = /^\s*(?:-\s+)?(?:run:\s+)?bun run check\s*(?:$|&&|;|#)/m;
 const SUBMODULE_CHECKOUT = /^\s+submodules:\s*['"]?(?:true|recursive)\b/m;
-// `bun install` sets core.hooksPath (the root package's prepare script), so in that job a plain
-// `git commit` or `git push` runs the hooks, each `bun run check`: the same rule as above, reached
-// implicitly. A command line only: an agent's prompt telling it to push is not one.
-const RUNS_INSTALL = /^\s*(?:-\s+)?(?:run:\s+)?bun install\b/m;
-const HOOKED_GIT = /^\s*(?:-\s+)?(?:run:\s+)?git (?:commit|push)\b(?!.*--no-verify)/;
 const JOB_HEADER = /^ {2}([\w-]+):\s*$/gm;
 
 /**
@@ -740,10 +735,6 @@ function check(files: string[]): Violation[] {
             for (const job of workflowJobs(text)) {
                 if (RUNS_CHECK.test(job.text) && !SUBMODULE_CHECKOUT.test(job.text)) {
                     add({ file, line: job.line, rule: 'check-with-dataset', message: `Job \`${job.name}\` runs \`bun run check\` without the dataset: its real-dataset suites fail when the compiled dataset is missing. Give its actions/checkout \`with: submodules: true\`.` });
-                }
-                if (RUNS_INSTALL.test(job.text) && !SUBMODULE_CHECKOUT.test(job.text)) {
-                    eachLine(job.text, l => HOOKED_GIT.test(l), offset =>
-                        add({ file, line: job.line + offset - 1, rule: 'check-with-dataset', message: `Job \`${job.name}\` installs dependencies, which sets the git hooks, then commits or pushes without \`--no-verify\`: the hook runs \`bun run check\` without the dataset and fails. Pass \`--no-verify\` (the PR's CI checks it), or check out with \`submodules: true\`.` }));
                 }
                 const code = job.text.split('\n').filter(l => !/^\s*#/.test(l)).join('\n');
                 const header = job.text.split(/^ {4}steps:/m)[0];

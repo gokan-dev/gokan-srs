@@ -18,7 +18,8 @@
     "dataset:build": "bun --cwd apps/gokan-srs build:data",
     "lint": "bun --cwd apps/gokan-dictionary sync && eslint . --max-warnings 0",
     "typecheck": "tsc -p tsconfig.json && bun --cwd packages/dataset-schema typecheck && bun --cwd packages/analytics typecheck && bun --cwd packages/deploy typecheck && bun --cwd apps/gokan-srs typecheck && bun --cwd apps/gokan-dictionary typecheck",
-    "test": "bun --cwd apps/gokan-srs test && bun --cwd apps/gokan-dictionary test && bun --cwd packages/deploy test && bun --cwd packages/dataset-schema test && bun --cwd packages/analytics test",
+    "test": "vitest run --dir scripts && bun --cwd apps/gokan-srs test && bun --cwd apps/gokan-dictionary test && bun --cwd packages/deploy test && bun --cwd packages/dataset-schema test && bun --cwd packages/analytics test",
+    "ci:wait": "bun scripts/ci-wait.ts",
     "check:conventions": "bun scripts/check-conventions.ts",
     "check:duplicates": "bun scripts/check-duplicates.ts",
     "check:unused": "knip",
@@ -41,6 +42,7 @@
     "lighthouse": "13.6.0",
     "svelte-eslint-parser": "1.10.0",
     "typescript": "~6.0.3",
-    "typescript-eslint": "8.72.1"
+    "typescript-eslint": "8.72.1",
+    "vitest": "5.0.5"
   }
 }

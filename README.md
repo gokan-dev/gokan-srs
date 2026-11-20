@@ -107,12 +107,12 @@ The dataset lives in its own repository and the build reads from it, so if you a
 
 ```bash
 bun run dev              # the SRS app
-bun run check            # every project check: conventions, lint, typecheck, tests, duplicates, unused code
+bun run ci:wait          # after a push: wait for CI on that commit and print what failed
 bun run dictionary:dev   # the dictionary
 bun run dictionary:build # generate all ~38,900 static pages
 ```
 
-Anything else scopes to one workspace with `--cwd`, for example `bun run --cwd apps/gokan-dictionary test`. `bun install` also installs the git hooks (conventions and lint before each commit, `bun run check` before each push).
+CI verifies every pushed branch, PR or not: every project check (`bun run check`: conventions, lint, typecheck, tests, duplicates, unused code), the builds and the browser checks. Push, then `bun run ci:wait`; locally, run only the narrow command for what you are changing, scoped to one workspace with `--cwd`, for example `bun run --cwd apps/gokan-dictionary test`. `bun install` also installs one git hook: conventions and lint on the staged files before each commit.
 
 ## How it is put together
 

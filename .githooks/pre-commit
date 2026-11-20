@@ -1,6 +1,7 @@
 #!/bin/sh
 # Fast checks on the staged files only: project conventions, then lint. The full suite
-# (typecheck, tests, duplicates, unused code) runs in pre-push and CI: `bun run check`.
+# (typecheck, tests, duplicates, unused code) and the builds run in CI only, always the same
+# way: push, then `bun run ci:wait` (AGENTS.md, Workflow).
 # Installed by `bun install` (the root `prepare` script sets core.hooksPath to .githooks).
 
 files=$(git diff --cached --name-only --diff-filter=ACMR)
