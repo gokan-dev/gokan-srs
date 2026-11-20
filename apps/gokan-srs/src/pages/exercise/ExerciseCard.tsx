@@ -1,13 +1,15 @@
-import type { Vocabulary } from "@gokan/dataset-schema";
+import { useEffect, useEffectEvent, useState } from "react";
+import type { ClipOutcome, Vocabulary } from "@gokan/dataset-schema";
 import { useQuiz } from "../../context/useQuiz";
 import type { ExerciseTurnApi } from "../../context/quiz/useExerciseTurn";
-import type { SlotGrade } from "../../services/exercise/types";
+import type { Exercise, SlotGrade } from "../../services/exercise/types";
+import { useClip } from "../../hooks/useClip";
 import { CONSTANTS } from "../../commons/constants";
 import { SingleAnswerCard } from "../../components/quiz/SingleAnswerCard";
 import { SentenceClozeCard } from "../../components/quiz/SentenceClozeCard";
 import { StudyCard } from "../../components/quiz/StudyCard";
 import { formatReadingList } from "../quiz/quizFormatting";
-import { MeaningPrompt, ProductionClozeHeader, ProductionPrompt, ReadingPrompt } from "../quiz/VocabPrompts";
+import { ListeningClozeHeader, MeaningPrompt, ProductionClozeHeader, ProductionPrompt, ReadingPrompt } from "../quiz/VocabPrompts";
 import { ConjugationAnswer, ConjugationPrompt, GrammarCardHeader, SentenceCue } from "../grammar/GrammarPrompts";
 
 /**
@@ -107,6 +109,20 @@ export function ExerciseCard({ api, onVocabClick }: ExerciseCardProps) {
                 />
             );
 
+        case 'listening-cloze':
+            if (!vocab) return null;
+            return (
+                <ListeningCloze
+                    // A new card is a new clip: the fallback does not carry over.
+                    key={exercise.sentence.sentence.id}
+                    api={api}
+                    vocab={vocab}
+                    exercise={exercise}
+                    memoryStrength={currentProgress?.reading.memoryStrength ?? 0}
+                    onVocabClick={onVocabClick}
+                />
+            );
+
         case 'grammar-cloze':
             if (!point) return null;
             return (
@@ -197,4 +213,49 @@ export function ExerciseCard({ api, onVocabClick }: ExerciseCardProps) {
                 />
             );
     }
+}
+
+interface ListeningClozeProps {
+    api: ExerciseTurnApi;
+    vocab: Vocabulary;
+    exercise: Extract<Exercise, { kind: 'listening-cloze' }>;
+    memoryStrength: number;
+    onVocabClick: (vocabId: string) => void;
+}
+
+/**
+ * The listening cloze on the sentence cloze card (issue #165): its sentence plays once on show,
+ * replays on its control or the replay key, and, when it cannot be heard (the clip failed, or the
+ * learner asked for the text), shows its translation, so the card is answered as the production
+ * cloze is rather than blocking the session. A clip blocked from playing by itself (autoplay) is
+ * not a failure: the control is there to press.
+ */
+function ListeningCloze({ api, vocab, exercise, memoryStrength, onVocabClick }: ListeningClozeProps) {
+    const control = useClip(exercise.audio.clip);
+    const [unheard, setUnheard] = useState(false);
+    const onOutcome = (outcome: ClipOutcome) => { if (outcome === 'failed') setUnheard(true); };
+
+    const playOnShow = useEffectEvent(() => { void control.play().then(onOutcome); });
+    useEffect(() => playOnShow(), []);
+
+    return (
+        <SentenceClozeCard
+            api={api}
+            sentence={exercise.sentence}
+            header={(
+                <ListeningClozeHeader
+                    vocab={vocab}
+                    sentence={exercise.cloze.sentence}
+                    memoryStrength={memoryStrength}
+                    control={control}
+                    answered={!!api.turn?.feedback}
+                    unheard={unheard}
+                    onUnheard={() => setUnheard(true)}
+                    onOutcome={onOutcome}
+                />
+            )}
+            onVocabClick={onVocabClick}
+            onReplay={() => void control.play().then(onOutcome)}
+        />
+    );
 }

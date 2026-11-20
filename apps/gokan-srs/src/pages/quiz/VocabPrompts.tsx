@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { TagsLookup, headwordOf, type Sentence, type Tags, type Vocabulary } from "@gokan/dataset-schema";
+import { TagsLookup, headwordOf, type ClipOutcome, type Sentence, type Tags, type Vocabulary } from "@gokan/dataset-schema";
 import { useResponsive } from "../../context/Responsive/useResponsive";
 import { MasteryRing } from "../../components/MasteryRing";
 import { JlptChip } from "../../components/JlptChip";
@@ -10,6 +10,10 @@ import { Headword } from "../../components/quiz/Headword";
 import { Ruby } from "../../components/Ruby";
 import { ExpandableSenses } from "../../components/quiz/ExpandableSenses";
 import { QuizMasteryCorner } from "../../components/quiz/QuizMasteryCorner";
+import { PlayControl } from "../../components/PlayButton";
+import type { ClipControl } from "../../hooks/useClip";
+import { TextButton } from "../../components/ui/TextButton";
+import { REPLAY_SHORTCUT } from "../../hooks/useQuizFocusManagement";
 import { emphasizeGloss } from "../../utils/productionCloze.utils";
 import { glossPromptLines } from "../../utils/synonymContext.utils";
 import { getCoarsePosLabels, getUniquePosTags, getUniqueRelatedCompounds } from "./quizFormatting";
@@ -301,6 +305,60 @@ export function ProductionClozeHeader({ vocab, sentence, memoryStrength }: { voc
                     sentence.en[0]?.text
                 )}
             </p>
+        </>
+    );
+}
+
+interface ListeningClozeHeaderProps {
+    vocab: Vocabulary;
+    sentence: Sentence;
+    memoryStrength: number;
+    /** The sentence's clip, played once on show by the card. */
+    control: ClipControl;
+    /** True once the card is answered: the translation comes with the feedback. */
+    answered: boolean;
+    /**
+     * True when the sentence cannot be heard (its clip failed, or the learner asked for the text):
+     * the translation shows at once, and the card is answered as the production cloze is.
+     */
+    unheard: boolean;
+    /** Shows the translation instead of the sound (muted, or nowhere to listen). */
+    onUnheard: () => void;
+    /** Told how a press's start ended, so a clip that cannot play has the card fall back. */
+    onOutcome: (outcome: ClipOutcome) => void;
+}
+
+/**
+ * The listening cloze's header (issue #165): mastery, the instruction, the play control (the
+ * sentence plays once on show; replayed by the control or its key) and, once answered or when the
+ * sentence cannot be heard, its translation. Before that no English shows: the sound is the cue.
+ */
+export function ListeningClozeHeader({ vocab, sentence, memoryStrength, control, answered, unheard, onUnheard, onOutcome }: ListeningClozeHeaderProps) {
+    const english = sentence.en[0]?.text;
+    return (
+        <>
+            <QuizMasteryCorner memoryStrength={memoryStrength} />
+
+            {vocab.jlptLevel && (
+                <div className="mb-4 flex justify-center">
+                    <JlptChip level={vocab.jlptLevel} />
+                </div>
+            )}
+
+            <p className="text-center text-sm text-secondary font-gothic mb-3">
+                {unheard && !answered ? 'Fill in the blank' : 'Type the word you hear'}
+            </p>
+            <div className="flex justify-center mb-3">
+                <PlayControl control={control} label={control.playing ? 'Stop' : 'Play again'} shortcut={REPLAY_SHORTCUT} onOutcome={onOutcome} />
+            </div>
+
+            {answered || unheard ? (
+                english && <p className="text-center text-lg text-primary font-serif mb-8">{english}</p>
+            ) : (
+                <p className="text-center mb-8">
+                    <TextButton onClick={onUnheard}>Can't listen now? Show the translation</TextButton>
+                </p>
+            )}
         </>
     );
 }

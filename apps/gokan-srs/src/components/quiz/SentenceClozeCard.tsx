@@ -25,17 +25,19 @@ interface SentenceClozeCardProps {
     feedbackExtra?: ReactNode;
     /** Opens a word's page; the session pauses there instead of ending. */
     onVocabClick?: (vocabId: string) => void;
+    /** Replays the card's clip on the replay key (the listening cloze; useQuizFocusManagement). */
+    onReplay?: () => void;
 }
 
 /**
- * The card for every sentence cloze (the vocab production cloze, the grammar
- * cloze, the grammar choice): a cue, then the sentence with one inline blank per
+ * The card for every sentence cloze (the vocab production cloze, the listening
+ * cloze, the grammar cloze, the grammar choice): a cue, then the sentence with one inline blank per
  * slot, typed or, for a slot with choices, picked from the options under it. The
  * text between the blanks renders through InteractiveSentence like every other
  * sentence in the app: a gloss on hover, a click to the word's page, furigana once
  * answered. A missed blank reveals the right form beside it, linked to its word.
  */
-export function SentenceClozeCard({ api, sentence, header, feedbackExtra, onVocabClick }: SentenceClozeCardProps) {
+export function SentenceClozeCard({ api, sentence, header, feedbackExtra, onVocabClick, onReplay }: SentenceClozeCardProps) {
     const { turn } = api;
     const feedback = turn?.feedback ?? null;
 
@@ -45,6 +47,7 @@ export function SentenceClozeCard({ api, sentence, header, feedbackExtra, onVoca
             // An answer with nothing to read moves on by itself (useExerciseTurn): nothing to focus there.
             skipContinueFocus: !!feedback?.grade.autoAdvance,
             continueFocusDelay: 50,
+            onReplay,
         },
         [turn?.exercise, feedback]
     );

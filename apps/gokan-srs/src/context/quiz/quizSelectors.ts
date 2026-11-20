@@ -103,18 +103,16 @@ export function selectNextView(
 
 /**
  * Whether a reading review is served as the listening cloze (issue #165): only with the setting
- * on, a share of them (`CONSTANTS.srs.listening.share`), never a retry (that is the reading card
- * again, whose answer clears it) and never a word's first reading review (it is heard on its
- * intro, and is read once before it is listened for). Picked by a hash of the word and its
- * reading review count, so the card is stable while it is up and moves on with each review.
- * The loader falls back to the reading card when the word has no sentence with a clip.
+ * on, a share of them (`CONSTANTS.srs.listening.share`), and never a retry (that is the reading
+ * card again: the word missed by ear is asked as written).
+ * Picked by a hash of the word and its reading review count, so the card is stable while it is
+ * up and the pick moves on with each review. The loader falls back to the reading card when the
+ * word has no sentence with a clip.
  */
 export function isListeningTurn(vocab: VocabProgress, settings: Pick<UserSettings, 'enableListeningCloze'> | null | undefined): boolean {
     if (settings?.enableListeningCloze !== true) return false;
     if (vocab.needsRetry?.reading) return false;
-    const reviews = vocab.reading.history.length;
-    if (reviews === 0) return false;
-    return hashString(`listening:${vocab.vocabId}:${reviews}`) % 100 < CONSTANTS.srs.listening.share * 100;
+    return hashString(`listening:${vocab.vocabId}:${vocab.reading.history.length}`) % 100 < CONSTANTS.srs.listening.share * 100;
 }
 
 export interface NextSessionPreview {
