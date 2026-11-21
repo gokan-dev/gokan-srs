@@ -279,6 +279,8 @@ export function srsRoutes(): { path: string; ready: string; settled?: string }[]
         { path: '/kanji', ready: 'Kanji learning method' },
         { path: `/kanji/${encodeURIComponent('学')}`, ready: 'Components' },
         { path: '/grammar/browse', ready: 'Grammar' },
+        // A contrast drill (issue #249): から, ので and からです each have sentences that rule another out.
+        { path: '/grammar/drill/lesson/causality/reason-core', ready: 'Card 1 of' },
         { path: '/listening', ready: 'Listening' },
         { path: '/stats', ready: 'Stats' },
         { path: '/settings', ready: 'Settings' },
