@@ -8,6 +8,7 @@ import { useIntroducedGrammarIds } from "../../hooks/useIntroducedGrammarIds";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { Page } from "../../components/Page";
 import { PageHeader } from "../../components/PageHeader";
+import { DrillLink } from "../../components/DrillLink";
 
 type FamilyEntry = GrammarContrastIndex[string];
 
@@ -54,7 +55,12 @@ export default function GrammarFamilyScreen() {
 
     return (
         <Page width="narrow">
-            <PageHeader title={entry.name} parentPath="/grammar/browse" className="mb-6" />
+            <PageHeader
+                title={entry.name}
+                parentPath="/grammar/browse"
+                actions={familyId && <DrillLink set={{ kind: 'family', familyId }} label="Drill the family" />}
+                className="mb-6"
+            />
 
             <p className="type-support mb-6">
                 {entry.lessons.length > 0
@@ -65,7 +71,10 @@ export default function GrammarFamilyScreen() {
             <div className="space-y-6">
                 {entry.lessons.map(lesson => (
                     <Card key={lesson.id} size="md">
-                        <h2 className="text-lg font-gothic font-semibold text-primary mb-3">{lesson.title}</h2>
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                            <h2 className="text-lg font-gothic font-semibold text-primary">{lesson.title}</h2>
+                            {familyId && <DrillLink set={{ kind: 'lesson', familyId, lessonId: lesson.id }} label="Drill this lesson" />}
+                        </div>
 
                         <PointChips ids={lesson.points} members={members} knownIds={knownIds} />
 

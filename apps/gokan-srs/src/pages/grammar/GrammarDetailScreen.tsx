@@ -9,6 +9,7 @@ import { useQuiz } from "../../context/useQuiz";
 import { GrammarService } from "../../services/grammar.service";
 import { THEME } from "../../commons/theme";
 import { GrammarRelatedPointsCard } from "./GrammarRelatedPointsCard";
+import { DrillLink } from "../../components/DrillLink";
 import { GrammarVariantsCard } from "./GrammarVariantsCard";
 import { Page } from "../../components/Page";
 import { useAsyncData } from "../../hooks/useAsyncData";
@@ -171,6 +172,10 @@ function GrammarPage({ point, chapterLocation, mined, examplesSettled, hasVarian
             case 'related':
                 return (
                     <div className="space-y-10">
+                        {/* Open to anyone: a drill writes nothing, so the point need not be in study. */}
+                        {(point.family?.relatedPoints.length ?? 0) > 0 && (
+                            <DrillLink set={{ kind: 'point', grammarId: point.id }} label="Drill against its siblings" />
+                        )}
                         <GrammarRelatedPointsCard point={point} />
                         <GrammarVariantsCard point={point} />
                     </div>
