@@ -2097,7 +2097,10 @@ async function checkHeaderSearch(tab: Tab, page: string, width: number, site: 's
     await measure(tab, `${page}, searching ${SEARCH_QUERY}`, width, site === 'dictionary' ? '.search-option' : '');
     const outside = await tab.evaluate<number>(`[...document.querySelectorAll('${listbox} [role="option"]')].filter(el => { const r = el.getBoundingClientRect(); return r.height > 0 && (r.left < -1 || r.right > ${width} + 1); }).length`);
     if (outside > 0) failures.push(`${where}: ${outside} result rows reach past the screen's edge`);
-    if (site === 'dictionary' && page.includes('/zh-hans/')) await checkSearchOptionLang(tab, where, listbox);
+    if (site === 'dictionary' && page.includes('/zh-hans/')) {
+        await checkSearchOptionLang(tab, where, listbox);
+        await checkSearchGroupLangMark(tab, where, listbox);
+    }
 }
 
 /**
@@ -2167,6 +2170,19 @@ async function checkSearchOptionLang(tab: Tab, where: string, listbox: string): 
         return found;
     })()`);
     if (unmarked.length > 0) failures.push(`${where}: Latin text in the results left in the page's zh-Hans (mark it lang="en" or "ja-Latn"): ${unmarked.slice(0, 3).join(' | ')}`);
+}
+
+/**
+ * On a Chinese page, a group whose options open pages served in English only (kanji, grammar:
+ * hreflang="en") says so beside its label, with the site header's small 英文 (.lang-mark,
+ * DESIGN_SYSTEM section 8: marked for a reader as well as by hreflang). The groups once carried
+ * the hreflang alone.
+ */
+async function checkSearchGroupLangMark(tab: Tab, where: string, listbox: string): Promise<void> {
+    const unmarked = await tab.evaluate<string[]>(`[...document.querySelectorAll('${listbox} [role="group"]')]
+        .filter(group => group.querySelector('.search-option[hreflang^="en"]') && !group.querySelector('.search-group-label .lang-mark'))
+        .map(group => group.querySelector('.search-group-label')?.textContent ?? '?')`);
+    if (unmarked.length > 0) failures.push(`${where}: a group linking to English-only pages does not say so beside its label (.lang-mark): ${unmarked.join(', ')}`);
 }
 
 /**

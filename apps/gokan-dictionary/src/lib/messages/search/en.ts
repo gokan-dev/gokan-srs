@@ -18,5 +18,6 @@ export const enSearch: SearchMessages = {
     fromForm: { before: 'from ', after: ' · ' },
     status: count => (count === 0 ? 'No results' : `${count} result${count === 1 ? '' : 's'}`),
     kanjiLevel: level => `JLPT N${level}`,
+    inEnglish: 'In English',
     outsideJlpt: 'Outside JLPT',
 };

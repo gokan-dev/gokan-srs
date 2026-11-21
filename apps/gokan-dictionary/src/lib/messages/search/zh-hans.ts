@@ -19,5 +19,6 @@ export const zhHansSearch: SearchMessages = {
     fromForm: { before: '', after: ' 的原形 · ' },
     status: count => (count === 0 ? '没有结果' : `${count} 个结果`),
     kanjiLevel: level => `JLPT N${level}`,
+    inEnglish: '英文',
     outsideJlpt: '不在 JLPT 范围内',
 };

@@ -105,6 +105,11 @@ function linkTo(href: string, attributes: Record<string, string> = {}): Record<s
     return { ...attributes, href, ...(lang ? { hreflang: lang } : {}) };
 }
 
+/** The small 英文 after a group's label or a section's heading when its links leave the locale's section (as the site header marks them), else nothing. */
+function inEnglishMark(href: string | undefined): Node[] {
+    return href !== undefined && linkLang(locale, href) ? [el('span', { class: 'lang-mark' }, words.inEnglish)] : [];
+}
+
 /** A kanji row's main meaning, in English (the dataset's only language for it). */
 const mainMeaning = (row: SearchKanjiRow): string => kanjiRowMeanings(row)[0] ?? '';
 
@@ -185,7 +190,7 @@ function initCombobox(form: HTMLFormElement): void {
     function group(label: string, key: string, rows: HTMLAnchorElement[]): HTMLElement[] {
         if (rows.length === 0) return [];
         const id = `search-group-${key}`;
-        return [el('div', { role: 'group', 'aria-labelledby': id }, el('p', { class: 'search-group-label', id, role: 'presentation' }, label), ...rows)];
+        return [el('div', { role: 'group', 'aria-labelledby': id }, el('p', { class: 'search-group-label', id, role: 'presentation' }, label, ...inEnglishMark(rows[0].getAttribute('href') ?? undefined)), ...rows)];
     }
 
     function render(): void {
@@ -286,8 +291,9 @@ function initResultsPage(root: HTMLElement): void {
     if (title && query) title.textContent = words.resultsFor(query);
     if (query) document.title = `${query}: ${document.title}`;
 
-    function section(heading: string, ...content: Node[]): HTMLElement {
-        return el('section', { class: 'section' }, el('h2', {}, heading), ...content);
+    /** A results section, its heading marked 英文 when `href` (one of its links) leaves the locale's section. */
+    function section(heading: string, href: string | undefined, ...content: Node[]): HTMLElement {
+        return el('section', { class: 'section' }, el('h2', {}, heading, ...inEnglishMark(href)), ...content);
     }
 
     function render(): void {
@@ -312,14 +318,14 @@ function initResultsPage(root: HTMLElement): void {
 
         root.replaceChildren(...inOrder(results, {
             words: results.words.length > 0
-                ? [section(words.wordsHeading(results.words.length), ...(pageCount > 1 ? [pager()] : []), wordList, ...(pageCount > 1 ? [pager()] : []))]
+                ? [section(words.wordsHeading(results.words.length), undefined, ...(pageCount > 1 ? [pager()] : []), wordList, ...(pageCount > 1 ? [pager()] : []))]
                 : [],
             kanji: results.kanji.length > 0
-                ? [section(words.groups.kanji, el('ul', { class: 'entry-list entry-list--kanji' }, ...results.kanji.slice(0, RESULTS_PAGE_SIZE).map(row =>
+                ? [section(words.groups.kanji, links.kanjiPath(results.kanji[0][0]), el('ul', { class: 'entry-list entry-list--kanji' }, ...results.kanji.slice(0, RESULTS_PAGE_SIZE).map(row =>
                     el('li', {}, el('a', linkTo(links.kanjiPath(row[0]), { lang: 'ja' }), row[0], el('span', { lang: 'en' }, mainMeaning(row)), el('span', { lang: glossLang }, row[1] ? words.kanjiLevel(row[1]) : words.outsideJlpt))))))]
                 : [],
             grammar: results.grammar.length > 0
-                ? [section(words.groups.grammar, el('ul', { class: 'grammar-list' }, ...results.grammar.slice(0, RESULTS_PAGE_SIZE).map(row =>
+                ? [section(words.groups.grammar, links.grammarPath(results.grammar[0][0]), el('ul', { class: 'grammar-list' }, ...results.grammar.slice(0, RESULTS_PAGE_SIZE).map(row =>
                     el('li', {}, el('a', linkTo(links.grammarPath(row[0])), ja(row[1]), ...(row[2] ? [el('small', JA_LATN, row[2])] : []), el('small', {}, `N${row[4]}`), el('span', { lang: 'en' }, row[3]))))))]
                 : [],
         }));

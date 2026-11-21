@@ -43,6 +43,8 @@ export interface SearchMessages {
     /** A kanji result's level on the results page, or that it has none. */
     kanjiLevel: (level: number) => string;
     outsideJlpt: string;
+    /** Beside a group or section whose links open pages served in English only (kanji and grammar from a Chinese page), as the site header says it. */
+    inEnglish: string;
 }
 
 const SEARCH: Record<Locale, SearchMessages> = { en: enSearch, 'zh-hans': zhHansSearch };
