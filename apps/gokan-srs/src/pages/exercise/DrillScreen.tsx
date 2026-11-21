@@ -6,12 +6,12 @@ import type { Drill, DrillPick } from "../../context/quiz/drillSelectors";
 import type { DrillSet } from "../../models/grammar.model";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { drillPath, grammarChapterPath, grammarFamilyPath, vocabPath } from "../../utils/navigation.utils";
-import { japaneseRuns } from "../../utils/japaneseRuns.utils";
+import { MixedText } from "../../components/MixedText";
 import { Page } from "../../components/Page";
 import { PageHeader } from "../../components/PageHeader";
 import { LoadingScreen } from "../../components/LoadingScreen";
 import { DetailErrorScreen } from "../../components/detail/DetailErrorScreen";
-import { Card } from "../../components/ui/Card";
+import { QuizCardFrame } from "../../components/quiz/QuizCardFrame";
 import { Button } from "../../components/ui/Button";
 import { ExerciseCard } from "./ExerciseCard";
 
@@ -99,20 +99,16 @@ export default function DrillScreen({ kind }: { kind: DrillSet['kind'] }) {
     );
 }
 
-/** A title that mixes English and Japanese, each Japanese run in a Japanese face (the page title's serif has no CJK glyphs). */
-function MixedText({ text }: { text: string }) {
-    return japaneseRuns(text).map((run, i) => (run.japanese
-        ? <span key={i} className="font-gothic" lang="ja">{run.text}</span>
-        : run.text));
-}
-
-/** The end of a drill: how many right, and which pairs were confused, each linking to where the family is compared. */
+/**
+ * The end of a drill: how many right, and which pairs were confused, each linking to where the
+ * family is compared. In the question card's frame, so the column keeps its edges as the drill ends.
+ */
 function DrillSummary({ drill, picks, onAgain }: { drill: Drill; picks: DrillPick[]; onAgain: () => void }) {
     const { right, total, confusions } = drillSummary(picks);
     const marker = (id: string) => drill.points[id]?.marker ?? id;
     return (
-        <Card size="md">
-            <h2 className="type-section mb-2">{right} of {total} right</h2>
+        <QuizCardFrame>
+            <h2 className="type-section mb-2" data-drill-summary>{right} of {total} right</h2>
             {confusions.length === 0 ? (
                 <p className="type-body">No pair was confused.</p>
             ) : (
@@ -144,6 +140,6 @@ function DrillSummary({ drill, picks, onAgain }: { drill: Drill; picks: DrillPic
             <div className="mt-6">
                 <Button variant="secondary" onClick={onAgain}>Drill again</Button>
             </div>
-        </Card>
+        </QuizCardFrame>
     );
 }

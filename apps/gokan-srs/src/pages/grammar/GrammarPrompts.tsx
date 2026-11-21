@@ -3,6 +3,7 @@ import { ArrowDown } from "lucide-react";
 import type { GrammarContrastCase, GrammarPoint } from "@gokan/dataset-schema";
 import type { GrammarBlankPlan, GrammarConjugationPrompt } from "../../context/quiz/grammarReducer";
 import { JlptChip } from "../../components/JlptChip";
+import { MixedText } from "../../components/MixedText";
 import { QuizMasteryCorner } from "../../components/quiz/QuizMasteryCorner";
 import { Ruby } from "../../components/Ruby";
 import { PointLink } from "./PointLink";
@@ -77,8 +78,8 @@ export function DrillContrastNote({ contrast }: { contrast: GrammarContrastCase 
         <div className="mt-3 border-l-2 border-accent/40 pl-3">
             <p className="type-label mb-1">Which one, and when</p>
             <p className="text-primary font-sans text-sm leading-relaxed">
-                <span className="font-semibold">{contrast.situation}</span>{" "}
-                {contrast.guidance}
+                <span className="font-semibold"><MixedText text={contrast.situation} /></span>{" "}
+                <MixedText text={contrast.guidance} />
             </p>
         </div>
     );
