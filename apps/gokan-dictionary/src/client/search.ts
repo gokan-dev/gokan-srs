@@ -24,6 +24,8 @@ import { readingOfRow } from '../lib/searchRow';
 
 const PANEL_LIMITS = { words: 8, kanji: 3, grammar: 3 };
 const RESULTS_PAGE_SIZE = 50;
+/** Kanji and grammar rows on the results page before the rest fold into a disclosure, so the sections after them stay in reach. */
+const RESULTS_SECTION_VISIBLE = 5;
 const DEBOUNCE_MS = 100;
 const FURIGANA_KEY = 'gokan-dictionary:furigana-hidden';
 
@@ -296,6 +298,16 @@ function initResultsPage(root: HTMLElement): void {
         return el('section', { class: 'section' }, el('h2', {}, heading, ...inEnglishMark(href)), ...content);
     }
 
+    /** An unpaged section's list: its first rows, and the rest (up to the page size) in a disclosure saying how many there are in all. */
+    function folded<Row>(rows: Row[], group: 'kanji' | 'grammar', listClass: string, item: (row: Row) => HTMLElement): HTMLElement[] {
+        const listed = rows.slice(0, RESULTS_PAGE_SIZE);
+        const first = el('ul', { class: listClass }, ...listed.slice(0, RESULTS_SECTION_VISIBLE).map(item));
+        if (listed.length <= RESULTS_SECTION_VISIBLE) return [first];
+        return [first, el('details', { class: 'disclosure' },
+            el('summary', {}, words.showAll(group, rows.length)),
+            el('ul', { class: listClass }, ...listed.slice(RESULTS_SECTION_VISIBLE).map(item)))];
+    }
+
     function render(): void {
         if (!query) {
             root.replaceChildren(el('p', { class: 'support' }, words.emptyQuery));
@@ -318,15 +330,17 @@ function initResultsPage(root: HTMLElement): void {
 
         root.replaceChildren(...inOrder(results, {
             words: results.words.length > 0
-                ? [section(words.wordsHeading(results.words.length), undefined, ...(pageCount > 1 ? [pager()] : []), wordList, ...(pageCount > 1 ? [pager()] : []))]
+                ? [section(words.sectionHeading(words.groups.words, results.words.length), undefined, ...(pageCount > 1 ? [pager()] : []), wordList, ...(pageCount > 1 ? [pager()] : []))]
                 : [],
             kanji: results.kanji.length > 0
-                ? [section(words.groups.kanji, links.kanjiPath(results.kanji[0][0]), el('ul', { class: 'entry-list entry-list--kanji' }, ...results.kanji.slice(0, RESULTS_PAGE_SIZE).map(row =>
-                    el('li', {}, el('a', linkTo(links.kanjiPath(row[0]), { lang: 'ja' }), row[0], el('span', { lang: 'en' }, mainMeaning(row)), el('span', { lang: glossLang }, row[1] ? words.kanjiLevel(row[1]) : words.outsideJlpt))))))]
+                ? [section(words.sectionHeading(words.groups.kanji, results.kanji.length), links.kanjiPath(results.kanji[0][0]),
+                    ...folded(results.kanji, 'kanji', 'entry-list entry-list--kanji', row =>
+                        el('li', {}, el('a', linkTo(links.kanjiPath(row[0]), { lang: 'ja' }), row[0], el('span', { lang: 'en' }, mainMeaning(row)), el('span', { lang: glossLang }, row[1] ? words.kanjiLevel(row[1]) : words.outsideJlpt)))))]
                 : [],
             grammar: results.grammar.length > 0
-                ? [section(words.groups.grammar, links.grammarPath(results.grammar[0][0]), el('ul', { class: 'grammar-list' }, ...results.grammar.slice(0, RESULTS_PAGE_SIZE).map(row =>
-                    el('li', {}, el('a', linkTo(links.grammarPath(row[0])), ja(row[1]), ...(row[2] ? [el('small', JA_LATN, row[2])] : []), el('small', {}, `N${row[4]}`), el('span', { lang: 'en' }, row[3]))))))]
+                ? [section(words.sectionHeading(words.groups.grammar, results.grammar.length), links.grammarPath(results.grammar[0][0]),
+                    ...folded(results.grammar, 'grammar', 'grammar-list', row =>
+                        el('li', {}, el('a', linkTo(links.grammarPath(row[0])), ja(row[1]), ...(row[2] ? [el('small', JA_LATN, row[2])] : []), el('small', {}, `N${row[4]}`), el('span', { lang: 'en' }, row[3])))))]
                 : [],
         }));
     }

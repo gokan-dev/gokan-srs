@@ -2279,6 +2279,44 @@ async function checkSearchPageKanjiRows(tab: Tab, base: string, width: number): 
     if (stacked.length > 0) failures.push(`${width}px ${page}: a kanji row's meaning and level are not side by side on one line: ${stacked.slice(0, 3).map(row => row.row).join(', ')}`);
 }
 
+/**
+ * The /search/ page's sections for から (#264), which finds Grammar, Words and Kanji. Kanji and
+ * grammar are not paged: their first rows show and the rest fold into a disclosure, as about 30
+ * grammar points once pushed Words some 2000px down. On a Chinese page a section whose links open
+ * pages served in English only (kanji, grammar: hreflang="en") says so beside its heading
+ * (.lang-mark, DESIGN_SYSTEM section 8), and Words, its own section, does not.
+ */
+const SEARCH_PAGE_SECTIONS_QUERY = 'から';
+const SEARCH_PAGE_SECTION_ROWS = 5;
+async function checkSearchPageSections(tab: Tab, base: string, width: number): Promise<void> {
+    for (const prefix of ['', '/zh-hans']) {
+        const page = `dictionary ${prefix}/search/?q=${SEARCH_PAGE_SECTIONS_QUERY}`;
+        await tab.goto(`${base}${prefix}/search/?q=${encodeURIComponent(SEARCH_PAGE_SECTIONS_QUERY)}`, 'N5');
+        try {
+            await tab.until(`document.querySelectorAll('[data-search-page] section').length === 3`, `three result sections on ${page}`, 20000);
+        } catch {
+            failures.push(`${width}px ${page}: the results do not show Words, Kanji and Grammar`);
+            continue;
+        }
+        await measure(tab, page, width, DICTIONARY_TAP_TARGETS);
+        const sections = await tab.evaluate<{ heading: string; english: boolean; marked: boolean; shownBeforeDisclosure: number; grammar: boolean }[]>(`[...document.querySelectorAll('[data-search-page] section')].map(section => ({
+            heading: section.querySelector('h2')?.textContent ?? '?',
+            english: section.querySelector('a[hreflang^="en"]') !== null,
+            marked: section.querySelector('h2 .lang-mark') !== null,
+            shownBeforeDisclosure: [...section.querySelectorAll(':scope > ul > li')].length,
+            grammar: section.querySelector('a[href*="/grammar/"]') !== null,
+        }))`);
+        const grammar = sections.find(section => section.grammar);
+        if (!grammar) failures.push(`${width}px ${page}: no Grammar section`);
+        else if (grammar.shownBeforeDisclosure > SEARCH_PAGE_SECTION_ROWS) failures.push(`${width}px ${page}: the Grammar section shows ${grammar.shownBeforeDisclosure} rows before its disclosure (at most ${SEARCH_PAGE_SECTION_ROWS})`);
+        const unmarked = sections.filter(section => section.english && !section.marked).map(section => section.heading);
+        if (unmarked.length > 0) failures.push(`${width}px ${page}: a section linking to English-only pages does not say so beside its heading (.lang-mark): ${unmarked.join(', ')}`);
+        const marked = sections.filter(section => !section.english && section.marked).map(section => section.heading);
+        if (marked.length > 0) failures.push(`${width}px ${page}: a section in the page's own language is marked as English: ${marked.join(', ')}`);
+        if (prefix && !sections.some(section => section.english)) failures.push(`${width}px ${page}: no section links to English-only pages, so the mark is not checked`);
+    }
+}
+
 /** The dictionary's play buttons (pages/PlayButton.svelte), shown once the player's pre-paint class is set. */
 const DICTIONARY_PLAY_BUTTONS = 'button.play';
 /**
@@ -2551,6 +2589,7 @@ try {
     }
     await checkSearchAcrossDetailWidth(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`);
     await checkSearchPageKanjiRows(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`, DESKTOP.width);
+    await checkSearchPageSections(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`, DESKTOP.width);
     await desktop.resize(DESKTOP.width, DESKTOP.height);
     await checkDictionaryDetailFullPages(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`);
     await checkDictionaryPlayButtons(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`, DESKTOP.width);
@@ -2743,6 +2782,7 @@ try {
             await checkHeaderSearch(tab, `dictionary ${path}`, width, 'dictionary');
         }
         await checkSearchPageKanjiRows(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
+        await checkSearchPageSections(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
         for (const page of DICTIONARY_PAGES) {
             await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${page.path}`, page.ready);
             await measure(tab, `dictionary ${page.path}`, width, DICTIONARY_TAP_TARGETS);

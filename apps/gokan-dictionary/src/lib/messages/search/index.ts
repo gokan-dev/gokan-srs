@@ -24,8 +24,10 @@ export interface SearchMessages {
     emptyQuery: string;
     /** The panel's groups and the results page's sections. */
     groups: { words: string; kanji: string; grammar: string };
-    /** The results page's Words heading, with the count. */
-    wordsHeading: (count: number) => string;
+    /** A results page section's heading (one of `groups`), with its count. */
+    sectionHeading: (group: string, count: number) => string;
+    /** The summary of the disclosure holding a kanji or grammar section's rows past its first few, with how many there are in all. */
+    showAll: (group: 'kanji' | 'grammar', count: number) => string;
     /** The panel's last row. */
     seeAll: (query: string) => string;
     /** The results page's heading for a query. */
