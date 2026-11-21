@@ -526,6 +526,16 @@ Defined once, in `components/` or `components/ui/`, never copied:
   on a quiz card (listening is an exercise there). The intro card is the one session card with
   it: it comes before any exercise on its word, so hearing it gives nothing away. No credit on it:
   every clip is in one voice, credited on About.
+- **`PlayControl`** (`PlayButton.tsx`): a clip that is the subject of what is on screen rather than
+  a line's companion, first the listening cloze's sentence. A secondary `Button` (44px tall at every
+  width) with its words after the speaker in accent: "Play" until the clip has played once (`heard`: its first play has played through, or been stopped),
+  then "Play again". Its words never say "Stop": playing shows only as the icon (a filled square) and
+  `aria-pressed`, so the accessible name and the state never contradict. It is as wide as "Play
+  again" whatever it reads (the longer words laid out unseen), so it never moves. Its host places it
+  (the listening cloze centres it under the instruction). Its key goes in `aria-keyshortcuts` and its
+  title (the listening cloze's Alt+R). It runs on the same player as
+  `PlayButton` (`hooks/useClip.ts`, one clip at a time), so any other clip that deserves a labelled
+  control uses it rather than a new button.
 - **`BottomSheet`** (`ui/BottomSheet.tsx`): a panel over the bottom of the screen on a
   `bg-primary/20` backdrop, `rounded-t-md`, capped at `max-w-lg` and centred from `sm` up; a
   44px Close (in the heading row, or in the corner when the content names itself), Esc and a

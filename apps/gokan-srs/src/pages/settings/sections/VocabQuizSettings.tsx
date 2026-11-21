@@ -72,6 +72,14 @@ export function VocabQuizSettings({ settings, onUpdateSettings, dense = false }:
                 onChange={(checked) => update({ enableProductionQuiz: checked })}
             />
 
+            <SettingToggle
+                dense={dense}
+                label="Listening quizzes"
+                description="Some reading reviews play an example sentence aloud: type the word you hear. Needs sound."
+                checked={settings.enableListeningCloze === true}
+                onChange={(checked) => update({ enableListeningCloze: checked })}
+            />
+
             {settings.enableMeaningQuiz !== false && (() => {
                 const threshold = meaningContextThresholdOf(settings);
                 const valueText = threshold === 0

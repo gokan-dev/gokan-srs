@@ -25,17 +25,25 @@ interface SentenceClozeCardProps {
     feedbackExtra?: ReactNode;
     /** Opens a word's page; the session pauses there instead of ending. */
     onVocabClick?: (vocabId: string) => void;
+    /** Replays the card's clip on the replay key (the listening cloze; useQuizFocusManagement). */
+    onReplay?: () => void;
+    /**
+     * Also shows the written form beside a blank answered right (the listening cloze, typed by
+     * sound, often in kana): the word is the subject, and it was never shown written.
+     */
+    revealWhenRight?: boolean;
 }
 
 /**
- * The card for every sentence cloze (the vocab production cloze, the grammar
- * cloze, the grammar choice): a cue, then the sentence with one inline blank per
+ * The card for every sentence cloze (the vocab production cloze, the listening
+ * cloze, the grammar cloze, the grammar choice): a cue, then the sentence with one inline blank per
  * slot, typed or, for a slot with choices, picked from the options under it. The
  * text between the blanks renders through InteractiveSentence like every other
  * sentence in the app: a gloss on hover, a click to the word's page, furigana once
- * answered. A missed blank reveals the right form beside it, linked to its word.
+ * answered. A missed blank reveals the right form beside it, linked to its word
+ * (with `revealWhenRight`, a blank answered right too).
  */
-export function SentenceClozeCard({ api, sentence, header, feedbackExtra, onVocabClick }: SentenceClozeCardProps) {
+export function SentenceClozeCard({ api, sentence, header, feedbackExtra, onVocabClick, onReplay, revealWhenRight = false }: SentenceClozeCardProps) {
     const { turn } = api;
     const feedback = turn?.feedback ?? null;
 
@@ -45,8 +53,10 @@ export function SentenceClozeCard({ api, sentence, header, feedbackExtra, onVoca
             // An answer with nothing to read moves on by itself (useExerciseTurn): nothing to focus there.
             skipContinueFocus: !!feedback?.grade.autoAdvance,
             continueFocusDelay: 50,
+            onReplay,
         },
-        [turn?.exercise, feedback]
+        // Showing the translation (unheard) removes the button that had focus: back to the blank.
+        [turn?.exercise, feedback, turn?.unheard]
     );
 
     if (!turn) return null;
@@ -94,11 +104,12 @@ export function SentenceClozeCard({ api, sentence, header, feedbackExtra, onVoca
                                 onHint={() => api.revealHint(part.index)}
                                 gloss={slot?.gloss ?? ''}
                                 given={slot?.given}
-                                // On anything short of the word itself, strictly right.
-                                reveal={slot && grade && (grade.result !== 'correct' || grade.synonym) && (
+                                // On anything short of the word itself, strictly right (with revealWhenRight, any answer not already written as it).
+                                reveal={slot && grade && ((revealWhenRight && turn.answers[part.index] !== slot.reveal) || grade.result !== 'correct' || grade.synonym) && (
                                     <RevealedForm
                                         slot={slot}
-                                        reading={slot.reveal === part.surface ? part.reading : undefined}
+                                        // No furigana repeating what was typed just above it.
+                                        reading={slot.reveal === part.surface && turn.answers[part.index] !== part.reading ? part.reading : undefined}
                                         onVocabClick={onVocabClick}
                                     />
                                 )}

@@ -4,7 +4,7 @@
 // production, both clozes, the conjugation drill) is an Exercise: a prompt plus
 // answer slots. What differs between exercises is data on the slots, never a
 // separate grading path, so a rule added to the grader reaches every exercise.
-import type { Sentence, SynonymRelation, Vocabulary } from '@gokan/dataset-schema';
+import type { AudioRef, Sentence, SynonymRelation, Vocabulary } from '@gokan/dataset-schema';
 import type { AnswerResult, Leniency } from '../../utils/answerMatching';
 import type { ClozeSentence } from '../../utils/clozeSentence.utils';
 import type { InflectableWord } from '../../utils/inflection.utils';
@@ -18,7 +18,7 @@ import type { SynonymOutcome, WordRelation } from './wordRelation';
 type GrammarRealization = NonNullable<GrammarBlankPlan['realization']>;
 
 /** Every exercise the app serves. A switch over it must name each one, so a new kind fails to compile until it is handled. */
-export type ExerciseKind = 'reading' | 'meaning' | 'production' | 'production-cloze' | 'grammar-cloze' | 'grammar-choice' | 'conjugation' | 'study';
+export type ExerciseKind = 'reading' | 'meaning' | 'production' | 'production-cloze' | 'listening-cloze' | 'grammar-cloze' | 'grammar-choice' | 'conjugation' | 'study';
 
 /** The item an exercise reviews: one direction of a word, or a grammar point. Its SRS entry is what a `review` effect moves. */
 export type HostItem =
@@ -196,6 +196,11 @@ export type Exercise = ExerciseBase & (
     | { kind: 'meaning'; sentence: Sentence | null; contextRequested: boolean }
     | { kind: 'production' }
     | { kind: 'production-cloze'; cloze: ProductionCloze; sentence: ClozeSentence }
+    /**
+     * The sentence is heard and shown with the word blanked; its translation comes with the
+     * feedback (or at once, when the clip cannot play). `audio` is the sentence's clip, always set.
+     */
+    | { kind: 'listening-cloze'; cloze: ProductionCloze; sentence: ClozeSentence; audio: AudioRef }
     | { kind: 'grammar-cloze'; sentence: ClozeSentence; realization?: GrammarRealization }
     /** The sentence in Japanese only, its pattern picked among the forms it is confused with. */
     | { kind: 'grammar-choice'; sentence: ClozeSentence }

@@ -195,6 +195,8 @@ const SECONDARY_FORM_COMPONENT = 'apps/gokan-srs/src/components/SecondaryForm.ts
  * which has CJK glyphs: an element that renders one names a Japanese face itself.
  */
 const RENDERED_HEADWORD = />\{\s*(?:headwordOf|secondaryForm|headwordWithReading)\(/;
+// English copy is in Inter (font-sans): a font-gothic element whose own text is English is flagged.
+const ENGLISH_FACE_SCOPE = 'apps/gokan-srs/src/pages/quiz/';
 const JAPANESE_FACE = /\b(?:font-mincho|font-gothic|jp-[\w-]+)\b/;
 
 // An agent workflow that can push queues on its branch's lock, so two agents never run on one
@@ -569,8 +571,8 @@ function read(file: string): string | null {
  * Every JSX opening tag in a file, with the line it starts on. A tag runs to the first `>` outside
  * braces, so a multi-line className and an arrow function prop (`=>`) stay inside it.
  */
-function jsxOpeningTags(text: string): { line: number; tag: string }[] {
-    const tags: { line: number; tag: string }[] = [];
+function jsxOpeningTags(text: string): { line: number; tag: string; end: number }[] {
+    const tags: { line: number; tag: string; end: number }[] = [];
     const start = /<[A-Za-z][\w.]*[\s/>]/g;
     for (let m = start.exec(text); m; m = start.exec(text)) {
         let depth = 0;
@@ -581,9 +583,39 @@ function jsxOpeningTags(text: string): { line: number; tag: string }[] {
             else if (c === '}') depth--;
             else if (c === '>' && depth === 0) break;
         }
-        tags.push({ line: text.slice(0, m.index).split('\n').length, tag: text.slice(m.index, end + 1) });
+        tags.push({ line: text.slice(0, m.index).split('\n').length, tag: text.slice(m.index, end + 1), end: end + 1 });
     }
     return tags;
+}
+
+/**
+ * The text an opening tag's element starts with, up to its first child element or its close:
+ * the static text outside braces, and the string literals inside them (`{a ? 'Play' : 'Stop'}`).
+ * A brace left open before the next tag (`{cond && (<span>...`) ends it.
+ */
+function leadingTextOf(text: string, tagEnd: number): string {
+    const next = text.indexOf('<', tagEnd);
+    const content = text.slice(tagEnd, next < 0 ? text.length : next);
+    const parts: string[] = [];
+    let depth = 0;
+    let expression = '';
+    for (const c of content) {
+        if (c === '{') {
+            depth++;
+            continue;
+        }
+        if (c === '}') {
+            depth--;
+            if (depth === 0) {
+                for (const [, literal] of expression.matchAll(/'([^']*)'|"([^"]*)"/g)) parts.push(literal ?? '');
+                expression = '';
+            }
+            continue;
+        }
+        if (depth === 0) parts.push(c);
+        else expression += c;
+    }
+    return parts.join('');
 }
 
 function eachLine(text: string, test: (line: string) => boolean, onMatch: (line: number) => void): void {
@@ -666,7 +698,14 @@ function check(files: string[]): Violation[] {
         if (GOKAN_SRS_SOURCE.test(file) && file.endsWith('.tsx') && !file.endsWith('.test.tsx')) {
             eachLine(text, l => UNTYPED_DT.test(l), line =>
                 add({ file, line, rule: 'type-role', message: 'A <dt> takes a type role in its className (type-label, type-meta...), not a hand-built size, weight and colour (docs/DESIGN_SYSTEM.md section 3).' }));
-            for (const { line, tag } of jsxOpeningTags(text)) {
+            for (const { line, tag, end } of jsxOpeningTags(text)) {
+                // Scoped to the quiz prompts for now: older screens still carry the pattern.
+                if (file.startsWith(ENGLISH_FACE_SCOPE) && /\bfont-gothic\b/.test(tag) && !tag.endsWith('/>')) {
+                    const words = leadingTextOf(text, end).trim();
+                    if (/[A-Za-z]{2,}/.test(words) && /^[\x20-\x7e\s]*$/.test(words)) {
+                        add({ file, line, rule: 'english-face', message: 'English text in font-gothic. English UI copy uses font-sans (Inter), or a type role; font-gothic is for Japanese text (AGENTS.md, Design rules).' });
+                    }
+                }
                 if (/\splaceholder=/.test(tag) && /\bfont-(?:gothic|mincho)\b/.test(tag) && !/\bplaceholder:font-sans\b/.test(tag)) {
                     add({ file, line, rule: 'placeholder-font', message: 'A field in a Japanese face sets `placeholder:font-sans`: the placeholder inherits font-gothic/font-mincho otherwise, and the `--font-sans` fallback draws Japanese placeholders in Noto Sans JP (docs/DESIGN_SYSTEM.md section 3).' });
                 }

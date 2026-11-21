@@ -1125,6 +1125,78 @@ async function checkLongHeadwordIntro(chrome: Chrome, app: string, width: number
     }
 }
 /**
+ * The word a listening cloze is measured on (issue #165): 登場人物, whose example sentences have
+ * clips and whose first reading review the selector serves as a listening cloze (its hash on
+ * `listening:1638880:0` falls inside `CONSTANTS.srs.listening.share`). Learned from its page, its
+ * reading is due at once, so /quiz opens on it.
+ */
+const LISTENING_VOCAB = FURIGANA_VOCAB;
+const LISTENING_ON = `(() => {
+    const settings = JSON.parse(localStorage.getItem('GOKAN_SRS_SETTINGS') ?? '{}');
+    localStorage.setItem('GOKAN_SRS_SETTINGS', JSON.stringify({ ...settings, enableListeningCloze: true }));
+})()`;
+/** The listening card's play control and answer field, as drawn. */
+const LISTENING_CARD = `(() => {
+    const control = document.querySelector('[data-play-control]');
+    const input = document.querySelector('form input');
+    const box = el => { const r = el.getBoundingClientRect(); return { height: r.height, left: r.left, right: r.right }; };
+    return { control: control && box(control), input: input && box(input), width: document.documentElement.clientWidth };
+})()`;
+interface ListeningCardMeasure {
+    control: { height: number; left: number; right: number } | null;
+    input: { height: number; left: number; right: number } | null;
+    width: number;
+}
+
+/**
+ * The listening cloze card at a phone's width: before an answer (the play control and the blank,
+ * the translation shown when the clip cannot play, as here, where the build serves no clips, or
+ * at the learner's ask), and with its feedback (the sentence with furigana, its translation).
+ * The control is a 44px tap target inside the screen; nothing scrolls sideways (measure).
+ */
+async function checkListeningCloze(chrome: Chrome, app: string, width: number, height: number): Promise<void> {
+    const tab = await chrome.openTab(width, height);
+    const page = `srs /quiz, a listening cloze (${LISTENING_VOCAB})`;
+    try {
+        await tab.goto(`${app}/`, 'I already know some kanji');
+        await tab.click('I already know some kanji');
+        await tab.until(`document.body.innerText.includes('Kanji learning method')`, 'the setup screen');
+        await tab.click('Start learning');
+        await tab.evaluate<void>(LISTENING_ON);
+        await tab.goto(`${app}/vocab/${LISTENING_VOCAB}`, 'Learn this word');
+        await tab.click('Learn this word');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await tab.goto(`${app}/quiz`, 'Type the word you hear');
+        await tab.until(`document.querySelector('[data-play-control]') !== null`, 'the play control', 10000);
+        await measure(tab, page, width);
+        const shown = await tab.evaluate<ListeningCardMeasure>(LISTENING_CARD);
+        if (!shown.control) failures.push(`${width}px ${page}: no play control ([data-play-control])`);
+        else {
+            if (shown.control.height < 44) failures.push(`${width}px ${page}: the play control is ${Math.round(shown.control.height)}px tall, under a 44px tap target`);
+            if (shown.control.left < 0 || shown.control.right > shown.width) failures.push(`${width}px ${page}: the play control runs off the screen`);
+        }
+        if (!shown.input) failures.push(`${width}px ${page}: no answer field in the blank`);
+
+        if (await tab.evaluate<boolean>(`document.body.innerText.includes('Show the translation')`)) await tab.click("Can't listen now?");
+        await measure(tab, `${page}, its translation shown`, width);
+
+        // React reads its own value tracker: the native setter, then input, as typing sends it.
+        await tab.evaluate<void>(`(() => {
+            const el = document.querySelector('form input');
+            Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, 'とうじょうじんぶつ');
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+        })()`);
+        await tab.click('Submit');
+        await tab.until(`[...document.querySelectorAll('button')].some(el => el.textContent.trim().startsWith('Continue'))`, 'the answered card', 10000);
+        await measure(tab, `${page}, answered`, width);
+    } catch (error) {
+        failures.push(`${width}px ${page}: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+        await tab.close();
+    }
+}
+
+/**
  * A new word's intro opens at its top on a small phone (DESIGN_SYSTEM section 1: the headword
  * first). The mount focus on Learn must not scroll a card taller than the screen down to its
  * buttons, hiding the word it introduces; they are reached by scrolling. Measured on a fresh
@@ -2579,6 +2651,7 @@ try {
         await checkIntroCard(tab, app, width, height);
         await checkKanaIntro(chrome, app, width, height);
         await checkLongHeadwordIntro(chrome, app, width, height);
+        await checkListeningCloze(chrome, app, width, height);
         await measureFuriganaFixture(tab, `${app}/vocab/${FURIGANA_VOCAB}`, 'Examples', `srs /vocab/${FURIGANA_VOCAB}`, width, `${PLAY_BUTTONS}, ${PAGE_TABS}`);
         await checkSentencePlayButtons(tab, `srs /vocab/${FURIGANA_VOCAB}`, width);
         await checkExamplesUnruled(tab, `srs /vocab/${FURIGANA_VOCAB}`, width);

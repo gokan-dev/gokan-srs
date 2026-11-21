@@ -9,9 +9,18 @@ export interface PlayableClip {
     addEventListener(type: 'ended' | 'error', listener: () => void): void;
 }
 
+/**
+ * How a start ended: `played` (playback began), `stopped` (stopped or replaced first, or a press
+ * that stopped it), `blocked` (the browser refused to play without a press: autoplay), `failed`
+ * (the clip could not play: a network or decoding error).
+ */
+export type ClipOutcome = 'played' | 'stopped' | 'blocked' | 'failed';
+
 export interface ClipPlayer {
     /** Plays `clip`, stopping any other; pressed again while it plays (or loads), stops it. Rejects only if the clip's URL cannot be built. */
-    toggle: (clip: string) => Promise<void>;
+    toggle: (clip: string) => Promise<ClipOutcome>;
+    /** Plays `clip` from its start, stopping any other, even the same one (a replay). Rejects only if the clip's URL cannot be built. */
+    play: (clip: string) => Promise<ClipOutcome>;
     /** Stops `clip` if it is the one playing (its button left the page). */
     stopIf: (clip: string) => void;
     /** The clip playing or about to, or null. */
@@ -49,37 +58,46 @@ export function createClipPlayer({ urlOf, open }: ClipPlayerDeps): ClipPlayer {
         }
     };
 
+    const play = async (clip: string): Promise<ClipOutcome> => {
+        stop();
+        const token = generation;
+        current = clip;
+        emit();
+        const endIfCurrent = () => { if (token === generation) stop(); };
+
+        let url: string;
+        try {
+            url = await urlOf(clip);
+        } catch (error) {
+            endIfCurrent();
+            throw error;
+        }
+        if (token !== generation) return 'stopped';
+        const audio = open(url);
+        element = audio;
+        audio.addEventListener('ended', endIfCurrent);
+        audio.addEventListener('error', endIfCurrent);
+        try {
+            await audio.play();
+            return token === generation ? 'played' : 'stopped';
+        } catch (error) {
+            // A pause before playback began rejects too (AbortError): that clip was stopped, not broken.
+            if (token !== generation) return 'stopped';
+            console.warn(`[clipPlayer] Could not play ${url}`, error);
+            stop();
+            return error instanceof Error && error.name === 'NotAllowedError' ? 'blocked' : 'failed';
+        }
+    };
+
     return {
         async toggle(clip) {
-            const wasPlaying = current === clip;
-            stop();
-            if (wasPlaying) return;
-            const token = generation;
-            current = clip;
-            emit();
-            const endIfCurrent = () => { if (token === generation) stop(); };
-
-            let url: string;
-            try {
-                url = await urlOf(clip);
-            } catch (error) {
-                endIfCurrent();
-                throw error;
-            }
-            if (token !== generation) return;
-            const audio = open(url);
-            element = audio;
-            audio.addEventListener('ended', endIfCurrent);
-            audio.addEventListener('error', endIfCurrent);
-            try {
-                await audio.play();
-            } catch (error) {
-                // A pause before playback began rejects too (AbortError): that clip was stopped, not broken.
-                if (token !== generation) return;
-                console.warn(`[clipPlayer] Could not play ${url}`, error);
+            if (current === clip) {
                 stop();
+                return 'stopped';
             }
+            return play(clip);
         },
+        play,
         stopIf(clip) {
             if (current === clip) stop();
         },

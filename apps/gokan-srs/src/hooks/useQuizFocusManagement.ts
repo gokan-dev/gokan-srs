@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useEffectEvent, useRef } from 'react';
 import type { DependencyList } from 'react';
 
 interface UseQuizFocusManagementOptions {
@@ -12,6 +12,35 @@ interface UseQuizFocusManagementOptions {
     skipContinueFocus?: boolean;
     /** Delay (ms) before focusing Continue once feedback shows - lets a reveal animation finish first. Defaults to 0. */
     continueFocusDelay?: number;
+    /**
+     * Replays the card's clip (the listening cloze): bound to REPLAY_SHORTCUT, which works from
+     * inside the answer field, before and after the answer, so the keyboard flow never leaves it.
+     */
+    onReplay?: () => void;
+}
+
+/**
+ * The replay key, as `aria-keyshortcuts` writes it. A modifier, since the answer field has focus;
+ * Alt rather than Ctrl, which a browser keeps for itself, or Ctrl+Space, which switches the input
+ * method a Japanese learner types with.
+ */
+export const REPLAY_SHORTCUT = 'Alt+R';
+
+/** True for the replay key: Alt+R, read by its key position, since Option+R types ® on a Mac (and AltGr is Ctrl+Alt). */
+export function isReplayKey(event: Pick<KeyboardEvent, 'altKey' | 'ctrlKey' | 'metaKey' | 'shiftKey' | 'code'>): boolean {
+    return event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && event.code === 'KeyR';
+}
+
+/**
+ * True when a replay key press is the card's: not already handled, and from inside the card (its
+ * `root`) or from nowhere in particular (the page itself). A press in a lookup card, a sheet or a
+ * menu opened over the card belongs to that overlay.
+ */
+export function isCardReplay(event: KeyboardEvent, root: Element | null): boolean {
+    if (!isReplayKey(event) || event.defaultPrevented) return false;
+    const { target } = event;
+    if (!root || !(target instanceof Node)) return true;
+    return root.contains(target) || target === document.body || target === document.documentElement;
 }
 
 /**
@@ -27,11 +56,25 @@ interface UseQuizFocusManagementOptions {
  * feedback" for the calling card (e.g. `[currentVocab?.id, feedback]`).
  */
 export function useQuizFocusManagement(
-    { feedbackShown, skipContinueFocus = false, continueFocusDelay = 0 }: UseQuizFocusManagementOptions,
+    { feedbackShown, skipContinueFocus = false, continueFocusDelay = 0, onReplay }: UseQuizFocusManagementOptions,
     deps: DependencyList
 ) {
     const firstInputRef = useRef<HTMLInputElement | null>(null);
     const continueRef = useRef<HTMLButtonElement | null>(null);
+
+    const replay = useEffectEvent(() => onReplay?.());
+    const replays = !!onReplay;
+    useEffect(() => {
+        if (!replays) return;
+        const onKeyDown = (event: KeyboardEvent) => {
+            // The card's root: the form its first answer field is in.
+            if (!isCardReplay(event, firstInputRef.current?.closest('form') ?? null)) return;
+            event.preventDefault();
+            replay();
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [replays]);
 
     useEffect(() => {
         if (!feedbackShown) {
