@@ -69,6 +69,11 @@ export function synonymsPath(vocabId: string): string {
     return vocabPath(vocabId, 'synonym');
 }
 
+/** A grammar point's page. */
+export function grammarPath(grammarId: string): string {
+    return `/grammar/${encodeURIComponent(grammarId)}`;
+}
+
 /** A grammar family's page: its lessons and the cases that compare its points. */
 export function grammarFamilyPath(familyId: string): string {
     return `/grammar/family/${encodeURIComponent(familyId)}`;

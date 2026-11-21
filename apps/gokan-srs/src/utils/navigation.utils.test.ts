@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GRAMMAR, KANJI, MORE_DESTINATIONS, STUDY, VOCABULARY, WHATS_NEW, isDestinationActive, isMoreActive, drillPath, grammarChapterPath, grammarFamilyPath, isSessionPath, kanjiPath, synonymsPath, vocabPath } from './navigation.utils';
+import { GRAMMAR, KANJI, MORE_DESTINATIONS, STUDY, VOCABULARY, WHATS_NEW, isDestinationActive, isMoreActive, drillPath, grammarChapterPath, grammarFamilyPath, grammarPath, isSessionPath, kanjiPath, synonymsPath, vocabPath } from './navigation.utils';
 
 describe('isDestinationActive', () => {
     it('marks Study on the hub only', () => {
@@ -64,6 +64,13 @@ describe('vocabPath', () => {
 describe('kanjiPath', () => {
     it("is the kanji's page, the glyph as written", () => {
         expect(kanjiPath('輝')).toBe('/kanji/輝');
+    });
+});
+
+describe('grammarPath', () => {
+    it("builds a grammar point's page, its id encoded", () => {
+        expect(grammarPath('n4-110')).toBe('/grammar/n4-110');
+        expect(grammarPath('a/b')).toBe('/grammar/a%2Fb');
     });
 });
 

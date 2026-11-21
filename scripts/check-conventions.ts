@@ -520,10 +520,11 @@ const IMPORT_FROM_PAGES = /\bfrom\s+['"](\.\.\/)+pages\/|\bimport\(\s*['"](\.\.\
 /** A raw part-of-speech code (`v5r`, `adj-i`): a sense's labels come from utils/senses.utils.ts (organizeSenses). */
 const RAW_POS = /\.pos\[/;
 /**
- * A word's, a kanji's, a grammar family's or a grammar chapter's page path, built by hand:
- * vocabPath, kanjiPath, grammarFamilyPath and grammarChapterPath (utils/navigation.utils.ts) build them.
+ * A word's, a kanji's, a grammar point's, a grammar family's or a grammar chapter's page path, built by
+ * hand: vocabPath, kanjiPath, grammarPath, grammarFamilyPath and grammarChapterPath
+ * (utils/navigation.utils.ts) build them, ids encoded.
  */
-const HAND_BUILT_ENTRY_PATH = /`\/(?:vocab\/\$\{|kanji\/\$\{|grammar\/family\/\$\{|grammar\/chapters\?)/;
+const HAND_BUILT_ENTRY_PATH = /`\/(?:vocab\/\$\{|kanji\/\$\{|grammar\/\$\{|grammar\/family\/\$\{|grammar\/chapters\?)/;
 /** The path builders, and the app-route-to-dictionary-page table (the dictionary's URLs, not the app's routes). */
 const ENTRY_PATH_FILES = new Set(['apps/gokan-srs/src/utils/navigation.utils.ts', 'apps/gokan-srs/src/utils/seo.utils.ts']);
 
@@ -990,7 +991,7 @@ function check(files: string[]): Violation[] {
 
         if (GOKAN_SRS_SOURCE.test(file) && !ENTRY_PATH_FILES.has(file) && !/\.test\.tsx?$/.test(file)) {
             eachLine(text, l => HAND_BUILT_ENTRY_PATH.test(l), line =>
-                add({ file, line, rule: 'entry-paths', message: 'Builds a word, kanji, grammar family or chapter path by hand. Use vocabPath / kanjiPath / grammarFamilyPath / grammarChapterPath (utils/navigation.utils.ts), so every link to a page is one URL.' }));
+                add({ file, line, rule: 'entry-paths', message: 'Builds a word, kanji, grammar point, grammar family or chapter path by hand. Use vocabPath / kanjiPath / grammarPath / grammarFamilyPath / grammarChapterPath (utils/navigation.utils.ts), so every link to a page is one URL.' }));
         }
 
         if (GOKAN_SRS_SOURCE.test(file) && file !== WORD_READING_COMPONENT && !/\.test\.tsx?$/.test(file)) {

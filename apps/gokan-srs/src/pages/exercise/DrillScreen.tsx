@@ -5,7 +5,7 @@ import { drillSummary, loadDrill, runOnPath } from "../../context/quiz/drillSele
 import type { Drill, DrillPick } from "../../context/quiz/drillSelectors";
 import type { DrillSet } from "../../models/grammar.model";
 import { useAsyncData } from "../../hooks/useAsyncData";
-import { drillPath, grammarChapterPath, grammarFamilyPath, vocabPath } from "../../utils/navigation.utils";
+import { drillPath, grammarChapterPath, grammarFamilyPath, grammarPath, vocabPath } from "../../utils/navigation.utils";
 import { MixedText } from "../../components/MixedText";
 import { Page } from "../../components/Page";
 import { PageHeader } from "../../components/PageHeader";
@@ -31,7 +31,7 @@ function parentOf(set: DrillSet | null): string {
         case 'lesson':
         case 'family': return grammarFamilyPath(set.familyId);
         case 'chapter': return grammarChapterPath(set.chapterId);
-        case 'point': return `/grammar/${set.grammarId}`;
+        case 'point': return grammarPath(set.grammarId);
         case undefined: return '/grammar/chapters';
     }
 }

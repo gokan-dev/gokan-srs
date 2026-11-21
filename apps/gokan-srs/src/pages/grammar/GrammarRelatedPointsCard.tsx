@@ -8,7 +8,7 @@ import { grammarLearningStatus } from "../../utils/learningStatus.utils";
 import { GrammarService } from "../../services/grammar.service";
 import { RelatedEntriesCard, type RelatedEntry } from "../../components/RelatedEntriesCard";
 import { useAsyncData } from "../../hooks/useAsyncData";
-import { grammarFamilyPath } from "../../utils/navigation.utils";
+import { grammarFamilyPath, grammarPath } from "../../utils/navigation.utils";
 import { DrillLink } from "../../components/DrillLink";
 
 interface Props {
@@ -51,7 +51,7 @@ export function GrammarRelatedPointsCard({ point }: Props) {
 
     const entries: RelatedEntry[] = related.map(p => ({
         key: p.id,
-        to: `/grammar/${p.id}`,
+        to: grammarPath(p.id),
         primary: p.title,
         description: p.shortExplanation,
         trailing: <StatusDot status={grammarLearningStatus(state.progress?.grammarQueue.find(g => g.grammarId === p.id))} />,

@@ -272,10 +272,12 @@ The rest of the study flow:
   `drillRouteRole`), its cards' `mode: 'drill'` (no effects, decided in `effectsOf`), what a card
   shows on its exercise (`point`, each choice's `pointId` and `contrast`), its way in
   `components/DrillLink.tsx`, its page `pages/exercise/DrillScreen.tsx`.
-- Grammar destinations: a family's page through `grammarFamilyPath`, the chapter browser on a
-  chapter through `grammarChapterPath`, a drill through `drillPath` (`utils/navigation.utils.ts`;
-  enforced with the word and kanji paths). A Japanese run inside English text (a lesson title in a
-  page title) is set apart by `japaneseRuns` (`utils/japaneseRuns.utils.ts`).
+- Grammar destinations: a point's page through `grammarPath`, a family's page through
+  `grammarFamilyPath`, the chapter browser on a chapter through `grammarChapterPath`, a drill
+  through `drillPath` (`utils/navigation.utils.ts`; enforced with the word and kanji paths). A
+  Japanese run inside English text (a lesson title in a page title, a contrast case's guidance) is
+  set in a Japanese face by `components/MixedText.tsx` (over `japaneseRuns`,
+  `utils/japaneseRuns.utils.ts`).
 - Session flow: `useSessionLifecycle`, `components/SessionProgress.tsx` (counter, ticker, gains),
   the commit pipeline in `quizSelectors.ts` shared by the preview and the session.
 - Card building blocks: `components/quiz/` (`QuizCardFrame`, `QuizMasteryCorner`,

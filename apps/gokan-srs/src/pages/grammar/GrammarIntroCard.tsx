@@ -10,6 +10,7 @@ import { GrammarService } from "../../services/grammar.service";
 import { useQuiz } from "../../context/useQuiz";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { useIntroducedGrammarIds } from "../../hooks/useIntroducedGrammarIds";
+import { grammarPath } from "../../utils/navigation.utils";
 
 interface GrammarIntroCardProps {
     grammarPoint: GrammarPoint;
@@ -56,7 +57,7 @@ export function GrammarIntroCard({ grammarPoint, onLearn, onSkip }: GrammarIntro
                         <JlptChip level={grammarPoint.jlptLevel} />
                     </div>
                     <h2 className="text-primary font-mincho text-2xl leading-snug">
-                        <Link to={`/grammar/${grammarPoint.id}`} className="hover:underline">
+                        <Link to={grammarPath(grammarPoint.id)} className="hover:underline">
                             {grammarPoint.title}
                         </Link>
                     </h2>
