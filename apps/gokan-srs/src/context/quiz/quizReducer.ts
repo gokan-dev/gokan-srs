@@ -120,9 +120,8 @@ interface QuizStateBase {
      */
     readAsWritten: string[];
     /**
-     * Words just missed by ear whose plain reading card has not been answered yet: held back from
-     * the very next card (selectNextView), released once that card is answered. Session-local,
-     * never stored.
+     * Words missed by ear on the card just answered: held back from the very next card
+     * (selectNextView), released by the next continue of any card. Session-local, never stored.
      */
     heldBack: string[];
     fatalError: string | null;

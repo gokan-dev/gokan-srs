@@ -61,8 +61,8 @@ export function selectNextView(
     const pick = (allowed: ReadonlySet<TaskKey> | undefined) =>
         getNextVocabToStudy(progress?.learningQueue, settings ?? undefined, now, preferredType, allowed);
     // A word just missed by ear is not asked on the very next card, just after its answer was
-    // shown: the plain reading card would not test anything then. It is held back only until that
-    // card is answered (`heldBack`), so a retry of it keeps the usual spacing.
+    // shown: the plain reading card would not test anything then. It skips only that next card
+    // (`heldBack`, the words reasked by the card just answered), then takes its usual order.
     const later = committed && heldBack.length > 0
         ? new Set([...committed].filter(key => !heldBack.some(id => key === taskKey(id, 'reading'))))
         : undefined;

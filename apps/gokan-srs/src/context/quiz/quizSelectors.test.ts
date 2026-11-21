@@ -789,6 +789,17 @@ describe('the listening cloze in selectNextView (issue #165)', () => {
         expect(selectNextView(alone, false, now).queueItem).toMatchObject({ vocab: { vocabId: heard.vocabId }, quizMode: 'base' });
     });
 
+    it('holds it back from the next card only, then serves it in its usual order', () => {
+        const three = words.slice(0, 3);
+        const session = { committed: three.map(w => taskKey(w.vocabId, 'reading')) };
+        const free: QuizState = { ...initialState, progress: makeProgress(three), settings: on, session };
+        const first = selectNextView(free, false, now).queueItem!.vocab!.vocabId;
+        const held: QuizState = { ...free, readAsWritten: [first], heldBack: [first] };
+        expect(selectNextView(held, false, now).queueItem?.vocab?.vocabId).not.toBe(first);
+        const released: QuizState = { ...held, heldBack: [] };
+        expect(selectNextView(released, false, now).queueItem).toMatchObject({ vocab: { vocabId: first }, quizType: 'reading', quizMode: 'base' });
+    });
+
     it('keeps the usual retry order once its plain reading card was answered', () => {
         // A pair the stable order serves retry-first, so being pushed behind the other word shows.
         const retried = words.map(w => ({ ...w, needsRetry: { reading: true } }));
