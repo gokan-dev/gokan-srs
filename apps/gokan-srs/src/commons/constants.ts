@@ -67,6 +67,11 @@ export const CONSTANTS = {
             /** Fewer wrong options than this and the card is not a choice: one distractor is a coin toss. */
             minChoiceDistractors: 2,
             /**
+             * Cards in one contrast drill (issue #249): one pass over every usable example
+             * of the set, interleaved, ending here. A small set ends sooner.
+             */
+            drillMaxCards: 12,
+            /**
              * Ceiling on how many new grammar points one advance introduces - NOT
              * a fixed count like newVocabBatchSize, since GrammarSRSService.getNextCandidates
              * also stops at the current chapter's boundary. A chapter with fewer
