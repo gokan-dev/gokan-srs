@@ -25,7 +25,7 @@ const CHROME_CANDIDATES = [
 ];
 
 /** The keys `press` knows, with their virtual key codes. */
-const KEY_CODES = { Tab: 9, Enter: 13, ArrowLeft: 37, ArrowRight: 39 } as const;
+const KEY_CODES = { Tab: 9, Enter: 13, ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40 } as const;
 /** The text a key types: without it Chrome sends no keypress, and Enter does not activate a button. */
 const KEY_TEXT: Partial<Record<KeyName, string>> = { Enter: '\r' };
 export type KeyName = keyof typeof KEY_CODES;
