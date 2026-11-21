@@ -63,6 +63,23 @@ export interface DrillConfusion {
     times: number;
 }
 
+/** A drill being answered: the card on screen (`index`; past the last one, the summary) and what was picked so far. */
+export interface DrillRun {
+    drill: Drill;
+    index: number;
+    picks: DrillPick[];
+}
+
+/** The card on screen, or null once every card is answered. */
+export function currentDrillCard(run: DrillRun | null): DrillCard | null {
+    return run?.drill.cards[run.index] ?? null;
+}
+
+/** What one answered card is for the summary: the point whose option was picked, if the answer is one. */
+export function pickOf(card: DrillCard, answer: string, right: boolean): DrillPick {
+    return { asked: card.point.id, picked: card.options.find(o => o.text === answer)?.pointId ?? null, right };
+}
+
 /** One point with the sentences it can be drilled on: its curated examples and its mined ones. */
 export interface DrillSource {
     point: GrammarPoint;

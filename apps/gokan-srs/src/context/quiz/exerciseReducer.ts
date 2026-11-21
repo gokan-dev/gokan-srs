@@ -4,9 +4,10 @@ import type { Exercise, ExerciseGrade } from '../../services/exercise/types';
 import { applyEffects } from '../../services/exercise/effects';
 import type { Effect } from '../../services/exercise/effects';
 import { addToGains } from './sessionGains';
+import { pickOf } from './drillSelectors';
 
-/** The two activities that serve exercises; each has at most one exercise on screen. */
-export type ExerciseHost = 'vocab' | 'grammar';
+/** What serves exercises: the two activities and the contrast drill. Each has at most one exercise on screen. */
+export type ExerciseHost = 'vocab' | 'grammar' | 'drill';
 
 export interface ExerciseFeedback {
     grade: ExerciseGrade;
@@ -38,7 +39,7 @@ export interface ExerciseTurnsState {
     turns: Record<ExerciseHost, ExerciseTurn | null>;
 }
 
-export const initialExerciseTurns: ExerciseTurnsState = { turns: { vocab: null, grammar: null } };
+export const initialExerciseTurns: ExerciseTurnsState = { turns: { vocab: null, grammar: null, drill: null } };
 
 export function newTurn(exercise: Exercise): ExerciseTurn {
     return { exercise, answers: exercise.slots.map(() => ''), hintLevels: exercise.slots.map(() => 0), feedback: null, isEvaluating: false };
@@ -50,7 +51,7 @@ export function clearedTurn(turn: ExerciseTurn): ExerciseTurn {
 }
 
 export function withTurn(state: QuizState, host: ExerciseHost, turn: ExerciseTurn | null): QuizState {
-    return { ...state, turns: host === 'vocab' ? { ...state.turns, vocab: turn } : { ...state.turns, grammar: turn } };
+    return { ...state, turns: { ...state.turns, [host]: turn } };
 }
 
 export type ExerciseAction =
@@ -119,6 +120,18 @@ export function exerciseReducer(state: QuizState, action: ExerciseAction): QuizS
                 ...(newlyRead.length > 0 ? { readAsWritten: [...state.readAsWritten, ...newlyRead] } : {}),
                 heldBack,
             };
+            // A drill's card leads to its next one: what was picked is kept for its summary, nothing else.
+            if (action.host === 'drill') {
+                const run = state.drill;
+                const card = run?.drill.cards[run.index];
+                if (!run || !card || !turn) return next;
+                const index = run.index + 1;
+                const following = run.drill.cards[index];
+                return {
+                    ...withTurn(next, 'drill', following ? newTurn(following.exercise) : null),
+                    drill: { ...run, index, picks: [...run.picks, pickOf(card, turn.answers[0] ?? '', turn.feedback?.grade.overall === 'correct')] },
+                };
+            }
             if (!record) return next;
 
             const credit = record.vocabDelta > 0 ? { vocabDelta: record.vocabDelta, vocabBreakdown: record.vocabBreakdown } : {};

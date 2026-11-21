@@ -97,7 +97,7 @@ describe('quizReducer', () => {
     });
 
     it('LOAD_VOCAB_START sets loading state and clears the card on screen', () => {
-        const state: QuizState = { ...initialState, turns: { vocab: readingTurn('stale'), grammar: null } };
+        const state: QuizState = { ...initialState, turns: { vocab: readingTurn('stale'), grammar: null, drill: null } };
         const queueItem = { vocabId: 'v1', quizType: 'reading' as const, quizMode: 'base' as const };
         const next = quizReducer(state, { type: 'LOAD_VOCAB_START', payload: queueItem });
 
@@ -299,7 +299,7 @@ describe('quizReducer', () => {
         });
 
         it('a pending answer survives the pause: the card on screen is untouched', () => {
-            const withAnswer: QuizState = { ...running, turns: { vocab: readingTurn('とうじょう'), grammar: null } };
+            const withAnswer: QuizState = { ...running, turns: { vocab: readingTurn('とうじょう'), grammar: null, drill: null } };
             const roundTrip = quizReducer(
                 quizReducer(withAnswer, { type: 'SESSION_SUSPEND', payload: { now: 1 } }),
                 { type: 'SESSION_RESUME' }
@@ -449,7 +449,7 @@ describe('quizReducer', () => {
     });
 
     it('RESET restores the initial state, progress known to be none', () => {
-        const state: QuizState = { ...initialState, progressLoaded: true, progress: userProgress(), turns: { vocab: readingTurn('x'), grammar: null } };
+        const state: QuizState = { ...initialState, progressLoaded: true, progress: userProgress(), turns: { vocab: readingTurn('x'), grammar: null, drill: null } };
         const next = quizReducer(state, { type: 'RESET' });
         expect(next).toEqual({ ...initialState, progressLoaded: true });
     });
@@ -465,7 +465,7 @@ describe('quizReducer', () => {
             progress: userProgress({ stats: { newLearnedToday: 1, totalLearned: 1, totalReviews: 1 } }),
             settings: { ...DEFAULT_SETTINGS, preferredLearningOrder: 'frequency' },
             currentVocab: inFlightVocab,
-            turns: { vocab: readingTurn('partial-answer'), grammar: null },
+            turns: { vocab: readingTurn('partial-answer'), grammar: null, drill: null },
         };
 
         const reconciledProgress = userProgress({ stats: { newLearnedToday: 5, totalLearned: 5, totalReviews: 5 } });

@@ -14,6 +14,8 @@ import { syncUsuallyKana, taskKey } from '../../utils/srs.utils';
 import { introQuizType } from '../../services/scheduling';
 import { grammarReducer, initialGrammarState, isGrammarAction } from './grammarReducer';
 import type { GrammarQuizAction, GrammarQuizState } from './grammarReducer';
+import { drillReducer, initialDrillState, isDrillAction } from './drillReducer';
+import type { DrillQuizAction, DrillQuizState } from './drillReducer';
 import { clearedTurn, exerciseReducer, initialExerciseTurns, isExerciseAction, newTurn, withTurn } from './exerciseReducer';
 import type { ExerciseAction, ExerciseTurnsState } from './exerciseReducer';
 import type { Exercise } from '../../services/exercise/types';
@@ -138,7 +140,7 @@ interface QuizStateBase {
  * sync for free instead of duplicating that wiring. The exercise each activity has
  * on screen lives in one shared slice (exerciseReducer.ts).
  */
-export type QuizState = QuizStateBase & GrammarQuizState & ExerciseTurnsState;
+export type QuizState = QuizStateBase & GrammarQuizState & ExerciseTurnsState & DrillQuizState;
 
 export type QuizAction =
     /** The stored progress, read at start-up (null: this device has none). */
@@ -180,11 +182,13 @@ export type QuizAction =
      */
     | { type: 'SYNC_USUALLY_KANA'; payload: { ids: ReadonlySet<string>; now: Date } }
     | GrammarQuizAction
+    | DrillQuizAction
     | ExerciseAction;
 
 export const initialState: QuizState = {
     ...initialGrammarState,
     ...initialExerciseTurns,
+    ...initialDrillState,
     progress: null,
     progressLoaded: false,
     settings: null,
@@ -217,6 +221,7 @@ function sameKanjiKnowledge(a: KanjiKnowledge | undefined, b: KanjiKnowledge): b
 export function quizReducer(state: QuizState, action: QuizAction): QuizState {
     if (isExerciseAction(action)) return exerciseReducer(state, action);
     if (isGrammarAction(action)) return grammarReducer(state, action);
+    if (isDrillAction(action)) return drillReducer(state, action);
 
     switch (action.type) {
         case 'PROGRESS_LOADED':
