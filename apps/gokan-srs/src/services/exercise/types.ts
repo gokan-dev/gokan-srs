@@ -175,9 +175,17 @@ export interface SlotGrade {
     sibling?: SiblingAnswer;
 }
 
+/**
+ * The session an exercise is answered in. A contrast drill (issue #249) is practice
+ * outside the SRS: effectsOf decides nothing for it, so its answers write nothing.
+ */
+export type ExerciseMode = 'srs' | 'drill';
+
 interface ExerciseBase {
     /** The item this exercise reviews. */
     host: HostItem;
+    /** Absent is `srs`: every exercise the sessions build. */
+    mode?: ExerciseMode;
     /** Names the item in the session ticker. */
     label: string;
     slots: AnswerSlot[];
@@ -213,7 +221,7 @@ export type Exercise = ExerciseBase & (
 export type GradedExercise = Pick<Exercise, 'kind' | 'label' | 'slots' | 'cue'>;
 
 /** The exercise as its effects read it: what was asked, of which item. */
-export type AnsweredExercise = Pick<Exercise, 'kind' | 'host' | 'label' | 'slots' | 'cue'>;
+export type AnsweredExercise = Pick<Exercise, 'kind' | 'host' | 'label' | 'slots' | 'cue' | 'mode'>;
 
 export interface ExerciseGrade {
     slots: SlotGrade[];

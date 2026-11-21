@@ -92,6 +92,13 @@ describe('effectsOf', () => {
             expect(asked.kind === 'review' && asked.strengthModifier).toBeCloseTo(SUPPORT_COEFFICIENT_FLOOR + (1 - SUPPORT_COEFFICIENT_FLOOR) * (2 / 3));
         });
 
+        it('decides nothing in a drill (issue #249): no review, retry, credit or mix-up, whatever the answer', () => {
+            const drill: Answered = { ...card([pattern, blank('sushi', 'すし')]), mode: 'drill' };
+            expect(answer(drill, ['が', 'すし'])).toEqual([]);
+            expect(answer(drill, ['の', 'ねこ'])).toEqual([]);
+            expect(answer(drill, ['', ''])).toEqual([]);
+        });
+
         it('credits nothing for a blank whose hint was revealed: it was read, not produced', () => {
             const effects = answer(card([pattern, blank('sushi', 'すし')]), ['が', 'すし'], [0, 2]);
             expect(effects.map(e => e.kind)).toEqual(['review']);
@@ -247,6 +254,15 @@ describe('applyEffects', () => {
         expect(next.stats.totalReviews).toBe(1);
         expect(record).toMatchObject({ item: semaiItem, label: '狭い', result: 'correct', shown: 'correct', vocabDelta: 0 });
         expect(record!.delta).toBeGreaterThan(0);
+    });
+
+    it('returns the progress it was given, untouched, when there is nothing to write (a drill)', () => {
+        const progress = userProgress({ learningQueue: [word('semai')], grammarQueue: [grammarProgress({ grammarId: 'n5-001' })] });
+        const before = JSON.stringify(progress);
+        const { progress: next, record } = applyEffects(progress, [], { now, settings });
+        expect(next).toBe(progress);
+        expect(JSON.stringify(next)).toBe(before);
+        expect(record).toBeNull();
     });
 
     it('records a calibrated review only for a review, never for a retry or a credit', () => {
