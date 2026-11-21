@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GRAMMAR, KANJI, MORE_DESTINATIONS, STUDY, VOCABULARY, WHATS_NEW, isDestinationActive, isMoreActive, isSessionPath, kanjiPath, synonymsPath, vocabPath } from './navigation.utils';
+import { GRAMMAR, KANJI, MORE_DESTINATIONS, STUDY, VOCABULARY, WHATS_NEW, isDestinationActive, isMoreActive, drillPath, isSessionPath, kanjiPath, synonymsPath, vocabPath } from './navigation.utils';
 
 describe('isDestinationActive', () => {
     it('marks Study on the hub only', () => {
@@ -64,5 +64,20 @@ describe('vocabPath', () => {
 describe('kanjiPath', () => {
     it("is the kanji's page, the glyph as written", () => {
         expect(kanjiPath('輝')).toBe('/kanji/輝');
+    });
+});
+
+describe('drillPath', () => {
+    it('names each kind of set, its ids encoded', () => {
+        expect(drillPath({ kind: 'lesson', familyId: 'causality', lessonId: 'reason-core' })).toBe('/grammar/drill/lesson/causality/reason-core');
+        expect(drillPath({ kind: 'family', familyId: 'contradiction' })).toBe('/grammar/drill/family/contradiction');
+        expect(drillPath({ kind: 'chapter', chapterId: 'n5-c17' })).toBe('/grammar/drill/chapter/n5-c17');
+        expect(drillPath({ kind: 'point', grammarId: 'a/b' })).toBe('/grammar/drill/point/a%2Fb');
+    });
+
+    it('is a grammar page, inside Grammar, and no study session', () => {
+        const path = drillPath({ kind: 'family', familyId: 'x' });
+        expect(isDestinationActive(path, GRAMMAR)).toBe(true);
+        expect(isSessionPath(path)).toBe(false);
     });
 });

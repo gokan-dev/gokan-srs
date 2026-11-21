@@ -10,7 +10,8 @@ import { SentenceClozeCard } from "../../components/quiz/SentenceClozeCard";
 import { StudyCard } from "../../components/quiz/StudyCard";
 import { formatReadingList } from "../quiz/quizFormatting";
 import { ListeningClozeHeader, MeaningPrompt, ProductionClozeHeader, ProductionPrompt, ReadingPrompt } from "../quiz/VocabPrompts";
-import { ConjugationAnswer, ConjugationPrompt, GrammarCardHeader, SentenceCue } from "../grammar/GrammarPrompts";
+import { ConjugationAnswer, ConjugationPrompt, DrillContrastNote, GrammarCardHeader, SentenceCue } from "../grammar/GrammarPrompts";
+import { currentDrillCard } from "../../context/quiz/drillSelectors";
 
 /**
  * Reading and production from a gloss both take the word's reading, in kana: a near miss shows what it was close to, a miss every reading.
@@ -151,15 +152,20 @@ export function ExerciseCard({ api, onVocabClick }: ExerciseCardProps) {
                 />
             );
 
-        case 'grammar-choice':
-            if (!point) return null;
+        case 'grammar-choice': {
+            // A drill's card names its own point (the drill's, not the session's) and moves no mastery.
+            const drillCard = exercise.mode === 'drill' ? currentDrillCard(state.drill) : null;
+            const shown = drillCard?.point ?? point;
+            if (!shown) return null;
+            const picked = drillCard?.options.find(o => o.text === api.turn?.answers[0]);
+            const contrast = answered && picked ? drillCard?.cases[picked.pointId] : undefined;
             return (
                 <SentenceClozeCard
                     api={api}
                     sentence={exercise.sentence}
                     header={(
                         <>
-                            <GrammarCardHeader point={point} memoryStrength={grammarStrength} answered={answered} />
+                            <GrammarCardHeader point={shown} memoryStrength={drillCard ? null : grammarStrength} answered={answered} />
                             {/* The translation would answer the card: it comes with the feedback. */}
                             <SentenceCue
                                 instruction="Choose what fits the sentence"
@@ -167,12 +173,16 @@ export function ExerciseCard({ api, onVocabClick }: ExerciseCardProps) {
                             />
                         </>
                     )}
-                    feedbackExtra={point.usageNote && (
-                        <p className="text-xs font-gothic text-secondary italic mt-2">{point.usageNote}</p>
+                    feedbackExtra={(contrast || shown.usageNote) && (
+                        <>
+                            {contrast && <DrillContrastNote contrast={contrast} />}
+                            {shown.usageNote && <p className="text-xs font-gothic text-secondary italic mt-2">{shown.usageNote}</p>}
+                        </>
                     )}
                     onVocabClick={onVocabClick}
                 />
             );
+        }
 
         case 'conjugation':
             if (!point) return null;

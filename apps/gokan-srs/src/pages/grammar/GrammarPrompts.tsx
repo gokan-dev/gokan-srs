@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { ArrowDown } from "lucide-react";
-import type { GrammarPoint } from "@gokan/dataset-schema";
+import type { GrammarContrastCase, GrammarPoint } from "@gokan/dataset-schema";
 import type { GrammarBlankPlan, GrammarConjugationPrompt } from "../../context/quiz/grammarReducer";
 import { JlptChip } from "../../components/JlptChip";
 import { QuizMasteryCorner } from "../../components/quiz/QuizMasteryCorner";
@@ -28,7 +28,8 @@ const FORMALITY_HINT: Record<string, string> = {
 
 interface GrammarCardHeaderProps {
     point: Pick<GrammarPoint, 'id' | 'jlptLevel'>;
-    memoryStrength: number;
+    /** Null shows no ring: a drill's card moves no mastery. */
+    memoryStrength: number | null;
     /** The point's page is a spoiler until the card is answered (see PointLink). */
     answered: boolean;
     /** The register of the form shown, when the card asks for one. */
@@ -42,7 +43,7 @@ interface GrammarCardHeaderProps {
 export function GrammarCardHeader({ point, memoryStrength, answered, formalityLevel, realization, children }: GrammarCardHeaderProps) {
     return (
         <>
-            <QuizMasteryCorner memoryStrength={memoryStrength} />
+            {memoryStrength !== null && <QuizMasteryCorner memoryStrength={memoryStrength} />}
             <div className="mb-4">
                 <div className="flex items-center justify-center gap-2">
                     <JlptChip level={point.jlptLevel} />
@@ -64,6 +65,22 @@ export function GrammarCardHeader({ point, memoryStrength, answered, formalityLe
                 {children}
             </div>
         </>
+    );
+}
+
+/**
+ * Under a drill card's feedback, after a wrong pick: the contrast case that covers the
+ * pair, when the dataset has one (the option's own note already says why it does not fit).
+ */
+export function DrillContrastNote({ contrast }: { contrast: GrammarContrastCase }) {
+    return (
+        <div className="mt-3 border-l-2 border-accent/40 pl-3">
+            <p className="type-label mb-1">Which one, and when</p>
+            <p className="text-primary font-sans text-sm leading-relaxed">
+                <span className="font-semibold">{contrast.situation}</span>{" "}
+                {contrast.guidance}
+            </p>
+        </div>
     );
 }
 
