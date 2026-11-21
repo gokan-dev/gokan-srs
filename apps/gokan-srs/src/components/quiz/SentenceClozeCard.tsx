@@ -55,7 +55,8 @@ export function SentenceClozeCard({ api, sentence, header, feedbackExtra, onVoca
             continueFocusDelay: 50,
             onReplay,
         },
-        [turn?.exercise, feedback]
+        // Showing the translation (unheard) removes the button that had focus: back to the blank.
+        [turn?.exercise, feedback, turn?.unheard]
     );
 
     if (!turn) return null;
@@ -107,7 +108,8 @@ export function SentenceClozeCard({ api, sentence, header, feedbackExtra, onVoca
                                 reveal={slot && grade && ((revealWhenRight && turn.answers[part.index] !== slot.reveal) || grade.result !== 'correct' || grade.synonym) && (
                                     <RevealedForm
                                         slot={slot}
-                                        reading={slot.reveal === part.surface ? part.reading : undefined}
+                                        // No furigana repeating what was typed just above it.
+                                        reading={slot.reveal === part.surface && turn.answers[part.index] !== part.reading ? part.reading : undefined}
                                         onVocabClick={onVocabClick}
                                     />
                                 )}

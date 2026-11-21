@@ -108,8 +108,8 @@ export function PlayControl({ control, heard, shortcut, onOutcome }: {
             className={buttonClassName('secondary', 'md', 'inline-flex gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent')}
         >
             <Icon size={20} aria-hidden="true" className="shrink-0 text-accent" fill={playing ? 'currentColor' : 'none'} />
-            {/* The longest words, unseen, hold the width (left out of the accessible name: hidden). */}
-            <span className="grid text-left">
+            {/* The longest words, unseen, hold the width (left out of the accessible name: hidden); the shown ones centred in it. */}
+            <span className="grid text-center">
                 <span className="col-start-1 row-start-1">{label}</span>
                 <span aria-hidden="true" className="invisible col-start-1 row-start-1">{REPLAY_LABEL}</span>
             </span>

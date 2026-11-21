@@ -2,7 +2,7 @@
 import { act, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { headwordOf } from '@gokan/dataset-schema';
+import { headwordOf, kanaToHepburn } from '@gokan/dataset-schema';
 import { MotionGlobalConfig } from 'framer-motion';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -153,13 +153,24 @@ describe('the listening cloze card', () => {
         expect(html).not.toContain('Show the translation');
     });
 
-    it('shows the word as written, with its reading, beside a right answer typed in kana', () => {
-        const html = cardOf(listening, true, answeredWith(vocab.reading.primary));
-        expect(gradeExercise(listening, [vocab.reading.primary], [0]).overall).toBe('correct');
+    /** The written form shown beside the blank: its text and its furigana. */
+    const revealOf = (html: string) => {
         const reveal = /<button[^>]*title="Open the page for [^"]*"[^>]*>(.*?)<\/button>/.exec(html)?.[1] ?? '';
-        expect(reveal).toContain('<ruby');
-        expect(reveal.replace(/<rt[^>]*>.*?<\/rt>|<[^>]+>/g, '')).toBe(written);
-        expect([...reveal.matchAll(/<rt[^>]*>(.*?)<\/rt>/g)].map(m => m[1]).join('')).toBe(vocab.reading.primary);
+        return {
+            text: reveal.replace(/<rt[^>]*>.*?<\/rt>|<[^>]+>/g, ''),
+            furigana: [...reveal.matchAll(/<rt[^>]*>(.*?)<\/rt>/g)].map(m => m[1]).join(''),
+        };
+    };
+
+    it('shows the word as written beside a right answer typed in kana, with no furigana repeating it', () => {
+        expect(gradeExercise(listening, [vocab.reading.primary], [0]).overall).toBe('correct');
+        expect(revealOf(cardOf(listening, true, answeredWith(vocab.reading.primary)))).toEqual({ text: written, furigana: '' });
+    });
+
+    it('keeps the reading as furigana beside an answer not typed as that reading', () => {
+        const romaji = kanaToHepburn(vocab.reading.primary);
+        expect(romaji).not.toBe(vocab.reading.primary);
+        expect(revealOf(cardOf(listening, true, answeredWith(romaji)))).toEqual({ text: written, furigana: vocab.reading.primary });
     });
 
     it('adds nothing beside a right answer typed as written', () => {
@@ -278,6 +289,15 @@ describe('the listening cloze card', () => {
 
             await settled(() => answer(vocab.reading.primary));
             expect(instruction()).toBe('Fill in the blank');
+        });
+
+        it('puts focus back in the blank on "Show the translation"', async () => {
+            await show('blocked');
+            textButton()?.focus();
+            await settled(() => textButton()?.click());
+            // The focus is moved on the next tick (useQuizFocusManagement).
+            await settled(() => undefined);
+            expect(document.activeElement).toBe(container.querySelector('input'));
         });
     });
 });
