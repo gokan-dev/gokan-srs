@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { hasSessionInProgress, selectNextView, selectCurrentProgress, selectSessionStats, capSessionCommit, collectActionableTaskKeys, selectNextSessionPreview, dedupTaskKeysByVocab } from './quizSelectors';
+import { hasSessionInProgress, isListeningTurn, selectNextView, selectCurrentProgress, selectSessionStats, capSessionCommit, collectActionableTaskKeys, selectNextSessionPreview, dedupTaskKeysByVocab } from './quizSelectors';
 import { initialState, taskKey } from './quizReducer';
 import type { QuizState, TaskKey } from './quizReducer';
 import type { UserProgress } from '../../models/user.model';
@@ -7,7 +7,7 @@ import type { Vocabulary } from '@gokan/dataset-schema';
 import type { VocabProgress } from '../../models/vocabulary.model';
 import { DEFAULT_VOCABULARY_PROGRESS } from '../../models/vocabulary.model';
 import { CONSTANTS } from '../../commons/constants';
-import { srsEntry, userProgress, userSettings, vocabProgress, vocabulary } from '../../test/fixtures';
+import { reviewLog, srsEntry, userProgress, userSettings, vocabProgress, vocabulary } from '../../test/fixtures';
 
 const now = new Date('2026-06-10T00:00:00Z');
 const past = new Date('2026-06-01T00:00:00Z');
@@ -724,5 +724,93 @@ describe('hasSessionInProgress', () => {
         expect(hasSessionInProgress({ ...initialState, session: { committed: [], suspendedAt: 1 } })).toBe(true);
         expect(hasSessionInProgress({ ...initialState, grammarSession: { committed: [] } })).toBe(true);
         expect(hasSessionInProgress({ ...initialState, grammarSession: { committed: [], suspendedAt: 1 } })).toBe(true);
+    });
+});
+
+describe('the listening cloze in selectNextView (issue #165)', () => {
+    const on = userSettings({ enableListeningCloze: true });
+    /** A word whose reading is due, after `reviews` reading reviews. */
+    const dueAfter = (vocabId: string, reviews: number, overrides: Partial<VocabProgress> = {}) => makeVocabProgress({
+        vocabId,
+        nextReviewAt: past,
+        reading: { ...DEFAULT_VOCABULARY_PROGRESS.reading, dueDate: past, history: Array.from({ length: reviews }, () => reviewLog()) },
+        ...overrides,
+    });
+    // Enough words and review counts that the share is seen both ways.
+    const words = Array.from({ length: 40 }, (_, i) => dueAfter(`w${i}`, i % 5));
+
+    it('serves about its share of reading reviews as listening, only with the setting on', () => {
+        const heard = words.filter(w => isListeningTurn(w, on)).length;
+        expect(heard).toBeGreaterThan(0);
+        expect(heard).toBeLessThan(words.length);
+        expect(heard / words.length).toBeCloseTo(CONSTANTS.srs.listening.share, 0);
+        for (const off of [userSettings(), userSettings({ enableListeningCloze: false }), null]) {
+            expect(words.some(w => isListeningTurn(w, off))).toBe(false);
+        }
+    });
+
+    it('never serves a reading retry as listening', () => {
+        const heard = words.filter(w => isListeningTurn(w, on));
+        expect(heard.some(w => isListeningTurn({ ...w, needsRetry: { reading: true } }, on))).toBe(false);
+    });
+
+    it('marks the reading item it picks, and only a reading item', () => {
+        const heard = words.find(w => isListeningTurn(w, on))!;
+        const state: QuizState = { ...initialState, progress: makeProgress([heard]), settings: on };
+        expect(selectNextView(state, false, now).queueItem).toMatchObject({ quizType: 'reading', quizMode: 'listening' });
+
+        const read = words.find(w => !isListeningTurn(w, on))!;
+        const plain: QuizState = { ...initialState, progress: makeProgress([read]), settings: on };
+        expect(selectNextView(plain, false, now).queueItem).toMatchObject({ quizType: 'reading', quizMode: 'base' });
+    });
+
+    it('keeps the same pick while the card is up, and moves it with the review count', () => {
+        const state: QuizState = { ...initialState, progress: makeProgress([words[0]]), settings: on };
+        expect(selectNextView(state, false, now).queueItem).toEqual(selectNextView(state, false, now).queueItem);
+        const picks = new Set(Array.from({ length: 20 }, (_, n) => isListeningTurn(dueAfter('same', n), on)));
+        expect(picks).toEqual(new Set([true, false]));
+    });
+
+    it('serves a word missed by ear this session as the plain reading card, never listening again', () => {
+        const heard = words.find(w => isListeningTurn(w, on))!;
+        expect(isListeningTurn(heard, on, [heard.vocabId])).toBe(false);
+        const state: QuizState = { ...initialState, progress: makeProgress([heard]), settings: on, readAsWritten: [heard.vocabId] };
+        expect(selectNextView(state, false, now).queueItem).toMatchObject({ vocab: { vocabId: heard.vocabId }, quizType: 'reading', quizMode: 'base' });
+    });
+
+    it('asks it later in the session rather than on the very next card, once its answer was shown', () => {
+        const heard = words.find(w => isListeningTurn(w, on))!;
+        const other = words.find(w => w.vocabId !== heard.vocabId)!;
+        const session = { committed: [taskKey(heard.vocabId, 'reading'), taskKey(other.vocabId, 'reading')] };
+        const state: QuizState = { ...initialState, progress: makeProgress([heard, other]), settings: on, session, readAsWritten: [heard.vocabId], heldBack: [heard.vocabId] };
+        expect(selectNextView(state, false, now).queueItem).toMatchObject({ vocab: { vocabId: other.vocabId } });
+
+        const alone: QuizState = { ...state, progress: makeProgress([heard]), session: { committed: [taskKey(heard.vocabId, 'reading')] } };
+        expect(selectNextView(alone, false, now).queueItem).toMatchObject({ vocab: { vocabId: heard.vocabId }, quizMode: 'base' });
+    });
+
+    it('holds it back from the next card only, then serves it in its usual order', () => {
+        const three = words.slice(0, 3);
+        const session = { committed: three.map(w => taskKey(w.vocabId, 'reading')) };
+        const free: QuizState = { ...initialState, progress: makeProgress(three), settings: on, session };
+        const first = selectNextView(free, false, now).queueItem!.vocab!.vocabId;
+        const held: QuizState = { ...free, readAsWritten: [first], heldBack: [first] };
+        expect(selectNextView(held, false, now).queueItem?.vocab?.vocabId).not.toBe(first);
+        const released: QuizState = { ...held, heldBack: [] };
+        expect(selectNextView(released, false, now).queueItem).toMatchObject({ vocab: { vocabId: first }, quizType: 'reading', quizMode: 'base' });
+    });
+
+    it('keeps the usual retry order once its plain reading card was answered', () => {
+        // A pair the stable order serves retry-first, so being pushed behind the other word shows.
+        const retried = words.map(w => ({ ...w, needsRetry: { reading: true } }));
+        const pair = retried.flatMap(r => words.filter(o => o.vocabId !== r.vocabId).map(o => [r, o] as const)).find(([r, o]) => {
+            const session = { committed: [taskKey(r.vocabId, 'reading'), taskKey(o.vocabId, 'reading')] };
+            const state: QuizState = { ...initialState, progress: makeProgress([r, o]), settings: on, session };
+            return selectNextView(state, false, now).queueItem?.vocab?.vocabId === r.vocabId;
+        })!;
+        const [retry, other] = pair;
+        const session = { committed: [taskKey(retry.vocabId, 'reading'), taskKey(other.vocabId, 'reading')] };
+        const state: QuizState = { ...initialState, progress: makeProgress([retry, other]), settings: on, session, readAsWritten: [retry.vocabId] };
+        expect(selectNextView(state, false, now).queueItem).toMatchObject({ vocab: { vocabId: retry.vocabId }, quizMode: 'base' });
     });
 });

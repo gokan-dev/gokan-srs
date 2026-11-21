@@ -247,9 +247,10 @@ export function gradeExercise(exercise: GradedExercise, answers: string[], hintL
         slots,
         overall,
         strengthModifier: success ? supportCoefficient(support) * recognition : 1,
-        // The meaning card has sentences and glosses worth reading, and a choice has
-        // the reasons the other options do not fit, so neither moves on by itself.
-        autoAdvance: exercise.kind !== 'meaning' && !hasChoices && slots.every(s => s.result === 'correct' && !s.synonym),
+        // The meaning card has sentences and glosses worth reading, the listening cloze
+        // the sentence heard, written out and translated for the first time, and a choice
+        // has the reasons the other options do not fit, so none moves on by itself.
+        autoAdvance: exercise.kind !== 'meaning' && exercise.kind !== 'listening-cloze' && !hasChoices && slots.every(s => s.result === 'correct' && !s.synonym),
         message: feedbackMessage(exercise, slots, overall),
     };
 }
