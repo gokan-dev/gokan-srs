@@ -265,6 +265,10 @@ The rest of the study flow:
 - Sentences: `utils/sentenceRanking.ts` for every activity that picks an example; a sentence with
   blanks is a `ClozeSentence` (`utils/clozeSentence.utils.ts`); a grammar example becomes a
   `Sentence` through `grammarExampleToSentence` (`@gokan/dataset-schema`).
+- Contrast drill (practice outside the SRS, issue #249): its sets and cards only from
+  `context/quiz/drillSelectors.ts` (`loadDrill`, `rulesOut` decides every wrong option), its run
+  through the `drill` exercise host, its cards' `mode: 'drill'` (no effects, decided in
+  `effectsOf`), its way in `components/DrillLink.tsx`, its page `pages/exercise/DrillScreen.tsx`.
 - Session flow: `useSessionLifecycle`, `components/SessionProgress.tsx` (counter, ticker, gains),
   the commit pipeline in `quizSelectors.ts` shared by the preview and the session.
 - Card building blocks: `components/quiz/` (`QuizCardFrame`, `QuizMasteryCorner`,
