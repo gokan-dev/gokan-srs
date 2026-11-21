@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuiz } from "../../context/useQuiz";
-import { drillSummary, loadDrill } from "../../context/quiz/drillSelectors";
-import type { Drill, DrillPick, DrillSet } from "../../context/quiz/drillSelectors";
+import { drillSummary, loadDrill, runOnPath } from "../../context/quiz/drillSelectors";
+import type { Drill, DrillPick } from "../../context/quiz/drillSelectors";
+import type { DrillSet } from "../../models/grammar.model";
 import { useAsyncData } from "../../hooks/useAsyncData";
-import { drillPath, vocabPath } from "../../utils/navigation.utils";
+import { drillPath, grammarChapterPath, grammarFamilyPath, vocabPath } from "../../utils/navigation.utils";
+import { japaneseRuns } from "../../utils/japaneseRuns.utils";
 import { Page } from "../../components/Page";
 import { PageHeader } from "../../components/PageHeader";
 import { LoadingScreen } from "../../components/LoadingScreen";
@@ -27,8 +29,8 @@ function setOf(kind: DrillSet['kind'], params: Readonly<Partial<Record<string, s
 function parentOf(set: DrillSet | null): string {
     switch (set?.kind) {
         case 'lesson':
-        case 'family': return `/grammar/family/${set.familyId}`;
-        case 'chapter': return `/grammar/chapters?chapter=${set.chapterId}`;
+        case 'family': return grammarFamilyPath(set.familyId);
+        case 'chapter': return grammarChapterPath(set.chapterId);
         case 'point': return `/grammar/${set.grammarId}`;
         case undefined: return '/grammar/chapters';
     }
@@ -43,43 +45,44 @@ function parentOf(set: DrillSet | null): string {
 export default function DrillScreen({ kind }: { kind: DrillSet['kind'] }) {
     const params = useParams();
     const set = setOf(kind, params);
+    const path = set ? drillPath(set) : null;
     const navigate = useNavigate();
     const { state, exercises, drillActions } = useQuiz();
-    // A fresh order on every run: the builder takes its randomness from here.
-    const [seed, setSeed] = useState(() => String(Date.now()));
-    const loaded = useAsyncData(set ? `${drillPath(set)}:${seed}` : null, () => (set ? loadDrill(set, seed) : Promise.resolve(null)));
+    // The run on this page, kept while the learner looked something up from it (ended by
+    // where they go next, useDrillOrchestration): coming back resumes it in its order.
+    const kept = path ? runOnPath(state.drill, path) : null;
+    // A fresh order on every new run: the builder takes its randomness from here.
+    const [seed, setSeed] = useState(() => kept?.seed ?? String(Date.now()));
+    const run = kept?.seed === seed ? kept : null;
+    const loaded = useAsyncData(set && path && !run ? `${path}:${seed}` : null, () => (set ? loadDrill(set, seed) : Promise.resolve(null)));
 
     useEffect(() => {
-        if (loaded.data) drillActions.startDrill(loaded.data);
-    }, [loaded.data, drillActions]);
-    useEffect(() => () => drillActions.endDrill(), [drillActions]);
+        if (path && loaded.data) drillActions.startDrill(path, seed, loaded.data);
+    }, [path, seed, loaded.data, drillActions]);
 
     const parentPath = parentOf(set);
     if (!set) return <DetailErrorScreen message="This drill does not exist." />;
-    if (loaded.status === 'error') return <DetailErrorScreen message="This drill could not be loaded. Check your connection and try again." />;
-    if (loaded.status !== 'ready') return <LoadingScreen />;
-    if (!loaded.data) {
-        return (
-            <Page width="narrow">
-                <PageHeader title="Nothing to drill here yet" parentPath={parentPath} />
-                <p className="type-body mt-4">
-                    A drill needs example sentences where the dataset says which of these points do not fit,
-                    and these points do not have enough of them yet.
-                </p>
-            </Page>
-        );
+    if (!run) {
+        if (loaded.status === 'error') return <DetailErrorScreen message="This drill could not be loaded. Check your connection and try again." />;
+        if (loaded.status === 'ready' && !loaded.data) {
+            return (
+                <Page width="narrow">
+                    <PageHeader title="Nothing to drill here yet" parentPath={parentPath} />
+                    <p className="type-body mt-4">These points do not have enough example sentences to compare yet.</p>
+                </Page>
+            );
+        }
+        // Loading, or built and about to start.
+        return <LoadingScreen />;
     }
 
-    const drill = loaded.data;
-    const run = state.drill;
-    // Until the run on screen is this drill, there is nothing of it to show.
-    if (run?.drill !== drill) return <LoadingScreen />;
+    const { drill } = run;
     const done = run.index >= drill.cards.length;
 
     return (
         <Page width="narrow">
             <PageHeader
-                title={`Drill: ${drill.title}`}
+                title={<>Drill: <MixedText text={drill.title} /></>}
                 subtitle="Practice only: nothing you answer here changes your reviews."
                 parentPath={parentPath}
                 className="mb-6"
@@ -94,6 +97,13 @@ export default function DrillScreen({ kind }: { kind: DrillSet['kind'] }) {
             )}
         </Page>
     );
+}
+
+/** A title that mixes English and Japanese, each Japanese run in a Japanese face (the page title's serif has no CJK glyphs). */
+function MixedText({ text }: { text: string }) {
+    return japaneseRuns(text).map((run, i) => (run.japanese
+        ? <span key={i} className="font-gothic" lang="ja">{run.text}</span>
+        : run.text));
 }
 
 /** The end of a drill: how many right, and which pairs were confused, each linking to where the family is compared. */
@@ -113,15 +123,18 @@ function DrillSummary({ drill, picks, onAgain }: { drill: Drill; picks: DrillPic
                             const familyId = drill.points[c.asked]?.comparedOn;
                             const times = c.times === 1 ? 'once' : `${c.times} times`;
                             return (
-                                <li key={`${c.asked}:${c.picked}`} className="font-sans text-sm text-primary">
-                                    Picked <span className="font-mincho" lang="ja">{marker(c.picked)}</span> where{" "}
-                                    <span className="font-mincho" lang="ja">{marker(c.asked)}</span> fit, {times}.
-                                    {familyId && (
-                                        <>
-                                            {" "}
-                                            <Link to={`/grammar/family/${familyId}`} className="text-accent hover:underline">Compare them</Link>
-                                        </>
-                                    )}
+                                <li key={`${c.asked}:${c.picked}`}>
+                                    {/* A <p>, so `p a` underlines the link in the sentence. */}
+                                    <p className="font-sans text-sm text-primary">
+                                        Picked <span className="font-mincho" lang="ja">{marker(c.picked)}</span> where{" "}
+                                        <span className="font-mincho" lang="ja">{marker(c.asked)}</span> fit, {times}.
+                                        {familyId && (
+                                            <>
+                                                {" "}
+                                                <Link to={grammarFamilyPath(familyId)} className="text-accent">Compare them</Link>
+                                            </>
+                                        )}
+                                    </p>
                                 </li>
                             );
                         })}

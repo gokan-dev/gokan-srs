@@ -8,6 +8,8 @@ import { grammarLearningStatus } from "../../utils/learningStatus.utils";
 import { GrammarService } from "../../services/grammar.service";
 import { RelatedEntriesCard, type RelatedEntry } from "../../components/RelatedEntriesCard";
 import { useAsyncData } from "../../hooks/useAsyncData";
+import { grammarFamilyPath } from "../../utils/navigation.utils";
+import { DrillLink } from "../../components/DrillLink";
 
 interface Props {
     point: GrammarPoint;
@@ -59,8 +61,9 @@ export function GrammarRelatedPointsCard({ point }: Props) {
         <RelatedEntriesCard
             title="Similar grammar"
             intro={<GrammarDifferentiator point={point} knownIds={knownIds} inline />}
-            headerLink={hasContrasts && familyId ? { to: `/grammar/family/${familyId}`, label: "Compare when to use each" } : undefined}
-            sections={[{ entries }]}
+            headerLink={hasContrasts && familyId ? { to: grammarFamilyPath(familyId), label: "Compare when to use each" } : undefined}
+            // Open to anyone: a drill writes nothing, so the point need not be in study.
+            sections={[{ entries, footer: <DrillLink set={{ kind: 'point', grammarId: point.id }} label="Drill against its siblings" /> }]}
             isExpandable={isExpandable}
             isExpanded={isExpanded}
             onToggleExpand={() => setIsExpanded(!isExpanded)}

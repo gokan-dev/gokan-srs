@@ -14,6 +14,7 @@ import { grammarLearningStatus, STATUS_LABEL } from "../../utils/learningStatus.
 import { GRAMMAR_SORT_LABEL, matchesGrammarStatus, sortGrammarRows, type GrammarSort, type GrammarStatusFilter } from "../../utils/grammarBrowse.utils";
 import type { GrammarProgress } from "../../models/grammar.model";
 import { GrammarHomeHeader } from "./GrammarHomeHeader";
+import { grammarFamilyPath } from "../../utils/navigation.utils";
 
 type Kind = NonNullable<GrammarPoint['kind']>;
 type GroupMode = 'level' | 'family';
@@ -346,7 +347,7 @@ export function GrammarBrowseScreen() {
                             {g.subtitle && <span className="type-meta">{g.subtitle}</span>}
                             {group === 'family' && familiesWithLessons.has(g.key) && (
                                 <Link
-                                    to={`/grammar/family/${g.key}`}
+                                    to={grammarFamilyPath(g.key)}
                                     className="inline-flex items-center gap-1 font-sans text-sm text-accent hover:underline"
                                 >
                                     Compare when to use each <ArrowRight size={14} aria-hidden="true" />

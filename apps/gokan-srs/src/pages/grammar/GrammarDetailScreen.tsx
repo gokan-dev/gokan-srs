@@ -9,7 +9,6 @@ import { useQuiz } from "../../context/useQuiz";
 import { GrammarService } from "../../services/grammar.service";
 import { THEME } from "../../commons/theme";
 import { GrammarRelatedPointsCard } from "./GrammarRelatedPointsCard";
-import { DrillLink } from "../../components/DrillLink";
 import { GrammarVariantsCard } from "./GrammarVariantsCard";
 import { Page } from "../../components/Page";
 import { useAsyncData } from "../../hooks/useAsyncData";
@@ -25,6 +24,7 @@ import { GrammarExampleList, GrammarExamplesPanel, type ListedExample } from "./
 import { GRAMMAR_TABS } from "../../utils/detailTabs.utils";
 import { directionStatus, grammarLearningStatus, statusReviewPhrase } from "../../utils/learningStatus.utils";
 import { grammarNextReviewAt } from "../../services/grammarScheduling";
+import { grammarChapterPath } from "../../utils/navigation.utils";
 
 type GrammarTab = typeof GRAMMAR_TABS.tabs[number];
 
@@ -141,7 +141,7 @@ function GrammarPage({ point, chapterLocation, mined, examplesSettled, hasVarian
                     {point.formalityLevel && <DetailField compact label="Formality">{FORMALITY_LABELS[point.formalityLevel]}</DetailField>}
                     {chapterLocation && (
                         <DetailField compact label="Position">
-                            <Link to={`/grammar/chapters?chapter=${chapterLocation.chapter.id}`} className="text-accent hover:underline">
+                            <Link to={grammarChapterPath(chapterLocation.chapter.id)} className="text-accent hover:underline">
                                 Chapter {chapterLocation.chapterNumber}, point {chapterLocation.chapter.points.indexOf(point.id) + 1} of {chapterLocation.chapter.points.length}
                             </Link>
                         </DetailField>
@@ -172,10 +172,6 @@ function GrammarPage({ point, chapterLocation, mined, examplesSettled, hasVarian
             case 'related':
                 return (
                     <div className="space-y-10">
-                        {/* Open to anyone: a drill writes nothing, so the point need not be in study. */}
-                        {(point.family?.relatedPoints.length ?? 0) > 0 && (
-                            <DrillLink set={{ kind: 'point', grammarId: point.id }} label="Drill against its siblings" />
-                        )}
                         <GrammarRelatedPointsCard point={point} />
                         <GrammarVariantsCard point={point} />
                     </div>

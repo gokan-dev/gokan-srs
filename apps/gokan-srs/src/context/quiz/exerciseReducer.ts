@@ -4,7 +4,6 @@ import type { Exercise, ExerciseGrade } from '../../services/exercise/types';
 import { applyEffects } from '../../services/exercise/effects';
 import type { Effect } from '../../services/exercise/effects';
 import { addToGains } from './sessionGains';
-import { pickOf } from './drillSelectors';
 
 /** What serves exercises: the two activities and the contrast drill. Each has at most one exercise on screen. */
 export type ExerciseHost = 'vocab' | 'grammar' | 'drill';
@@ -120,18 +119,6 @@ export function exerciseReducer(state: QuizState, action: ExerciseAction): QuizS
                 ...(newlyRead.length > 0 ? { readAsWritten: [...state.readAsWritten, ...newlyRead] } : {}),
                 heldBack,
             };
-            // A drill's card leads to its next one: what was picked is kept for its summary, nothing else.
-            if (action.host === 'drill') {
-                const run = state.drill;
-                const card = run?.drill.cards[run.index];
-                if (!run || !card || !turn) return next;
-                const index = run.index + 1;
-                const following = run.drill.cards[index];
-                return {
-                    ...withTurn(next, 'drill', following ? newTurn(following.exercise) : null),
-                    drill: { ...run, index, picks: [...run.picks, pickOf(card, turn.answers[0] ?? '', turn.feedback?.grade.overall === 'correct')] },
-                };
-            }
             if (!record) return next;
 
             const credit = record.vocabDelta > 0 ? { vocabDelta: record.vocabDelta, vocabBreakdown: record.vocabBreakdown } : {};

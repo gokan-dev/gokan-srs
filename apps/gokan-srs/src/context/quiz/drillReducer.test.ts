@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { GrammarPoint } from '@gokan/dataset-schema';
 import { initialState, quizReducer } from './quizReducer';
 import type { QuizState } from './quizReducer';
-import { currentDrillCard, drillCardsOf, drillSummary } from './drillSelectors';
-import type { Drill, DrillPointInfo } from './drillSelectors';
+import { currentDrillCard, drillCardsOf, drillSummary, optionPointsOf, runOnPath } from './drillSelectors';
+import type { Drill } from './drillSelectors';
+import type { DrillPointInfo } from '../../models/grammar.model';
 import { effectsOf } from '../../services/exercise/effects';
 import { gradeExercise } from '../../services/exercise/grading';
 import { grammarExample, grammarPoint, grammarProgress, mixupRecord, reviewLog, srsEntry, userProgress, userSettings, vocabProgress } from '../../test/fixtures';
@@ -38,7 +39,9 @@ function answer(state: QuizState, pick: (options: string[], right: string) => st
     const card = currentDrillCard(state.drill);
     const turn = state.turns.drill;
     if (!card || !turn) throw new Error('no drill card on screen');
-    const value = pick(card.options.map(o => o.text), card.options[0].text);
+    const choices = card.slots[0].choices ?? [];
+    // The right option first, as the pickers below expect.
+    const value = pick([card.slots[0].accept[0], ...choices.filter(c => c.pointId).map(c => c.text)], card.slots[0].accept[0]);
     const answered = quizReducer(state, { type: 'EXERCISE_SET_ANSWER', host: 'drill', index: 0, value });
     const grade = gradeExercise(turn.exercise, [value], [0]);
     const effects = effectsOf(turn.exercise, grade, { latencyMs: 3000, hintLevels: [0], answers: [value] });
@@ -46,19 +49,21 @@ function answer(state: QuizState, pick: (options: string[], right: string) => st
     return quizReducer(submitted, { type: 'EXERCISE_CONTINUE', host: 'drill', effects, now });
 }
 
+const path = '/grammar/drill/lesson/causality/reason-core';
+
 describe('a contrast drill (issue #249)', () => {
     const start = () => quizReducer(
         { ...initialState, progressLoaded: true, progress: studied(), settings: userSettings() },
-        { type: 'DRILL_START', drill },
+        { type: 'DRILL_START', path, seed: 'seed', drill },
     );
 
     it('shows its first card, then each next one on Continue, and the summary after the last', () => {
         let state = start();
         expect(drill.cards.length).toBeGreaterThan(2);
-        expect(state.turns.drill?.exercise).toBe(drill.cards[0].exercise);
+        expect(state.turns.drill?.exercise).toBe(drill.cards[0]);
         state = answer(state, (_, right) => right);
         expect(state.drill?.index).toBe(1);
-        expect(state.turns.drill?.exercise).toBe(drill.cards[1].exercise);
+        expect(state.turns.drill?.exercise).toBe(drill.cards[1]);
         while (currentDrillCard(state.drill)) state = answer(state, options => options.find(o => o !== options[0]) ?? '');
         expect(state.turns.drill).toBeNull();
         expect(state.drill?.picks).toHaveLength(drill.cards.length);
@@ -89,13 +94,34 @@ describe('a contrast drill (issue #249)', () => {
         expect(drillSummary(state.drill?.picks ?? [])).toEqual({
             right: 1,
             total: 2,
-            confusions: [{ asked: second.point.id, picked: second.options[1].pointId, times: 1 }],
+            confusions: [{ asked: second.point.id, picked: optionPointsOf(second)[1], times: 1 }],
         });
     });
 
-    it('ends: no card, no drill', () => {
-        const ended = quizReducer(start(), { type: 'DRILL_END' });
-        expect(ended.drill).toBeNull();
-        expect(ended.turns.drill).toBeNull();
+    it('is kept while the learner looks something up from it, and resumes where it was, in its order', () => {
+        let state = start();
+        state = answer(state, (_, right) => right);
+        state = answer(state, (options, right) => options.find(o => o !== right) ?? '');
+        const before = state.drill;
+        // The answered card's word, then the point's page: lookups.
+        state = quizReducer(state, { type: 'DRILL_ROUTE', pathname: '/vocab/1263400' });
+        state = quizReducer(state, { type: 'DRILL_ROUTE', pathname: '/grammar/n5-073' });
+        state = quizReducer(state, { type: 'DRILL_ROUTE', pathname: path });
+        expect(state.drill).toBe(before);
+        const resumed = runOnPath(state.drill, path);
+        expect(resumed?.index).toBe(2);
+        expect(resumed?.seed).toBe('seed');
+        expect(resumed?.drill.cards).toBe(drill.cards);
+        expect(resumed?.picks).toHaveLength(2);
+        expect(state.turns.drill?.exercise).toBe(drill.cards[2]);
+        // Another drill's page shows that drill, not this run.
+        expect(runOnPath(state.drill, '/grammar/drill/family/causality')).toBeNull();
+    });
+
+    it('ends once the learner goes anywhere that is not a lookup: no card, no drill', () => {
+        let state = answer(start(), (_, right) => right);
+        state = quizReducer(state, { type: 'DRILL_ROUTE', pathname: '/stats' });
+        expect(state.drill).toBeNull();
+        expect(state.turns.drill).toBeNull();
     });
 });

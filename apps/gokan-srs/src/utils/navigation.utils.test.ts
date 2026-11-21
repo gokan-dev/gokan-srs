@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GRAMMAR, KANJI, MORE_DESTINATIONS, STUDY, VOCABULARY, WHATS_NEW, isDestinationActive, isMoreActive, drillPath, isSessionPath, kanjiPath, synonymsPath, vocabPath } from './navigation.utils';
+import { GRAMMAR, KANJI, MORE_DESTINATIONS, STUDY, VOCABULARY, WHATS_NEW, isDestinationActive, isMoreActive, drillPath, grammarChapterPath, grammarFamilyPath, isSessionPath, kanjiPath, synonymsPath, vocabPath } from './navigation.utils';
 
 describe('isDestinationActive', () => {
     it('marks Study on the hub only', () => {
@@ -64,6 +64,15 @@ describe('vocabPath', () => {
 describe('kanjiPath', () => {
     it("is the kanji's page, the glyph as written", () => {
         expect(kanjiPath('輝')).toBe('/kanji/輝');
+    });
+});
+
+describe('grammarFamilyPath and grammarChapterPath', () => {
+    it('build the family page and the chapter browser open on a chapter, ids encoded', () => {
+        expect(grammarFamilyPath('causality')).toBe('/grammar/family/causality');
+        expect(grammarFamilyPath('a/b')).toBe('/grammar/family/a%2Fb');
+        expect(grammarChapterPath('n5-c17')).toBe('/grammar/chapters?chapter=n5-c17');
+        expect(grammarChapterPath('a&b')).toBe('/grammar/chapters?chapter=a%26b');
     });
 });
 

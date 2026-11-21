@@ -14,7 +14,7 @@ import { syncUsuallyKana, taskKey } from '../../utils/srs.utils';
 import { introQuizType } from '../../services/scheduling';
 import { grammarReducer, initialGrammarState, isGrammarAction } from './grammarReducer';
 import type { GrammarQuizAction, GrammarQuizState } from './grammarReducer';
-import { drillReducer, initialDrillState, isDrillAction } from './drillReducer';
+import { drillContinued, drillReducer, initialDrillState, isDrillAction } from './drillReducer';
 import type { DrillQuizAction, DrillQuizState } from './drillReducer';
 import { clearedTurn, exerciseReducer, initialExerciseTurns, isExerciseAction, newTurn, withTurn } from './exerciseReducer';
 import type { ExerciseAction, ExerciseTurnsState } from './exerciseReducer';
@@ -219,7 +219,11 @@ function sameKanjiKnowledge(a: KanjiKnowledge | undefined, b: KanjiKnowledge): b
 }
 
 export function quizReducer(state: QuizState, action: QuizAction): QuizState {
-    if (isExerciseAction(action)) return exerciseReducer(state, action);
+    if (isExerciseAction(action)) {
+        const next = exerciseReducer(state, action);
+        // A drill's run moves on with its card (drillReducer.ts): the exercise turn knows no drill.
+        return action.type === 'EXERCISE_CONTINUE' && action.host === 'drill' ? drillContinued(state, next) : next;
+    }
     if (isGrammarAction(action)) return grammarReducer(state, action);
     if (isDrillAction(action)) return drillReducer(state, action);
 

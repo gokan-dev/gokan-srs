@@ -1,9 +1,11 @@
-import { describe, expect, it } from 'vitest';
-import type { GrammarContrastCase, GrammarExample, GrammarPoint } from '@gokan/dataset-schema';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { GrammarContrastCase, GrammarContrastIndex, GrammarExample, GrammarPoint } from '@gokan/dataset-schema';
 import { grammarExample, grammarPoint } from '../../test/fixtures';
 import { CONSTANTS } from '../../commons/constants';
-import { caseFor, drillCardsOf, drillSummary, interleave, rulesOut, withSharedFamily } from './drillSelectors';
-import type { DrillPointInfo, DrillSource } from './drillSelectors';
+import { GrammarService } from '../../services/grammar.service';
+import type { DrillPointInfo, DrillSet } from '../../models/grammar.model';
+import { caseFor, drillCardsOf, drillSummary, hasDrill, interleave, loadDrill, optionPointsOf, pickOf, rulesOut, withSharedFamily } from './drillSelectors';
+import type { DrillSource } from './drillSelectors';
 
 /** An example written as its tokens, the pattern at `pattern`. */
 const example = (tokens: string[], pattern: number[], ruledOut?: string[]): GrammarExample => grammarExample({
@@ -27,7 +29,9 @@ const okage = point('okage', 'おかげで', [example(['先生', 'の', 'おか�
 const info = (p: GrammarPoint): DrillPointInfo => ({ id: p.id, title: p.title, jlptLevel: p.jlptLevel, marker: p.title, comparedOn: 'reason' });
 const sourcesOf = (...points: GrammarPoint[]): DrillSource[] => points.map(p => ({ point: p, examples: p.examples }));
 const optionsOf = (cards: ReturnType<typeof drillCardsOf>, pointId: string) =>
-    cards.filter(c => c.point.id === pointId).map(c => c.options.map(o => o.pointId).sort());
+    cards.filter(c => c.point.id === pointId).map(c => optionPointsOf(c).sort());
+/** A card's wrong options, by the text the learner picks. */
+const choicesOf = (card: ReturnType<typeof drillCardsOf>[number]) => card.slots[0].choices ?? [];
 
 describe('rulesOut', () => {
     it('rules a sibling out where its example says so, or where the two are authored to stand in different places', () => {
@@ -54,9 +58,10 @@ describe('drillCardsOf', () => {
 
     it('asks each card as a choice through the engine, in drill mode, the right option the example\'s own pattern', () => {
         for (const card of cards) {
-            expect(card.exercise).toMatchObject({ kind: 'grammar-choice', mode: 'drill', host: { kind: 'grammar', grammarId: card.point.id } });
-            expect(card.exercise.slots[0].accept).toEqual([card.options[0].text]);
-            expect(card.exercise.slots[0].choices?.map(c => c.text).sort()).toEqual(card.options.map(o => o.text).sort());
+            expect(card).toMatchObject({ kind: 'grammar-choice', mode: 'drill', host: { kind: 'grammar', grammarId: card.point.id } });
+            // The right option is the one with no point of another: the asked point's.
+            expect(choicesOf(card).filter(c => !c.pointId).map(c => c.text)).toEqual(card.slots[0].accept);
+            expect(choicesOf(card).filter(c => c.pointId).every(c => c.note)).toBe(true);
         }
     });
 
@@ -81,9 +86,49 @@ describe('drillCardsOf', () => {
     it('carries the contrast case that covers a wrong option, either way round', () => {
         const fits: GrammarContrastCase = { focus: 'okage', vs: ['kara'], situation: 'Thanks to someone.', guidance: 'おかげで credits them.' };
         const [card] = drillCardsOf(sourcesOf(okage, karadesu, kara), [fits], 'seed', info).filter(c => c.point.id === 'okage');
-        expect(card.cases).toEqual({ kara: fits });
+        expect(choicesOf(card).filter(c => c.contrast).map(c => [c.pointId, c.contrast])).toEqual([['kara', fits]]);
         const back = drillCardsOf(sourcesOf(kara, karadesu), [{ ...fits, focus: 'karadesu', vs: ['kara'] }], 'seed', info);
-        expect(back.find(c => c.point.id === 'kara')?.cases.karadesu?.focus).toBe('karadesu');
+        const asKara = back.find(c => c.point.id === 'kara');
+        expect(asKara && choicesOf(asKara).find(c => c.pointId === 'karadesu')?.contrast?.focus).toBe('karadesu');
+    });
+
+    it('offers only points of the asked point\'s family: a chapter mixes families, and another family\'s point is no contrast', () => {
+        const other = { id: 'contradiction', name: 'But', relatedPoints: [] };
+        const demo = point('demo', 'でも', [example(['でも', '、', '行く'], [0])], { slot: 'sentence-initial', family: other });
+        const kedo = point('kedo', 'けど', [example(['高い', 'けど', '、', '買う'], [1])], { slot: 'clause-final', family: other });
+        const desuga = point('desuga', 'ですが', [example(['雨', 'ですが', '、', '行く'], [1])], { slot: 'predicate-final', family: other });
+        const sources = sourcesOf(kara, karadesu, demo, kedo, desuga);
+        const familyOf = new Map(sources.map(s => [s.point.id, s.point.family?.id]));
+        const chapter = drillCardsOf(sources, [], 'seed', info);
+        expect(chapter.length).toBeGreaterThan(0);
+        for (const card of chapter) {
+            expect(new Set(optionPointsOf(card).map(id => familyOf.get(id)))).toEqual(new Set([familyOf.get(card.point.id)]));
+        }
+        // でも (sentence-initial) would rule から out by slot alone: it is never offered on から's card.
+        expect(optionsOf(chapter, 'kara')).toEqual([['kara', 'karadesu'], ['kara', 'karadesu']]);
+    });
+
+    it('builds a point\'s drill around the point under any seed, even past drillMaxCards points', () => {
+        // Fourteen points of one family, alternating between two places of a sentence: each rules the other half out.
+        const markers = ['から', 'ので', 'ため', 'おかげで', 'せいで', 'し', 'て', 'からです', 'のです', 'ためです', 'わけです', 'ものだ', 'ことだ', 'はずだ'];
+        const many = markers.map((m, i) => point(`p${i}`, m, [example(['雨', m], [1]), example(['風', m], [1])], { slot: i % 2 === 0 ? 'clause-final' : 'predicate-final' }));
+        const sources = sourcesOf(...many);
+        let cutSomewhere = false;
+        for (const seed of Array.from({ length: 30 }, (_, i) => `seed-${i}`)) {
+            if (!drillCardsOf(sources, [], seed, info).some(c => c.point.id === 'p13')) cutSomewhere = true;
+            const cards = drillCardsOf(sources, [], seed, info, 'p13');
+            expect(cards.length).toBeGreaterThan(0);
+            expect(cards[0].point.id).toBe('p13');
+            for (const card of cards) expect(optionPointsOf(card)).toContain('p13');
+        }
+        // Without the focus the cap cuts the point's own cards under some seeds: the case this guards.
+        expect(cutSomewhere).toBe(true);
+    });
+
+    it('has no point drill for a point with no card of its own', () => {
+        // おかげで rules から out, but without からです nothing rules a sibling out of から's examples.
+        expect(drillCardsOf(sourcesOf(okage, kara, karadesu), [], 'seed', info, 'kara')).not.toEqual([]);
+        expect(drillCardsOf(sourcesOf(okage, kara), [], 'seed', info, 'kara')).toEqual([]);
     });
 });
 
@@ -132,5 +177,69 @@ describe('drillSummary', () => {
             total: 5,
             confusions: [{ asked: 'okage', picked: 'kara', times: 2 }, { asked: 'node', picked: 'kara', times: 1 }],
         });
+    });
+});
+
+describe('pickOf', () => {
+    const [card] = drillCardsOf(sourcesOf(kara, karadesu), [], 'seed', info).filter(c => c.point.id === 'kara');
+    it('names the point of the option picked, read from the card itself', () => {
+        const wrong = choicesOf(card).find(c => c.pointId);
+        expect(pickOf(card, wrong?.text ?? '', false)).toEqual({ asked: 'kara', picked: 'karadesu', right: false });
+        expect(pickOf(card, card.slots[0].accept[0], true)).toEqual({ asked: 'kara', picked: 'kara', right: true });
+        expect(pickOf(card, 'まったく違う', false)).toEqual({ asked: 'kara', picked: null, right: false });
+    });
+});
+
+describe('hasDrill', () => {
+    afterEach(() => { vi.restoreAllMocks(); });
+
+    const all = [kara, node, karadesu, okage];
+    const contrasts: GrammarContrastIndex = {
+        reason: {
+            name: 'Reason',
+            lessons: [
+                { id: 'core', title: 'から / からです', points: ['kara', 'node', 'karadesu'], cases: [] },
+                // から and ので may both fit everywhere: nothing to drill.
+                { id: 'alike', title: 'から / ので', points: ['kara', 'node'], cases: [] },
+                { id: 'credit', title: 'おかげで / から', points: ['okage', 'kara'], cases: [] },
+            ],
+        },
+    };
+    const mockDataset = () => {
+        vi.spyOn(GrammarService, 'loadContrasts').mockResolvedValue(contrasts);
+        vi.spyOn(GrammarService, 'loadGrammarPoints').mockImplementation(ids => Promise.resolve(all.filter(p => ids.includes(p.id))));
+        vi.spyOn(GrammarService, 'loadGrammarPoint').mockImplementation(id => {
+            const found = all.find(p => p.id === id);
+            return found ? Promise.resolve(found) : Promise.reject(new Error('missing'));
+        });
+        vi.spyOn(GrammarService, 'loadMinedExamples').mockResolvedValue(null);
+        vi.spyOn(GrammarService, 'loadTeachingOrder').mockResolvedValue({ order: [], chapters: [{ id: 'c1', title: 'Reasons', summary: '', jlptLevel: 5, points: ['kara', 'karadesu'] }] });
+    };
+
+    it('agrees with loadDrill on every set, whatever its seed', async () => {
+        mockDataset();
+        const sets: DrillSet[] = [
+            { kind: 'lesson', familyId: 'reason', lessonId: 'core' },
+            { kind: 'lesson', familyId: 'reason', lessonId: 'alike' },
+            { kind: 'lesson', familyId: 'reason', lessonId: 'credit' },
+            { kind: 'lesson', familyId: 'reason', lessonId: 'none' },
+            { kind: 'chapter', chapterId: 'c1' },
+            ...all.map((p): DrillSet => ({ kind: 'point', grammarId: p.id })),
+        ];
+        const answers = await Promise.all(sets.map(async set => [await hasDrill(set), (await loadDrill(set, 'x')) !== null, (await loadDrill(set, 'y')) !== null]));
+        for (const [has, built, again] of answers) {
+            expect(built).toBe(has);
+            expect(again).toBe(has);
+        }
+        // Both answers occur, so the agreement says something.
+        expect(new Set(answers.map(([has]) => has))).toEqual(new Set([true, false]));
+    });
+
+    it('stops reading points once two have a card', async () => {
+        mockDataset();
+        const mined = vi.spyOn(GrammarService, 'loadMinedExamples').mockResolvedValue(null);
+        expect(await hasDrill({ kind: 'lesson', familyId: 'reason', lessonId: 'core' })).toBe(true);
+        // から and ので come first; ので has none of its own here (からです only rules out by slot, ので has the same slot as から), so からです is read too.
+        expect(mined.mock.calls.length).toBeLessThanOrEqual(3);
     });
 });

@@ -170,7 +170,7 @@ export interface ChoiceSlotOptions {
     /** The text that fits. */
     answer: string;
     /** The wrong options, each with why it does not fit. */
-    distractors: Required<SlotChoice>[];
+    distractors: (SlotChoice & { note: string })[];
     role: SlotRole;
     /** Orders the options: the same seed always gives the same order, so a recomputed turn does not reshuffle. */
     seed: string;

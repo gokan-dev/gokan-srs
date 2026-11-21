@@ -1,6 +1,6 @@
 import { appVocabPath } from '@gokan/analytics';
 import { wordTabHash, type WordTab } from './wordTabs.utils';
-import type { DrillSet } from '../context/quiz/drillSelectors';
+import type { DrillSet } from '../models/grammar.model';
 
 /** A destination in the app's navigation (desktop header, mobile tab bar, More sheet). */
 export interface NavDestination {
@@ -67,6 +67,16 @@ export function kanjiPath(glyph: string): string {
 /** A word's Synonyms tab (a quiz's synonym note, "Compare synonyms", links there). */
 export function synonymsPath(vocabId: string): string {
     return vocabPath(vocabId, 'synonym');
+}
+
+/** A grammar family's page: its lessons and the cases that compare its points. */
+export function grammarFamilyPath(familyId: string): string {
+    return `/grammar/family/${encodeURIComponent(familyId)}`;
+}
+
+/** The chapter browser, open on one chapter. */
+export function grammarChapterPath(chapterId: string): string {
+    return `/grammar/chapters?chapter=${encodeURIComponent(chapterId)}`;
 }
 
 /** A contrast drill's page (issue #249): a lesson, a whole family, a chapter's related points, or a point against its siblings. */
