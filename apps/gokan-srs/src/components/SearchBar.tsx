@@ -191,12 +191,13 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
             return;
         }
         if (!isPanelOpen || options.length === 0) return;
-        if (e.key === 'ArrowDown') {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
             e.preventDefault();
-            setHighlighted(h => (h + 1) % options.length);
-        } else if (e.key === 'ArrowUp') {
-            e.preventDefault();
-            setHighlighted(h => (h <= 0 ? options.length - 1 : h - 1));
+            const next = e.key === 'ArrowDown' ? (highlighted + 1) % options.length : (highlighted <= 0 ? options.length - 1 : highlighted - 1);
+            setHighlighted(next);
+            // Focus stays in the field, so the panel does not follow the highlight by itself; the
+            // option's scroll margin keeps it clear of its group's sticky label.
+            document.getElementById(optionId(next))?.scrollIntoView({ block: 'nearest' });
         } else if (e.key === 'Enter') {
             const target = options[highlighted] ?? options[0];
             handleSelect(target.path);
@@ -255,7 +256,8 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
                 <div id={LISTBOX_ID} role="listbox" aria-label="Search results" className="flex flex-col">
                     {groups.map(({ group, options: rows }) => (
                         <div key={group} role="group" aria-labelledby={groupLabelId(group)} className="border-b border-divider last:border-0">
-                            <div id={groupLabelId(group)} role="presentation" className="type-label px-3 pt-3 pb-1">{GROUP_LABEL[group]}</div>
+                            {/* Sticky, so a scrolled row keeps its group's name in view and the next group's label shows it follows. */}
+                            <div id={groupLabelId(group)} role="presentation" className="type-label sticky top-0 z-10 bg-surface px-3 pt-3 pb-1">{GROUP_LABEL[group]}</div>
                             {rows.map(option => {
                                 const index = options.indexOf(option);
                                 return (
@@ -266,7 +268,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
                                         aria-selected={index === highlighted}
                                         onClick={() => handleSelect(option.path)}
                                         onMouseEnter={() => setHighlighted(index)}
-                                        className={`flex items-center gap-3 p-3 border-b border-divider/50 last:border-0 cursor-pointer transition-colors ${index === highlighted ? 'bg-surface-hover' : ''}`}
+                                        className={`flex items-center gap-3 p-3 scroll-mt-10 border-b border-divider/50 last:border-0 cursor-pointer transition-colors ${index === highlighted ? 'bg-surface-hover' : ''}`}
                                     >
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-baseline gap-2 min-w-0">{option.main}</div>
