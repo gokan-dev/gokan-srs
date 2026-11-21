@@ -62,13 +62,14 @@ export function GrammarRelatedPointsCard({ point }: Props) {
             title="Similar grammar"
             intro={<GrammarDifferentiator point={point} knownIds={knownIds} inline />}
             headerLink={hasContrasts && familyId ? { to: grammarFamilyPath(familyId), label: "Compare when to use each" } : undefined}
-            // Open to anyone: a drill writes nothing, so the point need not be in study.
-            sections={[{ entries, footer: <DrillLink set={{ kind: 'point', grammarId: point.id }} label="Drill against its siblings" /> }]}
+            sections={[{ entries }]}
             isExpandable={isExpandable}
             isExpanded={isExpanded}
             onToggleExpand={() => setIsExpanded(!isExpanded)}
             expandLabel={`Show all ${relatedIds.length}`}
             collapseLabel="Show fewer"
+            // After "Show all", which belongs to the list. Open to anyone: a drill writes nothing, so the point need not be in study.
+            footer={<DrillLink set={{ kind: 'point', grammarId: point.id }} label="Drill against its siblings" />}
         />
     );
 }
