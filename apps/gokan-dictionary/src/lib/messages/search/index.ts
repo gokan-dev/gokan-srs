@@ -34,6 +34,8 @@ export interface SearchMessages {
     resultsFor: (query: string) => string;
     /** The results page's pager's accessible name. */
     resultPages: string;
+    /** The accessible name of the line under the results page's heading that links to each of its sections. */
+    resultSections: string;
     /** "No results for “xyz”.", then the kana a romaji query was read as, and where to go instead. */
     noResults: (query: string) => string;
     searchedAs: AroundJapanese;

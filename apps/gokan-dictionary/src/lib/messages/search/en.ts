@@ -13,6 +13,7 @@ export const enSearch: SearchMessages = {
     seeAll: query => `See all results for “${query}”`,
     resultsFor: query => `Results for “${query}”`,
     resultPages: 'Result pages',
+    resultSections: 'Result sections',
     noResults: query => `No results for “${query}”. `,
     searchedAs: { before: 'Searched as ', after: '. ' },
     tryInstead: 'Try kana, kanji or English, or browse the JLPT lists:',

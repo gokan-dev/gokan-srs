@@ -681,6 +681,18 @@ a.chip {
   color: var(--accent-contrast);
 }
 
+// The /search/ page's line of sections under its title (Words (379) · Kanji (24) · Grammar (1)):
+// the pager's 44px links, with a quiet dot between them.
+.search-sections {
+  align-items: center;
+  gap: 0 $space-half;
+  margin-top: 0;
+
+  > span {
+    color: var(--tertiary);
+  }
+}
+
 .tabs {
   margin: 0 0 $space-4;
   border-bottom: 1px solid var(--divider);

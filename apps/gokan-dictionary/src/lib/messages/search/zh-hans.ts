@@ -14,6 +14,7 @@ export const zhHansSearch: SearchMessages = {
     seeAll: query => `查看“${query}”的全部结果`,
     resultsFor: query => `“${query}”的搜索结果`,
     resultPages: '结果页码',
+    resultSections: '结果分类',
     noResults: query => `没有找到“${query}”。`,
     searchedAs: { before: '已按 ', after: ' 搜索。' },
     tryInstead: '可以试试汉字、假名、罗马字或中文，或浏览 JLPT 词表：',
