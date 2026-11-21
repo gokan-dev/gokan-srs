@@ -102,14 +102,14 @@ function hostOfSpan(example: GrammarExample, span: number[]): GrammarExample['ho
  * located, or markers apart in the sentence (どこ|に|も ... です), which join into
  * nothing that is written anywhere.
  */
-function patternTextOf(example: Pick<GrammarExample, 'words' | 'patternWordIndices'>): string | null {
+export function patternTextOf(example: Pick<GrammarExample, 'words' | 'patternWordIndices'>): string | null {
     const indices = example.patternWordIndices;
     if (indices.length === 0 || !indices.every((w, k) => k === 0 || w === indices[k - 1] + 1)) return null;
     return indices.map(i => example.words[i]?.surface ?? '').join('') || null;
 }
 
 /** A point's marker as its own examples write it: the text most of them use, the shortest on a tie. */
-function markerTextOf(point: Pick<GrammarPoint, 'examples'>): string | null {
+export function markerTextOf(point: Pick<GrammarPoint, 'examples'>): string | null {
     const counts = new Map<string, number>();
     for (const example of point.examples) {
         const text = patternTextOf(example);
@@ -117,6 +117,32 @@ function markerTextOf(point: Pick<GrammarPoint, 'examples'>): string | null {
     }
     const [best] = [...counts].sort((a, b) => b[1] - a[1] || a[0].length - b[0].length || a[0].localeCompare(b[0]));
     return best ? best[0] : null;
+}
+
+/** A wrong option of a picked pattern blank: a sibling's marker, and why it does not fit. */
+export interface ChoiceDistractor {
+    text: string;
+    note: string;
+    /** The sibling whose marker it is. */
+    pointId: string;
+}
+
+/**
+ * The wrong options `siblings` offer a blank whose answer is `answer`: each one's
+ * marker as its examples write it, saying what it attaches to, once per text (two
+ * points can write their marker alike, から and から: the same text is no choice),
+ * never the answer's own text. Ordered by a hash of `seed`, so the caller's cap
+ * keeps the same ones on a recomputed card. Shared by the SRS choice card and the
+ * contrast drill.
+ */
+export function choiceDistractors(answer: string, siblings: readonly GrammarPoint[], seed: string): ChoiceDistractor[] {
+    const distractors: ChoiceDistractor[] = [];
+    for (const sibling of siblings) {
+        const text = markerTextOf(sibling);
+        if (!text || text === answer || distractors.some(d => d.text === text)) continue;
+        distractors.push({ text, note: `attaches as: ${sibling.formation}`, pointId: sibling.id });
+    }
+    return distractors.sort((a, b) => hashString(`${seed}:${a.text}`) - hashString(`${seed}:${b.text}`));
 }
 
 function candidateIndicesOf(example: GrammarExample): number[] {
@@ -730,20 +756,11 @@ async function choicePlan(point: GrammarPoint, progress: UserProgress | null, re
         const answer = patternTextOf(example);
         if (!answer) continue;
 
-        const distractors: { text: string; note: string }[] = [];
         const siblings = await Promise.all(usable(example).map(id => GrammarService.loadGrammarPoint(id).catch(() => null)));
-        for (const sibling of siblings) {
-            const text = sibling ? markerTextOf(sibling) : null;
-            // Two points can write their marker alike (から, から): the same text is no choice.
-            if (!sibling || !text || text === answer || distractors.some(d => d.text === text)) continue;
-            distractors.push({ text, note: `attaches as: ${sibling.formation}` });
-        }
-        if (distractors.length < minChoiceDistractors) continue;
-
         const seed = `${point.id}:${example.jp}`;
-        const kept = distractors
-            .sort((a, b) => hashString(`${seed}:${a.text}`) - hashString(`${seed}:${b.text}`))
-            .slice(0, maxChoiceDistractors);
+        const distractors = choiceDistractors(answer, siblings.filter(s => s !== null), seed);
+        if (distractors.length < minChoiceDistractors) continue;
+        const kept = distractors.slice(0, maxChoiceDistractors).map(({ text, note }) => ({ text, note }));
         const span = [...example.patternWordIndices].sort((a, b) => a - b);
         const curatedIndex = point.examples.indexOf(example);
         return {
