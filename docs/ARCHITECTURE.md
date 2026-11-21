@@ -646,7 +646,7 @@ A short quiz over one set of similar grammar points (から / ので / からで
 - **It writes nothing, decided in the engine.** `effectsOf` returns no effects for a `mode: 'drill'` exercise, and `applyEffects` of no effects returns the progress object it was given. The card is answered through the one exercise turn (`ExerciseHost` `drill`, `useDrillOrchestration`), so its Continue goes through `EXERCISE_CONTINUE` and `applyEffects` like every card, and `drillReducer.test.ts` holds the stored progress byte-identical after a whole drill answered right and wrong. The run (`QuizState.drill`: the drill, the card on screen, what was picked) is never stored; `DRILL_START` and `DRILL_END` (the page closing) set and clear it.
 - **Feedback.** `ExerciseCard` draws a drill's card from the drill's own point (no mastery ring: nothing moves), the wrong options' notes as on any choice card, and after a wrong pick the contrast case covering the pair (`caseFor`: one where the right point is the focus and the pick in `vs`, else the other way round).
 - **Summary** (on screen only): how many right, and each pair confused ("Picked から where からです fit, twice"), linking to the family page when the family has lessons there (`DrillPointInfo.comparedOn`).
-- **Coverage.** `ruledOut` and `slot` are sparse in the dataset today: 11 of 99 lessons and 27 of 123 families have a drill. More appears as the dataset authors them, with no change here.
+- **Coverage.** `ruledOut` and `slot` are sparse in the dataset today: about 11 of 99 lessons and 27 of 123 families have a drill. More appears as the dataset authors them, with no change here.
 
 ### Storage Service (`storage.service.ts`, `progressCompaction.ts`)
 
