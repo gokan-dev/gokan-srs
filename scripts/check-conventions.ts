@@ -519,8 +519,11 @@ const SRS_COMPONENT = /^apps\/gokan-srs\/src\/components\/.*\.tsx?$/;
 const IMPORT_FROM_PAGES = /\bfrom\s+['"](\.\.\/)+pages\/|\bimport\(\s*['"](\.\.\/)+pages\//;
 /** A raw part-of-speech code (`v5r`, `adj-i`): a sense's labels come from utils/senses.utils.ts (organizeSenses). */
 const RAW_POS = /\.pos\[/;
-/** A word's or a kanji's page path, built by hand: vocabPath and kanjiPath (utils/navigation.utils.ts) build them. */
-const HAND_BUILT_ENTRY_PATH = /`\/(?:vocab|kanji)\/\$\{/;
+/**
+ * A word's, a kanji's, a grammar family's or a grammar chapter's page path, built by hand:
+ * vocabPath, kanjiPath, grammarFamilyPath and grammarChapterPath (utils/navigation.utils.ts) build them.
+ */
+const HAND_BUILT_ENTRY_PATH = /`\/(?:vocab\/\$\{|kanji\/\$\{|grammar\/family\/\$\{|grammar\/chapters\?)/;
 /** The path builders, and the app-route-to-dictionary-page table (the dictionary's URLs, not the app's routes). */
 const ENTRY_PATH_FILES = new Set(['apps/gokan-srs/src/utils/navigation.utils.ts', 'apps/gokan-srs/src/utils/seo.utils.ts']);
 
@@ -543,6 +546,47 @@ function linksAloneInParagraphs(text: string): number[] {
         const closing = `</${m[1]}>`;
         const end = text.indexOf(closing, m.index);
         if (end >= 0 && /^\s*<\/p>/.test(text.slice(end + closing.length))) lines.push(text.slice(0, m.index).split('\n').length);
+    }
+    return lines;
+}
+
+/**
+ * The other half of `p a`: a link in a sentence written straight into an `<li>` is running text
+ * that no rule underlines, so colour alone marks it. Its sentence goes in a `<p>` inside the
+ * `<li>`. Text inside a child element (a row's count, a button's label) is not running text
+ * around the link, nor is text inside `{...}`: only the item's own direct text counts.
+ */
+const LIST_ITEM = /<li\b[^>]*>([\s\S]*?)<\/li>/g;
+
+function outsideBraces(text: string): string {
+    let out = '';
+    let depth = 0;
+    for (const c of text) {
+        if (c === '{') depth++;
+        else if (c === '}') depth = Math.max(0, depth - 1);
+        else if (depth === 0) out += c;
+    }
+    return out;
+}
+
+/** The text of `jsx` outside every element in it (braces already removed, so no tag holds a `>`). */
+function directText(jsx: string): string {
+    let out = '';
+    let depth = 0;
+    let last = 0;
+    for (const m of jsx.matchAll(/<(\/?)[A-Za-z][\w.]*[^>]*?(\/?)>/g)) {
+        if (depth === 0) out += jsx.slice(last, m.index);
+        if (m[1]) depth--;
+        else if (!m[2]) depth++;
+        last = m.index + m[0].length;
+    }
+    return depth === 0 ? out + jsx.slice(last) : out;
+}
+
+function linksInListItemText(text: string): number[] {
+    const lines: number[] = [];
+    for (const m of text.matchAll(LIST_ITEM)) {
+        if (/<(Link|NavLink|a)\b/.test(m[1]) && /\p{L}/u.test(directText(outsideBraces(m[1])))) lines.push(text.slice(0, m.index).split('\n').length);
     }
     return lines;
 }
@@ -946,7 +990,7 @@ function check(files: string[]): Violation[] {
 
         if (GOKAN_SRS_SOURCE.test(file) && !ENTRY_PATH_FILES.has(file) && !/\.test\.tsx?$/.test(file)) {
             eachLine(text, l => HAND_BUILT_ENTRY_PATH.test(l), line =>
-                add({ file, line, rule: 'entry-paths', message: 'Builds a word or kanji path by hand. Use vocabPath / kanjiPath (utils/navigation.utils.ts), so every link to an entry is one URL.' }));
+                add({ file, line, rule: 'entry-paths', message: 'Builds a word, kanji, grammar family or chapter path by hand. Use vocabPath / kanjiPath / grammarFamilyPath / grammarChapterPath (utils/navigation.utils.ts), so every link to a page is one URL.' }));
         }
 
         if (GOKAN_SRS_SOURCE.test(file) && file !== WORD_READING_COMPONENT && !/\.test\.tsx?$/.test(file)) {
@@ -972,6 +1016,9 @@ function check(files: string[]): Violation[] {
         if (GOKAN_SRS_SOURCE.test(file) && file.endsWith('.tsx')) {
             for (const line of linksAloneInParagraphs(text)) {
                 add({ file, line, rule: 'link-alone-in-paragraph', message: 'A link alone in a <p> is not running text, but `p a` underlines it for good. Wrap it in a <div>.' });
+            }
+            for (const line of linksInListItemText(text)) {
+                add({ file, line, rule: 'link-in-list-item-text', message: 'A link in a sentence written straight into an <li> is told apart by colour alone: `p a` underlines only a link in a <p>. Put the sentence in a <p> inside the <li>.' });
             }
         }
 

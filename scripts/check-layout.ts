@@ -73,6 +73,7 @@
  * - the app panel stands 40px above what follows it (a word page, a kanji page);
  * - no word in an app sentence has side space (margin or padding): Japanese has no spaces;
  * - example sentences (a word page's Dict tab, a grammar page) are spaced apart, never ruled;
+ * - on a contrast drill, every run of kana or kanji is set in a Japanese face;
  * - play buttons (a word's reading, a word page's and a grammar page's example sentences) are
  *   44px tap targets on a phone at the first line of what they play (the sentence, the reading, a
  *   kana word's note), and each of those pages has a "Play sentence" button; in the dictionary too
@@ -381,6 +382,31 @@ async function checkExamplesUnruled(tab: Tab, page: string, width: number): Prom
     })()`);
     if (result.count === 0) failures.push(`${width}px ${page}: no example sentence ([data-example-sentence]) to check`);
     for (const text of result.ruled) failures.push(`${width}px ${page}: example sentence ruled with a top or bottom border (space them apart): ${text}`);
+}
+
+/**
+ * Every visible run of kana or kanji is set in one of the app's Japanese faces (AGENTS.md: Japanese
+ * text uses font-mincho or font-gothic; font-sans falls back to Noto Sans JP). A page title is
+ * Source Serif 4, which has no CJK glyphs: Japanese in it rendered as missing-glyph boxes (PR 280).
+ */
+const JAPANESE_OUTSIDE_JAPANESE_FACES = `(() => {
+    const japanese = /[\\u3040-\\u30ff\\u3400-\\u9fff]/;
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    const strays = [];
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const el = node.parentElement;
+        if (!el || !japanese.test(node.textContent) || el.closest('svg, script, style')) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 || r.height === 0) continue;
+        const family = getComputedStyle(el).fontFamily;
+        if (!/Noto (Sans|Serif) JP/.test(family)) strays.push(el.tagName.toLowerCase() + ' "' + node.textContent.trim().slice(0, 20) + '" in ' + family.split(',')[0]);
+    }
+    return strays;
+})()`;
+
+async function checkJapaneseFaces(tab: Tab, page: string, width: number): Promise<void> {
+    const strays = await tab.evaluate<string[]>(JAPANESE_OUTSIDE_JAPANESE_FACES);
+    for (const stray of strays.slice(0, 4)) failures.push(`${width}px ${page}: Japanese text outside a Japanese face (font-gothic or font-mincho): ${stray}`);
 }
 
 /**
@@ -2475,6 +2501,7 @@ try {
             await tab.goto(`${app}${route.path}`, route.ready);
             if (route.settled) await tab.until(`document.querySelector(${JSON.stringify(route.settled)}) !== null`, `${route.settled} on ${route.path}`, 10000);
             await measure(tab, `srs ${route.path}`, width);
+            if (route.japaneseFaces) await checkJapaneseFaces(tab, `srs ${route.path}`, width);
         }
         // The library's rows with a status line, the tightest rows on a phone. Before any word is
         // learned: the library ranks by known words, which would page the marked titles out of view.
