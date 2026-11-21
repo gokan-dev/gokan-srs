@@ -16,7 +16,7 @@ const marker = (id: string, text: string, slot: GrammarPoint['slot']): GrammarPo
     examples: ['雨', '風', '雪'].map(lead => grammarExample({ jp: `${lead}${text}`, words: [{ surface: lead, vocabId: null }, { surface: text, vocabId: null }], patternWordIndices: [1] })),
 });
 const points = [marker('n5-073', 'から', 'clause-final'), marker('n5-074', 'からです', 'predicate-final')];
-const info = (p: GrammarPoint): DrillPointInfo => ({ id: p.id, title: p.title, jlptLevel: p.jlptLevel, comparedOn: null });
+const info = (p: GrammarPoint): DrillPointInfo => ({ id: p.id, title: p.title, jlptLevel: p.jlptLevel, marker: p.title, comparedOn: null });
 const drill: Drill = {
     title: 'から / からです',
     cards: drillCardsOf(points.map(point => ({ point, examples: point.examples })), [], 'seed', info),

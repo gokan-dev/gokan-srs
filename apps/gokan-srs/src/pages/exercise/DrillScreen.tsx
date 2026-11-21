@@ -99,7 +99,7 @@ export default function DrillScreen({ kind }: { kind: DrillSet['kind'] }) {
 /** The end of a drill: how many right, and which pairs were confused, each linking to where the family is compared. */
 function DrillSummary({ drill, picks, onAgain }: { drill: Drill; picks: DrillPick[]; onAgain: () => void }) {
     const { right, total, confusions } = drillSummary(picks);
-    const title = (id: string) => drill.points[id]?.title ?? id;
+    const marker = (id: string) => drill.points[id]?.marker ?? id;
     return (
         <Card size="md">
             <h2 className="type-section mb-2">{right} of {total} right</h2>
@@ -114,8 +114,8 @@ function DrillSummary({ drill, picks, onAgain }: { drill: Drill; picks: DrillPic
                             const times = c.times === 1 ? 'once' : `${c.times} times`;
                             return (
                                 <li key={`${c.asked}:${c.picked}`} className="font-sans text-sm text-primary">
-                                    Picked <span className="font-mincho" lang="ja">{title(c.picked)}</span> where{" "}
-                                    <span className="font-mincho" lang="ja">{title(c.asked)}</span> fit, {times}.
+                                    Picked <span className="font-mincho" lang="ja">{marker(c.picked)}</span> where{" "}
+                                    <span className="font-mincho" lang="ja">{marker(c.asked)}</span> fit, {times}.
                                     {familyId && (
                                         <>
                                             {" "}

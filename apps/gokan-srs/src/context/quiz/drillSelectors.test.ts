@@ -24,7 +24,7 @@ const node = point('node', 'ので', [example(['雨', 'な', 'ので', '、', '�
 const karadesu = point('karadesu', 'からです', [example(['雨', 'だ', 'からです'], [2])], { slot: 'predicate-final' });
 const okage = point('okage', 'おかげで', [example(['先生', 'の', 'おかげで', '、', '合格した'], [2], ['kara'])]);
 
-const info = (p: GrammarPoint): DrillPointInfo => ({ id: p.id, title: p.title, jlptLevel: p.jlptLevel, comparedOn: 'reason' });
+const info = (p: GrammarPoint): DrillPointInfo => ({ id: p.id, title: p.title, jlptLevel: p.jlptLevel, marker: p.title, comparedOn: 'reason' });
 const sourcesOf = (...points: GrammarPoint[]): DrillSource[] => points.map(p => ({ point: p, examples: p.examples }));
 const optionsOf = (cards: ReturnType<typeof drillCardsOf>, pointId: string) =>
     cards.filter(c => c.point.id === pointId).map(c => c.options.map(o => o.pointId).sort());

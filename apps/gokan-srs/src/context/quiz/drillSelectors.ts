@@ -11,7 +11,7 @@ import { choiceSlot } from '../../services/exercise/slots';
 import type { Exercise } from '../../services/exercise/types';
 import { grammarClozeSentence } from '../../utils/clozeSentence.utils';
 import { hashString } from '../../utils/deterministicPick';
-import { choiceDistractors, patternTextOf } from './grammarSelectors';
+import { choiceDistractors, markerTextOf, patternTextOf } from './grammarSelectors';
 
 /** What can be drilled: a lesson (the set meant for it), a whole family, a chapter, or a point against its siblings. */
 export type DrillSet =
@@ -22,6 +22,8 @@ export type DrillSet =
 
 /** A point of the drill, as its cards and its summary name it. */
 export interface DrillPointInfo extends Pick<GrammarPoint, 'id' | 'title' | 'jlptLevel' | 'usageNote'> {
+    /** The point as its options write it (から, not ～から、～), for the summary. */
+    marker: string;
     /** The family page that compares it, when its family has lessons there; null otherwise. */
     comparedOn: string | null;
 }
@@ -280,7 +282,7 @@ export async function loadDrill(set: DrillSet, seed: string): Promise<Drill | nu
     const info = (p: GrammarPoint): DrillPointInfo => {
         const family = p.family?.id;
         return {
-            id: p.id, title: p.title, jlptLevel: p.jlptLevel,
+            id: p.id, title: p.title, jlptLevel: p.jlptLevel, marker: markerTextOf(p) ?? p.title,
             ...(p.usageNote ? { usageNote: p.usageNote } : {}),
             comparedOn: family && (contrasts[family]?.lessons.length ?? 0) > 0 ? family : null,
         };
