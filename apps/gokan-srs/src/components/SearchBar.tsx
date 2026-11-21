@@ -246,7 +246,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
             className={
                 isFullScreen
                     ? 'fixed left-0 right-0 z-50 bg-surface border-t border-divider overflow-y-auto'
-                    : 'absolute top-full right-0 mt-2 w-full min-w-80 bg-surface border border-divider rounded-md shadow-lg z-50 max-h-96 overflow-y-auto'
+                    : 'absolute top-full right-0 mt-2 w-full min-w-80 md:min-w-[28rem] bg-surface border border-divider rounded-md shadow-lg z-50 max-h-96 overflow-y-auto'
             }
         >
             {isSearching ? (
