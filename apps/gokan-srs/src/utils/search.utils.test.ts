@@ -161,7 +161,11 @@ describe('the header search over kanji and grammar', () => {
 
     it('shows fewer words when kanji or grammar follow them, all of them when nothing does', () => {
         const waters = prepareAppSearch(
-            [searchIndexEntry({ id: 'mizu', w: '水', r: 'みず', m: 'water' }), searchIndexEntry({ id: 'oyu', w: '湯', r: 'ゆ', m: 'hot water' })],
+            [
+                searchIndexEntry({ id: 'mizu', w: '水', r: 'みず', m: 'water' }),
+                searchIndexEntry({ id: 'oyu', w: '湯', r: 'ゆ', m: 'hot water' }),
+                searchIndexEntry({ id: 'suido', w: '水道', r: 'すいどう', m: 'water supply' }),
+            ],
             kanji,
         );
         const limits = { words: 2, wordsBeforeOthers: 1, kanji: 5, grammar: 5 };
@@ -169,7 +173,7 @@ describe('the header search over kanji and grammar', () => {
         // water: words first, the kanji 水 below them.
         expect(shown('water')).toEqual(['mizu']);
         // 水: the kanji come first, so the words are last and keep their full cap.
-        expect(shown('水')).toEqual(['mizu']);
+        expect(shown('水')).toEqual(['mizu', 'suido']);
         expect(searchApp(waters, '水', limits).groups[0]).toBe('kanji');
         // With no kanji shown, nothing follows the words.
         expect(shown('water', { ...limits, kanji: 0 })).toEqual(['mizu', 'oyu']);

@@ -5,7 +5,7 @@ import { grammarRowInput, kanjiRowInput, matchesSearchWord, prepareSearch, runSe
 export interface SearchLimits {
     /** Words when no other group follows them. */
     words: number;
-    /** Words when kanji or grammar are shown below them: a phone's panel has no height cap, so past 8 rows it never reached them (the dictionary panel's cap). */
+    /** Words when kanji or grammar are shown below them: a phone's panel has no height cap, and past 20 word rows a reader never reached them, so it stops at 8 (the dictionary panel's cap) to keep them in reach. */
     wordsBeforeOthers: number;
     kanji: number;
     grammar: number;
