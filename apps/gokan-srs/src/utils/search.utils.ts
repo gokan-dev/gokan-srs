@@ -13,6 +13,15 @@ export interface SearchLimits {
     wordsBeforeOthers: number;
     kanji: number;
     grammar: number;
+    /**
+     * In the desktop dropdown, rows shared out among the groups when two or more have hits (each
+     * gets this over their number, rounded down): the dropdown is capped at 32rem, which five word
+     * rows and their label fill, so the next group sat wholly below the fold with nothing to show
+     * the panel scrolls (staging review of 1.69.0). At 6, two groups show 3 rows each and three
+     * groups 2 each, so every group's label and first row are in view at rest. Unset: no sharing
+     * (the phone's full-screen panel, where the groups follow one another down the screen).
+     */
+    sharedRows?: number;
 }
 
 /**
@@ -20,6 +29,9 @@ export interface SearchLimits {
  * few of each of the others (a kanji's reading matches dozens: すい is 20 kanji).
  */
 export const SEARCH_LIMITS: SearchLimits = { words: 20, wordsBeforeOthers: 5, kanji: 5, grammar: 5 };
+
+/** The desktop dropdown's: the same, but rows shared out when several groups match (`sharedRows`). */
+export const DROPDOWN_SEARCH_LIMITS: SearchLimits = { ...SEARCH_LIMITS, sharedRows: 6 };
 
 export type AppSearchIndex = PreparedSearch<SearchIndexEntry, SearchKanjiRow, SearchGrammarRow>;
 export type AppSearchResults = SearchResults<SearchIndexEntry, SearchKanjiRow, SearchGrammarRow>;
@@ -48,12 +60,11 @@ export function searchApp(index: AppSearchIndex, query: string, limits: SearchLi
     const othersFollow = results.groups
         .slice(results.groups.indexOf('words') + 1)
         .some(group => group !== 'words' && shown[group] > 0);
-    return {
-        ...results,
-        words: results.words.slice(0, othersFollow ? limits.wordsBeforeOthers : limits.words),
-        kanji,
-        grammar,
-    };
+    const words = results.words.slice(0, othersFollow ? limits.wordsBeforeOthers : limits.words);
+    const matched = [words, kanji, grammar].filter(group => group.length > 0).length;
+    if (limits.sharedRows === undefined || matched < 2) return { ...results, words, kanji, grammar };
+    const each = Math.max(1, Math.floor(limits.sharedRows / matched));
+    return { ...results, words: words.slice(0, each), kanji: kanji.slice(0, each), grammar: grammar.slice(0, each) };
 }
 
 /**

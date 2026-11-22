@@ -2377,10 +2377,11 @@ async function checkGrammarTitlesOneLine(tab: Tab, page: string, width: number):
 }
 
 /**
- * The app's desktop panel (#264, 1280px), where it is a dropdown with a height cap. At rest the
- * next group's label shows below the first group's rows, so a reader sees that more follow: for
- * sui (Words first, then the kanji 水, 推, 睡...) and から (Grammar first) the cap once held the first
- * group alone. Then, for から, the arrow keys step through every option, down to the last and back
+ * The app's desktop panel (#264, 1280px), where it is a dropdown with a height cap. At rest every
+ * group's label shows inside the panel, so a reader sees what matched: for sui (Words first, then
+ * the kanji 水, 推, 睡..., then Grammar) and から (Grammar first) the cap once held the first group
+ * alone, then (1.69.0 rc.23) the first two, with the third wholly below the fold
+ * (`DROPDOWN_SEARCH_LIMITS` shares the rows out among the groups). Then, for から, the arrow keys step through every option, down to the last and back
  * up: focus stays in the field, so the panel follows the highlight only because the option is
  * scrolled into view, and its scroll margin keeps it clear of its group's sticky label.
  */
@@ -2399,13 +2400,18 @@ async function checkSearchPanelReach(tab: Tab, page: string, width: number): Pro
             failures.push(`${where}: the results do not show ${first} first and another group after it`);
             continue;
         }
-        const reach = await tab.evaluate<{ label: string; bottom: number; panelBottom: number }>(`(() => {
+        const reach = await tab.evaluate<{ label: string; bottom: number }[]>(`(() => {
             const panel = ${APP_PANEL};
             panel.scrollTop = 0;
-            const label = document.getElementById(document.querySelectorAll('#header-search-results [role="group"]')[1].getAttribute('aria-labelledby'));
-            return { label: label.textContent, bottom: label.getBoundingClientRect().bottom, panelBottom: panel.getBoundingClientRect().bottom };
+            const panelBottom = panel.getBoundingClientRect().bottom;
+            return [...document.querySelectorAll('#header-search-results [role="group"]')].map(group => {
+                const label = document.getElementById(group.getAttribute('aria-labelledby'));
+                return { label: label.textContent, bottom: label.getBoundingClientRect().bottom - panelBottom };
+            });
         })()`);
-        if (reach.bottom > reach.panelBottom + 1) failures.push(`${where}: at rest the panel shows its first group alone; the next one (${reach.label}) starts ${Math.round(reach.bottom - reach.panelBottom)}px below its bottom edge`);
+        for (const { label, bottom } of reach) {
+            if (bottom > 1) failures.push(`${where}: at rest the ${label} group's label is ${Math.round(bottom)}px below the panel's bottom edge, so nothing shows the group is there`);
+        }
     }
 
     // The last query is から: walk its options with the arrow keys.

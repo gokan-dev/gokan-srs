@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readSearchQuery } from '@gokan/dataset-schema';
 import type { SearchGrammarRow, SearchIndex, SearchKanjiRow } from '@gokan/dataset-schema';
 import { searchIndexEntry, vocabulary } from '../test/fixtures';
-import { matchesVocabQuery, prepareAppSearch, searchApp } from './search.utils';
+import { matchesVocabQuery, prepareAppSearch, SEARCH_LIMITS, searchApp, type SearchLimits } from './search.utils';
 
 /** The words the header search shows for `query`, as it ranked them before kanji and grammar were searched. */
 const rankVocabSearch = (index: SearchIndex, query: string, limit = 50) =>
@@ -177,5 +177,26 @@ describe('the header search over kanji and grammar', () => {
         expect(searchApp(waters, '水', limits).groups[0]).toBe('kanji');
         // With no kanji shown, nothing follows the words.
         expect(shown('water', { ...limits, kanji: 0 })).toEqual(['mizu', 'oyu']);
+    });
+
+    it('shares the dropdown rows out among the groups when several match, and caps a lone group as usual', () => {
+        const many = prepareAppSearch(
+            ['水', '水道', '水曜日', '水泳', '香水'].map((w, i) => searchIndexEntry({ id: `w${i}`, w, r: 'すい', m: 'water' })),
+            ['水', '吹', '推', '垂', '炊'].map((k): SearchKanjiRow => [k, 5, 100, 'water', 'スイ']),
+            [['n5-073', 'Verb やすい', '〜yasui', 'easy to do', 5]],
+        );
+        const at: SearchLimits = { words: 20, wordsBeforeOthers: 5, kanji: 5, grammar: 5, sharedRows: 6 };
+        const counts = (query: string, limits = at) => {
+            const result = searchApp(many, query, limits);
+            return [result.words.length, result.kanji.length, result.grammar.length];
+        };
+        // Three groups: 2 rows each, so the third group's label is in view.
+        expect(counts('sui')).toEqual([2, 2, 1]);
+        // Without sharing (the phone's panel): the usual caps.
+        expect(counts('sui', SEARCH_LIMITS)).toEqual([5, 5, 1]);
+        // Two groups: 3 each.
+        expect(counts('sui', { ...at, grammar: 0 })).toEqual([3, 3, 0]);
+        // One group: its own cap.
+        expect(counts('sui', { ...at, kanji: 0, grammar: 0 })).toEqual([5, 0, 0]);
     });
 });
