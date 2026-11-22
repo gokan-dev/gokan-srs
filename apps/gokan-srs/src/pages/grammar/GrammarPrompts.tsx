@@ -77,6 +77,16 @@ export function DrillContrastNote({ contrast }: { contrast: GrammarContrastCase 
     return <ContrastCaseText contrast={contrast} label="Which one, and when" className="mt-3" />;
 }
 
+/**
+ * A grammar point's usage note on its card (under the feedback, or under the study card's header,
+ * `centered`). English, so in the UI sans, as every English cue is.
+ */
+export function UsageNote({ note, centered = false }: { note: string; centered?: boolean }) {
+    return (
+        <p className={`text-xs font-sans text-secondary italic ${centered ? 'text-center mt-1 max-w-sm mx-auto' : 'mt-2'}`}>{note}</p>
+    );
+}
+
 /** The cue above a sentence: what to do, then the English it starts from (none while a choice card is unanswered: the sentence is read). */
 export function SentenceCue({ instruction, english }: { instruction: string; english?: string }) {
     return (

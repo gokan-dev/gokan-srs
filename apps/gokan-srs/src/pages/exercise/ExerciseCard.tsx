@@ -10,7 +10,7 @@ import { SentenceClozeCard } from "../../components/quiz/SentenceClozeCard";
 import { StudyCard } from "../../components/quiz/StudyCard";
 import { formatReadingList } from "../quiz/quizFormatting";
 import { ListeningClozeHeader, MeaningPrompt, ProductionClozeHeader, ProductionPrompt, ReadingPrompt } from "../quiz/VocabPrompts";
-import { ConjugationAnswer, ConjugationPrompt, DrillContrastNote, GrammarCardHeader, SentenceCue } from "../grammar/GrammarPrompts";
+import { ConjugationAnswer, ConjugationPrompt, DrillContrastNote, GrammarCardHeader, SentenceCue, UsageNote } from "../grammar/GrammarPrompts";
 
 /**
  * Reading and production from a gloss both take the word's reading, in kana: a near miss shows what it was close to, a miss every reading.
@@ -145,7 +145,7 @@ export function ExerciseCard({ api, onVocabClick }: ExerciseCardProps) {
                         </>
                     )}
                     feedbackExtra={point.usageNote && (
-                        <p className="text-xs font-gothic text-secondary italic mt-2">{point.usageNote}</p>
+                        <UsageNote note={point.usageNote} />
                     )}
                     onVocabClick={onVocabClick}
                 />
@@ -174,7 +174,7 @@ export function ExerciseCard({ api, onVocabClick }: ExerciseCardProps) {
                     feedbackExtra={(contrast || shown.usageNote) && (
                         <>
                             {contrast && <DrillContrastNote contrast={contrast} />}
-                            {shown.usageNote && <p className="text-xs font-gothic text-secondary italic mt-2">{shown.usageNote}</p>}
+                            {shown.usageNote && <UsageNote note={shown.usageNote} />}
                         </>
                     )}
                     onVocabClick={onVocabClick}
@@ -209,11 +209,7 @@ export function ExerciseCard({ api, onVocabClick }: ExerciseCardProps) {
                         <>
                             {/* The study view has no answer to spoil. */}
                             <GrammarCardHeader point={point} memoryStrength={grammarStrength} answered>
-                                {point.usageNote && (
-                                    <p className="text-center text-xs text-secondary font-gothic italic mt-1 max-w-sm mx-auto">
-                                        {point.usageNote}
-                                    </p>
-                                )}
+                                {point.usageNote && <UsageNote note={point.usageNote} centered />}
                             </GrammarCardHeader>
                             <SentenceCue instruction="No quizzable words in this example - study it instead" english={exercise.sentence.en[0]?.text ?? ''} />
                         </>
