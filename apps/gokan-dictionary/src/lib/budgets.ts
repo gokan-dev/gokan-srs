@@ -15,9 +15,9 @@
 const KB = 1024;
 
 /** How a budget counts: brotli (what CloudFront sends), or raw for a file already compressed (woff2). */
-export type Encoding = 'brotli' | 'raw';
+type Encoding = 'brotli' | 'raw';
 
-export interface Budget {
+interface Budget {
     bytes: number;
     encoding: Encoding;
 }
@@ -81,7 +81,7 @@ export const FIRST_SCREEN_ROWS = {
     kanjiOrderPage: 10,
 } as const satisfies Partial<Record<BudgetName, number>>;
 
-export type FirstScreenBudget = keyof typeof FIRST_SCREEN_ROWS;
+type FirstScreenBudget = keyof typeof FIRST_SCREEN_ROWS;
 
 /** The rows a budget counts a page to, if it is a list page's (FIRST_SCREEN_ROWS); null for a page counted whole. */
 export function firstScreenRowsOf(budget: BudgetName): number | null {
