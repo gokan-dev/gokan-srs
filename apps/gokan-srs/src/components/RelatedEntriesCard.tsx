@@ -51,7 +51,10 @@ interface Props {
     onToggleExpand?: () => void;
     expandLabel?: string;
     collapseLabel?: string;
-    /** At the end of the card, after the expand control: an action on the whole list (a point's drill against its siblings). */
+    /**
+     * At the end of the card, after the expand control: an action on the whole list (a point's drill
+     * against its siblings). Unwrapped, so a footer that renders nothing leaves nothing; it spaces itself.
+     */
     footer?: ReactNode;
 }
 
@@ -95,7 +98,7 @@ export function RelatedEntriesCard({
                 </TextButton>
             )}
 
-            {footer && <div className="mt-3">{footer}</div>}
+            {footer}
         </DetailSection>
     );
 }

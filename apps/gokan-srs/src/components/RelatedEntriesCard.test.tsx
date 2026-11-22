@@ -26,4 +26,21 @@ describe('RelatedEntriesCard', () => {
         expect(expand).toBeGreaterThan(sectionFooter);
         expect(drill).toBeGreaterThan(expand);
     });
+
+    it('adds nothing after the expand control when its footer renders nothing (a point with no drill)', () => {
+        const Nothing = () => null;
+        const html = renderToStaticMarkup(
+            <MemoryRouter>
+                <RelatedEntriesCard
+                    title="Similar grammar"
+                    sections={[{ entries: [{ key: 'a', to: '/grammar/a', primary: 'から' }] }]}
+                    isExpandable
+                    onToggleExpand={() => undefined}
+                    expandLabel="Show all 17"
+                    footer={<Nothing />}
+                />
+            </MemoryRouter>,
+        );
+        expect(html).toMatch(/Show all 17<\/button>(<\/div>)*<\/section>$/);
+    });
 });

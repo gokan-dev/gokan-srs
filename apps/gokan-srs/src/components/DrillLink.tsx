@@ -11,12 +11,13 @@ import { buttonClassName } from "./ui/buttonStyles";
  * the first two points with one): most sets have no sentence the dataset rules a
  * sibling out of yet, and a button to an empty drill says the feature is broken.
  */
-export function DrillLink({ set, label }: { set: DrillSet; label: string }) {
+/** `className`: its spacing where it sits, on the link itself, so a set with no drill leaves no gap. */
+export function DrillLink({ set, label, className = "" }: { set: DrillSet; label: string; className?: string }) {
     const path = drillPath(set);
     const available = useAsyncData(path, () => hasDrill(set));
     if (!available.data) return null;
     return (
-        <Link to={path} className={buttonClassName("secondary", "sm", "w-fit")}>
+        <Link to={path} className={buttonClassName("secondary", "sm", `w-fit ${className}`)}>
             {label}
         </Link>
     );
