@@ -423,6 +423,9 @@ main {
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: baseline;
+  align-content: center;
+  // A tap target, as every link a reader taps on a phone (check:layout).
+  min-height: 2.75rem;
   gap: 0 $space-1;
   padding: $space-1 $space-2;
   color: var(--primary);
@@ -555,6 +558,16 @@ a.chip {
   }
 }
 
+// The /search/ page's kanji: glyph | meaning | level on one line at every width, as in the header
+// panel. Both cells are spans with a lang, which the rule above sends to the gloss column.
+.entry-list--kanji a {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+
+  > [lang] {
+    grid-column: auto;
+  }
+}
+
 // A collapsed remainder ("All 401 words", "More examples (8)"): every link stays in the HTML.
 .disclosure {
   margin-top: $space-2;
@@ -646,7 +659,8 @@ a.chip {
 // -- Pager and tabs ------------------------------------------------------------
 
 .pager,
-.tabs {
+.tabs,
+.search-sections {
   display: flex;
   flex-wrap: wrap;
   gap: $space-1;
@@ -666,6 +680,23 @@ a.chip {
 .pager a[aria-current="page"] {
   background-color: var(--accent);
   color: var(--accent-contrast);
+}
+
+// The /search/ page's line of sections under its title (Words (379) · Kanji (24) · Grammar (1)):
+// the pager's 44px link box, not the pager itself, so a change to paging does not restyle it. The
+// quiet dot is drawn in the link it precedes, so a wrap never leaves one dangling at a line's end,
+// and its empty alternative text keeps it out of the link's name. The line starts a link's padding
+// to the left, so the first link's text lines up with the title.
+.search-sections {
+  gap: 0;
+  margin-top: 0;
+  margin-inline-start: -$space-1;
+
+  a + a::before {
+    content: "·" / "";
+    margin-inline-end: $space-1;
+    color: var(--tertiary);
+  }
 }
 
 .tabs {

@@ -285,7 +285,7 @@ gokan-srs, everything else:
 - Page frame: `components/Page.tsx` (the two widths), `components/PageHeader.tsx` (title,
   Back, actions), `components/ui/TabNav.tsx` (route tabs), `components/nav/` (header, tab bar,
   footer), destinations in `utils/navigation.utils.ts` (a word's page only through `vocabPath`, a
-  kanji's through `kanjiPath`: enforced).
+  kanji's through `kanjiPath`, a grammar point's through `grammarPath`: enforced).
 - Lists and stats: `components/ui/ListRow.tsx` rows, `components/WordStudyStatus.tsx` (a word's
   status, or Learn), `utils/learningStatus.utils.ts` (New / Learning / Mastered for a word or a
   grammar point), `components/ui/Pagination.tsx`, `pages/stats/components/CoverageChart.tsx` and
@@ -305,7 +305,8 @@ gokan-srs, everything else:
 - Settings controls: `components/ui/SettingToggle.tsx`, `SettingSlider.tsx`, `components/OptionGrid.tsx`,
   `components/LearningOrderPicker.tsx`, `components/QuizSettingsMenu.tsx`.
 - Small UI: `components/ui/Chip.tsx` (neutral metadata chip; `JlptChip`/`TagChip` wrap
-  it), `components/StatusDot.tsx` (the New/Learning/Mastered language),
+  it), `components/StatusDot.tsx` (the New/Learning/Mastered language; a kanji's Known / Not known yet,
+  `components/KanjiKnownStatus.tsx`),
   `components/ui/SelectableOption.tsx` (one choice at a time: option grids, the theme
   picker, onboarding), `components/ui/FilterToggle.tsx` (any number active at once: list
   filters, genre pills), `components/ui/ListRow.tsx` (a clickable row, always a `Link`),

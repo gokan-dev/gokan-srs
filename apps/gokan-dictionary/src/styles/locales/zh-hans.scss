@@ -14,7 +14,8 @@
   --font-serif: #{meta.inspect($font-serif-zh-stack)};
 }
 
-// A section served in English only, said beside its name in the header.
+// A section served in English only, said beside its name in the header, beside the search panel's
+// group labels and beside the /search/ page's section headings.
 .lang-mark {
   margin-inline-start: 0.25em;
   color: var(--tertiary);

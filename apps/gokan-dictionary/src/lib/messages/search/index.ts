@@ -24,14 +24,18 @@ export interface SearchMessages {
     emptyQuery: string;
     /** The panel's groups and the results page's sections. */
     groups: { words: string; kanji: string; grammar: string };
-    /** The results page's Words heading, with the count. */
-    wordsHeading: (count: number) => string;
+    /** A results page section's heading (one of `groups`), with its count. */
+    sectionHeading: (group: string, count: number) => string;
+    /** The summary of the disclosure holding a kanji or grammar section's rows past its first few, with how many there are in all. */
+    showAll: (group: 'kanji' | 'grammar', count: number) => string;
     /** The panel's last row. */
     seeAll: (query: string) => string;
     /** The results page's heading for a query. */
     resultsFor: (query: string) => string;
     /** The results page's pager's accessible name. */
     resultPages: string;
+    /** The accessible name of the line under the results page's heading that links to each of its sections. */
+    resultSections: string;
     /** "No results for “xyz”.", then the kana a romaji query was read as, and where to go instead. */
     noResults: (query: string) => string;
     searchedAs: AroundJapanese;
@@ -43,6 +47,8 @@ export interface SearchMessages {
     /** A kanji result's level on the results page, or that it has none. */
     kanjiLevel: (level: number) => string;
     outsideJlpt: string;
+    /** Beside a group or section whose links open pages served in English only (kanji and grammar from a Chinese page), as the site header says it. */
+    inEnglish: string;
 }
 
 const SEARCH: Record<Locale, SearchMessages> = { en: enSearch, 'zh-hans': zhHansSearch };

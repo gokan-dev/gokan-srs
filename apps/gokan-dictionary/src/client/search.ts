@@ -13,12 +13,15 @@
 // words (lib/messages/search).
 
 import { datasetLanguageOf, htmlLang, localeOfHtmlLang } from '../lib/locale';
-import { linkUrls } from '../lib/localeLinks';
+import { linkLang, linkUrls } from '../lib/localeLinks';
 import { searchMessagesFor } from '../lib/messages/search';
-import type { PreparedIndex, SearchResults, WordHit } from '../lib/searchQuery';
+import type { IndexResults, IndexWordHit, PreparedIndex } from '../lib/searchQuery';
+import { kanjiRowMeanings } from '@gokan/dataset-schema';
+import type { SearchGroup } from '@gokan/dataset-schema';
 import type { SearchGrammarRow, SearchIndexFile, SearchKanjiRow } from '../lib/types';
 import { searchIndexPaths } from '../lib/urls';
 import { readingOfRow } from '../lib/searchRow';
+import { foldRows } from '../lib/searchFold';
 
 const PANEL_LIMITS = { words: 8, kanji: 3, grammar: 3 };
 const RESULTS_PAGE_SIZE = 50;
@@ -77,7 +80,7 @@ function loadFullLater(): void {
         });
 }
 
-function run(query: string): SearchResults | null {
+function run(query: string): IndexResults | null {
     if (!index || !engine) return null;
     const results = engine.search(index, query);
     if (results.query) loadFullLater();
@@ -94,21 +97,42 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, attributes: Record<st
 }
 
 const ja = (text: string) => el('span', { lang: 'ja' }, text);
+/** Japanese in Latin letters (a grammar point's romaji): not the page's language, whatever it is. */
+const JA_LATN = { lang: 'ja-Latn' };
+
+/** A link's attributes: its href, and hreflang="en" when it leaves the locale's section (a kanji or a grammar point, which have English pages only). */
+function linkTo(href: string, attributes: Record<string, string> = {}): Record<string, string> {
+    const lang = linkLang(locale, href);
+    return { ...attributes, href, ...(lang ? { hreflang: lang } : {}) };
+}
+
+/** The small 英文 after a group's label or a section's heading when its links leave the locale's section (as the site header marks them), else nothing. */
+function inEnglishMark(href: string | undefined): Node[] {
+    return href !== undefined && linkLang(locale, href) ? [el('span', { class: 'lang-mark' }, words.inEnglish)] : [];
+}
+
+/** A kanji row's main meaning, in English (the dataset's only language for it). */
+const mainMeaning = (row: SearchKanjiRow): string => kanjiRowMeanings(row)[0] ?? '';
+
+/** The groups in the order the matcher gives them (a single kanji: kanji first; a grammar title: grammar first). */
+function inOrder<T>(results: IndexResults, parts: Record<SearchGroup, T[]>): T[] {
+    return results.groups.flatMap(groupName => parts[groupName]);
+}
 const chip = (level: number) => el('span', { class: 'chip' }, `N${level}`);
 
 /** A word's gloss line; a conjugated query says what it was read as ("from 食べた"). */
-function glossLine(hit: WordHit): HTMLElement {
+function glossLine(hit: IndexWordHit): HTMLElement {
     return el('span', { lang: glossLang }, ...(hit.via ? [words.fromForm.before, ja(hit.via), words.fromForm.after] : []), hit.row[3]);
 }
 
 /** The reading beside a headword, only when it differs from it. */
-function readingOf(hit: WordHit): string[] {
+function readingOf(hit: IndexWordHit): string[] {
     const reading = readingOfRow(hit.row);
     return reading !== hit.row[1] ? [reading] : [];
 }
 
 /** "No results for 'xyz'.", the kana a romaji query was read as, and where to go instead. */
-function noResults(results: SearchResults): HTMLElement {
+function noResults(results: IndexResults): HTMLElement {
     const levels = [5, 4, 3, 2, 1].flatMap(level => [' ', el('a', { href: links.vocabJlptPath(level) }, `N${level}`)]);
     return el('span', {},
         words.noResults(results.query),
@@ -116,7 +140,7 @@ function noResults(results: SearchResults): HTMLElement {
         words.tryInstead, ...levels);
 }
 
-function total(results: SearchResults): number {
+function total(results: IndexResults): number {
     return results.words.length + results.kanji.length + results.grammar.length;
 }
 
@@ -161,13 +185,13 @@ function initCombobox(form: HTMLFormElement): void {
 
     let optionCount = 0;
     function option(href: string, cells: (Node | string)[], extraClass = ''): HTMLAnchorElement {
-        return el('a', { class: `search-option${extraClass}`, role: 'option', id: `search-option-${optionCount++}`, href, tabindex: '-1', 'aria-selected': 'false' }, ...cells);
+        return el('a', linkTo(href, { class: `search-option${extraClass}`, role: 'option', id: `search-option-${optionCount++}`, tabindex: '-1', 'aria-selected': 'false' }), ...cells);
     }
 
     function group(label: string, key: string, rows: HTMLAnchorElement[]): HTMLElement[] {
         if (rows.length === 0) return [];
         const id = `search-group-${key}`;
-        return [el('div', { role: 'group', 'aria-labelledby': id }, el('p', { class: 'search-group-label', id, role: 'presentation' }, label), ...rows)];
+        return [el('div', { role: 'group', 'aria-labelledby': id }, el('p', { class: 'search-group-label', id, role: 'presentation' }, label, ...inEnglishMark(rows[0].getAttribute('href') ?? undefined)), ...rows)];
     }
 
     function render(): void {
@@ -186,15 +210,17 @@ function initCombobox(form: HTMLFormElement): void {
         const wordRows = results.words.slice(0, PANEL_LIMITS.words).map(hit =>
             option(links.vocabPath(hit.row[0]), [ja(hit.row[1]), ...readingOf(hit).map(ja), ...(hit.row[4] ? [chip(hit.row[4])] : []), glossLine(hit)]));
         const kanji = results.kanji.slice(0, PANEL_LIMITS.kanji).map((row: SearchKanjiRow) =>
-            option(links.kanjiPath(row[0]), [ja(row[0]), el('span', {}, words.groups.kanji), ...(row[1] ? [chip(row[1])] : [])]));
+            option(links.kanjiPath(row[0]), [ja(row[0]), el('span', { lang: 'en' }, mainMeaning(row)), ...(row[1] ? [chip(row[1])] : [])]));
         const grammar = results.grammar.slice(0, PANEL_LIMITS.grammar).map((row: SearchGrammarRow) =>
-            option(links.grammarPath(row[0]), [ja(row[1]), el('span', {}, row[2]), chip(row[4]), el('span', {}, row[3])]));
+            option(links.grammarPath(row[0]), [ja(row[1]), el('span', JA_LATN, row[2]), chip(row[4]), el('span', { lang: 'en' }, row[3])]));
 
         const count = total(results);
         listbox!.replaceChildren(
-            ...group(words.groups.words, 'words', wordRows),
-            ...group(words.groups.kanji, 'kanji', kanji),
-            ...group(words.groups.grammar, 'grammar', grammar),
+            ...inOrder(results, {
+                words: group(words.groups.words, 'words', wordRows),
+                kanji: group(words.groups.kanji, 'kanji', kanji),
+                grammar: group(words.groups.grammar, 'grammar', grammar),
+            }),
             ...(count > 0 ? [option(links.searchPath(query.trim()), [words.seeAll(query.trim())], ' search-option--all')] : []),
         );
         message!.replaceChildren(...(count === 0 ? [noResults(results)] : []));
@@ -266,8 +292,22 @@ function initResultsPage(root: HTMLElement): void {
     if (title && query) title.textContent = words.resultsFor(query);
     if (query) document.title = `${query}: ${document.title}`;
 
-    function section(heading: string, ...content: Node[]): HTMLElement {
-        return el('section', { class: 'section' }, el('h2', {}, heading), ...content);
+    /** A results section's id, the target of its link in the line of sections under the title. */
+    const sectionId = (group: SearchGroup) => `search-${group}`;
+
+    /** A results section, its heading marked 英文 when `href` (one of its links) leaves the locale's section. */
+    function section(group: SearchGroup, heading: string, href: string | undefined, ...content: Node[]): HTMLElement {
+        return el('section', { class: 'section', id: sectionId(group) }, el('h2', {}, heading, ...inEnglishMark(href)), ...content);
+    }
+
+    /** An unpaged section's list (lib/searchFold.ts): whole while short, else its first rows and the rest in a disclosure saying how many there are in all. */
+    function folded<Row>(rows: Row[], group: 'kanji' | 'grammar', listClass: string, item: (row: Row) => HTMLElement): HTMLElement[] {
+        const { shown, hidden } = foldRows(rows);
+        const first = el('ul', { class: listClass }, ...shown.map(item));
+        if (hidden.length === 0) return [first];
+        return [first, el('details', { class: 'disclosure' },
+            el('summary', {}, words.showAll(group, rows.length)),
+            el('ul', { class: listClass }, ...hidden.map(item)))];
     }
 
     function render(): void {
@@ -290,19 +330,31 @@ function initResultsPage(root: HTMLElement): void {
         const wordList = el('ul', { class: 'entry-list' }, ...shown.map(hit =>
             el('li', {}, el('a', { href: links.vocabPath(hit.row[0]), lang: 'ja' }, hit.row[1], ...readingOf(hit).map(reading => el('span', {}, reading)), glossLine(hit)))));
 
-        root.replaceChildren(
-            ...(results.words.length > 0
-                ? [section(words.wordsHeading(results.words.length), ...(pageCount > 1 ? [pager()] : []), wordList, ...(pageCount > 1 ? [pager()] : []))]
-                : []),
-            ...(results.kanji.length > 0
-                ? [section(words.groups.kanji, el('ul', { class: 'entry-list' }, ...results.kanji.map(row =>
-                    el('li', {}, el('a', { href: links.kanjiPath(row[0]), lang: 'ja' }, row[0], el('span', { lang: glossLang }, row[1] ? words.kanjiLevel(row[1]) : words.outsideJlpt))))))]
-                : []),
-            ...(results.grammar.length > 0
-                ? [section(words.groups.grammar, el('ul', { class: 'grammar-list' }, ...results.grammar.map(row =>
-                    el('li', {}, el('a', { href: links.grammarPath(row[0]) }, ja(row[1]), ...(row[2] ? [el('small', {}, row[2])] : []), el('small', {}, `N${row[4]}`), el('span', {}, row[3]))))))]
-                : []),
-        );
+        /** Each section with results: its heading, one of its links (for the 英文 mark) and its content. */
+        const parts: Record<SearchGroup, { group: SearchGroup; heading: string; href: string | undefined; content: () => Node[] }[]> = {
+            words: results.words.length > 0
+                ? [{ group: 'words', heading: words.sectionHeading(words.groups.words, results.words.length), href: undefined,
+                    content: () => [...(pageCount > 1 ? [pager()] : []), wordList, ...(pageCount > 1 ? [pager()] : [])] }]
+                : [],
+            kanji: results.kanji.length > 0
+                ? [{ group: 'kanji', heading: words.sectionHeading(words.groups.kanji, results.kanji.length), href: links.kanjiPath(results.kanji[0][0]),
+                    content: () => folded(results.kanji, 'kanji', 'entry-list entry-list--kanji', row =>
+                        el('li', {}, el('a', linkTo(links.kanjiPath(row[0]), { lang: 'ja' }), row[0], el('span', { lang: 'en' }, mainMeaning(row)), el('span', { lang: glossLang }, row[1] ? words.kanjiLevel(row[1]) : words.outsideJlpt)))) }]
+                : [],
+            grammar: results.grammar.length > 0
+                ? [{ group: 'grammar', heading: words.sectionHeading(words.groups.grammar, results.grammar.length), href: links.grammarPath(results.grammar[0][0]),
+                    content: () => folded(results.grammar, 'grammar', 'grammar-list', row =>
+                        el('li', {}, el('a', linkTo(links.grammarPath(row[0])), ja(row[1]), ...(row[2] ? [el('small', JA_LATN, row[2])] : []), el('small', {}, `N${row[4]}`), el('span', { lang: 'en' }, row[3])))) }]
+                : [],
+        };
+        const sections = inOrder(results, parts);
+        // A page of words can push the sections after it thousands of pixels down: one line under
+        // the title names every section with its count, in the matcher's order, each a link to it.
+        const jumps = sections.length > 1
+            ? [el('nav', { class: 'search-sections', 'aria-label': words.resultSections },
+                ...sections.map(part => el('a', { href: `#${sectionId(part.group)}` }, part.heading, ...inEnglishMark(part.href))))]
+            : [];
+        root.replaceChildren(...jumps, ...sections.map(part => section(part.group, part.heading, part.href, ...part.content())));
     }
 
     onIndexChange.push(render);

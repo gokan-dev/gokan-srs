@@ -605,7 +605,9 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   and Linux), titles `"Source Serif 4", "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC",
   SimSun, serif` (the Latin serif, then each system's Song face). No web font: a CJK face is
   megabytes, against the 40 KB the one Latin font has. English on a Chinese page (JMdict's
-  meanings, an untranslated sentence, a textbook chip) is marked `lang="en"`.
+  meanings, an untranslated sentence, a textbook chip, a kanji's meaning or a grammar point's
+  explanation in search) is marked `lang="en"`, and a grammar point's romaji `lang="ja-Latn"`
+  (check:layout reads the zh-hans search panel for Latin text marked neither).
 - **Language switcher**: on a page that has a counterpart in the other language (a word with no
   Chinese page has none), one small line above the breadcrumb at its end: the other page,
   named in its own language (English, 简体中文), a 44px tap target. Neutral text link, no flag:
@@ -613,7 +615,8 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   are underlined at rest; the switcher, on a line of its own, is not).
 - **Links to English from a Chinese page** (a kanji, a grammar point, the dataset, the app):
   marked for a reader as well as by `hreflang="en"`. In the header, a small tertiary 英文 beside
-  the section's name (12px); in a tile or a sentence, in the catalog's words (英文页面,
+  the section's name (12px), and the same 英文 beside the search panel's Kanji and Grammar labels
+  and the `/search/` page's Kanji and Grammar headings (`inEnglish`, the search catalog's); in a tile or a sentence, in the catalog's words (英文页面,
   汉字（英文）); under the Kanji used tiles, one line (汉字页面为英文). A Chinese breadcrumb's
   links are underlined: its steps are a word or two, so the trail reads as running text.
 - **Shape**: 6px radius for cards, chips, tiles, inputs and buttons; the search field is
@@ -794,7 +797,7 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   | A locale's stylesheet (`styles/locales/`, its pages only) | 2 KB |
   | Clip player script (pages with a play button) | 2 KB |
   | Search script (every page) | 14 KB |
-  | Query engine (loaded on first focus) | 12 KB |
+  | Query engine (loaded on first focus) | 17 KB |
   | Detail tabs script (word, kanji and grammar pages), with its shared chunks | 10 KB |
   | `search-core.json`, gzipped | 360 KB |
   | Web fonts | one woff2, 40 KB |
@@ -817,7 +820,11 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   0.7 KB more. A script is measured with the chunks it imports statically: since #168 the
   detail tabs script and the search engine share the kana folding (`romaji`), and the search
   script and the detail script the locale reading, each a chunk of its own (7.9 KB for the
-  detail script with both, 11.4 KB for the search script, 9.9 KB for the engine). Page weight is one half of
+  detail script with both, 11.4 KB for the search script, 9.9 KB for the engine). The engine's
+  went from 12 to 17 KB when it became the matcher both apps share and learned kanji and
+  grammar (#264): the package's `search.ts` (meanings, on and kun readings, grammar titles read
+  in romaji through `kanaToHepburn`) took it to 14.2 KB with its romaji chunk. It loads once, on
+  first focus, beside a core index about 25 times its size. Page weight is one half of
   being found; the other, SEO at 100 on every page type, is held by the Lighthouse check
   (`scripts/check-lighthouse.ts`, in section 9).
 

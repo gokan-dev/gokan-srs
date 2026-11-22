@@ -14,6 +14,7 @@ import { grammarLearningStatus, STATUS_LABEL } from "../../utils/learningStatus.
 import { GRAMMAR_SORT_LABEL, matchesGrammarStatus, sortGrammarRows, type GrammarSort, type GrammarStatusFilter } from "../../utils/grammarBrowse.utils";
 import type { GrammarProgress } from "../../models/grammar.model";
 import { GrammarHomeHeader } from "./GrammarHomeHeader";
+import { grammarPath } from "../../utils/navigation.utils";
 
 type Kind = NonNullable<GrammarPoint['kind']>;
 type GroupMode = 'level' | 'family';
@@ -78,7 +79,7 @@ function datasetLine(row: GrammarBrowseRow): string {
 
 function PointRow({ row, progress, datasetDetails }: { row: GrammarBrowseRow; progress: GrammarProgress | undefined; datasetDetails: boolean }) {
     return (
-        <ListRow to={`/grammar/${row.id}`} trailing={<StatusDot status={grammarLearningStatus(progress)} />}>
+        <ListRow to={grammarPath(row.id)} trailing={<StatusDot status={grammarLearningStatus(progress)} />}>
             <div className="flex items-baseline gap-2 min-w-0">
                 <span className="jp-headword truncate">{row.title}</span>
                 {row.romaji && <span className="type-meta truncate">{row.romaji}</span>}
