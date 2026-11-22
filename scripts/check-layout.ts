@@ -208,7 +208,7 @@ const MEASURE = (deviceWidth: number, tapTargets: string) => `(() => {
     return problems;
 })()`;
 
-const DICTIONARY_TAP_TARGETS = '.site-nav a, .pager a, .detail-tabs a, summary, .kanji-tiles a, .range-list a, .kanji-courses a, .range-step h3 a, button.button, button.play';
+const DICTIONARY_TAP_TARGETS = '.site-nav a, .pager a, .search-sections a, .detail-tabs a, summary, .kanji-tiles a, .range-list a, .kanji-courses a, .range-step h3 a, button.button, button.play';
 
 const failures: string[] = [];
 let checked = 0;
@@ -2279,6 +2279,46 @@ async function checkSearchPanelReach(tab: Tab, page: string, width: number): Pro
 }
 
 /**
+ * The app's desktop panel (#264, 1280px): a new result set opens at its top, so the first-ranked
+ * row is the first one seen. The panel keeps the previous results while the next search runs and
+ * once kept their scroll too: typed on from から (scrolled down) to からだ, it opened on 体つき with
+ * the exact match 体 above its top edge.
+ */
+const SCROLL_RESET_QUERIES = { from: SEARCH_QUERY, to: `${SEARCH_QUERY}だ` };
+async function checkSearchPanelScrollReset(tab: Tab, page: string, width: number): Promise<void> {
+    const where = `${width}px ${page}, typing on from ${SCROLL_RESET_QUERIES.from} to ${SCROLL_RESET_QUERIES.to}`;
+    const firstOption = `(document.querySelector('#header-search-results [role="option"]')?.textContent ?? '')`;
+    if (!await tab.evaluate<boolean>(TYPE_SEARCH('input[role="combobox"]', SCROLL_RESET_QUERIES.from))) {
+        failures.push(`${where}: no search field`);
+        return;
+    }
+    try {
+        await tab.until(`document.querySelectorAll('#header-search-results [role="group"]').length > 1`, `results for ${SCROLL_RESET_QUERIES.from} on ${page}`, 20000);
+    } catch {
+        failures.push(`${where}: no results for ${SCROLL_RESET_QUERIES.from}`);
+        return;
+    }
+    const before = await tab.evaluate<string>(`(() => { const panel = ${APP_PANEL}; panel.scrollTop = panel.scrollHeight; return ${firstOption}; })()`);
+    if (!await tab.evaluate<boolean>(TYPE_SEARCH('input[role="combobox"]', SCROLL_RESET_QUERIES.to))) {
+        failures.push(`${where}: no search field`);
+        return;
+    }
+    try {
+        await tab.until(`${firstOption} !== '' && ${firstOption} !== ${JSON.stringify(before)}`, `new results for ${SCROLL_RESET_QUERIES.to} on ${page}`, 20000);
+    } catch {
+        failures.push(`${where}: the results did not change`);
+        return;
+    }
+    const shown = await tab.evaluate<{ scrollTop: number; inView: boolean }>(`(() => {
+        const panel = ${APP_PANEL};
+        const box = panel.getBoundingClientRect();
+        const rect = document.querySelector('#header-search-results [role="option"]').getBoundingClientRect();
+        return { scrollTop: panel.scrollTop, inView: rect.top >= box.top - 1 && rect.bottom <= box.bottom + 1 };
+    })()`);
+    if (shown.scrollTop !== 0 || !shown.inView) failures.push(`${where}: the new results keep the previous scroll (scrollTop ${shown.scrollTop}), so the first-ranked row is not in view`);
+}
+
+/**
  * On a Chinese page, the panel's English (a grammar point's explanation, a kanji's meaning) and
  * romaji are marked as such, not left to inherit the page's zh-Hans: a grammar option once wrote
  * both as bare spans. A run of two Latin letters is what is looked for, so a chip's N5 is not; Latin
@@ -2406,14 +2446,24 @@ async function checkSearchPageJumps(tab: Tab, base: string, width: number): Prom
         failures.push(`${width}px ${page}: fewer than two result sections, so the line of sections is not checked`);
         return;
     }
-    const found = await tab.evaluate<{ sections: string[]; links: string[]; visible: boolean }>(`(() => {
+    const found = await tab.evaluate<{ sections: string[]; links: string[]; visible: boolean; loose: number; offset: number }>(`(() => {
         const nav = document.querySelector('[data-search-page] nav.search-sections');
+        // Where the first link's text starts, against the title's: its tap padding is outdented.
+        const text = nav?.querySelector('a')?.firstChild;
+        const range = document.createRange();
+        if (text) range.selectNodeContents(text);
+        const title = document.querySelector('[data-search-title]');
         return {
             sections: [...document.querySelectorAll('[data-search-page] section')].map(section => section.id),
             links: nav ? [...nav.querySelectorAll('a')].map(a => a.getAttribute('href') ?? '') : [],
             visible: nav !== null && nav.getBoundingClientRect().top < window.innerHeight,
+            loose: nav ? [...nav.children].filter(child => child.tagName !== 'A').length : 0,
+            offset: text && title ? range.getBoundingClientRect().left - title.getBoundingClientRect().left : 0,
         };
     })()`);
+    // A separator outside the links once dangled at the end of a wrapped line (Grammar (29) · Words (168) ·).
+    if (found.loose > 0) failures.push(`${width}px ${page}: the line of sections has ${found.loose} children besides its links (a separator that can dangle at a wrap)`);
+    if (Math.abs(found.offset) > 1) failures.push(`${width}px ${page}: the line of sections starts ${Math.round(found.offset)}px from the title's edge`);
     const expected = found.sections.map(id => `#${id}`);
     if (found.links.join(' ') !== expected.join(' ') || found.sections.some(id => !id)) {
         failures.push(`${width}px ${page}: the line of sections links to ${found.links.join(', ') || 'nothing'}, not to each section in order (${expected.join(', ')})`);
@@ -2678,6 +2728,7 @@ try {
     await desktop.goto(`http://127.0.0.1:${srs.port}/vocab`, 'Vocabulary');
     await checkGrammarTitlesOneLine(desktop, 'srs /vocab', DESKTOP.width);
     await checkSearchPanelReach(desktop, 'srs /vocab', DESKTOP.width);
+    await checkSearchPanelScrollReset(desktop, 'srs /vocab', DESKTOP.width);
     for (const path of DICTIONARY_LIST_PAGES) {
         await desktop.goto(`http://127.0.0.1:${dictionary.port}/dictionary${path}`, 'N5');
         await checkEntryGlossColumn(desktop, `dictionary ${path}`, DESKTOP.width, false);

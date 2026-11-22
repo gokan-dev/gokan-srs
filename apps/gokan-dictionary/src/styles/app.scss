@@ -659,7 +659,8 @@ a.chip {
 // -- Pager and tabs ------------------------------------------------------------
 
 .pager,
-.tabs {
+.tabs,
+.search-sections {
   display: flex;
   flex-wrap: wrap;
   gap: $space-1;
@@ -682,13 +683,18 @@ a.chip {
 }
 
 // The /search/ page's line of sections under its title (Words (379) · Kanji (24) · Grammar (1)):
-// the pager's 44px links, with a quiet dot between them.
+// the pager's 44px link box, not the pager itself, so a change to paging does not restyle it. The
+// quiet dot is drawn in the link it precedes, so a wrap never leaves one dangling at a line's end,
+// and its empty alternative text keeps it out of the link's name. The line starts a link's padding
+// to the left, so the first link's text lines up with the title.
 .search-sections {
-  align-items: center;
-  gap: 0 $space-half;
+  gap: 0;
   margin-top: 0;
+  margin-inline-start: -$space-1;
 
-  > span {
+  a + a::before {
+    content: "·" / "";
+    margin-inline-end: $space-1;
     color: var(--tertiary);
   }
 }

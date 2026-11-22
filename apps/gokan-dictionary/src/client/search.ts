@@ -351,11 +351,8 @@ function initResultsPage(root: HTMLElement): void {
         // A page of words can push the sections after it thousands of pixels down: one line under
         // the title names every section with its count, in the matcher's order, each a link to it.
         const jumps = sections.length > 1
-            ? [el('nav', { class: 'pager search-sections', 'aria-label': words.resultSections },
-                ...sections.flatMap((part, i) => [
-                    ...(i > 0 ? [el('span', { 'aria-hidden': 'true' }, '·')] : []),
-                    el('a', { href: `#${sectionId(part.group)}` }, part.heading, ...inEnglishMark(part.href)),
-                ]))]
+            ? [el('nav', { class: 'search-sections', 'aria-label': words.resultSections },
+                ...sections.map(part => el('a', { href: `#${sectionId(part.group)}` }, part.heading, ...inEnglishMark(part.href))))]
             : [];
         root.replaceChildren(...jumps, ...sections.map(part => section(part.group, part.heading, part.href, ...part.content())));
     }

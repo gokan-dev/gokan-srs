@@ -108,6 +108,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
     const [panel, setPanel] = useState({ top: 0, height: 0 });
     const wrapperRef = useRef<HTMLDivElement>(null);
     const fieldRef = useRef<HTMLDivElement>(null);
+    const panelRef = useRef<HTMLDivElement>(null);
     const navigate = useNavigate();
     const { isMobile } = useResponsive();
 
@@ -127,6 +128,16 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
     // Every row in display order, for the arrow keys and Enter.
     const options = groups.flatMap(({ options: rows }) => rows);
     const isSearching = search.status === 'loading' && search.data === undefined;
+
+    /**
+     * A new result set opens at its top, as typing opens it with no highlight: the panel keeps the
+     * previous results while the next search runs, and kept their scroll with them, so the
+     * first-ranked row could sit above the fold.
+     */
+    useLayoutEffect(() => {
+        if (search.data === undefined || !panelRef.current) return;
+        panelRef.current.scrollTop = 0;
+    }, [search.data]);
 
     const close = () => {
         setIsOpen(false);
@@ -243,6 +254,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
 
     const resultsPanel = isPanelOpen && (
         <div
+            ref={panelRef}
             style={isFullScreen ? { top: panel.top, height: panel.height } : undefined}
             className={
                 isFullScreen
@@ -256,8 +268,8 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
                 <div id={LISTBOX_ID} role="listbox" aria-label="Search results" className="flex flex-col">
                     {groups.map(({ group, options: rows }) => (
                         <div key={group} role="group" aria-labelledby={groupLabelId(group)} className="border-b border-divider last:border-0">
-                            {/* Sticky, so a scrolled row keeps its group's name in view and the next group's label shows it follows. */}
-                            <div id={groupLabelId(group)} role="presentation" className="type-label sticky top-0 z-10 bg-surface px-3 pt-3 pb-1">{GROUP_LABEL[group]}</div>
+                            {/* Sticky, so a scrolled row keeps its group's name in view and the next group's label shows it follows; its edge is where a scrolled row passes under it. */}
+                            <div id={groupLabelId(group)} role="presentation" className="type-label sticky top-0 z-10 bg-surface border-b border-divider px-3 pt-3 pb-1">{GROUP_LABEL[group]}</div>
                             {rows.map(option => {
                                 const index = options.indexOf(option);
                                 return (
