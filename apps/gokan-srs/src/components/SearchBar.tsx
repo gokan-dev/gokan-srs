@@ -14,7 +14,7 @@ import { StatusDot } from './StatusDot';
 import { KanjiKnownStatus } from './KanjiKnownStatus';
 import { grammarPath, kanjiPath, vocabPath } from '../utils/navigation.utils';
 import { grammarLearningStatus } from '../utils/learningStatus.utils';
-import type { AppSearchResults } from '../utils/search.utils';
+import { DROPDOWN_SEARCH_LIMITS, SEARCH_LIMITS, type AppSearchResults } from '../utils/search.utils';
 
 interface SearchBarProps {
     /**
@@ -43,6 +43,11 @@ interface SearchOption {
     support: string;
     /** Its study status, in the row's trailing slot. */
     status: ReactNode;
+    /**
+     * The status is a control of its own (a word's Learn button), so a click on it does not also
+     * open the row. Only then: a kanji's or a grammar point's status is plain text, part of the row.
+     */
+    interactiveStatus?: boolean;
 }
 
 /** A kanji's place in the learner's study, as on its page: Known or Not known yet. Nothing before setup. */
@@ -75,6 +80,7 @@ function groupedOptions(results: AppSearchResults): { group: SearchGroup; option
             ),
             support: row.m,
             status: <WordStudyStatus vocabId={row.id} />,
+            interactiveStatus: true,
         })),
         kanji: results.kanji.map(row => ({
             key: `kanji-${row[0]}`,
@@ -123,7 +129,9 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
 
     // Searched once typing pauses; an empty field searches nothing.
     const searchTerm = useDebouncedValue(query.trim(), 300);
-    const search = useAsyncData(searchTerm || null, () => SearchService.search(searchTerm), { keepPrevious: true });
+    // The desktop dropdown shares its rows out among the groups, so each one shows above its fold; the phone's full-screen panel keeps every group's own cap.
+    const limits = isMobile ? SEARCH_LIMITS : DROPDOWN_SEARCH_LIMITS;
+    const search = useAsyncData(searchTerm ? `${isMobile ? 'panel' : 'dropdown'}:${searchTerm}` : null, () => SearchService.search(searchTerm, limits), { keepPrevious: true });
     const groups = query.trim() && search.data ? groupedOptions(search.data) : [];
     // Every row in display order, for the arrow keys and Enter.
     const options = groups.flatMap(({ options: rows }) => rows);
@@ -286,9 +294,9 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
                                             <div className="flex items-baseline gap-2 min-w-0">{option.main}</div>
                                             <div className="type-support truncate">{option.support}</div>
                                         </div>
-                                        <div className="shrink-0" onClick={e => e.stopPropagation()}>
-                                            {option.status}
-                                        </div>
+                                        {option.interactiveStatus
+                                            ? <div className="shrink-0" onClick={e => e.stopPropagation()}>{option.status}</div>
+                                            : <div className="shrink-0">{option.status}</div>}
                                     </div>
                                 );
                             })}
