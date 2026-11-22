@@ -7,7 +7,7 @@ import { useQuiz } from "../../context/useQuiz";
 import { ChapterProgressBar } from "../../components/ChapterProgressBar";
 import { computeGrammarChapterProgress } from "../../context/quiz/grammarSelectors";
 import { withSharedFamily } from "../../context/quiz/drillSelectors";
-import { DrillLink } from "../../components/DrillLink";
+import { ChapterDrillLink } from "./ChapterDrillLink";
 import { Page } from "../../components/Page";
 import { StatusDot } from "../../components/StatusDot";
 import { ListRow } from "../../components/ui/ListRow";
@@ -178,9 +178,7 @@ export function GrammarChapterBrowseScreen() {
 
                                         {/* Only a chapter where two points share a family has anything to contrast. */}
                                         {isOpen && withSharedFamily(chapter.points, id => rowById.get(id)?.familyId).length > 0 && (
-                                            <div className="px-2 pt-2 pb-2" data-chapter-drill>
-                                                <DrillLink set={{ kind: 'chapter', chapterId: chapter.id }} label="Drill the related points" />
-                                            </div>
+                                            <ChapterDrillLink chapterId={chapter.id} />
                                         )}
                                         {isOpen && (
                                             <div className="pb-3 grid gap-1 sm:grid-cols-2">
