@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 import { listFiles } from '@gokan/deploy/build-files';
 import { serveDictionaryOnRequest } from '../../../scripts/lib/builtSite';
-import { countedBytes, describe, firstScreen, firstScreenRowsOf, overBudget, percentile, type BudgetName, type Measurement } from '../src/lib/budgets';
+import { countedBytes, describe, firstScreen, firstScreenRowsOf, overBudget, percentile, type BudgetName, type Measurement, type PageBudgetName } from '../src/lib/budgets';
 import { alternateProblems, brokenLinks } from '../src/lib/builtLinks';
 import { DATASET_PATHS } from '../src/lib/datasetPaths';
 import { misroutedPaths } from '../src/lib/servedPaths';
@@ -88,21 +88,24 @@ function stylesheetsOf(html: string): string[] {
     return [...html.matchAll(/<link rel="stylesheet" href="([^"]+)"/g)].map(([, href]) => href.slice(BASE_PATH.length + 1));
 }
 
-function measure(manifest: Record<string, ViteManifestEntry>): Measurement[] {
+function measure(manifest: Record<string, ViteManifestEntry>): { measurements: Measurement[]; sheets: Set<string> } {
     const measurements: Measurement[] = [];
     /** Each set of stylesheets a measured page links, with the first page that links it. */
     const stylesheetSets = new Map<string, string>();
+    const linksSheets = (html: string, subject: string) => {
+        const sheets = stylesheetsOf(html).join(' + ');
+        if (sheets !== '' && !stylesheetSets.has(sheets)) stylesheetSets.set(sheets, subject);
+    };
     /**
      * A page, whole or (a list page, FIRST_SCREEN_ROWS) to the end of its first screen. The raw
      * figure is the whole page's, as it is stored.
      */
-    const page = (budget: BudgetName, file: string, subject: string): Measurement => {
+    const page = (budget: PageBudgetName, file: string, subject: string): Measurement => {
         const body = read(file);
         const html = body.toString('utf-8');
         const rows = firstScreenRowsOf(budget);
         const counted = rows === null ? html : firstScreen(html, rows);
-        const sheets = stylesheetsOf(html).join(' + ');
-        if (sheets !== '' && !stylesheetSets.has(sheets)) stylesheetSets.set(sheets, subject);
+        linksSheets(html, subject);
         return { budget, subject: counted.length < html.length ? `${subject} (first screen, ${rows} rows)` : subject, raw: body.length, brotli: brotliSize(counted) };
     };
     /** The heaviest page of a set, by what its budget counts. */
@@ -179,7 +182,22 @@ function measure(manifest: Record<string, ViteManifestEntry>): Measurement[] {
     for (const font of fs.readdirSync(path.join(DIST_DIR, 'assets')).filter(name => name.endsWith('.woff2'))) {
         measurements.push(fileMeasurement('webFont', path.join('assets', font)));
     }
-    return measurements;
+    return { measurements, sheets: new Set([...stylesheetSets.keys()].flatMap(sheets => sheets.split(' + '))) };
+}
+
+/** The entity pages' sheets: on request, no page in dist/ links them (their budgets are the static build's). */
+const ENTITY_STYLES = ['src/styles/pages/vocab.scss', 'src/styles/pages/kanji.scss', 'src/styles/pages/grammar.scss'];
+
+/**
+ * Every page type's stylesheet (lib/server/assets.ts, PAGE_STYLES) is linked by a page measured
+ * above, so the blocking stylesheet budget sums every set a page links, not only the measured
+ * pages': a page type added without a page here fails, rather than going unchecked.
+ */
+function unmeasuredStylesheetProblems(manifest: Record<string, ViteManifestEntry>, sheets: Set<string>): string[] {
+    return Object.entries(manifest)
+        .filter(([source]) => /^src\/styles\/pages\/.+\.scss$/.test(source) && !(ENTITY_PAGES === 'on-request' && ENTITY_STYLES.includes(source)))
+        .filter(([, entry]) => !sheets.has(entry.file))
+        .map(([source, entry]) => `${source} (${entry.file}) is linked by no page check-build measures: its blocking stylesheets are not budgeted (add one of its pages to measure())`);
 }
 
 /** The build has the pages its mode says: every entity page prerendered, or none and the server built. */
@@ -322,7 +340,7 @@ function localeSearchProblems(locale: ServedLocale): { problems: string[]; pages
 const localeSearches = SERVED_LOCALES.filter(locale => localePrefix(locale) !== '').map(localeSearchProblems);
 
 const manifest = readJson(path.join('.vite', 'manifest.json')) as Record<string, ViteManifestEntry>;
-const measurements = measure(manifest);
+const { measurements, sheets: measuredSheets } = measure(manifest);
 const over = overBudget(measurements);
 /** Every sitemap the build writes (the index and each locale's, at dist/'s root) is one a search engine reads: none over its URL limit. */
 function sitemapProblems(): string[] {
@@ -433,7 +451,7 @@ async function unmatchedPathProblems(): Promise<string[]> {
     }
 }
 
-const problems = [...over.map(m => `over budget: ${describe(m)}`), ...modeProblems(), ...assetProblems(), ...searchProblems(), ...localeSearches.flatMap(found => found.problems), ...sitemapProblems(), ...routingProblems(), ...linkProblems(), ...alternatesProblems(), ...sourceNameProblems(), ...(await unmatchedPathProblems())];
+const problems = [...over.map(m => `over budget: ${describe(m)}`), ...modeProblems(), ...unmeasuredStylesheetProblems(manifest, measuredSheets), ...assetProblems(), ...searchProblems(), ...localeSearches.flatMap(found => found.problems), ...sitemapProblems(), ...routingProblems(), ...linkProblems(), ...alternatesProblems(), ...sourceNameProblems(), ...(await unmatchedPathProblems())];
 
 // A budget over many pages reports its heaviest.
 const MANY_PAGES: Partial<Record<BudgetName, string>> = { jlptPage: 'JLPT list pages', kanjiOrderPage: 'kanji order pages' };
