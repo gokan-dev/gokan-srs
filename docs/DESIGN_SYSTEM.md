@@ -890,7 +890,8 @@ readings on a line touch (measured on their glyphs), no kanji reading (`KanjiRea
 word page's Kanji tab) breaks across lines, a sentence word hovered with a mouse at 1280px
 keeps its hover while its lookup card opens, a due word's page has no Review now, and a sentence word tapped on a word
 page opens its lookup card as a bottom sheet inside the viewport, its Close and its links (Open
-word page) 44px. A new page
+word page) 44px, and a drill's way in (`DrillLink`, the button size `touch`, measured on a
+chapter's "Drill the related points") 44px on a phone. A new page
 type or main route is added to its lists.
 
 **Lighthouse, SEO at 100** (`scripts/check-lighthouse.ts`, `bun run check:lighthouse`, run by

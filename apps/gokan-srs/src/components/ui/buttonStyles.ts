@@ -1,9 +1,11 @@
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger-outline" | "danger";
 
-export type ButtonSize = "sm" | "md" | "lg";
+/** `touch`: `sm` from `md` up, but 44px tall on phones, where it is tapped (a small action alone, as a drill's way in). */
+export type ButtonSize = "sm" | "touch" | "md" | "lg";
 
 const SIZE_STYLES: Record<ButtonSize, string> = {
     sm: "h-8 px-3 text-sm font-medium",
+    touch: "h-11 md:h-8 px-3 text-sm font-medium",
     md: "h-11 px-4 text-base font-medium",
     lg: "h-13 px-6 gap-2.5 text-base font-semibold",
 };

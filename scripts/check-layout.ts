@@ -511,6 +511,11 @@ async function checkChapterDrillGap(tab: Tab, app: string, width: number): Promi
     })()`);
     if (gap === null) failures.push(`${width}px ${page}: no chapter header before the drill link to measure`);
     else if (gap < CHAPTER_DRILL_GAP) failures.push(`${width}px ${page}: "Drill the related points" sits ${gap}px under the chapter's header (at least ${CHAPTER_DRILL_GAP}px)`);
+    // The only way into a drill: tapped on a phone, so 44px there (32px from md, where a pointer clicks it).
+    if (width < DESKTOP.width) {
+        const height = await tab.evaluate<number | null>(`(() => { const link = document.querySelector('[data-chapter-drill] a'); return link ? Math.round(link.getBoundingClientRect().height) : null; })()`);
+        if (height !== null && height < 44) failures.push(`${width}px ${page}: "Drill the related points" is ${height}px tall (at least 44px on a phone)`);
+    }
 }
 
 /**

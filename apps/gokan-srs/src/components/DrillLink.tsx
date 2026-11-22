@@ -17,7 +17,7 @@ export function DrillLink({ set, label, className = "" }: { set: DrillSet; label
     const available = useAsyncData(path, () => hasDrill(set));
     if (!available.data) return null;
     return (
-        <Link to={path} className={buttonClassName("secondary", "sm", `w-fit ${className}`)}>
+        <Link to={path} className={buttonClassName("secondary", "touch", `w-fit ${className}`)}>
             {label}
         </Link>
     );
