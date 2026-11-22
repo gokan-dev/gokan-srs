@@ -5,6 +5,11 @@
 >
 > It is not auto-loaded into agent context; read it on demand when you need the history behind a decision.
 
+- **[2026-11-22]**:
+  - **Dictionary budgets in brotli, measured against CloudFront** (#268).
+    - **Quality 5, not builtSite's 3, for pages.** Against the wire sizes CloudFront served on 2026-11-19, brotli quality 5 lands within about 2% on every page type (kanji/一 12.2 KB here, 12.5 served; JLPT N2 19.0 and 19.0; grammar/n5-088 8.1 and 8.2; home 1.8 and 2.0; app.scss 2.6 and 2.5); quality 3, which `scripts/lib/builtSite.ts` uses after measuring the app's large JSON files, puts pages about 10% over (一 14.5 KB, past the 13 KB rule it actually meets). Both are kept: each is what CloudFront does at its sizes.
+    - **The heaviest kanji page is 人, not 一**, by brotli: 12.9 KB of 13 (一 has more words, 660, but compresses better). It is the one page type near the rule: a feature on kanji pages has to pay for itself there.
+    - **First screens are short.** At 375x812, with styles and scripts: `/grammar/` shows 3 points, a JLPT list 6 to 7 words, an order page or a range 1 to 7 rows or tiles (the intro, app panel and pager come first). Their prefixes are 1.4 to 1.9 KB brotli, so splitting the list pages would buy nothing for the first round trip. The row counts in `FIRST_SCREEN_ROWS` sit above the measure: a larger count only makes the budget stricter, and `check:layout` fails when a count stops reaching the screen's end.
 - **[2026-11-20]**:
   - **No hook needs the dataset, so the `--no-verify` rule is gone** (PR #270). `check-conventions` required `--no-verify` on a `git commit` or `git push` after `bun install` in a workflow job, because the hooks ran `bun run check`, whose tests need the dataset submodule a minimal checkout lacks (1.66.0's release finish failed on its push). With no pre-push hook, and the pre-commit hook running only conventions and ESLint on the staged files, no hook needs the dataset: the rule was removed and `--no-verify` in workflows is optional. Bring it back only if a hook runs the tests or the builds again.
 - **[2026-11-17]**:
