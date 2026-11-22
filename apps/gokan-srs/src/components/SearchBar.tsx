@@ -111,6 +111,8 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
     const [isOpen, setIsOpen] = useState(false);
     const [expanded, setExpanded] = useState(false);
     const [highlighted, setHighlighted] = useState(-1);
+    // The desktop dropdown at the full limits, after "Show all results"; a new query starts without it.
+    const [showAll, setShowAll] = useState(false);
     const [panel, setPanel] = useState({ top: 0, height: 0 });
     const wrapperRef = useRef<HTMLDivElement>(null);
     const fieldRef = useRef<HTMLDivElement>(null);
@@ -130,11 +132,19 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
     // Searched once typing pauses; an empty field searches nothing.
     const searchTerm = useDebouncedValue(query.trim(), 300);
     // The desktop dropdown shares its rows out among the groups, so each one shows above its fold; the phone's full-screen panel keeps every group's own cap.
-    const limits = isMobile ? SEARCH_LIMITS : DROPDOWN_SEARCH_LIMITS;
-    const search = useAsyncData(searchTerm ? `${isMobile ? 'panel' : 'dropdown'}:${searchTerm}` : null, () => SearchService.search(searchTerm, limits), { keepPrevious: true });
+    const fullLimits = isMobile || showAll;
+    const limits = fullLimits ? SEARCH_LIMITS : DROPDOWN_SEARCH_LIMITS;
+    const search = useAsyncData(searchTerm ? `${fullLimits ? 'panel' : 'dropdown'}:${searchTerm}` : null, () => SearchService.search(searchTerm, limits), { keepPrevious: true });
     const groups = query.trim() && search.data ? groupedOptions(search.data) : [];
     // Every row in display order, for the arrow keys and Enter.
     const options = groups.flatMap(({ options: rows }) => rows);
+    /**
+     * The rows the dropdown's sharing dropped stay reachable: a last option shows them, in the same
+     * panel, at the phone panel's limits (no results route to bookmark).
+     */
+    const hasHidden = search.data !== undefined && Object.values(search.data.hidden).some(count => count > 0);
+    const showAllIndex = hasHidden && options.length > 0 ? options.length : -1;
+    const optionCount = options.length + (showAllIndex >= 0 ? 1 : 0);
     const isSearching = search.status === 'loading' && search.data === undefined;
 
     /**
@@ -146,6 +156,17 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
         if (search.data === undefined || !panelRef.current) return;
         panelRef.current.scrollTop = 0;
     }, [search.data]);
+
+    const changeQuery = (value: string) => {
+        setQuery(value);
+        setShowAll(false);
+        setHighlighted(-1);
+    };
+
+    const expand = () => {
+        setShowAll(true);
+        setHighlighted(-1);
+    };
 
     const close = () => {
         setIsOpen(false);
@@ -212,12 +233,16 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
         if (!isPanelOpen || options.length === 0) return;
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
             e.preventDefault();
-            const next = e.key === 'ArrowDown' ? (highlighted + 1) % options.length : (highlighted <= 0 ? options.length - 1 : highlighted - 1);
+            const next = e.key === 'ArrowDown' ? (highlighted + 1) % optionCount : (highlighted <= 0 ? optionCount - 1 : highlighted - 1);
             setHighlighted(next);
             // Focus stays in the field, so the panel does not follow the highlight by itself; the
             // option's scroll margin keeps it clear of its group's sticky label.
             document.getElementById(optionId(next))?.scrollIntoView({ block: 'nearest' });
         } else if (e.key === 'Enter') {
+            if (highlighted === showAllIndex) {
+                expand();
+                return;
+            }
             const target = options[highlighted] ?? options[0];
             handleSelect(target.path);
         }
@@ -236,9 +261,8 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
                 value={query}
                 autoFocus={collapsed}
                 onChange={(e) => {
-                    setQuery(e.target.value);
+                    changeQuery(e.target.value);
                     setIsOpen(true);
-                    setHighlighted(-1);
                 }}
                 onFocus={() => setIsOpen(true)}
                 onKeyDown={handleKeyDown}
@@ -250,7 +274,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
             {query && (
                 <button
                     type="button"
-                    onClick={() => setQuery('')}
+                    onClick={() => changeQuery('')}
                     aria-label="Clear search"
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-tertiary hover:text-primary transition-colors cursor-pointer"
                 >
@@ -302,6 +326,20 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
                             })}
                         </div>
                     ))}
+                    {showAllIndex >= 0 && (
+                        <div
+                            id={optionId(showAllIndex)}
+                            role="option"
+                            aria-selected={showAllIndex === highlighted}
+                            onClick={expand}
+                            // The field keeps focus, so the arrow keys go on working over the longer lists.
+                            onMouseDown={e => e.preventDefault()}
+                            onMouseEnter={() => setHighlighted(showAllIndex)}
+                            className={`p-3 font-sans text-sm text-accent cursor-pointer transition-colors ${showAllIndex === highlighted ? 'bg-surface-hover' : ''}`}
+                        >
+                            Show all results
+                        </div>
+                    )}
                 </div>
             ) : (
                 <div className="p-4 text-center type-support">No results found</div>

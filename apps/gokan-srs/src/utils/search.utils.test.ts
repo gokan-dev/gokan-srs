@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { readSearchQuery } from '@gokan/dataset-schema';
 import type { SearchGrammarRow, SearchIndex, SearchKanjiRow } from '@gokan/dataset-schema';
 import { searchIndexEntry, vocabulary } from '../test/fixtures';
-import { matchesVocabQuery, prepareAppSearch, SEARCH_LIMITS, searchApp, type SearchLimits } from './search.utils';
+import { DROPDOWN_SEARCH_LIMITS, matchesVocabQuery, prepareAppSearch, SEARCH_LIMITS, searchApp, type SearchLimits } from './search.utils';
 
 /** The words the header search shows for `query`, as it ranked them before kanji and grammar were searched. */
 const rankVocabSearch = (index: SearchIndex, query: string, limit = 50) =>
@@ -198,5 +198,23 @@ describe('the header search over kanji and grammar', () => {
         expect(counts('sui', { ...at, grammar: 0 })).toEqual([3, 3, 0]);
         // One group: its own cap.
         expect(counts('sui', { ...at, kanji: 0, grammar: 0 })).toEqual([5, 0, 0]);
+    });
+
+    it('counts what the sharing dropped from each group, and nothing when one group matches', () => {
+        const many = prepareAppSearch(
+            ['水', '水道', '水曜日', '水泳', '香水'].map((w, i) => searchIndexEntry({ id: `w${i}`, w, r: 'すい', m: 'water' })),
+            ['水', '吹', '推', '垂', '炊'].map((k): SearchKanjiRow => [k, 5, 100, 'water', 'スイ']),
+            [['n5-073', 'Verb やすい', '〜yasui', 'easy to do', 5]],
+        );
+        // Three groups at 2 each: 5 words and 5 kanji lose 3 each, the one grammar point nothing.
+        expect(searchApp(many, 'sui', DROPDOWN_SEARCH_LIMITS).hidden).toEqual({ words: 3, kanji: 3, grammar: 0 });
+        // At the full limits (Show all results) nothing is dropped, and what was is there.
+        const all = searchApp(many, 'sui', SEARCH_LIMITS);
+        expect(all.hidden).toEqual({ words: 0, kanji: 0, grammar: 0 });
+        expect(all.words.length + all.kanji.length + all.grammar.length).toBe(2 + 2 + 1 + 3 + 3);
+        // Grammar alone: its own cap, nothing hidden.
+        const alone = searchApp(many, 'yasui', DROPDOWN_SEARCH_LIMITS);
+        expect([alone.words.length, alone.kanji.length, alone.grammar.length]).toEqual([0, 0, 1]);
+        expect(alone.hidden).toEqual({ words: 0, kanji: 0, grammar: 0 });
     });
 });
