@@ -338,6 +338,14 @@ describe('a contrast drill card (issue 249)', () => {
         expect(cardOf(cardOfPoint('kara'), true)).not.toContain('Which one, and when');
     });
 
+    it('sets the Japanese of a usage note in a Japanese face, upright', () => {
+        const noted = { ...kara, usageNote: 'は marks the topic, what the sentence is about (私は学生です).' };
+        const [card] = drillCardsOf([noted, karadesu].map(p => ({ point: p, examples: p.examples })), [], 'seed', p => ({ ...info(p), usageNote: p.usageNote }));
+        const html = cardOf(card, true, pickedWrong(card, 'karadesu'));
+        expect(html).toContain('<span class="font-gothic" lang="ja">私は学生です</span>');
+        expect(html).not.toMatch(/<p class="[^"]*italic[^"]*">[^<]*marks the topic/);
+    });
+
     it('names its own point, read from the card, and shows no mastery ring', () => {
         const card = cardOfPoint('okage');
         const html = cardOf(card, true, pickedWrong(card, 'kara'));

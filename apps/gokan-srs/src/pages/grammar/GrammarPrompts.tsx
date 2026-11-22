@@ -4,6 +4,7 @@ import type { GrammarContrastCase, GrammarPoint } from "@gokan/dataset-schema";
 import type { GrammarBlankPlan, GrammarConjugationPrompt } from "../../context/quiz/grammarReducer";
 import { JlptChip } from "../../components/JlptChip";
 import { ContrastCaseText } from "../../components/ContrastCaseText";
+import { MixedText } from "../../components/MixedText";
 import { QuizMasteryCorner } from "../../components/quiz/QuizMasteryCorner";
 import { Ruby } from "../../components/Ruby";
 import { PointLink } from "./PointLink";
@@ -79,11 +80,13 @@ export function DrillContrastNote({ contrast }: { contrast: GrammarContrastCase 
 
 /**
  * A grammar point's usage note on its card (under the feedback, or under the study card's header,
- * `centered`). English, so in the UI sans, as every English cue is.
+ * `centered`). English with Japanese runs in it ("は marks the topic (私は学生です)."): the English in
+ * the UI sans, as every English cue is, each Japanese run in a Japanese face (MixedText). Upright:
+ * a CJK face has no italic, and a synthetic oblique of it reads badly.
  */
 export function UsageNote({ note, centered = false }: { note: string; centered?: boolean }) {
     return (
-        <p className={`text-xs font-sans text-secondary italic ${centered ? 'text-center mt-1 max-w-sm mx-auto' : 'mt-2'}`}>{note}</p>
+        <p className={`text-xs font-sans text-secondary ${centered ? 'text-center mt-1 max-w-sm mx-auto' : 'mt-2'}`}><MixedText text={note} /></p>
     );
 }
 
