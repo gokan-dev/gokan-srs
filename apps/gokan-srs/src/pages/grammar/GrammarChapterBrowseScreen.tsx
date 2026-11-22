@@ -178,7 +178,7 @@ export function GrammarChapterBrowseScreen() {
 
                                         {/* Only a chapter where two points share a family has anything to contrast. */}
                                         {isOpen && withSharedFamily(chapter.points, id => rowById.get(id)?.familyId).length > 0 && (
-                                            <div className="px-2 pb-2">
+                                            <div className="px-2 pt-2 pb-2" data-chapter-drill>
                                                 <DrillLink set={{ kind: 'chapter', chapterId: chapter.id }} label="Drill the related points" />
                                             </div>
                                         )}

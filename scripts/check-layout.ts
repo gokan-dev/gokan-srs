@@ -481,6 +481,31 @@ async function checkDrillWalk(tab: Tab, app: string, width: number): Promise<voi
     }
 }
 
+/** The chapter browser on a chapter whose related points have a drill ("Giving a reason"), expanded. */
+const DRILL_CHAPTER_PATH = '/grammar/chapters?chapter=n5-c16';
+/** docs/DESIGN_SYSTEM.md section 4: inside a group, 8 or 12px. */
+const CHAPTER_DRILL_GAP = 8;
+
+/**
+ * The chapter browser's "Drill the related points" stands apart from the expanded chapter's header
+ * (the toggle's shaded block) by the group's spacing: flush against it, in dark its border touches
+ * the header's tint and reads as part of it (PR 280, rc.16).
+ */
+async function checkChapterDrillGap(tab: Tab, app: string, width: number): Promise<void> {
+    const page = `srs ${DRILL_CHAPTER_PATH}`;
+    await tab.goto(`${app}${DRILL_CHAPTER_PATH}`, 'Giving a reason');
+    await tab.until(`document.querySelector('[data-chapter-drill] a') !== null`, 'the chapter\'s drill link', 10000);
+    const gap = await tab.evaluate<number | null>(`(() => {
+        const wrapper = document.querySelector('[data-chapter-drill]');
+        const header = wrapper?.previousElementSibling;
+        const link = wrapper?.querySelector('a');
+        if (!header || !link) return null;
+        return Math.round(link.getBoundingClientRect().top - header.getBoundingClientRect().bottom);
+    })()`);
+    if (gap === null) failures.push(`${width}px ${page}: no chapter header before the drill link to measure`);
+    else if (gap < CHAPTER_DRILL_GAP) failures.push(`${width}px ${page}: "Drill the related points" sits ${gap}px under the chapter's header (at least ${CHAPTER_DRILL_GAP}px)`);
+}
+
 /**
  * A kanji's reading (components/KanjiReadings.tsx) never breaks across lines: ショ / ウ reads as
  * two readings, or one that does not exist. Lines break only between readings.
@@ -2533,6 +2558,7 @@ try {
     await checkCrossing(desktop, `http://127.0.0.1:${srs.port}`);
     await checkDetailFullPages(desktop, `http://127.0.0.1:${srs.port}`);
     await checkDrillWalk(desktop, `http://127.0.0.1:${srs.port}`, DESKTOP.width);
+    await checkChapterDrillGap(desktop, `http://127.0.0.1:${srs.port}`, DESKTOP.width);
     await desktop.close();
     for (const { width, height } of SETUP_LINK_SCREENS) await checkSetupLinkCount(chrome, `http://127.0.0.1:${srs.port}`, width, height);
     for (const { width, height } of VIEWPORTS) {
@@ -2577,6 +2603,7 @@ try {
             if (route.japaneseFaces) await checkJapaneseFaces(tab, `srs ${route.path}`, width);
         }
         await checkDrillWalk(tab, app, width);
+        await checkChapterDrillGap(tab, app, width);
         // The library's rows with a status line, the tightest rows on a phone. Before any word is
         // learned: the library ranks by known words, which would page the marked titles out of view.
         await tab.goto(`${app}/listening/${COMPLETED_TITLE}`, 'Mark all watched');
