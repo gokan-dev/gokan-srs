@@ -1,5 +1,5 @@
 import { describe as group, expect, it } from 'vitest';
-import { BUDGETS, countedBytes, describe, firstScreen, firstScreenBudgetOf, overBudget, percentile, type Measurement } from './budgets';
+import { BUDGETS, countedBytes, describe, firstScreen, firstScreenBudgetOf, overBudget, PAGE_BUDGETS, percentile, type Measurement } from './budgets';
 
 group('percentile', () => {
     it('takes the nearest rank', () => {
@@ -35,10 +35,16 @@ group('overBudget', () => {
 group('the 14 KB rule', () => {
     it('holds every page budget within the first round trip, less headers and margin', () => {
         // RFC 6928: an initial window of 10 segments, at most 14,600 bytes.
-        for (const name of ['wordPageP90', 'kanjiPageMax', 'grammarPageMax', 'homePage', 'grammarIndex', 'jlptPage', 'kanjiOrderPage'] as const) {
+        // Every budget marked a page's, so one added later is held to it with no edit here.
+        expect(PAGE_BUDGETS).toEqual(expect.arrayContaining(['wordPageP90', 'kanjiPageMax', 'grammarPageMax', 'homePage', 'grammarIndex', 'jlptPage', 'kanjiOrderPage']));
+        for (const name of PAGE_BUDGETS) {
             expect(BUDGETS[name].encoding).toBe('brotli');
             expect(BUDGETS[name].bytes).toBeLessThanOrEqual(14_600 - 512);
         }
+    });
+
+    it('marks no file a page', () => {
+        for (const name of ['blockingStylesheets', 'searchScript', 'searchCore', 'webFont'] as const) expect(PAGE_BUDGETS).not.toContain(name);
     });
 });
 

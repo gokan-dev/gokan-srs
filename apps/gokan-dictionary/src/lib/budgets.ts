@@ -20,34 +20,38 @@ type Encoding = 'brotli' | 'raw';
 interface Budget {
     bytes: number;
     encoding: Encoding;
+    /** A page's HTML, held to the 14 KB rule (FIRST_ROUND_TRIP), rather than a file it links. */
+    page: boolean;
 }
 
 /** The 14 KB rule's HTML budget: 14,600 bytes of initial window, less about 0.5 KB of headers and a margin. */
 const FIRST_ROUND_TRIP = 13 * KB;
 
-const brotli = (bytes: number): Budget => ({ bytes, encoding: 'brotli' });
+/** A page's budget: every page type has the same, the first round trip. */
+const PAGE: { bytes: number; encoding: 'brotli'; page: true } = { bytes: FIRST_ROUND_TRIP, encoding: 'brotli', page: true };
+const brotli = (bytes: number): { bytes: number; encoding: 'brotli'; page: false } => ({ bytes, encoding: 'brotli', page: false });
 
 export const BUDGETS = {
     /** A word page, 90th percentile. */
-    wordPageP90: brotli(FIRST_ROUND_TRIP),
+    wordPageP90: PAGE,
     /**
      * The heaviest kanji page: the tightest budget, 人 at 12.9 KB on 2026-11-22 (一 lists the most
      * words, 660, but compresses better). A kanji's Words section is what to trim first.
      */
-    kanjiPageMax: brotli(FIRST_ROUND_TRIP),
+    kanjiPageMax: PAGE,
     /** The heaviest grammar point page: its curated examples, up to 25 from the corpus, its related points. */
-    grammarPageMax: brotli(FIRST_ROUND_TRIP),
+    grammarPageMax: PAGE,
     /** The home page. */
-    homePage: brotli(FIRST_ROUND_TRIP),
+    homePage: PAGE,
     /** `/grammar/`, to the end of its first screen. */
-    grammarIndex: brotli(FIRST_ROUND_TRIP),
+    grammarIndex: PAGE,
     /** Each page of a JLPT word list, to the end of its first screen. */
-    jlptPage: brotli(FIRST_ROUND_TRIP),
+    jlptPage: PAGE,
     /**
      * Each kanji order page, to the end of its first screen: the orders hub, an order, and a range
      * of 100 steps with the words they unlock (the heaviest, held by WORDS_PER_KANJI in lib/kanjiOrders.ts).
      */
-    kanjiOrderPage: brotli(FIRST_ROUND_TRIP),
+    kanjiOrderPage: PAGE,
     /** The stylesheets a page links (app.scss, its page sheet, its locale's), together: the second window. */
     blockingStylesheets: brotli(14 * KB),
     /** The search script every page loads (#228: it carries every locale's words and links). */
@@ -61,10 +65,16 @@ export const BUDGETS = {
     /** search-core.json. */
     searchCore: brotli(415 * KB),
     /** The one web font, a woff2: compressed already, so CloudFront sends it as it is. */
-    webFont: { bytes: 40 * KB, encoding: 'raw' },
+    webFont: { bytes: 40 * KB, encoding: 'raw', page: false },
 } as const satisfies Record<string, Budget>;
 
 export type BudgetName = keyof typeof BUDGETS;
+
+/** The budgets of a page's HTML (`page: true`), each measured on built pages by check-build. */
+export type PageBudgetName = { [K in BudgetName]: (typeof BUDGETS)[K]['page'] extends true ? K : never }[BudgetName];
+
+const isPageBudget = (name: BudgetName): name is PageBudgetName => BUDGETS[name].page;
+export const PAGE_BUDGETS: readonly PageBudgetName[] = (Object.keys(BUDGETS) as BudgetName[]).filter(isPageBudget);
 
 /**
  * How many list rows (`<li>` inside `<main>`, in document order) a list page's first screen holds
@@ -79,7 +89,7 @@ export const FIRST_SCREEN_ROWS = {
     grammarIndex: 5,
     jlptPage: 10,
     kanjiOrderPage: 10,
-} as const satisfies Partial<Record<BudgetName, number>>;
+} as const satisfies Partial<Record<PageBudgetName, number>>;
 
 type FirstScreenBudget = keyof typeof FIRST_SCREEN_ROWS;
 
