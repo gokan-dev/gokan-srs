@@ -120,7 +120,11 @@ summary ("Largest tool results"), which is where a whole read shows.
   A change that ships code but nothing a learner sees (a refactor, tooling a build imports, a change
   the gate proves leaves the output identical, such as `check:parity --expect identical` or an
   equality test) adds no entry (nor, on a release branch, a fragment), so the app's version does
-  not move: its PR says so, and names what proves it.
+  not move: its PR says so, and names what proves it. The assembled entry's headline comes from
+  the tracker's title, which may name such a member: assemble lists every member with no fragment
+  beside the headline it wrote (`--members`, `headlineReview`), but whether a phrase names one is
+  not mechanised, so a reviewer checks the release PR's headline against the members that have
+  fragments, and strips what a learner cannot see.
 - `git log` is the record of what changed. Add an entry to
   [docs/MODIFICATION_LOG.md](docs/MODIFICATION_LOG.md) only for reasoning a diff cannot show:
   an investigation's result, why the obvious approach was rejected, or an interaction a later

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { availableUpdate, changelogDate, changelogProblems, compareVersions, fragmentIssue, insertChangelogEntry, parseChangelog, parseLiveVersion, serializeEntry } from './changelog.utils';
+import { availableUpdate, changelogDate, changelogProblems, compareVersions, fragmentIssue, headlineReview, insertChangelogEntry, parseChangelog, parseLiveVersion, parseSprintMembers, serializeEntry } from './changelog.utils';
 import type { ChangelogEntry } from '../models/release.model';
 import { CHANGELOG } from '../../release/changelog';
 
@@ -156,5 +156,28 @@ describe('serializeEntry and insertChangelogEntry', () => {
 
     it('throws when the array opener is gone', () => {
         expect(() => insertChangelogEntry('const X = [];', entry())).toThrow('CHANGELOG array opener');
+    });
+});
+
+describe('headlineReview', () => {
+    const members = parseSprintMembers('#165 Listening cloze\n249 Contrast drill\n\n268 Brotli size budgets\n');
+
+    it('reads one member a line, with or without #', () => {
+        expect(members).toEqual([
+            { issue: 165, title: 'Listening cloze' },
+            { issue: 249, title: 'Contrast drill' },
+            { issue: 268, title: 'Brotli size budgets' },
+        ]);
+        expect(() => parseSprintMembers('Brotli size budgets')).toThrow('issue number');
+    });
+
+    it('names every member with no fragment beside the headline', () => {
+        const lines = headlineReview('Listening, contrast drills, compressed size budgets', members, [165, 249]);
+        expect(lines[0]).toBe('Headline: "Listening, contrast drills, compressed size budgets"');
+        expect(lines.slice(2)).toEqual(['  #268 Brotli size budgets']);
+    });
+
+    it('says nothing when every member has a fragment', () => {
+        expect(headlineReview('Listening', members, [165, 249, 268])).toEqual([]);
     });
 });

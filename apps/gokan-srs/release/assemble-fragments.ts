@@ -7,14 +7,22 @@
 //
 // The single-issue flow does not use this: a lone PR edits release/changelog.ts directly, as before.
 //
+// The headline is given explicitly (the workflow passes the tracker's title). A member that ships
+// nothing a learner sees leaves no fragment, but the title may still name it: with `--members`
+// (one `<issue> <title>` a line), every member with no fragment is printed beside the headline, so
+// whoever runs this sees what to strip. Whether a phrase of the headline names such a member
+// cannot be decided by code: a reviewer checks the assembled headline against the members that
+// have fragments (AGENTS.md, Workflow).
+//
 // Usage:
-//   bun apps/gokan-srs/release/assemble-fragments.ts --version 1.45.0 --headline "Detail pages" [--date YYYY-MM-DD]
+//   bun apps/gokan-srs/release/assemble-fragments.ts --version 1.45.0 --headline "Detail pages" \
+//     [--members "$(printf '172 Word page tabs\n180 Brotli budgets')"] [--date YYYY-MM-DD]
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { ChangelogChange, ChangelogEntry } from '../src/models/release.model';
-import { changelogProblems, fragmentIssue, insertChangelogEntry } from '../src/utils/changelog.utils';
+import { changelogProblems, fragmentIssue, headlineReview, insertChangelogEntry, parseSprintMembers } from '../src/utils/changelog.utils';
 import { CHANGELOG } from './changelog';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -27,6 +35,7 @@ function arg(flag: string): string | undefined {
 function main(): void {
     const version = arg('--version');
     const headline = arg('--headline');
+    const members = arg('--members');
     const date = arg('--date') ?? new Date().toISOString().slice(0, 10);
     if (!version || !headline) {
         throw new Error('usage: assemble-fragments.ts --version X.Y.Z --headline "..." [--date YYYY-MM-DD]');
@@ -57,6 +66,12 @@ function main(): void {
 
     for (const file of files) fs.rmSync(path.join(dir, file));
     process.stdout.write(`Assembled ${version} from ${files.length} fragment(s); removed them.\n`);
+
+    if (members !== undefined) {
+        const issues = changes.flatMap(change => (change.issue === undefined ? [] : [change.issue]));
+        const review = headlineReview(headline, parseSprintMembers(members), issues);
+        if (review.length) process.stdout.write(`${review.join('\n')}\n`);
+    }
 }
 
 main();
