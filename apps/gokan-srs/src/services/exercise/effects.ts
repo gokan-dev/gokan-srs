@@ -81,10 +81,13 @@ export interface AnswerContext {
  * - a slot asking for a word answered with something else is a mix-up, kept with
  *   the answer as typed and the card's sentence: a synonym grading identified
  *   (whatever it earned), or a wrong answer it did not. It names the other word
- *   only when the answer was that word (SynonymAnswer.match).
+ *   only when the answer was that word (SynonymAnswer.match);
+ * - a drill's exercise (`mode: 'drill'`) has no effects at all.
  */
 export function effectsOf(exercise: AnsweredExercise, grade: ExerciseGrade, { latencyMs, hintLevels, answers, unheard = false }: AnswerContext): Effect[] {
     const { host: item, label, cue } = exercise;
+    // A drill is practice: no review, retry, reinforcement, defer, calibration or mix-up.
+    if (exercise.mode === 'drill') return [];
     if (exercise.kind === 'study') return [{ kind: 'defer', item }];
     if (exercise.kind === 'listening-cloze') return listeningEffects(item, label, grade.overall, unheard);
 
@@ -218,6 +221,8 @@ export function applyEffects(
     effects: Effect[],
     { now, settings }: { now: Date; settings: UserSettings | null }
 ): { progress: UserProgress; record: AnswerRecord | null } {
+    // Nothing to write (a drill's answer): the progress is returned as it came, not a copy.
+    if (effects.length === 0) return { progress, record: null };
     const meaningEnabled = settings?.enableMeaningQuiz !== false;
     const productionEnabled = settings?.enableProductionQuiz !== false;
     const frequencyModifier = frequencyModifierOf(settings);

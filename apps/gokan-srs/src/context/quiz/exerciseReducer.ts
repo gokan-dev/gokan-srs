@@ -5,8 +5,8 @@ import { applyEffects } from '../../services/exercise/effects';
 import type { Effect } from '../../services/exercise/effects';
 import { addToGains } from './sessionGains';
 
-/** The two activities that serve exercises; each has at most one exercise on screen. */
-export type ExerciseHost = 'vocab' | 'grammar';
+/** What serves exercises: the two activities and the contrast drill. Each has at most one exercise on screen. */
+export type ExerciseHost = 'vocab' | 'grammar' | 'drill';
 
 export interface ExerciseFeedback {
     grade: ExerciseGrade;
@@ -38,7 +38,7 @@ export interface ExerciseTurnsState {
     turns: Record<ExerciseHost, ExerciseTurn | null>;
 }
 
-export const initialExerciseTurns: ExerciseTurnsState = { turns: { vocab: null, grammar: null } };
+export const initialExerciseTurns: ExerciseTurnsState = { turns: { vocab: null, grammar: null, drill: null } };
 
 export function newTurn(exercise: Exercise): ExerciseTurn {
     return { exercise, answers: exercise.slots.map(() => ''), hintLevels: exercise.slots.map(() => 0), feedback: null, isEvaluating: false };
@@ -50,7 +50,7 @@ export function clearedTurn(turn: ExerciseTurn): ExerciseTurn {
 }
 
 export function withTurn(state: QuizState, host: ExerciseHost, turn: ExerciseTurn | null): QuizState {
-    return { ...state, turns: host === 'vocab' ? { ...state.turns, vocab: turn } : { ...state.turns, grammar: turn } };
+    return { ...state, turns: { ...state.turns, [host]: turn } };
 }
 
 export type ExerciseAction =
