@@ -12,8 +12,8 @@ import { CLASS_SHIFT, classCodeOfRow, FLAG_COMMON, FLAG_USUALLY_KANA } from './s
 
 /**
  * Words in the core file beyond the JLPT lists: the most frequent ones. As many as fit the core's
- * budget (BUDGETS.searchCoreGzip, checked by scripts/check-build.ts) with every JLPT word, kanji and grammar point:
- * 6500 until every kanji carried its meanings and readings (#264), 5500 since (351 of 360 KB).
+ * budget (BUDGETS.searchCore, checked by scripts/check-build.ts) with every JLPT word, kanji and grammar point:
+ * 6500 until every kanji carried its meanings and readings (#264), 5500 since, to fit it (gzipped then, brotli since #268).
  */
 export const CORE_FREQUENT_WORDS = 5500;
 
