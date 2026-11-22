@@ -77,6 +77,9 @@
  * - the app panel stands 40px above what follows it (a word page, a kanji page);
  * - no word in an app sentence has side space (margin or padding): Japanese has no spaces;
  * - example sentences (a word page's Dict tab, a grammar page) are spaced apart, never ruled;
+ * - on a contrast drill, every run of kana or kanji is set in a Japanese face (the first family of
+ *   its stack), on a card, after a wrong pick and on the summary, and the summary card keeps the
+ *   question card's edges (at 320px, 375px and 1280px);
  * - play buttons (a word's reading, a word page's and a grammar page's example sentences) are
  *   44px tap targets on a phone at the first line of what they play (the sentence, the reading, a
  *   kana word's note), and each of those pages has a "Play sentence" button; in the dictionary too
@@ -388,6 +391,126 @@ async function checkExamplesUnruled(tab: Tab, page: string, width: number): Prom
     })()`);
     if (result.count === 0) failures.push(`${width}px ${page}: no example sentence ([data-example-sentence]) to check`);
     for (const text of result.ruled) failures.push(`${width}px ${page}: example sentence ruled with a top or bottom border (space them apart): ${text}`);
+}
+
+/**
+ * Every visible run of kana or kanji is set in one of the app's Japanese faces (AGENTS.md: Japanese
+ * text uses font-mincho or font-gothic): the first family of its computed stack is Noto Sans JP or
+ * Noto Serif JP. A fallback further down does not count: font-sans is Inter first, so its kana come
+ * from Noto Sans JP only by fallback, with Inter's metrics around them. A page title is Source Serif
+ * 4, which has no CJK glyphs: Japanese in it rendered as missing-glyph boxes (PR 280).
+ */
+const JAPANESE_OUTSIDE_JAPANESE_FACES = `(() => {
+    const japanese = /[\\u3040-\\u30ff\\u3400-\\u9fff]/;
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    const strays = [];
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const el = node.parentElement;
+        if (!el || !japanese.test(node.textContent) || el.closest('svg, script, style')) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 || r.height === 0) continue;
+        const family = getComputedStyle(el).fontFamily;
+        const first = family.split(',')[0].trim().replace(/^["']|["']$/g, '');
+        if (first !== 'Noto Sans JP' && first !== 'Noto Serif JP') strays.push(el.tagName.toLowerCase() + ' "' + node.textContent.trim().slice(0, 20) + '" in ' + family.split(',')[0]);
+    }
+    return strays;
+})()`;
+
+async function checkJapaneseFaces(tab: Tab, page: string, width: number): Promise<void> {
+    const strays = await tab.evaluate<string[]>(JAPANESE_OUTSIDE_JAPANESE_FACES);
+    for (const stray of strays.slice(0, 4)) {
+        // Once per page: a drill measures every wrong pick, and the same note shows on several.
+        const failure = `${width}px ${page}: Japanese text outside a Japanese face (font-gothic or font-mincho): ${stray}`;
+        if (!failures.includes(failure)) failures.push(failure);
+    }
+}
+
+/**
+ * A contrast drill whose wrong picks show their contrast note (dataset English with Japanese in it:
+ * reason-core, the route list's drill, has none, since its one case is a pair that may both fit).
+ */
+const DRILL_PATH = '/grammar/drill/lesson/time-window/during-window';
+/**
+ * The run's order, pinned (DrillScreen reads `?seed=`): the walk picks each card's first option, so
+ * an order drawn from the clock could meet no wrong pick with a note. drillSelectors.test.ts holds
+ * that this seed's drill has a card whose first option carries its contrast case.
+ */
+const DRILL_SEED = 'layout';
+/** More cards than a drill holds (drillMaxCards), so a drill that never ends fails rather than hangs. */
+const DRILL_CARD_LIMIT = 20;
+
+/** The left and right edges of the card holding `selector` (the quiz card frame's, or the summary's). */
+const cardEdges = (selector: string) => `(() => {
+    const card = document.querySelector(${JSON.stringify(selector)})?.closest('.bg-surface');
+    if (!card) return null;
+    const r = card.getBoundingClientRect();
+    return { left: Math.round(r.left), right: Math.round(r.right) };
+})()`;
+
+/**
+ * A contrast drill answered through to its summary, by picking each card's first option: every
+ * Japanese run in a Japanese face after a wrong pick (the options' notes, the contrast note) and on
+ * the summary, not only on the unanswered card; and the summary card on the question card's edges,
+ * so the column keeps its width when the drill ends (docs/DESIGN_SYSTEM.md section 5, PR 280).
+ */
+async function checkDrillWalk(tab: Tab, app: string, width: number): Promise<void> {
+    const page = `srs ${DRILL_PATH}`;
+    await tab.goto(`${app}${DRILL_PATH}?seed=${DRILL_SEED}`, 'Card 1 of');
+    const question = await tab.evaluate<{ left: number; right: number } | null>(cardEdges('[aria-label="Choices"]'));
+    let wrongPicks = 0;
+    let contrastNotes = 0;
+    for (let card = 0; card < DRILL_CARD_LIMIT; card++) {
+        if (await tab.evaluate<boolean>(`document.querySelector('[data-drill-summary]') !== null`)) break;
+        await tab.evaluate<null>(`(document.querySelector('[aria-label="Choices"] button')?.click(), null)`);
+        await tab.click('Submit');
+        await tab.until(`[...document.querySelectorAll('button')].some(b => b.textContent.trim().startsWith('Continue'))`, `feedback on drill card ${card + 1}`);
+        if (await tab.evaluate<boolean>(`document.querySelector('[aria-label="Choices"] .text-feedback-incorrect') !== null`)) {
+            wrongPicks++;
+            if (await tab.evaluate<boolean>(`document.body.innerText.includes('Which one, and when')`)) contrastNotes++;
+            await checkJapaneseFaces(tab, `${page}, after a wrong pick`, width);
+        }
+        await tab.click('Continue');
+        await tab.until(`document.querySelector('[data-drill-summary]') !== null || document.body.innerText.includes('Card ${card + 2} of')`, `drill card ${card + 2} or the summary`);
+    }
+    if (wrongPicks === 0) failures.push(`${width}px ${page}: no first option was a wrong pick, so the feedback after one went unmeasured`);
+    else if (contrastNotes === 0) failures.push(`${width}px ${page}: no wrong pick showed its contrast note ("Which one, and when"), so the note went unmeasured`);
+    const summary = await tab.evaluate<{ left: number; right: number } | null>(cardEdges('[data-drill-summary]'));
+    if (!summary) {
+        failures.push(`${width}px ${page}: no summary ([data-drill-summary]) after ${DRILL_CARD_LIMIT} cards`);
+        return;
+    }
+    // measure() holds phone rules (the 16px input among them), which the desktop header's search field does not keep.
+    if (width < DESKTOP.width) await measure(tab, `${page}, summary`, width);
+    await checkJapaneseFaces(tab, `${page}, summary`, width);
+    if (!question) failures.push(`${width}px ${page}: no question card to measure`);
+    else if (Math.abs(question.left - summary.left) > 1 || Math.abs(question.right - summary.right) > 1) {
+        failures.push(`${width}px ${page}: the summary card (x ${summary.left} to ${summary.right}) is not on the question card's edges (x ${question.left} to ${question.right})`);
+    }
+}
+
+/** The chapter browser on a chapter whose related points have a drill ("Giving a reason"), expanded. */
+const DRILL_CHAPTER_PATH = '/grammar/chapters?chapter=n5-c16';
+/** docs/DESIGN_SYSTEM.md section 4: inside a group, 8 or 12px. */
+const CHAPTER_DRILL_GAP = 8;
+
+/**
+ * The chapter browser's "Drill the related points" stands apart from the expanded chapter's header
+ * (the toggle's shaded block) by the group's spacing: flush against it, in dark its border touches
+ * the header's tint and reads as part of it (PR 280, rc.16).
+ */
+async function checkChapterDrillGap(tab: Tab, app: string, width: number): Promise<void> {
+    const page = `srs ${DRILL_CHAPTER_PATH}`;
+    await tab.goto(`${app}${DRILL_CHAPTER_PATH}`, 'Giving a reason');
+    await tab.until(`document.querySelector('[data-chapter-drill] a') !== null`, 'the chapter\'s drill link', 10000);
+    const gap = await tab.evaluate<number | null>(`(() => {
+        const wrapper = document.querySelector('[data-chapter-drill]');
+        const header = wrapper?.previousElementSibling;
+        const link = wrapper?.querySelector('a');
+        if (!header || !link) return null;
+        return Math.round(link.getBoundingClientRect().top - header.getBoundingClientRect().bottom);
+    })()`);
+    if (gap === null) failures.push(`${width}px ${page}: no chapter header before the drill link to measure`);
+    else if (gap < CHAPTER_DRILL_GAP) failures.push(`${width}px ${page}: "Drill the related points" sits ${gap}px under the chapter's header (at least ${CHAPTER_DRILL_GAP}px)`);
 }
 
 /**
@@ -2815,6 +2938,8 @@ try {
     await checkDictLinkFocus(desktop, `srs /vocab/${LONG_SYNONYMS_WORD}`, DESKTOP.width);
     await checkCrossing(desktop, `http://127.0.0.1:${srs.port}`);
     await checkDetailFullPages(desktop, `http://127.0.0.1:${srs.port}`);
+    await checkDrillWalk(desktop, `http://127.0.0.1:${srs.port}`, DESKTOP.width);
+    await checkChapterDrillGap(desktop, `http://127.0.0.1:${srs.port}`, DESKTOP.width);
     await desktop.close();
     for (const { width, height } of SETUP_LINK_SCREENS) await checkSetupLinkCount(chrome, `http://127.0.0.1:${srs.port}`, width, height);
     for (const { width, height } of VIEWPORTS) {
@@ -2856,7 +2981,10 @@ try {
             await tab.goto(`${app}${route.path}`, route.ready);
             if (route.settled) await tab.until(`document.querySelector(${JSON.stringify(route.settled)}) !== null`, `${route.settled} on ${route.path}`, 10000);
             await measure(tab, `srs ${route.path}`, width);
+            if (route.japaneseFaces) await checkJapaneseFaces(tab, `srs ${route.path}`, width);
         }
+        await checkDrillWalk(tab, app, width);
+        await checkChapterDrillGap(tab, app, width);
         // The library's rows with a status line, the tightest rows on a phone. Before any word is
         // learned: the library ranks by known words, which would page the marked titles out of view.
         await tab.goto(`${app}/listening/${COMPLETED_TITLE}`, 'Mark all watched');

@@ -12,9 +12,10 @@ import { clipPlayer } from '../../services/clipPlayer';
 import { vocabExercise } from '../../services/exercise/builders';
 import type { Exercise } from '../../services/exercise/types';
 import { CONSTANTS } from '../../commons/constants';
-import { grammarPoint, sentence, vocabulary } from '../../test/fixtures';
+import { grammarExample, grammarPoint, sentence, vocabulary } from '../../test/fixtures';
 import { gradeExercise } from '../../services/exercise/grading';
 import { ExerciseCard } from './ExerciseCard';
+import { drillCardsOf } from '../../context/quiz/drillSelectors';
 
 const vocab = vocabulary();
 const point = grammarPoint();
@@ -299,5 +300,48 @@ describe('the listening cloze card', () => {
             await settled(() => undefined);
             expect(document.activeElement).toBe(container.querySelector('input'));
         });
+    });
+});
+
+describe('a contrast drill card (issue 249)', () => {
+    const family = { id: 'reason', name: 'Reason', relatedPoints: [] };
+    const tokens = (lead: string, marker: string) => grammarExample({ jp: `${lead}${marker}`, words: [{ surface: lead, vocabId: null }, { surface: marker, vocabId: null }], patternWordIndices: [1] });
+    const kara = grammarPoint({ id: 'kara', title: '～から', slot: 'clause-final', formation: 'Clause + から', family, examples: [tokens('雨だ', 'から')] });
+    const karadesu = grammarPoint({ id: 'karadesu', title: '～からです', slot: 'predicate-final', formation: 'Clause + からです', family, examples: [tokens('雨だ', 'からです')] });
+    // おかげで has no slot: its sentence rules から out by connection.
+    const okage = grammarPoint({ id: 'okage', title: '～おかげで', formation: 'Noun + のおかげで', family, examples: [{ ...tokens('先生の', 'おかげで'), ruledOut: ['kara'] }] });
+    const info = (p: typeof kara) => ({ id: p.id, title: p.title, jlptLevel: p.jlptLevel, marker: p.title, comparedOn: null });
+    // から's card offers からです (another place in a sentence); a case covers that pair, none covers おかげで's.
+    const taught = { focus: 'karadesu', vs: ['kara'], situation: 'Giving the reason as the answer.', guidance: 'からです ends the sentence.' };
+    const cards = drillCardsOf([kara, karadesu, okage].map(p => ({ point: p, examples: p.examples })), [taught], 'seed', info);
+    const cardOfPoint = (id: string) => {
+        const card = cards.find(c => c.point.id === id);
+        if (!card) throw new Error(`no drill card for ${id}`);
+        return card;
+    };
+    /** The card answered with the wrong option naming `pointId`. */
+    const pickedWrong = (card: ReturnType<typeof cardOfPoint>, pointId: string): ExerciseTurn => {
+        const text = card.slots[0].choices?.find(c => c.pointId === pointId)?.text ?? '';
+        return { ...newTurn(card), answers: [text], feedback: { grade: gradeExercise(card, [text], [0]), effects: [] } };
+    };
+
+    it('shows the contrast case of the pair after a wrong pick the dataset has one for', () => {
+        const card = cardOfPoint('kara');
+        const html = cardOf(card, true, pickedWrong(card, 'karadesu'));
+        expect(html).toContain('Which one, and when');
+        expect(html).toContain('Giving the reason as the answer.');
+    });
+
+    it('shows none for a pair with no case, nor before the card is answered', () => {
+        const card = cardOfPoint('okage');
+        expect(cardOf(card, true, pickedWrong(card, 'kara'))).not.toContain('Which one, and when');
+        expect(cardOf(cardOfPoint('kara'), true)).not.toContain('Which one, and when');
+    });
+
+    it('names its own point, read from the card, and shows no mastery ring', () => {
+        const card = cardOfPoint('okage');
+        const html = cardOf(card, true, pickedWrong(card, 'kara'));
+        expect(html).toContain('/grammar/okage');
+        expect(html).not.toContain('role="img"');
     });
 });

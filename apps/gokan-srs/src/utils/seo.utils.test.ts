@@ -75,12 +75,19 @@ describe('routeSeo', () => {
     });
 
     it('points every parameterised detail route at a dictionary page', () => {
-        const detail = APP_ROUTES.filter(path => /^\/(grammar|vocab|kanji)\//.test(path) && path.includes(':'));
+        // A contrast drill is practice over a set of points, no entry of the dictionary (tested below).
+        const detail = APP_ROUTES.filter(path => /^\/(grammar|vocab|kanji)\//.test(path) && path.includes(':') && !path.startsWith('/grammar/drill/'));
         expect(detail.length).toBeGreaterThan(0);
         for (const path of detail) {
             const seo = routeSeo(path.replace(/:[a-zA-Z]+/g, 'x'));
             expect(seo.kind === 'canonical' && seo.path.startsWith('/dictionary/'), path).toBe(true);
         }
+    });
+
+    it('keeps every contrast drill out of the index: it is practice, not an entry', () => {
+        const drills = APP_ROUTES.filter(path => path.startsWith('/grammar/drill/'));
+        expect(drills).toHaveLength(4);
+        for (const path of drills) expect(routeSeo(path.replace(/:[a-zA-Z]+/g, 'x')), path).toEqual({ kind: 'noindex' });
     });
 
     it('never guesses a dictionary page for a path that is not one entry', () => {

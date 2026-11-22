@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { GRAMMAR, KANJI, MORE_DESTINATIONS, STUDY, VOCABULARY, WHATS_NEW, isDestinationActive, isMoreActive, isSessionPath, grammarPath, kanjiPath, synonymsPath, vocabPath } from './navigation.utils';
+import { GRAMMAR, KANJI, MORE_DESTINATIONS, STUDY, VOCABULARY, WHATS_NEW, isDestinationActive, isMoreActive, drillPath, grammarChapterPath, grammarFamilyPath, grammarPath, isSessionPath, kanjiPath, synonymsPath, vocabPath } from './navigation.utils';
 
 describe('isDestinationActive', () => {
     it('marks Study on the hub only', () => {
@@ -61,14 +61,39 @@ describe('vocabPath', () => {
     });
 });
 
-describe('grammarPath', () => {
-    it("is the grammar point's page", () => {
-        expect(grammarPath('n5-048')).toBe('/grammar/n5-048');
-    });
-});
-
 describe('kanjiPath', () => {
     it("is the kanji's page, the glyph as written", () => {
         expect(kanjiPath('輝')).toBe('/kanji/輝');
+    });
+});
+
+describe('grammarPath', () => {
+    it("builds a grammar point's page, its id encoded", () => {
+        expect(grammarPath('n4-110')).toBe('/grammar/n4-110');
+        expect(grammarPath('a/b')).toBe('/grammar/a%2Fb');
+    });
+});
+
+describe('grammarFamilyPath and grammarChapterPath', () => {
+    it('build the family page and the chapter browser open on a chapter, ids encoded', () => {
+        expect(grammarFamilyPath('causality')).toBe('/grammar/family/causality');
+        expect(grammarFamilyPath('a/b')).toBe('/grammar/family/a%2Fb');
+        expect(grammarChapterPath('n5-c17')).toBe('/grammar/chapters?chapter=n5-c17');
+        expect(grammarChapterPath('a&b')).toBe('/grammar/chapters?chapter=a%26b');
+    });
+});
+
+describe('drillPath', () => {
+    it('names each kind of set, its ids encoded', () => {
+        expect(drillPath({ kind: 'lesson', familyId: 'causality', lessonId: 'reason-core' })).toBe('/grammar/drill/lesson/causality/reason-core');
+        expect(drillPath({ kind: 'family', familyId: 'contradiction' })).toBe('/grammar/drill/family/contradiction');
+        expect(drillPath({ kind: 'chapter', chapterId: 'n5-c17' })).toBe('/grammar/drill/chapter/n5-c17');
+        expect(drillPath({ kind: 'point', grammarId: 'a/b' })).toBe('/grammar/drill/point/a%2Fb');
+    });
+
+    it('is a grammar page, inside Grammar, and no study session', () => {
+        const path = drillPath({ kind: 'family', familyId: 'x' });
+        expect(isDestinationActive(path, GRAMMAR)).toBe(true);
+        expect(isSessionPath(path)).toBe(false);
     });
 });

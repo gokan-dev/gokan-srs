@@ -24,6 +24,7 @@ import { GrammarExampleList, GrammarExamplesPanel, type ListedExample } from "./
 import { GRAMMAR_TABS } from "../../utils/detailTabs.utils";
 import { directionStatus, grammarLearningStatus, statusReviewPhrase } from "../../utils/learningStatus.utils";
 import { grammarNextReviewAt } from "../../services/grammarScheduling";
+import { grammarChapterPath } from "../../utils/navigation.utils";
 
 type GrammarTab = typeof GRAMMAR_TABS.tabs[number];
 
@@ -140,7 +141,7 @@ function GrammarPage({ point, chapterLocation, mined, examplesSettled, hasVarian
                     {point.formalityLevel && <DetailField compact label="Formality">{FORMALITY_LABELS[point.formalityLevel]}</DetailField>}
                     {chapterLocation && (
                         <DetailField compact label="Position">
-                            <Link to={`/grammar/chapters?chapter=${chapterLocation.chapter.id}`} className="text-accent hover:underline">
+                            <Link to={grammarChapterPath(chapterLocation.chapter.id)} className="text-accent hover:underline">
                                 Chapter {chapterLocation.chapterNumber}, point {chapterLocation.chapter.points.indexOf(point.id) + 1} of {chapterLocation.chapter.points.length}
                             </Link>
                         </DetailField>

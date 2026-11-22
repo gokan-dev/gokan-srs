@@ -11,6 +11,8 @@ import type { QuizState } from './quizReducer';
 import type { SessionStats, NextSessionPreview } from './quizSelectors';
 import { useQuizOrchestration, type QuizActions } from './useQuizOrchestration';
 import { useGrammarOrchestration } from './useGrammarOrchestration';
+import { useDrillOrchestration } from './useDrillOrchestration';
+import type { DrillActions } from './useDrillOrchestration';
 import type { GrammarActions, PendingGrammarChapterLesson } from './useGrammarOrchestration';
 import type { ExerciseTurnApi } from './useExerciseTurn';
 import type { ExerciseHost } from './exerciseReducer';
@@ -46,6 +48,8 @@ export interface QuizContextValue {
     /** The end-of-chapter review step, when a chapter has just completed and has anchored contrast lessons - null otherwise. */
     pendingGrammarChapterLesson: PendingGrammarChapterLesson | null;
     grammarActions: GrammarActions;
+    /** The contrast drill on screen, if any (state.drill; its card is exercises.drill). */
+    drillActions: DrillActions;
     /** Called by PageRenderedSignal once the first page has rendered; starts the study flow's background loads. */
     markPageRendered: () => void;
 }
@@ -84,6 +88,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         grammarHubChapter,
         pendingGrammarChapterLesson,
     } = useGrammarOrchestration(state, dispatch, pageRendered);
+    const { drillExercise, drillActions } = useDrillOrchestration(state, dispatch);
 
     return (
         <QuizContext.Provider
@@ -97,7 +102,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 sessionStats,
                 nextSessionPreview,
                 actions,
-                exercises: { vocab: exercise, grammar: grammarExercise },
+                exercises: { vocab: exercise, grammar: grammarExercise, drill: drillExercise },
                 grammarSessionState: grammarNextView.sessionState,
                 grammarNextReviewAt: grammarNextView.nextReviewAt,
                 currentGrammarProgress,
@@ -107,6 +112,7 @@ export const QuizProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                 grammarHubChapter,
                 pendingGrammarChapterLesson,
                 grammarActions,
+                drillActions,
                 markPageRendered,
             }}
         >

@@ -265,6 +265,19 @@ The rest of the study flow:
 - Sentences: `utils/sentenceRanking.ts` for every activity that picks an example; a sentence with
   blanks is a `ClozeSentence` (`utils/clozeSentence.utils.ts`); a grammar example becomes a
   `Sentence` through `grammarExampleToSentence` (`@gokan/dataset-schema`).
+- Contrast drill (practice outside the SRS, issue #249): its sets and cards only from
+  `context/quiz/drillSelectors.ts` (`loadDrill`, `hasDrill` for its button, `rulesOut` decides every
+  wrong option), its types (`DrillSet`, `DrillPointInfo`) in `models/grammar.model.ts`, its run
+  through the `drill` exercise host and `drillReducer.ts` (kept on a lookup, ended elsewhere:
+  `drillRouteRole`), its cards' `mode: 'drill'` (no effects, decided in `effectsOf`), what a card
+  shows on its exercise (`point`, each choice's `pointId` and `contrast`), its way in
+  `components/DrillLink.tsx`, its page `pages/exercise/DrillScreen.tsx`.
+- Grammar destinations: a point's page through `grammarPath`, a family's page through
+  `grammarFamilyPath`, the chapter browser on a chapter through `grammarChapterPath`, a drill
+  through `drillPath` (`utils/navigation.utils.ts`; enforced with the word and kanji paths). A
+  Japanese run inside English text (a lesson title in a page title, a contrast case's guidance) is
+  set in a Japanese face by `components/MixedText.tsx` (over `japaneseRuns`,
+  `utils/japaneseRuns.utils.ts`).
 - Session flow: `useSessionLifecycle`, `components/SessionProgress.tsx` (counter, ticker, gains),
   the commit pipeline in `quizSelectors.ts` shared by the preview and the session.
 - Card building blocks: `components/quiz/` (`QuizCardFrame`, `QuizMasteryCorner`,

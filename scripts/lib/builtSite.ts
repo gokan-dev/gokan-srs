@@ -289,7 +289,7 @@ export function dictionaryListShapes(): { path: string; ready: string }[] {
  * The app after onboarding, at its main routes. Each waits for a word the page always shows, and
  * `settled`, a selector, when part of the page loads after that word.
  */
-export function srsRoutes(): { path: string; ready: string; settled?: string }[] {
+export function srsRoutes(): { path: string; ready: string; settled?: string; japaneseFaces?: true }[] {
     const vocabId = firstEntry(join(DATASET_DIR, 'vocab'), name => name.endsWith('.json')).replace(/\.json$/, '');
     return [
         { path: '/', ready: 'Study' },
@@ -301,6 +301,8 @@ export function srsRoutes(): { path: string; ready: string; settled?: string }[]
         { path: '/kanji', ready: 'Kanji learning method' },
         { path: `/kanji/${encodeURIComponent('学')}`, ready: 'Components' },
         { path: '/grammar/browse', ready: 'Grammar' },
+        // A contrast drill (issue #249): から, ので and からです each have sentences that rule another out.
+        { path: '/grammar/drill/lesson/causality/reason-core', ready: 'Card 1 of', japaneseFaces: true },
         { path: '/listening', ready: 'Listening' },
         { path: '/stats', ready: 'Stats' },
         { path: '/settings', ready: 'Settings' },
