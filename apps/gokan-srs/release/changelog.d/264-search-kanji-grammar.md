@@ -1,0 +1,1 @@
+The search bar, in the app and the dictionary, now finds kanji and grammar points as well as words: type a kanji, its English meaning or its reading in kana or romaji (water, みず, sui for 水), or a grammar pattern (てから, te kara), and results come grouped as Words, Kanji and Grammar.

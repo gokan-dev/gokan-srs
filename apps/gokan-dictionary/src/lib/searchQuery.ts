@@ -1,156 +1,25 @@
-// Query matching and ranking for the dictionary's search: pure, shared by the header panel, the
-// /search/ results page (client/search.ts) and the build-time acceptance check
-// (scripts/check-build.ts), so all three rank the same way.
-//
-// A query is read every way a learner might have meant it: as written (kanji or kana, katakana
-// and hiragana compared as equal), as romaji converted to kana ("taberu"), as a conjugated form
-// (食べた, through conjugation.ts) and against the glosses in the index's language: English in
-// English's index, Chinese in a locale's whose glosses are Chinese (#170), each queried in its
-// own script, so English's index answers a kanji query exactly as it did before there were two.
+// The dictionary's search over its own index files: the shared matcher (@gokan/dataset-schema's
+// search.ts, gokan-srs's too) fed this index's rows, with the conjugation rules (conjugation.ts)
+// as its deinflector. Shared by the header panel, the /search/ results page (client/search.ts)
+// and the build-time acceptance check (scripts/check-build.ts), so all three rank the same way.
+// Nothing is ranked here: what matches, and in which order, is the package's.
 
-import { containsWholeWord, readRomajiQuery, toHiragana } from '@gokan/dataset-schema';
+import { grammarRowInput, kanjiRowInput, normalizeQuery, prepareSearch, runSearch, WORD_TIER } from '@gokan/dataset-schema';
+import type { Deinflector, PreparedSearch, SearchResults, SearchWordInput, WordHit } from '@gokan/dataset-schema';
 import { deinflect, type WordClass } from './conjugation';
-import { fromColumns, wordClassOfRow } from './searchIndex';
+import { fromColumns, kanjiFromColumns, wordClassOfRow } from './searchIndex';
 import type { DatasetLanguage } from './locale';
-import { isCommonRow, readingOfRow } from './searchRow';
+import { FLAG_USUALLY_KANA, isCommonRow, readingOfRow } from './searchRow';
 import type { SearchGrammarRow, SearchIndexFile, SearchKanjiRow, SearchWordRow } from './types';
 
-/** Match tiers, best first. Within a tier: JLPT words, then common words, then frequency. */
-export const TIER = {
-    /** The headword or reading itself. */
-    exact: 1,
-    /** The reading the romaji converts to. */
-    romaji: 2,
-    /** The dictionary form of a conjugated query (食べた). */
-    deinflected: 3,
-    /** Headword or reading starts with the query; or, for a kanji query, the headword contains it. */
-    prefix: 4,
-    /** A sense equal to the query: in English ignoring a leading "to" or article, in Chinese one of its comma-separated glosses. */
-    sense: 5,
-    /** The query as a whole word in an English gloss. */
-    glossWord: 6,
-    /**
-     * The reading starts with the romaji's kana, its last syllable possibly unfinished
-     * (romajiReadingPrefixes: "taber" for たべる). After the English tiers: a Latin query that
-     * converts is more often an English word ("house", read ほうせ) than the start of a reading.
-     */
-    romajiPrefix: 7,
-    /** The query anywhere in headword, reading or gloss. */
-    substring: 8,
-} as const;
+export { normalizeQuery };
 
-interface PreparedWord {
-    row: SearchWordRow;
-    rank: number;
-    headword: string;
-    /** In hiragana, so katakana and hiragana compare equal. */
-    reading: string;
-    gloss: string;
-    senses: string[];
-    wordClass: WordClass | null;
-    jlpt: boolean;
-    common: boolean;
-}
+/** The word tiers, best first (the package's WORD_TIER). */
+export const TIER = WORD_TIER;
 
-interface PreparedGrammar {
-    row: SearchGrammarRow;
-    title: string;
-    romaji: string;
-    explanation: string;
-}
-
-export interface PreparedIndex {
-    /** The language of the words' glosses (SearchWordRow's gloss): what a gloss query is read in. */
-    glosses: DatasetLanguage;
-    words: PreparedWord[];
-    kanji: Map<string, SearchKanjiRow>;
-    grammar: PreparedGrammar[];
-}
-
-export interface WordHit {
-    row: SearchWordRow;
-    tier: number;
-    /** The conjugated form the query was read as, for "食べる, from 食べた". */
-    via?: string;
-}
-
-export interface SearchResults {
-    /** The normalised query. */
-    query: string;
-    /** The kana a romaji query was read as, or null. */
-    kana: string | null;
-    words: WordHit[];
-    kanji: SearchKanjiRow[];
-    grammar: SearchGrammarRow[];
-}
-
-/** NFKC (full-width Latin to half-width, half-width kana to full-width), trimmed, lowercase Latin. */
-export function normalizeQuery(raw: string): string {
-    return raw.normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
-}
-
-/** An English sense as compared: lowercase, without parentheticals, a leading "to" or an article. */
-function senseKey(sense: string): string {
-    return sense.toLowerCase().replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim().replace(/^(to|a|an|the) /, '');
-}
-
-/** A grammar title or romaji as compared: without the ～ placeholders and punctuation. */
-function grammarKey(text: string): string {
-    return text.normalize('NFKC').toLowerCase().replace(/[～〜~、。,.・/()（）\s]/g, '');
-}
-
-const JAPANESE = /[぀-ヿ㐀-鿿々]/;
-const KANJI_ONLY = /^[㐀-鿿々]+$/;
-const KANJI_CHAR = /[㐀-鿿々]/;
-const KANA_ONLY = /^[ぁ-ゖー]+$/;
-
-/**
- * A Chinese gloss as compared, after NFKC (as the query is): its glosses, split at the dataset's
- * separators (，；、 and a closing 。, NFKC turning the full-width comma and semicolon into ASCII),
- * each without its parenthesised notes ("(行为)过火").
- */
-function chineseSenses(gloss: string): string[] {
-    return gloss.replace(/\([^)]*\)/g, '').split(/[,;、。]/).map(part => part.trim()).filter(part => part !== '');
-}
-
-/** Whether a query is in the script of the index's glosses: Latin for English, Han for Chinese. */
-function inGlossScript(query: string, glosses: DatasetLanguage): boolean {
-    switch (glosses) {
-        case 'en': return /[a-z]/.test(query);
-        case 'zh-hans': return KANJI_CHAR.test(query);
-    }
-}
-
-/**
- * Words from every file, in order (core, then full); the kanji and grammar of whichever carries
- * them. `glosses` is the language the files' glosses are in: English's index, or a locale's.
- */
-export function prepareIndex(files: SearchIndexFile[], glosses: DatasetLanguage = 'en'): PreparedIndex {
-    const words: PreparedWord[] = [];
-    const kanji = new Map<string, SearchKanjiRow>();
-    const grammar: PreparedGrammar[] = [];
-    for (const file of files) {
-        for (const row of fromColumns(file.w)) {
-            const gloss = glosses === 'en' ? row[3].toLowerCase() : row[3].normalize('NFKC').toLowerCase();
-            words.push({
-                row,
-                rank: words.length,
-                headword: row[1],
-                reading: toHiragana(readingOfRow(row)),
-                gloss,
-                senses: glosses === 'en' ? row[3].split('; ').map(senseKey) : chineseSenses(gloss),
-                wordClass: wordClassOfRow(row),
-                jlpt: row[4] > 0,
-                common: isCommonRow(row),
-            });
-        }
-        for (const row of file.k ?? []) kanji.set(row[0], row);
-        for (const row of file.g ?? []) {
-            grammar.push({ row, title: grammarKey(row[1]), romaji: grammarKey(row[2]), explanation: row[3].toLowerCase() });
-        }
-    }
-    return { glosses, words, kanji, grammar };
-}
+export type PreparedIndex = PreparedSearch<SearchWordRow, SearchKanjiRow, SearchGrammarRow, WordClass>;
+export type IndexWordHit = WordHit<SearchWordRow>;
+export type IndexResults = SearchResults<SearchWordRow, SearchKanjiRow, SearchGrammarRow>;
 
 /** A conjugated form's candidates may name a regular godan rule for 行く or 問う, whose other forms are regular. */
 function classFits(wordClass: WordClass | null, ruleClass: WordClass): boolean {
@@ -158,90 +27,36 @@ function classFits(wordClass: WordClass | null, ruleClass: WordClass): boolean {
     return ruleClass === 'godan' && (wordClass === 'godan-iku' || wordClass === 'godan-tou');
 }
 
-/** Every match for `raw`, best first, grouped as words, kanji and grammar. */
-export function search(index: PreparedIndex, raw: string): SearchResults {
-    const query = normalizeQuery(raw);
-    const empty: SearchResults = { query, kana: null, words: [], kanji: [], grammar: [] };
-    if (!query) return empty;
+const DEINFLECTOR: Deinflector<WordClass> = { candidates: deinflect, fits: classFits };
 
-    const queryKana = toHiragana(query);
-    const japanese = JAPANESE.test(query);
-    // Read as every search reads romaji (spaces dropped, "-" as ー, "'" only after n).
-    const romaji = readRomajiQuery(query);
-    const kana = romaji && KANA_ONLY.test(romaji.kana) ? romaji.kana : null;
-    // What a reading may start with when the romaji stops partway through a syllable ("taber").
-    const kanaPrefixes = romaji?.prefixes ?? [];
-    const english = /[a-z]/.test(query);
-    // A query in the glosses' language: English in English's index, Chinese in Chinese's.
-    const glossQuery = inGlossScript(query, index.glosses);
-    const sense = index.glosses === 'en' ? senseKey(query) : query;
-    const wholeWord = english ? (text: string) => containsWholeWord(text, query) : null;
-    const glossWholeWord = index.glosses === 'en' ? wholeWord : null;
-    const kanjiOnly = KANJI_ONLY.test(query);
-
-    // Candidate dictionary forms, keyed by form, from the query as typed and as romaji read.
-    const deinflected = new Map<string, WordClass[]>();
-    for (const text of [japanese ? queryKana : null, japanese && queryKana !== query ? query : null, kana]) {
-        if (!text) continue;
-        for (const candidate of deinflect(text)) {
-            const classes = deinflected.get(candidate.form) ?? [];
-            classes.push(candidate.wordClass);
-            deinflected.set(candidate.form, classes);
-        }
-    }
-    const fromConjugated = (form: string, wordClass: WordClass | null) =>
-        deinflected.get(form)?.some(ruleClass => classFits(wordClass, ruleClass)) ?? false;
-
-    const hits: { word: PreparedWord; tier: number }[] = [];
-    for (const word of index.words) {
-        let tier = 0;
-        if (word.headword === query || word.reading === queryKana) tier = TIER.exact;
-        else if (kana && word.reading === kana) tier = TIER.romaji;
-        else if (deinflected.size > 0 && (fromConjugated(word.headword, word.wordClass) || fromConjugated(word.reading, word.wordClass))) tier = TIER.deinflected;
-        else if (
-            (japanese && (word.headword.startsWith(query) || word.reading.startsWith(queryKana)))
-            || (kanjiOnly && word.headword.includes(query))
-        ) tier = TIER.prefix;
-        else if (glossQuery && word.senses.includes(sense)) tier = TIER.sense;
-        else if (glossWholeWord?.(word.gloss)) tier = TIER.glossWord;
-        else if (kanaPrefixes.some(prefix => word.reading.startsWith(prefix))) tier = TIER.romajiPrefix;
-        else if (
-            (japanese && (word.headword.includes(query) || word.reading.includes(queryKana)))
-            || (glossQuery && word.gloss.includes(query))
-        ) tier = TIER.substring;
-        if (tier) hits.push({ word, tier });
-    }
-    hits.sort((a, b) =>
-        a.tier - b.tier
-        || Number(b.word.jlpt) - Number(a.word.jlpt)
-        || Number(b.word.common) - Number(a.word.common)
-        || a.word.rank - b.word.rank);
-
-    const via = raw.trim();
-    const words: WordHit[] = hits.map(({ word, tier }) => (tier === TIER.deinflected ? { row: word.row, tier, via } : { row: word.row, tier }));
-
-    const kanji: SearchKanjiRow[] = [];
-    for (const character of new Set(query)) {
-        const row = KANJI_CHAR.test(character) ? index.kanji.get(character) : undefined;
-        if (row) kanji.push(row);
-    }
-
-    return { query, kana, words, kanji, grammar: searchGrammar(index.grammar, query, kana, japanese, wholeWord) };
+function wordInput(row: SearchWordRow): SearchWordInput<SearchWordRow, WordClass> {
+    // A word learned in kana shows its kana; its kanji spelling (the secondary form) still finds it.
+    const usuallyKana = (row[5] & FLAG_USUALLY_KANA) !== 0;
+    return {
+        row,
+        forms: usuallyKana ? [row[1], row[2]] : [row[1]],
+        reading: readingOfRow(row),
+        gloss: row[3],
+        jlpt: row[4] > 0,
+        common: isCommonRow(row),
+        wordClass: wordClassOfRow(row),
+    };
 }
 
-function searchGrammar(points: PreparedGrammar[], query: string, kana: string | null, japanese: boolean, wholeWord: ((text: string) => boolean) | null): SearchGrammarRow[] {
-    const key = grammarKey(query);
-    if (!key) return [];
-    const kanaKey = kana ?? (japanese ? toHiragana(key) : null);
+/**
+ * Words from every file, in order (core, then full: frequency order); the kanji and grammar of
+ * whichever carries them. `glosses` is the language the files' word glosses are in: English's
+ * index, or a locale's. Kanji meanings are English in every index: the dataset has no other yet.
+ */
+export function prepareIndex(files: SearchIndexFile[], glosses: DatasetLanguage = 'en'): PreparedIndex {
+    return prepareSearch({
+        words: files.flatMap(file => fromColumns(file.w).map(wordInput)),
+        kanji: files.flatMap(file => (file.k ? kanjiFromColumns(file.k) : []).map(kanjiRowInput)),
+        grammar: files.flatMap(file => (file.g ?? []).map(grammarRowInput)),
+    }, { glosses, frequencyOrdered: true, deinflector: DEINFLECTOR });
+}
 
-    const hits: { row: SearchGrammarRow; tier: number; position: number }[] = [];
-    points.forEach((point, position) => {
-        let tier = 0;
-        if (point.title === key || (kanaKey && point.title === kanaKey) || point.romaji === key) tier = 1;
-        else if ((japanese && point.title.startsWith(key)) || (kana && point.title.startsWith(kana)) || (!japanese && point.romaji.startsWith(key))) tier = 2;
-        else if ((japanese && point.title.includes(key)) || (kana && kana.length > 1 && point.title.includes(kana))) tier = 3;
-        else if (wholeWord?.(point.explanation)) tier = 4;
-        if (tier) hits.push({ row: point.row, tier, position });
-    });
-    return hits.sort((a, b) => a.tier - b.tier || a.position - b.position).map(hit => hit.row);
+/** Every match for `raw`, best first, grouped as words, kanji and grammar, with the order to show the groups in. */
+export function search(index: PreparedIndex, raw: string): IndexResults {
+    return runSearch(index, raw);
 }

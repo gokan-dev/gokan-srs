@@ -74,7 +74,7 @@ export const en: Messages = {
             { text: 'Gokan SRS', ...links.srs },
             '.',
         ],
-        search: { label: 'Search the dictionary', placeholder: 'Search: kanji, kana, romaji or English', results: 'Search results' },
+        search: { label: 'Search the dictionary', placeholder: 'Search words, kanji and grammar', results: 'Search results' },
         hideFurigana: 'Hide furigana',
         showFurigana: 'Show furigana',
         play: word => `Play ${word}`,

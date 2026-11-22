@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, runnerImport, type Connect, type Plugin } from 'vite'
 import { configDefaults } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
@@ -7,7 +7,6 @@ import { datasetVersion as pinnedDatasetVersion } from '@gokan/deploy/dataset-ve
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Connect, Plugin } from 'vite';
 import { analyticsScriptTag } from '@gokan/analytics';
 import { publishedDatasetFile } from '@gokan/deploy/published-dataset';
 import { CHANGELOG } from './release/changelog';
@@ -54,6 +53,25 @@ const datasetPlugin: Plugin = {
     name: 'gokan-dataset',
     configureServer: server => { server.middlewares.use(serveDataset); },
     configurePreviewServer: server => { server.middlewares.use(serveDataset); },
+};
+
+// The header search's kanji and grammar rows (src/services/search.service.ts), in the row format
+// the dictionary's index uses (@gokan/dataset-schema's searchRows.ts): written from the dataset
+// checkout as a module of the build, so they ship content-hashed and load only with the first
+// search, about 120 KB gzipped where kanji.json and its English text are 460 KB. Read when the
+// module is first imported, not at startup: most dev sessions and test runs never search. Its
+// writer (scripts/searchEntries.ts) is loaded through Vite: Node alone does not resolve the
+// workspace packages' TypeScript imports.
+const SEARCH_ENTRIES_ID = 'virtual:gokan-search-entries';
+const searchEntriesPlugin: Plugin = {
+    name: 'gokan-search-entries',
+    resolveId: id => (id === SEARCH_ENTRIES_ID ? `\0${SEARCH_ENTRIES_ID}` : null),
+    async load(id) {
+        if (id !== `\0${SEARCH_ENTRIES_ID}`) return null;
+        const writer = fileURLToPath(new URL('./scripts/searchEntries.ts', import.meta.url));
+        const { module } = await runnerImport<typeof import('./scripts/searchEntries')>(writer, { configFile: false, logLevel: 'error' });
+        return module.searchEntriesModule(compiledDir);
+    },
 };
 
 // index/audio.json names the voice clips are read in, and the dataset writes it only once a clip
@@ -104,6 +122,7 @@ export default defineConfig({
         tailwindcss(),
         releasePlugin,
         datasetPlugin,
+        searchEntriesPlugin,
         {
             name: 'gokan-analytics',
             transformIndexHtml: (html: string) => html.replace('</head>', `${analyticsTag}</head>`),

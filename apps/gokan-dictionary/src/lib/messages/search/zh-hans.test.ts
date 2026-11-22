@@ -16,7 +16,9 @@ describe('zhHansSearch', () => {
     it('counts in Chinese, the number grouped as English groups it', () => {
         expect(zhHansSearch.status(0)).toBe('没有结果');
         expect(zhHansSearch.status(3)).toBe('3 个结果');
-        expect(zhHansSearch.wordsHeading(1234)).toBe('词汇（1,234）');
+        expect(zhHansSearch.sectionHeading(zhHansSearch.groups.words, 1234)).toBe('词汇（1,234）');
+        expect(zhHansSearch.sectionHeading(zhHansSearch.groups.kanji, 24)).toBe('汉字（24）');
+        expect(zhHansSearch.showAll('grammar', 30)).toBe('显示全部 30 个语法');
         expect(zhHansSearch.seeAll('吃')).toBe('查看“吃”的全部结果');
     });
 });
