@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuiz } from "../../context/useQuiz";
 import { drillSummary, loadDrill, runOnPath } from "../../context/quiz/drillSelectors";
 import type { Drill, DrillPick } from "../../context/quiz/drillSelectors";
@@ -51,8 +51,10 @@ export default function DrillScreen({ kind }: { kind: DrillSet['kind'] }) {
     // The run on this page, kept while the learner looked something up from it (ended by
     // where they go next, useDrillOrchestration): coming back resumes it in its order.
     const kept = path ? runOnPath(state.drill, path) : null;
-    // A fresh order on every new run: the builder takes its randomness from here.
-    const [seed, setSeed] = useState(() => kept?.seed ?? String(Date.now()));
+    // A fresh order on every new run: the builder takes its randomness from here. A
+    // `?seed=` pins the first run's order, so check:layout walks the same cards every time.
+    const [searchParams] = useSearchParams();
+    const [seed, setSeed] = useState(() => kept?.seed ?? searchParams.get('seed') ?? String(Date.now()));
     const run = kept?.seed === seed ? kept : null;
     const loaded = useAsyncData(set && path && !run ? `${path}:${seed}` : null, () => (set ? loadDrill(set, seed) : Promise.resolve(null)));
 

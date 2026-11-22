@@ -6,6 +6,7 @@ import { GrammarService } from '../../services/grammar.service';
 import type { DrillPointInfo, DrillSet } from '../../models/grammar.model';
 import { caseFor, drillCardsOf, drillSummary, hasDrill, interleave, loadDrill, optionPointsOf, pickOf, rulesOut, withSharedFamily } from './drillSelectors';
 import type { DrillSource } from './drillSelectors';
+import { publishedFetch, publishedFiles } from '../../test/datasetFiles';
 
 /** An example written as its tokens, the pattern at `pattern`. */
 const example = (tokens: string[], pattern: number[], ruledOut?: string[]): GrammarExample => grammarExample({
@@ -241,5 +242,37 @@ describe('hasDrill', () => {
         expect(await hasDrill({ kind: 'lesson', familyId: 'reason', lessonId: 'core' })).toBe(true);
         // から and ので come first; ので has none of its own here (からです only rules out by slot, ので has the same slot as から), so からです is read too.
         expect(mined.mock.calls.length).toBeLessThanOrEqual(3);
+    });
+});
+
+describe('the drill check:layout walks', () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        GrammarService.clearCache();
+    });
+
+    // The dataset checkout's files for scripts/check-layout.ts's drill (DRILL_PATH), as the app is served them.
+    const files = publishedFiles(import.meta.glob(
+        '../../../dataset/compiled/{,text/en/}grammar/{index/contrasts,slots,points/n4-011,points/n4-036,mined/n4-011,mined/n4-036}.json',
+        { eager: true, import: 'default' },
+    ));
+    const set: DrillSet = { kind: 'lesson', familyId: 'time-window', lessonId: 'during-window' };
+    const load = async (seed: string) => {
+        vi.stubGlobal('fetch', publishedFetch(files));
+        const drill = await loadDrill(set, seed);
+        GrammarService.clearCache();
+        return drill;
+    };
+
+    it('offers a wrong option with its contrast case on some card, whatever the seed', async () => {
+        for (const seed of ['1', '2', '3', 'a', 'b', String(Date.UTC(2026, 10, 22))]) {
+            const drill = await load(seed);
+            expect(drill?.cards.some(card => choicesOf(card).some(choice => choice.contrast))).toBe(true);
+        }
+    });
+
+    it('meets it on some card\'s first option under the seed the walk pins (?seed=layout), since the walk picks each first option', async () => {
+        const drill = await load('layout');
+        expect(drill?.cards.some(card => choicesOf(card)[0]?.contrast !== undefined)).toBe(true);
     });
 });

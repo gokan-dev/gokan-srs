@@ -423,6 +423,12 @@ async function checkJapaneseFaces(tab: Tab, page: string, width: number): Promis
  * reason-core, the route list's drill, has none, since its one case is a pair that may both fit).
  */
 const DRILL_PATH = '/grammar/drill/lesson/time-window/during-window';
+/**
+ * The run's order, pinned (DrillScreen reads `?seed=`): the walk picks each card's first option, so
+ * an order drawn from the clock could meet no wrong pick with a note. drillSelectors.test.ts holds
+ * that this seed's drill has a card whose first option carries its contrast case.
+ */
+const DRILL_SEED = 'layout';
 /** More cards than a drill holds (drillMaxCards), so a drill that never ends fails rather than hangs. */
 const DRILL_CARD_LIMIT = 20;
 
@@ -442,7 +448,7 @@ const cardEdges = (selector: string) => `(() => {
  */
 async function checkDrillWalk(tab: Tab, app: string, width: number): Promise<void> {
     const page = `srs ${DRILL_PATH}`;
-    await tab.goto(`${app}${DRILL_PATH}`, 'Card 1 of');
+    await tab.goto(`${app}${DRILL_PATH}?seed=${DRILL_SEED}`, 'Card 1 of');
     const question = await tab.evaluate<{ left: number; right: number } | null>(cardEdges('[aria-label="Choices"]'));
     let wrongPicks = 0;
     let contrastNotes = 0;
@@ -466,7 +472,8 @@ async function checkDrillWalk(tab: Tab, app: string, width: number): Promise<voi
         failures.push(`${width}px ${page}: no summary ([data-drill-summary]) after ${DRILL_CARD_LIMIT} cards`);
         return;
     }
-    await measure(tab, `${page}, summary`, width);
+    // measure() holds phone rules (the 16px input among them), which the desktop header's search field does not keep.
+    if (width < DESKTOP.width) await measure(tab, `${page}, summary`, width);
     await checkJapaneseFaces(tab, `${page}, summary`, width);
     if (!question) failures.push(`${width}px ${page}: no question card to measure`);
     else if (Math.abs(question.left - summary.left) > 1 || Math.abs(question.right - summary.right) > 1) {
