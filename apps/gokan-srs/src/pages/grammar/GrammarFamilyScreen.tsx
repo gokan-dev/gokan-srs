@@ -9,6 +9,7 @@ import { useAsyncData } from "../../hooks/useAsyncData";
 import { Page } from "../../components/Page";
 import { PageHeader } from "../../components/PageHeader";
 import { DrillLink } from "../../components/DrillLink";
+import { ContrastCaseText } from "../../components/ContrastCaseText";
 import { grammarPath } from "../../utils/navigation.utils";
 
 type FamilyEntry = GrammarContrastIndex[string];
@@ -81,12 +82,7 @@ export default function GrammarFamilyScreen() {
 
                         <div className="space-y-3">
                             {lesson.cases.map((c, i) => (
-                                <div key={`${lesson.id}-${i}`} className="border-l-2 border-accent/40 pl-3">
-                                    <p className="text-primary font-sans text-sm leading-relaxed">
-                                        <span className="font-semibold">{c.situation}</span>{" "}
-                                        {c.guidance}
-                                    </p>
-                                </div>
+                                <ContrastCaseText key={`${lesson.id}-${i}`} contrast={c} />
                             ))}
                         </div>
                     </Card>

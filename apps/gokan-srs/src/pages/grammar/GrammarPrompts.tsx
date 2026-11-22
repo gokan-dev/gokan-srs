@@ -3,7 +3,7 @@ import { ArrowDown } from "lucide-react";
 import type { GrammarContrastCase, GrammarPoint } from "@gokan/dataset-schema";
 import type { GrammarBlankPlan, GrammarConjugationPrompt } from "../../context/quiz/grammarReducer";
 import { JlptChip } from "../../components/JlptChip";
-import { MixedText } from "../../components/MixedText";
+import { ContrastCaseText } from "../../components/ContrastCaseText";
 import { QuizMasteryCorner } from "../../components/quiz/QuizMasteryCorner";
 import { Ruby } from "../../components/Ruby";
 import { PointLink } from "./PointLink";
@@ -74,15 +74,7 @@ export function GrammarCardHeader({ point, memoryStrength, answered, formalityLe
  * pair, when the dataset has one (the option's own note already says why it does not fit).
  */
 export function DrillContrastNote({ contrast }: { contrast: GrammarContrastCase }) {
-    return (
-        <div className="mt-3 border-l-2 border-accent/40 pl-3">
-            <p className="type-label mb-1">Which one, and when</p>
-            <p className="text-primary font-sans text-sm leading-relaxed">
-                <span className="font-semibold"><MixedText text={contrast.situation} /></span>{" "}
-                <MixedText text={contrast.guidance} />
-            </p>
-        </div>
-    );
+    return <ContrastCaseText contrast={contrast} label="Which one, and when" className="mt-3" />;
 }
 
 /** The cue above a sentence: what to do, then the English it starts from (none while a choice card is unanswered: the sentence is read). */

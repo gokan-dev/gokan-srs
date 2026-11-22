@@ -281,7 +281,8 @@ The rest of the study flow:
   through `drillPath` (`utils/navigation.utils.ts`; enforced with the word and kanji paths). A
   Japanese run inside English text (a lesson title in a page title, a contrast case's guidance) is
   set in a Japanese face by `components/MixedText.tsx` (over `japaneseRuns`,
-  `utils/japaneseRuns.utils.ts`).
+  `utils/japaneseRuns.utils.ts`); a contrast case, on a family page or under a drill card, is
+  `components/ContrastCaseText.tsx`.
 - Session flow: `useSessionLifecycle`, `components/SessionProgress.tsx` (counter, ticker, gains),
   the commit pipeline in `quizSelectors.ts` shared by the preview and the session.
 - Card building blocks: `components/quiz/` (`QuizCardFrame`, `QuizMasteryCorner`,
