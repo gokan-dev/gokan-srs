@@ -72,9 +72,15 @@ const brotliSize = (body: Buffer | string) => brotliCompressSync(body, { params:
 const read = (relative: string) => fs.readFileSync(path.join(DIST_DIR, relative));
 
 /** A built file, raw and brotli. */
-function fileMeasurement(budget: BudgetName, file: string, subject = file): Measurement {
+function fileMeasurement(budget: BudgetName, file: string): Measurement {
     const body = read(file);
-    return { budget, subject, raw: body.length, brotli: brotliSize(body) };
+    return { budget, subject: file, raw: body.length, brotli: brotliSize(body) };
+}
+
+/** Files a reader downloads together (a page's stylesheets, a script and its chunks), each compressed on its own as it is served. */
+function filesMeasurement(budget: BudgetName, subject: string, files: string[]): Measurement {
+    const each = files.map(file => fileMeasurement(budget, file));
+    return { budget, subject, raw: each.reduce((sum, m) => sum + m.raw, 0), brotli: each.reduce((sum, m) => sum + m.brotli, 0) };
 }
 
 /** The stylesheets a page links, by their files under dist/, in its order: every one blocks its first paint. */
@@ -91,12 +97,13 @@ function measure(manifest: Record<string, ViteManifestEntry>): Measurement[] {
      * figure is the whole page's, as it is stored.
      */
     const page = (budget: BudgetName, file: string, subject: string): Measurement => {
-        const html = read(file).toString('utf-8');
+        const body = read(file);
+        const html = body.toString('utf-8');
         const rows = firstScreenRowsOf(budget);
         const counted = rows === null ? html : firstScreen(html, rows);
         const sheets = stylesheetsOf(html).join(' + ');
-        if (!stylesheetSets.has(sheets)) stylesheetSets.set(sheets, subject);
-        return { budget, subject: counted.length < html.length ? `${subject} (first screen, ${rows} rows)` : subject, raw: html.length, brotli: brotliSize(counted) };
+        if (sheets !== '' && !stylesheetSets.has(sheets)) stylesheetSets.set(sheets, subject);
+        return { budget, subject: counted.length < html.length ? `${subject} (first screen, ${rows} rows)` : subject, raw: body.length, brotli: brotliSize(counted) };
     };
     /** The heaviest page of a set, by what its budget counts. */
     const heaviest = (pages: Measurement[]) => pages.reduce((a, b) => (countedBytes(b) > countedBytes(a) ? b : a));
@@ -142,13 +149,12 @@ function measure(manifest: Record<string, ViteManifestEntry>): Measurement[] {
     // What blocks each page's first paint, together: the shared sheet, its page type's, its locale's.
     for (const [sheets, example] of stylesheetSets) {
         const files = sheets.split(' + ');
-        const each = files.map(file => fileMeasurement('blockingStylesheets', file));
-        measurements.push({ budget: 'blockingStylesheets', subject: `${files.map(file => path.basename(file)).join(' + ')} (${example})`, raw: each.reduce((sum, m) => sum + m.raw, 0), brotli: each.reduce((sum, m) => sum + m.brotli, 0) });
+        measurements.push(filesMeasurement('blockingStylesheets', `${files.map(file => path.basename(file)).join(' + ')} (${example})`, files));
     }
 
     // A script with the chunks it imports statically: the bundler moves a module two scripts share
     // (the search engine's romaji and the detail script's kana folding) into a chunk of its own,
-    // which each still downloads, compressed on its own.
+    // which each still downloads.
     const withImports = (budget: BudgetName, entry: ViteManifestEntry, seen = new Set<string>()): Measurement => {
         const files: string[] = [];
         const walk = (at: ViteManifestEntry) => {
@@ -158,8 +164,7 @@ function measure(manifest: Record<string, ViteManifestEntry>): Measurement[] {
             for (const chunk of at.imports ?? []) walk(manifest[chunk]);
         };
         walk(entry);
-        const each = files.map(file => fileMeasurement(budget, file));
-        return { budget, subject: entry.file, raw: each.reduce((sum, m) => sum + m.raw, 0), brotli: each.reduce((sum, m) => sum + m.brotli, 0) };
+        return filesMeasurement(budget, entry.file, files);
     };
     const searchEntry = manifest['src/client/search.ts'];
     measurements.push(withImports('searchScript', searchEntry));

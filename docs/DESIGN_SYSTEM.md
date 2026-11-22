@@ -830,7 +830,7 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   search index load past the first screen: their budgets are regression guards, about 25% over
   what they measured on 2026-11-22, not design limits.
 
-  Measured on 2026-11-22: word pages 4.1 KB at the 90th percentile (17.3 KB raw), the heaviest
+  Measured on 2026-11-22: word pages 4.1 KB at the 90th percentile (18.5 KB raw), the heaviest
   kanji page (人) 12.9 KB, the tightest by far (a kanji's Words section is what to trim first),
   the heaviest grammar point 8.1 KB, home 1.8 KB; the list pages' first screens 1.4 to 1.9 KB
   (their whole pages up to 27 KB). Until #268 the budgets counted raw bytes, a poor proxy: a 20 KB
