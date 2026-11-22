@@ -46,6 +46,8 @@
  *   at 1280px and 1024px one full page, no tab row, every section, their long lists capped
  *   (KANJI_PAGE, GRAMMAR_PAGE), a hash landing on its section; on a phone a tab row running to the
  *   screen's edge and sticking from their longest tab;
+ * - a dictionary list page's first screen (375x812) ends within the rows its size budget counts
+ *   (FIRST_SCREEN_ROWS, lib/budgets.ts: the JLPT lists, the kanji order pages, `/grammar/`);
  * - a word page's first screen, on a small phone (375x667 and 320x568), holds its headword,
  *   reading and its play button, summary gloss and status line;
  * - a word page's tab row sticks to the top once scrolled to, with no sideways page scroll at
@@ -98,8 +100,9 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { KANJI_CHARS, kanjiOrder, type KanjiOrderId } from '@gokan/dataset-schema';
-import { buildMissing, dictionaryPages, listeningTitlesToMark, serve, serveProduction, srsFile, srsRoutes, srsVersion } from './lib/builtSite';
+import { buildMissing, dictionaryListShapes, dictionaryPages, listeningTitlesToMark, serve, serveProduction, srsFile, srsRoutes, srsVersion } from './lib/builtSite';
 import { launchChrome, type Chrome, type Tab } from './lib/chrome';
+import { FIRST_SCREEN_ROWS, firstScreenBudgetOf } from '../apps/gokan-dictionary/src/lib/budgets';
 
 const VIEWPORTS = [{ width: 320, height: 720 }, { width: 375, height: 812 }];
 const DESKTOP = { width: 1280, height: 800 };
@@ -221,6 +224,8 @@ async function measure(tab: Tab, page: string, width: number, tapTargets = ''): 
 }
 
 const DICTIONARY_PAGES = await dictionaryPages();
+/** The list page shapes beyond DICTIONARY_PAGES, measured only for their first screen (checkListFirstScreen). */
+const DICTIONARY_LIST_SHAPES = dictionaryListShapes();
 const SRS_ROUTES = srsRoutes();
 const SRS_VERSION = srsVersion();
 // The same build behind a version.json naming the next major: what an open tab sees once a newer
@@ -679,6 +684,27 @@ async function checkWordFirstScreen(tab: Tab, page: string, width: number, resto
         else if (bottom > height) failures.push(`${width}x${height} ${page}: the ${name} ends ${Math.round(bottom)}px down, below the first screen (${height}px)`);
     });
     await tab.resize(width, restoreHeight);
+}
+
+/**
+ * A dictionary list page is held to its size budget up to the end of its first screen at 375x812
+ * (FIRST_SCREEN_ROWS in lib/budgets.ts, counted by check-build): its first N rows inside `<main>`
+ * must reach that screen's end, or the budget counts less than a reader sees first. A page with
+ * fewer rows is counted whole.
+ */
+const LIST_FIRST_SCREEN = { width: 375, height: 812 };
+async function checkListFirstScreen(tab: Tab, page: string, path: string, width: number): Promise<void> {
+    const budget = firstScreenBudgetOf(path);
+    if (budget === null || width !== LIST_FIRST_SCREEN.width) return;
+    const rows = FIRST_SCREEN_ROWS[budget];
+    await tab.resize(LIST_FIRST_SCREEN.width, LIST_FIRST_SCREEN.height);
+    const bottom = await tab.evaluate<number | null>(`(() => {
+        window.scrollTo(0, 0);
+        const rows = document.querySelectorAll('main li');
+        return rows.length < ${rows} ? null : rows[${rows - 1}].getBoundingClientRect().bottom;
+    })()`);
+    if (bottom !== null && bottom < LIST_FIRST_SCREEN.height) failures.push(`${LIST_FIRST_SCREEN.width}x${LIST_FIRST_SCREEN.height} ${page}: its first ${rows} rows (FIRST_SCREEN_ROWS.${budget}) end ${Math.round(bottom)}px down, above the first screen's end (${LIST_FIRST_SCREEN.height}px): raise the count, so its budget covers the first screen`);
+    await tab.resize(width, VIEWPORTS.find(viewport => viewport.width === width)?.height ?? LIST_FIRST_SCREEN.height);
 }
 
 /**
@@ -3070,6 +3096,13 @@ try {
             await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${page.path}`, page.ready);
             await measure(tab, `dictionary ${page.path}`, width, DICTIONARY_TAP_TARGETS);
             if (DICTIONARY_LIST_PAGES.includes(page.path)) await checkEntryGlossColumn(tab, `dictionary ${page.path}`, width, true);
+            await checkListFirstScreen(tab, `dictionary ${page.path}`, page.path, width);
+        }
+        if (width === LIST_FIRST_SCREEN.width) {
+            for (const page of DICTIONARY_LIST_SHAPES) {
+                await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${page.path}`, page.ready);
+                await checkListFirstScreen(tab, `dictionary ${page.path}`, page.path, width);
+            }
         }
         for (const path of SOURCE_CREDIT_PAGES) await checkSourceCreditGap(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, path, width, true);
         for (const path of SWITCHER_PAGES) {
@@ -3116,4 +3149,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, a kanji's course steps 44px linked or not, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, the dictionary's word page tabbed as the app's on a phone (each hash landing on its section alone, at the page top, a reload keeping its scroll, its synonym search reading meanings, not labels) and one full page at 1280px, the kanji and grammar pages tabbed on a phone and one capped full page from 1024px, in the app and in the dictionary (its Words and Examples searched by their English, every section search's placeholder whole at 320px, a Sentences query holding as the page crosses into tabs), furigana over kanji, on one line and apart, Japanese in list rows and word readings unbroken, a word list's gloss in its column (1280px) or on its own line across the row (phones, a word page's aside), a section's source credit set off from what comes before it, the language switcher small and neutral, the app panel's action on one line with a four-digit step, its Japanese words unbroken where they fit and wrapped inside it where they do not, 40px above what follows it on every page type (and under Meanings on a word page) and on the home page 16px under its heading, a kanji's linked course steps underlined, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, setup opened from a dictionary link with its order and count on a 568 or 667px phone's screen, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button undimmed, its sentence centred on its translation with its button right after it (and at 1280px on the headword), a word learned in kana's intro, a long headword's intro on one line inside its card, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play (in the dictionary too, named, 44px, with its player, none on a kanji page, a clip stopped when a tab or a closed disclosure hides its button), its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a due grammar point saying Due now once, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, a kanji's course steps 44px linked or not, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, the dictionary's word page tabbed as the app's on a phone (each hash landing on its section alone, at the page top, a reload keeping its scroll, its synonym search reading meanings, not labels) and one full page at 1280px, the kanji and grammar pages tabbed on a phone and one capped full page from 1024px, in the app and in the dictionary (its Words and Examples searched by their English, every section search's placeholder whole at 320px, a Sentences query holding as the page crosses into tabs), furigana over kanji, on one line and apart, Japanese in list rows and word readings unbroken, a word list's gloss in its column (1280px) or on its own line across the row (phones, a word page's aside), a section's source credit set off from what comes before it, the language switcher small and neutral, the app panel's action on one line with a four-digit step, its Japanese words unbroken where they fit and wrapped inside it where they do not, 40px above what follows it on every page type (and under Meanings on a word page) and on the home page 16px under its heading, a kanji's linked course steps underlined, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, setup opened from a dictionary link with its order and count on a 568 or 667px phone's screen, a word page's essentials on a small phone's first screen, a list page's first screen within the rows its budget counts, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button undimmed, its sentence centred on its translation with its button right after it (and at 1280px on the headword), a word learned in kana's intro, a long headword's intro on one line inside its card, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play (in the dictionary too, named, 44px, with its player, none on a kanji page, a clip stopped when a tab or a closed disclosure hides its button), its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a due grammar point saying Due now once, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);

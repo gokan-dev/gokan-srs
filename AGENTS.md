@@ -379,7 +379,8 @@ gokan-dictionary:
 - Search: the index built at prerender by `lib/searchIndex.ts` (format in `lib/types.ts`,
   row flags in `lib/searchRow.ts`), matched and ranked only by `lib/searchQuery.ts`, the
   same module behind the header panel, `/search/` and the build-time acceptance check.
-- Size budgets: `lib/budgets.ts`, checked by `scripts/check-build.ts` after every build.
+- Size budgets: `lib/budgets.ts`, checked by `scripts/check-build.ts` after every build, in brotli
+  bytes (what a reader downloads); a list page's to the end of its first screen (`FIRST_SCREEN_ROWS`).
 - Locales: `lib/locale.ts` (`Locale`, the served ones, a page's locale from its optional route
   segment `[[locale=locale]]`; English has none). Every link is built for a locale:
   `localeUrls(locale)` from `lib/urls.ts` (it applies the base path and the locale segment), in a
@@ -474,7 +475,8 @@ gokan-dictionary:
 - Dictionary pages: every element holding Japanese text carries `lang="ja"` (prerender fails on
   Japanese-only text outside one, and on a `jp`-class element without it; `langOf` for dataset
   text that may be either language), and each page type stays within its size budget
-  (`lib/budgets.ts`, docs/DESIGN_SYSTEM.md section 8; the build fails otherwise).
+  (`lib/budgets.ts`, docs/DESIGN_SYSTEM.md section 8; the build fails otherwise): the 14 KB rule, a
+  page's HTML within 13 KB of brotli so it arrives in the first round trip.
 
 ## Testing rules
 

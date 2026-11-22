@@ -6,12 +6,12 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { gzipSync } from 'node:zlib';
+import { brotliCompressSync, constants } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
 import { listFiles } from '@gokan/deploy/build-files';
 import { serveDictionaryOnRequest } from '../../../scripts/lib/builtSite';
-import { describe, overBudget, percentile, type Measurement } from '../src/lib/budgets';
+import { countedBytes, describe, firstScreen, firstScreenRowsOf, overBudget, percentile, type BudgetName, type Measurement, type PageBudgetName } from '../src/lib/budgets';
 import { alternateProblems, brokenLinks } from '../src/lib/builtLinks';
 import { DATASET_PATHS } from '../src/lib/datasetPaths';
 import { misroutedPaths } from '../src/lib/servedPaths';
@@ -46,7 +46,6 @@ interface ViteManifestEntry {
     imports?: string[];
 }
 
-const sizeOf = (relative: string) => fs.statSync(path.join(DIST_DIR, relative)).size;
 const pageOf = (...segments: string[]) => path.join(...segments, 'index.html');
 const readJson = (relative: string): unknown => JSON.parse(fs.readFileSync(path.join(DIST_DIR, relative), 'utf-8'));
 
@@ -62,82 +61,154 @@ function wordPages(prefix = ''): string[] {
 // kanji/orders/ is the learning order pages, not a kanji: no kanji is named with a Latin word.
 const kanjiPages = () => subdirectories('kanji').filter(name => name !== 'orders');
 
-function measure(manifest: Record<string, ViteManifestEntry>): Measurement[] {
-    const measurements: Measurement[] = [];
+/**
+ * Brotli as CloudFront sends a page or an asset. Quality 5 matched what it served on 2026-11-19
+ * within about 2% on every page type measured (#268: kanji/一 12.2 KB here, 12.5 KB served; the
+ * JLPT N2 list 19.0 and 19.0; grammar/n5-088 8.1 and 8.2; app.scss 2.6 and 2.5), where quality 3
+ * (scripts/lib/builtSite.ts, measured on the app's large JSON files) put pages about 10% over.
+ */
+const BROTLI_QUALITY = 5;
+const brotliSize = (body: Buffer | string) => brotliCompressSync(body, { params: { [constants.BROTLI_PARAM_QUALITY]: BROTLI_QUALITY } }).length;
+const read = (relative: string) => fs.readFileSync(path.join(DIST_DIR, relative));
 
-    // A prerendered build without them is modeProblems' to report.
-    const words = ENTITY_PAGES === 'prerendered' ? wordPages() : [];
-    if (words.length > 0) {
-        measurements.push({ budget: 'wordPageP90', subject: `${words.length} word pages`, bytes: percentile(words.map(id => sizeOf(pageOf('vocab', id))), 90) });
+/** A built file, raw and brotli. */
+function fileMeasurement(budget: BudgetName, file: string): Measurement {
+    const body = read(file);
+    return { budget, subject: file, raw: body.length, brotli: brotliSize(body) };
+}
+
+/** Files a reader downloads together (a page's stylesheets, a script and its chunks), each compressed on its own as it is served. */
+function filesMeasurement(budget: BudgetName, subject: string, files: string[]): Measurement {
+    const each = files.map(file => fileMeasurement(budget, file));
+    return { budget, subject, raw: each.reduce((sum, m) => sum + m.raw, 0), brotli: each.reduce((sum, m) => sum + m.brotli, 0) };
+}
+
+/** The stylesheets a page links, by their files under dist/, in its order: every one blocks its first paint. */
+function stylesheetsOf(html: string): string[] {
+    return [...html.matchAll(/<link rel="stylesheet" href="([^"]+)"/g)].map(([, href]) => href.slice(BASE_PATH.length + 1));
+}
+
+function measure(manifest: Record<string, ViteManifestEntry>): { measurements: Measurement[]; sheets: Set<string> } {
+    const measurements: Measurement[] = [];
+    /** Each set of stylesheets a measured page links, with the first page that links it. */
+    const stylesheetSets = new Map<string, string>();
+    const linksSheets = (html: string, subject: string) => {
+        const sheets = stylesheetsOf(html).join(' + ');
+        if (sheets !== '' && !stylesheetSets.has(sheets)) stylesheetSets.set(sheets, subject);
+    };
+    /**
+     * A page, whole or (a list page, FIRST_SCREEN_ROWS) to the end of its first screen. The raw
+     * figure is the whole page's, as it is stored.
+     */
+    const page = (budget: PageBudgetName, file: string, subject: string): Measurement => {
+        const body = read(file);
+        const html = body.toString('utf-8');
+        const rows = firstScreenRowsOf(budget);
+        const counted = rows === null ? html : firstScreen(html, rows);
+        linksSheets(html, subject);
+        return { budget, subject: counted.length < html.length ? `${subject} (first screen, ${rows} rows)` : subject, raw: body.length, brotli: brotliSize(counted) };
+    };
+    /** The heaviest page of a set, by what its budget counts. */
+    const heaviest = (pages: Measurement[]) => pages.reduce((a, b) => (countedBytes(b) > countedBytes(a) ? b : a));
+
+    // Word pages, English's and (when the build serves it) Chinese's, held to the same budget; a
+    // prerendered build without them is modeProblems' to report. The 90th percentile of each figure.
+    for (const prefix of ['', 'zh-hans']) {
+        const words = ENTITY_PAGES === 'prerendered' ? wordPages(prefix) : [];
+        if (words.length === 0) continue;
+        const pages = words.map(id => page('wordPageP90', pageOf(prefix, 'vocab', id), path.join(prefix, 'vocab', id, '/')));
+        const label = prefix === '' ? 'word pages' : `${prefix} word pages`;
+        measurements.push({ budget: 'wordPageP90', subject: `${words.length} ${label}`, raw: percentile(pages.map(m => m.raw), 90), brotli: percentile(pages.map(m => m.brotli), 90) });
     }
-    // Chinese word pages are word pages: held to the same budget.
-    const chineseWords = ENTITY_PAGES === 'prerendered' ? wordPages('zh-hans') : [];
-    if (chineseWords.length > 0) {
-        measurements.push({ budget: 'wordPageP90', subject: `${chineseWords.length} zh-hans word pages`, bytes: percentile(chineseWords.map(id => sizeOf(pageOf('zh-hans', 'vocab', id))), 90) });
-    }
-    const kanjiSizes = (ENTITY_PAGES === 'prerendered' ? kanjiPages() : []).map(character => ({ character, bytes: sizeOf(pageOf('kanji', character)) }));
-    if (kanjiSizes.length > 0) {
-        const heaviest = kanjiSizes.reduce((a, b) => (b.bytes > a.bytes ? b : a));
-        measurements.push({ budget: 'kanjiPageMax', subject: `kanji/${heaviest.character}`, bytes: heaviest.bytes });
-    }
+    const kanji = (ENTITY_PAGES === 'prerendered' ? kanjiPages() : []).map(character => page('kanjiPageMax', pageOf('kanji', character), `kanji/${character}`));
+    if (kanji.length > 0) measurements.push(heaviest(kanji));
 
     // A grammar point is named by its level and number (n5-088); the other directories are browse pages.
-    const pointSizes = (ENTITY_PAGES === 'prerendered' ? subdirectories('grammar').filter(name => /^n[1-5]-\d+$/.test(name)) : []).map(id => ({ id, bytes: sizeOf(pageOf('grammar', id)) }));
-    if (pointSizes.length > 0) {
-        const heaviest = pointSizes.reduce((a, b) => (b.bytes > a.bytes ? b : a));
-        measurements.push({ budget: 'grammarPageMax', subject: `grammar/${heaviest.id}`, bytes: heaviest.bytes });
-    }
+    const points = (ENTITY_PAGES === 'prerendered' ? subdirectories('grammar').filter(name => /^n[1-5]-\d+$/.test(name)) : []).map(id => page('grammarPageMax', pageOf('grammar', id), `grammar/${id}`));
+    if (points.length > 0) measurements.push(heaviest(points));
 
-    measurements.push({ budget: 'grammarIndex', subject: 'grammar/', bytes: sizeOf(pageOf('grammar')) });
+    measurements.push(page('homePage', 'index.html', 'home'));
+    if (fs.existsSync(path.join(DIST_DIR, 'zh-hans', 'index.html'))) measurements.push(page('homePage', pageOf('zh-hans'), 'zh-hans/'));
+    measurements.push(page('grammarIndex', pageOf('grammar'), 'grammar/'));
 
     // Every locale's JLPT lists: English's, and Chinese's when the build serves it.
     for (const vocab of ['vocab', path.join('zh-hans', 'vocab')].filter(dir => fs.existsSync(path.join(DIST_DIR, dir)))) {
         for (const list of subdirectories(vocab).filter(name => name.startsWith('jlpt-'))) {
-            measurements.push({ budget: 'jlptPage', subject: `${vocab}/${list}/`, bytes: sizeOf(pageOf(vocab, list)) });
-            for (const page of subdirectories(path.join(vocab, list))) {
-                measurements.push({ budget: 'jlptPage', subject: `${vocab}/${list}/${page}/`, bytes: sizeOf(pageOf(vocab, list, page)) });
+            measurements.push(page('jlptPage', pageOf(vocab, list), `${vocab}/${list}/`));
+            for (const n of subdirectories(path.join(vocab, list))) {
+                measurements.push(page('jlptPage', pageOf(vocab, list, n), `${vocab}/${list}/${n}/`));
             }
         }
     }
 
-    measurements.push({ budget: 'kanjiOrderPage', subject: 'kanji/orders/', bytes: sizeOf(pageOf('kanji', 'orders')) });
+    measurements.push(page('kanjiOrderPage', pageOf('kanji', 'orders'), 'kanji/orders/'));
     for (const order of subdirectories(path.join('kanji', 'orders'))) {
-        measurements.push({ budget: 'kanjiOrderPage', subject: `kanji/orders/${order}/`, bytes: sizeOf(pageOf('kanji', 'orders', order)) });
+        measurements.push(page('kanjiOrderPage', pageOf('kanji', 'orders', order), `kanji/orders/${order}/`));
         for (const range of subdirectories(path.join('kanji', 'orders', order))) {
-            measurements.push({ budget: 'kanjiOrderPage', subject: `kanji/orders/${order}/${range}/`, bytes: sizeOf(pageOf('kanji', 'orders', order, range)) });
+            measurements.push(page('kanjiOrderPage', pageOf('kanji', 'orders', order, range), `kanji/orders/${order}/${range}/`));
         }
     }
 
-    measurements.push({ budget: 'sharedStylesheet', subject: manifest['src/styles/app.scss'].file, bytes: sizeOf(manifest['src/styles/app.scss'].file) });
-    for (const [source, { file }] of Object.entries(manifest).filter(([source]) => source.startsWith('src/styles/locales/'))) {
-        measurements.push({ budget: 'localeStylesheet', subject: `${file} (${source})`, bytes: sizeOf(file) });
+    // The page types no budget above measures link their own sheets too: one page of each, in
+    // every locale that serves it, so every page's stylesheets are summed below.
+    const grammarFamily = fs.existsSync(path.join(DIST_DIR, 'grammar', 'family')) ? subdirectories(path.join('grammar', 'family')).sort()[0] : undefined;
+    const otherPages = [['kanji'], ['grammar', 'chapters'], ['grammar', 'conjugations'], ['grammar', 'families'], ...(grammarFamily === undefined ? [] : [['grammar', 'family', grammarFamily]])];
+    for (const prefix of ['', 'zh-hans']) {
+        for (const segments of otherPages) {
+            const file = pageOf(prefix, ...segments);
+            if (fs.existsSync(path.join(DIST_DIR, file))) linksSheets(read(file).toString('utf-8'), path.join(prefix, ...segments, '/'));
+        }
     }
+
+    // What blocks each page's first paint, together: the shared sheet, its page type's, its locale's.
+    for (const [sheets, example] of stylesheetSets) {
+        const files = sheets.split(' + ');
+        measurements.push(filesMeasurement('blockingStylesheets', `${files.map(file => path.basename(file)).join(' + ')} (${example})`, files));
+    }
+
     // A script with the chunks it imports statically: the bundler moves a module two scripts share
     // (the search engine's romaji and the detail script's kana folding) into a chunk of its own,
     // which each still downloads.
-    const withImports = (entry: ViteManifestEntry, seen = new Set<string>()): number => {
-        if (seen.has(entry.file)) return 0;
-        seen.add(entry.file);
-        return sizeOf(entry.file) + (entry.imports ?? []).reduce((sum, chunk) => sum + withImports(manifest[chunk], seen), 0);
+    const withImports = (budget: BudgetName, entry: ViteManifestEntry, seen = new Set<string>()): Measurement => {
+        const files: string[] = [];
+        const walk = (at: ViteManifestEntry) => {
+            if (seen.has(at.file)) return;
+            seen.add(at.file);
+            files.push(at.file);
+            for (const chunk of at.imports ?? []) walk(manifest[chunk]);
+        };
+        walk(entry);
+        return filesMeasurement(budget, entry.file, files);
     };
     const searchEntry = manifest['src/client/search.ts'];
-    measurements.push({ budget: 'searchScript', subject: searchEntry.file, bytes: withImports(searchEntry) });
+    measurements.push(withImports('searchScript', searchEntry));
     for (const chunk of searchEntry.dynamicImports ?? []) {
-        measurements.push({ budget: 'searchEngine', subject: manifest[chunk].file, bytes: withImports(manifest[chunk], new Set([searchEntry.file, ...(searchEntry.imports ?? []).map(shared => manifest[shared].file)])) });
+        measurements.push(withImports('searchEngine', manifest[chunk], new Set([searchEntry.file, ...(searchEntry.imports ?? []).map(shared => manifest[shared].file)])));
     }
+    measurements.push(withImports('detailScript', manifest['src/client/detailTabs.ts']));
+    measurements.push(withImports('playerScript', manifest['src/client/player.ts']));
 
-    const detailEntry = manifest['src/client/detailTabs.ts'];
-    measurements.push({ budget: 'detailScript', subject: detailEntry.file, bytes: withImports(detailEntry) });
-    const playerEntry = manifest['src/client/player.ts'];
-    measurements.push({ budget: 'playerScript', subject: playerEntry.file, bytes: withImports(playerEntry) });
-
-    const core = fs.readFileSync(path.join(DIST_DIR, 'data', 'search-core.json'));
-    measurements.push({ budget: 'searchCoreGzip', subject: 'data/search-core.json', bytes: gzipSync(core, { level: 9 }).length });
+    measurements.push(fileMeasurement('searchCore', path.join('data', 'search-core.json')));
 
     for (const font of fs.readdirSync(path.join(DIST_DIR, 'assets')).filter(name => name.endsWith('.woff2'))) {
-        measurements.push({ budget: 'webFont', subject: `assets/${font}`, bytes: sizeOf(path.join('assets', font)) });
+        measurements.push(fileMeasurement('webFont', path.join('assets', font)));
     }
-    return measurements;
+    return { measurements, sheets: new Set([...stylesheetSets.keys()].flatMap(sheets => sheets.split(' + '))) };
+}
+
+/** The entity pages' sheets: on request, no page in dist/ links them (their budgets are the static build's). */
+const ENTITY_STYLES = ['src/styles/pages/vocab.scss', 'src/styles/pages/kanji.scss', 'src/styles/pages/grammar.scss'];
+
+/**
+ * Every page type's stylesheet (lib/server/assets.ts, PAGE_STYLES) is linked by a page measured
+ * above, so the blocking stylesheet budget sums every set a page links, not only the measured
+ * pages': a page type added without a page here fails, rather than going unchecked.
+ */
+function unmeasuredStylesheetProblems(manifest: Record<string, ViteManifestEntry>, sheets: Set<string>): string[] {
+    return Object.entries(manifest)
+        .filter(([source]) => /^src\/styles\/pages\/.+\.scss$/.test(source) && !(ENTITY_PAGES === 'on-request' && ENTITY_STYLES.includes(source)))
+        .filter(([, entry]) => !sheets.has(entry.file))
+        .map(([source, entry]) => `${source} (${entry.file}) is linked by no page check-build measures: its blocking stylesheets are not budgeted (add one of its pages to measure())`);
 }
 
 /** The build has the pages its mode says: every entity page prerendered, or none and the server built. */
@@ -280,7 +351,7 @@ function localeSearchProblems(locale: ServedLocale): { problems: string[]; pages
 const localeSearches = SERVED_LOCALES.filter(locale => localePrefix(locale) !== '').map(localeSearchProblems);
 
 const manifest = readJson(path.join('.vite', 'manifest.json')) as Record<string, ViteManifestEntry>;
-const measurements = measure(manifest);
+const { measurements, sheets: measuredSheets } = measure(manifest);
 const over = overBudget(measurements);
 /** Every sitemap the build writes (the index and each locale's, at dist/'s root) is one a search engine reads: none over its URL limit. */
 function sitemapProblems(): string[] {
@@ -391,14 +462,14 @@ async function unmatchedPathProblems(): Promise<string[]> {
     }
 }
 
-const problems = [...over.map(m => `over budget: ${describe(m)}`), ...modeProblems(), ...assetProblems(), ...searchProblems(), ...localeSearches.flatMap(found => found.problems), ...sitemapProblems(), ...routingProblems(), ...linkProblems(), ...alternatesProblems(), ...sourceNameProblems(), ...(await unmatchedPathProblems())];
+const problems = [...over.map(m => `over budget: ${describe(m)}`), ...modeProblems(), ...unmeasuredStylesheetProblems(manifest, measuredSheets), ...assetProblems(), ...searchProblems(), ...localeSearches.flatMap(found => found.problems), ...sitemapProblems(), ...routingProblems(), ...linkProblems(), ...alternatesProblems(), ...sourceNameProblems(), ...(await unmatchedPathProblems())];
 
 // A budget over many pages reports its heaviest.
-const MANY_PAGES: Partial<Record<Measurement['budget'], string>> = { jlptPage: 'JLPT list pages', kanjiOrderPage: 'kanji order pages' };
+const MANY_PAGES: Partial<Record<BudgetName, string>> = { jlptPage: 'JLPT list pages', kanjiOrderPage: 'kanji order pages' };
 for (const m of measurements.filter(m => MANY_PAGES[m.budget] === undefined)) console.log(`[check-build] ${describe(m)}`);
 for (const [budget, pages] of Object.entries(MANY_PAGES)) {
     const group = measurements.filter(m => m.budget === budget);
-    console.log(`[check-build] ${describe(group.reduce((a, b) => (b.bytes > a.bytes ? b : a)))} (heaviest of ${group.length} ${pages})`);
+    console.log(`[check-build] ${describe(group.reduce((a, b) => (countedBytes(b) > countedBytes(a) ? b : a)))} (heaviest of ${group.length} ${pages})`);
 }
 
 if (problems.length > 0) {
