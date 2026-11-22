@@ -820,11 +820,14 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   to the end of its first screen at 375x812, counted as its HTML through its first N rows inside
   `<main>` (`FIRST_SCREEN_ROWS`: 5 grammar points, 10 words, 10 rows or tiles of an order page,
   above the 3, 7 and 7 measured on 2026-11-22). `check:layout` fails when those rows no longer
-  reach that screen's end, so the count always covers what a reader sees first.
+  reach that screen's end, on one page of every shape counted so (`/grammar/`, a JLPT list's first
+  and numbered pages, every order's hub and a range page of each: `dictionaryListShapes`), so the
+  count covers what a reader sees first.
 
   The stylesheets are a second round trip whatever their size: the browser asks for them once the
   HTML starts arriving, on the same connection, by which time the window has roughly doubled, so a
-  page's blocking stylesheets are held together to 14 KB (3 to 5 KB measured). Inlining the shared
+  page's blocking stylesheets are held together to 14 KB (3 to 5 KB measured), every set a page
+  type links: `check-build` fails when a page type's sheet is linked by no page it measures. Inlining the shared
   stylesheet (2.5 KB brotli) would give one-round-trip first paint at the cost of those bytes on
   every page and its cache across pages: a trade-off to measure, not assume. The scripts and the
   search index load past the first screen: their budgets are regression guards, about 25% over

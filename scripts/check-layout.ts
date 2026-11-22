@@ -97,7 +97,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { KANJI_CHARS, kanjiOrder, type KanjiOrderId } from '@gokan/dataset-schema';
-import { buildMissing, dictionaryPages, listeningTitlesToMark, serve, serveProduction, srsFile, srsRoutes, srsVersion } from './lib/builtSite';
+import { buildMissing, dictionaryListShapes, dictionaryPages, listeningTitlesToMark, serve, serveProduction, srsFile, srsRoutes, srsVersion } from './lib/builtSite';
 import { launchChrome, type Chrome, type Tab } from './lib/chrome';
 import { FIRST_SCREEN_ROWS, firstScreenBudgetOf } from '../apps/gokan-dictionary/src/lib/budgets';
 
@@ -221,6 +221,8 @@ async function measure(tab: Tab, page: string, width: number, tapTargets = ''): 
 }
 
 const DICTIONARY_PAGES = await dictionaryPages();
+/** The list page shapes beyond DICTIONARY_PAGES, measured only for their first screen (checkListFirstScreen). */
+const DICTIONARY_LIST_SHAPES = dictionaryListShapes();
 const SRS_ROUTES = srsRoutes();
 const SRS_VERSION = srsVersion();
 // The same build behind a version.json naming the next major: what an open tab sees once a newer
@@ -2967,6 +2969,12 @@ try {
             await measure(tab, `dictionary ${page.path}`, width, DICTIONARY_TAP_TARGETS);
             if (DICTIONARY_LIST_PAGES.includes(page.path)) await checkEntryGlossColumn(tab, `dictionary ${page.path}`, width, true);
             await checkListFirstScreen(tab, `dictionary ${page.path}`, page.path, width);
+        }
+        if (width === LIST_FIRST_SCREEN.width) {
+            for (const page of DICTIONARY_LIST_SHAPES) {
+                await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${page.path}`, page.ready);
+                await checkListFirstScreen(tab, `dictionary ${page.path}`, page.path, width);
+            }
         }
         for (const path of SOURCE_CREDIT_PAGES) await checkSourceCreditGap(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, path, width, true);
         for (const path of SWITCHER_PAGES) {
