@@ -149,6 +149,17 @@ function measure(manifest: Record<string, ViteManifestEntry>): { measurements: M
         }
     }
 
+    // The page types no budget above measures link their own sheets too: one page of each, in
+    // every locale that serves it, so every page's stylesheets are summed below.
+    const grammarFamily = fs.existsSync(path.join(DIST_DIR, 'grammar', 'family')) ? subdirectories(path.join('grammar', 'family')).sort()[0] : undefined;
+    const otherPages = [['kanji'], ['grammar', 'chapters'], ['grammar', 'conjugations'], ['grammar', 'families'], ...(grammarFamily === undefined ? [] : [['grammar', 'family', grammarFamily]])];
+    for (const prefix of ['', 'zh-hans']) {
+        for (const segments of otherPages) {
+            const file = pageOf(prefix, ...segments);
+            if (fs.existsSync(path.join(DIST_DIR, file))) linksSheets(read(file).toString('utf-8'), path.join(prefix, ...segments, '/'));
+        }
+    }
+
     // What blocks each page's first paint, together: the shared sheet, its page type's, its locale's.
     for (const [sheets, example] of stylesheetSets) {
         const files = sheets.split(' + ');
