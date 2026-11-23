@@ -1,14 +1,15 @@
 // The search index's rows, one format for both apps: the dictionary writes them into its index
 // files at prerender (lib/searchIndex.ts), gokan-srs into a module of its build (vite.config.ts),
 // and both read them back through the one matcher (search.ts) with the same options
-// (`prepareRowSearch`), so a query finds the same rows in the same order in both.
+// (`prepareRowSearch`, rowSearch.ts), so a query finds the same rows in the same order in both.
+// What reads a row here imports neither the matcher nor the conjugation rules, so the dictionary's
+// page-wide script can draw a row without bundling them (they load with its query engine).
 
-import { deinflect, WORD_CLASSES, wordClassOf, type ConjugationClass } from './conjugation';
+import { WORD_CLASSES, wordClassOf } from './conjugation';
 import type { GrammarPoint } from './grammar';
 import { headwordOf, secondaryForm } from './headword';
 import { kunReadingLabel, type Kanji } from './kanji';
-import { prepareSearch } from './search';
-import type { Deinflector, PreparedSearch, SearchGlossLanguage, SearchGrammarInput, SearchKanjiInput, SearchWordInput } from './search';
+import type { SearchGrammarInput, SearchKanjiInput } from './search';
 import type { Vocabulary } from './vocabulary';
 
 /**
@@ -92,11 +93,6 @@ export function searchWordRow(vocab: Vocabulary): SearchWordRow {
     return [vocab.id, headwordOf(vocab), secondaryForm(vocab), shortGloss(vocab), vocab.jlptLevel ?? 0, flags];
 }
 
-export function wordClassOfRow(row: SearchWordRow): ConjugationClass | null {
-    const code = classCodeOfRow(row);
-    return code > 0 ? WORD_CLASSES[code - 1] : null;
-}
-
 /** Rows to the columnar file layout (SearchWordColumns). */
 export function toColumns(rows: SearchWordRow[]): SearchWordColumns {
     const columns: SearchWordColumns = [[], [], [], [], [], []];
@@ -171,41 +167,4 @@ export function kanjiRowInput(row: SearchKanjiRow): SearchKanjiInput<SearchKanji
 /** A grammar row as the matcher reads it. */
 export function grammarRowInput(row: SearchGrammarRow): SearchGrammarInput<SearchGrammarRow> {
     return { row, title: row[1], romaji: row[2], explanation: row[3] };
-}
-
-/** A word row as the matcher reads it: a word learned in kana shows its kana, and its kanji spelling (the secondary form) still finds it. */
-export function wordRowInput(row: SearchWordRow): SearchWordInput<SearchWordRow, ConjugationClass> {
-    return {
-        row,
-        forms: isUsuallyKanaRow(row) ? [row[1], row[2]] : [row[1]],
-        reading: readingOfRow(row),
-        gloss: row[3],
-        jlpt: row[4] > 0,
-        common: isCommonRow(row),
-        wordClass: wordClassOfRow(row),
-    };
-}
-
-/** A conjugated form's candidates may name a regular godan rule for 行く or 問う, whose other forms are regular. */
-function classFits(wordClass: ConjugationClass | null, ruleClass: ConjugationClass): boolean {
-    if (wordClass === ruleClass) return true;
-    return ruleClass === 'godan' && (wordClass === 'godan-iku' || wordClass === 'godan-tou');
-}
-
-/** The conjugation rules (conjugation.ts) walked backwards, so a search for 食べた finds 食べる. */
-export const SEARCH_DEINFLECTOR: Deinflector<ConjugationClass> = { candidates: deinflect, fits: classFits };
-
-export type PreparedRowSearch = PreparedSearch<SearchWordRow, SearchKanjiRow, SearchGrammarRow, ConjugationClass>;
-
-/**
- * The index both apps search: the words of every file, in order (frequency order), and the kanji
- * and grammar of whichever carries them, with the conjugation rules as the deinflector. `glosses`
- * is the language the files' word glosses are in. Kanji meanings are English in every index.
- */
-export function prepareRowSearch(files: readonly SearchIndexColumns[], glosses: SearchGlossLanguage = 'en'): PreparedRowSearch {
-    return prepareSearch({
-        words: files.flatMap(file => fromColumns(file.w).map(wordRowInput)),
-        kanji: files.flatMap(file => (file.k ? kanjiFromColumns(file.k) : []).map(kanjiRowInput)),
-        grammar: files.flatMap(file => (file.g ?? []).map(grammarRowInput)),
-    }, { glosses, frequencyOrdered: true, deinflector: SEARCH_DEINFLECTOR });
 }

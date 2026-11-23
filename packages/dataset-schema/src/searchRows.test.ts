@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-    classCodeOfRow, fromColumns, isCommonRow, kanjiRowMainReadings, kanjiRowMeanings, prepareRowSearch, readingOfRow, SEARCH_EXPLANATION_LENGTH, searchGrammarRow, searchKanjiRow, toColumns,
+    classCodeOfRow, fromColumns, isCommonRow, kanjiRowMainReadings, kanjiRowMeanings, readingOfRow, SEARCH_EXPLANATION_LENGTH, searchGrammarRow, searchKanjiRow, toColumns,
     truncateAtWord, type SearchWordRow,
 } from './searchRows';
-import { runSearch } from './search';
 
 describe('searchKanjiRow', () => {
     it('keeps the character, level, rank, meanings and readings as KANJIDIC writes them', () => {
@@ -38,7 +37,6 @@ describe('truncateAtWord', () => {
 describe('search word rows', () => {
     const omou: SearchWordRow = ['1', '思う', 'おもう', 'to think', 5, 1 | (2 << 2)];
     const koko: SearchWordRow = ['2', 'ここ', '此処', 'here', 5, 2];
-    const taberu: SearchWordRow = ['3', '食べる', 'たべる', 'to eat', 5, 1 | (1 << 2)];
 
     it('reads the common flag and the class code', () => {
         expect(isCommonRow(omou)).toBe(true);
@@ -54,12 +52,6 @@ describe('search word rows', () => {
 
     it('stores words column by column, and reads them back', () => {
         expect(fromColumns(toColumns([omou, koko]))).toEqual([omou, koko]);
-    });
-
-    it('prepares an index that finds a word by its kanji spelling and from a conjugated form', () => {
-        const index = prepareRowSearch([{ w: toColumns([omou, koko, taberu]) }]);
-        expect(runSearch(index, '此処').words.map(hit => hit.row[0])).toEqual(['2']);
-        expect(runSearch(index, '食べた').words[0]).toMatchObject({ row: taberu, via: '食べた' });
     });
 });
 

@@ -385,7 +385,8 @@ gokan-dictionary:
 - Search: the index built at prerender by `lib/searchIndex.ts`, its rows the shared format
   (`searchWordRow`, `searchKanjiRow`, `searchGrammarRow`, row flags, columns:
   `@gokan/dataset-schema`'s `searchRows.ts`, gokan-srs's header search builds the same rows),
-  prepared by `prepareRowSearch` and ranked by `runRankedSearch` through `lib/searchQuery.ts`,
+  prepared by `prepareRowSearch` (`rowSearch.ts`, apart so the page-wide script reads rows without the
+  matcher) and ranked by `runRankedSearch` through `lib/searchQuery.ts`,
   the same module behind the header panel, `/search/` and the build-time acceptance check. A
   query lists the same rows in the same order in both apps (held by `scripts/searchParity.test.ts`).
 - Size budgets: `lib/budgets.ts`, checked by `scripts/check-build.ts` after every build, in brotli
