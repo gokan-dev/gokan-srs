@@ -11,6 +11,10 @@ describe('redrawOnIndexChange', () => {
         expect(redrawOnIndexChange({ drawn: 0, pageSize: 30, scrolled: 0 })).toBe(true);
     });
 
+    it('draws over "No results" on a scrolled page, so a word only the long tail holds is found', () => {
+        expect(redrawOnIndexChange({ drawn: 0, pageSize: 50, scrolled: 120 })).toBe(true);
+    });
+
     it('keeps a list scrolled, or drawn past its first page', () => {
         expect(redrawOnIndexChange({ drawn: 30, pageSize: 30, scrolled: 120 })).toBe(false);
         expect(redrawOnIndexChange({ drawn: 60, pageSize: 30, scrolled: 0 })).toBe(false);
