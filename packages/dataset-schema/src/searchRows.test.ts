@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { kanjiRowMeanings, SEARCH_EXPLANATION_LENGTH, searchGrammarRow, searchKanjiRow, truncateAtWord } from './searchRows';
+import {
+    classCodeOfRow, fromColumns, isCommonRow, kanjiRowMeanings, prepareRowSearch, readingOfRow, SEARCH_EXPLANATION_LENGTH, searchGrammarRow, searchKanjiRow, toColumns,
+    truncateAtWord, type SearchWordRow,
+} from './searchRows';
+import { runSearch } from './search';
 
 describe('searchKanjiRow', () => {
     it('keeps the character, level, rank, meanings and readings as KANJIDIC writes them', () => {
@@ -28,5 +32,33 @@ describe('truncateAtWord', () => {
     it('leaves a short text whole and cuts a long one at a space', () => {
         expect(truncateAtWord('to eat', 10)).toBe('to eat');
         expect(truncateAtWord('to eat; to live on', 10)).toBe('to eat…');
+    });
+});
+
+describe('search word rows', () => {
+    const omou: SearchWordRow = ['1', '思う', 'おもう', 'to think', 5, 1 | (2 << 2)];
+    const koko: SearchWordRow = ['2', 'ここ', '此処', 'here', 5, 2];
+    const taberu: SearchWordRow = ['3', '食べる', 'たべる', 'to eat', 5, 1 | (1 << 2)];
+
+    it('reads the common flag and the class code', () => {
+        expect(isCommonRow(omou)).toBe(true);
+        expect(isCommonRow(koko)).toBe(false);
+        expect(classCodeOfRow(omou)).toBe(2);
+        expect(classCodeOfRow(koko)).toBe(0);
+    });
+
+    it('reads the headword as the reading of a word learned in kana', () => {
+        expect(readingOfRow(omou)).toBe('おもう');
+        expect(readingOfRow(koko)).toBe('ここ');
+    });
+
+    it('stores words column by column, and reads them back', () => {
+        expect(fromColumns(toColumns([omou, koko]))).toEqual([omou, koko]);
+    });
+
+    it('prepares an index that finds a word by its kanji spelling and from a conjugated form', () => {
+        const index = prepareRowSearch([{ w: toColumns([omou, koko, taberu]) }]);
+        expect(runSearch(index, '此処').words.map(hit => hit.row[0])).toEqual(['2']);
+        expect(runSearch(index, '食べた').words[0]).toMatchObject({ row: taberu, via: '食べた' });
     });
 });

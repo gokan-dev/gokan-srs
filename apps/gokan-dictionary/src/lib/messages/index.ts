@@ -6,10 +6,9 @@
 // Text the dataset holds (meanings, explanations, examples) is the dataset's, read in the
 // locale's language (lib/locale.ts, datasetLanguageOf); this is everything else.
 
-import type { Closeness, FrequencyBandName, GrammarChapter, GrammarPoint, Kanji, KanjiOrder, Vocabulary } from '@gokan/dataset-schema';
+import type { Closeness, FormLabel, FrequencyBandName, GrammarChapter, GrammarPoint, Kanji, KanjiOrder, Vocabulary } from '@gokan/dataset-schema';
 import type { DictionaryPlacement } from '@gokan/analytics';
 import type { AppLink } from '../appLinks';
-import type { FormLabel } from '../conjugation';
 import type { OrderStep } from '../kanjiOrders';
 import type { ServedLocale } from '../locale';
 import type { GrammarTab, Section, WordText } from '../types';

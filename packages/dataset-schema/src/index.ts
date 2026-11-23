@@ -32,3 +32,4 @@ export { moraeOf, pitchContour, pitchAccentKind, primaryPitchAccent, pitchAccent
 export type { PitchContour, PitchAccentKind, PitchPaths } from './pitchAccent';
 export * from './search';
 export * from './searchRows';
+export * from './conjugation';

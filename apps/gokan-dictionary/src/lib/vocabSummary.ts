@@ -2,20 +2,12 @@
 // word list row and the short gloss a list or search row carries. Separated from
 // lib/server/pages.ts so they're unit-testable without the dataset or the Svelte loader.
 
-import { headwordOf, SEARCH_EXPLANATION_LENGTH, truncateAtWord } from '@gokan/dataset-schema';
+import { FLAG_USUALLY_KANA, headwordOf, shortGloss, SHORT_GLOSS_LENGTH, truncateAtWord } from '@gokan/dataset-schema';
 import type { Vocabulary } from '@gokan/dataset-schema';
-import { FLAG_USUALLY_KANA } from './searchRow';
 import type { SearchWordRow, VocabSummary } from './types';
 
-/** Longest short gloss, in characters: one line of a list row or a search result, as a grammar row's explanation is cut. */
-export const SHORT_GLOSS_LENGTH = SEARCH_EXPLANATION_LENGTH;
-
-export { truncateAtWord };
-
-/** The first sense's glosses joined with "; ", cut to SHORT_GLOSS_LENGTH. */
-export function shortGloss(vocab: Pick<Vocabulary, 'senses'>): string {
-    return truncateAtWord(vocab.senses[0]?.glosses.join('; ') ?? '', SHORT_GLOSS_LENGTH);
-}
+// The short gloss is the search rows' (@gokan/dataset-schema), so a list row and a search row agree.
+export { shortGloss, SHORT_GLOSS_LENGTH, truncateAtWord };
 
 /**
  * A word's summary from its search row (searchWordRow), equal to vocabSummaryFrom of the word: a

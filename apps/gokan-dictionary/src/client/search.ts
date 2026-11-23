@@ -16,11 +16,10 @@ import { datasetLanguageOf, htmlLang, localeOfHtmlLang } from '../lib/locale';
 import { linkLang, linkUrls } from '../lib/localeLinks';
 import { searchMessagesFor } from '../lib/messages/search';
 import type { IndexResults, IndexWordHit, PreparedIndex } from '../lib/searchQuery';
-import { kanjiRowMeanings } from '@gokan/dataset-schema';
+import { kanjiRowMeanings, readingOfRow } from '@gokan/dataset-schema';
 import type { SearchGroup } from '@gokan/dataset-schema';
 import type { SearchGrammarRow, SearchIndexFile, SearchKanjiRow } from '../lib/types';
 import { searchIndexPaths } from '../lib/urls';
-import { readingOfRow } from '../lib/searchRow';
 import { foldRows } from '../lib/searchFold';
 
 const PANEL_LIMITS = { words: 8, kanji: 3, grammar: 3 };

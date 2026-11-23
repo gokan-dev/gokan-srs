@@ -20,11 +20,10 @@ import { inSection, linkUrls } from '../src/lib/localeLinks';
 import { BASE_PATH, SITE_ORIGIN } from '../src/lib/site';
 import { sitemapProblems as sitemapFileProblems } from '../src/lib/sitemap';
 import { messagesFor } from '../src/lib/messages';
-import { kanaToHepburn } from '@gokan/dataset-schema';
+import { kanaToHepburn, readingOfRow } from '@gokan/dataset-schema';
 import type { TextFile } from '@gokan/dataset-schema/text';
 import { fromColumns } from '../src/lib/searchIndex';
 import { prepareIndex, search, TIER, type PreparedIndex } from '../src/lib/searchQuery';
-import { readingOfRow } from '../src/lib/searchRow';
 import type { SearchIndexFile, SearchWordRow } from '../src/lib/types';
 
 const APP_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');

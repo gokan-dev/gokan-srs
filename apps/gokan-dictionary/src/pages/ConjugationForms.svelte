@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { conjugate, type FormLabel, type WordClass } from '../lib/conjugation';
+  import { conjugate, type FormLabel, type WordClass } from '@gokan/dataset-schema';
   import { pageLocale } from './pageLocale';
 
   const { forms } = pageLocale().messages.vocab;

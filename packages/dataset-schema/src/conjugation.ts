@@ -1,10 +1,10 @@
 // Japanese conjugation, both ways, from one rule table: `conjugate` builds the labelled forms a
 // word page shows in its Forms table, and `deinflect` walks the same table backwards so a search
-// for 食べた finds 食べる.
+// for 食べた finds 食べる, in both apps' search (searchRows.ts, `SEARCH_DEINFLECTOR`).
 //
-// Dictionary-local on purpose. gokan-srs's utils/inflection.utils.ts generates unlabelled forms
-// for grading and belongs to the exercise engine; the dictionary needs the labels and the
-// inverse direction, which that module has no use for.
+// Shared for search only. gokan-srs's utils/inflection.utils.ts generates unlabelled forms for
+// grading and belongs to the exercise engine; the dictionary's Forms table needs the labels and
+// both searches the inverse direction, which that module has no use for.
 
 export type WordClass =
     | 'ichidan'

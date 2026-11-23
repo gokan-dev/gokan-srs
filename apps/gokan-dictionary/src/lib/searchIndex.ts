@@ -1,14 +1,11 @@
 // Builds the dictionary's own search index at prerender time (lib/server/pages.ts, served as /data/search-*.json), from the
 // compiled dataset rather than copying its index/search.json: ranking needs the frequency order,
 // the JLPT level, the common flag and a word's conjugation class, which that file does not carry.
-// The format is documented on SearchWordRow and SearchIndexFile (types.ts).
+// The rows are the shared format (@gokan/dataset-schema's searchRows.ts), gokan-srs's header search
+// builds the same ones; how they are split into files is documented on SearchIndexFile (types.ts).
 
-import { headwordOf, secondaryForm } from '@gokan/dataset-schema';
-import type { Vocabulary } from '@gokan/dataset-schema';
-import { WORD_CLASSES, wordClassOf, type WordClass } from './conjugation';
-import type { SearchGrammarRow, SearchIndexFile, SearchKanjiColumns, SearchKanjiRow, SearchWordColumns, SearchWordRow } from './types';
-import { shortGloss } from './vocabSummary';
-import { CLASS_SHIFT, classCodeOfRow, FLAG_COMMON, FLAG_USUALLY_KANA } from './searchRow';
+import { kanjiToColumns, toColumns } from '@gokan/dataset-schema';
+import type { SearchGrammarRow, SearchIndexFile, SearchKanjiRow, SearchWordRow } from './types';
 
 /**
  * Words in the core file beyond the JLPT lists: the most frequent ones. As many as fit the core's
@@ -18,58 +15,8 @@ import { CLASS_SHIFT, classCodeOfRow, FLAG_COMMON, FLAG_USUALLY_KANA } from './s
 export const CORE_FREQUENT_WORDS = 5500;
 
 export { isSearchIndexPart, SEARCH_INDEX_PARTS, type SearchIndexPart } from './searchIndexParts';
-// The kanji and grammar rows are the shared format (@gokan/dataset-schema), gokan-srs's too.
-export { searchGrammarRow, searchKanjiRow } from '@gokan/dataset-schema';
-
-export function searchWordRow(vocab: Vocabulary): SearchWordRow {
-    const wordClass = wordClassOf(vocab.senses.flatMap(sense => sense.pos));
-    const flags = (vocab.isCommon ? FLAG_COMMON : 0)
-        | (vocab.usuallyKana ? FLAG_USUALLY_KANA : 0)
-        | ((wordClass ? WORD_CLASSES.indexOf(wordClass) + 1 : 0) << CLASS_SHIFT);
-    return [vocab.id, headwordOf(vocab), secondaryForm(vocab), shortGloss(vocab), vocab.jlptLevel ?? 0, flags];
-}
-
-export function wordClassOfRow(row: SearchWordRow): WordClass | null {
-    const code = classCodeOfRow(row);
-    return code > 0 ? WORD_CLASSES[code - 1] : null;
-}
-
-/** Rows to the columnar file layout (SearchWordColumns). */
-export function toColumns(rows: SearchWordRow[]): SearchWordColumns {
-    const columns: SearchWordColumns = [[], [], [], [], [], []];
-    for (const [id, headword, secondary, gloss, jlpt, flags] of rows) {
-        columns[0].push(id);
-        columns[1].push(headword);
-        columns[2].push(secondary);
-        columns[3].push(gloss);
-        columns[4].push(jlpt);
-        columns[5].push(flags);
-    }
-    return columns;
-}
-
-/** The columnar file layout back to rows. */
-export function fromColumns([ids, headwords, secondary, glosses, jlpt, flags]: SearchWordColumns): SearchWordRow[] {
-    return ids.map((id, i) => [id, headwords[i], secondary[i], glosses[i], jlpt[i], flags[i]]);
-}
-
-/** Kanji rows to the columnar file layout (SearchKanjiColumns). */
-export function kanjiToColumns(rows: SearchKanjiRow[]): SearchKanjiColumns {
-    const columns: SearchKanjiColumns = [[], [], [], [], []];
-    for (const [character, jlpt, frequency, meanings, readings] of rows) {
-        columns[0].push(character);
-        columns[1].push(jlpt);
-        columns[2].push(frequency);
-        columns[3].push(meanings);
-        columns[4].push(readings);
-    }
-    return columns;
-}
-
-/** The kanji's columnar file layout back to rows. */
-export function kanjiFromColumns([characters, jlpt, frequency, meanings, readings]: SearchKanjiColumns): SearchKanjiRow[] {
-    return characters.map((character, i) => [character, jlpt[i], frequency[i], meanings[i], readings[i]]);
-}
+// The rows and their columns are the shared format (@gokan/dataset-schema's searchRows.ts), gokan-srs's too.
+export { fromColumns, kanjiFromColumns, kanjiToColumns, searchGrammarRow, searchKanjiRow, searchWordRow, toColumns, wordClassOfRow } from '@gokan/dataset-schema';
 
 /**
  * Splits the index in two so most lookups never download the long tail: the core carries every

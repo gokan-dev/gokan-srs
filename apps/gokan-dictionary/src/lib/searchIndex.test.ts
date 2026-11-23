@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
     CORE_FREQUENT_WORDS, fromColumns, isSearchIndexPart, kanjiFromColumns, kanjiToColumns, searchGrammarRow, searchKanjiRow, searchWordRow, splitSearchIndex, toColumns, wordClassOfRow,
 } from './searchIndex';
-import { isCommonRow, readingOfRow } from './searchRow';
+import { isCommonRow, readingOfRow } from '@gokan/dataset-schema';
 import type { SearchKanjiRow, SearchWordRow } from './types';
 import { grammarPoint, kanji, vocabulary } from '../test/fixtures';
 
