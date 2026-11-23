@@ -127,6 +127,33 @@ describe('drillCardsOf', () => {
         expect(cutSomewhere).toBe(true);
     });
 
+    it('keeps a card for every lesson of a family that has one, however the cap falls', () => {
+        // Fourteen points over two lessons fill the cap with sentence cards; a third lesson has only one case card.
+        const markers = ['から', 'ので', 'ため', 'おかげで', 'せいで', 'し', 'て', 'からです', 'のです', 'ためです', 'わけです', 'ものだ', 'ことだ', 'はずだ'];
+        const many = markers.map((m, i) => point(`p${i}`, m, [example(['雨', m], [1]), example(['風', m], [1])], { slot: i % 2 === 0 ? 'clause-final' : 'predicate-final' }));
+        const soreDemo = point('soredemo', 'それでも', []);
+        const demo = point('demo', 'でも', []);
+        const evenSo: GrammarContrastCase = { focus: 'soredemo', vs: ['demo'], situation: 'Going ahead anyway.', guidance: 'それでも carries on.' };
+        const lessons = [
+            { title: 'First', points: many.slice(0, 7).map(p => p.id) },
+            { title: 'Second', points: many.slice(7).map(p => p.id) },
+            { title: 'でも / それでも', points: ['demo', 'soredemo'] },
+        ];
+        const sources = sourcesOf(...many, soreDemo, demo);
+        const asksEvenSo = (cards: ReturnType<typeof drillCardsOf>) => cards.some(c => c.point.id === 'soredemo' && optionPointsOf(c).includes('demo'));
+        let cutSomewhere = false;
+        for (const seed of Array.from({ length: 30 }, (_, i) => `seed-${i}`)) {
+            if (!asksEvenSo(drillCardsOf(sources, [evenSo], seed, info))) cutSomewhere = true;
+            const cards = drillCardsOf(sources, [evenSo], seed, info, undefined, lessons);
+            expect(cards).toHaveLength(CONSTANTS.srs.grammar.drillMaxCards);
+            expect(asksEvenSo(cards), seed).toBe(true);
+            expect(lessonsCovered(cards, lessons), seed).toBeUndefined();
+            cards.forEach((card, i) => { if (i > 0) expect(card.point.id, seed).not.toBe(cards[i - 1].point.id); });
+        }
+        // Without the lessons the cap cuts the case card under some seeds: the case this guards.
+        expect(cutSomewhere).toBe(true);
+    });
+
     it('drills a point offered as a wrong option on another\'s card, and none that no card asks or offers', () => {
         // おかげで rules から out: without からです nothing rules a sibling out of から's own examples,
         // but から is drilled on おかげで's card. ので is on no card.
@@ -323,6 +350,29 @@ describe('the who family (dataset checkout)', () => {
             vi.stubGlobal('fetch', publishedFetch(files));
             expect(await hasDrill({ kind: 'point', grammarId })).toBe(true);
             GrammarService.clearCache();
+        }
+    });
+});
+
+describe('the contradiction family (dataset checkout)', () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        GrammarService.clearCache();
+    });
+
+    // Thirteen points: でも / それでも's one case card (それでも against でも) was once cut by the cap.
+    const files = publishedFiles(import.meta.glob(
+        '../../../dataset/compiled/{,text/en/}grammar/{index/contrasts,index/browse,slots,points/n5-071,points/n5-077,points/n5-078,points/n5-008,points/n5-003,points/n5-002,points/n3-033,points/n2-016,points/n2-156,points/n2-012,points/n2-017,points/n2-018,points/n2-024,mined/n5-071,mined/n5-077,mined/n5-078,mined/n5-008,mined/n5-003,mined/n5-002,mined/n3-033,mined/n2-016,mined/n2-156,mined/n2-012,mined/n2-017,mined/n2-018,mined/n2-024}.json',
+        { eager: true, import: 'default' },
+    ));
+
+    it('asks every lesson, so its first screen leaves none out, whatever the seed', async () => {
+        for (const seed of ['1', '7', 'seed', 'abc']) {
+            vi.stubGlobal('fetch', publishedFetch(files));
+            const drill = await loadDrill({ kind: 'family', familyId: 'contradiction' }, seed);
+            GrammarService.clearCache();
+            expect(drill?.cards.some(card => card.point.id === 'n2-012' && optionPointsOf(card).includes('n5-008')), seed).toBe(true);
+            expect(drill?.lessons, seed).toBeUndefined();
         }
     });
 });

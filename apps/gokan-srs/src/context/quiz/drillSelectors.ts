@@ -232,26 +232,76 @@ export function interleave<T>(groups: readonly { key: string; items: readonly T[
 
 /**
  * The drill's cards over a set of points: one pass over every usable example and every
- * contrast case of the set, interleaved so every point is met and never twice in a row (a
- * set whose cards all ask one point keeps them all), capped at drillMaxCards. An example is usable when its pattern is
- * located and at least one other point of the set and of its family is ruled out there
- * (rulesOut): only those are offered as wrong answers. A case is usable when one of its
- * `vs` points is in the set (caseCardOf). Every card tells two points apart, so a set with
- * one card has a drill; empty when it has none. `seed` orders points and sentences, so a
- * drill run again can come out differently without the builder reading a clock.
+ * contrast case of the set, interleaved so every point is met and never twice in a row
+ * (a set whose cards all ask one point keeps them all), capped at drillMaxCards. An
+ * example is usable when its pattern is located and at least one other point of the set
+ * and of its family is ruled out there (rulesOut): only those are offered as wrong
+ * answers. A case is usable when one of its `vs` points is in the set (caseCardOf). Every
+ * card tells two points apart, so a set with one card has a drill; empty when it has
+ * none. `seed` orders points and sentences, so a drill run again can come out
+ * differently without the builder reading a clock.
  *
  * A point's drill (`focus`) keeps only the cards that ask the point or offer it, and
  * meets the point's own first, so the cap never cuts them: whether it has cards does not
  * depend on the seed. A point offered as a wrong option on another's card is drilled on
  * that card (だれか, ruled out on だれも's case, once had no drill of its own).
+ *
+ * A family's drill (`lessons`) keeps a card for every lesson that has one (keepLessons):
+ * the cap never cuts a lesson's last card, so its first screen says a lesson has no
+ * drill only when none of its cards exists (でも / それでも's one case card was once cut).
  */
-export function drillCardsOf(sources: readonly DrillSource[], cases: readonly GrammarContrastCase[], seed: string, info: (p: GrammarPoint) => DrillPointInfo, focus?: string): DrillExercise[] {
+export function drillCardsOf(
+    sources: readonly DrillSource[],
+    cases: readonly GrammarContrastCase[],
+    seed: string,
+    info: (p: GrammarPoint) => DrillPointInfo,
+    focus?: string,
+    lessons: readonly LessonPoints[] = [],
+): DrillExercise[] {
     const set = sources.map(s => s.point);
     const groups = sources
         .map(source => ({ key: source.point.id, items: pointCardsOf(source, set, cases, seed, info, focus) }))
         .filter(g => g.items.length > 0)
         .sort((a, b) => Number(b.key === focus) - Number(a.key === focus) || hashString(`${seed}:${a.key}`) - hashString(`${seed}:${b.key}`));
-    return interleave(groups, CONSTANTS.srs.grammar.drillMaxCards);
+    const max = CONSTANTS.srs.grammar.drillMaxCards;
+    return keepLessons(interleave(groups, max), groups.flatMap(g => g.items), lessons, max);
+}
+
+/** A lesson as a drill reads it: the points it tells apart. */
+type LessonPoints = Pick<GrammarContrastLesson, 'points'>;
+
+/** Whether a card tells apart two of a lesson's points: it offers both. */
+function coversLesson(card: DrillExercise, lesson: LessonPoints): boolean {
+    return optionPointsOf(card).filter(id => lesson.points.includes(id)).length >= 2;
+}
+
+/**
+ * The capped cards with, for each lesson none of them covers but some card of the pool
+ * does, the pool's first such card added: in a free place under the cap, else in place of
+ * the latest card the drill can spare (one whose lessons another card still covers).
+ * Either way a place whose neighbours ask another point than the new card comes first, so
+ * never-twice-in-a-row holds where it can. Stops when no card can be spared (more lessons
+ * than the cap).
+ */
+function keepLessons(cards: readonly DrillExercise[], pool: readonly DrillExercise[], lessons: readonly LessonPoints[], max: number): DrillExercise[] {
+    const out = [...cards];
+    for (const lesson of lessons) {
+        if (out.some(card => coversLesson(card, lesson))) continue;
+        const kept = pool.find(card => coversLesson(card, lesson));
+        if (!kept) continue;
+        const other = (card: DrillExercise | undefined) => card?.point.id !== kept.point.id;
+        if (out.length < max) {
+            const at = out.map((_, i) => i + 1).reverse().find(i => other(out[i - 1]) && other(out[i])) ?? out.length;
+            out.splice(at, 0, kept);
+            continue;
+        }
+        const spare = (i: number) => lessons.every(l => !coversLesson(out[i], l) || out.some((c, j) => j !== i && coversLesson(c, l)));
+        const indices = out.map((_, i) => i).reverse().filter(spare);
+        const at = indices.find(i => other(out[i - 1]) && other(out[i + 1])) ?? indices[0];
+        if (at === undefined) break;
+        out[at] = kept;
+    }
+    return out;
 }
 
 /** The items that share a family with at least one other: what a chapter can drill (a chapter mixes unrelated points too). */
@@ -287,7 +337,7 @@ export function drillSummary(picks: readonly DrillPick[]): { right: number; tota
  * its cards leave a lesson out.
  */
 export function lessonsCovered(cards: readonly DrillExercise[], lessons: readonly Pick<GrammarContrastLesson, 'title' | 'points'>[]): Drill['lessons'] {
-    const covered = lessons.filter(lesson => cards.some(card => optionPointsOf(card).filter(id => lesson.points.includes(id)).length >= 2));
+    const covered = lessons.filter(lesson => cards.some(card => coversLesson(card, lesson)));
     return covered.length < lessons.length ? { covered: covered.map(l => l.title), total: lessons.length } : undefined;
 }
 
@@ -367,9 +417,10 @@ export async function loadDrill(set: DrillSet, seed: string): Promise<Drill | nu
         const plan = await planOf(candidate, contrasts);
         if (!plan) continue;
         const sources = await Promise.all(plan.points.map(sourceOf));
-        const cards = drillCardsOf(sources, plan.cases, seed, plan.info, focus);
+        const familyLessons = set.kind === 'family' ? contrasts[set.familyId]?.lessons ?? [] : [];
+        const cards = drillCardsOf(sources, plan.cases, seed, plan.info, focus, familyLessons);
         if (cards.length === 0) continue;
-        const lessons = set.kind === 'family' ? lessonsCovered(cards, contrasts[set.familyId]?.lessons ?? []) : undefined;
+        const lessons = set.kind === 'family' ? lessonsCovered(cards, familyLessons) : undefined;
         return { title: plan.title, cards, points: Object.fromEntries(plan.points.map(p => [p.id, plan.info(p)])), ...(lessons ? { lessons } : {}) };
     }
     return null;
