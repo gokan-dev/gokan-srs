@@ -343,7 +343,10 @@ describe('a contrast drill card (issue 249)', () => {
         const [card] = drillCardsOf([noted, karadesu].map(p => ({ point: p, examples: p.examples })), [], 'seed', p => ({ ...info(p), usageNote: p.usageNote }));
         const html = cardOf(card, true, pickedWrong(card, 'karadesu'));
         expect(html).toContain('<span class="font-gothic" lang="ja">私は学生です</span>');
-        expect(html).not.toMatch(/<p class="[^"]*italic[^"]*">[^<]*marks the topic/);
+        // The note's own paragraph, found first, so the italic check cannot pass by matching nothing.
+        const noteClass = /<p class="([^"]*)"><span class="font-gothic" lang="ja">は<\/span> marks the topic/.exec(html)?.[1];
+        expect(noteClass).toBeDefined();
+        expect(noteClass?.split(' ')).not.toContain('italic');
     });
 
     it('names its own point, read from the card, and shows no mastery ring', () => {
