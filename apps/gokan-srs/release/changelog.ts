@@ -23,7 +23,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
         changes: [
             { summary: 'A new listening quiz, off by default: turn on Listening quizzes in Settings and some reading reviews play an example sentence aloud, with the word you are reviewing left blank for you to type what you heard.', issue: 165 },
             { summary: 'Contrast drills: a short quiz that tells similar grammar points apart, started from a family, one of its lessons, a grammar point or a chapter, open on any point and never counted in your reviews.', issue: 249 },
-            { summary: 'The search bar, in the app and the dictionary, now finds kanji and grammar points as well as words: type a kanji, its English meaning or its reading in kana or romaji (water, みず, sui for 水), or a grammar pattern (てから, te kara), and results come grouped as Words, Kanji and Grammar.', issue: 264 },
+            { summary: 'The search bar, in the app and the dictionary, now finds kanji and grammar points as well as words: type a kanji, its English meaning or its reading in kana or romaji (water, みず, sui for 水), or a grammar pattern (てから, te kara). In the app every match is in one list, the best first, each marked Word, Kanji or Grammar; the dictionary groups them.', issue: 264 },
         ],
     },
     {
