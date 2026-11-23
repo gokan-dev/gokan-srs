@@ -188,20 +188,24 @@ function noResults(results: IndexRankedResults): HTMLElement {
 interface PagedList { more: () => boolean; drawn: () => number; stop: () => void }
 function pagedList(hits: IndexRankedHit[], pageSize: number, list: HTMLElement, sentinel: HTMLElement, root: HTMLElement | null, item: (hit: IndexRankedHit, index: number) => HTMLElement): PagedList {
     let drawn = 0;
+    const observer = new IntersectionObserver(entries => {
+        if (entries.some(entry => entry.isIntersecting)) more();
+    }, { root, rootMargin: `0px 0px ${LOAD_MORE_MARGIN} 0px` });
     const more = (): boolean => {
         if (drawn >= hits.length) return false;
         const next = hits.slice(drawn, drawn + pageSize);
         list.append(...next.map((hit, i) => item(hit, drawn + i)));
         drawn += next.length;
         sentinel.hidden = drawn >= hits.length;
+        // Observed afresh, so its state is reported again: a sentinel still near the view after
+        // the new rows (a short page, or a scroll to the new end before the next frame) never
+        // changes state, and the observer alone would not draw the next page.
+        observer.unobserve(sentinel);
+        observer.observe(sentinel);
         return true;
     };
     list.replaceChildren();
     more();
-    const observer = new IntersectionObserver(entries => {
-        if (entries.some(entry => entry.isIntersecting)) more();
-    }, { root, rootMargin: `0px 0px ${LOAD_MORE_MARGIN} 0px` });
-    observer.observe(sentinel);
     return { more, drawn: () => drawn, stop: () => observer.disconnect() };
 }
 

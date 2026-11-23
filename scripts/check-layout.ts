@@ -2587,9 +2587,11 @@ async function checkSearchRowShape(tab: Tab, where: string, rows: string): Promi
     const found = await tab.evaluate<{ rows: number; lefts: number[]; tight: string[]; missing: string[]; faces: { headword: string; reading: string } | null }>(`(() => {
         const rows = [...document.querySelectorAll(${JSON.stringify(rows)})].filter(row => row.getBoundingClientRect().height > 0);
         const firstFamily = el => (el ? getComputedStyle(el).fontFamily.split(',')[0].trim().replace(/^["']|["']$/g, '') : '');
-        // The first row (the word 水 for water): its headword, and the reading beside it.
-        const line = rows[0]?.querySelector('[data-row-line], .search-row-main');
-        const faces = line ? { headword: firstFamily(line.firstElementChild), reading: firstFamily(line.firstElementChild?.nextElementSibling) } : null;
+        // The first word row with a reading beside its headword (水 for water). A word's, not the
+        // first row's: for から that is a grammar point, whose romaji is in Inter on purpose.
+        const isWord = row => row.matches('[data-hit="words"]') || /\\/vocab\\//.test(row.getAttribute('href') ?? '');
+        const line = rows.filter(isWord).map(row => row.querySelector('[data-row-line], .search-row-main')).find(main => main?.firstElementChild?.nextElementSibling);
+        const faces = line ? { headword: firstFamily(line.firstElementChild), reading: firstFamily(line.firstElementChild.nextElementSibling) } : null;
         const lefts = [];
         const tight = [];
         const missing = [];
