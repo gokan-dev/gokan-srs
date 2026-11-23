@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { kanjiToColumns, readSearchQuery, searchWordRow, toColumns } from '@gokan/dataset-schema';
+import { kanjiToColumns, readExploreQuery, readSearchQuery, searchWordRow, toColumns } from '@gokan/dataset-schema';
 import type { SearchGrammarRow, SearchKanjiRow, SearchWordRow } from '@gokan/dataset-schema';
 import { vocabulary } from '../test/fixtures';
-import { matchesVocabQuery, prepareAppSearch, searchApp, type AppSearchHit, type AppSearchIndex } from './search.utils';
+import { matchesVocabQuery, matchesWordRow, prepareAppSearch, searchApp, wordRowsById, type AppSearchHit, type AppSearchIndex } from './search.utils';
 
 /** A word's search row, as the build writes it (searchWordRow): JLPT level 0 and not common unless given. */
 const word = (id: string, kanji: string, reading: string, gloss: string, { jlpt, kana = false, pos = ['n'] }: { jlpt?: number; kana?: boolean; pos?: string[] } = {}): SearchWordRow =>
@@ -120,5 +120,29 @@ describe('the header search over kanji and grammar', () => {
         expect(hits.filter(hit => hit.group === 'words')).toHaveLength(80);
         expect(hits.filter(hit => hit.group === 'kanji')).toHaveLength(7);
         expect(hits.filter(hit => hit.group === 'grammar')).toHaveLength(1);
+    });
+});
+
+describe('the panel searches over the header search word rows', () => {
+    const rows = wordRowsById({ w: toColumns([
+        word('1', '水', 'みず', 'water'),
+        word('2', '此処', 'ここ', 'here; this place', { kana: true }),
+        word('3', '食べる', 'たべる', 'to eat', { pos: ['v1'] }),
+    ]) });
+    const kept = (text: string) => ['1', '2', '3', 'missing'].filter(id => {
+        const query = readExploreQuery(text);
+        return query !== null && matchesWordRow(query, rows.get(id));
+    });
+
+    it('keeps the ids whose row matches by headword, reading or gloss', () => {
+        expect(kept('水')).toEqual(['1']);
+        expect(kept('たべ')).toEqual(['3']);
+        expect(kept('eat')).toEqual(['3']);
+        expect(kept('place')).toEqual(['2']);
+    });
+
+    it('finds a word learned in kana by its kanji spelling, and an id with no row by nothing', () => {
+        expect(kept('此処')).toEqual(['2']);
+        expect(kept('ここ')).toEqual(['2']);
     });
 });

@@ -1,5 +1,5 @@
 import type {
-    FrequencyIndex, JlptIndex, KKLCIndex, Kanji, KanjiOrderId, KanjiOrderList, KanjiStepIndex, KanjiVocabIndex, SearchIndex, Sentence, Vocabulary,
+    FrequencyIndex, JlptIndex, KKLCIndex, Kanji, KanjiOrderId, KanjiOrderList, KanjiStepIndex, KanjiVocabIndex, Sentence, Vocabulary,
 } from '@gokan/dataset-schema';
 import { kanjiStepIndex } from '@gokan/dataset-schema';
 import { fetchDatasetFile, fetchOptionalDatasetFile, RequestCache, sharedRequest } from './http';
@@ -53,7 +53,6 @@ export class VocabularyService {
     private static kklcIndex = sharedRequest(() => fetchDatasetFile<KKLCIndex>('index/kklc.json'));
     private static frequencyIndex = sharedRequest(() => fetchDatasetFile<FrequencyIndex>('index/frequency.json'));
     private static usuallyKanaIds: ReadonlySet<string> | null = null;
-    private static searchIndex = sharedRequest(() => fetchDatasetFile<SearchIndex>('index/search.json'));
     private static vocabs = new RequestCache(fetchVocab);
     private static kanji = new RequestCache(fetchKanji);
     private static sentences = new RequestCache(fetchSentences);
@@ -116,15 +115,6 @@ export class VocabularyService {
     static async loadVocabs(ids: readonly string[]): Promise<Vocabulary[]> {
         const loaded = await Promise.all(ids.map(id => this.loadVocab(id).catch(() => null)));
         return loaded.filter((v): v is Vocabulary => v !== null);
-    }
-
-    static async loadSearchIndex(): Promise<SearchIndex | null> {
-        try {
-            return await this.searchIndex.get();
-        } catch (e) {
-            console.error("Failed to load search index", e);
-            return null;
-        }
     }
 
     /** One kanji from its own file (about 1 KB, where kanji.json is every kanji); null when the dataset has no such kanji. */

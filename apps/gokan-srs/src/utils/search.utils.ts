@@ -1,5 +1,5 @@
-import type { PreparedRowSearch, RankedHit, RankedSearchResults, SearchGrammarRow, SearchIndexColumns, SearchKanjiRow, SearchQuery, SearchWordRow, Vocabulary } from '@gokan/dataset-schema';
-import { matchesSearchWord, prepareRowSearch, runRankedSearch } from '@gokan/dataset-schema';
+import type { ExploreQuery, PreparedRowSearch, RankedHit, RankedSearchResults, SearchGrammarRow, SearchIndexColumns, SearchKanjiRow, SearchQuery, SearchWordRow, Vocabulary } from '@gokan/dataset-schema';
+import { fromColumns, matchesExploreQuery, matchesSearchWord, prepareRowSearch, runRankedSearch } from '@gokan/dataset-schema';
 
 export type AppSearchIndex = PreparedRowSearch;
 export type AppSearchResults = RankedSearchResults<SearchWordRow, SearchKanjiRow, SearchGrammarRow>;
@@ -32,4 +32,14 @@ export function searchApp(index: AppSearchIndex, query: string): AppSearchResult
 export function matchesVocabQuery(word: Pick<Vocabulary, 'writtenForm' | 'reading' | 'senses'>, query: SearchQuery): boolean {
     const gloss = word.senses.flatMap(sense => sense.glosses).join('; ');
     return matchesSearchWord({ row: word, forms: [word.writtenForm.kanji], reading: word.reading.primary, gloss }, query);
+}
+
+/** The header search's word rows by id: what a panel search (useIndexSearch) reads, so the app holds one word index. */
+export function wordRowsById(entries: Pick<SearchIndexColumns, 'w'>): ReadonlyMap<string, SearchWordRow> {
+    return new Map(fromColumns(entries.w).map(row => [row[0], row]));
+}
+
+/** A panel search's match on a word's row: its headword, its secondary form (the reading, or the kanji of a word learned in kana) or its gloss. */
+export function matchesWordRow(query: ExploreQuery, row: SearchWordRow | undefined): boolean {
+    return row !== undefined && matchesExploreQuery(query, { english: [row[3]], japanese: [row[1], row[2]] });
 }

@@ -86,6 +86,12 @@ const AGENT_STUB_CONTENT = '@AGENTS.md';
 const DATASET_URL_SOURCE = /^apps\/gokan-srs\/src\/.*\.tsx?$/;
 const DATASET_URL_HELPER = 'apps/gokan-srs/src/services/http.ts';
 /**
+ * The app's one word index is the header search's rows, `virtual:gokan-search-entries` (read through
+ * services/search.service.ts, panel searches too). Reading the dataset's index/search.json as well
+ * downloaded the same 36k words twice (1.69.0 review: useIndexSearch still fetched it).
+ */
+const SECOND_WORD_INDEX = /['"`/]index\/search\.json['"`]/;
+/**
  * A clip is served at one path on the shared host, for both apps: one builder names it
  * (`audioUrl`, `@gokan/dataset-schema`), so the app and the dictionary cannot ask for a clip at
  * two different addresses (#255).
@@ -775,6 +781,11 @@ function check(files: string[]): Violation[] {
         if (DATASET_URL_SOURCE.test(file) && file !== DATASET_URL_HELPER && !/\.test\.tsx?$/.test(file)) {
             eachLine(text, l => l.includes('/dataset/') && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
                 add({ file, line, rule: 'dataset-url', message: 'Build dataset URLs with datasetUrl() (services/http.ts); it adds the dataset version browsers cache by.' }));
+        }
+
+        if (DATASET_URL_SOURCE.test(file) && !/\.test\.tsx?$/.test(file)) {
+            eachLine(text, l => SECOND_WORD_INDEX.test(l) && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
+                add({ file, line, rule: 'one-word-index', message: 'Reads index/search.json. The app\'s one word index is the header search\'s rows (virtual:gokan-search-entries): read a word\'s row through SearchService.wordRows (services/search.service.ts), so a learner downloads the words once.' }));
         }
 
         if (AUDIO_URL_SOURCE.test(file) && file !== AUDIO_URL_HELPER && !/\.test\.tsx?$/.test(file)) {
