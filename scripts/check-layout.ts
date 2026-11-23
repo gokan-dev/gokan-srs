@@ -2278,11 +2278,13 @@ async function checkSearchAcrossDetailWidth(tab: Tab, base: string): Promise<voi
 }
 
 /**
- * The header search's grouped results (#264): a query finding words, kanji and grammar points
- * (から: words starting with it, the kanji 空 by its kun reading, the point から) shows its three
- * groups, measured like a page (no sideways scroll, the 12px floor, the 16px field) with the panel
- * open. In the dictionary each option is a 44px tap target. Typed as a learner types, through the
- * field's own value setter, so React's controlled input and the dictionary's script both see it.
+ * The header search's results (#264): a query finding words, kanji and grammar points (から: words
+ * starting with it, the kanji 空 by its kun reading, the point から) shows them, measured like a
+ * page (no sideways scroll, the 12px floor, the 16px field) with the panel open. The dictionary
+ * shows its three groups, each option a 44px tap target; the app one list, whose first rows hold
+ * the point and the words (the kanji, read as から, follows the words starting with it). Typed as a
+ * learner types, through the field's own value setter, so React's controlled input and the
+ * dictionary's script both see it.
  */
 const SEARCH_QUERY = 'から';
 /** A word page in each locale: Chinese's index carries the kanji and points too, linked at English's pages. */
@@ -2296,6 +2298,8 @@ const TYPE_SEARCH = (field: string, query = SEARCH_QUERY) => `(() => {
     return true;
 })()`;
 const SEARCH_GROUPS = (listbox: string) => `[...document.querySelectorAll('${listbox} [role="group"]')].filter(el => el.getBoundingClientRect().height > 0).length`;
+/** The types among the app's drawn rows (its one list marks each row's, `data-hit`). */
+const APP_SEARCH_TYPES = `[...new Set([...document.querySelectorAll('#header-search-results [role="option"]')].map(el => el.getAttribute('data-hit')))].sort().join(',')`;
 async function checkHeaderSearch(tab: Tab, page: string, width: number, site: 'srs' | 'dictionary'): Promise<void> {
     const where = `${width}px ${page}, searching ${SEARCH_QUERY}`;
     if (site === 'srs') {
@@ -2315,9 +2319,12 @@ async function checkHeaderSearch(tab: Tab, page: string, width: number, site: 's
         return;
     }
     try {
-        await tab.until(`${SEARCH_GROUPS(listbox)} === 3`, `three result groups on ${page}`, 20000);
+        if (site === 'srs') await tab.until(`${APP_SEARCH_TYPES}.includes('grammar,words')`, `grammar points and words on ${page}`, 20000);
+        else await tab.until(`${SEARCH_GROUPS(listbox)} === 3`, `three result groups on ${page}`, 20000);
     } catch {
-        failures.push(`${where}: the results do not show Words, Kanji and Grammar (${await tab.evaluate<number>(SEARCH_GROUPS(listbox))} groups)`);
+        failures.push(site === 'srs'
+            ? `${where}: the results do not show grammar points and words (types drawn: ${await tab.evaluate<string>(APP_SEARCH_TYPES)})`
+            : `${where}: the results do not show Words, Kanji and Grammar (${await tab.evaluate<number>(SEARCH_GROUPS(listbox))} groups)`);
         return;
     }
     await measure(tab, `${page}, searching ${SEARCH_QUERY}`, width, site === 'dictionary' ? '.search-option' : '');
@@ -2336,7 +2343,7 @@ async function checkHeaderSearch(tab: Tab, page: string, width: number, site: 's
  * romaji kept its width. A title whose natural width fits its line must render on one line.
  */
 const GRAMMAR_TITLE_QUERIES = [SEARCH_QUERY, 'te kara'];
-const GRAMMAR_TITLES = `[...document.querySelectorAll('#header-search-results [aria-labelledby="header-search-group-grammar"] [role="option"] > div:first-child > div:first-child > span:first-child')]`;
+const GRAMMAR_TITLES = `[...document.querySelectorAll('#header-search-results [role="option"][data-hit="grammar"] > div:first-child > div:first-child > span:first-child')]`;
 async function checkGrammarTitlesOneLine(tab: Tab, page: string, width: number): Promise<void> {
     await tab.evaluate<void>(`document.querySelector('button[aria-label="Search words, kanji and grammar"]')?.click()`);
     await tab.until(`document.querySelector('input[role="combobox"]') !== null`, `the search field on ${page}`, 5000);
@@ -2370,59 +2377,78 @@ async function checkGrammarTitlesOneLine(tab: Tab, page: string, width: number):
             const natural = probe.getBoundingClientRect().width;
             probe.remove();
             const line = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.6;
-            return natural <= title.parentElement.clientWidth && title.getBoundingClientRect().height > line * 1.5;
+            // The row's type chip shares the line, so the title has its line less the chip and the gap.
+            const chip = title.parentElement.lastElementChild;
+            const room = title.parentElement.clientWidth - (chip && chip !== title ? chip.getBoundingClientRect().width + parseFloat(getComputedStyle(title.parentElement).columnGap || '0') : 0);
+            return natural <= room && title.getBoundingClientRect().height > line * 1.5;
         }).map(title => title.textContent)`);
         if (wrapped.length > 0) failures.push(`${where}: a grammar title that fits its row wraps (its romaji should truncate first): ${wrapped.slice(0, 3).join(' | ')}`);
     }
 }
 
 /**
- * The app's desktop panel (#264, 1280px), where it is a dropdown with a height cap. At rest every
- * group's label shows inside the panel, so a reader sees what matched: for sui (Words first, then
- * the kanji 水, 推, 睡..., then Grammar) and から (Grammar first) the cap once held the first group
- * alone, then (1.69.0 rc.23) the first two, with the third wholly below the fold
- * (`DROPDOWN_SEARCH_LIMITS` shares the rows out among the groups). The "Show all results" option
- * the sharing adds is pinned to the panel's bottom, so at rest it is in view too: in rc.25 it sat
- * last in the list, 83px below the fold for から and 10px cut for sui. Then, for から, the arrow keys step through every option, down to the last and back
- * up: focus stays in the field, so the panel follows the highlight only because the option is
- * scrolled into view, and its scroll margins keep it clear of its group's sticky label and of the
- * pinned option.
+ * The app's desktop panel (#264, 1280px), a dropdown with a height cap over one list of every
+ * match. In 1.69.0 the results were groups capped at a few rows each (5 words above another group),
+ * and a "Show all results" option stopped at the same caps, so most words for a query could not be
+ * reached at all. Now, for sui (385 matches) and から: at rest the first row is in view at the
+ * panel's top; scrolled to its end, the panel draws more rows than its first page (the list is drawn
+ * a page at a time, so a broad query does not draw thousands up front); and for から the arrow keys
+ * step past the first page and back: focus stays in the field, so the panel follows the highlight
+ * only because the option is scrolled into view, and the step past the last drawn row draws the
+ * next page.
  */
-const PANEL_REACH_QUERIES = [{ query: 'sui', first: 'words' }, { query: SEARCH_QUERY, first: 'grammar' }];
+const PANEL_REACH_QUERIES = ['sui', SEARCH_QUERY];
 const APP_PANEL = `document.getElementById('header-search-results')?.parentElement`;
+const APP_OPTIONS = `document.querySelectorAll('#header-search-results [role="option"]').length`;
+const APP_FIRST_OPTION = `(document.querySelector('#header-search-results [role="option"]')?.textContent ?? '')`;
+/** Types `query` and waits for its results: the previous query's rows stay until the new search lands (keepPrevious), so until the first row changes. */
+async function typeAppQuery(tab: Tab, query: string): Promise<boolean> {
+    const before = await tab.evaluate<string>(APP_FIRST_OPTION);
+    if (!await tab.evaluate<boolean>(TYPE_SEARCH('input[role="combobox"]', query))) return false;
+    try {
+        await tab.until(`${APP_FIRST_OPTION} !== '' && ${APP_FIRST_OPTION} !== ${JSON.stringify(before)}`, `results for ${query}`, 20000);
+        return true;
+    } catch {
+        return false;
+    }
+}
 async function checkSearchPanelReach(tab: Tab, page: string, width: number): Promise<void> {
-    for (const { query, first } of PANEL_REACH_QUERIES) {
+    let firstPage = 0;
+    for (const query of PANEL_REACH_QUERIES) {
         const where = `${width}px ${page}, searching ${query}`;
-        if (!await tab.evaluate<boolean>(TYPE_SEARCH('input[role="combobox"]', query))) {
-            failures.push(`${where}: no search field`);
-            return;
-        }
-        try {
-            await tab.until(`(() => { const groups = document.querySelectorAll('#header-search-results [role="group"]'); return groups.length > 1 && groups[0].getAttribute('aria-labelledby') === 'header-search-group-${first}'; })()`, `${first} first, then another group, on ${page}`, 20000);
-        } catch {
-            failures.push(`${where}: the results do not show ${first} first and another group after it`);
+        if (!await typeAppQuery(tab, query)) {
+            failures.push(`${where}: no results`);
             continue;
         }
-        const reach = await tab.evaluate<{ label: string; bottom: number }[]>(`(() => {
+        const atRest = await tab.evaluate<{ top: number; count: number }>(`(() => {
             const panel = ${APP_PANEL};
             panel.scrollTop = 0;
-            const panelBottom = panel.getBoundingClientRect().bottom;
-            const groups = [...document.querySelectorAll('#header-search-results [role="group"]')].map(group => {
-                const label = document.getElementById(group.getAttribute('aria-labelledby'));
-                return { label: label.textContent + " group's label", bottom: label.getBoundingClientRect().bottom - panelBottom };
-            });
-            const showAll = document.querySelector('#header-search-results [data-show-all]');
-            return showAll ? [...groups, { label: 'Show all results option', bottom: showAll.getBoundingClientRect().bottom - panelBottom }] : groups;
+            const first = document.querySelector('#header-search-results [role="option"]');
+            return { top: first.getBoundingClientRect().top - panel.getBoundingClientRect().top, count: ${APP_OPTIONS} };
         })()`);
-        for (const { label, bottom } of reach) {
-            if (bottom > 1) failures.push(`${where}: at rest the ${label} is ${Math.round(bottom)}px below the panel's bottom edge, so nothing at rest shows it is there`);
+        firstPage = atRest.count;
+        if (atRest.top < -1 || atRest.top > 2) failures.push(`${where}: at rest the first row is ${Math.round(atRest.top)}px from the panel's top, not at it`);
+        // Scrolled to its end, a broad query draws its next page.
+        await tab.evaluate<void>(`(() => { const panel = ${APP_PANEL}; panel.scrollTop = panel.scrollHeight; })()`);
+        try {
+            await tab.until(`${APP_OPTIONS} > ${atRest.count}`, `more rows for ${query} on ${page}`, 5000);
+        } catch {
+            failures.push(`${where}: scrolled to the end of its ${atRest.count} rows, the panel draws no more, so the rest of the matches cannot be reached`);
         }
     }
 
-    // The last query is から: walk its options with the arrow keys.
+    // The last query is から: step past its first page with the arrow keys, and back. Retyped, so it starts at one page.
     const where = `${width}px ${page}, searching ${SEARCH_QUERY} with the arrow keys`;
-    const count = await tab.evaluate<number>(`document.querySelectorAll('#header-search-results [role="option"]').length`);
-    const steps = [...Array.from({ length: count }, () => 'ArrowDown' as const), ...Array.from({ length: Math.max(0, count - 1) }, () => 'ArrowUp' as const)];
+    if (!await typeAppQuery(tab, `${SEARCH_QUERY}だ`) || !await typeAppQuery(tab, SEARCH_QUERY)) {
+        failures.push(`${where}: no results`);
+        return;
+    }
+    const count = await tab.evaluate<number>(APP_OPTIONS);
+    if (count === 0 || count < firstPage) {
+        failures.push(`${where}: ${count} options to step through`);
+        return;
+    }
+    const steps = [...Array.from({ length: count + 1 }, () => 'ArrowDown' as const), ...Array.from({ length: count }, () => 'ArrowUp' as const)];
     const hidden = new Set<string>();
     for (const key of steps) {
         await tab.press(key, 150);
@@ -2433,18 +2459,13 @@ async function checkSearchPanelReach(tab: Tab, page: string, width: number): Pro
             const rect = option.getBoundingClientRect();
             const name = option.textContent.slice(0, 20);
             if (rect.top < panel.top - 1 || rect.bottom > panel.bottom + 1) return name + ' is outside the panel';
-            const group = option.closest('[role="group"]');
-            // The pinned Show all results option belongs to no group: only the panel's top edge bounds it.
-            const labelBottom = group ? document.getElementById(group.getAttribute('aria-labelledby')).getBoundingClientRect().bottom : panel.top;
-            if (rect.top < labelBottom - 1) return name + ' is under the sticky label of its group';
-            const showAll = document.querySelector('#header-search-results [data-show-all]');
-            if (showAll && showAll !== option && rect.bottom > showAll.getBoundingClientRect().top + 1) return name + ' is under the pinned Show all results option';
             return '';
         })()`);
         if (problem) hidden.add(problem);
     }
-    if (count === 0) failures.push(`${where}: no options to step through`);
+    const after = await tab.evaluate<number>(APP_OPTIONS);
     if (hidden.size > 0) failures.push(`${where}: the highlighted option is not kept in view: ${[...hidden].slice(0, 3).join(' | ')}`);
+    if (after <= count) failures.push(`${where}: the arrow key past the last of its ${count} drawn rows drew no more`);
 }
 
 /**
@@ -2462,7 +2483,7 @@ async function checkSearchPanelScrollReset(tab: Tab, page: string, width: number
         return;
     }
     try {
-        await tab.until(`document.querySelectorAll('#header-search-results [role="group"]').length > 1`, `results for ${SCROLL_RESET_QUERIES.from} on ${page}`, 20000);
+        await tab.until(`document.querySelectorAll('#header-search-results [role="option"]').length > 1`, `results for ${SCROLL_RESET_QUERIES.from} on ${page}`, 20000);
     } catch {
         failures.push(`${where}: no results for ${SCROLL_RESET_QUERIES.from}`);
         return;
