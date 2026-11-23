@@ -8,7 +8,8 @@
 // (common words, kanji, grammar) together with the query engine (lib/searchQuery.ts, with the
 // romaji table and the conjugation rules: a separate chunk, so a page that is only read pays
 // for neither); after the first query has run the full index follows in the background, and the
-// current query re-runs when it arrives. Most lookups of common words never need the full file.
+// current query re-runs when it arrives, unless the reader has already scrolled its list
+// (redrawOnIndexChange): then the drawn rows stay, and the next query reads the whole index. Most lookups of common words never need the full file.
 //
 // In the page's locale, read off its <html lang>: its own index (a locale's words with a page in
 // it, their glosses in its language), its links (linkUrls: a word's page in its section) and its
@@ -17,6 +18,7 @@
 import { datasetLanguageOf, htmlLang, localeOfHtmlLang } from '../lib/locale';
 import { linkLang, linkUrls } from '../lib/localeLinks';
 import { searchMessagesFor } from '../lib/messages/search';
+import { redrawOnIndexChange } from '../lib/searchRedraw';
 import type { IndexRankedHit, IndexRankedResults, PreparedIndex } from '../lib/searchQuery';
 import { kanjiRowMainReadings, kanjiRowMeanings } from '@gokan/dataset-schema';
 import type { SearchGroup } from '@gokan/dataset-schema';
@@ -180,10 +182,11 @@ function noResults(results: IndexRankedResults): HTMLElement {
 /**
  * Draws `hits` into `list` a page at a time: the first page now, the next each time `sentinel`
  * (placed after the list) comes within LOAD_MORE_MARGIN of `root`'s view (null: the page's).
- * Returns `more`, which draws the next page at once (the arrow keys past the last drawn row), and
- * `stop`, which ends the observing when the list is drawn again.
+ * Returns `more`, which draws the next page at once (the arrow keys past the last drawn row),
+ * `drawn`, how many rows are drawn, and `stop`, which ends the observing when the list is drawn again.
  */
-function pagedList(hits: IndexRankedHit[], pageSize: number, list: HTMLElement, sentinel: HTMLElement, root: HTMLElement | null, item: (hit: IndexRankedHit, index: number) => HTMLElement): { more: () => boolean; stop: () => void } {
+interface PagedList { more: () => boolean; drawn: () => number; stop: () => void }
+function pagedList(hits: IndexRankedHit[], pageSize: number, list: HTMLElement, sentinel: HTMLElement, root: HTMLElement | null, item: (hit: IndexRankedHit, index: number) => HTMLElement): PagedList {
     let drawn = 0;
     const more = (): boolean => {
         if (drawn >= hits.length) return false;
@@ -199,7 +202,7 @@ function pagedList(hits: IndexRankedHit[], pageSize: number, list: HTMLElement, 
         if (entries.some(entry => entry.isIntersecting)) more();
     }, { root, rootMargin: `0px 0px ${LOAD_MORE_MARGIN} 0px` });
     observer.observe(sentinel);
-    return { more, stop: () => observer.disconnect() };
+    return { more, drawn: () => drawn, stop: () => observer.disconnect() };
 }
 
 // -- Combobox -----------------------------------------------------------------------
@@ -215,7 +218,7 @@ function initCombobox(form: HTMLFormElement): void {
 
     let active = -1;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    let paged: { more: () => boolean; stop: () => void } | null = null;
+    let paged: PagedList | null = null;
     const options = () => Array.from(listbox.querySelectorAll<HTMLAnchorElement>('[role="option"]'));
 
     function open(): void {
@@ -278,7 +281,8 @@ function initCombobox(form: HTMLFormElement): void {
     }
 
     onIndexChange.push(() => {
-        if (document.activeElement === input || !panel.hidden) render();
+        if (document.activeElement !== input && panel.hidden) return;
+        if (redrawOnIndexChange({ drawn: paged?.drawn() ?? 0, pageSize: PANEL_PAGE_SIZE, scrolled: panel.scrollTop })) render();
     });
 
     input.addEventListener('focus', () => {
@@ -339,7 +343,7 @@ function initResultsPage(root: HTMLElement): void {
     if (title && query) title.textContent = words.resultsFor(query);
     if (query) document.title = `${query}: ${document.title}`;
 
-    let paged: { stop: () => void } | null = null;
+    let paged: PagedList | null = null;
 
     /** The line under the title: how many of each type the one list holds, in the order they first appear. */
     function counts(results: IndexRankedResults): HTMLElement {
@@ -377,7 +381,9 @@ function initResultsPage(root: HTMLElement): void {
         });
     }
 
-    onIndexChange.push(render);
+    onIndexChange.push(() => {
+        if (redrawOnIndexChange({ drawn: paged?.drawn() ?? 0, pageSize: RESULTS_PAGE_SIZE, scrolled: window.scrollY })) render();
+    });
     root.replaceChildren(el('p', { class: 'support' }, words.searching));
     loadCore().catch(() => root.replaceChildren(el('p', { class: 'support' }, words.unavailable)));
 }
