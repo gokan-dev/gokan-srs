@@ -144,7 +144,7 @@ describe('drillCardsOf', () => {
         expect(card).toMatchObject({ kind: 'grammar-choice', mode: 'drill', sentence: null, situation: 'Apologising for being late.', point: { id: 'node' } });
         expect(card.slots[0].accept).toEqual(['ので']);
         // A vs point outside the set is no option.
-        expect(choicesOf(card).filter(c => c.pointId).map(c => [c.pointId, c.text, c.note])).toEqual([['kara', 'から', 'Reach for ので.']]);
+        expect(choicesOf(card).filter(c => c.pointId).map(c => [c.pointId, c.text, c.note, c.contrast])).toEqual([['kara', 'から', undefined, polite]]);
         // A case whose focus is not in the set, or with no vs point in it, makes none.
         expect(drillCardsOf(sourcesOf(kara, node), [{ ...polite, focus: 'elsewhere' }, { ...polite, vs: ['elsewhere'] }], 'seed', info)).toEqual([]);
     });

@@ -147,19 +147,23 @@ function drillCardOf(source: DrillSource, exampleIndex: number, set: readonly Gr
  * `focus` fits and each `vs` point does not. Its situation is asked (there is no sentence),
  * `focus`'s marker is the answer and each `vs` point of the set a wrong option, the case's
  * guidance its note. A case needs no `ruledOut` on any example, so a lesson whose examples
- * rule nothing out still has a card for each of its cases. Null when no `vs` point of the set
- * has a marker of its own.
+ * rule nothing out still has a card for each of its cases. Its guidance is not an option's note:
+ * each wrong option carries the case (`contrast`), drawn once after a wrong pick as a sentence
+ * card's case is (DrillContrastNote), without its situation, which is the card's question. The
+ * card is graded on the case's authored preference, so a `vs` point that could fit, only less
+ * well (ので over から), is a wrong answer here. Null when no `vs` point of the set has a marker
+ * of its own.
  */
 function caseCardOf(contrast: GrammarContrastCase, set: readonly GrammarPoint[], info: (p: GrammarPoint) => DrillPointInfo): DrillExercise | null {
     const point = set.find(p => p.id === contrast.focus);
     if (!point) return null;
     const answer = info(point).marker;
     const seed = `case:${contrast.focus}>${contrast.vs.join(',')}`;
-    const distractors: { text: string; note: string; pointId: string }[] = [];
+    const distractors: { text: string; pointId: string; contrast: GrammarContrastCase }[] = [];
     for (const sibling of set.filter(p => contrast.vs.includes(p.id))) {
         const text = info(sibling).marker;
         if (text === answer || distractors.some(d => d.text === text)) continue;
-        distractors.push({ text, note: contrast.guidance, pointId: sibling.id });
+        distractors.push({ text, pointId: sibling.id, contrast });
     }
     if (distractors.length === 0) return null;
     return {

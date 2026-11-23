@@ -353,21 +353,27 @@ describe('a contrast drill card (issue 249)', () => {
         const card = cards.find(c => c.situation !== undefined);
         if (!card) throw new Error('no case card');
         const html = cardOf(card, true);
-        expect(html).toContain('Choose what fits the situation');
+        expect(html).toContain('Choose what fits the situation best');
         expect(html).toContain('Giving the reason as the answer.');
         expect(html).not.toContain('Choose what fits the sentence');
         expect(html).toContain('からです');
     });
 
-    it('names the wrong options that share one note together, with the note once', () => {
-        const shared = { focus: 'okage', vs: ['kara', 'karadesu'], situation: 'Thanking someone.', guidance: 'Only おかげで credits them.' };
-        // No sentences: the case's card is the only one.
-        const [card] = drillCardsOf([kara, karadesu, okage].map(p => ({ point: p, examples: [] })), [shared], 'seed', info);
+    it('explains a case card through the case\'s guidance block after a wrong pick, and not after a right one', () => {
+        const someone = grammarPoint({ id: 'dareka', title: 'だれか', family, examples: [] });
+        const noOne = grammarPoint({ id: 'daremo', title: 'だれも', family, examples: [] });
+        const who = { focus: 'daremo', vs: ['dareka'], situation: 'Nobody came.', guidance: 'Use だれも with a negative verb: だれも来ませんでした.' };
+        const [card] = drillCardsOf([someone, noOne].map(p => ({ point: p, examples: p.examples })), [who], 'seed', info);
         if (!card) throw new Error('no case card');
-        const text = card.slots[0].choices?.find(c => c.pointId)?.text ?? '';
-        const html = cardOf(card, true, { ...newTurn(card), answers: [text], feedback: { grade: gradeExercise(card, [text], [0]), effects: [] } });
-        expect(html.split('credits them.')).toHaveLength(2);
-        expect(html).toMatch(/<span lang="ja" class="text-primary">(～から、～からです|～からです、～から)<\/span>/);
+        const wrong = cardOf(card, true, pickedWrong(card, 'dareka'));
+        // The guidance once, in the shared block, without the situation (the card's question).
+        const block = /<div class="border-l-2 border-accent\/40 pl-3[^"]*">(.*?)<\/div>/.exec(wrong)?.[1] ?? '';
+        expect(block).toContain('Which one, and when');
+        expect(block).toContain('<span class="font-gothic" lang="ja">だれも</span>');
+        expect(block).not.toContain('Nobody came.');
+        expect(wrong.split('with a negative verb')).toHaveLength(2);
+        const right = cardOf(card, true, { ...newTurn(card), answers: ['だれも'], feedback: { grade: gradeExercise(card, ['だれも'], [0]), effects: [] } });
+        expect(right).not.toContain('with a negative verb');
     });
 
     it('names its own point, read from the card, and shows no mastery ring', () => {

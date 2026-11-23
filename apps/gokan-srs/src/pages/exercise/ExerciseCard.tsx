@@ -175,7 +175,7 @@ export function ExerciseCard({ api, onVocabClick }: ExerciseCardProps) {
                     )}
                     feedbackExtra={(contrast || shown.usageNote) && (
                         <>
-                            {contrast && <DrillContrastNote contrast={contrast} />}
+                            {contrast && <DrillContrastNote contrast={contrast} guidanceOnly={!exercise.sentence} />}
                             {shown.usageNote && <UsageNote note={shown.usageNote} />}
                         </>
                     )}

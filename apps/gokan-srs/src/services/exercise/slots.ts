@@ -169,8 +169,11 @@ export function textSlot({ surface, reading, role, inflections = [], given }: Te
 export interface ChoiceSlotOptions {
     /** The text that fits. */
     answer: string;
-    /** The wrong options, each with why it does not fit. */
-    distractors: (SlotChoice & { note: string })[];
+    /**
+     * The wrong options, each with why it does not fit: its own note, or the contrast case that
+     * teaches it against the answer (a drill's case card, whose guidance is the case's, shown once).
+     */
+    distractors: (SlotChoice & ({ note: string } | { contrast: NonNullable<SlotChoice['contrast']> }))[];
     role: SlotRole;
     /** Orders the options: the same seed always gives the same order, so a recomputed turn does not reshuffle. */
     seed: string;
