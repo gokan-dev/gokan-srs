@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import React, { useState, useEffect, useEffectEvent, useLayoutEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { Search, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { kanjiRowMeanings, searchHeadword, searchSecondaryForm } from '@gokan/dataset-schema';
-import type { SearchGroup } from '@gokan/dataset-schema';
 import { SearchService } from '../services/search.service';
 import { useAsyncData } from '../hooks/useAsyncData';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
@@ -14,7 +13,8 @@ import { StatusDot } from './StatusDot';
 import { KanjiKnownStatus } from './KanjiKnownStatus';
 import { grammarPath, kanjiPath, vocabPath } from '../utils/navigation.utils';
 import { grammarLearningStatus } from '../utils/learningStatus.utils';
-import { DROPDOWN_SEARCH_LIMITS, SEARCH_LIMITS, type AppSearchResults } from '../utils/search.utils';
+import type { AppSearchHit, AppSearchResults } from '../utils/search.utils';
+import { Chip } from './ui/Chip';
 
 interface SearchBarProps {
     /**
@@ -28,16 +28,25 @@ interface SearchBarProps {
 
 const LISTBOX_ID = 'header-search-results';
 const optionId = (index: number) => `header-search-result-${index}`;
-const groupLabelId = (group: SearchGroup) => `header-search-group-${group}`;
+
+/**
+ * Rows rendered at first, and added each time the list is scrolled near its end: every match is
+ * in the list (`a` finds thousands), but only what the reader scrolls to is drawn.
+ */
+export const SEARCH_PAGE_SIZE = 30;
+/** How close to the list's end (px) a scroll draws the next page, so it is there before it is reached. */
+const LOAD_MORE_MARGIN = 400;
 
 /** What can be searched: the field's placeholder and its name. */
 const SEARCH_LABEL = 'Search words, kanji and grammar';
 
-const GROUP_LABEL: Record<SearchGroup, string> = { words: 'Words', kanji: 'Kanji', grammar: 'Grammar' };
+/** The type badge each row carries, in the one list. */
+const TYPE_LABEL: Record<AppSearchHit['group'], string> = { words: 'Word', kanji: 'Kanji', grammar: 'Grammar' };
 
 /** One row of the results: where it leads, and what it shows. */
 interface SearchOption {
     key: string;
+    type: AppSearchHit['group'];
     path: string;
     main: ReactNode;
     support: string;
@@ -65,45 +74,52 @@ function GrammarStudyStatus({ grammarId }: { grammarId: string }) {
     return <StatusDot status={grammarLearningStatus(state.progress.grammarQueue.find(g => g.grammarId === grammarId))} />;
 }
 
-/** The results as rows, by group, in the order the matcher gives the groups. */
-function groupedOptions(results: AppSearchResults): { group: SearchGroup; options: SearchOption[] }[] {
-    const byGroup: Record<SearchGroup, SearchOption[]> = {
-        words: results.words.map(({ row }) => ({
-            key: `word-${row.id}`,
-            path: vocabPath(row.id),
-            main: (
-                <>
-                    <span className="font-mincho text-primary text-lg">{searchHeadword(row)}</span>
-                    {/* A word shown in kana names its kanji spelling where the reading would go. */}
-                    <span className={`${row.u ? 'font-mincho' : 'font-gothic'} text-secondary text-sm`}>{searchSecondaryForm(row)}</span>
-                </>
-            ),
-            support: row.m,
-            status: <WordStudyStatus vocabId={row.id} />,
-            interactiveStatus: true,
-        })),
-        kanji: results.kanji.map(row => ({
-            key: `kanji-${row[0]}`,
-            path: kanjiPath(row[0]),
-            main: <span className="font-mincho text-primary text-lg">{row[0]}</span>,
-            support: kanjiRowMeanings(row).join(', '),
-            status: <KanjiStudyStatus character={row[0]} />,
-        })),
-        grammar: results.grammar.map(row => ({
-            key: `grammar-${row[0]}`,
-            path: grammarPath(row[0]),
-            main: (
-                <>
-                    {/* A title is the pattern itself: it keeps its width and the romaji beside it truncates first; it wraps only when it is wider than the whole row. */}
-                    <span className="font-mincho text-primary text-lg shrink-0 max-w-full break-words">{row[1]}</span>
-                    {row[2] && <span className="type-meta min-w-0 truncate">{row[2]}</span>}
-                </>
-            ),
-            support: row[3],
-            status: <GrammarStudyStatus grammarId={row[0]} />,
-        })),
-    };
-    return results.groups.map(group => ({ group, options: byGroup[group] })).filter(({ options }) => options.length > 0);
+/** A hit as a row. */
+function optionOf(hit: AppSearchHit): SearchOption {
+    switch (hit.group) {
+        case 'words': {
+            const { row } = hit.hit;
+            return {
+                key: `word-${row.id}`,
+                type: 'words',
+                path: vocabPath(row.id),
+                main: (
+                    <>
+                        <span className="font-mincho text-primary text-lg">{searchHeadword(row)}</span>
+                        {/* A word shown in kana names its kanji spelling where the reading would go. */}
+                        <span className={`${row.u ? 'font-mincho' : 'font-gothic'} text-secondary text-sm min-w-0 truncate`}>{searchSecondaryForm(row)}</span>
+                    </>
+                ),
+                support: row.m,
+                status: <WordStudyStatus vocabId={row.id} />,
+                interactiveStatus: true,
+            };
+        }
+        case 'kanji':
+            return {
+                key: `kanji-${hit.row[0]}`,
+                type: 'kanji',
+                path: kanjiPath(hit.row[0]),
+                main: <span className="font-mincho text-primary text-lg">{hit.row[0]}</span>,
+                support: kanjiRowMeanings(hit.row).join(', '),
+                status: <KanjiStudyStatus character={hit.row[0]} />,
+            };
+        case 'grammar':
+            return {
+                key: `grammar-${hit.row[0]}`,
+                type: 'grammar',
+                path: grammarPath(hit.row[0]),
+                main: (
+                    <>
+                        {/* A title is the pattern itself: it keeps its width and the romaji beside it truncates first; it wraps only when it is wider than the whole row. */}
+                        <span className="font-mincho text-primary text-lg shrink-0 max-w-full break-words">{hit.row[1]}</span>
+                        {hit.row[2] && <span className="type-meta min-w-0 truncate">{hit.row[2]}</span>}
+                    </>
+                ),
+                support: hit.row[3],
+                status: <GrammarStudyStatus grammarId={hit.row[0]} />,
+            };
+    }
 }
 
 export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' }) => {
@@ -111,8 +127,8 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
     const [isOpen, setIsOpen] = useState(false);
     const [expanded, setExpanded] = useState(false);
     const [highlighted, setHighlighted] = useState(-1);
-    // The desktop dropdown at the full limits, after "Show all results"; a new query starts without it.
-    const [showAll, setShowAll] = useState(false);
+    // How many of a result set's rows are drawn: a new result set starts at one page.
+    const [paging, setPaging] = useState<{ results: AppSearchResults | undefined; count: number }>({ results: undefined, count: SEARCH_PAGE_SIZE });
     const [panel, setPanel] = useState({ top: 0, height: 0 });
     const wrapperRef = useRef<HTMLDivElement>(null);
     const fieldRef = useRef<HTMLDivElement>(null);
@@ -131,20 +147,13 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
 
     // Searched once typing pauses; an empty field searches nothing.
     const searchTerm = useDebouncedValue(query.trim(), 300);
-    // The desktop dropdown shares its rows out among the groups, so each one shows above its fold; the phone's full-screen panel keeps every group's own cap.
-    const fullLimits = isMobile || showAll;
-    const limits = fullLimits ? SEARCH_LIMITS : DROPDOWN_SEARCH_LIMITS;
-    const search = useAsyncData(searchTerm ? `${fullLimits ? 'panel' : 'dropdown'}:${searchTerm}` : null, () => SearchService.search(searchTerm, limits), { keepPrevious: true });
-    const groups = query.trim() && search.data ? groupedOptions(search.data) : [];
-    // Every row in display order, for the arrow keys and Enter.
-    const options = groups.flatMap(({ options: rows }) => rows);
-    /**
-     * The rows the dropdown's sharing dropped stay reachable: a last option shows them, in the same
-     * panel, at the phone panel's limits (no results route to bookmark).
-     */
-    const hasHidden = search.data !== undefined && Object.values(search.data.hidden).some(count => count > 0);
-    const showAllIndex = hasHidden && options.length > 0 ? options.length : -1;
-    const optionCount = options.length + (showAllIndex >= 0 ? 1 : 0);
+    const search = useAsyncData(searchTerm || null, () => SearchService.search(searchTerm), { keepPrevious: true });
+    const hits = query.trim() && search.data ? search.data.hits : [];
+    const visible = paging.results === search.data ? paging.count : SEARCH_PAGE_SIZE;
+    const showMore = () => setPaging({ results: search.data, count: visible + SEARCH_PAGE_SIZE });
+    // Every row drawn, in the one order across types, for the arrow keys and Enter.
+    const options = hits.slice(0, visible).map(optionOf);
+    const hasMore = hits.length > options.length;
     const isSearching = search.status === 'loading' && search.data === undefined;
 
     /**
@@ -157,37 +166,42 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
         panelRef.current.scrollTop = 0;
     }, [search.data]);
 
+    /** Scrolled near the end of what is drawn, the next page is drawn. */
+    const loadMoreNearEnd = (panelElement: HTMLDivElement) => {
+        if (!hasMore) return;
+        if (panelElement.scrollTop + panelElement.clientHeight >= panelElement.scrollHeight - LOAD_MORE_MARGIN) showMore();
+    };
+
+    /**
+     * Focus stays in the field, so the panel does not follow the highlight by itself: a row the
+     * arrow keys reach is scrolled into view once drawn (the next page, for one past the end).
+     */
+    const scrollTarget = useRef<number | null>(null);
+    useLayoutEffect(() => {
+        if (scrollTarget.current === null) return;
+        document.getElementById(optionId(scrollTarget.current))?.scrollIntoView({ block: 'nearest' });
+        scrollTarget.current = null;
+    }, [highlighted, visible]);
+
     const changeQuery = (value: string) => {
         setQuery(value);
-        setShowAll(false);
         setHighlighted(-1);
     };
 
-    const expand = () => {
-        setShowAll(true);
-        setHighlighted(-1);
-    };
-
-    // Closing ends "Show all results" too: reopened on the same query, the dropdown shares its rows again.
     const close = () => {
         setIsOpen(false);
         setExpanded(false);
-        setShowAll(false);
         setHighlighted(-1);
     };
 
+    // A click outside closes the panel the same way, through the one reset.
+    const onClickOutside = useEffectEvent((event: MouseEvent) => {
+        if (wrapperRef.current && event.target instanceof Node && !wrapperRef.current.contains(event.target)) close();
+    });
     useEffect(() => {
-        function handleClickOutside(event: MouseEvent) {
-            if (wrapperRef.current && event.target instanceof Node && !wrapperRef.current.contains(event.target)) {
-                setIsOpen(false);
-                setExpanded(false);
-                setShowAll(false);
-                setHighlighted(-1);
-            }
-        }
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, [wrapperRef]);
+        document.addEventListener("mousedown", onClickOutside);
+        return () => document.removeEventListener("mousedown", onClickOutside);
+    }, []);
 
     /**
      * The full-screen panel is `fixed`, so it needs the field's viewport position
@@ -237,16 +251,17 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
         if (!isPanelOpen || options.length === 0) return;
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
             e.preventDefault();
-            const next = e.key === 'ArrowDown' ? (highlighted + 1) % optionCount : (highlighted <= 0 ? optionCount - 1 : highlighted - 1);
-            setHighlighted(next);
-            // Focus stays in the field, so the panel does not follow the highlight by itself; the
-            // option's scroll margin keeps it clear of its group's sticky label.
-            document.getElementById(optionId(next))?.scrollIntoView({ block: 'nearest' });
-        } else if (e.key === 'Enter') {
-            if (showAllIndex >= 0 && highlighted === showAllIndex) {
-                expand();
-                return;
+            let next: number;
+            if (e.key === 'ArrowDown') {
+                // Past the last drawn row: the next page, when there is one; otherwise back to the top.
+                next = highlighted + 1 < options.length ? highlighted + 1 : hasMore ? options.length : 0;
+                if (next >= options.length) showMore();
+            } else {
+                next = highlighted <= 0 ? options.length - 1 : highlighted - 1;
             }
+            scrollTarget.current = next;
+            setHighlighted(next);
+        } else if (e.key === 'Enter') {
             const target = options[highlighted] ?? options[0];
             handleSelect(target.path);
         }
@@ -291,6 +306,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
     const resultsPanel = isPanelOpen && (
         <div
             ref={panelRef}
+            onScroll={e => loadMoreNearEnd(e.currentTarget)}
             style={isFullScreen ? { top: panel.top, height: panel.height } : undefined}
             className={
                 isFullScreen
@@ -302,50 +318,30 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
                 <div className="p-4 text-center type-support">Searching...</div>
             ) : options.length > 0 ? (
                 <div id={LISTBOX_ID} role="listbox" aria-label="Search results" className="flex flex-col">
-                    {groups.map(({ group, options: rows }, groupIndex) => (
-                        <div key={group} role="group" aria-labelledby={groupLabelId(group)} className={groupIndex < groups.length - 1 ? 'border-b border-divider' : ''}>
-                            {/* Sticky, so a scrolled row keeps its group's name in view and the next group's label shows it follows; its edge is where a scrolled row passes under it. */}
-                            <div id={groupLabelId(group)} role="presentation" className="type-label sticky top-0 z-10 bg-surface border-b border-divider px-3 pt-3 pb-1">{GROUP_LABEL[group]}</div>
-                            {rows.map(option => {
-                                const index = options.indexOf(option);
-                                return (
-                                    <div
-                                        key={option.key}
-                                        id={optionId(index)}
-                                        role="option"
-                                        aria-selected={index === highlighted}
-                                        onClick={() => handleSelect(option.path)}
-                                        onMouseEnter={() => setHighlighted(index)}
-                                        className={`flex items-center gap-3 p-3 scroll-mt-10 ${showAllIndex >= 0 ? 'scroll-mb-12' : ''} border-b border-divider/50 last:border-0 cursor-pointer transition-colors ${index === highlighted ? 'bg-surface-hover' : ''}`}
-                                    >
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-baseline gap-2 min-w-0">{option.main}</div>
-                                            <div className="type-support truncate">{option.support}</div>
-                                        </div>
-                                        {option.interactiveStatus
-                                            ? <div className="shrink-0" onClick={e => e.stopPropagation()}>{option.status}</div>
-                                            : <div className="shrink-0">{option.status}</div>}
-                                    </div>
-                                );
-                            })}
+                    {options.map((option, index) => (
+                        <div
+                            key={option.key}
+                            id={optionId(index)}
+                            role="option"
+                            data-hit={option.type}
+                            aria-selected={index === highlighted}
+                            onClick={() => handleSelect(option.path)}
+                            onMouseEnter={() => setHighlighted(index)}
+                            className={`flex items-center gap-3 p-3 border-b border-divider/50 last:border-0 cursor-pointer transition-colors ${index === highlighted ? 'bg-surface-hover' : ''}`}
+                        >
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-baseline gap-2 min-w-0">
+                                    {option.main}
+                                    {/* Its type, as metadata: one list holds words, kanji and grammar points. */}
+                                    <Chip size="sm" className="ml-auto shrink-0">{TYPE_LABEL[option.type]}</Chip>
+                                </div>
+                                <div className="type-support truncate">{option.support}</div>
+                            </div>
+                            {option.interactiveStatus
+                                ? <div className="shrink-0" onClick={e => e.stopPropagation()}>{option.status}</div>
+                                : <div className="shrink-0">{option.status}</div>}
                         </div>
                     ))}
-                    {/* Pinned to the panel's bottom, as the group labels are to its top, so at rest it shows that rows were left out; the rows' bottom scroll margin keeps a highlighted one clear of it. */}
-                    {showAllIndex >= 0 && (
-                        <div
-                            id={optionId(showAllIndex)}
-                            data-show-all
-                            role="option"
-                            aria-selected={showAllIndex === highlighted}
-                            onClick={expand}
-                            // The field keeps focus, so the arrow keys go on working over the longer lists.
-                            onMouseDown={e => e.preventDefault()}
-                            onMouseEnter={() => setHighlighted(showAllIndex)}
-                            className={`sticky bottom-0 z-10 border-t border-divider p-3 font-sans text-sm text-accent cursor-pointer transition-colors ${showAllIndex === highlighted ? 'bg-surface-hover' : 'bg-surface'}`}
-                        >
-                            Show all results
-                        </div>
-                    )}
                 </div>
             ) : (
                 <div className="p-4 text-center type-support">No results found</div>

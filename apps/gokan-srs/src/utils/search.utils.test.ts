@@ -2,11 +2,23 @@ import { describe, expect, it } from 'vitest';
 import { readSearchQuery } from '@gokan/dataset-schema';
 import type { SearchGrammarRow, SearchIndex, SearchKanjiRow } from '@gokan/dataset-schema';
 import { searchIndexEntry, vocabulary } from '../test/fixtures';
-import { DROPDOWN_SEARCH_LIMITS, matchesVocabQuery, prepareAppSearch, SEARCH_LIMITS, searchApp, type SearchLimits } from './search.utils';
+import { matchesVocabQuery, prepareAppSearch, searchApp, type AppSearchHit, type AppSearchIndex } from './search.utils';
 
-/** The words the header search shows for `query`, as it ranked them before kanji and grammar were searched. */
+/** The words the header search shows for `query`, in its order (an index of words alone). */
 const rankVocabSearch = (index: SearchIndex, query: string, limit = 50) =>
-    searchApp(prepareAppSearch(index), query, { words: limit, wordsBeforeOthers: limit, kanji: 0, grammar: 0 }).words.map(hit => hit.row);
+    searchApp(prepareAppSearch(index), query).hits.flatMap(hit => (hit.group === 'words' ? [hit.hit.row] : [])).slice(0, limit);
+
+/** A hit as `group:id`, for a whole ranking at a glance. */
+const label = (hit: AppSearchHit): string => {
+    switch (hit.group) {
+        case 'words': return `words:${hit.hit.row.id}`;
+        case 'kanji': return `kanji:${hit.row[0]}`;
+        case 'grammar': return `grammar:${hit.row[0]}`;
+    }
+};
+const ranking = (index: AppSearchIndex, query: string) => searchApp(index, query).hits.map(label);
+const groupRows = <G extends AppSearchHit['group']>(index: AppSearchIndex, query: string, group: G) =>
+    searchApp(index, query).hits.filter((hit): hit is Extract<AppSearchHit, { group: G }> => hit.group === group);
 
 // In search.json's order (kanji spelling): compounds containing する come before 為る.
 const index = [
@@ -141,80 +153,46 @@ describe('the header search over kanji and grammar', () => {
     const index = prepareAppSearch(words, kanji, grammar);
 
     it('finds the kanji 水 by its character, meaning and readings', () => {
-        for (const query of ['水', 'water', 'みず', 'すい', 'sui', 'mizu']) expect(searchApp(index, query).kanji[0]?.[0]).toBe('水');
-        expect(searchApp(index, 'mizu').words.map(hit => hit.row.id)).toEqual(['mizu']);
+        for (const query of ['水', 'water', 'みず', 'すい', 'sui', 'mizu']) expect(groupRows(index, query, 'kanji')[0]?.row[0]).toBe('水');
+        expect(groupRows(index, 'mizu', 'words').map(hit => hit.hit.row.id)).toEqual(['mizu']);
     });
 
     it('finds a grammar point by its title, its romaji and its kana', () => {
-        for (const query of ['てから', 'te kara', 'tekara']) expect(searchApp(index, query).grammar.map(row => row[0])).toEqual(['n5-048']);
+        for (const query of ['てから', 'te kara', 'tekara']) expect(groupRows(index, query, 'grammar').map(hit => hit.row[0])).toEqual(['n5-048']);
     });
 
-    it('shows kanji first for one kanji, grammar first for a title, words first otherwise', () => {
-        expect(searchApp(index, '水').groups[0]).toBe('kanji');
-        expect(searchApp(index, 'てから').groups[0]).toBe('grammar');
-        expect(searchApp(index, 'water').groups[0]).toBe('words');
+    it('lists every type in one order: the kanji first for one kanji, a grammar title first, a word otherwise', () => {
+        expect(ranking(index, '水')[0]).toBe('kanji:水');
+        expect(ranking(index, 'てから')[0]).toBe('grammar:n5-048');
+        expect(ranking(index, 'water')[0]).toBe('words:mizu');
     });
 
-    it('caps each group', () => {
-        expect(searchApp(index, 'すい', { words: 1, wordsBeforeOthers: 1, kanji: 1, grammar: 1 }).kanji).toEqual([kanji[0]]);
-    });
-
-    it('shows fewer words when kanji or grammar follow them, all of them when nothing does', () => {
-        const waters = prepareAppSearch(
+    it('ranks an exact match of any type above a prefix, and a prefix above a meaning', () => {
+        const mixed = prepareAppSearch(
             [
+                searchIndexEntry({ id: 'kara', w: '空', r: 'から', m: 'empty' }),
+                searchIndexEntry({ id: 'karada', w: '体', r: 'からだ', m: 'body' }),
                 searchIndexEntry({ id: 'mizu', w: '水', r: 'みず', m: 'water' }),
-                searchIndexEntry({ id: 'oyu', w: '湯', r: 'ゆ', m: 'hot water' }),
                 searchIndexEntry({ id: 'suido', w: '水道', r: 'すいどう', m: 'water supply' }),
             ],
-            kanji,
+            [['水', 5, 9201, 'water', 'スイ みず'], ['空', 5, 300, 'sky; empty', 'クウ そら から']],
+            [['n5-kara', 'から', 'kara', 'Because; since.', 5]],
         );
-        const limits = { words: 2, wordsBeforeOthers: 1, kanji: 5, grammar: 5 };
-        const shown = (query: string, at = limits) => searchApp(waters, query, at).words.map(hit => hit.row.id);
-        // water: words first, the kanji 水 below them.
-        expect(shown('water')).toEqual(['mizu']);
-        // 水: the kanji come first, so the words are last and keep their full cap.
-        expect(shown('水')).toEqual(['mizu', 'suido']);
-        expect(searchApp(waters, '水', limits).groups[0]).toBe('kanji');
-        // With no kanji shown, nothing follows the words.
-        expect(shown('water', { ...limits, kanji: 0 })).toEqual(['mizu', 'oyu']);
+        // The grammar title is the query, then the word read から, the word starting with it, and the kanji read から.
+        expect(ranking(mixed, 'から')).toEqual(['grammar:n5-kara', 'words:kara', 'words:karada', 'kanji:空']);
+        // A sense equal to "water" (水), then the kanji meaning it, then a gloss with it as a word.
+        expect(ranking(mixed, 'water')).toEqual(['words:mizu', 'kanji:水', 'words:suido']);
     });
 
-    it('shares the dropdown rows out among the groups when several match, and caps a lone group as usual', () => {
+    it('caps nothing: every match of every type is in the list', () => {
         const many = prepareAppSearch(
-            ['水', '水道', '水曜日', '水泳', '香水'].map((w, i) => searchIndexEntry({ id: `w${i}`, w, r: 'すい', m: 'water' })),
-            ['水', '吹', '推', '垂', '炊'].map((k): SearchKanjiRow => [k, 5, 100, 'water', 'スイ']),
+            Array.from({ length: 80 }, (_, i) => searchIndexEntry({ id: `w${i}`, w: `水${i}`, r: `すい${i}`, m: 'water' })),
+            ['水', '吹', '推', '垂', '炊', '粋', '酔'].map((k): SearchKanjiRow => [k, 5, 100, 'water', 'スイ']),
             [['n5-073', 'Verb やすい', '〜yasui', 'easy to do', 5]],
         );
-        const at: SearchLimits = { words: 20, wordsBeforeOthers: 5, kanji: 5, grammar: 5, sharedRows: 6 };
-        const counts = (query: string, limits = at) => {
-            const result = searchApp(many, query, limits);
-            return [result.words.length, result.kanji.length, result.grammar.length];
-        };
-        // Three groups: 2 rows each, so the third group's label is in view.
-        expect(counts('sui')).toEqual([2, 2, 1]);
-        // Without sharing (the phone's panel): the usual caps.
-        expect(counts('sui', SEARCH_LIMITS)).toEqual([5, 5, 1]);
-        // Two groups: 3 each.
-        expect(counts('sui', { ...at, grammar: 0 })).toEqual([3, 3, 0]);
-        // One group: its own cap.
-        expect(counts('sui', { ...at, kanji: 0, grammar: 0 })).toEqual([5, 0, 0]);
-    });
-
-    it('counts what the sharing dropped from each group, and nothing when one group matches', () => {
-        const many = prepareAppSearch(
-            ['水', '水道', '水曜日', '水泳', '香水'].map((w, i) => searchIndexEntry({ id: `w${i}`, w, r: 'すい', m: 'water' })),
-            ['水', '吹', '推', '垂', '炊'].map((k): SearchKanjiRow => [k, 5, 100, 'water', 'スイ']),
-            [['n5-073', 'Verb やすい', '〜yasui', 'easy to do', 5]],
-        );
-        // Three groups at 2 each: 5 words and 5 kanji lose 3 each, the one grammar point nothing.
-        expect(searchApp(many, 'sui', DROPDOWN_SEARCH_LIMITS).hidden).toEqual({ words: 3, kanji: 3, grammar: 0 });
-        // At the full limits (Show all results) nothing is dropped, and what was is there.
-        const all = searchApp(many, 'sui', SEARCH_LIMITS);
-        expect(all.hidden).toEqual({ words: 0, kanji: 0, grammar: 0 });
-        expect(all.words.length + all.kanji.length + all.grammar.length).toBe(2 + 2 + 1 + 3 + 3);
-        // Grammar alone: its own cap, nothing hidden.
-        const alone = searchApp(many, 'yasui', DROPDOWN_SEARCH_LIMITS);
-        expect([alone.words.length, alone.kanji.length, alone.grammar.length]).toEqual([0, 0, 1]);
-        expect(alone.hidden).toEqual({ words: 0, kanji: 0, grammar: 0 });
+        const hits = searchApp(many, 'sui').hits;
+        expect(hits.filter(hit => hit.group === 'words')).toHaveLength(80);
+        expect(hits.filter(hit => hit.group === 'kanji')).toHaveLength(7);
+        expect(hits.filter(hit => hit.group === 'grammar')).toHaveLength(1);
     });
 });

@@ -17,11 +17,11 @@ describe('the build\'s search entries', () => {
     });
 
     it('finds the kanji 水 by its character, meaning and readings', () => {
-        for (const query of ['水', 'water', 'みず', 'すい', 'sui']) expect(searchApp(index, query).kanji[0]?.[0]).toBe('水');
+        for (const query of ['水', 'water', 'みず', 'すい', 'sui']) expect(searchApp(index, query).hits.find(hit => hit.group === 'kanji')?.row[0]).toBe('水');
     });
 
     it('finds the point てから by its title and romaji', () => {
-        for (const query of ['てから', 'te kara', 'tekara']) expect(searchApp(index, query).grammar[0]?.[1]).toContain('てから');
+        for (const query of ['てから', 'te kara', 'tekara']) expect(searchApp(index, query).hits.find(hit => hit.group === 'grammar')?.row[1]).toContain('てから');
     });
 
     it('writes a module of the two lists', () => {

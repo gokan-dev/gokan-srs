@@ -1,6 +1,6 @@
 import { sharedRequest } from './http';
 import { VocabularyService } from './vocabulary.service';
-import { prepareAppSearch, SEARCH_LIMITS, searchApp, type AppSearchIndex, type AppSearchResults, type SearchLimits } from '../utils/search.utils';
+import { prepareAppSearch, searchApp, type AppSearchIndex, type AppSearchResults } from '../utils/search.utils';
 
 /**
  * The header search's index, built once: the words of index/search.json (shared with the panel
@@ -13,8 +13,8 @@ const index = sharedRequest(async (): Promise<AppSearchIndex> => {
 });
 
 export const SearchService = {
-    /** Words, kanji and grammar points for `query`, each group best first and capped at `limits` (searchApp; the desktop dropdown's are `DROPDOWN_SEARCH_LIMITS`). */
-    async search(query: string, limits: SearchLimits = SEARCH_LIMITS): Promise<AppSearchResults> {
-        return searchApp(await index.get(), query, limits);
+    /** Every word, kanji and grammar point matching `query`, as one list best first (searchApp). */
+    async search(query: string): Promise<AppSearchResults> {
+        return searchApp(await index.get(), query);
     },
 };

@@ -269,7 +269,14 @@ describe('one ranking across groups', () => {
 
     it('lists an exact match of any type above a prefix match, and that above a meaning match', () => {
         expect(ranked('から')).toEqual(['grammar:kara', 'words:kara-empty', 'words:karada', 'kanji:空']);
+        // A kanji read as the query follows the words its reading starts, typed in kana or romaji,
+        // and comes before a word or title that only contains it.
+        expect(ranked('すい')).toEqual(['words:suiei', 'words:suidou', 'kanji:水', 'words:yasui', 'grammar:yasui']);
+        expect(ranked('sui')).toEqual(['words:suiei', 'words:suidou', 'kanji:水', 'words:yasui', 'grammar:yasui']);
         expect(ranked('water')).toEqual(['words:mizu', 'kanji:水', 'words:suidou']);
+        // A romaji query: the title it is comes first, a title it only starts follows the words it reads.
+        expect(ranked('kara')).toEqual(['grammar:kara', 'words:kara-empty', 'words:karada', 'kanji:空']);
+        expect(ranked('ya')).toEqual(['words:yasui', 'grammar:yasui']);
         expect(ranked('水')).toEqual(['kanji:水', 'words:mizu', 'words:suiei', 'words:suidou']);
     });
 
@@ -278,8 +285,12 @@ describe('one ranking across groups', () => {
         expect(words).toEqual([...words].sort((a, b) => a - b));
         expect(kanjiLevel(KANJI_TIER.character)).toBe(SEARCH_LEVEL.exact);
         expect(kanjiLevel(KANJI_TIER.meaning)).toBe(wordLevel(WORD_TIER.sense));
+        expect(kanjiLevel(KANJI_TIER.reading)).toBe(wordLevel(WORD_TIER.romajiPrefix));
         expect(grammarLevel(GRAMMAR_TIER.exact)).toBe(SEARCH_LEVEL.exact);
         expect(grammarLevel(GRAMMAR_TIER.explanation)).toBe(wordLevel(WORD_TIER.glossWord));
+        // A title the romaji starts is a reading started in romaji, as for a word.
+        expect(grammarLevel(GRAMMAR_TIER.prefix, true)).toBe(wordLevel(WORD_TIER.romajiPrefix));
+        expect(grammarLevel(GRAMMAR_TIER.prefix)).toBe(wordLevel(WORD_TIER.prefix));
     });
 
     it('keeps every match runSearch finds, and nothing for a blank query', () => {

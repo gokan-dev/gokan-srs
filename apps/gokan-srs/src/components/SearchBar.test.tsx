@@ -3,29 +3,33 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AppSearchResults, SearchLimits } from '../utils/search.utils';
+import type { AppSearchResults } from '../utils/search.utils';
 import { searchIndexEntry, userProgress } from '../test/fixtures';
 import { grammarPath, kanjiPath, vocabPath } from '../utils/navigation.utils';
-import { SearchBar } from './SearchBar';
+import { SEARCH_PAGE_SIZE, SearchBar } from './SearchBar';
 
+const mizu = searchIndexEntry({ id: 'mizu', w: '水', r: 'みず', m: 'water' });
 const results: AppSearchResults = {
     query: 'sui',
     kana: 'すい',
-    groups: ['words', 'kanji', 'grammar'],
-    words: [{ row: searchIndexEntry({ id: 'mizu', w: '水', r: 'みず', m: 'water' }), tier: 0 }],
-    kanji: [['水', 5, 9201, 'water', 'スイ みず']],
-    grammar: [['n5-073', 'Verb やすい', '〜yasui', 'easy to do', 5]],
-    hidden: { words: 0, kanji: 0, grammar: 0 },
+    hits: [
+        { group: 'words', level: 1, hit: { row: mizu, tier: 1 } },
+        { group: 'kanji', level: 2, row: ['水', 5, 9201, 'water', 'スイ みず'] },
+        { group: 'grammar', level: 5, row: ['n5-073', 'Verb やすい', '〜yasui', 'easy to do', 5] },
+    ],
 };
 
-/** The same search at the full limits, and in the dropdown with a kanji the sharing dropped. */
-const full: AppSearchResults = { ...results, kanji: [...results.kanji, ['推', 8, 1200, 'infer', 'スイ お.す']] };
-const shared: AppSearchResults = { ...results, hidden: { words: 0, kanji: 1, grammar: 0 } };
-/** Whether the dropdown's search drops a row (a test sets it before opening the panel). */
-let drops = false;
+/** A broad query: many more matches than one page. */
+const many: AppSearchResults = {
+    query: 'su',
+    kana: 'す',
+    hits: Array.from({ length: SEARCH_PAGE_SIZE * 2 + 5 }, (_, i) => ({ group: 'words', level: 2, hit: { row: searchIndexEntry({ id: `w${i}`, w: `語${i}`, r: 'す', m: 'word' }), tier: 4 } })),
+};
+/** What the mocked search returns (a test sets it before opening the panel). */
+let returned = results;
 
 vi.mock('../services/search.service', () => ({
-    SearchService: { search: (_query: string, limits: SearchLimits) => Promise.resolve(!drops ? results : limits.sharedRows === undefined ? full : shared) },
+    SearchService: { search: () => Promise.resolve(returned) },
 }));
 vi.mock('../hooks/useDebouncedValue', () => ({ useDebouncedValue: (value: string) => value }));
 vi.mock('../context/Responsive/useResponsive', () => ({ useResponsive: () => ({ isMobile: false }) }));
@@ -55,9 +59,9 @@ async function openPanel(): Promise<{ root: ReturnType<typeof createRoot>; path:
     return { root, path: () => container.querySelector('[data-path]')?.textContent ?? '', input };
 }
 
-/** The status cell of the group's first row. */
+/** The status cell of the first row of a type. */
 function statusOf(group: string): HTMLElement {
-    const row = document.querySelector(`[aria-labelledby="header-search-group-${group}"] [role="option"]`);
+    const row = document.querySelector(`[role="option"][data-hit="${group}"]`);
     const cell = row?.lastElementChild;
     const target = cell?.firstElementChild ?? cell;
     if (!(target instanceof HTMLElement)) throw new Error(`no status in the ${group} row`);
@@ -83,71 +87,63 @@ describe('SearchBar status cells', () => {
     });
 });
 
-describe('SearchBar: Show all results', () => {
+describe('SearchBar: one list', () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
     afterEach(() => {
         document.body.innerHTML = '';
-        drops = false;
+        returned = results;
     });
 
-    const showAll = () => [...document.querySelectorAll('[role="option"]')].find(option => option.textContent === 'Show all results');
-    const kanjiShown = () => [...document.querySelectorAll('[aria-labelledby="header-search-group-kanji"] [role="option"]')].map(row => row.textContent);
-    const settle = () => act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
+    const rows = () => [...document.querySelectorAll('#header-search-results [role="option"]')];
+    const keyDown = (input: HTMLInputElement, key: string) => act(() => { input.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true })); });
 
-    it('is offered only when the dropdown dropped rows', async () => {
+    it('lists every type in the matcher\'s order, each row with its type, and no group labels', async () => {
         const { root } = await openPanel();
-        expect(showAll()).toBeUndefined();
+        expect(rows().map(row => row.getAttribute('data-hit'))).toEqual(['words', 'kanji', 'grammar']);
+        expect(rows().map(row => row.querySelector('.ml-auto')?.textContent)).toEqual(['Word', 'Kanji', 'Grammar']);
+        expect(document.querySelector('#header-search-results [role="group"]')).toBeNull();
         act(() => root.unmount());
     });
 
-    it('shows the full lists in the same panel when picked', async () => {
-        drops = true;
-        const { root } = await openPanel();
-        expect(kanjiShown()).toHaveLength(1);
-        const option = showAll();
-        if (!(option instanceof HTMLElement)) throw new Error('no Show all results');
-        act(() => option.click());
-        await settle();
-        expect(kanjiShown()).toHaveLength(2);
-        expect(showAll()).toBeUndefined();
-        act(() => root.unmount());
-    });
-
-    it('is the last option for the arrow keys, and Enter on it shows the full lists', async () => {
-        drops = true;
-        const { root, input } = await openPanel();
-        act(() => { input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true })); });
-        expect(showAll()?.getAttribute('aria-selected')).toBe('true');
-        act(() => { input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
-        await settle();
-        expect(kanjiShown()).toHaveLength(2);
-        act(() => root.unmount());
-    });
-
-    it('Enter with nothing highlighted opens the first row when nothing was dropped', async () => {
+    it('Enter with nothing highlighted opens the first row', async () => {
         const { root, path, input } = await openPanel();
-        act(() => { input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
+        keyDown(input, 'Enter');
         expect(path()).toBe(vocabPath('mizu').split('#')[0]);
         act(() => root.unmount());
     });
 
-    it('ends when the panel closes, so the same query reopens at the shared rows', async () => {
-        drops = true;
+    it('the arrow keys walk the one list across types', async () => {
+        const { root, path, input } = await openPanel();
+        keyDown(input, 'ArrowDown');
+        keyDown(input, 'ArrowDown');
+        expect(rows()[1]?.getAttribute('aria-selected')).toBe('true');
+        keyDown(input, 'Enter');
+        expect(path()).toBe(kanjiPath('水'));
+        act(() => root.unmount());
+    });
+
+    it('draws a page at first, and the next one when scrolled near the end', async () => {
+        returned = many;
+        const { root } = await openPanel();
+        expect(rows()).toHaveLength(SEARCH_PAGE_SIZE);
+        const panel = document.getElementById('header-search-results')?.parentElement;
+        if (!panel) throw new Error('no panel');
+        act(() => { panel.dispatchEvent(new Event('scroll')); });
+        // happy-dom lays nothing out: every height is 0, so the panel is at its end.
+        expect(rows()).toHaveLength(SEARCH_PAGE_SIZE * 2);
+        act(() => { panel.dispatchEvent(new Event('scroll')); });
+        expect(rows()).toHaveLength(many.hits.length);
+        act(() => root.unmount());
+    });
+
+    it('the arrow key past the last drawn row draws the next page and moves onto it', async () => {
+        returned = many;
         const { root, input } = await openPanel();
-        const option = showAll();
-        if (!(option instanceof HTMLElement)) throw new Error('no Show all results');
-        act(() => option.click());
-        await settle();
-        expect(kanjiShown()).toHaveLength(2);
-        act(() => { input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
-        await act(async () => {
-            input.blur();
-            input.focus();
-            await Promise.resolve();
-        });
-        await settle();
-        expect(kanjiShown()).toHaveLength(1);
-        expect(showAll()).toBeDefined();
+        keyDown(input, 'ArrowUp');
+        expect(rows()[SEARCH_PAGE_SIZE - 1]?.getAttribute('aria-selected')).toBe('true');
+        keyDown(input, 'ArrowDown');
+        expect(rows()).toHaveLength(SEARCH_PAGE_SIZE * 2);
+        expect(rows()[SEARCH_PAGE_SIZE]?.getAttribute('aria-selected')).toBe('true');
         act(() => root.unmount());
     });
 });
