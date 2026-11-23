@@ -41,8 +41,12 @@ const LOAD_MORE_MARGIN = 400;
 /** What can be searched: the field's placeholder and its name. */
 const SEARCH_LABEL = 'Search words, kanji and grammar';
 
-/** The status column: wide enough for the widest status, "Not known yet", so every row's is one width. */
-const STATUS_COLUMN = 'w-28 shrink-0 flex items-center';
+/**
+ * The status column: as wide as its status, flush with the row's right padding. A fixed column (as
+ * wide as Not known yet) once left every word row an empty band right of Learn, cutting its gloss
+ * short; the chips line up because they lead line 2, not because of this column.
+ */
+const STATUS_COLUMN = 'shrink-0 flex items-center justify-end text-right';
 
 /** The type badge each row carries, in the one list. */
 const TYPE_LABEL: Record<AppSearchHit['group'], string> = { words: 'Word', kanji: 'Kanji', grammar: 'Grammar' };
@@ -359,7 +363,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
                                     <span className="type-support min-w-0 truncate">{option.support}</span>
                                 </div>
                             </div>
-                            {/* One width for every row's status, centred on the row: Learn and each status line up down the list. */}
+                            {/* Each row's status centred on the row and flush right, so Learn and each status end on one edge down the list. */}
                             {hasStatus && (option.interactiveStatus
                                 ? <div data-row-status className={STATUS_COLUMN} onClick={e => e.stopPropagation()}>{option.status}</div>
                                 : <div data-row-status className={STATUS_COLUMN}>{option.status}</div>)}

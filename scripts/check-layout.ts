@@ -2636,6 +2636,26 @@ async function checkAppSearchRows(tab: Tab, page: string, width: number): Promis
         return;
     }
     await checkSearchRowShape(tab, where, '#header-search-results [role="option"]');
+    await checkSearchRowStatusFlush(tab, where, '#header-search-results [role="option"]');
+}
+
+/**
+ * The app's row status (Learn, Not known yet) ends at the row's right padding (staging feedback on
+ * rc.30): the column once had a fixed width with its status at the left, so Learn ended about 48px
+ * short of the row's edge on every word row, an empty band that cut the gloss short.
+ */
+async function checkSearchRowStatusFlush(tab: Tab, where: string, rows: string): Promise<void> {
+    const gaps = await tab.evaluate<string[]>(`[...document.querySelectorAll(${JSON.stringify(rows)})]
+        .filter(row => row.getBoundingClientRect().height > 0)
+        .flatMap(row => {
+            const status = row.querySelector('[data-row-status]');
+            const content = status?.firstElementChild;
+            if (!content) return [];
+            const edge = row.getBoundingClientRect().right - parseFloat(getComputedStyle(row).paddingRight) - parseFloat(getComputedStyle(row).borderRightWidth);
+            const gap = edge - content.getBoundingClientRect().right;
+            return gap > 1 ? [row.textContent.slice(0, 20) + ' (' + gap.toFixed(0) + 'px)'] : [];
+        })`);
+    if (gaps.length > 0) failures.push(`${where}: a row's status ends short of the row's right padding: ${gaps.slice(0, 3).join(' | ')}`);
 }
 
 /**

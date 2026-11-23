@@ -436,9 +436,11 @@ Defined once, in `components/` or `components/ui/`, never copied:
   two lines, 4px apart (`gap-1`). Line 1 the thing itself: a word and its reading, a kanji and
   its main readings, a grammar title and its romaji. Line 2 its type as a neutral `Chip` (Word,
   Kanji, Grammar), leading, then its gloss truncated to one line. The app's status (Learn, a
-  status dot, Known / Not known yet) sits in a fixed-width column centred on the row, so every
-  chip shares one left edge and the statuses line up down the list; the dictionary has none.
-  `check:layout` holds both for `water` at 320px, 375px and 1280px.
+  status dot, Known / Not known yet) sits in a column as wide as it, centred on the row and flush
+  with the row's right padding, so every status ends on one edge down the list (a fixed-width
+  column once left an empty band right of Learn); every chip shares one left edge because it
+  leads line 2. The dictionary has no status. `check:layout` holds the chips, the gap and the
+  flush status for `water` at 320px, 375px and 1280px.
 - **`Disclosure`** (`ui/Disclosure.tsx`): a collapsible section (chevron button,
   `aria-expanded`), collapsed by default. Used for dataset/dictionary details, review
   history, rare senses, long explanations.
