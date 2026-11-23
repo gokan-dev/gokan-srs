@@ -4,11 +4,12 @@ import { createRoot } from 'react-dom/client';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AppSearchResults } from '../utils/search.utils';
-import { searchIndexEntry, userProgress } from '../test/fixtures';
+import type { SearchWordRow } from '@gokan/dataset-schema';
+import { userProgress } from '../test/fixtures';
 import { grammarPath, kanjiPath, vocabPath } from '../utils/navigation.utils';
 import { SEARCH_PAGE_SIZE, SearchBar } from './SearchBar';
 
-const mizu = searchIndexEntry({ id: 'mizu', w: '水', r: 'みず', m: 'water' });
+const mizu: SearchWordRow = ['mizu', '水', 'みず', 'water', 5, 1];
 const results: AppSearchResults = {
     query: 'sui',
     kana: 'すい',
@@ -23,15 +24,17 @@ const results: AppSearchResults = {
 const many: AppSearchResults = {
     query: 'su',
     kana: 'す',
-    hits: Array.from({ length: SEARCH_PAGE_SIZE * 2 + 5 }, (_, i) => ({ group: 'words', level: 2, hit: { row: searchIndexEntry({ id: `w${i}`, w: `語${i}`, r: 'す', m: 'word' }), tier: 4 } })),
+    hits: Array.from({ length: SEARCH_PAGE_SIZE * 2 + 5 }, (_, i) => ({ group: 'words', level: 2, hit: { row: [`w${i}`, `語${i}`, 'す', 'word', 0, 0], tier: 4 } })),
 };
-/** What the mocked search returns (a test sets it before opening the panel). */
-let returned = results;
+/** What the mocked search returns (a test sets it before opening the panel): results, or a search still running. */
+let returned: AppSearchResults | Promise<AppSearchResults> = results;
 
 vi.mock('../services/search.service', () => ({
     SearchService: { search: () => Promise.resolve(returned) },
 }));
-vi.mock('../hooks/useDebouncedValue', () => ({ useDebouncedValue: (value: string) => value }));
+/** The debounced query: what is typed, at once, unless a test holds it back (typing not yet paused). */
+let debounce = (value: string) => value;
+vi.mock('../hooks/useDebouncedValue', () => ({ useDebouncedValue: (value: string) => debounce(value) }));
 vi.mock('../context/Responsive/useResponsive', () => ({ useResponsive: () => ({ isMobile: false }) }));
 vi.mock('../context/useQuiz', () => ({ useQuiz: () => ({ state: { progress: userProgress() } }) }));
 // A word's status is the Learn button: a control of its own.
@@ -100,7 +103,7 @@ describe('SearchBar: one list', () => {
     it('lists every type in the matcher\'s order, each row with its type, and no group labels', async () => {
         const { root } = await openPanel();
         expect(rows().map(row => row.getAttribute('data-hit'))).toEqual(['words', 'kanji', 'grammar']);
-        expect(rows().map(row => row.querySelector('.ml-auto')?.textContent)).toEqual(['Word', 'Kanji', 'Grammar']);
+        expect(rows().map(row => row.querySelector('[data-type-chip]')?.textContent)).toEqual(['Word', 'Kanji', 'Grammar']);
         expect(document.querySelector('#header-search-results [role="group"]')).toBeNull();
         act(() => root.unmount());
     });
@@ -144,6 +147,49 @@ describe('SearchBar: one list', () => {
         keyDown(input, 'ArrowDown');
         expect(rows()).toHaveLength(SEARCH_PAGE_SIZE * 2);
         expect(rows()[SEARCH_PAGE_SIZE]?.getAttribute('aria-selected')).toBe('true');
+        act(() => root.unmount());
+    });
+});
+
+describe('SearchBar: before a search has run', () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    afterEach(() => {
+        document.body.innerHTML = '';
+        returned = results;
+    });
+
+    const panelText = () => document.querySelector('[aria-controls="header-search-results"]')?.closest('div.relative')?.parentElement?.textContent ?? '';
+
+    it('says nothing is found only once the search ran, not while typing has not paused yet', async () => {
+        debounce = () => '';
+        const { root } = await openPanel();
+        expect(panelText()).toContain('Searching…');
+        expect(panelText()).not.toContain('No results found');
+        act(() => root.unmount());
+        debounce = value => value;
+    });
+
+    it('says it is searching while the index loads, and "No results found" only once the search ran', async () => {
+        let finish: (value: AppSearchResults) => void = () => undefined;
+        returned = new Promise<AppSearchResults>(resolve => { finish = resolve; });
+        const { root } = await openPanel();
+        expect(panelText()).toContain('Searching…');
+        expect(panelText()).not.toContain('No results found');
+        await act(async () => {
+            finish({ query: 'sui', kana: 'すい', hits: [] });
+            await Promise.resolve();
+        });
+        expect(panelText()).toContain('No results found');
+        expect(panelText()).not.toContain('Searching…');
+        act(() => root.unmount());
+    });
+
+    it('gives each row its place in the whole list, for a screen reader', async () => {
+        returned = many;
+        const { root } = await openPanel();
+        const first = document.querySelector('#header-search-results [role="option"]');
+        expect(first?.getAttribute('aria-setsize')).toBe(String(many.hits.length));
+        expect(first?.getAttribute('aria-posinset')).toBe('1');
         act(() => root.unmount());
     });
 });

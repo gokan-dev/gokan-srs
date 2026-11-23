@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { conjugate, type FormLabel, type WordClass } from '@gokan/dataset-schema';
+  import { conjugate, type FormLabel, type ConjugationClass } from '@gokan/dataset-schema';
   import { pageLocale } from './pageLocale';
 
   const { forms } = pageLocale().messages.vocab;
@@ -12,7 +12,7 @@
   interface Props {
     word: string;
     reading: string;
-    wordClass: WordClass;
+    wordClass: ConjugationClass;
   }
 
   let { word, reading, wordClass }: Props = $props();

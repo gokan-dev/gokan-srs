@@ -1,23 +1,18 @@
-import type { PreparedSearch, RankedHit, RankedSearchResults, SearchGrammarRow, SearchIndex, SearchIndexEntry, SearchKanjiRow, SearchQuery, SearchWordInput, Vocabulary } from '@gokan/dataset-schema';
-import { grammarRowInput, kanjiRowInput, matchesSearchWord, prepareSearch, runRankedSearch } from '@gokan/dataset-schema';
+import type { PreparedRowSearch, RankedHit, RankedSearchResults, SearchGrammarRow, SearchIndexColumns, SearchKanjiRow, SearchQuery, SearchWordRow, Vocabulary } from '@gokan/dataset-schema';
+import { matchesSearchWord, prepareRowSearch, runRankedSearch } from '@gokan/dataset-schema';
 
-export type AppSearchIndex = PreparedSearch<SearchIndexEntry, SearchKanjiRow, SearchGrammarRow>;
-export type AppSearchResults = RankedSearchResults<SearchIndexEntry, SearchKanjiRow, SearchGrammarRow>;
-export type AppSearchHit = RankedHit<SearchIndexEntry, SearchKanjiRow, SearchGrammarRow>;
-
-/** A row of index/search.json as the shared matcher reads it: a word learned in kana is shown, and searched first, in kana. */
-function entryInput(entry: SearchIndexEntry): SearchWordInput<SearchIndexEntry> {
-    return { row: entry, forms: entry.u ? [entry.r, entry.w] : [entry.w], reading: entry.r, gloss: entry.m };
-}
+export type AppSearchIndex = PreparedRowSearch;
+export type AppSearchResults = RankedSearchResults<SearchWordRow, SearchKanjiRow, SearchGrammarRow>;
+export type AppSearchHit = RankedHit<SearchWordRow, SearchKanjiRow, SearchGrammarRow>;
 
 /**
- * The header search's index: the words of index/search.json, in its (kanji-spelling) order, and
- * the kanji and grammar rows the build writes (vite.config.ts). Ranked by the shared matcher
- * (@gokan/dataset-schema's search.ts), the dictionary's too: search.json is not in frequency
- * order, so within a tier a shorter form ranks first.
+ * The header search's index: every word (in frequency order), kanji and grammar point, as the
+ * build writes them (scripts/searchEntries.ts, the dictionary's row format), prepared by the same
+ * call as the dictionary's (`prepareRowSearch`: frequency order, the conjugation rules), so a
+ * query lists the same rows in the same order in both apps.
  */
-export function prepareAppSearch(words: SearchIndex, kanji: readonly SearchKanjiRow[] = [], grammar: readonly SearchGrammarRow[] = []): AppSearchIndex {
-    return prepareSearch({ words: words.map(entryInput), kanji: kanji.map(kanjiRowInput), grammar: grammar.map(grammarRowInput) }, { frequencyOrdered: false });
+export function prepareAppSearch(entries: SearchIndexColumns): AppSearchIndex {
+    return prepareRowSearch([entries]);
 }
 
 /**

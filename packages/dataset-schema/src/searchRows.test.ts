@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-    classCodeOfRow, fromColumns, isCommonRow, kanjiRowMeanings, prepareRowSearch, readingOfRow, SEARCH_EXPLANATION_LENGTH, searchGrammarRow, searchKanjiRow, toColumns,
+    classCodeOfRow, fromColumns, isCommonRow, kanjiRowMainReadings, kanjiRowMeanings, prepareRowSearch, readingOfRow, SEARCH_EXPLANATION_LENGTH, searchGrammarRow, searchKanjiRow, toColumns,
     truncateAtWord, type SearchWordRow,
 } from './searchRows';
 import { runSearch } from './search';
@@ -60,5 +60,14 @@ describe('search word rows', () => {
         const index = prepareRowSearch([{ w: toColumns([omou, koko, taberu]) }]);
         expect(runSearch(index, '此処').words.map(hit => hit.row[0])).toEqual(['2']);
         expect(runSearch(index, '食べた').words[0]).toMatchObject({ row: taberu, via: '食べた' });
+    });
+});
+
+describe('kanjiRowMainReadings', () => {
+    it('lists the first on and kun readings, a kun reading as it is shown, without affix forms', () => {
+        expect(kanjiRowMainReadings(['水', 5, 9201, 'water', 'スイ みず みず-'])).toEqual(['スイ', 'みず']);
+        expect(kanjiRowMainReadings(['学', 5, 63, 'study', 'ガク まな.ぶ'])).toEqual(['ガク', 'まな(ぶ)']);
+        expect(kanjiRowMainReadings(['生', 5, 29, 'life', 'セイ ショウ ジョウ い.きる い.かす う.まれる'])).toEqual(['セイ', 'ショウ', 'い(きる)', 'い(かす)']);
+        expect(kanjiRowMainReadings(['瑞', 0, 0, '', ''])).toEqual([]);
     });
 });

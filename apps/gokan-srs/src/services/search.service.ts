@@ -1,15 +1,14 @@
 import { sharedRequest } from './http';
-import { VocabularyService } from './vocabulary.service';
 import { prepareAppSearch, searchApp, type AppSearchIndex, type AppSearchResults } from '../utils/search.utils';
 
 /**
- * The header search's index, built once: the words of index/search.json (shared with the panel
- * searches, useIndexSearch) and the kanji and grammar rows, a module the build writes from the
- * dataset (vite.config.ts, `virtual:gokan-search-entries`) and loads only with the first search.
+ * The header search's index, built once: every word, kanji and grammar point, a module the build
+ * writes from the dataset (vite.config.ts, `virtual:gokan-search-entries`, in the dictionary's
+ * row format) and loads only with the first search.
  */
 const index = sharedRequest(async (): Promise<AppSearchIndex> => {
-    const [words, entries] = await Promise.all([VocabularyService.loadSearchIndex(), import('virtual:gokan-search-entries')]);
-    return prepareAppSearch(words ?? [], entries.kanji, entries.grammar);
+    const entries = await import('virtual:gokan-search-entries');
+    return prepareAppSearch({ w: entries.words, k: entries.kanji, g: entries.grammar });
 });
 
 export const SearchService = {

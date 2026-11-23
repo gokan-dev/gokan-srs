@@ -6,7 +6,7 @@
 // grading and belongs to the exercise engine; the dictionary's Forms table needs the labels and
 // both searches the inverse direction, which that module has no use for.
 
-export type WordClass =
+export type ConjugationClass =
     | 'ichidan'
     | 'godan'
     /** 行く: te-form 行って. */
@@ -125,12 +125,12 @@ const I_ADJ: Paradigm = { plain: 'い', neg: 'く', masu: '', te: 'くて', ta: 
 const II: Paradigm = { plain: 'いい', neg: 'よく', masu: '', te: 'よくて', ta: 'よかった', ba: 'よければ' };
 
 /** Every class, in a fixed order: the search index stores a word's class as its position here. */
-export const WORD_CLASSES: readonly WordClass[] = [
+export const WORD_CLASSES: readonly ConjugationClass[] = [
     'ichidan', 'godan', 'godan-iku', 'godan-tou', 'godan-aru', 'suru', 'kuru', 'i-adj', 'i-adj-ii',
 ];
 
 /** Every paradigm of a class, keyed so `deinflect` can try them all. */
-const PARADIGMS: Record<WordClass, Paradigm[]> = {
+const PARADIGMS: Record<ConjugationClass, Paradigm[]> = {
     ichidan: [ICHIDAN],
     godan: Object.keys(GODAN_ROWS).map(ending => godan(ending)),
     'godan-iku': [godan('く', 'って', 'った')],
@@ -143,9 +143,9 @@ const PARADIGMS: Record<WordClass, Paradigm[]> = {
 };
 
 /** Classes whose dictionary form can be the whole word (する, くる, ある, いい). */
-const BARE_CLASSES: ReadonlySet<WordClass> = new Set(['suru', 'kuru', 'godan-aru', 'i-adj-ii']);
+const BARE_CLASSES: ReadonlySet<ConjugationClass> = new Set(['suru', 'kuru', 'godan-aru', 'i-adj-ii']);
 
-const isAdjective = (wordClass: WordClass) => wordClass === 'i-adj' || wordClass === 'i-adj-ii';
+const isAdjective = (wordClass: ConjugationClass) => wordClass === 'i-adj' || wordClass === 'i-adj-ii';
 
 /** The forms of a paradigm as stem-relative endings, in Forms-table order. */
 function endings(p: Paradigm, adjective: boolean): [FormLabel, string][] {
@@ -176,7 +176,7 @@ function endings(p: Paradigm, adjective: boolean): [FormLabel, string][] {
  * The class a derived form conjugates as: 食べられる is an ichidan verb and 食べたい an
  * i-adjective, so 食べられなかった deinflects in two steps.
  */
-const DERIVED_CLASS: Partial<Record<FormLabel, WordClass>> = {
+const DERIVED_CLASS: Partial<Record<FormLabel, ConjugationClass>> = {
     potential: 'ichidan',
     passive: 'ichidan',
     causative: 'ichidan',
@@ -186,7 +186,7 @@ const DERIVED_CLASS: Partial<Record<FormLabel, WordClass>> = {
     negative: 'i-adj',
 };
 
-const VERB_POS: Record<string, WordClass> = {
+const VERB_POS: Record<string, ConjugationClass> = {
     v1: 'ichidan',
     'v1-s': 'ichidan',
     'v5k-s': 'godan-iku',
@@ -205,7 +205,7 @@ const VERB_POS: Record<string, WordClass> = {
  * A word's conjugation class from its JMdict part-of-speech tags, or null when it does not
  * conjugate this way (nouns, な-adjectives, archaic classes). The first conjugating tag wins.
  */
-export function wordClassOf(pos: readonly string[]): WordClass | null {
+export function wordClassOf(pos: readonly string[]): ConjugationClass | null {
     for (const tag of pos) {
         const wordClass = VERB_POS[tag];
         if (wordClass) return wordClass;
@@ -214,7 +214,7 @@ export function wordClassOf(pos: readonly string[]): WordClass | null {
 }
 
 /** The paradigm `word` conjugates by: the one whose dictionary ending it carries. */
-function paradigmFor(word: string, wordClass: WordClass): Paradigm | null {
+function paradigmFor(word: string, wordClass: ConjugationClass): Paradigm | null {
     // A kanji いい (良い) conjugates as a plain i-adjective on 良.
     if (wordClass === 'i-adj-ii' && !word.endsWith('いい')) return paradigmFor(word, 'i-adj');
     return PARADIGMS[wordClass].find(p => word.endsWith(p.plain)) ?? null;
@@ -226,7 +226,7 @@ export interface ConjugatedForm {
 }
 
 /** Every form of `word` in its class, plain first; [] when `word` does not fit the class. */
-export function conjugate(word: string, wordClass: WordClass): ConjugatedForm[] {
+export function conjugate(word: string, wordClass: ConjugationClass): ConjugatedForm[] {
     const paradigm = paradigmFor(word, wordClass);
     if (!paradigm) return [];
     const stem = word.slice(0, word.length - paradigm.plain.length);
@@ -238,7 +238,7 @@ interface Rule {
     inflected: string;
     plain: string;
     label: FormLabel;
-    wordClass: WordClass;
+    wordClass: ConjugationClass;
 }
 
 const RULES: Rule[] = WORD_CLASSES.flatMap(wordClass =>
@@ -253,7 +253,7 @@ export interface Deinflection {
     /** A candidate dictionary form. */
     form: string;
     /** The class the dictionary word must have for this reading to hold. */
-    wordClass: WordClass;
+    wordClass: ConjugationClass;
     /** The outermost form the query was read as (past, for 食べられた). */
     label: FormLabel;
 }
@@ -278,7 +278,7 @@ function applyRules(text: string): { form: string; rule: Rule }[] {
 export function deinflect(text: string): Deinflection[] {
     const seen = new Set<string>();
     const results: Deinflection[] = [];
-    const add = (form: string, wordClass: WordClass, label: FormLabel) => {
+    const add = (form: string, wordClass: ConjugationClass, label: FormLabel) => {
         const key = `${form}|${wordClass}`;
         if (seen.has(key)) return;
         seen.add(key);

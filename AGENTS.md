@@ -379,11 +379,15 @@ gokan-dictionary:
 - Sentences: `pages/SentenceText.svelte` renders runs from `lib/furigana.ts`
   (`sentenceRuns`, over the shared `rubyParts`); `pages/GrammarExamples.svelte` for grammar examples;
   `pages/FuriganaToggle.svelte`; the order a word's sentences show in, `lib/sentenceOrder.ts`.
-- Word pages: `lib/senses.ts` (meanings, summary gloss), `lib/conjugation.ts` (the one rule
-  table, used by `conjugate` for the Forms table and by `deinflect` for search).
-- Search: the index built at prerender by `lib/searchIndex.ts` (format in `lib/types.ts`,
-  row flags in `lib/searchRow.ts`), matched and ranked only by `lib/searchQuery.ts`, the
-  same module behind the header panel, `/search/` and the build-time acceptance check.
+- Word pages: `lib/senses.ts` (meanings, summary gloss), `@gokan/dataset-schema`'s
+  `conjugation.ts` (the one rule table, used by `conjugate` for the Forms table and by `deinflect`
+  for both apps' search).
+- Search: the index built at prerender by `lib/searchIndex.ts`, its rows the shared format
+  (`searchWordRow`, `searchKanjiRow`, `searchGrammarRow`, row flags, columns:
+  `@gokan/dataset-schema`'s `searchRows.ts`, gokan-srs's header search builds the same rows),
+  prepared by `prepareRowSearch` and ranked by `runRankedSearch` through `lib/searchQuery.ts`,
+  the same module behind the header panel, `/search/` and the build-time acceptance check. A
+  query lists the same rows in the same order in both apps (held by `scripts/searchParity.test.ts`).
 - Size budgets: `lib/budgets.ts`, checked by `scripts/check-build.ts` after every build, in brotli
   bytes (what a reader downloads); a list page's to the end of its first screen (`FIRST_SCREEN_ROWS`).
 - Locales: `lib/locale.ts` (`Locale`, the served ones, a page's locale from its optional route

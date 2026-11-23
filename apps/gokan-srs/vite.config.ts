@@ -55,11 +55,13 @@ const datasetPlugin: Plugin = {
     configurePreviewServer: server => { server.middlewares.use(serveDataset); },
 };
 
-// The header search's kanji and grammar rows (src/services/search.service.ts), in the row format
-// the dictionary's index uses (@gokan/dataset-schema's searchRows.ts): written from the dataset
-// checkout as a module of the build, so they ship content-hashed and load only with the first
-// search, about 120 KB gzipped where kanji.json and its English text are 460 KB. Read when the
-// module is first imported, not at startup: most dev sessions and test runs never search. Its
+// The header search's index (src/services/search.service.ts): every word, kanji and grammar
+// point, in the row format the dictionary's index uses (@gokan/dataset-schema's searchRows.ts),
+// built by the same functions so both apps rank a query the same way. Written from the dataset
+// checkout as a module of the build, so it ships content-hashed and loads only with the first
+// search: about 1.1 MB gzipped, what index/search.json and its English glosses took before, with
+// the kanji and grammar rows in. Read when the module is first imported, not at startup: most dev
+// sessions and test runs never search. Its
 // writer (scripts/searchEntries.ts) is loaded through Vite: Node alone does not resolve the
 // workspace packages' TypeScript imports.
 const SEARCH_ENTRIES_ID = 'virtual:gokan-search-entries';

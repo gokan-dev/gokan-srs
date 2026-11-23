@@ -2,7 +2,7 @@ import React, { useState, useEffect, useEffectEvent, useLayoutEffect, useRef } f
 import type { ReactNode } from 'react';
 import { Search, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { kanjiRowMeanings, searchHeadword, searchSecondaryForm } from '@gokan/dataset-schema';
+import { isUsuallyKanaRow, kanjiRowMainReadings, kanjiRowMeanings } from '@gokan/dataset-schema';
 import { SearchService } from '../services/search.service';
 import { useAsyncData } from '../hooks/useAsyncData';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
@@ -40,10 +40,17 @@ const LOAD_MORE_MARGIN = 400;
 /** What can be searched: the field's placeholder and its name. */
 const SEARCH_LABEL = 'Search words, kanji and grammar';
 
+/** The status column: wide enough for the widest status, "Not known yet", so every row's is one width. */
+const STATUS_COLUMN = 'w-28 shrink-0 flex items-center';
+
 /** The type badge each row carries, in the one list. */
 const TYPE_LABEL: Record<AppSearchHit['group'], string> = { words: 'Word', kanji: 'Kanji', grammar: 'Grammar' };
 
-/** One row of the results: where it leads, and what it shows. */
+/**
+ * One row of the results: where it leads, and what it shows. Every type has one shape: line 1 the
+ * thing itself (a word and its reading, a kanji and its main readings, a grammar title and its
+ * romaji), line 2 its type chip, then its gloss, meanings or short explanation.
+ */
 interface SearchOption {
     key: string;
     type: AppSearchHit['group'];
@@ -78,20 +85,21 @@ function GrammarStudyStatus({ grammarId }: { grammarId: string }) {
 function optionOf(hit: AppSearchHit): SearchOption {
     switch (hit.group) {
         case 'words': {
-            const { row } = hit.hit;
+            // The build's row (searchWordRow): its headword (headwordOf) and secondary form (secondaryForm).
+            const [id, headword, secondary, gloss] = hit.hit.row;
             return {
-                key: `word-${row.id}`,
+                key: `word-${id}`,
                 type: 'words',
-                path: vocabPath(row.id),
+                path: vocabPath(id),
                 main: (
                     <>
-                        <span className="font-mincho text-primary text-lg">{searchHeadword(row)}</span>
+                        <span className="font-mincho text-primary text-lg">{headword}</span>
                         {/* A word shown in kana names its kanji spelling where the reading would go. */}
-                        <span className={`${row.u ? 'font-mincho' : 'font-gothic'} text-secondary text-sm min-w-0 truncate`}>{searchSecondaryForm(row)}</span>
+                        <span className={`${isUsuallyKanaRow(hit.hit.row) ? 'font-mincho' : 'font-gothic'} text-secondary text-sm min-w-0 truncate`}>{secondary}</span>
                     </>
                 ),
-                support: row.m,
-                status: <WordStudyStatus vocabId={row.id} />,
+                support: gloss,
+                status: <WordStudyStatus vocabId={id} />,
                 interactiveStatus: true,
             };
         }
@@ -100,7 +108,12 @@ function optionOf(hit: AppSearchHit): SearchOption {
                 key: `kanji-${hit.row[0]}`,
                 type: 'kanji',
                 path: kanjiPath(hit.row[0]),
-                main: <span className="font-mincho text-primary text-lg">{hit.row[0]}</span>,
+                main: (
+                    <>
+                        <span className="font-mincho text-primary text-lg">{hit.row[0]}</span>
+                        <span className="font-gothic text-secondary text-sm min-w-0 truncate">{kanjiRowMainReadings(hit.row).join('、')}</span>
+                    </>
+                ),
                 support: kanjiRowMeanings(hit.row).join(', '),
                 status: <KanjiStudyStatus character={hit.row[0]} />,
             };
@@ -111,7 +124,7 @@ function optionOf(hit: AppSearchHit): SearchOption {
                 path: grammarPath(hit.row[0]),
                 main: (
                     <>
-                        {/* A title is the pattern itself: it keeps its width and the romaji beside it truncates first; it wraps only when it is wider than the whole row. */}
+                        {/* A title is the pattern itself: it keeps its width and the romaji beside it truncates first; it wraps only when it is wider than the whole line. */}
                         <span className="font-mincho text-primary text-lg shrink-0 max-w-full break-words">{hit.row[1]}</span>
                         {hit.row[2] && <span className="type-meta min-w-0 truncate">{hit.row[2]}</span>}
                     </>
@@ -154,7 +167,15 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
     // Every row drawn, in the one order across types, for the arrow keys and Enter.
     const options = hits.slice(0, visible).map(optionOf);
     const hasMore = hits.length > options.length;
-    const isSearching = search.status === 'loading' && search.data === undefined;
+    /**
+     * Whether the results drawn answer what is typed: a search ran for it. Until then (typing not
+     * yet paused, the index still downloading on the first search) an empty list means nothing
+     * yet, so the panel says it is searching, never "No results found".
+     */
+    const settled = search.status === 'ready' && searchTerm === query.trim();
+    const { state: quizState } = useQuiz();
+    // Before setup no row has a status: the column is left out rather than held empty.
+    const hasStatus = Boolean(quizState.progress);
 
     /**
      * A new result set opens at its top, as typing opens it with no highlight: the panel keeps the
@@ -314,9 +335,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
                     : 'absolute top-full right-0 mt-2 w-full min-w-80 md:min-w-[28rem] bg-surface border border-divider rounded-md shadow-lg z-50 max-h-[min(32rem,calc(100dvh-6rem))] overflow-y-auto'
             }
         >
-            {isSearching ? (
-                <div className="p-4 text-center type-support">Searching...</div>
-            ) : options.length > 0 ? (
+            {options.length > 0 ? (
                 <div id={LISTBOX_ID} role="listbox" aria-label="Search results" className="flex flex-col">
                     {options.map((option, index) => (
                         <div
@@ -327,24 +346,31 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
                             aria-selected={index === highlighted}
                             onClick={() => handleSelect(option.path)}
                             onMouseEnter={() => setHighlighted(index)}
+                            aria-setsize={hits.length}
+                            aria-posinset={index + 1}
                             className={`flex items-center gap-3 p-3 border-b border-divider/50 last:border-0 cursor-pointer transition-colors ${index === highlighted ? 'bg-surface-hover' : ''}`}
                         >
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-baseline gap-2 min-w-0">
-                                    {option.main}
-                                    {/* Its type, as metadata: one list holds words, kanji and grammar points. */}
-                                    <Chip size="sm" className="ml-auto shrink-0">{TYPE_LABEL[option.type]}</Chip>
+                            <div className="flex-1 min-w-0 flex flex-col gap-1">
+                                <div data-row-line="1" className="flex items-baseline gap-2 min-w-0">{option.main}</div>
+                                <div data-row-line="2" className="flex items-baseline gap-2 min-w-0">
+                                    {/* Its type leads the line, as metadata: every row's chip sits in one column, whatever its status. */}
+                                    <span data-type-chip className="shrink-0 inline-flex"><Chip size="sm">{TYPE_LABEL[option.type]}</Chip></span>
+                                    <span className="type-support min-w-0 truncate">{option.support}</span>
                                 </div>
-                                <div className="type-support truncate">{option.support}</div>
                             </div>
-                            {option.interactiveStatus
-                                ? <div className="shrink-0" onClick={e => e.stopPropagation()}>{option.status}</div>
-                                : <div className="shrink-0">{option.status}</div>}
+                            {/* One width for every row's status, centred on the row: Learn and each status line up down the list. */}
+                            {hasStatus && (option.interactiveStatus
+                                ? <div data-row-status className={STATUS_COLUMN} onClick={e => e.stopPropagation()}>{option.status}</div>
+                                : <div data-row-status className={STATUS_COLUMN}>{option.status}</div>)}
                         </div>
                     ))}
                 </div>
-            ) : (
+            ) : settled ? (
                 <div className="p-4 text-center type-support">No results found</div>
+            ) : search.status === 'error' ? (
+                <div className="p-4 text-center type-support">Search could not load. Try again in a moment.</div>
+            ) : (
+                <div className="p-4 text-center type-support" role="status">Searching…</div>
             )}
         </div>
     );

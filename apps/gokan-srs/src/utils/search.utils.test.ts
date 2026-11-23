@@ -1,17 +1,24 @@
 import { describe, expect, it } from 'vitest';
-import { readSearchQuery } from '@gokan/dataset-schema';
-import type { SearchGrammarRow, SearchIndex, SearchKanjiRow } from '@gokan/dataset-schema';
-import { searchIndexEntry, vocabulary } from '../test/fixtures';
+import { kanjiToColumns, readSearchQuery, searchWordRow, toColumns } from '@gokan/dataset-schema';
+import type { SearchGrammarRow, SearchKanjiRow, SearchWordRow } from '@gokan/dataset-schema';
+import { vocabulary } from '../test/fixtures';
 import { matchesVocabQuery, prepareAppSearch, searchApp, type AppSearchHit, type AppSearchIndex } from './search.utils';
 
-/** The words the header search shows for `query`, in its order (an index of words alone). */
-const rankVocabSearch = (index: SearchIndex, query: string, limit = 50) =>
-    searchApp(prepareAppSearch(index), query).hits.flatMap(hit => (hit.group === 'words' ? [hit.hit.row] : [])).slice(0, limit);
+/** A word's search row, as the build writes it (searchWordRow): JLPT level 0 and not common unless given. */
+const word = (id: string, kanji: string, reading: string, gloss: string, { jlpt, kana = false, pos = ['n'] }: { jlpt?: number; kana?: boolean; pos?: string[] } = {}): SearchWordRow =>
+    searchWordRow(vocabulary({ id, writtenForm: { kanji, alternatives: [], containedKanji: [] }, reading: { primary: reading, alternatives: [] }, senses: [{ pos, misc: { rawTags: [] }, glosses: [gloss], related: { compounds: [] } }], jlptLevel: jlpt, isCommon: false, ...(kana ? { usuallyKana: true as const } : {}) }));
+
+/** An index of rows in frequency order. */
+const indexOf = (words: SearchWordRow[], kanji: SearchKanjiRow[] = [], grammar: SearchGrammarRow[] = []): AppSearchIndex =>
+    prepareAppSearch({ w: toColumns(words), k: kanjiToColumns(kanji), g: grammar });
+
+/** The words the header search shows for `query`, in its order. */
+const wordIds = (index: AppSearchIndex, query: string) => searchApp(index, query).hits.flatMap(hit => (hit.group === 'words' ? [hit.hit.row[0]] : []));
 
 /** A hit as `group:id`, for a whole ranking at a glance. */
 const label = (hit: AppSearchHit): string => {
     switch (hit.group) {
-        case 'words': return `words:${hit.hit.row.id}`;
+        case 'words': return `words:${hit.hit.row[0]}`;
         case 'kanji': return `kanji:${hit.row[0]}`;
         case 'grammar': return `grammar:${hit.row[0]}`;
     }
@@ -20,108 +27,32 @@ const ranking = (index: AppSearchIndex, query: string) => searchApp(index, query
 const groupRows = <G extends AppSearchHit['group']>(index: AppSearchIndex, query: string, group: G) =>
     searchApp(index, query).hits.filter((hit): hit is Extract<AppSearchHit, { group: G }> => hit.group === group);
 
-// In search.json's order (kanji spelling): compounds containing する come before 為る.
-const index = [
-    searchIndexEntry({ id: 'kigasuru', w: '気がする', r: 'きがする', m: 'to have a feeling' }),
-    searchIndexEntry({ id: 'aisuru', w: '愛する', r: 'あいする', m: 'to love' }),
-    searchIndexEntry({ id: 'suruga', w: '駿河', r: 'するが', m: 'Suruga (province)' }),
-    searchIndexEntry({ id: 'kosuru', w: '擦る', r: 'こする', m: 'to rub' }),
-    searchIndexEntry({ id: 'suru-rub', w: '擦る', r: 'する', m: 'to rub; to strike' }),
-    searchIndexEntry({ id: 'suru-print', w: '刷る', r: 'する', m: 'to print' }),
-    searchIndexEntry({ id: 'suru', w: '為る', r: 'する', m: 'to do', u: true }),
-    searchIndexEntry({ id: 'surume', w: '鯣', r: 'するめ', m: 'dried squid' }),
-];
+describe('the header search over words', () => {
+    // In frequency order, as the dictionary's index: a row's position is its rank.
+    const index = indexOf([
+        word('suru', '為る', 'する', 'to do', { jlpt: 5, kana: true, pos: ['vs-i'] }),
+        word('kigasuru', '気がする', 'きがする', 'to have a feeling'),
+        word('surume', '鯣', 'するめ', 'dried squid'),
+        word('taberu', '食べる', 'たべる', 'to eat', { jlpt: 5, pos: ['v1'] }),
+        word('chotto', '一寸', 'ちょっと', 'a little', { kana: true }),
+    ]);
 
-const ids = (query: string) => rankVocabSearch(index, query).map(entry => entry.id);
-
-describe('rankVocabSearch', () => {
-    it('puts the word shown as the query first, then exact spellings, prefixes and substrings', () => {
-        // 愛する and こする tie on length (3), so index order settles them.
-        expect(ids('する')).toEqual(['suru', 'suru-rub', 'suru-print', 'suruga', 'surume', 'aisuru', 'kosuru', 'kigasuru']);
+    it('puts the word shown as the query first, then prefixes, then words containing it', () => {
+        expect(wordIds(index, 'する')).toEqual(['suru', 'surume', 'kigasuru']);
     });
 
-    it('ranks a romaji query by its kana as a reading', () => {
-        // Only readings match romaji, so 愛する is measured by あいする (4) and ties with きがする.
-        expect(ids('suru')).toEqual(['suru', 'suru-rub', 'suru-print', 'suruga', 'surume', 'kosuru', 'kigasuru', 'aisuru']);
+    it('reads romaji, a romaji syllable typed partway, and a word learned in kana by its kanji', () => {
+        expect(['tabe', 'taber', 'taberu'].map(query => wordIds(index, query)[0])).toEqual(['taberu', 'taberu', 'taberu']);
+        expect(wordIds(index, 'chot')[0]).toBe('chotto');
+        expect(wordIds(index, '一寸')).toEqual(['chotto']);
     });
 
-    it('ranks an exact kanji spelling before longer words containing it', () => {
-        const kanji = [
-            searchIndexEntry({ id: 'mainichi', w: '毎日', r: 'まいにち' }),
-            searchIndexEntry({ id: 'nichiyou', w: '日曜', r: 'にちよう' }),
-            searchIndexEntry({ id: 'hi', w: '日', r: 'ひ' }),
-        ];
-        expect(rankVocabSearch(kanji, '日').map(entry => entry.id)).toEqual(['hi', 'nichiyou', 'mainichi']);
-    });
-
-    it('keeps index order for an English query', () => {
-        expect(ids('to ')).toEqual(['kigasuru', 'aisuru', 'kosuru', 'suru-rub', 'suru-print', 'suru']);
-    });
-
-    it('reads a Japanese query against Japanese only, and caps the list', () => {
-        // A Japanese query is not matched against English glosses (the dictionary never did), so
-        // a gloss that happens to quote する no longer follows the words.
-        const mixed = [
-            searchIndexEntry({ id: 'gloss', w: '話', r: 'はなし', m: 'talk about する' }),
-            searchIndexEntry({ id: 'word', w: '気がする', r: 'きがする', m: 'to have a feeling' }),
-        ];
-        expect(rankVocabSearch(mixed, 'する').map(entry => entry.id)).toEqual(['word']);
-        expect(rankVocabSearch(index, 'する', 2).map(entry => entry.id)).toEqual(['suru', 'suru-rub']);
-    });
-
-    it('keeps a word while its romaji is typed partway through a syllable', () => {
-        const words = [
-            searchIndexEntry({ id: 'tabemono', w: '食べ物', r: 'たべもの', m: 'food' }),
-            searchIndexEntry({ id: 'taberu', w: '食べる', r: 'たべる', m: 'to eat' }),
-            searchIndexEntry({ id: 'benkyou', w: '勉強', r: 'べんきょう', m: 'study' }),
-            searchIndexEntry({ id: 'nihongo', w: '日本語', r: 'にほんご', m: 'Japanese (language)' }),
-            searchIndexEntry({ id: 'chotto', w: '一寸', r: 'ちょっと', m: 'a little', u: true }),
-            searchIndexEntry({ id: 'kana', w: '仮名', r: 'かな', m: 'kana' }),
-        ];
-        const first = (query: string) => rankVocabSearch(words, query)[0]?.id;
-        expect(['tabe', 'taber', 'taberu'].map(first)).toEqual(['taberu', 'taberu', 'taberu']);
-        expect(first('benky')).toBe('benkyou');
-        expect(first('nihong')).toBe('nihongo');
-        expect(first('chot')).toBe('chotto');
-        expect(rankVocabSearch(words, 'kan').map(entry => entry.id)).toContain('kana');
-    });
-
-    it('ranks an English whole word in the gloss before a reading the romaji only starts', () => {
-        const words = [
-            searchIndexEntry({ id: 'kara', w: '空', r: 'から', m: 'empty' }),
-            searchIndexEntry({ id: 'kariru', w: '借りる', r: 'かりる', m: 'to borrow' }),
-            searchIndexEntry({ id: 'houseki', w: '宝石', r: 'ほうせき', m: 'gem; jewel' }),
-            searchIndexEntry({ id: 'cart', w: '荷車', r: 'にぐるま', m: 'cart' }),
-            searchIndexEntry({ id: 'car', w: '車', r: 'くるま', m: 'car; automobile' }),
-            searchIndexEntry({ id: 'ie', w: '家', r: 'いえ', m: 'house; residence' }),
-            searchIndexEntry({ id: 'okara', w: '雪花菜', r: 'おから', m: 'okara (soy pulp)' }),
-        ];
-        const ranked = (query: string) => rankVocabSearch(words, query).map(entry => entry.id);
-        // "car" is not romaji (no syllable starts with c alone); a gloss containing it (cart) follows.
-        expect(ranked('car')).toEqual(['car', 'cart']);
-        // "house" reads ほうせ, which 宝石 starts with.
-        expect(ranked('house')).toEqual(['ie', 'houseki']);
-        // A gloss that only contains the query (okara) stays below the romaji prefixes.
-        expect(ranked('kar')).toEqual(['kara', 'kariru', 'okara']);
-    });
-
-    it('reads a romaji query as an IME does: spaces dropped, \' after n, - as ー', () => {
-        const words = [
-            searchIndexEntry({ id: 'taberu', w: '食べる', r: 'たべる', m: 'to eat' }),
-            searchIndexEntry({ id: 'kani', w: '蟹', r: 'かに', m: 'crab' }),
-            searchIndexEntry({ id: 'kan-i', w: '簡易', r: 'かんい', m: 'simple; easy' }),
-            searchIndexEntry({ id: 'coffee', w: '珈琲', r: 'コーヒー', m: 'coffee', u: true }),
-        ];
-        const first = (query: string) => rankVocabSearch(words, query)[0]?.id;
-        expect(first('tabe ru')).toBe('taberu');
-        expect(first("kan'i")).toBe('kan-i');
-        expect(first('kani')).toBe('kani');
-        expect(first('ko-hi-')).toBe('coffee');
-        expect(first('ko-h')).toBe('coffee');
+    it('finds a word from a conjugated form, as the dictionary does', () => {
+        expect(wordIds(index, '食べた')[0]).toBe('taberu');
     });
 
     it('returns nothing for an empty query', () => {
-        expect(rankVocabSearch(index, '  ')).toEqual([]);
+        expect(searchApp(index, '  ').hits).toEqual([]);
     });
 });
 
@@ -147,14 +78,14 @@ describe('matchesVocabQuery', () => {
 });
 
 describe('the header search over kanji and grammar', () => {
-    const words = [searchIndexEntry({ id: 'mizu', w: '水', r: 'みず', m: 'water' }), searchIndexEntry({ id: 'suiyoubi', w: '水曜日', r: 'すいようび', m: 'Wednesday' })];
+    const words = [word('mizu', '水', 'みず', 'water'), word('suiyoubi', '水曜日', 'すいようび', 'Wednesday')];
     const kanji: SearchKanjiRow[] = [['水', 5, 9201, 'water', 'スイ みず みず-'], ['吹', 3, 1200, 'blow; breathe', 'スイ ふ.く']];
     const grammar: SearchGrammarRow[] = [['n5-048', 'Verb てから～', '〜te kara', "Express a sequence of actions or events; 'after'.", 5]];
-    const index = prepareAppSearch(words, kanji, grammar);
+    const index = indexOf(words, kanji, grammar);
 
     it('finds the kanji 水 by its character, meaning and readings', () => {
         for (const query of ['水', 'water', 'みず', 'すい', 'sui', 'mizu']) expect(groupRows(index, query, 'kanji')[0]?.row[0]).toBe('水');
-        expect(groupRows(index, 'mizu', 'words').map(hit => hit.hit.row.id)).toEqual(['mizu']);
+        expect(groupRows(index, 'mizu', 'words').map(hit => hit.hit.row[0])).toEqual(['mizu']);
     });
 
     it('finds a grammar point by its title, its romaji and its kana', () => {
@@ -168,13 +99,8 @@ describe('the header search over kanji and grammar', () => {
     });
 
     it('ranks an exact match of any type above a prefix, and a prefix above a meaning', () => {
-        const mixed = prepareAppSearch(
-            [
-                searchIndexEntry({ id: 'kara', w: '空', r: 'から', m: 'empty' }),
-                searchIndexEntry({ id: 'karada', w: '体', r: 'からだ', m: 'body' }),
-                searchIndexEntry({ id: 'mizu', w: '水', r: 'みず', m: 'water' }),
-                searchIndexEntry({ id: 'suido', w: '水道', r: 'すいどう', m: 'water supply' }),
-            ],
+        const mixed = indexOf(
+            [word('kara', '空', 'から', 'empty'), word('karada', '体', 'からだ', 'body'), word('mizu', '水', 'みず', 'water'), word('suido', '水道', 'すいどう', 'water supply')],
             [['水', 5, 9201, 'water', 'スイ みず'], ['空', 5, 300, 'sky; empty', 'クウ そら から']],
             [['n5-kara', 'から', 'kara', 'Because; since.', 5]],
         );
@@ -185,8 +111,8 @@ describe('the header search over kanji and grammar', () => {
     });
 
     it('caps nothing: every match of every type is in the list', () => {
-        const many = prepareAppSearch(
-            Array.from({ length: 80 }, (_, i) => searchIndexEntry({ id: `w${i}`, w: `水${i}`, r: `すい${i}`, m: 'water' })),
+        const many = indexOf(
+            Array.from({ length: 80 }, (_, i) => word(`w${i}`, `水${i}`, `すい${i}`, 'water')),
             ['水', '吹', '推', '垂', '炊', '粋', '酔'].map((k): SearchKanjiRow => [k, 5, 100, 'water', 'スイ']),
             [['n5-073', 'Verb やすい', '〜yasui', 'easy to do', 5]],
         );

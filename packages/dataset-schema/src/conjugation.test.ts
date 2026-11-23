@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { conjugate, deinflect, FORM_LABELS, wordClassOf, type FormLabel, type WordClass } from './conjugation';
+import { conjugate, deinflect, FORM_LABELS, wordClassOf, type FormLabel, type ConjugationClass } from './conjugation';
 
-function formsOf(word: string, wordClass: WordClass): Partial<Record<FormLabel, string>> {
+function formsOf(word: string, wordClass: ConjugationClass): Partial<Record<FormLabel, string>> {
     return Object.fromEntries(conjugate(word, wordClass).map(({ label, form }) => [label, form]));
 }
 
@@ -62,7 +62,7 @@ describe('conjugate', () => {
 });
 
 describe('deinflect', () => {
-    const CASES: [string, WordClass][] = [
+    const CASES: [string, ConjugationClass][] = [
         ['食べる', 'ichidan'], ['たべる', 'ichidan'], ['書く', 'godan'], ['泳ぐ', 'godan'], ['話す', 'godan'],
         ['待つ', 'godan'], ['死ぬ', 'godan'], ['遊ぶ', 'godan'], ['読む', 'godan'], ['帰る', 'godan'],
         ['買う', 'godan'], ['する', 'suru'], ['勉強する', 'suru'], ['来る', 'kuru'], ['くる', 'kuru'],

@@ -3,10 +3,10 @@
 // and both read them back through the one matcher (search.ts) with the same options
 // (`prepareRowSearch`), so a query finds the same rows in the same order in both.
 
-import { deinflect, WORD_CLASSES, wordClassOf, type WordClass } from './conjugation';
+import { deinflect, WORD_CLASSES, wordClassOf, type ConjugationClass } from './conjugation';
 import type { GrammarPoint } from './grammar';
 import { headwordOf, secondaryForm } from './headword';
-import type { Kanji } from './kanji';
+import { kunReadingLabel, type Kanji } from './kanji';
 import { prepareSearch } from './search';
 import type { Deinflector, PreparedSearch, SearchGlossLanguage, SearchGrammarInput, SearchKanjiInput, SearchWordInput } from './search';
 import type { Vocabulary } from './vocabulary';
@@ -95,7 +95,7 @@ export function searchWordRow(vocab: Vocabulary): SearchWordRow {
     return [vocab.id, headwordOf(vocab), secondaryForm(vocab), shortGloss(vocab), vocab.jlptLevel ?? 0, flags];
 }
 
-export function wordClassOfRow(row: SearchWordRow): WordClass | null {
+export function wordClassOfRow(row: SearchWordRow): ConjugationClass | null {
     const code = classCodeOfRow(row);
     return code > 0 ? WORD_CLASSES[code - 1] : null;
 }
@@ -154,6 +154,18 @@ export function searchGrammarRow(point: Pick<GrammarPoint, 'id' | 'title' | 'rom
 /** A kanji row's meanings, the main one first. */
 export const kanjiRowMeanings = (row: SearchKanjiRow): string[] => (row[3] ? row[3].split('; ') : []);
 
+/**
+ * A kanji row's main readings, as a search row shows them beside the glyph: its first on readings
+ * (katakana), then its first kun readings written as a kun reading is shown (まな(ぶ),
+ * kunReadingLabel), affix forms (みず-) left out, `perKind` of each.
+ */
+export function kanjiRowMainReadings(row: SearchKanjiRow, perKind = 2): string[] {
+    const readings = row[4] ? row[4].split(' ').filter(reading => !reading.includes('-')) : [];
+    const on = readings.filter(reading => /^[ァ-ヿ]/.test(reading));
+    const kun = readings.filter(reading => !/^[ァ-ヿ]/.test(reading)).map(kunReadingLabel);
+    return [...new Set(on)].slice(0, perKind).concat([...new Set(kun)].slice(0, perKind));
+}
+
 /** A kanji row as the matcher reads it. */
 export function kanjiRowInput(row: SearchKanjiRow): SearchKanjiInput<SearchKanjiRow> {
     return { row, character: row[0], meanings: kanjiRowMeanings(row), readings: row[4] ? row[4].split(' ') : [], jlpt: row[1], frequency: row[2] };
@@ -165,7 +177,7 @@ export function grammarRowInput(row: SearchGrammarRow): SearchGrammarInput<Searc
 }
 
 /** A word row as the matcher reads it: a word learned in kana shows its kana, and its kanji spelling (the secondary form) still finds it. */
-export function wordRowInput(row: SearchWordRow): SearchWordInput<SearchWordRow, WordClass> {
+export function wordRowInput(row: SearchWordRow): SearchWordInput<SearchWordRow, ConjugationClass> {
     return {
         row,
         forms: isUsuallyKanaRow(row) ? [row[1], row[2]] : [row[1]],
@@ -178,15 +190,15 @@ export function wordRowInput(row: SearchWordRow): SearchWordInput<SearchWordRow,
 }
 
 /** A conjugated form's candidates may name a regular godan rule for 行く or 問う, whose other forms are regular. */
-function classFits(wordClass: WordClass | null, ruleClass: WordClass): boolean {
+function classFits(wordClass: ConjugationClass | null, ruleClass: ConjugationClass): boolean {
     if (wordClass === ruleClass) return true;
     return ruleClass === 'godan' && (wordClass === 'godan-iku' || wordClass === 'godan-tou');
 }
 
 /** The conjugation rules (conjugation.ts) walked backwards, so a search for 食べた finds 食べる. */
-export const SEARCH_DEINFLECTOR: Deinflector<WordClass> = { candidates: deinflect, fits: classFits };
+export const SEARCH_DEINFLECTOR: Deinflector<ConjugationClass> = { candidates: deinflect, fits: classFits };
 
-export type PreparedRowSearch = PreparedSearch<SearchWordRow, SearchKanjiRow, SearchGrammarRow, WordClass>;
+export type PreparedRowSearch = PreparedSearch<SearchWordRow, SearchKanjiRow, SearchGrammarRow, ConjugationClass>;
 
 /**
  * The index both apps search: the words of every file, in order (frequency order), and the kanji
