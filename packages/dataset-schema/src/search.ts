@@ -73,6 +73,59 @@ export const GRAMMAR_TIER = {
 
 export type SearchGroup = 'words' | 'kanji' | 'grammar';
 
+/**
+ * One scale every group's tiers map onto, best first, so words, kanji and grammar points can be
+ * listed as one ranking (gokan-srs's header search, `runRankedSearch`): the thing itself, then
+ * what starts with the query, then a meaning equal to it, then the query as a word of a meaning,
+ * then the rest. Within a level each group keeps its own order, and the groups follow `groups`.
+ */
+export const SEARCH_LEVEL = {
+    /** A word's form or reading (typed, read from romaji or deinflected), the kanji itself, a grammar title. */
+    exact: 1,
+    /**
+     * A form, reading or title starting with the query, a compound containing a kanji-only query, a
+     * title read as words in romaji ("te form"), and a kanji whose reading is the query: a reading is
+     * one piece of the words it starts, not the kanji itself.
+     */
+    prefix: 2,
+    /** A word's sense or a kanji's meaning equal to the query. */
+    meaning: 3,
+    /** The query as a whole word of a gloss, a kanji's meaning or a grammar point's explanation. */
+    meaningWord: 4,
+    /** Anything else: a substring, a reading started in romaji (after the English tiers, as for a word). */
+    partial: 5,
+} as const;
+
+export type SearchLevel = (typeof SEARCH_LEVEL)[keyof typeof SEARCH_LEVEL];
+
+/** Where each group's tier sits on the shared scale. */
+export function wordLevel(tier: number): SearchLevel {
+    if (tier <= WORD_TIER.deinflected) return SEARCH_LEVEL.exact;
+    if (tier <= WORD_TIER.compound) return SEARCH_LEVEL.prefix;
+    if (tier === WORD_TIER.sense) return SEARCH_LEVEL.meaning;
+    if (tier === WORD_TIER.glossWord) return SEARCH_LEVEL.meaningWord;
+    return SEARCH_LEVEL.partial;
+}
+
+export function kanjiLevel(tier: number): SearchLevel {
+    switch (tier) {
+        case KANJI_TIER.character: return SEARCH_LEVEL.exact;
+        case KANJI_TIER.reading: return SEARCH_LEVEL.prefix;
+        case KANJI_TIER.meaning: return SEARCH_LEVEL.meaning;
+        default: return SEARCH_LEVEL.meaningWord;
+    }
+}
+
+export function grammarLevel(tier: number): SearchLevel {
+    switch (tier) {
+        case GRAMMAR_TIER.exact: return SEARCH_LEVEL.exact;
+        case GRAMMAR_TIER.prefix:
+        case GRAMMAR_TIER.titleWords: return SEARCH_LEVEL.prefix;
+        case GRAMMAR_TIER.explanation: return SEARCH_LEVEL.meaningWord;
+        default: return SEARCH_LEVEL.partial;
+    }
+}
+
 /** What a word is matched on. `forms` and `reading` may be katakana or hiragana: they are compared as hiragana. */
 export interface SearchWordInput<W, C extends string = string> {
     row: W;
@@ -459,7 +512,7 @@ function matchKanji<K>(kanji: PreparedKanji<K>, query: SearchQuery, sense: strin
     return 0;
 }
 
-function searchKanji<W, K, G, C extends string>(index: PreparedSearch<W, K, G, C>, query: SearchQuery): K[] {
+function searchKanji<W, K, G, C extends string>(index: PreparedSearch<W, K, G, C>, query: SearchQuery): { row: K; tier: number }[] {
     // The kanji of the query first, in its order.
     const own: PreparedKanji<K>[] = [];
     for (const character of new Set(query.text)) {
@@ -481,12 +534,12 @@ function searchKanji<W, K, G, C extends string>(index: PreparedSearch<W, K, G, C
         || b.kanji.jlpt - a.kanji.jlpt
         || frequency(a.kanji) - frequency(b.kanji)
         || a.kanji.position - b.kanji.position);
-    return [...own, ...hits.map(hit => hit.kanji)].map(kanji => kanji.row);
+    return [...own.map(kanji => ({ row: kanji.row, tier: KANJI_TIER.character })), ...hits.map(hit => ({ row: hit.kanji.row, tier: hit.tier }))];
 }
 
-function searchGrammar<W, K, G, C extends string>(index: PreparedSearch<W, K, G, C>, query: SearchQuery): { rows: G[]; exactTitle: boolean } {
+function searchGrammar<W, K, G, C extends string>(index: PreparedSearch<W, K, G, C>, query: SearchQuery): { hits: { row: G; tier: number }[]; exactTitle: boolean } {
     const key = grammarKey(query.text);
-    if (!key) return { rows: [], exactTitle: false };
+    if (!key) return { hits: [], exactTitle: false };
     const { japanese, latin, romajiKana: kana } = query;
     const kanaKey = kana ?? (japanese ? toHiragana(key) : null);
     const titleIs = (point: PreparedGrammar<G>, value: string) => point.title === value || point.pattern === value;
@@ -506,11 +559,19 @@ function searchGrammar<W, K, G, C extends string>(index: PreparedSearch<W, K, G,
         if (tier) hits.push({ row: point.row, tier, position: point.position });
     }
     hits.sort((a, b) => a.tier - b.tier || a.position - b.position);
-    return { rows: hits.map(hit => hit.row), exactTitle: hits[0]?.tier === GRAMMAR_TIER.exact };
+    return { hits: hits.map(({ row, tier }) => ({ row, tier })), exactTitle: hits[0]?.tier === GRAMMAR_TIER.exact };
 }
 
-/** Every match for `raw`, best first, grouped as words, kanji and grammar, with the order to show the groups in. */
-export function runSearch<W, K, G, C extends string = string>(index: PreparedSearch<W, K, G, C>, raw: string): SearchResults<W, K, G> {
+interface TieredResults<W, K, G> {
+    query: string;
+    kana: string | null;
+    words: WordHit<W>[];
+    kanji: { row: K; tier: number }[];
+    grammar: { row: G; tier: number }[];
+    groups: SearchGroup[];
+}
+
+function searchTiered<W, K, G, C extends string>(index: PreparedSearch<W, K, G, C>, raw: string): TieredResults<W, K, G> {
     const query = readSearchQuery(raw);
     if (!query) return { query: '', kana: null, words: [], kanji: [], grammar: [], groups: ['words', 'kanji', 'grammar'] };
     const words = searchWords(index, query, raw);
@@ -519,5 +580,42 @@ export function runSearch<W, K, G, C extends string = string>(index: PreparedSea
     const groups: SearchGroup[] = query.kanjiOnly && query.text.length === 1 && kanji.length > 0
         ? ['kanji', 'words', 'grammar']
         : grammar.exactTitle ? ['grammar', 'words', 'kanji'] : ['words', 'kanji', 'grammar'];
-    return { query: query.text, kana: query.romajiKana, words, kanji, grammar: grammar.rows, groups };
+    return { query: query.text, kana: query.romajiKana, words, kanji, grammar: grammar.hits, groups };
+}
+
+/** Every match for `raw`, best first, grouped as words, kanji and grammar, with the order to show the groups in. */
+export function runSearch<W, K, G, C extends string = string>(index: PreparedSearch<W, K, G, C>, raw: string): SearchResults<W, K, G> {
+    const results = searchTiered(index, raw);
+    return { ...results, kanji: results.kanji.map(hit => hit.row), grammar: results.grammar.map(hit => hit.row) };
+}
+
+/** One hit of a ranking across groups: its group, its row, and its level on the shared scale. */
+export type RankedHit<W, K, G> =
+    | { group: 'words'; level: SearchLevel; hit: WordHit<W> }
+    | { group: 'kanji'; level: SearchLevel; row: K }
+    | { group: 'grammar'; level: SearchLevel; row: G };
+
+export interface RankedSearchResults<W, K, G> {
+    query: string;
+    kana: string | null;
+    /** Every match of every group, best level first; within a level, the groups in `groups` order, each in its own. */
+    hits: RankedHit<W, K, G>[];
+}
+
+/**
+ * Every match for `raw` as one list across groups (gokan-srs's header search): ranked by
+ * `SEARCH_LEVEL`, so an exact match of any type comes before a prefix match, which comes before a
+ * meaning match. Within a level each group keeps `runSearch`'s order, and the groups follow its
+ * `groups` (the kanji first for a query of one kanji, grammar first for a title).
+ */
+export function runRankedSearch<W, K, G, C extends string = string>(index: PreparedSearch<W, K, G, C>, raw: string): RankedSearchResults<W, K, G> {
+    const results = searchTiered(index, raw);
+    const byGroup: Record<SearchGroup, RankedHit<W, K, G>[]> = {
+        words: results.words.map(hit => ({ group: 'words', level: wordLevel(hit.tier), hit })),
+        kanji: results.kanji.map(({ row, tier }) => ({ group: 'kanji', level: kanjiLevel(tier), row })),
+        grammar: results.grammar.map(({ row, tier }) => ({ group: 'grammar', level: grammarLevel(tier), row })),
+    };
+    // A stable sort: within a level the groups stay in `groups` order, each in its own.
+    const hits = results.groups.flatMap(group => byGroup[group]).sort((a, b) => a.level - b.level);
+    return { query: results.query, kana: results.kana, hits };
 }

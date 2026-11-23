@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GRAMMAR_TIER, matchesSearchWord, normalizeQuery, prepareSearch, readSearchQuery, runSearch, WORD_TIER } from './search';
+import { GRAMMAR_TIER, grammarLevel, KANJI_TIER, kanjiLevel, matchesSearchWord, normalizeQuery, prepareSearch, readSearchQuery, runRankedSearch, runSearch, SEARCH_LEVEL, WORD_TIER, wordLevel } from './search';
 import type { Deinflector, SearchGrammarInput, SearchKanjiInput, SearchWordInput } from './search';
 
 type Word = { id: string; written: string; reading: string; gloss: string; kana?: boolean; jlpt?: boolean; common?: boolean; verb?: boolean };
@@ -249,6 +249,43 @@ describe('grammar', () => {
         const index2 = prepareSearch<string, string, string>({ words: [], grammar: [point('a', '～ことから', '〜koto kara'), point('b', 'から', 'kara')] });
         expect(runSearch(index2, 'から').grammar).toEqual(['b', 'a']);
         expect(GRAMMAR_TIER.exact).toBeLessThan(GRAMMAR_TIER.contains);
+    });
+});
+
+describe('one ranking across groups', () => {
+    const index = prepareSearch<string, string, string>({
+        words: [
+            word({ id: 'suiei', written: '水泳', reading: 'すいえい', gloss: 'swimming' }),
+            word({ id: 'mizu', written: '水', reading: 'みず', gloss: 'water' }),
+            word({ id: 'suidou', written: '水道', reading: 'すいどう', gloss: 'water supply' }),
+            word({ id: 'kara-empty', written: '空', reading: 'から', gloss: 'empty' }),
+            word({ id: 'karada', written: '体', reading: 'からだ', gloss: 'body' }),
+            word({ id: 'yasui', written: '安い', reading: 'やすい', gloss: 'cheap' }),
+        ],
+        kanji: [kanji('水', ['water'], ['スイ', 'みず'], 5, 200), kanji('空', ['sky', 'empty'], ['クウ', 'そら', 'から'], 5, 300)],
+        grammar: [point('kara', 'から', 'kara', 'Because; since.'), point('yasui', 'Verb やすい', 'yasui', 'Easy to do.')],
+    });
+    const ranked = (query: string) => runRankedSearch(index, query).hits.map(hit => `${hit.group}:${hit.group === 'words' ? hit.hit.row : hit.row}`);
+
+    it('lists an exact match of any type above a prefix match, and that above a meaning match', () => {
+        expect(ranked('から')).toEqual(['grammar:kara', 'words:kara-empty', 'words:karada', 'kanji:空']);
+        expect(ranked('water')).toEqual(['words:mizu', 'kanji:水', 'words:suidou']);
+        expect(ranked('水')).toEqual(['kanji:水', 'words:mizu', 'words:suiei', 'words:suidou']);
+    });
+
+    it('maps every tier onto the shared scale in its own order', () => {
+        const words = Object.values(WORD_TIER).sort((a, b) => a - b).map(wordLevel);
+        expect(words).toEqual([...words].sort((a, b) => a - b));
+        expect(kanjiLevel(KANJI_TIER.character)).toBe(SEARCH_LEVEL.exact);
+        expect(kanjiLevel(KANJI_TIER.meaning)).toBe(wordLevel(WORD_TIER.sense));
+        expect(grammarLevel(GRAMMAR_TIER.exact)).toBe(SEARCH_LEVEL.exact);
+        expect(grammarLevel(GRAMMAR_TIER.explanation)).toBe(wordLevel(WORD_TIER.glossWord));
+    });
+
+    it('keeps every match runSearch finds, and nothing for a blank query', () => {
+        const all = runSearch(index, 'sui');
+        expect(runRankedSearch(index, 'sui').hits).toHaveLength(all.words.length + all.kanji.length + all.grammar.length);
+        expect(runRankedSearch(index, ' ').hits).toEqual([]);
     });
 });
 
