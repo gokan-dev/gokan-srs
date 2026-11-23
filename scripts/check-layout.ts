@@ -2434,8 +2434,9 @@ async function checkSearchPanelReach(tab: Tab, page: string, width: number): Pro
             const name = option.textContent.slice(0, 20);
             if (rect.top < panel.top - 1 || rect.bottom > panel.bottom + 1) return name + ' is outside the panel';
             const group = option.closest('[role="group"]');
-            const label = group ? document.getElementById(group.getAttribute('aria-labelledby')).getBoundingClientRect() : panel;
-            if (rect.top < label.bottom - 1) return name + ' is under the sticky label of its group';
+            // The pinned Show all results option belongs to no group: only the panel's top edge bounds it.
+            const labelBottom = group ? document.getElementById(group.getAttribute('aria-labelledby')).getBoundingClientRect().bottom : panel.top;
+            if (rect.top < labelBottom - 1) return name + ' is under the sticky label of its group';
             const showAll = document.querySelector('#header-search-results [data-show-all]');
             if (showAll && showAll !== option && rect.bottom > showAll.getBoundingClientRect().top + 1) return name + ' is under the pinned Show all results option';
             return '';
