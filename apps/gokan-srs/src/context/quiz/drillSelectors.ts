@@ -232,8 +232,8 @@ export function interleave<T>(groups: readonly { key: string; items: readonly T[
 
 /**
  * The drill's cards over a set of points: one pass over every usable example and every
- * contrast case of the set, interleaved so every point is met and never twice in a row,
- * capped at drillMaxCards. An example is usable when its pattern is
+ * contrast case of the set, interleaved so every point is met and never twice in a row (a
+ * set whose cards all ask one point keeps them all), capped at drillMaxCards. An example is usable when its pattern is
  * located and at least one other point of the set and of its family is ruled out there
  * (rulesOut): only those are offered as wrong answers. A case is usable when one of its
  * `vs` points is in the set (caseCardOf). Every card tells two points apart, so a set with
