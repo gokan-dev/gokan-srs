@@ -530,13 +530,13 @@ async function checkPointDrillInHeader(tab: Tab, app: string, width: number): Pr
     const page = `srs ${DRILL_POINT_PATH}`;
     await tab.goto(`${app}${DRILL_POINT_PATH}`, '～から、～');
     try {
-        await tab.until(`document.querySelector('header [data-point-drill] a[href*="/grammar/drill/point/"]') !== null`, 'the point\'s drill link in its header', 10000);
+        await tab.until(`document.querySelector('header a[href*="/grammar/drill/point/"]') !== null`, 'the point\'s drill link in its header', 10000);
     } catch {
         failures.push(`${width}px ${page}: no "Drill against its siblings" in the page's header`);
         return;
     }
     if (width < DESKTOP.width) {
-        const height = await tab.evaluate<number>(`Math.round(document.querySelector('header [data-point-drill] a').getBoundingClientRect().height)`);
+        const height = await tab.evaluate<number>(`Math.round(document.querySelector('header a[href*="/grammar/drill/point/"]').getBoundingClientRect().height)`);
         if (height < 44) failures.push(`${width}px ${page}: "Drill against its siblings" is ${height}px tall (at least 44px on a phone)`);
     }
 }
@@ -2636,12 +2636,14 @@ async function checkAppSearchRows(tab: Tab, page: string, width: number): Promis
  * (.lang-mark). For water (English), the row's shape (checkSearchRowShape).
  */
 const SEARCH_PAGE_QUERY = 'から';
+// The page's title: its rows carry no JLPT chip any more, and the only "JLPT" on it is the no-script line the script hides.
+const SEARCH_PAGE_TITLE = { en: 'Search', zh: '搜索' };
 const SEARCH_PAGE_ROWS = `document.querySelectorAll('[data-search-page] .search-results > li').length`;
 async function checkSearchPage(tab: Tab, base: string, width: number): Promise<void> {
     for (const prefix of ['', '/zh-hans']) {
         const page = `dictionary ${prefix}/search/?q=${SEARCH_PAGE_QUERY}`;
         const where = `${width}px ${page}`;
-        await tab.goto(`${base}${prefix}/search/?q=${encodeURIComponent(SEARCH_PAGE_QUERY)}`, 'JLPT');
+        await tab.goto(`${base}${prefix}/search/?q=${encodeURIComponent(SEARCH_PAGE_QUERY)}`, prefix ? SEARCH_PAGE_TITLE.zh : SEARCH_PAGE_TITLE.en);
         try {
             await tab.until(`${SEARCH_PAGE_ROWS} > 0`, `the results on ${page}`, 20000);
         } catch {
@@ -2682,7 +2684,7 @@ async function checkSearchPage(tab: Tab, base: string, width: number): Promise<v
         }
     }
     const page = `dictionary /search/?q=${ROW_SHAPE_QUERY}`;
-    await tab.goto(`${base}/search/?q=${ROW_SHAPE_QUERY}`, 'JLPT');
+    await tab.goto(`${base}/search/?q=${ROW_SHAPE_QUERY}`, SEARCH_PAGE_TITLE.en);
     try {
         await tab.until(`${SEARCH_PAGE_ROWS} > 0`, `the results on ${page}`, 20000);
         await checkSearchRowShape(tab, `${width}px ${page}`, '[data-search-page] .search-row');

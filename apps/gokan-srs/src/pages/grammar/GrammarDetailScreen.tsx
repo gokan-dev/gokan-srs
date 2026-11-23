@@ -16,7 +16,7 @@ import { useNow } from "../../hooks/useNow";
 import { DetailErrorScreen } from "../../components/detail/DetailErrorScreen";
 import { DetailField, DetailSection } from "../../components/detail/DetailSection";
 import { DetailHeader } from "../../components/detail/DetailHeader";
-import { DrillLink } from "../../components/DrillLink";
+import { PointHeaderActions } from "./PointHeaderActions";
 import { DetailTabsBody } from "../../components/detail/DetailTabsBody";
 import { LearnStatus } from "../../components/detail/LearnStatus";
 import { YourProgress } from "../../components/detail/YourProgress";
@@ -151,9 +151,7 @@ function GrammarPage({ point, chapterLocation, mined, examplesSettled, hasVarian
                 </>
             )}
             actions={(
-                // The drill is a way to practise this point against its siblings, so it sits with the
-                // point's main action, not only in the Related tab where a learner never found it.
-                <div className="flex flex-col items-start gap-4">
+                <PointHeaderActions grammarId={point.id}>
                     {progress && studied ? (
                         <LearnStatus
                             inStudy
@@ -163,10 +161,7 @@ function GrammarPage({ point, chapterLocation, mined, examplesSettled, hasVarian
                     ) : (
                         <LearnStatus inStudy={false} learnLabel="Learn this grammar point" onLearn={() => grammarActions.saveGrammarIntroChoice(point, 'learn')} />
                     )}
-                    <div data-point-drill>
-                        <DrillLink set={{ kind: 'point', grammarId: point.id }} label="Drill against its siblings" />
-                    </div>
-                </div>
+                </PointHeaderActions>
             )}
         >
             {point.romaji && <p className="type-meta">{point.romaji}</p>}
