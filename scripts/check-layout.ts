@@ -2303,11 +2303,12 @@ async function checkSearchAcrossDetailWidth(tab: Tab, base: string): Promise<voi
 /**
  * The header search's results (#264): a query finding words, kanji and grammar points (から: words
  * starting with it, the kanji 空 by its kun reading, the point から) shows them, measured like a
- * page (no sideways scroll, the 12px floor, the 16px field) with the panel open. The dictionary
- * shows its three groups, each option a 44px tap target; the app one list, whose first rows hold
- * the point and the words (the kanji, read as から, follows the words starting with it). Typed as a
- * learner types, through the field's own value setter, so React's controlled input and the
- * dictionary's script both see it.
+ * page (no sideways scroll, the 12px floor, the 16px field) with the panel open. Both apps show one
+ * list in the same order, whose first rows hold the point and the words (the kanji, read as から,
+ * follows the words starting with it); each dictionary option is a 44px tap target, and its panel,
+ * scrolled to the end of its first page, draws the next (every match is reachable: it once showed
+ * three groups capped at 8, 3 and 3 rows). Typed as a learner types, through the field's own value
+ * setter, so React's controlled input and the dictionary's script both see it.
  */
 const SEARCH_QUERY = 'から';
 /** A word page in each locale: Chinese's index carries the kanji and points too, linked at English's pages. */
@@ -2320,9 +2321,11 @@ const TYPE_SEARCH = (field: string, query = SEARCH_QUERY) => `(() => {
     input.dispatchEvent(new Event('input', { bubbles: true }));
     return true;
 })()`;
-const SEARCH_GROUPS = (listbox: string) => `[...document.querySelectorAll('${listbox} [role="group"]')].filter(el => el.getBoundingClientRect().height > 0).length`;
 /** The types among the app's drawn rows (its one list marks each row's, `data-hit`). */
 const APP_SEARCH_TYPES = `[...new Set([...document.querySelectorAll('#header-search-results [role="option"]')].map(el => el.getAttribute('data-hit')))].sort().join(',')`;
+/** The types among the dictionary's drawn rows, read off where each leads, named as the app's are. */
+const DICTIONARY_SEARCH_TYPES = `[...new Set([...document.querySelectorAll('[data-search-results] [role="option"]')].map(el => ({ vocab: 'words', kanji: 'kanji', grammar: 'grammar' })[(/\\/(vocab|kanji|grammar)\\//.exec(el.getAttribute('href') ?? '') ?? [])[1]] ?? '?'))].sort().join(',')`;
+const DICTIONARY_OPTIONS = `document.querySelectorAll('[data-search-results] [role="option"]').length`;
 async function checkHeaderSearch(tab: Tab, page: string, width: number, site: 'srs' | 'dictionary'): Promise<void> {
     const where = `${width}px ${page}, searching ${SEARCH_QUERY}`;
     if (site === 'srs') {
@@ -2341,21 +2344,31 @@ async function checkHeaderSearch(tab: Tab, page: string, width: number, site: 's
         failures.push(`${where}: no search field`);
         return;
     }
+    const types = site === 'srs' ? APP_SEARCH_TYPES : DICTIONARY_SEARCH_TYPES;
     try {
-        if (site === 'srs') await tab.until(`${APP_SEARCH_TYPES}.includes('grammar,words')`, `grammar points and words on ${page}`, 20000);
-        else await tab.until(`${SEARCH_GROUPS(listbox)} === 3`, `three result groups on ${page}`, 20000);
+        await tab.until(`${types}.includes('grammar,words')`, `grammar points and words on ${page}`, 20000);
     } catch {
-        failures.push(site === 'srs'
-            ? `${where}: the results do not show grammar points and words (types drawn: ${await tab.evaluate<string>(APP_SEARCH_TYPES)})`
-            : `${where}: the results do not show Words, Kanji and Grammar (${await tab.evaluate<number>(SEARCH_GROUPS(listbox))} groups)`);
+        failures.push(`${where}: the results do not show grammar points and words (types drawn: ${await tab.evaluate<string>(types)})`);
         return;
+    }
+    if (site === 'dictionary') {
+        if (await tab.evaluate<number>(`document.querySelectorAll('${listbox} [role="group"]').length`) > 0) failures.push(`${where}: the results are in groups, not one list`);
+        await checkSearchRowShape(tab, where, `${listbox} [role="option"]`);
+        const first = await tab.evaluate<number>(DICTIONARY_OPTIONS);
+        await tab.evaluate<void>(`(() => { const panel = document.querySelector('[data-search-panel]'); panel.scrollTop = panel.scrollHeight; })()`);
+        try {
+            await tab.until(`${DICTIONARY_OPTIONS} > ${first}`, `more rows for ${SEARCH_QUERY} on ${page}`, 5000);
+        } catch {
+            failures.push(`${where}: scrolled to the end of its ${first} rows, the panel draws no more, so the rest of the matches cannot be reached`);
+        }
+        await tab.evaluate<void>(`(() => { document.querySelector('[data-search-panel]').scrollTop = 0; })()`);
     }
     await measure(tab, `${page}, searching ${SEARCH_QUERY}`, width, site === 'dictionary' ? '.search-option' : '');
     const outside = await tab.evaluate<number>(`[...document.querySelectorAll('${listbox} [role="option"]')].filter(el => { const r = el.getBoundingClientRect(); return r.height > 0 && (r.left < -1 || r.right > ${width} + 1); }).length`);
     if (outside > 0) failures.push(`${where}: ${outside} result rows reach past the screen's edge`);
     if (site === 'dictionary' && page.includes('/zh-hans/')) {
         await checkSearchOptionLang(tab, where, listbox);
-        await checkSearchGroupLangMark(tab, where, listbox);
+        await checkSearchRowLangMark(tab, where, `${listbox} [role="option"]`);
     }
 }
 
@@ -2400,10 +2413,8 @@ async function checkGrammarTitlesOneLine(tab: Tab, page: string, width: number):
             const natural = probe.getBoundingClientRect().width;
             probe.remove();
             const line = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.6;
-            // The row's type chip shares the line, so the title has its line less the chip and the gap.
-            const chip = title.parentElement.lastElementChild;
-            const room = title.parentElement.clientWidth - (chip && chip !== title ? chip.getBoundingClientRect().width + parseFloat(getComputedStyle(title.parentElement).columnGap || '0') : 0);
-            return natural <= room && title.getBoundingClientRect().height > line * 1.5;
+            // The title's line holds only the title and its romaji (the type chip leads line 2), so it has the whole line.
+            return natural <= title.parentElement.clientWidth && title.getBoundingClientRect().height > line * 1.5;
         }).map(title => title.textContent)`);
         if (wrapped.length > 0) failures.push(`${where}: a grammar title that fits its row wraps (its romaji should truncate first): ${wrapped.slice(0, 3).join(' | ')}`);
     }
@@ -2554,133 +2565,130 @@ async function checkSearchOptionLang(tab: Tab, where: string, listbox: string): 
 }
 
 /**
- * On a Chinese page, a group whose options open pages served in English only (kanji, grammar:
- * hreflang="en") says so beside its label, with the site header's small 英文 (.lang-mark,
- * DESIGN_SYSTEM section 8: marked for a reader as well as by hreflang). The groups once carried
- * the hreflang alone.
+ * On a Chinese page, a row that opens a page served in English only (a kanji, a grammar point:
+ * hreflang="en") says so after its type chip, with the site header's small 英文 (.lang-mark,
+ * DESIGN_SYSTEM section 8: marked for a reader as well as by hreflang). Group labels carried it
+ * while the results were in groups; one list carries it on each such row.
  */
-async function checkSearchGroupLangMark(tab: Tab, where: string, listbox: string): Promise<void> {
-    const unmarked = await tab.evaluate<string[]>(`[...document.querySelectorAll('${listbox} [role="group"]')]
-        .filter(group => group.querySelector('.search-option[hreflang^="en"]') && !group.querySelector('.search-group-label .lang-mark'))
-        .map(group => group.querySelector('.search-group-label')?.textContent ?? '?')`);
-    if (unmarked.length > 0) failures.push(`${where}: a group linking to English-only pages does not say so beside its label (.lang-mark): ${unmarked.join(', ')}`);
+async function checkSearchRowLangMark(tab: Tab, where: string, rows: string): Promise<void> {
+    const unmarked = await tab.evaluate<string[]>(`[...document.querySelectorAll('${rows}')]
+        .filter(row => row.matches('[hreflang^="en"]') && !row.querySelector('.lang-mark'))
+        .map(row => row.textContent.slice(0, 20))`);
+    if (unmarked.length > 0) failures.push(`${where}: a row linking to an English-only page does not say so beside its type (.lang-mark): ${unmarked.slice(0, 3).join(', ')}`);
 }
 
 /**
- * The /search/ page's kanji rows (#264): glyph | meaning | level on one line, as in the header
- * panel. They once stacked meaning and level in the word list's gloss column (both are spans with a
- * lang, which .entry-list puts there), leaving the middle column empty. sui finds a page of kanji by
- * their on reading (水, 推, 睡...).
+ * The search row, in both apps (#264, rc.27 feedback): line 1 the thing itself, line 2 its type
+ * chip leading its gloss, at least 4px between the two lines (they once ran together), and every
+ * row's chip on the same left edge, whatever the row's status (the chip once sat on the headword
+ * line, pushed left by the width of Learn or Not known yet beside it).
  */
-const SEARCH_PAGE_KANJI_QUERY = 'sui';
-async function checkSearchPageKanjiRows(tab: Tab, base: string, width: number): Promise<void> {
-    const page = `dictionary /search/?q=${SEARCH_PAGE_KANJI_QUERY}`;
-    await tab.goto(`${base}/search/?q=${SEARCH_PAGE_KANJI_QUERY}`, 'JLPT N');
-    await measure(tab, page, width, DICTIONARY_TAP_TARGETS);
-    const rows = await tab.evaluate<{ row: string; meaningTop: number; levelTop: number; meaningRight: number; levelLeft: number }[]>(`[...document.querySelectorAll('[data-search-page] ul > li > a[href*="/kanji/"]')]
-        .filter(a => a.getBoundingClientRect().width > 0 && a.querySelectorAll(':scope > span').length >= 2)
-        .map(a => { const spans = a.querySelectorAll(':scope > span'); const meaning = spans[0].getBoundingClientRect(); const level = spans[spans.length - 1].getBoundingClientRect(); return { row: a.textContent.slice(0, 20), meaningTop: meaning.top, levelTop: level.top, meaningRight: meaning.right, levelLeft: level.left }; })`);
-    if (rows.length === 0) {
-        failures.push(`${width}px ${page}: no kanji rows to measure`);
+async function checkSearchRowShape(tab: Tab, where: string, rows: string): Promise<void> {
+    const found = await tab.evaluate<{ rows: number; lefts: number[]; tight: string[]; missing: string[] }>(`(() => {
+        const rows = [...document.querySelectorAll(${JSON.stringify(rows)})].filter(row => row.getBoundingClientRect().height > 0);
+        const lefts = [];
+        const tight = [];
+        const missing = [];
+        for (const row of rows) {
+            const chip = row.querySelector('[data-type-chip]');
+            const lines = [...row.querySelectorAll('[data-row-line], .search-row-main, .search-row-support')];
+            const name = row.textContent.slice(0, 20);
+            if (!chip || lines.length < 2 || !lines[1].contains(chip) || lines[1].firstElementChild !== chip) {
+                missing.push(name);
+                continue;
+            }
+            lefts.push(chip.getBoundingClientRect().left);
+            const gap = lines[1].getBoundingClientRect().top - lines[0].getBoundingClientRect().bottom;
+            if (gap < 3.5) tight.push(name + ' (' + gap.toFixed(1) + 'px)');
+        }
+        return { rows: rows.length, lefts, tight, missing };
+    })()`);
+    if (found.rows === 0) {
+        failures.push(`${where}: no search rows to measure`);
         return;
     }
-    const stacked = rows.filter(row => Math.abs(row.meaningTop - row.levelTop) > 2 || row.meaningRight > row.levelLeft + 1);
-    if (stacked.length > 0) failures.push(`${width}px ${page}: a kanji row's meaning and level are not side by side on one line: ${stacked.slice(0, 3).map(row => row.row).join(', ')}`);
+    if (found.missing.length > 0) failures.push(`${where}: a row's type chip does not lead its second line: ${found.missing.slice(0, 3).join(' | ')}`);
+    if (found.tight.length > 0) failures.push(`${where}: a row's two lines are less than 4px apart: ${found.tight.slice(0, 3).join(' | ')}`);
+    if (found.lefts.length > 0 && Math.max(...found.lefts) - Math.min(...found.lefts) > 1) {
+        failures.push(`${where}: the rows' type chips do not share one left edge (from ${Math.round(Math.min(...found.lefts))} to ${Math.round(Math.max(...found.lefts))}px)`);
+    }
+}
+
+/** The query both apps' row shape is measured on: words and the kanji 水, whose statuses differ in width (Learn, Not known yet). */
+const ROW_SHAPE_QUERY = 'water';
+
+/** The app's rows for water, in the open field's panel (the dropdown, or the full-screen panel on a phone). */
+async function checkAppSearchRows(tab: Tab, page: string, width: number): Promise<void> {
+    const where = `${width}px ${page}, searching ${ROW_SHAPE_QUERY}`;
+    if (!await typeAppQuery(tab, ROW_SHAPE_QUERY)) {
+        failures.push(`${where}: no results`);
+        return;
+    }
+    await checkSearchRowShape(tab, where, '#header-search-results [role="option"]');
 }
 
 /**
- * The /search/ page's sections for から (#264), which finds Grammar, Words and Kanji. Kanji and
- * grammar are not paged: a short section is listed whole, a longer one shows its first rows and
- * folds the rest into a disclosure (lib/searchFold.ts), as about 30 grammar points once pushed Words
- * some 2000px down; から's Grammar folds, its 7 kanji do not. Every row is listed, so a heading's
- * count is the section's rows (they were once cut to 50 under a larger count). On a Chinese page a
- * section whose links open pages served in English only (kanji, grammar: hreflang="en") says so
- * beside its heading (.lang-mark, DESIGN_SYSTEM section 8), and Words, its own section, does not.
+ * The /search/ page (#264, rc.27 feedback): one list in the app's order, no group sections, no
+ * line of section links and no pager (it once held Words, Kanji and Grammar apart, 50 words a page,
+ * ranked differently from the app). For から, in English and on a Chinese page: each row is a 44px
+ * tap target; the line under the title counts each type; scrolling to the end draws the next rows
+ * until every counted row is listed; on a Chinese page each row opening an English page says so
+ * (.lang-mark). For water (English), the row's shape (checkSearchRowShape).
  */
-const SEARCH_PAGE_SECTIONS_QUERY = 'から';
-const SEARCH_PAGE_SECTION_ROWS = 5;
-const SEARCH_PAGE_SECTION_WHOLE = 8;
-async function checkSearchPageSections(tab: Tab, base: string, width: number): Promise<void> {
+const SEARCH_PAGE_QUERY = 'から';
+const SEARCH_PAGE_ROWS = `document.querySelectorAll('[data-search-page] .search-results > li').length`;
+async function checkSearchPage(tab: Tab, base: string, width: number): Promise<void> {
     for (const prefix of ['', '/zh-hans']) {
-        const page = `dictionary ${prefix}/search/?q=${SEARCH_PAGE_SECTIONS_QUERY}`;
-        await tab.goto(`${base}${prefix}/search/?q=${encodeURIComponent(SEARCH_PAGE_SECTIONS_QUERY)}`, 'N5');
+        const page = `dictionary ${prefix}/search/?q=${SEARCH_PAGE_QUERY}`;
+        const where = `${width}px ${page}`;
+        await tab.goto(`${base}${prefix}/search/?q=${encodeURIComponent(SEARCH_PAGE_QUERY)}`, 'JLPT');
         try {
-            await tab.until(`document.querySelectorAll('[data-search-page] section').length === 3`, `three result sections on ${page}`, 20000);
+            await tab.until(`${SEARCH_PAGE_ROWS} > 0`, `the results on ${page}`, 20000);
         } catch {
-            failures.push(`${width}px ${page}: the results do not show Words, Kanji and Grammar`);
+            failures.push(`${where}: no results listed`);
             continue;
         }
-        await measure(tab, page, width, DICTIONARY_TAP_TARGETS);
-        const sections = await tab.evaluate<{ heading: string; count: number; english: boolean; marked: boolean; shownBeforeDisclosure: number; rows: number; folds: boolean; grammar: boolean; words: boolean }[]>(`[...document.querySelectorAll('[data-search-page] section')].map(section => {
-            const heading = section.querySelector('h2');
-            const own = heading ? [...heading.childNodes].filter(node => !(node instanceof Element && node.classList.contains('lang-mark'))).map(node => node.textContent).join('') : '';
-            return {
-                heading: heading?.textContent ?? '?',
-                count: Number((own.match(/[\\d,]+/g) ?? ['0']).pop().replace(/,/g, '')),
-                english: section.querySelector('a[hreflang^="en"]') !== null,
-                marked: section.querySelector('h2 .lang-mark') !== null,
-                shownBeforeDisclosure: section.querySelectorAll(':scope > ul > li').length,
-                rows: section.querySelectorAll('li').length,
-                folds: section.querySelector(':scope > details') !== null,
-                grammar: section.querySelector('a[href*="/grammar/"]') !== null,
-                words: section.querySelector('a[href*="/vocab/"]') !== null,
-            };
+        await measure(tab, page, width, `${DICTIONARY_TAP_TARGETS}, [data-search-page] .search-row`);
+        const shape = await tab.evaluate<{ sections: number; pagers: number; counted: number }>(`({
+            sections: document.querySelectorAll('[data-search-page] section').length,
+            pagers: document.querySelectorAll('[data-search-page] .pager').length,
+            counted: [...document.querySelectorAll('[data-search-page] .search-counts > span')]
+                .map(span => Number(([...span.childNodes].filter(node => !(node instanceof Element && node.classList.contains('lang-mark'))).map(node => node.textContent).join('').match(/[\\d,]+/g) ?? ['0']).pop().replace(/,/g, '')))
+                .reduce((sum, count) => sum + count, 0),
         })`);
-        const grammar = sections.find(section => section.grammar);
-        if (!grammar) failures.push(`${width}px ${page}: no Grammar section`);
-        else if (!grammar.folds) failures.push(`${width}px ${page}: the Grammar section (${grammar.rows} rows) does not fold, so the fold is not checked`);
-        for (const section of sections.filter(section => !section.words)) {
-            if (section.folds && (section.shownBeforeDisclosure !== SEARCH_PAGE_SECTION_ROWS || section.rows <= SEARCH_PAGE_SECTION_WHOLE)) {
-                failures.push(`${width}px ${page}: ${section.heading} shows ${section.shownBeforeDisclosure} of ${section.rows} rows before its disclosure (${SEARCH_PAGE_SECTION_ROWS}, and only past ${SEARCH_PAGE_SECTION_WHOLE} rows)`);
-            }
-            if (!section.folds && section.rows > SEARCH_PAGE_SECTION_WHOLE) failures.push(`${width}px ${page}: ${section.heading} lists ${section.rows} rows with no disclosure (at most ${SEARCH_PAGE_SECTION_WHOLE})`);
-            if (section.count !== section.rows) failures.push(`${width}px ${page}: ${section.heading} counts ${section.count} but lists ${section.rows} rows`);
+        if (shape.sections > 0 || shape.pagers > 0) failures.push(`${where}: the results are in ${shape.sections} sections with ${shape.pagers} pagers, not one list`);
+        if (shape.counted === 0) {
+            failures.push(`${where}: no count of each type under the title`);
+            continue;
         }
-        const unmarked = sections.filter(section => section.english && !section.marked).map(section => section.heading);
-        if (unmarked.length > 0) failures.push(`${width}px ${page}: a section linking to English-only pages does not say so beside its heading (.lang-mark): ${unmarked.join(', ')}`);
-        const marked = sections.filter(section => !section.english && section.marked).map(section => section.heading);
-        if (marked.length > 0) failures.push(`${width}px ${page}: a section in the page's own language is marked as English: ${marked.join(', ')}`);
-        if (prefix && !sections.some(section => section.english)) failures.push(`${width}px ${page}: no section links to English-only pages, so the mark is not checked`);
+        // Scrolled to the end, again and again: every counted row is drawn.
+        let listed = await tab.evaluate<number>(SEARCH_PAGE_ROWS);
+        for (let step = 0; step < 40 && listed < shape.counted; step++) {
+            await tab.evaluate<void>(`window.scrollTo(0, document.documentElement.scrollHeight)`);
+            try {
+                await tab.until(`${SEARCH_PAGE_ROWS} > ${listed}`, `more rows on ${page}`, 5000);
+            } catch {
+                break;
+            }
+            listed = await tab.evaluate<number>(SEARCH_PAGE_ROWS);
+        }
+        if (listed !== shape.counted) failures.push(`${where}: scrolled to its end, the page lists ${listed} rows of the ${shape.counted} it counts`);
+        await tab.evaluate<void>(`window.scrollTo(0, 0)`);
+        if (prefix) {
+            await checkSearchRowLangMark(tab, where, '[data-search-page] .search-row');
+            if (!await tab.evaluate<boolean>(`document.querySelector('[data-search-page] .search-row[hreflang^="en"]') !== null`)) {
+                failures.push(`${where}: no row links to an English-only page, so the mark is not checked`);
+            }
+        }
     }
-    await checkSearchPageJumps(tab, base, width);
-}
-
-/**
- * The /search/ page's line of sections under its title (#264): a page of words once pushed the
- * Kanji for sui (水, 推, 睡...) some 4000px down at 320px. With more than one section, the line
- * links to each, in their order on the page, each to a section that exists.
- */
-async function checkSearchPageJumps(tab: Tab, base: string, width: number): Promise<void> {
-    const page = `dictionary /search/?q=${SEARCH_PAGE_KANJI_QUERY}`;
-    await tab.goto(`${base}/search/?q=${SEARCH_PAGE_KANJI_QUERY}`, 'JLPT N');
+    const page = `dictionary /search/?q=${ROW_SHAPE_QUERY}`;
+    await tab.goto(`${base}/search/?q=${ROW_SHAPE_QUERY}`, 'JLPT');
     try {
-        await tab.until(`document.querySelectorAll('[data-search-page] section').length > 1`, `several result sections on ${page}`, 20000);
+        await tab.until(`${SEARCH_PAGE_ROWS} > 0`, `the results on ${page}`, 20000);
+        await checkSearchRowShape(tab, `${width}px ${page}`, '[data-search-page] .search-row');
     } catch {
-        failures.push(`${width}px ${page}: fewer than two result sections, so the line of sections is not checked`);
-        return;
+        failures.push(`${width}px ${page}: no results listed`);
     }
-    const found = await tab.evaluate<{ sections: string[]; links: string[]; visible: boolean; loose: number; offset: number }>(`(() => {
-        const nav = document.querySelector('[data-search-page] nav.search-sections');
-        // Where the first link's text starts, against the title's: its tap padding is outdented.
-        const text = nav?.querySelector('a')?.firstChild;
-        const range = document.createRange();
-        if (text) range.selectNodeContents(text);
-        const title = document.querySelector('[data-search-title]');
-        return {
-            sections: [...document.querySelectorAll('[data-search-page] section')].map(section => section.id),
-            links: nav ? [...nav.querySelectorAll('a')].map(a => a.getAttribute('href') ?? '') : [],
-            visible: nav !== null && nav.getBoundingClientRect().top < window.innerHeight,
-            loose: nav ? [...nav.children].filter(child => child.tagName !== 'A').length : 0,
-            offset: text && title ? range.getBoundingClientRect().left - title.getBoundingClientRect().left : 0,
-        };
-    })()`);
-    // A separator outside the links once dangled at the end of a wrapped line (Grammar (29) · Words (168) ·).
-    if (found.loose > 0) failures.push(`${width}px ${page}: the line of sections has ${found.loose} children besides its links (a separator that can dangle at a wrap)`);
-    if (Math.abs(found.offset) > 1) failures.push(`${width}px ${page}: the line of sections starts ${Math.round(found.offset)}px from the title's edge`);
-    const expected = found.sections.map(id => `#${id}`);
-    if (found.links.join(' ') !== expected.join(' ') || found.sections.some(id => !id)) {
-        failures.push(`${width}px ${page}: the line of sections links to ${found.links.join(', ') || 'nothing'}, not to each section in order (${expected.join(', ')})`);
-    } else if (!found.visible) failures.push(`${width}px ${page}: the line of sections is not on the first screen`);
 }
 
 /** The dictionary's play buttons (pages/PlayButton.svelte), shown once the player's pre-paint class is set. */
@@ -2940,6 +2948,7 @@ try {
     await checkIntroDesktop(desktop, `http://127.0.0.1:${srs.port}`);
     await desktop.goto(`http://127.0.0.1:${srs.port}/vocab`, 'Vocabulary');
     await checkGrammarTitlesOneLine(desktop, 'srs /vocab', DESKTOP.width);
+    await checkAppSearchRows(desktop, 'srs /vocab', DESKTOP.width);
     await checkSearchPanelReach(desktop, 'srs /vocab', DESKTOP.width);
     await checkSearchPanelScrollReset(desktop, 'srs /vocab', DESKTOP.width);
     for (const path of DICTIONARY_LIST_PAGES) {
@@ -2956,8 +2965,7 @@ try {
         await checkDictionaryWordFullPage(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
     }
     await checkSearchAcrossDetailWidth(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`);
-    await checkSearchPageKanjiRows(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`, DESKTOP.width);
-    await checkSearchPageSections(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`, DESKTOP.width);
+    await checkSearchPage(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`, DESKTOP.width);
     await desktop.resize(DESKTOP.width, DESKTOP.height);
     await checkDictionaryDetailFullPages(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`);
     await checkDictionaryPlayButtons(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`, DESKTOP.width);
@@ -3149,6 +3157,7 @@ try {
         await tab.goto(`${app}/vocab`, 'Vocabulary');
         await checkHeaderSearch(tab, 'srs /vocab', width, 'srs');
         await checkGrammarTitlesOneLine(tab, 'srs /vocab', width);
+        await checkAppSearchRows(tab, 'srs /vocab', width);
         // The removed Mix-ups page's path lands on Vocabulary.
         await tab.goto(`${app}/vocab/mixups`, 'Vocabulary');
         await tab.until(`location.pathname.endsWith('/vocab')`, '/vocab/mixups redirecting to /vocab');
@@ -3156,8 +3165,7 @@ try {
             await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${path}`, 'JLPT');
             await checkHeaderSearch(tab, `dictionary ${path}`, width, 'dictionary');
         }
-        await checkSearchPageKanjiRows(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
-        await checkSearchPageSections(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
+        await checkSearchPage(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
         for (const page of DICTIONARY_PAGES) {
             await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${page.path}`, page.ready);
             await measure(tab, `dictionary ${page.path}`, width, DICTIONARY_TAP_TARGETS);

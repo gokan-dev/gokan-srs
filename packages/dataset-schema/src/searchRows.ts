@@ -79,12 +79,9 @@ export function truncateAtWord(text: string, max: number): string {
     return `${(boundary > 0 ? cut.slice(0, boundary) : cut).replace(/[\s;,]+$/, '')}…`;
 }
 
-/** Longest short gloss, in characters: one line of a list row or a search result, as a grammar row's explanation is cut. */
-export const SHORT_GLOSS_LENGTH = SEARCH_EXPLANATION_LENGTH;
-
-/** The first sense's glosses joined with "; ", cut to SHORT_GLOSS_LENGTH. */
+/** The first sense's glosses joined with "; ", cut as a grammar row's explanation is: one line of a list row or a search result. */
 export function shortGloss(vocab: Pick<Vocabulary, 'senses'>): string {
-    return truncateAtWord(vocab.senses[0]?.glosses.join('; ') ?? '', SHORT_GLOSS_LENGTH);
+    return truncateAtWord(vocab.senses[0]?.glosses.join('; ') ?? '', SEARCH_EXPLANATION_LENGTH);
 }
 
 export function searchWordRow(vocab: Vocabulary): SearchWordRow {

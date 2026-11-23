@@ -8,7 +8,9 @@ describe('enSearch', () => {
         expect(enSearch.status(12)).toBe('12 results');
         expect(enSearch.sectionHeading(enSearch.groups.words, 1234)).toBe('Words (1,234)');
         expect(enSearch.sectionHeading(enSearch.groups.grammar, 30)).toBe('Grammar (30)');
-        expect(enSearch.showAll('grammar', 30)).toBe('Show all 30 grammar points');
-        expect(enSearch.showAll('kanji', 24)).toBe('Show all 24 kanji');
+    });
+
+    it('names each type on its rows as gokan-srs\'s search chips do', () => {
+        expect(enSearch.types).toEqual({ words: 'Word', kanji: 'Kanji', grammar: 'Grammar' });
     });
 });

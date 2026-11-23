@@ -432,6 +432,13 @@ Defined once, in `components/` or `components/ui/`, never copied:
 - **`ListRow`** (`ui/ListRow.tsx`): a clickable row, always a `<Link>`, never a `div`
   with `onClick`. Hover `bg-surface-hover`, focus-visible accent ring, optional trailing
   slot.
+- **Search row** (`SearchBar.tsx`, and the dictionary's `.search-row`, one shape in both apps):
+  two lines, 4px apart (`gap-1`). Line 1 the thing itself: a word and its reading, a kanji and
+  its main readings, a grammar title and its romaji. Line 2 its type as a neutral `Chip` (Word,
+  Kanji, Grammar), leading, then its gloss truncated to one line. The app's status (Learn, a
+  status dot, Known / Not known yet) sits in a fixed-width column centred on the row, so every
+  chip shares one left edge and the statuses line up down the list; the dictionary has none.
+  `check:layout` holds both for `water` at 320px, 375px and 1280px.
 - **`Disclosure`** (`ui/Disclosure.tsx`): a collapsible section (chevron button,
   `aria-expanded`), collapsed by default. Used for dataset/dictionary details, review
   history, rare senses, long explanations.
@@ -615,8 +622,8 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   are underlined at rest; the switcher, on a line of its own, is not).
 - **Links to English from a Chinese page** (a kanji, a grammar point, the dataset, the app):
   marked for a reader as well as by `hreflang="en"`. In the header, a small tertiary 英文 beside
-  the section's name (12px), and the same 英文 beside the search panel's Kanji and Grammar labels
-  and the `/search/` page's Kanji and Grammar headings (`inEnglish`, the search catalog's); in a tile or a sentence, in the catalog's words (英文页面,
+  the section's name (12px), and the same 英文 after the type chip of a search row that opens a
+  kanji or a grammar point and beside the `/search/` page's count of each (`inEnglish`, the search catalog's); in a tile or a sentence, in the catalog's words (英文页面,
   汉字（英文）); under the Kanji used tiles, one line (汉字页面为英文). A Chinese breadcrumb's
   links are underlined: its steps are a word or two, so the trail reads as running text.
 - **Shape**: 6px radius for cards, chips, tiles, inputs and buttons; the search field is
