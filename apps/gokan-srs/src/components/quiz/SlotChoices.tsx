@@ -43,14 +43,22 @@ export function SlotChoices({ slot, value, onPick, grade }: SlotChoicesProps) {
 
 /** Why each wrong option does not fit: the part of a choice card that answers "why was I wrong", shown whatever was picked. */
 export function ChoiceNotes({ slot }: { slot: AnswerSlot }) {
-    const notes = (slot.choices ?? []).filter(choice => choice.note);
+    // Options that share one note (a contrast case's wrong options share its guidance) are named
+    // together once, so the same reason is not written out under each.
+    const notes: { texts: string[]; note: string }[] = [];
+    for (const choice of slot.choices ?? []) {
+        if (!choice.note) continue;
+        const same = notes.find(n => n.note === choice.note);
+        if (same) same.texts.push(choice.text);
+        else notes.push({ texts: [choice.text], note: choice.note });
+    }
     if (notes.length === 0) return null;
     return (
         <ul className="mt-2 space-y-1">
-            {notes.map(choice => (
-                <li key={choice.text} className="text-xs font-gothic text-secondary">
-                    <span lang="ja" className="text-primary">{choice.text}</span>
-                    {' '}{choice.note}
+            {notes.map(({ texts, note }) => (
+                <li key={texts.join('|')} className="text-xs font-gothic text-secondary">
+                    <span lang="ja" className="text-primary">{texts.join('、')}</span>
+                    {' '}{note}
                 </li>
             ))}
         </ul>

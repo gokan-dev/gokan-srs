@@ -349,6 +349,27 @@ describe('a contrast drill card (issue 249)', () => {
         expect(noteClass?.split(' ')).not.toContain('italic');
     });
 
+    it('asks a contrast case\'s situation, with no sentence, its points picked among under it', () => {
+        const card = cards.find(c => c.situation !== undefined);
+        if (!card) throw new Error('no case card');
+        const html = cardOf(card, true);
+        expect(html).toContain('Choose what fits the situation');
+        expect(html).toContain('Giving the reason as the answer.');
+        expect(html).not.toContain('Choose what fits the sentence');
+        expect(html).toContain('からです');
+    });
+
+    it('names the wrong options that share one note together, with the note once', () => {
+        const shared = { focus: 'okage', vs: ['kara', 'karadesu'], situation: 'Thanking someone.', guidance: 'Only おかげで credits them.' };
+        // No sentences: the case's card is the only one.
+        const [card] = drillCardsOf([kara, karadesu, okage].map(p => ({ point: p, examples: [] })), [shared], 'seed', info);
+        if (!card) throw new Error('no case card');
+        const text = card.slots[0].choices?.find(c => c.pointId)?.text ?? '';
+        const html = cardOf(card, true, { ...newTurn(card), answers: [text], feedback: { grade: gradeExercise(card, [text], [0]), effects: [] } });
+        expect(html.split('credits them.')).toHaveLength(2);
+        expect(html).toMatch(/<span lang="ja" class="text-primary">(～から、～からです|～からです、～から)<\/span>/);
+    });
+
     it('names its own point, read from the card, and shows no mastery ring', () => {
         const card = cardOfPoint('okage');
         const html = cardOf(card, true, pickedWrong(card, 'kara'));

@@ -100,6 +100,19 @@ export function SentenceCue({ instruction, english }: { instruction: string; eng
     );
 }
 
+/**
+ * A drill's contrast-case card asks a situation, not a sentence: what to do, then the case's
+ * situation (English, its Japanese runs in a Japanese face), the points picked among under it.
+ */
+export function SituationCue({ situation }: { situation: string }) {
+    return (
+        <>
+            <p className="text-center text-sm text-secondary font-sans mb-1">Choose what fits the situation</p>
+            <p className="text-center text-lg text-primary font-sans mb-2"><MixedText text={situation} /></p>
+        </>
+    );
+}
+
 const CLASS_LABELS: Record<string, string> = {
     'godan': 'godan (u-verb)',
     'ichidan': 'ichidan (ru-verb)',

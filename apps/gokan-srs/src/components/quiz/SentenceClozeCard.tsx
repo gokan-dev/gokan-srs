@@ -18,7 +18,8 @@ import { blankBorderClass, missStyleOf, resultAccentClass } from "./quizStyles";
 
 interface SentenceClozeCardProps {
     api: ExerciseTurnApi;
-    sentence: ClozeSentence;
+    /** Null on a card that asks no sentence (a drill's contrast case: its header asks the situation); its choices are still picked under it. */
+    sentence: ClozeSentence | null;
     /** Everything above the sentence: mastery, chips, the English cue. */
     header: ReactNode;
     /** Shown in the feedback note under the message, e.g. the grammar point's usage note. */
@@ -72,7 +73,7 @@ export function SentenceClozeCard({ api, sentence, header, feedbackExtra, onVoca
             <CardSection>
                 {header}
 
-                <p className="text-center text-2xl font-gothic leading-loose text-primary">
+                {sentence && <p className="text-center text-2xl font-gothic leading-loose text-primary">
                     {splitAtBlanks(sentence).map(part => {
                         if (part.kind === 'text') {
                             return <InteractiveSentence key={part.sentence.id} sentence={part.sentence} onVocabClick={onVocabClick} showFurigana={!!feedback} />;
@@ -116,7 +117,7 @@ export function SentenceClozeCard({ api, sentence, header, feedbackExtra, onVoca
                             />
                         );
                     })}
-                </p>
+                </p>}
 
                 {turn.exercise.slots.map((slot, i) => slot.choices && (
                     <div key={`choices-${i}`} className="mt-6">

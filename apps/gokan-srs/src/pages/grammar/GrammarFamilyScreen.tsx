@@ -75,7 +75,13 @@ export default function GrammarFamilyScreen() {
                     <Card key={lesson.id} size="md">
                         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                             <h2 className="text-lg font-gothic font-semibold text-primary">{lesson.title}</h2>
-                            {familyId && <DrillLink set={{ kind: 'lesson', familyId, lessonId: lesson.id }} label="Drill this lesson" />}
+                            {familyId && (
+                                <DrillLink
+                                    set={{ kind: 'lesson', familyId, lessonId: lesson.id }}
+                                    label="Drill this lesson"
+                                    fallback={<p className="type-support" data-no-drill>No drill yet for this lesson.</p>}
+                                />
+                            )}
                         </div>
 
                         <PointChips ids={lesson.points} members={members} knownIds={knownIds} />

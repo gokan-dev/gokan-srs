@@ -4,7 +4,7 @@ import { grammarExample, grammarPoint } from '../../test/fixtures';
 import { CONSTANTS } from '../../commons/constants';
 import { GrammarService } from '../../services/grammar.service';
 import type { DrillPointInfo, DrillSet } from '../../models/grammar.model';
-import { caseFor, drillCardsOf, drillSummary, hasDrill, interleave, loadDrill, optionPointsOf, pickOf, rulesOut, withSharedFamily } from './drillSelectors';
+import { caseFor, drillCardsOf, drillSummary, hasDrill, interleave, lessonsCovered, loadDrill, optionPointsOf, pickOf, rulesOut, withSharedFamily } from './drillSelectors';
 import type { DrillSource } from './drillSelectors';
 import { publishedFetch, publishedFiles } from '../../test/datasetFiles';
 
@@ -79,14 +79,15 @@ describe('drillCardsOf', () => {
         expect(long).toHaveLength(CONSTANTS.srs.grammar.drillMaxCards);
     });
 
-    it('has nothing to drill when fewer than two points have a card', () => {
+    it('has nothing to drill when no card tells two points apart', () => {
         expect(drillCardsOf(sourcesOf(kara, node), [], 'seed', info)).toEqual([]);
         expect(drillCardsOf(sourcesOf(okage, node), [], 'seed', info)).toEqual([]);
     });
 
     it('carries the contrast case that covers a wrong option, either way round', () => {
         const fits: GrammarContrastCase = { focus: 'okage', vs: ['kara'], situation: 'Thanks to someone.', guidance: 'おかげで credits them.' };
-        const [card] = drillCardsOf(sourcesOf(okage, karadesu, kara), [fits], 'seed', info).filter(c => c.point.id === 'okage');
+        // おかげで's sentence card (its case makes a card of its own too: see below).
+        const [card] = drillCardsOf(sourcesOf(okage, karadesu, kara), [fits], 'seed', info).filter(c => c.point.id === 'okage' && c.sentence);
         expect(choicesOf(card).filter(c => c.contrast).map(c => [c.pointId, c.contrast])).toEqual([['kara', fits]]);
         const back = drillCardsOf(sourcesOf(kara, karadesu), [{ ...fits, focus: 'karadesu', vs: ['kara'] }], 'seed', info);
         const asKara = back.find(c => c.point.id === 'kara');
@@ -126,10 +127,26 @@ describe('drillCardsOf', () => {
         expect(cutSomewhere).toBe(true);
     });
 
-    it('has no point drill for a point with no card of its own', () => {
-        // おかげで rules から out, but without からです nothing rules a sibling out of から's examples.
-        expect(drillCardsOf(sourcesOf(okage, kara, karadesu), [], 'seed', info, 'kara')).not.toEqual([]);
-        expect(drillCardsOf(sourcesOf(okage, kara), [], 'seed', info, 'kara')).toEqual([]);
+    it('drills a point offered as a wrong option on another\'s card, and none that no card asks or offers', () => {
+        // おかげで rules から out: without からです nothing rules a sibling out of から's own examples,
+        // but から is drilled on おかげで's card. ので is on no card.
+        const onOthers = drillCardsOf(sourcesOf(okage, kara), [], 'seed', info, 'kara');
+        expect(onOthers.map(c => [c.point.id, optionPointsOf(c).sort()])).toEqual([['okage', ['kara', 'okage']]]);
+        expect(drillCardsOf(sourcesOf(okage, kara, node), [], 'seed', info, 'node')).toEqual([]);
+    });
+
+    it('makes a card of each contrast case, where no example rules a sibling out: its situation asked, its vs points the wrong options', () => {
+        // ので and から may both fit every sentence here, so only the case tells them apart.
+        const polite: GrammarContrastCase = { focus: 'node', vs: ['kara', 'elsewhere'], situation: 'Apologising for being late.', guidance: 'Reach for ので.' };
+        const cards = drillCardsOf(sourcesOf(kara, node), [polite], 'seed', info);
+        expect(cards).toHaveLength(1);
+        const [card] = cards;
+        expect(card).toMatchObject({ kind: 'grammar-choice', mode: 'drill', sentence: null, situation: 'Apologising for being late.', point: { id: 'node' } });
+        expect(card.slots[0].accept).toEqual(['ので']);
+        // A vs point outside the set is no option.
+        expect(choicesOf(card).filter(c => c.pointId).map(c => [c.pointId, c.text, c.note])).toEqual([['kara', 'から', 'Reach for ので.']]);
+        // A case whose focus is not in the set, or with no vs point in it, makes none.
+        expect(drillCardsOf(sourcesOf(kara, node), [{ ...polite, focus: 'elsewhere' }, { ...polite, vs: ['elsewhere'] }], 'seed', info)).toEqual([]);
     });
 });
 
@@ -236,12 +253,61 @@ describe('hasDrill', () => {
         expect(new Set(answers.map(([has]) => has))).toEqual(new Set([true, false]));
     });
 
-    it('stops reading points once two have a card', async () => {
+    it('stops reading points once one has a card', async () => {
         mockDataset();
         const mined = vi.spyOn(GrammarService, 'loadMinedExamples').mockResolvedValue(null);
         expect(await hasDrill({ kind: 'lesson', familyId: 'reason', lessonId: 'core' })).toBe(true);
-        // から and ので come first; ので has none of its own here (からです only rules out by slot, ので has the same slot as から), so からです is read too.
-        expect(mined.mock.calls.length).toBeLessThanOrEqual(3);
+        // から comes first and has a card (からです stands in another place): nothing more is read.
+        expect(mined.mock.calls.length).toBe(1);
+    });
+});
+
+describe('lessonsCovered', () => {
+    const cards = drillCardsOf(sourcesOf(kara, node, karadesu), [], 'seed', info);
+    it('names the lessons whose points some card tells apart, only when one is left out', () => {
+        const core = { title: 'から / からです', points: ['kara', 'karadesu'] };
+        const credit = { title: 'おかげで / ので', points: ['okage', 'node'] };
+        expect(lessonsCovered(cards, [core, credit])).toEqual({ covered: ['から / からです'], total: 2 });
+        expect(lessonsCovered(cards, [core])).toBeUndefined();
+    });
+});
+
+describe('the who family (dataset checkout)', () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        GrammarService.clearCache();
+    });
+
+    // だれか / だれでも / だれも: no slot, and their examples rule nothing out, so only the lesson's case makes a card.
+    const files = publishedFiles(import.meta.glob(
+        '../../../dataset/compiled/{,text/en/}grammar/{index/contrasts,index/browse,slots,points/n5-090,points/n5-111,points/n5-091,points/n5-092,points/n5-094,mined/n5-090,mined/n5-111,mined/n5-091,mined/n5-092,mined/n5-094}.json',
+        { eager: true, import: 'default' },
+    ));
+    const load = async (set: DrillSet) => {
+        vi.stubGlobal('fetch', publishedFetch(files));
+        const drill = await loadDrill(set, 'seed');
+        GrammarService.clearCache();
+        return drill;
+    };
+    const asksSomeoneAnyone = (drill: Awaited<ReturnType<typeof loadDrill>>) =>
+        drill?.cards.some(card => ['n5-091', 'n5-092', 'n5-094'].includes(card.point.id) && card.situation !== undefined);
+
+    it('drills the だれか / だれでも / だれも lesson on its contrast case', async () => {
+        expect(asksSomeoneAnyone(await load({ kind: 'lesson', familyId: 'who', lessonId: 'someone-anyone-no-one' }))).toBe(true);
+    });
+
+    it('asks that lesson in the family\'s drill too, which then covers every lesson', async () => {
+        const drill = await load({ kind: 'family', familyId: 'who' });
+        expect(asksSomeoneAnyone(drill)).toBe(true);
+        expect(drill?.lessons).toBeUndefined();
+    });
+
+    it('gives each of the lesson\'s points a drill of its own', async () => {
+        for (const grammarId of ['n5-091', 'n5-092', 'n5-094']) {
+            vi.stubGlobal('fetch', publishedFetch(files));
+            expect(await hasDrill({ kind: 'point', grammarId })).toBe(true);
+            GrammarService.clearCache();
+        }
     });
 });
 

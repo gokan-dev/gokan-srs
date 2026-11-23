@@ -93,11 +93,28 @@ export default function DrillScreen({ kind }: { kind: DrillSet['kind'] }) {
                 <DrillSummary drill={drill} picks={run.picks} onAgain={() => setSeed(String(Date.now()))} />
             ) : (
                 <>
+                    {run.index === 0 && drill.lessons && <LessonsCovered lessons={drill.lessons} />}
                     <p className="type-support text-center mb-2">Card {run.index + 1} of {drill.cards.length}</p>
                     <ExerciseCard api={exercises.drill} onVocabClick={id => void navigate(vocabPath(id))} />
                 </>
             )}
         </Page>
+    );
+}
+
+/**
+ * On a family's first card, when its cards leave some lessons out: which lessons it asks, so
+ * a lesson that is never asked is not a mystery.
+ */
+function LessonsCovered({ lessons }: { lessons: NonNullable<Drill['lessons']> }) {
+    return (
+        <p className="type-support text-center mb-4" data-drill-lessons>
+            Covers {lessons.covered.length} of {lessons.total} lessons:{" "}
+            {lessons.covered.map((title, i) => (
+                <span key={title}>{i > 0 && ", "}<MixedText text={title} /></span>
+            ))}
+            . The others have no drill yet.
+        </p>
     );
 }
 

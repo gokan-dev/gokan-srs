@@ -8,6 +8,7 @@ import { ChapterProgressBar } from "../../components/ChapterProgressBar";
 import { computeGrammarChapterProgress } from "../../context/quiz/grammarSelectors";
 import { withSharedFamily } from "../../context/quiz/drillSelectors";
 import { ChapterDrillLink } from "./ChapterDrillLink";
+import { DrillLink } from "../../components/DrillLink";
 import { Page } from "../../components/Page";
 import { StatusDot } from "../../components/StatusDot";
 import { ListRow } from "../../components/ui/ListRow";
@@ -183,17 +184,21 @@ export function GrammarChapterBrowseScreen() {
                                         {isOpen && (
                                             <div className="pb-3 grid gap-1 sm:grid-cols-2">
                                                 {chapter.points.map(id => (
-                                                    <ListRow key={id} to={grammarPath(id)} className="py-1.5">
-                                                        <span className="flex items-center gap-2 min-w-0">
-                                                            <StatusDot
-                                                                status={grammarLearningStatus(grammarQueue.find(item => item.grammarId === id))}
-                                                                label={null}
-                                                            />
-                                                            <span className="font-mincho text-base text-primary truncate">
-                                                                {rowById.get(id)?.title ?? id}
+                                                    // A point of a family is drilled one tap from the curriculum (its "Drill", when it has one).
+                                                    <div key={id} className="flex items-center gap-1 min-w-0" data-point-row>
+                                                        <ListRow to={grammarPath(id)} className="py-1.5 flex-1 min-w-0">
+                                                            <span className="flex items-center gap-2 min-w-0">
+                                                                <StatusDot
+                                                                    status={grammarLearningStatus(grammarQueue.find(item => item.grammarId === id))}
+                                                                    label={null}
+                                                                />
+                                                                <span className="font-mincho text-base text-primary truncate">
+                                                                    {rowById.get(id)?.title ?? id}
+                                                                </span>
                                                             </span>
-                                                        </span>
-                                                    </ListRow>
+                                                        </ListRow>
+                                                        {rowById.get(id)?.familyId && <DrillLink set={{ kind: 'point', grammarId: id }} label="Drill" text className="shrink-0" />}
+                                                    </div>
                                                 ))}
                                             </div>
                                         )}

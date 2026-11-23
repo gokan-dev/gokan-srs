@@ -4,7 +4,7 @@
 // points, open to every learner on every point, that never touches the SRS. Each
 // card is a grammar-choice exercise in `drill` mode, so it runs on the exercise
 // engine like any other, and effectsOf decides nothing for it.
-import type { GrammarContrastCase, GrammarContrastIndex, GrammarExample, GrammarPoint } from '@gokan/dataset-schema';
+import type { GrammarContrastCase, GrammarContrastIndex, GrammarContrastLesson, GrammarExample, GrammarPoint } from '@gokan/dataset-schema';
 import type { DrillPointInfo, DrillSet } from '../../models/grammar.model';
 import { CONSTANTS } from '../../commons/constants';
 import { GrammarService } from '../../services/grammar.service';
@@ -26,6 +26,12 @@ export interface Drill {
     cards: DrillExercise[];
     /** Every point an option names, for the summary. */
     points: Record<string, DrillPointInfo>;
+    /**
+     * On a family's drill whose cards tell apart the points of only some of its lessons: the
+     * titles of those it covers, and how many lessons the family has, so its first screen says
+     * which (a lesson with no card was once left out without a word).
+     */
+    lessons?: { covered: string[]; total: number };
 }
 
 /** One answered card: the point that fitted, the one picked (null when the pick names none), and whether it was right. */
@@ -137,15 +143,55 @@ function drillCardOf(source: DrillSource, exampleIndex: number, set: readonly Gr
 }
 
 /**
- * One point's cards, in a hash of `seed`'s order. On a point's drill (`focus`), only
+ * One card from a contrast case: the dataset's authored statement that in its situation
+ * `focus` fits and each `vs` point does not. Its situation is asked (there is no sentence),
+ * `focus`'s marker is the answer and each `vs` point of the set a wrong option, the case's
+ * guidance its note. A case needs no `ruledOut` on any example, so a lesson whose examples
+ * rule nothing out still has a card for each of its cases. Null when no `vs` point of the set
+ * has a marker of its own.
+ */
+function caseCardOf(contrast: GrammarContrastCase, set: readonly GrammarPoint[], info: (p: GrammarPoint) => DrillPointInfo): DrillExercise | null {
+    const point = set.find(p => p.id === contrast.focus);
+    if (!point) return null;
+    const answer = info(point).marker;
+    const seed = `case:${contrast.focus}>${contrast.vs.join(',')}`;
+    const distractors: { text: string; note: string; pointId: string }[] = [];
+    for (const sibling of set.filter(p => contrast.vs.includes(p.id))) {
+        const text = info(sibling).marker;
+        if (text === answer || distractors.some(d => d.text === text)) continue;
+        distractors.push({ text, note: contrast.guidance, pointId: sibling.id });
+    }
+    if (distractors.length === 0) return null;
+    return {
+        kind: 'grammar-choice',
+        mode: 'drill',
+        host: { kind: 'grammar', grammarId: point.id },
+        label: point.title,
+        slots: [choiceSlot({ answer, distractors: distractors.slice(0, CONSTANTS.srs.grammar.maxChoiceDistractors), role: 'core', seed })],
+        cue: {},
+        sentence: null,
+        situation: contrast.situation,
+        point: info(point),
+    };
+}
+
+/** What orders a card among its point's: its sentence, or a case card's situation. */
+function orderKeyOf(card: DrillExercise): string {
+    return card.sentence?.sentence.original ?? card.situation ?? '';
+}
+
+/**
+ * One point's cards, its sentences' and its cases' (where it is the case's focus), in a hash of `seed`'s order. On a point's drill (`focus`), only
  * the cards that ask the point or offer it.
  */
 function pointCardsOf(source: DrillSource, set: readonly GrammarPoint[], cases: readonly GrammarContrastCase[], seed: string, info: (p: GrammarPoint) => DrillPointInfo, focus?: string): DrillExercise[] {
-    return source.examples
-        .map((_, i) => drillCardOf(source, i, set, cases, info))
+    return [
+        ...source.examples.map((_, i) => drillCardOf(source, i, set, cases, info)),
+        ...cases.filter(c => c.focus === source.point.id).map(c => caseCardOf(c, set, info)),
+    ]
         .filter(c => c !== null)
         .filter(c => focus === undefined || optionPointsOf(c).includes(focus))
-        .sort((a, b) => hashString(`${seed}:${a.sentence.sentence.original}`) - hashString(`${seed}:${b.sentence.sentence.original}`));
+        .sort((a, b) => hashString(`${seed}:${orderKeyOf(a)}`) - hashString(`${seed}:${orderKeyOf(b)}`));
 }
 
 /**
@@ -178,17 +224,19 @@ export function interleave<T>(groups: readonly { key: string; items: readonly T[
 }
 
 /**
- * The drill's cards over a set of points: one pass over every usable example,
- * interleaved so every point is met and never twice in a row, capped at
- * drillMaxCards. An example is usable when its pattern is located and at least one
- * other point of the set and of its family is ruled out there (rulesOut): only those
- * are offered as wrong answers. Empty when fewer than two points have a usable
- * example: there is nothing to tell apart. `seed` orders points and sentences, so a
+ * The drill's cards over a set of points: one pass over every usable example and every
+ * contrast case of the set, interleaved so every point is met and never twice in a row,
+ * capped at drillMaxCards. An example is usable when its pattern is
+ * located and at least one other point of the set and of its family is ruled out there
+ * (rulesOut): only those are offered as wrong answers. A case is usable when one of its
+ * `vs` points is in the set (caseCardOf). Every card tells two points apart, so a set with
+ * one card has a drill; empty when it has none. `seed` orders points and sentences, so a
  * drill run again can come out differently without the builder reading a clock.
  *
  * A point's drill (`focus`) keeps only the cards that ask the point or offer it, and
- * meets the point first, so the cap never cuts it: whether it has cards does not
- * depend on the seed (empty, too, when the point has none of its own).
+ * meets the point's own first, so the cap never cuts them: whether it has cards does not
+ * depend on the seed. A point offered as a wrong option on another's card is drilled on
+ * that card (だれか, ruled out on だれも's case, once had no drill of its own).
  */
 export function drillCardsOf(sources: readonly DrillSource[], cases: readonly GrammarContrastCase[], seed: string, info: (p: GrammarPoint) => DrillPointInfo, focus?: string): DrillExercise[] {
     const set = sources.map(s => s.point);
@@ -196,7 +244,6 @@ export function drillCardsOf(sources: readonly DrillSource[], cases: readonly Gr
         .map(source => ({ key: source.point.id, items: pointCardsOf(source, set, cases, seed, info, focus) }))
         .filter(g => g.items.length > 0)
         .sort((a, b) => Number(b.key === focus) - Number(a.key === focus) || hashString(`${seed}:${a.key}`) - hashString(`${seed}:${b.key}`));
-    if (groups.length < 2 || (focus !== undefined && groups[0].key !== focus)) return [];
     return interleave(groups, CONSTANTS.srs.grammar.drillMaxCards);
 }
 
@@ -225,6 +272,16 @@ export function drillSummary(picks: readonly DrillPick[]): { right: number; tota
         // Stable: pairs confused as often keep the order they were first confused in.
         confusions: confusions.sort((a, b) => b.times - a.times),
     };
+}
+
+/**
+ * The lessons a family's cards cover: one is covered when some card offers two of its points.
+ * Undefined when every lesson is covered (or there are none), so a drill says it only when
+ * its cards leave a lesson out.
+ */
+export function lessonsCovered(cards: readonly DrillExercise[], lessons: readonly Pick<GrammarContrastLesson, 'title' | 'points'>[]): Drill['lessons'] {
+    const covered = lessons.filter(lesson => cards.some(card => optionPointsOf(card).filter(id => lesson.points.includes(id)).length >= 2));
+    return covered.length < lessons.length ? { covered: covered.map(l => l.title), total: lessons.length } : undefined;
 }
 
 /** A set of points of its own: every DrillSet but a point's, which is drilled in one of these. */
@@ -304,7 +361,9 @@ export async function loadDrill(set: DrillSet, seed: string): Promise<Drill | nu
         if (!plan) continue;
         const sources = await Promise.all(plan.points.map(sourceOf));
         const cards = drillCardsOf(sources, plan.cases, seed, plan.info, focus);
-        if (cards.length > 0) return { title: plan.title, cards, points: Object.fromEntries(plan.points.map(p => [p.id, plan.info(p)])) };
+        if (cards.length === 0) continue;
+        const lessons = set.kind === 'family' ? lessonsCovered(cards, contrasts[set.familyId]?.lessons ?? []) : undefined;
+        return { title: plan.title, cards, points: Object.fromEntries(plan.points.map(p => [p.id, plan.info(p)])), ...(lessons ? { lessons } : {}) };
     }
     return null;
 }
@@ -312,8 +371,8 @@ export async function loadDrill(set: DrillSet, seed: string): Promise<Drill | nu
 /**
  * Whether loadDrill would build a drill, for its button: the same rule, without the
  * whole build. A set's points are read one at a time (a point's mined examples are
- * the costly part), stopping once two of them have a card, the focus first on a
- * point's drill. Independent of the seed, as whether a drill has cards is.
+ * the costly part), stopping at the first with a card. Independent of the seed, as
+ * whether a drill has cards is.
  */
 export async function hasDrill(set: DrillSet): Promise<boolean> {
     const contrasts = await GrammarService.loadContrasts();
@@ -321,12 +380,8 @@ export async function hasDrill(set: DrillSet): Promise<boolean> {
         const plan = await planOf(candidate, contrasts);
         if (!plan) continue;
         const ordered = [...plan.points].sort((a, b) => Number(b.id === focus) - Number(a.id === focus));
-        let found = 0;
         for (const point of ordered) {
-            const has = pointCardsOf(await sourceOf(point), plan.points, [], '', plan.info, focus).length > 0;
-            // A point's drill meets the point first: without its own cards there is none.
-            if (!has && point.id === focus) break;
-            if (has && ++found >= 2) return true;
+            if (pointCardsOf(await sourceOf(point), plan.points, plan.cases, '', plan.info, focus).length > 0) return true;
         }
     }
     return false;

@@ -10,7 +10,7 @@ import { SentenceClozeCard } from "../../components/quiz/SentenceClozeCard";
 import { StudyCard } from "../../components/quiz/StudyCard";
 import { formatReadingList } from "../quiz/quizFormatting";
 import { ListeningClozeHeader, MeaningPrompt, ProductionClozeHeader, ProductionPrompt, ReadingPrompt } from "../quiz/VocabPrompts";
-import { ConjugationAnswer, ConjugationPrompt, DrillContrastNote, GrammarCardHeader, SentenceCue, UsageNote } from "../grammar/GrammarPrompts";
+import { ConjugationAnswer, ConjugationPrompt, DrillContrastNote, GrammarCardHeader, SentenceCue, SituationCue, UsageNote } from "../grammar/GrammarPrompts";
 
 /**
  * Reading and production from a gloss both take the word's reading, in kana: a near miss shows what it was close to, a miss every reading.
@@ -164,11 +164,13 @@ export function ExerciseCard({ api, onVocabClick }: ExerciseCardProps) {
                     header={(
                         <>
                             <GrammarCardHeader point={shown} memoryStrength={exercise.mode === 'drill' ? null : grammarStrength} answered={answered} />
-                            {/* The translation would answer the card: it comes with the feedback. */}
-                            <SentenceCue
-                                instruction="Choose what fits the sentence"
-                                english={answered ? exercise.sentence.sentence.en[0]?.text : undefined}
-                            />
+                            {exercise.sentence ? (
+                                // The translation would answer the card: it comes with the feedback.
+                                <SentenceCue
+                                    instruction="Choose what fits the sentence"
+                                    english={answered ? exercise.sentence.sentence.en[0]?.text : undefined}
+                                />
+                            ) : exercise.situation && <SituationCue situation={exercise.situation} />}
                         </>
                     )}
                     feedbackExtra={(contrast || shown.usageNote) && (

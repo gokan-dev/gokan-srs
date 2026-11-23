@@ -217,7 +217,8 @@ export type Exercise = ExerciseBase & (
     | { kind: 'grammar-cloze'; sentence: ClozeSentence; realization?: GrammarRealization }
     /** The sentence in Japanese only, its pattern picked among the forms it is confused with. */
     /** `point`: the point asked, on a contrast drill's card, which names its own point (a session's card shows the session's). */
-    | { kind: 'grammar-choice'; sentence: ClozeSentence; point?: DrillPointInfo }
+    /** A drill's contrast-case card has no sentence (`null`): its `situation` is asked instead, the points picked among for it. */
+    | { kind: 'grammar-choice'; sentence: ClozeSentence | null; situation?: string; point?: DrillPointInfo }
     | { kind: 'conjugation'; prompt: GrammarConjugationPrompt }
     /** Nothing in the point's examples can be blanked: the sentence is shown to read. */
     | { kind: 'study'; sentence: Sentence }
