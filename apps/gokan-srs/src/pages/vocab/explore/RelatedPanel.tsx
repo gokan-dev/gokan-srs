@@ -39,7 +39,7 @@ export function RelatedPanel({ vocab, pageSize = PAGE }: { vocab: Vocabulary; pa
     const panel = usePagedPanel(pageSize);
     const { query } = panel;
 
-    const { keep, searching } = useIndexSearch(query);
+    const { keep, notice } = useIndexSearch(query);
     const groups = useMemo(() => [
         { key: 'built' as const, label: 'Built from', ids: keep(vocab.components ?? []) },
         { key: 'used' as const, label: 'Used in', ids: keep(vocab.parents ?? []) },
@@ -72,7 +72,7 @@ export function RelatedPanel({ vocab, pageSize = PAGE }: { vocab: Vocabulary; pa
                 onChange={panel.setText}
                 label="Search the related words"
                 placeholder="Search in English or Japanese"
-                countLine={searching ? 'Searching…' : resultCountLine(matched, relatedCount(vocab), 'related word', query)}
+                countLine={notice ?? resultCountLine(matched, relatedCount(vocab), 'related word', query)}
             />}
             <RelatedEntryList sections={sections} />
         </div>

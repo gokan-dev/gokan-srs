@@ -13,6 +13,7 @@ import { StatusDot } from './StatusDot';
 import { KanjiKnownStatus } from './KanjiKnownStatus';
 import { grammarPath, kanjiPath, vocabPath } from '../utils/navigation.utils';
 import { grammarLearningStatus } from '../utils/learningStatus.utils';
+import { SEARCHING, SEARCH_UNAVAILABLE } from '../utils/search.utils';
 import type { AppSearchHit, AppSearchResults } from '../utils/search.utils';
 import { Chip } from './ui/Chip';
 
@@ -368,9 +369,9 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
             ) : settled ? (
                 <div className="p-4 text-center type-support">No results found</div>
             ) : search.status === 'error' ? (
-                <div className="p-4 text-center type-support">Search could not load. Try again in a moment.</div>
+                <div className="p-4 text-center type-support">{SEARCH_UNAVAILABLE}</div>
             ) : (
-                <div className="p-4 text-center type-support" role="status">Searching…</div>
+                <div className="p-4 text-center type-support" role="status">{SEARCHING}</div>
             )}
         </div>
     );

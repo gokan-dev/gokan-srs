@@ -34,6 +34,10 @@ export function matchesVocabQuery(word: Pick<Vocabulary, 'writtenForm' | 'readin
     return matchesSearchWord({ row: word, forms: [word.writtenForm.kanji], reading: word.reading.primary, gloss }, query);
 }
 
+/** What a search says while its index loads, and when it could not load: the header search and every panel search alike. */
+export const SEARCHING = 'Searching…';
+export const SEARCH_UNAVAILABLE = 'Search could not load. Try again in a moment.';
+
 /** The header search's word rows by id: what a panel search (useIndexSearch) reads, so the app holds one word index. */
 export function wordRowsById(entries: Pick<SearchIndexColumns, 'w'>): ReadonlyMap<string, SearchWordRow> {
     return new Map(fromColumns(entries.w).map(row => [row[0], row]));

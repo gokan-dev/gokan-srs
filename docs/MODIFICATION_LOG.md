@@ -5,6 +5,8 @@
 >
 > It is not auto-loaded into agent context; read it on demand when you need the history behind a decision.
 
+- **[2026-11-23]**:
+  - **Panel searches match a word's short gloss, as the header search does** (#264, PR #282). A word's Related tab, a kanji's Words and the other panel searches read the header search's word rows (`SearchService.wordRows`), the app's one word index, so they match `shortGloss`: the first sense cut at a word boundary to 60 characters. The old `index/search.json` they read carried `m`, up to 178 characters, so 1,309 words lose the tail of their gloss to a panel search (`same` no longer finds 1000200's "...singing from the same hymn-sheet"). Kept: carrying the whole first sense would grow the module every reader of the header search downloads (about 1.1 MB gzipped) for lists of tens to hundreds of words, and the two searches now agree on what a word's gloss is. Reverting means a longer gloss column in `virtual:gokan-search-entries`, cut only for display.
 - **[2026-11-22]**:
   - **Dictionary budgets in brotli, measured against CloudFront** (#268).
     - **Quality 5, not builtSite's 3, for pages.** Against the wire sizes CloudFront served on 2026-11-19, brotli quality 5 lands within about 2% on every page type (kanji/一 12.2 KB here, 12.5 served; JLPT N2 19.0 and 19.0; grammar/n5-088 8.1 and 8.2; home 1.8 and 2.0; app.scss 2.6 and 2.5); quality 3, which `scripts/lib/builtSite.ts` uses after measuring the app's large JSON files, puts pages about 10% over (一 14.5 KB, past the 13 KB rule it actually meets). Both are kept: each is what CloudFront does at its sizes.
