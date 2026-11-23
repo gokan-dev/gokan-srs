@@ -86,6 +86,12 @@ export function parseBrief(markdown: string): Brief {
         const newline = part.indexOf('\n');
         const heading = (newline === -1 ? part : part.slice(0, newline)).trim();
         const body = newline === -1 ? '' : part.slice(newline + 1);
+        // The agent reads earlier triages as posted, which end in this section (renderBrief), and may
+        // write one back. Its points are polish by definition, so they are Apply points marked polish.
+        if (heading.startsWith(FINAL_PASS_HEADING)) {
+            brief.apply.push(...parsePoints(heading, body).map(point => ({ ...point, polish: true })));
+            continue;
+        }
         const key = SECTION_KEYS.find(candidate => heading.startsWith(SECTIONS[candidate]));
         if (!key) throw new Error(`The brief has an unknown section: "## ${heading}".`);
         if (key === 'notInChange') brief.notInChange = body.trim();

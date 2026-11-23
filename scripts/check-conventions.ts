@@ -368,6 +368,8 @@ function pipelineCommandViolations(): Violation[] {
  */
 const WORKFLOW_RUN_EVENT_TEST = /workflow_run\.event\s*==\s*['"]([\w-]+)['"]/g;
 const LISTENER_EVENTS: Record<string, readonly string[]> = { 'claude-fix-ci.yml': BRANCH_CI_EVENTS };
+const CLAUDE_ACTION = /uses:\s*anthropics\/claude-code-action@/;
+const ALLOWED_BOTS = /^\s*allowed_bots:\s*\S/m;
 
 /**
  * Each `workflow_run` listener, each where it listens: a watched workflow some step here dispatches
@@ -392,6 +394,11 @@ function dispatchedWorkflowRunViolations(): Violation[] {
         const listen = WORKFLOW_RUN_LIST.exec(text);
         if (!listen) continue;
         const line = text.slice(0, listen.index).split('\n').length;
+        // A run it reacts to may be an agent's (its app pushed the commit), and the action refuses a
+        // non-human actor unless listed: fix-ci stopped on "non-human actor: claude" on PR #282.
+        if (CLAUDE_ACTION.test(text) && !ALLOWED_BOTS.test(text)) {
+            violations.push({ file, line, rule: 'workflow-run-listener', message: 'Runs claude-code-action on a `workflow_run`, which an agent\'s own commit can start, but sets no `allowed_bots`: the action then refuses the run ("Workflow initiated by non-human actor"). Add `allowed_bots: "github-actions,claude"` to its step.' });
+        }
         const names = (listen[1].startsWith('[')
             ? listen[1].slice(1, -1).split(',')
             : listen[1].split('\n').filter(l => l.trim()).map(l => l.replace(/^\s*-\s*/, '').replace(/\s+#.*$/, '')))

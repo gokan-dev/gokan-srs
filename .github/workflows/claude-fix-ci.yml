@@ -159,6 +159,9 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           # anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           # GitHub-side auth via the installed Claude GitHub App (see claude-implement-issue.yml).
+          # A CI run on an agent's commit is initiated by the agent's app, and the action refuses a
+          # non-human actor unless it is listed here (PR #282: fix-ci stopped on "non-human actor: claude").
+          allowed_bots: "github-actions,claude"
           prompt: |
             CI failed on branch `${{ github.event.workflow_run.head_branch }}`, PR #${{ steps.claim.outputs.pr }}
             (workflow "${{ github.event.workflow_run.name }}", run ${{ github.event.workflow_run.html_url }},

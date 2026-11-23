@@ -55,6 +55,14 @@ describe('parseBrief', () => {
         expect(renderBrief(brief, [])).toContain('### 1. Share the helper: two copies (defect)\n');
     });
 
+    it('reads a final-pass section copied from a posted triage as polish to apply (PR #282 round 7)', () => {
+        const brief = parseBrief(`## Apply\n### 1. Fix the count (defect)\nIn a.ts.\n\n## ${FINAL_PASS_HEADING}\n### 2. Reword the label\nClearer.\n`);
+        expect(brief.apply.map(p => [p.number, p.title, p.polish])).toEqual([[1, 'Fix the count', false], [2, 'Reword the label', true]]);
+        const late = resolve(`## ${FINAL_PASS_HEADING}\n### 1. Reword the label\nClearer.\n`, { round: 7 });
+        expect(late.outcome).toBe('done');
+        expect(late.deferred.map(p => p.title)).toEqual(['Reword the label']);
+    });
+
     it('refuses an unknown section or a section without points', () => {
         expect(() => parseBrief('## Maybe\n- x\n')).toThrow(/unknown section/);
         expect(() => parseBrief('## Apply\nFix the count.\n')).toThrow(/no "### n/);
