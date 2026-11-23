@@ -72,7 +72,8 @@ export function GrammarCardHeader({ point, memoryStrength, answered, formalityLe
 
 /**
  * Under a drill card's feedback, after a wrong pick: the contrast case that covers the
- * pair, when the dataset has one (the option's own note already says why it does not fit).
+ * pair, when the dataset has one. On a sentence card the option's own note says why it does
+ * not fit; on a case card this block is the only explanation.
  * `guidanceOnly` on a case card, whose question is the case's situation.
  */
 export function DrillContrastNote({ contrast, guidanceOnly = false }: { contrast: GrammarContrastCase; guidanceOnly?: boolean }) {

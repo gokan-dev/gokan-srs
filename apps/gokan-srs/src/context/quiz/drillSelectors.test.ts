@@ -171,6 +171,11 @@ describe('interleave', () => {
     it('stops at the cap', () => {
         expect(interleave([{ key: 'a', items: [1, 2, 3] }, { key: 'b', items: [4, 5, 6] }], 3)).toEqual([1, 4, 2]);
     });
+
+    it('keeps every item of a single group, in order, up to the cap', () => {
+        expect(interleave([{ key: 'a', items: [1, 2, 3] }], 12)).toEqual([1, 2, 3]);
+        expect(interleave([{ key: 'a', items: [1, 2, 3] }, { key: 'b', items: [] }], 2)).toEqual([1, 2]);
+    });
 });
 
 describe('withSharedFamily', () => {
@@ -294,6 +299,17 @@ describe('the who family (dataset checkout)', () => {
 
     it('drills the だれか / だれでも / だれも lesson on its contrast case', async () => {
         expect(asksSomeoneAnyone(await load({ kind: 'lesson', familyId: 'who', lessonId: 'someone-anyone-no-one' }))).toBe(true);
+    });
+
+    it('keeps both of だれも\'s cards in the lesson drill, its sentence card and its case card, whatever the seed', async () => {
+        for (const seed of ['1', '2', 'seed', 'abc']) {
+            vi.stubGlobal('fetch', publishedFetch(files));
+            const drill = await loadDrill({ kind: 'lesson', familyId: 'who', lessonId: 'someone-anyone-no-one' }, seed);
+            GrammarService.clearCache();
+            const dareMo = drill?.cards.filter(card => card.point.id === 'n5-094') ?? [];
+            expect(dareMo.some(card => card.sentence), seed).toBe(true);
+            expect(dareMo.some(card => card.situation !== undefined), seed).toBe(true);
+        }
     });
 
     it('asks that lesson in the family\'s drill too, which then covers every lesson', async () => {

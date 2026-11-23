@@ -201,10 +201,13 @@ function pointCardsOf(source: DrillSource, set: readonly GrammarPoint[], cases: 
 /**
  * Interleaves the groups' items: every group once first, then the group with the
  * most left, never the one just met, until `max` or nothing can follow without a
- * repeat. Groups keep their given order on a tie.
+ * repeat. Groups keep their given order on a tie. A single group has nothing to alternate
+ * with, so it keeps its items in order up to `max` (a lesson whose cards all ask だれも
+ * keeps both its sentence card and its case card, not whichever the seed put first).
  */
 export function interleave<T>(groups: readonly { key: string; items: readonly T[] }[], max: number): T[] {
     const queues = groups.filter(g => g.items.length > 0).map(g => ({ key: g.key, items: [...g.items] }));
+    if (queues.length === 1) return queues[0].items.slice(0, max);
     const out: T[] = [];
     let last: string | null = null;
     const take = (queue: { key: string; items: T[] }) => {
