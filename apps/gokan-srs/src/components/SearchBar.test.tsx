@@ -5,7 +5,7 @@ import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AppSearchResults, SearchLimits } from '../utils/search.utils';
 import { searchIndexEntry, userProgress } from '../test/fixtures';
-import { grammarPath, kanjiPath } from '../utils/navigation.utils';
+import { grammarPath, kanjiPath, vocabPath } from '../utils/navigation.utils';
 import { SearchBar } from './SearchBar';
 
 const results: AppSearchResults = {
@@ -121,6 +121,33 @@ describe('SearchBar: Show all results', () => {
         act(() => { input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
         await settle();
         expect(kanjiShown()).toHaveLength(2);
+        act(() => root.unmount());
+    });
+
+    it('Enter with nothing highlighted opens the first row when nothing was dropped', async () => {
+        const { root, path, input } = await openPanel();
+        act(() => { input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
+        expect(path()).toBe(vocabPath('mizu').split('#')[0]);
+        act(() => root.unmount());
+    });
+
+    it('ends when the panel closes, so the same query reopens at the shared rows', async () => {
+        drops = true;
+        const { root, input } = await openPanel();
+        const option = showAll();
+        if (!(option instanceof HTMLElement)) throw new Error('no Show all results');
+        act(() => option.click());
+        await settle();
+        expect(kanjiShown()).toHaveLength(2);
+        act(() => { input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
+        await act(async () => {
+            input.blur();
+            input.focus();
+            await Promise.resolve();
+        });
+        await settle();
+        expect(kanjiShown()).toHaveLength(1);
+        expect(showAll()).toBeDefined();
         act(() => root.unmount());
     });
 });

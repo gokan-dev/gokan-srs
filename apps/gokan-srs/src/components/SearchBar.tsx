@@ -168,9 +168,11 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
         setHighlighted(-1);
     };
 
+    // Closing ends "Show all results" too: reopened on the same query, the dropdown shares its rows again.
     const close = () => {
         setIsOpen(false);
         setExpanded(false);
+        setShowAll(false);
         setHighlighted(-1);
     };
 
@@ -179,6 +181,8 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
             if (wrapperRef.current && event.target instanceof Node && !wrapperRef.current.contains(event.target)) {
                 setIsOpen(false);
                 setExpanded(false);
+                setShowAll(false);
+                setHighlighted(-1);
             }
         }
         document.addEventListener("mousedown", handleClickOutside);
@@ -239,7 +243,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
             // option's scroll margin keeps it clear of its group's sticky label.
             document.getElementById(optionId(next))?.scrollIntoView({ block: 'nearest' });
         } else if (e.key === 'Enter') {
-            if (highlighted === showAllIndex) {
+            if (showAllIndex >= 0 && highlighted === showAllIndex) {
                 expand();
                 return;
             }
@@ -298,8 +302,8 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
                 <div className="p-4 text-center type-support">Searching...</div>
             ) : options.length > 0 ? (
                 <div id={LISTBOX_ID} role="listbox" aria-label="Search results" className="flex flex-col">
-                    {groups.map(({ group, options: rows }) => (
-                        <div key={group} role="group" aria-labelledby={groupLabelId(group)} className="border-b border-divider last:border-0">
+                    {groups.map(({ group, options: rows }, groupIndex) => (
+                        <div key={group} role="group" aria-labelledby={groupLabelId(group)} className={groupIndex < groups.length - 1 ? 'border-b border-divider' : ''}>
                             {/* Sticky, so a scrolled row keeps its group's name in view and the next group's label shows it follows; its edge is where a scrolled row passes under it. */}
                             <div id={groupLabelId(group)} role="presentation" className="type-label sticky top-0 z-10 bg-surface border-b border-divider px-3 pt-3 pb-1">{GROUP_LABEL[group]}</div>
                             {rows.map(option => {
@@ -312,7 +316,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
                                         aria-selected={index === highlighted}
                                         onClick={() => handleSelect(option.path)}
                                         onMouseEnter={() => setHighlighted(index)}
-                                        className={`flex items-center gap-3 p-3 scroll-mt-10 border-b border-divider/50 last:border-0 cursor-pointer transition-colors ${index === highlighted ? 'bg-surface-hover' : ''}`}
+                                        className={`flex items-center gap-3 p-3 scroll-mt-10 ${showAllIndex >= 0 ? 'scroll-mb-12' : ''} border-b border-divider/50 last:border-0 cursor-pointer transition-colors ${index === highlighted ? 'bg-surface-hover' : ''}`}
                                     >
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-baseline gap-2 min-w-0">{option.main}</div>
@@ -326,16 +330,18 @@ export const SearchBar: React.FC<SearchBarProps> = ({ collapsed, className = '' 
                             })}
                         </div>
                     ))}
+                    {/* Pinned to the panel's bottom, as the group labels are to its top, so at rest it shows that rows were left out; the rows' bottom scroll margin keeps a highlighted one clear of it. */}
                     {showAllIndex >= 0 && (
                         <div
                             id={optionId(showAllIndex)}
+                            data-show-all
                             role="option"
                             aria-selected={showAllIndex === highlighted}
                             onClick={expand}
                             // The field keeps focus, so the arrow keys go on working over the longer lists.
                             onMouseDown={e => e.preventDefault()}
                             onMouseEnter={() => setHighlighted(showAllIndex)}
-                            className={`p-3 font-sans text-sm text-accent cursor-pointer transition-colors ${showAllIndex === highlighted ? 'bg-surface-hover' : ''}`}
+                            className={`sticky bottom-0 z-10 border-t border-divider p-3 font-sans text-sm text-accent cursor-pointer transition-colors ${showAllIndex === highlighted ? 'bg-surface-hover' : 'bg-surface'}`}
                         >
                             Show all results
                         </div>

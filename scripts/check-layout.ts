@@ -2381,9 +2381,12 @@ async function checkGrammarTitlesOneLine(tab: Tab, page: string, width: number):
  * group's label shows inside the panel, so a reader sees what matched: for sui (Words first, then
  * the kanji 水, 推, 睡..., then Grammar) and から (Grammar first) the cap once held the first group
  * alone, then (1.69.0 rc.23) the first two, with the third wholly below the fold
- * (`DROPDOWN_SEARCH_LIMITS` shares the rows out among the groups). Then, for から, the arrow keys step through every option, down to the last and back
+ * (`DROPDOWN_SEARCH_LIMITS` shares the rows out among the groups). The "Show all results" option
+ * the sharing adds is pinned to the panel's bottom, so at rest it is in view too: in rc.25 it sat
+ * last in the list, 83px below the fold for から and 10px cut for sui. Then, for から, the arrow keys step through every option, down to the last and back
  * up: focus stays in the field, so the panel follows the highlight only because the option is
- * scrolled into view, and its scroll margin keeps it clear of its group's sticky label.
+ * scrolled into view, and its scroll margins keep it clear of its group's sticky label and of the
+ * pinned option.
  */
 const PANEL_REACH_QUERIES = [{ query: 'sui', first: 'words' }, { query: SEARCH_QUERY, first: 'grammar' }];
 const APP_PANEL = `document.getElementById('header-search-results')?.parentElement`;
@@ -2404,13 +2407,15 @@ async function checkSearchPanelReach(tab: Tab, page: string, width: number): Pro
             const panel = ${APP_PANEL};
             panel.scrollTop = 0;
             const panelBottom = panel.getBoundingClientRect().bottom;
-            return [...document.querySelectorAll('#header-search-results [role="group"]')].map(group => {
+            const groups = [...document.querySelectorAll('#header-search-results [role="group"]')].map(group => {
                 const label = document.getElementById(group.getAttribute('aria-labelledby'));
-                return { label: label.textContent, bottom: label.getBoundingClientRect().bottom - panelBottom };
+                return { label: label.textContent + " group's label", bottom: label.getBoundingClientRect().bottom - panelBottom };
             });
+            const showAll = document.querySelector('#header-search-results [data-show-all]');
+            return showAll ? [...groups, { label: 'Show all results option', bottom: showAll.getBoundingClientRect().bottom - panelBottom }] : groups;
         })()`);
         for (const { label, bottom } of reach) {
-            if (bottom > 1) failures.push(`${where}: at rest the ${label} group's label is ${Math.round(bottom)}px below the panel's bottom edge, so nothing shows the group is there`);
+            if (bottom > 1) failures.push(`${where}: at rest the ${label} is ${Math.round(bottom)}px below the panel's bottom edge, so nothing at rest shows it is there`);
         }
     }
 
@@ -2428,8 +2433,11 @@ async function checkSearchPanelReach(tab: Tab, page: string, width: number): Pro
             const rect = option.getBoundingClientRect();
             const name = option.textContent.slice(0, 20);
             if (rect.top < panel.top - 1 || rect.bottom > panel.bottom + 1) return name + ' is outside the panel';
-            const label = document.getElementById(option.closest('[role="group"]').getAttribute('aria-labelledby')).getBoundingClientRect();
+            const group = option.closest('[role="group"]');
+            const label = group ? document.getElementById(group.getAttribute('aria-labelledby')).getBoundingClientRect() : panel;
             if (rect.top < label.bottom - 1) return name + ' is under the sticky label of its group';
+            const showAll = document.querySelector('#header-search-results [data-show-all]');
+            if (showAll && showAll !== option && rect.bottom > showAll.getBoundingClientRect().top + 1) return name + ' is under the pinned Show all results option';
             return '';
         })()`);
         if (problem) hidden.add(problem);
