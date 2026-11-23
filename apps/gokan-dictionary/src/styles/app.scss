@@ -451,7 +451,10 @@ main {
   font-size: $text-lg;
 
   // A grammar title is the pattern itself: it keeps its width, and the reading beside it truncates first.
+  // Its face is set on the headword itself, as the app's: inherited from the line, it lost to the
+  // global [lang="ja"] gothic on the headword's own span (this selector is the more specific).
   > :first-child {
+    font-family: $font-mincho;
     flex-shrink: 0;
     max-width: 100%;
     overflow-wrap: anywhere;

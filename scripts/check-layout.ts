@@ -2584,8 +2584,12 @@ async function checkSearchRowLangMark(tab: Tab, where: string, rows: string): Pr
  * line, pushed left by the width of Learn or Not known yet beside it).
  */
 async function checkSearchRowShape(tab: Tab, where: string, rows: string): Promise<void> {
-    const found = await tab.evaluate<{ rows: number; lefts: number[]; tight: string[]; missing: string[] }>(`(() => {
+    const found = await tab.evaluate<{ rows: number; lefts: number[]; tight: string[]; missing: string[]; faces: { headword: string; reading: string } | null }>(`(() => {
         const rows = [...document.querySelectorAll(${JSON.stringify(rows)})].filter(row => row.getBoundingClientRect().height > 0);
+        const firstFamily = el => (el ? getComputedStyle(el).fontFamily.split(',')[0].trim().replace(/^["']|["']$/g, '') : '');
+        // The first row (the word 水 for water): its headword, and the reading beside it.
+        const line = rows[0]?.querySelector('[data-row-line], .search-row-main');
+        const faces = line ? { headword: firstFamily(line.firstElementChild), reading: firstFamily(line.firstElementChild?.nextElementSibling) } : null;
         const lefts = [];
         const tight = [];
         const missing = [];
@@ -2601,12 +2605,17 @@ async function checkSearchRowShape(tab: Tab, where: string, rows: string): Promi
             const gap = lines[1].getBoundingClientRect().top - lines[0].getBoundingClientRect().bottom;
             if (gap < 3.5) tight.push(name + ' (' + gap.toFixed(1) + 'px)');
         }
-        return { rows: rows.length, lefts, tight, missing };
+        return { rows: rows.length, lefts, tight, missing, faces };
     })()`);
     if (found.rows === 0) {
         failures.push(`${where}: no search rows to measure`);
         return;
     }
+    // One row in both apps: the headword in mincho, its reading in gothic (DESIGN_SYSTEM sections 6
+    // and 8). The dictionary's row once set the face only on its line, which the [lang="ja"] rule
+    // on the headword's own span overrode, so the headword was in gothic there.
+    if (found.faces && found.faces.headword !== 'Noto Serif JP') failures.push(`${where}: the first row's headword is in ${found.faces.headword || 'no face'}, not mincho (Noto Serif JP)`);
+    if (found.faces && found.faces.reading !== 'Noto Sans JP') failures.push(`${where}: the first row's reading is in ${found.faces.reading || 'no face'}, not gothic (Noto Sans JP)`);
     if (found.missing.length > 0) failures.push(`${where}: a row's type chip does not lead its second line: ${found.missing.slice(0, 3).join(' | ')}`);
     if (found.tight.length > 0) failures.push(`${where}: a row's two lines are less than 4px apart: ${found.tight.slice(0, 3).join(' | ')}`);
     if (found.lefts.length > 0 && Math.max(...found.lefts) - Math.min(...found.lefts) > 1) {
