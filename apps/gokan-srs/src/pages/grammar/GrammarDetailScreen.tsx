@@ -16,6 +16,7 @@ import { useNow } from "../../hooks/useNow";
 import { DetailErrorScreen } from "../../components/detail/DetailErrorScreen";
 import { DetailField, DetailSection } from "../../components/detail/DetailSection";
 import { DetailHeader } from "../../components/detail/DetailHeader";
+import { DrillLink } from "../../components/DrillLink";
 import { DetailTabsBody } from "../../components/detail/DetailTabsBody";
 import { LearnStatus } from "../../components/detail/LearnStatus";
 import { YourProgress } from "../../components/detail/YourProgress";
@@ -149,14 +150,23 @@ function GrammarPage({ point, chapterLocation, mined, examplesSettled, hasVarian
                     <DetailField compact label="Kind">{KIND_LABELS[point.kind ?? 'construction']}</DetailField>
                 </>
             )}
-            actions={progress && studied ? (
-                <LearnStatus
-                    inStudy
-                    status={grammarLearningStatus(progress)}
-                    nextReview={statusReviewPhrase(grammarLearningStatus(progress), grammarNextReviewAt(progress, state.settings), now)}
-                />
-            ) : (
-                <LearnStatus inStudy={false} learnLabel="Learn this grammar point" onLearn={() => grammarActions.saveGrammarIntroChoice(point, 'learn')} />
+            actions={(
+                // The drill is a way to practise this point against its siblings, so it sits with the
+                // point's main action, not only in the Related tab where a learner never found it.
+                <div className="flex flex-col items-start gap-4">
+                    {progress && studied ? (
+                        <LearnStatus
+                            inStudy
+                            status={grammarLearningStatus(progress)}
+                            nextReview={statusReviewPhrase(grammarLearningStatus(progress), grammarNextReviewAt(progress, state.settings), now)}
+                        />
+                    ) : (
+                        <LearnStatus inStudy={false} learnLabel="Learn this grammar point" onLearn={() => grammarActions.saveGrammarIntroChoice(point, 'learn')} />
+                    )}
+                    <div data-point-drill>
+                        <DrillLink set={{ kind: 'point', grammarId: point.id }} label="Drill against its siblings" />
+                    </div>
+                </div>
             )}
         >
             {point.romaji && <p className="type-meta">{point.romaji}</p>}

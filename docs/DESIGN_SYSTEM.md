@@ -891,8 +891,8 @@ word page's Kanji tab) breaks across lines, a sentence word hovered with a mouse
 keeps its hover while its lookup card opens, a due word's page has no Review now, and a sentence word tapped on a word
 page opens its lookup card as a bottom sheet inside the viewport, its Close and its links (Open
 word page) 44px, and a drill's way in (`DrillLink`, the button size `touch`, measured on a
-chapter's "Drill the related points") 44px on a phone. A new page
-type or main route is added to its lists.
+chapter's "Drill the related points" and a grammar point header's "Drill against its siblings")
+44px on a phone. A new page type or main route is added to its lists.
 
 **Lighthouse, SEO at 100** (`scripts/check-lighthouse.ts`, `bun run check:lighthouse`, run by
 CI in `.github/workflows/ci-site.yml` on both production builds): one representative page

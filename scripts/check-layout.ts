@@ -518,6 +518,29 @@ async function checkChapterDrillGap(tab: Tab, app: string, width: number): Promi
     }
 }
 
+/** A grammar point with a drill against its siblings (～から、～, "Giving a reason"). */
+const DRILL_POINT_PATH = '/grammar/n5-073';
+
+/**
+ * A grammar point's "Drill against its siblings" is in its header, with its main action: in the
+ * Related tab alone a learner testing 1.69.0 looked for the drill and did not find it. 44px on a
+ * phone, as the chapter's.
+ */
+async function checkPointDrillInHeader(tab: Tab, app: string, width: number): Promise<void> {
+    const page = `srs ${DRILL_POINT_PATH}`;
+    await tab.goto(`${app}${DRILL_POINT_PATH}`, '～から、～');
+    try {
+        await tab.until(`document.querySelector('header [data-point-drill] a[href*="/grammar/drill/point/"]') !== null`, 'the point\'s drill link in its header', 10000);
+    } catch {
+        failures.push(`${width}px ${page}: no "Drill against its siblings" in the page's header`);
+        return;
+    }
+    if (width < DESKTOP.width) {
+        const height = await tab.evaluate<number>(`Math.round(document.querySelector('header [data-point-drill] a').getBoundingClientRect().height)`);
+        if (height < 44) failures.push(`${width}px ${page}: "Drill against its siblings" is ${height}px tall (at least 44px on a phone)`);
+    }
+}
+
 /**
  * A kanji's reading (components/KanjiReadings.tsx) never breaks across lines: ショ / ウ reads as
  * two readings, or one that does not exist. Lines break only between readings.
@@ -2981,6 +3004,7 @@ try {
     await checkDetailFullPages(desktop, `http://127.0.0.1:${srs.port}`);
     await checkDrillWalk(desktop, `http://127.0.0.1:${srs.port}`, DESKTOP.width);
     await checkChapterDrillGap(desktop, `http://127.0.0.1:${srs.port}`, DESKTOP.width);
+    await checkPointDrillInHeader(desktop, `http://127.0.0.1:${srs.port}`, DESKTOP.width);
     await desktop.close();
     for (const { width, height } of SETUP_LINK_SCREENS) await checkSetupLinkCount(chrome, `http://127.0.0.1:${srs.port}`, width, height);
     for (const { width, height } of VIEWPORTS) {
@@ -3026,6 +3050,7 @@ try {
         }
         await checkDrillWalk(tab, app, width);
         await checkChapterDrillGap(tab, app, width);
+        await checkPointDrillInHeader(tab, app, width);
         // The library's rows with a status line, the tightest rows on a phone. Before any word is
         // learned: the library ranks by known words, which would page the marked titles out of view.
         await tab.goto(`${app}/listening/${COMPLETED_TITLE}`, 'Mark all watched');
