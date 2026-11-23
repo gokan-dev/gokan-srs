@@ -270,8 +270,8 @@ The rest of the study flow:
   blanks is a `ClozeSentence` (`utils/clozeSentence.utils.ts`); a grammar example becomes a
   `Sentence` through `grammarExampleToSentence` (`@gokan/dataset-schema`).
 - Contrast drill (practice outside the SRS, issue #249): its sets and cards only from
-  `context/quiz/drillSelectors.ts` (`loadDrill`, `hasDrill` for its button, `rulesOut` decides every
-  wrong option), its types (`DrillSet`, `DrillPointInfo`) in `models/grammar.model.ts`, its run
+  `context/quiz/drillSelectors.ts` (`loadDrill`, `hasDrill` for its button, `rulesOut` decides an
+  example card's wrong options, a contrast case its own: `caseCardOf`), its types (`DrillSet`, `DrillPointInfo`) in `models/grammar.model.ts`, its run
   through the `drill` exercise host and `drillReducer.ts` (kept on a lookup, ended elsewhere:
   `drillRouteRole`), its cards' `mode: 'drill'` (no effects, decided in `effectsOf`), what a card
   shows on its exercise (`point`, each choice's `pointId` and `contrast`), its way in
