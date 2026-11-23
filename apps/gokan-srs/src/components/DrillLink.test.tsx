@@ -41,10 +41,13 @@ describe('DrillLink', () => {
 
     it('links to the drill when it has cards, as a button or as a small text link', async () => {
         hasDrill.mockResolvedValue(true);
-        await render(<DrillLink set={{ kind: 'point', grammarId: 'n5-091' }} label="Drill" text />);
+        await render(<DrillLink set={{ kind: 'point', grammarId: 'n5-091' }} label="Drill" text name="Drill だれか against its siblings" />);
         const link = container.querySelector('a');
         expect(link?.getAttribute('href')).toBe('/grammar/drill/point/n5-091');
         expect(link?.className).toContain('text-accent');
         expect(link?.className).toContain('min-h-11');
+        // Every chapter row's link reads "Drill": its accessible name says which point it drills.
+        expect(link?.textContent).toBe('Drill');
+        expect(link?.getAttribute('aria-label')).toBe('Drill だれか against its siblings');
     });
 });

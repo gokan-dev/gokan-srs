@@ -197,7 +197,7 @@ export function GrammarChapterBrowseScreen() {
                                                                 </span>
                                                             </span>
                                                         </ListRow>
-                                                        {rowById.get(id)?.familyId && <DrillLink set={{ kind: 'point', grammarId: id }} label="Drill" text className="shrink-0" />}
+                                                        {rowById.get(id)?.familyId && <DrillLink set={{ kind: 'point', grammarId: id }} label="Drill" text name={`Drill ${rowById.get(id)?.title ?? id} against its siblings`} className="shrink-0" />}
                                                     </div>
                                                 ))}
                                             </div>
