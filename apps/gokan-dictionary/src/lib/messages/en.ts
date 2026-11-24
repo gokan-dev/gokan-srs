@@ -2,9 +2,8 @@
 // tabs, the error page) and of its titles and descriptions. The site's first locale; another is
 // one more module like this one, held to the same Messages type (./index.ts).
 
-import { CLOSENESS_LABEL, headwordOf, pitchAccentLabel, secondaryForm } from '@gokan/dataset-schema';
+import { CLOSENESS_LABEL, FORM_LABELS, headwordOf, pitchAccentLabel, secondaryForm } from '@gokan/dataset-schema';
 import type { GrammarChapter, GrammarPoint, Kanji, KanjiOrder, Vocabulary } from '@gokan/dataset-schema';
-import { FORM_LABELS } from '../conjugation';
 import { orderNameLang } from '../kanjiOrders';
 import { quotedGlosses, searchablePattern, sentenceCase, truncate } from '../seo';
 import { SITE_NAME } from '../site';
@@ -74,7 +73,7 @@ export const en: Messages = {
             { text: 'Gokan SRS', ...links.srs },
             '.',
         ],
-        search: { label: 'Search the dictionary', placeholder: 'Search: kanji, kana, romaji or English', results: 'Search results' },
+        search: { label: 'Search the dictionary', placeholder: 'Search words, kanji and grammar', results: 'Search results' },
         hideFurigana: 'Hide furigana',
         showFurigana: 'Show furigana',
         play: word => `Play ${word}`,

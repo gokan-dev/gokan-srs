@@ -32,12 +32,27 @@ export type Effect =
      * `result` reads as.
      */
     | { kind: 'retry'; item: HostItem; label: string; result: AnswerResult; neutral: boolean }
-    /** Indirect production credit to a word met on another card. */
-    | { kind: 'reinforce'; vocabId: string; label: string; result: AnswerResult }
+    /**
+     * A discounted credit to one direction of a word: production, for a word met on another
+     * card (a grammar blank, a synonym typed); reading, for the listening cloze's own word heard.
+     * `asked` is set when it is the card's own answer (the listening cloze), which the session
+     * ticker then lists as the item answered.
+     */
+    | { kind: 'reinforce'; vocabId: string; label: string; result: AnswerResult; direction: ReinforcedDirection; asked?: HostItem }
     /** Nothing was asked (the study card): only push the due date out. */
     | { kind: 'defer'; item: HostItem }
+    /**
+     * The listening cloze not answered by ear (missed, or read from its translation): nothing is
+     * written to the word's SRS entries, and the word's reading is asked again this session as the
+     * plain reading card, an ordinary review (the reducer's `readAsWritten`, read by selectNextView).
+     * The ticker lists the answer, with no change.
+     */
+    | { kind: 'reask'; item: Extract<HostItem, { kind: 'vocab' }>; label: string; result: AnswerResult }
     /** Another word was produced than the one asked: remembered in `UserProgress.mixups`, dated when written. */
     | { kind: 'mixup'; mixup: Omit<MixupRecord, 'date'> };
+
+/** The directions a reinforcement credits. */
+export type ReinforcedDirection = Extract<QuizType, 'reading' | 'production'>;
 
 export interface AnswerContext {
     /** Frozen at submit, before any AI check and before the learner reads the feedback. */
@@ -45,6 +60,11 @@ export interface AnswerContext {
     hintLevels: number[];
     /** The answers as typed, one per slot: a wrong one grading did not identify is remembered as typed. */
     answers: string[];
+    /**
+     * The listening cloze was answered without its sound (the clip failed, or the learner asked
+     * for the translation): it was read, not heard, so it credits nothing (`reask`).
+     */
+    unheard?: boolean;
 }
 
 /**
@@ -61,17 +81,21 @@ export interface AnswerContext {
  * - a slot asking for a word answered with something else is a mix-up, kept with
  *   the answer as typed and the card's sentence: a synonym grading identified
  *   (whatever it earned), or a wrong answer it did not. It names the other word
- *   only when the answer was that word (SynonymAnswer.match).
+ *   only when the answer was that word (SynonymAnswer.match);
+ * - a drill's exercise (`mode: 'drill'`) has no effects at all.
  */
-export function effectsOf(exercise: AnsweredExercise, grade: ExerciseGrade, { latencyMs, hintLevels, answers }: AnswerContext): Effect[] {
+export function effectsOf(exercise: AnsweredExercise, grade: ExerciseGrade, { latencyMs, hintLevels, answers, unheard = false }: AnswerContext): Effect[] {
     const { host: item, label, cue } = exercise;
+    // A drill is practice: no review, retry, reinforcement, defer, calibration or mix-up.
+    if (exercise.mode === 'drill') return [];
     if (exercise.kind === 'study') return [{ kind: 'defer', item }];
+    if (exercise.kind === 'listening-cloze') return listeningEffects(item, label, grade.overall, unheard);
 
     const askedWord = item.kind === 'vocab' ? item.vocabId : null;
     let producedAnotherWord = false;
     const credits = new Map<string, Effect>();
     const credit = (vocabId: string, creditLabel: string, result: AnswerResult) => {
-        if (!credits.has(vocabId)) credits.set(vocabId, { kind: 'reinforce', vocabId, label: creditLabel, result });
+        if (!credits.has(vocabId)) credits.set(vocabId, { kind: 'reinforce', vocabId, label: creditLabel, result, direction: 'production' });
     };
 
     const mixups: Effect[] = [];
@@ -97,6 +121,27 @@ export function effectsOf(exercise: AnsweredExercise, grade: ExerciseGrade, { la
         ? { kind: 'retry', item, label, result: grade.overall, neutral: undecided }
         : { kind: 'review', item, label, result: grade.overall, strengthModifier: grade.strengthModifier, latencyMs, blankCount: exercise.slots.length };
     return [asked, ...credits.values(), ...mixups];
+}
+
+/**
+ * The listening cloze's effects (issue #165). It stands in for a reading review but is not
+ * one, and never produces a `review`:
+ * - the word heard right reinforces its reading entry (discounted), which moves that entry's
+ *   due date, so the review it stood in for is done;
+ * - a miss writes nothing (`reask`): no penalty for a sound not caught, and no retry, which
+ *   would push the reading entry out a full interval with no lapse. The word's reading stays
+ *   due and comes back this session as the plain reading card, an ordinary review: that card
+ *   decides, and a miss there takes the lapse;
+ * - answered without its sound (`unheard`: the clip failed, or the translation was asked for),
+ *   right or wrong, it was read, not heard: the same `reask`, so it credits nothing.
+ * No mix-up: nothing was produced from a meaning, and a word misheard is not a word confused.
+ */
+function listeningEffects(item: HostItem, label: string, result: AnswerResult, unheard: boolean): Effect[] {
+    if (item.kind !== 'vocab') return [{ kind: 'retry', item, label, result, neutral: false }];
+    if (!unheard && (result === 'correct' || result === 'minor_error')) {
+        return [{ kind: 'reinforce', vocabId: item.vocabId, label, result, direction: 'reading', asked: item }];
+    }
+    return [{ kind: 'reask', item, label, result }];
 }
 
 /**
@@ -160,7 +205,9 @@ function inRetry(progress: UserProgress, item: HostItem): boolean {
  *
  * Indirect credit (`reinforce`):
  * - goes to the PRODUCTION entry: filling a blank or typing a word from an English
- *   cue is English in, Japanese out, which is production's definition exactly;
+ *   cue is English in, Japanese out, which is production's definition exactly. The
+ *   one exception is the listening cloze's own answer, which goes to the READING entry
+ *   (the word's sound) and is the card's record in the ticker;
  * - is discounted (SRSService.applyProductionReinforcement), since the conditions
  *   are easier than a production card's own, and latency is neutralised;
  * - skips a word the learner is not studying, and is a no-op when production
@@ -174,6 +221,8 @@ export function applyEffects(
     effects: Effect[],
     { now, settings }: { now: Date; settings: UserSettings | null }
 ): { progress: UserProgress; record: AnswerRecord | null } {
+    // Nothing to write (a drill's answer): the progress is returned as it came, not a copy.
+    if (effects.length === 0) return { progress, record: null };
     const meaningEnabled = settings?.enableMeaningQuiz !== false;
     const productionEnabled = settings?.enableProductionQuiz !== false;
     const frequencyModifier = frequencyModifierOf(settings);
@@ -242,18 +291,36 @@ export function applyEffects(
                 break;
             }
             case 'reinforce': {
-                if (retrying || !productionEnabled) break;
+                // Its own answer (the listening cloze) is never in retry: selectNextView serves a
+                // reading retry as the plain reading card.
+                if (!effect.asked && retrying) break;
+                if (effect.direction === 'production' && !productionEnabled) break;
                 const target = learningQueue.find(v => v.vocabId === effect.vocabId);
                 if (!target) break;
-                const updated = SRSService.applyProductionReinforcement(
-                    target, effect.result, now, meaningEnabled, productionEnabled,
-                    growthLevelOf(calibration, 'production'), frequencyModifier
-                );
+                const updated = effect.direction === 'reading'
+                    ? SRSService.applyReadingReinforcement(
+                        target, effect.result, now, meaningEnabled, productionEnabled,
+                        growthLevelOf(calibration, 'reading'), frequencyModifier
+                    )
+                    : SRSService.applyProductionReinforcement(
+                        target, effect.result, now, meaningEnabled, productionEnabled,
+                        growthLevelOf(calibration, 'production'), frequencyModifier
+                    );
                 learningQueue = learningQueue.map(v => (v.vocabId === effect.vocabId ? updated : v));
-                const delta = calculateMasteryPercentage(strengthOf(updated, 'production')) - calculateMasteryPercentage(strengthOf(target, 'production'));
-                if (delta !== 0) credited.push({ label: effect.label, delta });
+                const delta = calculateMasteryPercentage(strengthOf(updated, effect.direction)) - calculateMasteryPercentage(strengthOf(target, effect.direction));
+                if (effect.asked) {
+                    vocabAnswers += 1;
+                    record = { item: effect.asked, label: effect.label, result: effect.result, shown: effect.result, delta, vocabDelta: 0, vocabBreakdown: [] };
+                } else if (delta !== 0) {
+                    credited.push({ label: effect.label, delta });
+                }
                 break;
             }
+            case 'reask':
+                // Nothing written: the answer is counted and listed, the word's entries untouched.
+                vocabAnswers += 1;
+                record = { item: effect.item, label: effect.label, result: effect.result, shown: effect.result, delta: 0, vocabDelta: 0, vocabBreakdown: [] };
+                break;
             case 'mixup':
                 mixups.push({ ...effect.mixup, date: now.getTime() });
                 break;

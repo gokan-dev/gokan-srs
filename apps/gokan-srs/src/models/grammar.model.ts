@@ -1,6 +1,6 @@
 import { DEFAULT_SRS_ENTRY } from './vocabulary.model';
 import type { SRSEntry } from './vocabulary.model';
-import type { GrammarContrastCase } from '@gokan/dataset-schema';
+import type { GrammarContrastCase, GrammarPoint } from '@gokan/dataset-schema';
 
 /*
  * Grammar types the SRS app derives for itself. The dataset's grammar files (GrammarPoint,
@@ -58,3 +58,18 @@ export const DEFAULT_GRAMMAR_PROGRESS: GrammarProgress = {
     consecutiveFailures: 0,
     entry: { ...DEFAULT_SRS_ENTRY },
 };
+
+/** What a contrast drill (issue #249) covers: a lesson (the set meant for it), a whole family, a chapter, or a point against its siblings. */
+export type DrillSet =
+    | { kind: 'lesson'; familyId: string; lessonId: string }
+    | { kind: 'family'; familyId: string }
+    | { kind: 'chapter'; chapterId: string }
+    | { kind: 'point'; grammarId: string };
+
+/** A point of a contrast drill, as its cards and its summary name it. */
+export interface DrillPointInfo extends Pick<GrammarPoint, 'id' | 'title' | 'jlptLevel' | 'usageNote'> {
+    /** The point as its options write it (から, not ～から、～), for the summary. */
+    marker: string;
+    /** The family page that compares it, when its family has lessons there; null otherwise. */
+    comparedOn: string | null;
+}

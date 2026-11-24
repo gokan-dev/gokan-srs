@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { GrammarService } from "../services/grammar.service";
 import { selectKnownInterchangeableSiblings, selectReadyContrasts } from "../utils/grammarContrast.utils";
 import { useAsyncData } from "../hooks/useAsyncData";
+import { grammarFamilyPath } from "../utils/navigation.utils";
 
 interface Props {
     /** The point being introduced - its contrast lessons (where it is the `focus`) are the ones shown. */
@@ -80,7 +81,7 @@ export function GrammarContrastCard({ pointId, knownIds, showFamilyLink = true }
             {showFamilyLink && (
                 <div className="mt-3">
                     <Link
-                        to={`/grammar/family/${familyId}`}
+                        to={grammarFamilyPath(familyId)}
                         className="text-accent font-gothic text-xs hover:underline"
                     >
                         Review the whole family

@@ -162,11 +162,11 @@ export function useQuizOrchestration(state: QuizState, dispatch: Dispatch<QuizAc
 
     // The selectors are pure: each memo hands them exactly the state it depends on, and the
     // current time as of that state change (the orchestration layer owns the clock).
-    const { progress, settings, introCandidates, currentVocab, currentQuizItem, nextKanjiToLearn, session } = state;
+    const { progress, settings, introCandidates, currentVocab, currentQuizItem, nextKanjiToLearn, session, readAsWritten, heldBack } = state;
 
     const nextView = useMemo(
-        () => selectNextView({ progress, settings, introCandidates, currentVocab, currentQuizItem, nextKanjiToLearn, session }, hasMoreLearnable, new Date()),
-        [progress, settings, introCandidates, currentVocab, currentQuizItem, nextKanjiToLearn, session, hasMoreLearnable]
+        () => selectNextView({ progress, settings, introCandidates, currentVocab, currentQuizItem, nextKanjiToLearn, session, readAsWritten, heldBack }, hasMoreLearnable, new Date()),
+        [progress, settings, introCandidates, currentVocab, currentQuizItem, nextKanjiToLearn, session, readAsWritten, heldBack, hasMoreLearnable]
     );
 
     const currentProgress = useMemo(() => selectCurrentProgress({ progress, currentVocab }), [currentVocab, progress]);

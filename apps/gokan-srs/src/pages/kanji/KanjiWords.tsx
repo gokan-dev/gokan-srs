@@ -73,7 +73,7 @@ interface KanjiWordsPanelProps {
 /** Words using a kanji, searchable in English or Japanese, `pageSize` at a time. */
 export function KanjiWordsPanel({ ids, label, pageSize = PAGE, compact = false }: KanjiWordsPanelProps) {
     const panel = usePagedPanel(pageSize);
-    const { keep, searching } = useIndexSearch(panel.query);
+    const { keep, notice } = useIndexSearch(panel.query);
     const matched = useMemo(() => keep(ids), [keep, ids]);
     return (
         <div>
@@ -82,7 +82,7 @@ export function KanjiWordsPanel({ ids, label, pageSize = PAGE, compact = false }
                 onChange={panel.setText}
                 label={label}
                 placeholder="Search in English or Japanese"
-                countLine={searching ? 'Searching…' : resultCountLine(matched.length, ids.length, 'word', panel.query)}
+                countLine={notice ?? resultCountLine(matched.length, ids.length, 'word', panel.query)}
             />}
             <KanjiWordRows ids={matched.slice(0, panel.shown())} query={panel.query} compact={compact} />
             <ShowMore panel={panel} total={matched.length} className="mt-4" />

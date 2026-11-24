@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { grammarPath } from "../../utils/navigation.utils";
 
 /**
  * The route to the grammar point's detail page, available only AFTER answering.
@@ -16,7 +17,7 @@ export function PointLink({ pointId, revealed }: { pointId: string; revealed: bo
     if (!revealed) return null;
     return (
         <Link
-            to={`/grammar/${pointId}`}
+            to={grammarPath(pointId)}
             className="text-xs font-gothic text-accent hover:underline whitespace-nowrap"
         >
             View grammar point

@@ -1,27 +1,39 @@
 // The site's one page-wide script, plain DOM and TypeScript (no framework runtime on any page):
 // the search combobox in the header or the home hero, the /search/ results page, and the
-// furigana toggle. Linked from every page; everything else on the site is static HTML.
+// furigana toggle. Both search views list one ranking across words, kanji and grammar points
+// (rankedSearch, the order gokan-srs's header search lists), each row the app's two lines: the
+// thing itself, then its type chip and its gloss. Linked from every page; everything else on the site is static HTML.
 //
 // Nothing is downloaded before the search field is first focused. Then the core index loads
 // (common words, kanji, grammar) together with the query engine (lib/searchQuery.ts, with the
 // romaji table and the conjugation rules: a separate chunk, so a page that is only read pays
 // for neither); after the first query has run the full index follows in the background, and the
-// current query re-runs when it arrives. Most lookups of common words never need the full file.
+// current query re-runs when it arrives, unless the reader has already scrolled its list
+// (redrawOnIndexChange): then the drawn rows stay, and the next query reads the whole index. Most lookups of common words never need the full file.
 //
 // In the page's locale, read off its <html lang>: its own index (a locale's words with a page in
 // it, their glosses in its language), its links (linkUrls: a word's page in its section) and its
 // words (lib/messages/search).
 
 import { datasetLanguageOf, htmlLang, localeOfHtmlLang } from '../lib/locale';
-import { linkUrls } from '../lib/localeLinks';
+import { linkLang, linkUrls } from '../lib/localeLinks';
 import { searchMessagesFor } from '../lib/messages/search';
-import type { PreparedIndex, SearchResults, WordHit } from '../lib/searchQuery';
-import type { SearchGrammarRow, SearchIndexFile, SearchKanjiRow } from '../lib/types';
+import { redrawOnIndexChange } from '../lib/searchRedraw';
+import type { IndexRankedHit, IndexRankedResults, PreparedIndex } from '../lib/searchQuery';
+import { kanjiRowMainReadings, kanjiRowMeanings } from '@gokan/dataset-schema';
+import type { SearchGroup } from '@gokan/dataset-schema';
+import type { SearchIndexFile } from '../lib/types';
 import { searchIndexPaths } from '../lib/urls';
-import { readingOfRow } from '../lib/searchRow';
 
-const PANEL_LIMITS = { words: 8, kanji: 3, grammar: 3 };
+/**
+ * Rows drawn at first, and added each time the list's end comes near (an IntersectionObserver on
+ * a sentinel after it): every match is in the list, as in gokan-srs's header search, but only what
+ * the reader scrolls to is drawn.
+ */
+const PANEL_PAGE_SIZE = 30;
 const RESULTS_PAGE_SIZE = 50;
+/** How far before the list's end (px) the next page is drawn, so it is there before it is reached. */
+const LOAD_MORE_MARGIN = '400px';
 const DEBOUNCE_MS = 100;
 const FURIGANA_KEY = 'gokan-dictionary:furigana-hidden';
 
@@ -77,9 +89,9 @@ function loadFullLater(): void {
         });
 }
 
-function run(query: string): SearchResults | null {
+function run(query: string): IndexRankedResults | null {
     if (!index || !engine) return null;
-    const results = engine.search(index, query);
+    const results = engine.rankedSearch(index, query);
     if (results.query) loadFullLater();
     return results;
 }
@@ -94,21 +106,72 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, attributes: Record<st
 }
 
 const ja = (text: string) => el('span', { lang: 'ja' }, text);
-const chip = (level: number) => el('span', { class: 'chip' }, `N${level}`);
+/** Japanese in Latin letters (a grammar point's romaji): not the page's language, whatever it is. */
+const JA_LATN = { lang: 'ja-Latn' };
 
-/** A word's gloss line; a conjugated query says what it was read as ("from 食べた"). */
-function glossLine(hit: WordHit): HTMLElement {
-    return el('span', { lang: glossLang }, ...(hit.via ? [words.fromForm.before, ja(hit.via), words.fromForm.after] : []), hit.row[3]);
+/** A link's attributes: its href, and hreflang="en" when it leaves the locale's section (a kanji or a grammar point, which have English pages only). */
+function linkTo(href: string, attributes: Record<string, string> = {}): Record<string, string> {
+    const lang = linkLang(locale, href);
+    return { ...attributes, href, ...(lang ? { hreflang: lang } : {}) };
 }
 
-/** The reading beside a headword, only when it differs from it. */
-function readingOf(hit: WordHit): string[] {
-    const reading = readingOfRow(hit.row);
-    return reading !== hit.row[1] ? [reading] : [];
+/** The small 英文 after a row's type or a count when its links leave the locale's section (as the site header marks them), else nothing. */
+function inEnglishMark(href: string | undefined): Node[] {
+    return href !== undefined && linkLang(locale, href) ? [el('span', { class: 'lang-mark' }, words.inEnglish)] : [];
+}
+
+/** One row of either list: where it leads, line 1 (the thing itself) and line 2's text after its type chip. */
+interface SearchRow {
+    group: SearchGroup;
+    href: string;
+    main: Node[];
+    support: Node[];
+}
+
+/** A hit as a row, the same shape as gokan-srs's: a word and its reading, a kanji and its main readings, a grammar title and its romaji. */
+function rowOf(hit: IndexRankedHit): SearchRow {
+    switch (hit.group) {
+        case 'words': {
+            const [id, headword, secondary, gloss] = hit.hit.row;
+            return {
+                group: 'words',
+                href: links.vocabPath(id),
+                // A word learned in kana names its kanji spelling where the reading would go.
+                main: [ja(headword), ...(secondary !== headword ? [el('span', { class: 'search-row-form', lang: 'ja' }, secondary)] : [])],
+                // A conjugated query says what it was read as ("from 食べた").
+                support: [el('span', { class: 'search-row-gloss', lang: glossLang }, ...(hit.hit.via ? [words.fromForm.before, ja(hit.hit.via), words.fromForm.after] : []), gloss)],
+            };
+        }
+        case 'kanji': {
+            const readings = kanjiRowMainReadings(hit.row);
+            return {
+                group: 'kanji',
+                href: links.kanjiPath(hit.row[0]),
+                main: [ja(hit.row[0]), ...(readings.length > 0 ? [el('span', { class: 'search-row-form', lang: 'ja' }, readings.join('、'))] : [])],
+                // A kanji's meanings are English in every locale (the dataset's only language for them).
+                support: [el('span', { class: 'search-row-gloss', lang: 'en' }, kanjiRowMeanings(hit.row).join(', '))],
+            };
+        }
+        case 'grammar':
+            return {
+                group: 'grammar',
+                href: links.grammarPath(hit.row[0]),
+                main: [ja(hit.row[1]), ...(hit.row[2] ? [el('span', { class: 'search-row-form', ...JA_LATN }, hit.row[2])] : [])],
+                support: [el('span', { class: 'search-row-gloss', lang: 'en' }, hit.row[3])],
+            };
+    }
+}
+
+/** A row's two lines: the thing itself, then its type chip (and 英文 when it opens an English page) leading its gloss. */
+function rowCells(row: SearchRow): HTMLElement[] {
+    return [
+        el('span', { class: 'search-row-main' }, ...row.main),
+        el('span', { class: 'search-row-support' }, el('span', { class: 'chip', 'data-type-chip': '' }, words.types[row.group]), ...inEnglishMark(row.href), ...row.support),
+    ];
 }
 
 /** "No results for 'xyz'.", the kana a romaji query was read as, and where to go instead. */
-function noResults(results: SearchResults): HTMLElement {
+function noResults(results: IndexRankedResults): HTMLElement {
     const levels = [5, 4, 3, 2, 1].flatMap(level => [' ', el('a', { href: links.vocabJlptPath(level) }, `N${level}`)]);
     return el('span', {},
         words.noResults(results.query),
@@ -116,8 +179,34 @@ function noResults(results: SearchResults): HTMLElement {
         words.tryInstead, ...levels);
 }
 
-function total(results: SearchResults): number {
-    return results.words.length + results.kanji.length + results.grammar.length;
+/**
+ * Draws `hits` into `list` a page at a time: the first page now, the next each time `sentinel`
+ * (placed after the list) comes within LOAD_MORE_MARGIN of `root`'s view (null: the page's).
+ * Returns `more`, which draws the next page at once (the arrow keys past the last drawn row),
+ * `drawn`, how many rows are drawn, and `stop`, which ends the observing when the list is drawn again.
+ */
+interface PagedList { more: () => boolean; drawn: () => number; stop: () => void }
+function pagedList(hits: IndexRankedHit[], pageSize: number, list: HTMLElement, sentinel: HTMLElement, root: HTMLElement | null, item: (hit: IndexRankedHit, index: number) => HTMLElement): PagedList {
+    let drawn = 0;
+    const observer = new IntersectionObserver(entries => {
+        if (entries.some(entry => entry.isIntersecting)) more();
+    }, { root, rootMargin: `0px 0px ${LOAD_MORE_MARGIN} 0px` });
+    const more = (): boolean => {
+        if (drawn >= hits.length) return false;
+        const next = hits.slice(drawn, drawn + pageSize);
+        list.append(...next.map((hit, i) => item(hit, drawn + i)));
+        drawn += next.length;
+        sentinel.hidden = drawn >= hits.length;
+        // Observed afresh, so its state is reported again: a sentinel still near the view after
+        // the new rows (a short page, or a scroll to the new end before the next frame) never
+        // changes state, and the observer alone would not draw the next page.
+        observer.unobserve(sentinel);
+        observer.observe(sentinel);
+        return true;
+    };
+    list.replaceChildren();
+    more();
+    return { more, drawn: () => drawn, stop: () => observer.disconnect() };
 }
 
 // -- Combobox -----------------------------------------------------------------------
@@ -127,11 +216,13 @@ function initCombobox(form: HTMLFormElement): void {
     const panel = form.querySelector<HTMLElement>('[data-search-panel]');
     const message = form.querySelector<HTMLElement>('[data-search-message]');
     const listbox = form.querySelector<HTMLElement>('[data-search-results]');
+    const sentinel = form.querySelector<HTMLElement>('[data-search-more]');
     const status = form.querySelector<HTMLElement>('[data-search-status]');
-    if (!input || !panel || !message || !listbox || !status) return;
+    if (!input || !panel || !message || !listbox || !sentinel || !status) return;
 
     let active = -1;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let paged: PagedList | null = null;
     const options = () => Array.from(listbox.querySelectorAll<HTMLAnchorElement>('[role="option"]'));
 
     function open(): void {
@@ -148,7 +239,9 @@ function initCombobox(form: HTMLFormElement): void {
     }
 
     function setActive(next: number): void {
-        const all = options();
+        let all = options();
+        // Past the last drawn row: the next page, when there is one; otherwise round to the top.
+        if (next >= all.length && paged?.more()) all = options();
         active = all.length === 0 || next < 0 ? -1 : (next + all.length) % all.length;
         all.forEach((option, i) => option.setAttribute('aria-selected', String(i === active)));
         if (active >= 0) {
@@ -159,52 +252,41 @@ function initCombobox(form: HTMLFormElement): void {
         }
     }
 
-    let optionCount = 0;
-    function option(href: string, cells: (Node | string)[], extraClass = ''): HTMLAnchorElement {
-        return el('a', { class: `search-option${extraClass}`, role: 'option', id: `search-option-${optionCount++}`, href, tabindex: '-1', 'aria-selected': 'false' }, ...cells);
-    }
-
-    function group(label: string, key: string, rows: HTMLAnchorElement[]): HTMLElement[] {
-        if (rows.length === 0) return [];
-        const id = `search-group-${key}`;
-        return [el('div', { role: 'group', 'aria-labelledby': id }, el('p', { class: 'search-group-label', id, role: 'presentation' }, label), ...rows)];
-    }
-
     function render(): void {
         const query = input!.value;
+        paged?.stop();
+        paged = null;
         if (!query.trim()) {
             listbox!.replaceChildren();
             message!.replaceChildren();
             status!.textContent = '';
+            sentinel!.hidden = true;
             close();
             return;
         }
         const results = run(query);
         if (!results) return;
 
-        optionCount = 0;
-        const wordRows = results.words.slice(0, PANEL_LIMITS.words).map(hit =>
-            option(links.vocabPath(hit.row[0]), [ja(hit.row[1]), ...readingOf(hit).map(ja), ...(hit.row[4] ? [chip(hit.row[4])] : []), glossLine(hit)]));
-        const kanji = results.kanji.slice(0, PANEL_LIMITS.kanji).map((row: SearchKanjiRow) =>
-            option(links.kanjiPath(row[0]), [ja(row[0]), el('span', {}, words.groups.kanji), ...(row[1] ? [chip(row[1])] : [])]));
-        const grammar = results.grammar.slice(0, PANEL_LIMITS.grammar).map((row: SearchGrammarRow) =>
-            option(links.grammarPath(row[0]), [ja(row[1]), el('span', {}, row[2]), chip(row[4]), el('span', {}, row[3])]));
-
-        const count = total(results);
-        listbox!.replaceChildren(
-            ...group(words.groups.words, 'words', wordRows),
-            ...group(words.groups.kanji, 'kanji', kanji),
-            ...group(words.groups.grammar, 'grammar', grammar),
-            ...(count > 0 ? [option(links.searchPath(query.trim()), [words.seeAll(query.trim())], ' search-option--all')] : []),
-        );
+        const count = results.hits.length;
+        // Every option says its place in the whole list, as only the drawn ones are in it.
+        paged = pagedList(results.hits, PANEL_PAGE_SIZE, listbox!, sentinel!, panel, (hit, index) => {
+            const row = rowOf(hit);
+            return el('a', linkTo(row.href, {
+                class: 'search-option search-row', role: 'option', id: `search-option-${index}`, tabindex: '-1', 'aria-selected': 'false',
+                'aria-setsize': String(count), 'aria-posinset': String(index + 1),
+            }), ...rowCells(row));
+        });
+        panel!.scrollTop = 0;
         message!.replaceChildren(...(count === 0 ? [noResults(results)] : []));
         status!.textContent = words.status(count);
-        setActive(-1);
+        active = -1;
+        input!.removeAttribute('aria-activedescendant');
         open();
     }
 
     onIndexChange.push(() => {
-        if (document.activeElement === input || !panel.hidden) render();
+        if (document.activeElement !== input && panel.hidden) return;
+        if (redrawOnIndexChange({ drawn: paged?.drawn() ?? 0, pageSize: PANEL_PAGE_SIZE, scrolled: panel.scrollTop })) render();
     });
 
     input.addEventListener('focus', () => {
@@ -257,7 +339,6 @@ function initCombobox(form: HTMLFormElement): void {
 function initResultsPage(root: HTMLElement): void {
     const params = new URLSearchParams(window.location.search);
     const query = (params.get('q') ?? '').trim();
-    const page = Math.max(1, Number(params.get('p')) || 1);
     root.querySelector('[data-search-nojs]')?.remove();
 
     const input = document.querySelector<HTMLInputElement>('[data-search-input]');
@@ -266,46 +347,47 @@ function initResultsPage(root: HTMLElement): void {
     if (title && query) title.textContent = words.resultsFor(query);
     if (query) document.title = `${query}: ${document.title}`;
 
-    function section(heading: string, ...content: Node[]): HTMLElement {
-        return el('section', { class: 'section' }, el('h2', {}, heading), ...content);
+    let paged: PagedList | null = null;
+
+    /** The line under the title: how many of each type the one list holds, in the order they first appear. */
+    function counts(results: IndexRankedResults): HTMLElement {
+        const order: SearchGroup[] = [];
+        const tally: Record<SearchGroup, { count: number; href: string | undefined }> = { words: { count: 0, href: undefined }, kanji: { count: 0, href: undefined }, grammar: { count: 0, href: undefined } };
+        for (const hit of results.hits) {
+            if (tally[hit.group].count === 0) {
+                order.push(hit.group);
+                tally[hit.group].href = rowOf(hit).href;
+            }
+            tally[hit.group].count += 1;
+        }
+        return el('p', { class: 'search-counts' }, ...order.map(group => el('span', {}, words.sectionHeading(words.groups[group], tally[group].count), ...inEnglishMark(tally[group].href))));
     }
 
     function render(): void {
+        paged?.stop();
+        paged = null;
         if (!query) {
             root.replaceChildren(el('p', { class: 'support' }, words.emptyQuery));
             return;
         }
         const results = run(query);
         if (!results) return;
-        if (total(results) === 0) {
+        if (results.hits.length === 0) {
             root.replaceChildren(el('p', { class: 'support' }, noResults(results)));
             return;
         }
-
-        const pageCount = Math.ceil(results.words.length / RESULTS_PAGE_SIZE);
-        const shown = results.words.slice((page - 1) * RESULTS_PAGE_SIZE, page * RESULTS_PAGE_SIZE);
-        const pager = () => el('nav', { class: 'pager', 'aria-label': words.resultPages },
-            ...Array.from({ length: pageCount }, (_, i) =>
-                el('a', { href: `${links.searchPath(query)}&p=${i + 1}`, ...(i + 1 === page ? { 'aria-current': 'page' } : {}) }, String(i + 1))));
-        const wordList = el('ul', { class: 'entry-list' }, ...shown.map(hit =>
-            el('li', {}, el('a', { href: links.vocabPath(hit.row[0]), lang: 'ja' }, hit.row[1], ...readingOf(hit).map(reading => el('span', {}, reading)), glossLine(hit)))));
-
-        root.replaceChildren(
-            ...(results.words.length > 0
-                ? [section(words.wordsHeading(results.words.length), ...(pageCount > 1 ? [pager()] : []), wordList, ...(pageCount > 1 ? [pager()] : []))]
-                : []),
-            ...(results.kanji.length > 0
-                ? [section(words.groups.kanji, el('ul', { class: 'entry-list' }, ...results.kanji.map(row =>
-                    el('li', {}, el('a', { href: links.kanjiPath(row[0]), lang: 'ja' }, row[0], el('span', { lang: glossLang }, row[1] ? words.kanjiLevel(row[1]) : words.outsideJlpt))))))]
-                : []),
-            ...(results.grammar.length > 0
-                ? [section(words.groups.grammar, el('ul', { class: 'grammar-list' }, ...results.grammar.map(row =>
-                    el('li', {}, el('a', { href: links.grammarPath(row[0]) }, ja(row[1]), ...(row[2] ? [el('small', {}, row[2])] : []), el('small', {}, `N${row[4]}`), el('span', {}, row[3]))))))]
-                : []),
-        );
+        const list = el('ul', { class: 'search-results' });
+        const sentinel = el('div', { class: 'search-more', 'aria-hidden': 'true' });
+        root.replaceChildren(counts(results), list, sentinel);
+        paged = pagedList(results.hits, RESULTS_PAGE_SIZE, list, sentinel, null, hit => {
+            const row = rowOf(hit);
+            return el('li', {}, el('a', linkTo(row.href, { class: 'search-row' }), ...rowCells(row)));
+        });
     }
 
-    onIndexChange.push(render);
+    onIndexChange.push(() => {
+        if (redrawOnIndexChange({ drawn: paged?.drawn() ?? 0, pageSize: RESULTS_PAGE_SIZE, scrolled: window.scrollY })) render();
+    });
     root.replaceChildren(el('p', { class: 'support' }, words.searching));
     loadCore().catch(() => root.replaceChildren(el('p', { class: 'support' }, words.unavailable)));
 }

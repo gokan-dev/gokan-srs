@@ -16,6 +16,7 @@ import { useNow } from "../../hooks/useNow";
 import { DetailErrorScreen } from "../../components/detail/DetailErrorScreen";
 import { DetailField, DetailSection } from "../../components/detail/DetailSection";
 import { DetailHeader } from "../../components/detail/DetailHeader";
+import { PointHeaderActions } from "./PointHeaderActions";
 import { DetailTabsBody } from "../../components/detail/DetailTabsBody";
 import { LearnStatus } from "../../components/detail/LearnStatus";
 import { YourProgress } from "../../components/detail/YourProgress";
@@ -24,6 +25,7 @@ import { GrammarExampleList, GrammarExamplesPanel, type ListedExample } from "./
 import { GRAMMAR_TABS } from "../../utils/detailTabs.utils";
 import { directionStatus, grammarLearningStatus, statusReviewPhrase } from "../../utils/learningStatus.utils";
 import { grammarNextReviewAt } from "../../services/grammarScheduling";
+import { grammarChapterPath } from "../../utils/navigation.utils";
 
 type GrammarTab = typeof GRAMMAR_TABS.tabs[number];
 
@@ -140,7 +142,7 @@ function GrammarPage({ point, chapterLocation, mined, examplesSettled, hasVarian
                     {point.formalityLevel && <DetailField compact label="Formality">{FORMALITY_LABELS[point.formalityLevel]}</DetailField>}
                     {chapterLocation && (
                         <DetailField compact label="Position">
-                            <Link to={`/grammar/chapters?chapter=${chapterLocation.chapter.id}`} className="text-accent hover:underline">
+                            <Link to={grammarChapterPath(chapterLocation.chapter.id)} className="text-accent hover:underline">
                                 Chapter {chapterLocation.chapterNumber}, point {chapterLocation.chapter.points.indexOf(point.id) + 1} of {chapterLocation.chapter.points.length}
                             </Link>
                         </DetailField>
@@ -148,14 +150,18 @@ function GrammarPage({ point, chapterLocation, mined, examplesSettled, hasVarian
                     <DetailField compact label="Kind">{KIND_LABELS[point.kind ?? 'construction']}</DetailField>
                 </>
             )}
-            actions={progress && studied ? (
-                <LearnStatus
-                    inStudy
-                    status={grammarLearningStatus(progress)}
-                    nextReview={statusReviewPhrase(grammarLearningStatus(progress), grammarNextReviewAt(progress, state.settings), now)}
-                />
-            ) : (
-                <LearnStatus inStudy={false} learnLabel="Learn this grammar point" onLearn={() => grammarActions.saveGrammarIntroChoice(point, 'learn')} />
+            actions={(
+                <PointHeaderActions grammarId={point.id}>
+                    {progress && studied ? (
+                        <LearnStatus
+                            inStudy
+                            status={grammarLearningStatus(progress)}
+                            nextReview={statusReviewPhrase(grammarLearningStatus(progress), grammarNextReviewAt(progress, state.settings), now)}
+                        />
+                    ) : (
+                        <LearnStatus inStudy={false} learnLabel="Learn this grammar point" onLearn={() => grammarActions.saveGrammarIntroChoice(point, 'learn')} />
+                    )}
+                </PointHeaderActions>
             )}
         >
             {point.romaji && <p className="type-meta">{point.romaji}</p>}

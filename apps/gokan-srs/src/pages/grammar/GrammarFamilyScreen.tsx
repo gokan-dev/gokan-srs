@@ -8,6 +8,9 @@ import { useIntroducedGrammarIds } from "../../hooks/useIntroducedGrammarIds";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { Page } from "../../components/Page";
 import { PageHeader } from "../../components/PageHeader";
+import { DrillLink } from "../../components/DrillLink";
+import { ContrastCaseText } from "../../components/ContrastCaseText";
+import { grammarPath } from "../../utils/navigation.utils";
 
 type FamilyEntry = GrammarContrastIndex[string];
 
@@ -54,7 +57,12 @@ export default function GrammarFamilyScreen() {
 
     return (
         <Page width="narrow">
-            <PageHeader title={entry.name} parentPath="/grammar/browse" className="mb-6" />
+            <PageHeader
+                title={entry.name}
+                parentPath="/grammar/browse"
+                actions={familyId && <DrillLink set={{ kind: 'family', familyId }} label="Drill the family" />}
+                className="mb-6"
+            />
 
             <p className="type-support mb-6">
                 {entry.lessons.length > 0
@@ -65,18 +73,22 @@ export default function GrammarFamilyScreen() {
             <div className="space-y-6">
                 {entry.lessons.map(lesson => (
                     <Card key={lesson.id} size="md">
-                        <h2 className="text-lg font-gothic font-semibold text-primary mb-3">{lesson.title}</h2>
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                            <h2 className="text-lg font-gothic font-semibold text-primary">{lesson.title}</h2>
+                            {familyId && (
+                                <DrillLink
+                                    set={{ kind: 'lesson', familyId, lessonId: lesson.id }}
+                                    label="Drill this lesson"
+                                    fallback={<p className="type-support" data-no-drill>No drill yet for this lesson.</p>}
+                                />
+                            )}
+                        </div>
 
                         <PointChips ids={lesson.points} members={members} knownIds={knownIds} />
 
                         <div className="space-y-3">
                             {lesson.cases.map((c, i) => (
-                                <div key={`${lesson.id}-${i}`} className="border-l-2 border-accent/40 pl-3">
-                                    <p className="text-primary font-sans text-sm leading-relaxed">
-                                        <span className="font-semibold">{c.situation}</span>{" "}
-                                        {c.guidance}
-                                    </p>
-                                </div>
+                                <ContrastCaseText key={`${lesson.id}-${i}`} contrast={c} />
                             ))}
                         </div>
                     </Card>
@@ -110,7 +122,7 @@ function PointChips({ ids, members, knownIds }: { ids: string[]; members: Map<st
                 return (
                     <Link
                         key={id}
-                        to={`/grammar/${id}`}
+                        to={grammarPath(id)}
                         className="inline-flex items-center gap-2 rounded-md border border-divider px-2 py-1 hover:border-accent transition-colors"
                     >
                         <span className="font-mincho text-primary">{p.title}</span>

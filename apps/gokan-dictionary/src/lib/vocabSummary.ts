@@ -2,29 +2,15 @@
 // word list row and the short gloss a list or search row carries. Separated from
 // lib/server/pages.ts so they're unit-testable without the dataset or the Svelte loader.
 
-import { headwordOf } from '@gokan/dataset-schema';
+import { FLAG_USUALLY_KANA, headwordOf, SEARCH_EXPLANATION_LENGTH, shortGloss, truncateAtWord } from '@gokan/dataset-schema';
 import type { Vocabulary } from '@gokan/dataset-schema';
-import { FLAG_USUALLY_KANA } from './searchRow';
 import type { SearchWordRow, VocabSummary } from './types';
 
-/** Longest short gloss, in characters: one line of a list row or a search result. */
-export const SHORT_GLOSS_LENGTH = 60;
+/** Longest short gloss, in characters: one line of a list row or a search result, as a grammar row's explanation is cut. */
+export const SHORT_GLOSS_LENGTH = SEARCH_EXPLANATION_LENGTH;
 
-/**
- * `text` cut at a word boundary to at most `max` characters, with an ellipsis when cut. A single
- * word longer than `max` is cut mid-word rather than dropped.
- */
-export function truncateAtWord(text: string, max: number): string {
-    if (text.length <= max) return text;
-    const cut = text.slice(0, max - 1);
-    const boundary = cut.lastIndexOf(' ');
-    return `${(boundary > 0 ? cut.slice(0, boundary) : cut).replace(/[\s;,]+$/, '')}…`;
-}
-
-/** The first sense's glosses joined with "; ", cut to SHORT_GLOSS_LENGTH. */
-export function shortGloss(vocab: Pick<Vocabulary, 'senses'>): string {
-    return truncateAtWord(vocab.senses[0]?.glosses.join('; ') ?? '', SHORT_GLOSS_LENGTH);
-}
+// The short gloss is the search rows' (@gokan/dataset-schema), so a list row and a search row agree.
+export { shortGloss, truncateAtWord };
 
 /**
  * A word's summary from its search row (searchWordRow), equal to vocabSummaryFrom of the word: a

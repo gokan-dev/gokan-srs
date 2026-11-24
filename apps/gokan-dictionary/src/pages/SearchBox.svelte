@@ -6,7 +6,8 @@
   /**
    * The search field, in the header or as the home page's hero. A plain form to /search/, so
    * Enter opens the results page even before (or without) the script; client/search.ts turns
-   * it into a combobox over a grouped results panel. One per page, hence the fixed ids.
+   * it into a combobox over one ranked list of results, drawn a page at a time as it is
+   * scrolled (the sentinel after the list). One per page, hence the fixed ids.
    */
   interface Props {
     hero?: boolean;
@@ -37,5 +38,6 @@
   <div class="search-panel" data-search-panel hidden>
     <p class="search-message" data-search-message></p>
     <div id="search-listbox" role="listbox" aria-label={messages.chrome.search.results} data-search-results></div>
+    <div class="search-more" aria-hidden="true" data-search-more hidden></div>
   </div>
 </form>

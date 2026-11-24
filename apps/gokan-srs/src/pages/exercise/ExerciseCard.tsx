@@ -1,14 +1,16 @@
-import type { Vocabulary } from "@gokan/dataset-schema";
+import { useEffect, useEffectEvent, useState } from "react";
+import type { ClipOutcome, Vocabulary } from "@gokan/dataset-schema";
 import { useQuiz } from "../../context/useQuiz";
 import type { ExerciseTurnApi } from "../../context/quiz/useExerciseTurn";
-import type { SlotGrade } from "../../services/exercise/types";
+import type { Exercise, SlotGrade } from "../../services/exercise/types";
+import { useClip } from "../../hooks/useClip";
 import { CONSTANTS } from "../../commons/constants";
 import { SingleAnswerCard } from "../../components/quiz/SingleAnswerCard";
 import { SentenceClozeCard } from "../../components/quiz/SentenceClozeCard";
 import { StudyCard } from "../../components/quiz/StudyCard";
 import { formatReadingList } from "../quiz/quizFormatting";
-import { MeaningPrompt, ProductionClozeHeader, ProductionPrompt, ReadingPrompt } from "../quiz/VocabPrompts";
-import { ConjugationAnswer, ConjugationPrompt, GrammarCardHeader, SentenceCue } from "../grammar/GrammarPrompts";
+import { ListeningClozeHeader, MeaningPrompt, ProductionClozeHeader, ProductionPrompt, ReadingPrompt } from "../quiz/VocabPrompts";
+import { ConjugationAnswer, ConjugationPrompt, DrillContrastNote, GrammarCardHeader, SentenceCue, SituationCue, UsageNote } from "../grammar/GrammarPrompts";
 
 /**
  * Reading and production from a gloss both take the word's reading, in kana: a near miss shows what it was close to, a miss every reading.
@@ -107,6 +109,21 @@ export function ExerciseCard({ api, onVocabClick }: ExerciseCardProps) {
                 />
             );
 
+        case 'listening-cloze':
+            if (!vocab) return null;
+            return (
+                <ListeningCloze
+                    // A new card is a new clip, even on the same sentence (another word of it): it
+                    // plays on show again, says "Play" again, and the fallback does not carry over.
+                    key={`${vocab.id}:${exercise.sentence.sentence.id}`}
+                    api={api}
+                    vocab={vocab}
+                    exercise={exercise}
+                    memoryStrength={currentProgress?.reading.memoryStrength ?? 0}
+                    onVocabClick={onVocabClick}
+                />
+            );
+
         case 'grammar-cloze':
             if (!point) return null;
             return (
@@ -128,34 +145,44 @@ export function ExerciseCard({ api, onVocabClick }: ExerciseCardProps) {
                         </>
                     )}
                     feedbackExtra={point.usageNote && (
-                        <p className="text-xs font-gothic text-secondary italic mt-2">{point.usageNote}</p>
+                        <UsageNote note={point.usageNote} />
                     )}
                     onVocabClick={onVocabClick}
                 />
             );
 
-        case 'grammar-choice':
-            if (!point) return null;
+        case 'grammar-choice': {
+            // A drill's card names its own point (the drill's, not the session's) and moves no mastery.
+            const shown = exercise.point ?? point;
+            if (!shown) return null;
+            const picked = exercise.slots[0]?.choices?.find(c => c.text === api.turn?.answers[0]);
+            const contrast = answered ? picked?.contrast : undefined;
             return (
                 <SentenceClozeCard
                     api={api}
                     sentence={exercise.sentence}
                     header={(
                         <>
-                            <GrammarCardHeader point={point} memoryStrength={grammarStrength} answered={answered} />
-                            {/* The translation would answer the card: it comes with the feedback. */}
-                            <SentenceCue
-                                instruction="Choose what fits the sentence"
-                                english={answered ? exercise.sentence.sentence.en[0]?.text : undefined}
-                            />
+                            <GrammarCardHeader point={shown} memoryStrength={exercise.mode === 'drill' ? null : grammarStrength} answered={answered} />
+                            {exercise.sentence ? (
+                                // The translation would answer the card: it comes with the feedback.
+                                <SentenceCue
+                                    instruction="Choose what fits the sentence"
+                                    english={answered ? exercise.sentence.sentence.en[0]?.text : undefined}
+                                />
+                            ) : exercise.situation && <SituationCue situation={exercise.situation} />}
                         </>
                     )}
-                    feedbackExtra={point.usageNote && (
-                        <p className="text-xs font-gothic text-secondary italic mt-2">{point.usageNote}</p>
+                    feedbackExtra={(contrast || shown.usageNote) && (
+                        <>
+                            {contrast && <DrillContrastNote contrast={contrast} guidanceOnly={!exercise.sentence} />}
+                            {shown.usageNote && <UsageNote note={shown.usageNote} />}
+                        </>
                     )}
                     onVocabClick={onVocabClick}
                 />
             );
+        }
 
         case 'conjugation':
             if (!point) return null;
@@ -184,11 +211,7 @@ export function ExerciseCard({ api, onVocabClick }: ExerciseCardProps) {
                         <>
                             {/* The study view has no answer to spoil. */}
                             <GrammarCardHeader point={point} memoryStrength={grammarStrength} answered>
-                                {point.usageNote && (
-                                    <p className="text-center text-xs text-secondary font-gothic italic mt-1 max-w-sm mx-auto">
-                                        {point.usageNote}
-                                    </p>
-                                )}
+                                {point.usageNote && <UsageNote note={point.usageNote} centered />}
                             </GrammarCardHeader>
                             <SentenceCue instruction="No quizzable words in this example - study it instead" english={exercise.sentence.en[0]?.text ?? ''} />
                         </>
@@ -197,4 +220,63 @@ export function ExerciseCard({ api, onVocabClick }: ExerciseCardProps) {
                 />
             );
     }
+}
+
+interface ListeningClozeProps {
+    api: ExerciseTurnApi;
+    vocab: Vocabulary;
+    exercise: Extract<Exercise, { kind: 'listening-cloze' }>;
+    memoryStrength: number;
+    onVocabClick: (vocabId: string) => void;
+}
+
+/**
+ * The listening cloze on the sentence cloze card (issue #165): its sentence plays once on show,
+ * replays on its control or the replay key, and, when it cannot be heard (the clip failed, or the
+ * learner asked for the text, which stops it), shows its translation, so the card is answered as
+ * the production cloze is rather than blocking the session; that answer credits nothing
+ * (`turn.unheard`, effects.ts). A clip blocked from playing by itself (autoplay) is not a failure:
+ * the control is there to press. A right answer shows the word as written, with its reading.
+ */
+function ListeningCloze({ api, vocab, exercise, memoryStrength, onVocabClick }: ListeningClozeProps) {
+    const control = useClip(exercise.audio.clip);
+    // `played` resolves when playback starts: the clip counts as heard once that play has ended
+    // (played through, or stopped), so the control says "Play" for the whole first play.
+    const [started, setStarted] = useState(false);
+    const [heard, setHeard] = useState(false);
+    if (started && !control.playing && !heard) setHeard(true);
+    const unheard = api.turn?.unheard === true;
+    const onOutcome = (outcome: ClipOutcome) => {
+        if (outcome === 'played') setStarted(true);
+        else if (outcome === 'failed') api.markUnheard();
+    };
+
+    const playOnShow = useEffectEvent(() => { void control.play().then(onOutcome); });
+    useEffect(() => playOnShow(), []);
+
+    return (
+        <SentenceClozeCard
+            api={api}
+            sentence={exercise.sentence}
+            header={(
+                <ListeningClozeHeader
+                    vocab={vocab}
+                    sentence={exercise.cloze.sentence}
+                    memoryStrength={memoryStrength}
+                    control={control}
+                    heard={heard}
+                    answered={!!api.turn?.feedback}
+                    unheard={unheard}
+                    onUnheard={() => {
+                        control.stop();
+                        api.markUnheard();
+                    }}
+                    onOutcome={onOutcome}
+                />
+            )}
+            onVocabClick={onVocabClick}
+            onReplay={() => void control.play().then(onOutcome)}
+            revealWhenRight
+        />
+    );
 }

@@ -86,6 +86,12 @@ const AGENT_STUB_CONTENT = '@AGENTS.md';
 const DATASET_URL_SOURCE = /^apps\/gokan-srs\/src\/.*\.tsx?$/;
 const DATASET_URL_HELPER = 'apps/gokan-srs/src/services/http.ts';
 /**
+ * The app's one word index is the header search's rows, `virtual:gokan-search-entries` (read through
+ * services/search.service.ts, panel searches too). Reading the dataset's index/search.json as well
+ * downloaded the same 36k words twice (1.69.0 review: useIndexSearch still fetched it).
+ */
+const SECOND_WORD_INDEX = /['"`/]index\/search\.json['"`]/;
+/**
  * A clip is served at one path on the shared host, for both apps: one builder names it
  * (`audioUrl`, `@gokan/dataset-schema`), so the app and the dictionary cannot ask for a clip at
  * two different addresses (#255).
@@ -195,6 +201,8 @@ const SECONDARY_FORM_COMPONENT = 'apps/gokan-srs/src/components/SecondaryForm.ts
  * which has CJK glyphs: an element that renders one names a Japanese face itself.
  */
 const RENDERED_HEADWORD = />\{\s*(?:headwordOf|secondaryForm|headwordWithReading)\(/;
+// English copy is in Inter (font-sans): a font-gothic element whose own text is English is flagged.
+const ENGLISH_FACE_SCOPE = 'apps/gokan-srs/src/pages/quiz/';
 const JAPANESE_FACE = /\b(?:font-mincho|font-gothic|jp-[\w-]+)\b/;
 
 // An agent workflow that can push queues on its branch's lock, so two agents never run on one
@@ -524,8 +532,12 @@ const SRS_COMPONENT = /^apps\/gokan-srs\/src\/components\/.*\.tsx?$/;
 const IMPORT_FROM_PAGES = /\bfrom\s+['"](\.\.\/)+pages\/|\bimport\(\s*['"](\.\.\/)+pages\//;
 /** A raw part-of-speech code (`v5r`, `adj-i`): a sense's labels come from utils/senses.utils.ts (organizeSenses). */
 const RAW_POS = /\.pos\[/;
-/** A word's or a kanji's page path, built by hand: vocabPath and kanjiPath (utils/navigation.utils.ts) build them. */
-const HAND_BUILT_ENTRY_PATH = /`\/(?:vocab|kanji)\/\$\{/;
+/**
+ * A word's, a kanji's, a grammar point's, a grammar family's or a grammar chapter's page path, built by
+ * hand: vocabPath, kanjiPath, grammarPath, grammarFamilyPath and grammarChapterPath
+ * (utils/navigation.utils.ts) build them, ids encoded.
+ */
+const HAND_BUILT_ENTRY_PATH = /`\/(?:vocab\/\$\{|kanji\/\$\{|grammar\/\$\{|grammar\/family\/\$\{|grammar\/chapters\?)/;
 /** The path builders, and the app-route-to-dictionary-page table (the dictionary's URLs, not the app's routes). */
 const ENTRY_PATH_FILES = new Set(['apps/gokan-srs/src/utils/navigation.utils.ts', 'apps/gokan-srs/src/utils/seo.utils.ts']);
 
@@ -548,6 +560,47 @@ function linksAloneInParagraphs(text: string): number[] {
         const closing = `</${m[1]}>`;
         const end = text.indexOf(closing, m.index);
         if (end >= 0 && /^\s*<\/p>/.test(text.slice(end + closing.length))) lines.push(text.slice(0, m.index).split('\n').length);
+    }
+    return lines;
+}
+
+/**
+ * The other half of `p a`: a link in a sentence written straight into an `<li>` is running text
+ * that no rule underlines, so colour alone marks it. Its sentence goes in a `<p>` inside the
+ * `<li>`. Text inside a child element (a row's count, a button's label) is not running text
+ * around the link, nor is text inside `{...}`: only the item's own direct text counts.
+ */
+const LIST_ITEM = /<li\b[^>]*>([\s\S]*?)<\/li>/g;
+
+function outsideBraces(text: string): string {
+    let out = '';
+    let depth = 0;
+    for (const c of text) {
+        if (c === '{') depth++;
+        else if (c === '}') depth = Math.max(0, depth - 1);
+        else if (depth === 0) out += c;
+    }
+    return out;
+}
+
+/** The text of `jsx` outside every element in it (braces already removed, so no tag holds a `>`). */
+function directText(jsx: string): string {
+    let out = '';
+    let depth = 0;
+    let last = 0;
+    for (const m of jsx.matchAll(/<(\/?)[A-Za-z][\w.]*[^>]*?(\/?)>/g)) {
+        if (depth === 0) out += jsx.slice(last, m.index);
+        if (m[1]) depth--;
+        else if (!m[2]) depth++;
+        last = m.index + m[0].length;
+    }
+    return depth === 0 ? out + jsx.slice(last) : out;
+}
+
+function linksInListItemText(text: string): number[] {
+    const lines: number[] = [];
+    for (const m of text.matchAll(LIST_ITEM)) {
+        if (/<(Link|NavLink|a)\b/.test(m[1]) && /\p{L}/u.test(directText(outsideBraces(m[1])))) lines.push(text.slice(0, m.index).split('\n').length);
     }
     return lines;
 }
@@ -576,8 +629,8 @@ function read(file: string): string | null {
  * Every JSX opening tag in a file, with the line it starts on. A tag runs to the first `>` outside
  * braces, so a multi-line className and an arrow function prop (`=>`) stay inside it.
  */
-function jsxOpeningTags(text: string): { line: number; tag: string }[] {
-    const tags: { line: number; tag: string }[] = [];
+function jsxOpeningTags(text: string): { line: number; tag: string; end: number }[] {
+    const tags: { line: number; tag: string; end: number }[] = [];
     const start = /<[A-Za-z][\w.]*[\s/>]/g;
     for (let m = start.exec(text); m; m = start.exec(text)) {
         let depth = 0;
@@ -588,9 +641,39 @@ function jsxOpeningTags(text: string): { line: number; tag: string }[] {
             else if (c === '}') depth--;
             else if (c === '>' && depth === 0) break;
         }
-        tags.push({ line: text.slice(0, m.index).split('\n').length, tag: text.slice(m.index, end + 1) });
+        tags.push({ line: text.slice(0, m.index).split('\n').length, tag: text.slice(m.index, end + 1), end: end + 1 });
     }
     return tags;
+}
+
+/**
+ * The text an opening tag's element starts with, up to its first child element or its close:
+ * the static text outside braces, and the string literals inside them (`{a ? 'Play' : 'Stop'}`).
+ * A brace left open before the next tag (`{cond && (<span>...`) ends it.
+ */
+function leadingTextOf(text: string, tagEnd: number): string {
+    const next = text.indexOf('<', tagEnd);
+    const content = text.slice(tagEnd, next < 0 ? text.length : next);
+    const parts: string[] = [];
+    let depth = 0;
+    let expression = '';
+    for (const c of content) {
+        if (c === '{') {
+            depth++;
+            continue;
+        }
+        if (c === '}') {
+            depth--;
+            if (depth === 0) {
+                for (const [, literal] of expression.matchAll(/'([^']*)'|"([^"]*)"/g)) parts.push(literal ?? '');
+                expression = '';
+            }
+            continue;
+        }
+        if (depth === 0) parts.push(c);
+        else expression += c;
+    }
+    return parts.join('');
 }
 
 function eachLine(text: string, test: (line: string) => boolean, onMatch: (line: number) => void): void {
@@ -673,7 +756,14 @@ function check(files: string[]): Violation[] {
         if (GOKAN_SRS_SOURCE.test(file) && file.endsWith('.tsx') && !file.endsWith('.test.tsx')) {
             eachLine(text, l => UNTYPED_DT.test(l), line =>
                 add({ file, line, rule: 'type-role', message: 'A <dt> takes a type role in its className (type-label, type-meta...), not a hand-built size, weight and colour (docs/DESIGN_SYSTEM.md section 3).' }));
-            for (const { line, tag } of jsxOpeningTags(text)) {
+            for (const { line, tag, end } of jsxOpeningTags(text)) {
+                // Scoped to the quiz prompts for now: older screens still carry the pattern.
+                if (file.startsWith(ENGLISH_FACE_SCOPE) && /\bfont-gothic\b/.test(tag) && !tag.endsWith('/>')) {
+                    const words = leadingTextOf(text, end).trim();
+                    if (/[A-Za-z]{2,}/.test(words) && /^[\x20-\x7e\s]*$/.test(words)) {
+                        add({ file, line, rule: 'english-face', message: 'English text in font-gothic. English UI copy uses font-sans (Inter), or a type role; font-gothic is for Japanese text (AGENTS.md, Design rules).' });
+                    }
+                }
                 if (/\splaceholder=/.test(tag) && /\bfont-(?:gothic|mincho)\b/.test(tag) && !/\bplaceholder:font-sans\b/.test(tag)) {
                     add({ file, line, rule: 'placeholder-font', message: 'A field in a Japanese face sets `placeholder:font-sans`: the placeholder inherits font-gothic/font-mincho otherwise, and the `--font-sans` fallback draws Japanese placeholders in Noto Sans JP (docs/DESIGN_SYSTEM.md section 3).' });
                 }
@@ -698,6 +788,11 @@ function check(files: string[]): Violation[] {
         if (DATASET_URL_SOURCE.test(file) && file !== DATASET_URL_HELPER && !/\.test\.tsx?$/.test(file)) {
             eachLine(text, l => l.includes('/dataset/') && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
                 add({ file, line, rule: 'dataset-url', message: 'Build dataset URLs with datasetUrl() (services/http.ts); it adds the dataset version browsers cache by.' }));
+        }
+
+        if (DATASET_URL_SOURCE.test(file) && !/\.test\.tsx?$/.test(file)) {
+            eachLine(text, l => SECOND_WORD_INDEX.test(l) && !/^\s*(\/\/|\*|\/\*)/.test(l), line =>
+                add({ file, line, rule: 'one-word-index', message: 'Reads index/search.json. The app\'s one word index is the header search\'s rows (virtual:gokan-search-entries): read a word\'s row through SearchService.wordRows (services/search.service.ts), so a learner downloads the words once.' }));
         }
 
         if (AUDIO_URL_SOURCE.test(file) && file !== AUDIO_URL_HELPER && !/\.test\.tsx?$/.test(file)) {
@@ -914,7 +1009,7 @@ function check(files: string[]): Violation[] {
 
         if (GOKAN_SRS_SOURCE.test(file) && !ENTRY_PATH_FILES.has(file) && !/\.test\.tsx?$/.test(file)) {
             eachLine(text, l => HAND_BUILT_ENTRY_PATH.test(l), line =>
-                add({ file, line, rule: 'entry-paths', message: 'Builds a word or kanji path by hand. Use vocabPath / kanjiPath (utils/navigation.utils.ts), so every link to an entry is one URL.' }));
+                add({ file, line, rule: 'entry-paths', message: 'Builds a word, kanji, grammar point, grammar family or chapter path by hand. Use vocabPath / kanjiPath / grammarPath / grammarFamilyPath / grammarChapterPath (utils/navigation.utils.ts), so every link to a page is one URL.' }));
         }
 
         if (GOKAN_SRS_SOURCE.test(file) && file !== WORD_READING_COMPONENT && !/\.test\.tsx?$/.test(file)) {
@@ -940,6 +1035,9 @@ function check(files: string[]): Violation[] {
         if (GOKAN_SRS_SOURCE.test(file) && file.endsWith('.tsx')) {
             for (const line of linksAloneInParagraphs(text)) {
                 add({ file, line, rule: 'link-alone-in-paragraph', message: 'A link alone in a <p> is not running text, but `p a` underlines it for good. Wrap it in a <div>.' });
+            }
+            for (const line of linksInListItemText(text)) {
+                add({ file, line, rule: 'link-in-list-item-text', message: 'A link in a sentence written straight into an <li> is told apart by colour alone: `p a` underlines only a link in a <p>. Put the sentence in a <p> inside the <li>.' });
             }
         }
 

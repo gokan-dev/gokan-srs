@@ -12,7 +12,7 @@ const studyCard = () => grammarExercise(grammarPoint(), { exampleIndex: 0, blank
 
 describe('grammarReducer (via quizReducer)', () => {
     it('GRAMMAR_LOAD_START sets isLoadingGrammar and currentGrammarQuizItem, and clears the card on screen', () => {
-        const state: QuizState = { ...initialState, turns: { vocab: null, grammar: newTurn(studyCard()) } };
+        const state: QuizState = { ...initialState, turns: { vocab: null, grammar: newTurn(studyCard()), drill: null } };
         const next = quizReducer(state, { type: 'GRAMMAR_LOAD_START', payload: { grammarId: 'n5-001' } });
 
         expect(next.isLoadingGrammar).toBe(true);

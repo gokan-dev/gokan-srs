@@ -1,8 +1,8 @@
-import { useEffect, useSyncExternalStore, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Square, Volume2 } from "lucide-react";
-import type { AudioRef } from "@gokan/dataset-schema";
-import { useQuiz } from "../context/useQuiz";
-import { clipPlayer } from "../services/clipPlayer";
+import type { AudioRef, ClipOutcome } from "@gokan/dataset-schema";
+import { useClip, type ClipControl } from "../hooks/useClip";
+import { buttonClassName } from "./ui/buttonStyles";
 
 interface PlayButtonProps {
     /** The item's clip; without one there is no button (never a disabled one). */
@@ -15,7 +15,8 @@ interface PlayButtonProps {
 /**
  * Plays a word's reading or a sentence read aloud, one clip at a time app-wide; pressed while
  * playing, it stops. Accent, since it is an action; 44px on phones, after the reading it plays
- * (its margins keep the line's height). Not in quizzes: listening is an exercise there.
+ * (its margins keep the line's height). Not in quizzes: listening is an exercise there (the
+ * listening cloze's own control is a `PlayControl`).
  */
 export function PlayButton({ audio, label, className = '' }: PlayButtonProps) {
     if (!audio) return null;
@@ -53,29 +54,65 @@ export function SentenceWithPlay({ audio, centred = false, children }: { audio: 
 }
 
 function ClipButton({ clip, label, className }: { clip: string; label: string; className: string }) {
-    const { actions } = useQuiz();
-    const playing = useSyncExternalStore(clipPlayer.subscribe, clipPlayer.playing) === clip;
-    // A clip does not outlive its button: leaving the page stops it.
-    useEffect(() => () => clipPlayer.stopIf(clip), [clip]);
-
-    const toggle = () => {
-        clipPlayer.toggle(clip).catch((error: unknown) => {
-            console.error('[PlayButton] Could not build the clip URL', error);
-            actions.dataLoadFailed('The audio index could not be loaded. The application data may be corrupted. Please reload or contact support.');
-        });
-    };
-
+    const { playing, toggle } = useClip(clip);
     const Icon = playing ? Square : Volume2;
     return (
         <button
             type="button"
-            onClick={toggle}
+            onClick={() => void toggle()}
             aria-label={label}
             aria-pressed={playing}
             data-play-button
             className={`inline-flex items-center justify-center align-middle min-h-11 min-w-11 md:min-h-8 md:min-w-8 rounded-md text-accent hover:bg-accent/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent transition-colors cursor-pointer ${className}`}
         >
             <Icon size={20} aria-hidden="true" className="shrink-0" fill={playing ? 'currentColor' : 'none'} />
+        </button>
+    );
+}
+
+/** The play control's words: "Play" until the clip has been heard once, "Play again" after. */
+const PLAY_LABEL = 'Play';
+const REPLAY_LABEL = 'Play again';
+
+/**
+ * A play control that stands on its own, with its words: the listening cloze's, and any place a
+ * clip is the subject rather than a line's companion. A secondary `Button` (44px tall at every
+ * width), the speaker in accent (a filled stop square while it plays) before its text. Its words
+ * never say "Stop": they read "Play" until the clip has been heard (`heard`: a first play, started
+ * with an outcome `played`, has played through or been stopped), then "Play again"; whether it
+ * is playing is told only by the icon and `aria-pressed`, so its accessible name and its state
+ * never contradict. It is as wide as its longest words, so it
+ * never moves as they change. A press replays the clip from its start, or stops it while it
+ * plays. `shortcut` names a key that does the same, for `aria-keyshortcuts` and its title. Its
+ * host places it.
+ */
+export function PlayControl({ control, heard, shortcut, onOutcome }: {
+    control: ClipControl;
+    /** True once the clip has played at least once (played through, or been stopped): the words become "Play again". */
+    heard: boolean;
+    shortcut?: string;
+    /** Told how a press's start ended: a clip that cannot play has its card fall back. */
+    onOutcome?: (outcome: ClipOutcome) => void;
+}) {
+    const { playing } = control;
+    const Icon = playing ? Square : Volume2;
+    const label = heard ? REPLAY_LABEL : PLAY_LABEL;
+    return (
+        <button
+            type="button"
+            onClick={() => void control.toggle().then(outcome => onOutcome?.(outcome))}
+            aria-pressed={playing}
+            aria-keyshortcuts={shortcut}
+            title={shortcut ? `${label} (${shortcut})` : undefined}
+            data-play-control
+            className={buttonClassName('secondary', 'md', 'inline-flex gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent')}
+        >
+            <Icon size={20} aria-hidden="true" className="shrink-0 text-accent" fill={playing ? 'currentColor' : 'none'} />
+            {/* The longest words, unseen, hold the width (left out of the accessible name: hidden); the shown ones centred in it. */}
+            <span className="grid text-center">
+                <span className="col-start-1 row-start-1">{label}</span>
+                <span aria-hidden="true" className="invisible col-start-1 row-start-1">{REPLAY_LABEL}</span>
+            </span>
         </button>
     );
 }

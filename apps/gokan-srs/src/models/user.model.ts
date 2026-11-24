@@ -160,6 +160,11 @@ export interface UserSettings {
     /** Production quiz (English meaning prompt, Japanese reading answer). Defaults to true when absent. */
     enableProductionQuiz?: boolean;
     /**
+     * Listening cloze (issue #165): a share of reading reviews served as an example sentence
+     * heard, the word typed (quizSelectors.ts, `isListeningTurn`). Off when absent.
+     */
+    enableListeningCloze?: boolean;
+    /**
      * @deprecated Superseded by `intervalModifier`. Read only by hydration, which
      * migrates a stored preset to its exact multiplier; left in stored JSON so a
      * tab on an older build still has a value.

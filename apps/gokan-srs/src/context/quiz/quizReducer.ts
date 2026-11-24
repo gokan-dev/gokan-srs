@@ -14,6 +14,8 @@ import { syncUsuallyKana, taskKey } from '../../utils/srs.utils';
 import { introQuizType } from '../../services/scheduling';
 import { grammarReducer, initialGrammarState, isGrammarAction } from './grammarReducer';
 import type { GrammarQuizAction, GrammarQuizState } from './grammarReducer';
+import { drillContinued, drillReducer, initialDrillState, isDrillAction } from './drillReducer';
+import type { DrillQuizAction, DrillQuizState } from './drillReducer';
 import { clearedTurn, exerciseReducer, initialExerciseTurns, isExerciseAction, newTurn, withTurn } from './exerciseReducer';
 import type { ExerciseAction, ExerciseTurnsState } from './exerciseReducer';
 import type { Exercise } from '../../services/exercise/types';
@@ -113,6 +115,17 @@ interface QuizStateBase {
     session: SessionTracking | null;
     /** Cumulative knowledge points earned this session - see SessionGains. */
     sessionGains: SessionGains;
+    /**
+     * Words whose listening cloze was not answered by ear this session (missed, or read from its
+     * translation: the `reask` effect). Their reading is asked next as the plain reading card,
+     * never listening again until a new session (selectNextView). Session-local, never stored.
+     */
+    readAsWritten: string[];
+    /**
+     * Words missed by ear on the card just answered: held back from the very next card
+     * (selectNextView), released by the next continue of any card. Session-local, never stored.
+     */
+    heldBack: string[];
     fatalError: string | null;
 }
 
@@ -127,7 +140,7 @@ interface QuizStateBase {
  * sync for free instead of duplicating that wiring. The exercise each activity has
  * on screen lives in one shared slice (exerciseReducer.ts).
  */
-export type QuizState = QuizStateBase & GrammarQuizState & ExerciseTurnsState;
+export type QuizState = QuizStateBase & GrammarQuizState & ExerciseTurnsState & DrillQuizState;
 
 export type QuizAction =
     /** The stored progress, read at start-up (null: this device has none). */
@@ -169,11 +182,13 @@ export type QuizAction =
      */
     | { type: 'SYNC_USUALLY_KANA'; payload: { ids: ReadonlySet<string>; now: Date } }
     | GrammarQuizAction
+    | DrillQuizAction
     | ExerciseAction;
 
 export const initialState: QuizState = {
     ...initialGrammarState,
     ...initialExerciseTurns,
+    ...initialDrillState,
     progress: null,
     progressLoaded: false,
     settings: null,
@@ -186,6 +201,8 @@ export const initialState: QuizState = {
     sessionHistory: [],
     session: null,
     sessionGains: ZERO_SESSION_GAINS,
+    readAsWritten: [],
+    heldBack: [],
     fatalError: null,
 };
 
@@ -202,8 +219,13 @@ function sameKanjiKnowledge(a: KanjiKnowledge | undefined, b: KanjiKnowledge): b
 }
 
 export function quizReducer(state: QuizState, action: QuizAction): QuizState {
-    if (isExerciseAction(action)) return exerciseReducer(state, action);
+    if (isExerciseAction(action)) {
+        const next = exerciseReducer(state, action);
+        // A drill's run moves on with its card (drillReducer.ts): the exercise turn knows no drill.
+        return action.type === 'EXERCISE_CONTINUE' && action.host === 'drill' ? drillContinued(state, next) : next;
+    }
     if (isGrammarAction(action)) return grammarReducer(state, action);
+    if (isDrillAction(action)) return drillReducer(state, action);
 
     switch (action.type) {
         case 'PROGRESS_LOADED':
@@ -374,6 +396,8 @@ export function quizReducer(state: QuizState, action: QuizAction): QuizState {
                 // only this session's answers.
                 sessionHistory: [],
                 sessionGains: ZERO_SESSION_GAINS,
+                readAsWritten: [],
+                heldBack: [],
             };
 
         case 'SESSION_END':

@@ -67,7 +67,7 @@ export const zhHans: Messages = {
             { text: 'Gokan SRS', ...links.srs },
             `${AFTER_LINK}。`,
         ],
-        search: { label: '搜索词典', placeholder: '搜索：汉字、假名、罗马字或中文', results: '搜索结果' },
+        search: { label: '搜索词典', placeholder: '搜索词汇、汉字和语法', results: '搜索结果' },
         hideFurigana: '隐藏注音',
         showFurigana: '显示注音',
         play: word => `播放${word}`,

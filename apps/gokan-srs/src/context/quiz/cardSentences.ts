@@ -47,7 +47,12 @@ export function upcomingIntroIds(
  * intro, which shows one example.
  */
 export function needsSentences(item: CardItem, intro: boolean): boolean {
-    return intro || isContextMeaning(item) || item.quizType === 'production';
+    return intro || isContextMeaning(item) || isListening(item) || item.quizType === 'production';
+}
+
+/** A reading review served as the listening cloze (selectNextView's `isListeningTurn`). */
+function isListening(item: CardItem): boolean {
+    return item.quizType === 'reading' && item.quizMode === 'listening';
 }
 
 function isContextMeaning(item: CardItem): boolean {
@@ -57,7 +62,10 @@ function isContextMeaning(item: CardItem): boolean {
 export interface CardSentences {
     /** The meaning-in-context card's sentence. */
     sentence: Sentence | null;
-    /** The production card's cloze; null falls back to the gloss prompt. */
+    /**
+     * The production card's cloze (null falls back to the gloss prompt), or the listening cloze's,
+     * picked among the sentences with a clip only (null falls back to the reading card).
+     */
     cloze: ProductionCloze | null;
     /** The intro card's example; null shows no sentence section. */
     introSentence: Sentence | null;
@@ -85,7 +93,10 @@ export function resolveCardSentences(
     // differently-read homograph (see pickProductionClozeSentence).
     const clozeOf = () => pickProductionClozeSentence(vocabId, list, learner, vocab);
 
-    const cloze = item.quizType === 'production' ? clozeOf() : null;
+    // The listening cloze is picked by the same rule, among the sentences that can be heard.
+    const cloze = item.quizType === 'production' ? clozeOf()
+        : isListening(item) ? pickProductionClozeSentence(vocabId, list.filter(s => s.audio), learner, vocab)
+            : null;
     // Only meaning in context shows a sentence: the intro's fetch must not give a base card one.
     const sentence = isContextMeaning(item) ? pickSentenceForVocab(vocabId, list, learner) ?? null : null;
     const introSentence = intro ? (cloze ?? clozeOf())?.sentence ?? null : null;

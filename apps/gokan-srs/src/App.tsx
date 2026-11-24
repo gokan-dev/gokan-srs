@@ -35,6 +35,7 @@ const VocabularyListScreen = lazy(() => import('./pages/vocab/VocabularyListScre
 const KanjiDetailScreen = lazy(() => import('./pages/kanji/KanjiDetailScreen'));
 const GrammarDetailScreen = lazy(() => import('./pages/grammar/GrammarDetailScreen'));
 const GrammarFamilyScreen = lazy(() => import('./pages/grammar/GrammarFamilyScreen'));
+const DrillScreen = lazy(() => import('./pages/exercise/DrillScreen'));
 const ListeningLibraryScreen = lazy(() => import('./pages/listening/ListeningLibraryScreen').then(module => ({ default: module.ListeningLibraryScreen })));
 const ListeningTitleScreen = lazy(() => import('./pages/listening/ListeningTitleScreen').then(module => ({ default: module.ListeningTitleScreen })));
 
@@ -177,6 +178,10 @@ const AppScreens: React.FC<{ setupLink: SetupLink }> = ({ setupLink }) => {
                                 <Route path="/grammar/family/:familyId" element={
                                     <GrammarFamilyScreen />
                                 } />
+                                <Route path="/grammar/drill/lesson/:familyId/:lessonId" element={<DrillScreen kind="lesson" />} />
+                                <Route path="/grammar/drill/family/:familyId" element={<DrillScreen kind="family" />} />
+                                <Route path="/grammar/drill/chapter/:chapterId" element={<DrillScreen kind="chapter" />} />
+                                <Route path="/grammar/drill/point/:grammarId" element={<DrillScreen kind="point" />} />
                                 <Route path="/grammar/:grammarId" element={
                                     <GrammarDetailScreen />
                                 } />

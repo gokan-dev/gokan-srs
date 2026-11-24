@@ -131,6 +131,42 @@ export function fragmentIssue(filename: string): number | null {
     return match ? Number(match[1]) : null;
 }
 
+/** A sprint member, as the tracker lists it: its issue number and title. */
+export interface SprintMember {
+    issue: number;
+    title: string;
+}
+
+/**
+ * The `--members` text assemble-fragments.ts takes: one member a line, `<issue> <title>`
+ * (`#` before the number allowed). Throws on a line that names no issue, so a malformed list
+ * fails rather than silently checking nothing.
+ */
+export function parseSprintMembers(text: string): SprintMember[] {
+    return text.split('\n').map(line => line.trim()).filter(Boolean).map(line => {
+        const match = /^#?(\d+)\s*(.*)$/.exec(line);
+        if (!match) throw new Error(`--members: "${line}" does not start with an issue number`);
+        return { issue: Number(match[1]), title: match[2].trim() };
+    });
+}
+
+/**
+ * What assemble prints beside the headline it wrote: the members that left no fragment (they
+ * ship nothing a learner sees), each of which the headline, copied from the tracker's title, may
+ * still name. Empty when every member has a fragment. Whether a phrase of the headline names one
+ * of them cannot be decided here: a reviewer reads the list and strips it (AGENTS.md, Workflow).
+ */
+export function headlineReview(headline: string, members: readonly SprintMember[], fragmentIssues: readonly number[]): string[] {
+    const withFragment = new Set(fragmentIssues);
+    const silent = members.filter(m => !withFragment.has(m.issue));
+    if (silent.length === 0) return [];
+    return [
+        `Headline: "${headline}"`,
+        'These members have no fragment (nothing a learner sees). Strip any part of the headline that names one:',
+        ...silent.map(m => `  #${m.issue} ${m.title}`),
+    ];
+}
+
 /** A single-quoted TS string literal (release/changelog.ts's style) for arbitrary text. */
 function quote(text: string): string {
     return `'${text.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;

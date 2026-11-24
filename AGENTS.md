@@ -120,7 +120,11 @@ summary ("Largest tool results"), which is where a whole read shows.
   A change that ships code but nothing a learner sees (a refactor, tooling a build imports, a change
   the gate proves leaves the output identical, such as `check:parity --expect identical` or an
   equality test) adds no entry (nor, on a release branch, a fragment), so the app's version does
-  not move: its PR says so, and names what proves it.
+  not move: its PR says so, and names what proves it. The assembled entry's headline comes from
+  the tracker's title, which may name such a member: assemble lists every member with no fragment
+  beside the headline it wrote (`--members`, `headlineReview`), but whether a phrase names one is
+  not mechanised, so a reviewer checks the release PR's headline against the members that have
+  fragments, and strips what a learner cannot see.
 - `git log` is the record of what changed. Add an entry to
   [docs/MODIFICATION_LOG.md](docs/MODIFICATION_LOG.md) only for reasoning a diff cannot show:
   an investigation's result, why the obvious approach was rejected, or an interaction a later
@@ -265,6 +269,20 @@ The rest of the study flow:
 - Sentences: `utils/sentenceRanking.ts` for every activity that picks an example; a sentence with
   blanks is a `ClozeSentence` (`utils/clozeSentence.utils.ts`); a grammar example becomes a
   `Sentence` through `grammarExampleToSentence` (`@gokan/dataset-schema`).
+- Contrast drill (practice outside the SRS, issue #249): its sets and cards only from
+  `context/quiz/drillSelectors.ts` (`loadDrill`, `hasDrill` for its button, `rulesOut` decides an
+  example card's wrong options, a contrast case its own: `caseCardOf`), its types (`DrillSet`, `DrillPointInfo`) in `models/grammar.model.ts`, its run
+  through the `drill` exercise host and `drillReducer.ts` (kept on a lookup, ended elsewhere:
+  `drillRouteRole`), its cards' `mode: 'drill'` (no effects, decided in `effectsOf`), what a card
+  shows on its exercise (`point`, each choice's `pointId` and `contrast`), its way in
+  `components/DrillLink.tsx`, its page `pages/exercise/DrillScreen.tsx`.
+- Grammar destinations: a point's page through `grammarPath`, a family's page through
+  `grammarFamilyPath`, the chapter browser on a chapter through `grammarChapterPath`, a drill
+  through `drillPath` (`utils/navigation.utils.ts`; enforced with the word and kanji paths). A
+  Japanese run inside English text (a lesson title in a page title, a contrast case's guidance) is
+  set in a Japanese face by `components/MixedText.tsx` (over `japaneseRuns`,
+  `utils/japaneseRuns.utils.ts`); a contrast case, on a family page or under a drill card, is
+  `components/ContrastCaseText.tsx`.
 - Session flow: `useSessionLifecycle`, `components/SessionProgress.tsx` (counter, ticker, gains),
   the commit pipeline in `quizSelectors.ts` shared by the preview and the session.
 - Card building blocks: `components/quiz/` (`QuizCardFrame`, `QuizMasteryCorner`,
@@ -285,7 +303,7 @@ gokan-srs, everything else:
 - Page frame: `components/Page.tsx` (the two widths), `components/PageHeader.tsx` (title,
   Back, actions), `components/ui/TabNav.tsx` (route tabs), `components/nav/` (header, tab bar,
   footer), destinations in `utils/navigation.utils.ts` (a word's page only through `vocabPath`, a
-  kanji's through `kanjiPath`: enforced).
+  kanji's through `kanjiPath`, a grammar point's through `grammarPath`: enforced).
 - Lists and stats: `components/ui/ListRow.tsx` rows, `components/WordStudyStatus.tsx` (a word's
   status, or Learn), `utils/learningStatus.utils.ts` (New / Learning / Mastered for a word or a
   grammar point), `components/ui/Pagination.tsx`, `pages/stats/components/CoverageChart.tsx` and
@@ -305,7 +323,8 @@ gokan-srs, everything else:
 - Settings controls: `components/ui/SettingToggle.tsx`, `SettingSlider.tsx`, `components/OptionGrid.tsx`,
   `components/LearningOrderPicker.tsx`, `components/QuizSettingsMenu.tsx`.
 - Small UI: `components/ui/Chip.tsx` (neutral metadata chip; `JlptChip`/`TagChip` wrap
-  it), `components/StatusDot.tsx` (the New/Learning/Mastered language),
+  it), `components/StatusDot.tsx` (the New/Learning/Mastered language; a kanji's Known / Not known yet,
+  `components/KanjiKnownStatus.tsx`),
   `components/ui/SelectableOption.tsx` (one choice at a time: option grids, the theme
   picker, onboarding), `components/ui/FilterToggle.tsx` (any number active at once: list
   filters, genre pills), `components/ui/ListRow.tsx` (a clickable row, always a `Link`),
@@ -360,12 +379,18 @@ gokan-dictionary:
 - Sentences: `pages/SentenceText.svelte` renders runs from `lib/furigana.ts`
   (`sentenceRuns`, over the shared `rubyParts`); `pages/GrammarExamples.svelte` for grammar examples;
   `pages/FuriganaToggle.svelte`; the order a word's sentences show in, `lib/sentenceOrder.ts`.
-- Word pages: `lib/senses.ts` (meanings, summary gloss), `lib/conjugation.ts` (the one rule
-  table, used by `conjugate` for the Forms table and by `deinflect` for search).
-- Search: the index built at prerender by `lib/searchIndex.ts` (format in `lib/types.ts`,
-  row flags in `lib/searchRow.ts`), matched and ranked only by `lib/searchQuery.ts`, the
-  same module behind the header panel, `/search/` and the build-time acceptance check.
-- Size budgets: `lib/budgets.ts`, checked by `scripts/check-build.ts` after every build.
+- Word pages: `lib/senses.ts` (meanings, summary gloss), `@gokan/dataset-schema`'s
+  `conjugation.ts` (the one rule table, used by `conjugate` for the Forms table and by `deinflect`
+  for both apps' search).
+- Search: the index built at prerender by `lib/searchIndex.ts`, its rows the shared format
+  (`searchWordRow`, `searchKanjiRow`, `searchGrammarRow`, row flags, columns:
+  `@gokan/dataset-schema`'s `searchRows.ts`, gokan-srs's header search builds the same rows),
+  prepared by `prepareRowSearch` (`rowSearch.ts`, apart so the page-wide script reads rows without the
+  matcher) and ranked by `runRankedSearch` through `lib/searchQuery.ts`,
+  the same module behind the header panel, `/search/` and the build-time acceptance check. A
+  query lists the same rows in the same order in both apps (held by `scripts/searchParity.test.ts`).
+- Size budgets: `lib/budgets.ts`, checked by `scripts/check-build.ts` after every build, in brotli
+  bytes (what a reader downloads); a list page's to the end of its first screen (`FIRST_SCREEN_ROWS`).
 - Locales: `lib/locale.ts` (`Locale`, the served ones, a page's locale from its optional route
   segment `[[locale=locale]]`; English has none). Every link is built for a locale:
   `localeUrls(locale)` from `lib/urls.ts` (it applies the base path and the locale segment), in a
@@ -460,7 +485,8 @@ gokan-dictionary:
 - Dictionary pages: every element holding Japanese text carries `lang="ja"` (prerender fails on
   Japanese-only text outside one, and on a `jp`-class element without it; `langOf` for dataset
   text that may be either language), and each page type stays within its size budget
-  (`lib/budgets.ts`, docs/DESIGN_SYSTEM.md section 8; the build fails otherwise).
+  (`lib/budgets.ts`, docs/DESIGN_SYSTEM.md section 8; the build fails otherwise): the 14 KB rule, a
+  page's HTML within 13 KB of brotli so it arrives in the first round trip.
 
 ## Testing rules
 

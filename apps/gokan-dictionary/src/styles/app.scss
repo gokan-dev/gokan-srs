@@ -411,23 +411,22 @@ main {
   }
 }
 
-.search-group-label {
-  margin: 0;
-  padding: $space-1 $space-2 0;
-  color: var(--tertiary);
-  font-size: $text-xs;
-  font-weight: 600;
-}
-
-.search-option {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: baseline;
-  gap: 0 $space-1;
+// One row of the search, in the header panel and on /search/ alike, the shape gokan-srs's header
+// search draws: line 1 the thing itself (a word and its reading, a kanji and its main readings, a
+// grammar title and its romaji), line 2 its type chip leading its gloss, 4px between them. The
+// chip leads, so every row's chip sits in one column whatever the row holds.
+.search-row {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: $space-half;
+  // A tap target, as every link a reader taps on a phone (check:layout).
+  min-height: $target;
   padding: $space-1 $space-2;
   color: var(--primary);
 
   &:hover,
+  &:focus-visible,
   &[aria-selected="true"] {
     background-color: var(--surface-hover);
     color: var(--primary);
@@ -437,27 +436,62 @@ main {
   &[aria-selected="true"] {
     box-shadow: inset 3px 0 0 var(--accent);
   }
+}
 
-  // The reading and the gloss line; the chip keeps its own look.
-  > :not(:first-child):not(.chip) {
-    @include truncate;
-    color: var(--secondary);
-    font-size: $text-sm;
-  }
+.search-row-main,
+.search-row-support {
+  display: flex;
+  align-items: baseline;
+  gap: $space-1;
+  min-width: 0;
+}
 
-  > .chip {
-    grid-column: 3;
-  }
+.search-row-main {
+  font-family: $font-mincho;
+  font-size: $text-lg;
 
-  > :last-child:not(.chip) {
-    grid-column: 1 / -1;
+  // A grammar title is the pattern itself: it keeps its width, and the reading beside it truncates first.
+  // Its face is set on the headword itself, as the app's: inherited from the line, it lost to the
+  // global [lang="ja"] gothic on the headword's own span (this selector is the more specific).
+  > :first-child {
+    font-family: $font-mincho;
+    flex-shrink: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
   }
+}
 
-  &--all {
-    display: block;
-    color: var(--accent);
-    border-top: 1px solid var(--divider);
+.search-row-form {
+  @include truncate;
+  min-width: 0;
+  font-family: $font-gothic;
+  font-size: $text-sm;
+  color: var(--secondary);
+
+  &[lang="ja-Latn"] {
+    font-family: $font-sans;
   }
+}
+
+.search-row-support {
+  > .chip,
+  > .lang-mark {
+    flex-shrink: 0;
+  }
+}
+
+.search-row-gloss {
+  @include truncate;
+  min-width: 0;
+  font-family: $font-sans;
+  font-size: $text-sm;
+  color: var(--secondary);
+}
+
+// The sentinel after a list drawn a page at a time (client/search.ts): when it nears the view the
+// next page is drawn. A line tall, so it is seen before the list's end is.
+.search-more {
+  height: 1px;
 }
 
 // -- Chips (neutral metadata) ------------------------------------------------
@@ -552,6 +586,35 @@ a.chip {
 
   @include narrow {
     @include stacked-entries;
+  }
+}
+
+// The /search/ page's one list, its rows divided as every list's.
+.search-results {
+  @include bare-list;
+
+  li + li {
+    border-top: 1px solid var(--divider);
+  }
+
+  .search-row {
+    padding: $space-1 $space-half;
+  }
+}
+
+// The /search/ page's line under its title: how many words, kanji and grammar points it lists.
+.search-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 $space-1;
+  margin: 0 0 $space-2;
+  color: var(--secondary);
+  font-size: $text-sm;
+
+  > span + span::before {
+    content: "·" / "";
+    margin-inline-end: $space-1;
+    color: var(--tertiary);
   }
 }
 

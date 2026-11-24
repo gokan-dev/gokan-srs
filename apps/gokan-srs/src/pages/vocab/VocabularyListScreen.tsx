@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { headwordOf } from "@gokan/dataset-schema";
+import { headwordOf, readSearchQuery } from "@gokan/dataset-schema";
 import { SecondaryForm } from "../../components/SecondaryForm";
 import { useQuiz } from "../../context/useQuiz";
 import { VocabularyService } from "../../services/vocabulary.service";
@@ -18,7 +18,7 @@ import { CardSkeleton } from "../../components/CardSkeleton";
 import { isProductionActivated, isReadingRelevant, isVocabFullyMastered, vocabNextReviewAt } from "../../services/scheduling";
 import { ArrowDownUp } from "lucide-react";
 import { formatTimeUntil } from "../../utils/time.utils";
-import { matchesVocabQuery, readVocabQuery } from "../../utils/vocabSearch.utils";
+import { matchesVocabQuery } from "../../utils/search.utils";
 import { matchesVocabStatus, vocabSortKey, VOCAB_SORT_LABEL, VOCAB_STATUS_LABEL, type VocabSort, type VocabStatusFilter } from "../../utils/vocabStatus.utils";
 import { vocabPath } from "../../utils/navigation.utils";
 
@@ -94,7 +94,7 @@ export function VocabularyListScreen() {
     const shown = useMemo(() => {
         const nowDate = new Date(now);
         // Read as the header search reads it: romaji typed partway ("taber") still finds the word.
-        const q = readVocabQuery(query);
+        const q = readSearchQuery(query);
         const context = { settings, frequencyRank };
         const direction = reversed ? -1 : 1;
         return progress

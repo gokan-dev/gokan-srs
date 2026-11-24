@@ -5,6 +5,8 @@
  * - no page scrolls sideways;
  * - no text below the 12px floor (furigana, in `rt`, and SVG chart labels excepted);
  * - every text input is at least 16px, or iOS zooms into it on focus;
+ * - the header search's grouped results (Words, Kanji, Grammar) in each app, with the panel open,
+ *   hold the same rules, the dictionary's options 44px tall;
  * - the dictionary's nav links, pager links, toggles, tiles, disclosure summaries and single links
  *   in a row (a kanji's book position, a range step's glyph) are at least 44px tall;
  * - a kanji's course step (`.kanji-courses dd`) is 44px tall even when it is not a link;
@@ -44,6 +46,8 @@
  *   at 1280px and 1024px one full page, no tab row, every section, their long lists capped
  *   (KANJI_PAGE, GRAMMAR_PAGE), a hash landing on its section; on a phone a tab row running to the
  *   screen's edge and sticking from their longest tab;
+ * - a dictionary list page's first screen (375x812) ends within the rows its size budget counts
+ *   (FIRST_SCREEN_ROWS, lib/budgets.ts: the JLPT lists, the kanji order pages, `/grammar/`);
  * - a word page's first screen, on a small phone (375x667 and 320x568), holds its headword,
  *   reading and its play button, summary gloss and status line;
  * - a word page's tab row sticks to the top once scrolled to, with no sideways page scroll at
@@ -73,6 +77,9 @@
  * - the app panel stands 40px above what follows it (a word page, a kanji page);
  * - no word in an app sentence has side space (margin or padding): Japanese has no spaces;
  * - example sentences (a word page's Dict tab, a grammar page) are spaced apart, never ruled;
+ * - on a contrast drill, every run of kana or kanji is set in a Japanese face (the first family of
+ *   its stack), on a card, after a wrong pick and on the summary, and the summary card keeps the
+ *   question card's edges (at 320px, 375px and 1280px);
  * - play buttons (a word's reading, a word page's and a grammar page's example sentences) are
  *   44px tap targets on a phone at the first line of what they play (the sentence, the reading, a
  *   kana word's note), and each of those pages has a "Play sentence" button; in the dictionary too
@@ -93,8 +100,9 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { KANJI_CHARS, kanjiOrder, type KanjiOrderId } from '@gokan/dataset-schema';
-import { buildMissing, dictionaryPages, listeningTitlesToMark, serve, serveProduction, srsFile, srsRoutes, srsVersion } from './lib/builtSite';
+import { buildMissing, dictionaryListShapes, dictionaryPages, listeningTitlesToMark, serve, serveProduction, srsFile, srsRoutes, srsVersion } from './lib/builtSite';
 import { launchChrome, type Chrome, type Tab } from './lib/chrome';
+import { FIRST_SCREEN_ROWS, firstScreenBudgetOf } from '../apps/gokan-dictionary/src/lib/budgets';
 
 const VIEWPORTS = [{ width: 320, height: 720 }, { width: 375, height: 812 }];
 const DESKTOP = { width: 1280, height: 800 };
@@ -206,7 +214,7 @@ const MEASURE = (deviceWidth: number, tapTargets: string) => `(() => {
     return problems;
 })()`;
 
-const DICTIONARY_TAP_TARGETS = '.site-nav a, .pager a, .detail-tabs a, summary, .kanji-tiles a, .range-list a, .kanji-courses a, .range-step h3 a, button.button, button.play';
+const DICTIONARY_TAP_TARGETS = '.site-nav a, .pager a, .search-sections a, .detail-tabs a, summary, .kanji-tiles a, .range-list a, .kanji-courses a, .range-step h3 a, button.button, button.play';
 
 const failures: string[] = [];
 let checked = 0;
@@ -216,6 +224,8 @@ async function measure(tab: Tab, page: string, width: number, tapTargets = ''): 
 }
 
 const DICTIONARY_PAGES = await dictionaryPages();
+/** The list page shapes beyond DICTIONARY_PAGES, measured only for their first screen (checkListFirstScreen). */
+const DICTIONARY_LIST_SHAPES = dictionaryListShapes();
 const SRS_ROUTES = srsRoutes();
 const SRS_VERSION = srsVersion();
 // The same build behind a version.json naming the next major: what an open tab sees once a newer
@@ -381,6 +391,154 @@ async function checkExamplesUnruled(tab: Tab, page: string, width: number): Prom
     })()`);
     if (result.count === 0) failures.push(`${width}px ${page}: no example sentence ([data-example-sentence]) to check`);
     for (const text of result.ruled) failures.push(`${width}px ${page}: example sentence ruled with a top or bottom border (space them apart): ${text}`);
+}
+
+/**
+ * Every visible run of kana or kanji is set in one of the app's Japanese faces (AGENTS.md: Japanese
+ * text uses font-mincho or font-gothic): the first family of its computed stack is Noto Sans JP or
+ * Noto Serif JP. A fallback further down does not count: font-sans is Inter first, so its kana come
+ * from Noto Sans JP only by fallback, with Inter's metrics around them. A page title is Source Serif
+ * 4, which has no CJK glyphs: Japanese in it rendered as missing-glyph boxes (PR 280).
+ */
+const JAPANESE_OUTSIDE_JAPANESE_FACES = `(() => {
+    const japanese = /[\\u3040-\\u30ff\\u3400-\\u9fff]/;
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    const strays = [];
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const el = node.parentElement;
+        if (!el || !japanese.test(node.textContent) || el.closest('svg, script, style')) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 || r.height === 0) continue;
+        const family = getComputedStyle(el).fontFamily;
+        const first = family.split(',')[0].trim().replace(/^["']|["']$/g, '');
+        if (first !== 'Noto Sans JP' && first !== 'Noto Serif JP') strays.push(el.tagName.toLowerCase() + ' "' + node.textContent.trim().slice(0, 20) + '" in ' + family.split(',')[0]);
+    }
+    return strays;
+})()`;
+
+async function checkJapaneseFaces(tab: Tab, page: string, width: number): Promise<void> {
+    const strays = await tab.evaluate<string[]>(JAPANESE_OUTSIDE_JAPANESE_FACES);
+    for (const stray of strays.slice(0, 4)) {
+        // Once per page: a drill measures every wrong pick, and the same note shows on several.
+        const failure = `${width}px ${page}: Japanese text outside a Japanese face (font-gothic or font-mincho): ${stray}`;
+        if (!failures.includes(failure)) failures.push(failure);
+    }
+}
+
+/**
+ * A contrast drill whose wrong picks show their contrast note (dataset English with Japanese in it:
+ * reason-core, the route list's drill, has none, since its one case is a pair that may both fit).
+ */
+const DRILL_PATH = '/grammar/drill/lesson/time-window/during-window';
+/**
+ * The run's order, pinned (DrillScreen reads `?seed=`): the walk picks each card's first option, so
+ * an order drawn from the clock could meet no wrong pick with a note. drillSelectors.test.ts holds
+ * that this seed's drill has a card whose first option carries its contrast case.
+ */
+const DRILL_SEED = 'layout';
+/** More cards than a drill holds (drillMaxCards), so a drill that never ends fails rather than hangs. */
+const DRILL_CARD_LIMIT = 20;
+
+/** The left and right edges of the card holding `selector` (the quiz card frame's, or the summary's). */
+const cardEdges = (selector: string) => `(() => {
+    const card = document.querySelector(${JSON.stringify(selector)})?.closest('.bg-surface');
+    if (!card) return null;
+    const r = card.getBoundingClientRect();
+    return { left: Math.round(r.left), right: Math.round(r.right) };
+})()`;
+
+/**
+ * A contrast drill answered through to its summary, by picking each card's first option: every
+ * Japanese run in a Japanese face after a wrong pick (the options' notes, the contrast note) and on
+ * the summary, not only on the unanswered card; and the summary card on the question card's edges,
+ * so the column keeps its width when the drill ends (docs/DESIGN_SYSTEM.md section 5, PR 280).
+ */
+async function checkDrillWalk(tab: Tab, app: string, width: number): Promise<void> {
+    const page = `srs ${DRILL_PATH}`;
+    await tab.goto(`${app}${DRILL_PATH}?seed=${DRILL_SEED}`, 'Card 1 of');
+    const question = await tab.evaluate<{ left: number; right: number } | null>(cardEdges('[aria-label="Choices"]'));
+    let wrongPicks = 0;
+    let contrastNotes = 0;
+    for (let card = 0; card < DRILL_CARD_LIMIT; card++) {
+        if (await tab.evaluate<boolean>(`document.querySelector('[data-drill-summary]') !== null`)) break;
+        await tab.evaluate<null>(`(document.querySelector('[aria-label="Choices"] button')?.click(), null)`);
+        await tab.click('Submit');
+        await tab.until(`[...document.querySelectorAll('button')].some(b => b.textContent.trim().startsWith('Continue'))`, `feedback on drill card ${card + 1}`);
+        if (await tab.evaluate<boolean>(`document.querySelector('[aria-label="Choices"] .text-feedback-incorrect') !== null`)) {
+            wrongPicks++;
+            if (await tab.evaluate<boolean>(`document.body.innerText.includes('Which one, and when')`)) contrastNotes++;
+            await checkJapaneseFaces(tab, `${page}, after a wrong pick`, width);
+        }
+        await tab.click('Continue');
+        await tab.until(`document.querySelector('[data-drill-summary]') !== null || document.body.innerText.includes('Card ${card + 2} of')`, `drill card ${card + 2} or the summary`);
+    }
+    if (wrongPicks === 0) failures.push(`${width}px ${page}: no first option was a wrong pick, so the feedback after one went unmeasured`);
+    else if (contrastNotes === 0) failures.push(`${width}px ${page}: no wrong pick showed its contrast note ("Which one, and when"), so the note went unmeasured`);
+    const summary = await tab.evaluate<{ left: number; right: number } | null>(cardEdges('[data-drill-summary]'));
+    if (!summary) {
+        failures.push(`${width}px ${page}: no summary ([data-drill-summary]) after ${DRILL_CARD_LIMIT} cards`);
+        return;
+    }
+    // measure() holds phone rules (the 16px input among them), which the desktop header's search field does not keep.
+    if (width < DESKTOP.width) await measure(tab, `${page}, summary`, width);
+    await checkJapaneseFaces(tab, `${page}, summary`, width);
+    if (!question) failures.push(`${width}px ${page}: no question card to measure`);
+    else if (Math.abs(question.left - summary.left) > 1 || Math.abs(question.right - summary.right) > 1) {
+        failures.push(`${width}px ${page}: the summary card (x ${summary.left} to ${summary.right}) is not on the question card's edges (x ${question.left} to ${question.right})`);
+    }
+}
+
+/** The chapter browser on a chapter whose related points have a drill ("Giving a reason"), expanded. */
+const DRILL_CHAPTER_PATH = '/grammar/chapters?chapter=n5-c16';
+/** docs/DESIGN_SYSTEM.md section 4: inside a group, 8 or 12px. */
+const CHAPTER_DRILL_GAP = 8;
+
+/**
+ * The chapter browser's "Drill the related points" stands apart from the expanded chapter's header
+ * (the toggle's shaded block) by the group's spacing: flush against it, in dark its border touches
+ * the header's tint and reads as part of it (PR 280, rc.16).
+ */
+async function checkChapterDrillGap(tab: Tab, app: string, width: number): Promise<void> {
+    const page = `srs ${DRILL_CHAPTER_PATH}`;
+    await tab.goto(`${app}${DRILL_CHAPTER_PATH}`, 'Giving a reason');
+    await tab.until(`document.querySelector('[data-chapter-drill] a') !== null`, 'the chapter\'s drill link', 10000);
+    const gap = await tab.evaluate<number | null>(`(() => {
+        const wrapper = document.querySelector('[data-chapter-drill]');
+        const header = wrapper?.previousElementSibling;
+        const link = wrapper?.querySelector('a');
+        if (!header || !link) return null;
+        return Math.round(link.getBoundingClientRect().top - header.getBoundingClientRect().bottom);
+    })()`);
+    if (gap === null) failures.push(`${width}px ${page}: no chapter header before the drill link to measure`);
+    else if (gap < CHAPTER_DRILL_GAP) failures.push(`${width}px ${page}: "Drill the related points" sits ${gap}px under the chapter's header (at least ${CHAPTER_DRILL_GAP}px)`);
+    // The only way into a drill: tapped on a phone, so 44px there (32px from md, where a pointer clicks it).
+    if (width < DESKTOP.width) {
+        const height = await tab.evaluate<number | null>(`(() => { const link = document.querySelector('[data-chapter-drill] a'); return link ? Math.round(link.getBoundingClientRect().height) : null; })()`);
+        if (height !== null && height < 44) failures.push(`${width}px ${page}: "Drill the related points" is ${height}px tall (at least 44px on a phone)`);
+    }
+}
+
+/** A grammar point with a drill against its siblings (～から、～, "Giving a reason"). */
+const DRILL_POINT_PATH = '/grammar/n5-073';
+
+/**
+ * A grammar point's "Drill against its siblings" is in its header, with its main action: in the
+ * Related tab alone a learner testing 1.69.0 looked for the drill and did not find it. 44px on a
+ * phone, as the chapter's.
+ */
+async function checkPointDrillInHeader(tab: Tab, app: string, width: number): Promise<void> {
+    const page = `srs ${DRILL_POINT_PATH}`;
+    await tab.goto(`${app}${DRILL_POINT_PATH}`, '～から、～');
+    try {
+        await tab.until(`document.querySelector('header a[href*="/grammar/drill/point/"]') !== null`, 'the point\'s drill link in its header', 10000);
+    } catch {
+        failures.push(`${width}px ${page}: no "Drill against its siblings" in the page's header`);
+        return;
+    }
+    if (width < DESKTOP.width) {
+        const height = await tab.evaluate<number>(`Math.round(document.querySelector('header a[href*="/grammar/drill/point/"]').getBoundingClientRect().height)`);
+        if (height < 44) failures.push(`${width}px ${page}: "Drill against its siblings" is ${height}px tall (at least 44px on a phone)`);
+    }
 }
 
 /**
@@ -554,6 +712,27 @@ async function checkWordFirstScreen(tab: Tab, page: string, width: number, resto
         else if (bottom > height) failures.push(`${width}x${height} ${page}: the ${name} ends ${Math.round(bottom)}px down, below the first screen (${height}px)`);
     });
     await tab.resize(width, restoreHeight);
+}
+
+/**
+ * A dictionary list page is held to its size budget up to the end of its first screen at 375x812
+ * (FIRST_SCREEN_ROWS in lib/budgets.ts, counted by check-build): its first N rows inside `<main>`
+ * must reach that screen's end, or the budget counts less than a reader sees first. A page with
+ * fewer rows is counted whole.
+ */
+const LIST_FIRST_SCREEN = { width: 375, height: 812 };
+async function checkListFirstScreen(tab: Tab, page: string, path: string, width: number): Promise<void> {
+    const budget = firstScreenBudgetOf(path);
+    if (budget === null || width !== LIST_FIRST_SCREEN.width) return;
+    const rows = FIRST_SCREEN_ROWS[budget];
+    await tab.resize(LIST_FIRST_SCREEN.width, LIST_FIRST_SCREEN.height);
+    const bottom = await tab.evaluate<number | null>(`(() => {
+        window.scrollTo(0, 0);
+        const rows = document.querySelectorAll('main li');
+        return rows.length < ${rows} ? null : rows[${rows - 1}].getBoundingClientRect().bottom;
+    })()`);
+    if (bottom !== null && bottom < LIST_FIRST_SCREEN.height) failures.push(`${LIST_FIRST_SCREEN.width}x${LIST_FIRST_SCREEN.height} ${page}: its first ${rows} rows (FIRST_SCREEN_ROWS.${budget}) end ${Math.round(bottom)}px down, above the first screen's end (${LIST_FIRST_SCREEN.height}px): raise the count, so its budget covers the first screen`);
+    await tab.resize(width, VIEWPORTS.find(viewport => viewport.width === width)?.height ?? LIST_FIRST_SCREEN.height);
 }
 
 /**
@@ -1122,6 +1301,78 @@ async function checkLongHeadwordIntro(chrome: Chrome, app: string, width: number
         await tab.close();
     }
 }
+/**
+ * The word a listening cloze is measured on (issue #165): 登場人物, whose example sentences have
+ * clips and whose first reading review the selector serves as a listening cloze (its hash on
+ * `listening:1638880:0` falls inside `CONSTANTS.srs.listening.share`). Learned from its page, its
+ * reading is due at once, so /quiz opens on it.
+ */
+const LISTENING_VOCAB = FURIGANA_VOCAB;
+const LISTENING_ON = `(() => {
+    const settings = JSON.parse(localStorage.getItem('GOKAN_SRS_SETTINGS') ?? '{}');
+    localStorage.setItem('GOKAN_SRS_SETTINGS', JSON.stringify({ ...settings, enableListeningCloze: true }));
+})()`;
+/** The listening card's play control and answer field, as drawn. */
+const LISTENING_CARD = `(() => {
+    const control = document.querySelector('[data-play-control]');
+    const input = document.querySelector('form input');
+    const box = el => { const r = el.getBoundingClientRect(); return { height: r.height, left: r.left, right: r.right }; };
+    return { control: control && box(control), input: input && box(input), width: document.documentElement.clientWidth };
+})()`;
+interface ListeningCardMeasure {
+    control: { height: number; left: number; right: number } | null;
+    input: { height: number; left: number; right: number } | null;
+    width: number;
+}
+
+/**
+ * The listening cloze card at a phone's width: before an answer (the play control and the blank,
+ * the translation shown when the clip cannot play, as here, where the build serves no clips, or
+ * at the learner's ask), and with its feedback (the sentence with furigana, its translation).
+ * The control is a 44px tap target inside the screen; nothing scrolls sideways (measure).
+ */
+async function checkListeningCloze(chrome: Chrome, app: string, width: number, height: number): Promise<void> {
+    const tab = await chrome.openTab(width, height);
+    const page = `srs /quiz, a listening cloze (${LISTENING_VOCAB})`;
+    try {
+        await tab.goto(`${app}/`, 'I already know some kanji');
+        await tab.click('I already know some kanji');
+        await tab.until(`document.body.innerText.includes('Kanji learning method')`, 'the setup screen');
+        await tab.click('Start learning');
+        await tab.evaluate<void>(LISTENING_ON);
+        await tab.goto(`${app}/vocab/${LISTENING_VOCAB}`, 'Learn this word');
+        await tab.click('Learn this word');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await tab.goto(`${app}/quiz`, 'Type the word you hear');
+        await tab.until(`document.querySelector('[data-play-control]') !== null`, 'the play control', 10000);
+        await measure(tab, page, width);
+        const shown = await tab.evaluate<ListeningCardMeasure>(LISTENING_CARD);
+        if (!shown.control) failures.push(`${width}px ${page}: no play control ([data-play-control])`);
+        else {
+            if (shown.control.height < 44) failures.push(`${width}px ${page}: the play control is ${Math.round(shown.control.height)}px tall, under a 44px tap target`);
+            if (shown.control.left < 0 || shown.control.right > shown.width) failures.push(`${width}px ${page}: the play control runs off the screen`);
+        }
+        if (!shown.input) failures.push(`${width}px ${page}: no answer field in the blank`);
+
+        if (await tab.evaluate<boolean>(`document.body.innerText.includes('Show the translation')`)) await tab.click("Can't listen now?");
+        await measure(tab, `${page}, its translation shown`, width);
+
+        // React reads its own value tracker: the native setter, then input, as typing sends it.
+        await tab.evaluate<void>(`(() => {
+            const el = document.querySelector('form input');
+            Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, 'とうじょうじんぶつ');
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+        })()`);
+        await tab.click('Submit');
+        await tab.until(`[...document.querySelectorAll('button')].some(el => el.textContent.trim().startsWith('Continue'))`, 'the answered card', 10000);
+        await measure(tab, `${page}, answered`, width);
+    } catch (error) {
+        failures.push(`${width}px ${page}: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+        await tab.close();
+    }
+}
+
 /**
  * A new word's intro opens at its top on a small phone (DESIGN_SYSTEM section 1: the headword
  * first). The mount focus on Learn must not scroll a card taller than the screen down to its
@@ -2049,6 +2300,430 @@ async function checkSearchAcrossDetailWidth(tab: Tab, base: string): Promise<voi
     await tab.resize(DESKTOP.width, DESKTOP.height);
 }
 
+/**
+ * The header search's results (#264): a query finding words, kanji and grammar points (から: words
+ * starting with it, the kanji 空 by its kun reading, the point から) shows them, measured like a
+ * page (no sideways scroll, the 12px floor, the 16px field) with the panel open. Both apps show one
+ * list in the same order, whose first rows hold the point and the words (the kanji, read as から,
+ * follows the words starting with it); each dictionary option is a 44px tap target, and its panel,
+ * scrolled to the end of its first page, draws the next (every match is reachable: it once showed
+ * three groups capped at 8, 3 and 3 rows). Typed as a learner types, through the field's own value
+ * setter, so React's controlled input and the dictionary's script both see it.
+ */
+const SEARCH_QUERY = 'から';
+/** A word page in each locale: Chinese's index carries the kanji and points too, linked at English's pages. */
+const HEADER_SEARCH_PAGES = [`/vocab/${SOURCE_CREDIT_WORD}/`, ...(DICTIONARY_PAGES.some(page => page.path.startsWith('/zh-hans/')) ? [`/zh-hans/vocab/${SOURCE_CREDIT_WORD}/`] : [])];
+const TYPE_SEARCH = (field: string, query = SEARCH_QUERY) => `(() => {
+    const input = document.querySelector(${JSON.stringify(field)});
+    if (!input) return false;
+    input.focus();
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, ${JSON.stringify(query)});
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    return true;
+})()`;
+/** The types among the app's drawn rows (its one list marks each row's, `data-hit`). */
+const APP_SEARCH_TYPES = `[...new Set([...document.querySelectorAll('#header-search-results [role="option"]')].map(el => el.getAttribute('data-hit')))].sort().join(',')`;
+/** The types among the dictionary's drawn rows, read off where each leads, named as the app's are. */
+const DICTIONARY_SEARCH_TYPES = `[...new Set([...document.querySelectorAll('[data-search-results] [role="option"]')].map(el => ({ vocab: 'words', kanji: 'kanji', grammar: 'grammar' })[(/\\/(vocab|kanji|grammar)\\//.exec(el.getAttribute('href') ?? '') ?? [])[1]] ?? '?'))].sort().join(',')`;
+const DICTIONARY_OPTIONS = `document.querySelectorAll('[data-search-results] [role="option"]').length`;
+async function checkHeaderSearch(tab: Tab, page: string, width: number, site: 'srs' | 'dictionary'): Promise<void> {
+    const where = `${width}px ${page}, searching ${SEARCH_QUERY}`;
+    if (site === 'srs') {
+        // On a phone the header shows the search as an icon, which opens the field over the header.
+        await tab.evaluate<void>(`document.querySelector('button[aria-label="Search words, kanji and grammar"]')?.click()`);
+        await tab.until(`document.querySelector('input[role="combobox"]') !== null`, `the search field on ${page}`, 5000);
+    }
+    const field = site === 'srs' ? 'input[role="combobox"]' : '[data-search-input]';
+    const listbox = site === 'srs' ? '#header-search-results' : '[data-search-results]';
+    if (site === 'dictionary') {
+        // The index loads on first focus; the query is typed once it has.
+        await tab.evaluate<void>(`document.querySelector('[data-search-input]')?.focus()`);
+        await tab.until(`document.querySelector('[data-search-message]')?.textContent === ''`, `the search index on ${page}`, 20000);
+    }
+    if (!await tab.evaluate<boolean>(TYPE_SEARCH(field))) {
+        failures.push(`${where}: no search field`);
+        return;
+    }
+    const types = site === 'srs' ? APP_SEARCH_TYPES : DICTIONARY_SEARCH_TYPES;
+    try {
+        await tab.until(`${types}.includes('grammar,words')`, `grammar points and words on ${page}`, 20000);
+    } catch {
+        failures.push(`${where}: the results do not show grammar points and words (types drawn: ${await tab.evaluate<string>(types)})`);
+        return;
+    }
+    if (site === 'dictionary') {
+        if (await tab.evaluate<number>(`document.querySelectorAll('${listbox} [role="group"]').length`) > 0) failures.push(`${where}: the results are in groups, not one list`);
+        await checkSearchRowShape(tab, where, `${listbox} [role="option"]`);
+        const first = await tab.evaluate<number>(DICTIONARY_OPTIONS);
+        await tab.evaluate<void>(`(() => { const panel = document.querySelector('[data-search-panel]'); panel.scrollTop = panel.scrollHeight; })()`);
+        try {
+            await tab.until(`${DICTIONARY_OPTIONS} > ${first}`, `more rows for ${SEARCH_QUERY} on ${page}`, 5000);
+        } catch {
+            failures.push(`${where}: scrolled to the end of its ${first} rows, the panel draws no more, so the rest of the matches cannot be reached`);
+        }
+        await tab.evaluate<void>(`(() => { document.querySelector('[data-search-panel]').scrollTop = 0; })()`);
+    }
+    await measure(tab, `${page}, searching ${SEARCH_QUERY}`, width, site === 'dictionary' ? '.search-option' : '');
+    const outside = await tab.evaluate<number>(`[...document.querySelectorAll('${listbox} [role="option"]')].filter(el => { const r = el.getBoundingClientRect(); return r.height > 0 && (r.left < -1 || r.right > ${width} + 1); }).length`);
+    if (outside > 0) failures.push(`${where}: ${outside} result rows reach past the screen's edge`);
+    if (site === 'dictionary' && page.includes('/zh-hans/')) {
+        await checkSearchOptionLang(tab, where, listbox);
+        await checkSearchRowLangMark(tab, where, `${listbox} [role="option"]`);
+    }
+}
+
+/**
+ * The app's grammar options (#264): a title is the row's content, so it keeps its width and the
+ * romaji beside it truncates first; it wraps only when it is wider than the whole row. It once
+ * shrank first and broke inside the pattern (〜から〜にかけ / て, Noun から / Noun まで) while its
+ * romaji kept its width. A title whose natural width fits its line must render on one line.
+ */
+const GRAMMAR_TITLE_QUERIES = [SEARCH_QUERY, 'te kara'];
+const GRAMMAR_TITLES = `[...document.querySelectorAll('#header-search-results [role="option"][data-hit="grammar"] > div:first-child > div:first-child > span:first-child')]`;
+async function checkGrammarTitlesOneLine(tab: Tab, page: string, width: number): Promise<void> {
+    await tab.evaluate<void>(`document.querySelector('button[aria-label="Search words, kanji and grammar"]')?.click()`);
+    await tab.until(`document.querySelector('input[role="combobox"]') !== null`, `the search field on ${page}`, 5000);
+    let previous = '';
+    for (const query of GRAMMAR_TITLE_QUERIES) {
+        const where = `${width}px ${page}, searching ${query}`;
+        if (!await tab.evaluate<boolean>(TYPE_SEARCH('input[role="combobox"]', query))) {
+            failures.push(`${where}: no search field`);
+            return;
+        }
+        try {
+            await tab.until(`${GRAMMAR_TITLES}.some(el => el.getBoundingClientRect().height > 0)`, `grammar results on ${page}`, 20000);
+        } catch {
+            failures.push(`${where}: no grammar results to measure`);
+            continue;
+        }
+        // The previous query's rows stay shown until the new search lands (keepPrevious).
+        try {
+            await tab.until(`${GRAMMAR_TITLES}.map(el => el.textContent).join('|') !== ${JSON.stringify(previous)}`, `new grammar results on ${page}`, 3000);
+        } catch {
+            // The same titles for both queries, or already shown: measure what is there.
+        }
+        previous = await tab.evaluate<string>(`${GRAMMAR_TITLES}.map(el => el.textContent).join('|')`);
+        const wrapped = await tab.evaluate<string[]>(`${GRAMMAR_TITLES}.filter(title => {
+            const style = getComputedStyle(title);
+            const probe = document.createElement('span');
+            probe.textContent = title.textContent;
+            probe.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap';
+            probe.style.font = style.font;
+            document.body.appendChild(probe);
+            const natural = probe.getBoundingClientRect().width;
+            probe.remove();
+            const line = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.6;
+            // The title's line holds only the title and its romaji (the type chip leads line 2), so it has the whole line.
+            return natural <= title.parentElement.clientWidth && title.getBoundingClientRect().height > line * 1.5;
+        }).map(title => title.textContent)`);
+        if (wrapped.length > 0) failures.push(`${where}: a grammar title that fits its row wraps (its romaji should truncate first): ${wrapped.slice(0, 3).join(' | ')}`);
+    }
+}
+
+/**
+ * The app's desktop panel (#264, 1280px), a dropdown with a height cap over one list of every
+ * match. In 1.69.0 the results were groups capped at a few rows each (5 words above another group),
+ * and a "Show all results" option stopped at the same caps, so most words for a query could not be
+ * reached at all. Now, for sui (385 matches) and から: at rest the first row is in view at the
+ * panel's top; scrolled to its end, the panel draws more rows than its first page (the list is drawn
+ * a page at a time, so a broad query does not draw thousands up front); and for から the arrow keys
+ * step past the first page and back: focus stays in the field, so the panel follows the highlight
+ * only because the option is scrolled into view, and the step past the last drawn row draws the
+ * next page.
+ */
+const PANEL_REACH_QUERIES = ['sui', SEARCH_QUERY];
+const APP_PANEL = `document.getElementById('header-search-results')?.parentElement`;
+const APP_OPTIONS = `document.querySelectorAll('#header-search-results [role="option"]').length`;
+const APP_FIRST_OPTION = `(document.querySelector('#header-search-results [role="option"]')?.textContent ?? '')`;
+/** Types `query` and waits for its results: the previous query's rows stay until the new search lands (keepPrevious), so until the first row changes. */
+async function typeAppQuery(tab: Tab, query: string): Promise<boolean> {
+    const before = await tab.evaluate<string>(APP_FIRST_OPTION);
+    if (!await tab.evaluate<boolean>(TYPE_SEARCH('input[role="combobox"]', query))) return false;
+    try {
+        await tab.until(`${APP_FIRST_OPTION} !== '' && ${APP_FIRST_OPTION} !== ${JSON.stringify(before)}`, `results for ${query}`, 20000);
+        return true;
+    } catch {
+        return false;
+    }
+}
+async function checkSearchPanelReach(tab: Tab, page: string, width: number): Promise<void> {
+    let firstPage = 0;
+    for (const query of PANEL_REACH_QUERIES) {
+        const where = `${width}px ${page}, searching ${query}`;
+        if (!await typeAppQuery(tab, query)) {
+            failures.push(`${where}: no results`);
+            continue;
+        }
+        const atRest = await tab.evaluate<{ top: number; count: number }>(`(() => {
+            const panel = ${APP_PANEL};
+            panel.scrollTop = 0;
+            const first = document.querySelector('#header-search-results [role="option"]');
+            return { top: first.getBoundingClientRect().top - panel.getBoundingClientRect().top, count: ${APP_OPTIONS} };
+        })()`);
+        firstPage = atRest.count;
+        if (atRest.top < -1 || atRest.top > 2) failures.push(`${where}: at rest the first row is ${Math.round(atRest.top)}px from the panel's top, not at it`);
+        // Scrolled to its end, a broad query draws its next page.
+        await tab.evaluate<void>(`(() => { const panel = ${APP_PANEL}; panel.scrollTop = panel.scrollHeight; })()`);
+        try {
+            await tab.until(`${APP_OPTIONS} > ${atRest.count}`, `more rows for ${query} on ${page}`, 5000);
+        } catch {
+            failures.push(`${where}: scrolled to the end of its ${atRest.count} rows, the panel draws no more, so the rest of the matches cannot be reached`);
+        }
+    }
+
+    // The last query is から: step past its first page with the arrow keys, and back. Retyped, so it starts at one page.
+    const where = `${width}px ${page}, searching ${SEARCH_QUERY} with the arrow keys`;
+    if (!await typeAppQuery(tab, `${SEARCH_QUERY}だ`) || !await typeAppQuery(tab, SEARCH_QUERY)) {
+        failures.push(`${where}: no results`);
+        return;
+    }
+    const count = await tab.evaluate<number>(APP_OPTIONS);
+    if (count === 0 || count < firstPage) {
+        failures.push(`${where}: ${count} options to step through`);
+        return;
+    }
+    const steps = [...Array.from({ length: count + 1 }, () => 'ArrowDown' as const), ...Array.from({ length: count }, () => 'ArrowUp' as const)];
+    const hidden = new Set<string>();
+    for (const key of steps) {
+        await tab.press(key, 150);
+        const problem = await tab.evaluate<string>(`(() => {
+            const option = document.querySelector('#header-search-results [aria-selected="true"]');
+            if (!option) return 'no highlighted option';
+            const panel = ${APP_PANEL}.getBoundingClientRect();
+            const rect = option.getBoundingClientRect();
+            const name = option.textContent.slice(0, 20);
+            if (rect.top < panel.top - 1 || rect.bottom > panel.bottom + 1) return name + ' is outside the panel';
+            return '';
+        })()`);
+        if (problem) hidden.add(problem);
+    }
+    const after = await tab.evaluate<number>(APP_OPTIONS);
+    if (hidden.size > 0) failures.push(`${where}: the highlighted option is not kept in view: ${[...hidden].slice(0, 3).join(' | ')}`);
+    if (after <= count) failures.push(`${where}: the arrow key past the last of its ${count} drawn rows drew no more`);
+}
+
+/**
+ * The app's desktop panel (#264, 1280px): a new result set opens at its top, so the first-ranked
+ * row is the first one seen. The panel keeps the previous results while the next search runs and
+ * once kept their scroll too: typed on from から (scrolled down) to からだ, it opened on 体つき with
+ * the exact match 体 above its top edge.
+ */
+const SCROLL_RESET_QUERIES = { from: SEARCH_QUERY, to: `${SEARCH_QUERY}だ` };
+async function checkSearchPanelScrollReset(tab: Tab, page: string, width: number): Promise<void> {
+    const where = `${width}px ${page}, typing on from ${SCROLL_RESET_QUERIES.from} to ${SCROLL_RESET_QUERIES.to}`;
+    const firstOption = `(document.querySelector('#header-search-results [role="option"]')?.textContent ?? '')`;
+    if (!await tab.evaluate<boolean>(TYPE_SEARCH('input[role="combobox"]', SCROLL_RESET_QUERIES.from))) {
+        failures.push(`${where}: no search field`);
+        return;
+    }
+    try {
+        await tab.until(`document.querySelectorAll('#header-search-results [role="option"]').length > 1`, `results for ${SCROLL_RESET_QUERIES.from} on ${page}`, 20000);
+    } catch {
+        failures.push(`${where}: no results for ${SCROLL_RESET_QUERIES.from}`);
+        return;
+    }
+    const before = await tab.evaluate<string>(`(() => { const panel = ${APP_PANEL}; panel.scrollTop = panel.scrollHeight; return ${firstOption}; })()`);
+    if (!await tab.evaluate<boolean>(TYPE_SEARCH('input[role="combobox"]', SCROLL_RESET_QUERIES.to))) {
+        failures.push(`${where}: no search field`);
+        return;
+    }
+    try {
+        await tab.until(`${firstOption} !== '' && ${firstOption} !== ${JSON.stringify(before)}`, `new results for ${SCROLL_RESET_QUERIES.to} on ${page}`, 20000);
+    } catch {
+        failures.push(`${where}: the results did not change`);
+        return;
+    }
+    const shown = await tab.evaluate<{ scrollTop: number; inView: boolean }>(`(() => {
+        const panel = ${APP_PANEL};
+        const box = panel.getBoundingClientRect();
+        const rect = document.querySelector('#header-search-results [role="option"]').getBoundingClientRect();
+        return { scrollTop: panel.scrollTop, inView: rect.top >= box.top - 1 && rect.bottom <= box.bottom + 1 };
+    })()`);
+    if (shown.scrollTop !== 0 || !shown.inView) failures.push(`${where}: the new results keep the previous scroll (scrollTop ${shown.scrollTop}), so the first-ranked row is not in view`);
+}
+
+/**
+ * On a Chinese page, the panel's English (a grammar point's explanation, a kanji's meaning) and
+ * romaji are marked as such, not left to inherit the page's zh-Hans: a grammar option once wrote
+ * both as bare spans. A run of two Latin letters is what is looked for, so a chip's N5 is not; Latin
+ * inside Japanese (a grammar title's placeholders, Noun から Noun まで) is the title's own and stays ja.
+ */
+async function checkSearchOptionLang(tab: Tab, where: string, listbox: string): Promise<void> {
+    const unmarked = await tab.evaluate<string[]>(`(() => {
+        const found = [];
+        for (const option of document.querySelectorAll('${listbox} .search-option')) {
+            const walker = document.createTreeWalker(option, NodeFilter.SHOW_TEXT);
+            for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+                if (!/[A-Za-z]{2}/.test(node.textContent)) continue;
+                const lang = node.parentElement.closest('[lang]')?.getAttribute('lang') ?? '';
+                if (lang.toLowerCase().startsWith('zh')) found.push(node.textContent.slice(0, 30));
+            }
+        }
+        return found;
+    })()`);
+    if (unmarked.length > 0) failures.push(`${where}: Latin text in the results left in the page's zh-Hans (mark it lang="en" or "ja-Latn"): ${unmarked.slice(0, 3).join(' | ')}`);
+}
+
+/**
+ * On a Chinese page, a row that opens a page served in English only (a kanji, a grammar point:
+ * hreflang="en") says so after its type chip, with the site header's small 英文 (.lang-mark,
+ * DESIGN_SYSTEM section 8: marked for a reader as well as by hreflang). Group labels carried it
+ * while the results were in groups; one list carries it on each such row.
+ */
+async function checkSearchRowLangMark(tab: Tab, where: string, rows: string): Promise<void> {
+    const unmarked = await tab.evaluate<string[]>(`[...document.querySelectorAll('${rows}')]
+        .filter(row => row.matches('[hreflang^="en"]') && !row.querySelector('.lang-mark'))
+        .map(row => row.textContent.slice(0, 20))`);
+    if (unmarked.length > 0) failures.push(`${where}: a row linking to an English-only page does not say so beside its type (.lang-mark): ${unmarked.slice(0, 3).join(', ')}`);
+}
+
+/**
+ * The search row, in both apps (#264, rc.27 feedback): line 1 the thing itself, line 2 its type
+ * chip leading its gloss, at least 4px between the two lines (they once ran together), and every
+ * row's chip on the same left edge, whatever the row's status (the chip once sat on the headword
+ * line, pushed left by the width of Learn or Not known yet beside it).
+ */
+async function checkSearchRowShape(tab: Tab, where: string, rows: string): Promise<void> {
+    const found = await tab.evaluate<{ rows: number; lefts: number[]; tight: string[]; missing: string[]; faces: { headword: string; reading: string } | null }>(`(() => {
+        const rows = [...document.querySelectorAll(${JSON.stringify(rows)})].filter(row => row.getBoundingClientRect().height > 0);
+        const firstFamily = el => (el ? getComputedStyle(el).fontFamily.split(',')[0].trim().replace(/^["']|["']$/g, '') : '');
+        // The first word row with a reading beside its headword (水 for water). A word's, not the
+        // first row's: for から that is a grammar point, whose romaji is in Inter on purpose.
+        const isWord = row => row.matches('[data-hit="words"]') || /\\/vocab\\//.test(row.getAttribute('href') ?? '');
+        const line = rows.filter(isWord).map(row => row.querySelector('[data-row-line], .search-row-main')).find(main => main?.firstElementChild?.nextElementSibling);
+        const faces = line ? { headword: firstFamily(line.firstElementChild), reading: firstFamily(line.firstElementChild.nextElementSibling) } : null;
+        const lefts = [];
+        const tight = [];
+        const missing = [];
+        for (const row of rows) {
+            const chip = row.querySelector('[data-type-chip]');
+            const lines = [...row.querySelectorAll('[data-row-line], .search-row-main, .search-row-support')];
+            const name = row.textContent.slice(0, 20);
+            if (!chip || lines.length < 2 || !lines[1].contains(chip) || lines[1].firstElementChild !== chip) {
+                missing.push(name);
+                continue;
+            }
+            lefts.push(chip.getBoundingClientRect().left);
+            const gap = lines[1].getBoundingClientRect().top - lines[0].getBoundingClientRect().bottom;
+            if (gap < 3.5) tight.push(name + ' (' + gap.toFixed(1) + 'px)');
+        }
+        return { rows: rows.length, lefts, tight, missing, faces };
+    })()`);
+    if (found.rows === 0) {
+        failures.push(`${where}: no search rows to measure`);
+        return;
+    }
+    // One row in both apps: the headword in mincho, its reading in gothic (DESIGN_SYSTEM sections 6
+    // and 8). The dictionary's row once set the face only on its line, which the [lang="ja"] rule
+    // on the headword's own span overrode, so the headword was in gothic there.
+    if (found.faces && found.faces.headword !== 'Noto Serif JP') failures.push(`${where}: the first row's headword is in ${found.faces.headword || 'no face'}, not mincho (Noto Serif JP)`);
+    if (found.faces && found.faces.reading !== 'Noto Sans JP') failures.push(`${where}: the first row's reading is in ${found.faces.reading || 'no face'}, not gothic (Noto Sans JP)`);
+    if (found.missing.length > 0) failures.push(`${where}: a row's type chip does not lead its second line: ${found.missing.slice(0, 3).join(' | ')}`);
+    if (found.tight.length > 0) failures.push(`${where}: a row's two lines are less than 4px apart: ${found.tight.slice(0, 3).join(' | ')}`);
+    if (found.lefts.length > 0 && Math.max(...found.lefts) - Math.min(...found.lefts) > 1) {
+        failures.push(`${where}: the rows' type chips do not share one left edge (from ${Math.round(Math.min(...found.lefts))} to ${Math.round(Math.max(...found.lefts))}px)`);
+    }
+}
+
+/** The query both apps' row shape is measured on: words and the kanji 水, whose statuses differ in width (Learn, Not known yet). */
+const ROW_SHAPE_QUERY = 'water';
+
+/** The app's rows for water, in the open field's panel (the dropdown, or the full-screen panel on a phone). */
+async function checkAppSearchRows(tab: Tab, page: string, width: number): Promise<void> {
+    const where = `${width}px ${page}, searching ${ROW_SHAPE_QUERY}`;
+    if (!await typeAppQuery(tab, ROW_SHAPE_QUERY)) {
+        failures.push(`${where}: no results`);
+        return;
+    }
+    await checkSearchRowShape(tab, where, '#header-search-results [role="option"]');
+    await checkSearchRowStatusFlush(tab, where, '#header-search-results [role="option"]');
+}
+
+/**
+ * The app's row status (Learn, Not known yet) ends at the row's right padding (staging feedback on
+ * rc.30): the column once had a fixed width with its status at the left, so Learn ended about 48px
+ * short of the row's edge on every word row, an empty band that cut the gloss short.
+ */
+async function checkSearchRowStatusFlush(tab: Tab, where: string, rows: string): Promise<void> {
+    const gaps = await tab.evaluate<string[]>(`[...document.querySelectorAll(${JSON.stringify(rows)})]
+        .filter(row => row.getBoundingClientRect().height > 0)
+        .flatMap(row => {
+            const status = row.querySelector('[data-row-status]');
+            const content = status?.firstElementChild;
+            if (!content) return [];
+            const edge = row.getBoundingClientRect().right - parseFloat(getComputedStyle(row).paddingRight) - parseFloat(getComputedStyle(row).borderRightWidth);
+            const gap = edge - content.getBoundingClientRect().right;
+            return gap > 1 ? [row.textContent.slice(0, 20) + ' (' + gap.toFixed(0) + 'px)'] : [];
+        })`);
+    if (gaps.length > 0) failures.push(`${where}: a row's status ends short of the row's right padding: ${gaps.slice(0, 3).join(' | ')}`);
+}
+
+/**
+ * The /search/ page (#264, rc.27 feedback): one list in the app's order, no group sections, no
+ * line of section links and no pager (it once held Words, Kanji and Grammar apart, 50 words a page,
+ * ranked differently from the app). For から, in English and on a Chinese page: each row is a 44px
+ * tap target; the line under the title counts each type; scrolling to the end draws the next rows
+ * until every counted row is listed; on a Chinese page each row opening an English page says so
+ * (.lang-mark). For water (English), the row's shape (checkSearchRowShape).
+ */
+const SEARCH_PAGE_QUERY = 'から';
+// The page's title: its rows carry no JLPT chip any more, and the only "JLPT" on it is the no-script line the script hides.
+const SEARCH_PAGE_TITLE = { en: 'Search', zh: '搜索' };
+const SEARCH_PAGE_ROWS = `document.querySelectorAll('[data-search-page] .search-results > li').length`;
+async function checkSearchPage(tab: Tab, base: string, width: number): Promise<void> {
+    for (const prefix of ['', '/zh-hans']) {
+        const page = `dictionary ${prefix}/search/?q=${SEARCH_PAGE_QUERY}`;
+        const where = `${width}px ${page}`;
+        await tab.goto(`${base}${prefix}/search/?q=${encodeURIComponent(SEARCH_PAGE_QUERY)}`, prefix ? SEARCH_PAGE_TITLE.zh : SEARCH_PAGE_TITLE.en);
+        try {
+            await tab.until(`${SEARCH_PAGE_ROWS} > 0`, `the results on ${page}`, 20000);
+        } catch {
+            failures.push(`${where}: no results listed`);
+            continue;
+        }
+        await measure(tab, page, width, `${DICTIONARY_TAP_TARGETS}, [data-search-page] .search-row`);
+        const shape = await tab.evaluate<{ sections: number; pagers: number; counted: number }>(`({
+            sections: document.querySelectorAll('[data-search-page] section').length,
+            pagers: document.querySelectorAll('[data-search-page] .pager').length,
+            counted: [...document.querySelectorAll('[data-search-page] .search-counts > span')]
+                .map(span => Number(([...span.childNodes].filter(node => !(node instanceof Element && node.classList.contains('lang-mark'))).map(node => node.textContent).join('').match(/[\\d,]+/g) ?? ['0']).pop().replace(/,/g, '')))
+                .reduce((sum, count) => sum + count, 0),
+        })`);
+        if (shape.sections > 0 || shape.pagers > 0) failures.push(`${where}: the results are in ${shape.sections} sections with ${shape.pagers} pagers, not one list`);
+        if (shape.counted === 0) {
+            failures.push(`${where}: no count of each type under the title`);
+            continue;
+        }
+        // Scrolled to the end, again and again: every counted row is drawn.
+        let listed = await tab.evaluate<number>(SEARCH_PAGE_ROWS);
+        for (let step = 0; step < 40 && listed < shape.counted; step++) {
+            await tab.evaluate<void>(`window.scrollTo(0, document.documentElement.scrollHeight)`);
+            try {
+                await tab.until(`${SEARCH_PAGE_ROWS} > ${listed}`, `more rows on ${page}`, 5000);
+            } catch {
+                break;
+            }
+            listed = await tab.evaluate<number>(SEARCH_PAGE_ROWS);
+        }
+        if (listed !== shape.counted) failures.push(`${where}: scrolled to its end, the page lists ${listed} rows of the ${shape.counted} it counts`);
+        await tab.evaluate<void>(`window.scrollTo(0, 0)`);
+        if (prefix) {
+            await checkSearchRowLangMark(tab, where, '[data-search-page] .search-row');
+            if (!await tab.evaluate<boolean>(`document.querySelector('[data-search-page] .search-row[hreflang^="en"]') !== null`)) {
+                failures.push(`${where}: no row links to an English-only page, so the mark is not checked`);
+            }
+        }
+    }
+    const page = `dictionary /search/?q=${ROW_SHAPE_QUERY}`;
+    await tab.goto(`${base}/search/?q=${ROW_SHAPE_QUERY}`, SEARCH_PAGE_TITLE.en);
+    try {
+        await tab.until(`${SEARCH_PAGE_ROWS} > 0`, `the results on ${page}`, 20000);
+        await checkSearchRowShape(tab, `${width}px ${page}`, '[data-search-page] .search-row');
+    } catch {
+        failures.push(`${width}px ${page}: no results listed`);
+    }
+}
+
 /** The dictionary's play buttons (pages/PlayButton.svelte), shown once the player's pre-paint class is set. */
 const DICTIONARY_PLAY_BUTTONS = 'button.play';
 /**
@@ -2304,6 +2979,11 @@ try {
     // A studied word's header at 1280px, where the narrow page leaves the header its one column.
     await desktop.click('Start learning');
     await checkIntroDesktop(desktop, `http://127.0.0.1:${srs.port}`);
+    await desktop.goto(`http://127.0.0.1:${srs.port}/vocab`, 'Vocabulary');
+    await checkGrammarTitlesOneLine(desktop, 'srs /vocab', DESKTOP.width);
+    await checkAppSearchRows(desktop, 'srs /vocab', DESKTOP.width);
+    await checkSearchPanelReach(desktop, 'srs /vocab', DESKTOP.width);
+    await checkSearchPanelScrollReset(desktop, 'srs /vocab', DESKTOP.width);
     for (const path of DICTIONARY_LIST_PAGES) {
         await desktop.goto(`http://127.0.0.1:${dictionary.port}/dictionary${path}`, 'N5');
         await checkEntryGlossColumn(desktop, `dictionary ${path}`, DESKTOP.width, false);
@@ -2318,6 +2998,7 @@ try {
         await checkDictionaryWordFullPage(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
     }
     await checkSearchAcrossDetailWidth(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`);
+    await checkSearchPage(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`, DESKTOP.width);
     await desktop.resize(DESKTOP.width, DESKTOP.height);
     await checkDictionaryDetailFullPages(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`);
     await checkDictionaryPlayButtons(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`, DESKTOP.width);
@@ -2362,6 +3043,9 @@ try {
     await checkDictLinkFocus(desktop, `srs /vocab/${LONG_SYNONYMS_WORD}`, DESKTOP.width);
     await checkCrossing(desktop, `http://127.0.0.1:${srs.port}`);
     await checkDetailFullPages(desktop, `http://127.0.0.1:${srs.port}`);
+    await checkDrillWalk(desktop, `http://127.0.0.1:${srs.port}`, DESKTOP.width);
+    await checkChapterDrillGap(desktop, `http://127.0.0.1:${srs.port}`, DESKTOP.width);
+    await checkPointDrillInHeader(desktop, `http://127.0.0.1:${srs.port}`, DESKTOP.width);
     await desktop.close();
     for (const { width, height } of SETUP_LINK_SCREENS) await checkSetupLinkCount(chrome, `http://127.0.0.1:${srs.port}`, width, height);
     for (const { width, height } of VIEWPORTS) {
@@ -2403,7 +3087,11 @@ try {
             await tab.goto(`${app}${route.path}`, route.ready);
             if (route.settled) await tab.until(`document.querySelector(${JSON.stringify(route.settled)}) !== null`, `${route.settled} on ${route.path}`, 10000);
             await measure(tab, `srs ${route.path}`, width);
+            if (route.japaneseFaces) await checkJapaneseFaces(tab, `srs ${route.path}`, width);
         }
+        await checkDrillWalk(tab, app, width);
+        await checkChapterDrillGap(tab, app, width);
+        await checkPointDrillInHeader(tab, app, width);
         // The library's rows with a status line, the tightest rows on a phone. Before any word is
         // learned: the library ranks by known words, which would page the marked titles out of view.
         await tab.goto(`${app}/listening/${COMPLETED_TITLE}`, 'Mark all watched');
@@ -2418,6 +3106,7 @@ try {
         await checkIntroCard(tab, app, width, height);
         await checkKanaIntro(chrome, app, width, height);
         await checkLongHeadwordIntro(chrome, app, width, height);
+        await checkListeningCloze(chrome, app, width, height);
         await measureFuriganaFixture(tab, `${app}/vocab/${FURIGANA_VOCAB}`, 'Examples', `srs /vocab/${FURIGANA_VOCAB}`, width, `${PLAY_BUTTONS}, ${PAGE_TABS}`);
         await checkSentencePlayButtons(tab, `srs /vocab/${FURIGANA_VOCAB}`, width);
         await checkExamplesUnruled(tab, `srs /vocab/${FURIGANA_VOCAB}`, width);
@@ -2498,13 +3187,29 @@ try {
         await checkSynonymsLink(tab, app, width);
         await checkDetailTabPages(tab, app, width);
         await checkGrammarDueOnce(tab, app, width);
+        await tab.goto(`${app}/vocab`, 'Vocabulary');
+        await checkHeaderSearch(tab, 'srs /vocab', width, 'srs');
+        await checkGrammarTitlesOneLine(tab, 'srs /vocab', width);
+        await checkAppSearchRows(tab, 'srs /vocab', width);
         // The removed Mix-ups page's path lands on Vocabulary.
         await tab.goto(`${app}/vocab/mixups`, 'Vocabulary');
         await tab.until(`location.pathname.endsWith('/vocab')`, '/vocab/mixups redirecting to /vocab');
+        for (const path of HEADER_SEARCH_PAGES) {
+            await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${path}`, 'JLPT');
+            await checkHeaderSearch(tab, `dictionary ${path}`, width, 'dictionary');
+        }
+        await checkSearchPage(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
         for (const page of DICTIONARY_PAGES) {
             await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${page.path}`, page.ready);
             await measure(tab, `dictionary ${page.path}`, width, DICTIONARY_TAP_TARGETS);
             if (DICTIONARY_LIST_PAGES.includes(page.path)) await checkEntryGlossColumn(tab, `dictionary ${page.path}`, width, true);
+            await checkListFirstScreen(tab, `dictionary ${page.path}`, page.path, width);
+        }
+        if (width === LIST_FIRST_SCREEN.width) {
+            for (const page of DICTIONARY_LIST_SHAPES) {
+                await tab.goto(`http://127.0.0.1:${dictionary.port}/dictionary${page.path}`, page.ready);
+                await checkListFirstScreen(tab, `dictionary ${page.path}`, page.path, width);
+            }
         }
         for (const path of SOURCE_CREDIT_PAGES) await checkSourceCreditGap(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, path, width, true);
         for (const path of SWITCHER_PAGES) {
@@ -2551,4 +3256,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, a kanji's course steps 44px linked or not, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, the dictionary's word page tabbed as the app's on a phone (each hash landing on its section alone, at the page top, a reload keeping its scroll, its synonym search reading meanings, not labels) and one full page at 1280px, the kanji and grammar pages tabbed on a phone and one capped full page from 1024px, in the app and in the dictionary (its Words and Examples searched by their English, every section search's placeholder whole at 320px, a Sentences query holding as the page crosses into tabs), furigana over kanji, on one line and apart, Japanese in list rows and word readings unbroken, a word list's gloss in its column (1280px) or on its own line across the row (phones, a word page's aside), a section's source credit set off from what comes before it, the language switcher small and neutral, the app panel's action on one line with a four-digit step, its Japanese words unbroken where they fit and wrapped inside it where they do not, 40px above what follows it on every page type (and under Meanings on a word page) and on the home page 16px under its heading, a kanji's linked course steps underlined, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, setup opened from a dictionary link with its order and count on a 568 or 667px phone's screen, a word page's essentials on a small phone's first screen, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button undimmed, its sentence centred on its translation with its button right after it (and at 1280px on the headword), a word learned in kana's intro, a long headword's intro on one line inside its card, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play (in the dictionary too, named, 44px, with its player, none on a kanji page, a clip stopped when a tab or a closed disclosure hides its button), its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a due grammar point saying Due now once, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, a kanji's course steps 44px linked or not, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, the dictionary's word page tabbed as the app's on a phone (each hash landing on its section alone, at the page top, a reload keeping its scroll, its synonym search reading meanings, not labels) and one full page at 1280px, the kanji and grammar pages tabbed on a phone and one capped full page from 1024px, in the app and in the dictionary (its Words and Examples searched by their English, every section search's placeholder whole at 320px, a Sentences query holding as the page crosses into tabs), furigana over kanji, on one line and apart, Japanese in list rows and word readings unbroken, a word list's gloss in its column (1280px) or on its own line across the row (phones, a word page's aside), a section's source credit set off from what comes before it, the language switcher small and neutral, the app panel's action on one line with a four-digit step, its Japanese words unbroken where they fit and wrapped inside it where they do not, 40px above what follows it on every page type (and under Meanings on a word page) and on the home page 16px under its heading, a kanji's linked course steps underlined, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, setup opened from a dictionary link with its order and count on a 568 or 667px phone's screen, a word page's essentials on a small phone's first screen, a list page's first screen within the rows its budget counts, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button undimmed, its sentence centred on its translation with its button right after it (and at 1280px on the headword), a word learned in kana's intro, a long headword's intro on one line inside its card, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play (in the dictionary too, named, 44px, with its player, none on a kanji page, a clip stopped when a tab or a closed disclosure hides its button), its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a due grammar point saying Due now once, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);

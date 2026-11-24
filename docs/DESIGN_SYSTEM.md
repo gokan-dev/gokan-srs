@@ -432,6 +432,15 @@ Defined once, in `components/` or `components/ui/`, never copied:
 - **`ListRow`** (`ui/ListRow.tsx`): a clickable row, always a `<Link>`, never a `div`
   with `onClick`. Hover `bg-surface-hover`, focus-visible accent ring, optional trailing
   slot.
+- **Search row** (`SearchBar.tsx`, and the dictionary's `.search-row`, one shape in both apps):
+  two lines, 4px apart (`gap-1`). Line 1 the thing itself: a word and its reading, a kanji and
+  its main readings, a grammar title and its romaji. Line 2 its type as a neutral `Chip` (Word,
+  Kanji, Grammar), leading, then its gloss truncated to one line. The app's status (Learn, a
+  status dot, Known / Not known yet) sits in a column as wide as it, centred on the row and flush
+  with the row's right padding, so every status ends on one edge down the list (a fixed-width
+  column once left an empty band right of Learn); every chip shares one left edge because it
+  leads line 2. The dictionary has no status. `check:layout` holds the chips, the gap and the
+  flush status for `water` at 320px, 375px and 1280px.
 - **`Disclosure`** (`ui/Disclosure.tsx`): a collapsible section (chevron button,
   `aria-expanded`), collapsed by default. Used for dataset/dictionary details, review
   history, rare senses, long explanations.
@@ -526,6 +535,16 @@ Defined once, in `components/` or `components/ui/`, never copied:
   on a quiz card (listening is an exercise there). The intro card is the one session card with
   it: it comes before any exercise on its word, so hearing it gives nothing away. No credit on it:
   every clip is in one voice, credited on About.
+- **`PlayControl`** (`PlayButton.tsx`): a clip that is the subject of what is on screen rather than
+  a line's companion, first the listening cloze's sentence. A secondary `Button` (44px tall at every
+  width) with its words after the speaker in accent: "Play" until the clip has played once (`heard`: its first play has played through, or been stopped),
+  then "Play again". Its words never say "Stop": playing shows only as the icon (a filled square) and
+  `aria-pressed`, so the accessible name and the state never contradict. It is as wide as "Play
+  again" whatever it reads (the longer words laid out unseen), so it never moves. Its host places it
+  (the listening cloze centres it under the instruction). Its key goes in `aria-keyshortcuts` and its
+  title (the listening cloze's Alt+R). It runs on the same player as
+  `PlayButton` (`hooks/useClip.ts`, one clip at a time), so any other clip that deserves a labelled
+  control uses it rather than a new button.
 - **`BottomSheet`** (`ui/BottomSheet.tsx`): a panel over the bottom of the screen on a
   `bg-primary/20` backdrop, `rounded-t-md`, capped at `max-w-lg` and centred from `sm` up; a
   44px Close (in the heading row, or in the corner when the content names itself), Esc and a
@@ -595,7 +614,9 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   and Linux), titles `"Source Serif 4", "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC",
   SimSun, serif` (the Latin serif, then each system's Song face). No web font: a CJK face is
   megabytes, against the 40 KB the one Latin font has. English on a Chinese page (JMdict's
-  meanings, an untranslated sentence, a textbook chip) is marked `lang="en"`.
+  meanings, an untranslated sentence, a textbook chip, a kanji's meaning or a grammar point's
+  explanation in search) is marked `lang="en"`, and a grammar point's romaji `lang="ja-Latn"`
+  (check:layout reads the zh-hans search panel for Latin text marked neither).
 - **Language switcher**: on a page that has a counterpart in the other language (a word with no
   Chinese page has none), one small line above the breadcrumb at its end: the other page,
   named in its own language (English, 简体中文), a 44px tap target. Neutral text link, no flag:
@@ -603,7 +624,8 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   are underlined at rest; the switcher, on a line of its own, is not).
 - **Links to English from a Chinese page** (a kanji, a grammar point, the dataset, the app):
   marked for a reader as well as by `hreflang="en"`. In the header, a small tertiary 英文 beside
-  the section's name (12px); in a tile or a sentence, in the catalog's words (英文页面,
+  the section's name (12px), and the same 英文 after the type chip of a search row that opens a
+  kanji or a grammar point and beside the `/search/` page's count of each (`inEnglish`, the search catalog's); in a tile or a sentence, in the catalog's words (英文页面,
   汉字（英文）); under the Kanji used tiles, one line (汉字页面为英文). A Chinese breadcrumb's
   links are underlined: its steps are a word or two, so the trail reads as running text.
 - **Shape**: 6px radius for cards, chips, tiles, inputs and buttons; the search field is
@@ -670,7 +692,7 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
     in at a glance, each page's threshold in its bullet: a word's sections past one page, as the
     app's `usePagedPanel` (more rows than it shows before "Show N more"); a kanji's Words past its
     first 30 rows, English reaching those 30 alone (the rest ship headword and reading only, the
-  80 KB budget: their glosses would add about 27 KB to 一), which a static `meta` line under the
+  kanji page budget: their glosses would add about 27 KB raw to 一), which a static `meta` line under the
   field says ("English searches the first 30 words.", from the catalog), above the count line:
   a placeholder that long is cut off on a phone and goes once the reader types; a grammar point's Examples past 5 curated examples, or with any from the corpus
     (folded out of sight, nothing paged). A count
@@ -743,9 +765,10 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   (`.entry-main > .app-panel`; elsewhere the header's own margin sets the gap above;
   `check:layout`, a word, kanji, order, range and grammar page). Never a popup, a dismiss
   button or a carousel. Its rules are the `app-panel` mixin (`_tokens.scss`), included by each
-  page sheet that shows it: in `app.scss` they took the shared stylesheet past its 10 KB budget.
-- **Shared between page sheets**: a rule two page types use goes in `app.scss`, unless that
-  breaks its budget; then it is a mixin in `_tokens.scss` (`glyph-tiles`, `entry-gloss`,
+  page sheet that shows it: in `app.scss` they took the shared stylesheet past its budget of the time (10 KB raw).
+- **Shared between page sheets**: a rule two page types use goes in `app.scss`, unless most
+  pages would carry it for nothing (every page downloads `app.scss`, and it counts in every page's
+  blocking stylesheets' budget); then it is a mixin in `_tokens.scss` (`glyph-tiles`, `entry-gloss`,
   `stacked-entries`, `app-panel`, `play-buttons`) included by each page sheet, so the source stays one copy.
 - **Frame**: "Skip to content" is the first focusable element of every page. The header's
   inner container is the wide measure (960px) on every page, so it lines up with the entry
@@ -770,44 +793,67 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
 - **Motion**: transitions are 150ms ease-in-out and none under `prefers-reduced-motion`.
 - **Budgets**, checked after every build by `scripts/check-build.ts`, which fails the
   build when one is exceeded (`src/lib/budgets.ts`), the same in every language (a Chinese
-  word page is held to the word page's):
+  word page is held to the word page's). Sizes are what a reader downloads: brotli, as CloudFront
+  sends it (quality 5, which matched what it served within about 2% on every page type, #268),
+  with the raw size beside it in the report.
 
-  | Item | Budget |
+  | Item | Budget (brotli) |
   | --- | --- |
-  | Word page HTML, 90th percentile | 24 KB |
-  | Kanji page HTML, the heaviest | 96 KB |
-  | Grammar point page HTML, the heaviest | 48 KB |
-  | `/grammar/` HTML | 180 KB |
-  | Each JLPT list page | 150 KB |
-  | Each kanji order page (hub, order, range of 100 steps) | 150 KB |
-  | Shared stylesheet (`app.scss`) | 12 KB |
-  | A locale's stylesheet (`styles/locales/`, its pages only) | 2 KB |
-  | Clip player script (pages with a play button) | 2 KB |
-  | Search script (every page) | 14 KB |
-  | Query engine (loaded on first focus) | 12 KB |
-  | Detail tabs script (word, kanji and grammar pages), with its shared chunks | 10 KB |
-  | `search-core.json`, gzipped | 360 KB |
-  | Web fonts | one woff2, 40 KB |
+  | Word page HTML, 90th percentile | 13 KB |
+  | Kanji page HTML, the heaviest | 13 KB |
+  | Grammar point page HTML, the heaviest | 13 KB |
+  | Home page HTML | 13 KB |
+  | `/grammar/` HTML, to the end of its first screen | 13 KB |
+  | Each JLPT list page, to the end of its first screen | 13 KB |
+  | Each kanji order page (hub, order, range of 100 steps), to the end of its first screen | 13 KB |
+  | A page's blocking stylesheets together (`app.scss`, its page sheet, its locale's) | 14 KB |
+  | Search script (every page), with its shared chunks | 7 KB |
+  | Query engine (loaded on first focus) | 7 KB |
+  | Detail tabs script (word, kanji and grammar pages), with its shared chunks | 5 KB |
+  | Clip player script (pages with a play button) | 1 KB |
+  | `search-core.json` | 415 KB |
+  | Web fonts | one woff2, 40 KB as it is (compressed already) |
   | Svelte client runtime | none |
 
-  A budget is a decision about what a page costs a reader on a phone: raise one here,
-  deliberately, never to make a build pass. On 2026-11-19 every budget within 10% of its
-  measure was set about 20% above it: most sat within 1 to 5% (the shared stylesheet at 10.0
-  of 10 KB, the detail script at 7.9 of 8, the query engine at 9.9 of 10, Chinese word pages at
-  19.8 of 20), so ordinary features failed the build, the pitch accent (#176) among them at
-  20.2 KB on Chinese word pages after its markup was cut to three SVG elements. The headroom
-  is for features, not drift: a change that spends it says what for (not mechanised: a
-  reviewer compares `check-build`'s report before and after the change). Those with ample room
-  (JLPT lists, kanji orders, a locale's stylesheet, the player, the font) are unchanged. The
-  shared stylesheet is still the tightest after the raise (10 of 12 KB): a rule used by one
-  page type belongs in that page's stylesheet anyway. The search script's was
-  10 KB until it read the page's locale (#228): every served locale's words for it
-  (`lib/messages/search`) and the links of the page's section (`linkUrls`) took it to 11 KB,
-  about 4.6 KB gzipped; its words and links are per locale, so a third locale costs about
-  0.7 KB more. A script is measured with the chunks it imports statically: since #168 the
-  detail tabs script and the search engine share the kana folding (`romaji`), and the search
-  script and the detail script the locale reading, each a chunk of its own (7.9 KB for the
-  detail script with both, 11.4 KB for the search script, 9.9 KB for the engine). Page weight is one half of
+  **The 14 KB rule.** A new connection sends about 10 packets before it waits for an
+  acknowledgement: RFC 6928 sets TCP's initial window to 10 segments, "(maximum 14600 B)", and
+  RFC 9002 gives QUIC the same budget (14,720 bytes). What fits arrives in one round trip; past
+  it, each further window costs another, which on a phone's latency is the cost worth guarding.
+  The dictionary's CloudFront distribution sets no `http_version` (`apps/gokan-srs/terraform/main.tf`):
+  HTTP/1.1 and HTTP/2 over TCP, so the 14,600-byte figure applies. It is a rule of thumb, not an
+  edge: the response headers (about 0.5 KB) count against it, the TLS handshake comes first on a
+  new HTTPS connection, a CDN may tune its window higher, and a reused connection (any page after
+  the first) is not limited this way. So a page's HTML is held to 13 KB of brotli. Beyond the
+  first screen, size matters much less: a long list page (the JLPT lists, the kanji order pages,
+  `/grammar/`) is not split (its URLs, sitemap and pagination stay), and is held to the rule up
+  to the end of its first screen at 375x812, counted as its HTML through its first N rows inside
+  `<main>` (`FIRST_SCREEN_ROWS`: 5 grammar points, 10 words, 10 rows or tiles of an order page,
+  above the 3, 7 and 7 measured on 2026-11-22). `check:layout` fails when those rows no longer
+  reach that screen's end, on one page of every shape counted so (`/grammar/`, a JLPT list's first
+  and numbered pages, every order's hub and a range page of each: `dictionaryListShapes`), so the
+  count covers what a reader sees first.
+
+  The stylesheets are a second round trip whatever their size: the browser asks for them once the
+  HTML starts arriving, on the same connection, by which time the window has roughly doubled, so a
+  page's blocking stylesheets are held together to 14 KB (3 to 5 KB measured), every set a page
+  type links: `check-build` fails when a page type's sheet is linked by no page it measures. Inlining the shared
+  stylesheet (2.5 KB brotli) would give one-round-trip first paint at the cost of those bytes on
+  every page and its cache across pages: a trade-off to measure, not assume. The scripts and the
+  search index load past the first screen: their budgets are regression guards, about 25% over
+  what they measured on 2026-11-22, not design limits.
+
+  Measured on 2026-11-22: word pages 4.1 KB at the 90th percentile (18.5 KB raw), the heaviest
+  kanji page (人) 12.9 KB, the tightest by far (a kanji's Words section is what to trim first),
+  the heaviest grammar point 8.1 KB, home 1.8 KB; the list pages' first screens 1.4 to 1.9 KB
+  (their whole pages up to 27 KB). Until #268 the budgets counted raw bytes, a poor proxy: a 20 KB
+  word page is about 4 KB on the wire, so ordinary features kept failing a limit far stricter than
+  the rule behind it (the pitch accent, #176, took Chinese word pages to 20.2 of 20 KB raw). A
+  budget is a decision about what a page costs a reader on a phone: raise one here, deliberately,
+  never to make a build pass, and a change that spends a guard's headroom says what for (not
+  mechanised: a reviewer compares `check-build`'s report before and after the change). A script is
+  measured with the chunks it imports statically, each compressed on its own as it is served:
+  since #168 the detail tabs script and the search engine share the kana folding (`romaji`), and
+  the search script and the detail script the locale reading, each a chunk of its own. Page weight is one half of
   being found; the other, SEO at 100 on every page type, is held by the Lighthouse check
   (`scripts/check-lighthouse.ts`, in section 9).
 
@@ -853,8 +899,9 @@ readings on a line touch (measured on their glyphs), no kanji reading (`KanjiRea
 word page's Kanji tab) breaks across lines, a sentence word hovered with a mouse at 1280px
 keeps its hover while its lookup card opens, a due word's page has no Review now, and a sentence word tapped on a word
 page opens its lookup card as a bottom sheet inside the viewport, its Close and its links (Open
-word page) 44px. A new page
-type or main route is added to its lists.
+word page) 44px, and a drill's way in (`DrillLink`, the button size `touch`, measured on a
+chapter's "Drill the related points" and a grammar point header's "Drill against its siblings")
+44px on a phone. A new page type or main route is added to its lists.
 
 **Lighthouse, SEO at 100** (`scripts/check-lighthouse.ts`, `bun run check:lighthouse`, run by
 CI in `.github/workflows/ci-site.yml` on both production builds): one representative page

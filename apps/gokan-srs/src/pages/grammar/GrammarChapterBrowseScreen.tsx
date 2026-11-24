@@ -6,12 +6,16 @@ import { GrammarService } from "../../services/grammar.service";
 import { useQuiz } from "../../context/useQuiz";
 import { ChapterProgressBar } from "../../components/ChapterProgressBar";
 import { computeGrammarChapterProgress } from "../../context/quiz/grammarSelectors";
+import { withSharedFamily } from "../../context/quiz/drillSelectors";
+import { ChapterDrillLink } from "./ChapterDrillLink";
+import { DrillLink } from "../../components/DrillLink";
 import { Page } from "../../components/Page";
 import { StatusDot } from "../../components/StatusDot";
 import { ListRow } from "../../components/ui/ListRow";
 import { grammarLearningStatus } from "../../utils/learningStatus.utils";
 import { groupChaptersByLevel } from "../../utils/chapterProgress.utils";
 import { GrammarHomeHeader } from "./GrammarHomeHeader";
+import { grammarPath } from "../../utils/navigation.utils";
 
 /**
  * Route /grammar/chapters, the Grammar home's Curriculum tab (issue #58): every
@@ -173,20 +177,28 @@ export function GrammarChapterBrowseScreen() {
                                             />
                                         </button>
 
+                                        {/* Only a chapter where two points share a family has anything to contrast. */}
+                                        {isOpen && withSharedFamily(chapter.points, id => rowById.get(id)?.familyId).length > 0 && (
+                                            <ChapterDrillLink chapterId={chapter.id} />
+                                        )}
                                         {isOpen && (
                                             <div className="pb-3 grid gap-1 sm:grid-cols-2">
                                                 {chapter.points.map(id => (
-                                                    <ListRow key={id} to={`/grammar/${id}`} className="py-1.5">
-                                                        <span className="flex items-center gap-2 min-w-0">
-                                                            <StatusDot
-                                                                status={grammarLearningStatus(grammarQueue.find(item => item.grammarId === id))}
-                                                                label={null}
-                                                            />
-                                                            <span className="font-mincho text-base text-primary truncate">
-                                                                {rowById.get(id)?.title ?? id}
+                                                    // A point of a family is drilled one tap from the curriculum (its "Drill", when it has one).
+                                                    <div key={id} className="flex items-center gap-1 min-w-0" data-point-row>
+                                                        <ListRow to={grammarPath(id)} className="py-1.5 flex-1 min-w-0">
+                                                            <span className="flex items-center gap-2 min-w-0">
+                                                                <StatusDot
+                                                                    status={grammarLearningStatus(grammarQueue.find(item => item.grammarId === id))}
+                                                                    label={null}
+                                                                />
+                                                                <span className="font-mincho text-base text-primary truncate">
+                                                                    {rowById.get(id)?.title ?? id}
+                                                                </span>
                                                             </span>
-                                                        </span>
-                                                    </ListRow>
+                                                        </ListRow>
+                                                        {rowById.get(id)?.familyId && <DrillLink set={{ kind: 'point', grammarId: id }} label="Drill" text name={`Drill ${rowById.get(id)?.title ?? id} against its siblings`} className="shrink-0" />}
+                                                    </div>
                                                 ))}
                                             </div>
                                         )}

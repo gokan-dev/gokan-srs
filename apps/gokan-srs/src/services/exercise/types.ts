@@ -4,7 +4,8 @@
 // production, both clozes, the conjugation drill) is an Exercise: a prompt plus
 // answer slots. What differs between exercises is data on the slots, never a
 // separate grading path, so a rule added to the grader reaches every exercise.
-import type { Sentence, SynonymRelation, Vocabulary } from '@gokan/dataset-schema';
+import type { AudioRef, GrammarContrastCase, Sentence, SynonymRelation, Vocabulary } from '@gokan/dataset-schema';
+import type { DrillPointInfo } from '../../models/grammar.model';
 import type { AnswerResult, Leniency } from '../../utils/answerMatching';
 import type { ClozeSentence } from '../../utils/clozeSentence.utils';
 import type { InflectableWord } from '../../utils/inflection.utils';
@@ -18,7 +19,7 @@ import type { SynonymOutcome, WordRelation } from './wordRelation';
 type GrammarRealization = NonNullable<GrammarBlankPlan['realization']>;
 
 /** Every exercise the app serves. A switch over it must name each one, so a new kind fails to compile until it is handled. */
-export type ExerciseKind = 'reading' | 'meaning' | 'production' | 'production-cloze' | 'grammar-cloze' | 'grammar-choice' | 'conjugation' | 'study';
+export type ExerciseKind = 'reading' | 'meaning' | 'production' | 'production-cloze' | 'listening-cloze' | 'grammar-cloze' | 'grammar-choice' | 'conjugation' | 'study';
 
 /** The item an exercise reviews: one direction of a word, or a grammar point. Its SRS entry is what a `review` effect moves. */
 export type HostItem =
@@ -96,6 +97,10 @@ export interface SlotChoice {
     text: string;
     /** Why it does not fit, shown once the card is answered. Absent on the right one. */
     note?: string;
+    /** The grammar point whose marker it is, when it is a wrong one (a contrast drill names what was picked by it). */
+    pointId?: string;
+    /** The contrast case that teaches the asked point against this one, shown after it is picked. */
+    contrast?: GrammarContrastCase;
 }
 
 /** See AnswerSlot.script. */
@@ -175,9 +180,17 @@ export interface SlotGrade {
     sibling?: SiblingAnswer;
 }
 
+/**
+ * The session an exercise is answered in. A contrast drill (issue #249) is practice
+ * outside the SRS: effectsOf decides nothing for it, so its answers write nothing.
+ */
+export type ExerciseMode = 'srs' | 'drill';
+
 interface ExerciseBase {
     /** The item this exercise reviews. */
     host: HostItem;
+    /** Absent is `srs`: every exercise the sessions build. */
+    mode?: ExerciseMode;
     /** Names the item in the session ticker. */
     label: string;
     slots: AnswerSlot[];
@@ -196,9 +209,16 @@ export type Exercise = ExerciseBase & (
     | { kind: 'meaning'; sentence: Sentence | null; contextRequested: boolean }
     | { kind: 'production' }
     | { kind: 'production-cloze'; cloze: ProductionCloze; sentence: ClozeSentence }
+    /**
+     * The sentence is heard and shown with the word blanked; its translation comes with the
+     * feedback (or at once, when the clip cannot play). `audio` is the sentence's clip, always set.
+     */
+    | { kind: 'listening-cloze'; cloze: ProductionCloze; sentence: ClozeSentence; audio: AudioRef }
     | { kind: 'grammar-cloze'; sentence: ClozeSentence; realization?: GrammarRealization }
     /** The sentence in Japanese only, its pattern picked among the forms it is confused with. */
-    | { kind: 'grammar-choice'; sentence: ClozeSentence }
+    /** `point`: the point asked, on a contrast drill's card, which names its own point (a session's card shows the session's). */
+    /** A drill's contrast-case card has no sentence (`null`): its `situation` is asked instead, the points picked among for it. */
+    | { kind: 'grammar-choice'; sentence: ClozeSentence | null; situation?: string; point?: DrillPointInfo }
     | { kind: 'conjugation'; prompt: GrammarConjugationPrompt }
     /** Nothing in the point's examples can be blanked: the sentence is shown to read. */
     | { kind: 'study'; sentence: Sentence }
@@ -208,7 +228,7 @@ export type Exercise = ExerciseBase & (
 export type GradedExercise = Pick<Exercise, 'kind' | 'label' | 'slots' | 'cue'>;
 
 /** The exercise as its effects read it: what was asked, of which item. */
-export type AnsweredExercise = Pick<Exercise, 'kind' | 'host' | 'label' | 'slots' | 'cue'>;
+export type AnsweredExercise = Pick<Exercise, 'kind' | 'host' | 'label' | 'slots' | 'cue' | 'mode'>;
 
 export interface ExerciseGrade {
     slots: SlotGrade[];

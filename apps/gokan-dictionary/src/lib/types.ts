@@ -5,7 +5,7 @@
 
 import type {
     AudioIndex, FrequencyIndex, GrammarConjugationIndex, GrammarContrastIndex, GrammarExample, GrammarPoint, GrammarTeachingOrder, GrammarVariantGroupIndex,
-    JlptIndex, Kanji, KanjiOrderId, KanjiOrderList, KanjiVocabIndex, Sentence, Vocabulary,
+    JlptIndex, Kanji, KanjiOrderId, KanjiOrderList, KanjiVocabIndex, SearchIndexColumns, Sentence, Vocabulary,
 } from '@gokan/dataset-schema';
 import type { Definition, SourceRef, Translation } from '@gokan/dataset-schema/text';
 import type { DatasetLanguage, ServedLocale } from './locale';
@@ -69,27 +69,8 @@ export interface GrammarSummary {
     shortExplanation?: string;
 }
 
-/**
- * One word of the search index, as a compact array (it is downloaded, ~36k times over):
- * id, headword (searchHeadword), secondary form (the reading, or a word learned in kana's kanji
- * spelling), the short gloss, JLPT level (0 for none) and flags (searchFlags in searchIndex.ts:
- * common, learned in kana, conjugation class). Rows are in frequency order, so a row's position
- * is its frequency rank.
- */
-export type SearchWordRow = [id: string, headword: string, secondary: string, gloss: string, jlpt: number, flags: number];
-
-/** One kanji: the character, JLPT level (0 for none) and frequency rank (0 for none). */
-export type SearchKanjiRow = [character: string, jlpt: number, frequency: number];
-
-/** One grammar point, in teaching order: id, title, romaji ('' for none), short explanation, JLPT level. */
-export type SearchGrammarRow = [id: string, title: string, romaji: string, explanation: string, jlpt: number];
-
-/**
- * The words of an index file, one array per field (id, headword, secondary form, gloss, JLPT
- * level, flags), position i of each describing word i. Column by column compresses far better
- * than row by row: the core file is 292 KB gzipped this way, 379 KB as one array per word.
- */
-export type SearchWordColumns = [ids: string[], headwords: string[], secondary: string[], glosses: string[], jlpt: number[], flags: number[]];
+// The search index's rows and columns are the shared format gokan-srs's search reads too.
+export type { SearchGrammarRow, SearchKanjiColumns, SearchKanjiRow, SearchWordColumns, SearchWordRow } from '@gokan/dataset-schema';
 
 /**
  * A search index file. `search-core.json` carries every JLPT word, the most frequent words, every
@@ -97,10 +78,7 @@ export type SearchWordColumns = [ids: string[], headwords: string[], secondary: 
  * the full file's rows rank after it, which is their place anyway: each is rarer than every
  * non-JLPT core word, and JLPT words rank first whatever their frequency.
  */
-export interface SearchIndexFile {
-    w: SearchWordColumns;
-    k?: SearchKanjiRow[];
-    g?: SearchGrammarRow[];
+export interface SearchIndexFile extends SearchIndexColumns {
     /**
      * The dataset version the index was built from, written into both files by their routes
      * (stampedSearchIndex). A page rendered on request lists entries from these rows, so the server

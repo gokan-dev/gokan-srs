@@ -108,7 +108,10 @@ describe('httpData', () => {
         expect(() => parseSearchIndexFile({ w: columns.slice(0, 5), datasetVersion: VERSION }, SEARCH.core, VERSION)).toThrow(/six equal columns/);
         expect(() => parseSearchIndexFile({ w: [...columns.slice(0, 5), []], datasetVersion: VERSION }, SEARCH.core, VERSION)).toThrow(/six equal columns/);
         expect(() => parseSearchIndexFile({ w: columns, g: [['n5-001', 'だ']], datasetVersion: VERSION }, SEARCH.core, VERSION)).toThrow(/grammar rows/);
-        expect(parseSearchIndexFile({ w: columns, k: [['学', 1, 2]], datasetVersion: VERSION }, SEARCH.core, VERSION).k).toEqual([['学', 1, 2]]);
+        expect(() => parseSearchIndexFile({ w: columns, k: [['学'], [1], [2]], datasetVersion: VERSION }, SEARCH.core, VERSION)).toThrow(/five equal columns/);
+        expect(() => parseSearchIndexFile({ w: columns, k: [['学'], [1], [2], ['study'], []], datasetVersion: VERSION }, SEARCH.core, VERSION)).toThrow(/five equal columns/);
+        const kanji = [['学'], [1], [2], ['study'], ['ガク まな.ぶ']];
+        expect(parseSearchIndexFile({ w: columns, k: kanji, datasetVersion: VERSION }, SEARCH.core, VERSION).k).toEqual(kanji);
     });
 
     it('answers as the checkout does for grammar points, over the real published dataset', async () => {

@@ -107,7 +107,7 @@ const GRADING_PRIMITIVES = [
  * apply their own credit rules, and they drifted (one credited synonyms, one did not).
  */
 const SRS_WRITES = {
-  selector: "CallExpression[callee.object.name=/^(SRSService|GrammarSRSService)$/][callee.property.name=/^(applyAnswer|applyProductionReinforcement|rescheduleForRetry|deferWithoutCredit)$/]",
+  selector: "CallExpression[callee.object.name=/^(SRSService|GrammarSRSService)$/][callee.property.name=/^(applyAnswer|applyProductionReinforcement|applyReadingReinforcement|rescheduleForRetry|deferWithoutCredit)$/]",
   message: 'An answer writes SRS state only through applyEffects (services/exercise/effects.ts).',
 }
 const SRS_WRITE_OWNERS = [`${SRS}/src/services/exercise/effects.ts`, `${SRS}/src/**/*.test.ts`]

@@ -6,8 +6,9 @@ export type SessionActivity = 'vocab' | 'grammar';
  * What a route means for a study session:
  * - `activity`: the session's own page (`/quiz`, `/grammar`).
  * - `consult`: a page the learner opens to look something up and come back from
- *   (a word, kanji, grammar point or grammar family, the Mix-ups page). The session is
- *   paused, not ended.
+ *   (a word, kanji, grammar point or grammar family, the Mix-ups page), or a contrast
+ *   drill, practice outside the SRS left to come back from too. The session is paused,
+ *   not ended.
  * - `leave`: everything else. The session ends, as it always has.
  *
  * Decided by the destination alone, never by the link that was followed, so the
@@ -25,6 +26,7 @@ const CONSULT_PATTERNS = [
     '/vocab/:vocabId',
     '/kanji/:character',
     '/grammar/family/:familyId',
+    '/grammar/drill/:kind/*',
     '/grammar/:grammarId',
 ];
 
@@ -33,10 +35,22 @@ const CONSULT_PATTERNS = [
  * `/grammar/:grammarId` pattern (App.tsx relies on route order to tell them apart),
  * so they are excluded here explicitly.
  */
-const GRAMMAR_LIST_SEGMENTS = new Set(['browse', 'chapters', 'family']);
+const GRAMMAR_LIST_SEGMENTS = new Set(['browse', 'chapters', 'family', 'drill']);
 
 export function sessionRouteRole(pathname: string, activity: SessionActivity): SessionRouteRole {
-    if (pathname === ACTIVITY_PATH[activity]) return 'activity';
+    return routeRole(pathname, ACTIVITY_PATH[activity]);
+}
+
+/**
+ * The same for a contrast drill's run, whose own page is its drillPath: a lookup from
+ * its card (a word, the point) keeps it to come back to; anything else ends it.
+ */
+export function drillRouteRole(pathname: string, drillPath: string): SessionRouteRole {
+    return routeRole(pathname, drillPath);
+}
+
+function routeRole(pathname: string, ownPath: string): SessionRouteRole {
+    if (pathname === ownPath) return 'activity';
 
     for (const pattern of CONSULT_PATTERNS) {
         const match = matchPath(pattern, pathname);

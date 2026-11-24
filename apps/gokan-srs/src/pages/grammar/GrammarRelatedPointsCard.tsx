@@ -8,6 +8,8 @@ import { grammarLearningStatus } from "../../utils/learningStatus.utils";
 import { GrammarService } from "../../services/grammar.service";
 import { RelatedEntriesCard, type RelatedEntry } from "../../components/RelatedEntriesCard";
 import { useAsyncData } from "../../hooks/useAsyncData";
+import { grammarFamilyPath, grammarPath } from "../../utils/navigation.utils";
+import { DrillLink } from "../../components/DrillLink";
 
 interface Props {
     point: GrammarPoint;
@@ -49,7 +51,7 @@ export function GrammarRelatedPointsCard({ point }: Props) {
 
     const entries: RelatedEntry[] = related.map(p => ({
         key: p.id,
-        to: `/grammar/${p.id}`,
+        to: grammarPath(p.id),
         primary: p.title,
         description: p.shortExplanation,
         trailing: <StatusDot status={grammarLearningStatus(state.progress?.grammarQueue.find(g => g.grammarId === p.id))} />,
@@ -59,13 +61,15 @@ export function GrammarRelatedPointsCard({ point }: Props) {
         <RelatedEntriesCard
             title="Similar grammar"
             intro={<GrammarDifferentiator point={point} knownIds={knownIds} inline />}
-            headerLink={hasContrasts && familyId ? { to: `/grammar/family/${familyId}`, label: "Compare when to use each" } : undefined}
+            headerLink={hasContrasts && familyId ? { to: grammarFamilyPath(familyId), label: "Compare when to use each" } : undefined}
             sections={[{ entries }]}
             isExpandable={isExpandable}
             isExpanded={isExpanded}
             onToggleExpand={() => setIsExpanded(!isExpanded)}
             expandLabel={`Show all ${relatedIds.length}`}
             collapseLabel="Show fewer"
+            // After "Show all", which belongs to the list. Open to anyone: a drill writes nothing, so the point need not be in study.
+            footer={<DrillLink set={{ kind: 'point', grammarId: point.id }} label="Drill against its siblings" className="mt-3" />}
         />
     );
 }

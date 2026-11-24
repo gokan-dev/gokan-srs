@@ -14,7 +14,10 @@ import { fileURLToPath } from 'node:url';
 import { brotliCompressSync, constants } from 'node:zlib';
 import { publishedDatasetFile } from '@gokan/deploy/published-dataset';
 import { checkoutData } from '../../apps/gokan-dictionary/src/lib/dataset.server';
+import { KANJI_ORDERS } from '@gokan/dataset-schema';
+import { KANJI_RANGE_SIZE } from '../../apps/gokan-dictionary/src/lib/kanjiOrders';
 import { SERVED_LOCALES } from '../../apps/gokan-dictionary/src/lib/locale';
+import { kanjiOrderSlug } from '../../apps/gokan-dictionary/src/lib/urls';
 import { isDictionaryFilePath } from '../../apps/gokan-dictionary/src/lib/servedPaths';
 
 /** The repository, wherever the script that imports this runs from (check-build runs in the dictionary's folder). */
@@ -264,10 +267,29 @@ export async function dictionaryPages(): Promise<{ path: string; ready: string }
 }
 
 /**
+ * One page of each list shape check-build counts to its first screen (FIRST_SCREEN_ROWS) that
+ * dictionaryPages does not already visit: every order's hub and first range (an order's intro and
+ * ranges differ, and a range page opens on kanji tiles, not word rows), and a numbered JLPT page.
+ * check:layout measures each one's first screen, so the budget covers what a reader sees first on
+ * every page it counts that way, not only the sampled ones.
+ */
+export function dictionaryListShapes(): { path: string; ready: string }[] {
+    return [
+        { path: '/vocab/jlpt-n1/2/', ready: 'N1' },
+        ...KANJI_ORDERS.flatMap(order => [
+            // KKLC's hub is one of dictionaryPages.
+            ...(order.id === 'kklc' ? [] : [{ path: `/kanji/orders/${kanjiOrderSlug(order.id)}/`, ready: `Steps 1 to ${KANJI_RANGE_SIZE}` }]),
+            // JLPT's heaviest range is one of dictionaryPages.
+            ...(order.id === 'jlpt' ? [] : [{ path: `/kanji/orders/${kanjiOrderSlug(order.id)}/1-${KANJI_RANGE_SIZE}/`, ready: 'Words by step' }]),
+        ]),
+    ];
+}
+
+/**
  * The app after onboarding, at its main routes. Each waits for a word the page always shows, and
  * `settled`, a selector, when part of the page loads after that word.
  */
-export function srsRoutes(): { path: string; ready: string; settled?: string }[] {
+export function srsRoutes(): { path: string; ready: string; settled?: string; japaneseFaces?: true }[] {
     const vocabId = firstEntry(join(DATASET_DIR, 'vocab'), name => name.endsWith('.json')).replace(/\.json$/, '');
     return [
         { path: '/', ready: 'Study' },
@@ -279,6 +301,8 @@ export function srsRoutes(): { path: string; ready: string; settled?: string }[]
         { path: '/kanji', ready: 'Kanji learning method' },
         { path: `/kanji/${encodeURIComponent('学')}`, ready: 'Components' },
         { path: '/grammar/browse', ready: 'Grammar' },
+        // A contrast drill (issue #249): から, ので and からです each have sentences that rule another out.
+        { path: '/grammar/drill/lesson/causality/reason-core', ready: 'Card 1 of', japaneseFaces: true },
         { path: '/listening', ready: 'Listening' },
         { path: '/stats', ready: 'Stats' },
         { path: '/settings', ready: 'Settings' },

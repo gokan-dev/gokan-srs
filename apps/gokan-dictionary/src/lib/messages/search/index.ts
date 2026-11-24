@@ -22,16 +22,14 @@ export interface SearchMessages {
     searching: string;
     /** On the results page with no query. */
     emptyQuery: string;
-    /** The panel's groups and the results page's sections. */
+    /** Each type, plural: the results page's line of counts under its title. */
     groups: { words: string; kanji: string; grammar: string };
-    /** The results page's Words heading, with the count. */
-    wordsHeading: (count: number) => string;
-    /** The panel's last row. */
-    seeAll: (query: string) => string;
+    /** Each type, as the chip on its rows says it (Word, Kanji, Grammar). */
+    types: { words: string; kanji: string; grammar: string };
+    /** One count of the results page's line under its title (one of `groups`, with its count). */
+    sectionHeading: (group: string, count: number) => string;
     /** The results page's heading for a query. */
     resultsFor: (query: string) => string;
-    /** The results page's pager's accessible name. */
-    resultPages: string;
     /** "No results for “xyz”.", then the kana a romaji query was read as, and where to go instead. */
     noResults: (query: string) => string;
     searchedAs: AroundJapanese;
@@ -40,9 +38,8 @@ export interface SearchMessages {
     fromForm: AroundJapanese;
     /** The live region's announcement. */
     status: (count: number) => string;
-    /** A kanji result's level on the results page, or that it has none. */
-    kanjiLevel: (level: number) => string;
-    outsideJlpt: string;
+    /** Beside a row or a count whose links open pages served in English only (kanji and grammar from a Chinese page), as the site header says it. */
+    inEnglish: string;
 }
 
 const SEARCH: Record<Locale, SearchMessages> = { en: enSearch, 'zh-hans': zhHansSearch };

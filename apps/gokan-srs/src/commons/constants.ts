@@ -67,6 +67,11 @@ export const CONSTANTS = {
             /** Fewer wrong options than this and the card is not a choice: one distractor is a coin toss. */
             minChoiceDistractors: 2,
             /**
+             * Cards in one contrast drill (issue #249): one pass over every usable example
+             * of the set, interleaved, ending here. A small set ends sooner.
+             */
+            drillMaxCards: 12,
+            /**
              * Ceiling on how many new grammar points one advance introduces - NOT
              * a fixed count like newVocabBatchSize, since GrammarSRSService.getNextCandidates
              * also stops at the current chapter's boundary. A chapter with fewer
@@ -163,6 +168,22 @@ export const CONSTANTS = {
              * narrow the candidates far more than a production card's bare glosses,
              * and kanji is accepted where that card wants the reading. Right direction,
              * easier conditions, so less than full credit.
+             */
+            reinforcementStrengthRatio: 0.5,
+        },
+
+        /** The listening cloze (issue #165): a reading review served as a sentence heard, the word typed. */
+        listening: {
+            /**
+             * The share of reading reviews served as a listening cloze when the setting is on, picked by
+             * a hash of the word and its review count (quizSelectors.ts, isListeningTurn), so a card
+             * does not change while it is up and the same word is not always heard.
+             */
+            share: 0.3,
+            /**
+             * Fraction of a normal reading gain a listening cloze earns on the reading entry. It trains
+             * the word's sound, but the sentence around the blank narrows what fits, and the written
+             * form is accepted too: right direction, easier conditions.
              */
             reinforcementStrengthRatio: 0.5,
         },

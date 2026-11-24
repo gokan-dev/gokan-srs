@@ -57,6 +57,7 @@ describe('needsSentences', () => {
         expect(needsSentences({ quizType: 'reading', quizMode: 'base' }, false)).toBe(false);
         expect(needsSentences({ quizType: 'meaning', quizMode: 'context' }, false)).toBe(true);
         expect(needsSentences({ quizType: 'production', quizMode: 'base' }, false)).toBe(true);
+        expect(needsSentences({ quizType: 'reading', quizMode: 'listening' }, false)).toBe(true);
     });
 });
 
@@ -86,5 +87,20 @@ describe('awaitsIntro', () => {
         expect(awaitsIntro(undefined, 'v1')).toBe(true);
         expect(awaitsIntro([vocabProgress({ vocabId: 'v1', introductionAt: null })], 'v1')).toBe(true);
         expect(awaitsIntro([vocabProgress({ vocabId: 'v1', introductionAt: new Date('2026-01-01') })], 'v1')).toBe(false);
+    });
+});
+
+describe('resolveCardSentences, the listening cloze (issue #165)', () => {
+    const listening = { quizType: 'reading', quizMode: 'listening' } as const;
+    it('picks among the sentences with a clip only', () => {
+        const heard = { ...withWord('heard', '彼は毎日遅くまで仕事をしているので疲れている。'), audio: { clip: 'c0ffee' } };
+        const picked = resolveCardSentences('v1', word, listening, false, [...sentences, heard], noLearner);
+        expect(picked.cloze?.sentence.id).toBe('heard');
+        expect(resolveCardSentences('v1', word, listening, false, sentences, noLearner).cloze).toBeNull();
+    });
+
+    it('picks none for a reading card read as written', () => {
+        const heard = { ...withWord('heard', '仕事です。'), audio: { clip: 'c0ffee' } };
+        expect(resolveCardSentences('v1', word, { quizType: 'reading', quizMode: 'base' }, false, [heard], noLearner).cloze).toBeNull();
     });
 });

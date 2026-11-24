@@ -580,8 +580,9 @@ export function pagesOf(source: DictionaryData, locale: ServedLocale) {
     /**
      * The locale's search index, in two files: every word in frequency order (a row's position is
      * its rank), every kanji and point. Another locale's holds only the words with a page in it,
-     * each with its gloss in its language (LocaleText.searchGloss), and no kanji or point, which have
-     * no page in it yet (#170).
+     * each with its gloss in its language (LocaleText.searchGloss), and every kanji and point, in
+     * English (the dataset has no kanji meaning or grammar text in another language yet), linked
+     * at their English pages (linkUrls) as the locale has none of its own (#170, #264).
      */
     const searchIndex = kept(async (): Promise<{ core: SearchIndexFile; full: SearchIndexFile }> => {
         const known = text === null ? await knownVocabIds() : new Set(await localeWordIds());
@@ -597,7 +598,6 @@ export function pagesOf(source: DictionaryData, locale: ServedLocale) {
             if (gloss === null) throw new Error(`[pages] ${id} has a ${locale} page but no gloss in its search index.`);
             wordRows.push([row[0], row[1], row[2], gloss, row[4], row[5]]);
         }
-        if (text !== null) return splitSearchIndex(wordRows, [], []);
         return splitSearchIndex(wordRows, (await kanjiList()).map(searchKanjiRow), (await pointsInOrder()).map(searchGrammarRow));
     });
 

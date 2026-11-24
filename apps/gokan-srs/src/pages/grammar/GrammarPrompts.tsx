@@ -1,8 +1,10 @@
 import type { ReactNode } from "react";
 import { ArrowDown } from "lucide-react";
-import type { GrammarPoint } from "@gokan/dataset-schema";
+import type { GrammarContrastCase, GrammarPoint } from "@gokan/dataset-schema";
 import type { GrammarBlankPlan, GrammarConjugationPrompt } from "../../context/quiz/grammarReducer";
 import { JlptChip } from "../../components/JlptChip";
+import { ContrastCaseText } from "../../components/ContrastCaseText";
+import { MixedText } from "../../components/MixedText";
 import { QuizMasteryCorner } from "../../components/quiz/QuizMasteryCorner";
 import { Ruby } from "../../components/Ruby";
 import { PointLink } from "./PointLink";
@@ -28,7 +30,8 @@ const FORMALITY_HINT: Record<string, string> = {
 
 interface GrammarCardHeaderProps {
     point: Pick<GrammarPoint, 'id' | 'jlptLevel'>;
-    memoryStrength: number;
+    /** Null shows no ring: a drill's card moves no mastery. */
+    memoryStrength: number | null;
     /** The point's page is a spoiler until the card is answered (see PointLink). */
     answered: boolean;
     /** The register of the form shown, when the card asks for one. */
@@ -42,7 +45,7 @@ interface GrammarCardHeaderProps {
 export function GrammarCardHeader({ point, memoryStrength, answered, formalityLevel, realization, children }: GrammarCardHeaderProps) {
     return (
         <>
-            <QuizMasteryCorner memoryStrength={memoryStrength} />
+            {memoryStrength !== null && <QuizMasteryCorner memoryStrength={memoryStrength} />}
             <div className="mb-4">
                 <div className="flex items-center justify-center gap-2">
                     <JlptChip level={point.jlptLevel} />
@@ -67,12 +70,48 @@ export function GrammarCardHeader({ point, memoryStrength, answered, formalityLe
     );
 }
 
+/**
+ * Under a drill card's feedback, after a wrong pick: the contrast case that covers the
+ * pair, when the dataset has one. On a sentence card the option's own note says why it does
+ * not fit; on a case card this block is the only explanation.
+ * `guidanceOnly` on a case card, whose question is the case's situation.
+ */
+export function DrillContrastNote({ contrast, guidanceOnly = false }: { contrast: GrammarContrastCase; guidanceOnly?: boolean }) {
+    return <ContrastCaseText contrast={contrast} label="Which one, and when" guidanceOnly={guidanceOnly} className="mt-3" />;
+}
+
+/**
+ * A grammar point's usage note on its card (under the feedback, or under the study card's header,
+ * `centered`). English with Japanese runs in it ("は marks the topic (私は学生です)."): the English in
+ * the UI sans, as every English cue is, each Japanese run in a Japanese face (MixedText). Upright:
+ * a CJK face has no italic, and a synthetic oblique of it reads badly.
+ */
+export function UsageNote({ note, centered = false }: { note: string; centered?: boolean }) {
+    return (
+        <p className={`text-xs font-sans text-secondary ${centered ? 'text-center mt-1 max-w-sm mx-auto' : 'mt-2'}`}><MixedText text={note} /></p>
+    );
+}
+
 /** The cue above a sentence: what to do, then the English it starts from (none while a choice card is unanswered: the sentence is read). */
 export function SentenceCue({ instruction, english }: { instruction: string; english?: string }) {
     return (
         <>
             <p className={`text-center text-sm text-secondary font-gothic ${english ? 'mb-1' : 'mb-8'}`}>{instruction}</p>
             {english && <p className="text-center text-lg text-primary font-serif mb-8">{english}</p>}
+        </>
+    );
+}
+
+/**
+ * A drill's contrast-case card asks a situation, not a sentence: what to do, then the case's
+ * situation (English, its Japanese runs in a Japanese face), the points picked among under it.
+ * "Best": the card is graded on the case's preference, and a wrong option may fit, less well.
+ */
+export function SituationCue({ situation }: { situation: string }) {
+    return (
+        <>
+            <p className="text-center text-sm text-secondary font-sans mb-1">Choose what fits the situation best</p>
+            <p className="text-center text-lg text-primary font-sans mb-2"><MixedText text={situation} /></p>
         </>
     );
 }

@@ -1,13 +1,12 @@
 <script lang="ts">
   import type { VocabPageProps as Props } from '../lib/pageProps';
-  import { CLOSENESS_LABEL, frequencyBand, synonymsSearchable, frequencyTop, headwordOf, primaryPitchAccent, secondaryForm, summaryGloss, textbookLessonsLabel, wordFrequencyRank } from '@gokan/dataset-schema';
+  import { CLOSENESS_LABEL, conjugate, frequencyBand, synonymsSearchable, frequencyTop, headwordOf, primaryPitchAccent, secondaryForm, summaryGloss, textbookLessonsLabel, wordClassOf, wordFrequencyRank } from '@gokan/dataset-schema';
   import type { Sentence } from '@gokan/dataset-schema';
   import { valueText, type DefinitionSense } from '@gokan/dataset-schema/text';
   import { pageLocale } from './pageLocale';
   import { langOnChinesePage } from '../lib/documentShell';
   import { meaningsOf, wordTextSummary, type SenseView } from '../lib/senses';
   import { sentenceRuns } from '../lib/furigana';
-  import { conjugate, wordClassOf } from '../lib/conjugation';
   import { VISIBLE_SENTENCES } from '../lib/sentenceOrder';
   import { PREVIEW_MEANINGS, PREVIEW_ROWS, type SynonymGroup } from '../lib/synonyms';
   import type { VocabSummary } from '../lib/types';
