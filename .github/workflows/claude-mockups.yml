@@ -98,7 +98,9 @@ jobs:
         id: gather
         run: |
           set -euo pipefail
-          if ! gh issue view "$ISSUE" --repo "$REPO" --json labels --jq '[.labels[].name] | any(. == "mockups-pending")' | grep -q true; then
+          # Read first, so a failed read fails the step (and is retried) rather than reading as settled.
+          waiting="$(gh issue view "$ISSUE" --repo "$REPO" --json labels --jq '[.labels[].name] | any(. == "mockups-pending")')"
+          if [ "$waiting" != true ]; then
             echo "#$ISSUE is no longer waiting for mockups: nothing to draw."
             echo "stale=true" >> "$GITHUB_OUTPUT"
             exit 0

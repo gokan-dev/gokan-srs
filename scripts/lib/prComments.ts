@@ -44,8 +44,10 @@ function sectionOf(body: string, heading: string): string {
     let inside = false;
     for (const line of body.split('\n')) {
         if (line.startsWith('## ')) inside = line.slice(3).trim().startsWith(heading);
-        // A decide brief's footer (the Send box and its instructions) follows a rule, not a heading.
-        else if (line.trim() === '---') inside = false;
+        // A decide brief's footer (the Send box and its instructions) follows a rule, not a heading:
+        // the one that starts it, never a rule inside a point (decideLines writes it after a blank line
+        // and before "Tick one option").
+        else if (line.trim() === '---' && inside && lines.at(-1)?.trim() === '') inside = false;
         else if (inside) lines.push(line);
     }
     return lines.join('\n').trim();

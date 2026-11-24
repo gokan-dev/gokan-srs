@@ -201,17 +201,22 @@ jobs:
         id: verdict
         env:
           MEMBERS: ${{ steps.gather.outputs.members }}
+          AGENT_TOKEN: ${{ secrets.AGENT_GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          # Read now, not when the designs were sent: the agent above ran for minutes, and a member may
-          # have been settled meanwhile (its continuation found this tracker waiting and did nothing
-          # yet, since the release had not been stopped).
-          MOCKUPS_PENDING=""
-          for m in $MEMBERS; do
-            gh issue view "$m" --repo "$REPO" --json labels --jq '[.labels[].name] | any(. == "mockups-approved" or . == "no-mockups")' | grep -q true \
-              || MOCKUPS_PENDING="$MOCKUPS_PENDING #$m"
-          done
-          MOCKUPS_PENDING="${MOCKUPS_PENDING# }"
+          pending_mockups() {
+            local out="" m settled
+            for m in $MEMBERS; do
+              settled="$(gh issue view "$m" --repo "$REPO" --json labels --jq '[.labels[].name] | any(. == "mockups-approved" or . == "no-mockups")')"
+              [ "$settled" = true ] || out="$out #$m"
+            done
+            echo "${out# }"
+          }
+          # This gate reads the members' labels itself from here on, so the tracker stops listening for
+          # approvals (.github/actions/mockups-continue) until it is stopped again below. Read now, not
+          # when the designs were sent: the agent above ran for minutes.
+          gh issue edit "$TRACKER" --repo "$REPO" --remove-label awaiting-mockups >/dev/null 2>&1 || true
+          MOCKUPS_PENDING="$(pending_mockups)"
           answered="$(tr -d '[:space:]' < .preflight/out/ready 2>/dev/null || true)"
           case "$answered" in
             true|false) ;;
@@ -221,7 +226,6 @@ jobs:
           [ "$answered" = true ] && [ -z "$MOCKUPS_PENDING" ] && ready=true
           echo "ready=$ready" >> "$GITHUB_OUTPUT"
           if [ "$ready" = true ]; then
-            gh issue edit "$TRACKER" --repo "$REPO" --remove-label awaiting-mockups >/dev/null 2>&1 || true
             echo "Every member is ready; the release will start."
             exit 0
           fi
@@ -255,6 +259,20 @@ jobs:
           if [ -n "$MOCKUPS_PENDING" ]; then
             gh label create awaiting-mockups --repo "$REPO" --force --color FBCA04 --description "A release waiting for its members' mockups" >/dev/null
             gh issue edit "$TRACKER" --repo "$REPO" --add-label awaiting-mockups
+            # The tracker listens again from here. A member settled while it was not listening (between
+            # the read above and now) would restart nothing: read once more, and restart it here.
+            if [ "$answered" = true ] && [ -z "$(pending_mockups)" ]; then
+              labels="$(gh issue view "$TRACKER" --repo "$REPO" --json labels --jq '[.labels[].name] | join(",")')"
+              case ",$labels," in
+                *,release-ready,*) echo "An approval restarted the release already." ;;
+                *)
+                  [ -n "$AGENT_TOKEN" ] || { echo "::error::AGENT_GITHUB_TOKEN is not set: the release cannot be restarted."; exit 1; }
+                  gh issue edit "$TRACKER" --repo "$REPO" --remove-label awaiting-mockups
+                  GH_TOKEN="$AGENT_TOKEN" gh issue edit "$TRACKER" --repo "$REPO" --add-label release-ready
+                  echo "Every member was settled while this gate ran: release-ready re-applied."
+                  ;;
+              esac
+            fi
           fi
 
   # 1. Cut the release branch and start every member that waits for none (only once pre-flight is
