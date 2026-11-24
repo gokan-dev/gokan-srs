@@ -49,6 +49,10 @@ export interface Tab {
      * then waits `settleMs` (300 by default) for the page to react.
      */
     press(key: KeyName, settleMs?: number): Promise<void>;
+    /** The whole page as a PNG, past the viewport's bottom too (the mockup stage's screenshots). */
+    screenshot(): Promise<Uint8Array>;
+    /** Emulates `prefers-color-scheme` (the dictionary's dark theme follows it). */
+    colorScheme(scheme: 'light' | 'dark'): Promise<void>;
     close(): Promise<void>;
 }
 
@@ -182,11 +186,19 @@ export async function launchChrome(): Promise<Chrome> {
             await send('Input.dispatchKeyEvent', { type: 'keyUp', ...event }, sessionId);
             if (settleMs > 0) await sleep(settleMs);
         };
+        const screenshot = async (): Promise<Uint8Array> => {
+            const { data } = await send<{ data: string }>('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true }, sessionId);
+            return Uint8Array.from(Buffer.from(data, 'base64'));
+        };
+        const colorScheme = async (scheme: 'light' | 'dark'): Promise<void> => {
+            await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] }, sessionId);
+            await sleep(200);
+        };
         const close = async (): Promise<void> => {
             if (context) await send('Target.disposeBrowserContext', { browserContextId: context });
             else await send('Target.closeTarget', { targetId });
         };
-        return { evaluate, until, goto, reload, click, resize, mouseMove, press, close };
+        return { evaluate, until, goto, reload, click, resize, mouseMove, press, screenshot, colorScheme, close };
     }
 
     async function kill(): Promise<void> {

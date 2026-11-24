@@ -64,9 +64,18 @@ summary ("Largest tool results"), which is where a whole read shows.
   `group: agent-branch-<branch>`, `cancel-in-progress: false`, `queue: max` (a later run waits,
   none is dropped). A run that waited checks the branch has not moved on before acting.
   Enforced.
+- **What a learner sees is drawn before it is built.** An issue goes through the mockup stage
+  (`claude-mockups.yml`) before its first implement run (`claude-implement-issue.yml`'s `mockups`
+  gate), and every member of a release before the release starts (its pre-flight): a designer agent
+  writes one fragment per screen in the apps' own classes and tokens, `scripts/mockups.ts` renders
+  them with the apps' stylesheets at 375px and 1280px, light and dark, and the maintainer ticks
+  Approve on the issue or replies with corrections (drawn again). An approved issue is
+  `mockups-approved`, and its mockups (branch `mockups/issue-<n>`) are part of its spec; an issue
+  with nothing a learner sees is `no-mockups`. An approval continues the issue
+  (`.github/actions/mockups-continue`): implement, or the release once its last member is settled.
 - **The pipeline runs per issue, optionally batched into a release.** Labeling an issue
   `ready-for-dev` builds it on `agent/issue-<n>` against `main`: one PR, one version
-  (`claude-implement-issue.yml`). A *sprint* is a tracking issue (title `Release X.Y.Z: ...`, body
+  (`claude-implement-issue.yml`), once its mockups are settled. A *sprint* is a tracking issue (title `Release X.Y.Z: ...`, body
   an ordered `- [ ] #nnn` task list); labeling it `release-ready` (`claude-start-release.yml`) first
   runs a pre-flight that reads every member and asks the maintainer, in one round, about every
   load-bearing decision the issues leave open (the sprint starts only once nothing is pending, so a

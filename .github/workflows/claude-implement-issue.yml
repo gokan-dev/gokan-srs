@@ -34,9 +34,52 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  implement:
-    # The label the maintainer applies, or a dispatched resume / sprint-member start.
+  # The mockup stage (claude-mockups.yml): an issue is built only once its mockups are approved, or
+  # once the designer found nothing a learner sees (`no-mockups`). A first run sends it to the
+  # designer and stops; the approval dispatches this workflow again. A sprint member's mockups were
+  # settled at the release's pre-flight, and an issue whose branch exists was started before this
+  # stage (or is being resumed), so neither is held back.
+  mockups:
     if: github.event_name == 'workflow_dispatch' || github.event.label.name == 'ready-for-dev'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      actions: write   # dispatch the designer
+    outputs:
+      proceed: ${{ steps.gate.outputs.proceed }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ISSUE: ${{ github.event.issue.number || inputs.issue }}
+      BASE: ${{ inputs.base || 'main' }}
+    steps:
+      - name: Gate on the mockups
+        id: gate
+        run: |
+          set -euo pipefail
+          go() { echo "$1"; echo "proceed=true" >> "$GITHUB_OUTPUT"; exit 0; }
+          [ "$BASE" = main ] || go "A sprint member: its mockups were settled at the pre-flight."
+          if gh api "repos/$GITHUB_REPOSITORY/branches/agent/issue-$ISSUE" --silent 2>/dev/null; then
+            go "agent/issue-$ISSUE exists: the work started already."
+          fi
+          labels="$(gh issue view "$ISSUE" --repo "$GITHUB_REPOSITORY" --json labels --jq '[.labels[].name] | join(",")')"
+          case ",$labels," in
+            *,mockups-approved,*|*,no-mockups,*) go "Mockups settled ($labels)." ;;
+            *,mockups-pending,*) echo "The mockups of #$ISSUE wait for the maintainer: their approval dispatches this again." ;;
+            *)
+              gh label create mockups-pending --repo "$GITHUB_REPOSITORY" --force --color FBCA04 --description "Mockups wait for the maintainer's approval" >/dev/null
+              gh issue edit "$ISSUE" --repo "$GITHUB_REPOSITORY" --add-label mockups-pending
+              gh workflow run claude-mockups.yml --repo "$GITHUB_REPOSITORY" -f issue="$ISSUE"
+              echo "Sent #$ISSUE to the designer: it is built once its mockups are approved."
+              ;;
+          esac
+          echo "proceed=false" >> "$GITHUB_OUTPUT"
+
+  implement:
+    # The label the maintainer applies, or a dispatched resume / sprint-member start, once the mockups
+    # are settled.
+    needs: mockups
+    if: needs.mockups.outputs.proceed == 'true'
     runs-on: ubuntu-latest
     # One agent per branch at a time (AGENTS.md): every agent job that can push queues here. The
     # PR reviewer queues behind this run when the PR opens, so it reviews the finished branch.
@@ -143,6 +186,12 @@ jobs:
                product/architecture decision genuinely undecided, not just an implementation
                detail you can reasonably choose, do NOT guess. Remove the `ready-for-dev`
                label, add `needs-precision`, comment the specific open questions, and stop.
+               If the issue is labelled `mockups-approved`, the maintainer approved mockups of its
+               screens (the last `<!-- gokan-mockups issue=` comment on the issue, and its fragments in
+               `mockups/issue-<n>/` on the `mockups/issue-<n>` branch: `git fetch origin
+               mockups/issue-<n>` then `git show origin/mockups/issue-<n>:mockups/issue-<n>/<name>.html`).
+               They are part of the spec: build the screens to match them, and say in the PR where the
+               build differs and why. Never copy the `mockups/` folder into this branch.
             2. Otherwise implement it end to end on that branch, following existing conventions.
                COMMIT VERY FREQUENTLY in small batches and `git push` after every commit, after each
                file or small coherent change, NOT just at big milestones. Err deliberately on the side

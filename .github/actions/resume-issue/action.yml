@@ -8,7 +8,7 @@ description: >
   claude-sweep.yml (scheduled), so the rule lives in one place.
 
   It does nothing when the issue is done (a non-draft PR exists: the review pipeline owns it),
-  waiting on a human (needs-precision / needs-attention / pause-automation), or already being
+  waiting on a human (needs-precision / needs-attention / pause-automation / mockups-pending), or already being
   worked (a run in progress). Otherwise it re-dispatches implementation to continue from the
   pushed checkpoints, bounded by PROGRESS: if the branch head has not advanced since the last
   resume, it stops and escalates to the maintainer rather than looping forever.
@@ -47,7 +47,7 @@ runs:
 
         # 1. Waiting on a human: never auto-resume.
         labels="$(gh issue view "$ISSUE" --repo "$REPO" --json labels --jq '[.labels[].name] | join(" ")')"
-        for stop in pause-automation needs-precision needs-attention; do
+        for stop in pause-automation needs-precision needs-attention mockups-pending; do
           case " $labels " in *" $stop "*) echo "#$ISSUE waits on a human ($stop). Nothing to do."; exit 0;; esac
         done
 

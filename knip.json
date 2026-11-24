@@ -12,7 +12,8 @@
       "ignoreDependencies": [
         "svelte-eslint-parser",
         "jscpd",
-        "lighthouse"
+        "lighthouse",
+        "@tailwindcss/cli"
       ]
     },
     "apps/gokan-srs": {

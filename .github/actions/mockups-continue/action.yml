@@ -1,0 +1,57 @@
+# What an issue does once its mockups are settled (approved, or none needed): the one rule both
+# claude-mockups.yml jobs follow.
+#   - A sprint whose pre-flight waits on its members' mockups (tracker labelled `awaiting-mockups`)
+#     starts once every member is `mockups-approved` or `no-mockups`: `release-ready` is put back with
+#     the PAT (a GITHUB_TOKEN label starts no workflow), unless a precision question is still open
+#     (`needs-precision`), which the maintainer settles and then re-applies the label as before.
+#   - A lone issue labelled `ready-for-dev` is dispatched to implement, whose `mockups` gate now passes.
+name: Continue an issue after its mockups
+description: Start the sprint or the implementation that waited for an issue's mockups.
+inputs:
+  issue:
+    description: The issue whose mockups were settled
+    required: true
+  agent-token:
+    description: AGENT_GITHUB_TOKEN, to re-apply release-ready so the release workflow starts
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        ISSUE: ${{ inputs.issue }}
+        AGENT_TOKEN: ${{ inputs.agent-token }}
+      run: |
+        set -euo pipefail
+        settled() {
+          gh issue view "$1" --repo "$REPO" --json labels --jq '[.labels[].name] | any(. == "mockups-approved" or . == "no-mockups")'
+        }
+        in_release=false
+        for tracker in $(gh issue list --repo "$REPO" --state open --label awaiting-mockups --json number --jq '.[].number'); do
+          body="$(gh issue view "$tracker" --repo "$REPO" --json body --jq .body)"
+          printf '%s\n' "$body" | grep -qE "^- \[[ xX]\] #$ISSUE([^0-9]|$)" || continue
+          in_release=true
+          pending=""
+          for m in $(printf '%s' "$body" | grep -oE '^- \[[ xX]\] #[0-9]+' | grep -oE '[0-9]+'); do
+            [ "$(settled "$m")" = true ] || pending="$pending #$m"
+          done
+          if [ -n "$pending" ]; then
+            echo "Release #$tracker still waits for the mockups of$pending."
+            continue
+          fi
+          gh issue edit "$tracker" --repo "$REPO" --remove-label awaiting-mockups
+          if gh issue view "$tracker" --repo "$REPO" --json labels --jq '[.labels[].name] | any(. == "needs-precision")' | grep -q true; then
+            echo "<!-- gokan-notice -->
+        @$HUMAN Every member's mockups are settled. Answer the open questions above, then re-apply \`release-ready\` to start." \
+              | gh issue comment "$tracker" --repo "$REPO" --body-file -
+          else
+            [ -n "$AGENT_TOKEN" ] || { echo "::error::AGENT_GITHUB_TOKEN is not set: release #$tracker cannot be restarted."; exit 1; }
+            GH_TOKEN="$AGENT_TOKEN" gh issue edit "$tracker" --repo "$REPO" --remove-label release-ready >/dev/null 2>&1 || true
+            GH_TOKEN="$AGENT_TOKEN" gh issue edit "$tracker" --repo "$REPO" --add-label release-ready
+            echo "Every member of release #$tracker has its mockups settled: release-ready re-applied."
+          fi
+        done
+        if [ "$in_release" = false ] && gh issue view "$ISSUE" --repo "$REPO" --json labels --jq '[.labels[].name] | any(. == "ready-for-dev")' | grep -q true; then
+          gh workflow run claude-implement-issue.yml --repo "$REPO" -f issue="$ISSUE"
+          echo "Dispatched implement for #$ISSUE."
+        fi
