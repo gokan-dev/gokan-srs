@@ -207,6 +207,6 @@ jobs:
           head="$(gh api "repos/$GITHUB_REPOSITORY/commits/$BRANCH" --jq .sha)"
           if [ "$head" = "$SHA" ]; then
             gh workflow run claude-triage.yml --repo "$GITHUB_REPOSITORY" --ref "$DEFAULT_BRANCH" \
-              -f branch="$BRANCH" -f sha="$SHA" -f staging_review=not-needed
+              -f branch="$BRANCH" -f sha="$SHA" -f staging_review=red-head
             echo "Nothing pushed on ${SHA:0:10}: its failing CI goes to triage." >> "$GITHUB_STEP_SUMMARY"
           fi

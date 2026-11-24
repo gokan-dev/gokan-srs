@@ -39,6 +39,11 @@ runs:
             echo "Release #$tracker still waits for the mockups of$pending."
             continue
           fi
+          # Still `release-ready`: its pre-flight is running, and its gate reads the labels as it ends.
+          if gh issue view "$tracker" --repo "$REPO" --json labels --jq '[.labels[].name] | any(. == "release-ready")' | grep -q true; then
+            echo "Release #$tracker's pre-flight is running: it sees the settled mockups itself."
+            continue
+          fi
           gh issue edit "$tracker" --repo "$REPO" --remove-label awaiting-mockups
           if gh issue view "$tracker" --repo "$REPO" --json labels --jq '[.labels[].name] | any(. == "needs-precision")' | grep -q true; then
             echo "<!-- gokan-notice -->

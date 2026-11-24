@@ -92,10 +92,17 @@ jobs:
           fi
 
       # The issue, its conversation (a revision's corrections) and the last mockups, if any, so the
-      # agent revises them rather than starting over.
+      # agent revises them rather than starting over. A design whose issue is settled meanwhile (a
+      # retried failure after a later design was approved) stops here: it would undo the approval.
       - name: Gather the issue
+        id: gather
         run: |
           set -euo pipefail
+          if ! gh issue view "$ISSUE" --repo "$REPO" --json labels --jq '[.labels[].name] | any(. == "mockups-pending")' | grep -q true; then
+            echo "#$ISSUE is no longer waiting for mockups: nothing to draw."
+            echo "stale=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           mkdir -p .mockups/context .mockups/out
           gh issue view "$ISSUE" --repo "$REPO" --json number,title,body,labels,comments > .mockups/context/issue.json
           if git fetch --quiet origin "mockups/issue-$ISSUE"; then
@@ -108,6 +115,7 @@ jobs:
 
       - name: Run Claude
         id: claude
+        if: steps.gather.outputs.stale != 'true'
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -161,6 +169,7 @@ jobs:
       # the fragments produce, whatever the agent last rendered.
       - name: Publish
         id: publish
+        if: steps.gather.outputs.stale != 'true'
         run: |
           set -euo pipefail
           if [ -f .mockups/out/none ]; then
@@ -266,7 +275,10 @@ jobs:
             # while a revision draws) would build what the maintainer already asked to change.
             latest="$(gh api --paginate "repos/$REPO/issues/$ISSUE/comments" \
               --jq '.[] | select(.body | startswith("<!-- gokan-mockups issue=")) | .id' | tail -1)"
-            if [ "$latest" != "$COMMENT_ID" ] || [ -n "$(gh run list --repo "$REPO" --workflow claude-mockups.yml --status in_progress --json displayTitle --jq ".[] | select(.displayTitle | endswith(\"#$ISSUE\")) | .displayTitle")" ]; then
+            # Queued redraws count too (a second correction waits behind the first).
+            drawing="$(gh run list --repo "$REPO" --workflow claude-mockups.yml --limit 50 --json displayTitle,status \
+              --jq ".[] | select((.displayTitle | endswith(\" #$ISSUE\")) and .status != \"completed\") | .status")"
+            if [ "$latest" != "$COMMENT_ID" ] || [ -n "$drawing" ]; then
               echo "<!-- gokan-notice -->
           That approval was for mockups that have been, or are being, drawn again: approve the latest mockups comment instead." | gh issue comment "$ISSUE" --repo "$REPO" --body-file -
               echo "kind=none" >> "$GITHUB_OUTPUT"

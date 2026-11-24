@@ -75,6 +75,9 @@ describe('decideRound', () => {
         const gate = decideRound([setAside(A, 'apply', '### 2. Old polish\nApplied already.'), triage(B, 'finish'), setAside(B, 'apply', '### 3. Reword\nClearer.')], C, false);
         expect(gate).toMatchObject({ carried: '### 3. Reword\nClearer.' });
         expect(decideRound([review], A, false)).toMatchObject({ carried: '' });
+        // A decide brief's footer after the section is not part of the last point.
+        const decide: PrComment = { type: 'Bot', body: `${triageMarker(B, 'decide')}\n## Your call\n### 1. Q\n- [ ] **A**: x\n\n## Left for one final pass\n### 2. Reword\nClearer.\n\n---\nTick one option, then Send.\n\n- [ ] **Send my choices to the agent**` };
+        expect(decideRound([decide], C, false)).toMatchObject({ carried: '### 2. Reword\nClearer.' });
     });
 
     it('finishes the push that followed a finish brief, and a fix of it', () => {

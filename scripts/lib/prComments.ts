@@ -44,6 +44,8 @@ function sectionOf(body: string, heading: string): string {
     let inside = false;
     for (const line of body.split('\n')) {
         if (line.startsWith('## ')) inside = line.slice(3).trim().startsWith(heading);
+        // A decide brief's footer (the Send box and its instructions) follows a rule, not a heading.
+        else if (line.trim() === '---') inside = false;
         else if (inside) lines.push(line);
     }
     return lines.join('\n').trim();

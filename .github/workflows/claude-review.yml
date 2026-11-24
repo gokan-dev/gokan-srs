@@ -158,6 +158,8 @@ jobs:
       # until that change is on the default branch ("Workflow validation failed"), and then writes no
       # execution file. Before, the round went on with no review in the conversation and triage called
       # it done: PR #283 merged that way. Now the round stops and the maintainer is told to review it.
+      # The job still succeeds: a failure would be re-run by claude-retry.yml, skip again, and post the
+      # same notice each time.
       - name: Stop on a review that did not run
         id: ran
         if: steps.head.outputs.review == 'true' && steps.claude.outcome == 'success'
@@ -174,7 +176,6 @@ jobs:
             echo "<!-- gokan-notice -->"
             echo "@$HUMAN The PR review of \`${SHA:0:10}\` did not run: claude-code-action refuses a PR that changes a workflow it runs in until that change is on \`main\`. No round continues on its own. Review this PR by hand (for example \`/code-review\`) before merging."
           } | gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file -
-          exit 1
 
   # Ends the review half of a round. When the round's changes ship something (since the branch's
   # last rc, or since `main` for the first round), it tags the next rc: the staging deploy and the
@@ -198,7 +199,7 @@ jobs:
   # for its CI never holds up another member's tag.
   ci:
     needs: review
-    if: ${{ !cancelled() && needs.review.outputs.reviewed == 'true' && needs.review.result == 'success' }}
+    if: ${{ !cancelled() && needs.review.outputs.reviewed == 'true' && needs.review.result == 'success' && needs.review.outputs.unreviewed != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:

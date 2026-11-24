@@ -43,6 +43,11 @@ jobs:
   preflight:
     if: github.event_name == 'issues' && github.event.label.name == 'release-ready'
     runs-on: ubuntu-latest
+    # One pre-flight per tracker at a time: a mockup approval re-applying `release-ready` while one
+    # runs would otherwise start a second beside it.
+    concurrency:
+      group: release-preflight-${{ github.event.issue.number }}
+      cancel-in-progress: false
     permissions:
       contents: read
       issues: write
@@ -86,6 +91,10 @@ jobs:
         run: |
           set -euo pipefail
           gh label create mockups-pending --repo "$REPO" --force --color FBCA04 --description "Mockups wait for the maintainer's approval" >/dev/null
+          gh label create awaiting-mockups --repo "$REPO" --force --color FBCA04 --description "A release waiting for its members' mockups" >/dev/null
+          # Marked before any design starts: a design that settles within minutes (nothing a learner
+          # sees) finds the tracker waiting, so the last one can restart the release.
+          gh issue edit "$TRACKER" --repo "$REPO" --add-label awaiting-mockups
           pending=""
           for m in $MEMBERS; do
             labels="$(gh issue view "$m" --repo "$REPO" --json labels --jq '[.labels[].name] | join(",")')"
@@ -191,9 +200,18 @@ jobs:
       - name: Gate on the verdict
         id: verdict
         env:
-          MOCKUPS_PENDING: ${{ steps.mockups.outputs.pending }}
+          MEMBERS: ${{ steps.gather.outputs.members }}
         run: |
           set -euo pipefail
+          # Read now, not when the designs were sent: the agent above ran for minutes, and a member may
+          # have been settled meanwhile (its continuation found this tracker waiting and did nothing
+          # yet, since the release had not been stopped).
+          MOCKUPS_PENDING=""
+          for m in $MEMBERS; do
+            gh issue view "$m" --repo "$REPO" --json labels --jq '[.labels[].name] | any(. == "mockups-approved" or . == "no-mockups")' | grep -q true \
+              || MOCKUPS_PENDING="$MOCKUPS_PENDING #$m"
+          done
+          MOCKUPS_PENDING="${MOCKUPS_PENDING# }"
           answered="$(tr -d '[:space:]' < .preflight/out/ready 2>/dev/null || true)"
           case "$answered" in
             true|false) ;;
@@ -202,7 +220,11 @@ jobs:
           ready=false
           [ "$answered" = true ] && [ -z "$MOCKUPS_PENDING" ] && ready=true
           echo "ready=$ready" >> "$GITHUB_OUTPUT"
-          [ "$ready" = true ] && { echo "Every member is ready; the release will start."; exit 0; }
+          if [ "$ready" = true ]; then
+            gh issue edit "$TRACKER" --repo "$REPO" --remove-label awaiting-mockups >/dev/null 2>&1 || true
+            echo "Every member is ready; the release will start."
+            exit 0
+          fi
 
           # Not ready: ask everything now, stop the start. Open questions are settled by the maintainer,
           # who re-applies release-ready; mockups waiting for approval re-apply it themselves when the
