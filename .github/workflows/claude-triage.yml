@@ -10,17 +10,18 @@
 #             member is merged into its release instead).
 #   - apply:  a defect to fix, each with one obvious resolution. Posts the brief as a request to
 #             claude-address-feedback.yml, which fixes and pushes: a new round.
-#   - finish: round 1 left only reversible defaults. The feedback agent applies them, and triage of
-#             that push waits for CI, then sorts its PR review with the round 2+ bar (no staging
-#             round): done, apply or decide, never another finish.
+#   - finish: no defect is left, only polish and reversible defaults. The feedback agent applies
+#             them once, and triage of that push waits for CI, then sorts its PR review with the
+#             round 2+ bar (no staging round): done, apply or decide, never another finish.
 #   - decide: at least one point needs the human's choice. Posts the brief with the options as
 #             checkboxes, labels the PR `needs-decision` and mentions the human.
 # The relay job then hands the answer (a ticked Send box, or any reply) to the feedback agent.
 #
 # Rounds cannot run forever: the brief never raises again what an earlier triage left out or the
-# human decided; from round 2 on, polish and lone defaults start no round (they are left on the PR,
-# and a sprint's release tracker, for one final pass); after MAX_AUTO_ROUNDS automatic rounds
-# without a word from the human, an `apply` becomes a `decide` that offers to stop; and a commit is
+# human decided; from round 2 on, polish and defaults start no round of their own (they wait beside
+# the defects, and the finish applies them once the defects are gone); an `apply` becomes a `decide`
+# that offers to stop when its brief has no fewer defects than the last automatic round set out to
+# fix, or after MAX_AUTO_ROUNDS automatic rounds without a word from the human; and a commit is
 # triaged once, plus one repeat after an answer that pushed nothing (an apply or finish brief, or a
 # decision), which ends in done or decide.
 #
@@ -50,8 +51,9 @@ on:
     types: [created, edited]
 
 env:
-  # A person's answer is needed after this many automatic rounds in a row.
-  MAX_AUTO_ROUNDS: 2
+  # A hard cap: a person's answer is needed after this many automatic rounds in a row. Before it, the
+  # rounds stop as soon as one has no fewer defects than the last (scripts/lib/triageOutcome.ts).
+  MAX_AUTO_ROUNDS: 5
 
 jobs:
   triage:
@@ -152,7 +154,8 @@ jobs:
 
           # Whether this commit is triaged, and as what: once, but for the one repeat after an answer
           # that pushed nothing (retriage); a round of its own, or the end of a finish
-          # (scripts/lib/triageRound.ts, with tests). Writes gate, repeat, finishing, auto_rounds, round.
+          # (scripts/lib/triageRound.ts, with tests). Writes gate, repeat, finishing, auto_rounds,
+          # last_defects, round.
           export COMMENTS_FILE="$RUNNER_TEMP/comments.jsonl" SHA="$sha"
           gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$pr/comments" \
             --jq '.[] | {type: .user.type, body}' > "$COMMENTS_FILE"
@@ -265,7 +268,7 @@ jobs:
             In `conversation.md`, this round's reviews are the latest PR review (claude[bot]'s
             "Review of PR" comment and its PR review) and, when the round reached staging, the
             staging review of this commit (the comment starting `<!-- gokan-agent-status -->`).
-            ${{ steps.round.outputs.finishing == 'true' && 'This push applied the previous triage''s defaults and skips staging by design: the PR review is its only review, and an older staging review belongs to an earlier round.' || inputs.staging_review == 'not-needed' && 'This round changed nothing the deployed apps ship (CI, docs or tests only), so it had no staging deploy: the PR review is its only review, and an older staging review belongs to an earlier round.' || (steps.round.outputs.repeat != '' && inputs.staging_review == '') && 'This round''s reviews are the ones the earlier triage of this commit read (its brief is on the PR: the comment starting `<!-- gokan-triage sha=` with this commit). A staging review counts only if it names this commit; an older one belongs to an earlier round.' || 'This round''s changes reached staging, so it has both reviews.' }}
+            ${{ steps.round.outputs.finishing == 'true' && 'This push applied the previous triage''s polish and defaults and skips staging by design: the PR review is its only review, and an older staging review belongs to an earlier round.' || inputs.staging_review == 'not-needed' && 'This round changed nothing the deployed apps ship (CI, docs or tests only), so it had no staging deploy: the PR review is its only review, and an older staging review belongs to an earlier round.' || (steps.round.outputs.repeat != '' && inputs.staging_review == '') && 'This round''s reviews are the ones the earlier triage of this commit read (its brief is on the PR: the comment starting `<!-- gokan-triage sha=` with this commit). A staging review counts only if it names this commit; an older one belongs to an earlier round.' || 'This round''s changes reached staging, so it has both reviews.' }}
             ${{ steps.round.outputs.repeat == 'decision' && 'This commit was triaged already, the maintainer answered that brief (the `<!-- gokan-decision -->` relay and the options ticked on the brief), and the feedback agent pushed nothing. If the maintainer chose to stop, or nothing is left to change, the brief is only a summary line (and "Not in this change"): the PR is done.' || steps.round.outputs.repeat != '' && 'This commit was triaged once already, and the feedback agent answered that brief without pushing (its comment says what it changed, if anything: the PR text, or nothing). Judge whether anything is still left to change: if not, the brief is only a summary line (and "Not in this change").' || '' }}
             The reviewers only report, so every point is yours to sort: triage each point in this
             round's reviews, every unresolved inline comment, and any failing check. Earlier
@@ -299,16 +302,22 @@ jobs:
             Never raise again a point an earlier triage put under "Not in this change" or one the
             maintainer decided: their decision stands.
 
-            Mark every Apply point `(defect)` or `(polish)` at the end of its heading. A defect is
-            wrong as it stands: a broken rule, a bug, a missing test, a stale doc, a failing check,
-            a regression in what the previous round changed. Polish would be better but is not
-            wrong: wording, formatting, a nicer structure. This is round ${{ steps.round.outputs.round }}.
-            The workflow decides from the sections, so mark them honestly: from round 2 on, polish
-            and defaults start no round (they are left on the PR for one final pass, and a round of
-            only those ends the PR), and in round 1 a brief of only "Decided by default" points is
-            applied as the PR's last round, with no staging round after it (the triage of that push
-            sorts its PR review with the round 2+ bar).
-            ${{ steps.round.outputs.finishing == 'true' && 'This commit is that last push: the feedback agent applied the previous triage''s "Decided by default" points (its brief is the latest comment starting `<!-- gokan-triage sha=` with `outcome=finish`), and CI passed on it. Only a defect in what that push changed (a default applied wrongly, a regression it caused) goes under Apply or Your call; everything else is polish for the final pass, and nothing an earlier triage already sorted is raised again.' || '' }}
+            Mark every Apply point `(defect)` or `(polish)` at the end of its heading. This is round
+            ${{ steps.round.outputs.round }}. In round 1, a defect is wrong as it stands: a broken
+            rule, a bug, a missing test, a stale doc, a failing check. From round 2 on the bar is
+            higher, because every defect starts a full round (an rc, a staging review, a triage) and
+            1.69.0 spent its rounds on comments and test names: a defect is only what a learner would
+            meet (wrong behaviour, a broken layout, an accessibility failure, wrong copy on screen), a
+            failing check, a rule of AGENTS.md broken in code (not in a comment), or a regression in
+            what the previous round changed. Everything else is polish: a stale or split doc comment,
+            a test's name or wording, a comment's line length, a doc or PR-body line, a nicer
+            structure, a test that could be stricter but passes for the right reason. The workflow
+            decides from the sections, so mark them honestly: from round 2 on, polish and defaults
+            start no round of their own. Once no defect is left, they are applied together as the
+            PR's last round, with no staging round after it (the triage of that push sorts its PR
+            review with the round 2+ bar). The rounds go on without the maintainer while each brief
+            has fewer defects than the last, so do not split one defect into several points.
+            ${{ steps.round.outputs.finishing == 'true' && 'This commit is that last push: the feedback agent applied the previous triage''s polish and "Decided by default" points (its brief is the latest comment starting `<!-- gokan-triage sha=` with `outcome=finish`), and CI passed on it. Only a defect in what that push changed (a default applied wrongly, a regression it caused) goes under Apply or Your call; everything else is polish for the final pass, and nothing an earlier triage already sorted is raised again.' || '' }}
 
             Write `.triage/out/brief.md`, the brief the feedback agent and the maintainer read.
             Markdown, sections in this order, an empty one left out, points numbered across the
@@ -346,9 +355,8 @@ jobs:
           if [ -f scripts/agent-usage.ts ]; then bun scripts/agent-usage.ts >> "$GITHUB_STEP_SUMMARY"; fi
 
       # What happens next follows from the brief's sections, not from the agent's word for it
-      # (scripts/lib/triageOutcome.ts, with tests): decide, apply, finish (round 1, only defaults
-      # left: the last round) or done; from round 2 on, and on a finish's push (FINISHING), polish and
-      # lone defaults are left for one final pass instead of starting a round.
+      # (scripts/lib/triageOutcome.ts, with tests): decide, apply, finish (no defect left: polish and
+      # defaults applied as the last round) or done.
       - name: Decide the outcome
         id: outcome
         if: steps.round.outputs.ready == 'true'
@@ -360,6 +368,7 @@ jobs:
           SHA: ${{ steps.round.outputs.sha }}
           ROUND: ${{ steps.round.outputs.round }}
           AUTO_ROUNDS: ${{ steps.round.outputs.auto_rounds }}
+          LAST_DEFECTS: ${{ steps.round.outputs.last_defects }}
           REPEAT: ${{ steps.round.outputs.repeat }}
           FINISHING: ${{ steps.round.outputs.finishing }}
           BRIEF_FILE: .triage/out/brief.md

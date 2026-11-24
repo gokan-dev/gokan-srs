@@ -6,7 +6,7 @@
  *   round     Whether this commit is triaged, and as what (scripts/lib/triageRound.ts).
  *             Reads COMMENTS_FILE (the PR's comments, one JSON object a line), SHA, RETRIAGE.
  *   outcome   The outcome from the agent's brief (scripts/lib/triageOutcome.ts). Reads BRIEF_FILE,
- *             ROUND, AUTO_ROUNDS, MAX_AUTO_ROUNDS, REPEAT, FINISHING, SHA, TAG, HUMAN, BASE, PR. Writes
+ *             ROUND, AUTO_ROUNDS, MAX_AUTO_ROUNDS, LAST_DEFECTS, REPEAT, FINISHING, SHA, TAG, HUMAN, BASE, PR. Writes
  *             body.md, and final-pass.md when points wait for the release PR's final pass.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -36,6 +36,7 @@ switch (command) {
         output('repeat', gate.repeat ?? '');
         output('finishing', gate.finishing);
         output('auto_rounds', gate.autoRounds);
+        output('last_defects', gate.lastDefects ?? '');
         output('round', gate.round);
         break;
     }
@@ -43,6 +44,8 @@ switch (command) {
         const autoRounds = Number(env('AUTO_ROUNDS'));
         const maxAutoRounds = Number(env('MAX_AUTO_ROUNDS'));
         const repeat = readRepeat(process.env.REPEAT ?? '');
+        const lastDefectsText = process.env.LAST_DEFECTS ?? '';
+        const lastDefects = lastDefectsText === '' ? null : Number(lastDefectsText);
         const resolution = resolveOutcome({
             brief: parseBrief(readFileSync(env('BRIEF_FILE'), 'utf8')),
             round: Number(env('ROUND')),
@@ -50,10 +53,13 @@ switch (command) {
             maxAutoRounds,
             repeat,
             finishing: process.env.FINISHING === 'true',
+            lastDefects,
         });
         const onRelease = env('BASE').startsWith('release/');
-        write('body.md', triageComment({ resolution, sha: env('SHA'), tag: process.env.TAG ?? '', human: env('HUMAN'), autoRounds, maxAutoRounds, repeat, onRelease }));
-        if (resolution.deferred.length > 0) write('final-pass.md', trackerNote(Number(env('PR')), resolution.deferred));
+        write('body.md', triageComment({ resolution, sha: env('SHA'), tag: process.env.TAG ?? '', human: env('HUMAN'), autoRounds, maxAutoRounds, repeat, lastDefects, onRelease }));
+        // Only what a PR ends with is left for the maintainer: points deferred beside a defect wait for
+        // the PR's own finish round, and a tracker note for them is noise (1.69.0 collected eight).
+        if (resolution.outcome === 'done' && resolution.deferred.length > 0) write('final-pass.md', trackerNote(Number(env('PR')), resolution.deferred));
         output('outcome', resolution.outcome);
         output('deferred', resolution.deferred.length);
         break;
