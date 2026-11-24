@@ -30,6 +30,12 @@ export type RoundGate =
          * the maintainer last spoke: rounds go on while each brief has fewer (resolveOutcome).
          */
         lastDefects: number | null;
+        /**
+         * The points earlier triages set aside for the final pass since the last finish, as posted
+         * (`### n. ...` blocks): the finish applies them with this round's own polish, so a point set
+         * aside in round 2 is not lost when round 4 finishes.
+         */
+        carried: string;
         /** This round's number on the PR, from 1. */
         round: number;
     };
@@ -43,8 +49,11 @@ export function decideRound(comments: PrComment[], sha: string, retriage: boolea
     const lastReset = events.findLastIndex(isReset);
     const automatic = events.slice(lastReset + 1).filter(isTriage).filter(event => isAutomaticRound(event.outcome));
     const autoRounds = automatic.length;
-    // A finish hands over no defect, so only an apply sets the count the next brief must beat.
-    const lastDefects = automatic.filter(event => event.outcome === 'apply').at(-1)?.defects ?? null;
+    // A finish hands over no defect, so only an apply sets the count the next brief must beat; and a
+    // round-1 apply of polish alone (round 1 applies polish) sets none, or round 2's first real
+    // defect would read as "no fewer than 0" and stop the rounds.
+    const lastApply = automatic.filter(event => event.outcome === 'apply').at(-1)?.defects;
+    const lastDefects = lastApply ? lastApply : null;
     const round = triages.length + 1;
 
     const forSha = triages.filter(event => event.sha === sha);
@@ -62,5 +71,7 @@ export function decideRound(comments: PrComment[], sha: string, retriage: boolea
     const latest = triages.at(-1);
     const finishing = repeat === null && latest !== undefined && latest.outcome === 'finish' && latest.sha !== sha
         && !events.slice(events.lastIndexOf(latest) + 1).some(isReset);
-    return { kind: 'triage', repeat, finishing, autoRounds, lastDefects, round };
+    const lastFinish = triages.findLastIndex(event => event.outcome === 'finish');
+    const carried = triages.slice(lastFinish + 1).map(event => event.finalPass).filter(text => text !== '').join('\n\n');
+    return { kind: 'triage', repeat, finishing, autoRounds, lastDefects, carried, round };
 }

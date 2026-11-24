@@ -92,7 +92,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-      actions: read         # the CI wait reads CI's runs on the pushed head
+      actions: write        # the CI wait reads CI's runs; a fix that pushed nothing dispatches triage
       id-token: write       # OIDC exchange for the Claude GitHub App installation token
     steps:
       - name: Checkout the gate
@@ -191,3 +191,22 @@ jobs:
         continue-on-error: true
         run: |
           if [ -f scripts/agent-usage.ts ]; then bun scripts/agent-usage.ts >> "$GITHUB_STEP_SUMMARY"; fi
+
+      # A red head tags no rc (claude-review.yml's `ci` job): this attempt is what moves the PR on. If
+      # it ended with the branch where it was (a blocker it could not fix, a crash, a usage limit), the
+      # failing check goes to triage instead, which turns it into an apply or asks the maintainer, so
+      # the PR never waits on a red head with nobody told.
+      - name: Hand a red head that was not fixed to triage
+        if: ${{ always() && steps.claim.outputs.decision == 'fix' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          head="$(gh api "repos/$GITHUB_REPOSITORY/commits/$BRANCH" --jq .sha)"
+          if [ "$head" = "$SHA" ]; then
+            gh workflow run claude-triage.yml --repo "$GITHUB_REPOSITORY" --ref "$DEFAULT_BRANCH" \
+              -f branch="$BRANCH" -f sha="$SHA" -f staging_review=not-needed
+            echo "Nothing pushed on ${SHA:0:10}: its failing CI goes to triage." >> "$GITHUB_STEP_SUMMARY"
+          fi

@@ -187,9 +187,10 @@ jobs:
                detail you can reasonably choose, do NOT guess. Remove the `ready-for-dev`
                label, add `needs-precision`, comment the specific open questions, and stop.
                If the issue is labelled `mockups-approved`, the maintainer approved mockups of its
-               screens (the last `<!-- gokan-mockups issue=` comment on the issue, and its fragments in
-               `mockups/issue-<n>/` on the `mockups/issue-<n>` branch: `git fetch origin
-               mockups/issue-<n>` then `git show origin/mockups/issue-<n>:mockups/issue-<n>/<name>.html`).
+               screens. The last `<!-- gokan-mockups-approved sha=<sha> -->` comment names the commit
+               approved: read its fragments and shots there (`git fetch origin mockups/issue-<n>`, then
+               `git show <sha>:mockups/issue-<n>/<name>.html`), never the branch head, which a later
+               drawing may have moved; the matching `<!-- gokan-mockups issue=` comment shows them.
                They are part of the spec: build the screens to match them, and say in the PR where the
                build differs and why. Never copy the `mockups/` folder into this branch.
             2. Otherwise implement it end to end on that branch, following existing conventions.

@@ -9,7 +9,7 @@
  * its SCSS, `app.scss` and every page stylesheet, compiled by Sass.
  */
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { launchChrome } from './lib/chrome';
@@ -47,7 +47,10 @@ function compileStyles(dir: string, mockups: readonly Mockup[]): void {
             run(['bunx', 'sass', '--no-source-map', `--load-path=${styles}`, join(styles, sheet), css], ROOT);
             out.push(readFileSync(css, 'utf8'));
         }
-        writeFileSync(join(dir, 'dictionary.css'), out.join('\n'));
+        // Its one web font is linked as `../fonts/` from src/styles: copied beside the stylesheet, and
+        // the link pointed there, so a mockup's titles use the dictionary's serif, not a fallback.
+        cpSync(join(ROOT, 'apps/gokan-dictionary/src/fonts'), join(dir, 'fonts'), { recursive: true });
+        writeFileSync(join(dir, 'dictionary.css'), out.join('\n').replaceAll('url("../fonts/', 'url("fonts/'));
     }
 }
 
@@ -68,7 +71,11 @@ async function render(dir: string): Promise<void> {
                 await tab.colorScheme(shot.scheme);
                 // Fonts come from the network: wait for them, or the shot shows the fallback face.
                 await tab.goto(pathToFileURL(join(dir, 'pages', `${mockup.name}-${shot.scheme}.html`)).href, '');
-                await tab.until('document.fonts.status === "loaded"', 'the fonts', 15000);
+                // The app's font stylesheet is a preload that becomes a stylesheet on load: wait for that,
+                // then for the faces the page uses. `fonts.status` alone can read "loaded" before any
+                // face was requested.
+                await tab.until('[...document.querySelectorAll("link[as=style]")].every(l => l.rel === "stylesheet")', 'the font stylesheet', 15000);
+                await tab.evaluate<boolean>('document.fonts.ready.then(() => true)');
                 writeFileSync(join(dir, shot.file), await tab.screenshot());
                 await tab.close();
                 console.log(`${shot.file}`);

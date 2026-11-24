@@ -13,7 +13,7 @@ const review: PrComment = { type: 'Bot', body: 'Review of PR #263' };
 
 describe('decideRound', () => {
     it('triages a new commit as round one', () => {
-        expect(decideRound([review], A, false)).toEqual({ kind: 'triage', repeat: null, finishing: false, autoRounds: 0, lastDefects: null, round: 1 });
+        expect(decideRound([review], A, false)).toEqual({ kind: 'triage', repeat: null, finishing: false, autoRounds: 0, lastDefects: null, carried: '', round: 1 });
     });
 
     it('triages a commit once', () => {
@@ -63,6 +63,18 @@ describe('decideRound', () => {
         expect(decideRound([withDefects(A, 2, 0), triage(B, 'finish')], C, false)).toMatchObject({ lastDefects: 2 });
         // The maintainer spoke since: nothing to compare with.
         expect(decideRound([withDefects(A, 2, 0), person('go on')], C, false)).toMatchObject({ lastDefects: null });
+        // A round-1 apply of polish alone sets no bar: round 2's first defect is not "no fewer than 0".
+        expect(decideRound([withDefects(A, 0, 3)], B, false)).toMatchObject({ autoRounds: 1, lastDefects: null });
+    });
+
+    it('carries the points set aside since the last finish', () => {
+        const setAside = (sha: string, outcome: string, points: string): PrComment => ({
+            type: 'User',
+            body: `${triageMarker(sha, outcome)}\n@claude please apply\n\n## Apply\n### 1. Fix (defect)\nX.\n\n## Left for one final pass\n${points}\n\n## Not in this change\n- y`,
+        });
+        const gate = decideRound([setAside(A, 'apply', '### 2. Old polish\nApplied already.'), triage(B, 'finish'), setAside(B, 'apply', '### 3. Reword\nClearer.')], C, false);
+        expect(gate).toMatchObject({ carried: '### 3. Reword\nClearer.' });
+        expect(decideRound([review], A, false)).toMatchObject({ carried: '' });
     });
 
     it('finishes the push that followed a finish brief, and a fix of it', () => {

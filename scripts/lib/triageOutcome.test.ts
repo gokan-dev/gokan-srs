@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { type OutcomeInput, FINAL_PASS_HEADING, parseBrief, renderBrief, resolveOutcome, trackerNote, triageComment } from './triageOutcome';
+import { type OutcomeInput, FINAL_PASS_HEADING, parseBrief, parseCarried, renderBrief, resolveOutcome, trackerNote, triageComment } from './triageOutcome';
 
 const SHA = 'a'.repeat(40);
 
@@ -118,6 +118,18 @@ describe('resolveOutcome', () => {
     it('asks when a point is the maintainer\'s call, whatever else is there', () => {
         expect(resolve(`${BRIEF}\n${YOUR_CALL.replace('### 1.', '### 4.')}`).outcome).toBe('decide');
         expect(resolve(YOUR_CALL, { round: 5 })).toMatchObject({ outcome: 'decide', escalation: null });
+    });
+
+    it('finishes with the polish earlier rounds set aside, not only this round\'s (PR #283 review)', () => {
+        const carried = parseCarried('### 4. Reword the label\nClearer.\n\n### 5. Format the number with a thin space\nAgain.');
+        const r = resolve(BRIEF.replace('(defect)', '(polish)'), { round: 4, carried });
+        expect(r.outcome).toBe('finish');
+        // Point 2 is listed again by this brief, so the carried copy is dropped; point 4 is new, numbered after the brief's own.
+        expect(r.brief.apply.map(p => [p.number, p.title, p.polish])).toEqual([[1, 'Share the count helper', true], [2, 'Format the number with a thin space', true], [4, 'Reword the label', true]]);
+        // Beside a defect, they wait: the finish collects them later.
+        expect(resolve(BRIEF, { round: 4, carried })).toMatchObject({ outcome: 'apply', deferred: [expect.objectContaining({ number: 2 })] });
+        // A round of no points at all still finishes the carried ones.
+        expect(resolve('Nothing new.\n', { round: 3, carried })).toMatchObject({ outcome: 'finish' });
     });
 
     it('keeps going while each round has fewer defects than the last, and asks once they stop falling', () => {

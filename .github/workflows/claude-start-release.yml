@@ -225,6 +225,10 @@ jobs:
           if [ "$answered" = false ]; then
             gh label create needs-precision --repo "$REPO" --force >/dev/null 2>&1 || true
             gh issue edit "$TRACKER" --repo "$REPO" --add-label needs-precision
+          else
+            # The questions are answered: only the mockups hold the release now, and the last approval
+            # restarts it (.github/actions/mockups-continue reads this label).
+            gh issue edit "$TRACKER" --repo "$REPO" --remove-label needs-precision >/dev/null 2>&1 || true
           fi
           if [ -n "$MOCKUPS_PENDING" ]; then
             gh label create awaiting-mockups --repo "$REPO" --force --color FBCA04 --description "A release waiting for its members' mockups" >/dev/null

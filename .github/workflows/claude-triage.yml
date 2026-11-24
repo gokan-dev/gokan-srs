@@ -12,7 +12,7 @@
 #             claude-address-feedback.yml, which fixes and pushes: a new round.
 #   - finish: no defect is left, only polish and reversible defaults. The feedback agent applies
 #             them once, and triage of that push waits for CI, then sorts its PR review with the
-#             round 2+ bar (no staging round): done, apply or decide, never another finish.
+#             round 2+ bar (no staging round): done, apply or decide: the finish's own push is never finished again.
 #   - decide: at least one point needs the human's choice. Posts the brief with the options as
 #             checkboxes, labels the PR `needs-decision` and mentions the human.
 # The relay job then hands the answer (a ticked Send box, or any reply) to the feedback agent.

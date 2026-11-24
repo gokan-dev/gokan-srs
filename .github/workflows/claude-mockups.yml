@@ -83,6 +83,13 @@ jobs:
           "$BIN/bun" --version
       - name: Install dependencies
         run: bun install --frozen-lockfile
+      # The dictionary leaves Japanese to the system's fonts, and the runner may have none: without
+      # them every Japanese glyph in a dictionary shot is a box.
+      - name: Install Japanese fonts
+        run: |
+          if [ -z "$(fc-list :lang=ja 2>/dev/null)" ]; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq fonts-noto-cjk >/dev/null
+          fi
 
       # The issue, its conversation (a revision's corrections) and the last mockups, if any, so the
       # agent revises them rather than starting over.
@@ -113,7 +120,8 @@ jobs:
 
             `.mockups/context/issue.json` holds the issue and its comments. If earlier mockups exist they
             are in `${{ env.DIR }}/`, and the comments after the last `<!-- gokan-mockups` comment are the
-            maintainer's corrections: revise the mockups to them, and change nothing they did not ask about.
+            maintainer's corrections: revise the mockups to them, and change nothing they did not ask about. Delete a screen they
+            want dropped (`rm ${{ env.DIR }}/<name>.html`).
 
             First decide whether the issue changes anything a learner sees in either app (a screen, a
             card, a row, copy on screen). If it does not (tooling, CI, data, a refactor, a check),
@@ -133,14 +141,15 @@ jobs:
               - Show the surrounding page only as far as it gives context (the header row, the card
                 around the new part).
             Render and look at your work: `bun scripts/mockups.ts render ${{ env.DIR }}` writes
-            `${{ env.DIR }}/shots/<name>-<phone|desktop>-<light|dark>.png`. Read the screenshots,
-            and fix what is wrong (overflow at 375px, a colour that is not a token, text below 12px,
+            `${{ env.DIR }}/shots/<name>-<narrow|phone|desktop>-<light|dark>.png` (320px, 375px and
+            1280px; the comment shows the last two). Read the screenshots,
+            and fix what is wrong (overflow at 320px or 375px, a colour that is not a token, text below 12px,
             a dark theme that loses contrast) before you finish.
 
             Write `.mockups/out/summary.md`: two to five lines on what the screens show and each design
             choice the issue left open, so the maintainer knows what they are approving. Write as
             AGENTS.md says: neutral and direct, no em dash. Never write the string `@claude`.
-          claude_args: "--model claude-opus-5-5 --max-turns 150 --allowedTools Read,Glob,Grep,Write,Edit,Bash(bun scripts/mockups.ts render:*)"
+          claude_args: "--model claude-opus-5-5 --max-turns 150 --allowedTools Read,Glob,Grep,Write,Edit,Bash(bun scripts/mockups.ts render:*),Bash(rm ${{ env.DIR }}/*.html)"
 
       - name: Report token usage
         if: ${{ always() && steps.claude.outcome != 'skipped' }}
@@ -169,7 +178,8 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -B "mockups/issue-$ISSUE"
           git add -f "$DIR"
-          git commit -q -m "Mockups for #$ISSUE"
+          # A revision can draw the same thing again: an empty commit still gives its comment a sha.
+          git commit -q --allow-empty -m "Mockups for #$ISSUE"
           git push --force origin "mockups/issue-$ISSUE"
           sha="$(git rev-parse HEAD)"
 
@@ -191,6 +201,17 @@ jobs:
           gh issue edit "$ISSUE" --repo "$REPO" --add-label mockups-pending --remove-label mockups-approved
           echo "continue=false" >> "$GITHUB_OUTPUT"
 
+      # A design that failed (a usage limit, a crash, no verdict and no mockup) leaves the issue
+      # `mockups-pending`, which the resume sweep skips: claude-retry.yml re-runs it, and the maintainer
+      # hears of it here, so the issue never waits in silence.
+      - name: Tell the maintainer the design failed
+        if: failure()
+        run: |
+          {
+            echo "<!-- gokan-notice -->"
+            echo "@$HUMAN The mockups for this issue could not be drawn: ${{ github.server_url }}/$REPO/actions/runs/${{ github.run_id }}. It is retried within the hour; reply on this issue to draw it again now."
+          } | gh issue comment "$ISSUE" --repo "$REPO" --body-file -
+
       - name: Continue the issue
         if: steps.publish.outputs.continue == 'true'
         uses: ./.github/actions/mockups-continue
@@ -199,13 +220,23 @@ jobs:
           agent-token: ${{ secrets.AGENT_GITHUB_TOKEN }}
 
   answer:
-    # A maintainer's word on an issue (never a PR) whose mockups wait for approval.
+    # A maintainer's word on an issue (never a PR) whose mockups wait for approval: a reply they wrote,
+    # or the Approve box ticked on the mockups comment. That comment is the bot's, so its
+    # `author_association` says nothing about who ticked it: only someone with write access can edit
+    # it, and the tick is read from the edit itself (the box was empty before), as triage's relay does.
     if: >
       github.event_name == 'issue_comment' &&
       !github.event.issue.pull_request &&
       contains(github.event.issue.labels.*.name, 'mockups-pending') &&
-      github.event.sender.type == 'User' &&
-      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+      ((github.event.action == 'created' &&
+        github.event.comment.user.type == 'User' &&
+        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
+        !contains(github.event.comment.body, '<!-- gokan-') &&
+        !contains(github.event.comment.body, '@claude')) ||
+      (github.event.action == 'edited' &&
+        startsWith(github.event.comment.body, '<!-- gokan-mockups issue=') &&
+        contains(github.event.comment.body, '- [x] **Approve**') &&
+        contains(github.event.changes.body.from, '- [ ] **Approve**')))
     runs-on: ubuntu-latest
     concurrency:
       group: mockups-answer-${{ github.event.issue.number }}
@@ -218,6 +249,7 @@ jobs:
       ISSUE: ${{ github.event.issue.number }}
       ACTION: ${{ github.event.action }}
       BODY: ${{ github.event.comment.body }}
+      COMMENT_ID: ${{ github.event.comment.id }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -230,6 +262,16 @@ jobs:
           # own is a correction. Anything else (another edit, a marker) is not an answer.
           if [ "$ACTION" = edited ] && [[ "$BODY" == "<!-- gokan-mockups issue="* ]] && grep -qiE '^- \[x\] \*\*Approve\*\*' <<<"$BODY"; then
             sha="$(sed -nE '1s/.*sha=([0-9a-f]+).*/\1/p' <<<"$BODY")"
+            # Only the latest drawing can be approved: a tick on one a revision replaced (or one ticked
+            # while a revision draws) would build what the maintainer already asked to change.
+            latest="$(gh api --paginate "repos/$REPO/issues/$ISSUE/comments" \
+              --jq '.[] | select(.body | startswith("<!-- gokan-mockups issue=")) | .id' | tail -1)"
+            if [ "$latest" != "$COMMENT_ID" ] || [ -n "$(gh run list --repo "$REPO" --workflow claude-mockups.yml --status in_progress --json displayTitle --jq ".[] | select(.displayTitle | endswith(\"#$ISSUE\")) | .displayTitle")" ]; then
+              echo "<!-- gokan-notice -->
+          That approval was for mockups that have been, or are being, drawn again: approve the latest mockups comment instead." | gh issue comment "$ISSUE" --repo "$REPO" --body-file -
+              echo "kind=none" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
             echo "<!-- gokan-mockups-approved sha=$sha -->
           Mockups approved: the build follows them." | gh issue comment "$ISSUE" --repo "$REPO" --body-file -
             gh issue edit "$ISSUE" --repo "$REPO" --add-label mockups-approved --remove-label mockups-pending

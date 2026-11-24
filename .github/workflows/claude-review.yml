@@ -48,6 +48,8 @@ jobs:
       id-token: write       # OIDC exchange for the Claude GitHub App token
     outputs:
       reviewed: ${{ steps.head.outputs.review }}
+      # The action refused to run (see "Stop on a review that did not run"): the round stops, said once.
+      unreviewed: ${{ steps.ran.outputs.unreviewed }}
     steps:
       - name: Checkout PR branch
         uses: actions/checkout@v4
@@ -152,6 +154,28 @@ jobs:
           track_progress: true
           claude_args: "--model claude-opus-5-5 --max-turns 200 --allowedTools Bash,Read,Glob,Grep"
 
+      # claude-code-action skips itself, and still succeeds, on a PR that changes a workflow it runs in
+      # until that change is on the default branch ("Workflow validation failed"), and then writes no
+      # execution file. Before, the round went on with no review in the conversation and triage called
+      # it done: PR #283 merged that way. Now the round stops and the maintainer is told to review it.
+      - name: Stop on a review that did not run
+        id: ran
+        if: steps.head.outputs.review == 'true' && steps.claude.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          HUMAN: ${{ vars.AGENT_HUMAN || github.event.pull_request.user.login }}
+        run: |
+          # The file scripts/agent-usage.ts reads: written by every run of the agent, by no skip.
+          [ -f "$RUNNER_TEMP/claude-execution-output.json" ] && exit 0
+          echo "unreviewed=true" >> "$GITHUB_OUTPUT"
+          {
+            echo "<!-- gokan-notice -->"
+            echo "@$HUMAN The PR review of \`${SHA:0:10}\` did not run: claude-code-action refuses a PR that changes a workflow it runs in until that change is on \`main\`. No round continues on its own. Review this PR by hand (for example \`/code-review\`) before merging."
+          } | gh pr comment "$PR" --repo "$GITHUB_REPOSITORY" --body-file -
+          exit 1
+
   # Ends the review half of a round. When the round's changes ship something (since the branch's
   # last rc, or since `main` for the first round), it tags the next rc: the staging deploy and the
   # rendered review follow, and that review hands the round to triage. When they ship nothing
@@ -225,6 +249,14 @@ jobs:
           set -e
           # 0 passed, 1 failed; anything else (no run, a timeout) is unknown, and the round goes on as
           # before rather than stalling on a reading it could not make.
+          # A run that was cancelled or timed out is not fix-CI's (it acts on `failure` only): the round
+          # goes on, and triage sees the check, as before. Only a real failure waits for fix-CI, which
+          # hands the commit to triage itself if it pushes nothing.
+          if [ "$code" = 1 ]; then
+            real="$(gh run list --repo "$GITHUB_REPOSITORY" --commit "$SHA" --json name,conclusion \
+              --jq '[.[] | select((.name | startswith("CI:")) and .conclusion == "failure")] | length')"
+            [ "$real" -gt 0 ] || code=2
+          fi
           case "$code" in
             0) echo "state=passed" >> "$GITHUB_OUTPUT" ;;
             1) echo "state=failed" >> "$GITHUB_OUTPUT"
@@ -261,6 +293,7 @@ jobs:
       PR: ${{ github.event.pull_request.number }}
       HUMAN: ${{ vars.AGENT_HUMAN || github.event.pull_request.user.login }}
       REVIEW: ${{ needs.review.result }}
+      UNREVIEWED: ${{ needs.review.outputs.unreviewed }}
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
       - name: Checkout reviewed commit
@@ -300,6 +333,8 @@ jobs:
       - name: Tag an rc, or hand the round to triage
         run: |
           set -euo pipefail
+          # A review the action refused has said so on the PR already.
+          [ "$UNREVIEWED" != true ] || exit 0
           if [ "$REVIEW" != success ]; then
             {
               echo "<!-- gokan-notice -->"

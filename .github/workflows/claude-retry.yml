@@ -1,6 +1,6 @@
 # Usage-limit resilience for the review-side agents. claude-sweep.yml re-dispatches a stalled
 # `implement` run; this is its counterpart for every OTHER Claude-agent workflow (review, staging
-# review, triage, address-feedback, fix-ci, the release pre-flight, on-demand), which otherwise die
+# review, triage, address-feedback, fix-ci, the release pre-flight, the mockup designer, on-demand), which otherwise die
 # on a usage limit or a transient error and wait for a human to re-run them. Hourly, it re-runs any
 # such run that failed recently and has not been retried too many times, with `gh run rerun`.
 #
@@ -39,7 +39,7 @@ jobs:
           # The staging review is awaited by deploy-staging.yml's run (under its staging lock), whose wait
           # fails with it, so that run is retried whole: re-running only the review would look at
           # whatever another member deployed since. claude-review-staging.yml itself is not listed.
-          workflows="claude-review.yml deploy-staging.yml claude-triage.yml claude-address-feedback.yml claude-fix-ci.yml claude-start-release.yml claude.yml"
+          workflows="claude-review.yml deploy-staging.yml claude-triage.yml claude-address-feedback.yml claude-fix-ci.yml claude-start-release.yml claude-mockups.yml claude.yml"
           since="$(date -u -d '3 hours ago' +%Y-%m-%dT%H:%M:%SZ)"
           retried=0
           for wf in $workflows; do

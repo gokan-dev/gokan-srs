@@ -10,16 +10,27 @@ export interface Viewport {
     name: string;
     width: number;
     height: number;
+    /** Shown in the comment's gallery; the rest are rendered for the designer to check. */
+    shown: boolean;
 }
 
-/** A phone and a desktop, the widths the maintainer looks at (AGENTS.md: 375px and 1280px). */
+/**
+ * A phone and a desktop, the widths the maintainer looks at (AGENTS.md: 375px and 1280px), and the
+ * narrowest phone `check:layout` holds (320px), which the designer checks but the gallery leaves out.
+ */
 export const VIEWPORTS: readonly Viewport[] = [
-    { name: 'phone', width: 375, height: 812 },
-    { name: 'desktop', width: 1280, height: 800 },
+    { name: 'narrow', width: 320, height: 640, shown: false },
+    { name: 'phone', width: 375, height: 812, shown: true },
+    { name: 'desktop', width: 1280, height: 800, shown: true },
 ];
 export const SCHEMES: readonly Scheme[] = ['light', 'dark'];
 
-const APP_LINE = /^\s*<!--\s*app:\s*(srs|dictionary)\s*-->/;
+/** A title the designer wrote, safe in an element and in an attribute. */
+export function escapeHtml(text: string): string {
+    return text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
+}
+
+const APP_LINE =/^\s*<!--\s*app:\s*(srs|dictionary)\s*-->/;
 const TITLE_LINE = /<!--\s*title:\s*(.+?)\s*-->/;
 
 export interface Mockup {
@@ -56,7 +67,7 @@ export function mockupPage(mockup: Mockup, scheme: Scheme, fontLinks: string): s
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${mockup.title}</title>
+<title>${escapeHtml(mockup.title)}</title>
 ${head}
 <link rel="stylesheet" href="../${stylesheet}">
 </head>
@@ -91,8 +102,8 @@ export function shotsOf(mockup: string): Shot[] {
  */
 export function gallery(mockups: readonly Mockup[], rawBase: string): string {
     return mockups.map(mockup => {
-        const shots = shotsOf(mockup.name);
-        const cell = (shot: Shot): string => `<img src="${rawBase}/${shot.file}" alt="${mockup.title}, ${shot.viewport.name}, ${shot.scheme}" width="${shot.viewport.name === 'phone' ? 240 : 480}">`;
+        const shots = shotsOf(mockup.name).filter(shot => shot.viewport.shown);
+        const cell = (shot: Shot): string => `<img src="${rawBase}/${shot.file}" alt="${escapeHtml(mockup.title)}, ${shot.viewport.name}, ${shot.scheme}" width="${shot.viewport.name === 'phone' ? 240 : 480}">`;
         const row = (scheme: Scheme): string => `| ${scheme} | ${shots.filter(s => s.scheme === scheme).map(cell).join(' | ')} |`;
         return [`### ${mockup.title}`, '', '| | Phone (375px) | Desktop (1280px) |', '|---|---|---|', row('light'), row('dark')].join('\n');
     }).join('\n\n');

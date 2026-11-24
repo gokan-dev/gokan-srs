@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fontLinksOf, gallery, mockupPage, readMockup, shotsOf } from './mockups';
+import { escapeHtml, fontLinksOf, gallery, mockupPage, readMockup, shotsOf } from './mockups';
 
 const SRS = '<!-- app: srs -->\n<!-- title: Search row -->\n<main class="p-4">水</main>\n';
 
@@ -42,8 +42,16 @@ describe('fontLinksOf', () => {
 });
 
 describe('shots and gallery', () => {
-    it('takes a phone and a desktop shot, light and dark', () => {
-        expect(shotsOf('row').map(s => s.file)).toEqual(['shots/row-phone-light.png', 'shots/row-phone-dark.png', 'shots/row-desktop-light.png', 'shots/row-desktop-dark.png']);
+    it('takes a narrow phone, a phone and a desktop shot, light and dark, and shows only the last two', () => {
+        expect(shotsOf('row').map(s => s.file)).toEqual(['shots/row-narrow-light.png', 'shots/row-narrow-dark.png', 'shots/row-phone-light.png', 'shots/row-phone-dark.png', 'shots/row-desktop-light.png', 'shots/row-desktop-dark.png']);
+        expect(gallery([readMockup('row', SRS)], 'https://x')).not.toContain('narrow');
+    });
+
+    it('escapes a title in the page and in the gallery', () => {
+        const mockup = readMockup('q', '<!-- app: srs -->\n<!-- title: Tabs <phone> & "desk" -->\n<p>x</p>');
+        expect(mockupPage(mockup, 'light', '')).toContain('<title>Tabs &lt;phone&gt; &amp; &quot;desk&quot;</title>');
+        expect(gallery([mockup], 'https://x')).toContain('alt="Tabs &lt;phone&gt; &amp; &quot;desk&quot;, phone, light"');
+        expect(escapeHtml('a<b')).toBe('a&lt;b');
     });
 
     it('shows each screen as a table of its four shots, served from the commit', () => {
