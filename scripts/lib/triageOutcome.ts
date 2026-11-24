@@ -6,13 +6,19 @@
 // (polish). The outcome follows from the sections:
 //   - decide: a point is the maintainer's call.
 //   - apply:  a defect to fix: a new round (rc, staging review, triage).
-//   - finish: in round 1, only reversible defaults are left. They are applied as the PR's last round,
-//             with no staging round after it: the triage of that push (`finishing`) waits for CI, then
-//             sorts its PR review with the round 2+ bar, so it ends in done, apply or decide.
+//   - finish: no defect is left, only polish (from round 2) or reversible defaults. They are applied
+//             once, as the PR's last round, with no staging round after it: the triage of that push
+//             (`finishing`) waits for CI, then sorts its PR review with the round 2+ bar, so it ends in
+//             done, apply or decide, never another finish.
 //   - done:   nothing to change.
-// From round 2 on, and on a finish's push, polish starts no round: polish points, and defaults with no
-// defect beside them, are left on the PR (and the release tracker) for one final pass, and a round of
-// only those is done.
+// From round 2 on, polish starts no round of its own: it waits beside the defects, and is applied by
+// the finish once they are gone. Only what is left after a finish (or after an answer that pushed
+// nothing) is left on the PR, and the release tracker, for the maintainer.
+//
+// Automatic rounds go on while they converge: an apply asks the maintainer first when its brief has
+// no fewer defects than the last automatic round set out to fix (`stalled`), when the same commit was
+// already answered without a push (`repeat`), or past maxAutoRounds in a row (`rounds`). 1.69.0 waited
+// about 45h on seven "keep going?" briefs under a fixed cap of 2, every one answered "yes".
 import { triageMarker } from './prComments';
 import type { Repeat } from './triageRound';
 
@@ -108,20 +114,23 @@ export interface OutcomeInput {
     repeat: Repeat | null;
     /** This commit is the push of a finish brief: its review is sorted with the round 2+ bar. */
     finishing: boolean;
+    /** The defects the last automatic round set out to fix, null when none ran since the maintainer spoke. */
+    lastDefects: number | null;
 }
+
+export type Escalation = 'rounds' | 'repeat' | 'stalled';
 
 export interface Resolution {
     outcome: Outcome;
     /** Why a would-be apply asks the maintainer instead. */
-    escalation: 'rounds' | 'repeat' | null;
+    escalation: Escalation | null;
     /** The brief handed on: without the points left for the final pass. */
     brief: Brief;
     /** Left for one final pass (the release PR's, or the maintainer's at merge). */
     deferred: BriefPoint[];
 }
 
-export function resolveOutcome({ brief, round, autoRounds, maxAutoRounds, repeat, finishing }: OutcomeInput): Resolution {
-    // A finish's push is never finished again: the defaults were its round.
+export function resolveOutcome({ brief, round, autoRounds, maxAutoRounds, repeat, finishing, lastDefects }: OutcomeInput): Resolution {
     const late = round >= 2 || finishing;
     const defects = late ? brief.apply.filter(point => !point.polish) : brief.apply;
     const polish = late ? brief.apply.filter(point => point.polish) : [];
@@ -131,13 +140,18 @@ export function resolveOutcome({ brief, round, autoRounds, maxAutoRounds, repeat
         return { outcome: 'decide', escalation: null, brief: handed(defects, brief.defaults), deferred: polish };
     }
     if (defects.length > 0) {
-        const escalation = repeat !== null ? 'repeat' : autoRounds >= maxAutoRounds ? 'rounds' : null;
+        const marked = defects.filter(point => !point.polish).length;
+        const escalation: Escalation | null = repeat !== null ? 'repeat'
+            : autoRounds >= maxAutoRounds ? 'rounds'
+                : lastDefects !== null && marked >= lastDefects ? 'stalled'
+                    : null;
         return { outcome: escalation ? 'decide' : 'apply', escalation, brief: handed(defects, brief.defaults), deferred: polish };
     }
-    // Only defaults are left. In round 1 they are applied as the last round; later, or when an answer
-    // already pushed nothing, they wait for the final pass with the polish.
-    if (brief.defaults.length > 0 && !late && repeat === null) {
-        return { outcome: 'finish', escalation: null, brief: handed([], brief.defaults), deferred: [] };
+    // No defect is left: the polish and defaults are applied once, as the last round. A finish's push
+    // is never finished again, and an answer that already pushed nothing is not asked twice: what they
+    // leave waits for the maintainer.
+    if (polish.length + brief.defaults.length > 0 && !finishing && repeat === null) {
+        return { outcome: 'finish', escalation: null, brief: handed(polish, brief.defaults), deferred: [] };
     }
     return { outcome: 'done', escalation: null, brief: handed([], []), deferred: [...polish, ...brief.defaults] };
 }
@@ -171,6 +185,8 @@ export interface CommentInput {
     autoRounds: number;
     maxAutoRounds: number;
     repeat: Repeat | null;
+    /** The defects the last automatic round set out to fix (OutcomeInput's), for a `stalled` brief's line. */
+    lastDefects: number | null;
     /** A sprint member (its base is `release/*`): done merges it, and nobody is mentioned for it. */
     onRelease: boolean;
 }
@@ -195,14 +211,14 @@ export function triageComment(input: CommentInput): string {
         case 'apply':
             lines.push(
                 `@claude please apply this triage of the reviews of ${subject} to this branch.`,
-                `Automatic round ${autoRounds + 1} of ${maxAutoRounds}; after that, a maintainer is asked first.`,
+                `Automatic round ${autoRounds + 1} (at most ${maxAutoRounds}): the rounds go on while each has fewer defects than the last, then a maintainer is asked first.`,
                 '',
                 brief,
             );
             break;
         case 'finish':
             lines.push(
-                `@claude please apply this triage of the reviews of ${subject} to this branch: only reversible defaults are left, so this is the last round.`,
+                `@claude please apply this triage of the reviews of ${subject} to this branch: no defect is left, only polish and reversible defaults, so this is the last round.`,
                 'Once CI passes on the push, triage of its PR review ends the PR without another staging round.',
                 '',
                 brief,
@@ -225,11 +241,19 @@ function decideLines(input: CommentInput, subject: string, brief: string, repeat
             ...sendFooter(false),
         ];
     }
-    const why = resolution.escalation === 'rounds'
-        ? `${autoRounds} automatic rounds have run since you last weighed in, and the reviews of ${subject} still raise the points below.`
-        : repeat === 'decision'
-            ? `Your answer on ${subject} pushed nothing, and a triage of it still raises the points below.`
-            : `The fixes for ${subject} pushed nothing, and a second triage of it still raises the points below.`;
+    const defects = resolution.brief.apply.filter(point => !point.polish).length;
+    const why = ((): string => {
+        switch (resolution.escalation) {
+            case 'rounds':
+                return `${autoRounds} automatic rounds have run since you last weighed in, and the reviews of ${subject} still raise the points below.`;
+            case 'stalled':
+                return `The reviews of ${subject} raise ${defects} ${defects === 1 ? 'defect' : 'defects'}, no fewer than the ${input.lastDefects ?? 0} the last round set out to fix, so the rounds are not converging.`;
+            case 'repeat':
+                return repeat === 'decision'
+                    ? `Your answer on ${subject} pushed nothing, and a triage of it still raises the points below.`
+                    : `The fixes for ${subject} pushed nothing, and a second triage of it still raises the points below.`;
+        }
+    })();
     return [
         `@${human} **Your call: keep going?** ${why} Nothing runs until you answer.`,
         '',

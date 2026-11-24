@@ -31,7 +31,7 @@ A stored shape is costly to change.
 `;
 
 function resolve(markdown: string, overrides: Partial<OutcomeInput> = {}) {
-    return resolveOutcome({ brief: parseBrief(markdown), round: 1, autoRounds: 0, maxAutoRounds: 2, repeat: null, finishing: false, ...overrides });
+    return resolveOutcome({ brief: parseBrief(markdown), round: 1, autoRounds: 0, maxAutoRounds: 5, repeat: null, finishing: false, lastDefects: null, ...overrides });
 }
 
 describe('parseBrief', () => {
@@ -59,8 +59,8 @@ describe('parseBrief', () => {
         const brief = parseBrief(`## Apply\n### 1. Fix the count (defect)\nIn a.ts.\n\n## ${FINAL_PASS_HEADING}\n### 2. Reword the label\nClearer.\n`);
         expect(brief.apply.map(p => [p.number, p.title, p.polish])).toEqual([[1, 'Fix the count', false], [2, 'Reword the label', true]]);
         const late = resolve(`## ${FINAL_PASS_HEADING}\n### 1. Reword the label\nClearer.\n`, { round: 7 });
-        expect(late.outcome).toBe('done');
-        expect(late.deferred.map(p => p.title)).toEqual(['Reword the label']);
+        expect(late.outcome).toBe('finish');
+        expect(late.brief.apply.map(p => p.title)).toEqual(['Reword the label']);
     });
 
     it('refuses an unknown section or a section without points', () => {
@@ -84,12 +84,14 @@ describe('resolveOutcome', () => {
         expect(r.deferred.map(p => p.number)).toEqual([2]);
     });
 
-    it('from round two, ends a round of polish and defaults in done (PR #263 rounds 3 and 4)', () => {
+    it('from round two, applies what polish and defaults are left once, as the last round (1.69.0: eight final-pass notes nothing applied)', () => {
         const polishOnly = BRIEF.replace('(defect)', '(polish)');
         const r = resolve(polishOnly, { round: 3 });
-        expect(r.outcome).toBe('done');
-        expect(r.deferred.map(p => p.number)).toEqual([1, 2, 3]);
-        expect(resolve(DEFAULTS_ONLY, { round: 2 }).outcome).toBe('done');
+        expect(r.outcome).toBe('finish');
+        expect(r.brief.apply.map(p => p.number)).toEqual([1, 2]);
+        expect(r.brief.defaults.map(p => p.number)).toEqual([3]);
+        expect(r.deferred).toEqual([]);
+        expect(resolve(DEFAULTS_ONLY, { round: 2 }).outcome).toBe('finish');
     });
 
     it('finishes a round one of only defaults instead of starting a full round', () => {
@@ -118,8 +120,18 @@ describe('resolveOutcome', () => {
         expect(resolve(YOUR_CALL, { round: 5 })).toMatchObject({ outcome: 'decide', escalation: null });
     });
 
+    it('keeps going while each round has fewer defects than the last, and asks once they stop falling', () => {
+        const twoDefects = `## Apply\n### 1. Fix the count (defect)\nIn a.ts.\n\n### 2. Fix the label (defect)\nIn b.ts.\n\n### 3. Reword (polish)\nClearer.\n`;
+        expect(resolve(twoDefects, { round: 3, autoRounds: 2, lastDefects: 3 })).toMatchObject({ outcome: 'apply', escalation: null });
+        expect(resolve(twoDefects, { round: 3, autoRounds: 2, lastDefects: 2 })).toMatchObject({ outcome: 'decide', escalation: 'stalled' });
+        // Round one marks polish too, but only the defects count against the last round.
+        expect(resolve(BRIEF, { autoRounds: 1, lastDefects: 2 })).toMatchObject({ outcome: 'apply' });
+        // No automatic round since the maintainer spoke: nothing to compare with.
+        expect(resolve(twoDefects, { round: 4, lastDefects: null })).toMatchObject({ outcome: 'apply' });
+    });
+
     it('turns an apply into a decide after the automatic rounds, or on a repeat', () => {
-        expect(resolve(BRIEF, { autoRounds: 2 })).toMatchObject({ outcome: 'decide', escalation: 'rounds' });
+        expect(resolve(BRIEF, { autoRounds: 2, maxAutoRounds: 2 })).toMatchObject({ outcome: 'decide', escalation: 'rounds' });
         expect(resolve(BRIEF, { repeat: 'apply' })).toMatchObject({ outcome: 'decide', escalation: 'repeat' });
         expect(resolve(BRIEF, { repeat: 'decision' })).toMatchObject({ outcome: 'decide', escalation: 'repeat' });
     });
@@ -130,7 +142,7 @@ describe('resolveOutcome', () => {
 });
 
 describe('triageComment', () => {
-    const base = { sha: SHA, tag: '', human: 'maintainer', autoRounds: 0, maxAutoRounds: 2, repeat: null, onRelease: false };
+    const base = { sha: SHA, tag: '', human: 'maintainer', autoRounds: 0, maxAutoRounds: 5, repeat: null, lastDefects: null, onRelease: false };
 
     it('starts with the marker the gates read, and only an apply or finish asks the agent', () => {
         for (const [markdown, outcome, asks] of [[BRIEF, 'apply', true], [DEFAULTS_ONLY, 'finish', true], [YOUR_CALL, 'decide', false], ['Nothing.', 'done', false]] as const) {
@@ -149,6 +161,12 @@ describe('triageComment', () => {
     it('mentions nobody for a sprint member that is done', () => {
         expect(triageComment({ ...base, onRelease: true, resolution: resolve('Nothing.') })).not.toContain('@maintainer');
         expect(triageComment({ ...base, resolution: resolve('Nothing.') })).toContain('@maintainer **Ready to merge.**');
+    });
+
+    it('says the rounds stopped converging when they did', () => {
+        const body = triageComment({ ...base, autoRounds: 2, lastDefects: 1, resolution: resolve(BRIEF, { round: 3, autoRounds: 2, lastDefects: 1 }) });
+        expect(body).toContain('raise 1 defect, no fewer than the 1 the last round set out to fix');
+        expect(body).toContain('**B**: Stop here');
     });
 
     it('offers to stop when it escalates, and says why', () => {

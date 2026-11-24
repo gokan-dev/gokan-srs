@@ -13,7 +13,7 @@ const review: PrComment = { type: 'Bot', body: 'Review of PR #263' };
 
 describe('decideRound', () => {
     it('triages a new commit as round one', () => {
-        expect(decideRound([review], A, false)).toEqual({ kind: 'triage', repeat: null, finishing: false, autoRounds: 0, round: 1 });
+        expect(decideRound([review], A, false)).toEqual({ kind: 'triage', repeat: null, finishing: false, autoRounds: 0, lastDefects: null, round: 1 });
     });
 
     it('triages a commit once', () => {
@@ -41,6 +41,28 @@ describe('decideRound', () => {
         expect(decideRound([triage(A, 'apply'), triage(B, 'decide'), decision], C, false)).toMatchObject({ autoRounds: 0 });
         // The staging reviewer's status is posted by a member but is not the maintainer.
         expect(decideRound([triage(A, 'apply'), person('<!-- gokan-agent-status -->\nstaging ok')], C, false)).toMatchObject({ autoRounds: 1 });
+    });
+
+    it('reads the defects the last automatic apply set out to fix, as posted', () => {
+        const withDefects = (sha: string, defects: number, polish: number): PrComment => ({
+            type: 'User',
+            body: [
+                triageMarker(sha, 'apply'),
+                '@claude please apply',
+                '',
+                '## Apply',
+                ...Array.from({ length: defects }, (_, i) => `### ${i + 1}. Fix ${i} (defect)\nWhere.`),
+                ...Array.from({ length: polish }, (_, i) => `### ${defects + i + 1}. Polish ${i} (polish)\nWhy.`),
+                '',
+                '## Left for one final pass',
+                '### 9. Not counted (defect)',
+            ].join('\n'),
+        });
+        expect(decideRound([withDefects(A, 3, 1), withDefects(B, 2, 4)], C, false)).toMatchObject({ autoRounds: 2, lastDefects: 2 });
+        // A finish hands over no defect: the apply before it is what the next brief must beat.
+        expect(decideRound([withDefects(A, 2, 0), triage(B, 'finish')], C, false)).toMatchObject({ lastDefects: 2 });
+        // The maintainer spoke since: nothing to compare with.
+        expect(decideRound([withDefects(A, 2, 0), person('go on')], C, false)).toMatchObject({ lastDefects: null });
     });
 
     it('finishes the push that followed a finish brief, and a fix of it', () => {

@@ -10,7 +10,13 @@ export interface PrComment {
 }
 
 export type CommentEvent =
-    | { kind: 'triage'; sha: string; outcome: string }
+    | {
+        kind: 'triage';
+        sha: string;
+        outcome: string;
+        /** The points its Apply section marks `(defect)`: what the next round set out to fix. */
+        defects: number;
+    }
     | { kind: 'decision' }
     | { kind: 'fix-ci'; sha: string; run: number }
     | { kind: 'fix-ci-stop'; sha: string }
@@ -26,11 +32,24 @@ export const triageMarker = (sha: string, outcome: string): string => `<!-- goka
 export const fixCiMarker = (sha: string, run: number): string => `<!-- gokan-fix-ci sha=${sha} run=${run} -->`;
 export const fixCiStopMarker = (sha: string): string => `<!-- gokan-fix-ci-stop sha=${sha} -->`;
 
+const DEFECT_POINT = /^### \d+\..*\(defect\)\s*$/;
+
+/** The `(defect)` points under a posted brief's `## Apply` (renderBrief marks every Apply point). */
+function applyDefects(body: string): number {
+    let inApply = false;
+    let count = 0;
+    for (const line of body.split('\n')) {
+        if (line.startsWith('## ')) inApply = line.trim() === '## Apply';
+        else if (inApply && DEFECT_POINT.test(line)) count++;
+    }
+    return count;
+}
+
 /** What one comment is: a step's marker, a person speaking, or neither (a bot's report, another notice). */
 export function classifyComment(comment: PrComment): CommentEvent {
     const body = comment.body.trimStart();
     const triage = TRIAGE.exec(body);
-    if (triage) return { kind: 'triage', sha: triage[1], outcome: triage[2] };
+    if (triage) return { kind: 'triage', sha: triage[1], outcome: triage[2], defects: applyDefects(body) };
     if (body.startsWith(DECISION_MARKER)) return { kind: 'decision' };
     const fix = FIX_CI.exec(body);
     if (fix) return { kind: 'fix-ci', sha: fix[1], run: Number(fix[2]) };

@@ -84,10 +84,13 @@ summary ("Largest tool results"), which is where a whole read shows.
   `staging-site` group), and rc numbers are taken under a per-release lock. Triage (`claude-triage.yml`) asks the maintainer only for choices that are
   costly to reverse or change scope; a reversible choice with a clear recommendation is applied and
   noted under "Decided by default". The workflow, not the agent, decides from the brief's sections
-  (`scripts/lib/triageOutcome.ts`): a round 1 that leaves only defaults is `finish` (they are
-  applied with no staging round; triage of that push waits for CI, then sorts its PR review with the
-  round 2+ bar), and from round 2 on polish starts no round: it is left on the PR and the release
-  tracker for one final pass. Every
+  (`scripts/lib/triageOutcome.ts`): from round 2 on, polish (a doc comment, a test's name, wording:
+  the triage prompt's bar) starts no round of its own; once no defect is left, the polish and
+  defaults are applied once as `finish` (no staging round; triage of that push waits for CI, then
+  sorts its PR review with the round 2+ bar), and only what that leaves goes on the PR and the
+  release tracker. Automatic rounds go on while each brief has fewer defects than the last, up to
+  `MAX_AUTO_ROUNDS` in a row; a round that does not converge asks the maintainer. A red CI on a
+  reviewed commit tags no rc (`claude-review.yml`'s `ci` job): fix-CI takes it first. Every
   answer to a triage that pushes nothing (a brief, or a decision such as "stop") goes back to triage,
   so it ends in done or decide. Fix CI (`claude-fix-ci.yml`) acts on agent commits too, bounded by a
   count (`scripts/lib/fixCiGate.ts`: one attempt a commit, three in a row with no done or decide

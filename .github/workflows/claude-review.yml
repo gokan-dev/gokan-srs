@@ -167,9 +167,76 @@ jobs:
         run: |
           if [ -f scripts/agent-usage.ts ]; then bun scripts/agent-usage.ts >> "$GITHUB_STEP_SUMMARY"; fi
 
-  round:
+  # CI on the reviewed commit, before any rc is tagged. A red head is fix-CI's (claude-fix-ci.yml),
+  # whose push is reviewed in turn: tagging it anyway spent a staging deploy, a rendered review and a
+  # triage on a commit that could not ship, only for triage to hand the failure back as a round
+  # (1.69.0: three rounds on "Layout at phone widths"). Outside the rc lock below, so a member waiting
+  # for its CI never holds up another member's tag.
+  ci:
     needs: review
-    if: ${{ !cancelled() && needs.review.outputs.reviewed == 'true' }}
+    if: ${{ !cancelled() && needs.review.outputs.reviewed == 'true' && needs.review.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read   # the CI runs of the commit
+    outputs:
+      state: ${{ steps.wait.outputs.state }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Checkout reviewed commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      # The default branch's CI wait, from a worktree of it: a branch cut before it has none.
+      - name: Checkout the pipeline scripts
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: git worktree add --detach "$RUNNER_TEMP/pipeline" "origin/$DEFAULT_BRANCH"
+      - name: Cache Bun
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/bin
+          key: bun-${{ runner.os }}-${{ runner.arch }}-v1
+      - name: Setup Bun
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN="$HOME/.bun/bin"
+          echo "$BIN" >> "$GITHUB_PATH"
+          if [ -x "$BIN/bun" ]; then "$BIN/bun" --version; exit 0; fi
+          v="$(gh api repos/oven-sh/bun/releases/latest --jq .tag_name | sed -E 's/^bun-v//')"
+          mkdir -p "$BIN"
+          curl -fsSL --retry 5 --retry-all-errors \
+            "https://github.com/oven-sh/bun/releases/download/bun-v$v/bun-linux-x64.zip" -o "$RUNNER_TEMP/bun.zip"
+          unzip -q "$RUNNER_TEMP/bun.zip" -d "$RUNNER_TEMP/bun-dl"
+          mv "$RUNNER_TEMP/bun-dl/bun-linux-x64/bun" "$BIN/bun"
+          chmod +x "$BIN/bun"
+          "$BIN/bun" --version
+      - name: Wait for CI
+        id: wait
+        run: |
+          set +e
+          bun "$RUNNER_TEMP/pipeline/scripts/ci-wait.ts" --sha "$SHA" --timeout 50
+          code=$?
+          set -e
+          # 0 passed, 1 failed; anything else (no run, a timeout) is unknown, and the round goes on as
+          # before rather than stalling on a reading it could not make.
+          case "$code" in
+            0) echo "state=passed" >> "$GITHUB_OUTPUT" ;;
+            1) echo "state=failed" >> "$GITHUB_OUTPUT"
+               echo "CI failed on ${SHA:0:10}: no rc. Fix-CI takes it, and the review of its push goes on." >> "$GITHUB_STEP_SUMMARY" ;;
+            *) echo "state=unknown" >> "$GITHUB_OUTPUT"
+               echo "::warning::CI on ${SHA:0:10} could not be read: the round goes on." ;;
+          esac
+
+  round:
+    needs: [review, ci]
+    # Not on a red head (the ci job above); a review that failed still reaches the notice below.
+    if: ${{ !cancelled() && needs.review.outputs.reviewed == 'true' && needs.ci.outputs.state != 'failed' }}
     runs-on: ubuntu-latest
     # One rc family at a time: a release's members build in parallel and share one family
     # (vX.Y.Z-rc.N), and two PRs against main each take the next minor, so two rounds ending together

@@ -25,6 +25,11 @@ export type RoundGate =
         finishing: boolean;
         /** Automatic rounds since the maintainer last spoke. */
         autoRounds: number;
+        /**
+         * The defects the latest of those automatic rounds set out to fix, or null when none ran since
+         * the maintainer last spoke: rounds go on while each brief has fewer (resolveOutcome).
+         */
+        lastDefects: number | null;
         /** This round's number on the PR, from 1. */
         round: number;
     };
@@ -36,7 +41,10 @@ export function decideRound(comments: PrComment[], sha: string, retriage: boolea
     const events = comments.map(classifyComment);
     const triages = events.filter(isTriage);
     const lastReset = events.findLastIndex(isReset);
-    const autoRounds = events.slice(lastReset + 1).filter(event => isTriage(event) && isAutomaticRound(event.outcome)).length;
+    const automatic = events.slice(lastReset + 1).filter(isTriage).filter(event => isAutomaticRound(event.outcome));
+    const autoRounds = automatic.length;
+    // A finish hands over no defect, so only an apply sets the count the next brief must beat.
+    const lastDefects = automatic.filter(event => event.outcome === 'apply').at(-1)?.defects ?? null;
     const round = triages.length + 1;
 
     const forSha = triages.filter(event => event.sha === sha);
@@ -54,5 +62,5 @@ export function decideRound(comments: PrComment[], sha: string, retriage: boolea
     const latest = triages.at(-1);
     const finishing = repeat === null && latest !== undefined && latest.outcome === 'finish' && latest.sha !== sha
         && !events.slice(events.lastIndexOf(latest) + 1).some(isReset);
-    return { kind: 'triage', repeat, finishing, autoRounds, round };
+    return { kind: 'triage', repeat, finishing, autoRounds, lastDefects, round };
 }
