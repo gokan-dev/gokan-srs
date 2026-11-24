@@ -16,6 +16,8 @@ export type CommentEvent =
         outcome: string;
         /** The points its Apply section marks `(defect)`: what the next round set out to fix. */
         defects: number;
+        /** Its "Left for one final pass" section as posted (the points set aside), or ''. */
+        finalPass: string;
     }
     | { kind: 'decision' }
     | { kind: 'fix-ci'; sha: string; run: number }
@@ -33,6 +35,23 @@ export const fixCiMarker = (sha: string, run: number): string => `<!-- gokan-fix
 export const fixCiStopMarker = (sha: string): string => `<!-- gokan-fix-ci-stop sha=${sha} -->`;
 
 const DEFECT_POINT = /^### \d+\..*\(defect\)\s*$/;
+/** triageOutcome.ts's FINAL_PASS_HEADING, repeated here: that module imports this one. */
+const FINAL_PASS = 'Left for one final pass';
+
+/** The body of a posted brief's `## <heading>` section, up to the next `## `, or ''. */
+function sectionOf(body: string, heading: string): string {
+    const lines: string[] = [];
+    let inside = false;
+    for (const line of body.split('\n')) {
+        if (line.startsWith('## ')) inside = line.slice(3).trim().startsWith(heading);
+        // A decide brief's footer (the Send box and its instructions) follows a rule, not a heading:
+        // the one that starts it, never a rule inside a point (decideLines writes it after a blank line
+        // and before "Tick one option").
+        else if (line.trim() === '---' && inside && lines.at(-1)?.trim() === '') inside = false;
+        else if (inside) lines.push(line);
+    }
+    return lines.join('\n').trim();
+}
 
 /** The `(defect)` points under a posted brief's `## Apply` (renderBrief marks every Apply point). */
 function applyDefects(body: string): number {
@@ -49,7 +68,7 @@ function applyDefects(body: string): number {
 export function classifyComment(comment: PrComment): CommentEvent {
     const body = comment.body.trimStart();
     const triage = TRIAGE.exec(body);
-    if (triage) return { kind: 'triage', sha: triage[1], outcome: triage[2], defects: applyDefects(body) };
+    if (triage) return { kind: 'triage', sha: triage[1], outcome: triage[2], defects: applyDefects(body), finalPass: sectionOf(body, FINAL_PASS) };
     if (body.startsWith(DECISION_MARKER)) return { kind: 'decision' };
     const fix = FIX_CI.exec(body);
     if (fix) return { kind: 'fix-ci', sha: fix[1], run: Number(fix[2]) };

@@ -9,12 +9,12 @@
  *             ROUND, AUTO_ROUNDS, MAX_AUTO_ROUNDS, LAST_DEFECTS, REPEAT, FINISHING, SHA, TAG, HUMAN, BASE, PR. Writes
  *             body.md, and final-pass.md when points wait for the release PR's final pass.
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { env, output } from './lib/actions';
 import { parseCommentLines } from './lib/prComments';
 import { type Repeat, decideRound } from './lib/triageRound';
-import { parseBrief, resolveOutcome, trackerNote, triageComment } from './lib/triageOutcome';
+import { parseBrief, parseCarried, resolveOutcome, trackerNote, triageComment } from './lib/triageOutcome';
 
 const write = (name: string, text: string): void => writeFileSync(join(env('RUNNER_TEMP'), name), text);
 
@@ -37,6 +37,8 @@ switch (command) {
         output('finishing', gate.finishing);
         output('auto_rounds', gate.autoRounds);
         output('last_defects', gate.lastDefects ?? '');
+        // Multi-line, so a file the outcome step reads (RUNNER_TEMP lasts the whole job).
+        write('carried.md', gate.carried);
         output('round', gate.round);
         break;
     }
@@ -54,6 +56,7 @@ switch (command) {
             repeat,
             finishing: process.env.FINISHING === 'true',
             lastDefects,
+            carried: parseCarried(existsSync(join(env('RUNNER_TEMP'), 'carried.md')) ? readFileSync(join(env('RUNNER_TEMP'), 'carried.md'), 'utf8') : ''),
         });
         const onRelease = env('BASE').startsWith('release/');
         write('body.md', triageComment({ resolution, sha: env('SHA'), tag: process.env.TAG ?? '', human: env('HUMAN'), autoRounds, maxAutoRounds, repeat, lastDefects, onRelease }));

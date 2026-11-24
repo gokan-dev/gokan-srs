@@ -9,7 +9,7 @@
 //   - finish: no defect is left, only polish (from round 2) or reversible defaults. They are applied
 //             once, as the PR's last round, with no staging round after it: the triage of that push
 //             (`finishing`) waits for CI, then sorts its PR review with the round 2+ bar, so it ends in
-//             done, apply or decide, never another finish.
+//             done, apply or decide: the finish's own push is never finished again.
 //   - done:   nothing to change.
 // From round 2 on, polish starts no round of its own: it waits beside the defects, and is applied by
 // the finish once they are gone. Only what is left after a finish (or after an answer that pushed
@@ -116,6 +116,21 @@ export interface OutcomeInput {
     finishing: boolean;
     /** The defects the last automatic round set out to fix, null when none ran since the maintainer spoke. */
     lastDefects: number | null;
+    /** Polish earlier triages set aside since the last finish (triageRound's `carried`, parsed): the finish applies it too. */
+    carried?: BriefPoint[];
+}
+
+/** `carried` (posted `### n. ...` blocks) as polish points; parseBrief reads the section as polish. */
+export function parseCarried(text: string): BriefPoint[] {
+    return text.trim() === '' ? [] : parseBrief(`## ${FINAL_PASS_HEADING}\n${text}\n`).apply;
+}
+
+/** The carried points this brief does not list again (by title), numbered after its own. */
+function withCarried(brief: Brief, polish: BriefPoint[], carried: readonly BriefPoint[]): BriefPoint[] {
+    const listed = new Set([...brief.apply, ...brief.defaults].map(point => point.title.toLowerCase()));
+    const fresh = carried.filter((point, i) => !listed.has(point.title.toLowerCase()) && carried.findIndex(p => p.title.toLowerCase() === point.title.toLowerCase()) === i);
+    const next = Math.max(0, ...[...brief.apply, ...brief.defaults, ...brief.yourCall].map(point => point.number)) + 1;
+    return [...polish, ...fresh.map((point, i) => ({ ...point, polish: true, number: next + i }))];
 }
 
 export type Escalation = 'rounds' | 'repeat' | 'stalled';
@@ -130,7 +145,7 @@ export interface Resolution {
     deferred: BriefPoint[];
 }
 
-export function resolveOutcome({ brief, round, autoRounds, maxAutoRounds, repeat, finishing, lastDefects }: OutcomeInput): Resolution {
+export function resolveOutcome({ brief, round, autoRounds, maxAutoRounds, repeat, finishing, lastDefects, carried = [] }: OutcomeInput): Resolution {
     const late = round >= 2 || finishing;
     const defects = late ? brief.apply.filter(point => !point.polish) : brief.apply;
     const polish = late ? brief.apply.filter(point => point.polish) : [];
@@ -150,10 +165,11 @@ export function resolveOutcome({ brief, round, autoRounds, maxAutoRounds, repeat
     // No defect is left: the polish and defaults are applied once, as the last round. A finish's push
     // is never finished again, and an answer that already pushed nothing is not asked twice: what they
     // leave waits for the maintainer.
-    if (polish.length + brief.defaults.length > 0 && !finishing && repeat === null) {
-        return { outcome: 'finish', escalation: null, brief: handed(polish, brief.defaults), deferred: [] };
+    const remaining = withCarried(brief, polish, carried);
+    if (remaining.length + brief.defaults.length > 0 && !finishing && repeat === null) {
+        return { outcome: 'finish', escalation: null, brief: handed(remaining, brief.defaults), deferred: [] };
     }
-    return { outcome: 'done', escalation: null, brief: handed([], []), deferred: [...polish, ...brief.defaults] };
+    return { outcome: 'done', escalation: null, brief: handed([], []), deferred: [...remaining, ...brief.defaults] };
 }
 
 function renderPoints(heading: string, points: BriefPoint[], withKind = false): string[] {
