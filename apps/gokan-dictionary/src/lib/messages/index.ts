@@ -11,7 +11,8 @@ import type { DictionaryPlacement } from '@gokan/analytics';
 import type { AppLink } from '../appLinks';
 import type { OrderStep } from '../kanjiOrders';
 import type { ServedLocale } from '../locale';
-import type { GrammarTab, Section, WordText } from '../types';
+import type { RomajiPitch } from '../romaji';
+import type { GrammarTab, Section, VocabSummary, WordText } from '../types';
 import { en } from './en';
 import { zhHans } from './zh-hans';
 
@@ -211,6 +212,24 @@ export interface Messages {
         /** English's own sources, credited on a page in another language: its meanings', its sentences'. */
         englishMeaningsSource: string;
         sentencesSource: string;
+        /**
+         * The line closing an English word page's header when its romaji is shared (#278): the
+         * romaji page, then the other words read so (each its own page, with its first gloss), the
+         * first few of them and how many more: "Also read hashi: 箸 chopsticks, 端 edge".
+         */
+        sharedRomaji: (romaji: { text: string; href: string }, others: readonly { word: string; gloss: string; href: string }[], more: number) => LinkedText;
+    };
+    /** A romaji page (#278, English only): the words one romaji is shared by. */
+    romajiPage: {
+        /** Its heading: "hashi in Japanese". */
+        heading: (romaji: string) => LinkedText;
+        /**
+         * The sentence under it: how many words are read so, in kana and romaji, and what tells them
+         * apart: their spelling, and spoken, their pitch accent when it differs (lib/romaji.ts).
+         */
+        intro: (count: number, readings: readonly string[], romaji: string, pitch: RomajiPitch) => LinkedText;
+        /** After the list: where each word's page leads. */
+        outro: string;
     };
     /** The dataset's text sources by id (SourceRef.source), as a credit line names them. */
     sources: Readonly<Partial<Record<string, string>>>;
@@ -253,6 +272,8 @@ export interface Messages {
         grammarChaptersIndex: (chapterCount: number, pointCount: number) => PageMeta;
         grammarChapter: (chapter: GrammarChapter) => PageMeta;
         grammarConjugationsIndex: (formCount: number, pointCount: number) => PageMeta;
+        /** A romaji page, over its words, most frequent first: "hashi in Japanese: 端 (edge), 橋 (bridge)...". */
+        romaji: (romaji: string, words: readonly VocabSummary[]) => PageMeta;
     };
 }
 

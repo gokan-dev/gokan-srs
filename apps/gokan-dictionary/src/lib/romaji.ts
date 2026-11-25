@@ -37,6 +37,23 @@ export function romajiKey(reading: string): string | null {
     return /^[a-z][a-z-]*$/.test(key) ? key : null;
 }
 
+/** The first gloss of a short gloss ("end; edge; tip" is "end"): a word named in a line or a title. */
+export function firstGloss(gloss: string | undefined): string {
+    return gloss?.split('; ')[0] ?? '';
+}
+
+/**
+ * Whether the words of a romaji page sound alike: their pitch accents differ, are all the same,
+ * or are not known for every word (then the page says nothing of them).
+ */
+export type RomajiPitch = 'differs' | 'same' | 'unknown';
+
+export function romajiPitch(accents: readonly ({ downsteps: readonly number[] } | undefined)[]): RomajiPitch {
+    const patterns = accents.map(accent => accent?.downsteps.join(' '));
+    if (patterns.some(pattern => pattern === undefined)) return 'unknown';
+    return new Set(patterns).size > 1 ? 'differs' : 'same';
+}
+
 export interface RomajiGroups {
     /** Each shared romaji's words, most frequent first; the romaji in the order of their most frequent word. */
     byRomaji: ReadonlyMap<string, readonly string[]>;

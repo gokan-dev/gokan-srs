@@ -5,8 +5,10 @@
 import { CLOSENESS_LABEL, FORM_LABELS, headwordOf, pitchAccentLabel, secondaryForm } from '@gokan/dataset-schema';
 import type { GrammarChapter, GrammarPoint, Kanji, KanjiOrder, Vocabulary } from '@gokan/dataset-schema';
 import { orderNameLang } from '../kanjiOrders';
+import { firstGloss, romajiOf } from '../romaji';
 import { quotedGlosses, searchablePattern, sentenceCase, truncate } from '../seo';
 import { SITE_NAME } from '../site';
+import type { VocabSummary } from '../types';
 import type { CountedNoun, LinkedText, Messages } from './index';
 
 const jlptLevel = (level: number) => `N${level}`;
@@ -18,6 +20,8 @@ const jlptLabel = (level: number) => `JLPT ${jlptLevel(level)}`;
 // the big Japanese dictionaries win. Everything past ~60 chars may be cut, so the site name
 // goes last.
 const TITLE_MEANING_LENGTH = 40;
+/** About the length of a title a result shows: what a romaji page's title lists words up to. */
+const TITLE_LENGTH = 60;
 
 /** `n` with `noun` in the singular for exactly one, else with an s; the number grouped as in English. */
 function count(n: number, noun: CountedNoun): string {
@@ -43,6 +47,18 @@ function sentence(...runs: (string | LinkedText)[]): LinkedText {
         else if (run !== '') joined.push(run);
     }
     return joined;
+}
+
+/** A count opening a sentence: spelled out to ten ("Three words"), in figures past it. */
+function countAtStart(n: number, noun: CountedNoun): string {
+    const spelled = ['Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten'][n];
+    return spelled === undefined ? count(n, noun) : `${spelled} ${noun}${n === 1 ? '' : 's'}`;
+}
+
+/** A word on a romaji page's title: "橋 (bridge)", or the word alone with no gloss. */
+function wordWithGloss(word: VocabSummary): string {
+    const gloss = firstGloss(word.gloss);
+    return gloss ? `${word.word} (${gloss})` : word.word;
 }
 
 /** A range page's heading, and its title without the site name: the two say the same thing. */
@@ -200,6 +216,23 @@ export const en: Messages = {
         credit: sourceNames => `Sources: ${sourceNames.join(', ')}`,
         englishMeaningsSource: 'JMdict',
         sentencesSource: 'Tatoeba',
+        sharedRomaji: (romaji, others, more) => sentence(
+            'Also read ',
+            [{ text: romaji.text, href: romaji.href, lang: 'ja-Latn' }],
+            ': ',
+            others.flatMap((other, at): LinkedText => [at > 0 ? ', ' : '', { text: other.word, href: other.href, lang: 'ja' }, other.gloss ? ` ${other.gloss}` : '']),
+            more > 0 ? `, and ${more.toLocaleString('en')} more` : '',
+        ),
+    },
+    romajiPage: {
+        heading: romaji => [{ text: romaji, lang: 'ja-Latn' }, ' in Japanese'],
+        intro: (n, readings, romaji, pitch) => sentence(
+            `${countAtStart(n, 'word')} are read `,
+            readings.flatMap((reading, at): LinkedText => [at > 0 ? ' or ' : '', { text: reading, lang: 'ja' }]),
+            ` (${romaji}). Written, their spelling tells them apart`,
+            pitch === 'differs' ? '; spoken, their pitch accent does.' : pitch === 'same' ? '; spoken, only the context does.' : '.',
+        ),
+        outro: "Each word's page has its meanings, example sentences and kanji.",
     },
     sources: { zhwiktionary: 'Chinese Wiktionary', jawiktionary: 'Japanese Wiktionary', wikidata: 'Wikidata', wikipedia: 'Wikipedia', 'tatoeba-cmn': 'Tatoeba', gokan: 'Gokan' },
     meaningGroups: { definitions: 'Definitions', equivalents: 'Equivalents', english: 'English meanings' },
@@ -257,13 +290,16 @@ export const en: Messages = {
             const jlpt = vocab.jlptLevel ? ` | ${jlptLabel(vocab.jlptLevel)}` : '';
             // "思う (おもう)", or "ここ (此処)" for a word learned in kana: both spellings stay searchable.
             const label = `${headwordOf(vocab)} (${secondaryForm(vocab)})`;
+            // The description opens with the romaji too, which learners who do not read kana search
+            // by (#278): "勉強 (べんきょう, benkyou)". The title stays as it is, at its length limit.
+            const described = `${headwordOf(vocab)} (${secondaryForm(vocab)}, ${romajiOf(vocab.reading.primary)})`;
 
             const title = meaning
                 ? `${label} meaning: ${truncate(meaning, TITLE_MEANING_LENGTH)}${jlpt} - ${SITE_NAME}`
                 : `${label} meaning${jlpt} - ${SITE_NAME}`;
             const description = meaning
-                ? `${label} means "${meaning}" in English. Readings, every meaning, JLPT level, and example sentences with each word linked.`
-                : `${label}: Japanese dictionary entry with readings, meanings, and example sentences.`;
+                ? `${described} means "${meaning}" in English. Readings, every meaning, JLPT level, and example sentences with each word linked.`
+                : `${described}: Japanese dictionary entry with readings, meanings, and example sentences.`;
 
             return { title, description };
         },
@@ -386,6 +422,26 @@ export const en: Messages = {
             return {
                 title: `Japanese Verb and Adjective Conjugation Reference - ${SITE_NAME}`,
                 description: `${formCount} conjugation forms across ${pointCount} inflection patterns (te-form, potential, causative, and more), each with a full table of example verbs and adjectives.`,
+            };
+        },
+        romaji(romaji: string, words: readonly VocabSummary[]) {
+            // As many words as fit in the ~60 characters a result shows, the most frequent first, at least one.
+            const lead = `${romaji} in Japanese: `;
+            const tail = ` - ${SITE_NAME}`;
+            const named: string[] = [];
+            for (const word of words) {
+                const next = [...named, wordWithGloss(word)].join(', ');
+                if (named.length > 0 && lead.length + next.length + tail.length > TITLE_LENGTH) break;
+                named.push(wordWithGloss(word));
+            }
+            // "橋 (はし, bridge)": the kana for a word written with kanji, then its first gloss.
+            const listed = words.map(word => {
+                const said = [word.reading ?? '', firstGloss(word.gloss)].filter(part => part !== '').join(', ');
+                return said ? `${word.word} (${said})` : word.word;
+            }).join(', ');
+            return {
+                title: `${lead}${named.join(', ')}${tail}`,
+                description: `${romaji} can be ${count(words.length, 'word')} in Japanese: ${truncate(listed, 100)}. Their meanings, JLPT levels, how common each is, and their pitch accent.`,
             };
         },
     },

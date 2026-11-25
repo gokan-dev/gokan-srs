@@ -3,7 +3,7 @@
 // component, so the builders are typed by them: a .svelte import reaches a .ts file's linting as
 // an untyped module.
 
-import type { AudioIndex, GrammarConjugationIndex, GrammarExample, GrammarPoint, Kanji, KanjiOrder, KanjiOrderId, Sentence, Vocabulary } from '@gokan/dataset-schema';
+import type { AudioIndex, GrammarConjugationIndex, GrammarExample, GrammarPoint, Kanji, KanjiOrder, KanjiOrderId, PitchAccent, Sentence, Vocabulary } from '@gokan/dataset-schema';
 import type { ConjugationTable } from './grammarConjugations';
 import type { ChapterIndexRow, ChapterLocator } from './grammarChapters';
 import type { FamilyPageData } from './grammarFamilies';
@@ -52,7 +52,30 @@ export interface VocabPageProps {
    * change of its own.
    */
   withoutPage?: { words: string[]; kanji: string[] };
+  /**
+   * On an English page (#278): the reading in Hepburn (lib/romaji.ts), and, when its romaji is
+   * shared, the page listing those words (its romaji) and the other words on it. A page in another
+   * language has none.
+   */
+  romaji?: { reading: string; shared: { romaji: string; others: VocabSummary[] } | null };
   voice: PageVoice;
+}
+
+/** One word of a romaji page: its row, and what tells it apart from the others read the same. */
+export interface RomajiWord {
+  summary: VocabSummary;
+  jlpt?: number;
+  /** Its frequency rank (wordFrequencyRank): how common it is. */
+  rank: number;
+  /** Its primary reading's pitch accent, when the dataset has one. */
+  pitch?: PitchAccent;
+}
+
+/** RomajiPage.svelte: the words one romaji is shared by (lib/romaji.ts). */
+export interface RomajiPageProps {
+  romaji: string;
+  /** Most frequent first. */
+  words: RomajiWord[];
 }
 
 /** VocabIndexPage.svelte */

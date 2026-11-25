@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { FrequencyIndex } from '@gokan/dataset-schema';
-import { ROMAJI_FREQUENCY_FLOOR, ROMAJI_PAGE_CAP, romajiGroups, romajiKey, romajiOf } from './romaji';
+import { firstGloss, ROMAJI_FREQUENCY_FLOOR, ROMAJI_PAGE_CAP, romajiGroups, romajiKey, romajiOf, romajiPitch } from './romaji';
 import type { VocabSummary } from './types';
 
 /** Summaries and a frequency index in the order given, most frequent first. */
@@ -77,5 +77,20 @@ describe('romajiGroups', () => {
         // The groups kept are those of the most frequent words.
         expect(groups.groupOf.has('a0')).toBe(true);
         expect(groups.groupOf.has(`a${ROMAJI_PAGE_CAP + 9}`)).toBe(false);
+    });
+});
+
+describe('firstGloss', () => {
+    it('is the first of a short gloss, or nothing', () => {
+        expect(firstGloss('end; edge; tip')).toBe('end');
+        expect(firstGloss(undefined)).toBe('');
+    });
+});
+
+describe('romajiPitch', () => {
+    it('says whether the accents differ, are the same, or are not all known', () => {
+        expect(romajiPitch([{ downsteps: [2] }, { downsteps: [0] }])).toBe('differs');
+        expect(romajiPitch([{ downsteps: [1] }, { downsteps: [1] }])).toBe('same');
+        expect(romajiPitch([{ downsteps: [1] }, undefined])).toBe('unknown');
     });
 });

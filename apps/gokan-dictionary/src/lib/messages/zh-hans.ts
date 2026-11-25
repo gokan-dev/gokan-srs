@@ -9,8 +9,8 @@ import type { GrammarChapter, GrammarPoint, Kanji, KanjiOrder, Vocabulary } from
 import { orderNameLang } from '../kanjiOrders';
 import { searchablePattern, truncate } from '../seo';
 import { wordTextSummary } from '../senses';
-import type { WordText } from '../types';
-import type { CountedNoun, Messages } from './index';
+import type { VocabSummary, WordText } from '../types';
+import type { CountedNoun, LinkedText, Messages } from './index';
 
 /** The site's name in a Chinese title: the brand as it is, with what it is. */
 const SITE_NAME = 'Gokan 日语词典';
@@ -225,6 +225,24 @@ export const zhHans: Messages = {
         credit: sourceNames => `来源：${sourceNames.join('、')}`,
         englishMeaningsSource: 'JMdict（英文释义）',
         sentencesSource: 'Tatoeba',
+        // A romaji page is English's only (#278): never on a Chinese page, written for the type.
+        sharedRomaji: (romaji, others, more) => [
+            '同样读作 ',
+            { text: romaji.text, href: romaji.href, lang: 'ja-Latn' },
+            '：',
+            ...others.flatMap((other, at): LinkedText => [at > 0 ? '、' : '', { text: other.word, href: other.href, lang: 'ja' }, other.gloss ? { text: ` ${other.gloss}`, lang: 'en' } : '']).filter(part => part !== ''),
+            ...(more > 0 ? [`，另有 ${more} 个`] : []),
+        ],
+    },
+    romajiPage: {
+        heading: romaji => [{ text: romaji, lang: 'ja-Latn' }, ' 的日语词'],
+        intro: (n, readings, romaji, pitch) => [
+            `${n} 个词读作 `,
+            ...readings.flatMap((reading, at): LinkedText => [at > 0 ? '或' : '', { text: reading, lang: 'ja' }]).filter(part => part !== ''),
+            `（${romaji}）。书写时靠拼写区分`,
+            pitch === 'differs' ? '；说话时靠音调。' : pitch === 'same' ? '；说话时只能靠上下文。' : '。',
+        ],
+        outro: '每个词的页面有它的释义、例句和汉字。',
     },
     sources: { zhwiktionary: '中文维基词典', jawiktionary: '日文维基词典', wikidata: '维基数据', wikipedia: '维基百科', 'tatoeba-cmn': 'Tatoeba', gokan: 'Gokan' },
     meaningGroups: { definitions: '中文释义', equivalents: '中文对应词', english: '英文释义' },
@@ -348,6 +366,10 @@ export const zhHans: Messages = {
         },
         grammarConjugationsIndex(formCount: number, pointCount: number) {
             return { title: `日语动词和形容词活用表 - ${SITE_NAME}`, description: `${formCount} 种活用形，共 ${pointCount} 个活用句型，每种附完整的例词表。` };
+        },
+        romaji(romaji: string, words: readonly VocabSummary[]) {
+            const listed = words.map(word => word.word).join('、');
+            return { title: `${romaji} 的日语词：${truncate(listed, 30)} - ${SITE_NAME}`, description: `${romaji} 可以是 ${count(words.length, 'word')}：${truncate(listed, 100)}。` };
         },
     },
 };
