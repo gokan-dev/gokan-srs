@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { VocabPageProps as Props } from '../lib/pageProps';
-  import { CLOSENESS_LABEL, conjugate, shortGloss, frequencyBand, synonymsSearchable, frequencyTop, headwordOf, primaryPitchAccent, secondaryForm, summaryGloss, textbookLessonsLabel, wordClassOf, wordFrequencyRank } from '@gokan/dataset-schema';
+  import { CLOSENESS_LABEL, formsClassOf, shortGloss, frequencyBand, synonymsSearchable, frequencyTop, headwordOf, primaryPitchAccent, secondaryForm, summaryGloss, textbookLessonsLabel, wordFrequencyRank } from '@gokan/dataset-schema';
   import type { Sentence } from '@gokan/dataset-schema';
   import { valueText, type DefinitionSense } from '@gokan/dataset-schema/text';
   import { pageLocale } from './pageLocale';
@@ -60,12 +60,8 @@
   const commonCount = $derived(meanings.visible.length + meanings.more.length);
   // English's meanings on a page in another language are marked as English, for a screen reader's voice.
   const englishLang = $derived(text ? 'en' : undefined);
-  // Only when the headword fits its class: a verb listed under an odd spelling gets no table
-  // rather than a wrong one.
-  const wordClass = $derived.by(() => {
-    const found = wordClassOf(vocab.senses.flatMap(sense => sense.pos));
-    return found && conjugate(headword, found).length > 0 ? found : null;
-  });
+  // A verb's or adjective's, only when the headword fits its class (formsClassOf).
+  const wordClass = $derived(formsClassOf(headword, vocab.senses.flatMap(sense => sense.pos)));
   const examples = $derived(sentences.slice(0, DICT_EXAMPLES));
   const shownSentences = $derived(sentences.slice(0, VISIBLE_SENTENCES));
   /**
@@ -97,7 +93,6 @@
     { id: 'dict', label: messages.detailTabs.dict },
     ...(sentences.length > 0 ? [{ id: 'sentences', label: messages.detailTabs.sentences }] : []),
     ...(synonyms.groups.length > 0 ? [{ id: 'synonyms', label: messages.detailTabs.synonyms }] : []),
-    ...(wordClass ? [{ id: 'forms', label: messages.detailTabs.forms }] : []),
     ...(hasKanji ? [{ id: 'kanji', label: messages.detailTabs.kanji }] : []),
     ...(hasMadeOfOrUsedIn ? [{ id: 'related', label: messages.detailTabs.related }] : []),
   ]);
@@ -241,7 +236,7 @@
   </header>
 
   <!--
-    From 1024px the full page: Dict, Sentences, Synonyms and Forms in the main column, the
+    From 1024px the full page: Dict (with Forms), Sentences and Synonyms in the main column, the
     navigation aids (Kanji, Related) aside.
   -->
   <DetailTabs {tabs} label={messages.detailTabs.label} />
@@ -283,6 +278,14 @@
             </div>
             {@render sentenceList(examples)}
             {#if examplesCredit}<p class="meta source-credit">{examplesCredit}</p>{/if}
+          </section>
+        {/if}
+
+        <!-- Under Examples, in Dict (no tab of its own): how the word conjugates beside how it is used. -->
+        {#if wordClass}
+          <section id="forms" class="section">
+            <h2>{words.sections.forms}</h2>
+            <ConjugationForms word={headword} reading={vocab.reading.primary} {wordClass} romaji={romaji !== undefined} />
           </section>
         {/if}
 
@@ -328,12 +331,6 @@
         </section>
       {/if}
 
-      {#if wordClass}
-        <section id="forms" class="section detail-panel">
-          <h2>{words.sections.forms}</h2>
-          <ConjugationForms word={headword} reading={vocab.reading.primary} {wordClass} romaji={romaji !== undefined} />
-        </section>
-      {/if}
     </div>
 
     {#if hasKanji || hasMadeOfOrUsedIn}

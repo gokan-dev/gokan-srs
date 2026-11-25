@@ -1,16 +1,17 @@
 <script lang="ts">
-  import { conjugate, type FormLabel, type ConjugationClass } from '@gokan/dataset-schema';
-  import { romajiParts } from '../lib/romaji';
+  import { conjugate, isAdjectiveClass, type FormLabel, type ConjugationClass } from '@gokan/dataset-schema';
+  import { formRomajiParts } from '../lib/romaji';
   import { pageLocale } from './pageLocale';
 
   const { forms } = pageLocale().messages.vocab;
 
   /**
-   * A verb's or い-adjective's forms (lib/conjugation.ts): plain and polite, present and past,
-   * affirmative and negative as one grid, then the other forms. Each form has its kana under
+   * A verb's or adjective's forms (@gokan/dataset-schema's conjugation.ts): plain and polite,
+   * present and past, affirmative and negative as one grid, then the other forms, an adjective's
+   * its own (te-form, adverbial, conditional), never a verb's potential or imperative. Each form has its kana under
    * it when the word is written with kanji, and on an English page its romaji under that (#278):
    * 勉強します, benkyoushimasu, is what a learner who does not read kana searches for. It may wrap
-   * at 320px, so only between morae (romajiParts): torimase<wbr>n<wbr>de..., never torimasende|shita.
+   * at 320px, so only between morae (formRomajiParts): torimase<wbr>n<wbr>de..., never torimasende|shita.
    */
   interface Props {
     word: string;
@@ -31,13 +32,15 @@
     { row: forms.past, plain: 'past', polite: 'polite-past' },
     { row: forms.pastNegative, plain: 'past-negative', polite: 'polite-past-negative' },
   ];
-  const OTHER: FormLabel[] = ['te', 'potential', 'passive', 'causative', 'volitional', 'imperative', 'ba', 'tara'];
-  const others = $derived(OTHER.filter(label => written.has(label)));
+  const VERB_OTHER: FormLabel[] = ['te', 'potential', 'passive', 'causative', 'volitional', 'imperative', 'ba', 'tara'];
+  // 高く, 静かに; ければ for an い-adjective, なら for a な-adjective.
+  const ADJECTIVE_OTHER: FormLabel[] = ['te', 'adverbial', 'ba', 'nara'];
+  const others = $derived((isAdjectiveClass(wordClass) ? ADJECTIVE_OTHER : VERB_OTHER).filter(label => written.has(label)));
 </script>
 
 {#snippet form(label: FormLabel)}
   {@const spoken = kana.get(label)}
-  <span lang="ja">{written.get(label)}</span>{#if spoken && spoken !== written.get(label)}<small lang="ja">{spoken}</small>{/if}{#if romaji && spoken}<small lang="ja-Latn">{#each romajiParts(spoken) as part, at (at)}{#if at > 0}<wbr>{/if}{part}{/each}</small>{/if}
+  <span lang="ja">{written.get(label)}</span>{#if spoken && spoken !== written.get(label)}<small lang="ja">{spoken}</small>{/if}{#if romaji && spoken}<small lang="ja-Latn">{#each formRomajiParts(spoken) as part, at (at)}{#if at > 0}<wbr>{/if}{part}{/each}</small>{/if}
 {/snippet}
 
 <table class="forms">

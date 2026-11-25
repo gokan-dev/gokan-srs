@@ -2120,7 +2120,7 @@ async function checkAppPanelGaps(tab: Tab, page: string, width: number, above: b
  * 取る has every section.
  */
 const TABBED_WORD = '1326980';
-const WORD_SECTIONS = ['dict', 'sentences', 'synonyms', 'forms', 'kanji', 'related'];
+const WORD_SECTIONS = ['dict', 'sentences', 'synonyms', 'kanji', 'related'];
 const WORD_LAYOUT = `(() => {
     const shown = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
     const row = document.querySelector('.detail-tabs');

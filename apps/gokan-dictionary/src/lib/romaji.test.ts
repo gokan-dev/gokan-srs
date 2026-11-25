@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { FrequencyIndex } from '@gokan/dataset-schema';
-import { alsoReadTerms, firstGloss, glossTerm, ROMAJI_FREQUENCY_FLOOR, ROMAJI_PAGE_CAP, romajiGroups, romajiKey, romajiOf, romajiParts, romajiSpoken } from './romaji';
+import { alsoReadTerms, firstGloss, glossTerm, ROMAJI_FREQUENCY_FLOOR, ROMAJI_PAGE_CAP, romajiGroups, romajiKey, romajiOf, romajiParts, romajiSpoken, formRomajiParts } from './romaji';
 import type { VocabSummary } from './types';
 
 /** Summaries and a frequency index in the order given, most frequent first. */
@@ -155,5 +155,17 @@ describe('romajiParts', () => {
     it('never cuts after a っ, which doubles what follows, nor before the apostrophe of an n', () => {
         expect(romajiParts('とらなかった')).toEqual(['to', 'ra', 'na', 'ka', 'tta']);
         expect(romajiParts('きんえん')).toEqual(['ki', "n'e", 'n']);
+    });
+});
+
+describe('formRomajiParts', () => {
+    it('spells the particle of ではありません wa, as Hepburn does', () => {
+        expect(formRomajiParts('しずかではありません').join('')).toBe('shizukadewaarimasen');
+        expect(formRomajiParts('しずかではありませんでした')).toEqual(['shi', 'zu', 'ka', 'de', 'wa', 'a', 'ri', 'ma', 'se', 'n', 'de', 'shi', 'ta']);
+        expect(formRomajiParts('かんたんではありません').join('')).toBe('kantandewaarimasen');
+    });
+
+    it('cuts every other form as romajiParts does', () => {
+        for (const form of ['とりませんでした', 'しずかでした', 'しずかじゃない']) expect(formRomajiParts(form)).toEqual(romajiParts(form));
     });
 });

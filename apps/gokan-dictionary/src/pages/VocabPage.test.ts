@@ -104,6 +104,44 @@ describe('VocabPage', () => {
         expect(shared).toBe('Also read toru: 撮る to take (a photograph), 執る to take (trouble), 採る to adopt');
     });
 
+    describe('Forms', () => {
+        const word = (kanji: string, reading: string, pos: string[]): VocabPageProps => ({
+            ...props(3),
+            vocab: vocabulary({ writtenForm: { kanji, alternatives: [], containedKanji: [] }, reading: { primary: reading, alternatives: [] }, senses: [{ pos, misc: { rawTags: [] }, glosses: ['quiet'], related: { compounds: [] } }] }),
+        });
+        /** The row labels of the Forms table's second list (the forms after the grid). */
+        const otherRows = (body: string) => Array.from((/<table class="forms forms--list">.*?<\/table>/s.exec(sectionOf(body, 'forms', 'sentences'))?.[0] ?? '').matchAll(/<th scope="row">([^<]*)<\/th>/g), match => match[1]);
+
+        it('sits in Dict right under Examples, with no tab of its own', () => {
+            const body = html('en', word('静か', 'しずか', ['adj-na', 'n']));
+            const dict = sectionOf(body, 'dict', 'sentences');
+            expect(dict).toContain('id="forms"');
+            expect(dict.indexOf('<h2>Examples</h2>')).toBeLessThan(dict.indexOf('id="forms"'));
+            expect(body).not.toContain('data-tab="forms"');
+            expect(body).not.toContain('class="section detail-panel" id="forms"');
+        });
+
+        it("gives a な-adjective tagged noun too its copula's forms, each with its romaji", () => {
+            const body = html('en', { ...word('静か', 'しずか', ['n', 'adj-na']), romaji: { reading: 'shizuka', shared: null } });
+            const forms = sectionOf(body, 'forms', 'sentences');
+            for (const form of ['静かだ', '静かです', '静かじゃない', '静かではありません', '静かだった', '静かでした', '静かじゃなかった', '静かではありませんでした', '静かで', '静かに', '静かなら']) expect(forms).toContain(`<span lang="ja">${form}</span>`);
+            expect(forms).toContain('shi<wbr/>zu<wbr/>ka<wbr/>de<wbr/>shi<wbr/>ta');
+            // The particle of ではありません is wa, never deha.
+            expect(forms).toContain('ka<wbr/>de<wbr/>wa<wbr/>a<wbr/>ri');
+            expect(otherRows(body)).toEqual(['Te-form', 'Adverbial', 'Conditional (なら)']);
+        });
+
+        it("gives an い-adjective an adjective's rows only: te-form, adverbial く, ければ", () => {
+            const body = html('en', word('高い', 'たかい', ['adj-i']));
+            expect(otherRows(body)).toEqual(['Te-form', 'Adverbial', 'Conditional (ば)']);
+            expect(sectionOf(body, 'forms', 'sentences')).toContain('<span lang="ja">高く</span>');
+        });
+
+        it('has no table for a word that does not conjugate', () => {
+            expect(html('en', word('本', 'ほん', ['n']))).not.toContain('id="forms"');
+        });
+    });
+
     describe('play buttons', () => {
         const voice = { extension: 'opus', credit: 'VOICEVOX:冥鳴ひまり', termsUrl: 'https://voice.test/terms' };
         /** 思う with a clip, and two sentences: the first with one, the second without. */

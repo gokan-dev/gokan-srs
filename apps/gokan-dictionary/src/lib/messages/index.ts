@@ -149,7 +149,7 @@ export interface Messages {
      * grammar point's (Point, Examples, Related).
      */
     detailTabs: {
-        label: string; dict: string; sentences: string; synonyms: string; forms: string; kanji: string; related: string;
+        label: string; dict: string; sentences: string; synonyms: string; kanji: string; related: string;
         words: string; point: string; examples: string;
     };
     /** A kanji page's words. */

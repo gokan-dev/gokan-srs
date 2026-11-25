@@ -45,6 +45,21 @@ export function romajiParts(reading: string): string[] {
     return cuts.map((at, i) => romaji.slice(at, cuts[i + 1]));
 }
 
+/** A な-adjective's polite negatives (静かではありません, ...でした): their は is the particle. */
+const PARTICLE_WA = /^(.*)では(ありません(?:でした)?)$/;
+
+/**
+ * A conjugated form's romaji cut as romajiParts cuts it, for the Forms table: a form of the
+ * copula's ではありません spells its particle は as Hepburn does, wa (shizuka de wa arimasen, never
+ * deha), which kanaToHepburn, reading kana alone, cannot tell from the は of はな.
+ */
+export function formRomajiParts(form: string): string[] {
+    const particle = PARTICLE_WA.exec(form);
+    if (!particle) return romajiParts(form);
+    const [, before, after] = particle;
+    return [...romajiParts(`${before}で`), 'wa', ...romajiParts(after)];
+}
+
 /**
  * What a learner types for a reading, which names its romaji page: its Hepburn without the
  * apostrophe ("kinen" is both 禁煙 kin'en and 記念 kinen). Null for a reading that is not plain

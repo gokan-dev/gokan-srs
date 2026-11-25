@@ -204,7 +204,7 @@ export const en: Messages = {
         otherLevelsLead: 'Other levels:',
     },
     detailTabs: {
-        label: 'Sections', dict: 'Dict', sentences: 'Sentences', synonyms: 'Synonyms', forms: 'Forms', kanji: 'Kanji', related: 'Related',
+        label: 'Sections', dict: 'Dict', sentences: 'Sentences', synonyms: 'Synonyms', kanji: 'Kanji', related: 'Related',
         words: 'Words', point: 'Point', examples: 'Examples',
     },
     kanji: {

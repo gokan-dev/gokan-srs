@@ -292,7 +292,7 @@ $pitch-button-room: $target + $space-half;
 
   // A form's romaji (#278) is longer than its kana (取りませんでした, torimasendeshita): it
   // wraps inside its cell rather than widening the table past a 320px phone: at the <wbr> between
-  // its morae (romajiParts), torimase|n|de|shi|ta; anywhere only as the last resort.
+  // its morae (formRomajiParts), torimase|n|de|shi|ta; anywhere only as the last resort.
   small[lang="ja-Latn"] {
     overflow-wrap: anywhere;
   }

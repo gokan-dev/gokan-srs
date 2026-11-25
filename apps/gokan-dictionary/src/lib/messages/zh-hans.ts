@@ -172,7 +172,7 @@ export const zhHans: Messages = {
     },
     // The kanji and grammar pages are served in English only for now (#170): their words are ready for when they are.
     detailTabs: {
-        label: '词条内容', dict: '释义', sentences: '例句', synonyms: '近义词', forms: '活用', kanji: '汉字', related: '相关词',
+        label: '词条内容', dict: '释义', sentences: '例句', synonyms: '近义词', kanji: '汉字', related: '相关词',
         words: '词语', point: '要点', examples: '例句',
     },
     kanji: {
@@ -237,6 +237,8 @@ export const zhHans: Messages = {
                 tai: '愿望（たい）',
                 teiru: '进行（ている）',
                 teru: '进行，口语（てる）',
+                adverbial: '副词形',
+                nara: '假定形（なら）',
             },
         },
         kanjiInEnglish: `汉字页面为${IN_ENGLISH}。`,

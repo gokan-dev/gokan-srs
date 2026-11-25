@@ -19,7 +19,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     {
         version: '1.72.0',
         date: '2026-11-25',
-        summary: 'The dictionary now writes every word\'s reading in romaji, beside its kana and under each of its forms, and a word read like others links to a page setting them side by side (hashi: 橋, 端, 箸).',
+        summary: 'The dictionary now writes every word\'s reading in romaji, beside its kana and under each of its forms, and a word read like others links to a page setting them side by side (hashi: 橋, 端, 箸). A word\'s forms now sit under its examples, every adjective has them (静かでした, 高く), and search finds a な-adjective from a form of it.',
         issue: 278,
     },
     {
