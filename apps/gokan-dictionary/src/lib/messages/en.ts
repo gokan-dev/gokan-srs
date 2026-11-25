@@ -20,8 +20,11 @@ const jlptLabel = (level: number) => `JLPT ${jlptLevel(level)}`;
 // the big Japanese dictionaries win. Everything past ~60 chars may be cut, so the site name
 // goes last.
 const TITLE_MEANING_LENGTH = 40;
-/** About the length of a title a result shows: what a romaji page's title lists words up to. */
-const TITLE_LENGTH = 60;
+/**
+ * What a romaji page's title lists words up to, past its first two (the point of the page is that
+ * there are several): about what a result shows, the site name past it allowed to be cut.
+ */
+const ROMAJI_TITLE_LENGTH = 70;
 
 /** `n` with `noun` in the singular for exactly one, else with an s; the number grouped as in English. */
 function count(n: number, noun: CountedNoun): string {
@@ -431,13 +434,13 @@ export const en: Messages = {
             };
         },
         romaji(romaji: string, words: readonly VocabSummary[]) {
-            // As many words as fit in the ~60 characters a result shows, the most frequent first, at least one.
+            // The two most frequent words, then as many more as fit (ROMAJI_TITLE_LENGTH).
             const lead = `${romaji} in Japanese: `;
             const tail = ` - ${SITE_NAME}`;
             const named: string[] = [];
             for (const word of words) {
                 const next = [...named, wordWithGloss(word)].join(', ');
-                if (named.length > 0 && lead.length + next.length + tail.length > TITLE_LENGTH) break;
+                if (named.length >= 2 && lead.length + next.length + tail.length > ROMAJI_TITLE_LENGTH) break;
                 named.push(wordWithGloss(word));
             }
             // "橋 (はし, bridge)": the kana for a word written with kanji, then its first gloss.

@@ -71,6 +71,40 @@
   @include entry-gloss;
 }
 
+// The word, its reading and its romaji on one baseline, 24px apart, with no separator (#278): a
+// word too long for the line wraps its reading and romaji under it, whole.
+.entry-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: $space-half $space-3;
+
+  > .entry-sub {
+    margin: 0;
+  }
+}
+
+// The romaji beside the kana: Latin in the UI face, at the reading's size in its secondary ink.
+// Neutral, never accent: a fact about the word, not an action.
+.entry-romaji {
+  font-family: $font-sans;
+}
+
+.entry-romaji-shared {
+  margin: $space-2 0 0;
+}
+
+// A romaji page's rows (RomajiPage.svelte): the note is in the gloss's cell, and the headword and
+// its reading (with its pitch accent) are centred on the two lines; on a phone they stack as every list.
+.entry-list--centred a {
+  align-items: center;
+
+  > [lang] > small {
+    display: block;
+    color: var(--tertiary);
+  }
+}
+
 // A word learned in kana: its reading with its pitch accent on a line of its own, under the note
 // naming its kanji spelling, at the reading's size.
 .entry-pitch {

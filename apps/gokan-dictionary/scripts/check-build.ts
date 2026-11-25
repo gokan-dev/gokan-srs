@@ -23,6 +23,7 @@ import { messagesFor } from '../src/lib/messages';
 import { kanaToHepburn, readingOfRow } from '@gokan/dataset-schema';
 import type { TextFile } from '@gokan/dataset-schema/text';
 import { fromColumns } from '../src/lib/searchIndex';
+import { ROMAJI_PAGE_CAP, romajiOf } from '../src/lib/romaji';
 import { prepareIndex, search, TIER, type PreparedIndex } from '../src/lib/searchQuery';
 import type { SearchIndexFile, SearchWordRow } from '../src/lib/types';
 
@@ -125,6 +126,10 @@ function measure(manifest: Record<string, ViteManifestEntry>): { measurements: M
     // A grammar point is named by its level and number (n5-088); the other directories are browse pages.
     const points = (ENTITY_PAGES === 'prerendered' ? subdirectories('grammar').filter(name => /^n[1-5]-\d+$/.test(name)) : []).map(id => page('grammarPageMax', pageOf('grammar', id), `grammar/${id}`));
     if (points.length > 0) measurements.push(heaviest(points));
+
+    // Every romaji page (#278): at most 15 words each, the heaviest held to the first round trip.
+    const romajiPages = romajiPageNames().map(name => page('romajiPageMax', pageOf('romaji', name), `romaji/${name}/`));
+    if (romajiPages.length > 0) measurements.push(heaviest(romajiPages));
 
     measurements.push(page('homePage', 'index.html', 'home'));
     if (fs.existsSync(path.join(DIST_DIR, 'zh-hans', 'index.html'))) measurements.push(page('homePage', pageOf('zh-hans'), 'zh-hans/'));
@@ -235,6 +240,50 @@ function assetProblems(): string[] {
         // Every Svelte client runtime build links its error codes to svelte.dev/e/.
         if (source.includes('svelte.dev/e/')) problems.push(`assets/${script} contains the Svelte client runtime`);
         if (source.includes(SITE_ORIGIN)) problems.push(`assets/${script} contains the site origin (${SITE_ORIGIN}), so its size depends on the environment`);
+    }
+    return problems;
+}
+
+/** The romaji pages built (English's only, #278): their romaji. */
+const romajiPageNames = () => (fs.existsSync(path.join(DIST_DIR, 'romaji')) ? subdirectories('romaji') : []);
+
+/** A page's meta description, its entities decoded as far as the shell writes them (documentShell.ts). */
+function descriptionOf(html: string): string {
+    const found = /<meta name="description" content="([^"]*)"/.exec(html)?.[1] ?? '';
+    return found.replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+}
+
+/**
+ * The romaji pages and the romaji on the word pages (#278): some romaji pages, never more than
+ * ROMAJI_PAGE_CAP, each listing two words or more, all of them and only them in sitemap-romaji.xml;
+ * and every English word page (prerendered) carrying its romaji in its reading line and its description.
+ */
+function romajiProblems(): string[] {
+    const problems: string[] = [];
+    const names = romajiPageNames();
+    if (names.length === 0) problems.push('no romaji page was built (dist/romaji/)');
+    if (names.length > ROMAJI_PAGE_CAP) problems.push(`${names.length} romaji pages, over the cap of ${ROMAJI_PAGE_CAP} (lib/romaji.ts)`);
+    for (const name of names) {
+        const rows = read(pageOf('romaji', name)).toString('utf-8').match(/<li><a href="[^"]*\/vocab\/\d+\/"/g)?.length ?? 0;
+        if (rows < 2) problems.push(`romaji/${name}/ lists ${rows} word${rows === 1 ? '' : 's'}: a romaji page is for a romaji two words share or more`);
+    }
+    const sitemap = fs.existsSync(path.join(DIST_DIR, 'sitemap-romaji.xml')) ? fs.readFileSync(path.join(DIST_DIR, 'sitemap-romaji.xml'), 'utf-8') : '';
+    const listed = new Set([...sitemap.matchAll(/<loc>[^<]*\/romaji\/([^/<]+)\/<\/loc>/g)].map(([, name]) => name));
+    if (listed.size !== names.length || names.some(name => !listed.has(name))) problems.push(`sitemap-romaji.xml lists ${listed.size} romaji pages, the build has ${names.length}`);
+
+    if (ENTITY_PAGES === 'prerendered') {
+        const readings = new Map(builtIndexFiles('en').flatMap(file => fromColumns(file.w)).map(row => [row[0], readingOfRow(row)]));
+        const missing: string[] = [];
+        for (const id of wordPages()) {
+            const reading = readings.get(id);
+            if (reading === undefined) continue;
+            const romaji = romajiOf(reading);
+            const html = read(pageOf('vocab', id)).toString('utf-8');
+            const inLine = html.includes(`<p class="entry-sub entry-romaji" lang="ja-Latn">${romaji.replace(/&/g, '&amp;')}</p>`);
+            if (!inLine || !descriptionOf(html).includes(`, ${romaji})`)) missing.push(`vocab/${id}/ (${romaji}): ${inLine ? 'not in its description' : 'not in its reading line'}`);
+        }
+        problems.push(...missing.slice(0, 5).map(found => `a word page without its romaji: ${found}`));
+        if (missing.length > 5) problems.push(`and ${missing.length - 5} more word pages without their romaji`);
     }
     return problems;
 }
@@ -461,7 +510,7 @@ async function unmatchedPathProblems(): Promise<string[]> {
     }
 }
 
-const problems = [...over.map(m => `over budget: ${describe(m)}`), ...modeProblems(), ...unmeasuredStylesheetProblems(manifest, measuredSheets), ...assetProblems(), ...searchProblems(), ...localeSearches.flatMap(found => found.problems), ...sitemapProblems(), ...routingProblems(), ...linkProblems(), ...alternatesProblems(), ...sourceNameProblems(), ...(await unmatchedPathProblems())];
+const problems = [...over.map(m => `over budget: ${describe(m)}`), ...modeProblems(), ...unmeasuredStylesheetProblems(manifest, measuredSheets), ...assetProblems(), ...searchProblems(), ...localeSearches.flatMap(found => found.problems), ...sitemapProblems(), ...romajiProblems(), ...routingProblems(), ...linkProblems(), ...alternatesProblems(), ...sourceNameProblems(), ...(await unmatchedPathProblems())];
 
 // A budget over many pages reports its heaviest.
 const MANY_PAGES: Partial<Record<BudgetName, string>> = { jlptPage: 'JLPT list pages', kanjiOrderPage: 'kanji order pages' };

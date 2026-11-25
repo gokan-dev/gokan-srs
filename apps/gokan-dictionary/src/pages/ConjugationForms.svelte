@@ -1,5 +1,6 @@
 <script lang="ts">
   import { conjugate, type FormLabel, type ConjugationClass } from '@gokan/dataset-schema';
+  import { romajiOf } from '../lib/romaji';
   import { pageLocale } from './pageLocale';
 
   const { forms } = pageLocale().messages.vocab;
@@ -7,15 +8,18 @@
   /**
    * A verb's or い-adjective's forms (lib/conjugation.ts): plain and polite, present and past,
    * affirmative and negative as one grid, then the other forms. Each form has its kana under
-   * it when the word is written with kanji.
+   * it when the word is written with kanji, and on an English page its romaji under that (#278):
+   * 勉強します, benkyoushimasu, is what a learner who does not read kana searches for.
    */
   interface Props {
     word: string;
     reading: string;
     wordClass: ConjugationClass;
+    /** Each form's romaji under it: an English page's. */
+    romaji?: boolean;
   }
 
-  let { word, reading, wordClass }: Props = $props();
+  let { word, reading, wordClass, romaji = false }: Props = $props();
 
   const written = $derived(new Map(conjugate(word, wordClass).map(({ label, form }) => [label, form])));
   const kana = $derived(new Map(conjugate(reading, wordClass).map(({ label, form }) => [label, form])));
@@ -31,7 +35,8 @@
 </script>
 
 {#snippet form(label: FormLabel)}
-  <span lang="ja">{written.get(label)}</span>{#if kana.get(label) && kana.get(label) !== written.get(label)}<small lang="ja">{kana.get(label)}</small>{/if}
+  {@const spoken = kana.get(label)}
+  <span lang="ja">{written.get(label)}</span>{#if spoken && spoken !== written.get(label)}<small lang="ja">{spoken}</small>{/if}{#if romaji && spoken}<small lang="ja-Latn">{romajiOf(spoken)}</small>{/if}
 {/snippet}
 
 <table class="forms">

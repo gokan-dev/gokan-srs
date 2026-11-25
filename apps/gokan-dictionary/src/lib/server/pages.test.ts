@@ -367,9 +367,17 @@ describe('pagesOf: a locale other than English', () => {
         expect(await chinese.servesPage({ type: 'home' })).toBe(true);
     });
 
-    it('keeps English\'s word page as it was: no text, no translations', async () => {
+    it('keeps English\'s word page as it was, but for its romaji: no text, no translations', async () => {
         const page = await pagesOf(memorySource(world).source, 'en').vocabPage('1589350');
-        expect(Object.keys(page.props).sort()).toEqual(['components', 'orderStep', 'parents', 'sentences', 'synonyms', 'vocab', 'voice']);
+        expect(Object.keys(page.props).sort()).toEqual(['components', 'orderStep', 'parents', 'romaji', 'sentences', 'synonyms', 'vocab', 'voice']);
+    });
+
+    it('gives a Chinese word page no romaji, and has no romaji page or sitemap entry', async () => {
+        const pages = pagesOf(memorySource(world).source, 'zh-hans');
+        expect((await pages.vocabPage('1589350')).props.romaji).toBeUndefined();
+        expect(await pages.pageEntries.romaji()).toEqual([]);
+        expect(await pages.romajiSitemapPaths()).toEqual([]);
+        await expect(pages.romajiPage('omou')).rejects.toBeInstanceOf(PageNotFound);
     });
 
     it('lists only the synonyms with a page: every word in English, a word with Chinese text in Chinese', async () => {
@@ -384,5 +392,38 @@ describe('pagesOf: a locale other than English', () => {
 
     it('refuses a source not read in the locale\'s language', () => {
         expect(() => pagesOf(memorySource({ words: [omou] }).source, 'zh-hans')).toThrow(/need a source read in zh-hans/);
+    });
+});
+
+describe('pagesOf: romaji (#278)', () => {
+    const bridge = vocabulary({ id: '1', writtenForm: { kanji: '橋', alternatives: [], containedKanji: ['橋'] }, reading: { primary: 'はし', alternatives: [] }, jlptLevel: 5, pitchAccent: [{ reading: 'はし', downsteps: [2] }], senses: [{ pos: ['n'], misc: { rawTags: [] }, glosses: ['bridge'], related: { compounds: [] } }] });
+    const chopsticks = vocabulary({ id: '2', writtenForm: { kanji: '箸', alternatives: [], containedKanji: ['箸'] }, reading: { primary: 'はし', alternatives: [] }, pitchAccent: [{ reading: 'はし', downsteps: [1] }], senses: [{ pos: ['n'], misc: { rawTags: [] }, glosses: ['chopsticks'], related: { compounds: [] } }] });
+    const study = vocabulary({ id: '3', writtenForm: { kanji: '勉強', alternatives: [], containedKanji: ['勉', '強'] }, reading: { primary: 'べんきょう', alternatives: [] } });
+    const romajiWorld: World = { words: [bridge, chopsticks, study] };
+
+    it("gives a word page its romaji, and the other words of its romaji's page", async () => {
+        const pages = pagesOf(memorySource(romajiWorld).source, 'en');
+        const page = await pages.vocabPage('1');
+        expect(page.props.romaji).toEqual({ reading: 'hashi', shared: { romaji: 'hashi', others: [vocabSummaryFrom(chopsticks)] } });
+        expect(page.document.description).toContain('橋 (はし, hashi) means');
+        expect(page.document.structuredData).toMatchObject({ '@type': 'DefinedTerm', name: '橋', alternateName: 'hashi' });
+        expect((await pages.vocabPage('3')).props.romaji).toEqual({ reading: 'benkyou', shared: null });
+    });
+
+    it('builds a page for a romaji two words share, most frequent first, and none for a romaji with one word', async () => {
+        const pages = pagesOf(memorySource(romajiWorld).source, 'en');
+        const page = await pages.romajiPage('hashi');
+        expect(page.props.romaji).toBe('hashi');
+        expect(page.props.words.map(word => [word.summary.word, word.jlpt, word.pitch?.downsteps])).toEqual([['橋', 5, [2]], ['箸', undefined, [1]]]);
+        expect(page.document.canonicalPath).toBe(urls.romajiPath('hashi'));
+        expect(page.document.title).toMatch(/^hashi in Japanese: 橋 \(bridge\), 箸 \(chopsticks\) - /);
+        await expect(pages.romajiPage('benkyou')).rejects.toBeInstanceOf(PageNotFound);
+        expect(await pages.pageEntries.romaji()).toEqual([{ romaji: 'hashi' }]);
+    });
+
+    it('lists the romaji pages in a sitemap of their own, never in the word pages\'', async () => {
+        const pages = pagesOf(memorySource(romajiWorld).source, 'en');
+        expect(await pages.romajiSitemapPaths()).toEqual([urls.romajiPath('hashi')]);
+        expect(await pages.sitemapPaths()).not.toContain(urls.romajiPath('hashi'));
     });
 });
