@@ -24,12 +24,14 @@ const word = vocabulary({
     senses: [{ pos: ['adj-na'], misc: { rawTags: [] }, glosses: ['wonder', 'mystery'], related: { compounds: [] } }],
     patterns: [{ text: '不思議に思う', sentences: 2 }],
 });
-const sentences: Sentence[] = [
+const baseSentences = (): Sentence[] => [
     sentence({ id: 'p1', original: '不思議に思う。', vocabIds: ['v-1'], matches: { 'v-1': [{ start: 0, length: 3, pattern: 0 }] } }),
     sentence({ id: 'p2', original: 'それを不思議に思った。', vocabIds: ['v-1'], matches: { 'v-1': [{ start: 3, length: 3, pattern: 0 }] } }),
     sentence({ id: 'n1', original: '不思議な話だ。', vocabIds: ['v-1'], matches: { 'v-1': [{ start: 0, length: 3 }] } }),
     sentence({ id: 'n2', original: '不思議だ。', vocabIds: ['v-1'], matches: { 'v-1': [{ start: 0, length: 3 }] } }),
 ];
+// The sentences the current test's word has: a fresh list each test, set in `beforeEach`.
+const current = vi.hoisted((): { sentences: readonly Sentence[] } => ({ sentences: [] }));
 
 // The open tab is kept for the session: not kept here, so each test starts on Dict.
 vi.mock('../../hooks/usePersistedControls', () => ({
@@ -40,7 +42,7 @@ vi.mock('../../hooks/usePersistedControls', () => ({
 vi.mock('../../services/vocabulary.service', () => ({
     VocabularyService: {
         loadVocab: () => Promise.resolve(word),
-        loadSentences: () => Promise.resolve(sentences),
+        loadSentences: () => Promise.resolve(current.sentences),
         // The full page's Kanji section: left loading, it plays no part here.
         loadKanji: () => new Promise(() => undefined),
     },
@@ -51,6 +53,7 @@ let root: Root;
 
 beforeEach(() => {
     screenSize.isMobile = true;
+    current.sentences = baseSentences();
 });
 
 async function renderPage() {
@@ -115,23 +118,21 @@ describe('VocabDetailScreen, a common pattern on the full page', () => {
     it('starts a fresh Sentences search when a pattern is chosen', async () => {
         screenSize.isMobile = false;
         // Past one page, so Sentences has its field.
-        const more = ['n3', 'n4', 'n5'].map(id => sentence({ id, original: `${id}の不思議だ。`, vocabIds: ['v-1'], matches: { 'v-1': [{ start: 3, length: 3 }] } }));
-        sentences.push(...more);
-        try {
-            await renderPage();
-            const field = [...container.querySelectorAll('label')].find(l => l.textContent.includes('Search the sentences'))?.querySelector('input');
-            if (!field) throw new Error('No Sentences search field');
-            // The Sentences section alone: Dict's examples are on the page too.
-            const inSentences = () => container.querySelectorAll('[id$="-section-sentence"] [data-example-sentence]').length;
-            // 話 is in none of the pattern's sentences.
-            typeInto(field, '話');
-            expect(inSentences()).toBe(1);
+        current.sentences = [
+            ...baseSentences(),
+            ...['n3', 'n4', 'n5'].map(id => sentence({ id, original: `${id}の不思議だ。`, vocabIds: ['v-1'], matches: { 'v-1': [{ start: 3, length: 3 }] } })),
+        ];
+        await renderPage();
+        const field = [...container.querySelectorAll('label')].find(l => l.textContent.includes('Search the sentences'))?.querySelector('input');
+        if (!field) throw new Error('No Sentences search field');
+        // The Sentences section alone: Dict's examples are on the page too.
+        const inSentences = () => container.querySelectorAll('[id$="-section-sentence"] [data-example-sentence]').length;
+        // 話 is in none of the pattern's sentences.
+        typeInto(field, '話');
+        expect(inSentences()).toBe(1);
 
-            click('不思議に思う');
-            expect(container.textContent).toContain('Pattern:');
-            expect(inSentences()).toBe(2);
-        } finally {
-            sentences.splice(sentences.length - more.length, more.length);
-        }
+        click('不思議に思う');
+        expect(container.textContent).toContain('Pattern:');
+        expect(inSentences()).toBe(2);
     });
 });
