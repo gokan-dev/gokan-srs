@@ -1,0 +1,37 @@
+.grammar-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.grammar-filter-input {
+  flex: 1 1 16rem;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: 0 1rem;
+  font: inherit;
+  color: var(--primary);
+  background-color: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: 0.375rem;
+}
+.grammar-filter-input:focus {
+  border-color: var(--accent);
+}
+
+.grammar-filter-levels {
+  display: flex;
+  gap: 0.25rem;
+}
+.grammar-filter-levels .button[aria-pressed=true] {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.grammar-filter .meta {
+  flex-basis: 100%;
+  margin: 0;
+}

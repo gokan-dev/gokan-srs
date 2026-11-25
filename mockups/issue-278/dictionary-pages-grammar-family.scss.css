@@ -1,0 +1,52 @@
+.family-interchangeable {
+  font-size: 1.125rem;
+  line-height: 1.8;
+}
+
+.family-case {
+  padding: 1rem 0;
+}
+.family-case + .family-case {
+  border-top: 1px solid var(--divider);
+}
+.family-case p {
+  margin: 0;
+}
+
+.family-case-situation {
+  color: var(--secondary);
+  font-size: 0.875rem;
+}
+
+.family-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.family-list > li {
+  padding: 0.5rem 0;
+}
+.family-list > li + li {
+  border-top: 1px solid var(--divider);
+}
+
+.family-list-name {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  font-weight: 500;
+}
+
+.family-list-members {
+  display: block;
+  line-height: 2;
+}
+.family-list-members a {
+  display: inline-block;
+  margin-right: 1em;
+  font-family: var(--font-mincho);
+  color: var(--primary);
+}
+.family-list-members a:hover {
+  color: var(--accent);
+}

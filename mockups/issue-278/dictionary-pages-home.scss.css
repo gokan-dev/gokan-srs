@@ -1,0 +1,53 @@
+.app-panel {
+  background-color: var(--surface);
+  border: 1px solid var(--divider);
+  border-radius: 0.375rem;
+  padding: 1rem;
+  margin: 1.5rem 0 2.5rem;
+  border-left: 3px solid var(--accent);
+}
+.app-panel p {
+  margin: 0 0 1rem;
+  max-width: 36rem;
+}
+.app-panel p [lang=ja] {
+  display: inline-block;
+  max-width: 100%;
+}
+
+.app-panel-action {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  background-color: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 600;
+}
+.app-panel-action:hover {
+  background-color: var(--accent-hover);
+  color: var(--accent-contrast);
+  text-decoration: none;
+}
+
+h2 + .app-panel {
+  margin-top: 0;
+}
+
+.home-hero {
+  padding: 1.5rem 0 1rem;
+}
+.home-hero h1 {
+  margin-bottom: 0.5rem;
+}
+
+.home-lede {
+  color: var(--secondary);
+  font-size: 1.125rem;
+  margin-bottom: 1.5rem;
+}
+
+.home-counts {
+  margin-top: 2rem;
+}

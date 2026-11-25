@@ -1,0 +1,38 @@
+<!-- app: dictionary -->
+<!-- title: Romaji page /dictionary/romaji/hashi/: the words read hashi, told apart by meaning and pitch accent -->
+<a class="skip-link" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="container container--wide site-header-inner">
+    <a class="site-title" href="/dictionary/"><span lang="ja">語感</span> <span class="site-title-word">Dictionary</span></a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="/dictionary/vocab/" aria-current="page">Words</a>
+      <a href="/dictionary/kanji/">Kanji</a>
+      <a href="/dictionary/grammar/">Grammar</a>
+    </nav>
+    <form class="search" role="search" action="/dictionary/search/">
+      <label class="visually-hidden" for="search-input">Search the dictionary</label>
+      <input id="search-input" class="search-input" type="search" name="q" placeholder="Search words, kanji and grammar" autocomplete="off" />
+    </form>
+  </div>
+</header>
+
+<main id="content" tabindex="-1">
+  <div class="container container--wide">
+    <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/dictionary/">Dictionary</a><span class="breadcrumb-sep" aria-hidden="true">/</span><a href="/dictionary/vocab/">Words</a><span class="breadcrumb-sep" aria-hidden="true">/</span><span aria-current="page" lang="ja-Latn">hashi</span></nav>
+
+    <div class="page-intro">
+      <h1><span lang="ja-Latn">hashi</span> in Japanese</h1>
+      <p>Three common words are read <span lang="ja">はし</span> (hashi). Their kanji tell them apart in writing; spoken, the pitch accent does.</p>
+    </div>
+
+    <section class="section">
+      <!-- VocabEntryList rows, most common first. The reading column carries the pitch accent (PitchAccent, as on the word page); the note under the gloss says the level, the band and the pitch in words. New in romaji.scss (inline here): the gloss and its note are one block in the third column, and the row centres the kanji and the kana on it (align-items: center), so they line up with the two lines on the right. On a phone the row stacks as every list does. -->
+      <ul class="entry-list">
+        <li><a href="/dictionary/vocab/橋/" lang="ja" style="align-items: center">橋<span><span class="pa"><span class="pr" style="--w:3"><svg aria-hidden="true" viewBox="0 0 3 .56"><path d="M.5 .44l1 -.32 .886 .283" /><path class="pd" d="M.5 .44h0m1 -.32h0" /><circle cx="2.5" cy=".44" r=".12" /></svg><span lang="ja">はし</span></span></span></span><span lang="en">bridge<small style="display: block; color: var(--tertiary)">N5 · Top 5,000 words · Drop after mora 2</small></span></a></li>
+        <li><a href="/dictionary/vocab/端/" lang="ja" style="align-items: center">端<span><span class="pa"><span class="pr" style="--w:3"><svg aria-hidden="true" viewBox="0 0 3 .56"><path d="M.5 .44l1 -.32 .88 0" /><path class="pd" d="M.5 .44h0m1 -.32h0" /><circle cx="2.5" cy=".12" r=".12" /></svg><span lang="ja">はし</span></span></span></span><span lang="en">end, edge, tip<small style="display: block; color: var(--tertiary)">N3 · Top 5,000 words · Heiban (flat)</small></span></a></li>
+        <li><a href="/dictionary/vocab/箸/" lang="ja" style="align-items: center">箸<span><span class="pa"><span class="pr" style="--w:3"><svg aria-hidden="true" viewBox="0 0 3 .56"><path d="M.5 .12l1 .32 .88 0" /><path class="pd" d="M.5 .12h0m1 .32h0" /><circle cx="2.5" cy=".44" r=".12" /></svg><span lang="ja">はし</span></span></span></span><span lang="en">chopsticks<small style="display: block; color: var(--tertiary)">N5 · Top 10,000 words · Drop after mora 1</small></span></a></li>
+      </ul>
+      <p class="meta">Each word's page has its meanings, example sentences and kanji.</p>
+    </section>
+  </div>
+</main>

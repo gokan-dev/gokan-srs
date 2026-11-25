@@ -1,0 +1,28 @@
+.table-scroll {
+  overflow-x: auto;
+}
+
+.conjugation-reference {
+  width: 100%;
+  border-collapse: collapse;
+}
+.conjugation-reference th,
+.conjugation-reference td {
+  padding: 0.5rem 1rem 0.5rem 0;
+  border-bottom: 1px solid var(--divider);
+  text-align: left;
+  vertical-align: baseline;
+}
+.conjugation-reference thead th {
+  color: var(--secondary);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+.conjugation-reference tbody th {
+  font-weight: 500;
+}
+.conjugation-reference td:last-child {
+  color: var(--tertiary);
+  font-size: 0.875rem;
+  white-space: nowrap;
+}

@@ -1,0 +1,45 @@
+.chapter-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.chapter-list > li + li {
+  border-top: 1px solid var(--divider);
+}
+.chapter-list a {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem 0.25rem;
+  color: var(--primary);
+}
+.chapter-list a:hover, .chapter-list a:focus-visible {
+  background-color: var(--surface-hover);
+  color: var(--primary);
+  text-decoration: none;
+}
+.chapter-list .support {
+  font-size: 0.875rem;
+}
+
+.chapter-list-title {
+  font-weight: 500;
+}
+
+.chapter-pager {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--divider);
+}
+.chapter-pager a {
+  display: flex;
+  flex-direction: column;
+  min-height: 2.75rem;
+}
+
+.chapter-pager-next {
+  margin-left: auto;
+  text-align: right;
+}

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Word page header (橋): kanji, kana and romaji on one line, and a link to the other words read hashi</title>
+
+<link rel="stylesheet" href="../dictionary.css">
+</head>
+<body>
+<!-- title: Word page header (橋): kanji, kana and romaji on one line, and a link to the other words read hashi -->
+<a class="skip-link" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="container container--wide site-header-inner">
+    <a class="site-title" href="/dictionary/"><span lang="ja">語感</span> <span class="site-title-word">Dictionary</span></a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="/dictionary/vocab/" aria-current="page">Words</a>
+      <a href="/dictionary/kanji/">Kanji</a>
+      <a href="/dictionary/grammar/">Grammar</a>
+    </nav>
+    <form class="search" role="search" action="/dictionary/search/">
+      <label class="visually-hidden" for="search-input">Search the dictionary</label>
+      <input id="search-input" class="search-input" type="search" name="q" placeholder="Search words, kanji and grammar" autocomplete="off" />
+    </form>
+  </div>
+</header>
+
+<main id="content" tabindex="-1" class="playable">
+  <div class="container container--wide">
+    <nav class="breadcrumb" aria-label="Breadcrumb"><a href="/dictionary/">Dictionary</a><span class="breadcrumb-sep" aria-hidden="true">/</span><a href="/dictionary/vocab/">Words</a><span class="breadcrumb-sep" aria-hidden="true">/</span><span aria-current="page" lang="ja">橋</span></nav>
+
+    <header class="entry-head">
+      <!-- New rule in vocab.scss (inline here): the word, its reading and its romaji share one baseline, 24px apart, wrapping as a whole on a word too long for the line. The romaji: Inter, the reading's size, secondary ink, lang="ja-Latn"; no separator. -->
+      <div style="display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 1.5rem; row-gap: 0.25rem">
+        <h1 class="entry-word" lang="ja">橋</h1>
+        <p class="entry-sub" lang="ja" style="margin: 0"><span class="pa pa-b"><span class="pr" style="--w:3"><svg aria-hidden="true" viewBox="0 0 3 .56"><path d="M.5 .44l1 -.32 .886 .283" /><path class="pd" d="M.5 .44h0m1 -.32h0" /><circle cx="2.5" cy=".44" r=".12" /></svg><span lang="ja" data-pitch-reading>はし</span><span class="visually-hidden">Pitch accent: drop after mora 2</span></span><button class="play" aria-label="Play 橋" lang="en"></button></span></p>
+        <p class="entry-sub" lang="ja-Latn" style="margin: 0; font-family: var(--font-sans)">hashi</p>
+      </div>
+      <p class="entry-gloss">bridge</p>
+      <p class="chips"><a class="chip" href="/dictionary/vocab/jlpt/n5/">JLPT N5</a></p>
+      <dl class="entry-facts">
+        <div>
+          <dt>How common</dt>
+          <dd><span class="frequency-meter" aria-hidden="true"><span class="on"></span><span class="on"></span><span class="on"></span><span></span></span>Common · <span class="meta">Top 5,000 words</span></dd>
+        </div>
+        <div><dt>Textbooks</dt><dd>Genki L15</dd></div>
+      </dl>
+      <!-- Only on a word whose romaji another qualifying word shares: the other words, and the page that sets them side by side. -->
+      <p class="meta">Also read <a href="/dictionary/romaji/hashi/">hashi</a>: <a href="/dictionary/vocab/箸/" lang="ja">箸</a> chopsticks, <a href="/dictionary/vocab/端/" lang="ja">端</a> edge</p>
+    </header>
+
+    <div class="entry-layout">
+      <div class="entry-main">
+        <section class="section">
+          <h2>Meanings</h2>
+          <ol class="sense-list" start="1">
+            <li><p class="sense-pos">Noun</p>bridge</li>
+          </ol>
+        </section>
+      </div>
+    </div>
+  </div>
+</main>
+</body>
+</html>
