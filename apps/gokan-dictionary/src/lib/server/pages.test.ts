@@ -396,8 +396,8 @@ describe('pagesOf: a locale other than English', () => {
 });
 
 describe('pagesOf: romaji (#278)', () => {
-    const bridge = vocabulary({ id: '1', writtenForm: { kanji: '橋', alternatives: [], containedKanji: ['橋'] }, reading: { primary: 'はし', alternatives: [] }, jlptLevel: 5, pitchAccent: [{ reading: 'はし', downsteps: [2] }], senses: [{ pos: ['n'], misc: { rawTags: [] }, glosses: ['bridge'], related: { compounds: [] } }] });
-    const chopsticks = vocabulary({ id: '2', writtenForm: { kanji: '箸', alternatives: [], containedKanji: ['箸'] }, reading: { primary: 'はし', alternatives: [] }, pitchAccent: [{ reading: 'はし', downsteps: [1] }], senses: [{ pos: ['n'], misc: { rawTags: [] }, glosses: ['chopsticks'], related: { compounds: [] } }] });
+    const bridge = vocabulary({ id: '1', writtenForm: { kanji: '橋', alternatives: [], containedKanji: ['橋'] }, reading: { primary: 'はし', alternatives: [] }, jlptLevel: 5, pitchAccent: [{ reading: 'はし', downsteps: [2], source: 'wiktionary' }], senses: [{ pos: ['n'], misc: { rawTags: [] }, glosses: ['bridge'], related: { compounds: [] } }] });
+    const chopsticks = vocabulary({ id: '2', writtenForm: { kanji: '箸', alternatives: [], containedKanji: ['箸'] }, reading: { primary: 'はし', alternatives: [] }, pitchAccent: [{ reading: 'はし', downsteps: [1], source: 'wiktionary' }], senses: [{ pos: ['n'], misc: { rawTags: [] }, glosses: ['chopsticks'], related: { compounds: [] } }] });
     const study = vocabulary({ id: '3', writtenForm: { kanji: '勉強', alternatives: [], containedKanji: ['勉', '強'] }, reading: { primary: 'べんきょう', alternatives: [] } });
     const romajiWorld: World = { words: [bridge, chopsticks, study] };
 
