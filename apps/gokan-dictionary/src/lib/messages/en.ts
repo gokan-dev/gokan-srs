@@ -14,6 +14,12 @@ import type { CountedNoun, LinkedText, Messages } from './index';
 
 const jlptLevel = (level: number) => `N${level}`;
 const jlptLabel = (level: number) => `JLPT ${jlptLevel(level)}`;
+/**
+ * Pitch accent words with "mora" held to its number by a no-break space, for the romaji page's
+ * narrow note, where "drop after mora" ended one line and "1" began the next. Not in the shared
+ * pitchAccentLabel: it is also both apps' screen-reader label.
+ */
+const nonBreakingMora = (words: string) => words.replace(/mora (\d)/g, 'mora\u00a0$1');
 
 // Titles lead with the words a learner types ("思う meaning", "を問わず meaning", "て-form
 // conjugation") and put the English meaning on the result line itself: Search Console showed
@@ -257,7 +263,7 @@ export const en: Messages = {
             ` (${romaji}). Written, their spelling tells them apart`,
             SPOKEN_APART[spoken],
         ),
-        note: ({ jlpt, top, downsteps }) => [...(jlpt ? [jlptLevel(jlpt)] : []), frequencyReference(top), ...(downsteps ? [pitchAccentLabel(downsteps)] : [])].join(' · '),
+        note: ({ jlpt, top, downsteps }) => [...(jlpt ? [jlptLevel(jlpt)] : []), frequencyReference(top), ...(downsteps ? [nonBreakingMora(pitchAccentLabel(downsteps))] : [])].join(' · '),
         outro: "Each word's page has its meanings, example sentences and kanji.",
     },
     sources: { zhwiktionary: 'Chinese Wiktionary', jawiktionary: 'Japanese Wiktionary', wikidata: 'Wikidata', wikipedia: 'Wikipedia', 'tatoeba-cmn': 'Tatoeba', gokan: 'Gokan' },

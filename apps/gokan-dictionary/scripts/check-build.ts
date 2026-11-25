@@ -258,7 +258,7 @@ function descriptionOf(html: string): string {
 /** The words a word page's "Also read" line names (#278): each one's id, from its link, and the term after it. */
 function alsoReadNamed(html: string): { id: string; term: string }[] {
     const line = (/<p class="meta entry-romaji-shared">(.*?)<\/p>/s.exec(html)?.[1] ?? '').replace(/<!--.*?-->/gs, '');
-    return [...line.matchAll(/<a href="[^"]*\/vocab\/(\d+)\/" lang="ja">[^<]*<\/a>([^<]*)/g)].map(([, id = '', after = '']) => ({
+    return [...line.matchAll(/<a [^>]*href="[^"]*\/vocab\/(\d+)\/"[^>]*>[^<]*<\/a>([^<]*)/g)].map(([, id = '', after = '']) => ({
         id,
         term: decodeEntities(after.replace(/, and [\d,]+ more$/, '').replace(/, $/, '').trim()),
     }));
@@ -290,6 +290,7 @@ function romajiProblems(): string[] {
         const missing: string[] = [];
         const misplaced: string[] = [];
         const alike: string[] = [];
+        const unnamed: string[] = [];
         for (const id of wordPages()) {
             const reading = readings.get(id);
             if (reading === undefined) continue;
@@ -304,6 +305,8 @@ function romajiProblems(): string[] {
             // first gloss nor by another's term (取る to take, 撮る to take), unless their whole glosses
             // are one, when nothing in English parts them (差す and 射す, both "to shine").
             const named = alsoReadNamed(html);
+            // A line the parse finds no word in would pass the check below unchecked (a link's markup changed).
+            if (named.length === 0 && html.includes('entry-romaji-shared')) unnamed.push(`vocab/${id}/`);
             const own = { id, term: firstGloss(glosses.get(id)) };
             for (const word of named) {
                 const twin = [own, ...named].find(other => other !== word && other.term === word.term && word.term !== '');
@@ -316,6 +319,8 @@ function romajiProblems(): string[] {
         if (misplaced.length > 5) problems.push(`and ${misplaced.length - 5} more word pages with their romaji after their other readings`);
         problems.push(...alike.slice(0, 5).map(found => `an "Also read" line naming two words alike: ${found}`));
         if (alike.length > 5) problems.push(`and ${alike.length - 5} more "Also read" lines naming two words alike`);
+        problems.push(...unnamed.slice(0, 5).map(found => `an "Also read" line naming no word: ${found}`));
+        if (unnamed.length > 5) problems.push(`and ${unnamed.length - 5} more "Also read" lines naming no word`);
     }
     return problems;
 }

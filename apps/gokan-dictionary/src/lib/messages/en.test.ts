@@ -387,3 +387,11 @@ describe('romajiPage intro (#278)', () => {
         expect(intro).not.toContain('their readings do');
     });
 });
+
+describe('romajiPage note (#278)', () => {
+    it('holds "mora" to its number with a no-break space, so a narrow note never splits them', () => {
+        const note = en.romajiPage.note({ jlpt: 3, top: null, downsteps: [1, 0] });
+        expect(note).toBe('N3 · Not in the frequency list · Pitch accent: drop after mora\u00a01, or heiban');
+        expect(en.vocab.pitchAccent([1])).toBe('Pitch accent: drop after mora 1');
+    });
+});

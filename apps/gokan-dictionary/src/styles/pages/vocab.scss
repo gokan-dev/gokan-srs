@@ -95,9 +95,15 @@
 }
 
 // A romaji page's rows (RomajiPage.svelte): the note is in the gloss's cell, so the headword and
-// its reading (with its pitch accent) are centred on the two lines; on a phone they stack as every list.
+// its reading (with its pitch accent) are centred on the two lines; on a phone they stack as every
+// list, the headword and its reading on one baseline: centred, a reading under a pitch contour
+// would sit below its headword, one without in line with it.
 .entry-list--note-in-gloss a {
   align-items: center;
+
+  @include narrow {
+    align-items: last baseline;
+  }
 
   // Its own size: inside the gloss's cell, a bare small would be smaller than the gloss, under 12px.
   > [lang] > small {
@@ -105,6 +111,11 @@
     color: var(--tertiary);
     font-size: $text-sm;
   }
+}
+
+// The romaji page's closing line, a section's gap under the list: flush, it read as the last row's note.
+.entry-list--note-in-gloss + .meta {
+  margin-top: $space-2;
 }
 
 // A word learned in kana: its reading with its pitch accent on a line of its own, under the note
