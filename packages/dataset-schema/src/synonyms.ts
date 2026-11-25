@@ -54,6 +54,8 @@ export interface SynonymEntry {
     rank: number | null;
     tier: SynonymRelation;
     curated: boolean;
+    /** How the two words differ, one line written by hand in the dataset; absent for most pairs. */
+    nuance?: string;
 }
 
 /** A word as its synonyms are read from it: only through synonymEntriesOf. */
@@ -68,6 +70,7 @@ export function synonymEntriesOf(vocab: WithSynonyms): SynonymEntry[] {
         rank: entry.f ?? null,
         tier: entry.relation,
         curated: entry.curated === true,
+        ...(entry.nuance ? { nuance: entry.nuance } : {}),
     }));
 }
 

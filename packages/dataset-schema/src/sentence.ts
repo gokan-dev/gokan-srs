@@ -5,6 +5,8 @@ export interface SentenceMatch {
     start: number;
     length: number;
     reading?: string;
+    /** Which of the word's common patterns this occurrence is: an index into its `Vocabulary.patterns`. */
+    pattern?: number;
 }
 
 /** One example sentence, from `compiled/sentences/{vocabId}.json` (an array of these). */

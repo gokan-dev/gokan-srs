@@ -293,12 +293,17 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
     `#related`, `#study`), replaced as a tab is chosen; the page opens on the hash's tab, else the
     tab last chosen this browser session, else Dict (`initialWordTab`).
   - Dict: Meanings (3 common senses, then "Show all N meanings" in place, rare ones under a
-    "Rare and archaic" label), Examples (2 sentences, `pickWordExamples`; "All N sentences →"
-    opens Sentences), Closest synonyms (up to 5 `WordTile`s from the first sense's section,
-    "For meaning 1: ..." under them, "Compare all N →" opens Synonyms), then at its foot, under a
-    `divider` line, "Combines N dictionary entries" for a merged entry.
+    "Rare and archaic" label), Common patterns (the word's frequent forms, 不思議に思う, 年を取る,
+    up to 5 in a wrapping row, each an action in accent mincho with its sentence count in
+    `type-meta`: it opens Sentences filtered on it), Examples (2 sentences, `pickWordExamples`;
+    "All N sentences →" opens Sentences), Closest synonyms (up to 5 `WordTile`s from the first
+    sense's section, "For meaning 1: ..." under them, "Compare all N →" opens Synonyms; when any
+    of them has a nuance line, a list instead: each tile, then its line in `type-support`), then
+    at its foot, under a `divider` line, "Combines N dictionary entries" for a merged entry.
   - Sentences, Synonyms, Related: one search field each (44px, `text-base`, a hidden label) and a
-    count line above the results (`aria-live`); nothing else, no selects, no filter pills. An
+    count line above the results (`aria-live`); nothing else, no selects, no filter pills. A
+    pattern chosen in Dict filters Sentences: one line above the field, "Pattern: 不思議に思う",
+    and Clear at its right; the search looks inside the pattern's sentences. An
     English query matches from the start of a word, a Japanese one anywhere, kana folded;
     matches are marked (`Marked`: `<mark>`, an accent tint, the text's own colour) in the English
     line. Sentences: 5 at a time and "Shortest first"; Synonyms: groups by meaning, each headed
@@ -471,7 +476,8 @@ Defined once, in `components/` or `components/ui/`, never copied:
 - **Synonyms panel** (`pages/vocab/explore/SynonymsPanel.tsx`) and **Closest synonyms**: the
   panel lists every synonym in groups by the meaning it shares (the sense's number in Meanings
   and its first two glosses), each row the other word, what they share as its description
-  (wrapped, never cut off: it is the row's content, unlike Related words' one-line gloss), and
+  (wrapped, never cut off: it is the row's content, unlike Related words' one-line gloss), under
+  it the pair's nuance line when the dataset has one (how the two differ, written by hand), and
   how close they are as a neutral `TagChip` told apart by its sign and word (= Interchangeable,
   ≈ Close in this sense, ≠ Not interchangeable), never by a colour. A word mixed up with this
   one says so in the row's trailing slot ("Mixed up 2 times"). One line above says what the quiz

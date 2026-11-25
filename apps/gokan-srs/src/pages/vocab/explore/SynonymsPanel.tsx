@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { headwordOf, secondaryForm } from "@gokan/dataset-schema";
 import type { Closeness, Vocabulary } from "@gokan/dataset-schema";
+import { MixedText } from "../../../components/MixedText";
 import { RelatedEntryList, type RelatedSection } from "../../../components/RelatedEntriesCard";
 import { SecondaryForm } from "../../../components/SecondaryForm";
 import { TagChip } from "../../../components/TagChip";
@@ -28,7 +29,28 @@ function ClosenessChip({ closeness }: { closeness: Closeness }) {
 }
 
 function matchesSynonym(query: ExploreQuery, synonym: ListedSynonym): boolean {
-    return matchesExploreQuery(query, { english: synonym.shared, japanese: [headwordOf(synonym.forms), secondaryForm(synonym.forms), synonym.forms.reading.primary] });
+    return matchesExploreQuery(query, {
+        english: [...synonym.shared, ...(synonym.nuance ? [synonym.nuance] : [])],
+        japanese: [headwordOf(synonym.forms), secondaryForm(synonym.forms), synonym.forms.reading.primary],
+    });
+}
+
+/**
+ * A row's description: what the two words share, then how they differ when the dataset says (its
+ * nuance line), its Japanese in a Japanese face unless a search marks it.
+ */
+function SynonymDescription({ shared, nuance, query }: { shared: string; nuance: string | undefined; query: ExploreQuery | null }) {
+    const marks = nuance ? englishRanges(query, nuance) : [];
+    return (
+        <>
+            {shared && <Marked text={shared} ranges={englishRanges(query, shared)} />}
+            {nuance && (
+                <span className={`block ${shared ? 'mt-1' : ''}`}>
+                    {marks.length > 0 ? <Marked text={nuance} ranges={marks} /> : <MixedText text={nuance} />}
+                </span>
+            )}
+        </>
+    );
 }
 
 /**
@@ -84,7 +106,7 @@ export function SynonymsPanel({ vocab, sections, mixedUp, groupsAtOnce = GROUPS_
                         </>
                     ),
                     ...(times ? { trailing: <span className="type-meta tabular-nums">{mixedUpLabel(times)}</span> } : {}),
-                    ...(shared ? { description: <Marked text={shared} ranges={englishRanges(query, shared)} /> } : {}),
+                    ...(shared || synonym.nuance ? { description: <SynonymDescription shared={shared} nuance={synonym.nuance} query={query} /> } : {}),
                 };
             }),
         };
