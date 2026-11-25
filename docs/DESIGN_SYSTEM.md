@@ -790,14 +790,16 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   勉強 benkyou, こんな konna), set in the UI sans face (Inter), `lang="ja-Latn"`, in the ink of the
   kana it spells (secondary), never accent: a fact about the word, not an action. In a word page's
   header it shares one baseline with the headword and the reading (its pitch accent and play button
-  included), 24px apart, with no separator; the line wraps as a whole (`.entry-line`). In the Forms
-  table it is each form's third line, under its kana, in the kana's `small` style. A word whose
+  included), 24px apart, with no separator, and before the other readings ("· also ..."), which come
+  last so the romaji reads as the primary reading's; the line wraps as a whole (`.entry-line`). In
+  the Forms table it is each form's third line, under its kana, in the kana's `small` style,
+  wrapping only between morae (`<wbr>` from `romajiParts`). A word whose
   romaji is shared gets one tertiary line closing its header, "Also read hashi: 箸 chopsticks, 端
   edge" (the romaji linking its romaji page, each word its own; three named, the rest counted). A
   **romaji page** (`pages/RomajiPage.svelte`) is a title ("hashi in Japanese"), one intro sentence,
   and word list rows most frequent first, the reading cell drawing the pitch accent and the note
   (level, frequency band, the pitch in words) inside the gloss's cell, the headword and reading
-  centred on the two (`centred`, `.entry-list--centred`); it links the word page's stylesheet,
+  centred on the two (`noteInGloss`, `.entry-list--note-in-gloss`); it links the word page's stylesheet,
   which draws the pitch accent.
 - **Furigana toggle**: "Hide furigana" / "Show furigana", in the section header of every
   page with sentences. It sets `furigana-hidden` on `<html>` and remembers the choice in

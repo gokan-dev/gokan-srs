@@ -77,6 +77,14 @@ describe('VocabPage', () => {
         expect(row).toBe('<span lang="en">think</span><small lang="en">≈ Close in this sense</small>');
     });
 
+    it("puts the romaji right after the primary reading, before the other readings (#278): 日本 にほん nihon · also にっぽん", () => {
+        const page: VocabPageProps = { ...props(0), vocab: vocabulary({ writtenForm: { kanji: '日本', alternatives: [], containedKanji: ['日', '本'] }, reading: { primary: 'にほん', alternatives: ['にっぽん'] } }), romaji: { reading: 'nihon', shared: null } };
+        const line = /<div class="entry-line">(.*?)<\/div>/s.exec(html('en', page))?.[1] ?? '';
+        expect(line.indexOf('にほん')).toBeGreaterThan(-1);
+        expect(line.indexOf('にほん')).toBeLessThan(line.indexOf('nihon'));
+        expect(line.indexOf('nihon')).toBeLessThan(line.indexOf('にっぽん'));
+    });
+
     describe('play buttons', () => {
         const voice = { extension: 'opus', credit: 'VOICEVOX:冥鳴ひまり', termsUrl: 'https://voice.test/terms' };
         /** 思う with a clip, and two sentences: the first with one, the second without. */

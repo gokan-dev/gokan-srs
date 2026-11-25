@@ -193,9 +193,11 @@
       {#if !vocab.usuallyKana}
         <!-- With its pitch accent, the button goes inside, after the first pattern: a second one wraps after it, never pushing it down. Without a clip, no button and no room left for one (pa-b). -->
         {#snippet play()}<PlayButton audio={vocab.audio} {voice} label={messages.chrome.play(headword)} inJapanese />{/snippet}
-        <p class="entry-sub" lang="ja">{#if pitch && vocab.audio && voice}<PitchAccent accent={pitch} label={words.pitchAccent(pitch.downsteps)}>{@render play()}</PitchAccent>{:else if pitch}<PitchAccent accent={pitch} label={words.pitchAccent(pitch.downsteps)} />{:else}{vocab.reading.primary}{@render play()}{/if}{#if vocab.reading.alternatives.length > 0}<span class="meta" {lang}> · {words.alsoRead} <span lang="ja">{vocab.reading.alternatives.join('、')}</span></span>{/if}</p>
+        <p class="entry-sub" lang="ja">{#if pitch && vocab.audio && voice}<PitchAccent accent={pitch} label={words.pitchAccent(pitch.downsteps)}>{@render play()}</PitchAccent>{:else if pitch}<PitchAccent accent={pitch} label={words.pitchAccent(pitch.downsteps)} />{:else}{vocab.reading.primary}{@render play()}{/if}</p>
       {/if}
       {#if romaji}<p class="entry-sub entry-romaji" lang="ja-Latn">{romaji.reading}</p>{/if}
+      <!-- The other readings after the romaji, which is the primary reading's: before it, つま's (端 はし · also …, つま hashi). -->
+      {#if !vocab.usuallyKana && vocab.reading.alternatives.length > 0}<p class="entry-sub entry-also"><span class="meta" {lang}>· {words.alsoRead} <span lang="ja">{vocab.reading.alternatives.join('、')}</span></span></p>{/if}
     </div>
 
     {#if vocab.usuallyKana}
