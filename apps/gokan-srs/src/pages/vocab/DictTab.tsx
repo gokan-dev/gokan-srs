@@ -196,7 +196,7 @@ function ClosestSynonyms({ vocab, sections, onCompare }: { vocab: Vocabulary; se
                     {closest.words.map(word => (
                         <li key={word.vocabId} className="flex flex-col items-start gap-1 min-w-0">
                             {tile(word)}
-                            {word.nuance && <p className="type-support"><MixedText text={word.nuance} /></p>}
+                            {word.nuance && <p className="type-support"><MixedText text={word.nuance} unbroken /></p>}
                         </li>
                     ))}
                 </ul>

@@ -46,7 +46,7 @@ function SynonymDescription({ shared, nuance, query }: { shared: string; nuance:
             {shared && <Marked text={shared} ranges={englishRanges(query, shared)} />}
             {nuance && (
                 <span className={`block ${shared ? 'mt-1' : ''}`}>
-                    {marks.length > 0 ? <Marked text={nuance} ranges={marks} /> : <MixedText text={nuance} />}
+                    {marks.length > 0 ? <Marked text={nuance} ranges={marks} /> : <MixedText text={nuance} unbroken />}
                 </span>
             )}
         </>
