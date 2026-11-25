@@ -17,7 +17,7 @@ import type { ChangelogEntry } from '../src/models/release.model';
  */
 export const CHANGELOG: readonly ChangelogEntry[] = [
     {
-        version: '1.70.0',
+        version: '1.73.0',
         date: '2026-11-25',
         summary: 'A word\'s page now shows its common patterns (不思議に思う, 年を取る), each opening the sentences that use it, and for the most common words, a line saying how each close synonym differs from it.',
         issue: 177,
