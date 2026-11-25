@@ -43,6 +43,8 @@ export interface VocabSummary {
     reading?: string;
     /** The first sense's glosses, cut short (shortGloss). */
     gloss?: string;
+    /** The word's JLPT level, when it has one: whether it qualifies for a romaji page (lib/romaji.ts). */
+    jlpt?: number;
     /**
      * On a page in another language, the word's gloss in it, cut short (LocaleText.wordSummary): its rows show
      * it in place of English's. Never in the summaries index; added by the page that lists the word.
