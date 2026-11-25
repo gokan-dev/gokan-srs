@@ -58,7 +58,7 @@ describe('SentencesPanel', () => {
             sentence({ id: 'none', original: '不思議だ。', matches: { 'v-1': [{ start: 0, length: 3 }] } }),
         ];
         const onClear = vi.fn();
-        act(() => root.render(<MemoryRouter><SentencesPanel vocabId="v-1" sentences={withPatterns} pattern={{ index: 1, text: '不思議に思う' }} onClearPattern={onClear} /></MemoryRouter>));
+        act(() => root.render(<MemoryRouter><SentencesPanel vocabId="v-1" sentences={withPatterns} patternIndex={1} patternText="不思議に思う" onClearPattern={onClear} /></MemoryRouter>));
         expect(container.textContent).toContain('Pattern: 不思議に思う');
         expect(shownOrder()).toHaveLength(1);
         expect(shownOrder()[0]).toContain('不思議に思う。');

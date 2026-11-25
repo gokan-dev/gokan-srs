@@ -222,8 +222,7 @@ function TabPanel({ tab, vocab, sentences, wordSynonyms, mixups, studied, now, k
                     onShowPattern={onPatternFilter}
                 />
             );
-        case 'sentence': {
-            const text = patternText(vocab, patternFilter);
+        case 'sentence':
             return (
                 <SentencesPanel
                     // A new filter starts a fresh search and sort: on the full page the panel stays
@@ -231,11 +230,11 @@ function TabPanel({ tab, vocab, sentences, wordSynonyms, mixups, studied, now, k
                     key={patternFilter ?? 'all'}
                     vocabId={vocab.id}
                     sentences={sentences}
-                    pattern={patternFilter !== null && text !== null ? { index: patternFilter, text } : null}
+                    patternIndex={patternFilter}
+                    patternText={patternText(vocab, patternFilter)}
                     onClearPattern={() => onPatternFilter(null)}
                 />
             );
-        }
         case 'synonym': return <SynonymsPanel vocab={vocab} sections={wordSynonyms.sections} mixedUp={wordSynonyms.mixedUp} {...(preview ? { groupsAtOnce: FULL_SYNONYM_GROUPS } : {})} />;
         case 'kanji': return <KanjiTab glyphs={vocab.writtenForm.containedKanji} knownKanji={knownKanji} />;
         case 'related': return <RelatedPanel vocab={vocab} {...(preview ? { pageSize: FULL_RELATED_ROWS } : {})} />;
