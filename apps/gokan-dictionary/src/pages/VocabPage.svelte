@@ -330,7 +330,6 @@
           {#if synonyms.left > 0}<p class="meta">{words.synonymsNotListed(synonyms.left)}</p>{/if}
         </section>
       {/if}
-
     </div>
 
     {#if hasKanji || hasMadeOfOrUsedIn}
