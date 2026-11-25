@@ -99,9 +99,11 @@
 .entry-list--centred a {
   align-items: center;
 
+  // Its own size: inside the gloss's cell, a bare small would be smaller than the gloss, under 12px.
   > [lang] > small {
     display: block;
     color: var(--tertiary);
+    font-size: $text-sm;
   }
 }
 
@@ -275,6 +277,12 @@ $pitch-button-room: $target + $space-half;
     display: block;
     color: var(--secondary);
     font-size: $text-sm;
+  }
+
+  // A form's romaji (#278) is longer than its kana (取りませんでした, torimasendeshita): it
+  // wraps inside its cell rather than widening the table past a 320px phone.
+  small[lang="ja-Latn"] {
+    overflow-wrap: anywhere;
   }
 
   &--list th {
