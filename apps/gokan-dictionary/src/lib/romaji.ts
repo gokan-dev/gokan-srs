@@ -8,7 +8,7 @@
 // Built from what both sources have (the word summaries and the frequency index), so a word page
 // rendered on request finds its group as the build does.
 
-import { kanaToHepburn } from '@gokan/dataset-schema';
+import { kanaToHepburn, moraeOf } from '@gokan/dataset-schema';
 import type { FrequencyIndex } from '@gokan/dataset-schema';
 import type { VocabSummary } from './types';
 
@@ -28,6 +28,24 @@ export function romajiOf(reading: string): string {
 }
 
 /**
+ * A reading's Hepburn cut where a line may break (#278): between the romaji of its morae, so a long
+ * form wraps as とりませんでした does, torimase|n|de|shi|ta, never inside a syllable. No cut after
+ * a っ (toranaka|tta, not toranakat|ta) nor before an apostrophe (ki|n'e|n, not kin|'en): those
+ * morae spell nothing of their own. Joined, the parts are romajiOf(reading).
+ */
+export function romajiParts(reading: string): string[] {
+    const romaji = romajiOf(reading);
+    const morae = moraeOf(reading);
+    const cuts = [0];
+    for (let end = 1; end < morae.length; end += 1) {
+        const spelled = romajiOf(morae.slice(0, end).join(''));
+        const at = spelled.length;
+        if (romaji.startsWith(spelled) && at > cuts[cuts.length - 1] && romaji[at] !== "'") cuts.push(at);
+    }
+    return cuts.map((at, i) => romaji.slice(at, cuts[i + 1]));
+}
+
+/**
  * What a learner types for a reading, which names its romaji page: its Hepburn without the
  * apostrophe ("kinen" is both 禁煙 kin'en and 記念 kinen). Null for a reading that is not plain
  * letters once spelled (a symbol the romaji table does not write): it gets no page.
@@ -43,12 +61,14 @@ export function firstGloss(gloss: string | undefined): string {
 }
 
 /**
- * Whether the words of a romaji page sound alike: their pitch accents differ, are all the same,
- * or are not known for every word (then the page says nothing of them).
+ * What tells the words of a romaji page apart when spoken: their kana, when they are not all read
+ * the same (禁煙 きんえん and 記念 きねん share "kinen"); else their pitch accents, which differ, are
+ * all the same, or are not known for every word (then the page says nothing of them).
  */
-export type RomajiPitch = 'differs' | 'same' | 'unknown';
+export type RomajiSpoken = 'readings' | 'differs' | 'same' | 'unknown';
 
-export function romajiPitch(accents: readonly ({ downsteps: readonly number[] } | undefined)[]): RomajiPitch {
+export function romajiSpoken(readings: readonly string[], accents: readonly ({ downsteps: readonly number[] } | undefined)[]): RomajiSpoken {
+    if (new Set(readings).size > 1) return 'readings';
     const patterns = accents.map(accent => accent?.downsteps.join(' '));
     if (patterns.some(pattern => pattern === undefined)) return 'unknown';
     return new Set(patterns).size > 1 ? 'differs' : 'same';

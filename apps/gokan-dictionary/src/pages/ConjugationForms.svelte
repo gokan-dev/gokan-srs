@@ -1,6 +1,6 @@
 <script lang="ts">
   import { conjugate, type FormLabel, type ConjugationClass } from '@gokan/dataset-schema';
-  import { romajiOf } from '../lib/romaji';
+  import { romajiParts } from '../lib/romaji';
   import { pageLocale } from './pageLocale';
 
   const { forms } = pageLocale().messages.vocab;
@@ -9,7 +9,8 @@
    * A verb's or い-adjective's forms (lib/conjugation.ts): plain and polite, present and past,
    * affirmative and negative as one grid, then the other forms. Each form has its kana under
    * it when the word is written with kanji, and on an English page its romaji under that (#278):
-   * 勉強します, benkyoushimasu, is what a learner who does not read kana searches for.
+   * 勉強します, benkyoushimasu, is what a learner who does not read kana searches for. It may wrap
+   * at 320px, so only between morae (romajiParts): torimase<wbr>n<wbr>de..., never torimasende|shita.
    */
   interface Props {
     word: string;
@@ -36,7 +37,7 @@
 
 {#snippet form(label: FormLabel)}
   {@const spoken = kana.get(label)}
-  <span lang="ja">{written.get(label)}</span>{#if spoken && spoken !== written.get(label)}<small lang="ja">{spoken}</small>{/if}{#if romaji && spoken}<small lang="ja-Latn">{romajiOf(spoken)}</small>{/if}
+  <span lang="ja">{written.get(label)}</span>{#if spoken && spoken !== written.get(label)}<small lang="ja">{spoken}</small>{/if}{#if romaji && spoken}<small lang="ja-Latn">{#each romajiParts(spoken) as part, at (at)}{#if at > 0}<wbr>{/if}{part}{/each}</small>{/if}
 {/snippet}
 
 <table class="forms">

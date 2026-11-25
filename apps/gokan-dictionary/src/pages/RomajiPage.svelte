@@ -1,7 +1,7 @@
 <script lang="ts">
   import { frequencyBand, frequencyTop } from '@gokan/dataset-schema';
   import type { RomajiPageProps as Props } from '../lib/pageProps';
-  import { romajiPitch } from '../lib/romaji';
+  import { romajiSpoken } from '../lib/romaji';
   import type { VocabSummary } from '../lib/types';
   import { pageLocale } from './pageLocale';
   import LinkedText from './LinkedText.svelte';
@@ -34,11 +34,11 @@
 <PageLayout trail={[{ label: messages.chrome.sections.vocab, href: urls.vocabIndexPath() }, { label: romaji }]} section="vocab" wide>
   <div class="page-intro">
     <h1><LinkedText parts={page.heading(romaji)} /></h1>
-    <p><LinkedText parts={page.intro(words.length, readings, romaji, romajiPitch(words.map(word => word.pitch)))} /></p>
+    <p><LinkedText parts={page.intro(words.length, readings, romaji, romajiSpoken(readings, words.map(word => word.pitch)))} /></p>
   </div>
 
   <section class="section">
-    <VocabEntryList {entries} {reading} centred />
+    <VocabEntryList {entries} {reading} noteInGloss />
     <p class="meta">{page.outro}</p>
   </section>
 </PageLayout>

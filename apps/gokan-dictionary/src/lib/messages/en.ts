@@ -6,6 +6,7 @@ import { CLOSENESS_LABEL, FORM_LABELS, headwordOf, pitchAccentLabel, secondaryFo
 import type { GrammarChapter, GrammarPoint, Kanji, KanjiOrder, Vocabulary } from '@gokan/dataset-schema';
 import { orderNameLang } from '../kanjiOrders';
 import { firstGloss, romajiOf } from '../romaji';
+import type { RomajiSpoken } from '../romaji';
 import { quotedGlosses, searchablePattern, sentenceCase, truncate } from '../seo';
 import { SITE_NAME } from '../site';
 import type { VocabSummary } from '../types';
@@ -25,6 +26,17 @@ const TITLE_MEANING_LENGTH = 40;
  * there are several): about what a result shows, the site name past it allowed to be cut.
  */
 const ROMAJI_TITLE_LENGTH = 70;
+
+/**
+ * The end of a romaji page's intro: what tells its words apart when spoken. Words whose kana differ
+ * (きんえん, きねん: both "kinen") are told apart by them, never "only the context".
+ */
+const SPOKEN_APART: Record<RomajiSpoken, string> = {
+    readings: '; spoken, their readings do.',
+    differs: '; spoken, their pitch accent does.',
+    same: '; spoken, only the context does.',
+    unknown: '.',
+};
 
 /** `n` with `noun` in the singular for exactly one, else with an s; the number grouped as in English. */
 function count(n: number, noun: CountedNoun): string {
@@ -234,11 +246,11 @@ export const en: Messages = {
     },
     romajiPage: {
         heading: romaji => [{ text: romaji, lang: 'ja-Latn' }, ' in Japanese'],
-        intro: (n, readings, romaji, pitch) => sentence(
+        intro: (n, readings, romaji, spoken) => sentence(
             `${countAtStart(n, 'word')} are read `,
             readings.flatMap((reading, at): LinkedText => [at > 0 ? ' or ' : '', { text: reading, lang: 'ja' }]),
             ` (${romaji}). Written, their spelling tells them apart`,
-            pitch === 'differs' ? '; spoken, their pitch accent does.' : pitch === 'same' ? '; spoken, only the context does.' : '.',
+            SPOKEN_APART[spoken],
         ),
         note: ({ jlpt, top, downsteps }) => [...(jlpt ? [jlptLevel(jlpt)] : []), frequencyReference(top), ...(downsteps ? [pitchAccentLabel(downsteps)] : [])].join(' · '),
         outro: "Each word's page has its meanings, example sentences and kanji.",

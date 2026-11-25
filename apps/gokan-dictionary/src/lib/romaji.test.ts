@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { FrequencyIndex } from '@gokan/dataset-schema';
-import { firstGloss, ROMAJI_FREQUENCY_FLOOR, ROMAJI_PAGE_CAP, romajiGroups, romajiKey, romajiOf, romajiPitch } from './romaji';
+import { firstGloss, ROMAJI_FREQUENCY_FLOOR, ROMAJI_PAGE_CAP, romajiGroups, romajiKey, romajiOf, romajiParts, romajiSpoken } from './romaji';
 import type { VocabSummary } from './types';
 
 /** Summaries and a frequency index in the order given, most frequent first. */
@@ -87,10 +87,28 @@ describe('firstGloss', () => {
     });
 });
 
-describe('romajiPitch', () => {
+describe('romajiSpoken', () => {
     it('says whether the accents differ, are the same, or are not all known', () => {
-        expect(romajiPitch([{ downsteps: [2] }, { downsteps: [0] }])).toBe('differs');
-        expect(romajiPitch([{ downsteps: [1] }, { downsteps: [1] }])).toBe('same');
-        expect(romajiPitch([{ downsteps: [1] }, undefined])).toBe('unknown');
+        expect(romajiSpoken(['はし', 'はし'], [{ downsteps: [2] }, { downsteps: [0] }])).toBe('differs');
+        expect(romajiSpoken(['はし', 'はし'], [{ downsteps: [1] }, { downsteps: [1] }])).toBe('same');
+        expect(romajiSpoken(['はし', 'はし'], [{ downsteps: [1] }, undefined])).toBe('unknown');
+    });
+
+    it('credits the kana first when they differ: 禁煙 and 記念 share "kinen", and sound apart even at one downstep', () => {
+        expect(romajiSpoken(['きんえん', 'きねん'], [{ downsteps: [0] }, { downsteps: [0] }])).toBe('readings');
+        expect(romajiSpoken(['きんえん', 'きねん'], [{ downsteps: [0] }, undefined])).toBe('readings');
+    });
+});
+
+describe('romajiParts', () => {
+    it('cuts between morae, so a long form wraps at a syllable, and joins back to its romaji', () => {
+        expect(romajiParts('とりませんでした')).toEqual(['to', 'ri', 'ma', 'se', 'n', 'de', 'shi', 'ta']);
+        expect(romajiParts('べんきょう')).toEqual(['be', 'n', 'kyo', 'u']);
+        for (const reading of ['とりませんでした', 'とらなかった', 'きんえん', 'べんきょうします']) expect(romajiParts(reading).join('')).toBe(romajiOf(reading));
+    });
+
+    it('never cuts after a っ, which doubles what follows, nor before the apostrophe of an n', () => {
+        expect(romajiParts('とらなかった')).toEqual(['to', 'ra', 'na', 'ka', 'tta']);
+        expect(romajiParts('きんえん')).toEqual(['ki', "n'e", 'n']);
     });
 });

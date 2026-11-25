@@ -7,6 +7,7 @@
 import { headwordOf, secondaryForm } from '@gokan/dataset-schema';
 import type { GrammarChapter, GrammarPoint, Kanji, KanjiOrder, Vocabulary } from '@gokan/dataset-schema';
 import { orderNameLang } from '../kanjiOrders';
+import type { RomajiSpoken } from '../romaji';
 import { searchablePattern, truncate } from '../seo';
 import { wordTextSummary } from '../senses';
 import type { VocabSummary, WordText } from '../types';
@@ -17,6 +18,14 @@ const SITE_NAME = 'Gokan 日语词典';
 
 /** Titles keep the meaning short: everything past ~30 Chinese characters may be cut. */
 const TITLE_MEANING_LENGTH = 24;
+
+/** The end of a romaji page's intro, as English's SPOKEN_APART: what tells its words apart when spoken. */
+const SPOKEN_APART: Record<RomajiSpoken, string> = {
+    readings: '；说话时读音不同。',
+    differs: '；说话时靠音调。',
+    same: '；说话时只能靠上下文。',
+    unknown: '。',
+};
 
 const jlptLevel = (level: number) => `N${level}`;
 const jlptLabel = (level: number) => `JLPT ${jlptLevel(level)}`;
@@ -242,11 +251,11 @@ export const zhHans: Messages = {
     },
     romajiPage: {
         heading: romaji => [{ text: romaji, lang: 'ja-Latn' }, ' 的日语词'],
-        intro: (n, readings, romaji, pitch) => [
+        intro: (n, readings, romaji, spoken) => [
             `${n} 个词读作 `,
             ...readings.flatMap((reading, at): LinkedText => [at > 0 ? '或' : '', { text: reading, lang: 'ja' }]).filter(part => part !== ''),
             `（${romaji}）。书写时靠拼写区分`,
-            pitch === 'differs' ? '；说话时靠音调。' : pitch === 'same' ? '；说话时只能靠上下文。' : '。',
+            SPOKEN_APART[spoken],
         ],
         note: ({ jlpt, top, downsteps }) => [...(jlpt ? [jlptLevel(jlpt)] : []), frequencyReference(top), ...(downsteps ? [pitchAccentWords(downsteps)] : [])].join(' · '),
         outro: '每个词的页面有它的释义、例句和汉字。',
