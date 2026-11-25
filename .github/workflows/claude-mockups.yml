@@ -152,14 +152,15 @@ jobs:
                 around the new part).
             Render and look at your work: `bun scripts/mockups.ts render ${{ env.DIR }}` writes
             `${{ env.DIR }}/shots/<name>-<narrow|phone|desktop>-<light|dark>.png` (320px, 375px and
-            1280px; the comment shows the last two). Read the screenshots,
+            1280px; the comment shows the last two). Run it exactly so, alone (no `cd`, pipe or `&&`:
+            only that command is allowed), after every change. Read the screenshots,
             and fix what is wrong (overflow at 320px or 375px, a colour that is not a token, text below 12px,
             a dark theme that loses contrast) before you finish.
 
             Write `.mockups/out/summary.md`: two to five lines on what the screens show and each design
             choice the issue left open, so the maintainer knows what they are approving. Write as
             AGENTS.md says: neutral and direct, no em dash. Never write the string `@claude`.
-          claude_args: "--model claude-opus-5-5 --max-turns 150 --allowedTools Read,Glob,Grep,Write,Edit,Bash(bun scripts/mockups.ts render:*),Bash(rm ${{ env.DIR }}/*.html)"
+          claude_args: "--model claude-opus-5-5 --max-turns 150 --allowedTools 'Read,Glob,Grep,Write,Edit,Bash(bun scripts/mockups.ts render:*),Bash(rm ${{ env.DIR }}/*.html)'"
 
       - name: Report token usage
         if: ${{ always() && steps.claude.outcome != 'skipped' }}

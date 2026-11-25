@@ -341,6 +341,12 @@ const TRIAGE_COMMAND = /\bbun\s+"?\$(?:\{PIPELINE\}|PIPELINE)\/triage\.ts"?\s+([
 const SCRIPT_CASE = /^\s*case\s+'([\w-]+)':/gm;
 /** Across a prompt's line wrap too. */
 const BRANCH_CI_WAIT = /\bbun\s+run\s+ci:wait\b/g;
+/**
+ * claude-code-action splits `claude_args` like a shell, so an unquoted `--allowedTools` list holding a
+ * scoped rule with a space (`Bash(bun scripts/mockups.ts render:*)`) is cut at the space: the rule never
+ * reaches the CLI, and the designer of #278 was refused its own render (7 and 10 denials a run).
+ */
+const UNQUOTED_ALLOWED_TOOLS = /--allowedTools\s+(?!["'])(\S*\([^)]*\s[^)]*\))/g;
 
 function pipelineCommandViolations(): Violation[] {
     const commands = new Set([...(existsSync(TRIAGE_SCRIPT) ? readFileSync(TRIAGE_SCRIPT, 'utf8') : '').matchAll(SCRIPT_CASE)].map(m => m[1]));
@@ -352,6 +358,8 @@ function pipelineCommandViolations(): Violation[] {
             if (commands.has(m[1])) continue;
             violations.push({ file, line: lineOf(m.index), rule: 'pipeline-command', message: `Runs \`triage.ts ${m[1]}\`, which is not a case of ${TRIAGE_SCRIPT}'s switch (${[...commands].join(', ')}): it throws "Unknown command" once both are on the default branch.` });
         }
+        for (const m of text.matchAll(UNQUOTED_ALLOWED_TOOLS))
+            violations.push({ file, line: lineOf(m.index), rule: 'pipeline-command', message: `\`--allowedTools\` holds a rule with a space (\`${m[1]}\`) without quotes: claude-code-action splits \`claude_args\` like a shell, so the rule is cut and the agent is refused the command. Quote the list: \`--allowedTools "Read,...,Bash(cmd args:*)"\`.` });
         for (const m of text.matchAll(BRANCH_CI_WAIT))
             violations.push({ file, line: lineOf(m.index), rule: 'pipeline-command', message: 'An agent waits for CI with the default branch\'s copy (`bun ${{ runner.temp }}/pipeline/scripts/ci-wait.ts`, from a worktree of it), never `bun run ci:wait`: a branch cut before scripts/ci-wait.ts has none.' });
     }
