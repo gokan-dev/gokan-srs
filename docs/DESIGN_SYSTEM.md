@@ -298,7 +298,9 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
     `type-meta`: it opens Sentences filtered on it), Examples (2 sentences, `pickWordExamples`;
     "All N sentences →" opens Sentences), Closest synonyms (up to 5 `WordTile`s from the first
     sense's section, "For meaning 1: ..." under them, "Compare all N →" opens Synonyms; when any
-    of them has a nuance line, a list instead: each tile, then its line in `type-support`), then
+    of them has a nuance line, a list instead: each tile, then its line in `type-support`, not the
+    Synonyms panel's `text-primary`, since no shared glosses sit beside it and the tile above it
+    already sets it apart), then
     at its foot, under a `divider` line, "Combines N dictionary entries" for a merged entry.
   - Sentences, Synonyms, Related: one search field each (44px, `text-base`, a hidden label) and a
     count line above the results (`aria-live`); nothing else, no selects, no filter pills. A
@@ -479,7 +481,8 @@ Defined once, in `components/` or `components/ui/`, never copied:
   (wrapped, never cut off: it is the row's content, unlike Related words' one-line gloss), under
   it the pair's nuance line when the dataset has one (how the two differ, written by hand), in
   `text-primary` on the description's `type-support` so it reads as the row's content and the
-  shared glosses above it as metadata, its Japanese runs in `font-gothic` on one line (`MixedText
+  shared glosses above it as metadata (the primary colour only sets it apart from those glosses;
+  Closest synonyms on Dict shows none, so its line stays `type-support` under its tile), its Japanese runs in `font-gothic` on one line (`MixedText
   unbroken`, through `Marked`'s `render` while a search marks it; the dataset caps a run at 12
   characters), searched in English and Japanese, and
   how close they are as a neutral `TagChip` told apart by its sign and word (= Interchangeable,
