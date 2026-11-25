@@ -642,6 +642,8 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   and order: **Dict** (Meanings, its first 3 and "Show all N meanings" in place, rare ones in their
   own disclosure; the app panel; Examples, 2 sentences; Forms, the dictionary's own, a verb's or an
   adjective's table right under Examples, so how the word conjugates sits beside how it is used;
+  below 40rem a grid row's Plain and Polite stack under its label, each named and the full width,
+  so a form stays on one line, and Japanese there breaks `line-break: strict`;
   Closest synonyms, up to 5 from the first
   meaning, never a ≠ pair, "For meaning 1 · ..." under them), **Sentences** (5, then "Show N more"),
   **Synonyms**, **Kanji**, **Related** (Made of, Used in, 5 rows each

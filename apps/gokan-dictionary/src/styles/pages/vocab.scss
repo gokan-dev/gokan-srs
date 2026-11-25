@@ -284,6 +284,11 @@ $pitch-button-room: $target + $space-half;
     font-size: $text-lg;
   }
 
+  // Where a form does wrap, never a line opening on a small kana (静かじ / ゃなか).
+  [lang="ja"] {
+    line-break: strict;
+  }
+
   small {
     display: block;
     color: var(--secondary);
@@ -299,6 +304,46 @@ $pitch-button-room: $target + $space-half;
 
   &--list th {
     width: 40%;
+  }
+
+  // On a phone a grid row is its label, then its Plain and Polite forms stacked under it, each
+  // the full width and named by its cell's data-label: two form columns beside the label left
+  // about 100px a form, and 静かではありませんでした or torimasendeshita broke mid-word.
+  @include narrow {
+    &:not(.forms--list) {
+      thead {
+        display: none;
+      }
+
+      tbody,
+      tr,
+      th,
+      td {
+        display: block;
+      }
+
+      tr {
+        padding: $space-1 0;
+        border-bottom: 1px solid var(--divider);
+      }
+
+      th,
+      td {
+        padding: 0;
+        border-bottom: 0;
+      }
+
+      td {
+        margin-top: $space-1;
+      }
+
+      td::before {
+        content: attr(data-label);
+        display: block;
+        color: var(--tertiary);
+        font-size: $text-sm;
+      }
+    }
   }
 }
 

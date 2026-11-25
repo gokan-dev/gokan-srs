@@ -2207,6 +2207,45 @@ async function checkDictionaryWordTabs(tab: Tab, base: string, width: number): P
 }
 
 /**
+ * A word's Forms on a phone (issue 278): every form stays whole on one line, never 静かじ / ゃなか /
+ * った. Below 40rem a grid row's Plain and Polite stack under its label, each with the full width;
+ * 静か's polite past negative (静かではありませんでした) is the longest form in any table. On 取る
+ * and the な-adjective 静か, the Japanese of every form cell drawn (`.forms td > span`) is one line box.
+ */
+const FORMS_WORDS = [TABBED_WORD, '1381820'];
+async function checkFormsOneLine(tab: Tab, base: string, width: number): Promise<void> {
+    for (const id of FORMS_WORDS) {
+        const page = `dictionary /vocab/${id}/`;
+        await tab.goto(`${base}/vocab/${id}/`, 'How common');
+        const forms = await tab.evaluate<{ count: number; broken: string[] }>(`(() => {
+            const spans = [...document.querySelectorAll('.forms td > span')].filter(span => span.getClientRects().length > 0);
+            const lines = span => new Set([...span.getClientRects()].map(rect => Math.round(rect.top))).size;
+            return { count: spans.length, broken: spans.filter(span => lines(span) > 1).map(span => span.textContent) };
+        })()`);
+        if (forms.count === 0) failures.push(`${width}px ${page}: no Forms table drawn in Dict`);
+        for (const form of forms.broken) failures.push(`${width}px ${page}: the form ${form} breaks over lines in the Forms table`);
+    }
+}
+
+/**
+ * A #forms link (a bookmark from when Forms was a tab) lands on the Forms section in Dict: the
+ * page-top lock is for a tab's hash only, so the browser scrolls to the section as to any anchor.
+ */
+async function checkFormsHashLanding(tab: Tab, base: string, width: number): Promise<void> {
+    const page = `dictionary /vocab/${TABBED_WORD}/#forms`;
+    await tab.goto(`${base}/vocab/${TABBED_WORD}/?landing=forms#forms`, 'How common');
+    await tab.until(`document.querySelector('[data-detail-panels][data-tabs-ready]') !== null && document.readyState === 'complete'`, `the tabs script on ${page}`);
+    // Past the lock's second after load, so a lock that still ran would have scrolled back to the top.
+    await new Promise(resolve => setTimeout(resolve, 1300));
+    const heading = await tab.evaluate<{ top: number; view: number } | null>(`(() => {
+        const heading = document.querySelector('#forms h2');
+        return heading && heading.getClientRects().length > 0 ? { top: heading.getBoundingClientRect().top, view: window.innerHeight } : null;
+    })()`);
+    if (heading === null) failures.push(`${width}px ${page}: no Forms heading shown`);
+    else if (heading.top < 0 || heading.top >= heading.view) failures.push(`${width}px ${page}: the Forms heading sits at ${Math.round(heading.top)}px, out of the ${heading.view}px viewport`);
+}
+
+/**
  * A reload keeps where the reader was: choosing a tab writes its hash, so a reload halfway down
  * #sentences is a hash in the URL as a landing is, and the landing's lock to the page top once
  * undid the browser's restored scroll. The lock is for a fresh navigation only.
@@ -3236,6 +3275,8 @@ try {
             await checkAppPanelHeadingGap(tab, `dictionary ${home.path}`, width);
         }
         await checkDictionaryWordTabs(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
+        await checkFormsOneLine(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
+        if (width === 375) await checkFormsHashLanding(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
         await checkDictionaryDetailTabs(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
         await checkDictionaryPlayButtons(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
         await checkDictionaryPlayStops(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);

@@ -106,8 +106,11 @@ function initTabs(): void {
     // Chrome scrolls to the fragment again after load (check:layout saw it), so every scroll is undone
     // until the reader's first input, or a second after load. Only on a fresh navigation: a chosen tab
     // writes its hash, so a reload or Back to the page has one too, and keeps the scroll it restores.
+    // Only for a tab's hash: one naming a section inside a tab (#forms, in Dict) is an anchor, and
+    // the browser's scroll to it is where the reader asked to land.
     const navigation = performance.getEntriesByType('navigation')[0];
-    if (tabs.matches && location.hash && navigation instanceof PerformanceNavigationTiming && navigation.type === 'navigate') {
+    const namesTab = entries.some(entry => entry.id === decodeURIComponent(location.hash.slice(1)));
+    if (tabs.matches && namesTab && navigation instanceof PerformanceNavigationTiming && navigation.type === 'navigate') {
         // scrollTo(0, 0) at the top fires no scroll event, so it needs no guard.
         const toTop = (): void => { scrollTo(0, 0); };
         const inputs = ['pointerdown', 'keydown', 'wheel', 'touchstart'];

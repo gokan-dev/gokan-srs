@@ -12,6 +12,8 @@
    * it when the word is written with kanji, and on an English page its romaji under that (#278):
    * 勉強します, benkyoushimasu, is what a learner who does not read kana searches for. It may wrap
    * at 320px, so only between morae (formRomajiParts): torimase<wbr>n<wbr>de..., never torimasende|shita.
+   * On a phone a grid row's Plain and Polite stack under its label, each named by its cell's
+   * data-label (the column heads are not drawn there), so a form has the full width (vocab.scss).
    */
   interface Props {
     word: string;
@@ -49,7 +51,7 @@
   </thead>
   <tbody>
     {#each GRID as line (line.row)}
-      <tr><th scope="row">{line.row}</th><td>{@render form(line.plain)}</td><td>{@render form(line.polite)}</td></tr>
+      <tr><th scope="row">{line.row}</th><td data-label={forms.plain}>{@render form(line.plain)}</td><td data-label={forms.polite}>{@render form(line.polite)}</td></tr>
     {/each}
   </tbody>
 </table>
