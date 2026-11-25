@@ -70,6 +70,22 @@ export function glossTerm(gloss: string | undefined): string {
     return first.replace(/\s*\([^)]*\)/g, '').trim() || first;
 }
 
+/**
+ * The words "Also read" names on a word page (#278), each by its glossTerm where that tells it apart
+ * from the page's own word and from the others named. The note glossTerm drops is often all that
+ * does: 取る, 撮る and 執る are each "to take", so where two short terms are one, those words keep
+ * their first gloss whole (撮る to take (a photograph)); words whose first glosses are one as well
+ * keep their whole short gloss. The page's own word is named by nothing, so 取る, on 撮る's page,
+ * stays "to take": no named word reads as the own word's first gloss.
+ */
+export function alsoReadTerms(ownGloss: string | undefined, otherGlosses: readonly (string | undefined)[]): string[] {
+    const shortTerms = [ownGloss, ...otherGlosses].map(glossTerm);
+    const sharedShort = (term: string) => shortTerms.filter(other => other === term).length > 1;
+    const terms = otherGlosses.map(gloss => (sharedShort(glossTerm(gloss)) ? firstGloss(gloss) : glossTerm(gloss)));
+    const named = [firstGloss(ownGloss), ...terms];
+    return terms.map((term, at) => (named.filter(other => other === term).length > 1 ? (otherGlosses[at] ?? term) : term));
+}
+
 /** What tells words read the same apart: their pitch accents, which differ, are all the same, or are not known for every word. */
 type PitchApart = 'differs' | 'same' | 'unknown';
 

@@ -95,6 +95,15 @@ describe('VocabPage', () => {
         expect(shared).toBe('Also read toru: 撮る to take, 採る to adopt');
     });
 
+    it('keeps the note where the first gloss terms would name two words alike (#278): 撮る and 執る are not "to take" on 取る\'s page', () => {
+        const other = (id: string, gloss: string): VocabSummary => ({ id, word: id, gloss });
+        const vocab = vocabulary({ writtenForm: { kanji: '取る', alternatives: [], containedKanji: ['取'] }, reading: { primary: 'とる', alternatives: [] }, senses: [{ pos: ['v5r'], misc: { rawTags: [] }, glosses: ['to take', 'to pick up'], related: { compounds: [] } }] });
+        const others = [other('撮る', 'to take (a photograph)'), other('執る', 'to take (trouble)'), other('採る', 'to adopt (a method, proposal, etc.)')];
+        const page: VocabPageProps = { ...props(0), vocab, romaji: { reading: 'toru', shared: { romaji: 'toru', others } } };
+        const shared = /<p class="meta entry-romaji-shared">(.*?)<\/p>/s.exec(html('en', page))?.[1].replace(/<[^>]*>/g, '') ?? '';
+        expect(shared).toBe('Also read toru: 撮る to take (a photograph), 執る to take (trouble), 採る to adopt');
+    });
+
     describe('play buttons', () => {
         const voice = { extension: 'opus', credit: 'VOICEVOX:冥鳴ひまり', termsUrl: 'https://voice.test/terms' };
         /** 思う with a clip, and two sentences: the first with one, the second without. */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { FrequencyIndex } from '@gokan/dataset-schema';
-import { firstGloss, glossTerm, ROMAJI_FREQUENCY_FLOOR, ROMAJI_PAGE_CAP, romajiGroups, romajiKey, romajiOf, romajiParts, romajiSpoken } from './romaji';
+import { alsoReadTerms, firstGloss, glossTerm, ROMAJI_FREQUENCY_FLOOR, ROMAJI_PAGE_CAP, romajiGroups, romajiKey, romajiOf, romajiParts, romajiSpoken } from './romaji';
 import type { VocabSummary } from './types';
 
 /** Summaries and a frequency index in the order given, most frequent first. */
@@ -94,6 +94,30 @@ describe('glossTerm', () => {
         expect(glossTerm('chopsticks')).toBe('chopsticks');
         expect(glossTerm('(polite)')).toBe('(polite)');
         expect(glossTerm(undefined)).toBe('');
+    });
+});
+
+describe('alsoReadTerms', () => {
+    const toru = { 取る: 'to take; to pick up', 撮る: 'to take (a photograph)', 執る: 'to take (trouble)', 採る: 'to adopt (a method, proposal, etc.)' };
+
+    it('keeps the note where the short terms would name two words alike: 撮る and 執る on 取る\'s page', () => {
+        const terms = alsoReadTerms(toru.取る, [toru.撮る, toru.執る, toru.採る]);
+        expect(terms).toEqual(['to take (a photograph)', 'to take (trouble)', 'to adopt']);
+        expect(terms).not.toContain('to take');
+        expect(new Set(terms).size).toBe(terms.length);
+    });
+
+    it('tells 取る, 撮る and 執る apart on 採る\'s page', () => {
+        const terms = alsoReadTerms(toru.採る, [toru.取る, toru.撮る, toru.執る]);
+        expect(terms).toEqual(['to take', 'to take (a photograph)', 'to take (trouble)']);
+    });
+
+    it('names a word by its short term when nothing shares it: 箸 chopsticks, 端 edge', () => {
+        expect(alsoReadTerms('bridge', ['chopsticks', 'end (e.g. of a street); edge'])).toEqual(['chopsticks', 'end']);
+    });
+
+    it('keeps the whole short gloss when the first glosses are one as well', () => {
+        expect(alsoReadTerms('to take; to pick up', ['to take; to get', 'to take; to steal'])).toEqual(['to take; to get', 'to take; to steal']);
     });
 });
 

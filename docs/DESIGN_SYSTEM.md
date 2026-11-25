@@ -796,7 +796,8 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   wrapping only between morae (`<wbr>` from `romajiParts`). A word whose
   romaji is shared gets one tertiary line closing its header, "Also read hashi: 箸 chopsticks, 端
   edge" (the romaji linking its romaji page, each word its own and named by its first gloss term,
-  notes dropped, `glossTerm`; three named, the rest counted). A
+  notes dropped, unless that names two words alike: then its first gloss whole, 取る's page naming
+  撮る "to take (a photograph)", `alsoReadTerms`; three named, the rest counted). A
   **romaji page** (`pages/RomajiPage.svelte`) is a title ("hashi in Japanese"), one intro sentence,
   and word list rows most frequent first, the reading cell drawing the pitch accent and the note
   (level, frequency band, the pitch in words) inside the gloss's cell, the headword and reading

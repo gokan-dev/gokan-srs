@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { VocabPageProps as Props } from '../lib/pageProps';
-  import { CLOSENESS_LABEL, conjugate, frequencyBand, synonymsSearchable, frequencyTop, headwordOf, primaryPitchAccent, secondaryForm, summaryGloss, textbookLessonsLabel, wordClassOf, wordFrequencyRank } from '@gokan/dataset-schema';
+  import { CLOSENESS_LABEL, conjugate, shortGloss, frequencyBand, synonymsSearchable, frequencyTop, headwordOf, primaryPitchAccent, secondaryForm, summaryGloss, textbookLessonsLabel, wordClassOf, wordFrequencyRank } from '@gokan/dataset-schema';
   import type { Sentence } from '@gokan/dataset-schema';
   import { valueText, type DefinitionSense } from '@gokan/dataset-schema/text';
   import { pageLocale } from './pageLocale';
@@ -11,7 +11,7 @@
   import { PREVIEW_MEANINGS, PREVIEW_ROWS, type SynonymGroup } from '../lib/synonyms';
   import type { VocabSummary } from '../lib/types';
   import { appUrl } from '../lib/appLinks';
-  import { glossTerm } from '../lib/romaji';
+  import { alsoReadTerms } from '../lib/romaji';
   import AppPanel from './AppPanel.svelte';
   import LinkedText from './LinkedText.svelte';
   import PageLayout from './PageLayout.svelte';
@@ -40,6 +40,9 @@
   const SHARED_ROMAJI_SHOWN = 3;
 
   const headword = $derived(headwordOf(vocab));
+  // The other words "Also read" names, each by a term that tells it apart from this word and the rest (alsoReadTerms).
+  const sharedNamed = $derived(romaji?.shared?.others.slice(0, SHARED_ROMAJI_SHOWN) ?? []);
+  const sharedTerms = $derived(alsoReadTerms(shortGloss(vocab), sharedNamed.map(other => other.gloss)));
   // The primary reading's pitch accent, drawn over the reading when the dataset has one (always on
   // here); a word learned in kana gets its reading so drawn on a line under the kanji-spelling note.
   const pitch = $derived(primaryPitchAccent(vocab));
@@ -231,7 +234,7 @@
       <!-- Its romaji is shared (issue 278): the other words, and the page that sets them side by side. -->
       <p class="meta entry-romaji-shared"><LinkedText parts={words.sharedRomaji(
         { text: romaji.shared.romaji, href: urls.romajiPath(romaji.shared.romaji) },
-        romaji.shared.others.slice(0, SHARED_ROMAJI_SHOWN).map(other => ({ word: other.word, gloss: glossTerm(other.gloss), href: urls.vocabPath(other.id) })),
+        sharedNamed.map((other, at) => ({ word: other.word, gloss: sharedTerms[at] ?? '', href: urls.vocabPath(other.id) })),
         Math.max(0, romaji.shared.others.length - SHARED_ROMAJI_SHOWN),
       )} /></p>
     {/if}

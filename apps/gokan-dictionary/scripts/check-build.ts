@@ -23,7 +23,7 @@ import { messagesFor } from '../src/lib/messages';
 import { kanaToHepburn, readingOfRow } from '@gokan/dataset-schema';
 import type { TextFile } from '@gokan/dataset-schema/text';
 import { fromColumns } from '../src/lib/searchIndex';
-import { ROMAJI_PAGE_CAP, romajiOf } from '../src/lib/romaji';
+import { firstGloss, ROMAJI_PAGE_CAP, romajiOf } from '../src/lib/romaji';
 import { prepareIndex, search, TIER, type PreparedIndex } from '../src/lib/searchQuery';
 import type { SearchIndexFile, SearchWordRow } from '../src/lib/types';
 
@@ -247,17 +247,28 @@ function assetProblems(): string[] {
 /** The romaji pages built (English's only, #278): their romaji. */
 const romajiPageNames = () => (fs.existsSync(path.join(DIST_DIR, 'romaji')) ? subdirectories('romaji') : []);
 
-/** A page's meta description, its entities decoded as far as the shell writes them (documentShell.ts). */
+/** Text's entities decoded as far as the shell and Svelte write them (documentShell.ts). */
+const decodeEntities = (text: string) => text.replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+
+/** A page's meta description, its entities decoded. */
 function descriptionOf(html: string): string {
-    const found = /<meta name="description" content="([^"]*)"/.exec(html)?.[1] ?? '';
-    return found.replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+    return decodeEntities(/<meta name="description" content="([^"]*)"/.exec(html)?.[1] ?? '');
+}
+
+/** The words a word page's "Also read" line names (#278): each one's id, from its link, and the term after it. */
+function alsoReadNamed(html: string): { id: string; term: string }[] {
+    const line = (/<p class="meta entry-romaji-shared">(.*?)<\/p>/s.exec(html)?.[1] ?? '').replace(/<!--.*?-->/gs, '');
+    return [...line.matchAll(/<a href="[^"]*\/vocab\/(\d+)\/" lang="ja">[^<]*<\/a>([^<]*)/g)].map(([, id = '', after = '']) => ({
+        id,
+        term: decodeEntities(after.replace(/, and [\d,]+ more$/, '').replace(/, $/, '').trim()),
+    }));
 }
 
 /**
  * The romaji pages and the romaji on the word pages (#278): some romaji pages, never more than
  * ROMAJI_PAGE_CAP, each listing two words or more, all of them and only them in sitemap-romaji.xml;
  * and every English word page (prerendered) carrying its romaji in its reading line, before any other
- * reading, and in its description.
+ * reading, and in its description, its "Also read" line naming every word apart.
  */
 function romajiProblems(): string[] {
     const problems: string[] = [];
@@ -273,9 +284,12 @@ function romajiProblems(): string[] {
     if (listed.size !== names.length || names.some(name => !listed.has(name))) problems.push(`sitemap-romaji.xml lists ${listed.size} romaji pages, the build has ${names.length}`);
 
     if (ENTITY_PAGES === 'prerendered') {
-        const readings = new Map(builtIndexFiles('en').flatMap(file => fromColumns(file.w)).map(row => [row[0], readingOfRow(row)]));
+        const rows = builtIndexFiles('en').flatMap(file => fromColumns(file.w));
+        const readings = new Map(rows.map(row => [row[0], readingOfRow(row)]));
+        const glosses = new Map(rows.map(row => [row[0], row[3]]));
         const missing: string[] = [];
         const misplaced: string[] = [];
+        const alike: string[] = [];
         for (const id of wordPages()) {
             const reading = readings.get(id);
             if (reading === undefined) continue;
@@ -286,11 +300,22 @@ function romajiProblems(): string[] {
             // The romaji is the primary reading's: nothing of the other readings (a .meta, "also ...")
             // before it on the header line, where 端 はし · also …、つま hashi read as つま's.
             else if (html.slice(html.indexOf('class="entry-line"'), html.indexOf('entry-romaji')).includes('class="meta"')) misplaced.push(`vocab/${id}/ (${romaji})`);
+            // "Also read" tells the words it names apart (alsoReadTerms): none named by this word's
+            // first gloss nor by another's term (取る to take, 撮る to take), unless their whole glosses
+            // are one, when nothing in English parts them (差す and 射す, both "to shine").
+            const named = alsoReadNamed(html);
+            const own = { id, term: firstGloss(glosses.get(id)) };
+            for (const word of named) {
+                const twin = [own, ...named].find(other => other !== word && other.term === word.term && word.term !== '');
+                if (twin && glosses.get(twin.id) !== glosses.get(word.id)) alike.push(`vocab/${id}/ names ${word.id} "${word.term}", as ${twin.id}`);
+            }
         }
         problems.push(...missing.slice(0, 5).map(found => `a word page without its romaji: ${found}`));
         if (missing.length > 5) problems.push(`and ${missing.length - 5} more word pages without their romaji`);
         problems.push(...misplaced.slice(0, 5).map(found => `a word page with its romaji after its other readings, not its own: ${found}`));
         if (misplaced.length > 5) problems.push(`and ${misplaced.length - 5} more word pages with their romaji after their other readings`);
+        problems.push(...alike.slice(0, 5).map(found => `an "Also read" line naming two words alike: ${found}`));
+        if (alike.length > 5) problems.push(`and ${alike.length - 5} more "Also read" lines naming two words alike`);
     }
     return problems;
 }
