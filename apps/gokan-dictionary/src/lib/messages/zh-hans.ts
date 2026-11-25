@@ -32,6 +32,12 @@ const ENGLISH_PAGES = `${IN_ENGLISH}页面`;
 /** Numbers grouped as in English (35,872), whatever the machine building the pages. */
 const grouped = (n: number) => n.toLocaleString('en');
 
+/** A word's pitch accent in words, for screen readers and a romaji page's rows. */
+const pitchAccentWords = (downsteps: readonly number[]) => `音调：${downsteps.map(d => (d === 0 ? '平板型' : `第${d}拍后下降`)).join('，或')}`;
+
+/** How common a word is, by its round top (a word page's facts, a romaji page's rows). */
+const frequencyReference = (top: { top: number; beyond: boolean } | null) => (top === null ? '不在词频表中' : top.beyond ? `前 ${grouped(top.top)} 名以外` : `前 ${grouped(top.top)} 个词`);
+
 const COUNTER: Record<CountedNoun, string> = { word: '个词', stroke: '画', 'grammar point': '个语法点', synonym: '个近义词' };
 
 function count(n: number, noun: CountedNoun): string {
@@ -168,7 +174,7 @@ export const zhHans: Messages = {
         usuallyKana: '通常写作假名。汉字写法',
         alsoRead: '又读',
         alsoWritten: '也写作',
-        pitchAccent: downsteps => `音调：${downsteps.map(d => (d === 0 ? '平板型' : `第${d}拍后下降`)).join('，或')}`,
+        pitchAccent: pitchAccentWords,
         sections: {
             meanings: '词义', examples: '典型例句', closestSynonyms: '最接近的近义词', sentences: '例句', synonyms: '近义词',
             forms: '活用', kanji: '汉字', related: '相关词', madeOf: '构成', usedIn: '用于',
@@ -183,7 +189,7 @@ export const zhHans: Messages = {
         howCommon: {
             label: '常用程度',
             bands: { 'Very common': '非常常用', Common: '常用', 'Less common': '较少用', Rare: '罕用' },
-            reference: top => (top === null ? '不在词频表中' : top.beyond ? `前 ${grouped(top.top)} 名以外` : `前 ${grouped(top.top)} 个词`),
+            reference: frequencyReference,
         },
         textbooks: '教材',
         search: {
@@ -242,6 +248,7 @@ export const zhHans: Messages = {
             `（${romaji}）。书写时靠拼写区分`,
             pitch === 'differs' ? '；说话时靠音调。' : pitch === 'same' ? '；说话时只能靠上下文。' : '。',
         ],
+        note: ({ jlpt, top, downsteps }) => [...(jlpt ? [jlptLevel(jlpt)] : []), frequencyReference(top), ...(downsteps ? [pitchAccentWords(downsteps)] : [])].join(' · '),
         outro: '每个词的页面有它的释义、例句和汉字。',
     },
     sources: { zhwiktionary: '中文维基词典', jawiktionary: '日文维基词典', wikidata: '维基数据', wikipedia: '维基百科', 'tatoeba-cmn': 'Tatoeba', gokan: 'Gokan' },

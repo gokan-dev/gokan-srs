@@ -55,6 +55,11 @@ function countAtStart(n: number, noun: CountedNoun): string {
     return spelled === undefined ? count(n, noun) : `${spelled} ${noun}${n === 1 ? '' : 's'}`;
 }
 
+/** How common a word is, by its round top: "Top 5,000 words" (a word page's facts, a romaji page's rows). */
+function frequencyReference(top: { top: number; beyond: boolean } | null): string {
+    return top === null ? 'Not in the frequency list' : top.beyond ? `Beyond the top ${top.top.toLocaleString('en')}` : `Top ${top.top.toLocaleString('en')} words`;
+}
+
 /** A word on a romaji page's title: "橋 (bridge)", or the word alone with no gloss. */
 function wordWithGloss(word: VocabSummary): string {
     const gloss = firstGloss(word.gloss);
@@ -204,7 +209,7 @@ export const en: Messages = {
         howCommon: {
             label: 'How common',
             bands: { 'Very common': 'Very common', Common: 'Common', 'Less common': 'Less common', Rare: 'Rare' },
-            reference: top => (top === null ? 'Not in the frequency list' : top.beyond ? `Beyond the top ${top.top.toLocaleString('en')}` : `Top ${top.top.toLocaleString('en')} words`),
+            reference: frequencyReference,
         },
         textbooks: 'Textbooks',
         search: {
@@ -232,6 +237,7 @@ export const en: Messages = {
             ` (${romaji}). Written, their spelling tells them apart`,
             pitch === 'differs' ? '; spoken, their pitch accent does.' : pitch === 'same' ? '; spoken, only the context does.' : '.',
         ),
+        note: ({ jlpt, top, downsteps }) => [...(jlpt ? [jlptLevel(jlpt)] : []), frequencyReference(top), ...(downsteps ? [pitchAccentLabel(downsteps)] : [])].join(' · '),
         outro: "Each word's page has its meanings, example sentences and kanji.",
     },
     sources: { zhwiktionary: 'Chinese Wiktionary', jawiktionary: 'Japanese Wiktionary', wikidata: 'Wikidata', wikipedia: 'Wikipedia', 'tatoeba-cmn': 'Tatoeba', gokan: 'Gokan' },

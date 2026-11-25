@@ -228,6 +228,8 @@ export interface Messages {
          * apart: their spelling, and spoken, their pitch accent when it differs (lib/romaji.ts).
          */
         intro: (count: number, readings: readonly string[], romaji: string, pitch: RomajiPitch) => LinkedText;
+        /** A row's note, what tells the word apart: its level, how common it is, its pitch accent in words. */
+        note: (word: { jlpt?: number; top: { top: number; beyond: boolean } | null; downsteps?: readonly number[] }) => string;
         /** After the list: where each word's page leads. */
         outro: string;
     };

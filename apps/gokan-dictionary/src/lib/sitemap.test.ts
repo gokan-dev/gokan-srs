@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildSitemapIndexXml, buildSitemapXml, buildRobotsTxt, localeSitemapPath, shouldEmitRobotsTxt, SITEMAP_URL_LIMIT, sitemapPath, sitemapProblems } from './sitemap';
+import { buildSitemapIndexXml, buildSitemapXml, buildRobotsTxt, localeSitemapPath, shouldEmitRobotsTxt, SITEMAP_URL_LIMIT, sitemapIndexPaths, sitemapPath, sitemapProblems } from './sitemap';
 import { absoluteUrl, localeUrls } from './urls';
 import { BASE_PATH } from './site';
 
@@ -36,6 +36,12 @@ describe('buildSitemapIndexXml', () => {
         expect(xml).toContain(`<sitemap><loc>${absoluteUrl(`${BASE_PATH}/sitemap-en.xml`)}</loc></sitemap>`);
         expect(xml).toContain(`<sitemap><loc>${absoluteUrl(`${BASE_PATH}/sitemap-zh-hans.xml`)}</loc></sitemap>`);
         expect(xml.trim().endsWith('</sitemapindex>')).toBe(true);
+    });
+});
+
+describe('sitemapIndexPaths', () => {
+    it("lists each locale's sitemap, then the romaji pages' of their own", () => {
+        expect(sitemapIndexPaths(['en', 'zh-hans'])).toEqual([`${BASE_PATH}/sitemap-en.xml`, `${BASE_PATH}/sitemap-zh-hans.xml`, `${BASE_PATH}/sitemap-romaji.xml`]);
     });
 });
 
