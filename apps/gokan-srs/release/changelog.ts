@@ -17,6 +17,12 @@ import type { ChangelogEntry } from '../src/models/release.model';
  */
 export const CHANGELOG: readonly ChangelogEntry[] = [
     {
+        version: '1.70.0',
+        date: '2026-11-25',
+        summary: 'The dictionary now writes every word\'s reading in romaji, beside its kana and under each of its forms, and a word read like others links to a page setting them side by side (hashi: 橋, 端, 箸).',
+        issue: 278,
+    },
+    {
         version: '1.69.0',
         date: '2026-11-22',
         summary: 'Search for kanji and grammar, listening and contrast exercises',
