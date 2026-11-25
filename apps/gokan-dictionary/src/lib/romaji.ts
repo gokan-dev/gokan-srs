@@ -61,17 +61,42 @@ export function firstGloss(gloss: string | undefined): string {
 }
 
 /**
- * What tells the words of a romaji page apart when spoken: their kana, when they are not all read
- * the same (禁煙 きんえん and 記念 きねん share "kinen"); else their pitch accents, which differ, are
- * all the same, or are not known for every word (then the page says nothing of them).
+ * A word as "Also read" names it on a word page (#278): its first gloss with any parenthesised note
+ * dropped ("to take (a photograph); to snap" is "to take"), so the line stays one short line on a
+ * phone, as "箸 chopsticks, 端 edge". The first gloss whole when it is nothing but a note.
  */
-export type RomajiSpoken = 'readings' | 'differs' | 'same' | 'unknown';
+export function glossTerm(gloss: string | undefined): string {
+    const first = firstGloss(gloss);
+    return first.replace(/\s*\([^)]*\)/g, '').trim() || first;
+}
 
-export function romajiSpoken(readings: readonly string[], accents: readonly ({ downsteps: readonly number[] } | undefined)[]): RomajiSpoken {
-    if (new Set(readings).size > 1) return 'readings';
+/** What tells words read the same apart: their pitch accents, which differ, are all the same, or are not known for every word. */
+type PitchApart = 'differs' | 'same' | 'unknown';
+
+/**
+ * What tells the words of a romaji page apart when spoken: their kana, when every word is read its
+ * own way (禁煙 きんえん and 記念 きねん share "kinen"); else their pitch accents (PitchApart). A
+ * group with some kana in common (人員 じんいん, 辞任 じにん, 自認 じにん) is told apart partly by
+ * its kana, and the words sharing a reading by their pitch, compared within each reading: a claim
+ * true of every such reading, else none (`partly-unknown`).
+ */
+export type RomajiSpoken = 'readings' | PitchApart | `partly-${PitchApart}`;
+
+function pitchApart(accents: readonly ({ downsteps: readonly number[] } | undefined)[]): PitchApart {
     const patterns = accents.map(accent => accent?.downsteps.join(' '));
     if (patterns.some(pattern => pattern === undefined)) return 'unknown';
     return new Set(patterns).size > 1 ? 'differs' : 'same';
+}
+
+export function romajiSpoken(readings: readonly string[], accents: readonly ({ downsteps: readonly number[] } | undefined)[]): RomajiSpoken {
+    const byReading = new Map<string, ({ downsteps: readonly number[] } | undefined)[]>();
+    readings.forEach((reading, at) => byReading.set(reading, [...(byReading.get(reading) ?? []), accents[at]]));
+    if (byReading.size === 1) return pitchApart(accents);
+    const shared = [...byReading.values()].filter(group => group.length > 1);
+    if (shared.length === 0) return 'readings';
+    const apart = new Set(shared.map(pitchApart));
+    const [only] = apart;
+    return apart.size === 1 && only !== undefined ? `partly-${only}` : 'partly-unknown';
 }
 
 export interface RomajiGroups {

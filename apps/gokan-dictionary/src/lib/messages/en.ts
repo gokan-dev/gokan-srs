@@ -29,13 +29,18 @@ const ROMAJI_TITLE_LENGTH = 70;
 
 /**
  * The end of a romaji page's intro: what tells its words apart when spoken. Words whose kana differ
- * (きんえん, きねん: both "kinen") are told apart by them, never "only the context".
+ * (きんえん, きねん: both "kinen") are told apart by them, never "only the context"; when some share
+ * their kana, the readings are credited only with some.
  */
 const SPOKEN_APART: Record<RomajiSpoken, string> = {
     readings: '; spoken, their readings do.',
     differs: '; spoken, their pitch accent does.',
     same: '; spoken, only the context does.',
     unknown: '.',
+    // Some kana in common (人員 じんいん, 辞任 じにん, 自認 じにん): the readings tell only some apart.
+    'partly-differs': '; spoken, their readings tell some of them apart, and their pitch accent the rest.',
+    'partly-same': '; spoken, their readings tell some of them apart, and only the context the rest.',
+    'partly-unknown': '; spoken, their readings tell some of them apart.',
 };
 
 /** `n` with `noun` in the singular for exactly one, else with an s; the number grouped as in English. */

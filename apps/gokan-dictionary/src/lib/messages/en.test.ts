@@ -380,4 +380,10 @@ describe('romajiPage intro (#278)', () => {
         expect(intro).toBe('Two words are read きんえん or きねん (kinen). Written, their spelling tells them apart; spoken, their readings do.');
         expect(intro).not.toContain('only the context');
     });
+
+    it('credits the readings with only some words when two share their kana: 人員, 辞任 and 自認 (jinin)', () => {
+        const intro = prose(en.romajiPage.intro(3, ['じんいん', 'じにん'], 'jinin', 'partly-same'));
+        expect(intro).toBe('Three words are read じんいん or じにん (jinin). Written, their spelling tells them apart; spoken, their readings tell some of them apart, and only the context the rest.');
+        expect(intro).not.toContain('their readings do');
+    });
 });

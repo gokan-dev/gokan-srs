@@ -77,12 +77,22 @@ describe('VocabPage', () => {
         expect(row).toBe('<span lang="en">think</span><small lang="en">≈ Close in this sense</small>');
     });
 
-    it("puts the romaji right after the primary reading, before the other readings (#278): 日本 にほん nihon · also にっぽん", () => {
+    it("puts the romaji right after the primary reading, before the other readings (#278): 日本 にほん nihon also にっぽん", () => {
         const page: VocabPageProps = { ...props(0), vocab: vocabulary({ writtenForm: { kanji: '日本', alternatives: [], containedKanji: ['日', '本'] }, reading: { primary: 'にほん', alternatives: ['にっぽん'] } }), romaji: { reading: 'nihon', shared: null } };
         const line = /<div class="entry-line">(.*?)<\/div>/s.exec(html('en', page))?.[1] ?? '';
         expect(line.indexOf('にほん')).toBeGreaterThan(-1);
         expect(line.indexOf('にほん')).toBeLessThan(line.indexOf('nihon'));
         expect(line.indexOf('nihon')).toBeLessThan(line.indexOf('にっぽん'));
+        // No separator before the other readings: the line's gap separates, and a wrapped line would open on a dot.
+        const also = /<p class="entry-sub entry-also">(.*?)<\/p>/s.exec(line)?.[1].replace(/<[^>]*>/g, '') ?? '';
+        expect(also).toBe('also にっぽん');
+    });
+
+    it('names each other word read the same by its first gloss term, its note dropped (#278): 撮る to take', () => {
+        const other = (id: string, gloss: string): VocabSummary => ({ id, word: id, gloss });
+        const page: VocabPageProps = { ...props(0), romaji: { reading: 'toru', shared: { romaji: 'toru', others: [other('撮る', 'to take (a photograph); to snap'), other('採る', 'to adopt (a method, proposal, etc.)')] } } };
+        const shared = /<p class="meta entry-romaji-shared">(.*?)<\/p>/s.exec(html('en', page))?.[1].replace(/<[^>]*>/g, '') ?? '';
+        expect(shared).toBe('Also read toru: 撮る to take, 採る to adopt');
     });
 
     describe('play buttons', () => {

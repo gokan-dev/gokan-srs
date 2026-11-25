@@ -11,7 +11,7 @@
   import { PREVIEW_MEANINGS, PREVIEW_ROWS, type SynonymGroup } from '../lib/synonyms';
   import type { VocabSummary } from '../lib/types';
   import { appUrl } from '../lib/appLinks';
-  import { firstGloss } from '../lib/romaji';
+  import { glossTerm } from '../lib/romaji';
   import AppPanel from './AppPanel.svelte';
   import LinkedText from './LinkedText.svelte';
   import PageLayout from './PageLayout.svelte';
@@ -196,8 +196,8 @@
         <p class="entry-sub" lang="ja">{#if pitch && vocab.audio && voice}<PitchAccent accent={pitch} label={words.pitchAccent(pitch.downsteps)}>{@render play()}</PitchAccent>{:else if pitch}<PitchAccent accent={pitch} label={words.pitchAccent(pitch.downsteps)} />{:else}{vocab.reading.primary}{@render play()}{/if}</p>
       {/if}
       {#if romaji}<p class="entry-sub entry-romaji" lang="ja-Latn">{romaji.reading}</p>{/if}
-      <!-- The other readings after the romaji, which is the primary reading's: before it, つま's (端 はし · also …, つま hashi). -->
-      {#if !vocab.usuallyKana && vocab.reading.alternatives.length > 0}<p class="entry-sub entry-also"><span class="meta" {lang}>· {words.alsoRead} <span lang="ja">{vocab.reading.alternatives.join('、')}</span></span></p>{/if}
+      <!-- The other readings after the romaji, which is the primary reading's: before it, つま's (端 はし also …, つま hashi). No dot before them: the line's gap separates its items, and a wrapped line would open on it. -->
+      {#if !vocab.usuallyKana && vocab.reading.alternatives.length > 0}<p class="entry-sub entry-also"><span class="meta" {lang}>{words.alsoRead} <span lang="ja">{vocab.reading.alternatives.join('、')}</span></span></p>{/if}
     </div>
 
     {#if vocab.usuallyKana}
@@ -231,7 +231,7 @@
       <!-- Its romaji is shared (issue 278): the other words, and the page that sets them side by side. -->
       <p class="meta entry-romaji-shared"><LinkedText parts={words.sharedRomaji(
         { text: romaji.shared.romaji, href: urls.romajiPath(romaji.shared.romaji) },
-        romaji.shared.others.slice(0, SHARED_ROMAJI_SHOWN).map(other => ({ word: other.word, gloss: firstGloss(other.gloss), href: urls.vocabPath(other.id) })),
+        romaji.shared.others.slice(0, SHARED_ROMAJI_SHOWN).map(other => ({ word: other.word, gloss: glossTerm(other.gloss), href: urls.vocabPath(other.id) })),
         Math.max(0, romaji.shared.others.length - SHARED_ROMAJI_SHOWN),
       )} /></p>
     {/if}

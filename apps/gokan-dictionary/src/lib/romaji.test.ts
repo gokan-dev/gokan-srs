@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { FrequencyIndex } from '@gokan/dataset-schema';
-import { firstGloss, ROMAJI_FREQUENCY_FLOOR, ROMAJI_PAGE_CAP, romajiGroups, romajiKey, romajiOf, romajiParts, romajiSpoken } from './romaji';
+import { firstGloss, glossTerm, ROMAJI_FREQUENCY_FLOOR, ROMAJI_PAGE_CAP, romajiGroups, romajiKey, romajiOf, romajiParts, romajiSpoken } from './romaji';
 import type { VocabSummary } from './types';
 
 /** Summaries and a frequency index in the order given, most frequent first. */
@@ -87,6 +87,16 @@ describe('firstGloss', () => {
     });
 });
 
+describe('glossTerm', () => {
+    it('names a word by its first gloss, its parenthesised notes dropped', () => {
+        expect(glossTerm('to take (a photograph); to snap')).toBe('to take');
+        expect(glossTerm('to adopt (a method, proposal, etc.)')).toBe('to adopt');
+        expect(glossTerm('chopsticks')).toBe('chopsticks');
+        expect(glossTerm('(polite)')).toBe('(polite)');
+        expect(glossTerm(undefined)).toBe('');
+    });
+});
+
 describe('romajiSpoken', () => {
     it('says whether the accents differ, are the same, or are not all known', () => {
         expect(romajiSpoken(['はし', 'はし'], [{ downsteps: [2] }, { downsteps: [0] }])).toBe('differs');
@@ -97,6 +107,17 @@ describe('romajiSpoken', () => {
     it('credits the kana first when they differ: 禁煙 and 記念 share "kinen", and sound apart even at one downstep', () => {
         expect(romajiSpoken(['きんえん', 'きねん'], [{ downsteps: [0] }, { downsteps: [0] }])).toBe('readings');
         expect(romajiSpoken(['きんえん', 'きねん'], [{ downsteps: [0] }, undefined])).toBe('readings');
+    });
+
+    it('credits the kana with only some words when two share theirs: 人員 じんいん, 辞任 and 自認 じにん', () => {
+        const readings = ['じんいん', 'じにん', 'じにん'];
+        expect(romajiSpoken(readings, [{ downsteps: [0] }, { downsteps: [1] }, { downsteps: [1] }])).toBe('partly-same');
+        expect(romajiSpoken(readings, [{ downsteps: [1] }, { downsteps: [1] }, { downsteps: [0] }])).toBe('partly-differs');
+        expect(romajiSpoken(readings, [{ downsteps: [0] }, { downsteps: [1] }, undefined])).toBe('partly-unknown');
+        // The pitch of a word read its own way (じんいん) does not count: only within a shared reading.
+        expect(romajiSpoken(readings, [undefined, { downsteps: [1] }, { downsteps: [1] }])).toBe('partly-same');
+        // Two shared readings that disagree: no claim about the pitch.
+        expect(romajiSpoken(['しない', 'しない', 'しんあい', 'しんあい'], [{ downsteps: [1] }, { downsteps: [1] }, { downsteps: [0] }, { downsteps: [1] }])).toBe('partly-unknown');
     });
 });
 

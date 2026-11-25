@@ -225,8 +225,8 @@ export interface Messages {
         heading: (romaji: string) => LinkedText;
         /**
          * The sentence under it: how many words are read so, in kana and romaji, and what tells them
-         * apart: their spelling, and spoken, their kana when they differ, else their pitch accent when it
-         * differs (romajiSpoken, lib/romaji.ts).
+         * apart: their spelling, and spoken, their kana when they differ (for some words only, when
+         * others share theirs), else their pitch accent when it differs (romajiSpoken, lib/romaji.ts).
          */
         intro: (count: number, readings: readonly string[], romaji: string, spoken: RomajiSpoken) => LinkedText;
         /** A row's note, what tells the word apart: its level, how common it is, its pitch accent in words. */

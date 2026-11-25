@@ -25,6 +25,9 @@ const SPOKEN_APART: Record<RomajiSpoken, string> = {
     differs: '；说话时靠音调。',
     same: '；说话时只能靠上下文。',
     unknown: '。',
+    'partly-differs': '；说话时读音能区分其中一些，其余靠音调。',
+    'partly-same': '；说话时读音能区分其中一些，其余只能靠上下文。',
+    'partly-unknown': '；说话时读音能区分其中一些。',
 };
 
 const jlptLevel = (level: number) => `N${level}`;

@@ -283,7 +283,7 @@ function romajiProblems(): string[] {
             const html = read(pageOf('vocab', id)).toString('utf-8');
             const inLine = html.includes(`<p class="entry-sub entry-romaji" lang="ja-Latn">${romaji.replace(/&/g, '&amp;')}</p>`);
             if (!inLine || !descriptionOf(html).includes(`, ${romaji})`)) missing.push(`vocab/${id}/ (${romaji}): ${inLine ? 'not in its description' : 'not in its reading line'}`);
-            // The romaji is the primary reading's: nothing of the other readings (a .meta, "· also ...")
+            // The romaji is the primary reading's: nothing of the other readings (a .meta, "also ...")
             // before it on the header line, where 端 はし · also …、つま hashi read as つま's.
             else if (html.slice(html.indexOf('class="entry-line"'), html.indexOf('entry-romaji')).includes('class="meta"')) misplaced.push(`vocab/${id}/ (${romaji})`);
         }
