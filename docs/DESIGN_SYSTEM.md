@@ -477,7 +477,11 @@ Defined once, in `components/` or `components/ui/`, never copied:
   panel lists every synonym in groups by the meaning it shares (the sense's number in Meanings
   and its first two glosses), each row the other word, what they share as its description
   (wrapped, never cut off: it is the row's content, unlike Related words' one-line gloss), under
-  it the pair's nuance line when the dataset has one (how the two differ, written by hand), and
+  it the pair's nuance line when the dataset has one (how the two differ, written by hand), in
+  `text-primary` on the description's `type-support` so it reads as the row's content and the
+  shared glosses above it as metadata, its Japanese runs in `font-gothic` on one line (`MixedText
+  unbroken`, through `Marked`'s `render` while a search marks it; the dataset caps a run at 12
+  characters), searched in English and Japanese, and
   how close they are as a neutral `TagChip` told apart by its sign and word (= Interchangeable,
   ≈ Close in this sense, ≠ Not interchangeable), never by a colour. A word mixed up with this
   one says so in the row's trailing slot ("Mixed up 2 times"). One line above says what the quiz

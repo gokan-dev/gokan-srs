@@ -28,25 +28,30 @@ function ClosenessChip({ closeness }: { closeness: Closeness }) {
     );
 }
 
+/** A row matches on its words and shared glosses, and on its nuance line, English or Japanese (帽子 finds 帽子を取る). */
 function matchesSynonym(query: ExploreQuery, synonym: ListedSynonym): boolean {
+    const nuance = synonym.nuance ? [synonym.nuance] : [];
     return matchesExploreQuery(query, {
-        english: [...synonym.shared, ...(synonym.nuance ? [synonym.nuance] : [])],
-        japanese: [headwordOf(synonym.forms), secondaryForm(synonym.forms), synonym.forms.reading.primary],
+        english: [...synonym.shared, ...nuance],
+        japanese: [headwordOf(synonym.forms), secondaryForm(synonym.forms), synonym.forms.reading.primary, ...nuance],
     });
 }
 
+/** A nuance line's text: each Japanese run in a Japanese face, on one line. */
+const nuanceText = (text: string) => <MixedText text={text} unbroken />;
+
 /**
- * A row's description: what the two words share, then how they differ when the dataset says (its
- * nuance line), its Japanese in a Japanese face unless a search marks it.
+ * A row's description: what the two words share, as metadata, then how they differ when the dataset
+ * says (its nuance line), in the primary text colour as the row's content, its Japanese in a
+ * Japanese face whether or not a search marks it.
  */
 function SynonymDescription({ shared, nuance, query }: { shared: string; nuance: string | undefined; query: ExploreQuery | null }) {
-    const marks = nuance ? englishRanges(query, nuance) : [];
     return (
         <>
             {shared && <Marked text={shared} ranges={englishRanges(query, shared)} />}
             {nuance && (
-                <span className={`block ${shared ? 'mt-1' : ''}`}>
-                    {marks.length > 0 ? <Marked text={nuance} ranges={marks} /> : <MixedText text={nuance} unbroken />}
+                <span className={`block text-primary ${shared ? 'mt-1' : ''}`}>
+                    <Marked text={nuance} ranges={englishRanges(query, nuance)} render={nuanceText} />
                 </span>
             )}
         </>
