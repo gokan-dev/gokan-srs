@@ -213,7 +213,11 @@ function TabPanel({ tab, vocab, sentences, wordSynonyms, mixups, studied, now, k
                     vocab={vocab}
                     sentences={sentences}
                     synonymSections={wordSynonyms.sections}
-                    onShowSentences={() => onChoose('sentence')}
+                    // "All N sentences" promises every sentence: it lifts a pattern's filter (the tab row keeps it, under its line).
+                    onShowSentences={() => {
+                        onPatternFilter(null);
+                        onChoose('sentence');
+                    }}
                     onCompareSynonyms={() => onChoose('synonym')}
                     onShowPattern={onPatternFilter}
                 />
