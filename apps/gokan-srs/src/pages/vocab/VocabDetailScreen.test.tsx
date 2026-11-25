@@ -3,6 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Sentence } from '@gokan/dataset-schema';
 import { sentence, vocabulary } from '../../test/fixtures';
 import VocabDetailScreen from './VocabDetailScreen';
 
@@ -11,8 +12,9 @@ Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 vi.mock('../../context/useQuiz', () => ({
     useQuiz: () => ({ state: { progress: null, settings: null, session: null, grammarSession: null }, actions: {} }),
 }));
-// A phone: one tab open at a time.
-vi.mock('../../context/Responsive/useResponsive', () => ({ useResponsive: () => ({ isMobile: true, isTablet: false }) }));
+// A phone (one tab open at a time) unless a test opens the full page.
+const screenSize = vi.hoisted(() => ({ isMobile: true }));
+vi.mock('../../context/Responsive/useResponsive', () => ({ useResponsive: () => ({ isMobile: screenSize.isMobile, isTablet: false }) }));
 
 // 不思議 with one common pattern held by two of its four sentences.
 const word = vocabulary({
@@ -22,7 +24,7 @@ const word = vocabulary({
     senses: [{ pos: ['adj-na'], misc: { rawTags: [] }, glosses: ['wonder', 'mystery'], related: { compounds: [] } }],
     patterns: [{ text: '不思議に思う', sentences: 2 }],
 });
-const sentences = [
+const sentences: Sentence[] = [
     sentence({ id: 'p1', original: '不思議に思う。', vocabIds: ['v-1'], matches: { 'v-1': [{ start: 0, length: 3, pattern: 0 }] } }),
     sentence({ id: 'p2', original: 'それを不思議に思った。', vocabIds: ['v-1'], matches: { 'v-1': [{ start: 3, length: 3, pattern: 0 }] } }),
     sentence({ id: 'n1', original: '不思議な話だ。', vocabIds: ['v-1'], matches: { 'v-1': [{ start: 0, length: 3 }] } }),
@@ -39,13 +41,19 @@ vi.mock('../../services/vocabulary.service', () => ({
     VocabularyService: {
         loadVocab: () => Promise.resolve(word),
         loadSentences: () => Promise.resolve(sentences),
+        // The full page's Kanji section: left loading, it plays no part here.
+        loadKanji: () => new Promise(() => undefined),
     },
 }));
 
 let container: HTMLDivElement;
 let root: Root;
 
-beforeEach(async () => {
+beforeEach(() => {
+    screenSize.isMobile = true;
+});
+
+async function renderPage() {
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -58,7 +66,7 @@ beforeEach(async () => {
         );
         await Promise.resolve();
     });
-});
+}
 
 afterEach(() => {
     act(() => root.unmount());
@@ -71,10 +79,17 @@ const click = (text: string) => {
     if (!target) throw new Error(`No button "${text}"`);
     act(() => target.click());
 };
+const typeInto = (input: HTMLInputElement, text: string) => {
+    act(() => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, text);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+};
 const shownSentences = () => container.querySelectorAll('[data-example-sentence]').length;
 
 describe('VocabDetailScreen, a common pattern', () => {
-    it('filters Sentences on the pattern, and "All N sentences" from Dict lifts the filter', () => {
+    it('filters Sentences on the pattern, and "All N sentences" from Dict lifts the filter', async () => {
+        await renderPage();
         click('不思議に思う');
         expect(container.textContent).toContain('Pattern:');
         expect(shownSentences()).toBe(2);
@@ -85,11 +100,38 @@ describe('VocabDetailScreen, a common pattern', () => {
         expect(shownSentences()).toBe(4);
     });
 
-    it('keeps the filter when Sentences is chosen from the tab row, where its line explains it', () => {
+    it('keeps the filter when Sentences is chosen from the tab row, where its line explains it', async () => {
+        await renderPage();
         click('不思議に思う');
         click('Dict');
         click('Sentences');
         expect(container.textContent).toContain('Pattern:');
         expect(shownSentences()).toBe(2);
+    });
+});
+
+describe('VocabDetailScreen, a common pattern on the full page', () => {
+    // Every panel stays on the page: a search typed in Sentences would outlive the filter's change.
+    it('starts a fresh Sentences search when a pattern is chosen', async () => {
+        screenSize.isMobile = false;
+        // Past one page, so Sentences has its field.
+        const more = ['n3', 'n4', 'n5'].map(id => sentence({ id, original: `${id}の不思議だ。`, vocabIds: ['v-1'], matches: { 'v-1': [{ start: 3, length: 3 }] } }));
+        sentences.push(...more);
+        try {
+            await renderPage();
+            const field = [...container.querySelectorAll('label')].find(l => l.textContent.includes('Search the sentences'))?.querySelector('input');
+            if (!field) throw new Error('No Sentences search field');
+            // The Sentences section alone: Dict's examples are on the page too.
+            const inSentences = () => container.querySelectorAll('[id$="-section-sentence"] [data-example-sentence]').length;
+            // 話 is in none of the pattern's sentences.
+            typeInto(field, '話');
+            expect(inSentences()).toBe(1);
+
+            click('不思議に思う');
+            expect(container.textContent).toContain('Pattern:');
+            expect(inSentences()).toBe(2);
+        } finally {
+            sentences.splice(sentences.length - more.length, more.length);
+        }
     });
 });

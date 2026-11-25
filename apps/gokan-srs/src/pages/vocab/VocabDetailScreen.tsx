@@ -226,6 +226,9 @@ function TabPanel({ tab, vocab, sentences, wordSynonyms, mixups, studied, now, k
             const text = patternText(vocab, patternFilter);
             return (
                 <SentencesPanel
+                    // A new filter starts a fresh search and sort: on the full page the panel stays
+                    // mounted, and a leftover query could hide the field yet still filter.
+                    key={patternFilter ?? 'all'}
                     vocabId={vocab.id}
                     sentences={sentences}
                     pattern={patternFilter !== null && text !== null ? { index: patternFilter, text } : null}
