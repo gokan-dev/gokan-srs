@@ -2211,18 +2211,22 @@ async function checkDictionaryWordTabs(tab: Tab, base: string, width: number): P
  * った. Below 40rem a grid row's Plain and Polite stack under its label, each with the full width;
  * 静か's polite past negative (静かではありませんでした) is the longest form in any table. On 取る
  * and the な-adjective 静か, the Japanese of every form cell drawn (`.forms td > span`) is one line box.
+ * The grid's column heads are only hidden from sight there, never `display: none`, which would take
+ * Plain and Polite out of the accessibility tree (a screen reader would hear forms with no column).
  */
 const FORMS_WORDS = [TABBED_WORD, '1381820'];
 async function checkFormsOneLine(tab: Tab, base: string, width: number): Promise<void> {
     for (const id of FORMS_WORDS) {
         const page = `dictionary /vocab/${id}/`;
         await tab.goto(`${base}/vocab/${id}/`, 'How common');
-        const forms = await tab.evaluate<{ count: number; broken: string[] }>(`(() => {
+        const forms = await tab.evaluate<{ count: number; broken: string[]; headless: number }>(`(() => {
+            const headless = [...document.querySelectorAll('.forms thead')].filter(head => getComputedStyle(head).display === 'none').length;
             const spans = [...document.querySelectorAll('.forms td > span')].filter(span => span.getClientRects().length > 0);
             const lines = span => new Set([...span.getClientRects()].map(rect => Math.round(rect.top))).size;
-            return { count: spans.length, broken: spans.filter(span => lines(span) > 1).map(span => span.textContent) };
+            return { count: spans.length, broken: spans.filter(span => lines(span) > 1).map(span => span.textContent), headless };
         })()`);
         if (forms.count === 0) failures.push(`${width}px ${page}: no Forms table drawn in Dict`);
+        if (forms.headless > 0) failures.push(`${width}px ${page}: the Forms column heads are display: none, out of the accessibility tree`);
         for (const form of forms.broken) failures.push(`${width}px ${page}: the form ${form} breaks over lines in the Forms table`);
     }
 }

@@ -311,8 +311,15 @@ $pitch-button-room: $target + $space-half;
   // about 100px a form, and 静かではありませんでした or torimasendeshita broke mid-word.
   @include narrow {
     &:not(.forms--list) {
+      // Hidden from sight only (the .visually-hidden clip): display: none would take the Plain and
+      // Polite column heads out of the accessibility tree, and each form would lose its column.
       thead {
-        display: none;
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
       }
 
       tbody,

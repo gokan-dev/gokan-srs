@@ -13,7 +13,8 @@
    * 勉強します, benkyoushimasu, is what a learner who does not read kana searches for. It may wrap
    * at 320px, so only between morae (formRomajiParts): torimase<wbr>n<wbr>de..., never torimasende|shita.
    * On a phone a grid row's Plain and Polite stack under its label, each named by its cell's
-   * data-label (the column heads are not drawn there), so a form has the full width (vocab.scss).
+   * data-label (the column heads are hidden there, never removed: screen readers still name each
+   * cell's column), so a form has the full width (vocab.scss).
    */
   interface Props {
     word: string;
@@ -45,22 +46,26 @@
   <span lang="ja">{written.get(label)}</span>{#if spoken && spoken !== written.get(label)}<small lang="ja">{spoken}</small>{/if}{#if romaji && spoken}<small lang="ja-Latn">{#each formRomajiParts(spoken) as part, at (at)}{#if at > 0}<wbr>{/if}{part}{/each}</small>{/if}
 {/snippet}
 
-<table class="forms">
-  <thead>
-    <tr><td></td><th scope="col">{forms.plain}</th><th scope="col">{forms.polite}</th></tr>
+<!-- The roles are explicit, not redundant: on a phone the stacked rows are display: block
+     (vocab.scss), which drops a table's implicit roles in Chrome and Safari; written ones survive it. -->
+<!-- svelte-ignore a11y_no_redundant_roles -->
+<table class="forms" role="table">
+  <thead role="rowgroup">
+    <tr role="row"><td role="cell"></td><th scope="col" role="columnheader">{forms.plain}</th><th scope="col" role="columnheader">{forms.polite}</th></tr>
   </thead>
-  <tbody>
+  <tbody role="rowgroup">
     {#each GRID as line (line.row)}
-      <tr><th scope="row">{line.row}</th><td data-label={forms.plain}>{@render form(line.plain)}</td><td data-label={forms.polite}>{@render form(line.polite)}</td></tr>
+      <tr role="row"><th scope="row" role="rowheader">{line.row}</th><td role="cell" data-label={forms.plain}>{@render form(line.plain)}</td><td role="cell" data-label={forms.polite}>{@render form(line.polite)}</td></tr>
     {/each}
   </tbody>
 </table>
 
 {#if others.length > 0}
-  <table class="forms forms--list">
-    <tbody>
+  <!-- svelte-ignore a11y_no_redundant_roles -->
+  <table class="forms forms--list" role="table">
+    <tbody role="rowgroup">
       {#each others as label (label)}
-        <tr><th scope="row">{forms.labels[label]}</th><td>{@render form(label)}</td></tr>
+        <tr role="row"><th scope="row" role="rowheader">{forms.labels[label]}</th><td role="cell">{@render form(label)}</td></tr>
       {/each}
     </tbody>
   </table>

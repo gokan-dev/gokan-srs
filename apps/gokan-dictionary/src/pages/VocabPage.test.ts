@@ -110,7 +110,7 @@ describe('VocabPage', () => {
             vocab: vocabulary({ writtenForm: { kanji, alternatives: [], containedKanji: [] }, reading: { primary: reading, alternatives: [] }, senses: [{ pos, misc: { rawTags: [] }, glosses: ['quiet'], related: { compounds: [] } }] }),
         });
         /** The row labels of the Forms table's second list (the forms after the grid). */
-        const otherRows = (body: string) => Array.from((/<table class="forms forms--list">.*?<\/table>/s.exec(sectionOf(body, 'forms', 'sentences'))?.[0] ?? '').matchAll(/<th scope="row">([^<]*)<\/th>/g), match => match[1]);
+        const otherRows = (body: string) => Array.from((/<table class="forms forms--list"[^>]*>.*?<\/table>/s.exec(sectionOf(body, 'forms', 'sentences'))?.[0] ?? '').matchAll(/<th scope="row"[^>]*>([^<]*)<\/th>/g), match => match[1]);
 
         it('sits in Dict right under Examples, with no tab of its own', () => {
             const body = html('en', word('静か', 'しずか', ['adj-na', 'n']));
@@ -135,6 +135,24 @@ describe('VocabPage', () => {
             const body = html('en', word('高い', 'たかい', ['adj-i']));
             expect(otherRows(body)).toEqual(['Te-form', 'Adverbial', 'Conditional (ば)']);
             expect(sectionOf(body, 'forms', 'sentences')).toContain('<span lang="ja">高く</span>');
+        });
+
+        // On a phone the rows are display: block (vocab.scss), which drops a table's implicit roles:
+        // only written roles keep each form named by its row and its column for a screen reader.
+        it('writes every table role, so the stacked phone rows stay a table to a screen reader', () => {
+            const forms = sectionOf(html('en', word('取る', 'とる', ['v5r'])), 'forms', 'sentences');
+            const tables = Array.from(forms.matchAll(/<table class="forms[^"]*"([^>]*)>(.*?)<\/table>/gs), match => ({ attributes: match[1], body: match[2] }));
+            expect(tables).toHaveLength(2);
+            for (const { attributes, body } of tables) {
+                expect(attributes).toContain('role="table"');
+                for (const tag of ['thead', 'tbody']) for (const open of body.match(new RegExp(`<${tag}[^>]*>`, 'g')) ?? []) expect(open).toContain('role="rowgroup"');
+                for (const open of body.match(/<tr[^>]*>/g) ?? []) expect(open).toContain('role="row"');
+                for (const open of body.match(/<td[^>]*>/g) ?? []) expect(open).toContain('role="cell"');
+                for (const open of body.match(/<th scope="row"[^>]*>/g) ?? []) expect(open).toContain('role="rowheader"');
+            }
+            const heads = tables[0].body.match(/<th scope="col"[^>]*>/g) ?? [];
+            expect(heads).toHaveLength(2);
+            for (const open of heads) expect(open).toContain('role="columnheader"');
         });
 
         it('has no table for a word that does not conjugate', () => {
