@@ -94,6 +94,11 @@
   margin: $space-2 0 0;
 }
 
+// A romaji page's intro names readings that differ (きねん or きんえん): each stays whole.
+.page-intro [lang="ja"] {
+  @include whole-japanese;
+}
+
 // A romaji page's rows (RomajiPage.svelte): the note is in the gloss's cell, so the headword and
 // its reading (with its pitch accent) are centred on the two lines; on a phone they stack as every
 // list, the headword and its reading on one baseline: centred, a reading under a pitch contour

@@ -2250,6 +2250,24 @@ async function checkFormsHashLanding(tab: Tab, base: string, width: number): Pro
 }
 
 /**
+ * A romaji page's intro names the readings that share it (issue 278): きねん or きんえん, never
+ * きんえ / ん at a line's end. Each Japanese run in the intro is one line box, as in the app panel
+ * (the whole-japanese mixin); /romaji/kinen/ broke at 320px.
+ */
+const WHOLE_INTRO_PAGES = ['/romaji/kinen/'];
+async function checkIntroJapaneseWhole(tab: Tab, base: string, width: number): Promise<void> {
+    for (const path of WHOLE_INTRO_PAGES) {
+        await tab.goto(`${base}${path}`, 'in Japanese');
+        const intro = await tab.evaluate<{ count: number; broken: string[] }>(`(() => {
+            const runs = [...document.querySelectorAll('.page-intro [lang="ja"]')].filter(run => run.getClientRects().length > 0);
+            return { count: runs.length, broken: runs.filter(run => run.getClientRects().length > 1).map(run => run.textContent) };
+        })()`);
+        if (intro.count === 0) failures.push(`${width}px dictionary ${path}: no Japanese in the intro`);
+        for (const run of intro.broken) failures.push(`${width}px dictionary ${path}: ${run} breaks over lines in the intro`);
+    }
+}
+
+/**
  * A reload keeps where the reader was: choosing a tab writes its hash, so a reload halfway down
  * #sentences is a hash in the URL as a landing is, and the landing's lock to the page top once
  * undid the browser's restored scroll. The lock is for a fresh navigation only.
@@ -3280,6 +3298,7 @@ try {
         }
         await checkDictionaryWordTabs(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
         await checkFormsOneLine(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
+        await checkIntroJapaneseWhole(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
         if (width === 375) await checkFormsHashLanding(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
         await checkDictionaryDetailTabs(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
         await checkDictionaryPlayButtons(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);

@@ -162,6 +162,14 @@ $motion: 150ms ease-in-out;
 /// the accent marks an action, and one button-styled link. A mixin each page sheet with a panel
 /// includes (vocab, kanji, grammar, kanji-orders, home) rather than an app.scss rule, so the
 /// stylesheet every page loads stays within its budget.
+// A Japanese word in running English, read in two fragments, is not the word: an atomic box moves
+// to the next line whole, and wraps inside itself only when wider than the line, never scrolling a
+// phone sideways as nowrap would (check:layout).
+@mixin whole-japanese {
+  display: inline-block;
+  max-width: 100%;
+}
+
 @mixin app-panel {
   .app-panel {
     @include surface;
@@ -174,12 +182,8 @@ $motion: 150ms ease-in-out;
       margin: 0 0 $space-2;
       max-width: 36rem;
 
-      // A word read in two fragments is not the word: an atomic box moves to the next line whole,
-      // and wraps inside itself only when wider than the line, never scrolling a phone sideways
-      // as nowrap would (check:layout).
       [lang="ja"] {
-        display: inline-block;
-        max-width: 100%;
+        @include whole-japanese;
       }
     }
   }

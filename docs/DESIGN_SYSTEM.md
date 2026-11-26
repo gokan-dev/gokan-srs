@@ -806,7 +806,9 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   and word list rows most frequent first, the reading cell drawing the pitch accent and the note
   (level, frequency band, the pitch in words) inside the gloss's cell, the headword and reading
   centred on the two (`noteInGloss`, `.entry-list--note-in-gloss`); it links the word page's stylesheet,
-  which draws the pitch accent.
+  which draws the pitch accent. A reading the intro names (きねん or きんえん) never breaks across
+  lines where it fits one, as in the app panel (the `whole-japanese` mixin, `check:layout` on
+  `/romaji/kinen/`).
 - **Furigana toggle**: "Hide furigana" / "Show furigana", in the section header of every
   page with sentences. It sets `furigana-hidden` on `<html>` and remembers the choice in
   `localStorage` (read in a try/catch, shown by default). It lives in the search script
