@@ -14,7 +14,8 @@
    * at 320px, so only between morae (formRomajiParts): torimase<wbr>n<wbr>de..., never torimasende|shita.
    * On a phone a grid row's Plain and Polite stack under its label, each named by its cell's
    * data-label (the column heads are hidden there, never removed: screen readers still name each
-   * cell's column), so a form has the full width (vocab.scss).
+   * cell's column), so a form has the full width (vocab.scss). The grid and the other forms are one
+   * table with two bodies, so they share one label column, sized by the table's own auto layout.
    */
   interface Props {
     word: string;
@@ -58,15 +59,12 @@
       <tr role="row"><th scope="row" role="rowheader">{line.row}</th><td role="cell" data-label={forms.plain}>{@render form(line.plain)}</td><td role="cell" data-label={forms.polite}>{@render form(line.polite)}</td></tr>
     {/each}
   </tbody>
-</table>
-
-{#if others.length > 0}
-  <!-- svelte-ignore a11y_no_redundant_roles -->
-  <table class="forms forms--list" role="table">
-    <tbody role="rowgroup">
+  {#if others.length > 0}
+    <!-- The other forms: one form a row, across both form columns, so they start under Plain. -->
+    <tbody class="forms-other" role="rowgroup">
       {#each others as label (label)}
-        <tr role="row"><th scope="row" role="rowheader">{forms.labels[label]}</th><td role="cell">{@render form(label)}</td></tr>
+        <tr role="row"><th scope="row" role="rowheader">{forms.labels[label]}</th><td role="cell" colspan="2">{@render form(label)}</td></tr>
       {/each}
     </tbody>
-  </table>
-{/if}
+  {/if}
+</table>

@@ -2207,8 +2207,9 @@ async function checkDictionaryWordTabs(tab: Tab, base: string, width: number): P
 }
 
 /**
- * A word's Forms on a phone (issue 278): every form stays whole on one line, never 静かじ / ゃなか /
- * った. Below 40rem a grid row's Plain and Polite stack under its label, each with the full width;
+ * A word's Forms (issue 278): every form stays whole on one line, never 静かじ / ゃなか / った, on a
+ * phone and at 700px, 1024px and 1280px, where a fixed 30/35/35 split once cut 静かではありま /
+ * せんでした. Below 40rem a grid row's Plain and Polite stack under its label, each with the full width;
  * 静か's polite past negative (静かではありませんでした) is the longest form in any table. On 取る
  * the な-adjective 静か and 引きつける (whose romaji rc.5's staging saw split, hikitsukema / sendeshita),
  * the Japanese of every form cell drawn (`.forms td > span`) is one line box, and so is its romaji
@@ -2216,6 +2217,7 @@ async function checkDictionaryWordTabs(tab: Tab, base: string, width: number): P
  * heads are only hidden from sight there, never `display: none` or `visibility: hidden`, which would
  * take Plain and Polite out of the accessibility tree (a screen reader would hear forms with no column).
  */
+const FORMS_MID_WIDTH = 700;
 const FORMS_WORDS = [TABBED_WORD, '1381820', '1601680'];
 async function checkFormsOneLine(tab: Tab, base: string, width: number): Promise<void> {
     for (const id of FORMS_WORDS) {
@@ -3076,7 +3078,11 @@ try {
     for (const width of [DESKTOP.width, FULL_PAGE_WIDTH]) {
         await desktop.resize(width, DESKTOP.height);
         await checkDictionaryWordFullPage(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
+        await checkFormsOneLine(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
     }
+    // Between the phone breakpoint (40rem) and the full page: Dict in one column, the two-column grid.
+    await desktop.resize(FORMS_MID_WIDTH, DESKTOP.height);
+    await checkFormsOneLine(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`, FORMS_MID_WIDTH);
     await checkSearchAcrossDetailWidth(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`);
     await checkSearchPage(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`, DESKTOP.width);
     await desktop.resize(DESKTOP.width, DESKTOP.height);

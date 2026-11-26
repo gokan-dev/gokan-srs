@@ -642,8 +642,8 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   and order: **Dict** (Meanings, its first 3 and "Show all N meanings" in place, rare ones in their
   own disclosure; the app panel; Examples, 2 sentences; Forms, the dictionary's own, a verb's or an
   adjective's table right under Examples, so how the word conjugates sits beside how it is used;
-  the grid and the other forms read as one table, one label column (30%, a fixed layout, so the
-  other forms start under Plain) and a row's gap between them; below 40rem every row stacks, its
+  the grid and the other forms are one table with two bodies, so one label column (auto layout, so
+  the longest form keeps its width and the other forms start under Plain) and a row's gap between them; below 40rem every row stacks, its
   label (primary ink, 600) on its own line and its forms indented under it at the full width, a
   grid row's Plain and Polite each named, so a form stays on one line, and Japanese there breaks
   `line-break: strict`;

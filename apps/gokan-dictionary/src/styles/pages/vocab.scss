@@ -265,18 +265,13 @@ $pitch-button-room: $target + $space-half;
   font-size: $text-sm;
 }
 
-// The Forms table: a plain/polite grid, then the other forms, read as one table: one label column
-// (fixed, so the list's forms start under Plain), and the grid's last row meets the list's first
-// with the gap between any two rows.
+// The Forms table: a plain/polite grid, then the other forms, one table with two bodies
+// (ConjugationForms.svelte), so one label column by construction and the list's forms start
+// under Plain. Its layout is auto: a fixed split cut 静かではありませんでした mid-word at 1280px.
 .forms {
   border-collapse: collapse;
-  table-layout: fixed;
   width: 100%;
   margin-bottom: $space-2;
-
-  &:has(+ .forms) {
-    margin-bottom: 0;
-  }
 
   th,
   td {
@@ -284,11 +279,6 @@ $pitch-button-room: $target + $space-half;
     border-bottom: 1px solid var(--divider);
     text-align: left;
     vertical-align: top;
-  }
-
-  // The label column, in both tables (a fixed layout reads the widths from the first row).
-  tr > :first-child {
-    width: 30%;
   }
 
   th {
@@ -336,10 +326,6 @@ $pitch-button-room: $target + $space-half;
     th,
     td {
       display: block;
-    }
-
-    tr > :first-child {
-      width: auto;
     }
 
     tr {

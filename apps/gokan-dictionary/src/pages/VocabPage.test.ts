@@ -110,7 +110,7 @@ describe('VocabPage', () => {
             vocab: vocabulary({ writtenForm: { kanji, alternatives: [], containedKanji: [] }, reading: { primary: reading, alternatives: [] }, senses: [{ pos, misc: { rawTags: [] }, glosses: ['quiet'], related: { compounds: [] } }] }),
         });
         /** The row labels of the Forms table's second list (the forms after the grid). */
-        const otherRows = (body: string) => Array.from((/<table class="forms forms--list"[^>]*>.*?<\/table>/s.exec(sectionOf(body, 'forms', 'sentences'))?.[0] ?? '').matchAll(/<th scope="row"[^>]*>([^<]*)<\/th>/g), match => match[1]);
+        const otherRows = (body: string) => Array.from((/<tbody class="forms-other"[^>]*>.*?<\/tbody>/s.exec(sectionOf(body, 'forms', 'sentences'))?.[0] ?? '').matchAll(/<th scope="row"[^>]*>([^<]*)<\/th>/g), match => match[1]);
 
         it('sits in Dict right under Examples, with no tab of its own', () => {
             const body = html('en', word('静か', 'しずか', ['adj-na', 'n']));
@@ -142,7 +142,10 @@ describe('VocabPage', () => {
         it('writes every table role, so the stacked phone rows stay a table to a screen reader', () => {
             const forms = sectionOf(html('en', word('取る', 'とる', ['v5r'])), 'forms', 'sentences');
             const tables = Array.from(forms.matchAll(/<table class="forms[^"]*"([^>]*)>(.*?)<\/table>/gs), match => ({ attributes: match[1], body: match[2] }));
-            expect(tables).toHaveLength(2);
+            // One table, the grid and the other forms its two bodies: one label column by construction.
+            expect(tables).toHaveLength(1);
+            expect(tables[0].body.match(/<tbody[^>]*>/g)).toHaveLength(2);
+            expect(tables[0].body).toContain('colspan="2"');
             for (const { attributes, body } of tables) {
                 expect(attributes).toContain('role="table"');
                 for (const tag of ['thead', 'tbody']) for (const open of body.match(new RegExp(`<${tag}[^>]*>`, 'g')) ?? []) expect(open).toContain('role="rowgroup"');
