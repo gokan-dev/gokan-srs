@@ -77,7 +77,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: $space-half $space-3;
+  gap: $space-1 $space-3;
 
   > .entry-sub {
     margin: 0;
@@ -278,7 +278,8 @@ $pitch-button-room: $target + $space-half;
     padding: $space-1 $space-2 $space-1 0;
     border-bottom: 1px solid var(--divider);
     text-align: left;
-    vertical-align: top;
+    // The label on its form's first baseline: top-aligned, the 14px label sat above the 18px form.
+    vertical-align: baseline;
   }
 
   th {
@@ -339,7 +340,7 @@ $pitch-button-room: $target + $space-half;
       border-bottom: 0;
     }
 
-    th {
+    tbody th {
       color: var(--primary);
       font-weight: 600;
     }

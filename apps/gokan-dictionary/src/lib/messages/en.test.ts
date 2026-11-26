@@ -389,9 +389,13 @@ describe('romajiPage intro (#278)', () => {
 });
 
 describe('romajiPage note (#278)', () => {
-    it('holds "mora" to its number with a no-break space, so a narrow note never splits them', () => {
+    it('keeps each pitch pattern whole with no-break spaces, breaking only at a " · " or after "or"', () => {
         const note = en.romajiPage.note({ jlpt: 3, top: null, downsteps: [1, 0] });
-        expect(note).toBe('N3 · Not in the frequency list · Pitch accent: drop after mora\u00a01, or heiban');
+        expect(note).toBe('N3 · Not in the frequency list · Pitch\u00a0accent:\u00a0drop\u00a0after\u00a0mora\u00a01, or heiban');
+        const single = en.romajiPage.note({ top: null, downsteps: [0] });
+        const pitch = single.slice(single.indexOf('Pitch'));
+        expect(pitch).toBe('Pitch\u00a0accent:\u00a0heiban');
+        expect(pitch).not.toContain(' ');
         expect(en.vocab.pitchAccent([1])).toBe('Pitch accent: drop after mora 1');
     });
 });
