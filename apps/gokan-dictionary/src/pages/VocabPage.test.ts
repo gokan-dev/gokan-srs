@@ -77,6 +77,92 @@ describe('VocabPage', () => {
         expect(row).toBe('<span lang="en">think</span><small lang="en">≈ Close in this sense</small>');
     });
 
+    it("puts the romaji right after the primary reading, before the other readings (#278): 日本 にほん nihon also にっぽん", () => {
+        const page: VocabPageProps = { ...props(0), vocab: vocabulary({ writtenForm: { kanji: '日本', alternatives: [], containedKanji: ['日', '本'] }, reading: { primary: 'にほん', alternatives: ['にっぽん'] } }), romaji: { reading: 'nihon', shared: null } };
+        const line = /<div class="entry-line">(.*?)<\/div>/s.exec(html('en', page))?.[1] ?? '';
+        expect(line.indexOf('にほん')).toBeGreaterThan(-1);
+        expect(line.indexOf('にほん')).toBeLessThan(line.indexOf('nihon'));
+        expect(line.indexOf('nihon')).toBeLessThan(line.indexOf('にっぽん'));
+        // No separator before the other readings: the line's gap separates, and a wrapped line would open on a dot.
+        const also = /<p class="entry-sub entry-also">(.*?)<\/p>/s.exec(line)?.[1].replace(/<[^>]*>/g, '') ?? '';
+        expect(also).toBe('also にっぽん');
+    });
+
+    it('names each other word read the same by its first gloss term, its note dropped (#278): 撮る to take', () => {
+        const other = (id: string, gloss: string): VocabSummary => ({ id, word: id, gloss });
+        const page: VocabPageProps = { ...props(0), romaji: { reading: 'toru', shared: { romaji: 'toru', others: [other('撮る', 'to take (a photograph); to snap'), other('採る', 'to adopt (a method, proposal, etc.)')] } } };
+        const shared = /<p class="meta entry-romaji-shared">(.*?)<\/p>/s.exec(html('en', page))?.[1].replace(/<[^>]*>/g, '') ?? '';
+        expect(shared).toBe('Also read toru: 撮る to take, 採る to adopt');
+    });
+
+    it('keeps the note where the first gloss terms would name two words alike (#278): 撮る and 執る are not "to take" on 取る\'s page', () => {
+        const other = (id: string, gloss: string): VocabSummary => ({ id, word: id, gloss });
+        const vocab = vocabulary({ writtenForm: { kanji: '取る', alternatives: [], containedKanji: ['取'] }, reading: { primary: 'とる', alternatives: [] }, senses: [{ pos: ['v5r'], misc: { rawTags: [] }, glosses: ['to take', 'to pick up'], related: { compounds: [] } }] });
+        const others = [other('撮る', 'to take (a photograph)'), other('執る', 'to take (trouble)'), other('採る', 'to adopt (a method, proposal, etc.)')];
+        const page: VocabPageProps = { ...props(0), vocab, romaji: { reading: 'toru', shared: { romaji: 'toru', others } } };
+        const shared = /<p class="meta entry-romaji-shared">(.*?)<\/p>/s.exec(html('en', page))?.[1].replace(/<[^>]*>/g, '') ?? '';
+        expect(shared).toBe('Also read toru: 撮る to take (a photograph), 執る to take (trouble), 採る to adopt');
+    });
+
+    describe('Forms', () => {
+        const word = (kanji: string, reading: string, pos: string[]): VocabPageProps => ({
+            ...props(3),
+            vocab: vocabulary({ writtenForm: { kanji, alternatives: [], containedKanji: [] }, reading: { primary: reading, alternatives: [] }, senses: [{ pos, misc: { rawTags: [] }, glosses: ['quiet'], related: { compounds: [] } }] }),
+        });
+        /** The row labels of the Forms table's second list (the forms after the grid). */
+        const otherRows = (body: string) => Array.from((/<tbody class="forms-other"[^>]*>.*?<\/tbody>/s.exec(sectionOf(body, 'forms', 'sentences'))?.[0] ?? '').matchAll(/<th scope="row"[^>]*>([^<]*)<\/th>/g), match => match[1]);
+
+        it('sits in Dict right under Examples, with no tab of its own', () => {
+            const body = html('en', word('静か', 'しずか', ['adj-na', 'n']));
+            const dict = sectionOf(body, 'dict', 'sentences');
+            expect(dict).toContain('id="forms"');
+            expect(dict.indexOf('<h2>Examples</h2>')).toBeLessThan(dict.indexOf('id="forms"'));
+            expect(body).not.toContain('data-tab="forms"');
+            expect(body).not.toContain('class="section detail-panel" id="forms"');
+        });
+
+        it("gives a な-adjective tagged noun too its copula's forms, each with its romaji", () => {
+            const body = html('en', { ...word('静か', 'しずか', ['n', 'adj-na']), romaji: { reading: 'shizuka', shared: null } });
+            const forms = sectionOf(body, 'forms', 'sentences');
+            for (const form of ['静かだ', '静かです', '静かじゃない', '静かではありません', '静かだった', '静かでした', '静かじゃなかった', '静かではありませんでした', '静かで', '静かに', '静かなら']) expect(forms).toContain(`<span lang="ja">${form}</span>`);
+            expect(forms).toContain('shi<wbr/>zu<wbr/>ka<wbr/>de<wbr/>shi<wbr/>ta');
+            // The particle of ではありません is wa, never deha.
+            expect(forms).toContain('ka<wbr/>de<wbr/>wa<wbr/>a<wbr/>ri');
+            expect(otherRows(body)).toEqual(['Te-form', 'Adverbial', 'Conditional (なら)']);
+        });
+
+        it("gives an い-adjective an adjective's rows only: te-form, adverbial く, ければ", () => {
+            const body = html('en', word('高い', 'たかい', ['adj-i']));
+            expect(otherRows(body)).toEqual(['Te-form', 'Adverbial', 'Conditional (ば)']);
+            expect(sectionOf(body, 'forms', 'sentences')).toContain('<span lang="ja">高く</span>');
+        });
+
+        // On a phone the rows are display: block (vocab.scss), which drops a table's implicit roles:
+        // only written roles keep each form named by its row and its column for a screen reader.
+        it('writes every table role, so the stacked phone rows stay a table to a screen reader', () => {
+            const forms = sectionOf(html('en', word('取る', 'とる', ['v5r'])), 'forms', 'sentences');
+            const tables = Array.from(forms.matchAll(/<table class="forms[^"]*"([^>]*)>(.*?)<\/table>/gs), match => ({ attributes: match[1], body: match[2] }));
+            // One table, the grid and the other forms its two bodies: one label column by construction.
+            expect(tables).toHaveLength(1);
+            expect(tables[0].body.match(/<tbody[^>]*>/g)).toHaveLength(2);
+            expect(tables[0].body).toContain('colspan="2"');
+            for (const { attributes, body } of tables) {
+                expect(attributes).toContain('role="table"');
+                for (const tag of ['thead', 'tbody']) for (const open of body.match(new RegExp(`<${tag}[^>]*>`, 'g')) ?? []) expect(open).toContain('role="rowgroup"');
+                for (const open of body.match(/<tr[^>]*>/g) ?? []) expect(open).toContain('role="row"');
+                for (const open of body.match(/<td[^>]*>/g) ?? []) expect(open).toContain('role="cell"');
+                for (const open of body.match(/<th scope="row"[^>]*>/g) ?? []) expect(open).toContain('role="rowheader"');
+            }
+            const heads = tables[0].body.match(/<th scope="col"[^>]*>/g) ?? [];
+            expect(heads).toHaveLength(2);
+            for (const open of heads) expect(open).toContain('role="columnheader"');
+        });
+
+        it('has no table for a word that does not conjugate', () => {
+            expect(html('en', word('本', 'ほん', ['n']))).not.toContain('id="forms"');
+        });
+    });
+
     describe('play buttons', () => {
         const voice = { extension: 'opus', credit: 'VOICEVOX:冥鳴ひまり', termsUrl: 'https://voice.test/terms' };
         /** 思う with a clip, and two sentences: the first with one, the second without. */

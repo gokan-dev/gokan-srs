@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { VocabPageProps as Props } from '../lib/pageProps';
-  import { CLOSENESS_LABEL, conjugate, frequencyBand, synonymsSearchable, frequencyTop, headwordOf, primaryPitchAccent, secondaryForm, summaryGloss, textbookLessonsLabel, wordClassOf, wordFrequencyRank } from '@gokan/dataset-schema';
+  import { CLOSENESS_LABEL, formsClassOf, shortGloss, frequencyBand, synonymsSearchable, frequencyTop, headwordOf, primaryPitchAccent, secondaryForm, summaryGloss, textbookLessonsLabel, wordFrequencyRank } from '@gokan/dataset-schema';
   import type { Sentence } from '@gokan/dataset-schema';
   import { valueText, type DefinitionSense } from '@gokan/dataset-schema/text';
   import { pageLocale } from './pageLocale';
@@ -11,7 +11,9 @@
   import { PREVIEW_MEANINGS, PREVIEW_ROWS, type SynonymGroup } from '../lib/synonyms';
   import type { VocabSummary } from '../lib/types';
   import { appUrl } from '../lib/appLinks';
+  import { alsoReadTerms } from '../lib/romaji';
   import AppPanel from './AppPanel.svelte';
+  import LinkedText from './LinkedText.svelte';
   import PageLayout from './PageLayout.svelte';
   import PitchAccent from './PitchAccent.svelte';
   import VocabEntryList from './VocabEntryList.svelte';
@@ -24,7 +26,7 @@
   import SentenceText from './SentenceText.svelte';
   import PlayButton from './PlayButton.svelte';
 
-  let { vocab, orderStep, components, parents, sentences, synonyms, text, translations, withoutPage, voice }: Props = $props();
+  let { vocab, orderStep, components, parents, sentences, synonyms, text, translations, withoutPage, romaji, voice }: Props = $props();
 
   // A page in another language links its own words only, and its kanji at English's pages, marked (lib/localeLinks.ts).
   const { urls, messages, linkLang, lang } = pageLocale();
@@ -34,8 +36,13 @@
   const RELATED_VISIBLE = 5;
   /** The Dict section's example sentences, as the app's. */
   const DICT_EXAMPLES = 2;
+  /** The other words read the same named in the header's line, the rest counted: its romaji page lists them all. */
+  const SHARED_ROMAJI_SHOWN = 3;
 
   const headword = $derived(headwordOf(vocab));
+  // The other words "Also read" names, each by a term that tells it apart from this word and the rest (alsoReadTerms).
+  const sharedNamed = $derived(romaji?.shared?.others.slice(0, SHARED_ROMAJI_SHOWN) ?? []);
+  const sharedTerms = $derived(alsoReadTerms(shortGloss(vocab), sharedNamed.map(other => other.gloss)));
   // The primary reading's pitch accent, drawn over the reading when the dataset has one (always on
   // here); a word learned in kana gets its reading so drawn on a line under the kanji-spelling note.
   const pitch = $derived(primaryPitchAccent(vocab));
@@ -53,12 +60,8 @@
   const commonCount = $derived(meanings.visible.length + meanings.more.length);
   // English's meanings on a page in another language are marked as English, for a screen reader's voice.
   const englishLang = $derived(text ? 'en' : undefined);
-  // Only when the headword fits its class: a verb listed under an odd spelling gets no table
-  // rather than a wrong one.
-  const wordClass = $derived.by(() => {
-    const found = wordClassOf(vocab.senses.flatMap(sense => sense.pos));
-    return found && conjugate(headword, found).length > 0 ? found : null;
-  });
+  // A verb's or adjective's, only when the headword fits its class (formsClassOf).
+  const wordClass = $derived(formsClassOf(headword, vocab.senses.flatMap(sense => sense.pos)));
   const examples = $derived(sentences.slice(0, DICT_EXAMPLES));
   const shownSentences = $derived(sentences.slice(0, VISIBLE_SENTENCES));
   /**
@@ -90,7 +93,6 @@
     { id: 'dict', label: messages.detailTabs.dict },
     ...(sentences.length > 0 ? [{ id: 'sentences', label: messages.detailTabs.sentences }] : []),
     ...(synonyms.groups.length > 0 ? [{ id: 'synonyms', label: messages.detailTabs.synonyms }] : []),
-    ...(wordClass ? [{ id: 'forms', label: messages.detailTabs.forms }] : []),
     ...(hasKanji ? [{ id: 'kanji', label: messages.detailTabs.kanji }] : []),
     ...(hasMadeOfOrUsedIn ? [{ id: 'related', label: messages.detailTabs.related }] : []),
   ]);
@@ -183,15 +185,22 @@
 
 <PageLayout trail={[{ label: messages.chrome.sections.vocab, href: urls.vocabIndexPath() }, { label: headword, jp: true }]} section="vocab" wide {voice}>
   <header class="entry-head">
-    <h1 class="entry-word" lang="ja">{headword}</h1>
+    <!-- The word, its reading and (on an English page) its romaji on one baseline (issue 278), the line wrapping as a whole. -->
+    <div class="entry-line">
+      <h1 class="entry-word" lang="ja">{headword}</h1>
+      {#if !vocab.usuallyKana}
+        <!-- With its pitch accent, the button goes inside, after the first pattern: a second one wraps after it, never pushing it down. Without a clip, no button and no room left for one (pa-b). -->
+        {#snippet play()}<PlayButton audio={vocab.audio} {voice} label={messages.chrome.play(headword)} inJapanese />{/snippet}
+        <p class="entry-sub" lang="ja">{#if pitch && vocab.audio && voice}<PitchAccent accent={pitch} label={words.pitchAccent(pitch.downsteps)}>{@render play()}</PitchAccent>{:else if pitch}<PitchAccent accent={pitch} label={words.pitchAccent(pitch.downsteps)} />{:else}{vocab.reading.primary}{@render play()}{/if}</p>
+      {/if}
+      {#if romaji}<p class="entry-sub entry-romaji" lang="ja-Latn">{romaji.reading}</p>{/if}
+      <!-- The other readings after the romaji, which is the primary reading's: before it, つま's (端 はし also …, つま hashi). No dot before them: the line's gap separates its items, and a wrapped line would open on it. -->
+      {#if !vocab.usuallyKana && vocab.reading.alternatives.length > 0}<p class="entry-sub entry-also"><span class="meta" {lang}>{words.alsoRead} <span lang="ja">{vocab.reading.alternatives.join('、')}</span></span></p>{/if}
+    </div>
 
     {#if vocab.usuallyKana}
       <!-- Learned in kana (ここ): the headword already is the reading, so name the kanji spelling. -->
       <p class="entry-sub">{words.usuallyKana} <span lang="ja">{secondaryForm(vocab)}</span><PlayButton audio={vocab.audio} {voice} label={messages.chrome.play(headword)} /></p>
-    {:else}
-      <!-- With its pitch accent, the button goes inside, after the first pattern: a second one wraps after it, never pushing it down. Without a clip, no button and no room left for one (pa-b). -->
-      {#snippet play()}<PlayButton audio={vocab.audio} {voice} label={messages.chrome.play(headword)} inJapanese />{/snippet}
-      <p class="entry-sub" lang="ja">{#if pitch && vocab.audio && voice}<PitchAccent accent={pitch} label={words.pitchAccent(pitch.downsteps)}>{@render play()}</PitchAccent>{:else if pitch}<PitchAccent accent={pitch} label={words.pitchAccent(pitch.downsteps)} />{:else}{vocab.reading.primary}{@render play()}{/if}{#if vocab.reading.alternatives.length > 0}<span class="meta" {lang}> · {words.alsoRead} <span lang="ja">{vocab.reading.alternatives.join('、')}</span></span>{/if}</p>
     {/if}
 
     {#if vocab.usuallyKana && pitch}<p class="entry-sub entry-pitch"><PitchAccent accent={pitch} label={words.pitchAccent(pitch.downsteps)} /></p>{/if}
@@ -215,10 +224,19 @@
         <div><dt>{words.textbooks}</dt><dd lang={text ? 'en' : undefined}>{textbookLessonsLabel(vocab.textbooks)}</dd></div>
       {/if}
     </dl>
+
+    {#if romaji?.shared}
+      <!-- Its romaji is shared (issue 278): the other words, and the page that sets them side by side. -->
+      <p class="meta entry-romaji-shared"><LinkedText parts={words.sharedRomaji(
+        { text: romaji.shared.romaji, href: urls.romajiPath(romaji.shared.romaji) },
+        sharedNamed.map((other, at) => ({ word: other.word, gloss: sharedTerms[at] ?? '', href: urls.vocabPath(other.id) })),
+        Math.max(0, romaji.shared.others.length - SHARED_ROMAJI_SHOWN),
+      )} /></p>
+    {/if}
   </header>
 
   <!--
-    From 1024px the full page: Dict, Sentences, Synonyms and Forms in the main column, the
+    From 1024px the full page: Dict (with Forms), Sentences and Synonyms in the main column, the
     navigation aids (Kanji, Related) aside.
   -->
   <DetailTabs {tabs} label={messages.detailTabs.label} />
@@ -263,6 +281,14 @@
           </section>
         {/if}
 
+        <!-- Under Examples, in Dict (no tab of its own): how the word conjugates beside how it is used. -->
+        {#if wordClass}
+          <section id="forms" class="section">
+            <h2>{words.sections.forms}</h2>
+            <ConjugationForms word={headword} reading={vocab.reading.primary} {wordClass} romaji={romaji !== undefined} />
+          </section>
+        {/if}
+
         {#if synonyms.closest}
           <section class="section">
             <h2>{words.sections.closestSynonyms}</h2>
@@ -302,13 +328,6 @@
             </details>
           {/if}
           {#if synonyms.left > 0}<p class="meta">{words.synonymsNotListed(synonyms.left)}</p>{/if}
-        </section>
-      {/if}
-
-      {#if wordClass}
-        <section id="forms" class="section detail-panel">
-          <h2>{words.sections.forms}</h2>
-          <ConjugationForms word={headword} reading={vocab.reading.primary} {wordClass} />
         </section>
       {/if}
     </div>

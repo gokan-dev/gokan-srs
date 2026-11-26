@@ -19,13 +19,16 @@ export type ConjugationClass =
     | 'kuru'
     | 'i-adj'
     /** いい: every other form is built on よ (よくない, よかった). */
-    | 'i-adj-ii';
+    | 'i-adj-ii'
+    /** な-adjectives (静か): the word itself, then the copula (静かだ, 静かでした, 静かに). */
+    | 'na-adj';
 
 export type FormLabel =
     | 'plain' | 'polite' | 'negative' | 'polite-negative'
     | 'past' | 'polite-past' | 'past-negative' | 'polite-past-negative'
     | 'te' | 'potential' | 'passive' | 'causative' | 'causative-passive'
-    | 'volitional' | 'imperative' | 'ba' | 'tara' | 'tai' | 'teiru' | 'teru';
+    | 'volitional' | 'imperative' | 'ba' | 'tara' | 'tai' | 'teiru' | 'teru'
+    | 'adverbial' | 'nara';
 
 export const FORM_LABELS: Record<FormLabel, string> = {
     plain: 'Plain',
@@ -48,6 +51,8 @@ export const FORM_LABELS: Record<FormLabel, string> = {
     tai: 'Want to (たい)',
     teiru: 'Progressive (ている)',
     teru: 'Progressive, casual (てる)',
+    adverbial: 'Adverbial',
+    nara: 'Conditional (なら)',
 };
 
 /** Stem-relative endings of one conjugation class; a form a class lacks is absent. */
@@ -124,40 +129,68 @@ const ARU: Paradigm = {
 const I_ADJ: Paradigm = { plain: 'い', neg: 'く', masu: '', te: 'くて', ta: 'かった', ba: 'ければ' };
 const II: Paradigm = { plain: 'いい', neg: 'よく', masu: '', te: 'よくて', ta: 'よかった', ba: 'よければ' };
 
-/** Every class, in a fixed order: the search index stores a word's class as its position here. */
+/** Every class, in a fixed order: the search index stores a word's class as its position here, so a new one goes last. */
 export const WORD_CLASSES: readonly ConjugationClass[] = [
-    'ichidan', 'godan', 'godan-iku', 'godan-tou', 'godan-aru', 'suru', 'kuru', 'i-adj', 'i-adj-ii',
+    'ichidan', 'godan', 'godan-iku', 'godan-tou', 'godan-aru', 'suru', 'kuru', 'i-adj', 'i-adj-ii', 'na-adj',
 ];
 
+/** A paradigm's forms: the dictionary ending the stem is left of, and every form as a stem-relative ending, in Forms-table order. */
+interface FormTable {
+    plain: string;
+    endings: readonly (readonly [FormLabel, string])[];
+}
+
+/** I-adjectives' adverbial form is their negative stem: 高く, よく. */
+const adjectiveTable = (p: Paradigm): FormTable => ({
+    plain: p.plain,
+    endings: [
+        ['plain', p.plain], ['polite', `${p.plain}です`],
+        ['negative', `${p.neg}ない`], ['polite-negative', `${p.neg}ないです`],
+        ['past', p.ta], ['polite-past', `${p.ta}です`],
+        ['past-negative', `${p.neg}なかった`], ['polite-past-negative', `${p.neg}なかったです`],
+        ['te', p.te], ['adverbial', p.neg], ['ba', p.ba], ['tara', `${p.ta}ら`],
+    ],
+});
+
+/**
+ * な-adjectives: the dictionary form is the stem itself (静か), every form the copula after it.
+ * Its plain present is 静かだ, so the Forms table's Present row reads as a sentence's predicate.
+ */
+const NA_ADJ: FormTable = {
+    plain: '',
+    endings: [
+        ['plain', 'だ'], ['polite', 'です'],
+        ['negative', 'じゃない'], ['polite-negative', 'ではありません'],
+        ['past', 'だった'], ['polite-past', 'でした'],
+        ['past-negative', 'じゃなかった'], ['polite-past-negative', 'ではありませんでした'],
+        ['te', 'で'], ['adverbial', 'に'], ['nara', 'なら'],
+    ],
+};
+
+const verbTable = (p: Paradigm): FormTable => ({ plain: p.plain, endings: verbEndings(p) });
+
 /** Every paradigm of a class, keyed so `deinflect` can try them all. */
-const PARADIGMS: Record<ConjugationClass, Paradigm[]> = {
-    ichidan: [ICHIDAN],
-    godan: Object.keys(GODAN_ROWS).map(ending => godan(ending)),
-    'godan-iku': [godan('く', 'って', 'った')],
-    'godan-tou': [godan('う', 'うて', 'うた')],
-    'godan-aru': [ARU],
-    suru: [SURU],
-    kuru: [KURU_KANJI, KURU_KANA],
-    'i-adj': [I_ADJ],
-    'i-adj-ii': [II],
+const PARADIGMS: Record<ConjugationClass, FormTable[]> = {
+    ichidan: [verbTable(ICHIDAN)],
+    godan: Object.keys(GODAN_ROWS).map(ending => verbTable(godan(ending))),
+    'godan-iku': [verbTable(godan('く', 'って', 'った'))],
+    'godan-tou': [verbTable(godan('う', 'うて', 'うた'))],
+    'godan-aru': [verbTable(ARU)],
+    suru: [verbTable(SURU)],
+    kuru: [verbTable(KURU_KANJI), verbTable(KURU_KANA)],
+    'i-adj': [adjectiveTable(I_ADJ)],
+    'i-adj-ii': [adjectiveTable(II)],
+    'na-adj': [NA_ADJ],
 };
 
 /** Classes whose dictionary form can be the whole word (する, くる, ある, いい). */
 const BARE_CLASSES: ReadonlySet<ConjugationClass> = new Set(['suru', 'kuru', 'godan-aru', 'i-adj-ii']);
 
-const isAdjective = (wordClass: ConjugationClass) => wordClass === 'i-adj' || wordClass === 'i-adj-ii';
+/** Whether a class is an adjective's: its Forms table has no potential, passive, causative, volitional or imperative. */
+export const isAdjectiveClass = (wordClass: ConjugationClass): boolean => wordClass === 'i-adj' || wordClass === 'i-adj-ii' || wordClass === 'na-adj';
 
-/** The forms of a paradigm as stem-relative endings, in Forms-table order. */
-function endings(p: Paradigm, adjective: boolean): [FormLabel, string][] {
-    if (adjective) {
-        return [
-            ['plain', p.plain], ['polite', `${p.plain}です`],
-            ['negative', `${p.neg}ない`], ['polite-negative', `${p.neg}ないです`],
-            ['past', p.ta], ['polite-past', `${p.ta}です`],
-            ['past-negative', `${p.neg}なかった`], ['polite-past-negative', `${p.neg}なかったです`],
-            ['te', p.te], ['ba', p.ba], ['tara', `${p.ta}ら`],
-        ];
-    }
+/** A verb paradigm's forms as stem-relative endings, in Forms-table order. */
+function verbEndings(p: Paradigm): [FormLabel, string][] {
     const list: [FormLabel, string | undefined][] = [
         ['plain', p.plain], ['polite', `${p.masu}ます`],
         ['negative', `${p.neg}ない`], ['polite-negative', `${p.masu}ません`],
@@ -199,11 +232,13 @@ const VERB_POS: Record<string, ConjugationClass> = {
     vk: 'kuru',
     'adj-i': 'i-adj',
     'adj-ix': 'i-adj-ii',
+    'adj-na': 'na-adj',
 };
 
 /**
  * A word's conjugation class from its JMdict part-of-speech tags, or null when it does not
- * conjugate this way (nouns, な-adjectives, archaic classes). The first conjugating tag wins.
+ * conjugate this way (nouns, archaic classes). The first conjugating tag wins, so a word tagged
+ * noun and な-adjective (自由) is a な-adjective.
  */
 export function wordClassOf(pos: readonly string[]): ConjugationClass | null {
     for (const tag of pos) {
@@ -214,7 +249,7 @@ export function wordClassOf(pos: readonly string[]): ConjugationClass | null {
 }
 
 /** The paradigm `word` conjugates by: the one whose dictionary ending it carries. */
-function paradigmFor(word: string, wordClass: ConjugationClass): Paradigm | null {
+function paradigmFor(word: string, wordClass: ConjugationClass): FormTable | null {
     // A kanji いい (良い) conjugates as a plain i-adjective on 良.
     if (wordClass === 'i-adj-ii' && !word.endsWith('いい')) return paradigmFor(word, 'i-adj');
     return PARADIGMS[wordClass].find(p => word.endsWith(p.plain)) ?? null;
@@ -230,7 +265,16 @@ export function conjugate(word: string, wordClass: ConjugationClass): Conjugated
     const paradigm = paradigmFor(word, wordClass);
     if (!paradigm) return [];
     const stem = word.slice(0, word.length - paradigm.plain.length);
-    return endings(paradigm, isAdjective(wordClass)).map(([label, ending]) => ({ label, form: stem + ending }));
+    return paradigm.endings.map(([label, ending]) => ({ label, form: stem + ending }));
+}
+
+/**
+ * The class a word page's Forms table conjugates `word` by: its tags' class, only when the word
+ * fits it, so a verb listed under an odd spelling gets no table rather than a wrong one.
+ */
+export function formsClassOf(word: string, pos: readonly string[]): ConjugationClass | null {
+    const found = wordClassOf(pos);
+    return found && conjugate(word, found).length > 0 ? found : null;
 }
 
 interface Rule {
@@ -243,8 +287,9 @@ interface Rule {
 
 const RULES: Rule[] = WORD_CLASSES.flatMap(wordClass =>
     PARADIGMS[wordClass].flatMap(paradigm =>
-        endings(paradigm, isAdjective(wordClass))
-            .filter(([label]) => label !== 'plain')
+        paradigm.endings
+            // The dictionary form itself is no rule; a な-adjective's plain 静かだ is one.
+            .filter(([, inflected]) => inflected !== paradigm.plain)
             .map(([label, inflected]) => ({ inflected, plain: paradigm.plain, label, wordClass })),
     ),
 );

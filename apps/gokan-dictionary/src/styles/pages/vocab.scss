@@ -71,6 +71,58 @@
   @include entry-gloss;
 }
 
+// The word, its reading and its romaji on one baseline, 24px apart, with no separator (#278): a
+// word too long for the line wraps its reading and romaji under it, whole.
+.entry-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: $space-1 $space-3;
+
+  > .entry-sub {
+    margin: 0;
+  }
+}
+
+// The romaji beside the kana: Latin in the UI face, at the reading's size in its secondary ink.
+// Neutral, never accent: a fact about the word, not an action.
+.entry-romaji {
+  font-family: $font-sans;
+}
+
+.entry-romaji-shared {
+  margin: $space-2 0 0;
+}
+
+// A romaji page's intro names readings that differ (きねん or きんえん): each stays whole.
+.page-intro [lang="ja"] {
+  @include whole-japanese;
+}
+
+// A romaji page's rows (RomajiPage.svelte): the note is in the gloss's cell, so the headword and
+// its reading (with its pitch accent) are centred on the two lines; on a phone they stack as every
+// list, the headword and its reading on one baseline: centred, a reading under a pitch contour
+// would sit below its headword, one without in line with it.
+.entry-list--note-in-gloss a {
+  align-items: center;
+
+  @include narrow {
+    align-items: last baseline;
+  }
+
+  // Its own size: inside the gloss's cell, a bare small would be smaller than the gloss, under 12px.
+  > [lang] > small {
+    display: block;
+    color: var(--tertiary);
+    font-size: $text-sm;
+  }
+}
+
+// The romaji page's closing line, a section's gap under the list: flush, it read as the last row's note.
+.entry-list--note-in-gloss + .meta {
+  margin-top: $space-2;
+}
+
 // A word learned in kana: its reading with its pitch accent on a line of its own, under the note
 // naming its kanji spelling, at the reading's size.
 .entry-pitch {
@@ -213,7 +265,9 @@ $pitch-button-room: $target + $space-half;
   font-size: $text-sm;
 }
 
-// The Forms table: a plain/polite grid, then the other forms.
+// The Forms table: a plain/polite grid, then the other forms, one table with two bodies
+// (ConjugationForms.svelte), so one label column by construction and the list's forms start
+// under Plain. Its layout is auto: a fixed split cut 静かではありませんでした mid-word at 1280px.
 .forms {
   border-collapse: collapse;
   width: 100%;
@@ -224,7 +278,8 @@ $pitch-button-room: $target + $space-half;
     padding: $space-1 $space-2 $space-1 0;
     border-bottom: 1px solid var(--divider);
     text-align: left;
-    vertical-align: top;
+    // The label on its form's first baseline: top-aligned, the 14px label sat above the 18px form.
+    vertical-align: baseline;
   }
 
   th {
@@ -237,15 +292,78 @@ $pitch-button-room: $target + $space-half;
     font-size: $text-lg;
   }
 
+  // Where a form does wrap, never a line opening on a small kana (静かじ / ゃなか).
+  [lang="ja"] {
+    line-break: strict;
+  }
+
   small {
     display: block;
     color: var(--secondary);
     font-size: $text-sm;
   }
 
-  &--list th {
-    width: 40%;
+  // A form's romaji (#278) is longer than its kana (取りませんでした, torimasendeshita): it
+  // wraps inside its cell rather than widening the table past a 320px phone: at the <wbr> between
+  // its morae (formRomajiParts), torimase|n|de|shi|ta; anywhere only as the last resort.
+  small[lang="ja-Latn"] {
+    overflow-wrap: anywhere;
   }
+
+  // On a phone every row is its label, then its forms indented under it, each the full width: two
+  // form columns beside the label left about 100px a form, and 静かではありませんでした or
+  // torimasendeshita broke mid-word; the list's rows stack the same way, so the section keeps one
+  // left edge and "Conditional (たら)" no longer wraps in a narrow label column. A grid cell is named
+  // by its data-label; the label leads its group by ink and weight.
+  @include narrow {
+    // Hidden from sight only: display: none would take the Plain and Polite column heads out of
+    // the accessibility tree, and each form would lose its column.
+    thead {
+      @include visually-hidden;
+    }
+
+    tbody,
+    tr,
+    th,
+    td {
+      display: block;
+    }
+
+    tr {
+      padding: $space-1 0;
+      border-bottom: 1px solid var(--divider);
+    }
+
+    th,
+    td {
+      padding: 0;
+      border-bottom: 0;
+    }
+
+    tbody th {
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    td {
+      margin: $space-1 0 0 $space-2;
+    }
+
+    td[data-label]::before {
+      // The second declaration gives the label empty alt text where supported: the column head
+      // already names the cell for a screen reader, which would otherwise say Plain twice.
+      content: attr(data-label);
+      content: attr(data-label) / "";
+      display: block;
+      color: var(--tertiary);
+      font-size: $text-sm;
+    }
+  }
+}
+
+// A #forms link (Forms was its own tab) lands with room above the heading.
+#forms {
+  scroll-margin-top: $space-2;
 }
 
 .kanji-tiles {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { conjugate, deinflect, FORM_LABELS, wordClassOf, type FormLabel, type ConjugationClass } from './conjugation';
+import { conjugate, deinflect, FORM_LABELS, formsClassOf, isAdjectiveClass, wordClassOf, type FormLabel, type ConjugationClass } from './conjugation';
 
 function formsOf(word: string, wordClass: ConjugationClass): Partial<Record<FormLabel, string>> {
     return Object.fromEntries(conjugate(word, wordClass).map(({ label, form }) => [label, form]));
@@ -52,6 +52,27 @@ describe('conjugate', () => {
         expect(formsOf('高い', 'i-adj').potential).toBeUndefined();
     });
 
+    it('gives an adjective its adverbial form and no verb-only form', () => {
+        expect(formsOf('高い', 'i-adj').adverbial).toBe('高く');
+        expect(formsOf('いい', 'i-adj-ii').adverbial).toBe('よく');
+        for (const wordClass of ['i-adj', 'na-adj'] as const) {
+            const labels = conjugate(wordClass === 'i-adj' ? '高い' : '静か', wordClass).map(({ label }) => label);
+            for (const verbOnly of ['potential', 'passive', 'causative', 'volitional', 'imperative'] as const) expect(labels).not.toContain(verbOnly);
+        }
+        expect(isAdjectiveClass('na-adj')).toBe(true);
+        expect(isAdjectiveClass('godan')).toBe(false);
+    });
+
+    it('conjugates な-adjectives through the copula', () => {
+        expect(formsOf('静か', 'na-adj')).toEqual({
+            plain: '静かだ', polite: '静かです',
+            negative: '静かじゃない', 'polite-negative': '静かではありません',
+            past: '静かだった', 'polite-past': '静かでした',
+            'past-negative': '静かじゃなかった', 'polite-past-negative': '静かではありませんでした',
+            te: '静かで', adverbial: '静かに', nara: '静かなら',
+        });
+    });
+
     it('has a display label for every form it builds', () => {
         for (const { label } of conjugate('食べる', 'ichidan')) expect(FORM_LABELS[label]).toBeTruthy();
     });
@@ -68,6 +89,7 @@ describe('deinflect', () => {
         ['買う', 'godan'], ['する', 'suru'], ['勉強する', 'suru'], ['来る', 'kuru'], ['くる', 'kuru'],
         ['行く', 'godan-iku'], ['いく', 'godan-iku'], ['ある', 'godan-aru'], ['問う', 'godan-tou'],
         ['請う', 'godan-tou'], ['高い', 'i-adj'], ['いい', 'i-adj-ii'], ['よい', 'i-adj'],
+        ['静か', 'na-adj'], ['きれい', 'na-adj'],
     ];
 
     it.each(CASES)('finds %s from every form conjugate builds', (word, wordClass) => {
@@ -81,6 +103,13 @@ describe('deinflect', () => {
     it('reads a form of a derived form in two steps', () => {
         expect(deinflect('食べられなかった')).toContainEqual({ form: '食べる', wordClass: 'ichidan', label: 'past-negative' });
         expect(deinflect('行きたくない')).toContainEqual({ form: '行く', wordClass: 'godan-iku', label: 'negative' });
+    });
+
+    it('reads a な-adjective\'s polite past back to the adjective', () => {
+        expect(deinflect('静かでした')).toContainEqual({ form: '静か', wordClass: 'na-adj', label: 'polite-past' });
+        expect(deinflect('静かだ').map(c => c.form)).toContain('静か');
+        // A bare copula is no adjective.
+        expect(deinflect('でした').some(c => c.wordClass === 'na-adj')).toBe(false);
     });
 
     it('names the form the query was read as', () => {
@@ -98,10 +127,23 @@ describe('wordClassOf', () => {
         expect(wordClassOf(['v5k-s', 'vi'])).toBe('godan-iku');
         expect(wordClassOf(['adj-ix'])).toBe('i-adj-ii');
         expect(wordClassOf(['vs-i'])).toBe('suru');
+        expect(wordClassOf(['adj-na'])).toBe('na-adj');
+    });
+
+    it('gives a word tagged noun and な-adjective the adjective\'s class', () => {
+        expect(wordClassOf(['n', 'adj-no', 'adj-na'])).toBe('na-adj');
     });
 
     it('returns null for words that do not conjugate', () => {
         expect(wordClassOf(['n', 'adj-no'])).toBeNull();
-        expect(wordClassOf(['adj-na'])).toBeNull();
+    });
+});
+
+describe('formsClassOf', () => {
+    it('is the class only when the word fits it', () => {
+        expect(formsClassOf('静か', ['adj-na', 'n'])).toBe('na-adj');
+        expect(formsClassOf('高い', ['adj-i'])).toBe('i-adj');
+        expect(formsClassOf('本', ['v5k'])).toBeNull();
+        expect(formsClassOf('本', ['n'])).toBeNull();
     });
 });

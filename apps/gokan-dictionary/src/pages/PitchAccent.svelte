@@ -14,10 +14,11 @@
   import type { Snippet } from 'svelte';
   import { pitchPaths, type PitchAccent, type PitchPaths } from '@gokan/dataset-schema';
 
-  let { accent, label, children }: { accent: PitchAccent; label: string; children?: Snippet } = $props();
+  // No label where the patterns are written out beside it (a romaji page's row note): read once.
+  let { accent, label, children }: { accent: PitchAccent; label?: string; children?: Snippet } = $props();
   const patterns = $derived(accent.downsteps.map(downstep => pitchPaths(accent.reading, downstep)));
 </script>
 
-{#snippet pattern(p: PitchPaths, other: boolean)}<span class={other ? 'pr pr-other' : 'pr'} style="--w:{p.width}"><svg aria-hidden="true" viewBox="0 0 {p.width} {p.height}"><path d={p.line} /><path class="pd" d={p.dots} /><circle cx={p.particle.cx} cy={p.particle.cy} r={p.radius} /></svg><span lang="ja" data-pitch-reading>{accent.reading}</span>{#if !other}<span class="visually-hidden">{label}</span>{/if}</span>{/snippet}
+{#snippet pattern(p: PitchPaths, other: boolean)}<span class={other ? 'pr pr-other' : 'pr'} style="--w:{p.width}"><svg aria-hidden="true" viewBox="0 0 {p.width} {p.height}"><path d={p.line} /><path class="pd" d={p.dots} /><circle cx={p.particle.cx} cy={p.particle.cy} r={p.radius} /></svg><span lang="ja" data-pitch-reading>{accent.reading}</span>{#if !other && label}<span class="visually-hidden">{label}</span>{/if}</span>{/snippet}
 
 <span class={children ? 'pa pa-b' : 'pa'}>{#each patterns as p, i (i)}{#if i === 0}{@render pattern(p, false)}{@render children?.()}{:else}<span aria-hidden="true">{@render pattern(p, true)}</span>{/if}{/each}</span>

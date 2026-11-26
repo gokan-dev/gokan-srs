@@ -366,3 +366,36 @@ describe('pitch accent', () => {
         expect(zhHans.vocab.pitchAccent([2, 0])).toBe('音调：第2拍后下降，或平板型');
     });
 });
+
+describe('romajiPage intro (#278)', () => {
+    const prose = (parts: LinkedText) => parts.map(part => (typeof part === 'string' ? part : part.text)).join('');
+
+    it('says the kana tell apart words whose kana differ, never that only the context does', () => {
+        // 禁煙 きんえん and 記念 きねん share /romaji/kinen/, the apostrophe dropped.
+        for (const catalog of [en, zhHans]) {
+            const intro = prose(catalog.romajiPage.intro(2, ['きんえん', 'きねん'], 'kinen', 'readings'));
+            expect(intro).not.toBe(prose(catalog.romajiPage.intro(2, ['きんえん', 'きねん'], 'kinen', 'same')));
+        }
+        const intro = prose(en.romajiPage.intro(2, ['きんえん', 'きねん'], 'kinen', 'readings'));
+        expect(intro).toBe('Two words are read きんえん or きねん (kinen). Written, their spelling tells them apart; spoken, their readings do.');
+        expect(intro).not.toContain('only the context');
+    });
+
+    it('credits the readings with only some words when two share their kana: 人員, 辞任 and 自認 (jinin)', () => {
+        const intro = prose(en.romajiPage.intro(3, ['じんいん', 'じにん'], 'jinin', 'partly-same'));
+        expect(intro).toBe('Three words are read じんいん or じにん (jinin). Written, their spelling tells them apart; spoken, their readings tell some of them apart, and only the context the rest.');
+        expect(intro).not.toContain('their readings do');
+    });
+});
+
+describe('romajiPage note (#278)', () => {
+    it('keeps each pitch pattern whole with no-break spaces, breaking only at a " · " or after "or"', () => {
+        const note = en.romajiPage.note({ jlpt: 3, top: null, downsteps: [1, 0] });
+        expect(note).toBe('N3 · Not in the frequency list · Pitch\u00a0accent:\u00a0drop\u00a0after\u00a0mora\u00a01, or heiban');
+        const single = en.romajiPage.note({ top: null, downsteps: [0] });
+        const pitch = single.slice(single.indexOf('Pitch'));
+        expect(pitch).toBe('Pitch\u00a0accent:\u00a0heiban');
+        expect(pitch).not.toContain(' ');
+        expect(en.vocab.pitchAccent([1])).toBe('Pitch accent: drop after mora 1');
+    });
+});
