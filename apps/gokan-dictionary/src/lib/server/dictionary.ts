@@ -58,6 +58,11 @@ export async function sitemapPaths(locale: ServedLocale): Promise<string[]> {
     return pages(locale).sitemapPaths();
 }
 
+/** The romaji pages' paths (#278): English's only, in a sitemap of their own (sitemap-romaji.xml). */
+export async function romajiSitemapPaths(): Promise<string[]> {
+    return pages(DEFAULT_LOCALE).romajiSitemapPaths();
+}
+
 /**
  * One of a locale's search index's two files, as its route writes it: stamped with the dataset
  * version. Each locale's own: its words with a page, their glosses in its language.

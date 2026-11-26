@@ -41,6 +41,10 @@ export function localeUrls(locale: Locale) {
         kanjiPath(character: string): string {
             return `${root}/kanji/${encodeURIComponent(character)}/`;
         },
+        /** The words a romaji is shared by (lib/romaji.ts, romajiKey): "/dictionary/romaji/hashi/". English only. */
+        romajiPath(romaji: string): string {
+            return `${root}/romaji/${romaji}/`;
+        },
         /** Every kanji learning order, linking to each order's page. */
         kanjiOrdersPath(): string {
             return `${root}/kanji/orders/`;

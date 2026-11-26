@@ -26,6 +26,8 @@ export const params = defineParams({
     listPage: when(param => /^[1-9]\d*$/.test(param) && param !== '1'),
     /** A JLPT level, 1 to 5. */
     jlptLevel: when(param => /^[1-5]$/.test(param)),
+    /** A romaji page's romaji (lib/romaji.ts, romajiKey): letters and ー's hyphen, so no other route's segment. */
+    romaji: when(param => /^[a-z][a-z-]*$/.test(param)),
     /** One of the search index's two files: core or full (SEARCH_INDEX_PARTS). */
     searchIndexPart: when(isSearchIndexPart),
 });

@@ -2120,7 +2120,7 @@ async function checkAppPanelGaps(tab: Tab, page: string, width: number, above: b
  * 取る has every section.
  */
 const TABBED_WORD = '1326980';
-const WORD_SECTIONS = ['dict', 'sentences', 'synonyms', 'forms', 'kanji', 'related'];
+const WORD_SECTIONS = ['dict', 'sentences', 'synonyms', 'kanji', 'related'];
 const WORD_LAYOUT = `(() => {
     const shown = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
     const row = document.querySelector('.detail-tabs');
@@ -2204,6 +2204,88 @@ async function checkDictionaryWordTabs(tab: Tab, base: string, width: number): P
         await measure(tab, `${page}#${section}`, width, DICTIONARY_TAP_TARGETS);
     }
     if (width === 320) await checkTabReloadKeepsScroll(tab, base, width);
+}
+
+/**
+ * A word's Forms (issue 278): every form stays whole on one line, never 静かじ / ゃなか / った, on a
+ * phone and at 700px, 1024px and 1280px, where a fixed 30/35/35 split once cut 静かではありま /
+ * せんでした. Below 40rem a grid row's Plain and Polite stack under its label, each with the full width;
+ * 静か's polite past negative (静かではありませんでした) is the longest form in any table. On 取る
+ * the な-adjective 静か and 引きつける (whose romaji rc.5's staging saw split, hikitsukema / sendeshita),
+ * the Japanese of every form cell drawn (`.forms td > span`) is one line box, and so is its romaji
+ * (`small[lang="ja-Latn"]`, a block: its lines are read from its text's rects). The grid's column
+ * heads are only hidden from sight there, never `display: none` or `visibility: hidden`, which would
+ * take Plain and Polite out of the accessibility tree (a screen reader would hear forms with no column).
+ */
+const FORMS_MID_WIDTH = 700;
+const FORMS_WORDS = [TABBED_WORD, '1381820', '1601680'];
+async function checkFormsOneLine(tab: Tab, base: string, width: number): Promise<void> {
+    for (const id of FORMS_WORDS) {
+        const page = `dictionary /vocab/${id}/`;
+        await tab.goto(`${base}/vocab/${id}/`, 'How common');
+        const forms = await tab.evaluate<{ count: number; romaji: number; broken: string[]; headless: number }>(`(() => {
+            const headless = [...document.querySelectorAll('.forms thead')].filter(head => {
+                const style = getComputedStyle(head);
+                return style.display === 'none' || style.visibility === 'hidden';
+            }).length;
+            const drawn = selector => [...document.querySelectorAll(selector)].filter(element => element.getClientRects().length > 0);
+            const lines = element => {
+                const range = document.createRange();
+                range.selectNodeContents(element);
+                return new Set([...range.getClientRects()].filter(rect => rect.width > 0).map(rect => Math.round(rect.top))).size;
+            };
+            const spans = drawn('.forms td > span');
+            const romaji = drawn('.forms td small[lang="ja-Latn"]');
+            return { count: spans.length, romaji: romaji.length, broken: [...spans, ...romaji].filter(element => lines(element) > 1).map(element => element.textContent), headless };
+        })()`);
+        if (forms.count === 0) failures.push(`${width}px ${page}: no Forms table drawn in Dict`);
+        if (forms.romaji === 0) failures.push(`${width}px ${page}: no romaji under the forms`);
+        if (forms.headless > 0) failures.push(`${width}px ${page}: the Forms column heads are display: none or visibility: hidden, out of the accessibility tree`);
+        for (const form of forms.broken) failures.push(`${width}px ${page}: the form ${form} breaks over lines in the Forms table`);
+    }
+}
+
+/**
+ * A #forms link (a bookmark from when Forms was a tab) lands on the Forms section in Dict: the
+ * page-top lock is for a tab's hash only, so the browser scrolls to the section as to any anchor.
+ */
+async function checkFormsHashLanding(tab: Tab, base: string, width: number): Promise<void> {
+    const page = `dictionary /vocab/${TABBED_WORD}/#forms`;
+    await tab.goto(`${base}/vocab/${TABBED_WORD}/?landing=forms#forms`, 'How common');
+    await tab.until(`document.querySelector('[data-detail-panels][data-tabs-ready]') !== null && document.readyState === 'complete'`, `the tabs script on ${page}`);
+    // Past the lock's second after load, so a lock that still ran would have scrolled back to the top.
+    await new Promise(resolve => setTimeout(resolve, 1300));
+    const heading = await tab.evaluate<{ top: number; view: number } | null>(`(() => {
+        const heading = document.querySelector('#forms h2');
+        return heading && heading.getClientRects().length > 0 ? { top: heading.getBoundingClientRect().top, view: window.innerHeight } : null;
+    })()`);
+    if (heading === null) failures.push(`${width}px ${page}: no Forms heading shown`);
+    else if (heading.top < 0 || heading.top >= heading.view) failures.push(`${width}px ${page}: the Forms heading sits at ${Math.round(heading.top)}px, out of the ${heading.view}px viewport`);
+}
+
+/**
+ * A romaji page's intro names the readings that share it (issue 278): きねん or きんえん, never
+ * きんえ / ん at a line's end. Each Japanese run in the intro is one line box, as in the app panel
+ * (the whole-japanese mixin); /romaji/kinen/ broke at 320px. Where a run breaks depends on the font
+ * (CI's Chrome has no CJK face), so each run is also held to the mixin itself: an inline-block with
+ * a max-width, which the plain inline span before it was not, whatever the font.
+ */
+const WHOLE_INTRO_PAGES = ['/romaji/kinen/'];
+async function checkIntroJapaneseWhole(tab: Tab, base: string, width: number): Promise<void> {
+    for (const path of WHOLE_INTRO_PAGES) {
+        await tab.goto(`${base}${path}`, 'in Japanese');
+        const intro = await tab.evaluate<{ count: number; broken: string[]; loose: string[] }>(`(() => {
+            const runs = [...document.querySelectorAll('.page-intro [lang="ja"]')].filter(run => run.getClientRects().length > 0);
+            const loose = runs.filter(run => {
+                const style = getComputedStyle(run);
+                return style.display !== 'inline-block' || style.maxWidth === 'none';
+            });
+            return { count: runs.length, broken: runs.filter(run => run.getClientRects().length > 1).map(run => run.textContent), loose: loose.map(run => run.textContent) };
+        })()`);
+        if (intro.count === 0) failures.push(`${width}px dictionary ${path}: no Japanese in the intro`);
+        for (const run of intro.loose) failures.push(`${width}px dictionary ${path}: ${run} in the intro is not an inline-block with a max-width (whole-japanese), so it can break over lines`);
+        for (const run of intro.broken) failures.push(`${width}px dictionary ${path}: ${run} breaks over lines in the intro`);
+    }
 }
 
 /**
@@ -2996,7 +3078,11 @@ try {
     for (const width of [DESKTOP.width, FULL_PAGE_WIDTH]) {
         await desktop.resize(width, DESKTOP.height);
         await checkDictionaryWordFullPage(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
+        await checkFormsOneLine(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
     }
+    // Between the phone breakpoint (40rem) and the full page: Dict in one column, the two-column grid.
+    await desktop.resize(FORMS_MID_WIDTH, DESKTOP.height);
+    await checkFormsOneLine(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`, FORMS_MID_WIDTH);
     await checkSearchAcrossDetailWidth(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`);
     await checkSearchPage(desktop, `http://127.0.0.1:${dictionary.port}/dictionary`, DESKTOP.width);
     await desktop.resize(DESKTOP.width, DESKTOP.height);
@@ -3236,6 +3322,9 @@ try {
             await checkAppPanelHeadingGap(tab, `dictionary ${home.path}`, width);
         }
         await checkDictionaryWordTabs(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
+        await checkFormsOneLine(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
+        await checkIntroJapaneseWhole(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
+        if (width === 375) await checkFormsHashLanding(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
         await checkDictionaryDetailTabs(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
         await checkDictionaryPlayButtons(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
         await checkDictionaryPlayStops(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);

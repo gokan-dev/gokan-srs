@@ -32,6 +32,7 @@ const WORDS: SearchWordRow[] = [
     row({ id: 'iku', kanji: '行く', reading: 'いく', glosses: ['to go'], pos: ['v5k-s', 'vi'], jlpt: 5, common: true }),
     row({ id: 'kani', kanji: '蟹', reading: 'かに', glosses: ['crab'] }),
     row({ id: 'kan-i', kanji: '簡易', reading: 'かんい', glosses: ['simple', 'easy'] }),
+    row({ id: 'shizuka', kanji: '静か', reading: 'しずか', glosses: ['quiet'], pos: ['adj-na'], jlpt: 5, common: true }),
 ];
 
 const INDEX = prepareIndex([
@@ -94,6 +95,11 @@ describe('search', () => {
         expect(search(INDEX, '食べた').words[0]).toEqual({ row: WORDS[1], tier: TIER.deinflected, via: '食べた' });
         expect(ids('tabenakatta')[0]).toBe('taberu');
         expect(ids('行って')[0]).toBe('iku');
+    });
+
+    it('finds a な-adjective under a form of the copula', () => {
+        expect(search(INDEX, '静かでした').words[0]).toEqual({ row: WORDS[12], tier: TIER.deinflected, via: '静かでした' });
+        expect(ids('しずかじゃなかった')[0]).toBe('shizuka');
     });
 
     it('only reads a conjugated form as a word of the matching class', () => {

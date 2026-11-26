@@ -40,9 +40,12 @@ function initTabs(): void {
     });
     if (entries.length === 0) return;
     const first = entries[0].id;
+    // The element the URL's fragment names, read the one way for choosing a tab and for the landing.
+    const hashId = (): string => decodeURIComponent(location.hash.slice(1));
+    const namesTab = (id: string): boolean => entries.some(entry => entry.id === id);
     const ofHash = (): string => {
-        const id = decodeURIComponent(location.hash.slice(1));
-        return entries.some(entry => entry.id === id) ? id : first;
+        const id = hashId();
+        return namesTab(id) ? id : first;
     };
     let open = ofHash();
 
@@ -106,8 +109,10 @@ function initTabs(): void {
     // Chrome scrolls to the fragment again after load (check:layout saw it), so every scroll is undone
     // until the reader's first input, or a second after load. Only on a fresh navigation: a chosen tab
     // writes its hash, so a reload or Back to the page has one too, and keeps the scroll it restores.
+    // Only for a tab's hash: one naming a section inside a tab (#forms, in Dict) is an anchor, and
+    // the browser's scroll to it is where the reader asked to land.
     const navigation = performance.getEntriesByType('navigation')[0];
-    if (tabs.matches && location.hash && navigation instanceof PerformanceNavigationTiming && navigation.type === 'navigate') {
+    if (tabs.matches && namesTab(hashId()) && navigation instanceof PerformanceNavigationTiming && navigation.type === 'navigate') {
         // scrollTo(0, 0) at the top fires no scroll event, so it needs no guard.
         const toTop = (): void => { scrollTo(0, 0); };
         const inputs = ['pointerdown', 'keydown', 'wheel', 'touchstart'];

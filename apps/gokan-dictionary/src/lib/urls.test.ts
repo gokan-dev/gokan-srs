@@ -12,6 +12,7 @@ describe('path builders', () => {
     it('prefixes the base path exactly once', () => {
         expect(urls.vocabPath('1589350')).toBe(`${BASE_PATH}/vocab/1589350/`);
         expect(urls.kanjiPath('日')).toBe(`${BASE_PATH}/kanji/%E6%97%A5/`);
+        expect(urls.romajiPath('hashi')).toBe(`${BASE_PATH}/romaji/hashi/`);
         expect(urls.grammarPath('n5-001')).toBe(`${BASE_PATH}/grammar/n5-001/`);
         expect(urls.grammarIndexPath()).toBe(`${BASE_PATH}/grammar/`);
         expect(urls.grammarChaptersIndexPath()).toBe(`${BASE_PATH}/grammar/chapters/`);

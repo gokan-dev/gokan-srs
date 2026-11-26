@@ -7,7 +7,7 @@
 // rebuild them. Pure of I/O but what the source does: the source is chosen in dictionary.ts, the
 // asset hrefs added by the server hook, so this runs on fixtures in a test.
 
-import { headwordOf, JLPT_LEVELS, KANJI_ORDERS, kanjiStepIndex, orderPositions, synonymEntriesOf } from '@gokan/dataset-schema';
+import { headwordOf, JLPT_LEVELS, KANJI_ORDERS, kanjiStepIndex, orderPositions, primaryPitchAccent, synonymEntriesOf, wordFrequencyRank } from '@gokan/dataset-schema';
 import type { AudioRef, GrammarPoint, Kanji, KanjiOrder, KanjiOrderId, KanjiOrderList } from '@gokan/dataset-schema';
 import { buildChapterIndexRows, buildChapterLocatorIndex } from '../grammarChapters';
 import { conjugationTables } from '../grammarConjugations';
@@ -19,15 +19,17 @@ import { JLPT_PAGE_SIZE, paginate } from '../pagination';
 import { searchGrammarRow, searchKanjiRow, searchWordRow, splitSearchIndex } from '../searchIndex';
 import { datasetLanguageOf, DEFAULT_LOCALE, type ServedLocale } from '../locale';
 import { messagesFor, type PageMeta } from '../messages';
+import { romajiGroups, romajiOf } from '../romaji';
 import { orderSentences } from '../sentenceOrder';
 import { wordSynonyms } from '../synonyms';
 import type { Alternate, DictionaryData, EntityData, GrammarSummary, LocaleText, PageKey, SearchIndexFile, SearchWordRow, VocabSummary, WordText } from '../types';
 import { kanjiOrderSlug, kanjiRangeSlug, localeUrls } from '../urls';
+import { vocabSummaryFrom } from '../vocabSummary';
 import type { PageScript, PageStyle } from './assets';
 import { kept } from './kept';
 import { sentenceTranslationsOf } from './localeText';
 import type {
-    GrammarChapterPageProps, GrammarChaptersIndexPageProps, GrammarConjugationsIndexPageProps, GrammarFamiliesIndexPageProps, GrammarFamilyPageProps, GrammarIndexPageProps, GrammarPageProps, HomePageProps, KanjiIndexPageProps, KanjiOrderPageProps, KanjiOrdersPageProps, KanjiPageProps, KanjiRangePageProps, PageVoice, VocabIndexPageProps, VocabJlptPageProps, VocabPageProps,
+    GrammarChapterPageProps, GrammarChaptersIndexPageProps, GrammarConjugationsIndexPageProps, GrammarFamiliesIndexPageProps, GrammarFamilyPageProps, GrammarIndexPageProps, GrammarPageProps, HomePageProps, KanjiIndexPageProps, KanjiOrderPageProps, KanjiOrdersPageProps, KanjiPageProps, KanjiRangePageProps, PageVoice, RomajiPageProps, VocabIndexPageProps, VocabJlptPageProps, VocabPageProps,
 } from '../pageProps';
 
 // Pools go up to 60 sentences across 477 points (see gokan-dataset's Corpus-mined sentences
@@ -165,8 +167,11 @@ function entityIndexesOf(source: EntityData) {
     const kanjiOrderLists = kept(async () => Promise.all(KANJI_ORDERS.map(async order => ({ order, list: await source.kanjiOrder(order.id) }))));
     /** Each order with its kanji by step, KANJI_ORDERS order: where a word page and a kanji page find their step. */
     const positionedOrders = kept(async () => (await kanjiOrderLists()).map(({ order, list }) => ({ order, list, positions: orderPositions(list) })));
+    const summaries = kept(async () => source.wordSummaries());
     return {
-        summaries: kept(async () => source.wordSummaries()),
+        summaries,
+        /** The romaji two or more words share (lib/romaji.ts): a romaji page each, and a word page's link to its own. */
+        romaji: kept(async () => romajiGroups(await frequencyIndex(), await summaries())),
         grammarSummaries: kept(async () => source.grammarSummaries()),
         kanjiList,
         kanjiByCharacter: kept(async (): Promise<ReadonlyMap<string, Kanji>> => new Map((await kanjiList()).map(kanji => [kanji.character, kanji]))),
@@ -206,7 +211,7 @@ export type EntityPages = ReturnType<typeof entityPagesOf>;
  * every file: a page rendered on request reads its own entity's files and those indexes only.
  */
 export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes: EntityIndexes = entityIndexesOf(source)) {
-    const { summaries, grammarSummaries, kanjiByCharacter, kanjiVocabIndex, positionedOrders, orderSteps, grammarIndexes, audioIndex } = indexes;
+    const { summaries, grammarSummaries, kanjiByCharacter, kanjiVocabIndex, positionedOrders, orderSteps, grammarIndexes, audioIndex, romaji } = indexes;
 
     /** The voice of a page whose items are `items`: none when no item has a clip (PageVoice). */
     async function voiceOf(items: readonly { audio?: AudioRef }[]): Promise<PageVoice> {
@@ -234,6 +239,19 @@ export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes:
         return text === null || (await text.wordText(id)) !== null;
     }
 
+    /**
+     * An English page's romaji (#278): the reading in Hepburn, and the romaji page its word is on
+     * with the other words there. A page in another language has none (its readers search in their
+     * own script, not in romaji).
+     */
+    async function romajiOfWord(id: string, reading: string, summaryById: ReadonlyMap<string, VocabSummary>): Promise<VocabPageProps['romaji']> {
+        if (text !== null) return undefined;
+        const { byRomaji, groupOf } = await romaji();
+        const key = groupOf.get(id);
+        const others = key === undefined ? [] : resolveSummaries((byRomaji.get(key) ?? []).filter(other => other !== id), summaryById);
+        return { reading: romajiOf(reading), shared: key === undefined ? null : { romaji: key, others } };
+    }
+
     async function vocabPage(id: string): Promise<Rendered<VocabPageProps>> {
         const summaryById = await summaries();
         if (!summaryById.has(id)) throw new PageNotFound(`no word ${id}`);
@@ -252,6 +270,7 @@ export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes:
         const inLocale = localized ? new Set(await localized.text.withPages([...new Set([...components, ...parents].map(word => word.id).concat(sentenceWords.filter(other => summaryById.has(other)), synonymIds))])) : null;
         const linkable = (words: VocabSummary[]) => (inLocale ? words.filter(word => inLocale.has(word.id)) : words);
         const voice = await voiceOf([vocab, ...sentences]);
+        const wordRomaji = await romajiOfWord(id, vocab.reading.primary, summaryById);
         return {
             props: {
                 vocab,
@@ -270,13 +289,21 @@ export function entityPagesOf(source: EntityData, locale: ServedLocale, indexes:
                         kanji: vocab.writtenForm.containedKanji.filter(character => !byCharacter?.has(character)),
                     },
                 } : {}),
+                ...(wordRomaji ? { romaji: wordRomaji } : {}),
             },
             document: documentOf(urls.vocabPath(id), vocabMeta, {
                 key: { type: 'vocab', id },
                 style: 'vocab',
                 script: 'detailTabs',
                 player: voice !== null,
-                structuredData: { '@context': 'https://schema.org', '@type': 'DefinedTerm', name: headwordOf(vocab), description: vocabMeta.description },
+                structuredData: {
+                    '@context': 'https://schema.org',
+                    '@type': 'DefinedTerm',
+                    name: headwordOf(vocab),
+                    // The romaji a learner searches it by, on an English page (#278).
+                    ...(wordRomaji ? { alternateName: wordRomaji.reading } : {}),
+                    description: vocabMeta.description,
+                },
             }),
         };
     }
@@ -356,7 +383,7 @@ export function pagesOf(source: DictionaryData, locale: ServedLocale) {
     // -------------------------------------------------------------------------- shared indexes
 
     const indexes = entityIndexesOf(source);
-    const { summaries, kanjiList, frequencyIndex, orderSteps, grammarIndexes } = indexes;
+    const { summaries, kanjiList, frequencyIndex, orderSteps, grammarIndexes, romaji } = indexes;
     const entityPages = entityPagesOf(source, locale, indexes);
     const vocabIds = kept(async () => source.vocabIds());
     const knownVocabIds = kept(async (): Promise<ReadonlySet<string>> => new Set(await vocabIds()));
@@ -556,6 +583,30 @@ export function pagesOf(source: DictionaryData, locale: ServedLocale) {
         };
     }
 
+    /**
+     * The words one romaji is shared by (#278, lib/romaji.ts): a learner who typed "hashi" and does
+     * not yet know which word they mean. Most frequent first, each with what tells it apart: its
+     * meaning, its level, how common it is, its pitch accent.
+     */
+    async function romajiPage(key: string): Promise<Rendered<RomajiPageProps>> {
+        const ids = (await romaji()).byRomaji.get(key);
+        if (ids === undefined) throw new PageNotFound(`no romaji page for ${key}`);
+        const words = await Promise.all(ids.map(async id => {
+            const vocab = await source.vocab(id);
+            const pitch = primaryPitchAccent(vocab);
+            return {
+                summary: vocabSummaryFrom(vocab),
+                ...(vocab.jlptLevel ? { jlpt: vocab.jlptLevel } : {}),
+                rank: wordFrequencyRank(vocab),
+                ...(pitch ? { pitch } : {}),
+            };
+        }));
+        return {
+            props: { romaji: key, words },
+            document: documentOf(urls.romajiPath(key), meta.romaji(key, words.map(word => word.summary)), { style: 'vocab' }),
+        };
+    }
+
     /** No props: the results are found in the browser (client/search.ts). */
     function searchPage(): Rendered<Record<string, never>> {
         return { props: {}, document: documentOf(urls.searchPath(), meta.search(), { noindex: true }) };
@@ -617,6 +668,7 @@ export function pagesOf(source: DictionaryData, locale: ServedLocale) {
         kanjiRange: async () => [...(await orderRanges()).values()].flatMap(({ order, ranges }) => ranges.map(range => ({ order: kanjiOrderSlug(order.id), range: kanjiRangeSlug(range) }))),
         vocabJlpt: async () => (await jlptLevelWords()).map(({ level }) => ({ level: String(level) })),
         vocabJlptPage: async () => (await jlptLevelWords()).flatMap(({ level, words }) => paginate(words, JLPT_PAGE_SIZE).slice(1).map((_, index) => ({ level: String(level), page: String(index + 2) }))),
+        romaji: async () => [...(await romaji()).byRomaji.keys()].map(key => ({ romaji: key })),
     };
     /**
      * Another locale's: its home, its words with text shown in its language (LocaleText.wordIds) and
@@ -626,7 +678,7 @@ export function pagesOf(source: DictionaryData, locale: ServedLocale) {
     const pageEntries: typeof everyPageEntries = text === null ? everyPageEntries : {
         ...everyPageEntries,
         vocab: async () => (await localeWordIds()).map(id => ({ id })),
-        kanji: none, grammar: none, grammarFamily: none, grammarChapter: none, kanjiOrder: none, kanjiRange: none,
+        kanji: none, grammar: none, grammarFamily: none, grammarChapter: none, kanjiOrder: none, kanjiRange: none, romaji: none,
     };
 
     /** The JLPT list pages the locale has, by level: its words split in pages. */
@@ -685,9 +737,19 @@ export function pagesOf(source: DictionaryData, locale: ServedLocale) {
         ];
     }
 
+    /**
+     * The romaji pages' paths, for a sitemap of their own (sitemap-romaji.xml, #278), so Search
+     * Console reports their indexing apart from the word pages'. English only: none in another locale.
+     */
+    async function romajiSitemapPaths(): Promise<string[]> {
+        return text === null ? [...(await romaji()).byRomaji.keys()].map(key => urls.romajiPath(key)) : [];
+    }
+
     return {
         ...entityPages,
         servesPage,
+        romajiPage: englishOnly(romajiPage),
+        romajiSitemapPaths,
         grammarIndexPage: englishOnly(grammarIndexPage),
         grammarFamiliesIndexPage: englishOnly(grammarFamiliesIndexPage),
         grammarFamilyPage: englishOnly(grammarFamilyPage),

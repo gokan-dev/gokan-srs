@@ -41,6 +41,8 @@ export const BUDGETS = {
     kanjiPageMax: PAGE,
     /** The heaviest grammar point page: its curated examples, up to 25 from the corpus, its related points. */
     grammarPageMax: PAGE,
+    /** The heaviest romaji page (#278): the words one romaji is shared by, up to 15. */
+    romajiPageMax: PAGE,
     /** The home page. */
     homePage: PAGE,
     /** `/grammar/`, to the end of its first screen. */

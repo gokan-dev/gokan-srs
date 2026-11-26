@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Snippet } from 'svelte';
   import type { VocabSummary } from '../lib/types';
   import { langOnChinesePage } from '../lib/documentShell';
   import { pageLocale } from './pageLocale';
@@ -29,18 +30,25 @@
     briefRest?: boolean;
     /** The disclosure's summary, given how many rows it holds; "All N words" when omitted. */
     more?: (hidden: number) => string;
+    /** A row's reading cell in place of its plain reading (a romaji page's, with its pitch accent): a span. */
+    reading?: Snippet<[VocabSummary]>;
+    /**
+     * The note inside the gloss's cell rather than on a line of its own (a romaji page, whose notes
+     * are what tell its words apart); its class centres the headword and reading on the two.
+     */
+    noteInGloss?: boolean;
   }
 
-  let { entries, visible, stacked = false, briefRest = false, more }: Props = $props();
+  let { entries, visible, stacked = false, briefRest = false, more, reading, noteInGloss = false }: Props = $props();
 
   const shown = $derived(visible === undefined ? entries : entries.slice(0, visible));
   const rest = $derived(visible === undefined ? [] : entries.slice(visible));
 </script>
 
 {#snippet rows(words: VocabSummary[], brief: boolean)}
-  <ul class="entry-list" class:entry-list--stacked={stacked} class:entry-list--brief={brief}>
+  <ul class="entry-list" class:entry-list--stacked={stacked} class:entry-list--brief={brief} class:entry-list--note-in-gloss={noteInGloss}>
     {#each words as word (word.id)}
-      <li><a href={urls.vocabPath(word.id)} lang="ja">{word.word}{#if word.reading}<span>{word.reading}</span>{/if}{#if !brief}{#if word.localGloss}<span lang={langOnChinesePage(word.localGloss) ?? lang}>{word.localGloss}</span>{:else}<span lang="en">{word.gloss ?? ''}</span>{/if}{#if word.note}<small lang={lang}>{word.note}</small>{/if}{/if}</a></li>
+      <li><a href={urls.vocabPath(word.id)} lang="ja">{word.word}{#if reading}{@render reading(word)}{:else if word.reading}<span>{word.reading}</span>{/if}{#if !brief}<span lang={word.localGloss ? (langOnChinesePage(word.localGloss) ?? lang) : 'en'}>{word.localGloss || (word.gloss ?? '')}{#if noteInGloss && word.note}<small lang={lang}>{word.note}</small>{/if}</span>{#if !noteInGloss && word.note}<small lang={lang}>{word.note}</small>{/if}{/if}</a></li>
     {/each}
   </ul>
 {/snippet}

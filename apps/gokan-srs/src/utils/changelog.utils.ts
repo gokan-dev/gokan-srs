@@ -3,6 +3,13 @@ import { isRecord } from '../services/isRecord';
 
 const VERSION = /^(\d+)\.(\d+)\.(\d+)$/;
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
+/** A full stop then a capital: where a second sentence starts. */
+const SENTENCE_BREAK = /\. [A-Z]/;
+/**
+ * A single change's entry is one plain sentence (AGENTS.md) from this version on; the two entries
+ * before it written as two (1.45.0, 1.47.0) shipped so, and their text is what learners read then.
+ */
+const ONE_SENTENCE_FROM = '1.72.0';
 
 /** The three numbers of `1.43.0`, or null for anything else. */
 function versionParts(version: string): [number, number, number] | null {
@@ -40,6 +47,10 @@ export function changelogProblems(entries: readonly ChangelogEntry[]): string[] 
         const date = day ? changelogDate(entry.date) : null;
         if (!date || date.getMonth() !== Number(day?.[2]) - 1) problems.push(`${name}: date is not a YYYY-MM-DD day`);
         if (entry.summary.trim() === '') problems.push(`${name}: summary is empty`);
+        // A release's summary is its headline; its changes are its members' sentences.
+        if (entry.changes === undefined && versionParts(entry.version) && compareVersions(entry.version, ONE_SENTENCE_FROM) >= 0 && SENTENCE_BREAK.test(entry.summary)) {
+            problems.push(`${name}: summary is more than one sentence`);
+        }
         if (entry.issue !== undefined && !(Number.isInteger(entry.issue) && entry.issue > 0)) problems.push(`${name}: issue is not a number`);
         if (entry.changes !== undefined) {
             if (entry.changes.length === 0) problems.push(`${name}: changes is present but empty`);

@@ -23,6 +23,7 @@ import { messagesFor } from '../src/lib/messages';
 import { kanaToHepburn, readingOfRow } from '@gokan/dataset-schema';
 import type { TextFile } from '@gokan/dataset-schema/text';
 import { fromColumns } from '../src/lib/searchIndex';
+import { firstGloss, ROMAJI_PAGE_CAP, romajiOf } from '../src/lib/romaji';
 import { prepareIndex, search, TIER, type PreparedIndex } from '../src/lib/searchQuery';
 import type { SearchIndexFile, SearchWordRow } from '../src/lib/types';
 
@@ -125,6 +126,10 @@ function measure(manifest: Record<string, ViteManifestEntry>): { measurements: M
     // A grammar point is named by its level and number (n5-088); the other directories are browse pages.
     const points = (ENTITY_PAGES === 'prerendered' ? subdirectories('grammar').filter(name => /^n[1-5]-\d+$/.test(name)) : []).map(id => page('grammarPageMax', pageOf('grammar', id), `grammar/${id}`));
     if (points.length > 0) measurements.push(heaviest(points));
+
+    // Every romaji page (#278): at most 15 words each, the heaviest held to the first round trip.
+    const romajiPages = romajiPageNames().map(name => page('romajiPageMax', pageOf('romaji', name), `romaji/${name}/`));
+    if (romajiPages.length > 0) measurements.push(heaviest(romajiPages));
 
     measurements.push(page('homePage', 'index.html', 'home'));
     if (fs.existsSync(path.join(DIST_DIR, 'zh-hans', 'index.html'))) measurements.push(page('homePage', pageOf('zh-hans'), 'zh-hans/'));
@@ -235,6 +240,87 @@ function assetProblems(): string[] {
         // Every Svelte client runtime build links its error codes to svelte.dev/e/.
         if (source.includes('svelte.dev/e/')) problems.push(`assets/${script} contains the Svelte client runtime`);
         if (source.includes(SITE_ORIGIN)) problems.push(`assets/${script} contains the site origin (${SITE_ORIGIN}), so its size depends on the environment`);
+    }
+    return problems;
+}
+
+/** The romaji pages built (English's only, #278): their romaji. */
+const romajiPageNames = () => (fs.existsSync(path.join(DIST_DIR, 'romaji')) ? subdirectories('romaji') : []);
+
+/** Text's entities decoded as far as the shell and Svelte write them (documentShell.ts). */
+const decodeEntities = (text: string) => text.replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+
+/** A page's meta description, its entities decoded. */
+function descriptionOf(html: string): string {
+    return decodeEntities(/<meta name="description" content="([^"]*)"/.exec(html)?.[1] ?? '');
+}
+
+/** The words a word page's "Also read" line names (#278): each one's id, from its link, and the term after it. */
+function alsoReadNamed(html: string): { id: string; term: string }[] {
+    const line = (/<p class="meta entry-romaji-shared">(.*?)<\/p>/s.exec(html)?.[1] ?? '').replace(/<!--.*?-->/gs, '');
+    return [...line.matchAll(/<a [^>]*href="[^"]*\/vocab\/(\d+)\/"[^>]*>[^<]*<\/a>([^<]*)/g)].map(([, id = '', after = '']) => ({
+        id,
+        term: decodeEntities(after.replace(/, and [\d,]+ more$/, '').replace(/, $/, '').trim()),
+    }));
+}
+
+/**
+ * The romaji pages and the romaji on the word pages (#278): some romaji pages, never more than
+ * ROMAJI_PAGE_CAP, each listing two words or more, all of them and only them in sitemap-romaji.xml;
+ * and every English word page (prerendered) carrying its romaji in its reading line, before any other
+ * reading, and in its description, its "Also read" line naming every word apart.
+ */
+function romajiProblems(): string[] {
+    const problems: string[] = [];
+    const names = romajiPageNames();
+    if (names.length === 0) problems.push('no romaji page was built (dist/romaji/)');
+    if (names.length > ROMAJI_PAGE_CAP) problems.push(`${names.length} romaji pages, over the cap of ${ROMAJI_PAGE_CAP} (lib/romaji.ts)`);
+    for (const name of names) {
+        const rows = read(pageOf('romaji', name)).toString('utf-8').match(/<li><a href="[^"]*\/vocab\/\d+\/"/g)?.length ?? 0;
+        if (rows < 2) problems.push(`romaji/${name}/ lists ${rows} word${rows === 1 ? '' : 's'}: a romaji page is for a romaji two words share or more`);
+    }
+    const sitemap = fs.existsSync(path.join(DIST_DIR, 'sitemap-romaji.xml')) ? fs.readFileSync(path.join(DIST_DIR, 'sitemap-romaji.xml'), 'utf-8') : '';
+    const listed = new Set([...sitemap.matchAll(/<loc>[^<]*\/romaji\/([^/<]+)\/<\/loc>/g)].map(([, name]) => name));
+    if (listed.size !== names.length || names.some(name => !listed.has(name))) problems.push(`sitemap-romaji.xml lists ${listed.size} romaji pages, the build has ${names.length}`);
+
+    if (ENTITY_PAGES === 'prerendered') {
+        const rows = builtIndexFiles('en').flatMap(file => fromColumns(file.w));
+        const readings = new Map(rows.map(row => [row[0], readingOfRow(row)]));
+        const glosses = new Map(rows.map(row => [row[0], row[3]]));
+        const missing: string[] = [];
+        const misplaced: string[] = [];
+        const alike: string[] = [];
+        const unnamed: string[] = [];
+        for (const id of wordPages()) {
+            const reading = readings.get(id);
+            if (reading === undefined) continue;
+            const romaji = romajiOf(reading);
+            const html = read(pageOf('vocab', id)).toString('utf-8');
+            const inLine = html.includes(`<p class="entry-sub entry-romaji" lang="ja-Latn">${romaji.replace(/&/g, '&amp;')}</p>`);
+            if (!inLine || !descriptionOf(html).includes(`, ${romaji})`)) missing.push(`vocab/${id}/ (${romaji}): ${inLine ? 'not in its description' : 'not in its reading line'}`);
+            // The romaji is the primary reading's: nothing of the other readings (a .meta, "also ...")
+            // before it on the header line, where 端 はし · also …、つま hashi read as つま's.
+            else if (html.slice(html.indexOf('class="entry-line"'), html.indexOf('entry-romaji')).includes('class="meta"')) misplaced.push(`vocab/${id}/ (${romaji})`);
+            // "Also read" tells the words it names apart (alsoReadTerms): none named by this word's
+            // first gloss nor by another's term (取る to take, 撮る to take), unless their whole glosses
+            // are one, when nothing in English parts them (差す and 射す, both "to shine").
+            const named = alsoReadNamed(html);
+            // A line the parse finds no word in would pass the check below unchecked (a link's markup changed).
+            if (named.length === 0 && html.includes('entry-romaji-shared')) unnamed.push(`vocab/${id}/`);
+            const own = { id, term: firstGloss(glosses.get(id)) };
+            for (const word of named) {
+                const twin = [own, ...named].find(other => other !== word && other.term === word.term && word.term !== '');
+                if (twin && glosses.get(twin.id) !== glosses.get(word.id)) alike.push(`vocab/${id}/ names ${word.id} "${word.term}", as ${twin.id}`);
+            }
+        }
+        problems.push(...missing.slice(0, 5).map(found => `a word page without its romaji: ${found}`));
+        if (missing.length > 5) problems.push(`and ${missing.length - 5} more word pages without their romaji`);
+        problems.push(...misplaced.slice(0, 5).map(found => `a word page with its romaji after its other readings, not its own: ${found}`));
+        if (misplaced.length > 5) problems.push(`and ${misplaced.length - 5} more word pages with their romaji after their other readings`);
+        problems.push(...alike.slice(0, 5).map(found => `an "Also read" line naming two words alike: ${found}`));
+        if (alike.length > 5) problems.push(`and ${alike.length - 5} more "Also read" lines naming two words alike`);
+        problems.push(...unnamed.slice(0, 5).map(found => `an "Also read" line naming no word: ${found}`));
+        if (unnamed.length > 5) problems.push(`and ${unnamed.length - 5} more "Also read" lines naming no word`);
     }
     return problems;
 }
@@ -461,7 +547,7 @@ async function unmatchedPathProblems(): Promise<string[]> {
     }
 }
 
-const problems = [...over.map(m => `over budget: ${describe(m)}`), ...modeProblems(), ...unmeasuredStylesheetProblems(manifest, measuredSheets), ...assetProblems(), ...searchProblems(), ...localeSearches.flatMap(found => found.problems), ...sitemapProblems(), ...routingProblems(), ...linkProblems(), ...alternatesProblems(), ...sourceNameProblems(), ...(await unmatchedPathProblems())];
+const problems = [...over.map(m => `over budget: ${describe(m)}`), ...modeProblems(), ...unmeasuredStylesheetProblems(manifest, measuredSheets), ...assetProblems(), ...searchProblems(), ...localeSearches.flatMap(found => found.problems), ...sitemapProblems(), ...romajiProblems(), ...routingProblems(), ...linkProblems(), ...alternatesProblems(), ...sourceNameProblems(), ...(await unmatchedPathProblems())];
 
 // A budget over many pages reports its heaviest.
 const MANY_PAGES: Partial<Record<BudgetName, string>> = { jlptPage: 'JLPT list pages', kanjiOrderPage: 'kanji order pages' };
