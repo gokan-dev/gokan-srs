@@ -52,6 +52,14 @@ describe('changelogProblems', () => {
         expect(changelogProblems([entry({ issue: 1.5 })])).toEqual([expect.stringContaining('issue')]);
     });
 
+    it('refuses a single change written as more than one sentence, from 1.72.0 on', () => {
+        const twoSentences = 'Romaji beside the kana. Forms under the examples.';
+        expect(changelogProblems([entry({ version: '1.72.0', summary: twoSentences })])).toEqual([expect.stringContaining('more than one sentence')]);
+        expect(changelogProblems([entry({ version: '1.72.0', summary: 'Romaji beside the kana (hashi: 橋, 端, 箸).' })])).toEqual([]);
+        expect(changelogProblems([entry({ version: '1.47.0', summary: twoSentences })])).toEqual([]);
+        expect(changelogProblems([entry({ version: '1.72.0', summary: 'A release', changes: [{ summary: twoSentences }] })])).toEqual([]);
+    });
+
     it('passes for the committed changelog, which the build also refuses to ship otherwise', () => {
         expect(changelogProblems(CHANGELOG)).toEqual([]);
     });

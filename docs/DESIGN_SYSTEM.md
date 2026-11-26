@@ -642,8 +642,11 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   and order: **Dict** (Meanings, its first 3 and "Show all N meanings" in place, rare ones in their
   own disclosure; the app panel; Examples, 2 sentences; Forms, the dictionary's own, a verb's or an
   adjective's table right under Examples, so how the word conjugates sits beside how it is used;
-  below 40rem a grid row's Plain and Polite stack under its label, each named and the full width,
-  so a form stays on one line, and Japanese there breaks `line-break: strict`;
+  the grid and the other forms read as one table, one label column (30%, a fixed layout, so the
+  other forms start under Plain) and a row's gap between them; below 40rem every row stacks, its
+  label (primary ink, 600) on its own line and its forms indented under it at the full width, a
+  grid row's Plain and Polite each named, so a form stays on one line, and Japanese there breaks
+  `line-break: strict`;
   Closest synonyms, up to 5 from the first
   meaning, never a ≠ pair, "For meaning 1 · ..." under them), **Sentences** (5, then "Show N more"),
   **Synonyms**, **Kanji**, **Related** (Made of, Used in, 5 rows each
@@ -797,7 +800,7 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   included), 24px apart, with no separator, and before the other readings ("· also ..."), which come
   last so the romaji reads as the primary reading's; the line wraps as a whole (`.entry-line`). In
   the Forms table it is each form's third line, under its kana, in the kana's `small` style,
-  wrapping only between morae (`<wbr>` from `romajiParts`). A word whose
+  wrapping only between morae (`<wbr>` from `formRomajiParts`). A word whose
   romaji is shared gets one tertiary line closing its header, "Also read hashi: 箸 chopsticks, 端
   edge" (the romaji linking its romaji page, each word its own and named by its first gloss term,
   notes dropped, unless that names two words alike: then its first gloss whole, 取る's page naming

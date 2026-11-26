@@ -265,11 +265,18 @@ $pitch-button-room: $target + $space-half;
   font-size: $text-sm;
 }
 
-// The Forms table: a plain/polite grid, then the other forms.
+// The Forms table: a plain/polite grid, then the other forms, read as one table: one label column
+// (fixed, so the list's forms start under Plain), and the grid's last row meets the list's first
+// with the gap between any two rows.
 .forms {
   border-collapse: collapse;
+  table-layout: fixed;
   width: 100%;
   margin-bottom: $space-2;
+
+  &:has(+ .forms) {
+    margin-bottom: 0;
+  }
 
   th,
   td {
@@ -277,6 +284,11 @@ $pitch-button-room: $target + $space-half;
     border-bottom: 1px solid var(--divider);
     text-align: left;
     vertical-align: top;
+  }
+
+  // The label column, in both tables (a fixed layout reads the widths from the first row).
+  tr > :first-child {
+    width: 30%;
   }
 
   th {
@@ -307,56 +319,64 @@ $pitch-button-room: $target + $space-half;
     overflow-wrap: anywhere;
   }
 
-  &--list th {
-    width: 40%;
-  }
-
-  // On a phone a grid row is its label, then its Plain and Polite forms stacked under it, each
-  // the full width and named by its cell's data-label: two form columns beside the label left
-  // about 100px a form, and 静かではありませんでした or torimasendeshita broke mid-word.
+  // On a phone every row is its label, then its forms indented under it, each the full width: two
+  // form columns beside the label left about 100px a form, and 静かではありませんでした or
+  // torimasendeshita broke mid-word; the list's rows stack the same way, so the section keeps one
+  // left edge and "Conditional (たら)" no longer wraps in a narrow label column. A grid cell is named
+  // by its data-label; the label leads its group by ink and weight.
   @include narrow {
-    &:not(.forms--list) {
-      // Hidden from sight only (the .visually-hidden clip): display: none would take the Plain and
-      // Polite column heads out of the accessibility tree, and each form would lose its column.
-      thead {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        overflow: hidden;
-        clip-path: inset(50%);
-        white-space: nowrap;
-      }
+    // Hidden from sight only: display: none would take the Plain and Polite column heads out of
+    // the accessibility tree, and each form would lose its column.
+    thead {
+      @include visually-hidden;
+    }
 
-      tbody,
-      tr,
-      th,
-      td {
-        display: block;
-      }
+    tbody,
+    tr,
+    th,
+    td {
+      display: block;
+    }
 
-      tr {
-        padding: $space-1 0;
-        border-bottom: 1px solid var(--divider);
-      }
+    tr > :first-child {
+      width: auto;
+    }
 
-      th,
-      td {
-        padding: 0;
-        border-bottom: 0;
-      }
+    tr {
+      padding: $space-1 0;
+      border-bottom: 1px solid var(--divider);
+    }
 
-      td {
-        margin-top: $space-1;
-      }
+    th,
+    td {
+      padding: 0;
+      border-bottom: 0;
+    }
 
-      td::before {
-        content: attr(data-label);
-        display: block;
-        color: var(--tertiary);
-        font-size: $text-sm;
-      }
+    th {
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    td {
+      margin: $space-1 0 0 $space-2;
+    }
+
+    td[data-label]::before {
+      // The second declaration gives the label empty alt text where supported: the column head
+      // already names the cell for a screen reader, which would otherwise say Plain twice.
+      content: attr(data-label);
+      content: attr(data-label) / "";
+      display: block;
+      color: var(--tertiary);
+      font-size: $text-sm;
     }
   }
+}
+
+// A #forms link (Forms was its own tab) lands with room above the heading.
+#forms {
+  scroll-margin-top: $space-2;
 }
 
 .kanji-tiles {

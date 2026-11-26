@@ -158,18 +158,29 @@ $motion: 150ms ease-in-out;
   margin: $space-2 0 0;
 }
 
-/// The app panel (pages/AppPanel.svelte), once per page after what the reader came for: a quiet accent edge, as
-/// the accent marks an action, and one button-styled link. A mixin each page sheet with a panel
-/// includes (vocab, kanji, grammar, kanji-orders, home) rather than an app.scss rule, so the
-/// stylesheet every page loads stays within its budget.
-// A Japanese word in running English, read in two fragments, is not the word: an atomic box moves
-// to the next line whole, and wraps inside itself only when wider than the line, never scrolling a
-// phone sideways as nowrap would (check:layout).
+/// A Japanese word in running English, read in two fragments, is not the word: an atomic box moves
+/// to the next line whole, and wraps inside itself only when wider than the line, never scrolling a
+/// phone sideways as nowrap would (check:layout).
 @mixin whole-japanese {
   display: inline-block;
   max-width: 100%;
 }
 
+/// Hidden from sight, kept for screen readers: display: none or visibility: hidden would take the
+/// element out of the accessibility tree too.
+@mixin visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/// The app panel (pages/AppPanel.svelte), once per page after what the reader came for: a quiet accent edge, as
+/// the accent marks an action, and one button-styled link. A mixin each page sheet with a panel
+/// includes (vocab, kanji, grammar, kanji-orders, home) rather than an app.scss rule, so the
+/// stylesheet every page loads stays within its budget.
 @mixin app-panel {
   .app-panel {
     @include surface;

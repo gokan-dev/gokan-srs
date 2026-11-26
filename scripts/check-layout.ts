@@ -2210,23 +2210,35 @@ async function checkDictionaryWordTabs(tab: Tab, base: string, width: number): P
  * A word's Forms on a phone (issue 278): every form stays whole on one line, never 静かじ / ゃなか /
  * った. Below 40rem a grid row's Plain and Polite stack under its label, each with the full width;
  * 静か's polite past negative (静かではありませんでした) is the longest form in any table. On 取る
- * and the な-adjective 静か, the Japanese of every form cell drawn (`.forms td > span`) is one line box.
- * The grid's column heads are only hidden from sight there, never `display: none`, which would take
- * Plain and Polite out of the accessibility tree (a screen reader would hear forms with no column).
+ * the な-adjective 静か and 引きつける (whose romaji rc.5's staging saw split, hikitsukema / sendeshita),
+ * the Japanese of every form cell drawn (`.forms td > span`) is one line box, and so is its romaji
+ * (`small[lang="ja-Latn"]`, a block: its lines are read from its text's rects). The grid's column
+ * heads are only hidden from sight there, never `display: none` or `visibility: hidden`, which would
+ * take Plain and Polite out of the accessibility tree (a screen reader would hear forms with no column).
  */
-const FORMS_WORDS = [TABBED_WORD, '1381820'];
+const FORMS_WORDS = [TABBED_WORD, '1381820', '1601680'];
 async function checkFormsOneLine(tab: Tab, base: string, width: number): Promise<void> {
     for (const id of FORMS_WORDS) {
         const page = `dictionary /vocab/${id}/`;
         await tab.goto(`${base}/vocab/${id}/`, 'How common');
-        const forms = await tab.evaluate<{ count: number; broken: string[]; headless: number }>(`(() => {
-            const headless = [...document.querySelectorAll('.forms thead')].filter(head => getComputedStyle(head).display === 'none').length;
-            const spans = [...document.querySelectorAll('.forms td > span')].filter(span => span.getClientRects().length > 0);
-            const lines = span => new Set([...span.getClientRects()].map(rect => Math.round(rect.top))).size;
-            return { count: spans.length, broken: spans.filter(span => lines(span) > 1).map(span => span.textContent), headless };
+        const forms = await tab.evaluate<{ count: number; romaji: number; broken: string[]; headless: number }>(`(() => {
+            const headless = [...document.querySelectorAll('.forms thead')].filter(head => {
+                const style = getComputedStyle(head);
+                return style.display === 'none' || style.visibility === 'hidden';
+            }).length;
+            const drawn = selector => [...document.querySelectorAll(selector)].filter(element => element.getClientRects().length > 0);
+            const lines = element => {
+                const range = document.createRange();
+                range.selectNodeContents(element);
+                return new Set([...range.getClientRects()].filter(rect => rect.width > 0).map(rect => Math.round(rect.top))).size;
+            };
+            const spans = drawn('.forms td > span');
+            const romaji = drawn('.forms td small[lang="ja-Latn"]');
+            return { count: spans.length, romaji: romaji.length, broken: [...spans, ...romaji].filter(element => lines(element) > 1).map(element => element.textContent), headless };
         })()`);
         if (forms.count === 0) failures.push(`${width}px ${page}: no Forms table drawn in Dict`);
-        if (forms.headless > 0) failures.push(`${width}px ${page}: the Forms column heads are display: none, out of the accessibility tree`);
+        if (forms.romaji === 0) failures.push(`${width}px ${page}: no romaji under the forms`);
+        if (forms.headless > 0) failures.push(`${width}px ${page}: the Forms column heads are display: none or visibility: hidden, out of the accessibility tree`);
         for (const form of forms.broken) failures.push(`${width}px ${page}: the form ${form} breaks over lines in the Forms table`);
     }
 }
@@ -2252,17 +2264,24 @@ async function checkFormsHashLanding(tab: Tab, base: string, width: number): Pro
 /**
  * A romaji page's intro names the readings that share it (issue 278): きねん or きんえん, never
  * きんえ / ん at a line's end. Each Japanese run in the intro is one line box, as in the app panel
- * (the whole-japanese mixin); /romaji/kinen/ broke at 320px.
+ * (the whole-japanese mixin); /romaji/kinen/ broke at 320px. Where a run breaks depends on the font
+ * (CI's Chrome has no CJK face), so each run is also held to the mixin itself: an inline-block with
+ * a max-width, which the plain inline span before it was not, whatever the font.
  */
 const WHOLE_INTRO_PAGES = ['/romaji/kinen/'];
 async function checkIntroJapaneseWhole(tab: Tab, base: string, width: number): Promise<void> {
     for (const path of WHOLE_INTRO_PAGES) {
         await tab.goto(`${base}${path}`, 'in Japanese');
-        const intro = await tab.evaluate<{ count: number; broken: string[] }>(`(() => {
+        const intro = await tab.evaluate<{ count: number; broken: string[]; loose: string[] }>(`(() => {
             const runs = [...document.querySelectorAll('.page-intro [lang="ja"]')].filter(run => run.getClientRects().length > 0);
-            return { count: runs.length, broken: runs.filter(run => run.getClientRects().length > 1).map(run => run.textContent) };
+            const loose = runs.filter(run => {
+                const style = getComputedStyle(run);
+                return style.display !== 'inline-block' || style.maxWidth === 'none';
+            });
+            return { count: runs.length, broken: runs.filter(run => run.getClientRects().length > 1).map(run => run.textContent), loose: loose.map(run => run.textContent) };
         })()`);
         if (intro.count === 0) failures.push(`${width}px dictionary ${path}: no Japanese in the intro`);
+        for (const run of intro.loose) failures.push(`${width}px dictionary ${path}: ${run} in the intro is not an inline-block with a max-width (whole-japanese), so it can break over lines`);
         for (const run of intro.broken) failures.push(`${width}px dictionary ${path}: ${run} breaks over lines in the intro`);
     }
 }
