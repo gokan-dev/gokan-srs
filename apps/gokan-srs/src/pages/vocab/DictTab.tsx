@@ -206,10 +206,11 @@ function ClosestSynonyms({ vocab, sections, onCompare }: { vocab: Vocabulary; se
                                             <span aria-hidden="true">{sign.sign}</span>
                                             <span className="sr-only">{sign.label}:</span>
                                         </span>
-                                        <span lang="ja" className="font-mincho text-base shrink-0">{headwordOf(word.forms)}</span>
+                                        <span lang="ja" className="font-mincho text-base/5 shrink-0">{headwordOf(word.forms)}</span>
                                         <SecondaryForm vocab={word.forms} />
                                     </div>
-                                    {word.nuance && <p className="type-body"><MixedText text={word.nuance} unbroken /></p>}
+                                    {/* The heading at a 20px line and the body text at 24px, not 26px: five rows keep the full page within its height (check:layout). */}
+                                    {word.nuance && <p className="type-body leading-6"><MixedText text={word.nuance} unbroken /></p>}
                                 </ListRow>
                             </li>
                         );
