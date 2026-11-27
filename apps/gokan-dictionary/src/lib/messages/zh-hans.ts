@@ -50,7 +50,7 @@ const pitchAccentWords = (downsteps: readonly number[]) => `音调：${downsteps
 /** How common a word is, by its round top (a word page's facts, a romaji page's rows). */
 const frequencyReference = (top: { top: number; beyond: boolean } | null) => (top === null ? '不在词频表中' : top.beyond ? `前 ${grouped(top.top)} 名以外` : `前 ${grouped(top.top)} 个词`);
 
-const COUNTER: Record<CountedNoun, string> = { word: '个词', stroke: '画', 'grammar point': '个语法点', synonym: '个近义词' };
+const COUNTER: Record<CountedNoun, string> = { word: '个词', stroke: '画', 'grammar point': '个语法点', synonym: '个近义词', sentence: '个例句' };
 
 function count(n: number, noun: CountedNoun): string {
     return `${grouped(n)} ${COUNTER[noun]}`;
@@ -188,7 +188,7 @@ export const zhHans: Messages = {
         alsoWritten: '也写作',
         pitchAccent: pitchAccentWords,
         sections: {
-            meanings: '词义', examples: '典型例句', closestSynonyms: '最接近的近义词', sentences: '例句', synonyms: '近义词',
+            meanings: '词义', commonPatterns: '常见搭配', examples: '典型例句', closestSynonyms: '最接近的近义词', sentences: '例句', synonyms: '近义词',
             forms: '活用', kanji: '汉字', related: '相关词', madeOf: '构成', usedIn: '用于',
         },
         showAllMeanings: n => `显示全部 ${n} 个英文释义`,

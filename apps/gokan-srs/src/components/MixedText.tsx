@@ -1,4 +1,4 @@
-import { japaneseRuns } from "../utils/japaneseRuns.utils";
+import { japaneseRuns } from "@gokan/dataset-schema";
 
 /**
  * Text that mixes English and Japanese (a lesson title, a contrast case's guidance), each

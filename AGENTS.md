@@ -174,6 +174,12 @@ summary ("Largest tool results"), which is where a whole read shows.
 
 - **No em dashes** (U+2014) anywhere: code, comments, docs, commit messages, PR text, UI copy.
   Use a colon, parentheses, a comma, or reword. Enforced.
+- **No semicolons in learner-facing text** (UI copy, the dataset's hand-written lines, the
+  changelog): a ";" joining two clauses reads as machine-written, as an em dash does. Join them
+  with a comma and a word ("取る is to take or grab, while 捉える is to seize"), or write two
+  sentences. Enforced on synonym nuance lines (gokan-dataset's `applyNuances`); elsewhere a
+  reviewer checks it (UI copy is spread through components, and older changelog entries predate
+  the rule).
 - UI copy is neutral, direct and encouraging without cheerleading: no exclamation-mark praise,
   no gamified language.
 - Comments explain why, not what. Match the density of the surrounding code.
@@ -292,8 +298,8 @@ The rest of the study flow:
   `grammarFamilyPath`, the chapter browser on a chapter through `grammarChapterPath`, a drill
   through `drillPath` (`utils/navigation.utils.ts`; enforced with the word and kanji paths). A
   Japanese run inside English text (a lesson title in a page title, a contrast case's guidance) is
-  set in a Japanese face by `components/MixedText.tsx` (over `japaneseRuns`,
-  `utils/japaneseRuns.utils.ts`); a contrast case, on a family page or under a drill card, is
+  set in a Japanese face by `components/MixedText.tsx` (over `japaneseRuns`, from
+  `@gokan/dataset-schema`, which the dictionary's nuance lines split on too); a contrast case, on a family page or under a drill card, is
   `components/ContrastCaseText.tsx`.
 - Session flow: `useSessionLifecycle`, `components/SessionProgress.tsx` (counter, ticker, gains),
   the commit pipeline in `quizSelectors.ts` shared by the preview and the session.

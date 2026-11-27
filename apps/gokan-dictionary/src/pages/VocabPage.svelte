@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { VocabPageProps as Props } from '../lib/pageProps';
-  import { CLOSENESS_LABEL, formsClassOf, shortGloss, frequencyBand, synonymsSearchable, frequencyTop, headwordOf, primaryPitchAccent, secondaryForm, summaryGloss, textbookLessonsLabel, wordFrequencyRank } from '@gokan/dataset-schema';
+  import { CLOSENESS_LABEL, formsClassOf, japaneseRuns, shortGloss, frequencyBand, synonymsSearchable, frequencyTop, headwordOf, primaryPitchAccent, secondaryForm, summaryGloss, textbookLessonsLabel, wordFrequencyRank } from '@gokan/dataset-schema';
   import type { Sentence } from '@gokan/dataset-schema';
   import { valueText, type DefinitionSense } from '@gokan/dataset-schema/text';
   import { pageLocale } from './pageLocale';
@@ -109,6 +109,10 @@
     gloss: word.shared,
     note: `${CLOSENESS_LABEL[word.closeness].sign} ${words.closeness[word.closeness]}`,
   }));
+  // The word's frequent forms (不思議に思う), as text with their counts: the dictionary has no filtered Sentences view.
+  const patterns = $derived(vocab.patterns ?? []);
+  // Closest synonyms as rows, each its word over the line saying how the two differ, once any pair has one (the app's rows).
+  const closestNuanced = $derived(synonyms.closest?.words.some(word => word.nuance !== undefined) ?? false);
   const linkedKanji = $derived(vocab.writtenForm.containedKanji.filter(character => !kanjiWithoutPage.has(character)));
 
   /**
@@ -174,6 +178,11 @@
       </li>
     {/each}
   </ul>
+{/snippet}
+
+{#snippet nuanceLine(nuance: string)}
+  <!-- English, each Japanese run its own lang="ja" span (the app's MixedText): a run stays whole on its line. -->
+  <span class="nuance-line" lang={englishLang}>{#each japaneseRuns(nuance) as run, index (index)}{#if run.japanese}<span lang="ja">{run.text}</span>{:else}{run.text}{/if}{/each}</span>
 {/snippet}
 
 {#snippet synonymGroup(group: SynonymGroup, rows: number | undefined)}
@@ -266,6 +275,17 @@
           {#if meaningsCredit}<p class="meta source-credit">{meaningsCredit}</p>{/if}
         </section>
 
+        {#if patterns.length > 0}
+          <section class="section">
+            <h2>{words.sections.commonPatterns}</h2>
+            <ul class="pattern-list">
+              {#each patterns as pattern (pattern.text)}
+                <li><span lang="ja">{pattern.text}</span> <span class="meta">{messages.count(pattern.sentences, 'sentence')}</span></li>
+              {/each}
+            </ul>
+          </section>
+        {/if}
+
         <!-- After the meanings, never above them: a reader came for the definition, on a phone most of all. -->
         <AppPanel link={appLink} copy={orderStep ? messages.appPanel.word(headword, orderStep) : messages.appPanel.general} />
 
@@ -292,7 +312,15 @@
         {#if synonyms.closest}
           <section class="section">
             <h2>{words.sections.closestSynonyms}</h2>
-            <VocabEntryList entries={synonymEntries(synonyms.closest)} />
+            {#if closestNuanced}
+              <ul class="nuance-list">
+                {#each synonyms.closest.words as word (word.id)}
+                  <li><a href={urls.vocabPath(word.id)}><span class="nuance-head"><span aria-hidden="true">{CLOSENESS_LABEL[word.closeness].sign}</span><span class="visually-hidden">{words.closeness[word.closeness]}:</span><span lang="ja">{word.word}</span>{#if word.reading}<span lang="ja" class="nuance-reading">{word.reading}</span>{/if}</span>{#if word.nuance}{@render nuanceLine(word.nuance)}{/if}</a></li>
+                {/each}
+              </ul>
+            {:else}
+              <VocabEntryList entries={synonymEntries(synonyms.closest)} />
+            {/if}
             <p class="meta">{words.forMeaning(synonyms.closest.number)} · <span lang={englishLang}>{synonyms.closest.glosses}</span></p>
           </section>
         {/if}

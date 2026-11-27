@@ -9,8 +9,9 @@ export interface TextRun {
 
 /**
  * Splits text that mixes English and Japanese (a lesson title, "から / ので", "Using
- * ば vs たら") into runs, so each Japanese one can be set in a Japanese face: an
- * English face such as the page title's Source Serif 4 has no CJK glyphs.
+ * ば vs たら", a synonym's nuance line) into runs, so each Japanese one can be set in a Japanese
+ * face: an English face such as the page title's Source Serif 4 has no CJK glyphs. Both apps:
+ * gokan-srs's MixedText, the dictionary's nuance lines (each run its own `lang="ja"` span).
  */
 export function japaneseRuns(text: string): TextRun[] {
     const runs: TextRun[] = [];

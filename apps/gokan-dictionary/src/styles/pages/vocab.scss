@@ -374,3 +374,61 @@ $pitch-button-room: $target + $space-half;
 .entry-list--stacked {
   @include stacked-entries;
 }
+
+// Common patterns (不思議に思う): the word's frequent forms, as text with their sentence counts, in
+// a wrapping row as the app's (the dictionary has no filtered Sentences view to link them to).
+.pattern-list {
+  @include bare-list;
+
+  display: flex;
+  flex-wrap: wrap;
+  gap: $space-1 $space-3;
+
+  > li > span:first-child {
+    font-family: $font-mincho;
+    font-size: $text-lg;
+  }
+}
+
+// Closest synonyms once a pair has a nuance line: list rows, the sign, word and reading a one-line
+// heading in the secondary colour, the line under it in body text (the app's rows). A tile with a
+// sentence under it would read as a button with a loose caption.
+.nuance-list {
+  @include link-rows;
+
+  a {
+    display: block;
+  }
+}
+
+.nuance-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 $space-1;
+  color: var(--secondary);
+  font-family: $font-sans;
+  font-size: $text-sm;
+
+  > [lang] {
+    font-family: $font-mincho;
+    font-size: $text-base;
+  }
+
+  > .nuance-reading {
+    font-family: $font-gothic;
+    font-size: $text-sm;
+  }
+}
+
+.nuance-line {
+  display: block;
+  font-family: $font-sans;
+  font-size: $text-base;
+
+  // A Japanese run (帽子を取る) stays whole on its line: the dataset caps one at 12 characters.
+  > [lang="ja"] {
+    font-family: $font-gothic;
+    white-space: nowrap;
+  }
+}

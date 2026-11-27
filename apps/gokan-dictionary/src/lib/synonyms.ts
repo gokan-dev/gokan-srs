@@ -26,6 +26,8 @@ export interface SynonymRow {
     /** The meanings the two words share, as the app's row shows them ("to shine, to gleam"): what a search reads. */
     shared: string;
     closeness: Closeness;
+    /** How the two words differ, one hand-written line, when the dataset has one: Closest synonyms shows it under the word. */
+    nuance?: string;
 }
 
 export interface SynonymGroup {
@@ -49,7 +51,10 @@ export interface WordSynonyms {
 function rowOf(entry: SynonymEntry, glosses: readonly string[]): SynonymRow {
     const word = headwordOf(entry.forms);
     const reading = entry.forms.reading.primary;
-    return { id: entry.vocabId, word, ...(reading !== word ? { reading } : {}), shared: entry.shared.join(', '), closeness: pairCloseness(entry, glosses) };
+    return {
+        id: entry.vocabId, word, ...(reading !== word ? { reading } : {}), shared: entry.shared.join(', '), closeness: pairCloseness(entry, glosses),
+        ...(entry.nuance ? { nuance: entry.nuance } : {}),
+    };
 }
 
 /**
