@@ -57,7 +57,7 @@ export function GrammarCardHeader({ point, memoryStrength, answered, formalityLe
                     {realization && realization.total > 1 && (
                         <span
                             className="text-xs font-gothic text-tertiary"
-                            title="This rule has several equivalent forms; one is drilled per review, and they share one mastery score."
+                            title="This rule has several equivalent forms. One is drilled per review, and they share one mastery score."
                         >
                             form {realization.index} of {realization.total}
                         </span>

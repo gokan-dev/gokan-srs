@@ -64,6 +64,34 @@ const BUDGETS_FILE = 'apps/gokan-dictionary/src/lib/budgets.ts';
 const GOKAN_SRS_SOURCE = /^apps\/gokan-srs\/src\/.*\.tsx?$/;
 
 /**
+ * A ";" joining two clauses reads as machine-written, as an em dash does, so learner-facing copy never
+ * has one ("When written, their spelling tells them apart, but when spoken, only the context does"). The
+ * copy is the apps' sources (string literals and markup text, comments and logs aside) and the
+ * changelog. A dataset gloss list ("to take; to pick up") is data, not copy, and keeps its separator.
+ */
+const COPY_SOURCE = /^apps\/(gokan-srs|gokan-dictionary)\/src\/.*\.(tsx?|svelte)$|^apps\/gokan-srs\/release\/(changelog\.ts|changelog\.d\/.*\.md)$/;
+const STRING_LITERAL = /(['"`])((?:(?!\1)[^\\\n]|\\.)*)\1/g;
+const MARKUP_TEXT = />([^<>{}\n]*)</g;
+/** A clause-joining semicolon: after a word or a closing bracket (or opening a fragment), before a word. */
+const CLAUSE_SEMICOLON = /(?:^|[\p{L}\p{N})\]'"]) ?; +\p{L}/u;
+const NOT_COPY_LINE = /^\s*(\/\/|\*|\/\*)|console\.\w+\(|Error\(/;
+/** CSS in a style string ("color: red; margin: 0"), never copy. */
+const CSS_DECLARATIONS = /^\s*[\w-]+\s*:\s*[^;]*;/;
+
+function copySemicolonOn(line: string, file: string): boolean {
+    if (NOT_COPY_LINE.test(line)) return false;
+    if (file.endsWith('.md')) return CLAUSE_SEMICOLON.test(line);
+    const texts = [...line.matchAll(STRING_LITERAL)].map(m => m[2]);
+    if (file.endsWith('.tsx') || file.endsWith('.svelte')) {
+        texts.push(...[...line.matchAll(MARKUP_TEXT)].map(m => m[1]).filter(t => !/[=(]/.test(t) && !/^\s*[;,]/.test(t)));
+        // A line of markup text on its own, between a JSX or Svelte element's tags.
+        const bare = line.trim();
+        if (/^\p{L}/u.test(bare) && !/[=(){}<>]|[;,{]$/.test(bare)) texts.push(bare);
+    }
+    return texts.some(t => !CSS_DECLARATIONS.test(t) && CLAUSE_SEMICOLON.test(t));
+}
+
+/**
  * The pipeline scripts' small helpers (isRecord, env, output, gh) live in one module; a second
  * `isRecord` under scripts/ is the copy that started three of them (PR #273).
  */
@@ -727,6 +755,11 @@ function check(files: string[]): Violation[] {
 
         eachLine(text, l => l.includes(EM_DASH), line =>
             add({ file, line, rule: 'no-em-dash', message: 'Em dash. Use a colon, parentheses, a comma or reword.' }));
+
+        if (COPY_SOURCE.test(file) && !/\.test\.tsx?$/.test(file)) {
+            eachLine(text, l => copySemicolonOn(l, file), line =>
+                add({ file, line, rule: 'no-semicolon-copy', message: 'A semicolon in learner-facing copy reads as machine-written, as an em dash does. Use a comma (with a joining word: "and", "while", "when"), a colon, or two sentences.' }));
+        }
 
         if (STYLED_SOURCE.test(file) && !COLOUR_TOKEN_FILES.has(file) && !file.endsWith('.test.ts')) {
             eachLine(text, l => PALETTE_CLASS.test(l), line =>

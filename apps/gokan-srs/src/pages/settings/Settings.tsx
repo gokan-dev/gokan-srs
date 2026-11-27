@@ -149,7 +149,7 @@ function DeviceStorageSection() {
                 <div className="flex flex-col gap-3">
                     <p className="type-support">
                         A browser may clear saved data when the device runs low on space. Ask it to keep
-                        your progress; some browsers ask you to confirm.
+                        your progress. Some browsers ask you to confirm.
                     </p>
                     <Button
                         variant="secondary"
