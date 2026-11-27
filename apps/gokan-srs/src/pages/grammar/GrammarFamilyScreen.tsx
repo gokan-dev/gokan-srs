@@ -103,7 +103,7 @@ export default function GrammarFamilyScreen() {
                         <p className="text-primary font-sans text-sm leading-relaxed">
                             There is no rule to learn here. These forms say the same thing in the same
                             register, and choosing between them is a matter of feel rather than of fit.
-                            Recognise them; do not try to work out when each one applies.
+                            Recognise them, and do not try to work out when each one applies.
                         </p>
                     </Card>
                 )}

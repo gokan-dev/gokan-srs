@@ -69,7 +69,7 @@ export function GrammarDifferentiator({ point, knownIds, inline = false }: Props
             : family.name;
 
     const lede = axis === 'variant'
-        ? 'These are stylistic variants with no real difference in meaning or register. Learn to recognise them; you only ever need to produce one.'
+        ? 'These are stylistic variants with no real difference in meaning or register. Learn to recognise them, but you only ever need to produce one.'
         : axis === 'register'
             ? 'Every form below means the same thing. What changes is who you can say it to, and that is the whole lesson here.'
             : point.usageNote && !inline

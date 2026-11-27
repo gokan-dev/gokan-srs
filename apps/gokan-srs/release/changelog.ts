@@ -17,6 +17,11 @@ import type { ChangelogEntry } from '../src/models/release.model';
  */
 export const CHANGELOG: readonly ChangelogEntry[] = [
     {
+        version: '1.74.0',
+        date: '2026-11-27',
+        summary: 'A few sentences across the app and the dictionary are reworded to read more naturally, such as the line saying what tells apart words read the same.',
+    },
+    {
         version: '1.72.0',
         date: '2026-11-25',
         summary: 'The dictionary now writes every word\'s reading in romaji, beside its kana and under each of its forms, shows a word\'s forms under its examples and for every adjective (静かでした, 高く), finds a な-adjective from a form of it, and links a word read like others to a page setting them side by side (hashi: 橋, 端, 箸).',
@@ -125,7 +130,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     {
         version: '1.48.0',
         date: '2026-11-02',
-        summary: 'Japanese answers can now be typed in romaji, turned into kana as you type (taberu becomes たべる), with no Japanese keyboard needed; a katakana word answered in hiragana now counts as right.',
+        summary: 'Japanese answers can now be typed in romaji, turned into kana as you type (taberu becomes たべる), with no Japanese keyboard needed, and a katakana word answered in hiragana now counts as right.',
         issue: 186,
     },
     {
@@ -147,7 +152,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     {
         version: '1.45.0',
         date: '2026-10-30',
-        summary: 'Recordings of every word, and of the first sentences you meet for each, are ready; the About page now credits their voice. Play buttons come in a later version.',
+        summary: 'Recordings of every word, and of the first sentences you meet for each, are ready, and the About page now credits their voice. Play buttons come in a later version.',
         issue: 164,
     },
     {
@@ -165,7 +170,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     {
         version: '1.42.0',
         date: '2026-10-28',
-        summary: 'A word\'s page shows its closest synonyms and the words you mixed it up with; the separate Mix-ups page is gone.',
+        summary: 'A word\'s page shows its closest synonyms and the words you mixed it up with, which replaces the separate Mix-ups page.',
         issue: 162,
     },
     {
