@@ -40,14 +40,14 @@ const ROMAJI_TITLE_LENGTH = 70;
  * their kana, the readings are credited only with some.
  */
 const SPOKEN_APART: Record<RomajiSpoken, string> = {
-    readings: ', when spoken, their readings do.',
-    differs: ', when spoken, their pitch accent does.',
-    same: ', when spoken, only the context does.',
+    readings: ', but when spoken, their readings do.',
+    differs: ', but when spoken, their pitch accent does.',
+    same: ', but when spoken, only the context does.',
     unknown: '.',
     // Some kana in common (人員 じんいん, 辞任 じにん, 自認 じにん): the readings tell only some apart.
-    'partly-differs': ', when spoken, their readings tell some of them apart, and their pitch accent the rest.',
-    'partly-same': ', when spoken, their readings tell some of them apart, and only the context the rest.',
-    'partly-unknown': ', when spoken, their readings tell some of them apart.',
+    'partly-differs': ', but when spoken, their readings tell some of them apart, and their pitch accent the rest.',
+    'partly-same': ', but when spoken, their readings tell some of them apart, and only the context the rest.',
+    'partly-unknown': ', but when spoken, their readings tell some of them apart.',
 };
 
 /** `n` with `noun` in the singular for exactly one, else with an s; the number grouped as in English. */

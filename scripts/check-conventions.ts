@@ -65,7 +65,7 @@ const GOKAN_SRS_SOURCE = /^apps\/gokan-srs\/src\/.*\.tsx?$/;
 
 /**
  * A ";" joining two clauses reads as machine-written, as an em dash does, so learner-facing copy never
- * has one ("When written, their spelling tells them apart, when spoken, only the context does"). The
+ * has one ("When written, their spelling tells them apart, but when spoken, only the context does"). The
  * copy is the apps' sources (string literals and markup text, comments and logs aside) and the
  * changelog. A dataset gloss list ("to take; to pick up") is data, not copy, and keeps its separator.
  */

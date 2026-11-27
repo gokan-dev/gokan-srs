@@ -17,7 +17,7 @@ import type { ChangelogEntry } from '../src/models/release.model';
  */
 export const CHANGELOG: readonly ChangelogEntry[] = [
     {
-        version: '1.73.0',
+        version: '1.74.0',
         date: '2026-11-27',
         summary: 'A few sentences across the app and the dictionary are reworded to read more naturally, such as the line saying what tells apart words read the same.',
     },
@@ -170,7 +170,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     {
         version: '1.42.0',
         date: '2026-10-28',
-        summary: 'A word\'s page shows its closest synonyms and the words you mixed it up with, so the separate Mix-ups page is gone.',
+        summary: 'A word\'s page shows its closest synonyms and the words you mixed it up with, which replaces the separate Mix-ups page.',
         issue: 162,
     },
     {
