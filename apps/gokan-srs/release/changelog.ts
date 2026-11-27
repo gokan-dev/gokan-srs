@@ -17,15 +17,15 @@ import type { ChangelogEntry } from '../src/models/release.model';
  */
 export const CHANGELOG: readonly ChangelogEntry[] = [
     {
+        version: '1.75.0',
+        date: '2026-11-27',
+        summary: 'A word\'s page, in the app and the dictionary, now shows its common patterns (不思議に思う, 年を取る) and how many sentences use each (in the app, a pattern opens them), and for the most common words, how each close synonym differs from it.',
+        issue: 177,
+    },
+    {
         version: '1.74.0',
         date: '2026-11-27',
         summary: 'A few sentences across the app and the dictionary are reworded to read more naturally, such as the line saying what tells apart words read the same.',
-    },
-    {
-        version: '1.73.0',
-        date: '2026-11-25',
-        summary: 'A word\'s page, in the app and the dictionary, now shows its common patterns (不思議に思う, 年を取る) and how many sentences use each (in the app, a pattern opens them), and for the most common words, how each close synonym differs from it.',
-        issue: 177,
     },
     {
         version: '1.72.0',
