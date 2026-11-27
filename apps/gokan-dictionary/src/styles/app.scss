@@ -140,12 +140,7 @@ p {
 }
 
 .visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
+  @include visually-hidden;
 }
 
 // The first focusable element on every page; shown only when focused.
@@ -297,8 +292,7 @@ main {
 // screen readers.
 .site-title-word {
   @include narrow {
-    position: absolute;
-    clip-path: inset(50%);
+    @include visually-hidden;
   }
 }
 

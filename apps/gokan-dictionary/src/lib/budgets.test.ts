@@ -36,7 +36,7 @@ group('the 14 KB rule', () => {
     it('holds every page budget within the first round trip, less headers and margin', () => {
         // RFC 6928: an initial window of 10 segments, at most 14,600 bytes.
         // Every budget marked a page's, so one added later is held to it with no edit here.
-        expect(PAGE_BUDGETS).toEqual(expect.arrayContaining(['wordPageP90', 'kanjiPageMax', 'grammarPageMax', 'homePage', 'grammarIndex', 'jlptPage', 'kanjiOrderPage']));
+        expect(PAGE_BUDGETS).toEqual(expect.arrayContaining(['wordPageP90', 'kanjiPageMax', 'grammarPageMax', 'homePage', 'grammarIndex', 'jlptPage', 'kanjiOrderPage', 'romajiPageMax']));
         for (const name of PAGE_BUDGETS) {
             expect(BUDGETS[name].encoding).toBe('brotli');
             expect(BUDGETS[name].bytes).toBeLessThanOrEqual(14_600 - 512);

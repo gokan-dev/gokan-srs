@@ -262,6 +262,8 @@ export async function dictionaryPages(): Promise<{ path: string; ready: string }
         { path: '/kanji/orders/jlpt/301-400/', ready: 'Words by step' },
         { path: '/grammar/', ready: 'Grammar' },
         { path: `/grammar/${grammarPoint}/`, ready: 'Grammar' },
+        // A romaji page (#278): はし is three words in every dataset since it was added.
+        { path: '/romaji/hashi/', ready: 'hashi in Japanese' },
         ...(await chinesePages()),
     ];
 }

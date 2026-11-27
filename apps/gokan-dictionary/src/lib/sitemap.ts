@@ -1,6 +1,6 @@
 // Pure sitemap.xml / robots.txt builders. The site's sitemap is an index (sitemap.xml, the one URL
 // robots.txt and Search Console name) of one sitemap per served locale (sitemap-en.xml,
-// sitemap-zh-hans.xml): a sitemap holds at most 50,000 URLs (SITEMAP_URL_LIMIT), and English and
+// sitemap-zh-hans.xml) and one of the romaji pages (sitemap-romaji.xml, #278): a sitemap holds at most 50,000 URLs (SITEMAP_URL_LIMIT), and English and
 // Chinese together passed it (51,335 at 1.62.0, #170), which a search engine refuses whole.
 // check-build holds every built sitemap under the limit.
 //
@@ -24,6 +24,19 @@ export function sitemapPath(): string {
 /** Site-relative path of one locale's sitemap, at the site's root beside the index (a file: its name has a dot). */
 export function localeSitemapPath(locale: Locale): string {
     return `${BASE_PATH}/sitemap-${locale}.xml`;
+}
+
+/**
+ * Site-relative path of the romaji pages' sitemap (#278), beside the locales' in the index: their
+ * own, so Search Console reports their indexing apart from the word pages'.
+ */
+export function romajiSitemapPath(): string {
+    return `${BASE_PATH}/sitemap-romaji.xml`;
+}
+
+/** Every sitemap the index lists: each served locale's, then the romaji pages'. */
+export function sitemapIndexPaths(locales: readonly Locale[]): string[] {
+    return [...locales.map(localeSitemapPath), romajiSitemapPath()];
 }
 
 export function buildSitemapXml(paths: string[]): string {

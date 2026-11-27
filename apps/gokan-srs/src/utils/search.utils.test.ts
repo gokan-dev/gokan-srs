@@ -35,6 +35,7 @@ describe('the header search over words', () => {
         word('surume', '鯣', 'するめ', 'dried squid'),
         word('taberu', '食べる', 'たべる', 'to eat', { jlpt: 5, pos: ['v1'] }),
         word('chotto', '一寸', 'ちょっと', 'a little', { kana: true }),
+        word('shizuka', '静か', 'しずか', 'quiet', { jlpt: 5, pos: ['n', 'adj-na'] }),
     ]);
 
     it('puts the word shown as the query first, then prefixes, then words containing it', () => {
@@ -49,6 +50,7 @@ describe('the header search over words', () => {
 
     it('finds a word from a conjugated form, as the dictionary does', () => {
         expect(wordIds(index, '食べた')[0]).toBe('taberu');
+        expect(wordIds(index, '静かでした')[0]).toBe('shizuka');
     });
 
     it('returns nothing for an empty query', () => {

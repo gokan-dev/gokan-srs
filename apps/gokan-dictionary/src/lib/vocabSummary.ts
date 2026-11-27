@@ -18,13 +18,14 @@ export { shortGloss, truncateAtWord };
  * reading each word's file. A row's secondary form is the reading, or for a word learned in kana
  * (its headword already the reading) its kanji spelling, which a summary never shows.
  */
-export function vocabSummaryOfRow([id, word, secondary, gloss, , flags]: SearchWordRow): VocabSummary {
+export function vocabSummaryOfRow([id, word, secondary, gloss, jlpt, flags]: SearchWordRow): VocabSummary {
     const reading = (flags & FLAG_USUALLY_KANA) !== 0 ? word : secondary;
     return {
         id,
         word,
         ...(reading !== word ? { reading } : {}),
         ...(gloss ? { gloss } : {}),
+        ...(jlpt ? { jlpt } : {}),
     };
 }
 
@@ -37,5 +38,6 @@ export function vocabSummaryFrom(vocab: Vocabulary): VocabSummary {
         word,
         ...(reading !== word ? { reading } : {}),
         ...(gloss ? { gloss } : {}),
+        ...(vocab.jlptLevel ? { jlpt: vocab.jlptLevel } : {}),
     };
 }

@@ -19,8 +19,14 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     {
         version: '1.73.0',
         date: '2026-11-25',
-        summary: 'A word\'s page now shows its common patterns (不思議に思う, 年を取る), each opening the sentences that use it, and for the most common words, a line saying how each close synonym differs from it.',
+        summary: 'A word\'s page, in the app and the dictionary, now shows its common patterns (不思議に思う, 年を取る) with how many sentences use each, in the app a link to those sentences, and for the most common words, a line saying how each close synonym differs from it.',
         issue: 177,
+    },
+    {
+        version: '1.72.0',
+        date: '2026-11-25',
+        summary: 'The dictionary now writes every word\'s reading in romaji, beside its kana and under each of its forms, shows a word\'s forms under its examples and for every adjective (静かでした, 高く), finds a な-adjective from a form of it, and links a word read like others to a page setting them side by side (hashi: 橋, 端, 箸).',
+        issue: 278,
     },
     {
         version: '1.69.0',
