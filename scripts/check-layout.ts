@@ -2246,6 +2246,55 @@ async function checkFormsOneLine(tab: Tab, base: string, width: number): Promise
 }
 
 /**
+ * A closest synonym's heading in the dictionary (the sign, the word, its reading: `.nuance-head`) is
+ * one line box, as the app's row is (DESIGN_SYSTEM.md section 8): a long reading is cut with an
+ * ellipsis, never pushed onto a second line or broken inside. Its parts are on one line when none
+ * starts left of the one before it, and the reading's text has one line of rects. 取る's headings are
+ * short, so the reading of its last row is also lengthened in place (then restored) to one that
+ * cannot fit a phone, which a wrapping heading would carry onto a second line.
+ */
+const NUANCE_HEAD_STRESS = 'とりあげる'.repeat(8);
+async function checkNuanceHeadsOneLine(tab: Tab, base: string, width: number): Promise<void> {
+    const page = `dictionary /vocab/${TABBED_WORD}/`;
+    await tab.goto(`${base}/vocab/${TABBED_WORD}/`, 'How common');
+    const heads = await tab.evaluate<{ count: number; broken: string[]; stressed: boolean | null }>(`(() => {
+        const lines = element => {
+            const range = document.createRange();
+            range.selectNodeContents(element);
+            return new Set([...range.getClientRects()].filter(rect => rect.width > 0).map(rect => Math.round(rect.top))).size;
+        };
+        const oneLine = head => {
+            const parts = [...head.children].filter(part => part.getClientRects().length > 0 && part.getBoundingClientRect().width > 1);
+            const wrapped = parts.some((part, i) => i > 0 && part.getBoundingClientRect().left < parts[i - 1].getBoundingClientRect().left);
+            return !wrapped && parts.every(part => lines(part) <= 1);
+        };
+        const heads = [...document.querySelectorAll('.nuance-head')].filter(head => head.getClientRects().length > 0);
+        const broken = heads.filter(head => !oneLine(head)).map(head => head.textContent);
+        const last = heads.at(-1);
+        let stressed = null;
+        if (last) {
+            let reading = last.querySelector('.nuance-reading');
+            const added = reading === null;
+            if (added) {
+                reading = document.createElement('span');
+                reading.className = 'nuance-reading';
+                reading.lang = 'ja';
+                last.append(reading);
+            }
+            const before = reading.textContent;
+            reading.textContent = ${JSON.stringify(NUANCE_HEAD_STRESS)};
+            stressed = oneLine(last);
+            if (added) reading.remove();
+            else reading.textContent = before;
+        }
+        return { count: heads.length, broken, stressed };
+    })()`);
+    if (heads.count === 0) failures.push(`${width}px ${page}: no closest-synonym row heading (.nuance-head) drawn in Dict`);
+    for (const head of heads.broken) failures.push(`${width}px ${page}: the closest-synonym heading "${head}" runs over more than one line`);
+    if (heads.stressed === false) failures.push(`${width}px ${page}: a closest-synonym heading with a long reading runs over more than one line: the reading must be cut with an ellipsis`);
+}
+
+/**
  * A #forms link (a bookmark from when Forms was a tab) lands on the Forms section in Dict: the
  * page-top lock is for a tab's hash only, so the browser scrolls to the section as to any anchor.
  */
@@ -3323,6 +3372,7 @@ try {
         }
         await checkDictionaryWordTabs(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
         await checkFormsOneLine(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
+        await checkNuanceHeadsOneLine(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
         await checkIntroJapaneseWhole(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
         if (width === 375) await checkFormsHashLanding(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
         await checkDictionaryDetailTabs(tab, `http://127.0.0.1:${dictionary.port}/dictionary`, width);
@@ -3345,4 +3395,4 @@ if (failures.length) {
     for (const failure of failures) console.error(`[check-layout] ${failure}`);
     fail(`${failures.length} layout problem(s) in ${checked} pages. See docs/DESIGN_SYSTEM.md; fix the page, never the check.`);
 }
-console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, a kanji's course steps 44px linked or not, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, the dictionary's word page tabbed as the app's on a phone (each hash landing on its section alone, at the page top, a reload keeping its scroll, its synonym search reading meanings, not labels) and one full page at 1280px, the kanji and grammar pages tabbed on a phone and one capped full page from 1024px, in the app and in the dictionary (its Words and Examples searched by their English, every section search's placeholder whole at 320px, a Sentences query holding as the page crosses into tabs), furigana over kanji, on one line and apart, Japanese in list rows and word readings unbroken, a word list's gloss in its column (1280px) or on its own line across the row (phones, a word page's aside), a section's source credit set off from what comes before it, the language switcher small and neutral, the app panel's action on one line with a four-digit step, its Japanese words unbroken where they fit and wrapped inside it where they do not, 40px above what follows it on every page type (and under Meanings on a word page) and on the home page 16px under its heading, a kanji's linked course steps underlined, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, setup opened from a dictionary link with its order and count on a 568 or 667px phone's screen, a word page's essentials on a small phone's first screen, a list page's first screen within the rows its budget counts, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button undimmed, its sentence centred on its translation with its button right after it (and at 1280px on the headword), a word learned in kana's intro, a long headword's intro on one line inside its card, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play (in the dictionary too, named, 44px, with its player, none on a kanji page, a clip stopped when a tab or a closed disclosure hides its button), its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a due grammar point saying Due now once, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);
+console.log(`[check-layout] ${checked} pages at ${VIEWPORTS.map(v => `${v.width}px`).join(' and ')}: no sideways scroll, nothing under 12px, inputs 16px, tap targets 44px, a kanji's course steps 44px linked or not, sentence words not underlined or spaced apart (margin or padding), example sentences not ruled, a word page's tabs 44px, the dictionary's word page tabbed as the app's on a phone (each hash landing on its section alone, at the page top, a reload keeping its scroll, its synonym search reading meanings, not labels) and one full page at 1280px, the kanji and grammar pages tabbed on a phone and one capped full page from 1024px, in the app and in the dictionary (its Words and Examples searched by their English, every section search's placeholder whole at 320px, a Sentences query holding as the page crosses into tabs), furigana over kanji, on one line and apart, Japanese in list rows and word readings unbroken, a closest synonym's heading on one line in the dictionary, a word list's gloss in its column (1280px) or on its own line across the row (phones, a word page's aside), a section's source credit set off from what comes before it, the language switcher small and neutral, the app panel's action on one line with a four-digit step, its Japanese words unbroken where they fit and wrapped inside it where they do not, 40px above what follows it on every page type (and under Meanings on a word page) and on the home page 16px under its heading, a kanji's linked course steps underlined, a kanji's readings each on one line, the update banner's controls 44px, setup's decisions above the kanji grid and a way back to them from its end, setup opened from a dictionary link with its order and count on a 568 or 667px phone's screen, a word page's essentials on a small phone's first screen, a list page's first screen within the rows its budget counts, a new word's intro with its example sentence, its words out of the Tab order, its reading's play button undimmed, its sentence centred on its translation with its button right after it (and at 1280px on the headword), a word learned in kana's intro, a long headword's intro on one line inside its card, and Skip and Learn on the first screen at 720 and 812 tall, opening at its top on a smaller phone, play buttons at the first line of what they play (in the dictionary too, named, 44px, with its player, none on a kanji page, a clip stopped when a tab or a closed disclosure hides its button), its tab row running to the screen's edge with a tab cut there when it scrolls (at either end and after choosing any tab), stuck once scrolled to and the open tab in its view, a tab chosen there (or the open one tapped again) opening at its top, Your study's phone grid on a studied word, its header status on one line at 1280px, no Review now on a due word, a due grammar point saying Due now once, a #synonyms link opening the Synonyms tab, its rows' shared senses wrapped, not cut off, a sentence word keeping its hover as its lookup card opens, a sentence word's lookup sheet in the viewport with a 44px Close and 44px links, review pacing's end tooltips on screen, its slider stepped twice by the keyboard, five key steps written as one history entry, a step saved on Tab away and on a reload straight after it, and a plain change saved.`);

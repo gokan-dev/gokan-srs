@@ -666,7 +666,7 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   Closest synonyms, up to 5 from the first
   meaning, never a ≠ pair, "For meaning 1 · ..." under them, each pair's nuance line under its word
   when the dataset has one, as the app's rows: the sign, word and reading the row's one-line heading
-  in the secondary colour, the line under it in body text, each Japanese run its own `lang="ja"`
+  in the secondary colour (a reading too long for it cut with an ellipsis, held by check:layout), the line under it in body text, each Japanese run its own `lang="ja"`
   span in gothic, unbroken (`japaneseRuns`)), **Sentences** (5, then "Show N more"),
   **Synonyms**, **Kanji**, **Related** (Made of, Used in, 5 rows each
   then "Show N more"). Synonyms are grouped by meaning (`synonymSections`, shared with the app, with

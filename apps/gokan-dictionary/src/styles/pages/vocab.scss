@@ -401,14 +401,21 @@ $pitch-button-room: $target + $space-half;
   }
 }
 
+// One line, as the app's row: the sign and the word keep their width, and a reading too long for a
+// phone is cut with an ellipsis rather than pushed onto a second line (check:layout).
 .nuance-head {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: baseline;
   gap: 0 $space-1;
+  min-width: 0;
   color: var(--secondary);
   font-family: $font-sans;
   font-size: $text-sm;
+
+  > * {
+    flex-shrink: 0;
+  }
 
   > [lang] {
     font-family: $font-mincho;
@@ -416,8 +423,13 @@ $pitch-button-room: $target + $space-half;
   }
 
   > .nuance-reading {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
     font-family: $font-gothic;
     font-size: $text-sm;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 
