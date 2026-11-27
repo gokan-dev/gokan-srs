@@ -17,6 +17,11 @@ import type { ChangelogEntry } from '../src/models/release.model';
  */
 export const CHANGELOG: readonly ChangelogEntry[] = [
     {
+        version: '1.73.0',
+        date: '2026-11-27',
+        summary: 'A few sentences across the app and the dictionary are reworded to read more naturally, such as the line saying what tells apart words read the same.',
+    },
+    {
         version: '1.72.0',
         date: '2026-11-25',
         summary: 'The dictionary now writes every word\'s reading in romaji, beside its kana and under each of its forms, shows a word\'s forms under its examples and for every adjective (静かでした, 高く), finds a な-adjective from a form of it, and links a word read like others to a page setting them side by side (hashi: 橋, 端, 箸).',
