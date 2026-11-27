@@ -24,7 +24,7 @@ function section(count: number): SynonymSection {
 /** Four synonyms of 取る, the first with a nuance line that names 帽子を取る, which no other row holds. */
 function withNuance(): SynonymSection {
     const words = listedSynonymsOf({ synonyms: [
-        { id: 'n0', relation: 'interchangeable' as const, shared: ['take'], w: ['脱ぐ'], r: ['ぬぐ'], f: 100, nuance: '脱ぐ is to take off clothes; 取る takes off a hat, 帽子を取る.' },
+        { id: 'n0', relation: 'interchangeable' as const, shared: ['take'], w: ['脱ぐ'], r: ['ぬぐ'], f: 100, nuance: '脱ぐ is to take off clothes, while 取る takes off a hat, 帽子を取る.' },
         ...Array.from({ length: 3 }, (_, i) => ({ id: `s${i}`, relation: 'interchangeable' as const, shared: ['take'], w: [`語${i}`], r: [`ご${i}`], f: 200 + i })),
     ] });
     return { sense: 0, glosses: ['take'], words };

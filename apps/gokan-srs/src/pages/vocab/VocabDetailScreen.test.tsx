@@ -3,7 +3,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Sentence } from '@gokan/dataset-schema';
+import type { Sentence, Vocabulary } from '@gokan/dataset-schema';
 import { sentence, vocabulary } from '../../test/fixtures';
 import VocabDetailScreen from './VocabDetailScreen';
 
@@ -30,8 +30,8 @@ const baseSentences = (): Sentence[] => [
     sentence({ id: 'n1', original: '不思議な話だ。', vocabIds: ['v-1'], matches: { 'v-1': [{ start: 0, length: 3 }] } }),
     sentence({ id: 'n2', original: '不思議だ。', vocabIds: ['v-1'], matches: { 'v-1': [{ start: 0, length: 3 }] } }),
 ];
-// The sentences the current test's word has: a fresh list each test, set in `beforeEach`.
-const current = vi.hoisted((): { sentences: readonly Sentence[] } => ({ sentences: [] }));
+// The current test's word and its sentences: fresh each test, set in `beforeEach`.
+const current = vi.hoisted((): { word: Vocabulary | null; sentences: readonly Sentence[] } => ({ word: null, sentences: [] }));
 
 // The open tab is kept for the session: not kept here, so each test starts on Dict.
 vi.mock('../../hooks/usePersistedControls', () => ({
@@ -41,7 +41,7 @@ vi.mock('../../hooks/usePersistedControls', () => ({
 
 vi.mock('../../services/vocabulary.service', () => ({
     VocabularyService: {
-        loadVocab: () => Promise.resolve(word),
+        loadVocab: () => Promise.resolve(current.word),
         loadSentences: () => Promise.resolve(current.sentences),
         // The full page's Kanji section: left loading, it plays no part here.
         loadKanji: () => new Promise(() => undefined),
@@ -53,6 +53,7 @@ let root: Root;
 
 beforeEach(() => {
     screenSize.isMobile = true;
+    current.word = word;
     current.sentences = baseSentences();
 });
 
@@ -134,5 +135,34 @@ describe('VocabDetailScreen, a common pattern on the full page', () => {
         click('不思議に思う');
         expect(container.textContent).toContain('Pattern:');
         expect(inSentences()).toBe(2);
+    });
+});
+
+describe('VocabDetailScreen, Closest synonyms', () => {
+    // Two frequent words sharing the first sense's glosses: one interchangeable, one confusable.
+    const synonyms = (nuance?: string): Vocabulary['synonyms'] => [
+        { id: 's-1', relation: 'interchangeable', shared: ['wonder'], w: ['奇妙'], r: ['きみょう'], f: 100, ...(nuance ? { nuance } : {}) },
+        { id: 's-2', relation: 'confusable', shared: ['mystery'], w: ['神秘'], r: ['しんぴ'], f: 200 },
+    ];
+    const section = () => [...container.querySelectorAll('section')].find(s => s.textContent.includes('Closest synonyms'));
+
+    it('lists a pair with a nuance line as a row: the whole row its link, the line under the word', async () => {
+        current.word = { ...word, synonyms: synonyms('奇妙 leans eerie, while 不思議 can be a pleasant wonder.') };
+        await renderPage();
+        const rows = [...(section()?.querySelectorAll('[data-list-row]') ?? [])];
+        expect(rows).toHaveLength(2);
+        const link = rows[0].querySelector('a');
+        expect(link?.getAttribute('href')).toBe('/vocab/s-1');
+        expect(link?.textContent).toContain('奇妙');
+        expect(link?.textContent).toContain('while 不思議 can be a pleasant wonder');
+        // No boxed tile beside the rows.
+        expect(section()?.querySelector('a.border')).toBeNull();
+    });
+
+    it('keeps the boxed tiles when no pair has a nuance line', async () => {
+        current.word = { ...word, synonyms: synonyms() };
+        await renderPage();
+        expect(section()?.querySelector('[data-list-row]')).toBeNull();
+        expect(section()?.querySelectorAll('a.border')).toHaveLength(2);
     });
 });

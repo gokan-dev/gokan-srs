@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
-import type { Sentence, Vocabulary } from "@gokan/dataset-schema";
+import { headwordOf, type Sentence, type Vocabulary } from "@gokan/dataset-schema";
 import { DetailSection } from "../../components/detail/DetailSection";
 import { MixedText } from "../../components/MixedText";
+import { SecondaryForm } from "../../components/SecondaryForm";
+import { ListRow } from "../../components/ui/ListRow";
 import { Disclosure } from "../../components/ui/Disclosure";
 import { TextButton } from "../../components/ui/TextButton";
 import { WordTile } from "../../components/WordTile";
@@ -11,6 +13,7 @@ import { indexLearnerVocab } from "../../utils/sentenceRanking";
 import { organizeSenses, senseNumbers, type ShownSense } from "../../utils/senses.utils";
 import { closestSynonyms, sectionGlossLine, synonymCount, type SynonymSection } from "../../utils/synonymSections.utils";
 import { pickWordExamples } from "../../utils/wordExamples.utils";
+import { vocabPath } from "../../utils/navigation.utils";
 import { WordSentence } from "../../components/WordSentence";
 
 const INITIAL_SENSES = 3;
@@ -175,16 +178,16 @@ function ExamplesSection({ vocab, sentences, onShowAll }: { vocab: Vocabulary; s
 
 /**
  * Up to five words from the first sense's synonyms, each a boxed link, and the way to all of them.
- * When any of them says how it differs from this word (its nuance line), they become a list: each
- * tile, then its line.
+ * When any of them says how it differs from this word (its nuance line), they become list rows
+ * instead: a tile with a sentence under it reads as a button with a loose caption, so each row is
+ * one link, its sign, word and reading a one-line heading in the secondary colour, and the line
+ * under it in body text.
  */
 function ClosestSynonyms({ vocab, sections, onCompare }: { vocab: Vocabulary; sections: SynonymSection[]; onCompare: () => void }) {
     const closest = closestSynonyms(sections, (w, section) => closenessOf(w.pair, section.glosses) === 'distinct');
     if (!closest) return null;
     const number = senseNumbers(vocab.senses)[closest.section.sense];
-    const tile = (word: (typeof closest.words)[number]) => (
-        <WordTile vocabId={word.vocabId} vocab={word.forms} sign={CLOSENESS_LABEL[closenessOf(word.pair, closest.section.glosses)]} />
-    );
+    const signOf = (word: (typeof closest.words)[number]) => CLOSENESS_LABEL[closenessOf(word.pair, closest.section.glosses)];
     const listed = closest.words.some(word => word.nuance !== undefined);
     return (
         <DetailSection
@@ -192,17 +195,33 @@ function ClosestSynonyms({ vocab, sections, onCompare }: { vocab: Vocabulary; se
             aside={<TextButton onClick={onCompare} arrow>Compare all {synonymCount(sections).toLocaleString('en-US')}</TextButton>}
         >
             {listed ? (
-                <ul className="space-y-3">
-                    {closest.words.map(word => (
-                        <li key={word.vocabId} className="flex flex-col items-start gap-1 min-w-0">
-                            {tile(word)}
-                            {word.nuance && <p className="type-support"><MixedText text={word.nuance} unbroken /></p>}
-                        </li>
-                    ))}
+                <ul className="flex flex-col divide-y divide-divider -mx-3">
+                    {closest.words.map(word => {
+                        const sign = signOf(word);
+                        return (
+                            <li key={word.vocabId}>
+                                <ListRow to={vocabPath(word.vocabId)} lookup={{ kind: 'word', vocabId: word.vocabId }}>
+                                    <div className="flex items-baseline gap-2 min-w-0 text-secondary">
+                                        <span className="font-sans text-sm shrink-0">
+                                            <span aria-hidden="true">{sign.sign}</span>
+                                            <span className="sr-only">{sign.label}:</span>
+                                        </span>
+                                        <span lang="ja" className="font-mincho text-base shrink-0">{headwordOf(word.forms)}</span>
+                                        <SecondaryForm vocab={word.forms} />
+                                    </div>
+                                    {word.nuance && <p className="type-body"><MixedText text={word.nuance} unbroken /></p>}
+                                </ListRow>
+                            </li>
+                        );
+                    })}
                 </ul>
             ) : (
                 <ul className="flex flex-wrap gap-2">
-                    {closest.words.map(word => <li key={word.vocabId} className="min-w-0 max-w-full">{tile(word)}</li>)}
+                    {closest.words.map(word => (
+                        <li key={word.vocabId} className="min-w-0 max-w-full">
+                            <WordTile vocabId={word.vocabId} vocab={word.forms} sign={signOf(word)} />
+                        </li>
+                    ))}
                 </ul>
             )}
             <p className="type-meta mt-3">For meaning {number}: {sectionGlossLine(closest.section)}</p>
