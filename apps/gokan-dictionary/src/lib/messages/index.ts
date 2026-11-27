@@ -22,7 +22,7 @@ export interface PageMeta {
 }
 
 /** The things a page counts: a catalog writes each count with its noun ("1 word", "3 strokes"). */
-export type CountedNoun = 'word' | 'stroke' | 'grammar point' | 'synonym';
+export type CountedNoun = 'word' | 'stroke' | 'grammar point' | 'synonym' | 'sentence';
 
 /**
  * A catalog's sentence in its own word order: the plain runs, and each marked run's text with its
@@ -178,7 +178,7 @@ export interface Messages {
         /** A word's pitch accent, for screen readers: its patterns, most usual first (0 heiban, n a drop after mora n). */
         pitchAccent: (downsteps: number[]) => string;
         sections: {
-            meanings: string; examples: string; closestSynonyms: string; sentences: string; synonyms: string;
+            meanings: string; commonPatterns: string; examples: string; closestSynonyms: string; sentences: string; synonyms: string;
             forms: string; kanji: string; related: string; madeOf: string; usedIn: string;
         };
         /** Meanings past the first three, in place. */

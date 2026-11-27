@@ -72,6 +72,28 @@ describe('VocabPage', () => {
         expect(sectionOf(body, 'dict', 'sentences')).toContain('Tatoeba');
     });
 
+    it('lists the word\'s common patterns under Meanings, each with its sentence count, in each locale', () => {
+        const withPatterns = (chinese: boolean): VocabPageProps => ({ ...props(0, chinese), vocab: vocabulary({ patterns: [{ text: '不思議に思う', sentences: 36 }, { text: '年を取る', sentences: 1 }] }) });
+        const body = html('en', withPatterns(false));
+        expect(body).toContain('<h2>Common patterns</h2>');
+        expect(body).toMatch(/<li><span lang="ja">不思議に思う<\/span> <span class="meta">36 sentences<\/span><\/li>/);
+        expect(body).toContain('1 sentence<');
+        expect(body.indexOf('Common patterns')).toBeGreaterThan(body.indexOf('<h2>Meanings</h2>'));
+        expect(html('zh-hans', withPatterns(true))).toContain('36 个例句');
+        expect(html('en', props(0))).not.toContain('Common patterns');
+    });
+
+    it('draws Closest synonyms as rows once a pair has a nuance line: the word over its line, each Japanese run marked', () => {
+        const vocab = vocabulary({ synonyms: [{ ...synonym('100'), relation: 'interchangeable', nuance: 'One is plain, while 思う is 気がする.' }, synonym('101')] });
+        const body = html('en', { ...props(0), vocab, synonyms: wordSynonyms(vocab, () => true) });
+        const closest = body.slice(body.indexOf('<h2>Closest synonyms</h2>'));
+        expect(closest).toMatch(/^<h2>Closest synonyms<\/h2>\s*<ul class="nuance-list">/);
+        expect(closest).toContain('<span class="nuance-line">One is plain, while <span lang="ja">思う</span> is <span lang="ja">気がする</span>.</span>');
+        expect(closest).toContain('<span lang="ja">101字</span><span lang="ja" class="nuance-reading">101よみ</span></span></a>');
+        // Without a nuance line the section keeps its word list rows.
+        expect(html('en', props(2))).not.toContain('nuance-list');
+    });
+
     it("gives a synonym row its shared meanings as its gloss and its closeness as a note a search does not read", () => {
         const row = /<li><a [^>]*>100字<span>100よみ<\/span>(.*?)<\/a><\/li>/.exec(html('en', props(1)))?.[1];
         expect(row).toBe('<span lang="en">think</span><small lang="en">≈ Close in this sense</small>');

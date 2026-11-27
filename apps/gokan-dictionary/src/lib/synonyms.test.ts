@@ -30,6 +30,12 @@ describe('wordSynonyms', () => {
         expect([total, left]).toEqual([3, 0]);
     });
 
+    it('carries a pair\'s nuance line on its row, and leaves it off a pair without one', () => {
+        const { closest } = wordSynonyms(kagayaku([pair('hikaru', { nuance: 'hikaru glows, while 輝く sparkles.' }), pair('kirameku')]), everyWord);
+        expect(closest?.words.map(word => word.nuance)).toEqual(['hikaru glows, while 輝く sparkles.', undefined]);
+        expect(closest?.words[1]).not.toHaveProperty('nuance');
+    });
+
     it('lists only the words with a page, and none outside the frequent ones', () => {
         const { groups } = wordSynonyms(kagayaku([pair('a'), pair('b'), pair('rare', { f: 20_000 })]), id => id !== 'b');
         expect(groups.flatMap(group => group.words.map(word => word.id))).toEqual(['a']);

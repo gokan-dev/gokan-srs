@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { japaneseRuns } from './japaneseRuns.utils';
+import { japaneseRuns } from './japaneseRuns';
 
 describe('japaneseRuns', () => {
     it('splits a mixed title into its Japanese and English runs', () => {

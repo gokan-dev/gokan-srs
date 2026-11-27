@@ -222,7 +222,7 @@ export const en: Messages = {
         // The words the app's screen readers say too (@gokan/dataset-schema), so the two never drift.
         pitchAccent: pitchAccentLabel,
         sections: {
-            meanings: 'Meanings', examples: 'Examples', closestSynonyms: 'Closest synonyms', sentences: 'Sentences', synonyms: 'Synonyms',
+            meanings: 'Meanings', commonPatterns: 'Common patterns', examples: 'Examples', closestSynonyms: 'Closest synonyms', sentences: 'Sentences', synonyms: 'Synonyms',
             forms: 'Forms', kanji: 'Kanji', related: 'Related', madeOf: 'Made of', usedIn: 'Used in',
         },
         showAllMeanings: n => `Show all ${n} meanings`,

@@ -293,12 +293,20 @@ logo (enforced, `no-tracking-wide`); use `type-label` instead. Weights in use: 4
     `#related`, `#study`), replaced as a tab is chosen; the page opens on the hash's tab, else the
     tab last chosen this browser session, else Dict (`initialWordTab`).
   - Dict: Meanings (3 common senses, then "Show all N meanings" in place, rare ones under a
-    "Rare and archaic" label), Examples (2 sentences, `pickWordExamples`; "All N sentences →"
-    opens Sentences), Closest synonyms (up to 5 `WordTile`s from the first sense's section,
-    "For meaning 1: ..." under them, "Compare all N →" opens Synonyms), then at its foot, under a
-    `divider` line, "Combines N dictionary entries" for a merged entry.
+    "Rare and archaic" label), Common patterns (the word's frequent forms, 不思議に思う, 年を取る,
+    up to 5 in a wrapping row, each an action in accent mincho with its sentence count in
+    `type-meta`: it opens Sentences filtered on it), Examples (2 sentences, `pickWordExamples`;
+    "All N sentences →" opens Sentences), Closest synonyms (up to 5 `WordTile`s from the first
+    sense's section, "For meaning 1: ..." under them, "Compare all N →" opens Synonyms; when any
+    of them has a nuance line, list rows instead, since a tile with a sentence under it reads as a
+    button with a loose caption: each a `ListRow` (the whole row its link, `divider` lines between
+    rows, no boxes), its sign, headword and `SecondaryForm` a one-line heading in `secondary`,
+    the nuance line under it in `type-body`: the line is the row's content, the word its label), then
+    at its foot, under a `divider` line, "Combines N dictionary entries" for a merged entry.
   - Sentences, Synonyms, Related: one search field each (44px, `text-base`, a hidden label) and a
-    count line above the results (`aria-live`); nothing else, no selects, no filter pills. An
+    count line above the results (`aria-live`); nothing else, no selects, no filter pills. A
+    pattern chosen in Dict filters Sentences: one line above the field, "Pattern: 不思議に思う",
+    and Clear at its right; the search looks inside the pattern's sentences. An
     English query matches from the start of a word, a Japanese one anywhere, kana folded;
     matches are marked (`Marked`: `<mark>`, an accent tint, the text's own colour) in the English
     line. Sentences: 5 at a time and "Shortest first"; Synonyms: groups by meaning, each headed
@@ -471,12 +479,18 @@ Defined once, in `components/` or `components/ui/`, never copied:
 - **Synonyms panel** (`pages/vocab/explore/SynonymsPanel.tsx`) and **Closest synonyms**: the
   panel lists every synonym in groups by the meaning it shares (the sense's number in Meanings
   and its first two glosses), each row the other word, what they share as its description
-  (wrapped, never cut off: it is the row's content, unlike Related words' one-line gloss), and
+  (wrapped, never cut off: it is the row's content, unlike Related words' one-line gloss), under
+  it the pair's nuance line when the dataset has one (how the two differ, written by hand), in
+  `text-primary` on the description's `type-support` so it reads as the row's content and the
+  shared glosses above it as metadata (on Dict, Closest synonyms shows no glosses, and its rows
+  set the word in `secondary` over the line in `type-body` instead), its Japanese runs in `font-gothic` on one line (`MixedText
+  unbroken`, through `Marked`'s `render` while a search marks it; the dataset caps a run at 12
+  characters), searched in English and Japanese, and
   how close they are as a neutral `TagChip` told apart by its sign and word (= Interchangeable,
   ≈ Close in this sense, ≠ Not interchangeable), never by a colour. A word mixed up with this
   one says so in the row's trailing slot ("Mixed up 2 times"). One line above says what the quiz
   does with them. Closest synonyms shows the first group's best five (never a ≠ pair) as
-  `WordTile`s.
+  `WordTile`s, or as list rows when any of them has a nuance line.
 - **`WordTile`** (`WordTile.tsx`): one word as a boxed link, the sign (= or ≈), the headword
   in mincho and its `SecondaryForm`. Boxed because it links, as a `KanjiTile` is (principle 7).
 - **`FrequencyMeter`** (`FrequencyMeter.tsx`): four signal bars (5, 8, 11, 14px high, 4px
@@ -640,7 +654,9 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   `frequencyBand` and `frequencyTop` over `wordFrequencyRank`, shared with the app) and Textbooks
   (`textbookLessonsLabel`). No "Common word" chip: the band says it. Sections, in the app's names
   and order: **Dict** (Meanings, its first 3 and "Show all N meanings" in place, rare ones in their
-  own disclosure; the app panel; Examples, 2 sentences; Forms, the dictionary's own, a verb's or an
+  own disclosure; Common patterns, up to 5 in a wrapping row, each pattern in mincho with its
+  sentence count in the meta style, as text, since the dictionary has no filtered Sentences view;
+  the app panel; Examples, 2 sentences; Forms, the dictionary's own, a verb's or an
   adjective's table right under Examples, so how the word conjugates sits beside how it is used;
   the grid and the other forms are one table with two bodies, so one label column (auto layout, so
   the longest form keeps its width and the other forms start under Plain) and a row's gap between them; below 40rem every row stacks, its
@@ -648,7 +664,10 @@ The dictionary speaks the same visual language as the app, in SCSS instead of Ta
   grid row's Plain and Polite each named, so a form stays on one line, and Japanese there breaks
   `line-break: strict`;
   Closest synonyms, up to 5 from the first
-  meaning, never a ≠ pair, "For meaning 1 · ..." under them), **Sentences** (5, then "Show N more"),
+  meaning, never a ≠ pair, "For meaning 1 · ..." under them, each pair's nuance line under its word
+  when the dataset has one, as the app's rows: the sign, word and reading the row's one-line heading
+  in the secondary colour (a reading too long for it cut with an ellipsis, held by check:layout), the line under it in body text, each Japanese run its own `lang="ja"`
+  span in gothic, unbroken (`japaneseRuns`)), **Sentences** (5, then "Show N more"),
   **Synonyms**, **Kanji**, **Related** (Made of, Used in, 5 rows each
   then "Show N more"). Synonyms are grouped by meaning (`synonymSections`, shared with the app, with
   no learner layer), each group titled "For meaning 2 · to pass, to hand", its rows word list rows

@@ -178,9 +178,12 @@ summary ("Largest tool results"), which is where a whole read shows.
   learner such as a synonym's nuance line): like an em dash, a ";" joining two clauses reads as
   machine-written. Use a comma with a joining word ("When written, their spelling tells them apart,
   but when spoken, only the context does"), a colon, or two sentences. A dataset gloss list ("to take;
-  to pick up") is data and keeps its separator. Enforced in the apps' sources and the changelog
-  (`no-semicolon-copy`). The dataset's prose (grammar explanations, nuance lines) is not checked
-  here: its own build has to refuse it, and until it does, a reviewer reads it.
+  to pick up") is data and keeps its separator. Enforced in the apps' sources (`no-semicolon-copy`,
+  over string literals and markup text: copy split across lines is a reviewer's to read), on every
+  changelog entry and release fragment (`changelogProblems` refuses any ";" or "；"), and on synonym
+  nuance lines by gokan-dataset's `applyNuances`. The
+  dataset's other prose (grammar explanations) is not checked: its own build has to refuse it,
+  and until it does, a reviewer reads it.
 - UI copy is neutral, direct and encouraging without cheerleading: no exclamation-mark praise,
   no gamified language.
 - Comments explain why, not what. Match the density of the surrounding code.
@@ -299,8 +302,8 @@ The rest of the study flow:
   `grammarFamilyPath`, the chapter browser on a chapter through `grammarChapterPath`, a drill
   through `drillPath` (`utils/navigation.utils.ts`; enforced with the word and kanji paths). A
   Japanese run inside English text (a lesson title in a page title, a contrast case's guidance) is
-  set in a Japanese face by `components/MixedText.tsx` (over `japaneseRuns`,
-  `utils/japaneseRuns.utils.ts`); a contrast case, on a family page or under a drill card, is
+  set in a Japanese face by `components/MixedText.tsx` (over `japaneseRuns`, from
+  `@gokan/dataset-schema`, which the dictionary's nuance lines split on too); a contrast case, on a family page or under a drill card, is
   `components/ContrastCaseText.tsx`.
 - Session flow: `useSessionLifecycle`, `components/SessionProgress.tsx` (counter, ticker, gains),
   the commit pipeline in `quizSelectors.ts` shared by the preview and the session.

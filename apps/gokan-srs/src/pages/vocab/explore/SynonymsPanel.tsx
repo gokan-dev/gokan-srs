@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { headwordOf, secondaryForm } from "@gokan/dataset-schema";
 import type { Closeness, Vocabulary } from "@gokan/dataset-schema";
+import { MixedText } from "../../../components/MixedText";
 import { RelatedEntryList, type RelatedSection } from "../../../components/RelatedEntriesCard";
 import { SecondaryForm } from "../../../components/SecondaryForm";
 import { TagChip } from "../../../components/TagChip";
@@ -27,8 +28,34 @@ function ClosenessChip({ closeness }: { closeness: Closeness }) {
     );
 }
 
+/** A row matches on its words and shared glosses, and on its nuance line, English or Japanese (帽子 finds 帽子を取る). */
 function matchesSynonym(query: ExploreQuery, synonym: ListedSynonym): boolean {
-    return matchesExploreQuery(query, { english: synonym.shared, japanese: [headwordOf(synonym.forms), secondaryForm(synonym.forms), synonym.forms.reading.primary] });
+    const nuance = synonym.nuance ? [synonym.nuance] : [];
+    return matchesExploreQuery(query, {
+        english: [...synonym.shared, ...nuance],
+        japanese: [headwordOf(synonym.forms), secondaryForm(synonym.forms), synonym.forms.reading.primary, ...nuance],
+    });
+}
+
+/** A nuance line's text: each Japanese run in a Japanese face, on one line. */
+const nuanceText = (text: string) => <MixedText text={text} unbroken />;
+
+/**
+ * A row's description: what the two words share, as metadata, then how they differ when the dataset
+ * says (its nuance line), in the primary text colour as the row's content, its Japanese in a
+ * Japanese face whether or not a search marks it.
+ */
+function SynonymDescription({ shared, nuance, query }: { shared: string; nuance: string | undefined; query: ExploreQuery | null }) {
+    return (
+        <>
+            {shared && <Marked text={shared} ranges={englishRanges(query, shared)} />}
+            {nuance && (
+                <span className={`block text-primary ${shared ? 'mt-1' : ''}`}>
+                    <Marked text={nuance} ranges={englishRanges(query, nuance)} render={nuanceText} />
+                </span>
+            )}
+        </>
+    );
 }
 
 /**
@@ -84,7 +111,7 @@ export function SynonymsPanel({ vocab, sections, mixedUp, groupsAtOnce = GROUPS_
                         </>
                     ),
                     ...(times ? { trailing: <span className="type-meta tabular-nums">{mixedUpLabel(times)}</span> } : {}),
-                    ...(shared ? { description: <Marked text={shared} ranges={englishRanges(query, shared)} /> } : {}),
+                    ...(shared || synonym.nuance ? { description: <SynonymDescription shared={shared} nuance={synonym.nuance} query={query} /> } : {}),
                 };
             }),
         };
@@ -93,7 +120,7 @@ export function SynonymsPanel({ vocab, sections, mixedUp, groupsAtOnce = GROUPS_
     return (
         <div>
             <p className="type-support mb-4">
-                Never penalized on a <span lang="ja" className="font-mincho">{headword}</span> card; = and ≈ are accepted when they fit its meaning.
+                Never penalized on a <span lang="ja" className="font-mincho">{headword}</span> card: = and ≈ are accepted when they fit its meaning.
             </p>
             {/* Only past one page, as every panel's search and the dictionary's Synonyms (synonymsSearchable). */}
             {synonymsSearchable(sections, groupsAtOnce) && (

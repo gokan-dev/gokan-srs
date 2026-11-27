@@ -50,4 +50,20 @@ describe('SentencesPanel', () => {
         expect(order[0]).toContain('短い');
         expect(order[2]).toContain('長い文');
     });
+
+    it("shows only a pattern's sentences under its line, and Clear asks to lift it", () => {
+        const withPatterns = [
+            sentence({ id: 'p0', original: '不思議な話。', matches: { 'v-1': [{ start: 0, length: 3, pattern: 0 }] } }),
+            sentence({ id: 'p1', original: '不思議に思う。', matches: { 'v-1': [{ start: 0, length: 3, pattern: 1 }] } }),
+            sentence({ id: 'none', original: '不思議だ。', matches: { 'v-1': [{ start: 0, length: 3 }] } }),
+        ];
+        const onClear = vi.fn();
+        act(() => root.render(<MemoryRouter><SentencesPanel vocabId="v-1" sentences={withPatterns} patternIndex={1} patternText="不思議に思う" onClearPattern={onClear} /></MemoryRouter>));
+        expect(container.textContent).toContain('Pattern: 不思議に思う');
+        expect(shownOrder()).toHaveLength(1);
+        expect(shownOrder()[0]).toContain('不思議に思う。');
+        const clear = [...container.querySelectorAll('button')].find(button => button.textContent.trim() === 'Clear');
+        act(() => clear?.click());
+        expect(onClear).toHaveBeenCalledOnce();
+    });
 });

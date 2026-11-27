@@ -1,6 +1,9 @@
 import { useMemo, useState } from "react";
-import type { Sentence, Vocabulary } from "@gokan/dataset-schema";
+import { headwordOf, type Sentence, type Vocabulary } from "@gokan/dataset-schema";
 import { DetailSection } from "../../components/detail/DetailSection";
+import { MixedText } from "../../components/MixedText";
+import { SecondaryForm } from "../../components/SecondaryForm";
+import { ListRow } from "../../components/ui/ListRow";
 import { Disclosure } from "../../components/ui/Disclosure";
 import { TextButton } from "../../components/ui/TextButton";
 import { WordTile } from "../../components/WordTile";
@@ -10,6 +13,7 @@ import { indexLearnerVocab } from "../../utils/sentenceRanking";
 import { organizeSenses, senseNumbers, type ShownSense } from "../../utils/senses.utils";
 import { closestSynonyms, sectionGlossLine, synonymCount, type SynonymSection } from "../../utils/synonymSections.utils";
 import { pickWordExamples } from "../../utils/wordExamples.utils";
+import { vocabPath } from "../../utils/navigation.utils";
 import { WordSentence } from "../../components/WordSentence";
 
 const INITIAL_SENSES = 3;
@@ -22,16 +26,20 @@ interface DictTabProps {
     onShowSentences: () => void;
     /** "Compare all N": opens the Synonyms tab. */
     onCompareSynonyms: () => void;
+    /** A common pattern: opens the Sentences tab filtered on it (its index in `vocab.patterns`). */
+    onShowPattern: (pattern: number) => void;
 }
 
 /**
- * A word page's first tab, what a dictionary entry holds: the meanings, two examples, the
- * closest synonyms, then the entries it merges (its KKLC step and textbooks are in the header).
+ * A word page's first tab, what a dictionary entry holds: the meanings, its common patterns, two
+ * examples, the closest synonyms, then the entries it merges (its KKLC step and textbooks are in
+ * the header).
  */
-export function DictTab({ vocab, sentences, synonymSections, onShowSentences, onCompareSynonyms }: DictTabProps) {
+export function DictTab({ vocab, sentences, synonymSections, onShowSentences, onCompareSynonyms, onShowPattern }: DictTabProps) {
     return (
         <div className="space-y-10">
             <MeaningsSection vocab={vocab} />
+            <CommonPatterns vocab={vocab} onShow={onShowPattern} />
             <ExamplesSection vocab={vocab} sentences={sentences} onShowAll={onShowSentences} />
             <ClosestSynonyms vocab={vocab} sections={synonymSections} onCompare={onCompareSynonyms} />
             <MergedEntries vocab={vocab} />
@@ -115,6 +123,36 @@ function SenseList({ senses, start }: { senses: ShownSense[]; start: number }) {
     );
 }
 
+/**
+ * The frequent forms the word takes in its sentences (不思議に思う, 年を取る), the most used first,
+ * each with how many sentences hold it: an action, which opens Sentences filtered on it.
+ */
+function CommonPatterns({ vocab, onShow }: { vocab: Vocabulary; onShow: (pattern: number) => void }) {
+    const patterns = vocab.patterns ?? [];
+    if (patterns.length === 0) return null;
+    return (
+        <DetailSection title="Common patterns">
+            <ul className="flex flex-wrap gap-x-6 gap-y-3">
+                {patterns.map((pattern, index) => (
+                    <li key={pattern.text} className="min-w-0 max-w-full">
+                        <button
+                            type="button"
+                            onClick={() => onShow(index)}
+                            className="inline-flex items-baseline gap-2 max-w-full min-w-0 rounded-md text-accent hover:underline cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                        >
+                            <span lang="ja" className="font-mincho text-lg break-all">{pattern.text}</span>
+                            <span className="type-meta tabular-nums">
+                                {pattern.sentences.toLocaleString('en-US')}
+                                <span className="sr-only"> {pattern.sentences === 1 ? 'sentence' : 'sentences'}</span>
+                            </span>
+                        </button>
+                    </li>
+                ))}
+            </ul>
+        </DetailSection>
+    );
+}
+
 /** Two example sentences (pickWordExamples), and the way to all of them in the Sentences tab. */
 function ExamplesSection({ vocab, sentences, onShowAll }: { vocab: Vocabulary; sentences: readonly Sentence[]; onShowAll: () => void }) {
     const { state } = useQuiz();
@@ -138,23 +176,55 @@ function ExamplesSection({ vocab, sentences, onShowAll }: { vocab: Vocabulary; s
     );
 }
 
-/** Up to five words from the first sense's synonyms, each a boxed link, and the way to all of them. */
+/**
+ * Up to five words from the first sense's synonyms, each a boxed link, and the way to all of them.
+ * When any of them says how it differs from this word (its nuance line), they become list rows
+ * instead: a tile with a sentence under it reads as a button with a loose caption, so each row is
+ * one link, its sign, word and reading a one-line heading in the secondary colour, and the line
+ * under it in body text.
+ */
 function ClosestSynonyms({ vocab, sections, onCompare }: { vocab: Vocabulary; sections: SynonymSection[]; onCompare: () => void }) {
     const closest = closestSynonyms(sections, (w, section) => closenessOf(w.pair, section.glosses) === 'distinct');
     if (!closest) return null;
     const number = senseNumbers(vocab.senses)[closest.section.sense];
+    const signOf = (word: (typeof closest.words)[number]) => CLOSENESS_LABEL[closenessOf(word.pair, closest.section.glosses)];
+    const listed = closest.words.some(word => word.nuance !== undefined);
     return (
         <DetailSection
             title="Closest synonyms"
             aside={<TextButton onClick={onCompare} arrow>Compare all {synonymCount(sections).toLocaleString('en-US')}</TextButton>}
         >
-            <ul className="flex flex-wrap gap-2">
-                {closest.words.map(word => (
-                    <li key={word.vocabId} className="min-w-0 max-w-full">
-                        <WordTile vocabId={word.vocabId} vocab={word.forms} sign={CLOSENESS_LABEL[closenessOf(word.pair, closest.section.glosses)]} />
-                    </li>
-                ))}
-            </ul>
+            {listed ? (
+                <ul className="flex flex-col divide-y divide-divider -mx-3">
+                    {closest.words.map(word => {
+                        const sign = signOf(word);
+                        return (
+                            <li key={word.vocabId}>
+                                <ListRow to={vocabPath(word.vocabId)} lookup={{ kind: 'word', vocabId: word.vocabId }}>
+                                    <div className="flex items-baseline gap-2 min-w-0 text-secondary">
+                                        <span className="font-sans text-sm shrink-0">
+                                            <span aria-hidden="true">{sign.sign}</span>
+                                            <span className="sr-only">{sign.label}:</span>
+                                        </span>
+                                        <span lang="ja" className="font-mincho text-base/5 shrink-0">{headwordOf(word.forms)}</span>
+                                        <SecondaryForm vocab={word.forms} />
+                                    </div>
+                                    {/* The heading at a 20px line and the body text at 24px, not 26px: five rows keep the full page within its height (check:layout). */}
+                                    {word.nuance && <p className="type-body leading-6"><MixedText text={word.nuance} unbroken /></p>}
+                                </ListRow>
+                            </li>
+                        );
+                    })}
+                </ul>
+            ) : (
+                <ul className="flex flex-wrap gap-2">
+                    {closest.words.map(word => (
+                        <li key={word.vocabId} className="min-w-0 max-w-full">
+                            <WordTile vocabId={word.vocabId} vocab={word.forms} sign={signOf(word)} />
+                        </li>
+                    ))}
+                </ul>
+            )}
             <p className="type-meta mt-3">For meaning {number}: {sectionGlossLine(closest.section)}</p>
         </DetailSection>
     );

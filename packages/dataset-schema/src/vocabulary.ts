@@ -87,6 +87,9 @@ export interface Vocabulary {
      * Absent when no source covers any of its readings. Drawn through `pitchPaths` (pitchAccent.ts).
      */
     pitchAccent?: PitchAccent[];
+
+    /** The frequent forms it takes in its sentences, the most used first, at most 5. Absent when none is frequent enough. */
+    patterns?: WordPattern[];
 }
 
 /** Where a word's pitch accent comes from: Wiktionary (CC BY-SA 4.0), else UniDic (New BSD). */
@@ -196,6 +199,19 @@ export interface VocabSynonym {
      * Absent when the word is unranked.
      */
     f?: number;
+    /**
+     * How the two words differ (register, connotation, typical use), one line, the same on both
+     * words: written and reviewed by hand in the dataset. Absent for most pairs.
+     */
+    nuance?: string;
+}
+
+/** One of a word's common patterns (不思議に思う, 年を取る), counted from its sentences. */
+export interface WordPattern {
+    /** As a learner reads it: 不思議な〜 for the form that goes before a noun. */
+    text: string;
+    /** How many of the word's sentences hold it: those whose match names it (`SentenceMatch.pattern`). */
+    sentences: number;
 }
 
 /** A lesson of a textbook that teaches a word. Genki runs 1-23 (I: 1-12, II: 13-23). */

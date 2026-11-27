@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useParams } from "react-router-dom";
 import { frequencyBand, wordFrequencyRank, headwordOf, summaryGloss, textbookLessonsLabel } from "@gokan/dataset-schema";
 import type { Sentence, Vocabulary } from "@gokan/dataset-schema";
@@ -23,6 +23,7 @@ import { statusReviewPhrase, vocabLearningStatus } from "../../utils/learningSta
 import { mixupsAsked } from "../../utils/mixups.utils";
 import { synonymCount } from "../../utils/synonymSections.utils";
 import { WORD_TAB_SET, type WordTab } from "../../utils/wordTabs.utils";
+import { patternText, type PatternFilter } from "../../utils/wordPatterns.utils";
 import { relatedCount } from "./explore/counts";
 import { RelatedPanel } from "./explore/RelatedPanel";
 import { SentencesPanel } from "./explore/SentencesPanel";
@@ -106,6 +107,8 @@ function WordPage({ vocab, sentences, sentencesSettled, now, onLearn, knownKanji
     const wordSynonyms = useWordSynonyms(vocab);
     const records = state.progress?.mixups;
     const mixups = useMemo(() => mixupsAsked(records, vocab.id), [records, vocab.id]);
+    // The common pattern Sentences is filtered on, chosen in Dict; the page is keyed by the word, so it starts clear.
+    const [patternFilter, setPatternFilter] = useState<PatternFilter>(null);
     const studied = progress?.introductionAt ? { ...progress, introductionAt: progress.introductionAt } : null;
 
     const has: Record<WordTab, boolean> = {
@@ -172,6 +175,11 @@ function WordPage({ vocab, sentences, sentencesSettled, now, onLearn, knownKanji
                         now={now}
                         knownKanji={knownKanji}
                         onChoose={tabs.choose}
+                        patternFilter={patternFilter}
+                        onPatternFilter={pattern => {
+                            setPatternFilter(pattern);
+                            if (pattern !== null) tabs.choose('sentence');
+                        }}
                         preview={preview}
                     />
                 )}
@@ -190,11 +198,14 @@ interface TabPanelProps {
     now: number;
     knownKanji: ReadonlySet<string> | undefined;
     onChoose: (tab: WordTab) => void;
+    /** The common pattern Sentences is filtered on (Dict sets it, Sentences clears it). */
+    patternFilter: PatternFilter;
+    onPatternFilter: (pattern: PatternFilter) => void;
     /** A section of the full page: its first page is a preview (FULL_SYNONYM_GROUPS, FULL_RELATED_ROWS). */
     preview?: boolean;
 }
 
-function TabPanel({ tab, vocab, sentences, wordSynonyms, mixups, studied, now, knownKanji, onChoose, preview = false }: TabPanelProps) {
+function TabPanel({ tab, vocab, sentences, wordSynonyms, mixups, studied, now, knownKanji, onChoose, patternFilter, onPatternFilter, preview = false }: TabPanelProps) {
     switch (tab) {
         case 'dict':
             return (
@@ -202,11 +213,28 @@ function TabPanel({ tab, vocab, sentences, wordSynonyms, mixups, studied, now, k
                     vocab={vocab}
                     sentences={sentences}
                     synonymSections={wordSynonyms.sections}
-                    onShowSentences={() => onChoose('sentence')}
+                    // "All N sentences" promises every sentence: it lifts a pattern's filter (the tab row keeps it, under its line).
+                    onShowSentences={() => {
+                        onPatternFilter(null);
+                        onChoose('sentence');
+                    }}
                     onCompareSynonyms={() => onChoose('synonym')}
+                    onShowPattern={onPatternFilter}
                 />
             );
-        case 'sentence': return <SentencesPanel vocabId={vocab.id} sentences={sentences} />;
+        case 'sentence':
+            return (
+                <SentencesPanel
+                    // A new filter starts a fresh search and sort: on the full page the panel stays
+                    // mounted, and a leftover query could hide the field yet still filter.
+                    key={patternFilter ?? 'all'}
+                    vocabId={vocab.id}
+                    sentences={sentences}
+                    patternIndex={patternFilter}
+                    patternText={patternText(vocab, patternFilter)}
+                    onClearPattern={() => onPatternFilter(null)}
+                />
+            );
         case 'synonym': return <SynonymsPanel vocab={vocab} sections={wordSynonyms.sections} mixedUp={wordSynonyms.mixedUp} {...(preview ? { groupsAtOnce: FULL_SYNONYM_GROUPS } : {})} />;
         case 'kanji': return <KanjiTab glyphs={vocab.writtenForm.containedKanji} knownKanji={knownKanji} />;
         case 'related': return <RelatedPanel vocab={vocab} {...(preview ? { pageSize: FULL_RELATED_ROWS } : {})} />;
