@@ -33,7 +33,7 @@ export function TypingSettings({ settings, onUpdateSettings }: TypingSettingsPro
             <Disclosure title="Typing kanji">
                 <p className="type-support">
                     Romaji gives kana only, and every answer accepts kana. To type kanji, add a Japanese
-                    keyboard; it converts as you type and offers the kanji for each word.
+                    keyboard, which converts as you type and offers the kanji for each word.
                 </p>
                 <dl className="mt-3 space-y-2">
                     {JAPANESE_KEYBOARDS.map(({ platform, steps }) => (

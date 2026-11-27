@@ -125,7 +125,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     {
         version: '1.48.0',
         date: '2026-11-02',
-        summary: 'Japanese answers can now be typed in romaji, turned into kana as you type (taberu becomes たべる), with no Japanese keyboard needed; a katakana word answered in hiragana now counts as right.',
+        summary: 'Japanese answers can now be typed in romaji, turned into kana as you type (taberu becomes たべる), with no Japanese keyboard needed, and a katakana word answered in hiragana now counts as right.',
         issue: 186,
     },
     {
@@ -147,7 +147,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     {
         version: '1.45.0',
         date: '2026-10-30',
-        summary: 'Recordings of every word, and of the first sentences you meet for each, are ready; the About page now credits their voice. Play buttons come in a later version.',
+        summary: 'Recordings of every word, and of the first sentences you meet for each, are ready, and the About page now credits their voice. Play buttons come in a later version.',
         issue: 164,
     },
     {
@@ -165,7 +165,7 @@ export const CHANGELOG: readonly ChangelogEntry[] = [
     {
         version: '1.42.0',
         date: '2026-10-28',
-        summary: 'A word\'s page shows its closest synonyms and the words you mixed it up with; the separate Mix-ups page is gone.',
+        summary: 'A word\'s page shows its closest synonyms and the words you mixed it up with, so the separate Mix-ups page is gone.',
         issue: 162,
     },
     {

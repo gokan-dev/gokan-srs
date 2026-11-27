@@ -174,6 +174,13 @@ summary ("Largest tool results"), which is where a whole read shows.
 
 - **No em dashes** (U+2014) anywhere: code, comments, docs, commit messages, PR text, UI copy.
   Use a colon, parentheses, a comma, or reword. Enforced.
+- **No semicolons in learner-facing text** (UI copy, the changelog, text the dataset writes for a
+  learner such as a synonym's nuance line): like an em dash, a ";" joining two clauses reads as
+  machine-written. Use a comma with a joining word ("When written, their spelling tells them apart,
+  when spoken, only the context does"), a colon, or two sentences. A dataset gloss list ("to take;
+  to pick up") is data and keeps its separator. Enforced in the apps' sources and the changelog
+  (`no-semicolon-copy`). The dataset's prose (grammar explanations, nuance lines) is not checked
+  here: its own build has to refuse it, and until it does, a reviewer reads it.
 - UI copy is neutral, direct and encouraging without cheerleading: no exclamation-mark praise,
   no gamified language.
 - Comments explain why, not what. Match the density of the surrounding code.
