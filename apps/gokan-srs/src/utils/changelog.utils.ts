@@ -5,6 +5,8 @@ const VERSION = /^(\d+)\.(\d+)\.(\d+)$/;
 const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
 /** A full stop then a capital: where a second sentence starts. */
 const SENTENCE_BREAK = /\. [A-Z]/;
+/** A semicolon reads as machine-written in a learner's copy (AGENTS.md): every one is refused, not only a clause-joining one. */
+const SEMICOLON = /[;；]/;
 /**
  * A single change's entry is one plain sentence (AGENTS.md) from this version on; the two entries
  * before it written as two (1.45.0, 1.47.0) shipped so, and their text is what learners read then.
@@ -47,6 +49,7 @@ export function changelogProblems(entries: readonly ChangelogEntry[]): string[] 
         const date = day ? changelogDate(entry.date) : null;
         if (!date || date.getMonth() !== Number(day?.[2]) - 1) problems.push(`${name}: date is not a YYYY-MM-DD day`);
         if (entry.summary.trim() === '') problems.push(`${name}: summary is empty`);
+        if (SEMICOLON.test(entry.summary)) problems.push(`${name}: summary has a semicolon (use a comma with a joining word, or a colon)`);
         // A release's summary is its headline; its changes are its members' sentences.
         if (entry.changes === undefined && versionParts(entry.version) && compareVersions(entry.version, ONE_SENTENCE_FROM) >= 0 && SENTENCE_BREAK.test(entry.summary)) {
             problems.push(`${name}: summary is more than one sentence`);
@@ -56,6 +59,7 @@ export function changelogProblems(entries: readonly ChangelogEntry[]): string[] 
             if (entry.changes.length === 0) problems.push(`${name}: changes is present but empty`);
             entry.changes.forEach((change, j) => {
                 if (change.summary.trim() === '') problems.push(`${name}: change ${j} summary is empty`);
+                if (SEMICOLON.test(change.summary)) problems.push(`${name}: change ${j} summary has a semicolon`);
                 if (change.issue !== undefined && !(Number.isInteger(change.issue) && change.issue > 0)) problems.push(`${name}: change ${j} issue is not a number`);
             });
         }

@@ -178,8 +178,10 @@ summary ("Largest tool results"), which is where a whole read shows.
   learner such as a synonym's nuance line): like an em dash, a ";" joining two clauses reads as
   machine-written. Use a comma with a joining word ("When written, their spelling tells them apart,
   but when spoken, only the context does"), a colon, or two sentences. A dataset gloss list ("to take;
-  to pick up") is data and keeps its separator. Enforced in the apps' sources and the changelog
-  (`no-semicolon-copy`), and on synonym nuance lines by gokan-dataset's `applyNuances`. The
+  to pick up") is data and keeps its separator. Enforced in the apps' sources (`no-semicolon-copy`,
+  over string literals and markup text: copy split across lines is a reviewer's to read), on every
+  changelog entry and release fragment (`changelogProblems` refuses any ";" or "；"), and on synonym
+  nuance lines by gokan-dataset's `applyNuances`. The
   dataset's other prose (grammar explanations) is not checked: its own build has to refuse it,
   and until it does, a reviewer reads it.
 - UI copy is neutral, direct and encouraging without cheerleading: no exclamation-mark praise,

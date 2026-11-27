@@ -120,7 +120,7 @@ export function SynonymsPanel({ vocab, sections, mixedUp, groupsAtOnce = GROUPS_
     return (
         <div>
             <p className="type-support mb-4">
-                Never penalized on a <span lang="ja" className="font-mincho">{headword}</span> card; = and ≈ are accepted when they fit its meaning.
+                Never penalized on a <span lang="ja" className="font-mincho">{headword}</span> card: = and ≈ are accepted when they fit its meaning.
             </p>
             {/* Only past one page, as every panel's search and the dictionary's Synonyms (synonymsSearchable). */}
             {synonymsSearchable(sections, groupsAtOnce) && (

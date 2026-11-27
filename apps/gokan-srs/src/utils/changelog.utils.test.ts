@@ -52,6 +52,12 @@ describe('changelogProblems', () => {
         expect(changelogProblems([entry({ issue: 1.5 })])).toEqual([expect.stringContaining('issue')]);
     });
 
+    it('refuses a semicolon in a summary or a release change, of any version', () => {
+        expect(changelogProblems([entry({ summary: 'Romaji answers; katakana in hiragana.' })])).toEqual([expect.stringContaining('semicolon')]);
+        expect(changelogProblems([entry({ version: '1.10.0', summary: 'Romaji answers；katakana in hiragana.' })])).toEqual([expect.stringContaining('semicolon')]);
+        expect(changelogProblems([entry({ summary: 'A release', changes: [{ summary: 'Never penalized; accepted.' }] })])).toEqual([expect.stringContaining('change 0 summary has a semicolon')]);
+    });
+
     it('refuses a single change written as more than one sentence, from 1.72.0 on', () => {
         const twoSentences = 'Romaji beside the kana. Forms under the examples.';
         expect(changelogProblems([entry({ version: '1.72.0', summary: twoSentences })])).toEqual([expect.stringContaining('more than one sentence')]);

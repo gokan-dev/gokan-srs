@@ -72,8 +72,12 @@ const GOKAN_SRS_SOURCE = /^apps\/gokan-srs\/src\/.*\.tsx?$/;
 const COPY_SOURCE = /^apps\/(gokan-srs|gokan-dictionary)\/src\/.*\.(tsx?|svelte)$|^apps\/gokan-srs\/release\/(changelog\.ts|changelog\.d\/.*\.md)$/;
 const STRING_LITERAL = /(['"`])((?:(?!\1)[^\\\n]|\\.)*)\1/g;
 const MARKUP_TEXT = />([^<>{}\n]*)</g;
-/** A clause-joining semicolon: after a word or a closing bracket (or opening a fragment), before a word. */
-const CLAUSE_SEMICOLON = /(?:^|[\p{L}\p{N})\]'"]) ?; +\p{L}/u;
+const MARKUP_TAIL = /<\/[\w.]+>([^<>{}\n]*[.?!])\s*$/;
+/**
+ * A clause-joining semicolon: after a word or a closing bracket (or opening a fragment), before a
+ * word or a symbol a clause can open with ("card; = and ≈ are accepted").
+ */
+const CLAUSE_SEMICOLON = /(?:^|[\p{L}\p{N})\]'"]) ?; +[\p{L}\p{Sm}]/u;
 const NOT_COPY_LINE = /^\s*(\/\/|\*|\/\*)|console\.\w+\(|Error\(/;
 /** CSS in a style string ("color: red; margin: 0"), never copy. */
 const CSS_DECLARATIONS = /^\s*[\w-]+\s*:\s*[^;]*;/;
@@ -84,6 +88,10 @@ function copySemicolonOn(line: string, file: string): boolean {
     const texts = [...line.matchAll(STRING_LITERAL)].map(m => m[2]);
     if (file.endsWith('.tsx') || file.endsWith('.svelte')) {
         texts.push(...[...line.matchAll(MARKUP_TEXT)].map(m => m[1]).filter(t => !/[=(]/.test(t) && !/^\s*[;,]/.test(t)));
+        // Markup text after an element's closing tag that runs on to the next line, ended as a
+        // sentence is ("…</span> card: = and ≈ are accepted."): its "=" is copy, not code.
+        const tail = MARKUP_TAIL.exec(line);
+        if (tail) texts.push(tail[1]);
         // A line of markup text on its own, between a JSX or Svelte element's tags.
         const bare = line.trim();
         if (/^\p{L}/u.test(bare) && !/[=(){}<>]|[;,{]$/.test(bare)) texts.push(bare);
